@@ -1,38 +1,39 @@
 # Pytxo
 
-**Agentic control plane and telemetry layer** for orchestrating parallel headless developer agents on local silicon or isolated cloud sandboxes.
+**Agent hypervisor and telemetry plane** for coordinating headless developer agents on local silicon or hosted sandboxes — without cloud-heavy multi-terminal workspaces.
 
 - **Site:** [ptyxo.com](https://ptyxo.com)
-- **GitHub:** [github.com/Pytxo-dev](https://github.com/Pytxo-dev) (canonical org for Pytxo repositories)
-- **Stack:** Rust (tokio, portable-pty, tree-sitter) · Svelte 5 (Runes) · Tauri v2
-- **Docs vault:** Open [`docs/`](docs/) in [Obsidian](https://obsidian.md) or start at [`docs/00-meta/MOC-home.md`](docs/00-meta/MOC-home.md)
+- **GitHub:** [github.com/Pytxo-dev](https://github.com/Pytxo-dev)
+- **Stack:** Rust (`portable-pty`, `tree-sitter`) · Svelte 5 (Runes) · Tauri v2
+- **Vision:** [`docs/06-product/vision.md`](docs/06-product/vision.md)
 
 ## What Pytxo is
 
-Pytxo is an invisible, bare-metal **agent operating system**: it does not replace your IDE. It plugs into Cursor, VS Code, NeoVim, or CLIs via a local-first **MCP hub**, with a passive **Reality Deck** UI for telemetry—not sixteen embedded terminal webviews.
+Pytxo runs **heterogeneous headless agents** (Claude Code, Codex, Antigravity CLI, …) in managed background PTYs. It is not your IDE and not sixteen embedded terminal webviews.
+
+Three engineering moats (documented in the vault):
+
+| Moat | Role |
+|------|------|
+| **Signal Core** | `tree-sitter` skeletons on read — context arbitrage, lower token burn |
+| **Blast Shield** | Memory sandbox; disk flush on approve; fast rollback |
+| **Race Shield** | Swarm registry + stdin buffering — no monorepo write races |
+
+The **Reality Deck** ([pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop)) is a space-console UI (`#020205` void, teal / violet / solar gold) aimed at **3D AST dependency topology** and blast-radius telemetry — not raw terminal walls.
+
+**Pytxo Cloud** (roadmap): hosted sandboxes + server-side context cache, strictly **BYOK**.
 
 ## Repository layout
 
-Canonical map: [`docs/08-reference/repository-layout.md`](docs/08-reference/repository-layout.md).
+[`docs/08-reference/repository-layout.md`](docs/08-reference/repository-layout.md)
 
 | Path | Purpose |
 |------|---------|
-| [`docs/`](docs/) | Obsidian-friendly knowledge vault (architecture, ADRs, guides) |
+| [`docs/`](docs/) | Obsidian vault — start at [`docs/00-meta/MOC-home.md`](docs/00-meta/MOC-home.md) |
 | [`crates/`](crates/) | Rust control plane (CLI, MCP, scheduler, runner, store) |
-| [`scripts/`](scripts/) | `smoke.ps1` / `smoke.sh`, `dev-setup.ps1` |
-| [`AGENTS.md`](AGENTS.md) | Canonical instructions for AI coding agents |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute code and documentation |
+| [`scripts/`](scripts/) | Smoke and dev setup |
 
-**Reality Deck UI:** [Pytxo-dev/pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) (Svelte 5 + Tauri v2).
-
-## For contributors and agents
-
-- Humans: [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/00-meta/style-guide.md`](docs/00-meta/style-guide.md)
-- Agents: [`AGENTS.md`](AGENTS.md) and [`.cursor/rules/`](.cursor/rules/)
-
-## Status
-
-Phase 0–2: CLI, MCP stub, sanitize, DAG `depends_on`, and Tauri Reality Deck v1. Cloud sandboxes are not in this repo yet.
+## Quick start
 
 ```bash
 cargo build -p pytxo-cli
@@ -41,6 +42,6 @@ cargo run -p pytxo-cli -- run --config pytxo.toml.example --dry-run
 ./scripts/smoke.ps1   # or scripts/smoke.sh
 ```
 
-This monorepo: [Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
+## Status
 
-See [`docs/07-guides/tutorials/first-three-agent-run.md`](docs/07-guides/tutorials/first-three-agent-run.md).
+**v0.1.0** — CLI, MCP, DAG `depends_on`, sanitize, git worktrees, WAL telemetry. Moats and 3D Deck are phased; see [`docs/01-projects/mvp-bootstrap.md`](docs/01-projects/mvp-bootstrap.md).

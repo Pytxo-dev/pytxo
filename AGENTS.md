@@ -4,11 +4,21 @@ Instructions for AI coding agents working in this repository.
 
 ## Project identity
 
-**Pytxo** is a low-overhead, systems-level **agentic control plane and telemetry layer** ([ptyxo.com](https://ptyxo.com)). Official source: [github.com/Pytxo-dev](https://github.com/Pytxo-dev) (main monorepo: `Pytxo-dev/pytxo`). It orchestrates parallel headless developer agents (Claude Code, Aider, Codex CLI, etc.) on local silicon or isolated cloud sandboxes.
+**Pytxo** is an **agent hypervisor and telemetry plane** ([ptyxo.com](https://ptyxo.com)). Source: [github.com/Pytxo-dev](https://github.com/Pytxo-dev) (`Pytxo-dev/pytxo` + `pytxo-desktop`). It coordinates headless agents (Claude Code, Codex, Antigravity CLI, …) in background PTYs on local silicon or cloud sandboxes.
 
 **Stack:** Rust (tokio, portable-pty, tree-sitter) · Svelte 5 (Runes) · Tauri v2
 
-Pytxo is **not** a multi-pane terminal IDE. It is an invisible agent OS with a passive **Reality Deck** UI, connected to existing tools via a local-first **MCP hub**.
+**Canonical vision:** [`docs/06-product/vision.md`](docs/06-product/vision.md)
+
+**Not:** BridgeSpace-style multi-terminal web workspaces. **Is:** bare-metal control plane + optional **Reality Deck** (structural telemetry, 3D AST topology target) via **MCP hub**.
+
+**Three moats** — route new orchestration code through these concepts:
+
+| Moat | Doc | Responsibility |
+|------|-----|----------------|
+| Signal Core | [`docs/02-areas/orchestration/signal-core.md`](docs/02-areas/orchestration/signal-core.md) | `tree-sitter` read-path skeletons |
+| Blast Shield | [`docs/02-areas/orchestration/blast-shield.md`](docs/02-areas/orchestration/blast-shield.md) | CoW sandbox; approve-to-flush |
+| Race Shield | [`docs/02-areas/orchestration/race-shield.md`](docs/02-areas/orchestration/race-shield.md) | `SwarmRegistry`, stdin buffering |
 
 ## Repository map
 
@@ -16,9 +26,11 @@ Pytxo is **not** a multi-pane terminal IDE. It is an invisible agent OS with a p
 |------|---------|
 | `docs/` | Obsidian vault — canonical architecture and product knowledge |
 | `docs/00-meta/MOC-home.md` | Start here for navigation |
+| `docs/06-product/vision.md` | Product vision and moats |
 | `docs/05-adr/` | Architecture Decision Records (immutable when Accepted) |
 | `crates/pytxo-orchestrate` | Shared run/stop/status/dry-run |
 | `crates/pytxo-sanitize` | Log/MCP redaction |
+| `crates/pytxo-signal` | Signal Core (`tree-sitter` skeletons) |
 | `crates/pytxo-mcp` | Stdio MCP server binary |
 | `crates/` | Core, scheduler, runner, store, CLI |
 | [pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) | Svelte 5 + Tauri v2 Reality Deck (separate repo) |
@@ -33,11 +45,13 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p pytxo-cli -- status --json
 ```
 
-Desktop (from repo root):
+Desktop ([pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop)):
 
 ```bash
-# UI: clone pytxo-desktop; npm ci && npm run check
-cargo build -p pytxo-desktop
+git clone https://github.com/Pytxo-dev/pytxo-desktop.git
+cd pytxo-desktop
+npm ci && npm run check
+cargo build -p pytxo-desktop   # requires Tauri system deps on Linux
 ```
 
 ## Documentation rules
@@ -60,18 +74,19 @@ cargo build -p pytxo-desktop
 
 | Term | Meaning |
 |------|---------|
+| **Signal Core** | Context arbitrage via AST skeletons on read |
+| **Blast Shield** | CoW sandbox; flush on user approve |
+| **Race Shield** | Global swarm registry; collision-free writes |
 | **Execution Yard** | Headless CLI agent processes under orchestration |
-| **Orchestration layer** | Rust core: PTY, scheduling, scaffolding, WAL |
-| **Presentation layer** | Svelte 5 + Tauri; telemetry only, no direct FS access |
-| **Reality Deck** | Dashboard for live execution visualization |
-| **Pytxo Link** | P2P remote control with signed approve-and-write |
-| **BYOK** | Bring your own API keys |
-| **Adaptive Semantic Scaffolding** | tree-sitter fidelity tiers for context |
-| **Sovereign Shield** | Local sanitization + cryptographic remote actions |
+| **Reality Deck** | Space-console UI; 3D AST topology (target), not terminal walls |
+| **BYOK** | Bring your own API keys (including Pytxo Cloud) |
+| **Sovereign Shield** | Sanitization + cryptographic remote actions |
+
+Full glossary: [`docs/00-meta/glossary.md`](docs/00-meta/glossary.md).
 
 ## Competitive framing
 
-Document honestly: native **Claude Code Agent Teams** and similar tools solve multi-agent coordination in-product. Pytxo's differentiation is **resource-bounded orchestration** (DAG scheduler, sparse overlay FS, WAL telemetry, MCP router)—see [`docs/07-guides/compare/pytxo-vs-claude-agent-teams.md`](docs/07-guides/compare/pytxo-vs-claude-agent-teams.md).
+IDE-embedded agent teams solve coordination in-product. Pytxo differentiates on **hypervisor moats** (Signal / Blast / Race), DAG scheduling, and structural telemetry — see [`docs/07-guides/compare/pytxo-vs-claude-agent-teams.md`](docs/07-guides/compare/pytxo-vs-claude-agent-teams.md).
 
 ## Cursor-specific
 

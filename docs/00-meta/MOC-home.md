@@ -7,16 +7,18 @@ audience: [human, agent]
 layer: meta
 created: 2026-06-02
 updated: 2026-06-02
-related: [[glossary]], [[architecture-index]]
+related: [[glossary]], [[architecture-index]], [[product-vision]]
 ---
 
 # Pytxo documentation home
 
-**Pytxo** — low-overhead agentic control plane & telemetry (ptyxo.com).
+**Pytxo** — agent hypervisor & telemetry plane ([ptyxo.com](https://ptyxo.com)).
 
-**Thesis:** Orchestrate headless coding agents on local silicon or cloud sandboxes without a bloated multi-terminal IDE.
+**Thesis:** Bare-metal coordination of headless PTY agents (Claude Code, Codex, Antigravity CLI, …) with structural telemetry — not cloud-heavy multi-terminal workspaces.
 
-**Stack:** Rust · Svelte 5 Runes · Tauri v2
+**Stack:** Rust (`portable-pty`, `tree-sitter`) · Svelte 5 Runes · Tauri v2
+
+**Vision:** [[product-vision]] — three moats: [[signal-core]], [[blast-shield]], [[race-shield]]
 
 ---
 
@@ -24,7 +26,7 @@ related: [[glossary]], [[architecture-index]]
 
 | Audience | Path |
 |----------|------|
-| Humans | [[glossary]] → [[architecture-index]] |
+| Humans | [[product-vision]] → [[glossary]] → [[architecture-index]] |
 | Agents | [`AGENTS.md`](../../AGENTS.md) (repo root) |
 | GitHub | [[github-organization]] · [[repository-layout]] · [Pytxo-dev](https://github.com/Pytxo-dev) |
 | Claude Code | [[claude-vault-context]] |
@@ -41,8 +43,12 @@ related: [[glossary]], [[architecture-index]]
 ### Architecture
 
 - [[architecture-index]] — [[three-tier-model]], [[context-diagram]], [[c4-container]]
-- [[presentation-passive-telemetry]]
+- [[presentation-passive-telemetry]] · [[reality-deck-visual-system]]
 - [[mcp-hub-integration]]
+
+### Technical moats
+
+- [[signal-core]] · [[blast-shield]] · [[race-shield]]
 
 ### Engineering (bottlenecks)
 
@@ -59,6 +65,7 @@ related: [[glossary]], [[architecture-index]]
 
 ### Product
 
+- [[product-vision]]
 - [[tiers-hobbyist-pro-max]] · [[token-arbitrage]]
 - [[gtm-open-source-loop]] · [[competitive-benchmarks]]
 

@@ -7,12 +7,12 @@ audience: [human, agent]
 layer: orchestration
 created: 2026-06-02
 updated: 2026-06-02
-related: [[closed-loop-fidelity]], [[sparse-overlay-fs]]
+related: [[closed-loop-fidelity]], [[sparse-overlay-fs]], [[signal-core]]
 ---
 
 # Adaptive semantic scaffolding
 
-Naively stripping all function bodies destroys an agent’s understanding of dependencies. Pytxo uses an **Adaptive Semantic Scaffolder** powered by **tree-sitter**.
+Implementation detail of **[[signal-core]]**. Naively stripping all function bodies destroys an agent’s understanding of dependencies. Pytxo uses an **Adaptive Semantic Scaffolder** powered by **tree-sitter**.
 
 ## Fidelity levels
 

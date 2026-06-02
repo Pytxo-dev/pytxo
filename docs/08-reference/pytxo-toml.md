@@ -20,6 +20,11 @@ related: [[MOC-home]]
 | `worktree_dir` | path | `.pytxo/worktrees` | Worktree root |
 | `data_dir` | path | `.pytxo/data` | SQLite + state |
 | `fail_fast` | bool | `true` | Fail run if any agent exits non-zero |
+| `sanitize` | bool | `true` | Sovereign Shield redaction before WAL/MCP |
+| `signal_core` | bool | `true` | Materialize scaffolded context for task paths |
+| `signal_fidelity` | string | `low` | `low` \| `medium` \| `high` — Signal Core tier |
+| `isolation` | string | `worktree` | `worktree` \| `overlay` (overlay delegates to worktrees until sparse FS) |
+| `dag_explicit_deps` | bool | `false` | Force DAG scheduling mode |
 
 ## `[[agent]]`
 

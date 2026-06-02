@@ -7,12 +7,12 @@ audience: [human, agent]
 layer: meta
 created: 2026-06-02
 updated: 2026-06-02
-related: [[beyond-the-ade]], [[mcp-hub-integration]], [[three-tier-model]]
+related: [[beyond-the-ade]], [[mcp-hub-integration]], [[three-tier-model]], [[product-vision]]
 ---
 
 # Agent OS vs virtual workspace
 
-Pytxo operates as an invisible, bare-metal **agent operating system**—not a replacement IDE.
+Pytxo is an **agent hypervisor** — a bare-metal control plane, not a replacement IDE or a BridgeSpace-style virtual workspace. See [[product-vision]].
 
 ## Principles
 
@@ -22,7 +22,7 @@ Pytxo operates as an invisible, bare-metal **agent operating system**—not a re
 
 ## What users still get
 
-A optional **Reality Deck** ([[presentation-passive-telemetry]]) provides high-fidelity monitoring—passive telemetry, not the sole control surface.
+An optional **Reality Deck** ([[reality-deck-visual-system]]) shows structural blast radius and telemetry — not walls of raw terminal panes.
 
 ## Related
 

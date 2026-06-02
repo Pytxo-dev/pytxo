@@ -7,12 +7,12 @@ audience: [human, agent]
 layer: orchestration
 created: 2026-06-02
 updated: 2026-06-02
-related: [[ADR-0003-sparse-overlay-not-ram-cow]]
+related: [[ADR-0003-sparse-overlay-not-ram-cow]], [[blast-shield]]
 ---
 
 # Sparse overlay filesystem
 
-Mapping entire monorepos (`node_modules`, build artifacts, large binaries) into RAM is not viable. Pytxo uses a **sparse overlay virtual filesystem** instead of RAM-heavy copy-on-write for dependencies.
+Complements **[[blast-shield]]** for huge monorepos. Mapping entire repos (`node_modules`, build artifacts, large binaries) into RAM is not viable. Pytxo uses a **sparse overlay virtual filesystem** for read-mostly bulk paths while hot agent writes stay in approval-gated layers.
 
 ## Technology
 

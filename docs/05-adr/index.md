@@ -21,6 +21,8 @@ Architecture Decision Records are **immutable once Accepted**. Supersede by addi
 | ADR-0003 | [[ADR-0003-sparse-overlay-not-ram-cow]] | accepted |
 | ADR-0004 | [[ADR-0004-dag-scheduler-over-sequential-locks]] | accepted |
 | ADR-0005 | [[ADR-0005-worktree-isolation-for-mvp]] | accepted |
+| ADR-0006 | [[ADR-0006-sovereign-shield-sanitize-pipeline]] | accepted |
+| ADR-0007 | [[ADR-0007-explicit-task-dependencies]] | accepted |
 
 ## Template
 

@@ -38,5 +38,9 @@ Run MCP from your repository root so `pytxo.toml` and `.pytxo/data` resolve corr
 | `pytxo_run` | Start a run; returns `run_id` |
 | `pytxo_status` | Recent runs from WAL |
 | `pytxo_logs` | Tail events for `agent_id` |
+| `pytxo_read` | Read repo file; uses Signal Core when `signal_core = true` (pass `raw: true` to bypass) |
+| `pytxo_read_scaffolded` | Always return AST skeleton (`path`, optional `fidelity`) |
+
+Prefer **`pytxo_read`** for agent context — it respects `pytxo.toml` Signal Core settings.
 
 See also: [[cursor-mcp-pytxo]].

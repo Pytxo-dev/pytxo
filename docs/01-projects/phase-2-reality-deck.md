@@ -15,7 +15,7 @@ related: [[mvp-bootstrap]], [[presentation-passive-telemetry]]
 ## Delivered
 
 - **Control plane:** sanitize, cost telemetry, MCP stub, DAG `depends_on`, orchestrate lib, stop/PID hardening.
-- **Presentation:** `apps/desktop` with run list, wave timeline, xterm panel, diff (via Rust `git diff`), start/stop/dry-run.
+- **Presentation:** [pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) — run list, wave timeline, xterm panel, diff (via Rust `git diff`), start/stop/dry-run.
 
 ## IPC v1 (Tauri)
 

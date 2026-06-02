@@ -43,7 +43,8 @@ Covers:
 1. `pytxo status --json` with optional cost fields after a run.
 2. Sanitize unit tests (`cargo test -p pytxo-sanitize`).
 3. DAG `depends_on` ordering (`cargo test -p pytxo-scheduler dependency_orders`).
-4. Desktop IPC compile (`cargo build -p pytxo-desktop`).
+4. Signal Core reduction ([`benchmarks/signal-reduction.ps1`](../../benchmarks/signal-reduction.ps1) / [`.sh`](../../benchmarks/signal-reduction.sh)).
+5. Desktop compile in [pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) (`cargo build -p pytxo-desktop` after `npm ci`).
 
 Reality Deck terminal pane polls WAL at ~4 Hz; tune toward 60 FPS in Phase 2.1.
 

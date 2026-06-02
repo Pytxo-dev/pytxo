@@ -12,17 +12,18 @@ related: [[presentation-passive-telemetry]], [[mcp-hub-integration]], [[hybrid-e
 
 # Three-tier system model
 
-Pytxo decouples UI telemetry from process coordination using a strictly **event-driven, three-tier** layout.
+Pytxo decouples structural telemetry from process coordination using a strictly **event-driven, three-tier** layout ([[product-vision]]).
 
 ```text
 ┌─────────────────────────────────────────┐
 │  PYTXO PRESENTATION (Svelte 5)          │
-│  Runes · Monaco diff · xterm.js         │
+│  Reality Deck · 3D AST topology (target)│
 └─────────────────┬───────────────────────┘
                   │ Tauri v2 IPC
 ┌─────────────────▼───────────────────────┐
 │  PYTXO ORCHESTRATION (Rust core)       │
-│  Token compressor · Flow engine · WAL   │
+│  Signal Core · Blast Shield · Race     │
+│  Shield · DAG · WAL · sanitize          │
 └─────────────────┬───────────────────────┘
         ┌─────────┴─────────┐
         │ Unix sockets /   │  P2P WebRTC / TLS
@@ -37,7 +38,7 @@ Pytxo decouples UI telemetry from process coordination using a strictly **event-
 ## Tiers
 
 1. **Presentation** — [[presentation-passive-telemetry]]
-2. **Orchestration** — Rust microkernel: spawn/throttle PTYs, isolation, scaffolding, [[sqlite-wal-logging]]
+2. **Orchestration** — Rust microkernel: PTYs, [[signal-core]], [[blast-shield]], [[race-shield]], [[dag-flow-engine]], [[sqlite-wal-logging]]
 3. **Execution yard** — Headless CLI agents via [[mcp-hub-integration]]
 
 Cloud offload: [[hybrid-execution]].

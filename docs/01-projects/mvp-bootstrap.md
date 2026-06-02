@@ -35,7 +35,7 @@ related: [[MOC-home]], [[ADR-0005-worktree-isolation-for-mvp]], [[phase-2-realit
 - [x] WAL migration 002 + cost parsers + `pytxo status --json`
 - [x] `pytxo-mcp` stdio server + [[mcp-cursor-setup]]
 - [x] `depends_on` DAG scheduling + ADR-0007
-- [x] `apps/desktop` Tauri v2 + Svelte 5 Reality Deck v1
+- [x] Reality Deck v1 in [pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) (extracted from monorepo)
 - [x] IPC v1: `list_runs`, `list_agents`, `tail_events`, `dry_run`, `start_run`, `stop_run`, `git_diff`
 
 ## Build
@@ -47,10 +47,12 @@ cargo test --workspace
 cargo run -p pytxo-cli -- --version
 ```
 
-Desktop:
+Desktop ([pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop)):
 
 ```bash
-cd apps/desktop && npm ci && npm run check
+git clone https://github.com/Pytxo-dev/pytxo-desktop.git
+cd pytxo-desktop
+npm ci && npm run check
 cargo build -p pytxo-desktop
 ```
 

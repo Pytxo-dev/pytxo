@@ -12,6 +12,11 @@ related: [[MOC-home]]
 
 # Documentation changelog
 
+## 2026-06-02 (vision)
+
+- Added [[product-vision]] — agent hypervisor thesis, three moats ([[signal-core]], [[blast-shield]], [[race-shield]]), Reality Deck aesthetic, BYOK cloud.
+- Added [[reality-deck-visual-system]]; updated [[glossary]], [[MOC-home]], [[architecture-index]], [[three-tier-model]], root `README.md`, `AGENTS.md`.
+
 ## 2026-06-02
 
 - Canonical GitHub org: [Pytxo-dev](https://github.com/Pytxo-dev); see [[github-organization]].

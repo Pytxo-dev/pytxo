@@ -7,18 +7,26 @@ audience: [human, agent]
 layer: meta
 created: 2026-06-02
 updated: 2026-06-02
-related: [[MOC-home]], [[three-tier-model]]
+related: [[MOC-home]], [[three-tier-model]], [[product-vision]]
 ---
 
 # Architecture index
 
+## Vision
+
+- [[product-vision]] — hypervisor model and three moats
+
 ## System views
 
 - [[three-tier-model]] — Presentation · Orchestration · Execution yard
-- [[presentation-passive-telemetry]]
+- [[presentation-passive-telemetry]] · [[reality-deck-visual-system]]
 - [[mcp-hub-integration]]
 - [[context-diagram]]
 - [[c4-container]]
+
+## Technical moats
+
+- [[signal-core]] · [[blast-shield]] · [[race-shield]]
 
 ## Engineering deep-dives
 
