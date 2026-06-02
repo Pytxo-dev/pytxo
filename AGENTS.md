@@ -21,7 +21,7 @@ Pytxo is **not** a multi-pane terminal IDE. It is an invisible agent OS with a p
 | `crates/pytxo-sanitize` | Log/MCP redaction |
 | `crates/pytxo-mcp` | Stdio MCP server binary |
 | `crates/` | Core, scheduler, runner, store, CLI |
-| `apps/desktop/` | Svelte 5 + Tauri v2 Reality Deck |
+| [pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) | Svelte 5 + Tauri v2 Reality Deck (separate repo) |
 
 ## Build and test
 
@@ -36,7 +36,7 @@ cargo run -p pytxo-cli -- status --json
 Desktop (from repo root):
 
 ```bash
-cd apps/desktop && npm ci && npm run check
+# UI: clone pytxo-desktop; npm ci && npm run check
 cargo build -p pytxo-desktop
 ```
 

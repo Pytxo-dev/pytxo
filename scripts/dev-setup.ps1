@@ -14,10 +14,12 @@ Write-Host "== cargo fetch =="
 cargo fetch
 
 if (Test-Path "apps/desktop/package.json") {
-  Write-Host "== desktop npm ci =="
+  Write-Host "== desktop npm ci (monorepo layout) =="
   Push-Location apps/desktop
   npm ci
   Pop-Location
+} else {
+  Write-Host "Reality Deck: clone https://github.com/Pytxo-dev/pytxo-desktop"
 }
 
 Write-Host ""
