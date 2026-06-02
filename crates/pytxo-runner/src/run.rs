@@ -4,11 +4,16 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::thread;
 
-use pytxo_core::{AgentId, ExecutionPlan, PytxoError, Result, RunId, ScheduledTask};
+use pytxo_core::{
+    AgentId, ExecutionPlan, FidelityTier, IsolationCtx, IsolationMode, PytxoError, RaceShield,
+    Result, RunId, ScheduledTask,
+};
 
-use crate::git::{branch_name, create_worktree, remove_worktree, worktree_path};
+use crate::context::prepare_agent_context;
+use crate::git::remove_worktree;
 use crate::process::{ChildRecord, ProcessRegistry};
 use crate::process_registry_file::{registry_path, ProcessEntry, ProcessRegistryFile};
+use crate::race::SwarmRegistry;
 
 pub type EventCallback = Arc<dyn Fn(&str, &str, &str) + Send + Sync>;
 
@@ -21,6 +26,9 @@ pub struct RunContext {
     pub cmd: String,
     pub keep_worktrees: bool,
     pub on_event: Option<EventCallback>,
+    pub signal_core: bool,
+    pub signal_fidelity: FidelityTier,
+    pub isolation_mode: IsolationMode,
 }
 
 #[derive(Clone, Debug)]
@@ -39,12 +47,14 @@ struct SingleResult {
     exit_code: Option<i32>,
     stdout: String,
     stderr: String,
+    pid: Option<u32>,
 }
 
 pub async fn execute_plan(
     ctx: &RunContext,
     plan: &ExecutionPlan,
     registry: &ProcessRegistry,
+    swarm: &SwarmRegistry,
 ) -> Result<Vec<AgentRunResult>> {
     let mut all_results = Vec::new();
     let mut agent_index = 0usize;
@@ -57,18 +67,10 @@ pub async fn execute_plan(
             let ctx = ctx.clone();
             let task = task.clone();
             let registry = registry.clone();
-            set.spawn(async move {
-                let result = run_one_agent(&ctx, &task, &agent_id, &registry).await?;
-                Ok::<_, PytxoError>(AgentRunResult {
-                    agent_id,
-                    task_id: task.task_id.0.clone(),
-                    wave: task.wave,
-                    worktree_path: result.worktree_path,
-                    exit_code: result.exit_code,
-                    stdout: result.stdout,
-                    stderr: result.stderr,
-                })
-            });
+            let swarm = swarm.clone();
+            set.spawn(
+                async move { run_one_agent(&ctx, &task, &agent_id, &registry, &swarm).await },
+            );
         }
 
         while let Some(joined) = set.join_next().await {
@@ -86,15 +88,35 @@ pub async fn execute_plan(
 
 async fn run_one_agent(
     ctx: &RunContext,
-    _task: &ScheduledTask,
+    task: &ScheduledTask,
     agent_id: &AgentId,
     registry: &ProcessRegistry,
-) -> Result<SingleResult> {
-    let branch = branch_name(&ctx.run_id.0, &agent_id.0);
-    let wt_path = worktree_path(&ctx.worktree_base, &ctx.run_id.0, &agent_id.0);
+    swarm: &SwarmRegistry,
+) -> Result<AgentRunResult> {
     let agent_key = format!("{}:{}", ctx.run_id, agent_id);
+    swarm.try_claim_paths(&agent_key, &task.paths)?;
 
-    create_worktree(&ctx.repo_root, &wt_path, &branch)?;
+    let isolation = crate::blast::isolation_for_mode(ctx.isolation_mode);
+    let iso_ctx = IsolationCtx {
+        run_id: ctx.run_id.clone(),
+        agent_id: agent_id.clone(),
+        repo_root: ctx.repo_root.clone(),
+        worktree_base: ctx.worktree_base.clone(),
+    };
+
+    let workspace = isolation.prepare(&iso_ctx)?;
+    let wt_path = workspace.cwd.clone();
+    let branch = workspace.branch.clone();
+
+    let context_dir = prepare_agent_context(
+        &ctx.repo_root,
+        &ctx.data_dir,
+        &ctx.run_id,
+        &agent_id.0,
+        &task.paths,
+        ctx.signal_core,
+        ctx.signal_fidelity,
+    )?;
 
     registry.register(ChildRecord {
         run_id: ctx.run_id.clone(),
@@ -113,29 +135,48 @@ async fn run_one_agent(
         let repo_root = ctx.repo_root.to_string_lossy().to_string();
         let data_dir = ctx.data_dir.clone();
         let branch = branch.clone();
+        let context_dir = context_dir.clone();
+        let swarm = swarm.clone();
         move || {
-            run_command_streaming(
+            let out = run_command_streaming(
                 &wt_path,
                 &cmd,
                 on_event.as_ref(),
                 &agent_key,
+                context_dir.as_deref(),
                 Some(ProcessPersist {
                     run_id,
                     repo_root,
                     data_dir,
                     branch,
                 }),
-            )
+            );
+            if let Ok(ref res) = out {
+                if let Some(pid) = res.pid {
+                    swarm.register_pid(&agent_key, pid);
+                }
+            }
+            out
         }
     })
     .await
     .map_err(|e| PytxoError::Runner(format!("join: {e}")))??;
 
+    swarm.release(&agent_key);
+
     if !ctx.keep_worktrees {
-        let _ = remove_worktree(&ctx.repo_root, &wt_path, &branch, true);
+        let _ = isolation.rollback(&iso_ctx, &workspace);
     }
 
-    Ok(result)
+    Ok(AgentRunResult {
+        agent_id: agent_id.clone(),
+        task_id: task.task_id.0.clone(),
+        wave: task.wave,
+        worktree_path: result.worktree_path,
+        exit_code: result.exit_code,
+        stdout: result.stdout,
+        stderr: result.stderr,
+    })
 }
 
 struct ProcessPersist {
@@ -150,15 +191,22 @@ fn run_command_streaming(
     cmd: &str,
     on_event: Option<&EventCallback>,
     agent_key: &str,
+    context_dir: Option<&Path>,
     persist: Option<ProcessPersist>,
 ) -> Result<SingleResult> {
     let shell = shell_command();
-    let mut child = std::process::Command::new(&shell.0)
+    let mut command = std::process::Command::new(&shell.0);
+    command
         .args(&shell.1)
         .arg(cmd)
         .current_dir(worktree)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(dir) = context_dir {
+        command.env("PYTXO_CONTEXT_DIR", dir);
+        command.env("PYTXO_SIGNAL_CORE", "1");
+    }
+    let mut child = command
         .spawn()
         .map_err(|e| PytxoError::Runner(format!("spawn command: {e}")))?;
 
@@ -235,6 +283,7 @@ fn run_command_streaming(
         exit_code: status.code(),
         stdout: stdout_acc,
         stderr: stderr_acc,
+        pid: Some(pid),
     })
 }
 

@@ -1,7 +1,10 @@
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 
-use pytxo_orchestrate::{dry_run_json, logs, open_store, run, RunOptions};
+use pytxo_core::FidelityTier;
+use pytxo_orchestrate::{
+    dry_run_json, logs, open_store, read_file, read_file_scaffolded, run, RunOptions,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -82,6 +85,14 @@ fn main() -> anyhow::Result<()> {
                         tool_def("pytxo_run", "Start a Pytxo run"),
                         tool_def("pytxo_status", "Recent runs and agents"),
                         tool_def("pytxo_logs", "Tail agent log events"),
+                        tool_def(
+                            "pytxo_read",
+                            "Read repo file (Signal Core skeleton when signal_core=true)",
+                        ),
+                        tool_def(
+                            "pytxo_read_scaffolded",
+                            "Signal Core: read file as AST skeleton (always scaffold)",
+                        ),
                     ]
                 })),
                 None,
@@ -167,8 +178,9 @@ fn handle_tool_call(params: Option<Value>) -> anyhow::Result<String> {
                 .and_then(|v| v.as_str())
                 .unwrap_or("echo pytxo")
                 .to_string();
+            let agents = args.get("agents").and_then(|v| v.as_u64()).unwrap_or(3) as usize;
             let run_id = rt.block_on(run(RunOptions {
-                agents: 0,
+                agents,
                 cmd,
                 config,
                 dry_run: false,
@@ -190,6 +202,37 @@ fn handle_tool_call(params: Option<Value>) -> anyhow::Result<String> {
                 .ok_or_else(|| anyhow::anyhow!("agent_id required"))?;
             let tail = args.get("tail").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
             Ok(logs(None, None, agent, tail)?.join("\n"))
+        }
+        "pytxo_read_scaffolded" => {
+            let path = args
+                .get("path")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("path required"))?;
+            let repo = args.get("repo").and_then(|v| v.as_str()).map(PathBuf::from);
+            let config = args
+                .get("config_path")
+                .and_then(|v| v.as_str())
+                .map(PathBuf::from);
+            let fidelity = args
+                .get("fidelity")
+                .and_then(|v| v.as_str())
+                .and_then(FidelityTier::parse);
+            let result = read_file_scaffolded(config, repo, path, fidelity)?;
+            Ok(serde_json::to_string_pretty(&result)?)
+        }
+        "pytxo_read" => {
+            let path = args
+                .get("path")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("path required"))?;
+            let repo = args.get("repo").and_then(|v| v.as_str()).map(PathBuf::from);
+            let config = args
+                .get("config_path")
+                .and_then(|v| v.as_str())
+                .map(PathBuf::from);
+            let force_raw = args.get("raw").and_then(|v| v.as_bool()).unwrap_or(false);
+            let result = read_file(config, repo, path, force_raw)?;
+            Ok(serde_json::to_string_pretty(&result)?)
         }
         other => anyhow::bail!("unknown tool: {other}"),
     }

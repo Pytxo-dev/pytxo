@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+use crate::moat::{FidelityTier, IsolationMode};
 use crate::{AgentSpec, PytxoError, Result, Task, TaskId};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -21,6 +22,12 @@ pub struct PytxoConfig {
     pub sanitize: bool,
     #[serde(default)]
     pub dag_explicit_deps: bool,
+    #[serde(default = "default_true")]
+    pub signal_core: bool,
+    #[serde(default = "default_fidelity")]
+    pub signal_fidelity: FidelityTier,
+    #[serde(default = "default_isolation")]
+    pub isolation: IsolationMode,
 }
 
 fn default_true() -> bool {
@@ -48,6 +55,14 @@ fn default_data_dir() -> PathBuf {
     PathBuf::from(".pytxo/data")
 }
 
+fn default_fidelity() -> FidelityTier {
+    FidelityTier::Low
+}
+
+fn default_isolation() -> IsolationMode {
+    IsolationMode::Worktree
+}
+
 impl Default for PytxoConfig {
     fn default() -> Self {
         Self {
@@ -59,6 +74,9 @@ impl Default for PytxoConfig {
             task: Vec::new(),
             sanitize: true,
             dag_explicit_deps: false,
+            signal_core: true,
+            signal_fidelity: FidelityTier::Low,
+            isolation: IsolationMode::Worktree,
         }
     }
 }

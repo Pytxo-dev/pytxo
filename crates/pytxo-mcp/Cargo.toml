@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
+pytxo-core.workspace = true
 pytxo-orchestrate = { path = "../pytxo-orchestrate", features = ["sanitize"] }
 serde.workspace = true
 serde_json.workspace = true

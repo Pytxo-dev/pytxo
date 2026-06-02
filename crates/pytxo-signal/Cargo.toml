@@ -1,0 +1,25 @@
+[package]
+name = "pytxo-signal"
+description = "Signal Core — tree-sitter AST skeleton extraction for Pytxo"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+pytxo-core = { workspace = true }
+serde_json = { workspace = true }
+tree-sitter = "0.26"
+tree-sitter-go = "0.25"
+tree-sitter-javascript = "0.25"
+tree-sitter-python = "0.25"
+tree-sitter-rust = "0.24"
+tree-sitter-typescript = "0.23"
+
+[dev-dependencies]
+tempfile = "3.14"
+
+[[example]]
+name = "scaffold_report"
+path = "examples/scaffold_report.rs"

@@ -6,6 +6,7 @@ members = [
     "crates/pytxo-runner",
     "crates/pytxo-store",
     "crates/pytxo-sanitize",
+    "crates/pytxo-signal",
     "crates/pytxo-orchestrate",
     "crates/pytxo-cli",
     "crates/pytxo-mcp",
@@ -39,5 +40,6 @@ pytxo-scheduler = { path = "crates/pytxo-scheduler" }
 pytxo-runner = { path = "crates/pytxo-runner" }
 pytxo-store = { path = "crates/pytxo-store" }
 pytxo-sanitize = { path = "crates/pytxo-sanitize" }
+pytxo-signal = { path = "crates/pytxo-signal" }
 pytxo-orchestrate = { path = "crates/pytxo-orchestrate" }
 regex = "1.11"

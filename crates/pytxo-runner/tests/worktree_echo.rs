@@ -1,5 +1,5 @@
-use pytxo_core::{ExecutionPlan, RunId, ScheduledTask, TaskId};
-use pytxo_runner::{execute_plan, ProcessRegistry, RunContext};
+use pytxo_core::{ExecutionPlan, FidelityTier, IsolationMode, RunId, ScheduledTask, TaskId};
+use pytxo_runner::{execute_plan, ProcessRegistry, RunContext, SwarmRegistry};
 use std::process::Command;
 use tempfile::TempDir;
 
@@ -66,10 +66,14 @@ async fn single_agent_echo_in_worktree() {
         cmd: "echo pytxo".into(),
         keep_worktrees: false,
         on_event: None,
+        signal_core: false,
+        signal_fidelity: FidelityTier::Low,
+        isolation_mode: IsolationMode::Worktree,
     };
 
     let registry = ProcessRegistry::default();
-    let results = execute_plan(&ctx, &plan, &registry).await.unwrap();
+    let swarm = SwarmRegistry::new();
+    let results = execute_plan(&ctx, &plan, &registry, &swarm).await.unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].exit_code, Some(0));
     assert!(results[0].stdout.contains("pytxo"));

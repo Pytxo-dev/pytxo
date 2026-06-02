@@ -2,9 +2,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use pytxo_core::{canonical_repo_root, PytxoConfig, PytxoError, RunId, Task, TaskId};
-use pytxo_runner::{execute_plan, stop_all, stop_run, ProcessRegistry, RunContext};
+use pytxo_core::{
+    canonical_repo_root, FidelityTier, PytxoConfig, PytxoError, RunId, SignalCore, Task, TaskId,
+};
+use pytxo_runner::{execute_plan, stop_all, stop_run, ProcessRegistry, RunContext, SwarmRegistry};
 use pytxo_scheduler::build_plan;
+use pytxo_signal::TreeSitterSignalCore;
 use pytxo_store::PytxoStore;
 use serde::{Deserialize, Serialize};
 
@@ -156,12 +159,16 @@ pub async fn run(opts: RunOptions) -> anyhow::Result<RunId> {
         cmd: opts.cmd.clone(),
         keep_worktrees: opts.keep_worktrees,
         on_event: Some(on_event),
+        signal_core: cfg.signal_core,
+        signal_fidelity: cfg.signal_fidelity,
+        isolation_mode: cfg.isolation,
     };
 
     let registry = ProcessRegistry::default();
+    let swarm = SwarmRegistry::new();
     save_active_run(&cfg, &run_id, &repo_root).map_err(|e| anyhow::anyhow!(e))?;
 
-    let results = execute_plan(&ctx, &plan, &registry).await?;
+    let results = execute_plan(&ctx, &plan, &registry, &swarm).await?;
 
     let mut failed = false;
     let mut all_lines: Vec<String> = Vec::new();
@@ -343,6 +350,9 @@ pub async fn stop(
             cmd: String::new(),
             keep_worktrees: false,
             on_event: None,
+            signal_core: cfg.signal_core,
+            signal_fidelity: cfg.signal_fidelity,
+            isolation_mode: cfg.isolation,
         };
         let registry = ProcessRegistry::default();
         pytxo_runner::cleanup_worktrees(&ctx, &registry).map_err(|e| anyhow::anyhow!(e))?;
@@ -364,6 +374,55 @@ pub fn open_store(
     let cfg = load_config(config.as_deref(), &repo)?;
     let store = PytxoStore::open(&cfg.db_path())?;
     Ok((cfg, store))
+}
+
+/// Signal Core read hook — scaffold a repo-relative or absolute file before MCP/PTY egress.
+pub fn read_file_scaffolded(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    rel_path: &str,
+    fidelity: Option<FidelityTier>,
+) -> anyhow::Result<pytxo_core::ScaffoldResult> {
+    let repo = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(config.as_deref(), &repo)?;
+    let tier = fidelity.unwrap_or(cfg.signal_fidelity);
+    let path = repo.join(rel_path);
+    TreeSitterSignalCore
+        .read_scaffolded(&path, tier)
+        .map_err(|e| anyhow::anyhow!(e))
+}
+
+/// Default MCP read path — routes through Signal Core when `signal_core = true` and fidelity is not high.
+pub fn read_file(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    rel_path: &str,
+    force_raw: bool,
+) -> anyhow::Result<pytxo_core::ScaffoldResult> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(config.as_deref(), &repo_root)?;
+    let path = repo_root.join(rel_path);
+
+    let scaffold = cfg.signal_core && !force_raw && cfg.signal_fidelity != FidelityTier::High;
+    if scaffold {
+        return TreeSitterSignalCore
+            .read_scaffolded(&path, cfg.signal_fidelity)
+            .map_err(|e| anyhow::anyhow!(e));
+    }
+
+    let source = std::fs::read_to_string(&path).map_err(|e| anyhow::anyhow!(e))?;
+    let bytes = source.len();
+    Ok(pytxo_core::ScaffoldResult {
+        path: path.display().to_string(),
+        content: source,
+        stats: pytxo_core::ScaffoldStats {
+            original_bytes: bytes,
+            scaffolded_bytes: bytes,
+            language: None,
+            token_reduction_pct: 0.0,
+        },
+        fallback_raw: true,
+    })
 }
 
 fn maybe_sanitize(s: &str, enabled: bool) -> String {
