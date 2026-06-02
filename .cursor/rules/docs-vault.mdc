@@ -1,0 +1,14 @@
+---
+description: Obsidian docs vault conventions
+globs: docs/**
+alwaysApply: false
+---
+
+# Docs vault
+
+- Every substantive note needs YAML frontmatter (see `docs/00-meta/style-guide.md`).
+- Filenames: `kebab-case.md`; ADRs: `ADR-NNNN-short-title.md`.
+- Link with `[[wikilinks]]`; update MOC when adding concepts.
+- No inline `data:image` base64 — use `docs/_attachments/`.
+- Accepted ADRs are immutable; supersede with new ADR IDs.
+- `audience: [agent]` notes should be factual and scannable; tutorials go in `07-guides/`.

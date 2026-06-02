@@ -1,0 +1,36 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Node / Tauri (future)
+node_modules/
+dist/
+.tauri/
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Obsidian local state
+docs/.obsidian/workspace.json
+docs/.obsidian/workspace-mobile.json
+docs/.obsidian/plugins/
+docs/.obsidian/cache/
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Pytxo local state
+.pytxo/
+
+# Local overrides
+AGENTS.override.md
+CLAUDE.local.md

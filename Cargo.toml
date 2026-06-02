@@ -1,0 +1,47 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/pytxo-core",
+    "crates/pytxo-scheduler",
+    "crates/pytxo-runner",
+    "crates/pytxo-store",
+    "crates/pytxo-sanitize",
+    "crates/pytxo-orchestrate",
+    "crates/pytxo-cli",
+    "crates/pytxo-mcp",
+    "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/Pytxo-dev/pytxo"
+homepage = "https://github.com/Pytxo-dev"
+
+[workspace.dependencies]
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive"] }
+glob = "0.3"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1.43", features = ["macros", "rt-multi-thread", "sync", "process", "io-util", "time"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.11", features = ["v4", "serde"] }
+
+pytxo-core = { path = "crates/pytxo-core" }
+pytxo-scheduler = { path = "crates/pytxo-scheduler" }
+pytxo-runner = { path = "crates/pytxo-runner" }
+pytxo-store = { path = "crates/pytxo-store" }
+pytxo-sanitize = { path = "crates/pytxo-sanitize" }
+pytxo-orchestrate = { path = "crates/pytxo-orchestrate" }
+regex = "1.11"
+tauri = { version = "2", features = [] }
+tauri-build = "2"
+tauri-plugin-shell = "2"

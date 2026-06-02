@@ -1,0 +1,14 @@
+---
+description: Rust orchestration core conventions
+globs: crates/**/*.rs,**/*.rs
+alwaysApply: false
+---
+
+# Rust core (Pytxo orchestration)
+
+- Runtime: **tokio**; PTY: **portable-pty**; parsing: **tree-sitter**.
+- Prefer `Result` and typed errors; avoid `unwrap()` / `expect()` on production paths.
+- Session telemetry and terminal streams → SQLite WAL (see ADR-0002).
+- Filesystem isolation via sparse overlay (FUSE / ProjFS), not full RAM COW of monorepo deps.
+- Multi-agent scheduling via DAG flow engine, not naive sequential file locks.
+- Sanitize stdout/stderr and file payloads before MCP or cloud egress.

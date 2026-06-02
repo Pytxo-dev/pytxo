@@ -1,0 +1,24 @@
+[package]
+name = "pytxo-orchestrate"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+pytxo-core.workspace = true
+pytxo-runner.workspace = true
+pytxo-scheduler.workspace = true
+pytxo-store.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+regex.workspace = true
+
+pytxo-sanitize = { path = "../pytxo-sanitize", optional = true }
+
+[features]
+default = ["sanitize"]
+sanitize = ["dep:pytxo-sanitize"]

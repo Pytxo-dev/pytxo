@@ -1,0 +1,35 @@
+---
+title: Sparse overlay filesystem
+slug: sparse-overlay-fs
+status: active
+tags: [orchestration, filesystem]
+audience: [human, agent]
+layer: orchestration
+created: 2026-06-02
+updated: 2026-06-02
+related: [[ADR-0003-sparse-overlay-not-ram-cow]]
+---
+
+# Sparse overlay filesystem
+
+Mapping entire monorepos (`node_modules`, build artifacts, large binaries) into RAM is not viable. Pytxo uses a **sparse overlay virtual filesystem** instead of RAM-heavy copy-on-write for dependencies.
+
+## Technology
+
+| OS | Mechanism |
+|----|-----------|
+| macOS / Linux | **FUSE** overlay |
+| Windows | **Projected File System (ProjFS)** |
+
+## Sparse tracking
+
+- Heavy deps and assets → read-only virtual links to physical disk.
+- Active source trees → lightweight in-memory layer for agent writes.
+
+## Outcome
+
+Active memory stays bounded (target: low hundreds of MB for overlay metadata + hot paths) while local compiles remain fast.
+
+ADR: [[ADR-0003-sparse-overlay-not-ram-cow]].
+
+**MVP note:** Phase 1 uses git worktrees instead ([[ADR-0005-worktree-isolation-for-mvp]]).

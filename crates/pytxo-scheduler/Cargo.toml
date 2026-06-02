@@ -1,0 +1,14 @@
+[package]
+name = "pytxo-scheduler"
+description = "Conflict detection and wave scheduling for Pytxo"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+glob = { workspace = true }
+pytxo-core = { workspace = true }
+
+[dev-dependencies]
+pytxo-core = { workspace = true }

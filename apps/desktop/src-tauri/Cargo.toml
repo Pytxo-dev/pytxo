@@ -1,0 +1,28 @@
+[package]
+name = "pytxo-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+name = "pytxo_desktop_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "pytxo-desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tauri = { workspace = true, features = [] }
+tauri-plugin-shell = { workspace = true }
+pytxo-core.workspace = true
+pytxo-orchestrate = { path = "../../../crates/pytxo-orchestrate", features = ["sanitize"] }
+pytxo-store.workspace = true
+pytxo-scheduler.workspace = true
+tokio.workspace = true

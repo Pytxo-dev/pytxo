@@ -1,0 +1,14 @@
+---
+description: Pytxo global standards — brand, layers, docs, security
+alwaysApply: true
+---
+
+# Pytxo global
+
+- **Product:** Agentic control plane + telemetry (not a 16-terminal webview IDE).
+- **Stack:** Rust orchestration · Svelte 5 Runes · Tauri v2 IPC.
+- **Layers:** presentation (no FS) → orchestration (Rust) → execution yard (headless CLIs) · optional Pytxo Cloud.
+- **Docs:** Edit atomic notes in `docs/`; update MOCs; new irreversible arch → ADR in `docs/05-adr/`.
+- **Secrets:** Never commit keys; examples must use sanitization patterns from Sovereign Shield docs.
+- **BYOK** for LLM providers; local-first MCP hub.
+- Read `AGENTS.md` before inventing build commands — code may not exist yet.
