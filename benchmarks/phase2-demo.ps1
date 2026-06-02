@@ -14,7 +14,11 @@ cargo test --workspace --exclude pytxo-desktop
 Write-Host "== status json =="
 cargo run -p pytxo-cli -- status --json
 
-Write-Host "== desktop compile =="
-cargo build -p pytxo-desktop
+if (Test-Path "apps/desktop/package.json") {
+  Write-Host "== desktop compile =="
+  cargo build -p pytxo-desktop
+} else {
+  Write-Host "== desktop skipped (extracted to pytxo-desktop repo) =="
+}
 
 Write-Host "Phase 2 demo OK"

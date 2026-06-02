@@ -1,1 +1,1 @@
-pub use pytxo_orchestrate::{init, logs, run, status, stop, RunOptions};
+pub use pytxo_orchestrate::{doctor, init, logs, run, status, stop, RunOptions};

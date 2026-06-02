@@ -179,7 +179,7 @@ fn handle_tool_call(params: Option<Value>) -> anyhow::Result<String> {
         }
         "pytxo_status" => {
             let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
-            let (_cfg, store) = open_store(None)?;
+            let (_cfg, store) = open_store(None, None)?;
             let runs = store.list_runs(limit)?;
             Ok(serde_json::to_string_pretty(&runs)?)
         }
@@ -189,7 +189,7 @@ fn handle_tool_call(params: Option<Value>) -> anyhow::Result<String> {
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("agent_id required"))?;
             let tail = args.get("tail").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
-            Ok(logs(None, agent, tail)?.join("\n"))
+            Ok(logs(None, None, agent, tail)?.join("\n"))
         }
         other => anyhow::bail!("unknown tool: {other}"),
     }

@@ -12,9 +12,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Initialize local Pytxo directories
     Init {
         #[arg(long)]
         repo: Option<std::path::PathBuf>,
+    },
+    /// Verify git repo and Pytxo prerequisites
+    Doctor {
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+        #[arg(long)]
+        json: bool,
     },
     Run {
         #[arg(long, default_value = "3")]
@@ -33,6 +41,8 @@ enum Commands {
     Status {
         #[arg(long)]
         config: Option<std::path::PathBuf>,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
         #[arg(long, default_value = "10")]
         limit: usize,
         #[arg(long)]
@@ -45,12 +55,16 @@ enum Commands {
         tail: usize,
         #[arg(long)]
         config: Option<std::path::PathBuf>,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
     },
     Stop {
         #[arg(long)]
         all: bool,
         #[arg(long)]
         config: Option<std::path::PathBuf>,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
         #[arg(long)]
         cleanup_worktrees: bool,
     },
@@ -68,6 +82,7 @@ async fn main() -> anyhow::Result<()> {
             commands::init(repo)?;
             println!("Initialized Pytxo.");
         }
+        Commands::Doctor { repo, json } => commands::doctor(repo, json)?,
         Commands::Run {
             agents,
             cmd,
@@ -89,21 +104,28 @@ async fn main() -> anyhow::Result<()> {
                 println!("Run {} finished", run_id);
             }
         }
-        Commands::Status { config, limit, json } => commands::status(config, limit, json)?,
+        Commands::Status {
+            config,
+            repo,
+            limit,
+            json,
+        } => commands::status(config, repo, limit, json)?,
         Commands::Logs {
             agent,
             tail,
             config,
+            repo,
         } => {
-            for line in commands::logs(config, &agent, tail)? {
+            for line in commands::logs(config, repo, &agent, tail)? {
                 println!("{line}");
             }
         }
         Commands::Stop {
             all,
             config,
+            repo,
             cleanup_worktrees,
-        } => commands::stop(config, all, cleanup_worktrees).await?,
+        } => commands::stop(config, repo, all, cleanup_worktrees).await?,
     }
     Ok(())
 }

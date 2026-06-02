@@ -26,7 +26,11 @@ struct RegistryInner {
 impl ProcessRegistry {
     pub fn register(&self, record: ChildRecord) {
         let key = format!("{}:{}", record.run_id, record.agent_id);
-        self.inner.lock().expect("registry lock").children.insert(key, record);
+        self.inner
+            .lock()
+            .expect("registry lock")
+            .children
+            .insert(key, record);
     }
 
     pub fn list(&self) -> Vec<ChildRecord> {

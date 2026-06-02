@@ -10,9 +10,7 @@ pub fn kill_pid(pid: u32) -> Result<()> {
             .status()
             .map_err(|e| PytxoError::Runner(format!("taskkill: {e}")))?;
         if !status.success() {
-            return Err(PytxoError::Runner(format!(
-                "taskkill failed for pid {pid}"
-            )));
+            return Err(PytxoError::Runner(format!("taskkill failed for pid {pid}")));
         }
     } else {
         let status = std::process::Command::new("kill")

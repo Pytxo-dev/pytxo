@@ -1,5 +1,5 @@
 ---
-title: CLI reference (Phase 1)
+title: CLI reference
 slug: cli-reference
 status: active
 tags: [reference, cli]
@@ -7,10 +7,10 @@ audience: [human, agent]
 layer: meta
 created: 2026-06-02
 updated: 2026-06-02
-related: [[pytxo-toml]]
+related: [[pytxo-toml]], [[repository-layout]]
 ---
 
-# CLI reference (Phase 1)
+# CLI reference
 
 Build: `cargo build -p pytxo-cli`  
 Binary: `cargo run -p pytxo-cli -- <cmd>`
@@ -20,10 +20,29 @@ Binary: `cargo run -p pytxo-cli -- <cmd>`
 | Command | Description |
 |---------|-------------|
 | `pytxo init` | Create `.pytxo/` dirs and gitignore hint |
+| `pytxo doctor` | Verify git, HEAD, worktree support, writable `.pytxo/` |
 | `pytxo run` | Schedule and execute agents in worktrees |
 | `pytxo status` | List runs and agents from SQLite |
 | `pytxo logs --agent <id>` | Tail stored stdout/stderr events |
-| `pytxo stop` | Clear active run state; optional worktree cleanup |
+| `pytxo stop` | Stop active run or all tracked processes |
+
+## Shared flags
+
+| Flag | Commands | Description |
+|------|----------|-------------|
+| `--repo` | `init`, `doctor`, `run`, `status`, `logs`, `stop` | Git repository root (default: cwd) |
+| `--config` | `run`, `status`, `logs`, `stop` | Path to `pytxo.toml` |
+| `--json` | `doctor`, `status` | Machine-readable output |
+
+## `pytxo doctor`
+
+Fails fast before `run` when:
+
+- `git` is on PATH
+- cwd (or `--repo`) is inside a git work tree
+- `HEAD` exists (at least one commit)
+- `git worktree` works
+- `.pytxo/` is writable
 
 ## `pytxo run` flags
 
@@ -31,10 +50,10 @@ Binary: `cargo run -p pytxo-cli -- <cmd>`
 |------|---------|-------------|
 | `--agents` | `3` | Cap parallel agents per wave |
 | `--cmd` | `echo pytxo` | Shell command run in each worktree |
-| `--config` | `pytxo.toml` if present | Task definitions |
 | `--dry-run` | off | Print JSON execution plan |
 | `--keep-worktrees` | off | Do not remove worktrees after run |
-| `--repo` | cwd | Git repository root |
+
+`run` calls the same git preflight as `doctor` before scheduling.
 
 ## Agent IDs in logs
 

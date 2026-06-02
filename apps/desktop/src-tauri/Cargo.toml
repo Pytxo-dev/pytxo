@@ -24,5 +24,4 @@ tauri-plugin-shell = { workspace = true }
 pytxo-core.workspace = true
 pytxo-orchestrate = { path = "../../../crates/pytxo-orchestrate", features = ["sanitize"] }
 pytxo-store.workspace = true
-pytxo-scheduler.workspace = true
 tokio.workspace = true

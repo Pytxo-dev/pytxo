@@ -190,10 +190,7 @@ mod tests {
 
     #[test]
     fn dependency_orders_waves() {
-        let tasks = vec![
-            task("b", &["b.ts"], &["a"]),
-            task("a", &["a.ts"], &[]),
-        ];
+        let tasks = vec![task("b", &["b.ts"], &["a"]), task("a", &["a.ts"], &[])];
         let plan = build_dag_plan(&tasks, 3).unwrap();
         assert_eq!(plan.waves.len(), 2);
         assert_eq!(plan.waves[0][0].task_id.0, "a");
@@ -202,10 +199,7 @@ mod tests {
 
     #[test]
     fn cycle_errors_by_default() {
-        let tasks = vec![
-            task("a", &["a.ts"], &["b"]),
-            task("b", &["b.ts"], &["a"]),
-        ];
+        let tasks = vec![task("a", &["a.ts"], &["b"]), task("b", &["b.ts"], &["a"])];
         assert!(build_dag_plan(&tasks, 3).is_err());
     }
 }

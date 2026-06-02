@@ -139,16 +139,25 @@ pub async fn start_run(
 #[tauri::command]
 pub async fn stop_run(state: State<'_, AppState>, all: bool) -> Result<(), String> {
     let path = state.config_path.lock().map_err(|e| e.to_string())?.clone();
-    stop(path, all, false).await.map_err(|e| e.to_string())
+    stop(path, None, all, false)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn git_diff(state: State<'_, AppState>, worktree_path: String) -> Result<String, String> {
+pub fn git_diff(state: State<'_, AppState>, agent_id: String) -> Result<String, String> {
     let cfg = load_cfg(&state)?;
-    let repo = std::env::current_dir().map_err(|e| e.to_string())?;
+    let store = pytxo_store::PytxoStore::open(&cfg.db_path()).map_err(|e| e.to_string())?;
+    let agent = store
+        .get_agent(&agent_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("agent not found: {agent_id}"))?;
+    let worktree = agent
+        .worktree_path
+        .filter(|p| !p.is_empty())
+        .ok_or_else(|| "no worktree path for agent (run may have removed worktrees)".to_string())?;
     let output = std::process::Command::new("git")
-        .args(["-C", &repo.to_string_lossy(), "diff", "--no-color"])
-        .arg(worktree_path)
+        .args(["-C", &worktree, "diff", "--no-color", "HEAD"])
         .output()
         .map_err(|e| e.to_string())?;
     if !output.status.success() {
@@ -157,7 +166,6 @@ pub fn git_diff(state: State<'_, AppState>, worktree_path: String) -> Result<Str
             String::from_utf8_lossy(&output.stderr)
         ));
     }
-    let _ = cfg;
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 

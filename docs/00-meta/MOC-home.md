@@ -26,7 +26,7 @@ related: [[glossary]], [[architecture-index]]
 |----------|------|
 | Humans | [[glossary]] → [[architecture-index]] |
 | Agents | [`AGENTS.md`](../../AGENTS.md) (repo root) |
-| GitHub | [[github-organization]] · [Pytxo-dev](https://github.com/Pytxo-dev) |
+| GitHub | [[github-organization]] · [[repository-layout]] · [Pytxo-dev](https://github.com/Pytxo-dev) |
 | Claude Code | [[claude-vault-context]] |
 
 ---

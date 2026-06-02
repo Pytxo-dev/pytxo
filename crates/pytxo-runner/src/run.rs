@@ -8,7 +8,7 @@ use pytxo_core::{AgentId, ExecutionPlan, PytxoError, Result, RunId, ScheduledTas
 
 use crate::git::{branch_name, create_worktree, remove_worktree, worktree_path};
 use crate::process::{ChildRecord, ProcessRegistry};
-use crate::process_registry_file::{ProcessEntry, ProcessRegistryFile, registry_path};
+use crate::process_registry_file::{registry_path, ProcessEntry, ProcessRegistryFile};
 
 pub type EventCallback = Arc<dyn Fn(&str, &str, &str) + Send + Sync>;
 
@@ -251,11 +251,7 @@ pub fn stop_run(data_dir: &Path, run_id: &str, kill: bool) -> Result<Vec<u32>> {
 
     let path = registry_path(data_dir);
     let mut file = ProcessRegistryFile::load(&path)?;
-    let pids: Vec<u32> = file
-        .for_run(run_id)
-        .iter()
-        .map(|e| e.pid)
-        .collect();
+    let pids: Vec<u32> = file.for_run(run_id).iter().map(|e| e.pid).collect();
     if kill {
         kill_pids(&pids)?;
     }
@@ -281,12 +277,7 @@ pub fn stop_all(data_dir: &Path, kill: bool) -> Result<()> {
 pub fn cleanup_worktrees(ctx: &RunContext, registry: &ProcessRegistry) -> Result<()> {
     for record in registry.list() {
         if record.run_id == ctx.run_id {
-            let _ = remove_worktree(
-                &ctx.repo_root,
-                &record.worktree_path,
-                &record.branch,
-                true,
-            );
+            let _ = remove_worktree(&ctx.repo_root, &record.worktree_path, &record.branch, true);
         }
     }
     Ok(())

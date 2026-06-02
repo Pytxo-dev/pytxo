@@ -13,13 +13,17 @@ Pytxo is an invisible, bare-metal **agent operating system**: it does not replac
 
 ## Repository layout
 
+Canonical map: [`docs/08-reference/repository-layout.md`](docs/08-reference/repository-layout.md).
+
 | Path | Purpose |
 |------|---------|
 | [`docs/`](docs/) | Obsidian-friendly knowledge vault (architecture, ADRs, guides) |
+| [`crates/`](crates/) | Rust control plane (CLI, MCP, scheduler, runner, store) |
+| [`scripts/`](scripts/) | `smoke.ps1` / `smoke.sh`, `dev-setup.ps1` |
 | [`AGENTS.md`](AGENTS.md) | Canonical instructions for AI coding agents |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute code and documentation |
-| `crates/` | Rust workspace (CLI, scheduler, runner, store, MCP, …) |
-| `apps/desktop/` | Svelte 5 + Tauri v2 Reality Deck |
+
+**Reality Deck UI:** [Pytxo-dev/pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) (Svelte 5 + Tauri v2).
 
 ## For contributors and agents
 
@@ -32,8 +36,9 @@ Phase 0–2: CLI, MCP stub, sanitize, DAG `depends_on`, and Tauri Reality Deck v
 
 ```bash
 cargo build -p pytxo-cli
-cargo run -p pytxo-cli -- init
+cargo run -p pytxo-cli -- doctor
 cargo run -p pytxo-cli -- run --config pytxo.toml.example --dry-run
+./scripts/smoke.ps1   # or scripts/smoke.sh
 ```
 
 This monorepo: [Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).

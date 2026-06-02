@@ -41,6 +41,20 @@
   let terminal: Terminal | null = null;
   let fitAddon: FitAddon | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  const MAX_TERMINAL_LINES = 2000;
+  let terminalLineCount = 0;
+
+  function writelnCapped(line: string) {
+    if (!terminal) return;
+    terminal.writeln(line);
+    terminalLineCount += 1;
+    if (terminalLineCount > MAX_TERMINAL_LINES) {
+      const trim = terminalLineCount - MAX_TERMINAL_LINES;
+      terminal.writeln(`… trimmed ${trim} older lines …`);
+      terminal.clear();
+      terminalLineCount = 1;
+    }
+  }
 
   async function refreshRuns() {
     runs = await invoke<RunDto[]>("list_runs", { limit: 20 });
@@ -66,8 +80,9 @@
       agentId: selectedAgentId,
       tail: 200,
     });
+    terminalLineCount = 0;
     for (const ev of events) {
-      terminal.writeln(`[${ev.kind}] ${ev.payload}`);
+      writelnCapped(`[${ev.kind}] ${ev.payload}`);
     }
   }
 
@@ -75,10 +90,10 @@
     if (!selectedAgentId || !terminal) return;
     const lines = await invoke<EventDto[]>("poll_log_lines", {
       agentId: selectedAgentId,
-      limit: 50,
+      limit: 32,
     });
     for (const ev of lines) {
-      terminal.writeln(`[${ev.kind}] ${ev.payload}`);
+      writelnCapped(`[${ev.kind}] ${ev.payload}`);
     }
   }
 
@@ -99,12 +114,10 @@
   }
 
   async function loadDiff() {
-    const agent = agents.find((a) => a.id === selectedAgentId);
-    if (!agent) return;
-    diffText = "(diff requires worktree path from agent record — use repo root diff)";
+    if (!selectedAgentId) return;
     try {
       diffText = await invoke<string>("git_diff", {
-        worktreePath: ".",
+        agentId: selectedAgentId,
       });
     } catch (e) {
       diffText = String(e);
@@ -124,7 +137,7 @@
       fitAddon.fit();
     }
     await refreshRuns();
-    pollTimer = setInterval(pollLogs, 250);
+    pollTimer = setInterval(pollLogs, 16);
   });
 
   onDestroy(() => {

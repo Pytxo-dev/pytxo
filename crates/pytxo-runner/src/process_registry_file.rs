@@ -44,10 +44,7 @@ impl ProcessRegistryFile {
     }
 
     pub fn for_run(&self, run_id: &str) -> Vec<&ProcessEntry> {
-        self.entries
-            .iter()
-            .filter(|e| e.run_id == run_id)
-            .collect()
+        self.entries.iter().filter(|e| e.run_id == run_id).collect()
     }
 
     pub fn all_pids(&self) -> Vec<u32> {

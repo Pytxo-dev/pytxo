@@ -1,0 +1,30 @@
+name: Bug report
+description: Something is broken
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: "pytxo run --cmd ..."
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: pytxo version
+      placeholder: "cargo run -p pytxo-cli -- --version"
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Windows
+        - macOS
+        - Linux

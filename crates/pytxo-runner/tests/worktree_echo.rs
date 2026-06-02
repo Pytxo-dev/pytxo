@@ -1,6 +1,6 @@
-use std::process::Command;
 use pytxo_core::{ExecutionPlan, RunId, ScheduledTask, TaskId};
 use pytxo_runner::{execute_plan, ProcessRegistry, RunContext};
+use std::process::Command;
 use tempfile::TempDir;
 
 fn init_git_repo(path: &std::path::Path) {

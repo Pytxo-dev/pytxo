@@ -9,7 +9,12 @@ use pytxo_store::PytxoStore;
 use serde::{Deserialize, Serialize};
 
 mod cost;
+mod doctor;
+mod preflight;
+
 pub use cost::{parse_cost_from_lines, CostEstimate};
+pub use doctor::{run_doctor, DoctorCheck, DoctorReport};
+pub use preflight::assert_git_ready;
 
 #[cfg(feature = "sanitize")]
 use pytxo_sanitize::sanitize_line;
@@ -64,11 +69,37 @@ pub fn init(repo: Option<PathBuf>) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn run(opts: RunOptions) -> anyhow::Result<RunId> {
-    let repo_root = opts
-        .repo
+pub fn resolve_repo_root(repo: Option<&Path>) -> anyhow::Result<PathBuf> {
+    let repo_root = repo
+        .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().expect("cwd"));
-    let repo_root = canonical_repo_root(&repo_root)?;
+    canonical_repo_root(&repo_root).map_err(|e| anyhow::anyhow!(e))
+}
+
+pub fn doctor(repo: Option<PathBuf>, json: bool) -> anyhow::Result<()> {
+    let report = run_doctor(repo.as_deref())?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        for c in &report.checks {
+            let mark = if c.ok { "ok" } else { "FAIL" };
+            println!("[{mark}] {} — {}", c.name, c.detail);
+        }
+        if report.all_ok() {
+            println!("All checks passed.");
+        } else {
+            println!("Some checks failed. Fix before `pytxo run`.");
+        }
+    }
+    if !report.all_ok() {
+        anyhow::bail!("doctor checks failed");
+    }
+    Ok(())
+}
+
+pub async fn run(opts: RunOptions) -> anyhow::Result<RunId> {
+    let repo_root = resolve_repo_root(opts.repo.as_deref())?;
+    assert_git_ready(&repo_root)?;
 
     let mut cfg = load_config(opts.config.as_deref(), &repo_root)?;
     if opts.agents > 0 {
@@ -166,12 +197,7 @@ pub async fn run(opts: RunOptions) -> anyhow::Result<RunId> {
     let line_refs: Vec<&str> = all_lines.iter().map(String::as_str).collect();
     let cost = parse_cost_from_lines(&line_refs);
     if cost.tokens_in > 0 || cost.tokens_out > 0 || cost.cost_usd > 0.0 {
-        store.update_run_cost(
-            &run_id.0,
-            cost.tokens_in,
-            cost.tokens_out,
-            cost.cost_usd,
-        )?;
+        store.update_run_cost(&run_id.0, cost.tokens_in, cost.tokens_out, cost.cost_usd)?;
     }
 
     let run_status = if failed { "failed" } else { "completed" };
@@ -190,8 +216,7 @@ pub fn dry_run_json(
     repo: Option<PathBuf>,
     agents: usize,
 ) -> anyhow::Result<String> {
-    let repo_root = repo.unwrap_or_else(|| std::env::current_dir().expect("cwd"));
-    let repo_root = canonical_repo_root(&repo_root)?;
+    let repo_root = resolve_repo_root(repo.as_deref())?;
     let mut cfg = load_config(config.as_deref(), &repo_root)?;
     if agents > 0 {
         cfg.max_agents = agents;
@@ -206,8 +231,13 @@ pub fn dry_run_json(
     Ok(serde_json::to_string_pretty(&plan)?)
 }
 
-pub fn status(config: Option<PathBuf>, limit: usize, json: bool) -> anyhow::Result<()> {
-    let repo = std::env::current_dir()?;
+pub fn status(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    limit: usize,
+    json: bool,
+) -> anyhow::Result<()> {
+    let repo = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo)?;
     let store = PytxoStore::open(&cfg.db_path())?;
     let runs = store.list_runs(limit)?;
@@ -236,7 +266,10 @@ pub fn status(config: Option<PathBuf>, limit: usize, json: bool) -> anyhow::Resu
                 agents,
             });
         }
-        println!("{}", serde_json::to_string_pretty(&StatusJson { runs: out })?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&StatusJson { runs: out })?
+        );
         return Ok(());
     }
     if runs.is_empty() {
@@ -246,11 +279,7 @@ pub fn status(config: Option<PathBuf>, limit: usize, json: bool) -> anyhow::Resu
     for run in runs {
         println!(
             "run {}  status={}  repo={}  started={}  cost_usd={:?}",
-            run.id,
-            run.status,
-            run.repo_root,
-            run.started_at,
-            run.estimated_cost_usd
+            run.id, run.status, run.repo_root, run.started_at, run.estimated_cost_usd
         );
         for agent in store.list_agents_for_run(&run.id)? {
             println!(
@@ -262,8 +291,13 @@ pub fn status(config: Option<PathBuf>, limit: usize, json: bool) -> anyhow::Resu
     Ok(())
 }
 
-pub fn logs(config: Option<PathBuf>, agent: &str, tail: usize) -> anyhow::Result<Vec<String>> {
-    let repo = std::env::current_dir()?;
+pub fn logs(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    agent: &str,
+    tail: usize,
+) -> anyhow::Result<Vec<String>> {
+    let repo = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo)?;
     let store = PytxoStore::open(&cfg.db_path())?;
     let events = store.list_events(agent, tail)?;
@@ -275,10 +309,11 @@ pub fn logs(config: Option<PathBuf>, agent: &str, tail: usize) -> anyhow::Result
 
 pub async fn stop(
     config: Option<PathBuf>,
+    repo: Option<PathBuf>,
     all: bool,
     cleanup_worktrees: bool,
 ) -> anyhow::Result<()> {
-    let repo = std::env::current_dir()?;
+    let repo = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo)?;
     let data_dir = repo.join(&cfg.data_dir);
 
@@ -313,12 +348,19 @@ pub async fn stop(
         pytxo_runner::cleanup_worktrees(&ctx, &registry).map_err(|e| anyhow::anyhow!(e))?;
     }
     fs::remove_file(&state_path)?;
-    println!("Stopped run {} (killed {} process(es))", state.run_id, pids.len());
+    println!(
+        "Stopped run {} (killed {} process(es))",
+        state.run_id,
+        pids.len()
+    );
     Ok(())
 }
 
-pub fn open_store(config: Option<PathBuf>) -> anyhow::Result<(PytxoConfig, PytxoStore)> {
-    let repo = std::env::current_dir()?;
+pub fn open_store(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+) -> anyhow::Result<(PytxoConfig, PytxoStore)> {
+    let repo = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo)?;
     let store = PytxoStore::open(&cfg.db_path())?;
     Ok((cfg, store))
@@ -339,16 +381,14 @@ fn maybe_sanitize(s: &str, enabled: bool) -> String {
 }
 
 fn load_config(path: Option<&Path>, repo: &Path) -> anyhow::Result<PytxoConfig> {
-    let path = path
-        .map(|p| p.to_path_buf())
-        .or_else(|| {
-            let candidate = repo.join("pytxo.toml");
-            if candidate.exists() {
-                Some(candidate)
-            } else {
-                None
-            }
-        });
+    let path = path.map(|p| p.to_path_buf()).or_else(|| {
+        let candidate = repo.join("pytxo.toml");
+        if candidate.exists() {
+            Some(candidate)
+        } else {
+            None
+        }
+    });
     if let Some(path) = path {
         PytxoConfig::load(&path).map_err(|e| anyhow::anyhow!(e))
     } else {
@@ -372,7 +412,8 @@ fn save_active_run(cfg: &PytxoConfig, run_id: &RunId, repo: &Path) -> Result<(),
         run_id: run_id.0.clone(),
         repo_root: repo.to_string_lossy().to_string(),
     };
-    let json = serde_json::to_string_pretty(&state).map_err(|e| PytxoError::Other(e.to_string()))?;
+    let json =
+        serde_json::to_string_pretty(&state).map_err(|e| PytxoError::Other(e.to_string()))?;
     fs::write(cfg.state_path(), json).map_err(PytxoError::Io)?;
     Ok(())
 }

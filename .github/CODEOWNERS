@@ -1,0 +1,6 @@
+# Default reviewers (adjust when team grows)
+* @Pytxo-dev
+
+/crates/ @Pytxo-dev
+/apps/desktop/ @Pytxo-dev
+/docs/ @Pytxo-dev

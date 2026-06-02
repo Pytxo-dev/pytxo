@@ -133,9 +133,7 @@ impl PytxoStore {
                 Ok(RunRecord {
                     id: row.get(0)?,
                     started_at: parse_dt(row.get::<_, String>(1)?),
-                    finished_at: row
-                        .get::<_, Option<String>>(2)?
-                        .map(parse_dt),
+                    finished_at: row.get::<_, Option<String>>(2)?.map(parse_dt),
                     status: row.get(3)?,
                     repo_root: row.get(4)?,
                     estimated_tokens_in: row.get(5)?,
@@ -146,6 +144,33 @@ impl PytxoStore {
             .map_err(|e| PytxoError::Store(e.to_string()))?;
 
         rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    pub fn get_agent(&self, id: &str) -> Result<Option<AgentRecord>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, run_id, task_id, wave, worktree_path, cmd, exit_code, status
+                 FROM agents WHERE id = ?1",
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let mut rows = stmt
+            .query_map(params![id], |row| {
+                Ok(AgentRecord {
+                    id: row.get(0)?,
+                    run_id: row.get(1)?,
+                    task_id: row.get(2)?,
+                    wave: row.get(3)?,
+                    worktree_path: row.get(4)?,
+                    cmd: row.get(5)?,
+                    exit_code: row.get(6)?,
+                    status: row.get(7)?,
+                })
+            })
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        rows.next()
+            .transpose()
             .map_err(|e| PytxoError::Store(e.to_string()))
     }
 

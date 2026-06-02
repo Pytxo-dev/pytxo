@@ -29,7 +29,12 @@ pub fn create_worktree(repo_root: &Path, worktree_path: &Path, branch: &str) -> 
     Ok(())
 }
 
-pub fn remove_worktree(repo_root: &Path, worktree_path: &Path, branch: &str, force: bool) -> Result<()> {
+pub fn remove_worktree(
+    repo_root: &Path,
+    worktree_path: &Path,
+    branch: &str,
+    force: bool,
+) -> Result<()> {
     if worktree_path.exists() {
         let path = path_to_git(worktree_path);
         if force {

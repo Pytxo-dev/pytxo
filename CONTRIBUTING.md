@@ -8,9 +8,12 @@ All official Pytxo repositories live under **[github.com/Pytxo-dev](https://gith
 
 | Repository | Purpose |
 |------------|---------|
-| [Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) | Main monorepo (this tree): crates, desktop, docs |
+| [Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) | Rust control plane, docs vault, benchmarks |
+| [Pytxo-dev/pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) | Reality Deck (Svelte + Tauri) |
 
-New first-party repos (plugins, examples, infra) should be created in the **Pytxo-dev** org, not personal accounts. See [`docs/08-reference/github-organization.md`](docs/08-reference/github-organization.md).
+Layout and dependency rules: [`docs/08-reference/repository-layout.md`](docs/08-reference/repository-layout.md).
+
+New first-party repos should be created in the **Pytxo-dev** org. See [`docs/08-reference/github-organization.md`](docs/08-reference/github-organization.md).
 
 ## Getting oriented
 

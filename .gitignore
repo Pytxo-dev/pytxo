@@ -5,9 +5,8 @@ Thumbs.db
 # Rust
 /target/
 **/*.rs.bk
-Cargo.lock
 
-# Node / Tauri (future)
+# Node / Tauri (desktop lives in pytxo-desktop after split)
 node_modules/
 dist/
 .tauri/
