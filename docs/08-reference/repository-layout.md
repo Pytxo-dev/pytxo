@@ -12,14 +12,12 @@ related: [[github-organization]], [[mvp-bootstrap]]
 
 # Repository layout
 
-## Current (monorepo transition)
+## Current
 
-Until the desktop split lands, **Pytxo-dev/pytxo** contains everything below.
-
-| Path | Future repo | Purpose |
-|------|-------------|---------|
+| Path | Repo | Purpose |
+|------|------|---------|
 | `crates/*` | **pytxo** | Rust control plane |
-| `apps/desktop/` | **pytxo-desktop** | Tauri + Svelte Reality Deck |
+| *(desktop)* | **pytxo-desktop** | Tauri + Svelte Reality Deck |
 | `docs/` | **pytxo** (optional **pytxo-docs** later) | Obsidian vault |
 | `benchmarks/`, `scripts/` | **pytxo** | Smoke / repro scripts |
 | `tests/fixtures/` | **pytxo** | Integration fixtures |
@@ -51,14 +49,14 @@ pytxo-core
 
 ## Local development
 
-**Monorepo (today):**
+**pytxo (this repo):**
 
 ```bash
 cargo test --workspace
-cd apps/desktop && npm ci && npm run check
+./scripts/smoke.ps1
 ```
 
-**Two-repo (after split):**
+**Two-repo:**
 
 ```bash
 git clone https://github.com/Pytxo-dev/pytxo.git
@@ -72,4 +70,4 @@ git clone https://github.com/Pytxo-dev/pytxo-desktop.git
 
 ## Tauri `gen/`
 
-`apps/desktop/src-tauri/gen/` is **committed** (Tauri capability/schema artifacts). Regenerate with `cargo build -p pytxo-desktop` when capabilities change.
+In **pytxo-desktop**, `src-tauri/gen/` is **committed** (Tauri capability/schema artifacts). Regenerate with `cargo build -p pytxo-desktop` when capabilities change.

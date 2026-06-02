@@ -9,7 +9,6 @@ members = [
     "crates/pytxo-orchestrate",
     "crates/pytxo-cli",
     "crates/pytxo-mcp",
-    "apps/desktop/src-tauri",
 ]
 
 [workspace.package]
@@ -42,6 +41,3 @@ pytxo-store = { path = "crates/pytxo-store" }
 pytxo-sanitize = { path = "crates/pytxo-sanitize" }
 pytxo-orchestrate = { path = "crates/pytxo-orchestrate" }
 regex = "1.11"
-tauri = { version = "2", features = [] }
-tauri-build = "2"
-tauri-plugin-shell = "2"
