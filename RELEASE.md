@@ -1,16 +1,36 @@
-# v0.1.1
+# Pytxo v0.1.0
 
-Moat infrastructure release for [Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
+First public release of the **Pytxo** agent hypervisor — local-first PTY orchestration, SQLite telemetry, and an interactive terminal dashboard.
 
 ## Highlights
 
-- **Signal Core:** `pytxo-signal` crate with `tree-sitter` AST skeleton extraction
-- **Race Shield:** `SwarmRegistry` runtime path claims in `pytxo-runner`
-- **Blast Shield:** `IsolationBackend` trait with worktree + overlay stub backends
-- **Config:** `signal_core`, `signal_fidelity`, `isolation` in `pytxo.toml`
-- **MCP:** `pytxo_read` (config-aware) and `pytxo_read_scaffolded` tools
-- **Benchmark:** `benchmarks/signal-reduction.ps1` / `.sh`
+- **CLI** — `init`, `doctor`, `run`, `status`, `logs`, `stop`, `project`, `hitl`, `domains`
+- **Default TUI** — run `pytxo` with no subcommand for a live dashboard (doctor, runs, domains, HITL)
+- **Three moats** — Signal Core scaffolding, Blast Shield worktrees, Race Shield scheduling
+- **MCP** — `pytxo-mcp` for Cursor and IDE integration
+- **Reality Deck** — optional Tauri desktop telemetry (`apps/desktop`)
 
-## Desktop
+## Install
 
-Bump [pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) git deps to `v0.1.1`.
+```bash
+npm i -g pytxo
+pytxo doctor
+```
+
+Or use the install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo/main/tooling/scripts/install.sh | bash
+```
+
+Advanced (from source):
+
+```bash
+cargo install --path crates/pytxo-cli
+```
+
+## Assets
+
+Prebuilt binaries are attached to this release: `pytxo-linux-x64`, `pytxo-linux-arm64`, `pytxo-darwin-arm64`, `pytxo-darwin-x64`, `pytxo-windows-x64.exe`.
+
+Verify with `SHA256SUMS.txt`.

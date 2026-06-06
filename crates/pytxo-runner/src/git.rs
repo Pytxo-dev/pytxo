@@ -55,6 +55,25 @@ pub fn worktree_path(base: &Path, run_id: &str, agent_id: &str) -> PathBuf {
     base.join(run_id).join(agent_id)
 }
 
+/// Merge an agent worktree branch into the repo's current HEAD (Blast Shield approve).
+pub fn merge_agent_branch(repo_root: &Path, branch: &str) -> Result<()> {
+    if branch.is_empty() {
+        return Ok(());
+    }
+    git(
+        repo_root,
+        &[
+            "merge",
+            branch,
+            "--no-edit",
+            "-m",
+            "pytxo blast-shield flush",
+        ],
+    )?;
+    let _ = git(repo_root, &["branch", "-d", branch]);
+    Ok(())
+}
+
 fn git(repo_root: &Path, args: &[&str]) -> Result<String> {
     let output = Command::new("git")
         .args(args)

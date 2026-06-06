@@ -98,6 +98,8 @@ pub fn build_dag_plan(tasks: &[Task], max_agents: usize) -> Result<ExecutionPlan
                     agent: t.agent.clone(),
                     paths: t.paths.clone(),
                     wave: wave_index,
+                    root: t.root.clone(),
+                    signal_fidelity: t.signal_fidelity,
                 })
                 .collect(),
         );
@@ -185,6 +187,8 @@ mod tests {
             agent: "a".into(),
             paths: paths.iter().map(|s| (*s).to_string()).collect(),
             depends_on: deps.iter().map(|s| (*s).to_string()).collect(),
+            root: None,
+            signal_fidelity: None,
         }
     }
 

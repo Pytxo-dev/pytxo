@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-pytxo-core.workspace = true
+pytxo-core = { workspace = true }
 pytxo-runner.workspace = true
 pytxo-scheduler.workspace = true
 pytxo-store.workspace = true
@@ -17,9 +17,16 @@ serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 regex.workspace = true
+toml.workspace = true
 
 pytxo-sanitize = { path = "../pytxo-sanitize", optional = true }
 
 [features]
-default = ["sanitize"]
+default = ["sanitize", "link-http", "cloud-http"]
 sanitize = ["dep:pytxo-sanitize"]
+link-http = ["pytxo-core/link-http"]
+cloud-http = ["pytxo-core/cloud-http"]
+
+[dev-dependencies]
+tempfile = "3.14"
+tokio = { workspace = true }

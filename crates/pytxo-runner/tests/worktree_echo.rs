@@ -1,5 +1,9 @@
-use pytxo_core::{ExecutionPlan, FidelityTier, IsolationMode, RunId, ScheduledTask, TaskId};
+use pytxo_core::{
+    BillingMode, ExecutionPlan, FidelityTier, IsolationMode, PermissionProfile, RunId,
+    ScheduledTask, TaskId,
+};
 use pytxo_runner::{execute_plan, ProcessRegistry, RunContext, SwarmRegistry};
+use std::collections::HashMap;
 use std::process::Command;
 use tempfile::TempDir;
 
@@ -51,6 +55,8 @@ async fn single_agent_echo_in_worktree() {
             agent: "default".into(),
             paths: vec!["README.md".into()],
             wave: 0,
+            root: None,
+            signal_fidelity: None,
         }]],
         conflicts: vec![],
         max_agents: 3,
@@ -58,6 +64,8 @@ async fn single_agent_echo_in_worktree() {
 
     let data_dir = repo.join(".pytxo/data");
     std::fs::create_dir_all(&data_dir).unwrap();
+    let (domain_id, model_router, managed_transport, token_estimator) =
+        RunContext::default_metering(repo);
     let ctx = RunContext {
         run_id,
         repo_root: repo.to_path_buf(),
@@ -69,6 +77,30 @@ async fn single_agent_echo_in_worktree() {
         signal_core: false,
         signal_fidelity: FidelityTier::Low,
         isolation_mode: IsolationMode::Worktree,
+        permission_profile: PermissionProfile::Orbit,
+        agent_profiles: HashMap::new(),
+        billing_mode: BillingMode::Byok,
+        domain_id,
+        model_router,
+        managed_transport,
+        usage_meter: None,
+        token_estimator,
+        execution_backend: pytxo_core::ExecutionBackend::Subprocess,
+        pty_rows: 24,
+        pty_cols: 80,
+        hitl: None,
+        agent_paths: std::collections::HashMap::new(),
+        agent_fidelity: std::collections::HashMap::new(),
+        roots: std::collections::HashMap::new(),
+        readonly_context_roots: Vec::new(),
+        subprocess_stdin: false,
+        cloud_dispatcher: None,
+        context_cache: None,
+        cloud_cache_enabled: false,
+        cloud_fallback_local: true,
+        mcp_hub: None,
+        mcp_hub_enabled: false,
+        mcp_allowlist: Vec::new(),
     };
 
     let registry = ProcessRegistry::default();

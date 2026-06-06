@@ -2,21 +2,53 @@ max_agents = 3
 worktree_dir = ".pytxo/worktrees"
 data_dir = ".pytxo/data"
 fail_fast = true
+# Local trust ladder: deep_space | orbit (default) | galaxy | supernova
+permission_profile = "orbit"
 sanitize = true
 dag_explicit_deps = false
 signal_core = true
 signal_fidelity = "low"
 isolation = "worktree"
+execution_backend = "pty"
+# subprocess_stdin = true   # pump Race Shield stdin queue when using subprocess backend
+# execution_backend = "cloud"  # pty | subprocess | cloud (Max Swarm remote sandbox)
+pty_rows = 24
+pty_cols = 80
+tier_max_agents = 3
+
+# Pytxo Ultra (managed metered billing + Pytxo Link proxy)
+# [billing]
+# mode = "ultra"
+# proxy_url = "https://link.pytxo.com/v1"   # Pytxo Link base URL (separate private service)
+# link_reconcile = true                       # POST run start/end to Link; requires proxy_url
+# reserve_microcredits = 500000
+# initial_balance_microcredits = 10000000
+
+# Pytxo Cloud sandbox + Pro context cache (separate pytxo-cloud-sandbox repo)
+# [cloud]
+# enabled = true
+# sandbox_url = "http://127.0.0.1:8788/v1"
+# cache_enabled = true
+# fallback_local = true   # PTY fallback when cloud unreachable
+
+# MCP hub v2 — bidirectional proxy to child agent MCP servers
+# [mcp_hub]
+# enabled = true
+# allowlist = ["cursor", "claude"]
 
 [[agent]]
 name = "builder"
 paths = ["src/**"]
+# model = "claude-opus-4-8"
+# cli_adapter = "claude_code"
 
 [[task]]
 id = "task-a"
 agent = "builder"
 paths = ["src/a.ts"]
 depends_on = []
+# root = "api"              # modular project only: run this task on labeled root
+# signal_fidelity = "low"   # optional per-task override
 
 [[task]]
 id = "task-b"

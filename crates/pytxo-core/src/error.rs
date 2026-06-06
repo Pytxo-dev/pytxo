@@ -14,6 +14,9 @@ pub enum PytxoError {
     #[error("store: {0}")]
     Store(String),
 
+    #[error("billing: {0}")]
+    Billing(String),
+
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
 

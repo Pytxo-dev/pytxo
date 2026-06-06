@@ -1,0 +1,144 @@
+//! Context launch contract ([[context-launch-contract]]): an agent child receives
+//! `PYTXO_CONTEXT_DIR` pointing at a directory that holds `manifest.json`.
+
+use std::collections::HashMap;
+use std::process::Command;
+
+use pytxo_core::{
+    BillingMode, ExecutionBackend, ExecutionPlan, FidelityTier, IsolationMode, PermissionProfile,
+    RunId, ScheduledTask, TaskId,
+};
+use pytxo_runner::{execute_plan, ProcessRegistry, RunContext, SwarmRegistry};
+use tempfile::TempDir;
+
+fn init_git_repo(path: &std::path::Path) {
+    for args in [
+        vec!["init"],
+        vec!["config", "user.email", "pytxo@test.local"],
+        vec!["config", "user.name", "Pytxo Test"],
+    ] {
+        assert!(Command::new("git")
+            .args(&args)
+            .current_dir(path)
+            .status()
+            .unwrap()
+            .success());
+    }
+    std::fs::create_dir_all(path.join("src")).unwrap();
+    std::fs::write(
+        path.join("src/lib.rs"),
+        "pub fn add(a: i32, b: i32) -> i32 { a + b }\n",
+    )
+    .unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(path)
+        .status()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "init"])
+        .current_dir(path)
+        .status()
+        .unwrap();
+}
+
+#[tokio::test]
+async fn agent_receives_context_dir_and_manifest() {
+    let tmp = TempDir::new().unwrap();
+    let repo = tmp.path();
+    init_git_repo(repo);
+
+    let worktree_base = repo.join(".pytxo/worktrees");
+    std::fs::create_dir_all(&worktree_base).unwrap();
+    let data_dir = repo.join(".pytxo/data");
+    std::fs::create_dir_all(&data_dir).unwrap();
+
+    // Print the env var so we can assert it reached the child.
+    let echo_cmd = if cfg!(windows) {
+        "echo %PYTXO_CONTEXT_DIR%"
+    } else {
+        "echo $PYTXO_CONTEXT_DIR"
+    };
+
+    let plan = ExecutionPlan {
+        waves: vec![vec![ScheduledTask {
+            task_id: TaskId("t0".into()),
+            agent: "default".into(),
+            paths: vec!["src/lib.rs".into()],
+            wave: 0,
+            root: None,
+            signal_fidelity: None,
+        }]],
+        conflicts: vec![],
+        max_agents: 1,
+    };
+
+    let (domain_id, model_router, managed_transport, token_estimator) =
+        RunContext::default_metering(repo);
+    let run_id = RunId::new();
+    let ctx = RunContext {
+        run_id: run_id.clone(),
+        repo_root: repo.to_path_buf(),
+        worktree_base,
+        data_dir: data_dir.clone(),
+        cmd: echo_cmd.into(),
+        keep_worktrees: false,
+        on_event: None,
+        signal_core: true,
+        signal_fidelity: FidelityTier::Low,
+        isolation_mode: IsolationMode::Worktree,
+        permission_profile: PermissionProfile::Orbit,
+        agent_profiles: HashMap::new(),
+        billing_mode: BillingMode::Byok,
+        domain_id,
+        model_router,
+        managed_transport,
+        usage_meter: None,
+        token_estimator,
+        execution_backend: ExecutionBackend::Subprocess,
+        pty_rows: 24,
+        pty_cols: 80,
+        hitl: None,
+        agent_paths: HashMap::new(),
+        agent_fidelity: HashMap::new(),
+        roots: HashMap::new(),
+        readonly_context_roots: Vec::new(),
+        subprocess_stdin: false,
+        cloud_dispatcher: None,
+        context_cache: None,
+        cloud_cache_enabled: false,
+        cloud_fallback_local: true,
+        mcp_hub: None,
+        mcp_hub_enabled: false,
+        mcp_allowlist: Vec::new(),
+    };
+
+    let registry = ProcessRegistry::default();
+    let swarm = SwarmRegistry::new();
+    let results = execute_plan(&ctx, &plan, &registry, &swarm).await.unwrap();
+    assert_eq!(results.len(), 1);
+
+    // The child saw a non-empty context dir...
+    let printed = results[0].stdout.trim().to_string();
+    assert!(
+        printed.contains("context"),
+        "PYTXO_CONTEXT_DIR not echoed by child: {printed:?}"
+    );
+
+    // ...and the materialized manifest exists on disk for this run/agent.
+    let manifest = data_dir
+        .join("context")
+        .join(&run_id.0)
+        .join("agent-0")
+        .join("manifest.json");
+    assert!(
+        manifest.exists(),
+        "missing manifest at {}",
+        manifest.display()
+    );
+    let body = std::fs::read_to_string(&manifest).unwrap();
+    assert!(
+        body.contains("src/lib.rs"),
+        "manifest missing source: {body}"
+    );
+}

@@ -1,47 +1,61 @@
 # Pytxo
 
+[![CI](https://github.com/Pytxo-dev/pytxo/actions/workflows/ci.yml/badge.svg)](https://github.com/Pytxo-dev/pytxo/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Pytxo-dev/pytxo)](https://github.com/Pytxo-dev/pytxo/releases)
+[![npm](https://img.shields.io/npm/v/pytxo)](https://www.npmjs.com/package/pytxo)
+[![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
+
 **Agent hypervisor and telemetry plane** for coordinating headless developer agents on local silicon or hosted sandboxes — without cloud-heavy multi-terminal workspaces.
 
-- **Site:** [ptyxo.com](https://ptyxo.com)
-- **GitHub:** [github.com/Pytxo-dev](https://github.com/Pytxo-dev)
-- **Stack:** Rust (`portable-pty`, `tree-sitter`) · Svelte 5 (Runes) · Tauri v2
-- **Vision:** [`docs/06-product/vision.md`](docs/06-product/vision.md)
+- **Site:** [pytxo.com](https://pytxo.com)
+- **Docs:** [pytxo.com/docs](https://pytxo.com/docs)
+- **GitHub:** [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo)
+- **Stack:** Rust (`portable-pty`, `tree-sitter`) · ratatui TUI · Svelte 5 · Tauri v2
+
+## Install (v0.1.0)
+
+```bash
+npm i -g pytxo
+pytxo doctor
+```
+
+Or build from source: `cargo install --path crates/pytxo-cli`
+
+Running `pytxo` with no subcommand opens the **terminal dashboard** (doctor, runs, domains, HITL).
 
 ## What Pytxo is
 
 Pytxo runs **heterogeneous headless agents** (Claude Code, Codex, Antigravity CLI, …) in managed background PTYs. It is not your IDE and not sixteen embedded terminal webviews.
 
-Three engineering moats (documented in the vault):
-
 | Moat | Role |
 |------|------|
 | **Signal Core** | `tree-sitter` skeletons on read — context arbitrage, lower token burn |
-| **Blast Shield** | Memory sandbox; disk flush on approve; fast rollback |
+| **Blast Shield** | Worktree isolation; explicit merge paths |
 | **Race Shield** | Swarm registry + stdin buffering — no monorepo write races |
 
-The **Reality Deck** ([pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop)) is a space-console UI (`#020205` void, teal / violet / solar gold) aimed at **3D AST dependency topology** and blast-radius telemetry — not raw terminal walls.
-
-**Pytxo Cloud** (roadmap): hosted sandboxes + server-side context cache, strictly **BYOK**.
+The **Reality Deck** ([`apps/desktop`](apps/desktop/)) is optional desktop telemetry — not raw terminal walls.
 
 ## Repository layout
 
-[`docs/08-reference/repository-layout.md`](docs/08-reference/repository-layout.md)
-
 | Path | Purpose |
 |------|---------|
-| [`docs/`](docs/) | Obsidian vault — start at [`docs/00-meta/MOC-home.md`](docs/00-meta/MOC-home.md) |
-| [`crates/`](crates/) | Rust control plane (CLI, MCP, scheduler, runner, store) |
-| [`scripts/`](scripts/) | Smoke and dev setup |
+| [`crates/`](crates/) | Rust control plane (CLI, TUI, MCP, scheduler, runner, store) |
+| [`packages/pytxo`](packages/pytxo/) | npm installer wrapper |
+| [`apps/docs/`](apps/docs/) | Public docs (Docusaurus → pytxo.com/docs) |
+| [`apps/web/`](apps/web/) | Marketing site ([pytxo.com](https://pytxo.com)) |
+| [`apps/desktop/`](apps/desktop/) | Reality Deck (Svelte + Tauri) |
+| [`docs/`](docs/) | Internal Obsidian vault |
+| [`tooling/`](tooling/) | Install scripts, smoke tests, benchmarks |
 
-## Quick start
+## Quick start (developers)
 
 ```bash
 cargo build -p pytxo-cli
 cargo run -p pytxo-cli -- doctor
 cargo run -p pytxo-cli -- run --config pytxo.toml.example --dry-run
-./scripts/smoke.ps1   # or scripts/smoke.sh
+./tooling/scripts/smoke.ps1   # or tooling/scripts/smoke.sh
 ```
 
 ## Status
 
-**v0.1.0** — CLI, MCP, DAG `depends_on`, sanitize, git worktrees, WAL telemetry. Moats and 3D Deck are phased; see [`docs/01-projects/mvp-bootstrap.md`](docs/01-projects/mvp-bootstrap.md).
+**v0.1.0** — First public release: CLI + TUI dashboard, npm installer, GitHub Release binaries, MCP, git worktree orchestration, SQLite WAL telemetry.

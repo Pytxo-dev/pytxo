@@ -1,0 +1,129 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { MenuIcon } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  NavigationMenu,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+} from "@/components/ui/navigation-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { GITHUB_URL, NAV_LINKS } from "@/lib/site";
+import { cn } from "@/lib/utils";
+
+function NavLabel({ label, badge }: { label: string; badge?: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {label}
+      {badge ? (
+        <Badge
+          variant="outline"
+          className="h-4 border-white/15 bg-card/40 px-1.5 py-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+        >
+          {badge}
+        </Badge>
+      ) : null}
+    </span>
+  );
+}
+
+export function SiteHeader() {
+  return (
+    <header className="sticky top-0 z-50 border-b border-white/5 bg-background/50 backdrop-blur-xl">
+      <div className="header-chroma-line w-full" aria-hidden />
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+        <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
+          <Image
+            src="/logo.png"
+            alt="Pytxo"
+            width={36}
+            height={36}
+            className="size-9"
+            priority
+          />
+          <span className="text-lg font-semibold tracking-tight">Pytxo</span>
+        </Link>
+
+        <NavigationMenu className="hidden md:flex">
+          <NavigationMenuList className="gap-0.5">
+            {NAV_LINKS.map((link) => (
+              <NavigationMenuItem key={link.href}>
+                <NavigationMenuLink asChild>
+                  <Link
+                    href={link.href}
+                    className={cn(
+                      "rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground",
+                      "transition-colors hover:bg-white/5 hover:text-foreground",
+                    )}
+                  >
+                    <NavLabel label={link.label} badge={link.badge} />
+                  </Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            ))}
+          </NavigationMenuList>
+        </NavigationMenu>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden border-white/10 bg-card/30 sm:inline-flex"
+            asChild
+          >
+            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
+              GitHub
+            </a>
+          </Button>
+          <Button size="sm" className="hidden chroma-glow sm:inline-flex" asChild>
+            <Link href="/download">Get started</Link>
+          </Button>
+
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden">
+                <MenuIcon />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="glass-panel border-white/10 w-72">
+              <SheetHeader>
+                <SheetTitle>Menu</SheetTitle>
+              </SheetHeader>
+              <nav className="mt-6 flex flex-col gap-1">
+                {NAV_LINKS.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-white/5"
+                  >
+                    <NavLabel label={link.label} badge={link.badge} />
+                  </Link>
+                ))}
+                <a
+                  href={GITHUB_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-white/5"
+                >
+                  GitHub
+                </a>
+              </nav>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </div>
+    </header>
+  );
+}

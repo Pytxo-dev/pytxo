@@ -3,7 +3,9 @@ use std::path::PathBuf;
 
 use pytxo_core::FidelityTier;
 use pytxo_orchestrate::{
-    dry_run_json, logs, open_store, read_file, read_file_scaffolded, run, RunOptions,
+    audit_mcp_tool, dry_run_json, enqueue_agent_stdin, list_live_agents, logs, mcp_proxy_call,
+    mcp_tools_list, open_store, project_load, project_run, read_file, read_file_scaffolded,
+    resolve_repo_root, run, ProjectRunOptions, RunOptions,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -93,6 +95,30 @@ fn main() -> anyhow::Result<()> {
                             "pytxo_read_scaffolded",
                             "Signal Core: read file as AST skeleton (always scaffold)",
                         ),
+                        tool_def(
+                            "pytxo_stdin",
+                            "Enqueue stdin bytes for a live agent (PTY / Race Shield)",
+                        ),
+                        tool_def(
+                            "pytxo_route_stdin",
+                            "Route stdin to a live agent (validates session is active)",
+                        ),
+                        tool_def(
+                            "pytxo_list_live_agents",
+                            "List live agent sessions in the domain Race Shield registry",
+                        ),
+                        tool_def(
+                            "pytxo_mcp_proxy",
+                            "Forward JSON-RPC to a live child agent MCP session (v2 hub)",
+                        ),
+                        tool_def(
+                            "pytxo_mcp_tools_list",
+                            "Aggregate tools from live child MCP sessions (namespaced)",
+                        ),
+                        tool_def(
+                            "pytxo_project_run",
+                            "Run a command across a modular project's writable roots (project_id or manifest)",
+                        ),
                     ]
                 })),
                 None,
@@ -138,6 +164,25 @@ fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+/// Resolve a repo path from `repo`, or from `project_id` (+ optional `root` label)
+/// by loading the modular project manifest ([[modular-projects]]).
+fn resolve_repo(args: &Value) -> anyhow::Result<Option<PathBuf>> {
+    if let Some(r) = args.get("repo").and_then(|v| v.as_str()) {
+        return Ok(Some(PathBuf::from(r)));
+    }
+    if let Some(pid) = args.get("project_id").and_then(|v| v.as_str()) {
+        let manifest = project_load(None, Some(pid.to_string()))?;
+        let root = match args.get("root").and_then(|v| v.as_str()) {
+            Some(label) => manifest
+                .root_by_label(label)
+                .ok_or_else(|| anyhow::anyhow!("root '{label}' not in project '{pid}'"))?,
+            None => manifest.primary_root(),
+        };
+        return Ok(Some(root.path.clone()));
+    }
+    Ok(None)
 }
 
 fn tool_def(name: &str, description: &str) -> Value {
@@ -186,6 +231,8 @@ fn handle_tool_call(params: Option<Value>) -> anyhow::Result<String> {
                 dry_run: false,
                 keep_worktrees: false,
                 repo,
+                execution: None,
+                project: None,
             }))?;
             Ok(json!({ "run_id": run_id.0 }).to_string())
         }
@@ -203,12 +250,38 @@ fn handle_tool_call(params: Option<Value>) -> anyhow::Result<String> {
             let tail = args.get("tail").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
             Ok(logs(None, None, agent, tail)?.join("\n"))
         }
+        "pytxo_project_run" => {
+            let rt = tokio::runtime::Runtime::new()?;
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let manifest = args
+                .get("manifest")
+                .and_then(|v| v.as_str())
+                .map(PathBuf::from);
+            let cmd = args
+                .get("cmd")
+                .and_then(|v| v.as_str())
+                .unwrap_or("echo pytxo")
+                .to_string();
+            let agents = args.get("agents").and_then(|v| v.as_u64()).unwrap_or(3) as usize;
+            let results = rt.block_on(project_run(ProjectRunOptions {
+                manifest,
+                project_id,
+                cmd,
+                agents,
+                config: None,
+                dry_run: false,
+            }))?;
+            Ok(serde_json::to_string_pretty(&results)?)
+        }
         "pytxo_read_scaffolded" => {
             let path = args
                 .get("path")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("path required"))?;
-            let repo = args.get("repo").and_then(|v| v.as_str()).map(PathBuf::from);
+            let repo = resolve_repo(&args)?;
             let config = args
                 .get("config_path")
                 .and_then(|v| v.as_str())
@@ -220,12 +293,74 @@ fn handle_tool_call(params: Option<Value>) -> anyhow::Result<String> {
             let result = read_file_scaffolded(config, repo, path, fidelity)?;
             Ok(serde_json::to_string_pretty(&result)?)
         }
+        "pytxo_stdin" => {
+            let agent_key = args
+                .get("agent_key")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("agent_key required"))?;
+            let data = args
+                .get("data")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("data required"))?;
+            let repo = args.get("repo").and_then(|v| v.as_str()).map(PathBuf::from);
+            enqueue_agent_stdin(repo.clone(), agent_key, data.as_bytes())?;
+            Ok(json!({ "ok": true }).to_string())
+        }
+        "pytxo_route_stdin" => {
+            let agent_key = args
+                .get("agent_key")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("agent_key required"))?;
+            let data = args
+                .get("data")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("data required"))?;
+            let repo = args.get("repo").and_then(|v| v.as_str()).map(PathBuf::from);
+            enqueue_agent_stdin(repo, agent_key, data.as_bytes())?;
+            Ok(json!({ "ok": true, "routed": true }).to_string())
+        }
+        "pytxo_list_live_agents" => {
+            let repo = args.get("repo").and_then(|v| v.as_str()).map(PathBuf::from);
+            let run_id = args.get("run_id").and_then(|v| v.as_str());
+            let sessions = list_live_agents(repo.clone(), run_id)?;
+            if let Ok(repo_root) = resolve_repo_root(repo.as_deref()) {
+                if let Ok((cfg, _)) = open_store(None, Some(repo_root.clone())) {
+                    let _ = audit_mcp_tool(
+                        &repo_root,
+                        &cfg,
+                        "mcp:hub",
+                        "pytxo_list_live_agents",
+                        &serde_json::to_string(&sessions).unwrap_or_default(),
+                    );
+                }
+            }
+            Ok(serde_json::to_string_pretty(&sessions)?)
+        }
+        "pytxo_mcp_proxy" => {
+            let agent_key = args
+                .get("agent_key")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("agent_key required"))?;
+            let method = args
+                .get("method")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("method required"))?;
+            let params = args.get("params").cloned().unwrap_or(json!({}));
+            let repo = args.get("repo").and_then(|v| v.as_str()).map(PathBuf::from);
+            let result = mcp_proxy_call(repo, agent_key, method, params)?;
+            Ok(serde_json::to_string_pretty(&result)?)
+        }
+        "pytxo_mcp_tools_list" => {
+            let repo = args.get("repo").and_then(|v| v.as_str()).map(PathBuf::from);
+            let tools = mcp_tools_list(repo)?;
+            Ok(serde_json::to_string_pretty(&tools)?)
+        }
         "pytxo_read" => {
             let path = args
                 .get("path")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("path required"))?;
-            let repo = args.get("repo").and_then(|v| v.as_str()).map(PathBuf::from);
+            let repo = resolve_repo(&args)?;
             let config = args
                 .get("config_path")
                 .and_then(|v| v.as_str())

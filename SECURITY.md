@@ -17,6 +17,6 @@ We aim to acknowledge reports within 72 hours.
 ## Scope
 
 - `pytxo` CLI, MCP server, and Rust crates
-- Pytxo Reality Deck (see [pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) when split)
+- Pytxo Reality Deck (`apps/desktop` in this monorepo)
 
 Out of scope: vulnerabilities in third-party agent CLIs (Claude, Codex, etc.) invoked via `pytxo run --cmd`.

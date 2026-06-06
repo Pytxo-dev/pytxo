@@ -9,11 +9,13 @@ members = [
     "crates/pytxo-signal",
     "crates/pytxo-orchestrate",
     "crates/pytxo-cli",
+    "crates/pytxo-tui",
     "crates/pytxo-mcp",
+    "apps/desktop/src-tauri",
 ]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT"
@@ -34,6 +36,8 @@ toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.11", features = ["v4", "serde"] }
+ratatui = "0.29"
+crossterm = "0.28"
 
 pytxo-core = { path = "crates/pytxo-core" }
 pytxo-scheduler = { path = "crates/pytxo-scheduler" }
@@ -42,4 +46,9 @@ pytxo-store = { path = "crates/pytxo-store" }
 pytxo-sanitize = { path = "crates/pytxo-sanitize" }
 pytxo-signal = { path = "crates/pytxo-signal" }
 pytxo-orchestrate = { path = "crates/pytxo-orchestrate" }
+pytxo-tui = { path = "crates/pytxo-tui" }
 regex = "1.11"
+portable-pty = "0.8"
+tauri = { version = "2", features = [] }
+tauri-build = "2"
+tauri-plugin-shell = "2"

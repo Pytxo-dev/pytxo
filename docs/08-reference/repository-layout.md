@@ -6,22 +6,26 @@ tags: [reference, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-06-04
 related: [[github-organization]], [[mvp-bootstrap]]
 ---
 
 # Repository layout
 
-## Current
+## Monorepo (current)
 
-| Path | Repo | Purpose |
-|------|------|---------|
-| `crates/*` | **pytxo** | Rust control plane |
-| *(desktop)* | **pytxo-desktop** | Tauri + Svelte Reality Deck |
-| `docs/` | **pytxo** (optional **pytxo-docs** later) | Obsidian vault |
-| `benchmarks/`, `scripts/` | **pytxo** | Smoke / repro scripts |
-| `tests/fixtures/` | **pytxo** | Integration fixtures |
-| `.github/workflows/` | Split per repo | CI |
+| Path | Purpose |
+|------|---------|
+| `crates/*` | Rust control plane (CLI, TUI, MCP, scheduler, runner, store, signal) |
+| `packages/pytxo/` | npm installer (`npm i -g pytxo`) |
+| `apps/desktop/` | Reality Deck — Svelte 5 + Tauri v2 (`pytxo-desktop` crate) |
+| `apps/desktop-export/` | Export / release staging slot (see README there) |
+| `apps/web/` | Marketing site — Next.js static export, shadcn/ui ([pytxo.com](https://pytxo.com)) |
+| `apps/docs/` | Public docs — Docusaurus, built into `apps/web/public/docs/` ([pytxo.com/docs](https://pytxo.com/docs/)) |
+| `docs/` | Obsidian vault |
+| `tooling/scripts/`, `tooling/benchmarks/` | Smoke, dev setup, competitive repro scripts |
+| `tests/fixtures/` | Integration fixtures |
+| `.github/workflows/` | Unified CI (Rust + desktop) |
 
 ## Crate dependency graph
 
@@ -30,44 +34,45 @@ pytxo-core
   ├── pytxo-scheduler
   ├── pytxo-store
   ├── pytxo-sanitize
+  ├── pytxo-signal
   └── pytxo-runner
         └── pytxo-orchestrate  ← CLI, MCP, desktop IPC should stop here
               ├── pytxo-cli
               └── pytxo-mcp
 ```
 
-**Desktop rule:** Tauri may depend on `pytxo-core`, `pytxo-store`, and `pytxo-orchestrate` only — not `pytxo-runner` or `pytxo-scheduler` directly.
+**Desktop rule:** Tauri may depend on `pytxo-core`, `pytxo-store`, and `pytxo-orchestrate` only — not `pytxo-runner` or `pytxo-scheduler` directly. Desktop uses **path dependencies** into `crates/*` (same workspace).
 
-## After split
+## GitHub org and visibility
 
-| Repo | Clone | Depends on |
-|------|-------|------------|
-| [pytxo](https://github.com/Pytxo-dev/pytxo) | CLI, MCP, docs | — |
-| [pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) | UI | pytxo tag `v0.1.x` (git or crates.io) |
+All first-party repos live under [Pytxo-dev](https://github.com/Pytxo-dev). Public OSS is in **pytxo**; optional legacy **pytxo-desktop** mirror; planned commercial/cloud repos are documented in [[github-organization]] (not in this monorepo).
 
-**Version contract:** desktop `0.1.x` requires pytxo `0.1.x`.
+## Legacy split repo
+
+[Pytxo-dev/pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) remains a **public** legacy mirror. Primary development is **`apps/desktop`** in this repository.
 
 ## Local development
 
-**pytxo (this repo):**
-
-```bash
-cargo test --workspace
-./scripts/smoke.ps1
-```
-
-**Two-repo:**
+**Single clone:**
 
 ```bash
 git clone https://github.com/Pytxo-dev/pytxo.git
-git clone https://github.com/Pytxo-dev/pytxo-desktop.git
-# Run CLI from your app repo; open desktop from pytxo-desktop
+cd pytxo
+cargo test --workspace
+./tooling/scripts/smoke.ps1   # or tooling/scripts/smoke.sh
+```
+
+**Reality Deck:**
+
+```bash
+cd apps/desktop && npm ci && npm run check
+cargo build -p pytxo-desktop    # from repo root
 ```
 
 ## Cargo.lock
 
-`Cargo.lock` is **committed** at the pytxo workspace root for reproducible CI and releases.
+`Cargo.lock` is **committed** at the workspace root (includes `apps/desktop/src-tauri`). One lockfile for control plane and desktop.
 
 ## Tauri `gen/`
 
-In **pytxo-desktop**, `src-tauri/gen/` is **committed** (Tauri capability/schema artifacts). Regenerate with `cargo build -p pytxo-desktop` when capabilities change.
+In `apps/desktop/src-tauri/gen/`, generated Tauri capability/schema artifacts are **committed**. Regenerate with `cargo build -p pytxo-desktop` when capabilities change.

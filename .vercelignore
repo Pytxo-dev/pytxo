@@ -1,0 +1,31 @@
+# Rust workspace (not needed for apps/web)
+target/
+**/target/
+crates/
+Cargo.toml
+Cargo.lock
+rust-toolchain.toml
+
+# Desktop app
+apps/desktop/
+apps/desktop-export/
+
+# Tooling / benchmarks
+tooling/
+
+# Tests & fixtures
+tests/
+
+# Cloud sandbox sibling (if present)
+pytxo-cloud-sandbox/
+
+# IDE / local
+.git/
+.pytxo/
+.idea/
+docs/.obsidian/
+
+# Generated web content (rebuilt from docs/ at prebuild)
+apps/web/content/docs/
+apps/web/node_modules/
+apps/web/.next/

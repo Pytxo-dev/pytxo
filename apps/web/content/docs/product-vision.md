@@ -1,0 +1,70 @@
+---
+title: Product vision
+slug: product-vision
+status: active
+tags: [product, vision, architecture]
+audience: [human, agent]
+layer: meta
+created: 2026-06-02
+updated: 2026-06-04
+related: [agent-os-vs-virtual-workspace](/docs/agent-os-vs-virtual-workspace), [signal-core](/docs/signal-core), [blast-shield](/docs/blast-shield), [race-shield](/docs/race-shield), [permission-profile-engine](/docs/permission-profile-engine), [execution-domains](/docs/execution-domains), [modular-projects](/docs/modular-projects), [reality-deck-visual-system](/docs/reality-deck-visual-system)
+---
+
+# Product vision
+
+**Pytxo** ([ptyxo.com](https://ptyxo.com)) is a high-velocity, low-overhead **agent hypervisor and telemetry plane** — not a cloud-heavy virtual workspace.
+
+## Problem
+
+Products like BridgeSpace-style ADEs render many parallel terminal grids inside web containers. That model burns RAM and GPU, ties users to proprietary credits, and optimizes for demos instead of **systems throughput**.
+
+## Pytxo model
+
+Pytxo coordinates **heterogeneous headless terminal agents** (Claude Code, OpenAI Codex, Google Antigravity CLI, and similar) inside **managed background pseudo-terminals** (`portable-pty`). It does not replace your IDE; it plugs in via a local-first [mcp-hub-integration](/docs/mcp-hub-integration) and optional [reality-deck-visual-system](/docs/reality-deck-visual-system).
+
+## Productivity max (multi-project)
+
+**Productivity max** has two layers:
+
+1. **Many projects at once** — dispatch independent swarms on different directories (e.g. `/project1` “Fix bug” and `/project2` “Deploy theme”) without blocking the Reality Deck or leaking scheduler, registry, or log state. Today each repo is an [execution domain](/docs/execution-domains) with its own WAL channel and [permission profile](/docs/permission-profile-engine) (default **Orbit**).
+2. **Modular projects** — one Pytxo **project** can include **multiple path roots** (API repo + web repo + shared protos), Antigravity-style, so a single swarm can work across folders without treating them as unrelated domains. See [modular-projects](/docs/modular-projects) (architecture; rollout in progress).
+
+See [ADR-0008-local-permission-profile-four-tiers](/docs/adr-0008-local-permission-profile-four-tiers).
+
+```text
+IDE / CLI  →  MCP hub  →  Orchestration (Rust)  →  Execution yard (PTY agents)
+                              ↓
+                    Reality Deck (structural telemetry)
+```
+
+## Three technical moats
+
+All future orchestration code should route through these layers — not around them.
+
+| Moat | Codename | Function | Target |
+|------|----------|----------|--------|
+| **Context arbitrage** | [signal-core](/docs/signal-core) | `tree-sitter` AST skeletons on file read (signatures, types, imports) | Up to ~60% lower agent input tokens |
+| **Copy-on-write sandbox** | [blast-shield](/docs/blast-shield) | Memory-mapped virtual FS; bash/writes isolated until explicit approval | Sub-5ms rollback; disk flush on approve only |
+| **Concurrency guard** | [race-shield](/docs/race-shield) | Lock-free swarm registry + stdin buffering | No cross-agent write collisions in a monorepo |
+
+Implementation status: see [mvp-bootstrap](/docs/mvp-bootstrap) and crate README. Moats are **partial or planned** where not yet in `crates/`.
+
+## Reality Deck
+
+Premium **space-console** UI — obsidian void `#020205` with **teal**, **violet**, and **solar gold** accents ([reality-deck-visual-system](/docs/reality-deck-visual-system)).
+
+The Deck does **not** show walls of raw terminal text as the primary surface. It visualizes the codebase as an **interactive 3D AST dependency topology** so developers see the **structural blast radius** of agent edits live. Logs and diffs are supporting panels, not the product center.
+
+Repo path: `apps/desktop` in [Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
+
+## Pytxo Cloud
+
+Hosted sandboxes that scale the same hypervisor model with **server-side context caching**. Strictly **BYOK** — Pytxo never becomes the LLM vendor. See [hybrid-execution](/docs/hybrid-execution) and [token-arbitrage](/docs/token-arbitrage).
+
+## Non-goals
+
+- Multi-pane embedded terminal walls in the product UI
+- Storing provider API keys in plaintext
+- Duplicating IDE editing surfaces
+
+Back: [MOC-home](/docs/moc-home) · Compare: [beyond-the-ade](/docs/beyond-the-ade)

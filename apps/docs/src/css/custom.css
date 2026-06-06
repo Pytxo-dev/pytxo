@@ -1,0 +1,112 @@
+:root {
+  --void: #020205;
+  --brand-teal: #2dd4bf;
+  --brand-violet: #a78bfa;
+  --brand-magenta: #e879f9;
+  --brand-cyan: #22d3ee;
+  --ifm-color-primary: var(--brand-teal);
+  --ifm-color-primary-dark: #14b8a6;
+  --ifm-color-primary-darker: #0d9488;
+  --ifm-color-primary-darkest: #0f766e;
+  --ifm-color-primary-light: #5eead4;
+  --ifm-color-primary-lighter: #99f6e4;
+  --ifm-color-primary-lightest: #ccfbf1;
+  --ifm-background-color: var(--void);
+  --ifm-background-surface-color: #0a0a0f;
+  --ifm-navbar-background-color: rgba(5, 5, 8, 0.85);
+  --ifm-footer-background-color: #050508;
+  --ifm-font-color-base: #f4f4f5;
+  --ifm-heading-color: #fafafa;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(45, 212, 191, 0.12);
+}
+
+html {
+  overflow-x: clip;
+  scrollbar-gutter: stable;
+}
+
+body {
+  overflow-x: clip;
+  background-color: var(--void);
+  background-image:
+    radial-gradient(ellipse 90% 60% at 10% -10%, rgba(167, 139, 250, 0.12), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 95% 5%, rgba(232, 121, 249, 0.1), transparent 50%),
+    radial-gradient(ellipse 80% 55% at 50% 110%, rgba(34, 211, 238, 0.08), transparent 55%);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--brand-violet) 45%, #27272a) #0a0a0f;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #0a0a0f;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--brand-magenta), var(--brand-violet));
+  border-radius: 999px;
+  border: 2px solid #0a0a0f;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--brand-cyan), var(--brand-magenta));
+}
+
+.navbar {
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.navbar__title {
+  font-weight: 600;
+}
+
+.menu__link--active {
+  background: rgba(45, 212, 191, 0.1);
+  color: var(--brand-teal);
+}
+
+.table-of-contents__link--active {
+  color: var(--brand-teal);
+}
+
+a {
+  color: var(--brand-teal);
+}
+
+a:hover {
+  color: var(--brand-cyan);
+}
+
+.theme-doc-markdown h1 {
+  background: linear-gradient(
+    100deg,
+    var(--brand-magenta) 0%,
+    var(--brand-cyan) 50%,
+    var(--brand-violet) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.theme-doc-markdown h2,
+.theme-doc-markdown h3 {
+  color: #fafafa;
+}
+
+blockquote {
+  border-left-color: var(--brand-violet);
+  background: rgba(167, 139, 250, 0.08);
+}
+
+code {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}

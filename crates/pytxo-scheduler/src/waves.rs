@@ -34,6 +34,8 @@ pub fn build_execution_plan(tasks: &[Task], max_agents: usize) -> ExecutionPlan 
                     agent: t.agent.clone(),
                     paths: t.paths.clone(),
                     wave: wave_index,
+                    root: t.root.clone(),
+                    signal_fidelity: t.signal_fidelity,
                 })
                 .collect(),
         );
@@ -57,6 +59,8 @@ mod tests {
             agent: "builder".into(),
             paths: paths.iter().map(|s| (*s).to_string()).collect(),
             depends_on: Vec::new(),
+            root: None,
+            signal_fidelity: None,
         }
     }
 

@@ -23,6 +23,14 @@ impl FidelityTier {
             _ => None,
         }
     }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

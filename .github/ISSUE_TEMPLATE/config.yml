@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://pytxo.com/docs
+    about: Install guides, CLI reference, and architecture
+  - name: Discussions
+    url: https://github.com/Pytxo-dev/pytxo/discussions
+    about: Questions and ideas

@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use pytxo_core::PytxoConfig;
+use pytxo_core::{HttpBillingReconciler, PytxoConfig};
 use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]
@@ -24,12 +24,16 @@ impl DoctorReport {
 
 pub fn run_doctor(repo: Option<&Path>) -> anyhow::Result<DoctorReport> {
     let repo_root = super::resolve_repo_root(repo)?;
+    let cfg = super::load_config(None, &repo_root).unwrap_or_default();
     let checks = vec![
         check_git_installed(),
         check_inside_git_repo(&repo_root),
         check_head_exists(&repo_root),
         check_worktree_command(&repo_root),
         check_pytxo_dirs_writable(&repo_root),
+        check_pty_smoke(),
+        check_link_reconcile(&cfg),
+        check_cloud_sandbox(&cfg),
     ];
     Ok(DoctorReport { checks })
 }
@@ -134,6 +138,77 @@ fn git_ok(name: &str, repo: &Path, args: &[&str], fail_msg: &str) -> DoctorCheck
             ok: false,
             detail: format!("{fail_msg}: {e}"),
         },
+    }
+}
+
+fn check_link_reconcile(cfg: &PytxoConfig) -> DoctorCheck {
+    if !cfg.billing_mode().is_ultra() || !cfg.billing.link_reconcile {
+        return DoctorCheck {
+            name: "link_reconcile".into(),
+            ok: true,
+            detail: "skipped (billing.mode is not ultra or link_reconcile is false)".into(),
+        };
+    }
+    let url = cfg.billing.proxy_url.trim();
+    let reconciler = HttpBillingReconciler::new(url);
+    match reconciler.ping() {
+        Ok(()) => DoctorCheck {
+            name: "link_reconcile".into(),
+            ok: true,
+            detail: format!("proxy_url configured: {url}"),
+        },
+        Err(e) => DoctorCheck {
+            name: "link_reconcile".into(),
+            ok: false,
+            detail: format!("link reconcile config invalid: {e}"),
+        },
+    }
+}
+
+fn check_cloud_sandbox(cfg: &PytxoConfig) -> DoctorCheck {
+    if cfg.execution_backend != pytxo_core::ExecutionBackend::Cloud && !cfg.cloud.enabled {
+        return DoctorCheck {
+            name: "cloud_sandbox".into(),
+            ok: true,
+            detail: "skipped (execution_backend is not cloud and [cloud].enabled is false)".into(),
+        };
+    }
+    match crate::cloud::ping_cloud(&cfg.cloud) {
+        Ok(()) => DoctorCheck {
+            name: "cloud_sandbox".into(),
+            ok: true,
+            detail: format!(
+                "cloud reachable at {}",
+                crate::cloud::cloud_health_url(&cfg.cloud)
+            ),
+        },
+        Err(e) => DoctorCheck {
+            name: "cloud_sandbox".into(),
+            ok: false,
+            detail: format!("cloud ping failed: {e}"),
+        },
+    }
+}
+
+fn check_pty_smoke() -> DoctorCheck {
+    match pytxo_runner::doctor_pty_smoke() {
+        Ok(()) => DoctorCheck {
+            name: "pty_smoke".into(),
+            ok: true,
+            detail: "portable-pty echo ok".into(),
+        },
+        Err(e) => {
+            let hint = if cfg!(windows) {
+                " (ConPTY may require Windows 10+; try execution_backend = \"subprocess\" in pytxo.toml)"
+            } else {
+                ""
+            };
+            DoctorCheck {
+                name: "pty_smoke".into(),
+                ok: false,
+                detail: format!("{e}{hint}"),
+            }
+        }
     }
 }
 

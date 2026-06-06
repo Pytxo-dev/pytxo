@@ -4,9 +4,11 @@ Instructions for AI coding agents working in this repository.
 
 ## Project identity
 
-**Pytxo** is an **agent hypervisor and telemetry plane** ([ptyxo.com](https://ptyxo.com)). Source: [github.com/Pytxo-dev](https://github.com/Pytxo-dev) (`Pytxo-dev/pytxo` + `pytxo-desktop`). It coordinates headless agents (Claude Code, Codex, Antigravity CLI, …) in background PTYs on local silicon or cloud sandboxes.
+**Pytxo** is an **agent hypervisor and telemetry plane** ([ptyxo.com](https://ptyxo.com)). Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) (monorepo: `crates/*` + `apps/desktop`). It coordinates headless agents (Claude Code, Codex, Antigravity CLI, …) in background PTYs on local silicon or cloud sandboxes.
 
 **Stack:** Rust (tokio, portable-pty, tree-sitter) · Svelte 5 (Runes) · Tauri v2
+
+**Execution yard:** `portable-pty` default ([[ADR-0010-pty-default-execution-backend]]); `execution_backend = "subprocess"` for CI fallback.
 
 **Canonical vision:** [`docs/06-product/vision.md`](docs/06-product/vision.md)
 
@@ -19,6 +21,17 @@ Instructions for AI coding agents working in this repository.
 | Signal Core | [`docs/02-areas/orchestration/signal-core.md`](docs/02-areas/orchestration/signal-core.md) | `tree-sitter` read-path skeletons |
 | Blast Shield | [`docs/02-areas/orchestration/blast-shield.md`](docs/02-areas/orchestration/blast-shield.md) | CoW sandbox; approve-to-flush |
 | Race Shield | [`docs/02-areas/orchestration/race-shield.md`](docs/02-areas/orchestration/race-shield.md) | `SwarmRegistry`, stdin buffering |
+
+**Pytxo Ultra billing** (when `billing.mode = ultra` in `pytxo.toml`): `TokenWallet`, `UsageMeter`, `ArbitrageProfiler`, `ManagedTransport` — see [`docs/05-adr/ADR-0009-ultra-managed-metering.md`](docs/05-adr/ADR-0009-ultra-managed-metering.md).
+
+**Policy and hypervisor** (orchestration-only; never in UI):
+
+| Concept | Doc | Responsibility |
+|---------|-----|----------------|
+| Permission Profile Engine | [`docs/02-areas/security/permission-profile-engine.md`](docs/02-areas/security/permission-profile-engine.md) | Four-tier local capability ladder (`PermissionProfile`) |
+| Execution domains | [`docs/02-areas/orchestration/execution-domains.md`](docs/02-areas/orchestration/execution-domains.md) | `HypervisorRegistry`, per-repo WAL separation |
+
+When changing `pytxo-runner` or `pytxo-orchestrate`, declare which **permission profile** and **execution domain** scope applies. ADR: [`docs/05-adr/ADR-0008-local-permission-profile-four-tiers.md`](docs/05-adr/ADR-0008-local-permission-profile-four-tiers.md).
 
 ## Repository map
 
@@ -33,7 +46,9 @@ Instructions for AI coding agents working in this repository.
 | `crates/pytxo-signal` | Signal Core (`tree-sitter` skeletons) |
 | `crates/pytxo-mcp` | Stdio MCP server binary |
 | `crates/` | Core, scheduler, runner, store, CLI |
-| [pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) | Svelte 5 + Tauri v2 Reality Deck (separate repo) |
+| `apps/desktop/` | Svelte 5 + Tauri v2 Reality Deck (`pytxo-desktop` crate) |
+| `tooling/scripts/`, `tooling/benchmarks/` | Smoke and competitive repro scripts |
+| `apps/desktop-export/` | Export / release staging (not canonical source) |
 
 ## Build and test
 
@@ -45,13 +60,11 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p pytxo-cli -- status --json
 ```
 
-Desktop ([pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop)):
+Reality Deck (`apps/desktop`):
 
 ```bash
-git clone https://github.com/Pytxo-dev/pytxo-desktop.git
-cd pytxo-desktop
-npm ci && npm run check
-cargo build -p pytxo-desktop   # requires Tauri system deps on Linux
+cd apps/desktop && npm ci && npm run check
+cargo build -p pytxo-desktop   # from repo root; Tauri system deps on Linux
 ```
 
 ## Documentation rules
@@ -81,6 +94,9 @@ cargo build -p pytxo-desktop   # requires Tauri system deps on Linux
 | **Reality Deck** | Space-console UI; 3D AST topology (target), not terminal walls |
 | **BYOK** | Bring your own API keys (including Pytxo Cloud) |
 | **Sovereign Shield** | Sanitization + cryptographic remote actions |
+| **Permission profile** | Local trust tier: DeepSpace, Orbit (default), Galaxy, Supernova |
+| **Execution domain** | One repo root’s isolated run/registry/store slice |
+| **Hypervisor registry** | Multi-project map of active execution domains |
 
 Full glossary: [`docs/00-meta/glossary.md`](docs/00-meta/glossary.md).
 

@@ -1,0 +1,8 @@
+services:
+  pytxo-link:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      LINK_BIND: "0.0.0.0:8787"
+      LINK_API_KEY: ${LINK_API_KEY:-}

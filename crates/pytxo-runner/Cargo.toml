@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 glob = "0.3"
+portable-pty = { workspace = true }
 pytxo-core = { workspace = true }
 pytxo-signal = { workspace = true }
 serde = { workspace = true }
@@ -16,4 +17,15 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
+pytxo-store = { workspace = true }
 tempfile = "3.14"
+tokio = { workspace = true }
+
+[features]
+default = []
+overlay-fuse = []
+overlay-fuse-kernel = ["dep:fuser"]
+overlay-projfs = []
+
+[target.'cfg(target_os = "linux")'.dependencies]
+fuser = { version = "0.14", optional = true }

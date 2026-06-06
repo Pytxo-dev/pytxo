@@ -8,18 +8,23 @@ All official Pytxo repositories live under **[github.com/Pytxo-dev](https://gith
 
 | Repository | Purpose |
 |------------|---------|
-| [Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) | Rust control plane, docs vault, benchmarks |
-| [Pytxo-dev/pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) | Reality Deck (Svelte + Tauri) |
+| [Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) | Monorepo: Rust control plane, Reality Deck (`apps/desktop`), docs vault, tooling |
 
 Layout and dependency rules: [`docs/08-reference/repository-layout.md`](docs/08-reference/repository-layout.md).
 
-New first-party repos should be created in the **Pytxo-dev** org. See [`docs/08-reference/github-organization.md`](docs/08-reference/github-organization.md).
+New first-party repos should be created in the **Pytxo-dev** org. See [`docs/08-reference/github-organization.md`](docs/08-reference/github-organization.md) for the live public/private inventory and what belongs in the **pytxo** monorepo vs separate (planned) cloud/Link services.
 
 ## Getting oriented
 
 1. Read [`README.md`](README.md).
-2. Open [`docs/00-meta/MOC-home.md`](docs/00-meta/MOC-home.md) in Obsidian or your editor.
-3. Agents: read [`AGENTS.md`](AGENTS.md).
+2. Install the CLI: `npm i -g pytxo` or `cargo install --path crates/pytxo-cli`.
+3. Open [`docs/00-meta/MOC-home.md`](docs/00-meta/MOC-home.md) in Obsidian or your editor.
+4. Public docs live in [`apps/docs/`](apps/docs/) (published at [pytxo.com/docs](https://pytxo.com/docs)).
+5. Agents: read [`AGENTS.md`](AGENTS.md).
+
+### TUI development
+
+The default `pytxo` experience is the ratatui dashboard in [`crates/pytxo-tui`](crates/pytxo-tui). Run `cargo run -p pytxo-cli` from a git repo after `pytxo init`. Use `PYTXO_NO_TUI=1` when testing clap help output.
 
 ## Documentation (docs vault)
 

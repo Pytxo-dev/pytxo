@@ -1,0 +1,37 @@
+{
+  "name": "pytxo",
+  "version": "0.1.0",
+  "description": "Pytxo agent hypervisor CLI — local-first PTY orchestration",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Pytxo-dev/pytxo.git",
+    "directory": "packages/pytxo"
+  },
+  "homepage": "https://pytxo.com",
+  "bugs": "https://github.com/Pytxo-dev/pytxo/issues",
+  "keywords": [
+    "pytxo",
+    "cli",
+    "ai-agents",
+    "mcp",
+    "orchestration",
+    "terminal",
+    "rust"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "pytxo": "bin/pytxo.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "postinstall.js",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  }
+}

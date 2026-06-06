@@ -29,6 +29,9 @@ pub struct AgentRecord {
     pub cmd: String,
     pub exit_code: Option<i32>,
     pub status: String,
+    /// Modular project root label ([[ADR-0011-modular-project-manifest]]).
+    #[serde(default)]
+    pub root_id: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -41,7 +44,7 @@ pub struct EventRecord {
 }
 
 pub struct PytxoStore {
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
 
 impl PytxoStore {
@@ -67,6 +70,38 @@ impl PytxoStore {
         Ok(())
     }
 
+    /// Tag a run with its owning project and (optional) primary root label
+    /// ([[ADR-0011-modular-project-manifest]]).
+    pub fn tag_run_project(
+        &self,
+        run_id: &str,
+        project_id: &str,
+        root_id: Option<&str>,
+    ) -> Result<()> {
+        self.conn
+            .execute(
+                "UPDATE runs SET project_id = ?1, root_id = ?2 WHERE id = ?3",
+                params![project_id, root_id, run_id],
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Project id a run belongs to, if it was dispatched under a project.
+    pub fn run_project(&self, run_id: &str) -> Result<Option<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT project_id FROM runs WHERE id = ?1")
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let mut rows = stmt
+            .query_map(params![run_id], |row| row.get::<_, Option<String>>(0))
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        match rows.next() {
+            Some(r) => r.map_err(|e| PytxoError::Store(e.to_string())),
+            None => Ok(None),
+        }
+    }
+
     pub fn finish_run(&self, id: &str, status: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
         self.conn
@@ -87,11 +122,27 @@ impl PytxoStore {
         worktree_path: Option<&str>,
         cmd: &str,
     ) -> Result<()> {
+        self.insert_agent_with_root(id, run_id, task_id, wave, worktree_path, cmd, None)
+    }
+
+    /// Insert an agent tagged with its modular-project root label
+    /// ([[ADR-0011-modular-project-manifest]]). `root_id` is `None` for single-root runs.
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_agent_with_root(
+        &self,
+        id: &str,
+        run_id: &str,
+        task_id: &str,
+        wave: u32,
+        worktree_path: Option<&str>,
+        cmd: &str,
+        root_id: Option<&str>,
+    ) -> Result<()> {
         self.conn
             .execute(
-                "INSERT INTO agents (id, run_id, task_id, wave, worktree_path, cmd, status)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'running')",
-                params![id, run_id, task_id, wave as i32, worktree_path, cmd],
+                "INSERT INTO agents (id, run_id, task_id, wave, worktree_path, cmd, status, root_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'running', ?7)",
+                params![id, run_id, task_id, wave as i32, worktree_path, cmd, root_id],
             )
             .map_err(|e| PytxoError::Store(e.to_string()))?;
         Ok(())
@@ -147,11 +198,30 @@ impl PytxoStore {
             .map_err(|e| PytxoError::Store(e.to_string()))
     }
 
+    /// Per-agent Signal Core arbitrage totals for a run: (agent_id, saved_tokens, edited_path_count).
+    /// Feeds the Reality Deck topology graph ([[reality-deck-visual-system]]).
+    pub fn arbitrage_by_agent(&self, run_id: &str) -> Result<Vec<(String, i64, i64)>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT agent_id, COALESCE(SUM(saved_tokens), 0), COUNT(DISTINCT path)
+                 FROM arbitrage_samples WHERE run_id = ?1 GROUP BY agent_id",
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let rows = stmt
+            .query_map(params![run_id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
     pub fn get_agent(&self, id: &str) -> Result<Option<AgentRecord>> {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, run_id, task_id, wave, worktree_path, cmd, exit_code, status
+                "SELECT id, run_id, task_id, wave, worktree_path, cmd, exit_code, status, root_id
                  FROM agents WHERE id = ?1",
             )
             .map_err(|e| PytxoError::Store(e.to_string()))?;
@@ -166,6 +236,7 @@ impl PytxoStore {
                     cmd: row.get(5)?,
                     exit_code: row.get(6)?,
                     status: row.get(7)?,
+                    root_id: row.get(8)?,
                 })
             })
             .map_err(|e| PytxoError::Store(e.to_string()))?;
@@ -178,7 +249,7 @@ impl PytxoStore {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, run_id, task_id, wave, worktree_path, cmd, exit_code, status
+                "SELECT id, run_id, task_id, wave, worktree_path, cmd, exit_code, status, root_id
                  FROM agents WHERE run_id = ?1 ORDER BY wave, id",
             )
             .map_err(|e| PytxoError::Store(e.to_string()))?;
@@ -194,6 +265,7 @@ impl PytxoStore {
                     cmd: row.get(5)?,
                     exit_code: row.get(6)?,
                     status: row.get(7)?,
+                    root_id: row.get(8)?,
                 })
             })
             .map_err(|e| PytxoError::Store(e.to_string()))?;

@@ -6,10 +6,25 @@ Thumbs.db
 /target/
 **/*.rs.bk
 
-# Node / Tauri (desktop lives in pytxo-desktop after split)
-node_modules/
-dist/
-.tauri/
+# Node / Tauri (Reality Deck)
+apps/web/node_modules/
+apps/web/.next/
+apps/web/out/
+apps/web/public/docs/
+apps/web/.docs-bundle/
+apps/web/.vercel/
+
+apps/docs/node_modules/
+apps/docs/build/
+apps/docs/.docusaurus/
+
+apps/desktop/node_modules/
+apps/desktop/dist/
+apps/desktop/.tauri/
+apps/desktop-export/dist/
+
+packages/pytxo/node_modules/
+packages/pytxo/vendor/
 
 # Env and secrets
 .env
@@ -33,3 +48,4 @@ docs/.obsidian/cache/
 # Local overrides
 AGENTS.override.md
 CLAUDE.local.md
+.vercel

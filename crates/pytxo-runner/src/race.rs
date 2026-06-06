@@ -22,6 +22,10 @@ impl SwarmRegistry {
     pub fn new() -> Self {
         Self::default()
     }
+
+    pub fn list_live(&self) -> Vec<LiveAgent> {
+        RaceShield::list_live(self)
+    }
 }
 
 impl RaceShield for SwarmRegistry {
@@ -85,11 +89,7 @@ impl RaceShield for SwarmRegistry {
             .inner
             .write()
             .map_err(|_| PytxoError::Runner("race shield lock poisoned".into()))?;
-        if !guard.agents.contains_key(agent_key) {
-            return Err(PytxoError::Runner(format!(
-                "race shield: unknown agent {agent_key}"
-            )));
-        }
+        // Allow pre-staging before path claim (subprocess spawn-time stdin drain).
         guard.stdin.enqueue(agent_key, data);
         Ok(())
     }
@@ -103,6 +103,10 @@ impl RaceShield for SwarmRegistry {
 }
 
 impl SwarmRegistry {
+    pub fn enqueue_stdin(&self, agent_key: &str, data: &[u8]) -> Result<()> {
+        RaceShield::enqueue_stdin(self, agent_key, data)
+    }
+
     pub fn drain_stdin(&self, agent_key: &str) -> Vec<u8> {
         self.inner
             .write()

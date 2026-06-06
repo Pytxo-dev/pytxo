@@ -1,1 +1,5 @@
-pub use pytxo_orchestrate::{doctor, init, logs, run, status, stop, RunOptions};
+pub use pytxo_orchestrate::{
+    doctor, hitl_respond, init, list_catalog_domains, list_hitl_pending, logs, project_add_root,
+    project_init, project_roots, project_run, project_status, run, status,
+    stop, ProjectRunOptions, RunOptions,
+};

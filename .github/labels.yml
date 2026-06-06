@@ -1,0 +1,28 @@
+# Label definitions for GitHub (sync manually or via github-label-sync).
+- name: good first issue
+  color: "2dd4bf"
+  description: Good for newcomers
+
+- name: help wanted
+  color: "a78bfa"
+  description: Extra attention needed
+
+- name: v0.1.0
+  color: "22d3ee"
+  description: Targeted for v0.1.0 release
+
+- name: cli
+  color: "27272a"
+  description: pytxo-cli
+
+- name: tui
+  color: "27272a"
+  description: pytxo-tui dashboard
+
+- name: docs
+  color: "27272a"
+  description: Documentation
+
+- name: packaging
+  color: "fbbf24"
+  description: npm, releases, install scripts

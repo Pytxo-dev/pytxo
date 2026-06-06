@@ -1,23 +1,39 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use pytxo_core::{
-    canonical_repo_root, FidelityTier, PytxoConfig, PytxoError, RunId, SignalCore, Task, TaskId,
+    canonical_repo_root, DomainId, FidelityTier, PytxoConfig, PytxoError, RunId, SignalCore, Task,
+    TaskId, TokenWallet, UsageMeter,
 };
-use pytxo_runner::{execute_plan, stop_all, stop_run, ProcessRegistry, RunContext, SwarmRegistry};
+use pytxo_runner::{execute_plan, stop_all, stop_run, ProcessRegistry, RunContext};
 use pytxo_scheduler::build_plan;
 use pytxo_signal::TreeSitterSignalCore;
-use pytxo_store::PytxoStore;
+use pytxo_store::{PytxoStore, SharedStore};
 use serde::{Deserialize, Serialize};
 
+pub mod billing;
+pub mod cloud;
 mod cost;
 mod doctor;
+mod hypervisor;
 mod preflight;
+mod project;
+
+pub use cloud::{cloud_clients, cloud_health_url, ping_cloud, CloudClients};
 
 pub use cost::{parse_cost_from_lines, CostEstimate};
 pub use doctor::{run_doctor, DoctorCheck, DoctorReport};
+pub use hypervisor::{
+    default_hypervisor, list_catalog_domains, DomainState, DomainSummary, HypervisorRegistry,
+};
 pub use preflight::assert_git_ready;
+pub use project::{
+    list_project_manifests, project_add_root, project_init, project_load, project_roots,
+    project_run, project_status, ProjectRunOptions, ProjectRunResult, ProjectStatusRow,
+};
+pub use pytxo_core::ExecutionBackend;
+pub use pytxo_store::CatalogEntry;
 
 #[cfg(feature = "sanitize")]
 use pytxo_sanitize::sanitize_line;
@@ -29,6 +45,19 @@ pub struct RunOptions {
     pub dry_run: bool,
     pub keep_worktrees: bool,
     pub repo: Option<PathBuf>,
+    /// Overrides `pytxo.toml` `execution_backend` when set.
+    pub execution: Option<pytxo_core::ExecutionBackend>,
+    /// Unified multi-root project run ([[ADR-0011-modular-project-manifest]]).
+    pub project: Option<ProjectRunContext>,
+}
+
+/// Roots and metadata for a single coordinated project run (Phase 20).
+#[derive(Clone, Debug)]
+pub struct ProjectRunContext {
+    pub project_id: String,
+    pub roots: std::collections::HashMap<String, pytxo_runner::RootExec>,
+    /// Read-only roots merged into agent context (label, canonical path).
+    pub readonly_context_roots: Vec<(String, PathBuf)>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -51,6 +80,10 @@ pub struct RunStatusJson {
     pub estimated_tokens_in: Option<i64>,
     pub estimated_tokens_out: Option<i64>,
     pub estimated_cost_usd: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arbitrage_saved_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wallet_balance_microcredits: Option<i64>,
     pub agents: Vec<AgentStatusJson>,
 }
 
@@ -101,12 +134,254 @@ pub fn doctor(repo: Option<PathBuf>, json: bool) -> anyhow::Result<()> {
 }
 
 pub async fn run(opts: RunOptions) -> anyhow::Result<RunId> {
-    let repo_root = resolve_repo_root(opts.repo.as_deref())?;
-    assert_git_ready(&repo_root)?;
+    default_hypervisor().run_blocking(opts).await
+}
 
-    let mut cfg = load_config(opts.config.as_deref(), &repo_root)?;
+pub fn dispatch(opts: RunOptions) -> anyhow::Result<(DomainId, RunId)> {
+    default_hypervisor().dispatch(opts)
+}
+
+pub fn list_domains() -> Vec<DomainSummary> {
+    default_hypervisor().list_domains()
+}
+
+/// Open SQLite telemetry for a domain (`domain_id` is canonical repo root).
+pub fn open_store_for_domain(
+    domain_id: &str,
+    config: Option<PathBuf>,
+) -> anyhow::Result<(PytxoConfig, PytxoStore)> {
+    let repo = PathBuf::from(domain_id);
+    open_store(config, Some(repo))
+}
+
+/// Non-blocking multi-project dispatch ([[execution-domains]]).
+pub fn dispatch_run(opts: RunOptions) -> anyhow::Result<(String, String)> {
+    let (domain, run) = dispatch(opts)?;
+    Ok((domain.as_str().to_string(), run.0))
+}
+
+pub fn enqueue_agent_stdin(
+    repo: Option<PathBuf>,
+    agent_key: &str,
+    data: &[u8],
+) -> anyhow::Result<()> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(None, &repo_root)?;
+    let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
+    ensure_agent_live(&domain.swarm, agent_key)?;
+    domain
+        .swarm
+        .enqueue_stdin(agent_key, data)
+        .map_err(|e| anyhow::anyhow!(e))?;
+    audit_mcp_tool(&repo_root, &cfg, agent_key, "pytxo_stdin", "{}")?;
+    Ok(())
+}
+
+/// Live agent session row for MCP hub v1 ([[mcp-router]]).
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct LiveAgentSession {
+    pub agent_key: String,
+    pub run_id: String,
+    pub agent_id: String,
+    pub paths: Vec<String>,
+    pub pid: Option<u32>,
+}
+
+fn parse_agent_key(agent_key: &str) -> (String, String) {
+    match agent_key.split_once(':') {
+        Some((run, agent)) => (run.to_string(), agent.to_string()),
+        None => (String::new(), agent_key.to_string()),
+    }
+}
+
+fn ensure_agent_live(swarm: &pytxo_runner::SwarmRegistry, agent_key: &str) -> anyhow::Result<()> {
+    if swarm
+        .list_live()
+        .iter()
+        .any(|a| a.agent_key == agent_key)
+    {
+        return Ok(());
+    }
+    anyhow::bail!("agent {agent_key} is not live (run may have finished)")
+}
+
+/// List agents currently registered in the domain's Race Shield ([[mcp-router]] v1).
+pub fn list_live_agents(
+    repo: Option<PathBuf>,
+    run_id: Option<&str>,
+) -> anyhow::Result<Vec<LiveAgentSession>> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(None, &repo_root)?;
+    let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
+    let mut out: Vec<LiveAgentSession> = domain
+        .swarm
+        .list_live()
+        .into_iter()
+        .map(|a| {
+            let (run, agent) = parse_agent_key(&a.agent_key);
+            LiveAgentSession {
+                agent_key: a.agent_key,
+                run_id: run,
+                agent_id: agent,
+                paths: a.paths,
+                pid: a.pid,
+            }
+        })
+        .collect();
+    if let Some(rid) = run_id {
+        out.retain(|s| s.run_id == rid);
+    }
+    Ok(out)
+}
+
+pub fn audit_mcp_tool(
+    repo_root: &Path,
+    cfg: &PytxoConfig,
+    agent_key: &str,
+    tool: &str,
+    payload: &str,
+) -> anyhow::Result<()> {
+    let store = PytxoStore::open(&cfg.db_path_at(repo_root))?;
+    let body = serde_json::json!({ "tool": tool, "payload": payload }).to_string();
+    store.append_event(agent_key, "mcp-tool", &body)?;
+    Ok(())
+}
+
+/// Forward a JSON-RPC call to a live child MCP session ([[mcp-router]] v2).
+pub fn mcp_proxy_call(
+    repo: Option<PathBuf>,
+    agent_key: &str,
+    method: &str,
+    params: serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(None, &repo_root)?;
+    let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
+    ensure_agent_live(&domain.swarm, agent_key)?;
+    let result = domain.mcp_hub.proxy_call(agent_key, method, params)?;
+    audit_mcp_tool(
+        &repo_root,
+        &cfg,
+        agent_key,
+        "pytxo_mcp_proxy",
+        &serde_json::json!({ "method": method }).to_string(),
+    )?;
+    Ok(result)
+}
+
+/// Aggregate tools from all live child MCP sessions ([[mcp-router]] v2).
+pub fn mcp_tools_list(repo: Option<PathBuf>) -> anyhow::Result<Vec<serde_json::Value>> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(None, &repo_root)?;
+    let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
+    domain.mcp_hub.aggregate_tools().map_err(|e| anyhow::anyhow!(e))
+}
+
+/// Galaxy HITL: list pending approval requests for a domain ([[race-shield]]).
+pub fn list_hitl_pending(repo: Option<PathBuf>) -> anyhow::Result<Vec<pytxo_runner::HitlRequest>> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(None, &repo_root)?;
+    let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
+    Ok(domain.hitl.pending())
+}
+
+/// Galaxy HITL: approve or deny a pending request. Returns whether it was pending.
+pub fn hitl_respond(
+    repo: Option<PathBuf>,
+    request_id: &str,
+    approve: bool,
+) -> anyhow::Result<bool> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(None, &repo_root)?;
+    let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
+    Ok(domain.hitl.resolve(request_id, approve))
+}
+
+pub fn commit_workspace_for_agent(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    run_id: &str,
+    agent_id: &str,
+) -> anyhow::Result<()> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(config.as_deref(), &repo_root)?;
+    let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
+    let agent_key = format!("{run_id}:{agent_id}");
+    let agent = store
+        .get_agent(&agent_key)?
+        .ok_or_else(|| anyhow::anyhow!("agent not found: {agent_key}"))?;
+    let worktree = agent
+        .worktree_path
+        .filter(|p| !p.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("no worktree for agent"))?;
+    let branch = pytxo_runner::branch_name(run_id, agent_id);
+    let handle = pytxo_core::WorkspaceHandle {
+        cwd: PathBuf::from(worktree),
+        branch,
+        backend: cfg.isolation,
+    };
+    let metering = billing::metering_for_ctx(&cfg, &repo_root, &None);
+    let ctx = RunContext {
+        run_id: RunId(run_id.to_string()),
+        repo_root: repo_root.clone(),
+        worktree_base: repo_root.join(&cfg.worktree_dir),
+        data_dir: repo_root.join(&cfg.data_dir),
+        cmd: String::new(),
+        keep_worktrees: true,
+        on_event: None,
+        signal_core: cfg.signal_core,
+        signal_fidelity: cfg.signal_fidelity,
+        isolation_mode: cfg.isolation,
+        permission_profile: cfg.permission_profile,
+        agent_profiles: cfg.agent_profile_map(),
+        billing_mode: metering.billing_mode,
+        domain_id: metering.domain_id,
+        model_router: metering.model_router,
+        managed_transport: metering.managed_transport,
+        usage_meter: metering.usage_meter,
+        token_estimator: metering.token_estimator,
+        execution_backend: cfg.execution_backend,
+        pty_rows: cfg.pty_rows,
+        pty_cols: cfg.pty_cols,
+        // Manual commit IS the human approval; no queue gate needed here.
+        hitl: None,
+        agent_paths: std::collections::HashMap::new(),
+        agent_fidelity: std::collections::HashMap::new(),
+        roots: std::collections::HashMap::new(),
+        readonly_context_roots: Vec::new(),
+        subprocess_stdin: cfg.subprocess_stdin,
+        cloud_dispatcher: None,
+        context_cache: None,
+        cloud_cache_enabled: false,
+        cloud_fallback_local: true,
+        mcp_hub: None,
+        mcp_hub_enabled: false,
+        mcp_allowlist: Vec::new(),
+    };
+    pytxo_runner::commit_workspace(&ctx, &handle, cfg.permission_profile)
+        .map_err(|e| anyhow::anyhow!(e))
+}
+
+pub(crate) async fn execute_run_body(
+    domain: Arc<hypervisor::DomainState>,
+    opts: RunOptions,
+    mut cfg: PytxoConfig,
+    run_id: Option<RunId>,
+) -> anyhow::Result<RunId> {
+    assert_git_ready(&domain.repo_root)?;
+
     if opts.agents > 0 {
         cfg.max_agents = opts.agents;
+    }
+    if let Some(exec) = opts.execution {
+        cfg.execution_backend = exec;
+    }
+    if cfg.max_agents > cfg.tier_max_agents {
+        anyhow::bail!(
+            "max_agents {} exceeds tier_max_agents {} (Pytxo Core cap)",
+            cfg.max_agents,
+            cfg.tier_max_agents
+        );
     }
 
     let tasks = if cfg.task.is_empty() {
@@ -123,16 +398,32 @@ pub async fn run(opts: RunOptions) -> anyhow::Result<RunId> {
         return Ok(RunId::new());
     }
 
-    fs::create_dir_all(repo_root.join(&cfg.worktree_dir))?;
-    fs::create_dir_all(repo_root.join(&cfg.data_dir))?;
+    let run_id = run_id.unwrap_or_default();
+    let db_path = domain.data_dir.join("pytxo.db");
+    let store_for_events = Arc::new(SharedStore::open(&db_path)?);
+    {
+        let store = store_for_events
+            .lock()
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        store.insert_run(&run_id.0, &domain.repo_root.to_string_lossy())?;
+        if let Some(proj) = &opts.project {
+            store.tag_run_project(&run_id.0, &proj.project_id, None)?;
+        }
+    }
 
-    let run_id = RunId::new();
-    let store = PytxoStore::open(&cfg.db_path())?;
-    store.insert_run(&run_id.0, &repo_root.to_string_lossy())?;
+    let domain_id = DomainId::from_repo_root(&domain.repo_root).map_err(|e| anyhow::anyhow!(e))?;
+    let mut ultra =
+        billing::setup_ultra_billing(Arc::clone(&store_for_events), &cfg, domain_id.clone())?;
+    if let Some(u) = ultra.as_mut() {
+        u.hybrid.on_run_start(&u.domain_id, &run_id)?;
+        let reserve =
+            billing::estimate_reserve_microcredits(&cfg, plan.waves.iter().map(|w| w.len()).sum());
+        let res = u.hybrid.wallet.reserve(&u.domain_id, reserve, &run_id)?;
+        u.reservation = Some(res);
+    }
 
     let sanitize = cfg.sanitize;
-    let store_cb = Arc::new(Mutex::new(store));
-    let store_for_events = Arc::clone(&store_cb);
+    let store_for_on_event = Arc::clone(&store_for_events);
     let on_event = Arc::new(move |agent_key: &str, kind: &str, line: &str| {
         let payload = if sanitize {
             #[cfg(feature = "sanitize")]
@@ -146,42 +437,87 @@ pub async fn run(opts: RunOptions) -> anyhow::Result<RunId> {
         } else {
             line.to_string()
         };
-        if let Ok(guard) = store_for_events.lock() {
+        if let Ok(guard) = store_for_on_event.lock() {
             let _ = guard.append_event(agent_key, kind, &payload);
         }
     });
 
+    let agent_profiles = cfg.agent_profile_map();
+    let metering = billing::metering_for_ctx(&cfg, &domain.repo_root, &ultra);
+    let cloud = cloud::cloud_clients(&cfg);
     let ctx = RunContext {
         run_id: run_id.clone(),
-        repo_root: repo_root.clone(),
-        worktree_base: repo_root.join(&cfg.worktree_dir),
-        data_dir: repo_root.join(&cfg.data_dir),
+        repo_root: domain.repo_root.clone(),
+        worktree_base: domain.repo_root.join(&cfg.worktree_dir),
+        data_dir: domain.data_dir.clone(),
         cmd: opts.cmd.clone(),
         keep_worktrees: opts.keep_worktrees,
         on_event: Some(on_event),
         signal_core: cfg.signal_core,
         signal_fidelity: cfg.signal_fidelity,
         isolation_mode: cfg.isolation,
+        permission_profile: cfg.permission_profile,
+        agent_profiles,
+        billing_mode: metering.billing_mode,
+        domain_id: metering.domain_id,
+        model_router: metering.model_router,
+        managed_transport: metering.managed_transport,
+        usage_meter: metering.usage_meter,
+        token_estimator: metering.token_estimator,
+        execution_backend: cfg.execution_backend,
+        pty_rows: cfg.pty_rows,
+        pty_cols: cfg.pty_cols,
+        hitl: Some(domain.hitl.clone()),
+        agent_paths: cfg
+            .agent
+            .iter()
+            .filter(|a| !a.paths.is_empty())
+            .map(|a| (a.name.clone(), a.paths.clone()))
+            .collect(),
+        agent_fidelity: cfg
+            .agent
+            .iter()
+            .filter_map(|a| a.signal_fidelity.map(|f| (a.name.clone(), f)))
+            .collect(),
+        roots: opts
+            .project
+            .as_ref()
+            .map(|p| p.roots.clone())
+            .unwrap_or_default(),
+        readonly_context_roots: opts
+            .project
+            .as_ref()
+            .map(|p| p.readonly_context_roots.clone())
+            .unwrap_or_default(),
+        subprocess_stdin: cfg.subprocess_stdin,
+        cloud_dispatcher: Some(cloud.dispatcher),
+        context_cache: Some(cloud.cache),
+        cloud_cache_enabled: cfg.cloud.cache_enabled,
+        cloud_fallback_local: cfg.cloud.fallback_local,
+        mcp_hub: Some(Arc::new(domain.mcp_hub.clone())),
+        mcp_hub_enabled: cfg.mcp_hub.enabled,
+        mcp_allowlist: cfg.mcp_hub.allowlist.clone(),
     };
 
-    let registry = ProcessRegistry::default();
-    let swarm = SwarmRegistry::new();
-    save_active_run(&cfg, &run_id, &repo_root).map_err(|e| anyhow::anyhow!(e))?;
+    save_active_run(&cfg, &run_id, &domain.repo_root).map_err(|e| anyhow::anyhow!(e))?;
 
-    let results = execute_plan(&ctx, &plan, &registry, &swarm).await?;
+    let results = execute_plan(&ctx, &plan, &domain.process_registry, &domain.swarm).await?;
 
     let mut failed = false;
     let mut all_lines: Vec<String> = Vec::new();
-    let store = store_cb.lock().expect("store lock");
+    let store = store_for_events
+        .lock()
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     for result in &results {
         let agent_key = format!("{}:{}", run_id, result.agent_id);
-        store.insert_agent(
+        store.insert_agent_with_root(
             &agent_key,
             &run_id.0,
             &result.task_id,
             result.wave,
             Some(&result.worktree_path.to_string_lossy()),
             &opts.cmd,
+            result.root_id.as_deref(),
         )?;
         if !result.stdout.is_empty() {
             let payload = maybe_sanitize(&result.stdout, sanitize);
@@ -207,9 +543,25 @@ pub async fn run(opts: RunOptions) -> anyhow::Result<RunId> {
         store.update_run_cost(&run_id.0, cost.tokens_in, cost.tokens_out, cost.cost_usd)?;
     }
 
+    drop(store);
+
+    if let Some(ref mut u) = ultra {
+        let totals = u.meter.run_totals(&run_id)?;
+        let cost_micro = if totals.cost_micro_usd > 0 {
+            totals.cost_micro_usd
+        } else {
+            (cost.cost_usd * 1_000_000.0) as i64
+        };
+        billing::settle_ultra_run(u, &run_id, cost_micro)?;
+    }
+
     let run_status = if failed { "failed" } else { "completed" };
-    store.finish_run(&run_id.0, run_status)?;
-    let _ = fs::remove_file(cfg.state_path());
+    store_for_events
+        .lock()
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?
+        .finish_run(&run_id.0, run_status)?;
+    let state_path = domain.data_dir.join("active_run.json");
+    let _ = fs::remove_file(state_path);
 
     if failed && cfg.fail_fast {
         anyhow::bail!("one or more agents failed (fail_fast=true)");
@@ -246,7 +598,7 @@ pub fn status(
 ) -> anyhow::Result<()> {
     let repo = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo)?;
-    let store = PytxoStore::open(&cfg.db_path())?;
+    let store = PytxoStore::open(&cfg.db_path_at(&repo))?;
     let runs = store.list_runs(limit)?;
     if json {
         let mut out = Vec::new();
@@ -262,6 +614,10 @@ pub fn status(
                     exit_code: a.exit_code,
                 })
                 .collect();
+            let arbitrage_saved = store.arbitrage_saved_tokens_for_run(&run.id).ok();
+            let wallet_balance = DomainId::from_repo_root(Path::new(&run.repo_root))
+                .ok()
+                .and_then(|d| store.wallet_balance_microcredits(&d).ok());
             out.push(RunStatusJson {
                 id: run.id.clone(),
                 status: run.status.clone(),
@@ -270,6 +626,8 @@ pub fn status(
                 estimated_tokens_in: run.estimated_tokens_in,
                 estimated_tokens_out: run.estimated_tokens_out,
                 estimated_cost_usd: run.estimated_cost_usd,
+                arbitrage_saved_tokens: arbitrage_saved,
+                wallet_balance_microcredits: wallet_balance,
                 agents,
             });
         }
@@ -306,7 +664,7 @@ pub fn logs(
 ) -> anyhow::Result<Vec<String>> {
     let repo = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo)?;
-    let store = PytxoStore::open(&cfg.db_path())?;
+    let store = PytxoStore::open(&cfg.db_path_at(&repo))?;
     let events = store.list_events(agent, tail)?;
     Ok(events
         .into_iter()
@@ -326,14 +684,15 @@ pub async fn stop(
 
     if all {
         stop_all(&data_dir, true).map_err(|e| anyhow::anyhow!(e))?;
-        if cfg.state_path().exists() {
-            fs::remove_file(cfg.state_path())?;
+        let state_path = repo.join(&cfg.data_dir).join("active_run.json");
+        if state_path.exists() {
+            fs::remove_file(state_path)?;
         }
         println!("Stopped all tracked processes.");
         return Ok(());
     }
 
-    let state_path = cfg.state_path();
+    let state_path = repo.join(&cfg.data_dir).join("active_run.json");
     if !state_path.exists() {
         println!("No active run.");
         return Ok(());
@@ -342,10 +701,12 @@ pub async fn stop(
     let state: ActiveRunState = serde_json::from_str(&raw)?;
     let pids = stop_run(&data_dir, &state.run_id, true).map_err(|e| anyhow::anyhow!(e))?;
     if cleanup_worktrees {
+        let repo_path = PathBuf::from(&state.repo_root);
+        let metering = billing::metering_for_ctx(&cfg, &repo_path, &None);
         let ctx = RunContext {
             run_id: RunId(state.run_id.clone()),
-            repo_root: PathBuf::from(&state.repo_root),
-            worktree_base: PathBuf::from(&state.repo_root).join(&cfg.worktree_dir),
+            repo_root: repo_path.clone(),
+            worktree_base: repo_path.join(&cfg.worktree_dir),
             data_dir: data_dir.clone(),
             cmd: String::new(),
             keep_worktrees: false,
@@ -353,6 +714,30 @@ pub async fn stop(
             signal_core: cfg.signal_core,
             signal_fidelity: cfg.signal_fidelity,
             isolation_mode: cfg.isolation,
+            permission_profile: cfg.permission_profile,
+            agent_profiles: cfg.agent_profile_map(),
+            billing_mode: metering.billing_mode,
+            domain_id: metering.domain_id,
+            model_router: metering.model_router,
+            managed_transport: metering.managed_transport,
+            usage_meter: metering.usage_meter,
+            token_estimator: metering.token_estimator,
+            execution_backend: cfg.execution_backend,
+            pty_rows: cfg.pty_rows,
+            pty_cols: cfg.pty_cols,
+            hitl: None,
+            agent_paths: std::collections::HashMap::new(),
+            agent_fidelity: std::collections::HashMap::new(),
+            roots: std::collections::HashMap::new(),
+            readonly_context_roots: Vec::new(),
+            subprocess_stdin: cfg.subprocess_stdin,
+            cloud_dispatcher: None,
+            context_cache: None,
+            cloud_cache_enabled: false,
+            cloud_fallback_local: true,
+            mcp_hub: None,
+            mcp_hub_enabled: false,
+            mcp_allowlist: Vec::new(),
         };
         let registry = ProcessRegistry::default();
         pytxo_runner::cleanup_worktrees(&ctx, &registry).map_err(|e| anyhow::anyhow!(e))?;
@@ -372,7 +757,7 @@ pub fn open_store(
 ) -> anyhow::Result<(PytxoConfig, PytxoStore)> {
     let repo = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo)?;
-    let store = PytxoStore::open(&cfg.db_path())?;
+    let store = PytxoStore::open(&cfg.db_path_at(&repo))?;
     Ok((cfg, store))
 }
 
@@ -412,9 +797,10 @@ pub fn read_file(
 
     let source = std::fs::read_to_string(&path).map_err(|e| anyhow::anyhow!(e))?;
     let bytes = source.len();
+    let content = maybe_sanitize(&source, cfg.sanitize);
     Ok(pytxo_core::ScaffoldResult {
         path: path.display().to_string(),
-        content: source,
+        content,
         stats: pytxo_core::ScaffoldStats {
             original_bytes: bytes,
             scaffolded_bytes: bytes,
@@ -439,7 +825,7 @@ fn maybe_sanitize(s: &str, enabled: bool) -> String {
     }
 }
 
-fn load_config(path: Option<&Path>, repo: &Path) -> anyhow::Result<PytxoConfig> {
+pub(crate) fn load_config(path: Option<&Path>, repo: &Path) -> anyhow::Result<PytxoConfig> {
     let path = path.map(|p| p.to_path_buf()).or_else(|| {
         let candidate = repo.join("pytxo.toml");
         if candidate.exists() {
@@ -455,15 +841,77 @@ fn load_config(path: Option<&Path>, repo: &Path) -> anyhow::Result<PytxoConfig> 
     }
 }
 
-fn synthetic_tasks(count: usize) -> Vec<Task> {
+pub(crate) fn synthetic_tasks(count: usize) -> Vec<Task> {
     (0..count)
         .map(|i| Task {
             id: TaskId(format!("synthetic-{i}")),
             agent: "default".into(),
             paths: vec![format!("src/agent-{i}.ts")],
             depends_on: Vec::new(),
+            root: None,
+            signal_fidelity: None,
         })
         .collect()
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DashboardSnapshot {
+    pub version: String,
+    pub repo_root: String,
+    pub doctor: DoctorReport,
+    pub runs: Vec<RunStatusJson>,
+    pub domains: Vec<CatalogEntry>,
+    pub hitl_pending: Vec<pytxo_runner::HitlRequest>,
+}
+
+/// Read-only aggregate for the terminal dashboard (`pytxo-tui`).
+pub fn dashboard_snapshot(repo: Option<PathBuf>, run_limit: usize) -> anyhow::Result<DashboardSnapshot> {
+    let version = env!("CARGO_PKG_VERSION").to_string();
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let doctor = run_doctor(Some(&repo_root))?;
+    let cfg = load_config(None, &repo_root)?;
+    let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
+    let runs = store.list_runs(run_limit)?;
+    let mut run_json = Vec::new();
+    for run in &runs {
+        let agents: Vec<AgentStatusJson> = store
+            .list_agents_for_run(&run.id)?
+            .into_iter()
+            .map(|a| AgentStatusJson {
+                id: a.id,
+                task_id: a.task_id,
+                wave: a.wave,
+                status: a.status,
+                exit_code: a.exit_code,
+            })
+            .collect();
+        let arbitrage_saved = store.arbitrage_saved_tokens_for_run(&run.id).ok();
+        let wallet_balance = DomainId::from_repo_root(Path::new(&run.repo_root))
+            .ok()
+            .and_then(|d| store.wallet_balance_microcredits(&d).ok());
+        run_json.push(RunStatusJson {
+            id: run.id.clone(),
+            status: run.status.clone(),
+            repo_root: run.repo_root.clone(),
+            started_at: run.started_at.to_rfc3339(),
+            estimated_tokens_in: run.estimated_tokens_in,
+            estimated_tokens_out: run.estimated_tokens_out,
+            estimated_cost_usd: run.estimated_cost_usd,
+            arbitrage_saved_tokens: arbitrage_saved,
+            wallet_balance_microcredits: wallet_balance,
+            agents,
+        });
+    }
+    let domains = list_catalog_domains()?;
+    let hitl_pending = list_hitl_pending(Some(repo_root.clone())).unwrap_or_default();
+    Ok(DashboardSnapshot {
+        version,
+        repo_root: repo_root.display().to_string(),
+        doctor,
+        runs: run_json,
+        domains,
+        hitl_pending,
+    })
 }
 
 fn save_active_run(cfg: &PytxoConfig, run_id: &RunId, repo: &Path) -> Result<(), PytxoError> {
@@ -473,7 +921,8 @@ fn save_active_run(cfg: &PytxoConfig, run_id: &RunId, repo: &Path) -> Result<(),
     };
     let json =
         serde_json::to_string_pretty(&state).map_err(|e| PytxoError::Other(e.to_string()))?;
-    fs::write(cfg.state_path(), json).map_err(PytxoError::Io)?;
+    let path = repo.join(&cfg.data_dir).join("active_run.json");
+    fs::write(path, json).map_err(PytxoError::Io)?;
     Ok(())
 }
 

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -5,17 +6,30 @@ use std::sync::Arc;
 use std::thread;
 
 use pytxo_core::{
-    AgentId, ExecutionPlan, FidelityTier, IsolationCtx, IsolationMode, PytxoError, RaceShield,
-    Result, RunId, ScheduledTask,
+    root_scoped_claim, AgentId, BillingMode, ByteHeuristicEstimator, ChildLaunchEnv,
+    CloudDispatcher, ConfigModelRouter, ContextCache, DomainId, ExecRequest, ExecutionBackend,
+    ExecutionPlan, FidelityTier, IsolationCtx, IsolationMode, ManagedTransport, ModelRoute,
+    ModelRouter, PermissionEngine, PermissionProfile, PytxoError, RaceShield, Result, RunId,
+    ScheduledTask, StartSandboxRequest, TaskId, TokenEstimator, UsageKey, UsageMeter,
+    WorkspaceHandle,
 };
 
-use crate::context::prepare_agent_context;
+use crate::context::{extend_context_with_readonly_roots, prepare_agent_context_for_root};
+use crate::failure::implicated_paths;
 use crate::git::remove_worktree;
 use crate::process::{ChildRecord, ProcessRegistry};
 use crate::process_registry_file::{registry_path, ProcessEntry, ProcessRegistryFile};
 use crate::race::SwarmRegistry;
 
 pub type EventCallback = Arc<dyn Fn(&str, &str, &str) + Send + Sync>;
+
+/// One modular-project root's execution surface ([[ADR-0011-modular-project-manifest]]).
+#[derive(Clone, Debug)]
+pub struct RootExec {
+    pub repo_root: PathBuf,
+    pub worktree_base: PathBuf,
+    pub read_only: bool,
+}
 
 #[derive(Clone)]
 pub struct RunContext {
@@ -29,6 +43,67 @@ pub struct RunContext {
     pub signal_core: bool,
     pub signal_fidelity: FidelityTier,
     pub isolation_mode: IsolationMode,
+    /// Run-level default; per-agent overrides in `agent_profiles`.
+    pub permission_profile: PermissionProfile,
+    pub agent_profiles: HashMap<String, PermissionProfile>,
+    pub billing_mode: BillingMode,
+    pub domain_id: DomainId,
+    pub model_router: Arc<dyn ModelRouter>,
+    pub managed_transport: ManagedTransport,
+    pub usage_meter: Option<Arc<dyn UsageMeter>>,
+    pub token_estimator: Arc<dyn TokenEstimator>,
+    pub execution_backend: ExecutionBackend,
+    pub pty_rows: u16,
+    pub pty_cols: u16,
+    /// Galaxy HITL queue ([[permission-profile-engine]]). When set, flushes that
+    /// `flush_requires_approval()` block until a human approves via the queue.
+    pub hitl: Option<crate::hitl::HitlQueue>,
+    /// Per-agent extra context paths (`[[agent]].paths`), merged with task paths
+    /// when materializing context ([[signal-core]]).
+    pub agent_paths: HashMap<String, Vec<String>>,
+    /// Per-agent Signal Core fidelity overrides (`[[agent]].signal_fidelity`),
+    /// applied below any per-task override and the permission cap ([[closed-loop-fidelity]]).
+    pub agent_fidelity: HashMap<String, FidelityTier>,
+    /// Modular project roots by label for unified multi-root runs
+    /// ([[ADR-0011-modular-project-manifest]]). Empty = single-root run on `repo_root`.
+    pub roots: HashMap<String, RootExec>,
+    /// Read-only project roots whose files are scaffolded into context but never
+    /// receive worktrees or flushes (cross-root protos).
+    pub readonly_context_roots: Vec<(String, PathBuf)>,
+    /// When true and using the subprocess backend, drain the Race Shield stdin queue
+    /// into the child after spawn ([[race-shield]]).
+    pub subprocess_stdin: bool,
+    /// Remote cloud sandbox dispatcher ([[cloud-sandbox-service]]).
+    pub cloud_dispatcher: Option<Arc<dyn CloudDispatcher>>,
+    /// Pro context cache client (read-through / write-through).
+    pub context_cache: Option<Arc<dyn ContextCache>>,
+    pub cloud_cache_enabled: bool,
+    /// Fall back to local PTY when cloud ping or exec fails.
+    pub cloud_fallback_local: bool,
+    /// MCP hub v2 child session registry ([[mcp-router]]).
+    pub mcp_hub: Option<Arc<crate::mcp_hub::McpHub>>,
+    pub mcp_hub_enabled: bool,
+    pub mcp_allowlist: Vec<String>,
+}
+
+impl RunContext {
+    pub fn default_metering(
+        repo_root: &Path,
+    ) -> (
+        DomainId,
+        Arc<dyn ModelRouter>,
+        ManagedTransport,
+        Arc<dyn TokenEstimator>,
+    ) {
+        let domain_id =
+            DomainId::from_repo_root(repo_root).unwrap_or_else(|_| DomainId("unknown".to_string()));
+        (
+            domain_id,
+            Arc::new(ConfigModelRouter),
+            ManagedTransport::default(),
+            Arc::new(ByteHeuristicEstimator),
+        )
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -40,14 +115,16 @@ pub struct AgentRunResult {
     pub exit_code: Option<i32>,
     pub stdout: String,
     pub stderr: String,
+    /// Modular project root label this agent ran under ([[ADR-0011-modular-project-manifest]]).
+    pub root_id: Option<String>,
 }
 
-struct SingleResult {
-    worktree_path: PathBuf,
-    exit_code: Option<i32>,
-    stdout: String,
-    stderr: String,
-    pid: Option<u32>,
+pub struct SingleResult {
+    pub worktree_path: PathBuf,
+    pub exit_code: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+    pub pid: Option<u32>,
 }
 
 pub async fn execute_plan(
@@ -94,29 +171,109 @@ async fn run_one_agent(
     swarm: &SwarmRegistry,
 ) -> Result<AgentRunResult> {
     let agent_key = format!("{}:{}", ctx.run_id, agent_id);
-    swarm.try_claim_paths(&agent_key, &task.paths)?;
+    let claim_paths: Vec<String> = task
+        .paths
+        .iter()
+        .map(|p| root_scoped_claim(task.root.as_deref(), p))
+        .collect();
+    swarm.try_claim_paths(&agent_key, &claim_paths)?;
+
+    let profile = ctx
+        .agent_profiles
+        .get(&task.agent)
+        .copied()
+        .unwrap_or(ctx.permission_profile);
+    let engine = PermissionEngine::new(profile);
+
+    // Resolve the execution root for this task's modular-project `root` label;
+    // single-root runs (empty map) fall back to the run's primary root.
+    let (eff_repo_root, eff_worktree_base) = resolve_task_root(task, ctx)?;
 
     let isolation = crate::blast::isolation_for_mode(ctx.isolation_mode);
     let iso_ctx = IsolationCtx {
         run_id: ctx.run_id.clone(),
         agent_id: agent_id.clone(),
-        repo_root: ctx.repo_root.clone(),
-        worktree_base: ctx.worktree_base.clone(),
+        repo_root: eff_repo_root.clone(),
+        worktree_base: eff_worktree_base.clone(),
     };
 
-    let workspace = isolation.prepare(&iso_ctx)?;
+    let (workspace, used_isolation) = if engine.use_worktree_isolation() {
+        let workspace = isolation.prepare(&iso_ctx)?;
+        (workspace, true)
+    } else {
+        // Supernova: run directly in repo root without Blast worktree isolation.
+        (
+            WorkspaceHandle {
+                cwd: eff_repo_root.clone(),
+                branch: String::new(),
+                backend: ctx.isolation_mode,
+            },
+            false,
+        )
+    };
     let wt_path = workspace.cwd.clone();
     let branch = workspace.branch.clone();
 
-    let context_dir = prepare_agent_context(
-        &ctx.repo_root,
+    // Materialize context over task paths unioned with the agent's own
+    // `[[agent]].paths` ([[signal-core]] context launch contract).
+    let mut context_paths = task.paths.clone();
+    if let Some(extra) = ctx.agent_paths.get(&task.agent) {
+        for p in extra {
+            if !context_paths.contains(p) {
+                context_paths.push(p.clone());
+            }
+        }
+    }
+
+    // Resolve fidelity: per-task override > per-agent override > global, then cap.
+    let requested_fidelity = task
+        .signal_fidelity
+        .or_else(|| ctx.agent_fidelity.get(&task.agent).copied())
+        .unwrap_or(ctx.signal_fidelity);
+    let fidelity = engine.max_fidelity(requested_fidelity);
+    let route = ctx
+        .model_router
+        .route(&task.agent, &minimal_config_for_route(ctx));
+    let cache_ref = ctx.context_cache.as_deref();
+    let mut bundle = prepare_agent_context_for_root(
+        &eff_repo_root,
         &ctx.data_dir,
         &ctx.run_id,
         &agent_id.0,
-        &task.paths,
+        &context_paths,
         ctx.signal_core,
-        ctx.signal_fidelity,
+        fidelity,
+        ctx.token_estimator.as_ref(),
+        &route.model,
+        task.root.as_deref(),
+        cache_ref,
+        &ctx.domain_id.0,
+        ctx.cloud_cache_enabled,
     )?;
+    if ctx.signal_core && !ctx.readonly_context_roots.is_empty() {
+        bundle = extend_context_with_readonly_roots(
+            bundle,
+            &ctx.data_dir,
+            &ctx.run_id,
+            &agent_id.0,
+            &ctx.readonly_context_roots,
+            fidelity,
+            ctx.token_estimator.as_ref(),
+            &route.model,
+        )?;
+    }
+
+    if let Some(meter) = &ctx.usage_meter {
+        let key = UsageKey {
+            run_id: ctx.run_id.clone(),
+            agent_id: agent_id.clone(),
+            domain_id: ctx.domain_id.clone(),
+            task_id: TaskId(task.task_id.0.clone()),
+        };
+        meter.record_context_arbitrage(&key, &bundle.arbitrage)?;
+    }
+
+    let context_dir = bundle.context_dir;
 
     registry.register(ChildRecord {
         run_id: ctx.run_id.clone(),
@@ -125,6 +282,44 @@ async fn run_one_agent(
         branch: branch.clone(),
         pid: None,
     });
+
+    let mut effective_backend = ctx.execution_backend;
+    let mut sandbox_id: Option<String> = None;
+    if ctx.execution_backend == ExecutionBackend::Cloud {
+        if let Some(dispatcher) = ctx.cloud_dispatcher.as_ref() {
+            match dispatcher.start_sandbox(&StartSandboxRequest {
+                domain_id: ctx.domain_id.0.clone(),
+                run_id: ctx.run_id.0.clone(),
+                agent_id: agent_id.0.clone(),
+                repo_fingerprint: eff_repo_root.to_string_lossy().into_owned(),
+            }) {
+                Ok(start) => sandbox_id = Some(start.sandbox_id),
+                Err(e) if ctx.cloud_fallback_local => {
+                    if let Some(cb) = ctx.on_event.as_ref() {
+                        cb(&agent_key, "cloud-fallback", &format!("{e}"));
+                    }
+                    effective_backend = ExecutionBackend::Pty;
+                }
+                Err(e) => return Err(e),
+            }
+        } else if ctx.cloud_fallback_local {
+            effective_backend = ExecutionBackend::Pty;
+        } else {
+            return Err(PytxoError::Runner(
+                "cloud execution requires cloud_dispatcher".into(),
+            ));
+        }
+    }
+
+    if ctx.mcp_hub_enabled {
+        if let Some(hub) = &ctx.mcp_hub {
+            if mcp_cmd_allowed(&ctx.cmd, &ctx.mcp_allowlist) {
+                if let Ok((session, _handle)) = crate::mcp_hub::spawn_test_mcp_child() {
+                    hub.register(&agent_key, session);
+                }
+            }
+        }
+    }
 
     let result = tokio::task::spawn_blocking({
         let wt_path = wt_path.clone();
@@ -136,7 +331,16 @@ async fn run_one_agent(
         let data_dir = ctx.data_dir.clone();
         let branch = branch.clone();
         let context_dir = context_dir.clone();
+        let managed_transport = ctx.managed_transport.clone();
+        let route = route.clone();
         let swarm = swarm.clone();
+        let execution_backend = effective_backend;
+        let pty_rows = ctx.pty_rows;
+        let pty_cols = ctx.pty_cols;
+        let subprocess_stdin = ctx.subprocess_stdin;
+        let cloud_dispatcher = ctx.cloud_dispatcher.clone();
+        let cloud_fallback_local = ctx.cloud_fallback_local;
+        let sandbox_id = sandbox_id.clone();
         move || {
             let out = run_command_streaming(
                 &wt_path,
@@ -144,6 +348,17 @@ async fn run_one_agent(
                 on_event.as_ref(),
                 &agent_key,
                 context_dir.as_deref(),
+                profile,
+                &managed_transport,
+                &route,
+                execution_backend,
+                pty_rows,
+                pty_cols,
+                &swarm,
+                subprocess_stdin,
+                cloud_dispatcher.as_deref(),
+                sandbox_id.as_deref(),
+                cloud_fallback_local,
                 Some(ProcessPersist {
                     run_id,
                     repo_root,
@@ -162,9 +377,119 @@ async fn run_one_agent(
     .await
     .map_err(|e| PytxoError::Runner(format!("join: {e}")))??;
 
+    let mut result = result;
+    if result.exit_code != Some(0)
+        && ctx.signal_core
+        && fidelity != FidelityTier::High
+        && !context_paths.is_empty()
+    {
+        // Closed-loop v2: escalate only the paths the failure implicates; fall
+        // back to the full context surface when the classifier is unsure.
+        let combined_output = format!("{}\n{}", result.stdout, result.stderr);
+        let implicated = implicated_paths(&combined_output, &context_paths);
+        let retry_paths: &[String] = if implicated.is_empty() {
+            &context_paths
+        } else {
+            &implicated
+        };
+
+        let high_bundle = prepare_agent_context_for_root(
+            &eff_repo_root,
+            &ctx.data_dir,
+            &ctx.run_id,
+            &agent_id.0,
+            retry_paths,
+            true,
+            FidelityTier::High,
+            ctx.token_estimator.as_ref(),
+            &route.model,
+            task.root.as_deref(),
+            cache_ref,
+            &ctx.domain_id.0,
+            ctx.cloud_cache_enabled,
+        )?;
+        if let Some(meter) = &ctx.usage_meter {
+            let key = UsageKey {
+                run_id: ctx.run_id.clone(),
+                agent_id: agent_id.clone(),
+                domain_id: ctx.domain_id.clone(),
+                task_id: TaskId(task.task_id.0.clone()),
+            };
+            meter.record_context_arbitrage(&key, &high_bundle.arbitrage)?;
+        }
+        if let Some(cb) = ctx.on_event.as_ref() {
+            cb(
+                &agent_key,
+                "signal-retry",
+                &format!(
+                    "closed-loop retry at high fidelity over {} of {} path(s)",
+                    retry_paths.len(),
+                    context_paths.len()
+                ),
+            );
+        }
+        let context_dir = high_bundle.context_dir;
+        let execution_backend = effective_backend;
+        let pty_rows = ctx.pty_rows;
+        let pty_cols = ctx.pty_cols;
+        let subprocess_stdin = ctx.subprocess_stdin;
+        let cloud_dispatcher = ctx.cloud_dispatcher.clone();
+        let cloud_fallback_local = ctx.cloud_fallback_local;
+        let sandbox_id = sandbox_id.clone();
+        let retry = tokio::task::spawn_blocking({
+            let wt_path = wt_path.clone();
+            let cmd = ctx.cmd.clone();
+            let on_event = ctx.on_event.clone();
+            let agent_key = agent_key.clone();
+            let run_id = ctx.run_id.0.clone();
+            let repo_root = ctx.repo_root.to_string_lossy().to_string();
+            let data_dir = ctx.data_dir.clone();
+            let branch = branch.clone();
+            let managed_transport = ctx.managed_transport.clone();
+            let route = route.clone();
+            let swarm = swarm.clone();
+            move || {
+                run_command_streaming(
+                    &wt_path,
+                    &cmd,
+                    on_event.as_ref(),
+                    &agent_key,
+                    context_dir.as_deref(),
+                    profile,
+                    &managed_transport,
+                    &route,
+                    execution_backend,
+                    pty_rows,
+                    pty_cols,
+                    &swarm,
+                    subprocess_stdin,
+                    cloud_dispatcher.as_deref(),
+                    sandbox_id.as_deref(),
+                    cloud_fallback_local,
+                    Some(ProcessPersist {
+                        run_id,
+                        repo_root,
+                        data_dir,
+                        branch,
+                    }),
+                )
+            }
+        })
+        .await
+        .map_err(|e| PytxoError::Runner(format!("join: {e}")))??;
+        result = retry;
+    }
+
     swarm.release(&agent_key);
 
-    if !ctx.keep_worktrees {
+    if let Some(hub) = &ctx.mcp_hub {
+        hub.deregister(&agent_key);
+    }
+    if let (Some(sid), Some(dispatcher)) = (sandbox_id.as_ref(), ctx.cloud_dispatcher.as_ref()) {
+        let _ = dispatcher.teardown(sid);
+    }
+
+    if used_isolation && !ctx.keep_worktrees {
         let _ = isolation.rollback(&iso_ctx, &workspace);
     }
 
@@ -176,6 +501,7 @@ async fn run_one_agent(
         exit_code: result.exit_code,
         stdout: result.stdout,
         stderr: result.stderr,
+        root_id: task.root.clone(),
     })
 }
 
@@ -186,14 +512,122 @@ struct ProcessPersist {
     branch: String,
 }
 
+fn resolve_task_root(task: &ScheduledTask, ctx: &RunContext) -> Result<(PathBuf, PathBuf)> {
+    match task.root.as_deref() {
+        Some(label) if !label.is_empty() => {
+            let root = ctx.roots.get(label).ok_or_else(|| {
+                PytxoError::Runner(format!(
+                    "task {} references unknown root label {label:?} (available: {:?})",
+                    task.task_id.0,
+                    ctx.roots.keys().collect::<Vec<_>>()
+                ))
+            })?;
+            if root.read_only {
+                return Err(PytxoError::Runner(format!(
+                    "task {} cannot execute on read-only root {label:?}",
+                    task.task_id.0,
+                )));
+            }
+            Ok((root.repo_root.clone(), root.worktree_base.clone()))
+        }
+        _ => Ok((ctx.repo_root.clone(), ctx.worktree_base.clone())),
+    }
+}
+
+fn minimal_config_for_route(ctx: &RunContext) -> pytxo_core::PytxoConfig {
+    pytxo_core::PytxoConfig {
+        permission_profile: ctx.permission_profile,
+        ..Default::default()
+    }
+}
+
+fn build_child_env(
+    context_dir: Option<&Path>,
+    profile: PermissionProfile,
+    managed_transport: &ManagedTransport,
+    route: &ModelRoute,
+) -> ChildLaunchEnv {
+    let mut env = ChildLaunchEnv::new();
+    if let Some(dir) = context_dir {
+        env = env.with_context_dir(dir);
+    }
+    env.with_managed_and_profile(managed_transport, route, &PermissionEngine::new(profile))
+}
+
+#[allow(clippy::too_many_arguments)]
 fn run_command_streaming(
     worktree: &Path,
     cmd: &str,
     on_event: Option<&EventCallback>,
     agent_key: &str,
     context_dir: Option<&Path>,
+    profile: PermissionProfile,
+    managed_transport: &ManagedTransport,
+    route: &ModelRoute,
+    execution_backend: ExecutionBackend,
+    pty_rows: u16,
+    pty_cols: u16,
+    swarm: &SwarmRegistry,
+    subprocess_stdin: bool,
+    cloud_dispatcher: Option<&dyn CloudDispatcher>,
+    cloud_sandbox_id: Option<&str>,
+    cloud_fallback_local: bool,
     persist: Option<ProcessPersist>,
 ) -> Result<SingleResult> {
+    let env = build_child_env(context_dir, profile, managed_transport, route);
+
+    if execution_backend == ExecutionBackend::Cloud {
+        if let (Some(dispatcher), Some(sid)) = (cloud_dispatcher, cloud_sandbox_id) {
+            match dispatcher.exec(
+                sid,
+                &ExecRequest {
+                    cmd: cmd.to_string(),
+                    cwd: Some(worktree.to_string_lossy().into_owned()),
+                },
+            ) {
+                Ok(resp) => {
+                    if let Some(cb) = on_event {
+                        for line in resp.stdout.lines() {
+                            cb(agent_key, "stdout", line);
+                        }
+                        for line in resp.stderr.lines() {
+                            cb(agent_key, "stderr", line);
+                        }
+                    }
+                    return Ok(SingleResult {
+                        worktree_path: worktree.to_path_buf(),
+                        exit_code: Some(resp.exit_code),
+                        stdout: resp.stdout,
+                        stderr: resp.stderr,
+                        pid: None,
+                    });
+                }
+                Err(e) if cloud_fallback_local => {
+                    if let Some(cb) = on_event {
+                        cb(agent_key, "cloud-fallback", &format!("exec: {e}"));
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        } else if !cloud_fallback_local {
+            return Err(PytxoError::Runner(
+                "cloud exec missing sandbox_id or dispatcher".into(),
+            ));
+        }
+    }
+
+    if execution_backend == ExecutionBackend::Pty
+        || (execution_backend == ExecutionBackend::Cloud && cloud_fallback_local)
+    {
+        let result = crate::pty::run_pty_session(
+            worktree, cmd, env, pty_rows, pty_cols, on_event, agent_key, swarm,
+        )?;
+        if let Some(p) = persist {
+            persist_process(&p, agent_key, worktree, &p.branch, result.pid)?;
+        }
+        return Ok(result);
+    }
+
     let shell = shell_command();
     let mut command = std::process::Command::new(&shell.0);
     command
@@ -202,26 +636,27 @@ fn run_command_streaming(
         .current_dir(worktree)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    if let Some(dir) = context_dir {
-        command.env("PYTXO_CONTEXT_DIR", dir);
-        command.env("PYTXO_SIGNAL_CORE", "1");
+    if subprocess_stdin {
+        command.stdin(Stdio::piped());
     }
+    env.apply_command(&mut command);
     let mut child = command
         .spawn()
         .map_err(|e| PytxoError::Runner(format!("spawn command: {e}")))?;
 
+    if subprocess_stdin {
+        let pending = swarm.drain_stdin(agent_key);
+        if !pending.is_empty() {
+            if let Some(mut stdin) = child.stdin.take() {
+                use std::io::Write;
+                let _ = stdin.write_all(&pending);
+            }
+        }
+    }
+
     let pid = child.id();
     if let Some(p) = persist {
-        let mut proc_file = ProcessRegistryFile::load(&registry_path(&p.data_dir))?;
-        proc_file.push(ProcessEntry {
-            run_id: p.run_id,
-            repo_root: p.repo_root,
-            agent_key: agent_key.to_string(),
-            pid,
-            worktree_path: worktree.to_string_lossy().to_string(),
-            branch: p.branch,
-        });
-        proc_file.save(&registry_path(&p.data_dir))?;
+        persist_process(&p, agent_key, worktree, &p.branch, Some(pid))?;
     }
     let mut stdout_acc = String::new();
     let mut stderr_acc = String::new();
@@ -287,7 +722,35 @@ fn run_command_streaming(
     })
 }
 
-fn shell_command() -> (String, Vec<String>) {
+fn persist_process(
+    p: &ProcessPersist,
+    agent_key: &str,
+    worktree: &Path,
+    branch: &str,
+    pid: Option<u32>,
+) -> Result<()> {
+    let pid = pid.ok_or_else(|| PytxoError::Runner("missing child pid".into()))?;
+    let mut proc_file = ProcessRegistryFile::load(&registry_path(&p.data_dir))?;
+    proc_file.push(ProcessEntry {
+        run_id: p.run_id.clone(),
+        repo_root: p.repo_root.clone(),
+        agent_key: agent_key.to_string(),
+        pid,
+        worktree_path: worktree.to_string_lossy().to_string(),
+        branch: branch.to_string(),
+    });
+    proc_file.save(&registry_path(&p.data_dir))?;
+    Ok(())
+}
+
+fn mcp_cmd_allowed(cmd: &str, allowlist: &[String]) -> bool {
+    if allowlist.is_empty() {
+        return true;
+    }
+    allowlist.iter().any(|prefix| cmd.contains(prefix))
+}
+
+pub(crate) fn shell_command() -> (String, Vec<String>) {
     if cfg!(windows) {
         ("cmd".into(), vec!["/C".into()])
     } else {
@@ -330,4 +793,58 @@ pub fn cleanup_worktrees(ctx: &RunContext, registry: &ProcessRegistry) -> Result
         }
     }
     Ok(())
+}
+
+/// Default window a Blast flush waits for a human HITL decision before timing out.
+const HITL_FLUSH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// Persist approved agent mutations (Blast Shield flush).
+///
+/// When `ctx.hitl` is set and the profile's `flush_requires_approval()` is true
+/// (Orbit/Galaxy), the flush submits an approval request and blocks until a human
+/// resolves it via the queue (Deck/CLI `hitl_respond`). The manual
+/// `commit_workspace_for_agent` path passes no queue: that call is itself the
+/// human approval, so it flushes directly.
+pub fn commit_workspace(
+    ctx: &RunContext,
+    workspace: &WorkspaceHandle,
+    profile: PermissionProfile,
+) -> Result<()> {
+    let engine = PermissionEngine::new(profile);
+    if !engine.may_flush() {
+        return Err(PytxoError::Runner(
+            "flush denied for permission profile".into(),
+        ));
+    }
+    if engine.flush_requires_approval() {
+        if let Some(hitl) = ctx.hitl.as_ref() {
+            let agent_key = if workspace.branch.is_empty() {
+                ctx.run_id.0.clone()
+            } else {
+                workspace.branch.clone()
+            };
+            let id = hitl.submit(
+                &agent_key,
+                "blast.flush",
+                "commit agent workspace to repo root",
+            );
+            match hitl.wait_blocking(&id, HITL_FLUSH_TIMEOUT) {
+                crate::hitl::HitlDecision::Approved => {}
+                crate::hitl::HitlDecision::Denied => {
+                    return Err(PytxoError::Runner("flush denied by human reviewer".into()));
+                }
+                crate::hitl::HitlDecision::Pending => {
+                    return Err(PytxoError::Runner("flush approval timed out".into()));
+                }
+            }
+        }
+    }
+    let isolation = crate::blast::isolation_for_mode(ctx.isolation_mode);
+    let iso_ctx = IsolationCtx {
+        run_id: ctx.run_id.clone(),
+        agent_id: AgentId::new(0),
+        repo_root: ctx.repo_root.clone(),
+        worktree_base: ctx.worktree_base.clone(),
+    };
+    isolation.flush(&iso_ctx, workspace)
 }

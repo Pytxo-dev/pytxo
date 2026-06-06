@@ -36,6 +36,17 @@ pub fn normalize_claim_path(p: &str) -> String {
     p.replace('\\', "/").trim_start_matches("./").to_string()
 }
 
+/// Namespace a claim path by its modular-project root label so claims in
+/// different roots never overlap ([[ADR-0011-modular-project-manifest]]).
+/// The unit-separator prefix is preserved by [`normalize_claim_path`] and
+/// [`paths_claim_overlap`], keeping within-root prefix semantics intact.
+pub fn root_scoped_claim(root: Option<&str>, path: &str) -> String {
+    match root {
+        Some(label) if !label.is_empty() => format!("{label}\u{1f}{path}"),
+        _ => path.to_string(),
+    }
+}
+
 pub fn paths_claim_overlap(a: &str, b: &str) -> bool {
     let a = normalize_claim_path(a);
     let b = normalize_claim_path(b);
@@ -82,5 +93,25 @@ impl StdinBuffer {
 
     pub fn pending_len(&self, agent_key: &str) -> usize {
         self.queues.get(agent_key).map(|q| q.len()).unwrap_or(0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn root_scoped_claims_do_not_overlap_across_roots() {
+        let api = root_scoped_claim(Some("api"), "README.md");
+        let web = root_scoped_claim(Some("web"), "README.md");
+        assert_ne!(api, web);
+        assert!(!paths_claim_overlap(&api, &web));
+    }
+
+    #[test]
+    fn root_scoped_claim_preserves_within_root_overlap() {
+        let a = root_scoped_claim(Some("api"), "src/**");
+        let b = root_scoped_claim(Some("api"), "src/lib.rs");
+        assert!(paths_claim_overlap(&a, &b));
     }
 }

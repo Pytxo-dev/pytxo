@@ -1,0 +1,110 @@
+{
+  "installCommand": "npm ci --legacy-peer-deps",
+  "buildCommand": "npm run build",
+  "framework": "nextjs",
+  "redirects": [
+    {
+      "source": "/pricing",
+      "destination": "/plans",
+      "permanent": true
+    },
+    {
+      "source": "/docs/moc-home",
+      "destination": "/docs",
+      "permanent": true
+    },
+    {
+      "source": "/docs/product-vision",
+      "destination": "/docs/concepts/what-is-pytxo",
+      "permanent": true
+    },
+    {
+      "source": "/docs/first-three-agent-run",
+      "destination": "/docs/getting-started/first-three-agent-run",
+      "permanent": true
+    },
+    {
+      "source": "/docs/cli-reference",
+      "destination": "/docs/reference/cli",
+      "permanent": true
+    },
+    {
+      "source": "/docs/pytxo-toml",
+      "destination": "/docs/reference/pytxo-toml",
+      "permanent": true
+    },
+    {
+      "source": "/docs/signal-core",
+      "destination": "/docs/concepts/signal-core",
+      "permanent": true
+    },
+    {
+      "source": "/docs/blast-shield",
+      "destination": "/docs/concepts/blast-shield",
+      "permanent": true
+    },
+    {
+      "source": "/docs/race-shield",
+      "destination": "/docs/concepts/race-shield",
+      "permanent": true
+    },
+    {
+      "source": "/docs/mcp-hub-integration",
+      "destination": "/docs/getting-started/mcp-from-cursor",
+      "permanent": true
+    },
+    {
+      "source": "/docs/reality-deck-visual-system",
+      "destination": "/docs/concepts/reality-deck",
+      "permanent": true
+    },
+    {
+      "source": "/docs/execution-domains",
+      "destination": "/docs/concepts/execution-domains",
+      "permanent": true
+    },
+    {
+      "source": "/docs/permission-profile-engine",
+      "destination": "/docs/reference/permission-tiers",
+      "permanent": true
+    },
+    {
+      "source": "/docs/repository-layout",
+      "destination": "/docs/developers/repo-layout",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.pytxo.com" }],
+      "destination": "https://pytxo.com/:path*",
+      "permanent": true
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    },
+    {
+      "source": "/_next/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/docs/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
+        }
+      ]
+    }
+  ]
+}

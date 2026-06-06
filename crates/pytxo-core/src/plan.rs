@@ -8,6 +8,12 @@ pub struct ScheduledTask {
     pub agent: String,
     pub paths: Vec<String>,
     pub wave: u32,
+    /// Modular project root label ([[ADR-0011-modular-project-manifest]]); `None` = primary root.
+    #[serde(default)]
+    pub root: Option<String>,
+    /// Per-task Signal Core fidelity override ([[closed-loop-fidelity]]).
+    #[serde(default)]
+    pub signal_fidelity: Option<crate::moat::FidelityTier>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

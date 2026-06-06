@@ -1,0 +1,53 @@
+import type { SidebarsConfig } from "@docusaurus/plugin-content-docs";
+
+const sidebars: SidebarsConfig = {
+  docsSidebar: [
+    {
+      type: "doc",
+      id: "intro",
+      label: "Introduction",
+    },
+    {
+      type: "category",
+      label: "Getting started",
+      items: [
+        "getting-started/install",
+        "getting-started/first-three-agent-run",
+        "getting-started/mcp-from-cursor",
+      ],
+    },
+    {
+      type: "category",
+      label: "Concepts",
+      items: [
+        "concepts/what-is-pytxo",
+        "concepts/three-moats",
+        "concepts/signal-core",
+        "concepts/blast-shield",
+        "concepts/race-shield",
+        "concepts/execution-domains",
+        "concepts/reality-deck",
+      ],
+    },
+    {
+      type: "category",
+      label: "Reference",
+      items: [
+        "reference/cli",
+        "reference/pytxo-toml",
+        "reference/permission-tiers",
+      ],
+    },
+    {
+      type: "category",
+      label: "Developers",
+      items: [
+        "developers/architecture",
+        "developers/repo-layout",
+        "developers/contributing",
+      ],
+    },
+  ],
+};
+
+export default sidebars;

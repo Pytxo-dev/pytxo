@@ -85,6 +85,8 @@ mod tests {
             agent: "builder".into(),
             paths: paths.iter().map(|s| (*s).to_string()).collect(),
             depends_on: Vec::new(),
+            root: None,
+            signal_fidelity: None,
         }
     }
 
