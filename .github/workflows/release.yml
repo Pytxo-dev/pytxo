@@ -99,6 +99,7 @@ jobs:
 
   npm:
     needs: release
+    if: ${{ secrets.NPM_TOKEN != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
