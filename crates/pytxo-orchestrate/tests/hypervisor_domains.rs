@@ -45,6 +45,9 @@ fn run_opts(repo: &std::path::Path) -> RunOptions {
         repo: Some(repo.to_path_buf()),
         execution: None,
         project: None,
+        tasks: None,
+        task_cmd_template: None,
+        task_prompts: None,
     }
 }
 

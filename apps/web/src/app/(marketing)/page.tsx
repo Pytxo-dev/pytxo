@@ -4,6 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { SupportedAgents } from "@/components/site/supported-agents";
 import { ArchitectureSection } from "@/components/site/architecture-section";
 import { CtaSection } from "@/components/site/cta-section";
 import { FeatureGrid } from "@/components/site/feature-grid";
@@ -18,7 +19,11 @@ const FAQ = [
   },
   {
     q: "Which agents are supported?",
-    a: "Any command you can run in a terminal — Claude Code, Codex, Antigravity CLI, Aider, or custom scripts via pytxo run --cmd.",
+    a: "Any command you can run in a terminal — Claude Code, Codex, Antigravity CLI (agy), Aider, or custom scripts via pytxo run --cmd. Cursor integrates via MCP instead of --cmd.",
+  },
+  {
+    q: "How do I test with Antigravity (agy)?",
+    a: "Install pytxo via npm, scaffold a test repo with tooling/test-envs, set cli_adapter = \"agy\" in pytxo.toml, and run pytxo run --cmd \"agy …\". See the testing ADE CLIs guide in the docs.",
   },
   {
     q: "What is the Reality Deck?",
@@ -41,6 +46,7 @@ export default function HomePage() {
       <ProblemSection />
       <HowItWorks />
       <FeatureGrid />
+      <SupportedAgents />
       <ArchitectureSection />
       <CtaSection />
       <section className="mx-auto max-w-3xl px-4 pb-24 sm:px-6">

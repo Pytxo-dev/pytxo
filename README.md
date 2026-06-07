@@ -1,7 +1,7 @@
 # Pytxo
 
 [![CI](https://github.com/Pytxo-dev/pytxo/actions/workflows/ci.yml/badge.svg)](https://github.com/Pytxo-dev/pytxo/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/Pytxo-dev/pytxo)](https://github.com/Pytxo-dev/pytxo/releases)
+[![Release](https://img.shields.io/github/v/release/Pytxo-dev/pytxo-releases)](https://github.com/Pytxo-dev/pytxo-releases/releases)
 [![npm](https://img.shields.io/npm/v/pytxo)](https://www.npmjs.com/package/pytxo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
 
@@ -9,17 +9,17 @@
 
 - **Site:** [pytxo.com](https://pytxo.com)
 - **Docs:** [pytxo.com/docs](https://pytxo.com/docs)
-- **GitHub:** [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo)
+- **Releases:** [github.com/Pytxo-dev/pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases)
 - **Stack:** Rust (`portable-pty`, `tree-sitter`) · ratatui TUI · Svelte 5 · Tauri v2
 
-## Install (v0.1.0)
+## Install (v0.3.0)
 
 ```bash
 npm i -g pytxo
 pytxo doctor
 ```
 
-Or build from source: `cargo install --path crates/pytxo-cli`
+Install scripts and binaries: [Pytxo-dev/pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases) (public). The main monorepo is private.
 
 Running `pytxo` with no subcommand opens the **terminal dashboard** (doctor, runs, domains, HITL).
 

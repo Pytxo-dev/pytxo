@@ -99,14 +99,14 @@ export default function PlansPage() {
           </EmptyMedia>
           <EmptyTitle className="text-xl">Early access is open source</EmptyTitle>
           <EmptyDescription className="text-muted-foreground">
-            Clone the repo, install the CLI, and orchestrate agents locally. Join us on
-            GitHub for release updates and tier announcements.
+            Install the CLI via npm, trust your folder, and orchestrate agents locally.
+            Follow release updates on GitHub and npm.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent className="flex flex-col gap-3 sm:flex-row">
           <Button size="lg" className="chroma-glow" asChild>
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
-              Star on GitHub
+              Releases on GitHub
             </a>
           </Button>
           <Button size="lg" variant="outline" className="border-white/15 bg-card/30" asChild>

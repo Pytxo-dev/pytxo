@@ -10,12 +10,15 @@ members = [
     "crates/pytxo-orchestrate",
     "crates/pytxo-cli",
     "crates/pytxo-tui",
+    "crates/pytxo-shell",
+    "crates/pytxo-planner",
+    "crates/pytxo-catalog",
     "crates/pytxo-mcp",
     "apps/desktop/src-tauri",
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT"
@@ -47,6 +50,9 @@ pytxo-sanitize = { path = "crates/pytxo-sanitize" }
 pytxo-signal = { path = "crates/pytxo-signal" }
 pytxo-orchestrate = { path = "crates/pytxo-orchestrate" }
 pytxo-tui = { path = "crates/pytxo-tui" }
+pytxo-shell = { path = "crates/pytxo-shell" }
+pytxo-planner = { path = "crates/pytxo-planner" }
+pytxo-catalog = { path = "crates/pytxo-catalog" }
 regex = "1.11"
 portable-pty = "0.8"
 tauri = { version = "2", features = [] }

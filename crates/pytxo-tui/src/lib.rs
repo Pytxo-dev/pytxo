@@ -1,3 +1,5 @@
-mod app;
+mod panels;
+mod shell_app;
+mod theme;
 
-pub use app::run;
+pub use shell_app::run;

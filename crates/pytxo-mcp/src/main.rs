@@ -233,6 +233,9 @@ fn handle_tool_call(params: Option<Value>) -> anyhow::Result<String> {
                 repo,
                 execution: None,
                 project: None,
+                tasks: None,
+                task_cmd_template: None,
+                task_prompts: None,
             }))?;
             Ok(json!({ "run_id": run_id.0 }).to_string())
         }

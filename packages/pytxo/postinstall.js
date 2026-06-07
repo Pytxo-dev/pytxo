@@ -6,7 +6,7 @@ const https = require("node:https");
 
 const { getAssetName } = require("./lib/platform");
 
-const REPO = process.env.PYTXO_REPO || "Pytxo-dev/pytxo";
+const REPO = process.env.PYTXO_REPO || "Pytxo-dev/pytxo-releases";
 const VERSION = process.env.PYTXO_VERSION || require("./package.json").version;
 const TAG = VERSION.startsWith("v") ? VERSION : `v${VERSION}`;
 
@@ -56,8 +56,8 @@ async function main() {
   } catch (err) {
     console.warn(
       `pytxo: could not download release binary (${err.message}).\n` +
-        `  Install from source: cargo install --path crates/pytxo-cli\n` +
-        `  Or run: curl -fsSL https://raw.githubusercontent.com/${REPO}/main/tooling/scripts/install.sh | bash`,
+        `  Manual download: https://github.com/${REPO}/releases\n` +
+        `  Or run: curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh | bash`,
     );
   }
 }

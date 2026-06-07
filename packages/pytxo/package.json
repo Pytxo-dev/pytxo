@@ -1,15 +1,14 @@
 {
   "name": "pytxo",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "description": "Pytxo agent hypervisor CLI — local-first PTY orchestration",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Pytxo-dev/pytxo.git",
-    "directory": "packages/pytxo"
+    "url": "git+https://github.com/Pytxo-dev/pytxo-releases.git"
   },
   "homepage": "https://pytxo.com",
-  "bugs": "https://github.com/Pytxo-dev/pytxo/issues",
+  "bugs": "https://github.com/Pytxo-dev/pytxo-releases/issues",
   "keywords": [
     "pytxo",
     "cli",

@@ -27,6 +27,9 @@ Architecture Decision Records are **immutable once Accepted**. Supersede by addi
 | ADR-0009 | [[ADR-0009-ultra-managed-metering]] | accepted |
 | ADR-0010 | [[ADR-0010-pty-default-execution-backend]] | accepted |
 | ADR-0011 | [[ADR-0011-modular-project-manifest]] | accepted |
+| ADR-0012 | [[ADR-0012-hypervisor-shell-default-ux]] | accepted |
+| ADR-0013 | [[ADR-0013-folder-trust-tier-picker]] | accepted |
+| ADR-0014 | [[ADR-0014-multi-provider-byok-catalog]] | accepted |
 
 ## Template
 

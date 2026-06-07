@@ -1,12 +1,38 @@
 name: Release
 
+# One-click: Actions → Release → Run workflow → enter version (e.g. 0.3.1)
+# Or from CLI: git tag v0.3.1 && git push origin v0.3.1
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver (no v prefix), e.g. 0.3.1"
+        required: true
+        type: string
+      publish_npm:
+        description: "Publish packages/pytxo to npm"
+        required: true
+        type: boolean
+        default: true
+      mirror_public:
+        description: "Mirror binaries to public Pytxo-dev/pytxo-releases"
+        required: true
+        type: boolean
+        default: true
   push:
     tags:
       - "v*"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
+
+env:
+  TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
+  NPM_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
 
 jobs:
   build:
@@ -66,6 +92,8 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ env.TAG_NAME }}
     steps:
       - uses: actions/checkout@v4
 
@@ -88,21 +116,114 @@ jobs:
           sha256sum pytxo-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
-      - name: Create GitHub Release
+      - name: Create private repo release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: ${{ env.TAG_NAME }}
           generate_release_notes: true
           body_path: RELEASE.md
           files: |
             dist/*
             dist/SHA256SUMS.txt
 
-  npm:
+      - name: Upload artifacts for downstream jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: dist/
+
+  mirror-public-release:
     needs: release
-    if: ${{ secrets.NPM_TOKEN != '' }}
     runs-on: ubuntu-latest
+    if: >-
+      ${{
+        (github.event_name == 'workflow_dispatch' && inputs.mirror_public)
+        || github.event_name == 'push'
+      }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check PYTXO_RELEASES_TOKEN
+        id: token
+        run: |
+          if [ -n "${{ secrets.PYTXO_RELEASES_TOKEN }}" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::PYTXO_RELEASES_TOKEN not set — skipping public mirror"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download release assets
+        if: steps.token.outputs.ok == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: dist
+
+      - name: Mirror to public pytxo-releases
+        if: steps.token.outputs.ok == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: Pytxo-dev/pytxo-releases
+          token: ${{ secrets.PYTXO_RELEASES_TOKEN }}
+          tag_name: ${{ needs.release.outputs.tag }}
+          name: ${{ needs.release.outputs.tag }}
+          generate_release_notes: true
+          body_path: RELEASE.md
+          files: |
+            dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
+
+      - name: Sync install scripts to pytxo-releases
+        if: steps.token.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
+        run: |
+          set -euo pipefail
+          WORK="$(mktemp -d)"
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/Pytxo-dev/pytxo-releases.git" "$WORK"
+          cp distribution/pytxo-releases/install.sh "$WORK/install.sh"
+          cp distribution/pytxo-releases/install.ps1 "$WORK/install.ps1"
+          cp distribution/pytxo-releases/README.md "$WORK/README.md"
+          cd "$WORK"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add install.sh install.ps1 README.md
+          if git diff --staged --quiet; then
+            echo "Install scripts unchanged"
+          else
+            git commit -m "Sync install scripts from pytxo ${{ needs.release.outputs.tag }}"
+            git push origin HEAD:main
+          fi
+
+  npm:
+    needs: release
+    runs-on: ubuntu-latest
+    if: >-
+      ${{
+        (github.event_name == 'workflow_dispatch' && inputs.publish_npm)
+        || github.event_name == 'push'
+      }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync npm package version
+        run: |
+          VERSION="${{ env.NPM_VERSION }}"
+          VERSION="${VERSION#v}"
+          node <<'NODE'
+          const fs = require("node:fs");
+          const version = process.env.VERSION;
+          const path = "packages/pytxo/package.json";
+          const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+          pkg.version = version;
+          fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+          console.log(`packages/pytxo → ${version}`);
+          NODE
+        env:
+          VERSION: ${{ env.NPM_VERSION }}
 
       - uses: actions/setup-node@v4
         with:
@@ -111,6 +232,11 @@ jobs:
 
       - name: Publish npm package
         working-directory: packages/pytxo
-        run: npm publish --access public
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::warning::NPM_TOKEN secret is not set — skipping npm publish"
+            exit 0
+          fi
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

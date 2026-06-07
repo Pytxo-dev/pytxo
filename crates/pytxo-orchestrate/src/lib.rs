@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pytxo_core::{
-    canonical_repo_root, DomainId, FidelityTier, PytxoConfig, PytxoError, RunId, SignalCore, Task,
-    TaskId, TokenWallet, UsageMeter,
+    canonical_repo_root, DomainId, ExecutionPlan, FidelityTier, PytxoConfig, PytxoError, RunId,
+    SignalCore, Task, TaskId, TokenWallet, UsageMeter,
 };
 use pytxo_runner::{execute_plan, stop_all, stop_run, ProcessRegistry, RunContext};
 use pytxo_scheduler::build_plan;
@@ -49,6 +49,12 @@ pub struct RunOptions {
     pub execution: Option<pytxo_core::ExecutionBackend>,
     /// Unified multi-root project run ([[ADR-0011-modular-project-manifest]]).
     pub project: Option<ProjectRunContext>,
+    /// Runtime task graph from Hypervisor Shell / planner; overrides config tasks when set.
+    pub tasks: Option<Vec<Task>>,
+    /// Per-agent command template: `{task_id}`, `{agent}`, `{paths}`, `{prompt}`, `{wave}`.
+    pub task_cmd_template: Option<String>,
+    /// Per-task prompt text keyed by task id (used with `task_cmd_template`).
+    pub task_prompts: Option<std::collections::HashMap<String, String>>,
 }
 
 /// Roots and metadata for a single coordinated project run (Phase 20).
@@ -103,6 +109,41 @@ pub fn init(repo: Option<PathBuf>) -> anyhow::Result<()> {
     fs::create_dir_all(repo.join(&cfg.data_dir))?;
     ensure_gitignore(&repo)?;
     Ok(())
+}
+
+/// Load `pytxo.toml` from an explicit path or the repo root.
+pub fn load_config_for_repo(path: Option<&Path>, repo: &Path) -> anyhow::Result<PytxoConfig> {
+    load_config(path, repo)
+}
+
+/// Whether the canonical repo root has a trust record ([[ADR-0013]]).
+pub fn is_repo_trusted(repo: &Path) -> anyhow::Result<bool> {
+    let store = pytxo_core::TrustedDomainStore::open_default()
+        .map_err(|e| anyhow::anyhow!(e))?;
+    Ok(store.is_trusted(repo))
+}
+
+pub fn trust_repo(repo: &Path, profile: pytxo_core::PermissionProfile) -> anyhow::Result<()> {
+    let mut store = pytxo_core::TrustedDomainStore::open_default()
+        .map_err(|e| anyhow::anyhow!(e))?;
+    store
+        .trust(repo, profile, None)
+        .map_err(|e| anyhow::anyhow!(e))
+}
+
+pub fn trusted_permission_for(repo: &Path) -> anyhow::Result<Option<pytxo_core::PermissionProfile>> {
+    let store = pytxo_core::TrustedDomainStore::open_default()
+        .map_err(|e| anyhow::anyhow!(e))?;
+    Ok(store.permission_for(repo))
+}
+
+pub(crate) fn ensure_repo_trusted(repo: &Path) -> anyhow::Result<()> {
+    if is_repo_trusted(repo)? {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "folder is not trusted — run `pytxo` and accept the trust prompt, or use `/trust`"
+    )
 }
 
 pub fn resolve_repo_root(repo: Option<&Path>) -> anyhow::Result<PathBuf> {
@@ -327,6 +368,8 @@ pub fn commit_workspace_for_agent(
         worktree_base: repo_root.join(&cfg.worktree_dir),
         data_dir: repo_root.join(&cfg.data_dir),
         cmd: String::new(),
+        task_cmd_template: None,
+        task_prompts: std::collections::HashMap::new(),
         keep_worktrees: true,
         on_event: None,
         signal_core: cfg.signal_core,
@@ -334,6 +377,7 @@ pub fn commit_workspace_for_agent(
         isolation_mode: cfg.isolation,
         permission_profile: cfg.permission_profile,
         agent_profiles: cfg.agent_profile_map(),
+        route_agents: cfg.agent.clone(),
         billing_mode: metering.billing_mode,
         domain_id: metering.domain_id,
         model_router: metering.model_router,
@@ -384,19 +428,16 @@ pub(crate) async fn execute_run_body(
         );
     }
 
-    let tasks = if cfg.task.is_empty() {
-        synthetic_tasks(cfg.max_agents)
-    } else {
-        cfg.tasks()
-    };
+    let tasks = resolve_run_tasks(&cfg, opts.agents, opts.tasks.clone());
 
-    let plan = build_plan(&tasks, cfg.max_agents, cfg.dag_explicit_deps)
-        .map_err(|e| anyhow::anyhow!(e))?;
+    let plan = plan_tasks(&tasks, &cfg)?;
 
     if opts.dry_run {
         println!("{}", serde_json::to_string_pretty(&plan)?);
         return Ok(RunId::new());
     }
+
+    ensure_repo_trusted(&domain.repo_root)?;
 
     let run_id = run_id.unwrap_or_default();
     let db_path = domain.data_dir.join("pytxo.db");
@@ -451,6 +492,8 @@ pub(crate) async fn execute_run_body(
         worktree_base: domain.repo_root.join(&cfg.worktree_dir),
         data_dir: domain.data_dir.clone(),
         cmd: opts.cmd.clone(),
+        task_cmd_template: opts.task_cmd_template.clone(),
+        task_prompts: opts.task_prompts.clone().unwrap_or_default(),
         keep_worktrees: opts.keep_worktrees,
         on_event: Some(on_event),
         signal_core: cfg.signal_core,
@@ -458,6 +501,7 @@ pub(crate) async fn execute_run_body(
         isolation_mode: cfg.isolation,
         permission_profile: cfg.permission_profile,
         agent_profiles,
+        route_agents: cfg.agent.clone(),
         billing_mode: metering.billing_mode,
         domain_id: metering.domain_id,
         model_router: metering.model_router,
@@ -570,24 +614,86 @@ pub(crate) async fn execute_run_body(
     Ok(run_id)
 }
 
-pub fn dry_run_json(
+pub fn resolve_run_tasks(cfg: &PytxoConfig, agents: usize, runtime: Option<Vec<Task>>) -> Vec<Task> {
+    if let Some(tasks) = runtime {
+        return tasks;
+    }
+    if cfg.task.is_empty() {
+        let n = if agents > 0 { agents } else { cfg.max_agents };
+        synthetic_tasks(n)
+    } else {
+        cfg.tasks()
+    }
+}
+
+pub fn plan_tasks(tasks: &[Task], cfg: &PytxoConfig) -> anyhow::Result<ExecutionPlan> {
+    build_plan(tasks, cfg.max_agents, cfg.dag_explicit_deps).map_err(|e| anyhow::anyhow!(e))
+}
+
+pub fn dry_run_with_tasks(
     config: Option<PathBuf>,
     repo: Option<PathBuf>,
     agents: usize,
+    runtime_tasks: Option<Vec<Task>>,
 ) -> anyhow::Result<String> {
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let mut cfg = load_config(config.as_deref(), &repo_root)?;
     if agents > 0 {
         cfg.max_agents = agents;
     }
-    let tasks = if cfg.task.is_empty() {
-        synthetic_tasks(cfg.max_agents)
-    } else {
-        cfg.tasks()
-    };
-    let plan = build_plan(&tasks, cfg.max_agents, cfg.dag_explicit_deps)
-        .map_err(|e| anyhow::anyhow!(e))?;
+    let tasks = resolve_run_tasks(&cfg, agents, runtime_tasks);
+    let plan = plan_tasks(&tasks, &cfg)?;
     Ok(serde_json::to_string_pretty(&plan)?)
+}
+
+pub fn dry_run_json(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    agents: usize,
+) -> anyhow::Result<String> {
+    dry_run_with_tasks(config, repo, agents, None)
+}
+
+pub fn status_json(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    limit: usize,
+) -> anyhow::Result<StatusJson> {
+    let repo = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(config.as_deref(), &repo)?;
+    let store = PytxoStore::open(&cfg.db_path_at(&repo))?;
+    let runs = store.list_runs(limit)?;
+    let mut out = Vec::new();
+    for run in &runs {
+        let agents: Vec<AgentStatusJson> = store
+            .list_agents_for_run(&run.id)?
+            .into_iter()
+            .map(|a| AgentStatusJson {
+                id: a.id,
+                task_id: a.task_id,
+                wave: a.wave,
+                status: a.status,
+                exit_code: a.exit_code,
+            })
+            .collect();
+        let arbitrage_saved = store.arbitrage_saved_tokens_for_run(&run.id).ok();
+        let wallet_balance = DomainId::from_repo_root(Path::new(&run.repo_root))
+            .ok()
+            .and_then(|d| store.wallet_balance_microcredits(&d).ok());
+        out.push(RunStatusJson {
+            id: run.id.clone(),
+            status: run.status.clone(),
+            repo_root: run.repo_root.clone(),
+            started_at: run.started_at.to_rfc3339(),
+            estimated_tokens_in: run.estimated_tokens_in,
+            estimated_tokens_out: run.estimated_tokens_out,
+            estimated_cost_usd: run.estimated_cost_usd,
+            arbitrage_saved_tokens: arbitrage_saved,
+            wallet_balance_microcredits: wallet_balance,
+            agents,
+        });
+    }
+    Ok(StatusJson { runs: out })
 }
 
 pub fn status(
@@ -709,6 +815,8 @@ pub async fn stop(
             worktree_base: repo_path.join(&cfg.worktree_dir),
             data_dir: data_dir.clone(),
             cmd: String::new(),
+            task_cmd_template: None,
+            task_prompts: std::collections::HashMap::new(),
             keep_worktrees: false,
             on_event: None,
             signal_core: cfg.signal_core,
@@ -716,6 +824,7 @@ pub async fn stop(
             isolation_mode: cfg.isolation,
             permission_profile: cfg.permission_profile,
             agent_profiles: cfg.agent_profile_map(),
+            route_agents: cfg.agent.clone(),
             billing_mode: metering.billing_mode,
             domain_id: metering.domain_id,
             model_router: metering.model_router,
@@ -834,11 +943,17 @@ pub(crate) fn load_config(path: Option<&Path>, repo: &Path) -> anyhow::Result<Py
             None
         }
     });
-    if let Some(path) = path {
-        PytxoConfig::load(&path).map_err(|e| anyhow::anyhow!(e))
+    let mut cfg = if let Some(path) = path {
+        PytxoConfig::load(&path).map_err(|e| anyhow::anyhow!(e))?
     } else {
-        Ok(PytxoConfig::default())
+        PytxoConfig::default()
+    };
+    if let Ok(store) = pytxo_core::TrustedDomainStore::open_default() {
+        if let Some(profile) = store.permission_for(repo) {
+            cfg.permission_profile = profile;
+        }
     }
+    Ok(cfg)
 }
 
 pub(crate) fn synthetic_tasks(count: usize) -> Vec<Task> {

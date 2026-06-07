@@ -13,6 +13,8 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }
+pytxo-catalog = { workspace = true }
+pytxo-core = { workspace = true }
 pytxo-orchestrate = { path = "../pytxo-orchestrate", features = ["sanitize"] }
 pytxo-tui = { path = "../pytxo-tui" }
 serde_json = { workspace = true }

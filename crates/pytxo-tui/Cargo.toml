@@ -1,6 +1,6 @@
 [package]
 name = "pytxo-tui"
-description = "Pytxo terminal dashboard"
+description = "Pytxo Hypervisor Shell TUI"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,6 +9,9 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 crossterm.workspace = true
+pytxo-core.workspace = true
 pytxo-orchestrate = { workspace = true, features = ["sanitize"] }
 pytxo-runner.workspace = true
+pytxo-shell.workspace = true
 ratatui.workspace = true
+tokio.workspace = true

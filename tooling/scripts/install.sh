@@ -2,7 +2,8 @@
 # Install pytxo CLI from GitHub Releases into ~/.local/bin (or PYTXO_INSTALL_DIR).
 set -euo pipefail
 
-REPO="${PYTXO_REPO:-Pytxo-dev/pytxo}"
+# Public binaries: Pytxo-dev/pytxo-releases (main monorepo is private).
+REPO="${PYTXO_REPO:-Pytxo-dev/pytxo-releases}"
 INSTALL_DIR="${PYTXO_INSTALL_DIR:-$HOME/.local/bin}"
 
 detect_asset() {

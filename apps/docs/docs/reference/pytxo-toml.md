@@ -26,6 +26,12 @@ title: pytxo.toml
 | `name` | Scheduling profile name (referenced by `[[task]].agent`) |
 | `paths` | Optional owned globs |
 | `permission_profile` | Optional per-agent override |
+| `model` | Model id for billing router / BYOK |
+| `provider` | Provider id (`deepseek`, `openrouter`, `openai`, …) |
+| `cli_adapter` | CLI adapter (`claude`, `generic`, …) |
+| `api_key_env` | Optional env var name for BYOK key |
+
+Trusted folder tier from [Folder trust](/docs/getting-started/folder-trust) overrides top-level `permission_profile` when the repo is trusted.
 
 ## `[[task]]`
 

@@ -12,7 +12,10 @@ const sidebars: SidebarsConfig = {
       label: "Getting started",
       items: [
         "getting-started/install",
+        "getting-started/folder-trust",
+        "getting-started/hypervisor-shell",
         "getting-started/first-three-agent-run",
+        "getting-started/testing-ade-clis",
         "getting-started/mcp-from-cursor",
       ],
     },
@@ -35,6 +38,8 @@ const sidebars: SidebarsConfig = {
       items: [
         "reference/cli",
         "reference/pytxo-toml",
+        "reference/providers-byok",
+        "reference/models",
         "reference/permission-tiers",
       ],
     },

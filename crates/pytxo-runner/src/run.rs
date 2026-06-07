@@ -38,6 +38,9 @@ pub struct RunContext {
     pub worktree_base: PathBuf,
     pub data_dir: PathBuf,
     pub cmd: String,
+    /// When set, expands per task via [`resolve_cmd_for_task`].
+    pub task_cmd_template: Option<String>,
+    pub task_prompts: HashMap<String, String>,
     pub keep_worktrees: bool,
     pub on_event: Option<EventCallback>,
     pub signal_core: bool,
@@ -46,6 +49,8 @@ pub struct RunContext {
     /// Run-level default; per-agent overrides in `agent_profiles`.
     pub permission_profile: PermissionProfile,
     pub agent_profiles: HashMap<String, PermissionProfile>,
+    /// Per-agent model/provider/cli_adapter from `pytxo.toml` ([[ADR-0014]]).
+    pub route_agents: Vec<pytxo_core::AgentSpec>,
     pub billing_mode: BillingMode,
     pub domain_id: DomainId,
     pub model_router: Arc<dyn ModelRouter>,
@@ -321,9 +326,11 @@ async fn run_one_agent(
         }
     }
 
+    let cmd = resolve_cmd_for_task(ctx, task);
+
     let result = tokio::task::spawn_blocking({
         let wt_path = wt_path.clone();
-        let cmd = ctx.cmd.clone();
+        let cmd = cmd.clone();
         let on_event = ctx.on_event.clone();
         let agent_key = agent_key.clone();
         let run_id = ctx.run_id.0.clone();
@@ -537,6 +544,7 @@ fn resolve_task_root(task: &ScheduledTask, ctx: &RunContext) -> Result<(PathBuf,
 fn minimal_config_for_route(ctx: &RunContext) -> pytxo_core::PytxoConfig {
     pytxo_core::PytxoConfig {
         permission_profile: ctx.permission_profile,
+        agent: ctx.route_agents.clone(),
         ..Default::default()
     }
 }
@@ -741,6 +749,25 @@ fn persist_process(
     });
     proc_file.save(&registry_path(&p.data_dir))?;
     Ok(())
+}
+
+/// Resolve the shell command for one scheduled task (Hypervisor Shell templates).
+pub fn resolve_cmd_for_task(ctx: &RunContext, task: &pytxo_core::ScheduledTask) -> String {
+    if let Some(template) = &ctx.task_cmd_template {
+        let prompt = ctx
+            .task_prompts
+            .get(&task.task_id.0)
+            .map(String::as_str)
+            .unwrap_or("");
+        let paths = task.paths.join(",");
+        return template
+            .replace("{task_id}", &task.task_id.0)
+            .replace("{agent}", &task.agent)
+            .replace("{paths}", &paths)
+            .replace("{prompt}", prompt)
+            .replace("{wave}", &task.wave.to_string());
+    }
+    ctx.cmd.clone()
 }
 
 fn mcp_cmd_allowed(cmd: &str, allowlist: &[String]) -> bool {

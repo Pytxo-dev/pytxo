@@ -15,6 +15,10 @@ related: [[pytxo-toml]], [[repository-layout]]
 Build: `cargo build -p pytxo-cli`  
 Binary: `cargo run -p pytxo-cli -- <cmd>`
 
+## Hypervisor Shell (default)
+
+`pytxo` with **no subcommand** opens the **Hypervisor Shell** (board + scrollback + operator prompt). Slash commands (`/run`, `/dry-run`, `/doctor`, …) route through `pytxo-shell`. Set `PYTXO_NO_TUI=1` or pass an explicit subcommand for scripts.
+
 ## Commands
 
 | Command | Description |
@@ -25,6 +29,9 @@ Binary: `cargo run -p pytxo-cli -- <cmd>`
 | `pytxo status` | List runs and agents from SQLite |
 | `pytxo logs --agent <id>` | Tail stored stdout/stderr events |
 | `pytxo stop` | Stop active run or all tracked processes |
+| `pytxo trust [tier]` | Trust repo folder (`orbit`, `galaxy`, `deep_space`, `supernova`) |
+| `pytxo providers` | Provider registry + whether each API key env is set |
+| `pytxo models` | `list`, `search`, or `refresh` model catalog per provider |
 
 ## Shared flags
 

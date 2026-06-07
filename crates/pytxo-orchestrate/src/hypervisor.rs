@@ -5,10 +5,12 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use pytxo_core::{DomainId, ProjectManifest, PytxoConfig, RunId};
 use pytxo_runner::{HitlQueue, McpHub, ProcessRegistry, SwarmRegistry};
-use pytxo_scheduler::build_plan;
 use tracing::error;
 
-use crate::{execute_run_body, load_config, resolve_repo_root, synthetic_tasks, RunOptions};
+use crate::{
+    ensure_repo_trusted, execute_run_body, load_config, plan_tasks, resolve_repo_root,
+    resolve_run_tasks, RunOptions,
+};
 
 /// Per-repo execution slice: isolated swarm registry and in-process PID tracking.
 pub struct DomainState {
@@ -133,15 +135,12 @@ impl HypervisorRegistry {
 
         if opts.dry_run {
             let _ = domain;
-            let tasks = if cfg.task.is_empty() {
-                synthetic_tasks(cfg.max_agents)
-            } else {
-                cfg.tasks()
-            };
-            let _plan = build_plan(&tasks, cfg.max_agents, cfg.dag_explicit_deps)
-                .map_err(|e| anyhow::anyhow!(e))?;
+            let tasks = resolve_run_tasks(&cfg, opts.agents, opts.tasks.clone());
+            let _plan = plan_tasks(&tasks, &cfg)?;
             return Ok((domain_id, run_id));
         }
+
+        ensure_repo_trusted(&repo_root)?;
 
         tokio::spawn(async move {
             if let Err(e) = execute_run_body(domain, opts, cfg, Some(run_id_for_task.clone())).await

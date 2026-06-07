@@ -1,0 +1,20 @@
+max_agents = 3
+worktree_dir = ".pytxo/worktrees"
+data_dir = ".pytxo/data"
+signal_core = true
+execution_backend = "pty"
+
+[[agent]]
+name = "claude-builder"
+paths = ["src/**"]
+cli_adapter = "claude_code"
+
+[[task]]
+id = "explore-a"
+agent = "claude-builder"
+paths = ["src/a.ts"]
+
+[[task]]
+id = "explore-b"
+agent = "claude-builder"
+paths = ["package.json"]

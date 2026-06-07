@@ -22,7 +22,8 @@ Last enumerated with `gh repo list Pytxo-dev` (2026-06-04). Re-run that command 
 
 | Repository | Visibility | Archived | Purpose | Relationship to monorepo |
 |------------|------------|----------|---------|---------------------------|
-| [pytxo](https://github.com/Pytxo-dev/pytxo) | **Public** | no | Agentic control plane + Reality Deck | **Canonical** — `crates/*`, `apps/desktop`, `docs/`, `tooling/` |
+| [pytxo](https://github.com/Pytxo-dev/pytxo) | **Private** | no | Agentic control plane + Reality Deck | **Canonical** — `crates/*`, `apps/desktop`, `docs/`, `tooling/` |
+| [pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases) | **Public** | no | CLI binaries + install scripts | **Distribution** — mirrored from `pytxo` CI; npm + curl install |
 | [pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) | **Public** | no | Legacy split UI repo | **Mirror / legacy** — canonical UI is `apps/desktop` in **pytxo** |
 
 No **private** or **internal** repositories were returned for this org at enumeration time. If your token cannot see private org repos, confirm visibility in GitHub org settings before assuming they do not exist.
@@ -31,7 +32,8 @@ No **private** or **internal** repositories were returned for this org at enumer
 
 | What | Where | Visibility |
 |------|--------|------------|
-| OSS control plane (Rust crates, CLI, MCP, local hypervisor, Deck) | **pytxo** monorepo | Public |
+| OSS control plane (Rust crates, CLI, MCP, local hypervisor, Deck) | **pytxo** monorepo | Private |
+| Public CLI binaries, install scripts, npm postinstall target | **pytxo-releases** | Public |
 | Docs vault (product + architecture) | **pytxo** `docs/` | Public |
 | CI, smoke scripts, benchmarks | **pytxo** `tooling/` | Public |
 | Hosted cloud sandboxes (Max Swarm workers) | Separate service repo | **Planned private** (or org-private) — see [[cloud-sandbox-service]] |

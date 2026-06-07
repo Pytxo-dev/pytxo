@@ -1,6 +1,7 @@
 use std::process::Command;
 
-use pytxo_orchestrate::{open_store_for_domain, project_run, ProjectRunOptions};
+use pytxo_core::PermissionProfile;
+use pytxo_orchestrate::{open_store_for_domain, project_run, trust_repo, ProjectRunOptions};
 use tempfile::TempDir;
 
 fn init_git_repo(path: &std::path::Path) {
@@ -33,6 +34,10 @@ fn toml_path(p: &std::path::Path) -> String {
 
 fn norm_path(p: &str) -> String {
     p.replace('\\', "/").to_lowercase()
+}
+
+fn trust(path: &std::path::Path) {
+    trust_repo(path, PermissionProfile::Orbit).unwrap();
 }
 
 #[tokio::test]
@@ -132,6 +137,8 @@ primary = true
     )
     .unwrap();
 
+    trust(api.path());
+
     let results = project_run(ProjectRunOptions {
         manifest: Some(manifest_path),
         project_id: None,
@@ -229,6 +236,8 @@ label = "web"
         ),
     )
     .unwrap();
+
+    trust(api.path());
 
     let results = project_run(ProjectRunOptions {
         manifest: Some(manifest_path.clone()),
@@ -334,6 +343,8 @@ label = "web"
         ),
     )
     .unwrap();
+
+    trust(api.path());
 
     project_run(ProjectRunOptions {
         manifest: Some(manifest_path.clone()),

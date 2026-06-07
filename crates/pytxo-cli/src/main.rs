@@ -1,4 +1,5 @@
 mod commands;
+mod models;
 
 use clap::{CommandFactory, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
@@ -85,6 +86,48 @@ enum Commands {
     Domains {
         #[arg(long)]
         json: bool,
+    },
+    /// BYOK provider registry and key status
+    Providers {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Trust the current folder at a permission tier
+    Trust {
+        #[arg(default_value = "orbit")]
+        tier: String,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+    },
+    /// Model catalog (list / search / refresh)
+    Models {
+        #[command(subcommand)]
+        action: ModelsAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ModelsAction {
+    /// List models for a provider (cached 24h)
+    List {
+        #[arg(long)]
+        provider: Option<String>,
+        #[arg(long)]
+        refresh: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Fuzzy search models
+    Search {
+        query: String,
+        #[arg(long)]
+        provider: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Force refresh provider cache
+    Refresh {
+        provider: String,
     },
 }
 
@@ -212,6 +255,9 @@ async fn main() -> anyhow::Result<()> {
                 repo,
                 execution,
                 project: None,
+                tasks: None,
+                task_cmd_template: None,
+                task_prompts: None,
             })
             .await?;
             if !dry_run {
@@ -258,6 +304,34 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        Some(Commands::Providers { json }) => models::providers_list(json)?,
+        Some(Commands::Trust { tier, repo }) => {
+            use pytxo_core::PermissionProfile;
+            use pytxo_orchestrate::{resolve_repo_root, trust_repo};
+            let repo = resolve_repo_root(repo.as_deref())?;
+            let profile = match tier.to_ascii_lowercase().as_str() {
+                "deep_space" | "deep-space" => PermissionProfile::DeepSpace,
+                "galaxy" => PermissionProfile::Galaxy,
+                "supernova" => PermissionProfile::Supernova,
+                "orbit" => PermissionProfile::Orbit,
+                other => anyhow::bail!("unknown tier {other}"),
+            };
+            trust_repo(&repo, profile)?;
+            println!("Trusted {} at {tier} tier", repo.display());
+        }
+        Some(Commands::Models { action }) => match action {
+            ModelsAction::List {
+                provider,
+                refresh,
+                json,
+            } => models::models_list(provider.as_deref(), refresh, json)?,
+            ModelsAction::Search {
+                query,
+                provider,
+                json,
+            } => models::models_search(&query, provider.as_deref(), json)?,
+            ModelsAction::Refresh { provider } => models::models_refresh(&provider)?,
+        },
     }
     Ok(())
 }

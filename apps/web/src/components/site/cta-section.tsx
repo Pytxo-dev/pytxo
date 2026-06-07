@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { NPM_INSTALL } from "@/lib/site";
 
 export function CtaSection() {
   return (
@@ -13,9 +14,12 @@ export function CtaSection() {
               Ready to <span className="chroma-text">orchestrate</span>?
             </CardTitle>
             <CardDescription className="mx-auto max-w-lg text-base text-muted-foreground">
-              Install the Rust CLI, wire MCP from Cursor or your IDE, and run your first
+              Install with npm, wire MCP from Cursor or your IDE, and run your first
               three-agent wave in minutes.
             </CardDescription>
+            <pre className="mx-auto max-w-sm overflow-x-auto rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 font-mono text-sm text-foreground/90">
+              {NPM_INSTALL}
+            </pre>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-3 px-6 pb-10 sm:flex-row sm:justify-center sm:px-14 sm:pb-14">
             <Button size="lg" className="chroma-glow w-full sm:w-auto" asChild>

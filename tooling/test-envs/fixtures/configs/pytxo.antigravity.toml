@@ -1,0 +1,20 @@
+max_agents = 3
+worktree_dir = ".pytxo/worktrees"
+data_dir = ".pytxo/data"
+signal_core = true
+execution_backend = "pty"
+
+[[agent]]
+name = "agy-builder"
+paths = ["src/**"]
+cli_adapter = "agy"
+
+[[task]]
+id = "explore-a"
+agent = "agy-builder"
+paths = ["src/a.ts"]
+
+[[task]]
+id = "explore-b"
+agent = "agy-builder"
+paths = ["src/b.ts"]

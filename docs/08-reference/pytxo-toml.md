@@ -33,7 +33,13 @@ related: [[MOC-home]], [[permission-profile-engine]], [[modular-projects]]
 |-----|-------------|
 | `name` | Agent **scheduling profile** name (referenced by `[[task]].agent`) — not `PermissionProfile` |
 | `paths` | Optional owned globs (scheduling / future enforcement) |
-| `permission_profile` | string | Optional override of top-level `permission_profile` for this agent |
+| `permission_profile` | Optional override of top-level `permission_profile` for this agent |
+| `model` | Model id for billing router / BYOK |
+| `provider` | Provider id (`deepseek`, `openrouter`, `openai`, …) — see [[providers-byok]] |
+| `cli_adapter` | CLI adapter (`claude`, `generic`, …) |
+| `api_key_env` | Optional env var name for BYOK API key |
+
+Trusted folder tier ([[ADR-0013-folder-trust-tier-picker]]) overrides top-level `permission_profile` when the repo is trusted.
 
 ## `[[task]]`
 

@@ -4,7 +4,7 @@ title: CLI reference
 
 # CLI reference
 
-Binary: `pytxo` (v0.1.0)
+Binary: `pytxo` (v0.3.0)
 
 ## Default behavior
 
@@ -28,6 +28,9 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the TUI.
 | `pytxo domains` | List registered execution domains |
 | `pytxo project` | Multi-root modular project manifest |
 | `pytxo hitl` | Human-in-the-loop approval queue |
+| `pytxo trust [tier]` | Trust repo folder (`orbit`, `galaxy`, …) |
+| `pytxo providers` | Provider registry + key configured (boolean) |
+| `pytxo models` | List, search, or refresh model catalog |
 
 ## Shared flags
 

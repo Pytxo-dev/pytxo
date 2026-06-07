@@ -27,9 +27,9 @@ Pytxo is **not** an IDE and **not** a cloud virtual workspace. Your editor stays
 | Operators | [CLI reference](/docs/reference/cli), [`pytxo.toml`](/docs/reference/pytxo-toml) |
 | Contributors | [Architecture](/docs/developers/architecture), [Contributing](/docs/developers/contributing) |
 
-## Terminal dashboard
+## Hypervisor Shell
 
-Run `pytxo` with no subcommand to open the **TUI** — doctor status, recent runs, execution domains, and HITL approvals. Subcommands (`run`, `doctor`, `status`, …) are for scripts and automation.
+Run `pytxo` with no subcommand to open the **Hypervisor Shell** — trust the folder, preview waves, dispatch BYOK agents, and search models across 15+ providers. See [Folder trust](/docs/getting-started/folder-trust) and [Hypervisor Shell](/docs/getting-started/hypervisor-shell).
 
 ## Quick mental model
 

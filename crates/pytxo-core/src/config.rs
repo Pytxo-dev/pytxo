@@ -51,6 +51,15 @@ pub struct PytxoConfig {
     /// OSS Core tier agent cap ([[tiers-hobbyist-pro-max]]).
     #[serde(default = "default_tier_max_agents")]
     pub tier_max_agents: usize,
+    /// Optional NL mission planner ([[ADR-0012-hypervisor-shell-default-ux]]).
+    #[serde(default)]
+    pub planner: PlannerConfig,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct PlannerConfig {
+    #[serde(default)]
+    pub enabled: bool,
 }
 
 fn default_true() -> bool {
@@ -136,11 +145,16 @@ impl Default for PytxoConfig {
             pty_cols: default_pty_cols(),
             subprocess_stdin: false,
             tier_max_agents: default_tier_max_agents(),
+            planner: PlannerConfig::default(),
         }
     }
 }
 
 impl PytxoConfig {
+    pub fn planner_enabled(&self) -> bool {
+        self.planner.enabled
+    }
+
     pub fn billing_mode(&self) -> BillingMode {
         self.billing.mode
     }

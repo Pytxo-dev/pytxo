@@ -266,6 +266,9 @@ pub fn dispatch_run_cmd(
         repo,
         execution: None,
         project: None,
+        tasks: None,
+        task_cmd_template: None,
+        task_prompts: None,
     })
     .map_err(|e| e.to_string())?;
     *state.selected_domain_id.lock().map_err(|e| e.to_string())? = Some(domain_id.clone());

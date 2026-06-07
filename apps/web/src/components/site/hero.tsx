@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { GITHUB_URL } from "@/lib/site";
+import { GITHUB_URL, NPM_INSTALL } from "@/lib/site";
 
 const STATS = [
   { label: "Local-first", detail: "PTY + worktrees on your machine" },
@@ -18,7 +18,7 @@ export function Hero() {
         <div className="flex flex-1 flex-col gap-7">
           <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-start">
             <Badge variant="secondary" className="bg-white/5 text-primary">
-              Agent hypervisor
+              Mission control for agent fleets
             </Badge>
             {STATS.map((stat) => (
               <Badge
@@ -36,10 +36,14 @@ export function Hero() {
             <span className="chroma-text">See the blast radius.</span>
           </h1>
           <p className="max-w-xl text-lg leading-relaxed text-muted-foreground lg:max-w-none">
-            Pytxo runs Claude Code, Codex, Antigravity CLI, and any shell-backed agent in
-            managed PTYs — with Signal Core compression, Blast and Race shields, and
-            optional Reality Deck telemetry.
+            Trust your folder, pick a permission tier, and dispatch BYOK agents across
+            DeepSeek, OpenRouter, Groq, and more — in isolated worktrees with wave plans
+            you can preview before you run. Signal Core, Blast and Race shields, optional
+            Reality Deck telemetry.
           </p>
+          <pre className="mx-auto max-w-md overflow-x-auto rounded-lg border border-white/10 bg-black/40 px-4 py-3 font-mono text-sm text-foreground/90 lg:mx-0">
+            {NPM_INSTALL}
+          </pre>
           <div className="flex flex-col items-center gap-3 sm:flex-row lg:justify-start">
             <Button size="lg" className="chroma-glow min-w-[10rem]" asChild>
               <Link href="/download">Get started</Link>
@@ -59,7 +63,7 @@ export function Hero() {
               asChild
             >
               <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
-                GitHub
+                Releases
               </a>
             </Button>
           </div>

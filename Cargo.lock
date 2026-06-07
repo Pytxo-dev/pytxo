@@ -2780,11 +2780,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "pytxo-catalog"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "pytxo-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "ureq",
+]
+
+[[package]]
 name = "pytxo-cli"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "clap",
+ "pytxo-catalog",
+ "pytxo-core",
  "pytxo-orchestrate",
  "pytxo-tui",
  "serde_json",
@@ -2795,8 +2810,9 @@ dependencies = [
 
 [[package]]
 name = "pytxo-core"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
+ "chrono",
  "serde",
  "serde_json",
  "tempfile",
@@ -2808,7 +2824,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-desktop"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "pytxo-core",
  "pytxo-orchestrate",
@@ -2823,7 +2839,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-mcp"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -2837,7 +2853,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-orchestrate"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -2856,8 +2872,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pytxo-planner"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "pytxo-core",
+]
+
+[[package]]
 name = "pytxo-runner"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "fuser",
@@ -2874,7 +2898,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-sanitize"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "pytxo-core",
  "regex",
@@ -2883,15 +2907,28 @@ dependencies = [
 
 [[package]]
 name = "pytxo-scheduler"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "glob",
  "pytxo-core",
 ]
 
 [[package]]
+name = "pytxo-shell"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "pytxo-catalog",
+ "pytxo-core",
+ "pytxo-orchestrate",
+ "pytxo-planner",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "pytxo-signal"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -2907,7 +2944,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-store"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "pytxo-core",
@@ -2919,13 +2956,16 @@ dependencies = [
 
 [[package]]
 name = "pytxo-tui"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "crossterm",
+ "pytxo-core",
  "pytxo-orchestrate",
  "pytxo-runner",
+ "pytxo-shell",
  "ratatui",
+ "tokio",
 ]
 
 [[package]]

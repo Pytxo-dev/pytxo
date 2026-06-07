@@ -94,6 +94,20 @@ jobs:
           chmod +x packages/pytxo/vendor/pytxo
           PYTXO_SKIP_DOWNLOAD=1 node packages/pytxo/bin/pytxo.js --version
 
+  test-env-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build pytxo binary
+        run: cargo build -p pytxo-cli --release
+      - name: ADE test env smoke (echo profile)
+        run: bash tooling/test-envs/ci-smoke.sh
+
+      - name: Hypervisor shell smoke (echo profile)
+        run: bash tooling/test-envs/shell-smoke.sh
+
   web:
     runs-on: ubuntu-latest
     steps:
