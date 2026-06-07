@@ -16,10 +16,13 @@ pub fn fetch_models(provider: ProviderId) -> anyhow::Result<Vec<CatalogModel>> {
         if provider == ProviderId::Ollama {
             return fetch_ollama(url, &pid);
         }
-        if provider == ProviderId::Openrouter {
+        if provider == ProviderId::Openrouter && std::env::var(spec.api_key_env).is_ok() {
             return fetch_openrouter(url, spec.api_key_env, &pid);
         }
-        if spec.openai_compatible && !spec.api_key_env.is_empty() {
+        if spec.openai_compatible
+            && !spec.api_key_env.is_empty()
+            && std::env::var(spec.api_key_env).is_ok()
+        {
             return fetch_openai_compatible(url, spec.api_key_env, &pid);
         }
     }

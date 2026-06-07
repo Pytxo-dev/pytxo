@@ -41,7 +41,7 @@ fn init_git_repo(path: &std::path::Path) {
 
 #[cfg(not(windows))]
 fn stdin_echo_cmd() -> &'static str {
-    r#"sh -c 'IFS= read -r line; printf got:%s' "$line""#
+    r#"IFS= read -r line && printf 'got:%s' "$line""#
 }
 
 #[tokio::test]

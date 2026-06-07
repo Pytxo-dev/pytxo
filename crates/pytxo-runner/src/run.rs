@@ -658,6 +658,7 @@ fn run_command_streaming(
             if let Some(mut stdin) = child.stdin.take() {
                 use std::io::Write;
                 let _ = stdin.write_all(&pending);
+                let _ = stdin.flush();
             }
         }
     }
