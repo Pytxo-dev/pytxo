@@ -29,6 +29,7 @@ impl ChildMcpSession {
             "params": params,
         });
         writeln!(stream, "{req}").map_err(PytxoError::Io)?;
+        stream.flush().map_err(PytxoError::Io)?;
         let reader = BufReader::new(stream);
         for line in reader.lines() {
             let line = line.map_err(PytxoError::Io)?;
@@ -136,46 +137,51 @@ impl McpHub {
     }
 }
 
+fn handle_test_mcp_conn(stream: &mut TcpStream) {
+    let reader = BufReader::new(stream.try_clone().unwrap());
+    for line in reader.lines().map_while(|l| l.ok()) {
+        let req: Value = serde_json::from_str(&line).unwrap_or(json!({}));
+        let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
+        let id = req.get("id").cloned().unwrap_or(Value::Null);
+        let result = match method {
+            "tools/list" => json!({
+                "tools": [{
+                    "name": "echo_fixture",
+                    "description": "test fixture tool",
+                    "inputSchema": { "type": "object" }
+                }]
+            }),
+            "tools/call" => json!({
+                "content": [{ "type": "text", "text": "ok" }],
+                "isError": false
+            }),
+            _ => Value::Null,
+        };
+        let resp = json!({ "jsonrpc": "2.0", "id": id, "result": result });
+        let _ = writeln!(stream, "{resp}");
+        let _ = stream.flush();
+        break;
+    }
+}
+
 /// Test fixture: minimal MCP TCP server on localhost.
 pub fn spawn_test_mcp_child() -> Result<(ChildMcpSession, std::thread::JoinHandle<()>)> {
     use std::net::TcpListener;
     let listener =
         TcpListener::bind("127.0.0.1:0").map_err(|e| PytxoError::Runner(format!("bind: {e}")))?;
-    listener.set_nonblocking(true).map_err(PytxoError::Io)?;
     let addr = listener.local_addr().map_err(PytxoError::Io)?;
     let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+    listener.set_nonblocking(true).map_err(PytxoError::Io)?;
     let handle = std::thread::spawn(move || {
         let _ = ready_tx.send(());
-        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
         while std::time::Instant::now() < deadline {
             match listener.accept() {
-                Ok((mut stream, _)) => {
-                    std::thread::spawn(move || {
-                        let reader = BufReader::new(stream.try_clone().unwrap());
-                        for line in reader.lines().map_while(|l| l.ok()) {
-                            let req: Value = serde_json::from_str(&line).unwrap_or(json!({}));
-                            let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
-                            let id = req.get("id").cloned().unwrap_or(Value::Null);
-                            let result = match method {
-                                "tools/list" => json!({
-                                    "tools": [{
-                                        "name": "echo_fixture",
-                                        "description": "test fixture tool",
-                                        "inputSchema": { "type": "object" }
-                                    }]
-                                }),
-                                "tools/call" => json!({
-                                    "content": [{ "type": "text", "text": "ok" }],
-                                    "isError": false
-                                }),
-                                _ => Value::Null,
-                            };
-                            let resp = json!({ "jsonrpc": "2.0", "id": id, "result": result });
-                            let _ = writeln!(stream, "{resp}");
-                        }
-                    });
+                Ok((mut stream, _)) => handle_test_mcp_conn(&mut stream),
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(10));
                 }
-                Err(_) => std::thread::sleep(Duration::from_millis(5)),
+                Err(_) => break,
             }
         }
     });
