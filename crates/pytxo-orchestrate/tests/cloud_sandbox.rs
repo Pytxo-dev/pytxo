@@ -18,7 +18,9 @@ mod cloud_http {
         let port = listener.local_addr().unwrap().port();
         let hits = Arc::new(AtomicUsize::new(0));
         let hits2 = Arc::clone(&hits);
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
         let server = thread::spawn(move || {
+            let _ = ready_tx.send(());
             listener.set_nonblocking(true).ok();
             let deadline = Instant::now() + Duration::from_secs(3);
             while Instant::now() < deadline {
@@ -39,6 +41,9 @@ mod cloud_http {
                 thread::sleep(Duration::from_millis(10));
             }
         });
+        ready_rx
+            .recv_timeout(Duration::from_secs(3))
+            .expect("mock health server ready");
 
         let cfg = CloudConfig {
             enabled: true,
@@ -54,7 +59,9 @@ mod cloud_http {
     fn cloud_start_sandbox_mock() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
         let server = thread::spawn(move || {
+            let _ = ready_tx.send(());
             listener.set_nonblocking(true).ok();
             let deadline = Instant::now() + Duration::from_secs(3);
             while Instant::now() < deadline {
@@ -77,6 +84,9 @@ mod cloud_http {
                 thread::sleep(Duration::from_millis(10));
             }
         });
+        ready_rx
+            .recv_timeout(Duration::from_secs(3))
+            .expect("mock sandbox server ready");
 
         let cfg = CloudConfig {
             sandbox_url: format!("http://127.0.0.1:{port}/v1"),
