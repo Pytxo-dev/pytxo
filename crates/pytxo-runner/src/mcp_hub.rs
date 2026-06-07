@@ -139,29 +139,29 @@ impl McpHub {
 
 fn handle_test_mcp_conn(stream: &mut TcpStream) {
     let reader = BufReader::new(stream.try_clone().unwrap());
-    for line in reader.lines().map_while(|l| l.ok()) {
-        let req: Value = serde_json::from_str(&line).unwrap_or(json!({}));
-        let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
-        let id = req.get("id").cloned().unwrap_or(Value::Null);
-        let result = match method {
-            "tools/list" => json!({
-                "tools": [{
-                    "name": "echo_fixture",
-                    "description": "test fixture tool",
-                    "inputSchema": { "type": "object" }
-                }]
-            }),
-            "tools/call" => json!({
-                "content": [{ "type": "text", "text": "ok" }],
-                "isError": false
-            }),
-            _ => Value::Null,
-        };
-        let resp = json!({ "jsonrpc": "2.0", "id": id, "result": result });
-        let _ = writeln!(stream, "{resp}");
-        let _ = stream.flush();
-        break;
-    }
+    let Some(Ok(line)) = reader.lines().next() else {
+        return;
+    };
+    let req: Value = serde_json::from_str(&line).unwrap_or(json!({}));
+    let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
+    let id = req.get("id").cloned().unwrap_or(Value::Null);
+    let result = match method {
+        "tools/list" => json!({
+            "tools": [{
+                "name": "echo_fixture",
+                "description": "test fixture tool",
+                "inputSchema": { "type": "object" }
+            }]
+        }),
+        "tools/call" => json!({
+            "content": [{ "type": "text", "text": "ok" }],
+            "isError": false
+        }),
+        _ => Value::Null,
+    };
+    let resp = json!({ "jsonrpc": "2.0", "id": id, "result": result });
+    let _ = writeln!(stream, "{resp}");
+    let _ = stream.flush();
 }
 
 /// Test fixture: minimal MCP TCP server on localhost.
