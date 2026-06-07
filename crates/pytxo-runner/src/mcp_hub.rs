@@ -143,7 +143,9 @@ pub fn spawn_test_mcp_child() -> Result<(ChildMcpSession, std::thread::JoinHandl
         TcpListener::bind("127.0.0.1:0").map_err(|e| PytxoError::Runner(format!("bind: {e}")))?;
     listener.set_nonblocking(true).map_err(PytxoError::Io)?;
     let addr = listener.local_addr().map_err(PytxoError::Io)?;
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel();
     let handle = std::thread::spawn(move || {
+        let _ = ready_tx.send(());
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while std::time::Instant::now() < deadline {
             if let Ok((mut stream, _)) = listener.accept() {
@@ -174,6 +176,8 @@ pub fn spawn_test_mcp_child() -> Result<(ChildMcpSession, std::thread::JoinHandl
             }
         }
     });
-    std::thread::sleep(Duration::from_millis(20));
+    ready_rx
+        .recv_timeout(Duration::from_secs(5))
+        .map_err(|_| PytxoError::Runner("test mcp child thread did not start".into()))?;
     Ok((ChildMcpSession { addr }, handle))
 }
