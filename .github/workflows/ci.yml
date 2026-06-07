@@ -38,6 +38,8 @@ jobs:
       - name: Overlay layer POC (Linux)
         if: runner.os == 'Linux'
         run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse3-dev
           cargo test -p pytxo-runner --features overlay-fuse overlay_layer
           cargo test -p pytxo-runner --features overlay-fuse-kernel -- --ignored kernel_overlay_smoke
 
