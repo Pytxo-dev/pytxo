@@ -148,31 +148,34 @@ pub fn spawn_test_mcp_child() -> Result<(ChildMcpSession, std::thread::JoinHandl
         let _ = ready_tx.send(());
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while std::time::Instant::now() < deadline {
-            if let Ok((mut stream, _)) = listener.accept() {
-                let reader = BufReader::new(stream.try_clone().unwrap());
-                for line in reader.lines().map_while(|l| l.ok()) {
-                    let req: Value = serde_json::from_str(&line).unwrap_or(json!({}));
-                    let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
-                    let id = req.get("id").cloned().unwrap_or(Value::Null);
-                    let result = match method {
-                        "tools/list" => json!({
-                            "tools": [{
-                                "name": "echo_fixture",
-                                "description": "test fixture tool",
-                                "inputSchema": { "type": "object" }
-                            }]
-                        }),
-                        "tools/call" => json!({
-                            "content": [{ "type": "text", "text": "ok" }],
-                            "isError": false
-                        }),
-                        _ => Value::Null,
-                    };
-                    let resp = json!({ "jsonrpc": "2.0", "id": id, "result": result });
-                    let _ = writeln!(stream, "{resp}");
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    std::thread::spawn(move || {
+                        let reader = BufReader::new(stream.try_clone().unwrap());
+                        for line in reader.lines().map_while(|l| l.ok()) {
+                            let req: Value = serde_json::from_str(&line).unwrap_or(json!({}));
+                            let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
+                            let id = req.get("id").cloned().unwrap_or(Value::Null);
+                            let result = match method {
+                                "tools/list" => json!({
+                                    "tools": [{
+                                        "name": "echo_fixture",
+                                        "description": "test fixture tool",
+                                        "inputSchema": { "type": "object" }
+                                    }]
+                                }),
+                                "tools/call" => json!({
+                                    "content": [{ "type": "text", "text": "ok" }],
+                                    "isError": false
+                                }),
+                                _ => Value::Null,
+                            };
+                            let resp = json!({ "jsonrpc": "2.0", "id": id, "result": result });
+                            let _ = writeln!(stream, "{resp}");
+                        }
+                    });
                 }
-            } else {
-                std::thread::sleep(Duration::from_millis(5));
+                Err(_) => std::thread::sleep(Duration::from_millis(5)),
             }
         }
     });
