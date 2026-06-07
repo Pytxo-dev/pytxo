@@ -1,6 +1,3 @@
-use std::thread;
-use std::time::Duration;
-
 use pytxo_core::{ChildLaunchEnv, RaceShield};
 use pytxo_runner::{run_pty_session, SwarmRegistry};
 
@@ -40,14 +37,10 @@ fn pty_stdin_round_trip() {
     let agent_key = "run:agent-0";
     swarm.try_claim_paths(agent_key, &[".".into()]).unwrap();
 
-    let swarm_enqueue = swarm.clone();
-    let key = agent_key.to_string();
-    thread::spawn(move || {
-        thread::sleep(Duration::from_millis(200));
-        let _ = swarm_enqueue.enqueue_stdin(&key, b"hello\n");
-    });
+    // Pre-stage stdin (same as subprocess path); pump drains within one poll tick.
+    swarm.enqueue_stdin(agent_key, b"hello\n").unwrap();
 
-    let cmd = "sh -c 'IFS= read -r line; printf got:%s' \"$line\"'";
+    let cmd = r#"IFS= read -r line && printf 'got:%s' "$line""#;
     let result = run_pty_session(
         dir.path(),
         cmd,

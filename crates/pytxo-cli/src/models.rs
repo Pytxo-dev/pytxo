@@ -1,5 +1,13 @@
+use std::io::Write;
+
 use pytxo_catalog::ModelCatalog;
 use pytxo_core::{all_providers, key_configured, ProviderId};
+
+fn writeln_stdout(args: std::fmt::Arguments<'_>) -> bool {
+    std::io::stdout()
+        .write_fmt(format_args!("{args}\n"))
+        .is_ok()
+}
 
 pub fn providers_list(json: bool) -> anyhow::Result<()> {
     let rows: Vec<_> = all_providers()
@@ -18,12 +26,14 @@ pub fn providers_list(json: bool) -> anyhow::Result<()> {
     } else {
         for p in all_providers() {
             let mark = if key_configured(p) { "✓" } else { "·" };
-            println!(
+            if !writeln_stdout(format_args!(
                 "{mark} {:<12} {:<20} {}",
                 p.id.as_str(),
                 p.display_name,
                 p.api_key_env
-            );
+            )) {
+                break;
+            }
         }
     }
     Ok(())

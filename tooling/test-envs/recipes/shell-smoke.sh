@@ -16,10 +16,12 @@ echo "== shell smoke: doctor =="
 "$PYTXO_BIN" doctor
 
 echo "== shell smoke: providers =="
-"$PYTXO_BIN" providers | head -5
+provider_count=$("$PYTXO_BIN" providers --json | jq 'length')
+test "$provider_count" -ge 5
 
 echo "== shell smoke: models static =="
-"$PYTXO_BIN" models list --provider deepseek | head -3
+model_count=$("$PYTXO_BIN" models list --provider deepseek --json | jq 'length')
+test "$model_count" -ge 1
 
 echo "== shell smoke: dry-run =="
 "$PYTXO_BIN" run --dry-run --agents 2 | grep -q waves
