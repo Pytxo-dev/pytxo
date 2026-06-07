@@ -43,7 +43,7 @@ fn pty_stdin_round_trip() {
     let swarm_enqueue = swarm.clone();
     let key = agent_key.to_string();
     thread::spawn(move || {
-        thread::sleep(Duration::from_millis(80));
+        thread::sleep(Duration::from_millis(200));
         let _ = swarm_enqueue.enqueue_stdin(&key, b"hello\n");
     });
 

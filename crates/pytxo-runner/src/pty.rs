@@ -112,6 +112,7 @@ pub fn run_pty_session(
         .slave
         .spawn_command(builder)
         .map_err(|e| PytxoError::Runner(format!("pty spawn: {e}")))?;
+    drop(pair.slave);
 
     let pid = child.process_id();
 
