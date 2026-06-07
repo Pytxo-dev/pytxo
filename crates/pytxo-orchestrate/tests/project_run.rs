@@ -265,23 +265,13 @@ label = "web"
     root_ids.sort();
     assert_eq!(root_ids, vec!["api".to_string(), "web".to_string()]);
 
-    let api_marker = norm_path(
-        api.path()
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .as_ref(),
-    );
-    let web_marker = norm_path(
-        web.path()
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .as_ref(),
-    );
+    let api_marker = norm_path(api.path().file_name().unwrap().to_string_lossy().as_ref());
+    let web_marker = norm_path(web.path().file_name().unwrap().to_string_lossy().as_ref());
     for agent in &agents {
         let wt_norm = norm_path(agent.worktree_path.as_deref().unwrap_or(""));
-        assert!(wt_norm.contains("/.pytxo/worktrees/") || wt_norm.contains("\\.pytxo\\worktrees\\"));
+        assert!(
+            wt_norm.contains("/.pytxo/worktrees/") || wt_norm.contains("\\.pytxo\\worktrees\\")
+        );
         match agent.root_id.as_deref() {
             Some("api") => assert!(wt_norm.contains(&api_marker), "api worktree: {wt_norm}"),
             Some("web") => assert!(wt_norm.contains(&web_marker), "web worktree: {wt_norm}"),

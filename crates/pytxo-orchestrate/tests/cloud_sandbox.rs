@@ -7,7 +7,9 @@ mod cloud_http {
     use std::thread;
     use std::time::{Duration, Instant};
 
-    use pytxo_core::{CloudConfig, CloudDispatcher, ExecutionBackend, HttpCloudDispatcher, PytxoConfig};
+    use pytxo_core::{
+        CloudConfig, CloudDispatcher, ExecutionBackend, HttpCloudDispatcher, PytxoConfig,
+    };
     use pytxo_orchestrate::cloud::ping_cloud;
 
     #[test]

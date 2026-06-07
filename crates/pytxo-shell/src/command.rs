@@ -151,7 +151,10 @@ fn parse_slash(rest: &str) -> SlashCommand {
 }
 
 fn parse_models_sub(parts: &[String]) -> ModelsSub {
-    let sub = parts.first().map(|s| s.to_ascii_lowercase()).unwrap_or_default();
+    let sub = parts
+        .first()
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
     let mut provider = None;
     let mut refresh = false;
     for chunk in parts[1..].chunks(2) {

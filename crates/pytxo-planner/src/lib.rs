@@ -57,9 +57,7 @@ impl MissionPlanner for StubPlanner {
         _mission: &MissionSpec,
         _ctx: &PlannerContext<'_>,
     ) -> anyhow::Result<MissionPlan> {
-        bail!(
-            "NL planner is disabled. Use slash commands (/run, /dry-run) or set PYTXO_PLANNER=1"
-        )
+        bail!("NL planner is disabled. Use slash commands (/run, /dry-run) or set PYTXO_PLANNER=1")
     }
 }
 
@@ -81,7 +79,11 @@ impl MissionPlanner for HeuristicPlanner {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .collect();
-        let parts = if chunks.is_empty() { vec![text] } else { chunks };
+        let parts = if chunks.is_empty() {
+            vec![text]
+        } else {
+            chunks
+        };
         let n = parts.len().min(ctx.config.max_agents.max(1));
         let mut tasks = Vec::with_capacity(n);
         let mut task_prompts = HashMap::new();
@@ -162,12 +164,8 @@ mod tests {
         let mut cfg = PytxoConfig::default();
         cfg.planner.enabled = true;
         cfg.max_agents = 3;
-        let plan = plan_mission(
-            "fix auth tests; update package.json",
-            Path::new("."),
-            &cfg,
-        )
-        .unwrap();
+        let plan =
+            plan_mission("fix auth tests; update package.json", Path::new("."), &cfg).unwrap();
         assert_eq!(plan.tasks.len(), 2);
         assert_eq!(plan.tasks[0].id.0, "mission-0");
         assert!(plan.task_prompts.contains_key("mission-0"));

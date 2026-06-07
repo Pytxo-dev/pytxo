@@ -46,34 +46,26 @@ fn draw_header(
     agents: &[AgentSpec],
 ) {
     let doctor_ok = snapshot.doctor.all_ok();
-    let doctor_style = if doctor_ok {
-        theme::ok()
-    } else {
-        theme::err()
-    };
+    let doctor_style = if doctor_ok { theme::ok() } else { theme::err() };
     let active = active_run.unwrap_or("—");
     let agent_hint = if agents.is_empty() {
         "generic".to_string()
     } else {
         agents
             .iter()
-            .map(|a| {
-                a.cli_adapter
-                    .clone()
-                    .unwrap_or_else(|| "default".into())
-            })
+            .map(|a| a.cli_adapter.clone().unwrap_or_else(|| "default".into()))
             .collect::<Vec<_>>()
             .join(",")
     };
     let text = Line::from(vec![
         Span::styled(" pytxo ", theme::title()),
         Span::styled(format!("v{} ", snapshot.version), theme::accent()),
-        Span::styled(truncate(&snapshot.repo_root, 28), Style::default().fg(ratatui::style::Color::White)),
-        Span::styled(format!(" · {trust_tier} · "), theme::muted()),
         Span::styled(
-            if doctor_ok { "● ok" } else { "● fail" },
-            doctor_style,
+            truncate(&snapshot.repo_root, 28),
+            Style::default().fg(ratatui::style::Color::White),
         ),
+        Span::styled(format!(" · {trust_tier} · "), theme::muted()),
+        Span::styled(if doctor_ok { "● ok" } else { "● fail" }, doctor_style),
         Span::styled(format!(" · run {active} · {agent_hint}"), theme::muted()),
         Span::styled(
             format!(" · {} domain(s)", snapshot.domains.len()),
@@ -192,6 +184,9 @@ fn truncate(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
         s.to_string()
     } else {
-        format!("{}…", s.chars().take(max.saturating_sub(1)).collect::<String>())
+        format!(
+            "{}…",
+            s.chars().take(max.saturating_sub(1)).collect::<String>()
+        )
     }
 }

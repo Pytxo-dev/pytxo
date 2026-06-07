@@ -2,11 +2,13 @@ use std::io;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use crossterm::ExecutableCommand;
 use pytxo_core::PermissionProfile;
-use pytxo_orchestrate::{dashboard_snapshot, hitl_respond, DashboardSnapshot};
 use pytxo_core::RunId;
+use pytxo_orchestrate::{dashboard_snapshot, hitl_respond, DashboardSnapshot};
 use pytxo_shell::{complete_line, parse_line, ShellEvent, ShellInput, ShellSession};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::DefaultTerminal;
@@ -76,7 +78,8 @@ impl ShellApp {
             trust_tier: None,
             phase,
         };
-        app.scrollback.push("Hypervisor Shell — /help for commands · /models search …");
+        app.scrollback
+            .push("Hypervisor Shell — /help for commands · /models search …");
         Ok(app)
     }
 
@@ -208,17 +211,16 @@ fn run_loop(terminal: &mut DefaultTerminal, rt: &tokio::runtime::Runtime) -> any
                         KeyCode::Char('q') | KeyCode::Esc => should_exit = true,
                         KeyCode::Up => modal.move_up(),
                         KeyCode::Down => modal.move_down(),
-                        KeyCode::Enter => {
-                            match modal.accept(&app.session.repo) {
-                                Ok(tier) => {
-                                    app.trust_tier = Some(tier);
-                                    app.phase = AppPhase::Shell;
-                                    app.session = ShellSession::new(None, Some(app.session.repo.clone()))?;
-                                    app.scrollback.push("Folder trusted — /dry-run then /run");
-                                }
-                                Err(e) => app.status_message = e.to_string(),
+                        KeyCode::Enter => match modal.accept(&app.session.repo) {
+                            Ok(tier) => {
+                                app.trust_tier = Some(tier);
+                                app.phase = AppPhase::Shell;
+                                app.session =
+                                    ShellSession::new(None, Some(app.session.repo.clone()))?;
+                                app.scrollback.push("Folder trusted — /dry-run then /run");
                             }
-                        }
+                            Err(e) => app.status_message = e.to_string(),
+                        },
                         _ => {}
                     }
                     continue;

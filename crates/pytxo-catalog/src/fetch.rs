@@ -34,7 +34,11 @@ pub fn fetch_models(provider: ProviderId) -> anyhow::Result<Vec<CatalogModel>> {
         .collect())
 }
 
-fn fetch_openai_compatible(url: &str, key_env: &str, provider: &str) -> anyhow::Result<Vec<CatalogModel>> {
+fn fetch_openai_compatible(
+    url: &str,
+    key_env: &str,
+    provider: &str,
+) -> anyhow::Result<Vec<CatalogModel>> {
     let key = std::env::var(key_env).map_err(|_| anyhow::anyhow!("{key_env} not set"))?;
     let resp = ureq::get(url)
         .set("Authorization", &format!("Bearer {key}"))

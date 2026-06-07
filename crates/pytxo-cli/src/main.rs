@@ -126,9 +126,7 @@ enum ModelsAction {
         json: bool,
     },
     /// Force refresh provider cache
-    Refresh {
-        provider: String,
-    },
+    Refresh { provider: String },
 }
 
 #[derive(Subcommand)]
@@ -241,10 +239,9 @@ async fn main() -> anyhow::Result<()> {
         }) => {
             let execution = match execution.as_deref() {
                 None => None,
-                Some(s) => Some(
-                    pytxo_orchestrate::ExecutionBackend::parse(s)
-                        .ok_or_else(|| anyhow::anyhow!("--execution must be pty, subprocess, or cloud"))?,
-                ),
+                Some(s) => Some(pytxo_orchestrate::ExecutionBackend::parse(s).ok_or_else(
+                    || anyhow::anyhow!("--execution must be pty, subprocess, or cloud"),
+                )?),
             };
             let run_id = commands::run(commands::RunOptions {
                 agents,

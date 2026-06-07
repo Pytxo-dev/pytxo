@@ -141,9 +141,7 @@ pub fn spawn_test_mcp_child() -> Result<(ChildMcpSession, std::thread::JoinHandl
     use std::net::TcpListener;
     let listener =
         TcpListener::bind("127.0.0.1:0").map_err(|e| PytxoError::Runner(format!("bind: {e}")))?;
-    listener
-        .set_nonblocking(true)
-        .map_err(PytxoError::Io)?;
+    listener.set_nonblocking(true).map_err(PytxoError::Io)?;
     let addr = listener.local_addr().map_err(PytxoError::Io)?;
     let handle = std::thread::spawn(move || {
         let deadline = std::time::Instant::now() + Duration::from_secs(5);

@@ -22,7 +22,8 @@ pub fn prepare_kernel_overlay(
     let work = layer.join("work");
     let mnt = layer.join("mnt");
     for p in [&upper, &work, &mnt] {
-        std::fs::create_dir_all(p).map_err(|e| PytxoError::Runner(format!("overlay mkdir: {e}")))?;
+        std::fs::create_dir_all(p)
+            .map_err(|e| PytxoError::Runner(format!("overlay mkdir: {e}")))?;
     }
 
     if try_overlay_mount(repo_root, &upper, &work, &mnt).is_ok() {

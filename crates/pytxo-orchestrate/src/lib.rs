@@ -118,22 +118,22 @@ pub fn load_config_for_repo(path: Option<&Path>, repo: &Path) -> anyhow::Result<
 
 /// Whether the canonical repo root has a trust record ([[ADR-0013]]).
 pub fn is_repo_trusted(repo: &Path) -> anyhow::Result<bool> {
-    let store = pytxo_core::TrustedDomainStore::open_default()
-        .map_err(|e| anyhow::anyhow!(e))?;
+    let store = pytxo_core::TrustedDomainStore::open_default().map_err(|e| anyhow::anyhow!(e))?;
     Ok(store.is_trusted(repo))
 }
 
 pub fn trust_repo(repo: &Path, profile: pytxo_core::PermissionProfile) -> anyhow::Result<()> {
-    let mut store = pytxo_core::TrustedDomainStore::open_default()
-        .map_err(|e| anyhow::anyhow!(e))?;
+    let mut store =
+        pytxo_core::TrustedDomainStore::open_default().map_err(|e| anyhow::anyhow!(e))?;
     store
         .trust(repo, profile, None)
         .map_err(|e| anyhow::anyhow!(e))
 }
 
-pub fn trusted_permission_for(repo: &Path) -> anyhow::Result<Option<pytxo_core::PermissionProfile>> {
-    let store = pytxo_core::TrustedDomainStore::open_default()
-        .map_err(|e| anyhow::anyhow!(e))?;
+pub fn trusted_permission_for(
+    repo: &Path,
+) -> anyhow::Result<Option<pytxo_core::PermissionProfile>> {
+    let store = pytxo_core::TrustedDomainStore::open_default().map_err(|e| anyhow::anyhow!(e))?;
     Ok(store.permission_for(repo))
 }
 
@@ -236,11 +236,7 @@ fn parse_agent_key(agent_key: &str) -> (String, String) {
 }
 
 fn ensure_agent_live(swarm: &pytxo_runner::SwarmRegistry, agent_key: &str) -> anyhow::Result<()> {
-    if swarm
-        .list_live()
-        .iter()
-        .any(|a| a.agent_key == agent_key)
-    {
+    if swarm.list_live().iter().any(|a| a.agent_key == agent_key) {
         return Ok(());
     }
     anyhow::bail!("agent {agent_key} is not live (run may have finished)")
@@ -315,7 +311,10 @@ pub fn mcp_tools_list(repo: Option<PathBuf>) -> anyhow::Result<Vec<serde_json::V
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(None, &repo_root)?;
     let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
-    domain.mcp_hub.aggregate_tools().map_err(|e| anyhow::anyhow!(e))
+    domain
+        .mcp_hub
+        .aggregate_tools()
+        .map_err(|e| anyhow::anyhow!(e))
 }
 
 /// Galaxy HITL: list pending approval requests for a domain ([[race-shield]]).
@@ -614,7 +613,11 @@ pub(crate) async fn execute_run_body(
     Ok(run_id)
 }
 
-pub fn resolve_run_tasks(cfg: &PytxoConfig, agents: usize, runtime: Option<Vec<Task>>) -> Vec<Task> {
+pub fn resolve_run_tasks(
+    cfg: &PytxoConfig,
+    agents: usize,
+    runtime: Option<Vec<Task>>,
+) -> Vec<Task> {
     if let Some(tasks) = runtime {
         return tasks;
     }
@@ -980,7 +983,10 @@ pub struct DashboardSnapshot {
 }
 
 /// Read-only aggregate for the terminal dashboard (`pytxo-tui`).
-pub fn dashboard_snapshot(repo: Option<PathBuf>, run_limit: usize) -> anyhow::Result<DashboardSnapshot> {
+pub fn dashboard_snapshot(
+    repo: Option<PathBuf>,
+    run_limit: usize,
+) -> anyhow::Result<DashboardSnapshot> {
     let version = env!("CARGO_PKG_VERSION").to_string();
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let doctor = run_doctor(Some(&repo_root))?;

@@ -107,9 +107,7 @@ impl HttpCloudDispatcher {
             }
             .map_err(|e| PytxoError::Other(format!("cloud http: {e}")))?;
             let status = resp.status();
-            let text = resp
-                .into_string()
-                .unwrap_or_default();
+            let text = resp.into_string().unwrap_or_default();
             if !(200..300).contains(&status) {
                 return Err(PytxoError::Other(format!(
                     "cloud http {url}: status {status} {text}"
@@ -198,7 +196,13 @@ mod tests {
     fn noop_errors_on_exec() {
         let n = NoopCloudDispatcher;
         assert!(n
-            .exec("x", &ExecRequest { cmd: "echo".into(), cwd: None })
+            .exec(
+                "x",
+                &ExecRequest {
+                    cmd: "echo".into(),
+                    cwd: None
+                }
+            )
             .is_err());
     }
 }

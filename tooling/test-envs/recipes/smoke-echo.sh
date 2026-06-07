@@ -18,6 +18,7 @@ echo "=== dry-run ==="
 "$PYTXO" run --config pytxo.toml --dry-run
 
 echo "=== execute (echo) ==="
+"$PYTXO" trust orbit
 "$PYTXO" run --config pytxo.toml --cmd "echo pytxo-agent"
 
 echo "=== status ==="

@@ -35,7 +35,10 @@ impl Prompt {
         if self.history.is_empty() {
             return;
         }
-        let idx = self.history_idx.unwrap_or(self.history.len()).saturating_sub(1);
+        let idx = self
+            .history_idx
+            .unwrap_or(self.history.len())
+            .saturating_sub(1);
         self.history_idx = Some(idx);
         self.buffer = self.history[idx].clone();
     }
@@ -57,7 +60,10 @@ impl Prompt {
     pub fn draw(&self, frame: &mut Frame, area: Rect, status: &str) {
         let prompt = Line::from(vec![
             Span::styled("pytxo> ", theme::accent()),
-            Span::styled(&self.buffer, Style::default().fg(ratatui::style::Color::White)),
+            Span::styled(
+                &self.buffer,
+                Style::default().fg(ratatui::style::Color::White),
+            ),
             Span::styled("▌", theme::accent()),
         ]);
         let block = Block::default()
@@ -78,10 +84,7 @@ impl Prompt {
                 height: 1,
                 ..inner
             };
-            frame.render_widget(
-                Paragraph::new(footer).style(theme::muted()),
-                hint_area,
-            );
+            frame.render_widget(Paragraph::new(footer).style(theme::muted()), hint_area);
         }
     }
 }

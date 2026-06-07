@@ -67,7 +67,12 @@ impl TrustedDomainStore {
         self.lookup(repo).map(|d| d.permission_profile)
     }
 
-    pub fn trust(&mut self, repo: &Path, profile: PermissionProfile, label: Option<String>) -> crate::Result<()> {
+    pub fn trust(
+        &mut self,
+        repo: &Path,
+        profile: PermissionProfile,
+        label: Option<String>,
+    ) -> crate::Result<()> {
         let id = DomainId::from_repo_root(repo)?;
         self.data.domains.insert(
             id.as_str().to_string(),
@@ -132,14 +137,9 @@ mod tests {
         let path = dir.join("trusted.json");
         let mut store = TrustedDomainStore::open(&path).unwrap();
         assert!(!store.is_trusted(&dir));
-        store
-            .trust(&dir, PermissionProfile::Galaxy, None)
-            .unwrap();
+        store.trust(&dir, PermissionProfile::Galaxy, None).unwrap();
         let store2 = TrustedDomainStore::open(&path).unwrap();
-        assert_eq!(
-            store2.permission_for(&dir),
-            Some(PermissionProfile::Galaxy)
-        );
+        assert_eq!(store2.permission_for(&dir), Some(PermissionProfile::Galaxy));
         let _ = fs::remove_dir_all(dir);
     }
 }

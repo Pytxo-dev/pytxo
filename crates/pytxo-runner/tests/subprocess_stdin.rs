@@ -125,9 +125,7 @@ async fn subprocess_stdin_spawn_time_drain() {
         .enqueue_stdin(&agent_key, b"hello\n")
         .expect("enqueue before spawn");
 
-    let results = execute_plan(&ctx, &plan, &registry, &swarm)
-        .await
-        .unwrap();
+    let results = execute_plan(&ctx, &plan, &registry, &swarm).await.unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].exit_code, Some(0));
 

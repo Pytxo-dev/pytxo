@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::billing::{CliAdapter, ModelId, ModelRoute, ProviderId, provider_from_hint};
+use crate::billing::{provider_from_hint, CliAdapter, ModelId, ModelRoute, ProviderId};
 use crate::moat::PermissionProfile;
 use crate::TaskId;
 
@@ -39,14 +39,17 @@ impl AgentSpec {
             .as_deref()
             .and_then(ProviderId::parse)
             .or_else(|| {
-                self.cli_adapter.as_deref().and_then(CliAdapter::parse).map(|a| match a {
-                    CliAdapter::Antigravity => ProviderId::Google,
-                    CliAdapter::ClaudeCode => ProviderId::Anthropic,
-                    CliAdapter::Generic => model
-                        .provider_hint()
-                        .map(provider_from_hint)
-                        .unwrap_or(ProviderId::Generic),
-                })
+                self.cli_adapter
+                    .as_deref()
+                    .and_then(CliAdapter::parse)
+                    .map(|a| match a {
+                        CliAdapter::Antigravity => ProviderId::Google,
+                        CliAdapter::ClaudeCode => ProviderId::Anthropic,
+                        CliAdapter::Generic => model
+                            .provider_hint()
+                            .map(provider_from_hint)
+                            .unwrap_or(ProviderId::Generic),
+                    })
             })
             .unwrap_or_else(|| {
                 model

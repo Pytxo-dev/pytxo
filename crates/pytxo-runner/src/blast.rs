@@ -1,24 +1,31 @@
 #[cfg(feature = "overlay-fuse")]
 use std::path::Path;
 
-use pytxo_core::{IsolationBackend, IsolationCtx, IsolationMode, Result, WorkspaceHandle};
 #[cfg(feature = "overlay-fuse")]
 use pytxo_core::PytxoError;
+use pytxo_core::{IsolationBackend, IsolationCtx, IsolationMode, Result, WorkspaceHandle};
 
 use crate::git::{branch_name, create_worktree, remove_worktree, worktree_path};
 
 #[cfg(feature = "overlay-fuse")]
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
     std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("overlay mkdir: {e}")))?;
-    for entry in std::fs::read_dir(src).map_err(|e| PytxoError::Runner(format!("overlay readdir: {e}")))? {
+    for entry in
+        std::fs::read_dir(src).map_err(|e| PytxoError::Runner(format!("overlay readdir: {e}")))?
+    {
         let entry = entry.map_err(|e| PytxoError::Runner(format!("overlay entry: {e}")))?;
         let name = entry.file_name();
         let from = entry.path();
         let to = dst.join(&name);
-        if entry.file_type().map_err(|e| PytxoError::Runner(e.to_string()))?.is_dir() {
+        if entry
+            .file_type()
+            .map_err(|e| PytxoError::Runner(e.to_string()))?
+            .is_dir()
+        {
             copy_dir_recursive(&from, &to)?;
         } else {
-            std::fs::copy(&from, &to).map_err(|e| PytxoError::Runner(format!("overlay copy: {e}")))?;
+            std::fs::copy(&from, &to)
+                .map_err(|e| PytxoError::Runner(format!("overlay copy: {e}")))?;
         }
     }
     Ok(())
@@ -204,7 +211,10 @@ mod tests {
         let handle = OverlayIsolation::new().prepare(&ctx).unwrap();
         assert_eq!(handle.backend, IsolationMode::Overlay);
         assert!(handle.branch.is_empty());
-        assert!(handle.cwd.to_string_lossy().contains("overlay-run1-agent-0"));
+        assert!(handle
+            .cwd
+            .to_string_lossy()
+            .contains("overlay-run1-agent-0"));
         assert!(handle.cwd.join("README.md").exists());
     }
 }

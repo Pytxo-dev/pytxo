@@ -146,8 +146,10 @@ jobs:
 
       - name: Check PYTXO_RELEASES_TOKEN
         id: token
+        env:
+          PYTXO_RELEASES_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
         run: |
-          if [ -n "${{ secrets.PYTXO_RELEASES_TOKEN }}" ]; then
+          if [ -n "${PYTXO_RELEASES_TOKEN}" ]; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::PYTXO_RELEASES_TOKEN not set — skipping public mirror"

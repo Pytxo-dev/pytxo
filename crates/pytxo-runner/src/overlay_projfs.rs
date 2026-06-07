@@ -28,7 +28,9 @@ pub fn prepare_projfs_overlay(
     #[cfg(windows)]
     {
         if !projfs_supported() {
-            return Err(PytxoError::Runner("ProjFS not supported on this SKU".into()));
+            return Err(PytxoError::Runner(
+                "ProjFS not supported on this SKU".into(),
+            ));
         }
         Err(PytxoError::Runner(
             "ProjFS provider POC not registered; use overlay-fuse copy layer".into(),

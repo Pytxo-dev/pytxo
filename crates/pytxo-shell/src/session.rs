@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use pytxo_catalog::ModelCatalog;
 use pytxo_core::{ExecutionPlan, PytxoConfig, RunId, Task};
 use pytxo_core::{PermissionProfile, ProviderId};
 use pytxo_orchestrate::{
     dispatch, dry_run_with_tasks, is_repo_trusted, load_config_for_repo, logs, plan_tasks,
     resolve_repo_root, run_doctor, status_json, trust_repo, RunOptions,
 };
-use pytxo_catalog::ModelCatalog;
 use pytxo_planner::{plan_mission, planner_enabled};
 
 use crate::command::{help_text, ModelsSub, ShellInput, SlashCommand};
@@ -335,10 +335,7 @@ mod tests {
     use crate::command::parse_line;
 
     fn trust_cwd(session: &mut ShellSession) {
-        let _ = pytxo_orchestrate::trust_repo(
-            &session.repo,
-            pytxo_core::PermissionProfile::Orbit,
-        );
+        let _ = pytxo_orchestrate::trust_repo(&session.repo, pytxo_core::PermissionProfile::Orbit);
     }
 
     #[tokio::test]
@@ -346,7 +343,9 @@ mod tests {
         let mut session = ShellSession::new(None, Some(std::env::current_dir().unwrap())).unwrap();
         trust_cwd(&mut session);
         let events = session.handle(parse_line("/help")).await;
-        assert!(events.iter().any(|e| matches!(e, ShellEvent::Output(s) if s.contains("/dry-run"))));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, ShellEvent::Output(s) if s.contains("/dry-run"))));
     }
 
     #[tokio::test]

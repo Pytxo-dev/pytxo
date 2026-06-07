@@ -35,6 +35,8 @@ pub fn doctor_pty_smoke() -> Result<()> {
         .slave
         .spawn_command(builder)
         .map_err(|e| PytxoError::Runner(format!("doctor pty spawn: {e}")))?;
+    // Master read EOF requires dropping our slave handle after spawn (portable-pty).
+    drop(pair.slave);
 
     let mut reader = pair
         .master
@@ -53,7 +55,7 @@ pub fn doctor_pty_smoke() -> Result<()> {
         .map_err(|e| PytxoError::Runner(format!("doctor pty wait: {e}")))?;
 
     let buf = read_rx
-        .recv_timeout(Duration::from_secs(5))
+        .recv_timeout(Duration::from_secs(10))
         .unwrap_or_default();
 
     if !status.success() {

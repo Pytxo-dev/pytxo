@@ -16,7 +16,11 @@ impl ModelId {
 
     pub fn provider_hint(&self) -> Option<&str> {
         let id = self.0.to_ascii_lowercase();
-        if id.contains("claude") || id.contains("opus") || id.contains("sonnet") || id.contains("haiku") {
+        if id.contains("claude")
+            || id.contains("opus")
+            || id.contains("sonnet")
+            || id.contains("haiku")
+        {
             Some("anthropic")
         } else if id.contains("gpt") || id.contains("o1") || id.contains("o3") {
             Some("openai")
