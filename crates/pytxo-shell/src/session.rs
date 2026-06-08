@@ -140,10 +140,15 @@ impl ShellSession {
                     Err(e) => vec![ShellEvent::Error(e.to_string())],
                 }
             }
+            SlashCommand::Agents => {
+                vec![ShellEvent::Output(pytxo_core::format_agents_list())]
+            }
+            SlashCommand::Use { ade } => self.handle_use(&ade),
             SlashCommand::Run {
                 agents,
                 cmd,
                 keep_worktrees,
+                ..
             } => self.dispatch_run(agents, cmd, keep_worktrees).await,
             SlashCommand::Logs { agent, tail } => {
                 match logs(
@@ -189,6 +194,21 @@ impl ShellSession {
             }
             SlashCommand::Trust { tier } => self.handle_trust(tier).await,
             SlashCommand::Models { sub } => self.handle_models(sub).await,
+        }
+    }
+
+    fn handle_use(&mut self, ade: &str) -> Vec<ShellEvent> {
+        match pytxo_core::resolve_ade(ade) {
+            Some(spec) => {
+                self.default_cmd = spec.default_cmd.to_string();
+                vec![ShellEvent::Output(format!(
+                    "Default /run command set to: {} ({})",
+                    spec.default_cmd, spec.id
+                ))]
+            }
+            None => vec![ShellEvent::Error(format!(
+                "unknown ADE {ade} — try /agents"
+            ))],
         }
     }
 
@@ -354,6 +374,25 @@ mod tests {
         trust_cwd(&mut session);
         let events = session.handle(parse_line("/dry-run --agents 2")).await;
         assert!(events
+            .iter()
+            .any(|e| matches!(e, ShellEvent::PlanPreview(s) if s.contains("waves"))));
+    }
+
+    #[tokio::test]
+    async fn agents_and_use_cursor() {
+        let mut session = ShellSession::new(None, Some(std::env::current_dir().unwrap())).unwrap();
+        trust_cwd(&mut session);
+        let agents = session.handle(parse_line("/agents")).await;
+        assert!(agents.iter().any(|e| {
+            matches!(e, ShellEvent::Output(s) if s.contains("cursor") && s.contains("codex"))
+        }));
+        let use_cursor = session.handle(parse_line("/use cursor")).await;
+        assert!(use_cursor.iter().any(|e| {
+            matches!(e, ShellEvent::Output(s) if s.contains("cursor agent"))
+        }));
+        assert_eq!(session.default_cmd, "cursor agent");
+        let dry = session.handle(parse_line("/dry-run")).await;
+        assert!(dry
             .iter()
             .any(|e| matches!(e, ShellEvent::PlanPreview(s) if s.contains("waves"))));
     }

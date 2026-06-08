@@ -59,17 +59,17 @@ impl Prompt {
 
     pub fn draw(&self, frame: &mut Frame, area: Rect, status: &str) {
         let prompt = Line::from(vec![
-            Span::styled("pytxo> ", theme::accent()),
+            Span::styled("pytxo> ", theme::chroma_cyan()),
             Span::styled(
                 &self.buffer,
                 Style::default().fg(ratatui::style::Color::White),
             ),
-            Span::styled("▌", theme::accent()),
+            Span::styled("▌", theme::chroma_magenta()),
         ]);
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(theme::border())
-            .title(Span::styled(" Prompt ", theme::accent()))
+            .border_style(theme::chroma_border(1))
+            .title(Span::styled(" Prompt ", theme::chroma_violet()))
             .style(theme::panel_bg());
         let footer = if status.is_empty() {
             "Enter submit · Ctrl+C /q quit · /help commands".to_string()

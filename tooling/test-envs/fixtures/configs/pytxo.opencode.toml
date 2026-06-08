@@ -1,0 +1,20 @@
+max_agents = 3
+worktree_dir = ".pytxo/worktrees"
+data_dir = ".pytxo/data"
+signal_core = true
+execution_backend = "pty"
+
+[[agent]]
+name = "opencode-builder"
+paths = ["src/**"]
+cli_adapter = "opencode"
+
+[[task]]
+id = "explore-a"
+agent = "opencode-builder"
+paths = ["src/a.ts"]
+
+[[task]]
+id = "explore-b"
+agent = "opencode-builder"
+paths = ["package.json"]

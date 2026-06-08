@@ -1,5 +1,4 @@
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
@@ -7,7 +6,7 @@ use ratatui::Frame;
 use crate::theme;
 
 pub struct Scrollback {
-    lines: Vec<String>,
+    lines: Vec<Line<'static>>,
     max_lines: usize,
 }
 
@@ -19,9 +18,13 @@ impl Scrollback {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.lines.len()
+    }
+
     pub fn push(&mut self, text: &str) {
         for line in text.lines() {
-            self.lines.push(line.to_string());
+            self.lines.push(stylize_line(line));
         }
         if self.lines.len() > self.max_lines {
             let drop = self.lines.len() - self.max_lines;
@@ -33,14 +36,11 @@ impl Scrollback {
         let visible = area.height.saturating_sub(2) as usize;
         let start = self.lines.len().saturating_sub(visible + scroll);
         let end = (start + visible).min(self.lines.len());
-        let body: Vec<Line> = self.lines[start..end]
-            .iter()
-            .map(|l| stylize_line(l))
-            .collect();
+        let body: Vec<Line> = self.lines[start..end].to_vec();
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(theme::border())
-            .title(ratatui::text::Span::styled(" Scrollback ", theme::accent()))
+            .border_style(theme::chroma_border(2))
+            .title(ratatui::text::Span::styled(" Scrollback ", theme::chroma_violet()))
             .style(theme::panel_bg());
         frame.render_widget(
             Paragraph::new(body)
@@ -57,7 +57,8 @@ fn stylize_line(line: &str) -> Line<'static> {
     if !line.trim_start().starts_with('{') && !line.contains("\"waves\"") {
         return Line::from(Span::styled(line.to_string(), muted));
     }
-    let key_style = Style::default().fg(Color::Rgb(80, 200, 180));
+    let key_style = theme::chroma_cyan();
+    let val_style = theme::chroma_gold();
     let bytes = line.as_bytes();
     let mut spans = Vec::new();
     let mut i = 0usize;
@@ -76,7 +77,7 @@ fn stylize_line(line: &str) -> Line<'static> {
             let style = if tail.starts_with(':') {
                 key_style
             } else {
-                muted
+                val_style
             };
             spans.push(Span::styled(quoted.to_string(), style));
         } else {

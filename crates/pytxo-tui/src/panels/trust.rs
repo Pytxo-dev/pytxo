@@ -8,39 +8,43 @@ use ratatui::Frame;
 
 use crate::theme;
 
-const TIERS: [(PermissionProfile, &str, &str); 4] = [
+const TIERS: [(PermissionProfile, &str, &str, fn() -> Style); 4] = [
     (
         PermissionProfile::DeepSpace,
         "Deep Space",
         "Air-gapped bubble — minimal host access",
+        theme::chroma_cyan,
     ),
     (
         PermissionProfile::Orbit,
         "Orbit",
         "Default engineering — approve-to-flush (recommended)",
+        theme::accent,
     ),
     (
         PermissionProfile::Galaxy,
         "Galaxy",
         "Host tools + HITL for high-risk actions",
+        theme::chroma_violet,
     ),
     (
         PermissionProfile::Supernova,
         "Supernova",
         "Full host privileges — use with care",
+        theme::chroma_gold,
     ),
 ];
 
 pub struct TrustModal {
     pub selected: usize,
-    pub repo_path: String,
+    pub folders: Vec<String>,
 }
 
 impl TrustModal {
-    pub fn new(repo_path: String) -> Self {
+    pub fn new(folders: Vec<String>) -> Self {
         Self {
             selected: 1,
-            repo_path,
+            folders,
         }
     }
 
@@ -55,18 +59,26 @@ impl TrustModal {
     }
 
     pub fn accept(&self, repo: &std::path::Path) -> anyhow::Result<PermissionProfile> {
-        let (profile, _, _) = TIERS[self.selected];
+        let (profile, _, _, _) = TIERS[self.selected];
         trust_repo(repo, profile)?;
         Ok(profile)
     }
 
+    fn heading(&self) -> String {
+        if self.folders.len() > 1 {
+            "Do you trust these folders for Pytxo agents?".into()
+        } else {
+            "Do you trust this folder for Pytxo agents?".into()
+        }
+    }
+
     pub fn draw(&self, frame: &mut Frame, area: Rect) {
         frame.render_widget(Clear, area);
-        let popup = centered_rect(72, 70, area);
+        let popup = centered_rect(74, 72, area);
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(theme::accent())
-            .title(Span::styled(" Trust ", theme::title()))
+            .border_style(theme::chroma_border(0))
+            .title(Span::styled(" Workspace trust ", theme::title()))
             .style(theme::panel_bg());
         let inner = block.inner(popup);
         frame.render_widget(block, popup);
@@ -74,49 +86,70 @@ impl TrustModal {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(4),
+                Constraint::Length(5),
+                Constraint::Min(3),
+                Constraint::Length(2),
                 Constraint::Min(8),
-                Constraint::Length(3),
+                Constraint::Length(2),
             ])
             .split(inner);
 
-        let header = vec![
+        let mut header = vec![
             Line::from(Span::styled(
-                "Do you trust this folder?",
+                self.heading(),
                 Style::default()
                     .fg(Color::White)
                     .add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
-            Line::from(Span::styled(&self.repo_path, theme::muted())),
         ];
+        for path in &self.folders {
+            header.push(Line::from(Span::styled(
+                format!("  • {path}"),
+                theme::chroma_cyan(),
+            )));
+        }
         frame.render_widget(Paragraph::new(header), chunks[0]);
+
+        frame.render_widget(
+            Paragraph::new(vec![
+                Line::from(Span::styled(
+                    "Agents may read, edit, and run commands in trusted paths.",
+                    theme::muted(),
+                )),
+                Line::from(Span::styled(
+                    "Choose a permission tier:",
+                    theme::muted(),
+                )),
+            ]),
+            chunks[1],
+        );
 
         let tier_lines: Vec<Line> = TIERS
             .iter()
             .enumerate()
-            .map(|(i, (_, name, desc))| {
+            .map(|(i, (_, name, desc, style_fn))| {
                 let mark = if i == self.selected { "›" } else { " " };
-                let style = if i == self.selected {
-                    theme::accent().add_modifier(Modifier::BOLD)
+                let tier_style = if i == self.selected {
+                    style_fn().add_modifier(Modifier::BOLD)
                 } else {
                     theme::muted()
                 };
                 Line::from(vec![
-                    Span::styled(format!("{mark} {name}"), style),
+                    Span::styled(format!("{mark} {name}"), tier_style),
                     Span::styled(format!(" — {desc}"), theme::muted()),
                 ])
             })
             .collect();
         frame.render_widget(
             Paragraph::new(tier_lines).wrap(Wrap { trim: true }),
-            chunks[1],
+            chunks[3],
         );
 
         frame.render_widget(
-            Paragraph::new("↑/↓ select · Enter trust · q quit without trusting")
-                .style(theme::muted()),
-            chunks[2],
+            Paragraph::new("↑/↓ select tier · Enter trust folder · Esc decline")
+                .style(theme::chroma_magenta()),
+            chunks[4],
         );
     }
 }

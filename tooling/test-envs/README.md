@@ -27,6 +27,8 @@ cd "$PYTXO_TEST_REPO"
 | `antigravity` | `pytxo.antigravity.toml` | Antigravity CLI (`agy`) |
 | `claude` | `pytxo.claude.toml` | Claude Code |
 | `codex` | `pytxo.codex.toml` | OpenAI Codex CLI |
+| `cursor` | `pytxo.cursor.toml` | Cursor Agent CLI (`cursor agent`) |
+| `opencode` | `pytxo.opencode.toml` | OpenCode CLI |
 
 ## Environment variables
 
@@ -41,9 +43,11 @@ cd "$PYTXO_TEST_REPO"
 |------|-------|-------------|
 | A | Antigravity (`agy`) | `pytxo run --cmd "agy …"`, `cli_adapter = "agy"` |
 | A | Claude Code | `cli_adapter = "claude_code"` |
-| A | OpenAI Codex | `generic`, `--cmd "codex …"` |
-| A | Aider / scripts | `generic`, any `--cmd` |
-| B | Cursor | MCP (`pytxo-mcp`), not `--cmd` |
+| A | OpenAI Codex | `cli_adapter = "codex"` or `/run --ade codex` |
+| A | Cursor Agent | `cli_adapter = "cursor"` or `/run --ade cursor` (spawn via `--cmd`) |
+| A | OpenCode | `cli_adapter = "opencode"` or `/use opencode` |
+| A | Aider / scripts | `cli_adapter = "aider"` or any `--cmd` |
+| B | Cursor IDE | MCP (`pytxo-mcp`) — inverse direction; IDE hosts Pytxo tools |
 
 ## Recipes
 

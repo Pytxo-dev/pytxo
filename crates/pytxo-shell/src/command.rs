@@ -19,6 +19,7 @@ pub enum SlashCommand {
         agents: usize,
         cmd: String,
         keep_worktrees: bool,
+        ade: Option<String>,
     },
     Logs {
         agent: String,
@@ -35,6 +36,10 @@ pub enum SlashCommand {
     },
     Models {
         sub: ModelsSub,
+    },
+    Agents,
+    Use {
+        ade: String,
     },
 }
 
@@ -92,6 +97,8 @@ fn parse_slash(rest: &str) -> SlashCommand {
         "run" => {
             let mut agents = 0usize;
             let mut cmd = String::from("echo pytxo");
+            let mut cmd_explicit = false;
+            let mut ade: Option<String> = None;
             let mut keep_worktrees = false;
             let mut i = 0;
             while i < parts.len() {
@@ -102,6 +109,11 @@ fn parse_slash(rest: &str) -> SlashCommand {
                     }
                     "--cmd" if i + 1 < parts.len() => {
                         cmd = parts[i + 1].clone();
+                        cmd_explicit = true;
+                        i += 2;
+                    }
+                    "--ade" if i + 1 < parts.len() => {
+                        ade = Some(parts[i + 1].clone());
                         i += 2;
                     }
                     "--keep-worktrees" => {
@@ -111,10 +123,18 @@ fn parse_slash(rest: &str) -> SlashCommand {
                     _ => i += 1,
                 }
             }
+            if let Some(ref id) = ade {
+                if !cmd_explicit {
+                    if let Some(spec) = pytxo_core::resolve_ade(id) {
+                        cmd = spec.default_cmd.to_string();
+                    }
+                }
+            }
             SlashCommand::Run {
                 agents,
                 cmd,
                 keep_worktrees,
+                ade,
             }
         }
         "logs" => {
@@ -146,6 +166,11 @@ fn parse_slash(rest: &str) -> SlashCommand {
         "models" => SlashCommand::Models {
             sub: parse_models_sub(&parts),
         },
+        "agents" => SlashCommand::Agents,
+        "use" => {
+            let ade = parts.first().cloned().unwrap_or_default();
+            SlashCommand::Use { ade }
+        }
         _ => SlashCommand::Help,
     }
 }
@@ -207,7 +232,17 @@ pub fn complete_line(buffer: &str) -> Option<String> {
     if !rest.contains(' ') {
         let prefix = rest.to_ascii_lowercase();
         let cmds = [
-            "help", "doctor", "dry-run", "run", "status", "logs", "stop", "trust", "models",
+            "help",
+            "doctor",
+            "dry-run",
+            "run",
+            "status",
+            "logs",
+            "stop",
+            "trust",
+            "models",
+            "agents",
+            "use",
         ];
         let matches: Vec<&str> = cmds
             .iter()
@@ -252,6 +287,29 @@ pub fn complete_line(buffer: &str) -> Option<String> {
                 }
             }
         }
+        "use" => {
+            if parts.len() == 1 {
+                return Some(format!("{buffer} cursor"));
+            }
+            if parts.len() == 2 {
+                let sub = parts[1].to_ascii_lowercase();
+                for spec in pytxo_core::all_ade_clis() {
+                    if spec.id.starts_with(&sub) {
+                        let base = buffer.trim_end();
+                        let without = base.strip_suffix(&parts[1]).unwrap_or(base);
+                        return Some(format!("{without}{} ", spec.id));
+                    }
+                }
+            }
+        }
+        "run" => {
+            if parts.len() == 1 {
+                return Some(format!("{buffer} --ade "));
+            }
+            if parts.len() >= 2 && parts[1] == "--ade" && parts.len() == 2 {
+                return Some(format!("{buffer} cursor"));
+            }
+        }
         _ => {}
     }
     None
@@ -288,7 +346,9 @@ pub fn help_text() -> String {
         "  /help              Show this help",
         "  /doctor            Preflight checks",
         "  /dry-run           Wave plan preview (optional --agents N)",
-        "  /run               Dispatch agents (--agents N --cmd \"agy --help\")",
+        "  /agents            List ADE CLIs on PATH (cursor, codex, …)",
+        "  /use <ade>         Set default /run command from registry",
+        "  /run               Dispatch agents (--agents N --cmd \"agy --help\" | --ade cursor)",
         "  /status            Recent runs (--limit N)",
         "  /logs <agent>      Tail WAL events (--tail N)",
         "  /stop [--all]      Stop active run or all processes",
@@ -313,6 +373,18 @@ mod tests {
             ShellInput::Slash(SlashCommand::Run { agents, cmd, .. }) => {
                 assert_eq!(agents, 2);
                 assert_eq!(cmd, "echo hello world");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn run_ade_resolves_default_cmd() {
+        let input = parse_line("/run --ade cursor");
+        match input {
+            ShellInput::Slash(SlashCommand::Run { cmd, ade, .. }) => {
+                assert_eq!(ade.as_deref(), Some("cursor"));
+                assert_eq!(cmd, "cursor agent");
             }
             other => panic!("unexpected {other:?}"),
         }

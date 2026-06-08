@@ -43,14 +43,24 @@ impl ManagedTransport {
             env.set("PYTXO_MODEL", route.model.as_str());
             env.set("PYTXO_PROXY_URL", proxy);
 
+            let cli_label = route
+                .ade_id
+                .as_deref()
+                .or_else(|| match route.cli_adapter {
+                    CliAdapter::ClaudeCode => Some("claude"),
+                    CliAdapter::Antigravity => Some("agy"),
+                    CliAdapter::Generic => None,
+                });
+            if let Some(label) = cli_label {
+                env.set("PYTXO_CLI", label);
+            }
+
             match route.cli_adapter {
                 CliAdapter::ClaudeCode => {
                     env.set("ANTHROPIC_BASE_URL", format!("{proxy}/anthropic"));
-                    env.set("PYTXO_CLI", "claude");
                 }
                 CliAdapter::Antigravity => {
                     env.set("AGY_ENDPOINT", format!("{proxy}/agy"));
-                    env.set("PYTXO_CLI", "agy");
                 }
                 CliAdapter::Generic => {}
             }

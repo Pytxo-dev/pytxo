@@ -2,11 +2,33 @@
 
 **Private repo** — use GitHub Actions, not public curl URLs from this repo.
 
-1. **Actions → Release → Run workflow** → version `0.3.1` (no `v` prefix).
+1. **Actions → Release → Run workflow** → version `0.3.2` (no `v` prefix).
 2. Ensure secrets `NPM_TOKEN` and `PYTXO_RELEASES_TOKEN` are set on the private repo.
 3. Public users install via `npm i -g pytxo` or [pytxo-releases install scripts](https://github.com/Pytxo-dev/pytxo-releases).
 
 See [release-workflow.md](docs/07-guides/release-workflow.md).
+
+---
+
+# Pytxo v0.3.2
+
+**TUI polish + ADE registry** — fixes nested-Tokio panic on bare `pytxo`, lighter board refresh, ASCII splash, and `/agents` / `/use` / `--ade` for terminal CLIs (cursor, codex, opencode, aider).
+
+## Highlights
+
+- **TUI fix** — async shell loop (no nested `block_on`); `/help` and bare `pytxo` no longer panic
+- **Chroma theme** — web-aligned palette; workspace trust agreement for untrusted folders
+- **Performance** — light dashboard snapshot (no doctor PTY smoke every 2s); dirty redraw; cached scrollback styling
+- **Splash** — dismissible PYTXO banner on first keystroke or command
+- **ADE registry** — `pytxo-core::ade_registry`; `/agents`, `/use <ade>`, `/run --ade cursor`
+- **Version sync** — `pytxo --version` matches npm package `0.3.2`
+
+## Install
+
+```bash
+npm i -g pytxo@0.3.2
+pytxo
+```
 
 ---
 

@@ -12,6 +12,12 @@ related: [[MOC-home]]
 
 # Documentation changelog
 
+## 2026-06-05 (v0.3.2 TUI + ADE registry)
+
+- **TUI:** nested-runtime fix; light `dashboard_snapshot`; splash overlay; `/agents`, `/use`, `/run --ade`.
+- **Core:** `ade_registry` module; `PYTXO_CLI` telemetry on ultra-managed routes.
+- **Test envs:** `pytxo.cursor.toml`, `pytxo.opencode.toml` fixtures; ADE table in `tooling/test-envs/README.md`.
+
 ## 2026-06-05 (phases 9–16)
 
 - **Phase 9:** [[ADR-0011-modular-project-manifest]]; [[mvp-bootstrap]] synced with Phases 4–8; CI benchmarks (Win+Linux); Deck repo-path dispatch input.

@@ -67,6 +67,7 @@ impl AgentSpec {
             provider,
             cli_adapter,
             api_key_env: self.api_key_env.clone(),
+            ade_id: self.cli_adapter.clone(),
         }
     }
 }

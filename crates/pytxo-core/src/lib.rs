@@ -1,5 +1,6 @@
 //! Shared domain types and configuration for Pytxo.
 
+mod ade_registry;
 mod billing;
 mod child_env;
 mod cloud;
@@ -14,6 +15,7 @@ mod project;
 mod task;
 mod trust;
 
+pub use ade_registry::{ade_on_path, all_ade_clis, detect_on_path, format_agents_list, resolve_ade, AdeCliSpec};
 pub use billing::{
     all_byok_key_envs, all_providers, get_provider, inject_byok_env, key_configured,
     list_static_models, provider_from_hint, ArbitrageSample, ArbitrageYield, BillingConfig,

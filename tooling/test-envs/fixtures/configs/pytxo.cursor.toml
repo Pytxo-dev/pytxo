@@ -1,0 +1,20 @@
+max_agents = 3
+worktree_dir = ".pytxo/worktrees"
+data_dir = ".pytxo/data"
+signal_core = true
+execution_backend = "pty"
+
+[[agent]]
+name = "cursor-builder"
+paths = ["src/**"]
+cli_adapter = "cursor"
+
+[[task]]
+id = "explore-a"
+agent = "cursor-builder"
+paths = ["src/a.ts"]
+
+[[task]]
+id = "explore-b"
+agent = "cursor-builder"
+paths = ["package.json"]

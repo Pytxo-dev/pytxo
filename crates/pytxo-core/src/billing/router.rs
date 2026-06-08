@@ -132,10 +132,13 @@ pub enum CliAdapter {
 impl CliAdapter {
     pub fn parse(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().as_str() {
-            "generic" => Some(Self::Generic),
+            "generic" | "script" => Some(Self::Generic),
             "claude_code" | "claude" => Some(Self::ClaudeCode),
             "antigravity" | "agy" => Some(Self::Antigravity),
-            _ => None,
+            "codex" | "openai_codex" | "cursor" | "cursor_agent" | "opencode" | "aider" => {
+                Some(Self::Generic)
+            }
+            _ => crate::resolve_ade(s).map(|spec| spec.cli_adapter),
         }
     }
 }
@@ -146,6 +149,8 @@ pub struct ModelRoute {
     pub provider: ProviderId,
     pub cli_adapter: CliAdapter,
     pub api_key_env: Option<String>,
+    /// Raw `cli_adapter` from agent config (e.g. `cursor`, `codex`) for telemetry.
+    pub ade_id: Option<String>,
 }
 
 pub trait ModelRouter: Send + Sync {
@@ -165,6 +170,7 @@ impl ModelRouter for ConfigModelRouter {
             provider: ProviderId::Anthropic,
             cli_adapter: CliAdapter::ClaudeCode,
             api_key_env: None,
+            ade_id: Some("claude".into()),
         }
     }
 }

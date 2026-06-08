@@ -976,20 +976,24 @@ pub(crate) fn synthetic_tasks(count: usize) -> Vec<Task> {
 pub struct DashboardSnapshot {
     pub version: String,
     pub repo_root: String,
-    pub doctor: DoctorReport,
+    pub doctor: Option<DoctorReport>,
     pub runs: Vec<RunStatusJson>,
     pub domains: Vec<CatalogEntry>,
     pub hitl_pending: Vec<pytxo_runner::HitlRequest>,
 }
 
-/// Read-only aggregate for the terminal dashboard (`pytxo-tui`).
-pub fn dashboard_snapshot(
+fn dashboard_snapshot_inner(
     repo: Option<PathBuf>,
     run_limit: usize,
+    include_doctor: bool,
 ) -> anyhow::Result<DashboardSnapshot> {
     let version = env!("CARGO_PKG_VERSION").to_string();
     let repo_root = resolve_repo_root(repo.as_deref())?;
-    let doctor = run_doctor(Some(&repo_root))?;
+    let doctor = if include_doctor {
+        Some(run_doctor(Some(&repo_root))?)
+    } else {
+        None
+    };
     let cfg = load_config(None, &repo_root)?;
     let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
     let runs = store.list_runs(run_limit)?;
@@ -1033,6 +1037,22 @@ pub fn dashboard_snapshot(
         domains,
         hitl_pending,
     })
+}
+
+/// Read-only aggregate for the terminal dashboard (`pytxo-tui`), including doctor checks.
+pub fn dashboard_snapshot(
+    repo: Option<PathBuf>,
+    run_limit: usize,
+) -> anyhow::Result<DashboardSnapshot> {
+    dashboard_snapshot_inner(repo, run_limit, true)
+}
+
+/// Lightweight board refresh — SQLite runs, domains, and HITL only (no PTY doctor smoke).
+pub fn dashboard_snapshot_light(
+    repo: Option<PathBuf>,
+    run_limit: usize,
+) -> anyhow::Result<DashboardSnapshot> {
+    dashboard_snapshot_inner(repo, run_limit, false)
 }
 
 fn save_active_run(cfg: &PytxoConfig, run_id: &RunId, repo: &Path) -> Result<(), PytxoError> {

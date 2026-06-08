@@ -1,6 +1,6 @@
 /** Public distribution repo (binaries + install scripts). Main pytxo monorepo is private. */
 export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
-export const PYTXO_VERSION = "0.3.0";
+export const PYTXO_VERSION = "0.3.2";
 
 export const GITHUB_URL = `https://github.com/${DISTRIBUTION_REPO}`;
 export const RELEASES_URL = `${GITHUB_URL}/releases`;

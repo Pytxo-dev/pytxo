@@ -1,5 +1,5 @@
 use pytxo_core::AgentSpec;
-use pytxo_orchestrate::DashboardSnapshot;
+use pytxo_orchestrate::{DashboardSnapshot, DoctorReport};
 use pytxo_runner::HitlRequest;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
@@ -18,6 +18,7 @@ pub fn draw(
     frame: &mut Frame,
     area: Rect,
     snapshot: &DashboardSnapshot,
+    doctor: &DoctorReport,
     active_run: Option<&str>,
     trust_tier: &str,
     agents: &[AgentSpec],
@@ -32,7 +33,7 @@ pub fn draw(
         ])
         .split(area);
 
-    draw_header(frame, chunks[0], snapshot, active_run, trust_tier, agents);
+    draw_header(frame, chunks[0], snapshot, doctor, active_run, trust_tier, agents);
     draw_runs(frame, chunks[1], snapshot, view.run_selected);
     draw_hitl(frame, chunks[2], snapshot, view.hitl_selected);
 }
@@ -41,31 +42,51 @@ fn draw_header(
     frame: &mut Frame,
     area: Rect,
     snapshot: &DashboardSnapshot,
+    doctor: &DoctorReport,
     active_run: Option<&str>,
     trust_tier: &str,
     agents: &[AgentSpec],
 ) {
-    let doctor_ok = snapshot.doctor.all_ok();
-    let doctor_style = if doctor_ok { theme::ok() } else { theme::err() };
+    let doctor_unknown = doctor.checks.is_empty();
+    let doctor_ok = !doctor_unknown && doctor.all_ok();
+    let doctor_label = if doctor_unknown {
+        "● …"
+    } else if doctor_ok {
+        "● ok"
+    } else {
+        "● fail"
+    };
+    let doctor_style = if doctor_unknown {
+        theme::muted()
+    } else if doctor_ok {
+        theme::ok()
+    } else {
+        theme::err()
+    };
     let active = active_run.unwrap_or("—");
     let agent_hint = if agents.is_empty() {
         "generic".to_string()
     } else {
         agents
             .iter()
-            .map(|a| a.cli_adapter.clone().unwrap_or_else(|| "default".into()))
+            .map(|a| {
+                a.cli_adapter
+                    .clone()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| a.name.clone())
+            })
             .collect::<Vec<_>>()
             .join(",")
     };
     let text = Line::from(vec![
         Span::styled(" pytxo ", theme::title()),
-        Span::styled(format!("v{} ", snapshot.version), theme::accent()),
+        Span::styled(format!("v{} ", snapshot.version), theme::chroma_cyan()),
         Span::styled(
             truncate(&snapshot.repo_root, 28),
             Style::default().fg(ratatui::style::Color::White),
         ),
         Span::styled(format!(" · {trust_tier} · "), theme::muted()),
-        Span::styled(if doctor_ok { "● ok" } else { "● fail" }, doctor_style),
+        Span::styled(doctor_label, doctor_style),
         Span::styled(format!(" · run {active} · {agent_hint}"), theme::muted()),
         Span::styled(
             format!(" · {} domain(s)", snapshot.domains.len()),
@@ -77,7 +98,7 @@ fn draw_header(
 
 fn draw_runs(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, selected: usize) {
     let header = Row::new(vec!["Run", "Status", "Agents", "Cost"])
-        .style(theme::accent())
+        .style(theme::chroma_violet())
         .bottom_margin(1);
     let rows: Vec<Row> = snapshot
         .runs
@@ -91,6 +112,11 @@ fn draw_runs(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, select
                     r.estimated_cost_usd
                         .map(|c| format!("{c:.4}"))
                         .unwrap_or_else(|| "—".into()),
+                )
+                .style(
+                    r.estimated_cost_usd
+                        .map(|_| theme::warn())
+                        .unwrap_or(theme::muted()),
                 ),
             ])
         })
@@ -108,13 +134,13 @@ fn draw_runs(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, select
     .block(
         Block::default()
             .borders(Borders::TOP)
-            .border_style(theme::border())
-            .title(Span::styled(" board ", theme::muted()))
+            .border_style(theme::chroma_border(3))
+            .title(Span::styled(" board ", theme::chroma_gold()))
             .style(theme::panel_bg()),
     )
     .row_highlight_style(
         Style::default()
-            .bg(ratatui::style::Color::Rgb(30, 27, 46))
+            .bg(ratatui::style::Color::Rgb(30, 20, 46))
             .add_modifier(Modifier::BOLD),
     );
     let mut state = TableState::default().with_selected(Some(selected));
@@ -144,10 +170,10 @@ fn draw_runs(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, select
 fn draw_hitl(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, selected: usize) {
     let pending = &snapshot.hitl_pending;
     let body = if pending.is_empty() {
-        vec![Line::from(Span::styled(
-            "hitl — none pending",
-            theme::muted(),
-        ))]
+        vec![Line::from(vec![
+            Span::styled("hitl", theme::chroma_magenta()),
+            Span::styled(" — none pending", theme::muted()),
+        ])]
     } else {
         pending
             .iter()
@@ -160,7 +186,11 @@ fn draw_hitl(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, select
             .block(
                 Block::default()
                     .borders(Borders::TOP)
-                    .border_style(theme::border())
+                    .border_style(if pending.is_empty() {
+                        theme::border()
+                    } else {
+                        theme::chroma_border(2)
+                    })
                     .style(theme::panel_bg()),
             )
             .wrap(Wrap { trim: true }),

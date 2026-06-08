@@ -1,4 +1,5 @@
 use std::io;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
@@ -8,7 +9,10 @@ use crossterm::terminal::{
 use crossterm::ExecutableCommand;
 use pytxo_core::PermissionProfile;
 use pytxo_core::RunId;
-use pytxo_orchestrate::{dashboard_snapshot, hitl_respond, DashboardSnapshot};
+use pytxo_orchestrate::{
+    dashboard_snapshot_light, hitl_respond, project_roots, run_doctor, DashboardSnapshot,
+    DoctorReport,
+};
 use pytxo_shell::{complete_line, parse_line, ShellEvent, ShellInput, ShellSession};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::DefaultTerminal;
@@ -16,16 +20,44 @@ use ratatui::DefaultTerminal;
 use crate::panels::board::{self, BoardView};
 use crate::panels::prompt::Prompt;
 use crate::panels::scrollback::Scrollback;
+use crate::panels::splash;
 use crate::panels::trust::TrustModal;
 
 const REFRESH_INTERVAL: Duration = Duration::from_secs(2);
+const DOCTOR_INTERVAL: Duration = Duration::from_secs(60);
+const POLL_ACTIVE: Duration = Duration::from_millis(120);
+const POLL_IDLE: Duration = Duration::from_millis(250);
 
+/// Run the TUI. When called from `#[tokio::main]`, runs on a dedicated thread so
+/// the CLI runtime never nests with the TUI's own `current_thread` runtime.
 pub fn run() -> anyhow::Result<()> {
+    if tokio::runtime::Handle::try_current().is_ok() {
+        std::thread::Builder::new()
+            .name("pytxo-tui".into())
+            .spawn(run_on_thread)
+            .map_err(|e| anyhow::anyhow!("failed to spawn tui thread: {e}"))?
+            .join()
+            .map_err(|_| anyhow::anyhow!("tui thread panicked"))?
+    } else {
+        run_on_thread()
+    }
+}
+
+fn run_on_thread() -> anyhow::Result<()> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?
+        .block_on(run_async())
+}
+
+async fn run_async() -> anyhow::Result<()> {
+    if std::env::var("PYTXO_TUI_INSTANT_EXIT").ok().as_deref() == Some("1") {
+        return Ok(());
+    }
     enable_raw_mode()?;
     io::stdout().execute(EnterAlternateScreen)?;
     let mut terminal = ratatui::init();
-    let rt = tokio::runtime::Runtime::new()?;
-    let result = run_loop(&mut terminal, &rt);
+    let result = run_loop(&mut terminal).await;
     ratatui::restore();
     disable_raw_mode()?;
     io::stdout().execute(LeaveAlternateScreen)?;
@@ -39,6 +71,7 @@ enum AppPhase {
 
 struct ShellApp {
     snapshot: DashboardSnapshot,
+    doctor_cache: DoctorReport,
     session: ShellSession,
     scrollback: Scrollback,
     prompt: Prompt,
@@ -46,24 +79,40 @@ struct ShellApp {
     scroll_offset: usize,
     status_message: String,
     last_refresh: Instant,
+    last_doctor_refresh: Instant,
     active_run_label: Option<String>,
     trust_tier: Option<PermissionProfile>,
     phase: AppPhase,
+    needs_redraw: bool,
+    show_splash: bool,
+}
+
+fn trust_folders(repo: &Path) -> Vec<String> {
+    let repo_str = repo.display().to_string();
+    match project_roots(None, None) {
+        Ok(roots) if roots.len() > 1 => roots
+            .into_iter()
+            .map(|(_, path, _, _)| path)
+            .collect(),
+        _ => vec![repo_str],
+    }
 }
 
 impl ShellApp {
-    fn new(_rt: &tokio::runtime::Runtime) -> anyhow::Result<Self> {
-        let snapshot = dashboard_snapshot(None, 12)?;
+    fn new() -> anyhow::Result<Self> {
+        let snapshot = dashboard_snapshot_light(None, 12)?;
         let session = ShellSession::new(None, None)?;
         let trusted = session.is_trusted();
-        let repo_path = session.repo.display().to_string();
+        let folders = trust_folders(&session.repo);
         let phase = if trusted {
             AppPhase::Shell
         } else {
-            AppPhase::Trust(TrustModal::new(repo_path))
+            AppPhase::Trust(TrustModal::new(folders))
         };
+        let now = Instant::now();
         let mut app = Self {
             snapshot,
+            doctor_cache: DoctorReport { checks: vec![] },
             session,
             scrollback: Scrollback::new(500),
             prompt: Prompt::new(),
@@ -73,18 +122,41 @@ impl ShellApp {
             },
             scroll_offset: 0,
             status_message: String::new(),
-            last_refresh: Instant::now(),
+            last_refresh: now,
+            last_doctor_refresh: now,
             active_run_label: None,
             trust_tier: None,
             phase,
+            needs_redraw: true,
+            show_splash: true,
         };
         app.scrollback
             .push("Hypervisor Shell — /help for commands · /models search …");
         Ok(app)
     }
 
-    fn refresh_board(&mut self) {
-        match dashboard_snapshot(None, 12) {
+    fn dismiss_splash(&mut self) {
+        if self.show_splash {
+            self.show_splash = false;
+            self.needs_redraw = true;
+        }
+    }
+
+    fn splash_visible(&self) -> bool {
+        self.show_splash && self.scrollback.len() <= 1
+    }
+
+    fn refresh_board(&mut self, include_doctor: bool) {
+        if include_doctor {
+            match run_doctor(None) {
+                Ok(d) => {
+                    self.doctor_cache = d;
+                    self.last_doctor_refresh = Instant::now();
+                }
+                Err(e) => self.status_message = format!("Doctor failed: {e}"),
+            }
+        }
+        match dashboard_snapshot_light(None, 12) {
             Ok(s) => {
                 self.snapshot = s;
                 if self.board.run_selected >= self.snapshot.runs.len() {
@@ -103,34 +175,58 @@ impl ShellApp {
                         }
                     }
                 }
+                self.needs_redraw = true;
             }
             Err(e) => self.status_message = format!("Refresh failed: {e}"),
         }
         self.last_refresh = Instant::now();
     }
 
+    fn maybe_refresh(&mut self) {
+        if self.doctor_cache.checks.is_empty() || self.last_doctor_refresh.elapsed() >= DOCTOR_INTERVAL
+        {
+            self.refresh_board(true);
+        } else if self.last_refresh.elapsed() >= REFRESH_INTERVAL {
+            self.refresh_board(false);
+        }
+    }
+
     fn apply_events(&mut self, events: Vec<ShellEvent>) {
         for ev in events {
             match ev {
-                ShellEvent::Output(s) => self.scrollback.push(&s),
-                ShellEvent::PlanPreview(json) => self.scrollback.push(&json),
+                ShellEvent::Output(s) => {
+                    self.scrollback.push(&s);
+                    self.needs_redraw = true;
+                }
+                ShellEvent::PlanPreview(json) => {
+                    self.scrollback.push(&json);
+                    self.needs_redraw = true;
+                }
                 ShellEvent::RunStarted(id) => {
                     self.active_run_label = Some(id.0.clone());
-                    self.scrollback.push(&format!("Run started: {}", id.0));
+                    self.scrollback
+                        .push(&format!("Run started: {}", id.0));
+                    self.needs_redraw = true;
                 }
                 ShellEvent::RunFinished(id) => {
-                    self.scrollback.push(&format!("Run finished: {}", id.0));
+                    self.scrollback
+                        .push(&format!("Run finished: {}", id.0));
                     self.active_run_label = None;
+                    self.needs_redraw = true;
                 }
                 ShellEvent::Error(e) => {
                     self.scrollback.push(&format!("error: {e}"));
                     self.status_message = e;
+                    self.needs_redraw = true;
                 }
             }
         }
     }
 
     async fn submit_line(&mut self, line: String) {
+        if line.trim_start().starts_with('/') {
+            self.dismiss_splash();
+        }
         self.prompt.push_history(line.clone());
         self.scrollback.push(&format!("> {line}"));
         let input = parse_line(&line);
@@ -140,7 +236,7 @@ impl ShellApp {
         }
         let events = self.session.handle(input).await;
         self.apply_events(events);
-        self.refresh_board();
+        self.refresh_board(false);
     }
 
     fn tier_label(&self) -> &'static str {
@@ -158,55 +254,70 @@ impl ShellApp {
             "untrusted"
         }
     }
+
+    fn draw(&mut self, frame: &mut ratatui::Frame) {
+        let area = frame.area();
+        if let AppPhase::Trust(ref modal) = self.phase {
+            modal.draw(frame, area);
+            return;
+        }
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(12),
+                Constraint::Min(6),
+                Constraint::Length(4),
+            ])
+            .split(area);
+        board::draw(
+            frame,
+            chunks[0],
+            &self.snapshot,
+            &self.doctor_cache,
+            self.active_run_label.as_deref(),
+            self.tier_label(),
+            &self.session.config.agent,
+            &self.board,
+        );
+        if self.splash_visible() {
+            splash::draw(frame, chunks[1]);
+        } else {
+            self.scrollback.draw(frame, chunks[1], self.scroll_offset);
+        }
+        self.prompt.draw(frame, chunks[2], &self.status_message);
+    }
 }
 
-fn run_loop(terminal: &mut DefaultTerminal, rt: &tokio::runtime::Runtime) -> anyhow::Result<()> {
-    let mut app = ShellApp::new(rt)?;
+async fn run_loop(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
+    let mut app = ShellApp::new()?;
     let mut should_exit = false;
 
     loop {
-        if matches!(app.phase, AppPhase::Shell) && app.last_refresh.elapsed() >= REFRESH_INTERVAL {
-            app.refresh_board();
-        }
+        app.maybe_refresh();
 
-        terminal.draw(|frame| {
-            let area = frame.area();
-            if let AppPhase::Trust(ref modal) = app.phase {
-                modal.draw(frame, area);
-                return;
-            }
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(12),
-                    Constraint::Min(6),
-                    Constraint::Length(4),
-                ])
-                .split(area);
-            board::draw(
-                frame,
-                chunks[0],
-                &app.snapshot,
-                app.active_run_label.as_deref(),
-                app.tier_label(),
-                &app.session.config.agent,
-                &app.board,
-            );
-            app.scrollback.draw(frame, chunks[1], app.scroll_offset);
-            app.prompt.draw(frame, chunks[2], &app.status_message);
-        })?;
+        if app.needs_redraw {
+            terminal.draw(|frame| app.draw(frame))?;
+            app.needs_redraw = false;
+        }
 
         if should_exit || app.status_message == "exit" {
             break;
         }
 
-        if event::poll(Duration::from_millis(120))? {
+        let poll = if app.active_run_label.is_some() {
+            POLL_ACTIVE
+        } else {
+            POLL_IDLE
+        };
+
+        if event::poll(poll)? {
             if let Event::Key(key) = event::read()? {
                 if key.kind != KeyEventKind::Press {
                     continue;
                 }
 
                 if let AppPhase::Trust(ref mut modal) = app.phase {
+                    app.needs_redraw = true;
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => should_exit = true,
                         KeyCode::Up => modal.move_up(),
@@ -217,7 +328,11 @@ fn run_loop(terminal: &mut DefaultTerminal, rt: &tokio::runtime::Runtime) -> any
                                 app.phase = AppPhase::Shell;
                                 app.session =
                                     ShellSession::new(None, Some(app.session.repo.clone()))?;
-                                app.scrollback.push("Folder trusted — /dry-run then /run");
+                                let tier_name = app.tier_label();
+                                app.scrollback.push(&format!(
+                                    "✓ Folder trusted ({tier_name}) — /dry-run then /run"
+                                ));
+                                app.needs_redraw = true;
                             }
                             Err(e) => app.status_message = e.to_string(),
                         },
@@ -229,46 +344,69 @@ fn run_loop(terminal: &mut DefaultTerminal, rt: &tokio::runtime::Runtime) -> any
                 match key.code {
                     KeyCode::Char('q') if app.prompt.buffer.is_empty() => should_exit = true,
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        let events = rt.block_on(app.session.handle(ShellInput::Slash(
-                            pytxo_shell::SlashCommand::Stop { all: false },
-                        )));
+                        app.dismiss_splash();
+                        let events = app
+                            .session
+                            .handle(ShellInput::Slash(pytxo_shell::SlashCommand::Stop {
+                                all: false,
+                            }))
+                            .await;
                         app.apply_events(events);
                         should_exit = true;
                     }
                     KeyCode::Enter => {
+                        app.dismiss_splash();
                         let line = std::mem::take(&mut app.prompt.buffer);
                         if line.trim().eq_ignore_ascii_case("exit")
                             || line.trim().eq_ignore_ascii_case("quit")
                         {
                             should_exit = true;
                         } else {
-                            rt.block_on(app.submit_line(line));
+                            app.submit_line(line).await;
                         }
                     }
                     KeyCode::Backspace => {
+                        app.dismiss_splash();
                         app.prompt.buffer.pop();
+                        app.needs_redraw = true;
                     }
-                    KeyCode::Up if app.prompt.buffer.is_empty() => app.prompt.history_up(),
-                    KeyCode::Down if app.prompt.buffer.is_empty() => app.prompt.history_down(),
+                    KeyCode::Up if app.prompt.buffer.is_empty() => {
+                        app.prompt.history_up();
+                        app.needs_redraw = true;
+                    }
+                    KeyCode::Down if app.prompt.buffer.is_empty() => {
+                        app.prompt.history_down();
+                        app.needs_redraw = true;
+                    }
                     KeyCode::Up if !app.prompt.buffer.is_empty() => {
                         app.board.run_selected = app.board.run_selected.saturating_sub(1);
+                        app.needs_redraw = true;
                     }
                     KeyCode::Down
                         if !app.prompt.buffer.is_empty()
                             && app.board.run_selected + 1 < app.snapshot.runs.len() =>
                     {
                         app.board.run_selected += 1;
+                        app.needs_redraw = true;
                     }
-                    KeyCode::Up => app.scroll_offset = app.scroll_offset.saturating_add(1),
-                    KeyCode::Down => app.scroll_offset = app.scroll_offset.saturating_sub(1),
+                    KeyCode::Up => {
+                        app.scroll_offset = app.scroll_offset.saturating_add(1);
+                        app.needs_redraw = true;
+                    }
+                    KeyCode::Down => {
+                        app.scroll_offset = app.scroll_offset.saturating_sub(1);
+                        app.needs_redraw = true;
+                    }
                     KeyCode::Tab if !app.prompt.buffer.is_empty() => {
                         if let Some(completed) = complete_line(&app.prompt.buffer) {
                             app.prompt.buffer = completed;
+                            app.needs_redraw = true;
                         }
                     }
                     KeyCode::Tab if !app.snapshot.hitl_pending.is_empty() => {
                         app.board.hitl_selected =
                             (app.board.hitl_selected + 1) % app.snapshot.hitl_pending.len();
+                        app.needs_redraw = true;
                     }
                     KeyCode::Char('a') if app.prompt.buffer.is_empty() => {
                         if let Some(req) = app.snapshot.hitl_pending.get(app.board.hitl_selected) {
@@ -277,7 +415,7 @@ fn run_loop(terminal: &mut DefaultTerminal, rt: &tokio::runtime::Runtime) -> any
                                 Ok(false) => app.status_message = "Request not pending".into(),
                                 Err(e) => app.status_message = format!("Approve failed: {e}"),
                             }
-                            app.refresh_board();
+                            app.refresh_board(false);
                         }
                     }
                     KeyCode::Char('x') if app.prompt.buffer.is_empty() => {
@@ -287,14 +425,58 @@ fn run_loop(terminal: &mut DefaultTerminal, rt: &tokio::runtime::Runtime) -> any
                                 Ok(false) => app.status_message = "Request not pending".into(),
                                 Err(e) => app.status_message = format!("Deny failed: {e}"),
                             }
-                            app.refresh_board();
+                            app.refresh_board(false);
                         }
                     }
-                    KeyCode::Char(c) => app.prompt.buffer.push(c),
+                    KeyCode::Char(c) => {
+                        app.dismiss_splash();
+                        app.prompt.buffer.push(c);
+                        app.needs_redraw = true;
+                    }
                     _ => {}
                 }
             }
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run;
+    use pytxo_shell::{parse_line, ShellEvent, ShellSession};
+
+    #[tokio::test]
+    async fn submit_help_does_not_nested_block_on() {
+        let mut session = ShellSession::new(None, Some(std::env::current_dir().unwrap())).unwrap();
+        let _ = pytxo_orchestrate::trust_repo(
+            &session.repo,
+            pytxo_core::PermissionProfile::Orbit,
+        );
+        let events = session.handle(parse_line("/help")).await;
+        assert!(events.iter().any(|e| {
+            matches!(e, ShellEvent::Output(s) if s.contains("/dry-run"))
+        }));
+    }
+
+    #[tokio::test]
+    async fn run_from_tokio_context_does_not_panic() {
+        std::env::set_var("PYTXO_TUI_INSTANT_EXIT", "1");
+        let result = std::panic::catch_unwind(run);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_ok());
+    }
+
+    #[tokio::test]
+    async fn run_loop_submit_help_via_session() {
+        let mut session = ShellSession::new(None, Some(std::env::current_dir().unwrap())).unwrap();
+        let _ = pytxo_orchestrate::trust_repo(
+            &session.repo,
+            pytxo_core::PermissionProfile::Orbit,
+        );
+        let events = session.handle(parse_line("/help")).await;
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, ShellEvent::Output(s) if s.contains("/agents"))));
+    }
 }
