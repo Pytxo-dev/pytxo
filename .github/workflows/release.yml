@@ -123,9 +123,7 @@ jobs:
           name: ${{ env.TAG_NAME }}
           generate_release_notes: true
           body_path: RELEASE.md
-          files: |
-            dist/*
-            dist/SHA256SUMS.txt
+          files: dist/*
 
       - name: Upload artifacts for downstream jobs
         uses: actions/upload-artifact@v4
