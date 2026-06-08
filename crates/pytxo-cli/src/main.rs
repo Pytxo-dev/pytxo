@@ -38,9 +38,28 @@ enum Commands {
         keep_worktrees: bool,
         #[arg(long)]
         repo: Option<std::path::PathBuf>,
+        /// Registry ADE id (e.g. cursor, claude) — sets default spawn command
+        #[arg(long)]
+        ade: Option<String>,
         /// `pty` (default) or `subprocess`
         #[arg(long)]
         execution: Option<String>,
+    },
+    /// List ADE CLIs from the registry (PATH detection)
+    Agents {
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// One-shot shell command without TUI (`--eval "/dry-run"`)
+    Shell {
+        #[arg(long)]
+        eval: String,
+        #[arg(long)]
+        config: Option<std::path::PathBuf>,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
     },
     Status {
         #[arg(long)]
@@ -230,13 +249,21 @@ async fn main() -> anyhow::Result<()> {
         Some(Commands::Doctor { repo, json }) => commands::doctor(repo, json)?,
         Some(Commands::Run {
             agents,
-            cmd,
+            mut cmd,
             config,
             dry_run,
             keep_worktrees,
             repo,
+            ade,
             execution,
         }) => {
+            if let Some(ref ade_id) = ade {
+                if cmd == "echo pytxo" {
+                    let spec = pytxo_core::resolve_ade(ade_id)
+                        .ok_or_else(|| anyhow::anyhow!("unknown ADE {ade_id} — try `pytxo agents`"))?;
+                    cmd = spec.default_cmd.to_string();
+                }
+            }
             let execution = match execution.as_deref() {
                 None => None,
                 Some(s) => Some(pytxo_orchestrate::ExecutionBackend::parse(s).ok_or_else(
@@ -302,19 +329,42 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Some(Commands::Providers { json }) => models::providers_list(json)?,
+        Some(Commands::Agents { repo, json }) => {
+            if json {
+                #[derive(serde::Serialize)]
+                struct AgentRow {
+                    id: &'static str,
+                    display_name: &'static str,
+                    default_cmd: &'static str,
+                    on_path: bool,
+                }
+                let rows: Vec<AgentRow> = pytxo_core::all_ade_clis()
+                    .iter()
+                    .map(|spec| AgentRow {
+                        id: spec.id,
+                        display_name: spec.display_name,
+                        default_cmd: spec.default_cmd,
+                        on_path: pytxo_core::ade_on_path(spec),
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&rows)?);
+            } else {
+                let events = pytxo_shell::eval_line(None, repo, "/agents").await?;
+                pytxo_shell::emit_shell_events(&events);
+            }
+        }
+        Some(Commands::Shell { eval, config, repo }) => {
+            let events = pytxo_shell::eval_line(config, repo, &eval).await?;
+            pytxo_shell::emit_shell_events(&events);
+        }
         Some(Commands::Trust { tier, repo }) => {
-            use pytxo_core::PermissionProfile;
-            use pytxo_orchestrate::{resolve_repo_root, trust_repo};
-            let repo = resolve_repo_root(repo.as_deref())?;
-            let profile = match tier.to_ascii_lowercase().as_str() {
-                "deep_space" | "deep-space" => PermissionProfile::DeepSpace,
-                "galaxy" => PermissionProfile::Galaxy,
-                "supernova" => PermissionProfile::Supernova,
-                "orbit" => PermissionProfile::Orbit,
-                other => anyhow::bail!("unknown tier {other}"),
+            let line = if tier.eq_ignore_ascii_case("orbit") {
+                "/trust".into()
+            } else {
+                format!("/trust {tier}")
             };
-            trust_repo(&repo, profile)?;
-            println!("Trusted {} at {tier} tier", repo.display());
+            let events = pytxo_shell::eval_line(None, repo, &line).await?;
+            pytxo_shell::emit_shell_events(&events);
         }
         Some(Commands::Models { action }) => match action {
             ModelsAction::List {

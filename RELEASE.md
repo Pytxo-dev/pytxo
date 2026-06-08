@@ -2,11 +2,32 @@
 
 **Private repo** — use GitHub Actions, not public curl URLs from this repo.
 
-1. **Actions → Release → Run workflow** → version `0.3.2` (no `v` prefix).
+1. **Actions → Release → Run workflow** → version `0.3.3` (no `v` prefix).
 2. Ensure secrets `NPM_TOKEN` and `PYTXO_RELEASES_TOKEN` are set on the private repo.
 3. Public users install via `npm i -g pytxo` or [pytxo-releases install scripts](https://github.com/Pytxo-dev/pytxo-releases).
 
 See [release-workflow.md](docs/07-guides/release-workflow.md).
+
+---
+
+# Pytxo v0.3.3
+
+**Trust Enter fix + headless CLI** — Windows Enter on workspace trust modal, inline trust errors, and scriptable `pytxo agents`, `pytxo shell --eval`, `pytxo run --ade`.
+
+## Highlights
+
+- **Trust Enter (Windows)** — `is_submit_key` accepts Enter, `\r`, `\n`, and Release events; errors render in modal footer
+- **Headless CLI** — `pytxo agents` (`--json`), `pytxo shell --eval "/dry-run"`, `pytxo run --ade cursor`
+- **Shell dedup** — `pytxo trust` and `pytxo agents` route through `pytxo-shell::eval_line`
+- **Architecture** — `dashboard.rs` extracted from `pytxo-orchestrate`; shared `input.rs` key helper
+
+## Install
+
+```bash
+npm i -g pytxo@0.3.3
+pytxo agents
+pytxo shell --eval "/help"
+```
 
 ---
 

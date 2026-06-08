@@ -2,7 +2,7 @@ use std::io;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
@@ -17,6 +17,7 @@ use pytxo_shell::{complete_line, parse_line, ShellEvent, ShellInput, ShellSessio
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::DefaultTerminal;
 
+use crate::input::{accepts_key_event, is_cancel_key, is_submit_key};
 use crate::panels::board::{self, BoardView};
 use crate::panels::prompt::Prompt;
 use crate::panels::scrollback::Scrollback;
@@ -312,31 +313,37 @@ async fn run_loop(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
 
         if event::poll(poll)? {
             if let Event::Key(key) = event::read()? {
-                if key.kind != KeyEventKind::Press {
+                if !accepts_key_event(&key) {
                     continue;
                 }
 
                 if let AppPhase::Trust(ref mut modal) = app.phase {
                     app.needs_redraw = true;
-                    match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => should_exit = true,
-                        KeyCode::Up => modal.move_up(),
-                        KeyCode::Down => modal.move_down(),
-                        KeyCode::Enter => match modal.accept(&app.session.repo) {
+                    if is_cancel_key(key.code) {
+                        should_exit = true;
+                    } else if matches!(key.code, KeyCode::Up) {
+                        modal.move_up();
+                    } else if matches!(key.code, KeyCode::Down) {
+                        modal.move_down();
+                    } else if is_submit_key(key.code) {
+                        modal.begin_accept();
+                        match modal.accept(&app.session.repo) {
                             Ok(tier) => {
                                 app.trust_tier = Some(tier);
-                                app.phase = AppPhase::Shell;
-                                app.session =
-                                    ShellSession::new(None, Some(app.session.repo.clone()))?;
-                                let tier_name = app.tier_label();
-                                app.scrollback.push(&format!(
-                                    "✓ Folder trusted ({tier_name}) — /dry-run then /run"
-                                ));
-                                app.needs_redraw = true;
+                                match ShellSession::new(None, Some(app.session.repo.clone())) {
+                                    Ok(session) => {
+                                        app.session = session;
+                                        app.phase = AppPhase::Shell;
+                                        let tier_name = app.tier_label();
+                                        app.scrollback.push(&format!(
+                                            "✓ Folder trusted ({tier_name}) — /dry-run then /run"
+                                        ));
+                                    }
+                                    Err(e) => modal.set_error(e.to_string()),
+                                }
                             }
-                            Err(e) => app.status_message = e.to_string(),
-                        },
-                        _ => {}
+                            Err(e) => modal.set_error(e.to_string()),
+                        }
                     }
                     continue;
                 }
@@ -354,7 +361,7 @@ async fn run_loop(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
                         app.apply_events(events);
                         should_exit = true;
                     }
-                    KeyCode::Enter => {
+                    code if is_submit_key(code) => {
                         app.dismiss_splash();
                         let line = std::mem::take(&mut app.prompt.buffer);
                         if line.trim().eq_ignore_ascii_case("exit")

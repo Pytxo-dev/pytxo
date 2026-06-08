@@ -12,6 +12,12 @@ related: [[MOC-home]]
 
 # Documentation changelog
 
+## 2026-06-05 (v0.3.3 trust Enter + headless CLI)
+
+- **TUI:** Windows Enter on trust modal; `input.rs` key normalization; inline trust errors.
+- **CLI:** `pytxo agents`, `pytxo shell --eval`, `pytxo run --ade`; trust/agents via `pytxo-shell`.
+- **Orchestrate:** `dashboard.rs` module split.
+
 ## 2026-06-05 (v0.3.2 TUI + ADE registry)
 
 - **TUI:** nested-runtime fix; light `dashboard_snapshot`; splash overlay; `/agents`, `/use`, `/run --ade`.

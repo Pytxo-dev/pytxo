@@ -1,3 +1,4 @@
+mod input;
 mod panels;
 mod shell_app;
 mod theme;

@@ -38,6 +38,8 @@ const TIERS: [(PermissionProfile, &str, &str, fn() -> Style); 4] = [
 pub struct TrustModal {
     pub selected: usize,
     pub folders: Vec<String>,
+    pub error: Option<String>,
+    pub pending: bool,
 }
 
 impl TrustModal {
@@ -45,17 +47,31 @@ impl TrustModal {
         Self {
             selected: 1,
             folders,
+            error: None,
+            pending: false,
         }
     }
 
     pub fn move_up(&mut self) {
+        self.error = None;
         self.selected = self.selected.saturating_sub(1);
     }
 
     pub fn move_down(&mut self) {
+        self.error = None;
         if self.selected + 1 < TIERS.len() {
             self.selected += 1;
         }
+    }
+
+    pub fn set_error(&mut self, message: String) {
+        self.pending = false;
+        self.error = Some(message);
+    }
+
+    pub fn begin_accept(&mut self) {
+        self.pending = true;
+        self.error = None;
     }
 
     pub fn accept(&self, repo: &std::path::Path) -> anyhow::Result<PermissionProfile> {
@@ -83,14 +99,21 @@ impl TrustModal {
         let inner = block.inner(popup);
         frame.render_widget(block, popup);
 
+        let footer_lines = if self.pending {
+            3
+        } else if self.error.is_some() {
+            3
+        } else {
+            2
+        };
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(5),
-                Constraint::Min(3),
-                Constraint::Length(2),
+                Constraint::Length(3),
                 Constraint::Min(8),
-                Constraint::Length(2),
+                Constraint::Length(footer_lines),
             ])
             .split(inner);
 
@@ -143,14 +166,26 @@ impl TrustModal {
             .collect();
         frame.render_widget(
             Paragraph::new(tier_lines).wrap(Wrap { trim: true }),
-            chunks[3],
+            chunks[2],
         );
 
-        frame.render_widget(
-            Paragraph::new("↑/↓ select tier · Enter trust folder · Esc decline")
-                .style(theme::chroma_magenta()),
-            chunks[4],
-        );
+        let mut footer = vec![Line::from(
+            if self.pending {
+                Span::styled("Trusting folder…", theme::chroma_cyan())
+            } else {
+                Span::styled(
+                    "↑/↓ select tier · Enter trust folder · Esc decline",
+                    theme::chroma_magenta(),
+                )
+            },
+        )];
+        if let Some(ref err) = self.error {
+            footer.push(Line::from(Span::styled(
+                format!("Error: {err}"),
+                theme::err(),
+            )));
+        }
+        frame.render_widget(Paragraph::new(footer), chunks[3]);
     }
 }
 
@@ -171,4 +206,17 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn modal_surfaces_error_message() {
+        let mut modal = TrustModal::new(vec!["C:\\repo".into()]);
+        modal.set_error("permission denied".into());
+        assert_eq!(modal.error.as_deref(), Some("permission denied"));
+        assert!(!modal.pending);
+    }
 }
