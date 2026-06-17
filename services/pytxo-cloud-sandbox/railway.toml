@@ -1,6 +1,4 @@
 [build]
-builder = "DOCKERFILE"
-dockerfilePath = "services/pytxo-cloud-sandbox/Dockerfile"
 watchPatterns = ["services/pytxo-cloud-sandbox/**", "crates/**", "Cargo.toml", "Cargo.lock"]
 
 [deploy]

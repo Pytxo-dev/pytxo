@@ -4,7 +4,7 @@
     "build": {
       "commands": [
         "...",
-        "cargo build --release --manifest-path services/pytxo-link/Cargo.toml",
+        "cargo build --release -p pytxo-link",
         "mkdir -p bin",
         "cp target/release/pytxo-link bin/"
       ]

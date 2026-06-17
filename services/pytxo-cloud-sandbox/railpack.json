@@ -4,7 +4,7 @@
     "build": {
       "commands": [
         "...",
-        "cargo build --release --manifest-path services/pytxo-cloud-sandbox/Cargo.toml",
+        "cargo build --release -p pytxo-cloud-sandbox",
         "mkdir -p bin",
         "cp target/release/pytxo-cloud-sandbox bin/"
       ]
