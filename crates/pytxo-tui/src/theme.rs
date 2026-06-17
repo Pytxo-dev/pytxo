@@ -1,7 +1,7 @@
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-// Chroma palette — aligned with apps/web/src/app/globals.css (dark)
+// Chroma palette — aligned with packages/chroma/tokens.json (source of truth)
 pub const VOID: Color = Color::Rgb(2, 2, 5);
 pub const CARD: Color = Color::Rgb(10, 10, 15);
 pub const TEAL: Color = Color::Rgb(45, 212, 191);
@@ -91,4 +91,28 @@ pub fn chroma_title_spans(text: &str) -> Vec<Span<'static>> {
             )
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rgb(c: Color) -> (u8, u8, u8) {
+        match c {
+            Color::Rgb(r, g, b) => (r, g, b),
+            _ => panic!("expected rgb"),
+        }
+    }
+
+    #[test]
+    fn chroma_palette_matches_tokens_json() {
+        assert_eq!(rgb(VOID), (2, 2, 5));
+        assert_eq!(rgb(TEAL), (45, 212, 191));
+        assert_eq!(rgb(VIOLET), (167, 139, 250));
+        assert_eq!(rgb(GOLD), (251, 191, 36));
+        assert_eq!(rgb(MAGENTA), (232, 121, 249));
+        assert_eq!(rgb(CYAN), (34, 211, 238));
+        assert_eq!(CHROMA_CYCLE[0], MAGENTA);
+        assert_eq!(CHROMA_CYCLE[3], VIOLET);
+    }
 }

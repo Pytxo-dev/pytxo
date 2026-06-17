@@ -21,13 +21,9 @@
 
   let canvasEl: HTMLCanvasElement | undefined = $state();
 
-  // Canvas 2D cannot resolve CSS custom properties, so read the design tokens
-  // off the document root and pass concrete colors to the context.
   function token(name: string, fallback: string): string {
     if (typeof getComputedStyle === "undefined") return fallback;
-    const v = getComputedStyle(document.documentElement)
-      .getPropertyValue(name)
-      .trim();
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     return v || fallback;
   }
 
@@ -50,10 +46,10 @@
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    const teal = token("--accent-teal", "#2dd4bf");
-    const violet = token("--accent-violet", "#a78bfa");
-    const gold = token("--accent-gold", "#fbbf24");
-    const text = token("--text", "#e8eaed");
+    const teal = token("--brand-teal", "#2dd4bf");
+    const violet = token("--brand-violet", "#a78bfa");
+    const gold = token("--brand-gold", "#fbbf24");
+    const text = token("--foreground", "#e8eaed");
 
     const byAgent = new Map(arbitrage.map((a) => [a.agent_id, a]));
     const nodes = layout(
@@ -84,7 +80,6 @@
     }
 
     for (const n of nodes) {
-      // Node radius scales with structural blast radius (edited path count).
       const radius = 8 + Math.min(n.editedPaths, 12) * 1.5;
       ctx.fillStyle = n.editedPaths > 0 ? gold : teal;
       ctx.beginPath();
@@ -107,14 +102,13 @@
   });
 </script>
 
-<div class="topology">
-  <h2>AST topology (blast radius)</h2>
-  <canvas bind:this={canvasEl} width="280" height="220"></canvas>
+<div class="topology chroma-edge-top">
+  <h2 class="panel-title">AST topology (blast radius)</h2>
+  <canvas bind:this={canvasEl} width="280" height="220" class="chroma-border"></canvas>
 </div>
 
 <style>
   .topology {
-    border-top: 1px solid var(--border);
     padding-top: 0.75rem;
     margin-top: 0.75rem;
   }
@@ -122,6 +116,5 @@
     width: 100%;
     background: var(--void-elevated);
     border-radius: 8px;
-    border: 1px solid var(--border);
   }
 </style>

@@ -20,7 +20,7 @@ export async function createCheckoutSession(input: {
     },
     body: JSON.stringify({
       product: input.product,
-      plan: input.plan === "pro" ? "monthly" : "monthly",
+      plan: input.plan,
       customData: input.customData,
       customerEmail: input.customerEmail,
     }),

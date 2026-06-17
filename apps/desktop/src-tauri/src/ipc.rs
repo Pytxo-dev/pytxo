@@ -13,6 +13,11 @@ use pytxo_store::{AgentRecord, EventRecord, RunRecord};
 use serde::Serialize;
 use tauri::State;
 
+use crate::ipc_error::{
+    map_config_err, map_io_err, map_lock_err, map_orch_err, map_store_err, PytxoIpcError,
+    IpcResult,
+};
+
 pub struct AppState {
     pub config_path: Mutex<Option<PathBuf>>,
     /// Per (domain_id, agent_id) cursor for incremental log polling.
@@ -23,9 +28,9 @@ pub struct AppState {
 fn open_store_for_domain(
     cfg: &PytxoConfig,
     domain_id: &str,
-) -> Result<pytxo_store::PytxoStore, String> {
+) -> IpcResult<pytxo_store::PytxoStore> {
     let repo = Path::new(domain_id);
-    pytxo_store::PytxoStore::open(&cfg.db_path_at(repo)).map_err(|e| e.to_string())
+    pytxo_store::PytxoStore::open(&cfg.db_path_at(repo)).map_err(map_store_err)
 }
 
 #[derive(Serialize)]
@@ -69,55 +74,55 @@ pub struct EventDto {
     pub ts: String,
 }
 
-fn load_cfg_for_domain(domain_id: &str, state: &AppState) -> Result<PytxoConfig, String> {
-    let path = state.config_path.lock().map_err(|e| e.to_string())?.clone();
+fn load_cfg_for_domain(domain_id: &str, state: &AppState) -> IpcResult<PytxoConfig> {
+    let path = state.config_path.lock().map_err(map_lock_err)?.clone();
     let repo = PathBuf::from(domain_id);
     if let Some(p) = path {
         if repo.join("pytxo.toml").exists() {
-            return PytxoConfig::load(&repo.join("pytxo.toml")).map_err(|e| e.to_string());
+            return PytxoConfig::load(&repo.join("pytxo.toml")).map_err(map_config_err);
         }
-        return PytxoConfig::load(&p).map_err(|e| e.to_string());
+        return PytxoConfig::load(&p).map_err(map_config_err);
     }
     if repo.join("pytxo.toml").exists() {
-        PytxoConfig::load(&repo.join("pytxo.toml")).map_err(|e| e.to_string())
+        PytxoConfig::load(&repo.join("pytxo.toml")).map_err(map_config_err)
     } else {
         Ok(PytxoConfig::default())
     }
 }
 
-fn resolve_domain(state: &AppState, domain_id: Option<String>) -> Result<String, String> {
+fn resolve_domain(state: &AppState, domain_id: Option<String>) -> IpcResult<String> {
     if let Some(id) = domain_id {
         return Ok(id);
     }
     if let Some(id) = state
         .selected_domain_id
         .lock()
-        .map_err(|e| e.to_string())?
+        .map_err(map_lock_err)?
         .clone()
     {
         return Ok(id);
     }
-    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let cwd = std::env::current_dir().map_err(map_io_err)?;
     Ok(cwd.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
-pub fn list_domains_cmd() -> Result<Vec<DomainDto>, String> {
+pub fn list_domains_cmd() -> IpcResult<Vec<DomainDto>> {
     Ok(list_domains().into_iter().map(domain_to_dto).collect())
 }
 
 /// "All projects" home: every domain the hypervisor catalog knows about,
 /// including ones not yet loaded into this session ([[execution-domains]] v2).
 #[tauri::command]
-pub fn list_all_domains() -> Result<Vec<CatalogEntry>, String> {
-    orch_list_catalog_domains().map_err(|e| e.to_string())
+pub fn list_all_domains() -> IpcResult<Vec<CatalogEntry>> {
+    orch_list_catalog_domains().map_err(map_orch_err)
 }
 
 /// Project manifests from `~/.pytxo/projects` for the Deck project picker.
 #[tauri::command]
-pub fn list_projects() -> Result<Vec<ProjectDto>, String> {
+pub fn list_projects() -> IpcResult<Vec<ProjectDto>> {
     Ok(orch_list_projects()
-        .map_err(|e| e.to_string())?
+        .map_err(map_orch_err)?
         .into_iter()
         .map(|(id, path)| ProjectDto {
             id,
@@ -127,8 +132,8 @@ pub fn list_projects() -> Result<Vec<ProjectDto>, String> {
 }
 
 #[tauri::command]
-pub fn select_domain(state: State<'_, AppState>, domain_id: String) -> Result<(), String> {
-    *state.selected_domain_id.lock().map_err(|e| e.to_string())? = Some(domain_id);
+pub fn select_domain(state: State<'_, AppState>, domain_id: String) -> IpcResult<()> {
+    *state.selected_domain_id.lock().map_err(map_lock_err)? = Some(domain_id);
     Ok(())
 }
 
@@ -137,13 +142,13 @@ pub fn list_runs(
     state: State<'_, AppState>,
     limit: usize,
     domain_id: Option<String>,
-) -> Result<Vec<RunDto>, String> {
+) -> IpcResult<Vec<RunDto>> {
     let domain = resolve_domain(&state, domain_id)?;
     let cfg = load_cfg_for_domain(&domain, &state)?;
     let store = open_store_for_domain(&cfg, &domain)?;
     Ok(store
         .list_runs(limit)
-        .map_err(|e| e.to_string())?
+        .map_err(map_store_err)?
         .into_iter()
         .map(run_to_dto)
         .collect())
@@ -154,13 +159,13 @@ pub fn list_agents(
     state: State<'_, AppState>,
     run_id: String,
     domain_id: Option<String>,
-) -> Result<Vec<AgentDto>, String> {
+) -> IpcResult<Vec<AgentDto>> {
     let domain = resolve_domain(&state, domain_id)?;
     let cfg = load_cfg_for_domain(&domain, &state)?;
     let store = open_store_for_domain(&cfg, &domain)?;
     Ok(store
         .list_agents_for_run(&run_id)
-        .map_err(|e| e.to_string())?
+        .map_err(map_store_err)?
         .into_iter()
         .map(agent_to_dto)
         .collect())
@@ -179,13 +184,13 @@ pub fn agent_arbitrage(
     state: State<'_, AppState>,
     run_id: String,
     domain_id: Option<String>,
-) -> Result<Vec<AgentArbitrageDto>, String> {
+) -> IpcResult<Vec<AgentArbitrageDto>> {
     let domain = resolve_domain(&state, domain_id)?;
     let cfg = load_cfg_for_domain(&domain, &state)?;
     let store = open_store_for_domain(&cfg, &domain)?;
     Ok(store
         .arbitrage_by_agent(&run_id)
-        .map_err(|e| e.to_string())?
+        .map_err(map_store_err)?
         .into_iter()
         .map(|(agent_id, saved_tokens, edited_paths)| AgentArbitrageDto {
             agent_id,
@@ -201,13 +206,13 @@ pub fn tail_events(
     agent_id: String,
     tail: usize,
     domain_id: Option<String>,
-) -> Result<Vec<EventDto>, String> {
+) -> IpcResult<Vec<EventDto>> {
     let domain = resolve_domain(&state, domain_id)?;
     let cfg = load_cfg_for_domain(&domain, &state)?;
     let store = open_store_for_domain(&cfg, &domain)?;
     Ok(store
         .list_events(&agent_id, tail)
-        .map_err(|e| e.to_string())?
+        .map_err(map_store_err)?
         .into_iter()
         .map(event_to_dto)
         .collect())
@@ -219,16 +224,16 @@ pub fn poll_log_lines(
     agent_id: String,
     limit: usize,
     domain_id: Option<String>,
-) -> Result<Vec<EventDto>, String> {
+) -> IpcResult<Vec<EventDto>> {
     let domain = resolve_domain(&state, domain_id)?;
     let cfg = load_cfg_for_domain(&domain, &state)?;
     let store = open_store_for_domain(&cfg, &domain)?;
     let cursor_key = (domain.clone(), agent_id.clone());
-    let mut cursors = state.poll_cursors.lock().map_err(|e| e.to_string())?;
+    let mut cursors = state.poll_cursors.lock().map_err(map_lock_err)?;
     let after = *cursors.get(&cursor_key).unwrap_or(&0);
     let events = store
         .tail_events_after(&agent_id, after, limit)
-        .map_err(|e| e.to_string())?;
+        .map_err(map_store_err)?;
     if let Some(last) = events.last() {
         cursors.insert(cursor_key, last.id);
     }
@@ -240,10 +245,10 @@ pub fn dry_run(
     state: State<'_, AppState>,
     agents: usize,
     domain_id: Option<String>,
-) -> Result<String, String> {
+) -> IpcResult<String> {
     let domain = resolve_domain(&state, domain_id)?;
-    let path = state.config_path.lock().map_err(|e| e.to_string())?.clone();
-    dry_run_json(path, Some(PathBuf::from(domain)), agents).map_err(|e| e.to_string())
+    let path = state.config_path.lock().map_err(map_lock_err)?.clone();
+    dry_run_json(path, Some(PathBuf::from(domain)), agents).map_err(map_orch_err)
 }
 
 #[tauri::command]
@@ -252,8 +257,8 @@ pub fn dispatch_run_cmd(
     cmd: String,
     agents: usize,
     repo_root: Option<String>,
-) -> Result<String, String> {
-    let path = state.config_path.lock().map_err(|e| e.to_string())?.clone();
+) -> IpcResult<String> {
+    let path = state.config_path.lock().map_err(map_lock_err)?.clone();
     let repo = repo_root
         .map(PathBuf::from)
         .or_else(|| std::env::current_dir().ok());
@@ -270,18 +275,18 @@ pub fn dispatch_run_cmd(
         task_cmd_template: None,
         task_prompts: None,
     })
-    .map_err(|e| e.to_string())?;
-    *state.selected_domain_id.lock().map_err(|e| e.to_string())? = Some(domain_id.clone());
+    .map_err(map_orch_err)?;
+    *state.selected_domain_id.lock().map_err(map_lock_err)? = Some(domain_id.clone());
     Ok(run_id)
 }
 
 #[tauri::command]
-pub async fn stop_run(state: State<'_, AppState>, all: bool) -> Result<(), String> {
-    let path = state.config_path.lock().map_err(|e| e.to_string())?.clone();
+pub async fn stop_run(state: State<'_, AppState>, all: bool) -> IpcResult<()> {
+    let path = state.config_path.lock().map_err(map_lock_err)?.clone();
     let domain = resolve_domain(&state, None)?;
     stop(path, Some(PathBuf::from(domain)), all, false)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(map_orch_err)
 }
 
 #[tauri::command]
@@ -290,11 +295,11 @@ pub fn commit_workspace(
     run_id: String,
     agent_id: String,
     domain_id: Option<String>,
-) -> Result<(), String> {
+) -> IpcResult<()> {
     let domain = resolve_domain(&state, domain_id)?;
-    let path = state.config_path.lock().map_err(|e| e.to_string())?.clone();
+    let path = state.config_path.lock().map_err(map_lock_err)?.clone();
     commit_workspace_for_agent(path, Some(PathBuf::from(domain)), &run_id, &agent_id)
-        .map_err(|e| e.to_string())
+        .map_err(map_orch_err)
 }
 
 #[derive(Serialize)]
@@ -310,9 +315,9 @@ pub struct HitlDto {
 pub fn list_hitl(
     state: State<'_, AppState>,
     domain_id: Option<String>,
-) -> Result<Vec<HitlDto>, String> {
+) -> IpcResult<Vec<HitlDto>> {
     let domain = resolve_domain(&state, domain_id)?;
-    let pending = orch_list_hitl_pending(Some(PathBuf::from(domain))).map_err(|e| e.to_string())?;
+    let pending = orch_list_hitl_pending(Some(PathBuf::from(domain))).map_err(map_orch_err)?;
     Ok(pending
         .into_iter()
         .map(|r| HitlDto {
@@ -331,9 +336,9 @@ pub fn hitl_respond(
     request_id: String,
     approve: bool,
     domain_id: Option<String>,
-) -> Result<bool, String> {
+) -> IpcResult<bool> {
     let domain = resolve_domain(&state, domain_id)?;
-    orch_hitl_respond(Some(PathBuf::from(domain)), &request_id, approve).map_err(|e| e.to_string())
+    orch_hitl_respond(Some(PathBuf::from(domain)), &request_id, approve).map_err(map_orch_err)
 }
 
 #[tauri::command]
@@ -341,26 +346,29 @@ pub fn git_diff(
     state: State<'_, AppState>,
     agent_id: String,
     domain_id: Option<String>,
-) -> Result<String, String> {
+) -> IpcResult<String> {
     let domain = resolve_domain(&state, domain_id)?;
     let cfg = load_cfg_for_domain(&domain, &state)?;
     let store = open_store_for_domain(&cfg, &domain)?;
     let agent = store
         .get_agent(&agent_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("agent not found: {agent_id}"))?;
+        .map_err(map_store_err)?
+        .ok_or_else(|| PytxoIpcError::new("agent", format!("agent not found: {agent_id}")))?;
     let worktree = agent
         .worktree_path
         .filter(|p| !p.is_empty())
-        .ok_or_else(|| "no worktree path for agent".to_string())?;
+        .ok_or_else(|| PytxoIpcError::new("git", "no worktree path for agent"))?;
     let output = std::process::Command::new("git")
         .args(["-C", &worktree, "diff", "--no-color", "HEAD"])
         .output()
-        .map_err(|e| e.to_string())?;
+        .map_err(map_io_err)?;
     if !output.status.success() {
-        return Err(format!(
-            "git diff failed: {}",
-            String::from_utf8_lossy(&output.stderr)
+        return Err(PytxoIpcError::new(
+            "git",
+            format!(
+                "git diff failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
         ));
     }
     Ok(String::from_utf8_lossy(&output.stdout).to_string())

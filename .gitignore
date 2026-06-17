@@ -21,6 +21,7 @@ apps/docs/.docusaurus/
 apps/desktop/node_modules/
 apps/desktop/dist/
 apps/desktop/.tauri/
+~/
 apps/desktop-export/dist/
 
 packages/pytxo/node_modules/

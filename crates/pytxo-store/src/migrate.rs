@@ -1,7 +1,7 @@
 use pytxo_core::{PytxoError, Result};
 use rusqlite::Connection;
 
-use crate::schema::{MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004};
+use crate::schema::{MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004, MIGRATION_005};
 
 pub fn apply_migrations(conn: &Connection) -> Result<()> {
     let mut version: i32 = conn
@@ -39,6 +39,15 @@ pub fn apply_migrations(conn: &Connection) -> Result<()> {
             let _ = conn.execute(stmt.trim(), []);
         }
         conn.pragma_update(None, "user_version", 4)
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        version = 4;
+    }
+
+    if version < 5 {
+        for stmt in MIGRATION_005.split(';').filter(|s| !s.trim().is_empty()) {
+            let _ = conn.execute(stmt.trim(), []);
+        }
+        conn.pragma_update(None, "user_version", 5)
             .map_err(|e| PytxoError::Store(e.to_string()))?;
     }
 

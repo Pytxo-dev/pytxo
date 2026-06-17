@@ -25,10 +25,15 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: cargo clippy
-        run: cargo clippy --workspace --exclude pytxo-desktop --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: cargo test
-        run: cargo test --workspace --exclude pytxo-desktop
+        run: cargo test --workspace
+
+      - name: cargo audit
+        run: |
+          cargo install cargo-audit --locked 2>/dev/null || true
+          cargo audit || echo "::warning::cargo-audit reported vulnerabilities"
 
       - name: Link HTTP reconciler (feature)
         run: |
@@ -140,8 +145,15 @@ jobs:
       - name: npm ci and check
         working-directory: apps/desktop
         run: |
+          npm ci --prefix ../../tooling
+          node ../../tooling/scripts/generate-deck-icons.mjs
           npm ci
           npm run check
+      - name: Playwright shell E2E
+        working-directory: apps/desktop
+        run: |
+          npx playwright install chromium
+          npm run e2e
 
   desktop-tauri:
     needs: desktop-frontend
@@ -175,5 +187,28 @@ jobs:
         working-directory: apps/desktop
         run: npm ci
 
+      - name: cargo test pytxo-desktop
+        run: cargo test -p pytxo-desktop
+
       - name: cargo build pytxo-desktop
         run: cargo build -p pytxo-desktop
+
+  pytxo-link:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo test pytxo-link
+        run: cargo test -p pytxo-link
+      - name: cargo build pytxo-link
+        run: cargo build -p pytxo-link --release
+
+  pytxo-cloud-sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo build pytxo-cloud-sandbox
+        run: cargo build -p pytxo-cloud-sandbox --release

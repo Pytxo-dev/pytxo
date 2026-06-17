@@ -60,11 +60,20 @@ impl PytxoStore {
     }
 
     pub fn insert_run(&self, id: &str, repo_root: &str) -> Result<()> {
+        self.insert_run_with_profile(id, repo_root, None)
+    }
+
+    pub fn insert_run_with_profile(
+        &self,
+        id: &str,
+        repo_root: &str,
+        permission_profile: Option<&str>,
+    ) -> Result<()> {
         let now = Utc::now().to_rfc3339();
         self.conn
             .execute(
-                "INSERT INTO runs (id, started_at, status, repo_root) VALUES (?1, ?2, 'running', ?3)",
-                params![id, now, repo_root],
+                "INSERT INTO runs (id, started_at, status, repo_root, permission_profile) VALUES (?1, ?2, 'running', ?3, ?4)",
+                params![id, now, repo_root, permission_profile],
             )
             .map_err(|e| PytxoError::Store(e.to_string()))?;
         Ok(())

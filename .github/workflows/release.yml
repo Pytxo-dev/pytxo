@@ -198,6 +198,167 @@ jobs:
             git push origin HEAD:main
           fi
 
+  desktop-release:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            rust_target: x86_64-unknown-linux-gnu
+            asset_prefix: pytxo-reality-deck-linux-x64
+          - os: macos-latest
+            rust_target: aarch64-apple-darwin
+            asset_prefix: pytxo-reality-deck-darwin-arm64
+          - os: macos-latest
+            rust_target: x86_64-apple-darwin
+            asset_prefix: pytxo-reality-deck-darwin-x64
+          - os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            asset_prefix: pytxo-reality-deck-windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf
+
+      - name: Sync desktop version
+        shell: bash
+        run: |
+          VERSION="${{ env.NPM_VERSION }}"
+          VERSION="${VERSION#v}"
+          node -e "
+          const fs = require('fs');
+          const v = process.argv[1];
+          for (const p of ['apps/desktop/package.json', 'apps/desktop/src-tauri/tauri.conf.json']) {
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            j.version = v;
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+          }
+          " "$VERSION"
+
+      - name: npm ci (tooling + desktop icons)
+        run: |
+          npm ci --prefix tooling
+          node tooling/scripts/generate-deck-icons.mjs
+
+      - name: npm ci (desktop)
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Build Tauri bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ env.TAG_NAME }}
+          releaseName: ${{ env.TAG_NAME }}
+          releaseBody: "Reality Deck desktop installers"
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.rust_target }}
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_prefix }}
+          path: |
+            apps/desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/**/*
+          if-no-files-found: warn
+
+  mirror-desktop-release:
+    needs: [release, desktop-release]
+    runs-on: ubuntu-latest
+    if: >-
+      ${{
+        (github.event_name == 'workflow_dispatch' && inputs.mirror_public)
+        || github.event_name == 'push'
+      }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check PYTXO_RELEASES_TOKEN
+        id: token
+        env:
+          PYTXO_RELEASES_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
+        run: |
+          if [ -n "${PYTXO_RELEASES_TOKEN}" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::PYTXO_RELEASES_TOKEN not set — skipping desktop mirror"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download desktop artifacts
+        if: steps.token.outputs.ok == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pytxo-reality-deck-*
+          path: desktop-dist
+          merge-multiple: true
+
+      - name: Stage desktop installers for pytxo-releases
+        if: steps.token.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          find desktop-dist -type f \( -name '*.msi' -o -name '*.dmg' -o -name '*.AppImage' -o -name 'latest.json' -o -name '*.sig' \) | while read -r f; do
+            base="$(basename "$f")"
+            case "$base" in
+              *.msi) dest="pytxo-reality-deck-windows-x64.msi" ;;
+              *aarch64*.dmg|*arm64*.dmg) dest="pytxo-reality-deck-darwin-arm64.dmg" ;;
+              *x86_64*.dmg|*x64*.dmg) dest="pytxo-reality-deck-darwin-x64.dmg" ;;
+              *.AppImage) dest="pytxo-reality-deck-linux-x64.AppImage" ;;
+              latest.json|*.sig) dest="$base" ;;
+              *) continue ;;
+            esac
+            cp "$f" "dist/$dest"
+            echo "staged $f → dist/$dest"
+          done
+          ls -la dist/ || true
+
+      - name: Mirror desktop to public pytxo-releases
+        if: steps.token.outputs.ok == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: Pytxo-dev/pytxo-releases
+          token: ${{ secrets.PYTXO_RELEASES_TOKEN }}
+          tag_name: ${{ needs.release.outputs.tag }}
+          name: ${{ needs.release.outputs.tag }}
+          generate_release_notes: true
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
+
   npm:
     needs: release
     runs-on: ubuntu-latest

@@ -21,7 +21,11 @@ serde.workspace = true
 serde_json.workspace = true
 tauri = { workspace = true, features = [] }
 tauri-plugin-shell = { workspace = true }
+tauri-plugin-process = { workspace = true }
+tauri-plugin-notification = { workspace = true }
+tauri-plugin-updater = { workspace = true }
 tokio.workspace = true
 pytxo-core = { path = "../../../crates/pytxo-core" }
 pytxo-store = { path = "../../../crates/pytxo-store" }
-pytxo-orchestrate = { path = "../../../crates/pytxo-orchestrate", features = ["sanitize"] }
+pytxo-orchestrate = { path = "../../../crates/pytxo-orchestrate", features = ["sanitize", "link-http"] }
+keyring = "3"

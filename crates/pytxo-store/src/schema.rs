@@ -98,3 +98,7 @@ ALTER TABLE runs ADD COLUMN project_id TEXT;
 ALTER TABLE runs ADD COLUMN root_id TEXT;
 ALTER TABLE agents ADD COLUMN root_id TEXT;
 "#;
+
+pub const MIGRATION_005: &str = r#"
+ALTER TABLE runs ADD COLUMN permission_profile TEXT;
+"#;
