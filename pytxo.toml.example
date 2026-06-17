@@ -23,7 +23,7 @@ tier_max_agents = 3
 # Pytxo Ultra (managed metered billing + Pytxo Link proxy)
 # [billing]
 # mode = "ultra"
-# proxy_url = "https://link.pytxo.com/v1"   # Pytxo Link base URL (separate private service)
+# proxy_url = "https://link.pytxo.com"      # Pytxo Link base URL (billing.proxy_url)
 # link_reconcile = true                       # POST run start/end to Link; requires proxy_url
 # reserve_microcredits = 500000
 # initial_balance_microcredits = 10000000
@@ -31,7 +31,8 @@ tier_max_agents = 3
 # Pytxo Cloud sandbox + Pro context cache (separate pytxo-cloud-sandbox repo)
 # [cloud]
 # enabled = true
-# sandbox_url = "http://127.0.0.1:8788/v1"
+# sandbox_url = "https://cloud.pytxo.com/v1"
+# cache_url = "https://cloud.pytxo.com/v1"
 # cache_enabled = true
 # fallback_local = true   # PTY fallback when cloud unreachable
 

@@ -6,6 +6,8 @@ pub struct CloudConfig {
     pub enabled: bool,
     #[serde(default = "default_sandbox_url")]
     pub sandbox_url: String,
+    #[serde(default = "default_cache_url")]
+    pub cache_url: String,
     #[serde(default = "default_true")]
     pub cache_enabled: bool,
     #[serde(default = "default_true")]
@@ -13,6 +15,10 @@ pub struct CloudConfig {
 }
 
 fn default_sandbox_url() -> String {
+    "https://cloud.pytxo.com/v1".to_string()
+}
+
+fn default_cache_url() -> String {
     "https://cloud.pytxo.com/v1".to_string()
 }
 
@@ -25,6 +31,7 @@ impl Default for CloudConfig {
         Self {
             enabled: false,
             sandbox_url: default_sandbox_url(),
+            cache_url: default_cache_url(),
             cache_enabled: true,
             fallback_local: true,
         }

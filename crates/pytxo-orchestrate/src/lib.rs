@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod billing;
 pub mod cloud;
+pub mod entitlements;
 mod cost;
 mod dashboard;
 mod doctor;
@@ -27,6 +28,7 @@ pub use cloud::{cloud_clients, cloud_health_url, ping_cloud, CloudClients};
 
 pub use cost::{parse_cost_from_lines, CostEstimate};
 pub use doctor::{run_doctor, DoctorCheck, DoctorReport};
+pub use entitlements::{effective_entitlements, EntitlementStatus};
 pub use hypervisor::{
     default_hypervisor, list_catalog_domains, DomainState, DomainSummary, HypervisorRegistry,
 };
@@ -422,11 +424,30 @@ pub(crate) async fn execute_run_body(
     if let Some(exec) = opts.execution {
         cfg.execution_backend = exec;
     }
-    if cfg.max_agents > cfg.tier_max_agents {
+    let entitlements = entitlements::effective_entitlements(&cfg)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    if cfg.max_agents > entitlements.max_agents {
         anyhow::bail!(
-            "max_agents {} exceeds tier_max_agents {} (Pytxo Core cap)",
+            "max_agents {} exceeds tier limit {} ({})",
             cfg.max_agents,
-            cfg.tier_max_agents
+            entitlements.max_agents,
+            entitlements.tier
+        );
+    }
+    cfg.tier_max_agents = entitlements.max_agents;
+    if entitlements.cloud_enabled {
+        cfg.cloud.enabled = true;
+        if cfg.execution_backend == pytxo_core::ExecutionBackend::Pty {
+            cfg.execution_backend = pytxo_core::ExecutionBackend::Cloud;
+        }
+    }
+    if matches!(entitlements.tier.as_str(), "pro" | "max" | "ultra") {
+        cfg.cloud.cache_enabled = true;
+    }
+    if cfg.execution_backend == pytxo_core::ExecutionBackend::Cloud && !entitlements.cloud_enabled {
+        anyhow::bail!(
+            "cloud execution requires Max or Ultra tier (current: {})",
+            entitlements.tier
         );
     }
 
@@ -448,7 +469,11 @@ pub(crate) async fn execute_run_body(
         let store = store_for_events
             .lock()
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-        store.insert_run(&run_id.0, &domain.repo_root.to_string_lossy())?;
+        store.insert_run_with_profile(
+            &run_id.0,
+            &domain.repo_root.to_string_lossy(),
+            Some(cfg.permission_profile.as_str()),
+        )?;
         if let Some(proj) = &opts.project {
             store.tag_run_project(&run_id.0, &proj.project_id, None)?;
         }

@@ -15,6 +15,8 @@ members = [
     "crates/pytxo-catalog",
     "crates/pytxo-mcp",
     "apps/desktop/src-tauri",
+    "services/pytxo-link",
+    "services/pytxo-cloud-sandbox",
 ]
 
 [workspace.package]
@@ -58,3 +60,6 @@ portable-pty = "0.8"
 tauri = { version = "2", features = [] }
 tauri-build = "2"
 tauri-plugin-shell = "2"
+tauri-plugin-process = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-updater = "2"

@@ -31,6 +31,15 @@ impl PermissionProfile {
             _ => None,
         }
     }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::DeepSpace => "deep_space",
+            Self::Orbit => "orbit",
+            Self::Galaxy => "galaxy",
+            Self::Supernova => "supernova",
+        }
+    }
 }
 
 /// Stable execution-domain id from canonical repo root ([[execution-domains]]).

@@ -1,0 +1,15 @@
+{
+  "service": "pytxo-cloud-sandbox",
+  "requiredEnv": [
+    {
+      "name": "CLOUD_API_KEY",
+      "description": "Bearer token for Max-tier cloud sandbox API"
+    }
+  ],
+  "optionalEnv": [
+    "CLOUD_BIND",
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "SENTRY_DSN"
+  ],
+  "notes": "Railway injects PORT; do not set CLOUD_BIND in production unless debugging."
+}

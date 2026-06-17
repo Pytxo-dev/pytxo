@@ -35,7 +35,7 @@ const FAQ = [
   },
   {
     q: "Where are the docs?",
-    a: "Consumer and developer guides live at pytxo.com/docs — install, tutorials, CLI reference, and architecture. The GitHub repo has additional internal design notes.",
+    a: "Consumer and developer guides live at pytxo.com/docs — install, tutorials, CLI reference, and architecture.",
   },
 ] as const;
 

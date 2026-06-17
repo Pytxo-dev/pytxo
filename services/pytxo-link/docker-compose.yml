@@ -5,4 +5,8 @@ services:
       - "8787:8787"
     environment:
       LINK_BIND: "0.0.0.0:8787"
-      LINK_API_KEY: ${LINK_API_KEY:-}
+      LINK_API_KEY: ${LINK_API_KEY:-dev-link-key}
+      LINK_REQUIRE_AUTH: ${LINK_REQUIRE_AUTH:-0}
+      CLERK_ISSUER: ${CLERK_ISSUER:-}
+      PADDLE_WEBHOOK_SECRET: ${PADDLE_WEBHOOK_SECRET:-}
+      RUST_LOG: info

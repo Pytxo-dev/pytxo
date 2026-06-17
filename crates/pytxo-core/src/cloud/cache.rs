@@ -53,8 +53,13 @@ pub struct HttpContextCache {
 
 impl HttpContextCache {
     pub fn from_config(cfg: &CloudConfig) -> Self {
+        let base = if cfg.cache_url.trim().is_empty() {
+            cfg.sandbox_url.as_str()
+        } else {
+            cfg.cache_url.as_str()
+        };
         Self {
-            base_url: cfg.sandbox_url.trim_end_matches('/').to_string(),
+            base_url: base.trim_end_matches('/').to_string(),
         }
     }
 

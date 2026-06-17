@@ -10,12 +10,16 @@
     "build:docs": "node scripts/build-docs.mjs",
     "copy:docs": "node scripts/copy-docs.mjs",
     "bundle-docs": "node scripts/bundle-docs.mjs",
+    "preinstall": "node scripts/ensure-chroma.mjs",
     "prebuild": "npm run build:docs && npm run copy:docs && node scripts/generate-favicon.mjs",
     "generate-favicon": "node scripts/generate-favicon.mjs",
     "deploy": "node scripts/bundle-docs.mjs && vercel deploy --prod",
     "lint": "eslint"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.31.0",
+    "@clerk/ui": "^1.16.0",
+    "@pytxo/chroma": "file:./vendor/chroma",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",

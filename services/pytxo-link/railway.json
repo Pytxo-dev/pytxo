@@ -1,0 +1,39 @@
+{
+  "service": "pytxo-link",
+  "requiredEnv": [
+    {
+      "name": "DATABASE_URL",
+      "description": "PostgreSQL connection string (reference ${{Postgres.DATABASE_URL}} in Railway)"
+    },
+    {
+      "name": "LINK_API_KEY",
+      "description": "Bearer token for CLI/Deck run reconciliation"
+    },
+    {
+      "name": "LINK_ADMIN_KEY",
+      "description": "Bearer token for admin entitlements API (same value as Vercel LINK_ADMIN_KEY)"
+    },
+    {
+      "name": "LINK_REQUIRE_AUTH",
+      "description": "Set to 1 in production"
+    },
+    {
+      "name": "CLERK_ISSUER",
+      "description": "Clerk JWT issuer for org policy routes"
+    },
+    {
+      "name": "CLERK_JWKS_URL",
+      "description": "Clerk JWKS URL for JWT verification"
+    },
+    {
+      "name": "PADDLE_WEBHOOK_SECRET",
+      "description": "Optional; only if Link verifies Paddle webhooks directly"
+    }
+  ],
+  "optionalEnv": [
+    "LINK_BIND",
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "SENTRY_DSN"
+  ],
+  "notes": "Railway injects PORT; do not set LINK_BIND in production unless debugging."
+}

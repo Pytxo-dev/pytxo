@@ -1,0 +1,83 @@
+/**
+ * Pytxo Chroma design tokens — shared across web, desktop, and docs.
+ * Source of truth for brand palette. See packages/chroma/tokens.json for machine-readable form.
+ */
+
+:root {
+  --void: #020205;
+  --brand-teal: #2dd4bf;
+  --brand-violet: #a78bfa;
+  --brand-gold: #fbbf24;
+  --brand-magenta: #e879f9;
+  --brand-cyan: #22d3ee;
+  --radius: 0.625rem;
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Light semantic tokens (web shadcn) */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark,
+[data-chroma-theme="dark"] {
+  --background: #020205;
+  --foreground: #f4f4f5;
+  --card: #0a0a0f;
+  --card-foreground: #f4f4f5;
+  --popover: #0a0a0f;
+  --popover-foreground: #f4f4f5;
+  --primary: #2dd4bf;
+  --primary-foreground: #020205;
+  --secondary: #18181b;
+  --secondary-foreground: #f4f4f5;
+  --muted: #18181b;
+  --muted-foreground: #9494a8;
+  --accent: #1e1b2e;
+  --accent-foreground: #e9d5ff;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #a78bfa;
+  --chart-1: #2dd4bf;
+  --chart-2: #a78bfa;
+  --chart-3: #fbbf24;
+  --chart-4: #f472b6;
+  --chart-5: #4ade80;
+  --sidebar: #050508;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-primary: #2dd4bf;
+  --sidebar-primary-foreground: #020205;
+  --sidebar-accent: #18181b;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #a78bfa;
+}

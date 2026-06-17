@@ -25,7 +25,7 @@ Run smoke checks:
 
 - Route orchestration changes through the three moats where applicable
 - Add tests for scheduling, worktree, and store behavior
-- Update `apps/docs/` when user-facing behavior changes (not only the internal vault)
+- Update `apps/docs/` when user-facing behavior changes
 - Follow existing Rust formatting (`cargo fmt`) and CI
 
 ## Pull requests

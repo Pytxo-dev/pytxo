@@ -38,7 +38,7 @@ pub struct BillingConfig {
 }
 
 fn default_proxy_url() -> String {
-    "https://link.pytxo.com/v1".to_string()
+    "https://link.pytxo.com".to_string()
 }
 
 fn default_reserve_microcredits() -> i64 {

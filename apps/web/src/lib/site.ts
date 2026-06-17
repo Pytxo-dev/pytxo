@@ -1,6 +1,16 @@
-/** Public distribution repo (binaries + install scripts). Main pytxo monorepo is private. */
+/** Public distribution repo (binaries + install scripts). */
 export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
-export const PYTXO_VERSION = "0.3.2";
+export const PYTXO_VERSION = "0.3.3";
+
+export const DESKTOP_RELEASE_BASE =
+  "https://github.com/Pytxo-dev/pytxo-releases/releases/latest/download";
+
+export const DESKTOP_DOWNLOADS = {
+  windows: `${DESKTOP_RELEASE_BASE}/pytxo-reality-deck-windows-x64.msi`,
+  macosArm: `${DESKTOP_RELEASE_BASE}/pytxo-reality-deck-darwin-arm64.dmg`,
+  macosX64: `${DESKTOP_RELEASE_BASE}/pytxo-reality-deck-darwin-x64.dmg`,
+  linux: `${DESKTOP_RELEASE_BASE}/pytxo-reality-deck-linux-x64.AppImage`,
+} as const;
 
 export const GITHUB_URL = `https://github.com/${DISTRIBUTION_REPO}`;
 export const RELEASES_URL = `${GITHUB_URL}/releases`;
@@ -22,6 +32,6 @@ export type NavLink = {
 export const NAV_LINKS: NavLink[] = [
   { href: "/", label: "Home" },
   { href: "/docs", label: "Docs" },
-  { href: "/plans", label: "Plans", badge: "Soon" },
+  { href: "/plans", label: "Plans" },
   { href: "/download", label: "Download" },
 ];

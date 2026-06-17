@@ -1,6 +1,6 @@
 # Pytxo public docs
 
-Docusaurus site served at [pytxo.com/docs/](https://pytxo.com/docs/). Curated consumer and developer documentation — not a mirror of the internal Obsidian vault.
+Docusaurus site served at [pytxo.com/docs/](https://pytxo.com/docs/). Curated consumer and developer documentation for installers and contributors.
 
 ## Development
 

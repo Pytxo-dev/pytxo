@@ -1,0 +1,57 @@
+openapi: 3.1.0
+info:
+  title: Pytxo Link API
+  version: 0.3.3
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+  /v1/entitlements/status:
+    get:
+      summary: Current subscription tier and agent limits
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Entitlement status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tier:
+                    type: string
+                    enum: [core, pro, max, ultra]
+                  max_agents:
+                    type: integer
+                  cloud_enabled:
+                    type: boolean
+  /v1/runs/start:
+    post:
+      summary: Reconcile run start
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain_id, run_id]
+              properties:
+                domain_id:
+                  type: string
+                run_id:
+                  type: string
+  /v1/runs/end:
+    post:
+      summary: Reconcile run end with usage totals
+  /v1/webhooks/paddle:
+    post:
+      summary: Paddle subscription lifecycle webhooks
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

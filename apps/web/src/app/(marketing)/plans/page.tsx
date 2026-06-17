@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { InfoIcon, RocketIcon } from "lucide-react";
+import { RocketIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PlanRoadmapCard } from "@/components/site/plan-roadmap-card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Empty,
   EmptyContent,
@@ -18,8 +17,7 @@ import { GITHUB_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Plans",
-  description:
-    "Pytxo is pre-release. OSS core is available now; paid tiers and billing ship at launch.",
+  description: "Pytxo Core is open source. Subscribe to Pro, Max, or Ultra for cloud features.",
 };
 
 const ROADMAP = [
@@ -34,17 +32,19 @@ const ROADMAP = [
     ],
     detail:
       "The full local hypervisor ships open source. Install from GitHub and run headless agents today.",
+    plan: null as null,
   },
   {
     name: "Pytxo Pro Cloud",
-    status: "At release",
+    status: "Subscribe",
     statusVariant: "secondary" as const,
     highlights: ["Unlimited local agents", "Pytxo Link", "Cloud context caching"],
-    detail: "Cloud offload for context and link routing — pricing announced at launch.",
+    detail: "Cloud offload for context and link routing.",
+    plan: "pro" as const,
   },
   {
     name: "Pytxo Max Swarm",
-    status: "Planned",
+    status: "Subscribe",
     statusVariant: "secondary" as const,
     highlights: [
       "Hosted cloud sandboxes",
@@ -52,10 +52,11 @@ const ROADMAP = [
       "High-throughput swarms",
     ],
     detail: "For teams running large parallel agent pipelines in isolated sandboxes.",
+    plan: "max" as const,
   },
   {
     name: "Pytxo Ultra",
-    status: "Planned",
+    status: "Subscribe",
     statusVariant: "secondary" as const,
     highlights: [
       "Managed metered billing",
@@ -63,6 +64,7 @@ const ROADMAP = [
       "Frontier models + Signal arbitrage",
     ],
     detail: "Managed metering and model routing for production agent workloads.",
+    plan: "ultra" as const,
   },
 ] as const;
 
@@ -71,36 +73,27 @@ export default function PlansPage() {
     <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
       <div className="flex flex-col items-center gap-4 text-center">
         <Badge variant="outline" className="border-white/15 bg-card/30">
-          Pre-release
+          Live billing
         </Badge>
         <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
-          Plans at{" "}
-          <span className="chroma-text">launch</span>
+          Plans &{" "}
+          <span className="chroma-text">subscriptions</span>
         </h1>
         <p className="max-w-xl text-lg text-muted-foreground">
-          Paid tiers and billing are not live yet. The OSS core is available now —
-          cloud plans ship with the first public release.
+          Core stays open source. Subscribe to unlock Pytxo Link, cloud caching, and hosted
+          sandboxes.
         </p>
       </div>
-
-      <Alert className="mt-10 glass-panel border-white/10">
-        <InfoIcon />
-        <AlertTitle>Billing not live</AlertTitle>
-        <AlertDescription>
-          Pytxo Core is open source today. Pro, Max, and Ultra tiers — plus enterprise
-          options — will be announced when we ship. No charges apply during pre-release.
-        </AlertDescription>
-      </Alert>
 
       <Empty className="mt-10 glass-panel chroma-border border-0 p-10">
         <EmptyHeader>
           <EmptyMedia variant="icon" className="chroma-glow size-12 rounded-full bg-card/60">
             <RocketIcon className="size-6 text-primary" />
           </EmptyMedia>
-          <EmptyTitle className="text-xl">Early access is open source</EmptyTitle>
+          <EmptyTitle className="text-xl">Start with Core — upgrade anytime</EmptyTitle>
           <EmptyDescription className="text-muted-foreground">
-            Install the CLI via npm, trust your folder, and orchestrate agents locally.
-            Follow release updates on GitHub and npm.
+            Install the CLI via npm, trust your folder, and orchestrate agents locally. Sign in
+            to subscribe; entitlements sync to Pytxo Link within a minute.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent className="flex flex-col gap-3 sm:flex-row">
@@ -112,28 +105,46 @@ export default function PlansPage() {
           <Button size="lg" variant="outline" className="border-white/15 bg-card/30" asChild>
             <Link href="/download">Install the CLI</Link>
           </Button>
+          <Button size="lg" variant="outline" className="border-white/15 bg-card/30" asChild>
+            <Link href="/account">Sign in</Link>
+          </Button>
         </EmptyContent>
       </Empty>
 
       <div className="mt-16 flex flex-col gap-3 text-center">
-        <h2 className="text-2xl font-semibold tracking-tight">Roadmap</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Choose a tier</h2>
         <p className="mx-auto max-w-lg text-sm text-muted-foreground">
-          Capability preview only — no pricing until release.
+          Checkout is handled securely via MBCZ. Requires a signed-in pytxo.com account.
         </p>
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {ROADMAP.map((tier) => (
-          <PlanRoadmapCard key={tier.name} {...tier} />
+          <div key={tier.name} className="flex flex-col gap-3">
+            <PlanRoadmapCard
+              name={tier.name}
+              status={tier.status}
+              statusVariant={tier.statusVariant}
+              highlights={tier.highlights}
+              detail={tier.detail}
+            />
+            {tier.plan ? (
+              <Button className="chroma-glow w-full" asChild>
+                <Link href={`/api/billing/checkout-redirect?plan=${tier.plan}`}>
+                  Subscribe to {tier.name}
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         ))}
       </div>
 
       <p className="mt-12 text-center text-sm text-muted-foreground">
-        Pricing and tier details will be published at launch. See{" "}
+        See{" "}
         <Link href="/docs/concepts/what-is-pytxo" className="text-primary hover:underline">
           what is Pytxo
         </Link>{" "}
-        for the product model today.
+        for the product model.
       </p>
     </div>
   );

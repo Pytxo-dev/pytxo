@@ -1,3 +1,5 @@
-# Keep upload lean; docs are synced from monorepo vault at build time (Git) or prebuild (local).
+# Keep upload lean; docs are built from apps/docs at prebuild.
 node_modules
 .next
+content/docs
+.docs-vault

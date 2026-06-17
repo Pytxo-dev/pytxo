@@ -1,7 +1,13 @@
 {
-  "installCommand": "npm ci --legacy-peer-deps",
-  "buildCommand": "npm run build",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm run build",
   "framework": "nextjs",
+  "rewrites": [
+    {
+      "source": "/docs/:path((?!assets/)(?!img/).*)",
+      "destination": "/docs/:path.html"
+    }
+  ],
   "redirects": [
     {
       "source": "/pricing",

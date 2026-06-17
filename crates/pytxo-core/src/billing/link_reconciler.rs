@@ -98,7 +98,7 @@ impl HttpBillingReconciler {
 
 impl BillingReconciler for HttpBillingReconciler {
     fn reconcile_run_start(&self, domain_id: &DomainId, run_id: &RunId) -> Result<()> {
-        let endpoint = self.endpoint("runs/start");
+        let endpoint = self.endpoint("v1/runs/start");
         let body = self.run_start_body(domain_id, run_id);
         self.send(&endpoint, &body)
     }
@@ -109,7 +109,7 @@ impl BillingReconciler for HttpBillingReconciler {
         run_id: &RunId,
         totals: &RunUsageTotals,
     ) -> Result<()> {
-        let endpoint = self.endpoint("runs/end");
+        let endpoint = self.endpoint("v1/runs/end");
         let body = self.run_end_body(domain_id, run_id, totals);
         self.send(&endpoint, &body)
     }
@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn ping_requires_base_url() {
-        let ok = HttpBillingReconciler::new("https://link.pytxo.com/v1");
+        let ok = HttpBillingReconciler::new("https://link.pytxo.com");
         assert!(ok.ping().is_ok());
         let bad = HttpBillingReconciler::new("");
         assert!(bad.ping().is_err());
@@ -129,17 +129,20 @@ mod tests {
 
     #[test]
     fn endpoint_joins_without_double_slash() {
-        let r = HttpBillingReconciler::new("https://link.pytxo.com/v1/");
+        let r = HttpBillingReconciler::new("https://link.pytxo.com/");
         assert_eq!(
-            r.endpoint("/runs/start"),
+            r.endpoint("v1/runs/start"),
             "https://link.pytxo.com/v1/runs/start"
         );
-        assert_eq!(r.endpoint("runs/end"), "https://link.pytxo.com/v1/runs/end");
+        assert_eq!(
+            r.endpoint("v1/runs/end"),
+            "https://link.pytxo.com/v1/runs/end"
+        );
     }
 
     #[test]
     fn bodies_have_expected_shape() {
-        let r = HttpBillingReconciler::new("https://link.pytxo.com/v1");
+        let r = HttpBillingReconciler::new("https://link.pytxo.com");
         let domain = DomainId("/repo/a".into());
         let run = RunId("run-123".into());
         let start = r.run_start_body(&domain, &run);
@@ -173,7 +176,7 @@ mod tests {
         let hit2 = Arc::clone(&hit);
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
-        let base = format!("http://127.0.0.1:{port}/v1");
+        let base = format!("http://127.0.0.1:{port}");
         let server = thread::spawn(move || {
             listener.set_nonblocking(true).ok();
             let deadline = Instant::now() + Duration::from_secs(2);
@@ -183,7 +186,7 @@ mod tests {
                     let n = stream.read(&mut buf).unwrap_or(0);
                     if n > 0 {
                         let req = String::from_utf8_lossy(&buf[..n]);
-                        if req.contains("runs/start") && req.contains("run-xyz") {
+                        if req.contains("v1/runs/start") && req.contains("run-xyz") {
                             hit2.store(true, Ordering::SeqCst);
                         }
                     }

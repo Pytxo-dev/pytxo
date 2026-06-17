@@ -39,4 +39,8 @@ proxy_url = "http://127.0.0.1:8787/v1"
 docker compose up --build
 ```
 
-This reference implementation lives in the monorepo until the private org repo is published. See [pytxo-link-service.md](../docs/08-reference/pytxo-link-service.md).
+## Production
+
+Hosted at `https://link.pytxo.com`. Deploy steps: [`distribution/railway/README.md`](../../distribution/railway/README.md).
+
+See [pytxo-link-service.md](../docs/08-reference/pytxo-link-service.md) for the service contract.

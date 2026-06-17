@@ -19,6 +19,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { HeaderAuth } from "@/components/header-auth";
 import { GITHUB_URL, NAV_LINKS } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +77,7 @@ export function SiteHeader() {
         </NavigationMenu>
 
         <div className="flex items-center gap-2">
+          <HeaderAuth />
           <Button
             variant="outline"
             size="sm"
@@ -111,6 +113,18 @@ export function SiteHeader() {
                     <NavLabel label={link.label} badge={link.badge} />
                   </Link>
                 ))}
+                <Link
+                  href="/sign-in"
+                  className="rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-white/5"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/sign-up"
+                  className="rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-white/5"
+                >
+                  Sign up
+                </Link>
                 <a
                   href={GITHUB_URL}
                   target="_blank"

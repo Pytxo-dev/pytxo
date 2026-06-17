@@ -1,0 +1,17 @@
+{
+  "name": "@pytxo/chroma",
+  "version": "0.3.3",
+  "private": true,
+  "description": "Pytxo Chroma design tokens and utilities",
+  "exports": {
+    "./tokens.css": "./tokens.css",
+    "./utilities.css": "./utilities.css",
+    "./tokens.json": "./tokens.json"
+  },
+  "files": [
+    "tokens.css",
+    "utilities.css",
+    "tokens.json",
+    "README.md"
+  ]
+}

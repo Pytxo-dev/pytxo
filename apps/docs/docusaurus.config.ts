@@ -52,6 +52,7 @@ const config: Config = {
     },
     navbar: {
       title: "Pytxo Docs",
+      hideOnScroll: true,
       logo: {
         alt: "Pytxo",
         src: "img/logo.png",
@@ -66,13 +67,21 @@ const config: Config = {
           href: "https://pytxo.com/download",
           label: "Download",
           position: "right",
+          className: "navbar-download-link",
         },
         {
           href: "https://github.com/Pytxo-dev/pytxo",
           label: "GitHub",
           position: "right",
+          className: "navbar-github-link",
         },
       ],
+    },
+    docs: {
+      sidebar: {
+        hideable: true,
+        autoCollapseCategories: true,
+      },
     },
     footer: {
       style: "dark",
