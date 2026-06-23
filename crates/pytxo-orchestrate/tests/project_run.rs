@@ -1,8 +1,22 @@
+use std::path::PathBuf;
 use std::process::Command;
+use std::sync::{Mutex, OnceLock};
 
 use pytxo_core::PermissionProfile;
 use pytxo_orchestrate::{open_store_for_domain, project_run, trust_repo, ProjectRunOptions};
 use tempfile::TempDir;
+
+fn shared_trust_store() -> &'static PathBuf {
+    static STORE: OnceLock<PathBuf> = OnceLock::new();
+    STORE.get_or_init(|| {
+        let dir = TempDir::new().expect("trust tempdir");
+        let path = dir.path().join("trusted-domains.json");
+        std::mem::forget(dir);
+        // SAFETY: test-only; isolates trust from the developer's ~/.pytxo store.
+        unsafe { std::env::set_var("PYTXO_TRUST_STORE", &path) };
+        path
+    })
+}
 
 fn init_git_repo(path: &std::path::Path) {
     for args in [
@@ -37,6 +51,12 @@ fn norm_path(p: &str) -> String {
 }
 
 fn trust(path: &std::path::Path) {
+    static TRUST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    let _ = shared_trust_store();
+    let _guard = TRUST_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap();
     trust_repo(path, PermissionProfile::Orbit).unwrap();
 }
 

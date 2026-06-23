@@ -6,7 +6,7 @@ tags: [product, positioning]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-06-21
 related: [[beyond-the-ade]], [[gtm-open-source-loop]]
 ---
 
@@ -47,6 +47,23 @@ Covers:
 5. Desktop compile (`cd apps/desktop && npm ci`, then `cargo build -p pytxo-desktop` from repo root).
 
 Reality Deck terminal pane polls WAL at ~4 Hz; tune toward 60 FPS in Phase 2.1.
+
+## Phase 39 — overlay vs worktree resource repro
+
+Compare isolation backends on the same three-agent fixture (`tests/fixtures/tiny-monorepo`):
+
+| Metric | Worktree | Overlay copy-layer (`overlay-fuse`) |
+|--------|----------|-------------------------------------|
+| Upper disk (agent write set) | ~180–220 MB (full clone × 3) | ~8–15 MB (changed paths only) |
+| Cold start (fixture, est.) | ~2.4 s | ~1.1 s |
+| Cloud delta payload | N/A (local PTY) | `delta_from_overlay_upper` file list (~12 files typical) |
+| Race Shield contention | See `registry_contention_disjoint_claims` in `pytxo-runner` |
+
+*Estimates from local Windows/Linux runs on `tiny-monorepo` (2026-06); treat as directional until pinned in CI hardware profile.*
+
+Run overlay integration: `cargo test -p pytxo-runner overlay_layer_not_git_worktree --features overlay-fuse`
+
+Run Race Shield contention probe: `cargo test -p pytxo-runner registry_contention`
 
 ## Methodology (future)
 

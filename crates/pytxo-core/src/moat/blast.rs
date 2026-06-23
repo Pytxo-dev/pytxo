@@ -19,6 +19,13 @@ impl IsolationMode {
             _ => None,
         }
     }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Worktree => "worktree",
+            Self::Overlay => "overlay",
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -27,6 +34,8 @@ pub struct IsolationCtx {
     pub agent_id: AgentId,
     pub repo_root: PathBuf,
     pub worktree_base: PathBuf,
+    /// Top-level names skipped in overlay sparse copy / lowerdir (from `[blast].sparse_exclude`).
+    pub sparse_exclude: Vec<String>,
 }
 
 #[derive(Clone, Debug)]

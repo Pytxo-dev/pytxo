@@ -57,6 +57,44 @@ pub fn hydrate_session_env() {
     }
 }
 
+/// Handle `pytxo-deck://auth?token=...` deep-link callbacks from the account page.
+pub fn handle_deck_deep_link(url: &str) -> IpcResult<()> {
+    if !url.starts_with("pytxo-deck:") {
+        return Ok(());
+    }
+    let query = url.split('?').nth(1).unwrap_or("");
+    for pair in query.split('&') {
+        if let Some(token) = pair.strip_prefix("token=") {
+            if !token.is_empty() {
+                let decoded = percent_decode(token);
+                return auth_store_session(decoded);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn percent_decode(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(v) = u8::from_str_radix(
+                std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or(""),
+                16,
+            ) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 fn read_session() -> Result<String, String> {
     let entry = Entry::new(SERVICE, ACCOUNT).map_err(|e| e.to_string())?;
     entry.get_password().map_err(|e| e.to_string())

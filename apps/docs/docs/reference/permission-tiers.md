@@ -4,13 +4,13 @@ title: Permission tiers
 
 # Permission tiers
 
-Pytxo uses local **permission profiles** to gate filesystem, network, and tool capabilities per agent. Set globally or per `[[agent]]`.
+Pytxo uses local **permission profiles** to gate filesystem, network, and tool capabilities per agent. Set globally or per `[[agent]]` or per [modular project](/docs/concepts/modular-projects) root.
 
 | Profile | Intent |
 |---------|--------|
 | `deep_space` | Most restrictive — read-heavy, minimal side effects |
-| `orbit` | **Default** — balanced local development |
-| `galaxy` | Broader write and network scope |
+| `orbit` | **Default** — balanced local development with isolated copies |
+| `galaxy` | Host tools plus **[human approval](/docs/concepts/galaxy-approvals)** for risky commands and merges |
 | `supernova` | Highest local capability (use deliberately) |
 
 ```toml
@@ -20,6 +20,20 @@ permission_profile = "orbit"
 name = "scout"
 permission_profile = "deep_space"
 ```
+
+## Galaxy in practice
+
+When you trust a folder as **Galaxy**:
+
+- Risky spawn commands (`rm -rf`, `git push`, `docker`, network tools) pause until you approve
+- Merging agent changes into your real tree requires approval
+- Pending requests persist across hypervisor restarts
+
+Use `pytxo hitl list` or the Deck Approvals panel to respond.
+
+## Folder trust
+
+The first time you open a repo in the Hypervisor Shell, you pick a tier. See [Folder trust](/docs/getting-started/folder-trust).
 
 Permission profiles are **not** the same as `signal_fidelity` (context compression tier).
 

@@ -11,6 +11,7 @@ mod ids;
 mod moat;
 mod path_util;
 mod plan;
+mod fleet;
 mod project;
 mod task;
 mod trust;
@@ -22,26 +23,30 @@ pub use billing::{
     BillingMode, BillingReconciler, ByteHeuristicEstimator, CliAdapter, ConfigModelRouter,
     HttpBillingReconciler, LocalHybridBilling, ManagedTransport, ModelId, ModelRoute, ModelRouter,
     NoopBillingReconciler, ProviderId, ProviderSpec, ReservationId, RunUsageTotals,
-    StaticPriceTable, TokenCounts, TokenEstimator, TokenWallet, UsageKey, UsageMeter, UsageSource,
+    StaticPriceTable, TokenCounts, TiktokenEstimator, TokenEstimator, TokenWallet, UsageKey,
+    UsageMeter, UsageSource, default_token_estimator,
 };
 pub use child_env::ChildLaunchEnv;
 pub use cloud::{
-    content_hash, CacheLookup, CachePut, CachedScaffold, CloudConfig, CloudDispatcher,
-    ContextCache, ExecRequest, ExecResponse, HttpCloudDispatcher, HttpContextCache, McpHubConfig,
-    NoopCloudDispatcher, NoopContextCache, StartSandboxRequest, StartSandboxResponse, SyncFile,
+    collect_sync_paths, content_hash, delta_from_overlay_upper, is_overlay_upper,
+    overlay_upper_cloud_delta, CacheLookup,
+    CachePut, CachedScaffold, CloudConfig, CloudDispatcher, ContextCache, ExecRequest,
+    ExecResponse, HttpCloudDispatcher, HttpContextCache, McpHubConfig, NoopCloudDispatcher,
+    NoopContextCache, OverlayDelta, StartSandboxRequest, StartSandboxResponse, SyncFile,
 };
-pub use config::PytxoConfig;
+pub use config::{BlastConfig, PytxoConfig};
 pub use error::{PytxoError, Result};
 pub use execution::ExecutionBackend;
 pub use ids::{AgentId, RunId, TaskId};
 pub use moat::{
     conflict_error, normalize_claim_path, paths_claim_overlap, root_scoped_claim, DomainId,
     FidelityTier, IsolationBackend, IsolationCtx, IsolationMode, LiveAgent, PathConflict,
-    PermissionEngine, PermissionProfile, RaceShield, ScaffoldResult, ScaffoldStats, SignalCore,
+    PermissionEngine, PermissionProfile, NetworkPolicy, NetworkPolicyEngine, RaceShield, ScaffoldResult, ScaffoldStats, SignalCore,
     StdinBuffer, WorkspaceHandle,
 };
 pub use path_util::{canonical_repo_root, strip_extended_path};
 pub use plan::{AgentAssignment, ConflictPair, ExecutionPlan, ScheduledTask};
+pub use fleet::{FleetManifest, FleetMeta, FleetNode, FleetPlan, FleetWave};
 pub use project::{ProjectManifest, ProjectMeta, ProjectRoot};
 pub use task::{AgentSpec, Task};
 pub use trust::{default_trust_path, TrustedDomain, TrustedDomainStore};

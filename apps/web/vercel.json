@@ -76,7 +76,27 @@
     },
     {
       "source": "/docs/repository-layout",
-      "destination": "/docs/developers/repo-layout",
+      "destination": "/docs",
+      "permanent": true
+    },
+    {
+      "source": "/docs/adr-index",
+      "destination": "/docs",
+      "permanent": true
+    },
+    {
+      "source": "/docs/developers/contributing",
+      "destination": "/docs",
+      "permanent": true
+    },
+    {
+      "source": "/docs/developers/architecture",
+      "destination": "/docs/concepts/what-is-pytxo",
+      "permanent": true
+    },
+    {
+      "source": "/docs/developers/repo-layout",
+      "destination": "/docs",
       "permanent": true
     },
     {

@@ -1,6 +1,7 @@
 //! Signal Core implementation — `tree-sitter` structural skeletons on the read path.
 
 mod emit;
+mod graph;
 mod language;
 
 use std::path::Path;
@@ -82,6 +83,11 @@ pub fn scaffold_source(path: &Path, source: &str, tier: FidelityTier) -> Result<
 pub fn read_scaffolded(path: &Path, tier: FidelityTier) -> Result<ScaffoldResult> {
     TreeSitterSignalCore.read_scaffolded(path, tier)
 }
+
+pub use graph::{
+    aggregate_modules, build_module_graph, build_structural_graph, enrich_symbol_nodes,
+    graph_neighbor_paths, GraphEdge, GraphNode, StructuralGraph,
+};
 
 #[cfg(test)]
 mod tests {

@@ -70,6 +70,7 @@ async fn failing_run_retries_only_implicated_file() {
         }]],
         conflicts: vec![],
         max_agents: 1,
+        warnings: vec![],
     };
 
     let (domain_id, model_router, managed_transport, token_estimator) =
@@ -113,6 +114,7 @@ async fn failing_run_retries_only_implicated_file() {
         mcp_hub: None,
         mcp_hub_enabled: false,
         mcp_allowlist: Vec::new(),
+        sparse_exclude: Vec::new(),
     };
 
     let registry = ProcessRegistry::default();

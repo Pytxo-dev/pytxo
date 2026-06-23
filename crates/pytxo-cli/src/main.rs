@@ -105,6 +105,14 @@ enum Commands {
     Domains {
         #[arg(long)]
         json: bool,
+        /// Legacy lightweight output (domain paths only, no run health)
+        #[arg(long)]
+        paths_only: bool,
+    },
+    /// Cross-repo fleet DAG orchestration
+    Fleet {
+        #[command(subcommand)]
+        action: FleetAction,
     },
     /// BYOK provider registry and key status
     Providers {
@@ -170,6 +178,49 @@ enum HitlAction {
 }
 
 #[derive(Subcommand)]
+enum FleetAction {
+    /// Create a fleet manifest at ~/.pytxo/fleets/<id>.toml
+    Init {
+        id: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long = "add")]
+        add: Vec<std::path::PathBuf>,
+        #[arg(long = "cmd")]
+        cmd: Vec<String>,
+        #[arg(long, default_value = "1")]
+        agents: usize,
+    },
+    /// Print fleet execution plan JSON
+    DryRun {
+        #[arg(long)]
+        manifest: Option<std::path::PathBuf>,
+        #[arg(long)]
+        id: Option<String>,
+    },
+    /// Run a fleet DAG (barrier sync across domains)
+    Run {
+        #[arg(long)]
+        manifest: Option<std::path::PathBuf>,
+        #[arg(long)]
+        id: Option<String>,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        continue_on_error: bool,
+    },
+    /// List fleet runs from hypervisor catalog
+    Status {
+        #[arg(long)]
+        id: Option<String>,
+        #[arg(long, default_value = "10")]
+        limit: usize,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum ProjectAction {
     /// Create a project manifest at ~/.pytxo/projects/<id>.toml
     Init {
@@ -197,6 +248,15 @@ enum ProjectAction {
         add: std::path::PathBuf,
         #[arg(long)]
         read_only: bool,
+    },
+    /// Remove a path root from a project (by label or path)
+    Remove {
+        #[arg(long)]
+        manifest: Option<std::path::PathBuf>,
+        #[arg(long)]
+        id: Option<String>,
+        #[arg(long)]
+        label: String,
     },
     /// Show recent runs for a project (primary domain WAL)
     Status {
@@ -312,22 +372,45 @@ async fn main() -> anyhow::Result<()> {
         }) => commands::stop(config, repo, all, cleanup_worktrees).await?,
         Some(Commands::Project { action }) => run_project(action).await?,
         Some(Commands::Hitl { action }) => run_hitl(action)?,
-        Some(Commands::Domains { json }) => {
-            let domains = commands::list_catalog_domains()?;
-            if json {
-                println!("{}", serde_json::to_string_pretty(&domains)?);
-            } else if domains.is_empty() {
-                println!("No domains registered yet.");
+        Some(Commands::Domains { json, paths_only }) => {
+            if paths_only && !json {
+                let domains = commands::list_catalog_domains()?;
+                if domains.is_empty() {
+                    println!("No domains registered yet.");
+                } else {
+                    for d in domains {
+                        let proj = d
+                            .project_id
+                            .map(|p| format!(" project={p}"))
+                            .unwrap_or_default();
+                        println!("{} [{}]{proj} — {}", d.repo_root, d.status, d.db_path);
+                    }
+                }
             } else {
-                for d in domains {
-                    let proj = d
-                        .project_id
-                        .map(|p| format!(" project={p}"))
-                        .unwrap_or_default();
-                    println!("{} [{}]{proj} — {}", d.repo_root, d.status, d.db_path);
+                let domains = commands::list_catalog_domains_enriched()?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&domains)?);
+                } else if domains.is_empty() {
+                    println!("No domains registered yet.");
+                } else {
+                    for d in domains {
+                        let proj = d
+                            .project_id
+                            .map(|p| format!(" project={p}"))
+                            .unwrap_or_default();
+                        let latest = d
+                            .latest_run_status
+                            .as_deref()
+                            .unwrap_or("—");
+                        println!(
+                            "{} [{}] active={} latest={}{proj}",
+                            d.repo_root, d.status, d.active_runs, latest
+                        );
+                    }
                 }
             }
         }
+        Some(Commands::Fleet { action }) => run_fleet(action).await?,
         Some(Commands::Providers { json }) => models::providers_list(json)?,
         Some(Commands::Agents { repo, json }) => {
             if json {
@@ -406,6 +489,82 @@ fn run_hitl(action: HitlAction) -> anyhow::Result<()> {
     Ok(())
 }
 
+async fn run_fleet(action: FleetAction) -> anyhow::Result<()> {
+    use pytxo_orchestrate::{fleet_dry_run_json, fleet_init, fleet_run, fleet_status, FleetRunOptions};
+
+    match action {
+        FleetAction::Init {
+            id,
+            name,
+            add,
+            cmd,
+            agents,
+        } => {
+            if add.is_empty() {
+                anyhow::bail!("fleet init requires at least one --add <repo>");
+            }
+            let cmds: Vec<String> = if cmd.is_empty() {
+                vec!["echo pytxo".into(); add.len()]
+            } else if cmd.len() == 1 {
+                vec![cmd[0].clone(); add.len()]
+            } else if cmd.len() != add.len() {
+                anyhow::bail!("--cmd count must be 1 or match --add count");
+            } else {
+                cmd
+            };
+            let nodes: Vec<_> = add
+                .into_iter()
+                .zip(cmds)
+                .map(|(repo, c)| (repo, c, agents, Vec::new()))
+                .collect();
+            let path = fleet_init(&id, name, nodes)?;
+            println!("Created fleet '{id}' at {}", path.display());
+        }
+        FleetAction::DryRun { manifest, id } => {
+            println!("{}", fleet_dry_run_json(manifest, id)?);
+        }
+        FleetAction::Run {
+            manifest,
+            id,
+            dry_run,
+            continue_on_error,
+        } => {
+            let result = fleet_run(FleetRunOptions {
+                manifest,
+                fleet_id: id,
+                dry_run,
+                continue_on_error,
+                ..FleetRunOptions::default()
+            })
+            .await?;
+            if dry_run {
+                println!("{}", serde_json::to_string_pretty(&result)?);
+            } else {
+                println!(
+                    "Fleet {} finished [{}] ({} nodes)",
+                    result.fleet_run_id,
+                    result.status,
+                    result.nodes.len()
+                );
+            }
+        }
+        FleetAction::Status { id, limit, json } => {
+            let rows = fleet_status(id.as_deref(), limit)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&rows)?);
+            } else if rows.is_empty() {
+                println!("No fleet runs recorded.");
+            } else {
+                for r in rows {
+                    let fin = r.finished_at.as_deref().unwrap_or("—");
+                    println!("{} [{}] fleet={} started={} finished={}", r.id, r.status, r.fleet_id, r.started_at, fin);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 async fn run_project(action: ProjectAction) -> anyhow::Result<()> {
     match action {
         ProjectAction::Init { id, name, add } => {
@@ -414,13 +573,16 @@ async fn run_project(action: ProjectAction) -> anyhow::Result<()> {
         }
         ProjectAction::List { manifest, id } => {
             let roots = commands::project_roots(manifest, id)?;
-            for (label, path, read_only, primary) in roots {
-                let mut tags = Vec::new();
+            for (label, path, read_only, primary, permission_profile) in roots {
+                let mut tags: Vec<String> = Vec::new();
                 if primary {
-                    tags.push("primary");
+                    tags.push("primary".into());
                 }
                 if read_only {
-                    tags.push("read-only");
+                    tags.push("read-only".into());
+                }
+                if let Some(p) = permission_profile {
+                    tags.push(p);
                 }
                 let suffix = if tags.is_empty() {
                     String::new()
@@ -438,6 +600,14 @@ async fn run_project(action: ProjectAction) -> anyhow::Result<()> {
         } => {
             let path = commands::project_add_root(manifest, id, add, read_only)?;
             println!("Updated project manifest {}", path.display());
+        }
+        ProjectAction::Remove {
+            manifest,
+            id,
+            label,
+        } => {
+            let path = commands::project_remove_root(manifest, id, &label)?;
+            println!("Removed root '{label}' from {}", path.display());
         }
         ProjectAction::Status {
             manifest,
@@ -457,9 +627,18 @@ async fn run_project(action: ProjectAction) -> anyhow::Result<()> {
                     } else {
                         r.root_ids.join(", ")
                     };
+                    let by_root = if r.agents_by_root.is_empty() {
+                        "—".to_string()
+                    } else {
+                        r.agents_by_root
+                            .iter()
+                            .map(|(k, v)| format!("{k}={v}"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    };
                     println!(
-                        "{} [{}] agents={} roots=[{}]",
-                        r.run_id, r.status, r.agent_count, roots
+                        "{} [{}] agents={} roots=[{}] by_root={{{}}}",
+                        r.run_id, r.status, r.agent_count, roots, by_root
                     );
                 }
             }

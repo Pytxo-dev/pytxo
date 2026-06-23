@@ -41,6 +41,8 @@ pub struct ProjectStatusRow {
     pub started_at: String,
     pub agent_count: usize,
     pub root_ids: Vec<String>,
+    /// Agent counts keyed by modular root label.
+    pub agents_by_root: HashMap<String, usize>,
 }
 
 fn discover_manifest(manifest: Option<&Path>, id: Option<&str>) -> anyhow::Result<ProjectManifest> {
@@ -58,11 +60,11 @@ pub fn project_load(
     discover_manifest(manifest.as_deref(), id.as_deref())
 }
 
-/// List a project's roots as (label, path, read_only, primary).
+/// List a project's roots as (label, path, read_only, primary, permission_profile).
 pub fn project_roots(
     manifest: Option<PathBuf>,
     id: Option<String>,
-) -> anyhow::Result<Vec<(String, String, bool, bool)>> {
+) -> anyhow::Result<Vec<(String, String, bool, bool, Option<String>)>> {
     let m = discover_manifest(manifest.as_deref(), id.as_deref())?;
     Ok(m.roots
         .iter()
@@ -72,6 +74,7 @@ pub fn project_roots(
                 r.path.to_string_lossy().into_owned(),
                 r.read_only,
                 r.primary,
+                r.permission_profile.map(|p| p.as_str().to_string()),
             )
         })
         .collect())
@@ -99,6 +102,7 @@ pub fn project_init(
                 label: None,
                 primary: i == 0,
                 read_only: false,
+                permission_profile: None,
             })
             .collect(),
     };
@@ -127,7 +131,36 @@ pub fn project_add_root(
         label: None,
         primary: false,
         read_only,
+        permission_profile: None,
     });
+    write_manifest(&manifest_path, &m)?;
+    Ok(manifest_path)
+}
+
+/// Remove a root from an existing project manifest by label or path.
+pub fn project_remove_root(
+    manifest: Option<PathBuf>,
+    id: Option<String>,
+    label_or_path: &str,
+) -> anyhow::Result<PathBuf> {
+    let cwd = std::env::current_dir()?;
+    let manifest_path = ProjectManifest::discover(manifest.as_deref(), id.as_deref(), &cwd)
+        .ok_or_else(|| anyhow::anyhow!("no project manifest found to update"))?;
+    let mut m = ProjectManifest::load(&manifest_path).map_err(|e| anyhow::anyhow!(e))?;
+    let before = m.roots.len();
+    m.roots.retain(|r| {
+        r.effective_label() != label_or_path
+            && r.path.to_string_lossy() != label_or_path
+            && r.path != PathBuf::from(label_or_path)
+    });
+    if m.roots.len() == before {
+        anyhow::bail!("root not found in project manifest: {label_or_path}");
+    }
+    if !m.roots.iter().any(|r| r.primary) {
+        if let Some(first) = m.roots.first_mut() {
+            first.primary = true;
+        }
+    }
     write_manifest(&manifest_path, &m)?;
     Ok(manifest_path)
 }
@@ -146,16 +179,30 @@ fn build_roots_map(
     let mut roots = HashMap::new();
     for r in &manifest.roots {
         let canon = canonical_repo_root(&r.path).map_err(|e| anyhow::anyhow!(e))?;
+        let profile = r.permission_profile.unwrap_or(cfg.permission_profile);
         roots.insert(
             r.effective_label(),
             RootExec {
                 repo_root: canon.clone(),
                 worktree_base: canon.join(&cfg.worktree_dir),
                 read_only: r.read_only,
+                permission_profile: profile,
             },
         );
     }
     Ok(roots)
+}
+
+fn sync_project_store(manifest: &ProjectManifest) -> anyhow::Result<()> {
+    let Some(db_path) = ProjectManifest::project_db_path(&manifest.project.id) else {
+        return Ok(());
+    };
+    if let Some(parent) = db_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let store = pytxo_store::ProjectStore::open(&db_path)?;
+    store.sync_roots(manifest)?;
+    Ok(())
 }
 
 fn build_project_run_context(
@@ -202,6 +249,7 @@ pub async fn project_run(opts: ProjectRunOptions) -> anyhow::Result<Vec<ProjectR
     }
 
     let domain = default_hypervisor().ensure_project(&manifest, &cfg)?;
+    let _ = sync_project_store(&manifest);
     let run_id = crate::execute_run_body(
         domain,
         RunOptions {
@@ -254,12 +302,22 @@ pub fn project_status(
         let mut root_ids: Vec<String> = agents.iter().filter_map(|a| a.root_id.clone()).collect();
         root_ids.sort();
         root_ids.dedup();
+        let mut agents_by_root: HashMap<String, usize> = HashMap::new();
+        for a in &agents {
+            let label = a
+                .root_id
+                .clone()
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "primary".into());
+            *agents_by_root.entry(label).or_insert(0) += 1;
+        }
         rows.push(ProjectStatusRow {
             run_id: run.id,
             status: run.status,
             started_at: run.started_at.to_rfc3339(),
             agent_count: agents.len(),
             root_ids,
+            agents_by_root,
         });
     }
     Ok(rows)

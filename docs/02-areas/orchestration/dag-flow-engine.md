@@ -32,8 +32,13 @@ If agents deadlock (A waits on B, B waits on A):
 3. Inject a **mocked intermediate state** into the other’s buffer so the dependency chain can complete.
 4. Resume and reconcile real artifacts.
 
-## Complexity
+## Stall recovery (Phase 35)
 
-Scheduling cost scales with graph structure; document target workloads in benchmarks ([[competitive-benchmarks]]).
+When scheduling cannot advance (`ready` queue empty) or Race Shield path claims stall at runtime:
+
+- Set `PYTXO_DAG_RECOVERY=1` so `pytxo-scheduler` force-schedules a deferred task and emits `warnings` in dry-run JSON.
+- The runner injects a synthetic WAL `dag-recovery` event when path claims would block under the same flag.
+
+Document target workloads in benchmarks ([[competitive-benchmarks]]).
 
 ADR: [[ADR-0004-dag-scheduler-over-sequential-locks]].

@@ -15,7 +15,7 @@ anyhow = { workspace = true }
 clap = { workspace = true }
 pytxo-catalog = { workspace = true }
 pytxo-core = { workspace = true }
-pytxo-orchestrate = { path = "../pytxo-orchestrate", features = ["sanitize"] }
+pytxo-orchestrate = { path = "../pytxo-orchestrate", features = ["sanitize", "link-http", "cloud-http"] }
 pytxo-shell = { path = "../pytxo-shell" }
 pytxo-tui = { path = "../pytxo-tui" }
 serde = { workspace = true }

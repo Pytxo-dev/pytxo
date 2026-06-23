@@ -4,6 +4,7 @@
     agent_id: string;
     saved_tokens: number;
     edited_paths: number;
+    fallback_paths: number;
   };
   type Node = {
     id: string;
@@ -12,12 +13,26 @@
     label: string;
     editedPaths: number;
     savedTokens: number;
+    rootId?: string | null;
   };
+
+  type StructuralNode = {
+    id: string;
+    label: string;
+    edited: boolean;
+    root_id: string | null;
+  };
+  type StructuralEdge = { from: string; to: string };
 
   let {
     agents = [],
     arbitrage = [],
-  }: { agents: Agent[]; arbitrage?: Arbitrage[] } = $props();
+    structural = null as { nodes: StructuralNode[]; edges: StructuralEdge[] } | null,
+  }: {
+    agents: Agent[];
+    arbitrage?: Arbitrage[];
+    structural?: { nodes: StructuralNode[]; edges: StructuralEdge[] } | null;
+  } = $props();
 
   let canvasEl: HTMLCanvasElement | undefined = $state();
 
@@ -52,36 +67,70 @@
     const text = token("--foreground", "#e8eaed");
 
     const byAgent = new Map(arbitrage.map((a) => [a.agent_id, a]));
+    const useStructural = structural && structural.nodes.length > 0;
+    const rootColor = (rootId: string | null | undefined) => {
+      if (!rootId) return teal;
+      const palette = [teal, violet, gold, "#60a5fa", "#f472b6"];
+      let h = 0;
+      for (let i = 0; i < rootId.length; i++) h = (h + rootId.charCodeAt(i)) % palette.length;
+      return palette[h];
+    };
     const nodes = layout(
-      agents.map((a) => {
-        const stats = byAgent.get(a.id);
-        return {
-          id: a.id,
-          label: `w${a.wave} ${a.task_id}`,
-          x: 0,
-          y: 0,
-          editedPaths: stats?.edited_paths ?? 0,
-          savedTokens: stats?.saved_tokens ?? 0,
-        };
-      }),
+      useStructural
+        ? structural!.nodes.map((n) => ({
+            id: n.id,
+            label: n.label,
+            x: 0,
+            y: 0,
+            editedPaths: n.edited ? 1 : 0,
+            savedTokens: 0,
+            rootId: n.root_id,
+          }))
+        : agents.map((a) => {
+            const stats = byAgent.get(a.id);
+            const blast = (stats?.edited_paths ?? 0) + (stats?.fallback_paths ?? 0);
+            return {
+              id: a.id,
+              label: `w${a.wave} ${a.task_id}`,
+              x: 0,
+              y: 0,
+              editedPaths: blast,
+              savedTokens: stats?.saved_tokens ?? 0,
+              rootId: null,
+            };
+          }),
       w,
       h,
     );
 
+    const nodePos = new Map(nodes.map((n) => [n.id, n]));
     ctx.strokeStyle = violet;
     ctx.lineWidth = 1;
-    for (let i = 0; i < nodes.length; i++) {
-      const j = (i + 1) % nodes.length;
-      if (nodes.length < 2) break;
-      ctx.beginPath();
-      ctx.moveTo(nodes[i].x, nodes[i].y);
-      ctx.lineTo(nodes[j].x, nodes[j].y);
-      ctx.stroke();
+    if (useStructural) {
+      for (const e of structural!.edges) {
+        const a = nodePos.get(e.from);
+        const b = nodePos.get(e.to);
+        if (!a || !b) continue;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+    } else {
+      for (let i = 0; i < nodes.length; i++) {
+        const j = (i + 1) % nodes.length;
+        if (nodes.length < 2) break;
+        ctx.beginPath();
+        ctx.moveTo(nodes[i].x, nodes[i].y);
+        ctx.lineTo(nodes[j].x, nodes[j].y);
+        ctx.stroke();
+      }
     }
 
     for (const n of nodes) {
       const radius = 8 + Math.min(n.editedPaths, 12) * 1.5;
-      ctx.fillStyle = n.editedPaths > 0 ? gold : teal;
+      ctx.fillStyle =
+        n.editedPaths > 0 ? gold : useStructural && n.rootId ? rootColor(n.rootId) : teal;
       ctx.beginPath();
       ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
       ctx.fill();
@@ -92,8 +141,10 @@
       if (n.editedPaths > 0) {
         ctx.fillStyle = gold;
         ctx.font = "9px system-ui";
+        const fallbackNote =
+          n.editedPaths > 0 && n.savedTokens === 0 ? " · signal-fallback" : "";
         ctx.fillText(
-          `${n.editedPaths} paths · ${n.savedTokens} saved`,
+          `${n.editedPaths} blast · ${n.savedTokens} saved${fallbackNote}`,
           n.x - 28,
           n.y + radius + 23,
         );

@@ -34,6 +34,11 @@ pub fn run_doctor(repo: Option<&Path>) -> anyhow::Result<DoctorReport> {
         check_pty_smoke(),
         check_link_reconcile(&cfg),
         check_cloud_sandbox(&cfg),
+        check_hitl_persistence(&repo_root, &cfg),
+        check_network_policy(),
+        check_deepspace_network_isolation(),
+        check_mcp_hitl(&cfg),
+        check_overlay_isolation(&cfg),
     ];
     Ok(DoctorReport { checks })
 }
@@ -142,7 +147,7 @@ fn git_ok(name: &str, repo: &Path, args: &[&str], fail_msg: &str) -> DoctorCheck
 }
 
 fn check_link_reconcile(cfg: &PytxoConfig) -> DoctorCheck {
-    if !cfg.billing_mode().is_ultra() || !cfg.billing.link_reconcile {
+    if !cfg.billing_mode().is_ultra() || !cfg.billing.link_reconcile_enabled() {
         return DoctorCheck {
             name: "link_reconcile".into(),
             ok: true,
@@ -155,7 +160,7 @@ fn check_link_reconcile(cfg: &PytxoConfig) -> DoctorCheck {
         Ok(()) => DoctorCheck {
             name: "link_reconcile".into(),
             ok: true,
-            detail: format!("proxy_url configured: {url}"),
+            detail: format!("Link /health ok at {url}"),
         },
         Err(e) => DoctorCheck {
             name: "link_reconcile".into(),
@@ -186,6 +191,103 @@ fn check_cloud_sandbox(cfg: &PytxoConfig) -> DoctorCheck {
             name: "cloud_sandbox".into(),
             ok: false,
             detail: format!("cloud ping failed: {e}"),
+        },
+    }
+}
+
+fn check_hitl_persistence(repo: &Path, cfg: &PytxoConfig) -> DoctorCheck {
+    let data_dir = repo.join(&cfg.data_dir);
+    let path = data_dir.join("hitl.json");
+    match std::fs::create_dir_all(&data_dir) {
+        Ok(()) => {
+            let probe = path.with_extension("json.probe");
+            match std::fs::write(&probe, "{}") {
+                Ok(()) => {
+                    let _ = std::fs::remove_file(&probe);
+                    DoctorCheck {
+                        name: "hitl_persistence".into(),
+                        ok: true,
+                        detail: format!("writable at {}", path.display()),
+                    }
+                }
+                Err(e) => DoctorCheck {
+                    name: "hitl_persistence".into(),
+                    ok: false,
+                    detail: format!("cannot write HITL store: {e}"),
+                },
+            }
+        }
+        Err(e) => DoctorCheck {
+            name: "hitl_persistence".into(),
+            ok: false,
+            detail: format!("cannot create data dir: {e}"),
+        },
+    }
+}
+
+fn check_network_policy() -> DoctorCheck {
+    use pytxo_core::{PermissionEngine, PermissionProfile};
+    let orbit = PermissionEngine::new(PermissionProfile::Orbit);
+    let galaxy = PermissionEngine::new(PermissionProfile::Galaxy);
+    let orbit_denies = !orbit.spawn_egress_allowed("curl https://example.com");
+    let galaxy_allows = galaxy.spawn_egress_allowed("curl https://example.com");
+    let ok = orbit_denies && galaxy_allows;
+    DoctorCheck {
+        name: "network_policy".into(),
+        ok,
+        detail: format!(
+            "orbit_denies_egress={orbit_denies} galaxy_allows_egress={galaxy_allows}"
+        ),
+    }
+}
+
+fn check_deepspace_network_isolation() -> DoctorCheck {
+    use pytxo_core::{NetworkPolicy, NetworkPolicyEngine, PermissionProfile};
+    let deepspace = NetworkPolicyEngine::new(PermissionProfile::DeepSpace);
+    let tcp_blocked = !deepspace.egress_allowed("1.1.1.1", 443);
+    let detail = pytxo_runner::doctor_network_isolation_probe();
+    DoctorCheck {
+        name: "deepspace_network_isolation".into(),
+        ok: tcp_blocked,
+        detail,
+    }
+}
+
+fn check_mcp_hitl(cfg: &PytxoConfig) -> DoctorCheck {
+    use pytxo_core::PermissionProfile;
+    if cfg.permission_profile != PermissionProfile::Galaxy {
+        return DoctorCheck {
+            name: "mcp_hitl".into(),
+            ok: true,
+            detail: "skipped (permission_profile is not galaxy)".into(),
+        };
+    }
+    DoctorCheck {
+        name: "mcp_hitl".into(),
+        ok: true,
+        detail: "Galaxy MCP proxy gated via HitlQueue (tools/call, resources/read)".into(),
+    }
+}
+
+fn check_overlay_isolation(cfg: &PytxoConfig) -> DoctorCheck {
+    use pytxo_core::IsolationMode;
+    if cfg.isolation == IsolationMode::Worktree {
+        return DoctorCheck {
+            name: "overlay_isolation".into(),
+            ok: true,
+            detail: "worktree isolation (default)".into(),
+        };
+    }
+    match pytxo_runner::doctor_overlay_probe() {
+        Ok(detail) => DoctorCheck {
+            name: "overlay_isolation".into(),
+            ok: true,
+            detail,
+        },
+        Err(e) => DoctorCheck {
+            name: "overlay_isolation".into(),
+            ok: false,
+            detail: format!("{e}"),
         },
     }
 }

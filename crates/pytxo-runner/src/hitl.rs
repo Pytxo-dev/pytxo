@@ -5,14 +5,15 @@
 //! execution domain, mirroring Race Shield's per-domain scope.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// A pending or resolved approval request.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HitlRequest {
     pub id: String,
     pub agent_key: String,
@@ -22,12 +23,18 @@ pub struct HitlRequest {
     pub created_at_ms: u128,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum HitlDecision {
     Pending,
     Approved,
     Denied,
+}
+
+#[derive(Default, Serialize, Deserialize)]
+struct HitlPersistFile {
+    pending: Vec<HitlRequest>,
+    decisions: HashMap<String, HitlDecision>,
 }
 
 #[derive(Default)]
@@ -37,9 +44,11 @@ struct HitlState {
 }
 
 /// Thread-safe approval queue shared between the runner and orchestration/IPC.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct HitlQueue {
     inner: Arc<Mutex<HitlState>>,
+    persist_path: Option<PathBuf>,
+    wal_audit: Option<Arc<dyn Fn(&str, bool) + Send + Sync>>,
 }
 
 static HITL_SEQ: AtomicU64 = AtomicU64::new(0);
@@ -51,9 +60,66 @@ fn now_ms() -> u128 {
         .unwrap_or(0)
 }
 
+impl Default for HitlQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HitlQueue {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            inner: Arc::new(Mutex::new(HitlState::default())),
+            persist_path: None,
+            wal_audit: None,
+        }
+    }
+
+    /// Queue with JSON persistence under `{data_dir}/hitl.json` (Phase 24).
+    pub fn with_persistence(data_dir: &Path) -> Self {
+        let path = data_dir.join("hitl.json");
+        let mut state = HitlState::default();
+        if path.exists() {
+            if let Ok(raw) = std::fs::read_to_string(&path) {
+                if let Ok(file) = serde_json::from_str::<HitlPersistFile>(&raw) {
+                    for req in file.pending {
+                        state.pending.insert(req.id.clone(), req);
+                    }
+                    state.decisions = file.decisions;
+                }
+            }
+        }
+        Self {
+            inner: Arc::new(Mutex::new(state)),
+            persist_path: Some(path),
+            wal_audit: None,
+        }
+    }
+
+    /// Append a `hitl-resolve` WAL row when `resolve()` succeeds.
+    pub fn with_wal_audit(mut self, audit: Arc<dyn Fn(&str, bool) + Send + Sync>) -> Self {
+        self.wal_audit = Some(audit);
+        self
+    }
+
+    fn persist(&self) {
+        let Some(path) = self.persist_path.as_ref() else {
+            return;
+        };
+        let Ok(guard) = self.inner.lock() else {
+            return;
+        };
+        let file = HitlPersistFile {
+            pending: guard.pending.values().cloned().collect(),
+            decisions: guard.decisions.clone(),
+        };
+        if let Ok(json) = serde_json::to_string_pretty(&file) {
+            let _ = std::fs::write(path, json);
+        }
+    }
+
+    pub fn persist_path(&self) -> Option<&Path> {
+        self.persist_path.as_deref()
     }
 
     /// Submit a request for human approval; returns its id.
@@ -71,6 +137,7 @@ impl HitlQueue {
             g.pending.insert(id.clone(), req);
             g.decisions.insert(id.clone(), HitlDecision::Pending);
         }
+        self.persist();
         id
     }
 
@@ -84,22 +151,31 @@ impl HitlQueue {
 
     /// Resolve a request. Returns `true` if the id was pending.
     pub fn resolve(&self, id: &str, approved: bool) -> bool {
-        let Ok(mut g) = self.inner.lock() else {
-            return false;
+        let resolved = {
+            let Ok(mut g) = self.inner.lock() else {
+                return false;
+            };
+            if g.pending.remove(id).is_some() {
+                g.decisions.insert(
+                    id.to_string(),
+                    if approved {
+                        HitlDecision::Approved
+                    } else {
+                        HitlDecision::Denied
+                    },
+                );
+                true
+            } else {
+                false
+            }
         };
-        if g.pending.remove(id).is_some() {
-            g.decisions.insert(
-                id.to_string(),
-                if approved {
-                    HitlDecision::Approved
-                } else {
-                    HitlDecision::Denied
-                },
-            );
-            true
-        } else {
-            false
+        if resolved {
+            if let Some(audit) = &self.wal_audit {
+                audit(id, approved);
+            }
+            self.persist();
         }
+        resolved
     }
 
     /// Current decision for a request (Pending if unknown or unresolved).

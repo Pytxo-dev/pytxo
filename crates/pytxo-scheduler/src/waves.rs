@@ -1,10 +1,15 @@
 use pytxo_core::{ExecutionPlan, ScheduledTask, Task};
 
-use crate::overlap::{find_conflicts, tasks_overlap};
+use crate::overlap::{find_conflicts, find_cross_root_conflicts, tasks_overlap};
 
 /// Greedy wave assignment: each wave is a maximal set of pairwise non-conflicting tasks.
 pub fn build_execution_plan(tasks: &[Task], max_agents: usize) -> ExecutionPlan {
-    let conflicts = find_conflicts(tasks);
+    let mut conflicts = find_conflicts(tasks);
+    for c in find_cross_root_conflicts(tasks) {
+        if !conflicts.iter().any(|x| x.task_a == c.task_a && x.task_b == c.task_b) {
+            conflicts.push(c);
+        }
+    }
     let mut remaining: Vec<&Task> = tasks.iter().collect();
     let mut waves: Vec<Vec<ScheduledTask>> = Vec::new();
 
@@ -45,6 +50,7 @@ pub fn build_execution_plan(tasks: &[Task], max_agents: usize) -> ExecutionPlan 
         waves,
         conflicts,
         max_agents,
+        warnings: Vec::new(),
     }
 }
 

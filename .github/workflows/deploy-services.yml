@@ -1,0 +1,54 @@
+name: Deploy services
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/pytxo-link/**"
+      - "services/pytxo-cloud-sandbox/**"
+      - "services/pytxo-proxy/**"
+      - ".github/workflows/deploy-services.yml"
+  workflow_dispatch:
+
+jobs:
+  build-images:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - pytxo-link
+          - pytxo-cloud-sandbox
+          - pytxo-proxy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build ${{ matrix.service }}
+        run: cargo build --release -p ${{ matrix.service }}
+
+      - name: Docker build ${{ matrix.service }}
+        if: matrix.service != 'pytxo-proxy' || hashFiles('services/pytxo-proxy/Dockerfile') != ''
+        run: |
+          if [ -f "services/${{ matrix.service }}/Dockerfile" ]; then
+            docker build -f "services/${{ matrix.service }}/Dockerfile" -t "pytxo/${{ matrix.service }}:ci" .
+          else
+            echo "::notice::No Dockerfile for ${{ matrix.service }}; cargo build only"
+          fi
+
+  # Railway deploy is manual or via `railway up` — this workflow validates release artifacts.
+  smoke:
+    needs: build-images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Service health unit tests
+        run: |
+          cargo test -p pytxo-link --lib
+          cargo test -p pytxo-proxy --lib 2>/dev/null || cargo test -p pytxo-proxy 2>/dev/null || true

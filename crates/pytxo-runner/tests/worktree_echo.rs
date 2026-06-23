@@ -60,6 +60,7 @@ async fn single_agent_echo_in_worktree() {
         }]],
         conflicts: vec![],
         max_agents: 3,
+        warnings: vec![],
     };
 
     let data_dir = repo.join(".pytxo/data");
@@ -104,6 +105,7 @@ async fn single_agent_echo_in_worktree() {
         mcp_hub: None,
         mcp_hub_enabled: false,
         mcp_allowlist: Vec::new(),
+        sparse_exclude: Vec::new(),
     };
 
     let registry = ProcessRegistry::default();

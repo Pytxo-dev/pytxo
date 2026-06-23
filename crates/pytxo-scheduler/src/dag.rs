@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use pytxo_core::{ExecutionPlan, PytxoError, Result, ScheduledTask, Task};
 
-use crate::overlap::{find_conflicts, tasks_overlap};
+use crate::overlap::{find_conflicts, find_cross_root_conflicts, tasks_overlap};
 use crate::waves::build_execution_plan;
 
 pub fn build_dag_plan(tasks: &[Task], max_agents: usize) -> Result<ExecutionPlan> {
@@ -44,13 +44,43 @@ pub fn build_dag_plan(tasks: &[Task], max_agents: usize) -> Result<ExecutionPlan
 
     let mut waves: Vec<Vec<ScheduledTask>> = Vec::new();
     let mut scheduled = 0usize;
-    let conflicts = find_conflicts(tasks);
+    let mut conflicts = find_conflicts(tasks);
+    for c in find_cross_root_conflicts(tasks) {
+        if !conflicts.iter().any(|x| x.task_a == c.task_a && x.task_b == c.task_b) {
+            conflicts.push(c);
+        }
+    }
+
+    let dag_recovery = std::env::var("PYTXO_DAG_RECOVERY").ok().as_deref() == Some("1");
+    let mut recovery_warnings: Vec<String> = Vec::new();
 
     while scheduled < tasks.len() {
         if ready.is_empty() {
-            return Err(PytxoError::Scheduler(
-                "cannot schedule remaining tasks".into(),
-            ));
+            if dag_recovery {
+                let scheduled_ids: HashSet<&str> = waves
+                    .iter()
+                    .flat_map(|w| w.iter())
+                    .map(|s| s.task_id.0.as_str())
+                    .collect();
+                if let Some(task) = tasks
+                    .iter()
+                    .find(|t| !scheduled_ids.contains(t.id.0.as_str()))
+                {
+                    recovery_warnings.push(format!(
+                        "dag-recovery: force-scheduled stalled task {}",
+                        task.id.0
+                    ));
+                    ready.push_back(task);
+                } else {
+                    return Err(PytxoError::Scheduler(
+                        "cannot schedule remaining tasks (recovery exhausted)".into(),
+                    ));
+                }
+            } else {
+                return Err(PytxoError::Scheduler(
+                    "cannot schedule remaining tasks".into(),
+                ));
+            }
         }
 
         let wave_index = waves.len() as u32;
@@ -109,6 +139,7 @@ pub fn build_dag_plan(tasks: &[Task], max_agents: usize) -> Result<ExecutionPlan
         waves,
         conflicts,
         max_agents,
+        warnings: recovery_warnings,
     })
 }
 

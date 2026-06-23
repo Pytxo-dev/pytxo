@@ -59,6 +59,7 @@ async fn secondary_root_worktree_under_web_repo() {
             repo_root: web.path().to_path_buf(),
             worktree_base: web_wt.clone(),
             read_only: false,
+            permission_profile: PermissionProfile::Orbit,
         },
     );
 
@@ -73,6 +74,7 @@ async fn secondary_root_worktree_under_web_repo() {
         }]],
         conflicts: vec![],
         max_agents: 3,
+        warnings: vec![],
     };
 
     let data_dir = primary.path().join(".pytxo/data");
@@ -117,6 +119,7 @@ async fn secondary_root_worktree_under_web_repo() {
         mcp_hub: None,
         mcp_hub_enabled: false,
         mcp_allowlist: Vec::new(),
+        sparse_exclude: Vec::new(),
     };
 
     let registry = ProcessRegistry::default();

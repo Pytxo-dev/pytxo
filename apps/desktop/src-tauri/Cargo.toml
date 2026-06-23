@@ -8,6 +8,7 @@ license.workspace = true
 [lib]
 name = "pytxo_desktop_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
+doctest = false
 
 [[bin]]
 name = "pytxo-desktop"
@@ -24,8 +25,10 @@ tauri-plugin-shell = { workspace = true }
 tauri-plugin-process = { workspace = true }
 tauri-plugin-notification = { workspace = true }
 tauri-plugin-updater = { workspace = true }
+tauri-plugin-deep-link = { workspace = true }
 tokio.workspace = true
 pytxo-core = { path = "../../../crates/pytxo-core" }
 pytxo-store = { path = "../../../crates/pytxo-store" }
 pytxo-orchestrate = { path = "../../../crates/pytxo-orchestrate", features = ["sanitize", "link-http"] }
+pytxo-runner = { path = "../../../crates/pytxo-runner" }
 keyring = "3"

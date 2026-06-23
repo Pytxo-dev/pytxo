@@ -3,11 +3,17 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use pytxo_core::PytxoConfig;
+use pytxo_runner::isolation_backend_label;
 use pytxo_orchestrate::{
-    commit_workspace_for_agent, dispatch_run, dry_run_json, hitl_respond as orch_hitl_respond,
-    list_catalog_domains as orch_list_catalog_domains, list_domains,
-    list_hitl_pending as orch_list_hitl_pending, list_project_manifests as orch_list_projects,
-    stop, CatalogEntry, DomainSummary, RunOptions,
+    commit_workspace_for_agent, dispatch_run, dry_run_json, fleet_run_status, fleet_status,
+    hitl_respond as orch_hitl_respond,
+    list_catalog_domains as orch_list_catalog_domains,
+    list_catalog_domains_enriched as orch_list_domains_status, list_domains,
+    list_hitl_pending as orch_list_hitl_pending, list_hitl_pending_all as orch_list_hitl_pending_all,
+    list_project_manifests as orch_list_projects, project_add_root as orch_project_add_root,
+    project_remove_root as orch_project_remove_root, project_roots as orch_project_roots,
+    structural_graph as orch_structural_graph, stop, CatalogEntry, CatalogEntryStatus, DomainSummary,
+    RunOptions,
 };
 use pytxo_store::{AgentRecord, EventRecord, RunRecord};
 use serde::Serialize;
@@ -25,7 +31,7 @@ pub struct AppState {
     pub selected_domain_id: Mutex<Option<String>>,
 }
 
-fn open_store_for_domain(
+pub(crate) fn open_store_for_domain(
     cfg: &PytxoConfig,
     domain_id: &str,
 ) -> IpcResult<pytxo_store::PytxoStore> {
@@ -46,6 +52,9 @@ pub struct RunDto {
     pub repo_root: String,
     pub started_at: String,
     pub estimated_cost_usd: Option<f64>,
+    pub permission_profile: Option<String>,
+    pub isolation_mode: String,
+    pub isolation_backend: String,
 }
 
 #[derive(Serialize)]
@@ -74,7 +83,7 @@ pub struct EventDto {
     pub ts: String,
 }
 
-fn load_cfg_for_domain(domain_id: &str, state: &AppState) -> IpcResult<PytxoConfig> {
+pub(crate) fn load_cfg_for_domain(domain_id: &str, state: &AppState) -> IpcResult<PytxoConfig> {
     let path = state.config_path.lock().map_err(map_lock_err)?.clone();
     let repo = PathBuf::from(domain_id);
     if let Some(p) = path {
@@ -90,7 +99,7 @@ fn load_cfg_for_domain(domain_id: &str, state: &AppState) -> IpcResult<PytxoConf
     }
 }
 
-fn resolve_domain(state: &AppState, domain_id: Option<String>) -> IpcResult<String> {
+pub(crate) fn resolve_domain(state: &AppState, domain_id: Option<String>) -> IpcResult<String> {
     if let Some(id) = domain_id {
         return Ok(id);
     }
@@ -116,6 +125,12 @@ pub fn list_domains_cmd() -> IpcResult<Vec<DomainDto>> {
 #[tauri::command]
 pub fn list_all_domains() -> IpcResult<Vec<CatalogEntry>> {
     orch_list_catalog_domains().map_err(map_orch_err)
+}
+
+/// Enriched catalog with per-domain run health ([[execution-domains]] Phase 3).
+#[tauri::command]
+pub fn list_domains_status() -> IpcResult<Vec<CatalogEntryStatus>> {
+    orch_list_domains_status().map_err(map_orch_err)
 }
 
 /// Project manifests from `~/.pytxo/projects` for the Deck project picker.
@@ -150,7 +165,7 @@ pub fn list_runs(
         .list_runs(limit)
         .map_err(map_store_err)?
         .into_iter()
-        .map(run_to_dto)
+        .map(|r| run_to_dto(r, &cfg))
         .collect())
 }
 
@@ -176,6 +191,7 @@ pub struct AgentArbitrageDto {
     pub agent_id: String,
     pub saved_tokens: i64,
     pub edited_paths: i64,
+    pub fallback_paths: i64,
 }
 
 /// Per-agent Signal Core arbitrage stats for the topology graph.
@@ -192,10 +208,11 @@ pub fn agent_arbitrage(
         .arbitrage_by_agent(&run_id)
         .map_err(map_store_err)?
         .into_iter()
-        .map(|(agent_id, saved_tokens, edited_paths)| AgentArbitrageDto {
+        .map(|(agent_id, saved_tokens, edited_paths, fallback_paths)| AgentArbitrageDto {
             agent_id,
             saved_tokens,
             edited_paths,
+            fallback_paths,
         })
         .collect())
 }
@@ -309,6 +326,7 @@ pub struct HitlDto {
     pub action: String,
     pub reason: String,
     pub created_at_ms: String,
+    pub domain_id: String,
 }
 
 #[tauri::command]
@@ -317,6 +335,7 @@ pub fn list_hitl(
     domain_id: Option<String>,
 ) -> IpcResult<Vec<HitlDto>> {
     let domain = resolve_domain(&state, domain_id)?;
+    let domain_id = domain.clone();
     let pending = orch_list_hitl_pending(Some(PathBuf::from(domain))).map_err(map_orch_err)?;
     Ok(pending
         .into_iter()
@@ -326,6 +345,23 @@ pub fn list_hitl(
             action: r.action,
             reason: r.reason,
             created_at_ms: r.created_at_ms.to_string(),
+            domain_id: domain_id.clone(),
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub fn list_hitl_all() -> IpcResult<Vec<HitlDto>> {
+    Ok(orch_list_hitl_pending_all()
+        .map_err(map_orch_err)?
+        .into_iter()
+        .map(|row| HitlDto {
+            id: row.request.id,
+            agent_key: row.request.agent_key,
+            action: row.request.action,
+            reason: row.request.reason,
+            created_at_ms: row.request.created_at_ms.to_string(),
+            domain_id: row.domain_id,
         })
         .collect())
 }
@@ -374,6 +410,189 @@ pub fn git_diff(
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
+#[derive(Serialize)]
+pub struct ProjectRootDto {
+    pub label: String,
+    pub path: String,
+    pub read_only: bool,
+    pub primary: bool,
+    pub permission_profile: Option<String>,
+}
+
+#[tauri::command]
+pub fn project_roots_cmd(project_id: String) -> IpcResult<Vec<ProjectRootDto>> {
+    Ok(orch_project_roots(None, Some(project_id))
+        .map_err(map_orch_err)?
+        .into_iter()
+        .map(
+            |(label, path, read_only, primary, permission_profile)| ProjectRootDto {
+                label,
+                path,
+                read_only,
+                primary,
+                permission_profile,
+            },
+        )
+        .collect())
+}
+
+#[derive(Serialize)]
+pub struct FleetRunDto {
+    pub id: String,
+    pub fleet_id: String,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub status: String,
+}
+
+#[tauri::command]
+pub fn list_fleet_runs(limit: usize) -> IpcResult<Vec<FleetRunDto>> {
+    Ok(fleet_status(None, limit)
+        .map_err(map_orch_err)?
+        .into_iter()
+        .map(|r| FleetRunDto {
+            id: r.id,
+            fleet_id: r.fleet_id,
+            started_at: r.started_at,
+            finished_at: r.finished_at,
+            status: r.status,
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub fn project_add_root_cmd(
+    project_id: String,
+    path: String,
+    read_only: bool,
+) -> IpcResult<Vec<ProjectRootDto>> {
+    orch_project_add_root(None, Some(project_id.clone()), PathBuf::from(path), read_only)
+        .map_err(map_orch_err)?;
+    Ok(orch_project_roots(None, Some(project_id))
+        .map_err(map_orch_err)?
+        .into_iter()
+        .map(
+            |(label, path, read_only, primary, permission_profile)| ProjectRootDto {
+                label,
+                path,
+                read_only,
+                primary,
+                permission_profile,
+            },
+        )
+        .collect())
+}
+
+#[tauri::command]
+pub fn project_remove_root_cmd(project_id: String, label: String) -> IpcResult<Vec<ProjectRootDto>> {
+    orch_project_remove_root(None, Some(project_id.clone()), &label).map_err(map_orch_err)?;
+    Ok(orch_project_roots(None, Some(project_id))
+        .map_err(map_orch_err)?
+        .into_iter()
+        .map(
+            |(label, path, read_only, primary, permission_profile)| ProjectRootDto {
+                label,
+                path,
+                read_only,
+                primary,
+                permission_profile,
+            },
+        )
+        .collect())
+}
+
+#[derive(Serialize)]
+pub struct FleetNodeDto {
+    pub node_id: String,
+    pub domain_id: String,
+    pub domain_run_id: Option<String>,
+    pub wave: i32,
+    pub status: String,
+}
+
+#[derive(Serialize)]
+pub struct FleetRunStatusDto {
+    pub id: String,
+    pub fleet_id: String,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub status: String,
+    pub nodes: Vec<FleetNodeDto>,
+}
+
+#[tauri::command]
+pub fn fleet_run_status_cmd(fleet_run_id: String) -> IpcResult<FleetRunStatusDto> {
+    let status = fleet_run_status(&fleet_run_id).map_err(map_orch_err)?;
+    Ok(FleetRunStatusDto {
+        id: status.run.id,
+        fleet_id: status.run.fleet_id,
+        started_at: status.run.started_at,
+        finished_at: status.run.finished_at,
+        status: status.run.status,
+        nodes: status
+            .nodes
+            .into_iter()
+            .map(|n| FleetNodeDto {
+                node_id: n.node_id,
+                domain_id: n.domain_id,
+                domain_run_id: n.domain_run_id,
+                wave: n.wave,
+                status: n.status,
+            })
+            .collect(),
+    })
+}
+
+#[derive(Serialize)]
+pub struct StructuralGraphDto {
+    pub nodes: Vec<StructuralNodeDto>,
+    pub edges: Vec<StructuralEdgeDto>,
+}
+
+#[derive(Serialize)]
+pub struct StructuralNodeDto {
+    pub id: String,
+    pub label: String,
+    pub edited: bool,
+    pub root_id: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct StructuralEdgeDto {
+    pub from: String,
+    pub to: String,
+}
+
+#[tauri::command]
+pub fn structural_graph(
+    state: State<'_, AppState>,
+    run_id: String,
+    domain_id: Option<String>,
+) -> IpcResult<StructuralGraphDto> {
+    let domain = resolve_domain(&state, domain_id)?;
+    let graph = orch_structural_graph(Some(PathBuf::from(domain)), &run_id).map_err(map_orch_err)?;
+    Ok(StructuralGraphDto {
+        nodes: graph
+            .nodes
+            .into_iter()
+            .map(|n| StructuralNodeDto {
+                id: n.id,
+                label: n.label,
+                edited: n.edited,
+                root_id: n.root_id,
+            })
+            .collect(),
+        edges: graph
+            .edges
+            .into_iter()
+            .map(|e| StructuralEdgeDto {
+                from: e.from,
+                to: e.to,
+            })
+            .collect(),
+    })
+}
+
 fn domain_to_dto(d: DomainSummary) -> DomainDto {
     DomainDto {
         domain_id: d.domain_id,
@@ -381,13 +600,19 @@ fn domain_to_dto(d: DomainSummary) -> DomainDto {
     }
 }
 
-fn run_to_dto(r: RunRecord) -> RunDto {
+fn run_to_dto(r: RunRecord, cfg: &PytxoConfig) -> RunDto {
     RunDto {
         id: r.id,
         status: r.status,
         repo_root: r.repo_root,
         started_at: r.started_at.to_rfc3339(),
         estimated_cost_usd: r.estimated_cost_usd,
+        permission_profile: r.permission_profile,
+        isolation_mode: cfg.isolation.as_str().to_string(),
+        isolation_backend: isolation_backend_label(
+            cfg.isolation,
+            &cfg.blast.sparse_exclude,
+        ),
     }
 }
 

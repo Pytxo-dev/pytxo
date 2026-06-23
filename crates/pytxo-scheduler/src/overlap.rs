@@ -74,6 +74,27 @@ pub fn find_conflicts(tasks: &[Task]) -> Vec<ConflictPair> {
     conflicts
 }
 
+pub fn find_cross_root_conflicts(tasks: &[Task]) -> Vec<ConflictPair> {
+    let mut conflicts = Vec::new();
+    for i in 0..tasks.len() {
+        for j in (i + 1)..tasks.len() {
+            let root_a = tasks[i].root.as_deref().unwrap_or("");
+            let root_b = tasks[j].root.as_deref().unwrap_or("");
+            if root_a == root_b || root_a.is_empty() || root_b.is_empty() {
+                continue;
+            }
+            if tasks_overlap(&tasks[i], &tasks[j]) {
+                conflicts.push(ConflictPair {
+                    task_a: tasks[i].id.clone(),
+                    task_b: tasks[j].id.clone(),
+                    paths: shared_paths(&tasks[i], &tasks[j]),
+                });
+            }
+        }
+    }
+    conflicts
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

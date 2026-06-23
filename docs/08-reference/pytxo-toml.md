@@ -64,7 +64,7 @@ Ultra-tier managed metering ([[ADR-0009-ultra-managed-metering]], [[pytxo-link-s
 |-----|------|---------|-------------|
 | `mode` | string | `byok` | `byok` \| `ultra` |
 | `proxy_url` | string | `https://link.pytxo.com/v1` | Pytxo Link base URL |
-| `link_reconcile` | bool | `false` | POST run start/end envelopes to Link (HTTP when `link-http` enabled on CLI) |
+| `link_reconcile` | bool | `true` when `mode = ultra`, else `false` | POST run start/end envelopes to Link (HTTP when `link-http` enabled on CLI) |
 | `reserve_microcredits` | i64 | `500000` | Wallet reserve per run |
 | `initial_balance_microcredits` | i64 | `10000000` | Seed balance for local Ultra dev |
 

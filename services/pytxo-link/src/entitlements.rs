@@ -206,6 +206,8 @@ pub struct EntitlementStatusResponse {
     pub tier: String,
     pub max_agents: usize,
     pub cloud_enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub org_id: Option<String>,
 }
 
 impl From<EntitlementRecord> for EntitlementStatusResponse {
@@ -214,6 +216,7 @@ impl From<EntitlementRecord> for EntitlementStatusResponse {
             tier: r.tier.as_str().to_string(),
             max_agents: r.max_agents,
             cloud_enabled: r.cloud_enabled,
+            org_id: r.org_id,
         }
     }
 }
@@ -283,5 +286,21 @@ mod tests {
         let ent = store.get("user-1").await;
         assert_eq!(ent.tier, Tier::Core);
         assert_eq!(ent.max_agents, 3);
+    }
+
+    #[test]
+    fn status_response_serializes_for_cli() {
+        let record = EntitlementRecord {
+            user_id: "u1".into(),
+            clerk_user_id: None,
+            org_id: None,
+            tier: Tier::Pro,
+            max_agents: 64,
+            cloud_enabled: false,
+        };
+        let resp = EntitlementStatusResponse::from(record);
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains("\"tier\":\"pro\""));
+        assert!(json.contains("\"max_agents\":64"));
     }
 }

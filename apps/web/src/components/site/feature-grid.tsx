@@ -29,8 +29,8 @@ const MOATS = [
     title: "Blast Shield",
     badge: "Isolation",
     description:
-      "Worktree and overlay isolation so parallel agents do not stomp the same files without explicit merge paths.",
-    preview: "Each agent runs in its own git worktree. Overlapping paths trigger separate scheduling waves automatically.",
+      "Isolated copies and overlay layers so parallel agents do not stomp the same files without explicit merge paths.",
+    preview: "Each agent runs in its own copy. Overlapping paths trigger separate scheduling waves automatically.",
     href: "/docs/concepts/blast-shield",
   },
   {
@@ -51,6 +51,30 @@ const MOATS = [
   },
 ] as const;
 
+const SHIPPED = [
+  {
+    title: "Modular projects",
+    badge: "Multi-root",
+    description:
+      "One swarm across API, web, and proto folders — each root gets its own permission tier.",
+    href: "/docs/concepts/modular-projects",
+  },
+  {
+    title: "Fleet runs",
+    badge: "Cross-repo",
+    description:
+      "DAG coordination across separate git roots with barrier sync and Deck fleet panel.",
+    href: "/docs/concepts/fleet-runs",
+  },
+  {
+    title: "Galaxy approvals",
+    badge: "HITL",
+    description:
+      "Human-in-the-loop gates for risky spawns and flush actions — CLI, Deck, or MCP.",
+    href: "/docs/concepts/galaxy-approvals",
+  },
+] as const;
+
 export function FeatureGrid() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-24">
@@ -59,8 +83,8 @@ export function FeatureGrid() {
           Three moats, <span className="chroma-text">one plane</span>
         </h2>
         <p className="mx-auto max-w-2xl text-muted-foreground">
-          Future orchestration routes through these layers — not around them. Optional
-          Reality Deck surfaces structure; the hypervisor stays headless.
+          Signal, Blast, and Race shields coordinate every run. Reality Deck surfaces
+          structural topology, approvals, and fleet status — the hypervisor stays headless.
         </p>
       </div>
       <div className="mt-12 grid gap-5 sm:grid-cols-2">
@@ -93,6 +117,42 @@ export function FeatureGrid() {
               <p className="text-sm leading-relaxed text-muted-foreground">{moat.preview}</p>
             </HoverCardContent>
           </HoverCard>
+        ))}
+      </div>
+
+      <div className="mt-16 flex flex-col gap-4 text-center">
+        <h3 className="text-2xl font-semibold tracking-tight">Shipped in v0.3.3</h3>
+        <p className="mx-auto max-w-2xl text-muted-foreground">
+          Multi-folder projects, cross-repo fleet runs, and Galaxy approval gates — documented
+          and ready to use.
+        </p>
+      </div>
+      <div className="mt-8 grid gap-5 sm:grid-cols-3">
+        {SHIPPED.map((item) => (
+          <Card
+            key={item.title}
+            className="glass-panel chroma-edge-top border-white/8 transition duration-300 hover:chroma-glow"
+          >
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base">{item.title}</CardTitle>
+                <Badge variant="secondary" className="bg-white/5">
+                  {item.badge}
+                </Badge>
+              </div>
+              <CardDescription className="text-left leading-relaxed">
+                {item.description}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link
+                href={item.href}
+                className="text-sm font-medium text-primary transition-colors hover:text-foreground"
+              >
+                Learn more →
+              </Link>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </section>

@@ -4,33 +4,38 @@ title: CLI reference
 
 # CLI reference
 
-Binary: `pytxo` (v0.3.0)
+Binary: `pytxo` (v0.3.3)
 
 ## Default behavior
 
 ```bash
-pytxo          # interactive TUI dashboard
+pytxo          # interactive Hypervisor Shell
 pytxo --help   # subcommand list
 ```
 
-Set `PYTXO_NO_TUI=1` to print help instead of launching the TUI.
+Set `PYTXO_NO_TUI=1` to print help instead of launching the shell.
 
 ## Commands
+
+<div className="table-scroll">
 
 | Command | Description |
 |---------|-------------|
 | `pytxo init` | Create `.pytxo/` dirs and gitignore hint |
-| `pytxo doctor` | Verify git, HEAD, worktrees, writable `.pytxo/`, PTY smoke |
-| `pytxo run` | Schedule and execute agents in worktrees |
+| `pytxo doctor` | Verify git, PTY, approvals persistence, billing/cloud when enabled |
+| `pytxo run` | Schedule and execute agents in isolated copies |
 | `pytxo status` | List runs and agents from SQLite |
 | `pytxo logs --agent <id>` | Tail stored stdout/stderr events |
 | `pytxo stop` | Stop active run or all tracked processes |
 | `pytxo domains` | List registered execution domains |
 | `pytxo project` | Multi-root modular project manifest |
+| `pytxo fleet` | Cross-repo fleet DAG |
 | `pytxo hitl` | Human-in-the-loop approval queue |
 | `pytxo trust [tier]` | Trust repo folder (`orbit`, `galaxy`, …) |
 | `pytxo providers` | Provider registry + key configured (boolean) |
 | `pytxo models` | List, search, or refresh model catalog |
+
+</div>
 
 ## Shared flags
 
@@ -45,9 +50,9 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the TUI.
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--agents` | `3` | Max parallel agents per wave |
-| `--cmd` | `echo pytxo` | Shell command in each worktree |
+| `--cmd` | `echo pytxo` | Shell command in each isolated copy |
 | `--dry-run` | off | Print JSON execution plan |
-| `--keep-worktrees` | off | Do not remove worktrees after run |
+| `--keep-worktrees` | off | Do not remove isolated copies after run |
 | `--execution` | from config | Override `pty`, `subprocess`, or `cloud` |
 
 ## `pytxo project` subcommands
@@ -59,6 +64,17 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the TUI.
 | `paths --add <path>` | Add a path root |
 | `status` | Recent runs for the project primary domain |
 | `run` | Coordinated run across project roots |
+
+## `pytxo fleet` subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `init <id>` | Create fleet manifest under `~/.pytxo/fleets/` |
+| `dry-run` | Print fleet execution plan JSON |
+| `run` | Run fleet DAG with barrier sync |
+| `status` | List fleet runs from hypervisor catalog |
+
+`pytxo fleet run --continue-on-error` continues later waves after a node failure.
 
 ## `pytxo hitl` subcommands
 
@@ -72,4 +88,4 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the TUI.
 
 Format: `{run_uuid}:agent-N` — use with `pytxo logs --agent`.
 
-See also: [`pytxo.toml`](/docs/reference/pytxo-toml)
+See also: [`pytxo.toml`](/docs/reference/pytxo-toml) · [Fleet runs](/docs/concepts/fleet-runs) · [Galaxy approvals](/docs/concepts/galaxy-approvals)

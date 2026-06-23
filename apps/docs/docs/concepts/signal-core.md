@@ -4,17 +4,15 @@ title: Signal Core
 
 # Signal Core
 
-**Signal Core** is Pytxo's context arbitrage layer. The goal: send agents **structural skeletons** of code (signatures, types, imports) instead of full file dumps — targeting up to ~60% lower input tokens on large repos.
+**Signal Core** is Pytxo's context compression layer. It sends agents **structural skeletons** of code — signatures, types, imports — instead of full file dumps, often cutting input tokens sharply on large repos.
 
-## Today
+## At a glance
 
-- `signal_core = true` in `pytxo.toml` materializes scaffolded context for task paths
-- `signal_fidelity` (`low` | `medium` | `high`) controls how much structure is included per task or globally
-
-## Roadmap
-
-- `tree-sitter` AST extraction on file read
-- Checkpoint compression protocol for long sessions
+- **tree-sitter** parsing extracts structure on the read path
+- `signal_core = true` in `pytxo.toml` enables scaffolding for task paths
+- `signal_fidelity` (`low` | `medium` | `high`) controls how much structure per task
+- Savings are recorded per run and shown in Reality Deck topology stats
+- **Structural graph** — import edges between edited files appear in the Deck topology panel during runs
 
 ## Configuration
 
@@ -25,4 +23,8 @@ signal_fidelity = "low"   # default; per-task override in [[task]]
 
 Signal fidelity is a **context tier**, separate from [permission tiers](/docs/reference/permission-tiers).
 
-Back: [Three moats](/docs/concepts/three-moats)
+## MCP reads
+
+Tools `pytxo_read` and `pytxo_read_scaffolded` return skeletons instead of raw files when Signal Core is enabled — useful from Cursor without a full checkout dump.
+
+Back: [Three moats](/docs/concepts/three-moats) · [Reality Deck](/docs/concepts/reality-deck)

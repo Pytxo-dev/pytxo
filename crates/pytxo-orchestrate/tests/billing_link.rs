@@ -20,12 +20,12 @@ mod link_http {
         let hits2 = Arc::clone(&hits);
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
-        let base = format!("http://127.0.0.1:{port}/v1");
+        let base = format!("http://127.0.0.1:{port}");
 
         let server = thread::spawn(move || {
             listener.set_nonblocking(true).ok();
             let deadline = Instant::now() + Duration::from_secs(3);
-            while Instant::now() < deadline {
+            while Instant::now() < deadline && hits2.load(Ordering::SeqCst) == 0 {
                 if let Ok((mut stream, _)) = listener.accept() {
                     let mut buf = vec![0u8; 8192];
                     let n = stream.read(&mut buf).unwrap_or(0);
@@ -34,12 +34,17 @@ mod link_http {
                         if req.contains("runs/start") {
                             hits2.fetch_add(1, Ordering::SeqCst);
                         }
+                        let resp = if req.contains("/health") {
+                            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"
+                        } else {
+                            "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+                        };
+                        let _ = stream.write_all(resp.as_bytes());
+                        let _ = stream.flush();
                     }
-                    let resp = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
-                    let _ = stream.write_all(resp.as_bytes());
-                    break;
+                } else {
+                    thread::sleep(Duration::from_millis(10));
                 }
-                thread::sleep(Duration::from_millis(10));
             }
         });
 
@@ -49,7 +54,7 @@ mod link_http {
 
         let mut cfg = PytxoConfig::default();
         cfg.billing.mode = BillingMode::Ultra;
-        cfg.billing.link_reconcile = true;
+        cfg.billing.link_reconcile = Some(true);
         cfg.billing.proxy_url = base;
 
         let domain = DomainId("/test/repo".into());

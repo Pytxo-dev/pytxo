@@ -2,9 +2,11 @@
   let {
     termEl = $bindable(undefined as HTMLDivElement | undefined),
     signalRetries = [],
+    lightTheme = false,
   }: {
     termEl?: HTMLDivElement | undefined;
     signalRetries?: string[];
+    lightTheme?: boolean;
   } = $props();
 </script>
 
@@ -20,7 +22,7 @@
       </ul>
     </div>
   {/if}
-  <div class="term chroma-border" bind:this={termEl}></div>
+  <div class="term chroma-border" class:term--light={lightTheme} bind:this={termEl}></div>
 </section>
 
 <style>
@@ -53,5 +55,8 @@
     background: #010409;
     border-radius: 8px;
     padding: 4px;
+  }
+  .term.term--light {
+    background: #eef1f4;
   }
 </style>

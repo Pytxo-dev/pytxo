@@ -21,6 +21,27 @@ CREATE TABLE IF NOT EXISTS domains (
     status TEXT NOT NULL DEFAULT 'active',
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS fleet_runs (
+    id TEXT PRIMARY KEY,
+    fleet_id TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    status TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS fleet_nodes (
+    fleet_run_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    domain_id TEXT NOT NULL,
+    domain_run_id TEXT,
+    wave INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    PRIMARY KEY (fleet_run_id, node_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fleet_runs_fleet_id ON fleet_runs(fleet_id);
+CREATE INDEX IF NOT EXISTS idx_fleet_nodes_run ON fleet_nodes(fleet_run_id);
 "#;
 
 #[derive(Clone, Debug, Serialize)]
@@ -31,6 +52,25 @@ pub struct CatalogEntry {
     pub project_id: Option<String>,
     pub status: String,
     pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct FleetRunRecord {
+    pub id: String,
+    pub fleet_id: String,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct FleetNodeRecord {
+    pub fleet_run_id: String,
+    pub node_id: String,
+    pub domain_id: String,
+    pub domain_run_id: Option<String>,
+    pub wave: i32,
+    pub status: String,
 }
 
 pub struct Catalog {
@@ -105,6 +145,124 @@ impl Catalog {
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(|e| PytxoError::Store(e.to_string()))
     }
+
+    /// Record a new fleet run (hypervisor-level cross-repo DAG).
+    pub fn insert_fleet_run(&self, id: &str, fleet_id: &str, started_at: &str) -> Result<()> {
+        self.conn
+            .execute(
+                "INSERT INTO fleet_runs (id, fleet_id, started_at, status) VALUES (?1, ?2, ?3, 'running')",
+                params![id, fleet_id, started_at],
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn finish_fleet_run(&self, id: &str, status: &str, finished_at: &str) -> Result<()> {
+        self.conn
+            .execute(
+                "UPDATE fleet_runs SET finished_at = ?1, status = ?2 WHERE id = ?3",
+                params![finished_at, status, id],
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn insert_fleet_node(
+        &self,
+        fleet_run_id: &str,
+        node_id: &str,
+        domain_id: &str,
+        domain_run_id: Option<&str>,
+        wave: i32,
+        status: &str,
+    ) -> Result<()> {
+        self.conn
+            .execute(
+                "INSERT INTO fleet_nodes (fleet_run_id, node_id, domain_id, domain_run_id, wave, status)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                 ON CONFLICT(fleet_run_id, node_id) DO UPDATE SET
+                     domain_id = excluded.domain_id,
+                     domain_run_id = excluded.domain_run_id,
+                     wave = excluded.wave,
+                     status = excluded.status",
+                params![fleet_run_id, node_id, domain_id, domain_run_id, wave, status],
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn update_fleet_node_status(
+        &self,
+        fleet_run_id: &str,
+        node_id: &str,
+        status: &str,
+        domain_run_id: Option<&str>,
+    ) -> Result<()> {
+        self.conn
+            .execute(
+                "UPDATE fleet_nodes SET status = ?1, domain_run_id = COALESCE(?2, domain_run_id)
+                 WHERE fleet_run_id = ?3 AND node_id = ?4",
+                params![status, domain_run_id, fleet_run_id, node_id],
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn list_fleet_runs(&self, fleet_id: Option<&str>, limit: usize) -> Result<Vec<FleetRunRecord>> {
+        let sql = if fleet_id.is_some() {
+            "SELECT id, fleet_id, started_at, finished_at, status FROM fleet_runs
+             WHERE fleet_id = ?1 ORDER BY started_at DESC LIMIT ?2"
+        } else {
+            "SELECT id, fleet_id, started_at, finished_at, status FROM fleet_runs
+             ORDER BY started_at DESC LIMIT ?1"
+        };
+        let mut stmt = self
+            .conn
+            .prepare(sql)
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let rows = if let Some(fid) = fleet_id {
+            stmt.query_map(params![fid, limit as i64], map_fleet_run)
+        } else {
+            stmt.query_map(params![limit as i64], map_fleet_run)
+        }
+        .map_err(|e| PytxoError::Store(e.to_string()))?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    pub fn list_fleet_nodes(&self, fleet_run_id: &str) -> Result<Vec<FleetNodeRecord>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT fleet_run_id, node_id, domain_id, domain_run_id, wave, status
+                 FROM fleet_nodes WHERE fleet_run_id = ?1 ORDER BY wave, node_id",
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let rows = stmt
+            .query_map(params![fleet_run_id], |row| {
+                Ok(FleetNodeRecord {
+                    fleet_run_id: row.get(0)?,
+                    node_id: row.get(1)?,
+                    domain_id: row.get(2)?,
+                    domain_run_id: row.get(3)?,
+                    wave: row.get(4)?,
+                    status: row.get(5)?,
+                })
+            })
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+}
+
+fn map_fleet_run(row: &rusqlite::Row<'_>) -> rusqlite::Result<FleetRunRecord> {
+    Ok(FleetRunRecord {
+        id: row.get(0)?,
+        fleet_id: row.get(1)?,
+        started_at: row.get(2)?,
+        finished_at: row.get(3)?,
+        status: row.get(4)?,
+    })
 }
 
 /// Default catalog path: `~/.pytxo/hypervisor.db`.
@@ -139,5 +297,28 @@ mod tests {
         assert_eq!(list.len(), 2);
         let a = list.iter().find(|e| e.domain_id == "/repo/a").unwrap();
         assert_eq!(a.project_id.as_deref(), Some("proj-1"));
+    }
+
+    #[test]
+    fn fleet_run_lifecycle() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hypervisor.db");
+        let cat = Catalog::open(&path).unwrap();
+        cat.insert_fleet_run("fr-1", "api-then-web", "2026-01-01T00:00:00Z")
+            .unwrap();
+        cat.insert_fleet_node("fr-1", "fix-api", "/repo/a", Some("run-a"), 0, "completed")
+            .unwrap();
+        cat.insert_fleet_node("fr-1", "deploy-web", "/repo/b", Some("run-b"), 1, "running")
+            .unwrap();
+        cat.update_fleet_node_status("fr-1", "deploy-web", "completed", Some("run-b"))
+            .unwrap();
+        cat.finish_fleet_run("fr-1", "completed", "2026-01-01T00:05:00Z")
+            .unwrap();
+        let runs = cat.list_fleet_runs(Some("api-then-web"), 10).unwrap();
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].status, "completed");
+        let nodes = cat.list_fleet_nodes("fr-1").unwrap();
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[1].status, "completed");
     }
 }

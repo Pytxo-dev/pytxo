@@ -5,7 +5,9 @@ mod ipc_meta;
 
 use ipc::{
     agent_arbitrage, commit_workspace, dispatch_run_cmd, dry_run, git_diff, hitl_respond,
-    list_agents, list_all_domains, list_domains_cmd, list_hitl, list_projects, list_runs,
+    list_agents, list_all_domains, list_domains_cmd, list_domains_status, list_fleet_runs,
+    fleet_run_status_cmd, list_hitl, list_hitl_all, list_projects, list_runs, project_add_root_cmd,
+    project_remove_root_cmd, project_roots_cmd, structural_graph,
     poll_log_lines, select_domain, stop_run, tail_events, AppState,
 };
 use ipc_auth::{auth_clear_session, auth_open_sign_in, auth_status, auth_store_session};
@@ -20,6 +22,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init())
         .manage(AppState {
             config_path: Mutex::new(None),
             poll_cursors: Mutex::new(std::collections::HashMap::new()),
@@ -38,9 +41,17 @@ pub fn run() {
             git_diff,
             commit_workspace,
             list_hitl,
+            list_hitl_all,
             hitl_respond,
             list_all_domains,
+            list_domains_status,
             list_projects,
+            project_roots_cmd,
+            project_add_root_cmd,
+            project_remove_root_cmd,
+            list_fleet_runs,
+            fleet_run_status_cmd,
+            structural_graph,
             agent_arbitrage,
             ipc_version,
             check_pytxo_cli,
@@ -51,6 +62,22 @@ pub fn run() {
             auth_open_sign_in,
         ])
         .setup(|app| {
+            #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                app.deep_link().on_open_url(move |event| {
+                    for url in event.urls() {
+                        if let Err(e) = ipc_auth::handle_deck_deep_link(&url.to_string()) {
+                            eprintln!("deck deep link: {e:?}");
+                        }
+                    }
+                });
+                if let Ok(Some(urls)) = app.deep_link().get_current() {
+                    for url in urls {
+                        let _ = ipc_auth::handle_deck_deep_link(&url.to_string());
+                    }
+                }
+            }
             ipc_auth::hydrate_session_env();
             if let Ok(dir) = std::env::current_dir() {
                 let cfg = dir.join("pytxo.toml");

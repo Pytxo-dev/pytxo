@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pytxo_core::{
-    canonical_repo_root, DomainId, ExecutionPlan, FidelityTier, PytxoConfig, PytxoError, RunId,
-    SignalCore, Task, TaskId, TokenWallet, UsageMeter,
+    canonical_repo_root, DomainId, ExecutionPlan, FidelityTier, PermissionEngine, PytxoConfig,
+    PytxoError, RunId, SignalCore, Task, TaskId, TokenWallet, UsageMeter,
 };
 use pytxo_runner::{execute_plan, stop_all, stop_run, ProcessRegistry, RunContext};
 use pytxo_scheduler::build_plan;
@@ -18,9 +18,11 @@ pub mod entitlements;
 mod cost;
 mod dashboard;
 mod doctor;
+mod fleet;
 mod hypervisor;
 mod preflight;
 mod project;
+mod structural;
 
 pub use dashboard::{dashboard_snapshot, dashboard_snapshot_light, DashboardSnapshot};
 
@@ -29,14 +31,22 @@ pub use cloud::{cloud_clients, cloud_health_url, ping_cloud, CloudClients};
 pub use cost::{parse_cost_from_lines, CostEstimate};
 pub use doctor::{run_doctor, DoctorCheck, DoctorReport};
 pub use entitlements::{effective_entitlements, EntitlementStatus};
+pub use fleet::{
+    fleet_dry_run_json, fleet_init, fleet_plan_from_manifest, fleet_run, fleet_run_status,
+    fleet_status, fleet_status_nodes, wait_for_domain_run, FleetRunOptions, FleetRunResult,
+    FleetRunStatus,
+};
 pub use hypervisor::{
-    default_hypervisor, list_catalog_domains, DomainState, DomainSummary, HypervisorRegistry,
+    default_hypervisor, list_catalog_domains, list_catalog_domains_enriched, CatalogEntryStatus,
+    DomainState, DomainSummary, HypervisorRegistry,
 };
 pub use preflight::assert_git_ready;
 pub use project::{
-    list_project_manifests, project_add_root, project_init, project_load, project_roots,
-    project_run, project_status, ProjectRunOptions, ProjectRunResult, ProjectStatusRow,
+    list_project_manifests, project_add_root, project_init, project_load, project_remove_root,
+    project_roots, project_run, project_status, ProjectRunOptions, ProjectRunResult,
+    ProjectStatusRow,
 };
+pub use structural::structural_graph;
 pub use pytxo_core::ExecutionBackend;
 pub use pytxo_store::CatalogEntry;
 
@@ -91,6 +101,10 @@ pub struct RunStatusJson {
     pub estimated_tokens_in: Option<i64>,
     pub estimated_tokens_out: Option<i64>,
     pub estimated_cost_usd: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_profile: Option<String>,
+    pub isolation_mode: String,
+    pub isolation_backend: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arbitrage_saved_tokens: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -300,6 +314,16 @@ pub fn mcp_proxy_call(
     let cfg = load_config(None, &repo_root)?;
     let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
     ensure_agent_live(&domain.swarm, agent_key)?;
+    if cfg.permission_profile == pytxo_core::PermissionProfile::Galaxy {
+        pytxo_runner::gate_mcp_proxy(
+            Some(&domain.hitl),
+            cfg.permission_profile,
+            agent_key,
+            method,
+            &params,
+        )
+        .map_err(|e| anyhow::anyhow!(e))?;
+    }
     let result = domain.mcp_hub.proxy_call(agent_key, method, params)?;
     audit_mcp_tool(
         &repo_root,
@@ -322,12 +346,90 @@ pub fn mcp_tools_list(repo: Option<PathBuf>) -> anyhow::Result<Vec<serde_json::V
         .map_err(|e| anyhow::anyhow!(e))
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct McpAuditRow {
+    pub id: i64,
+    pub agent_id: String,
+    pub ts: String,
+    pub tool: String,
+    pub payload: String,
+}
+
+/// Export MCP tool audit events for a run from the domain WAL.
+pub fn export_mcp_audit(repo: Option<PathBuf>, run_id: &str) -> anyhow::Result<Vec<McpAuditRow>> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(None, &repo_root)?;
+    let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
+    let events = store.list_mcp_audit_for_run(run_id)?;
+    Ok(events
+        .into_iter()
+        .map(|e| {
+            let tool = serde_json::from_str::<serde_json::Value>(&e.payload)
+                .ok()
+                .and_then(|v| v.get("tool").and_then(|t| t.as_str()).map(str::to_string))
+                .unwrap_or_else(|| "unknown".into());
+            McpAuditRow {
+                id: e.id,
+                agent_id: e.agent_id,
+                ts: e.ts.to_rfc3339(),
+                tool,
+                payload: e.payload,
+            }
+        })
+        .collect())
+}
+
 /// Galaxy HITL: list pending approval requests for a domain ([[race-shield]]).
 pub fn list_hitl_pending(repo: Option<PathBuf>) -> anyhow::Result<Vec<pytxo_runner::HitlRequest>> {
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(None, &repo_root)?;
     let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
     Ok(domain.hitl.pending())
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct HitlPendingRow {
+    pub domain_id: String,
+    pub request: pytxo_runner::HitlRequest,
+}
+
+/// Pending HITL across all catalog domains (loads persisted queues from disk).
+pub fn list_hitl_pending_all() -> anyhow::Result<Vec<HitlPendingRow>> {
+    use pytxo_runner::HitlQueue;
+    use pytxo_store::Catalog;
+
+    let mut out = Vec::new();
+    let mut seen_ids = std::collections::HashSet::new();
+
+    for d in default_hypervisor().list_domains() {
+        if let Some(state) = default_hypervisor().domain_state(&d.domain_id) {
+            for req in state.hitl.pending() {
+                seen_ids.insert(req.id.clone());
+                out.push(HitlPendingRow {
+                    domain_id: d.domain_id.clone(),
+                    request: req,
+                });
+            }
+        }
+    }
+
+    if let Ok(cat) = Catalog::open_default() {
+        for entry in cat.list_domains().unwrap_or_default() {
+            let repo = PathBuf::from(&entry.repo_root);
+            let cfg = load_config(None, &repo).unwrap_or_default();
+            let data_dir = repo.join(&cfg.data_dir);
+            let q = HitlQueue::with_persistence(&data_dir);
+            for req in q.pending() {
+                if seen_ids.insert(req.id.clone()) {
+                    out.push(HitlPendingRow {
+                        domain_id: entry.domain_id.clone(),
+                        request: req,
+                    });
+                }
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Galaxy HITL: approve or deny a pending request. Returns whether it was pending.
@@ -405,6 +507,7 @@ pub fn commit_workspace_for_agent(
         mcp_hub: None,
         mcp_hub_enabled: false,
         mcp_allowlist: Vec::new(),
+        sparse_exclude: cfg.blast.sparse_exclude.clone(),
     };
     pytxo_runner::commit_workspace(&ctx, &handle, cfg.permission_profile)
         .map_err(|e| anyhow::anyhow!(e))
@@ -435,6 +538,8 @@ pub(crate) async fn execute_run_body(
         );
     }
     cfg.tier_max_agents = entitlements.max_agents;
+    let effective_profile = entitlements::effective_permission_profile(&cfg, &entitlements);
+    cfg.permission_profile = effective_profile;
     if entitlements.cloud_enabled {
         cfg.cloud.enabled = true;
         if cfg.execution_backend == pytxo_core::ExecutionBackend::Pty {
@@ -510,7 +615,7 @@ pub(crate) async fn execute_run_body(
         }
     });
 
-    let agent_profiles = cfg.agent_profile_map();
+    let agent_profiles = entitlements::effective_agent_profiles(&cfg, &entitlements);
     let metering = billing::metering_for_ctx(&cfg, &domain.repo_root, &ultra);
     let cloud = cloud::cloud_clients(&cfg);
     let ctx = RunContext {
@@ -568,6 +673,7 @@ pub(crate) async fn execute_run_body(
         mcp_hub: Some(Arc::new(domain.mcp_hub.clone())),
         mcp_hub_enabled: cfg.mcp_hub.enabled,
         mcp_allowlist: cfg.mcp_hub.allowlist.clone(),
+        sparse_exclude: cfg.blast.sparse_exclude.clone(),
     };
 
     save_active_run(&cfg, &run_id, &domain.repo_root).map_err(|e| anyhow::anyhow!(e))?;
@@ -658,7 +764,19 @@ pub fn resolve_run_tasks(
 }
 
 pub fn plan_tasks(tasks: &[Task], cfg: &PytxoConfig) -> anyhow::Result<ExecutionPlan> {
-    build_plan(tasks, cfg.max_agents, cfg.dag_explicit_deps).map_err(|e| anyhow::anyhow!(e))
+    let mut plan = build_plan(tasks, cfg.max_agents, cfg.dag_explicit_deps).map_err(|e| anyhow::anyhow!(e))?;
+    for c in pytxo_scheduler::find_cross_root_conflicts(tasks) {
+        let msg = format!(
+            "cross-root path overlap: {} vs {} ({})",
+            c.task_a.0,
+            c.task_b.0,
+            c.paths.join(", ")
+        );
+        if !plan.warnings.contains(&msg) {
+            plan.warnings.push(msg);
+        }
+    }
+    Ok(plan)
 }
 
 pub fn dry_run_with_tasks(
@@ -685,6 +803,46 @@ pub fn dry_run_json(
     dry_run_with_tasks(config, repo, agents, None)
 }
 
+pub fn run_status_json(
+    run: &pytxo_store::RunRecord,
+    store: &PytxoStore,
+    cfg: &PytxoConfig,
+) -> anyhow::Result<RunStatusJson> {
+    let agents: Vec<AgentStatusJson> = store
+        .list_agents_for_run(&run.id)?
+        .into_iter()
+        .map(|a| AgentStatusJson {
+            id: a.id,
+            task_id: a.task_id,
+            wave: a.wave,
+            status: a.status,
+            exit_code: a.exit_code,
+        })
+        .collect();
+    let arbitrage_saved = store.arbitrage_saved_tokens_for_run(&run.id).ok();
+    let wallet_balance = DomainId::from_repo_root(Path::new(&run.repo_root))
+        .ok()
+        .and_then(|d| store.wallet_balance_microcredits(&d).ok());
+    Ok(RunStatusJson {
+        id: run.id.clone(),
+        status: run.status.clone(),
+        repo_root: run.repo_root.clone(),
+        started_at: run.started_at.to_rfc3339(),
+        estimated_tokens_in: run.estimated_tokens_in,
+        estimated_tokens_out: run.estimated_tokens_out,
+        estimated_cost_usd: run.estimated_cost_usd,
+        permission_profile: run.permission_profile.clone(),
+        isolation_mode: cfg.isolation.as_str().to_string(),
+        isolation_backend: pytxo_runner::isolation_backend_label(
+            cfg.isolation,
+            &cfg.blast.sparse_exclude,
+        ),
+        arbitrage_saved_tokens: arbitrage_saved,
+        wallet_balance_microcredits: wallet_balance,
+        agents,
+    })
+}
+
 pub fn status_json(
     config: Option<PathBuf>,
     repo: Option<PathBuf>,
@@ -696,33 +854,7 @@ pub fn status_json(
     let runs = store.list_runs(limit)?;
     let mut out = Vec::new();
     for run in &runs {
-        let agents: Vec<AgentStatusJson> = store
-            .list_agents_for_run(&run.id)?
-            .into_iter()
-            .map(|a| AgentStatusJson {
-                id: a.id,
-                task_id: a.task_id,
-                wave: a.wave,
-                status: a.status,
-                exit_code: a.exit_code,
-            })
-            .collect();
-        let arbitrage_saved = store.arbitrage_saved_tokens_for_run(&run.id).ok();
-        let wallet_balance = DomainId::from_repo_root(Path::new(&run.repo_root))
-            .ok()
-            .and_then(|d| store.wallet_balance_microcredits(&d).ok());
-        out.push(RunStatusJson {
-            id: run.id.clone(),
-            status: run.status.clone(),
-            repo_root: run.repo_root.clone(),
-            started_at: run.started_at.to_rfc3339(),
-            estimated_tokens_in: run.estimated_tokens_in,
-            estimated_tokens_out: run.estimated_tokens_out,
-            estimated_cost_usd: run.estimated_cost_usd,
-            arbitrage_saved_tokens: arbitrage_saved,
-            wallet_balance_microcredits: wallet_balance,
-            agents,
-        });
+        out.push(run_status_json(run, &store, &cfg)?);
     }
     Ok(StatusJson { runs: out })
 }
@@ -740,33 +872,7 @@ pub fn status(
     if json {
         let mut out = Vec::new();
         for run in &runs {
-            let agents: Vec<AgentStatusJson> = store
-                .list_agents_for_run(&run.id)?
-                .into_iter()
-                .map(|a| AgentStatusJson {
-                    id: a.id,
-                    task_id: a.task_id,
-                    wave: a.wave,
-                    status: a.status,
-                    exit_code: a.exit_code,
-                })
-                .collect();
-            let arbitrage_saved = store.arbitrage_saved_tokens_for_run(&run.id).ok();
-            let wallet_balance = DomainId::from_repo_root(Path::new(&run.repo_root))
-                .ok()
-                .and_then(|d| store.wallet_balance_microcredits(&d).ok());
-            out.push(RunStatusJson {
-                id: run.id.clone(),
-                status: run.status.clone(),
-                repo_root: run.repo_root.clone(),
-                started_at: run.started_at.to_rfc3339(),
-                estimated_tokens_in: run.estimated_tokens_in,
-                estimated_tokens_out: run.estimated_tokens_out,
-                estimated_cost_usd: run.estimated_cost_usd,
-                arbitrage_saved_tokens: arbitrage_saved,
-                wallet_balance_microcredits: wallet_balance,
-                agents,
-            });
+            out.push(run_status_json(run, &store, &cfg)?);
         }
         println!(
             "{}",
@@ -878,6 +984,7 @@ pub async fn stop(
             mcp_hub: None,
             mcp_hub_enabled: false,
             mcp_allowlist: Vec::new(),
+            sparse_exclude: cfg.blast.sparse_exclude.clone(),
         };
         let registry = ProcessRegistry::default();
         pytxo_runner::cleanup_worktrees(&ctx, &registry).map_err(|e| anyhow::anyhow!(e))?;
@@ -908,10 +1015,17 @@ pub fn read_file_scaffolded(
     rel_path: &str,
     fidelity: Option<FidelityTier>,
 ) -> anyhow::Result<pytxo_core::ScaffoldResult> {
-    let repo = resolve_repo_root(repo.as_deref())?;
-    let cfg = load_config(config.as_deref(), &repo)?;
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(config.as_deref(), &repo_root)?;
     let tier = fidelity.unwrap_or(cfg.signal_fidelity);
-    let path = repo.join(rel_path);
+    let path = repo_root.join(rel_path);
+    let engine = PermissionEngine::new(cfg.permission_profile);
+    if !engine.may_read(&repo_root, &path, &repo_root) {
+        anyhow::bail!(
+            "read denied for {} profile (path outside agent cwd)",
+            cfg.permission_profile.as_str()
+        );
+    }
     TreeSitterSignalCore
         .read_scaffolded(&path, tier)
         .map_err(|e| anyhow::anyhow!(e))
@@ -927,6 +1041,13 @@ pub fn read_file(
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo_root)?;
     let path = repo_root.join(rel_path);
+    let engine = PermissionEngine::new(cfg.permission_profile);
+    if !engine.may_read(&repo_root, &path, &repo_root) {
+        anyhow::bail!(
+            "read denied for {} profile (path outside agent cwd)",
+            cfg.permission_profile.as_str()
+        );
+    }
 
     let scaffold = cfg.signal_core && !force_raw && cfg.signal_fidelity != FidelityTier::High;
     if scaffold {

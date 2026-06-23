@@ -36,6 +36,13 @@ export default function DownloadPage() {
           Install Pytxo v{PYTXO_VERSION} via npm or the public install script. Running{" "}
           <code className="text-foreground/90">pytxo</code> opens the Hypervisor Shell.
         </p>
+        <ul className="mt-2 list-inside list-disc text-sm text-muted-foreground">
+          <li>Modular multi-root projects with per-folder permission tiers</li>
+          <li>Cross-repo fleet runs with DAG barriers and MCP tools</li>
+          <li>Galaxy human approvals for risky spawns and flush actions</li>
+          <li>Structural topology graph in Reality Deck</li>
+          <li>Blast Shield overlay flush and approve-to-merge workflow</li>
+        </ul>
       </div>
 
       <div className="mt-12 flex flex-col gap-5">
@@ -123,8 +130,9 @@ export default function DownloadPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
-              Passive telemetry for runs, waves, logs, diffs, and AST blast-radius topology.
-              Auto-updates via the built-in Tauri updater when new releases ship.
+              Passive telemetry for runs, structural topology (import graph), Galaxy
+              approvals, project paths, fleet status, logs, and diffs. Auto-updates via the
+              built-in Tauri updater when new releases ship.
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
               <Button variant="outline" className="border-white/15 bg-card/30" asChild>
@@ -161,6 +169,24 @@ export default function DownloadPage() {
             <CardTitle>Next steps</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
+            <Link
+              href="/docs/concepts/modular-projects"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Modular projects →
+            </Link>
+            <Link
+              href="/docs/concepts/fleet-runs"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Fleet runs →
+            </Link>
+            <Link
+              href="/docs/concepts/galaxy-approvals"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Galaxy approvals →
+            </Link>
             <Link
               href="/docs/getting-started/folder-trust"
               className="text-sm font-medium text-primary hover:underline"

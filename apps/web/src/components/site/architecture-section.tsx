@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const STEPS = [
   { label: "IDE / CLI", detail: "Cursor, VS Code, terminal" },
   { label: "MCP hub", detail: "Local tool routing" },
-  { label: "Orchestration", detail: "Rust scheduler + store" },
+  { label: "Hypervisor", detail: "Catalog + domains" },
+  { label: "Orchestration", detail: "Waves + fleet DAG" },
   { label: "Execution yard", detail: "Headless PTY agents" },
-  { label: "Reality Deck", detail: "Passive telemetry (optional)" },
+  { label: "Reality Deck", detail: "Topology & approvals (optional)" },
 ] as const;
 
 export function ArchitectureSection() {

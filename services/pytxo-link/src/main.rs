@@ -3,19 +3,17 @@
 
 
 mod auth;
-
+mod audit;
 mod db;
-
 mod entitlements;
-
+mod inference;
 mod jwt;
-
 mod paddle;
-
+mod runs;
 mod state;
 mod telemetry;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 
 
@@ -32,9 +30,10 @@ use entitlements::{
 };
 use jwt::JwksValidator;
 
+use serde::Serialize;
 use serde_json::Value;
 
-use state::{AppState, RunEndBody, RunRecord, RunStartBody};
+use state::{AppState, RunEndBody, RunStartBody};
 
 use tracing::info;
 
@@ -114,6 +113,7 @@ async fn admin_upsert_entitlement(
 
         .unwrap_or_else(|| matches!(tier, Tier::Max | Tier::Ultra));
 
+    let org_id_audit = body.org_id.clone();
     let record = entitlements::EntitlementRecord {
 
         user_id: user_id.clone(),
@@ -135,6 +135,27 @@ async fn admin_upsert_entitlement(
         Ok(()) => {
 
             info!(user_id = %user_id, tier = %tier.as_str(), "admin entitlement upsert");
+
+            if let Some(pool) = state.db.as_ref() {
+                let actor = headers
+                    .get("x-pytxo-actor")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("admin");
+                let detail = serde_json::json!({
+                    "user_id": user_id,
+                    "tier": tier.as_str(),
+                    "max_agents": max_agents,
+                    "cloud_enabled": cloud_enabled,
+                });
+                let _ = audit::append(
+                    pool,
+                    org_id_audit.as_deref(),
+                    actor,
+                    "entitlement.upsert",
+                    detail,
+                )
+                .await;
+            }
 
             StatusCode::OK
 
@@ -182,136 +203,156 @@ async fn org_policy(
 
 }
 
+#[derive(Serialize)]
+struct OrgSeatsResponse {
+    org_id: String,
+    seats_total: usize,
+    seats_used: usize,
+    seats_available: usize,
+}
+
+/// Enterprise seat management stub (Phase 49). Postgres ledger lands in a follow-up migration.
+async fn org_audit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(org_id): Path<String>,
+) -> Result<Json<Vec<audit::AuditEntry>>, StatusCode> {
+    let _subject = auth::authorized(&headers, &state)
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let pool = state.db.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+    audit::list_for_org(pool, &org_id, 50)
+        .await
+        .map(Json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+async fn inference_usage(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<inference::InferenceUsageBody>,
+) -> StatusCode {
+    let subject = match auth::authorized(&headers, &state).await {
+        Some(s) => s,
+        None => return StatusCode::UNAUTHORIZED,
+    };
+    let user_id = if subject.user_id == "api-key" {
+        headers
+            .get("x-pytxo-user-id")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("anonymous")
+            .to_string()
+    } else {
+        subject.user_id.clone()
+    };
+    let Some(pool) = state.db.as_ref() else {
+        info!(
+            user_id = %user_id,
+            provider = %body.provider,
+            tokens_in = body.tokens_in,
+            tokens_out = body.tokens_out,
+            "inference usage (memory mode)"
+        );
+        return StatusCode::OK;
+    };
+    match inference::record(pool, &user_id, &body).await {
+        Ok(()) => StatusCode::OK,
+        Err(e) => {
+            tracing::error!(error = %e, "inference usage record failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
+
+async fn org_seats(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(org_id): Path<String>,
+) -> Result<Json<OrgSeatsResponse>, StatusCode> {
+    let _subject = auth::authorized(&headers, &state)
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let seats_total = std::env::var("LINK_ORG_SEATS_DEFAULT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(10);
+    let seats_used = if state.db.is_some() { 1 } else { 0 };
+    Ok(Json(OrgSeatsResponse {
+        org_id,
+        seats_total,
+        seats_used,
+        seats_available: seats_total.saturating_sub(seats_used),
+    }))
+}
+
 
 
 async fn runs_start(
-
     State(state): State<AppState>,
-
     headers: HeaderMap,
-
     Json(body): Json<RunStartBody>,
-
 ) -> StatusCode {
-
     if auth::authorized(&headers, &state).await.is_none() {
-
         return StatusCode::UNAUTHORIZED;
-
     }
-
     info!(run_id = %body.run_id, domain = %body.domain_id, "v1/runs/start");
-
-    state.runs.lock().unwrap().insert(
-
-        body.run_id.clone(),
-
-        RunRecord {
-
-            domain_id: body.domain_id,
-
-            started: true,
-
-            ended: false,
-
-            usage: None,
-
-        },
-
-    );
-
+    match &state.runs {
+        state::RunLedger::Postgres(store) => {
+            if store.start(&body).await.is_err() {
+                return StatusCode::INTERNAL_SERVER_ERROR;
+            }
+        }
+        state::RunLedger::Memory(store) => store.start(&body),
+    }
     StatusCode::OK
-
 }
-
-
 
 async fn runs_end(
-
     State(state): State<AppState>,
-
     headers: HeaderMap,
-
     Json(body): Json<RunEndBody>,
-
 ) -> StatusCode {
-
     if auth::authorized(&headers, &state).await.is_none() {
-
         return StatusCode::UNAUTHORIZED;
-
     }
-
     info!(run_id = %body.run_id, saved = body.usage.saved_tokens, "v1/runs/end");
-
-    let mut runs = state.runs.lock().unwrap();
-
-    let entry = runs.entry(body.run_id).or_insert(RunRecord {
-
-        domain_id: body.domain_id.clone(),
-
-        started: false,
-
-        ended: false,
-
-        usage: None,
-
-    });
-
-    entry.ended = true;
-
-    entry.usage = Some(body.usage);
-
+    match &state.runs {
+        state::RunLedger::Postgres(store) => {
+            if store.end(&body).await.is_err() {
+                return StatusCode::INTERNAL_SERVER_ERROR;
+            }
+        }
+        state::RunLedger::Memory(store) => store.end(&body),
+    }
     StatusCode::OK
-
 }
 
-
-
 async fn paddle_webhook(
-
     State(state): State<AppState>,
-
     headers: HeaderMap,
-
-    Json(body): Json<paddle::PaddleWebhook>,
-
+    body: axum::body::Bytes,
 ) -> StatusCode {
-
-    if let Some(secret) = std::env::var("PADDLE_WEBHOOK_SECRET").ok() {
-
-        let sig = headers
-
-            .get("paddle-signature")
-
-            .and_then(|v| v.to_str().ok())
-
-            .unwrap_or("");
-
-        if sig.is_empty()
-
-            && !secret.is_empty()
-
-            && std::env::var("LINK_REQUIRE_AUTH").ok().as_deref() == Some("1")
-
-        {
-
-            return StatusCode::UNAUTHORIZED;
-
+    if let Ok(secret) = std::env::var("PADDLE_WEBHOOK_SECRET") {
+        if !secret.is_empty() {
+            let sig = headers
+                .get("paddle-signature")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            let raw = std::str::from_utf8(&body).unwrap_or("");
+            if !paddle::verify_paddle_signature(raw, sig, &secret) {
+                return StatusCode::UNAUTHORIZED;
+            }
         }
-
     }
-
-    if paddle::handle_paddle_webhook(&state.entitlements, &body).await {
-
+    let parsed: paddle::PaddleWebhook = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
+    if paddle::handle_paddle_webhook(&state.entitlements, &parsed).await {
         StatusCode::OK
-
     } else {
-
         StatusCode::BAD_REQUEST
-
     }
-
 }
 
 
@@ -338,6 +379,10 @@ async fn openapi() -> Json<Value> {
 
             "/v1/runs/end": { "post": { "summary": "Reconcile run end with usage" } },
 
+            "/v1/inference/usage": { "post": { "summary": "Proxy-reported provider token usage" } },
+
+            "/v1/orgs/{org_id}/audit": { "get": { "summary": "Org audit log" } },
+
             "/v1/webhooks/paddle": { "post": { "summary": "Paddle subscription webhooks" } }
 
         }
@@ -362,30 +407,30 @@ async fn main() {
 
 
 
-    let (entitlements, db) = if let Ok(url) = std::env::var("DATABASE_URL") {
-
+    let (entitlements, db, runs) = if let Ok(url) = std::env::var("DATABASE_URL") {
         if !url.is_empty() {
-
             let pool = db::connect(&url)
-
                 .await
-
                 .expect("postgres connect");
-
             let pool_clone = pool.clone();
-
-            (EntitlementStore::postgres(pool), Some(pool_clone))
-
+            (
+                EntitlementStore::postgres(pool.clone()),
+                Some(pool_clone),
+                state::RunLedger::postgres(pool),
+            )
         } else {
-
-            (EntitlementStore::memory(), None)
-
+            (
+                EntitlementStore::memory(),
+                None,
+                state::RunLedger::memory(),
+            )
         }
-
     } else {
-
-        (EntitlementStore::memory(), None)
-
+        (
+            EntitlementStore::memory(),
+            None,
+            state::RunLedger::memory(),
+        )
     };
 
 
@@ -420,7 +465,7 @@ async fn main() {
 
         db,
 
-        runs: Arc::new(Mutex::new(std::collections::HashMap::new())),
+        runs,
 
     };
 
@@ -470,6 +515,9 @@ fn build_router(state: AppState) -> Router {
             put(admin_upsert_entitlement),
         )
         .route("/v1/orgs/{org_id}/policy", get(org_policy))
+        .route("/v1/orgs/{org_id}/seats", get(org_seats))
+        .route("/v1/orgs/{org_id}/audit", get(org_audit))
+        .route("/v1/inference/usage", post(inference_usage))
 
         .route("/v1/runs/start", post(runs_start))
 
@@ -497,7 +545,7 @@ mod contract_tests {
             jwks: None,
             entitlements: EntitlementStore::memory(),
             db: None,
-            runs: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            runs: state::RunLedger::memory(),
         }
     }
 
@@ -545,6 +593,38 @@ mod contract_tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn runs_start_end_memory_ledger() {
+        let app = build_router(test_state());
+        let start = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/runs/start")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"domain_id":"d1","run_id":"r1"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(start.status(), StatusCode::OK);
+        let end = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/runs/end")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"domain_id":"d1","run_id":"r1","usage":{"tokens_in_billed":10,"tokens_in_sent":5,"tokens_out":2,"saved_tokens":3,"cost_micro_usd":100}}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(end.status(), StatusCode::OK);
     }
 }
 

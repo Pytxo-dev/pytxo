@@ -60,10 +60,10 @@ Configure via `permission_profile` in [[pytxo-toml]] (default `orbit`). Optional
 
 | Profile | Shipping today | North star |
 |---------|----------------|------------|
-| **Orbit** | `permission_profile` in config; git worktrees; path waves; env strip (`SSH_*`); `commit_workspace` → `IsolationBackend::flush` | CoW overlay; Tauri IPC approve before physical flush |
-| **DeepSpace** | Config + `PermissionEngine::max_fidelity(Low)`; env strip; `may_flush` denied | Network block + cwd-only reads |
-| **Galaxy** | Config only (same as Orbit at runtime today) | `HitlGate` queue in Race Shield registry |
-| **Supernova** | Skips worktree isolation (cwd = `repo_root`); flush without approval gate | Explicit opt-in + audit logging |
+| **Orbit** | `permission_profile` in config; git worktrees; path waves; env strip (`SSH_*`); `spawn_egress_allowed` denies network fetch at spawn; `commit_workspace` → `IsolationBackend::flush` | CoW overlay; Tauri IPC approve before physical flush |
+| **DeepSpace** | Config + `PermissionEngine::max_fidelity(Low)`; env strip; `may_flush` denied; spawn egress denied | Network block + cwd-only reads |
+| **Galaxy** | Spawn HITL (`fs.delete`, `git.push`, `proc.docker`, `net.egress`, `net.bind`, `proc.package_install`); MCP proxy HITL (`mcp.tool`); flush HITL (`blast.flush`, `fs.write_outside_root`); persisted `HitlQueue` | Full runtime syscall hooks |
+| **Supernova** | Skips worktree isolation (cwd = `repo_root`); flush without approval gate; spawn egress allowed | Explicit opt-in + audit logging |
 
 ## Policy traits (v2 — trait objects deferred)
 

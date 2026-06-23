@@ -5,8 +5,12 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 anyhow.workspace = true
+chrono.workspace = true
 pytxo-core = { workspace = true }
 pytxo-runner.workspace = true
 pytxo-scheduler.workspace = true
@@ -27,6 +31,7 @@ default = ["sanitize", "link-http", "cloud-http"]
 sanitize = ["dep:pytxo-sanitize"]
 link-http = ["pytxo-core/link-http", "dep:ureq"]
 cloud-http = ["pytxo-core/cloud-http"]
+billing-tiktoken = ["pytxo-core/billing-tiktoken"]
 
 [dev-dependencies]
 tempfile = "3.14"

@@ -1,13 +1,12 @@
 use std::path::{Path, PathBuf};
 
-use pytxo_core::DomainId;
 use pytxo_store::PytxoStore;
 use serde::Serialize;
 
 use crate::doctor::DoctorReport;
 use crate::{
-    list_catalog_domains, list_hitl_pending, load_config, resolve_repo_root, AgentStatusJson,
-    CatalogEntry, RunStatusJson,
+    list_catalog_domains_enriched, list_hitl_pending, load_config, resolve_repo_root,
+    CatalogEntryStatus, RunStatusJson,
 };
 
 #[derive(Clone, Debug, Serialize)]
@@ -16,7 +15,7 @@ pub struct DashboardSnapshot {
     pub repo_root: String,
     pub doctor: Option<DoctorReport>,
     pub runs: Vec<RunStatusJson>,
-    pub domains: Vec<CatalogEntry>,
+    pub domains: Vec<CatalogEntryStatus>,
     pub hitl_pending: Vec<pytxo_runner::HitlRequest>,
 }
 
@@ -34,38 +33,12 @@ fn dashboard_snapshot_inner(
     };
     let cfg = load_config(None, &repo_root)?;
     let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
-    let runs = store.list_runs(run_limit)?;
-    let mut run_json = Vec::new();
-    for run in &runs {
-        let agents: Vec<AgentStatusJson> = store
-            .list_agents_for_run(&run.id)?
-            .into_iter()
-            .map(|a| AgentStatusJson {
-                id: a.id,
-                task_id: a.task_id,
-                wave: a.wave,
-                status: a.status,
-                exit_code: a.exit_code,
-            })
-            .collect();
-        let arbitrage_saved = store.arbitrage_saved_tokens_for_run(&run.id).ok();
-        let wallet_balance = DomainId::from_repo_root(Path::new(&run.repo_root))
-            .ok()
-            .and_then(|d| store.wallet_balance_microcredits(&d).ok());
-        run_json.push(RunStatusJson {
-            id: run.id.clone(),
-            status: run.status.clone(),
-            repo_root: run.repo_root.clone(),
-            started_at: run.started_at.to_rfc3339(),
-            estimated_tokens_in: run.estimated_tokens_in,
-            estimated_tokens_out: run.estimated_tokens_out,
-            estimated_cost_usd: run.estimated_cost_usd,
-            arbitrage_saved_tokens: arbitrage_saved,
-            wallet_balance_microcredits: wallet_balance,
-            agents,
-        });
-    }
-    let domains = list_catalog_domains()?;
+    let domains = list_catalog_domains_enriched().unwrap_or_default();
+    let run_json = if domains.len() > 1 {
+        aggregate_runs_across_domains(&domains, run_limit)?
+    } else {
+        runs_for_store(&store, run_limit, &cfg)?
+    };
     let hitl_pending = list_hitl_pending(Some(repo_root.clone())).unwrap_or_default();
     Ok(DashboardSnapshot {
         version,
@@ -75,6 +48,38 @@ fn dashboard_snapshot_inner(
         domains,
         hitl_pending,
     })
+}
+
+fn runs_for_store(
+    store: &PytxoStore,
+    run_limit: usize,
+    cfg: &pytxo_core::PytxoConfig,
+) -> anyhow::Result<Vec<RunStatusJson>> {
+    let runs = store.list_runs(run_limit)?;
+    let mut run_json = Vec::new();
+    for run in &runs {
+        run_json.push(crate::run_status_json(run, store, cfg)?);
+    }
+    Ok(run_json)
+}
+
+fn aggregate_runs_across_domains(
+    domains: &[CatalogEntryStatus],
+    run_limit: usize,
+) -> anyhow::Result<Vec<RunStatusJson>> {
+    let per_domain = (run_limit / domains.len().max(1)).max(1);
+    let mut all = Vec::new();
+    for d in domains {
+        let repo = Path::new(&d.repo_root);
+        if let Ok(cfg) = crate::load_config(None, repo) {
+            if let Ok(store) = PytxoStore::open(Path::new(&d.db_path)) {
+                all.extend(runs_for_store(&store, per_domain, &cfg)?);
+            }
+        }
+    }
+    all.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+    all.truncate(run_limit);
+    Ok(all)
 }
 
 /// Read-only aggregate for the terminal dashboard (`pytxo-tui`), including doctor checks.

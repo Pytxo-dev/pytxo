@@ -13,6 +13,8 @@ struct RegistryState {
 }
 
 /// Race Shield runtime registry — path claims + stdin serialization.
+/// Hot path uses `RwLock`: concurrent disjoint claims scale; overlap checks take write lock.
+/// Profile with `registry_contention_*` tests before switching to lock-free structures.
 #[derive(Clone, Default)]
 pub struct SwarmRegistry {
     inner: Arc<RwLock<RegistryState>>,
@@ -138,5 +140,58 @@ mod tests {
         reg.release("a:agent-0");
         reg.try_claim_paths("a:agent-1", &["src/a.ts".into()])
             .unwrap();
+    }
+
+    /// Benchmark-style contention probe: many agents claim disjoint paths concurrently.
+    #[test]
+    fn registry_contention_disjoint_claims() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let reg = Arc::new(SwarmRegistry::new());
+        let agents = 32;
+        let mut handles = Vec::with_capacity(agents);
+        let start = std::time::Instant::now();
+
+        for i in 0..agents {
+            let reg = Arc::clone(&reg);
+            handles.push(thread::spawn(move || {
+                let path = format!("src/module_{i}/file.rs");
+                let key = format!("run:agent-{i}");
+                reg.try_claim_paths(&key, &[path]).unwrap();
+                thread::sleep(std::time::Duration::from_micros(50));
+                reg.release(&key);
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let elapsed = start.elapsed();
+        assert!(reg.list_live().is_empty());
+        // Sanity bound: 32 disjoint claims should finish well under 1s on CI hardware.
+        assert!(
+            elapsed.as_millis() < 1000,
+            "contention benchmark took {:?}",
+            elapsed
+        );
+    }
+
+    #[test]
+    fn registry_contention_overlap_rejected_under_load() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let reg = Arc::new(SwarmRegistry::new());
+        reg.try_claim_paths("run:agent-0", &["shared/**".into()])
+            .unwrap();
+
+        let reg2 = Arc::clone(&reg);
+        let err = thread::spawn(move || {
+            reg2.try_claim_paths("run:agent-1", &["shared/foo.ts".into()])
+        })
+        .join()
+        .unwrap();
+        assert!(err.is_err());
     }
 }

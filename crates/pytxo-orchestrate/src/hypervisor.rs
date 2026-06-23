@@ -87,13 +87,28 @@ impl HypervisorRegistry {
         }
         fs::create_dir_all(repo_root.join(&cfg.worktree_dir))?;
         fs::create_dir_all(repo_root.join(&cfg.data_dir))?;
+        let data_dir = repo_root.join(&cfg.data_dir);
+        let db_path = cfg.db_path_at(repo_root);
+        let hitl = {
+            let audit_db = db_path.clone();
+            HitlQueue::with_persistence(&data_dir).with_wal_audit(Arc::new(move |id, approved| {
+                if let Ok(store) = pytxo_store::PytxoStore::open(&audit_db) {
+                    let payload = serde_json::json!({
+                        "request_id": id,
+                        "decision": if approved { "approved" } else { "denied" },
+                    })
+                    .to_string();
+                    let _ = store.append_event("hitl-resolver", "hitl-resolve", &payload);
+                }
+            }))
+        };
         let state = Arc::new(DomainState {
             id: id.clone(),
             repo_root: repo_root.to_path_buf(),
-            data_dir: repo_root.join(&cfg.data_dir),
+            data_dir,
             swarm: SwarmRegistry::new(),
             process_registry: ProcessRegistry::default(),
-            hitl: HitlQueue::new(),
+            hitl,
             mcp_hub: McpHub::new(),
         });
         register_in_catalog(&state, cfg);
@@ -110,6 +125,21 @@ impl HypervisorRegistry {
                 repo_root: d.repo_root.to_string_lossy().into_owned(),
             })
             .collect()
+    }
+
+    /// HITL pending count when this domain is loaded in-process.
+    pub fn domain_hitl_pending(&self, domain_id: &str) -> Option<usize> {
+        let guard = self.domains.lock().ok()?;
+        let state = guard.values().find(|d| d.id.as_str() == domain_id)?;
+        Some(state.hitl.pending().len())
+    }
+
+    pub fn domain_state(&self, domain_id: &str) -> Option<Arc<DomainState>> {
+        let guard = self.domains.lock().ok()?;
+        guard
+            .values()
+            .find(|d| d.id.as_str() == domain_id)
+            .map(Arc::clone)
     }
 
     pub async fn run_blocking(&self, opts: RunOptions) -> anyhow::Result<RunId> {
@@ -173,6 +203,70 @@ fn register_in_catalog(state: &DomainState, cfg: &PytxoConfig) {
 pub fn list_catalog_domains() -> anyhow::Result<Vec<pytxo_store::CatalogEntry>> {
     let cat = pytxo_store::Catalog::open_default().map_err(|e| anyhow::anyhow!(e))?;
     cat.list_domains().map_err(|e| anyhow::anyhow!(e))
+}
+
+/// Catalog row plus per-domain run health (read-only; never merges event streams).
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct CatalogEntryStatus {
+    pub domain_id: String,
+    pub repo_root: String,
+    pub db_path: String,
+    pub project_id: Option<String>,
+    pub status: String,
+    pub updated_at: String,
+    pub active_runs: usize,
+    pub latest_run_status: Option<String>,
+    pub latest_started_at: Option<String>,
+    pub hitl_pending: usize,
+}
+
+impl From<pytxo_store::CatalogEntry> for CatalogEntryStatus {
+    fn from(e: pytxo_store::CatalogEntry) -> Self {
+        Self {
+            domain_id: e.domain_id,
+            repo_root: e.repo_root,
+            db_path: e.db_path,
+            project_id: e.project_id,
+            status: e.status,
+            updated_at: e.updated_at,
+            active_runs: 0,
+            latest_run_status: None,
+            latest_started_at: None,
+            hitl_pending: 0,
+        }
+    }
+}
+
+/// Enriched catalog for hypervisor dashboard ([[execution-domains]] Phase 3).
+pub fn list_catalog_domains_enriched() -> anyhow::Result<Vec<CatalogEntryStatus>> {
+    let entries = list_catalog_domains()?;
+    let hv = default_hypervisor();
+    let in_memory_domains: std::collections::HashMap<String, usize> = hv
+        .list_domains()
+        .into_iter()
+        .filter_map(|d| {
+            hv.domain_hitl_pending(&d.domain_id)
+                .map(|n| (d.domain_id, n))
+        })
+        .collect();
+
+    let mut out = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let mut row = CatalogEntryStatus::from(entry);
+        if let Ok(store) = pytxo_store::PytxoStore::open(std::path::Path::new(&row.db_path)) {
+            if let Ok(summary) = store.domain_run_summary() {
+                row.active_runs = summary.active_runs;
+                row.latest_run_status = summary.latest_run_status;
+                row.latest_started_at = summary.latest_started_at;
+            }
+        }
+        row.hitl_pending = in_memory_domains
+            .get(&row.domain_id)
+            .copied()
+            .unwrap_or(0);
+        out.push(row);
+    }
+    Ok(out)
 }
 
 static DEFAULT_HYPERVISOR: OnceLock<HypervisorRegistry> = OnceLock::new();

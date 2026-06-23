@@ -30,6 +30,15 @@ Architecture Decision Records are **immutable once Accepted**. Supersede by addi
 | ADR-0012 | [[ADR-0012-hypervisor-shell-default-ux]] | accepted |
 | ADR-0013 | [[ADR-0013-folder-trust-tier-picker]] | accepted |
 | ADR-0014 | [[ADR-0014-multi-provider-byok-catalog]] | accepted |
+| ADR-0015 | [[ADR-0015-hypervisor-fleet-dag]] | accepted |
+| ADR-0016 | [[ADR-0016-galaxy-hitl-enforcement]] | accepted |
+| ADR-0017 | [[ADR-0017-overlay-flush-contract]] | accepted |
+| ADR-0018 | [[ADR-0018-network-and-mcp-policy]] | accepted |
+| ADR-0022 | [[ADR-0022-deepspace-network-namespace]] | accepted |
+| ADR-0019 | [[ADR-0019-ultra-managed-inference-proxy]] | accepted |
+| ADR-0020 | [[ADR-0020-cloud-sandbox-runtime]] | accepted |
+| ADR-0021 | [[ADR-0021-billing-source-of-truth]] | accepted |
+| ADR-0023 | [[ADR-0023-reality-deck-3d-renderer]] | accepted |
 
 ## Template
 

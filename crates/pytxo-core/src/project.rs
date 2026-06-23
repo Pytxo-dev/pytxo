@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{canonical_repo_root, PytxoError, Result};
+use crate::{canonical_repo_root, PermissionProfile, PytxoError, Result};
 
 /// One folder/repo on a project's allowlist.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -20,6 +20,9 @@ pub struct ProjectRoot {
     /// Read/scaffold only — never receives a Blast Shield flush.
     #[serde(default)]
     pub read_only: bool,
+    /// Optional per-root capability override ([[permission-profile-engine]], Phase 25).
+    #[serde(default)]
+    pub permission_profile: Option<PermissionProfile>,
 }
 
 impl ProjectRoot {
@@ -105,6 +108,16 @@ impl ProjectManifest {
     /// Standard manifest location for a project id under the user config dir.
     pub fn user_manifest_path(id: &str) -> Option<PathBuf> {
         dirs_home().map(|h| h.join(".pytxo").join("projects").join(format!("{id}.toml")))
+    }
+
+    /// Project-scoped telemetry directory (`~/.pytxo/projects/<id>/`, Phase 25).
+    pub fn project_data_dir(id: &str) -> Option<PathBuf> {
+        dirs_home().map(|h| h.join(".pytxo").join("projects").join(id))
+    }
+
+    /// Project-scoped telemetry DB path.
+    pub fn project_db_path(id: &str) -> Option<PathBuf> {
+        Self::project_data_dir(id).map(|d| d.join("pytxo.db"))
     }
 
     /// Discover a manifest: explicit path, else `~/.pytxo/projects/<id>.toml`,

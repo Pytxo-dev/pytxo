@@ -17,6 +17,7 @@ pub struct RunRecord {
     pub estimated_tokens_in: Option<i64>,
     pub estimated_tokens_out: Option<i64>,
     pub estimated_cost_usd: Option<f64>,
+    pub permission_profile: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -34,13 +35,22 @@ pub struct AgentRecord {
     pub root_id: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct EventRecord {
     pub id: i64,
     pub agent_id: String,
     pub ts: DateTime<Utc>,
     pub kind: String,
     pub payload: String,
+}
+
+/// Aggregated run health for a single execution domain ([[execution-domains]] dashboard).
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct DomainRunSummary {
+    pub active_runs: usize,
+    pub latest_run_id: Option<String>,
+    pub latest_run_status: Option<String>,
+    pub latest_started_at: Option<String>,
 }
 
 pub struct PytxoStore {
@@ -183,7 +193,8 @@ impl PytxoStore {
             .conn
             .prepare(
                 "SELECT id, started_at, finished_at, status, repo_root,
-                        estimated_tokens_in, estimated_tokens_out, estimated_cost_usd
+                        estimated_tokens_in, estimated_tokens_out, estimated_cost_usd,
+                        permission_profile
                  FROM runs ORDER BY started_at DESC LIMIT ?1",
             )
             .map_err(|e| PytxoError::Store(e.to_string()))?;
@@ -199,6 +210,7 @@ impl PytxoStore {
                     estimated_tokens_in: row.get(5)?,
                     estimated_tokens_out: row.get(6)?,
                     estimated_cost_usd: row.get(7)?,
+                    permission_profile: row.get(8)?,
                 })
             })
             .map_err(|e| PytxoError::Store(e.to_string()))?;
@@ -207,20 +219,39 @@ impl PytxoStore {
             .map_err(|e| PytxoError::Store(e.to_string()))
     }
 
-    /// Per-agent Signal Core arbitrage totals for a run: (agent_id, saved_tokens, edited_path_count).
-    /// Feeds the Reality Deck topology graph ([[reality-deck-visual-system]]).
-    pub fn arbitrage_by_agent(&self, run_id: &str) -> Result<Vec<(String, i64, i64)>> {
+    pub fn arbitrage_by_agent(
+        &self,
+        run_id: &str,
+    ) -> Result<Vec<(String, i64, i64, i64)>> {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT agent_id, COALESCE(SUM(saved_tokens), 0), COUNT(DISTINCT path)
+                "SELECT agent_id,
+                        COALESCE(SUM(saved_tokens), 0),
+                        COUNT(DISTINCT path),
+                        COALESCE(SUM(fallback_raw), 0)
                  FROM arbitrage_samples WHERE run_id = ?1 GROUP BY agent_id",
             )
             .map_err(|e| PytxoError::Store(e.to_string()))?;
         let rows = stmt
             .query_map(params![run_id], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
             })
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    /// Distinct edited paths for a run: (path, agent_id).
+    pub fn arbitrage_paths_for_run(&self, run_id: &str) -> Result<Vec<(String, String)>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT DISTINCT path, agent_id FROM arbitrage_samples WHERE run_id = ?1",
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let rows = stmt
+            .query_map(params![run_id], |row| Ok((row.get(0)?, row.get(1)?)))
             .map_err(|e| PytxoError::Store(e.to_string()))?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(|e| PytxoError::Store(e.to_string()))
@@ -360,6 +391,87 @@ impl PytxoStore {
 
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    /// MCP tool audit rows for a run (`events.kind = mcp-tool`).
+    pub fn list_mcp_audit_for_run(&self, run_id: &str) -> Result<Vec<EventRecord>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT e.id, e.agent_id, e.ts, e.kind, e.payload
+                 FROM events e
+                 JOIN agents a ON e.agent_id = a.id
+                 WHERE a.run_id = ?1 AND e.kind = 'mcp-tool'
+                 ORDER BY e.id ASC",
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let rows = stmt
+            .query_map(params![run_id], |row| {
+                Ok(EventRecord {
+                    id: row.get(0)?,
+                    agent_id: row.get(1)?,
+                    ts: parse_dt(row.get::<_, String>(2)?),
+                    kind: row.get(3)?,
+                    payload: row.get(4)?,
+                })
+            })
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    /// Terminal statuses for domain runs.
+    pub fn is_terminal_run_status(status: &str) -> bool {
+        matches!(status, "completed" | "failed" | "cancelled")
+    }
+
+    pub fn get_run_status(&self, run_id: &str) -> Result<Option<(String, Option<String>)>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT status, finished_at FROM runs WHERE id = ?1")
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let mut rows = stmt
+            .query_map(params![run_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+            })
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        match rows.next() {
+            Some(r) => r.map(Some).map_err(|e| PytxoError::Store(e.to_string())),
+            None => Ok(None),
+        }
+    }
+
+    pub fn domain_run_summary(&self) -> Result<DomainRunSummary> {
+        let active: i64 = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM runs WHERE status = 'running'",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+
+        let latest = self
+            .conn
+            .query_row(
+                "SELECT id, status, started_at FROM runs ORDER BY started_at DESC LIMIT 1",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .ok();
+
+        Ok(DomainRunSummary {
+            active_runs: active as usize,
+            latest_run_id: latest.as_ref().map(|(id, _, _)| id.clone()),
+            latest_run_status: latest.as_ref().map(|(_, s, _)| s.clone()),
+            latest_started_at: latest.map(|(_, _, t)| t),
+        })
     }
 }
 

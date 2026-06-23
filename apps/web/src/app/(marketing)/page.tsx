@@ -27,7 +27,11 @@ const FAQ = [
   },
   {
     q: "What is the Reality Deck?",
-    a: "An optional Tauri desktop app for passive telemetry: runs, topology, and diffs — not a multi-pane terminal grid.",
+    a: "An optional desktop app for passive telemetry: runs, structural topology (import graph), Galaxy approvals, project path panels, fleet status, logs, and diffs — not a multi-pane terminal grid.",
+  },
+  {
+    q: "What are modular projects and fleet runs?",
+    a: "Modular projects coordinate multiple folders in one swarm (API + web + protos). Fleet runs coordinate separate repos with barrier sync when tasks must finish in order across git roots.",
   },
   {
     q: "How does Pytxo reduce cost?",
@@ -35,7 +39,7 @@ const FAQ = [
   },
   {
     q: "Where are the docs?",
-    a: "Consumer and developer guides live at pytxo.com/docs — install, tutorials, CLI reference, and architecture.",
+    a: "Guides live at pytxo.com/docs — install, tutorials, CLI reference, modular projects, fleet runs, and Galaxy approvals.",
   },
 ] as const;
 

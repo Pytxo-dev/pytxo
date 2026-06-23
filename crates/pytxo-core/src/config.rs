@@ -5,6 +5,32 @@ use crate::billing::{BillingConfig, BillingMode};
 use crate::cloud::{CloudConfig, McpHubConfig};
 use crate::execution::ExecutionBackend;
 use crate::moat::{FidelityTier, IsolationMode, PermissionProfile};
+
+/// Blast Shield overlay tuning ([[blast-shield]], Phase 33).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BlastConfig {
+    /// Top-level directory names skipped in overlay copy / sparse lowerdir (Phase 33).
+    #[serde(default = "default_sparse_exclude")]
+    pub sparse_exclude: Vec<String>,
+}
+
+fn default_sparse_exclude() -> Vec<String> {
+    vec![
+        "node_modules".into(),
+        ".git".into(),
+        "target".into(),
+        "dist".into(),
+        "build".into(),
+    ]
+}
+
+impl Default for BlastConfig {
+    fn default() -> Self {
+        Self {
+            sparse_exclude: default_sparse_exclude(),
+        }
+    }
+}
 use crate::{AgentSpec, PytxoError, Result, Task, TaskId};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -54,12 +80,21 @@ pub struct PytxoConfig {
     /// Optional NL mission planner ([[ADR-0012-hypervisor-shell-default-ux]]).
     #[serde(default)]
     pub planner: PlannerConfig,
+    #[serde(default)]
+    pub blast: BlastConfig,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct PlannerConfig {
     #[serde(default)]
     pub enabled: bool,
+    /// `heuristic` (default) or `signal` for Signal Core graph-backed depends_on.
+    #[serde(default = "default_planner_mode")]
+    pub mode: String,
+}
+
+fn default_planner_mode() -> String {
+    "heuristic".to_string()
 }
 
 fn default_true() -> bool {
@@ -146,6 +181,7 @@ impl Default for PytxoConfig {
             subprocess_stdin: false,
             tier_max_agents: default_tier_max_agents(),
             planner: PlannerConfig::default(),
+            blast: BlastConfig::default(),
         }
     }
 }
@@ -241,6 +277,13 @@ mod tests {
             cfg.state_path_at(&repo),
             PathBuf::from("/tmp/my-repo/.pytxo/data/active_run.json")
         );
+    }
+
+    #[test]
+    fn blast_sparse_exclude_defaults() {
+        let cfg = PytxoConfig::default();
+        assert!(cfg.blast.sparse_exclude.contains(&"node_modules".to_string()));
+        assert!(cfg.blast.sparse_exclude.contains(&".git".to_string()));
     }
 
     #[test]

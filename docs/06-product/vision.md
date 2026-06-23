@@ -47,7 +47,13 @@ All future orchestration code should route through these layers — not around t
 | **Copy-on-write sandbox** | [[blast-shield]] | Memory-mapped virtual FS; bash/writes isolated until explicit approval | Sub-5ms rollback; disk flush on approve only |
 | **Concurrency guard** | [[race-shield]] | Lock-free swarm registry + stdin buffering | No cross-agent write collisions in a monorepo |
 
-Implementation status: see [[mvp-bootstrap]] and crate README. Moats are **partial or planned** where not yet in `crates/`.
+Implementation status: see [[mvp-bootstrap]] and crate README. Moats are **partial or planned** where not yet in `crates/` (sparse kernel overlay, full Galaxy runtime HITL, 3D topology).
+
+| Moat | Shipping today | North star gap |
+|------|----------------|----------------|
+| Signal Core | 5-language skeletons, closed-loop retry, fallback WAL | Broader grammars, symbol-level escalation |
+| Blast Shield | Git worktrees, copy-layer overlay POC | Kernel FUSE/ProjFS sparse overlay |
+| Race Shield | Registry, path claims, PTY stdin, Galaxy HITL queue | Runtime MCP gates, lock-free hot paths |
 
 ## Reality Deck
 

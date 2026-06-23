@@ -113,6 +113,11 @@ impl TrustedDomainStore {
 }
 
 pub fn default_trust_path() -> crate::Result<PathBuf> {
+    if let Ok(path) = std::env::var("PYTXO_TRUST_STORE") {
+        if !path.is_empty() {
+            return Ok(PathBuf::from(path));
+        }
+    }
     let home = dirs_home().ok_or_else(|| {
         PytxoError::Config("cannot resolve home directory for trust store".into())
     })?;

@@ -3,9 +3,10 @@ use std::path::PathBuf;
 
 use pytxo_core::FidelityTier;
 use pytxo_orchestrate::{
-    audit_mcp_tool, dry_run_json, enqueue_agent_stdin, list_live_agents, logs, mcp_proxy_call,
-    mcp_tools_list, open_store, project_load, project_run, read_file, read_file_scaffolded,
-    resolve_repo_root, run, ProjectRunOptions, RunOptions,
+    audit_mcp_tool, dry_run_json, enqueue_agent_stdin, fleet_dry_run_json, fleet_run,
+    fleet_status, list_live_agents, logs, mcp_proxy_call, mcp_tools_list, open_store,
+    project_load, project_run, read_file, read_file_scaffolded, resolve_repo_root, run,
+    FleetRunOptions, ProjectRunOptions, RunOptions,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -33,6 +34,26 @@ struct JsonRpcResponse {
 struct JsonRpcError {
     code: i32,
     message: String,
+}
+
+fn sanitize_enabled() -> bool {
+    if let Ok(v) = std::env::var("PYTXO_SANITIZE") {
+        if v == "0" || v.eq_ignore_ascii_case("false") {
+            return false;
+        }
+        if v == "1" || v.eq_ignore_ascii_case("true") {
+            return true;
+        }
+    }
+    true
+}
+
+fn sanitize_tool_text(text: &str) -> String {
+    if sanitize_enabled() {
+        pytxo_sanitize::sanitize_line(text)
+    } else {
+        text.to_string()
+    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -119,6 +140,14 @@ fn main() -> anyhow::Result<()> {
                             "pytxo_project_run",
                             "Run a command across a modular project's writable roots (project_id or manifest)",
                         ),
+                        tool_def(
+                            "pytxo_fleet_run",
+                            "Run a cross-repo fleet DAG (fleet_id or manifest)",
+                        ),
+                        tool_def(
+                            "pytxo_fleet_status",
+                            "List recent fleet runs from the hypervisor catalog",
+                        ),
                     ]
                 })),
                 None,
@@ -133,7 +162,7 @@ fn main() -> anyhow::Result<()> {
                     &mut stdout,
                     req.id,
                     Some(json!({
-                        "content": [{ "type": "text", "text": text }],
+                        "content": [{ "type": "text", "text": sanitize_tool_text(&text) }],
                         "isError": false
                     })),
                     None,
@@ -357,6 +386,36 @@ fn handle_tool_call(params: Option<Value>) -> anyhow::Result<String> {
             let repo = args.get("repo").and_then(|v| v.as_str()).map(PathBuf::from);
             let tools = mcp_tools_list(repo)?;
             Ok(serde_json::to_string_pretty(&tools)?)
+        }
+        "pytxo_fleet_run" => {
+            let rt = tokio::runtime::Runtime::new()?;
+            let manifest = args
+                .get("manifest")
+                .and_then(|v| v.as_str())
+                .map(PathBuf::from);
+            let fleet_id = args
+                .get("fleet_id")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
+            let continue_on_error = args
+                .get("continue_on_error")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let result = rt.block_on(fleet_run(FleetRunOptions {
+                manifest,
+                fleet_id,
+                dry_run,
+                continue_on_error,
+                ..FleetRunOptions::default()
+            }))?;
+            Ok(serde_json::to_string_pretty(&result)?)
+        }
+        "pytxo_fleet_status" => {
+            let fleet_id = args.get("fleet_id").and_then(|v| v.as_str());
+            let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
+            let rows = fleet_status(fleet_id, limit)?;
+            Ok(serde_json::to_string_pretty(&rows)?)
         }
         "pytxo_read" => {
             let path = args

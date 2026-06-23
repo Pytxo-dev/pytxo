@@ -35,4 +35,7 @@ pub struct ExecutionPlan {
     pub waves: Vec<Vec<ScheduledTask>>,
     pub conflicts: Vec<ConflictPair>,
     pub max_agents: usize,
+    /// Scheduler dry-run hints (e.g. cross-root path overlap).
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }

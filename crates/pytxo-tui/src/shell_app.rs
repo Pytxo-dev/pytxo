@@ -10,8 +10,8 @@ use crossterm::ExecutableCommand;
 use pytxo_core::PermissionProfile;
 use pytxo_core::RunId;
 use pytxo_orchestrate::{
-    dashboard_snapshot_light, hitl_respond, project_roots, run_doctor, DashboardSnapshot,
-    DoctorReport,
+    dashboard_snapshot_light, effective_entitlements, hitl_respond, project_roots, run_doctor,
+    DashboardSnapshot, DoctorReport, EntitlementStatus,
 };
 use pytxo_shell::{complete_line, parse_line, ShellEvent, ShellInput, ShellSession};
 use ratatui::layout::{Constraint, Direction, Layout};
@@ -83,6 +83,7 @@ struct ShellApp {
     last_doctor_refresh: Instant,
     active_run_label: Option<String>,
     trust_tier: Option<PermissionProfile>,
+    org_policy_label: Option<String>,
     phase: AppPhase,
     needs_redraw: bool,
     show_splash: bool,
@@ -93,7 +94,7 @@ fn trust_folders(repo: &Path) -> Vec<String> {
     match project_roots(None, None) {
         Ok(roots) if roots.len() > 1 => roots
             .into_iter()
-            .map(|(_, path, _, _)| path)
+            .map(|(_, path, _, _, _)| path)
             .collect(),
         _ => vec![repo_str],
     }
@@ -127,6 +128,7 @@ impl ShellApp {
             last_doctor_refresh: now,
             active_run_label: None,
             trust_tier: None,
+            org_policy_label: None,
             phase,
             needs_redraw: true,
             show_splash: true,
@@ -160,6 +162,9 @@ impl ShellApp {
         match dashboard_snapshot_light(None, 12) {
             Ok(s) => {
                 self.snapshot = s;
+                if let Ok(ent) = effective_entitlements(&self.session.config) {
+                    self.org_policy_label = org_policy_hint(&ent);
+                }
                 if self.board.run_selected >= self.snapshot.runs.len() {
                     self.board.run_selected = self.snapshot.runs.len().saturating_sub(1);
                 }
@@ -277,6 +282,7 @@ impl ShellApp {
             &self.doctor_cache,
             self.active_run_label.as_deref(),
             self.tier_label(),
+            self.org_policy_label.as_deref(),
             &self.session.config.agent,
             &self.board,
         );
@@ -287,6 +293,18 @@ impl ShellApp {
         }
         self.prompt.draw(frame, chunks[2], &self.status_message);
     }
+}
+
+fn org_policy_hint(ent: &EntitlementStatus) -> Option<String> {
+    let ceiling = ent.permission_ceiling?;
+    let org = ent.org_id.as_deref().unwrap_or("org");
+    let profile = match ceiling {
+        PermissionProfile::DeepSpace => "deepspace",
+        PermissionProfile::Orbit => "orbit",
+        PermissionProfile::Galaxy => "galaxy",
+        PermissionProfile::Supernova => "supernova",
+    };
+    Some(format!("org:{org} cap:{profile}"))
 }
 
 async fn run_loop(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {

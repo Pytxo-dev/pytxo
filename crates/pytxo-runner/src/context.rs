@@ -13,6 +13,8 @@ use crate::arbitrage::ArbitrageProfiler;
 pub struct ContextBundle {
     pub context_dir: Option<PathBuf>,
     pub arbitrage: Vec<ArbitrageSample>,
+    /// Count of scaffold operations that fell back to raw file content ([[signal-core]]).
+    pub fallback_count: usize,
 }
 
 /// Materialize Signal Core context for an agent under `.pytxo/context/{run}/{agent}/`.
@@ -42,6 +44,7 @@ pub fn prepare_agent_context(
         None,
         "",
         false,
+        pytxo_core::PermissionProfile::Orbit,
     )
 }
 
@@ -62,11 +65,13 @@ pub fn prepare_agent_context_for_root(
     cache: Option<&dyn ContextCache>,
     domain_id: &str,
     cache_enabled: bool,
+    permission_profile: pytxo_core::PermissionProfile,
 ) -> Result<ContextBundle> {
     if !enabled || path_patterns.is_empty() {
         return Ok(ContextBundle {
             context_dir: None,
             arbitrage: Vec::new(),
+            fallback_count: 0,
         });
     }
 
@@ -77,10 +82,19 @@ pub fn prepare_agent_context_for_root(
     let mut manifest: Vec<ContextEntry> = Vec::new();
     let mut arbitrage = Vec::new();
 
+    let engine = pytxo_core::PermissionEngine::new(permission_profile);
+
     for pattern in path_patterns {
         for file in resolve_pattern(repo_root, pattern)? {
             if !file.is_file() {
                 continue;
+            }
+            if !engine.may_read(repo_root, &file, repo_root) {
+                return Err(PytxoError::Runner(format!(
+                    "read denied for {} profile: {}",
+                    permission_profile.as_str(),
+                    file.display()
+                )));
             }
             let rel = file
                 .strip_prefix(repo_root)
@@ -160,6 +174,7 @@ pub fn prepare_agent_context_for_root(
     Ok(ContextBundle {
         context_dir: Some(context_root),
         arbitrage,
+        fallback_count: manifest.iter().filter(|e| e.fallback_raw).count(),
     })
 }
 
@@ -247,6 +262,7 @@ pub fn extend_context_with_readonly_roots(
         .map_err(|e| PytxoError::Other(format!("context manifest: {e}")))?;
     fs::write(&manifest_path, json).map_err(PytxoError::Io)?;
     bundle.context_dir = Some(context_root);
+    bundle.fallback_count = manifest.iter().filter(|e| e.fallback_raw).count();
     Ok(bundle)
 }
 

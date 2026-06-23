@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { GITHUB_URL, NPM_INSTALL } from "@/lib/site";
+import { NPM_INSTALL } from "@/lib/site";
 
 const STATS = [
   { label: "Local-first", detail: "PTY + worktrees on your machine" },
@@ -37,9 +37,9 @@ export function Hero() {
           </h1>
           <p className="max-w-xl text-lg leading-relaxed text-muted-foreground lg:max-w-none">
             Trust your folder, pick a permission tier, and dispatch BYOK agents across
-            DeepSeek, OpenRouter, Groq, and more — in isolated worktrees with wave plans
-            you can preview before you run. Signal Core, Blast and Race shields, optional
-            Reality Deck telemetry.
+            DeepSeek, OpenRouter, Groq, and more — in isolated copies with wave plans you
+            preview first. Multi-folder projects, cross-repo fleet runs, Galaxy approvals,
+            and optional Reality Deck topology.
           </p>
           <pre className="mx-auto max-w-md overflow-x-auto rounded-lg border border-white/10 bg-black/40 px-4 py-3 font-mono text-sm text-foreground/90 lg:mx-0">
             {NPM_INSTALL}
@@ -62,9 +62,7 @@ export function Hero() {
               className="min-w-[10rem] text-muted-foreground"
               asChild
             >
-              <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
-                Releases
-              </a>
+              <Link href="/download">Download</Link>
             </Button>
           </div>
         </div>

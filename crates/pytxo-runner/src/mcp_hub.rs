@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpStream};
+use std::process::Command;
 use std::sync::{Arc, RwLock};
+use std::thread;
 use std::time::Duration;
 
 use pytxo_core::{PytxoError, Result};
@@ -84,7 +86,12 @@ impl McpHub {
         }
     }
 
+    /// Forward JSON-RPC to a live child session. Supports multi-hop routes
+    /// (`agent:a->agent:b`) when the final hop receives `method`/`params`.
     pub fn proxy_call(&self, agent_key: &str, method: &str, params: Value) -> Result<Value> {
+        if agent_key.contains("->") {
+            return self.proxy_multi_hop(agent_key, method, params);
+        }
         let session = self
             .inner
             .read()
@@ -96,6 +103,26 @@ impl McpHub {
                 PytxoError::Runner(format!("no live child MCP session for {agent_key}"))
             })?;
         session.call(method, params)
+    }
+
+    fn proxy_multi_hop(&self, route: &str, method: &str, params: Value) -> Result<Value> {
+        let hops: Vec<&str> = route.split("->").map(str::trim).filter(|s| !s.is_empty()).collect();
+        if hops.len() < 2 {
+            return self.proxy_call(route, method, params);
+        }
+        let mut carry = params;
+        for (i, hop) in hops.iter().enumerate() {
+            let is_last = i + 1 == hops.len();
+            if is_last {
+                return self.proxy_call(hop, method, carry);
+            }
+            carry = json!({
+                "name": format!("agent:{}/relay", hop.split(':').nth(1).unwrap_or(hop)),
+                "arguments": carry,
+            });
+            carry = self.proxy_call(hop, "tools/call", carry)?;
+        }
+        Err(PytxoError::Runner("multi-hop route produced no result".into()))
     }
 
     pub fn aggregate_tools(&self) -> Result<Vec<Value>> {
@@ -164,22 +191,57 @@ fn handle_test_mcp_conn(stream: &mut TcpStream) {
     let _ = stream.flush();
 }
 
+/// Spawn a production child MCP session when `PYTXO_AGENT_MCP_ADDR` (+ optional
+/// `PYTXO_AGENT_MCP_CMD` launcher) is set; otherwise fall back to the TCP fixture.
+pub fn spawn_agent_mcp_child() -> Result<(ChildMcpSession, thread::JoinHandle<()>)> {
+    if let Ok(addr_str) = std::env::var("PYTXO_AGENT_MCP_ADDR") {
+        let addr: SocketAddr = addr_str
+            .parse()
+            .map_err(|e| PytxoError::Runner(format!("PYTXO_AGENT_MCP_ADDR parse: {e}")))?;
+        let handle = if let Ok(cmd) = std::env::var("PYTXO_AGENT_MCP_CMD") {
+            if !cmd.trim().is_empty() {
+                let cmd_line = cmd;
+                thread::spawn(move || {
+                    let _ = Command::new(if cfg!(windows) { "cmd" } else { "sh" })
+                        .arg(if cfg!(windows) { "/C" } else { "-c" })
+                        .arg(cmd_line)
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .status();
+                })
+            } else {
+                thread::spawn(|| {})
+            }
+        } else {
+            thread::spawn(|| {})
+        };
+        thread::sleep(Duration::from_millis(100));
+        return Ok((ChildMcpSession { addr }, handle));
+    }
+    if std::env::var("PYTXO_MCP_TEST").ok().as_deref() == Some("1") {
+        return spawn_test_mcp_child();
+    }
+    Err(PytxoError::Runner(
+        "no agent MCP child: set PYTXO_AGENT_MCP_ADDR or PYTXO_MCP_TEST=1".into(),
+    ))
+}
+
 /// Test fixture: minimal MCP TCP server on localhost.
-pub fn spawn_test_mcp_child() -> Result<(ChildMcpSession, std::thread::JoinHandle<()>)> {
+pub fn spawn_test_mcp_child() -> Result<(ChildMcpSession, thread::JoinHandle<()>)> {
     use std::net::TcpListener;
     let listener =
         TcpListener::bind("127.0.0.1:0").map_err(|e| PytxoError::Runner(format!("bind: {e}")))?;
     let addr = listener.local_addr().map_err(PytxoError::Io)?;
     let (ready_tx, ready_rx) = std::sync::mpsc::channel();
     listener.set_nonblocking(true).map_err(PytxoError::Io)?;
-    let handle = std::thread::spawn(move || {
+    let handle = thread::spawn(move || {
         let _ = ready_tx.send(());
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
         while std::time::Instant::now() < deadline {
             match listener.accept() {
                 Ok((mut stream, _)) => handle_test_mcp_conn(&mut stream),
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    std::thread::sleep(Duration::from_millis(10));
+                    thread::sleep(Duration::from_millis(10));
                 }
                 Err(_) => break,
             }

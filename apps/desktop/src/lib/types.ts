@@ -6,6 +6,9 @@ export type RunDto = {
   repo_root: string;
   started_at: string;
   estimated_cost_usd: number | null;
+  permission_profile: string | null;
+  isolation_mode: string;
+  isolation_backend: string;
 };
 
 export type AgentDto = {
@@ -37,18 +40,69 @@ export type CatalogEntry = {
   updated_at: string;
 };
 
+export type CatalogEntryStatus = CatalogEntry & {
+  active_runs: number;
+  latest_run_status: string | null;
+  latest_started_at: string | null;
+  hitl_pending: number;
+};
+
 export type HitlDto = {
   id: string;
   agent_key: string;
   action: string;
   reason: string;
   created_at_ms: string;
+  domain_id?: string;
+};
+
+export type ProjectRootDto = {
+  label: string;
+  path: string;
+  read_only: boolean;
+  primary: boolean;
+  permission_profile: string | null;
+};
+
+export type FleetRunDto = {
+  id: string;
+  fleet_id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: string;
+};
+
+export type FleetNodeDto = {
+  node_id: string;
+  domain_id: string;
+  domain_run_id: string | null;
+  wave: number;
+  status: string;
+};
+
+export type FleetRunStatusDto = {
+  id: string;
+  fleet_id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: string;
+  nodes: FleetNodeDto[];
+};
+
+/** Schema version for structural graph IPC (2 = 3D Deck consumer). */
+export const STRUCTURAL_GRAPH_VERSION = 2;
+
+export type StructuralGraphDto = {
+  version?: number;
+  nodes: { id: string; label: string; edited: boolean; root_id: string | null }[];
+  edges: { from: string; to: string }[];
 };
 
 export type AgentArbitrageDto = {
   agent_id: string;
   saved_tokens: number;
   edited_paths: number;
+  fallback_paths: number;
 };
 
 export type PytxoIpcError = {

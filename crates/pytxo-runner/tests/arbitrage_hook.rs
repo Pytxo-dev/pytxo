@@ -96,6 +96,7 @@ async fn arbitrage_rows_written_when_signal_core_enabled() {
         mcp_hub: None,
         mcp_hub_enabled: false,
         mcp_allowlist: Vec::new(),
+        sparse_exclude: Vec::new(),
     };
 
     let plan = ExecutionPlan {
@@ -109,6 +110,7 @@ async fn arbitrage_rows_written_when_signal_core_enabled() {
         }]],
         conflicts: vec![],
         max_agents: 1,
+        warnings: vec![],
     };
 
     let _ = execute_plan(

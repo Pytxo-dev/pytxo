@@ -3,8 +3,8 @@ use std::sync::Arc;
 use pytxo_core::{
     BillingMode, BillingReconciler, ByteHeuristicEstimator, ConfigModelRouter, DomainId,
     HttpBillingReconciler, LocalHybridBilling, ManagedTransport, ModelRouter,
-    NoopBillingReconciler, PytxoConfig, ReservationId, RunId, StaticPriceTable, TokenEstimator,
-    TokenWallet, UsageMeter,
+    NoopBillingReconciler, PytxoConfig, ReservationId, RunId, StaticPriceTable, TiktokenEstimator,
+    TokenEstimator, TokenWallet, UsageMeter,
 };
 use pytxo_store::SharedStore;
 
@@ -37,7 +37,7 @@ impl BillingReconciler for RunBillingReconciler {
 }
 
 fn reconciler_for_cfg(cfg: &PytxoConfig) -> anyhow::Result<Arc<RunBillingReconciler>> {
-    if !cfg.billing.link_reconcile {
+    if !cfg.billing.link_reconcile_enabled() {
         return Ok(Arc::new(RunBillingReconciler::Noop(NoopBillingReconciler)));
     }
     let url = cfg.billing.proxy_url.trim();
@@ -57,6 +57,8 @@ pub struct UltraRunBilling {
     pub meter: Arc<SharedStore>,
     pub reservation: Option<ReservationId>,
     pub domain_id: DomainId,
+    /// Guards against double settlement when orchestrate retries run teardown.
+    pub settled: bool,
 }
 
 pub fn setup_ultra_billing(
@@ -78,6 +80,7 @@ pub fn setup_ultra_billing(
         meter: store,
         reservation: None,
         domain_id,
+        settled: false,
     }))
 }
 
@@ -103,7 +106,20 @@ pub fn metering_for_ctx(
         proxy_base_url: cfg.billing.proxy_url.clone(),
         ..Default::default()
     };
-    let token_estimator: Arc<dyn TokenEstimator> = Arc::new(ByteHeuristicEstimator);
+    let token_estimator: Arc<dyn TokenEstimator> = {
+        #[cfg(feature = "billing-tiktoken")]
+        {
+            if cfg.billing_mode() == BillingMode::Ultra {
+                Arc::new(TiktokenEstimator)
+            } else {
+                Arc::new(ByteHeuristicEstimator)
+            }
+        }
+        #[cfg(not(feature = "billing-tiktoken"))]
+        {
+            Arc::new(ByteHeuristicEstimator)
+        }
+    };
     let usage_meter: Option<Arc<dyn UsageMeter>> = ultra
         .as_ref()
         .map(|u| Arc::clone(&u.meter) as Arc<dyn UsageMeter>);
@@ -128,11 +144,16 @@ pub fn settle_ultra_run(
     run_id: &RunId,
     cost_micro: i64,
 ) -> anyhow::Result<()> {
+    if ultra.settled {
+        return Ok(());
+    }
     if let Some(res) = ultra.reservation.take() {
         ultra.hybrid.wallet.commit_debit(&res, cost_micro)?;
     }
     let totals = ultra.meter.run_totals(run_id)?;
+    // Link `/v1/runs/end` is idempotent (ADR-0021); safe to retry on transient HTTP errors.
     ultra.hybrid.on_run_end(&ultra.domain_id, run_id, &totals)?;
+    ultra.settled = true;
     Ok(())
 }
 

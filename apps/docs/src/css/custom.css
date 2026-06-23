@@ -160,6 +160,44 @@ code {
   gap: 0.75rem;
 }
 
+/* Docusaurus admonitions */
+.theme-admonition {
+  border-radius: 0.5rem;
+  border-width: 1px;
+  margin: 1.25rem 0;
+}
+
+.theme-admonition-tip {
+  border-color: color-mix(in oklab, var(--brand-teal) 40%, transparent);
+  background: color-mix(in oklab, var(--brand-teal) 8%, transparent);
+}
+
+.theme-admonition-warning {
+  border-color: color-mix(in oklab, var(--brand-gold, #fbbf24) 40%, transparent);
+  background: color-mix(in oklab, #fbbf24 8%, transparent);
+}
+
+.theme-admonition-info {
+  border-color: color-mix(in oklab, var(--brand-violet) 40%, transparent);
+  background: color-mix(in oklab, var(--brand-violet) 8%, transparent);
+}
+
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 1rem 0;
+}
+
+.theme-doc-markdown .table-scroll table {
+  margin: 0;
+}
+
+@media (min-width: 997px) {
+  .theme-doc-markdown {
+    max-width: 42rem;
+  }
+}
+
 /* --- Mobile / tablet --- */
 
 @media (max-width: 996px) {
@@ -245,6 +283,14 @@ code {
     min-height: 2.75rem;
     display: flex;
     align-items: center;
+  }
+
+  .menu__list-item:not(:first-child) {
+    margin-top: 0.125rem;
+  }
+
+  .menu__list .menu__list {
+    margin-top: 0.25rem;
   }
 
   .pagination-nav {

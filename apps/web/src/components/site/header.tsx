@@ -20,7 +20,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { HeaderAuth } from "@/components/header-auth";
-import { GITHUB_URL, NAV_LINKS } from "@/lib/site";
+import { NAV_LINKS } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 function NavLabel({ label, badge }: { label: string; badge?: string }) {
@@ -78,16 +78,6 @@ export function SiteHeader() {
 
         <div className="flex items-center gap-2">
           <HeaderAuth />
-          <Button
-            variant="outline"
-            size="sm"
-            className="hidden border-white/10 bg-card/30 sm:inline-flex"
-            asChild
-          >
-            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
-              GitHub
-            </a>
-          </Button>
           <Button size="sm" className="hidden chroma-glow sm:inline-flex" asChild>
             <Link href="/download">Get started</Link>
           </Button>
@@ -125,14 +115,6 @@ export function SiteHeader() {
                 >
                   Sign up
                 </Link>
-                <a
-                  href={GITHUB_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-white/5"
-                >
-                  GitHub
-                </a>
               </nav>
             </SheetContent>
           </Sheet>

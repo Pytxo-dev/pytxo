@@ -1,23 +1,34 @@
 <script lang="ts">
   import TopologyPanel from "../topology/TopologyPanel.svelte";
+  import ProjectPathPanel from "./ProjectPathPanel.svelte";
+  import FleetPanel from "./FleetPanel.svelte";
+  import UsagePanel from "./UsagePanel.svelte";
   import type {
     AgentArbitrageDto,
     AgentDto,
     CatalogEntry,
+    CatalogEntryStatus,
     DomainDto,
+    FleetRunDto,
     HitlDto,
     ProjectDto,
+    ProjectRootDto,
     RunDto,
+    StructuralGraphDto,
   } from "../../lib/types";
 
   let {
     projects,
     catalogForView,
+    domainStatus = [],
     domains,
     runs,
     agents,
     hitl,
     arbitrage,
+    projectRoots = [],
+    fleetRuns = [],
+    structural = null as StructuralGraphDto | null,
     selectedProjectId = $bindable(null as string | null),
     selectedDomainId = $bindable(null as string | null),
     selectedRunId = $bindable(null as string | null),
@@ -29,14 +40,26 @@
     onSelectRun,
     onSelectAgent,
     onRespondHitl,
+    onProjectRootsChange,
+    networkIsolationBadge = null as string | null,
+    usageTier = "core",
+    usageMaxAgents = 3,
+    walletMicrocredits = null as number | null,
+    cloudEnabled = false,
+    permissionCeiling = null as string | null,
+    subscriptionPortalUrl = null as string | null,
   }: {
     projects: ProjectDto[];
     catalogForView: CatalogEntry[];
+    domainStatus?: CatalogEntryStatus[];
     domains: DomainDto[];
     runs: RunDto[];
     agents: AgentDto[];
     hitl: HitlDto[];
     arbitrage: AgentArbitrageDto[];
+    projectRoots?: ProjectRootDto[];
+    fleetRuns?: FleetRunDto[];
+    structural?: StructuralGraphDto | null;
     selectedProjectId?: string | null;
     selectedDomainId?: string | null;
     selectedRunId?: string | null;
@@ -48,11 +71,21 @@
     onSelectRun: (runId: string) => void;
     onSelectAgent: (agentId: string) => void;
     onRespondHitl: (id: string, approve: boolean) => void;
+    onProjectRootsChange?: (roots: ProjectRootDto[]) => void;
+    networkIsolationBadge?: string | null;
+    usageTier?: string;
+    usageMaxAgents?: number;
+    walletMicrocredits?: number | null;
+    cloudEnabled?: boolean;
+    permissionCeiling?: string | null;
+    subscriptionPortalUrl?: string | null;
   } = $props();
 
   const uniqueRoots = $derived(
     [...new Set(agents.map((a) => a.root_id).filter(Boolean))] as string[],
   );
+
+  const selectedRun = $derived(runs.find((r) => r.id === selectedRunId) ?? null);
 </script>
 
 <aside class="sidebar glass-panel">
@@ -91,6 +124,7 @@
     <h2 class="panel-title">Domains ({catalogForView.length})</h2>
     <ul class="list-nav">
       {#each catalogForView as entry}
+        {@const status = domainStatus.find((d) => d.domain_id === entry.domain_id)}
         <li>
           <button
             class:selected={entry.domain_id === selectedDomainId}
@@ -98,6 +132,13 @@
             title={entry.repo_root}
           >
             {entry.repo_root.split(/[/\\]/).pop() ?? entry.domain_id.slice(0, 12)}
+            {#if status && status.active_runs > 0}
+              <span class="status-badge status-badge--running">{status.active_runs} active</span>
+            {:else if status?.hitl_pending}
+              <span class="status-badge status-badge--hitl">HITL {status.hitl_pending}</span>
+            {:else if status?.latest_run_status}
+              <span class="status-badge">{status.latest_run_status}</span>
+            {/if}
             {#if entry.project_id}
               <span class="cost-badge">{entry.project_id}</span>
             {/if}
@@ -122,6 +163,17 @@
   </ul>
 
   <h2 class="panel-title">Runs</h2>
+  {#if selectedRun}
+    <div class="run-meta">
+      <span class="cost-badge">{selectedRun.permission_profile ?? "orbit"}</span>
+      <span class="cost-badge">{selectedRun.isolation_backend ?? selectedRun.isolation_mode}</span>
+      {#if networkIsolationBadge || selectedRun.permission_profile === "deep_space"}
+        <span class="cost-badge cost-badge--net" title="DeepSpace network isolation">
+          net: {networkIsolationBadge ?? "pending"}
+        </span>
+      {/if}
+    </div>
+  {/if}
   <ul class="list-nav">
     {#each runs as run}
       <li>
@@ -177,6 +229,10 @@
       {#each hitl as req}
         <li class="hitl-item chroma-edge-top">
           <div class="hitl-action">{req.action}</div>
+          <div class="hitl-agent">{req.agent_key}</div>
+          {#if req.domain_id}
+            <div class="hitl-domain">{req.domain_id.slice(0, 12)}…</div>
+          {/if}
           <div class="hitl-reason">{req.reason}</div>
           <div class="hitl-buttons">
             <button class="gold" onclick={() => onRespondHitl(req.id, true)}>Approve</button>
@@ -187,7 +243,21 @@
     </ul>
   {/if}
 
-  <TopologyPanel agents={filteredAgents} {arbitrage} />
+  <ProjectPathPanel
+    projectId={selectedProjectId}
+    roots={projectRoots}
+    onRootsChange={onProjectRootsChange}
+  />
+  <FleetPanel runs={fleetRuns} />
+  <UsagePanel
+    tier={usageTier}
+    maxAgents={usageMaxAgents}
+    {walletMicrocredits}
+    {cloudEnabled}
+    {permissionCeiling}
+    {subscriptionPortalUrl}
+  />
+  <TopologyPanel agents={filteredAgents} {arbitrage} structural={structural} />
 </aside>
 
 <style>
@@ -224,6 +294,12 @@
     color: var(--brand-gold);
     font-size: 0.85rem;
   }
+  .hitl-agent {
+    font-size: 0.7rem;
+    opacity: 0.75;
+    font-family: ui-monospace, monospace;
+    word-break: break-all;
+  }
   .hitl-reason {
     font-size: 0.75rem;
     opacity: 0.8;
@@ -236,5 +312,31 @@
   }
   .hitl-buttons button {
     flex: 1;
+  }
+  .status-badge {
+    font-size: 0.65rem;
+    margin-left: 0.25rem;
+    padding: 0.05rem 0.3rem;
+    border-radius: 4px;
+    opacity: 0.85;
+    background: color-mix(in oklab, var(--foreground) 12%, transparent);
+  }
+  .status-badge--running {
+    color: var(--brand-teal);
+    background: color-mix(in oklab, var(--brand-teal) 18%, transparent);
+  }
+  .status-badge--hitl {
+    color: var(--brand-gold);
+    background: color-mix(in oklab, var(--brand-gold) 18%, transparent);
+  }
+  .run-meta {
+    display: flex;
+    gap: 0.35rem;
+    margin: 0 0 0.45rem;
+    flex-wrap: wrap;
+  }
+  .cost-badge--net {
+    color: var(--brand-teal);
+    background: color-mix(in oklab, var(--brand-teal) 12%, transparent);
   }
 </style>

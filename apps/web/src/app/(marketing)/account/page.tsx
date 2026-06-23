@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { AccountAuth } from "@/components/account-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +26,9 @@ export default function AccountPage() {
           <CardDescription>Sign in to view your plan and org policies.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <AccountAuth />
+          <Suspense fallback={<p className="text-sm text-muted-foreground">Loading account…</p>}>
+            <AccountAuth />
+          </Suspense>
           <Link href="/plans" className="text-sm text-primary hover:underline">
             Compare plans →
           </Link>

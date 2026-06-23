@@ -9,3 +9,7 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 pytxo-core.workspace = true
+pytxo-signal.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

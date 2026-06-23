@@ -16,7 +16,9 @@ Pytxo’s **productivity max** goal: run independent agent swarms on **different
 
 An **execution domain** is the unit of isolation for one canonical repo root. A **hypervisor registry** holds all active domains for the local control plane process.
 
-**Modular projects (planned):** user-facing **projects** may attach **multiple path roots** to one logical workspace (Antigravity-style). That extends domains with a project manifest and cross-root scheduling—see [[modular-projects]]. Until then, use one domain per repo root.
+**Modular projects (shipped v1):** user-facing **projects** may attach **multiple path roots** to one logical workspace (Antigravity-style). See [[modular-projects]].
+
+**Fleet DAG (shipped):** cross-**repo** barriers via [[hypervisor-fleet-dag]] — explicit fleet manifests, not implicit multi-repo `depends_on`.
 
 ADR: [[ADR-0008-local-permission-profile-four-tiers]].
 
@@ -46,7 +48,7 @@ pub struct HypervisorRegistry {
 
 1. **Dispatch** — Each `pytxo run --repo /path` (or hypervisor `dispatch` IPC) calls `HypervisorRegistry::ensure_domain(repo_root)` then spawns `execute_plan` on an independent async task.
 2. **Telemetry** — PTY stdout/stderr collectors append only to **that domain’s** `events` table. No shared in-memory line buffer across domains.
-3. **Scheduling** — `pytxo-scheduler` builds waves **per domain** per run. Cross-repo DAG edges are **out of scope for v1** (future hypervisor-level orchestration).
+3. **Scheduling** — `pytxo-scheduler` builds waves **per domain** per run. Cross-repo ordering uses [[hypervisor-fleet-dag]] (fleet manifest + barrier sync).
 4. **UI polling** — Reality Deck uses `list_domains` → `tail_events(domain_id, …)`. Never a single global interleaved stream ([[presentation-passive-telemetry]]).
 
 ```mermaid
@@ -92,6 +94,11 @@ sequenceDiagram
 - `~/.pytxo/hypervisor.db` holds a `domains` table (`domain_id`, `repo_root`, `db_path`, `project_id`, `status`, `updated_at`). `pytxo_store::Catalog` owns the schema.
 - Every `ensure_domain` upserts the catalog (best-effort, never fatal). `pytxo domains [--json]` and the Tauri `list_all_domains` command read it.
 - The Reality Deck "All projects" home lists catalog rows; selecting one tails that domain's own `pytxo.db`. **Streams are never merged** — the catalog only records where each per-domain DB lives.
+- `list_domains_status` / `pytxo domains` expose `active_runs`, `latest_run_status`, and in-process `hitl_pending` per domain.
+
+### Fleet runs (v3)
+
+- `fleet_runs` and `fleet_nodes` tables record hypervisor-level cross-repo DAG execution ([[hypervisor-fleet-dag]]).
 
 ### Write contract
 

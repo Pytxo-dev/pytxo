@@ -6,6 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 anyhow = { workspace = true }
 glob = "0.3"
@@ -23,8 +26,10 @@ tokio = { workspace = true }
 
 [features]
 default = []
+deepspace-netns = []
 overlay-fuse = []
 overlay-fuse-kernel = ["dep:fuser"]
+overlay-fuse-macos = []
 overlay-projfs = []
 
 [target.'cfg(target_os = "linux")'.dependencies]

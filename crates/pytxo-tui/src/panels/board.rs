@@ -21,6 +21,7 @@ pub fn draw(
     doctor: &DoctorReport,
     active_run: Option<&str>,
     trust_tier: &str,
+    org_policy: Option<&str>,
     agents: &[AgentSpec],
     view: &BoardView,
 ) {
@@ -33,7 +34,16 @@ pub fn draw(
         ])
         .split(area);
 
-    draw_header(frame, chunks[0], snapshot, doctor, active_run, trust_tier, agents);
+    draw_header(
+        frame,
+        chunks[0],
+        snapshot,
+        doctor,
+        active_run,
+        trust_tier,
+        org_policy,
+        agents,
+    );
     draw_runs(frame, chunks[1], snapshot, view.run_selected);
     draw_hitl(frame, chunks[2], snapshot, view.hitl_selected);
 }
@@ -45,6 +55,7 @@ fn draw_header(
     doctor: &DoctorReport,
     active_run: Option<&str>,
     trust_tier: &str,
+    org_policy: Option<&str>,
     agents: &[AgentSpec],
 ) {
     let doctor_unknown = doctor.checks.is_empty();
@@ -78,7 +89,8 @@ fn draw_header(
             .collect::<Vec<_>>()
             .join(",")
     };
-    let text = Line::from(vec![
+    let total_active: usize = snapshot.domains.iter().map(|d| d.active_runs).sum();
+    let mut spans = vec![
         Span::styled(" pytxo ", theme::title()),
         Span::styled(format!("v{} ", snapshot.version), theme::chroma_cyan()),
         Span::styled(
@@ -86,27 +98,81 @@ fn draw_header(
             Style::default().fg(ratatui::style::Color::White),
         ),
         Span::styled(format!(" · {trust_tier} · "), theme::muted()),
+    ];
+    if let Some(org) = org_policy {
+        spans.push(Span::styled(format!("{org} · "), theme::chroma_cyan()));
+    }
+    spans.extend([
         Span::styled(doctor_label, doctor_style),
         Span::styled(format!(" · run {active} · {agent_hint}"), theme::muted()),
         Span::styled(
-            format!(" · {} domain(s)", snapshot.domains.len()),
+            format!(
+                " · {} domain(s) · {} active",
+                snapshot.domains.len(),
+                total_active
+            ),
             theme::muted(),
         ),
     ]);
+    let text = Line::from(spans);
     frame.render_widget(Paragraph::new(text).style(theme::header_bg()), area);
+
+    if snapshot.domains.len() > 1 {
+        draw_domains_strip(frame, area, snapshot);
+    }
+}
+
+fn draw_domains_strip(frame: &mut Frame, header_area: Rect, snapshot: &DashboardSnapshot) {
+    if header_area.height < 2 {
+        return;
+    }
+    let strip = Rect {
+        x: header_area.x,
+        y: header_area.y + 1,
+        width: header_area.width,
+        height: 1,
+    };
+    let parts: Vec<String> = snapshot
+        .domains
+        .iter()
+        .take(4)
+        .map(|d| {
+            let name = std::path::Path::new(&d.repo_root)
+                .file_name()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_else(|| truncate(&d.repo_root, 12));
+            let st = d.latest_run_status.as_deref().unwrap_or("—");
+            let active = d.active_runs;
+            format!("{name}:{active}/{st}")
+        })
+        .collect();
+    let more = if snapshot.domains.len() > 4 {
+        format!(" +{}", snapshot.domains.len() - 4)
+    } else {
+        String::new()
+    };
+    frame.render_widget(
+        Paragraph::new(format!("domains {}{}", parts.join(" · "), more)).style(theme::muted()),
+        strip,
+    );
 }
 
 fn draw_runs(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, selected: usize) {
-    let header = Row::new(vec!["Run", "Status", "Agents", "Cost"])
+    let header = Row::new(vec!["Run", "Status", "Repo", "Agents", "Cost"])
         .style(theme::chroma_violet())
         .bottom_margin(1);
     let rows: Vec<Row> = snapshot
         .runs
         .iter()
         .map(|r| {
+            let repo_short = std::path::Path::new(&r.repo_root)
+                .file_name()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_else(|| truncate(&r.repo_root, 10));
             Row::new(vec![
-                Cell::from(truncate(&r.id, 24)),
+                Cell::from(truncate(&r.id, 20)),
                 Cell::from(r.status.clone()),
+                Cell::from(repo_short),
                 Cell::from(r.agents.len().to_string()),
                 Cell::from(
                     r.estimated_cost_usd
@@ -124,10 +190,11 @@ fn draw_runs(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, select
     let table = Table::new(
         rows,
         [
-            ratatui::layout::Constraint::Percentage(40),
-            ratatui::layout::Constraint::Length(12),
-            ratatui::layout::Constraint::Length(8),
+            ratatui::layout::Constraint::Percentage(32),
             ratatui::layout::Constraint::Length(10),
+            ratatui::layout::Constraint::Length(10),
+            ratatui::layout::Constraint::Length(6),
+            ratatui::layout::Constraint::Length(8),
         ],
     )
     .header(header)

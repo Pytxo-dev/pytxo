@@ -17,7 +17,7 @@ pub struct StartSandboxResponse {
     pub ws_url: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SyncFile {
     pub path: String,
     pub content: String,

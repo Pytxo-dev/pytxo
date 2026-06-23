@@ -79,6 +79,7 @@ fn ctx_with_hitl(repo: &std::path::Path, hitl: HitlQueue) -> RunContext {
         mcp_hub: None,
         mcp_hub_enabled: false,
         mcp_allowlist: Vec::new(),
+        sparse_exclude: Vec::new(),
     }
 }
 

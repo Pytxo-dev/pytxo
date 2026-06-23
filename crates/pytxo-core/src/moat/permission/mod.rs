@@ -1,3 +1,13 @@
+//! Local capability ladder and policy facade ([[permission-profile-engine]], ADR-0008).
+
+mod environment;
+mod filesystem;
+mod network;
+
+pub use environment::{EnvironmentPolicy, EnvironmentPolicyEngine};
+pub use filesystem::{path_under_cwd, FilesystemPolicy, FilesystemPolicyEngine};
+pub use network::{NetworkPolicy, NetworkPolicyEngine};
+
 use std::path::Path;
 use std::process::Command;
 
@@ -57,7 +67,7 @@ impl DomainId {
     }
 }
 
-/// Orchestration-side policy facade for a single effective profile.
+/// Orchestration-side policy facade composing filesystem, network, and environment policies.
 #[derive(Clone, Copy, Debug)]
 pub struct PermissionEngine {
     profile: PermissionProfile,
@@ -72,6 +82,18 @@ impl PermissionEngine {
         self.profile
     }
 
+    pub fn filesystem(&self) -> FilesystemPolicyEngine {
+        FilesystemPolicyEngine::new(self.profile)
+    }
+
+    pub fn network(&self) -> NetworkPolicyEngine {
+        NetworkPolicyEngine::new(self.profile)
+    }
+
+    pub fn environment(&self) -> EnvironmentPolicyEngine {
+        EnvironmentPolicyEngine::new(self.profile)
+    }
+
     pub fn max_fidelity(&self, configured: FidelityTier) -> FidelityTier {
         match self.profile {
             PermissionProfile::DeepSpace => FidelityTier::Low,
@@ -80,51 +102,31 @@ impl PermissionEngine {
     }
 
     pub fn flush_requires_approval(&self) -> bool {
-        matches!(
-            self.profile,
-            PermissionProfile::DeepSpace | PermissionProfile::Orbit | PermissionProfile::Galaxy
-        )
+        self.filesystem().flush_requires_approval()
     }
 
     pub fn may_flush(&self) -> bool {
-        !matches!(self.profile, PermissionProfile::DeepSpace)
+        self.filesystem().may_flush()
+    }
+
+    pub fn may_read(&self, repo_root: &Path, path: &Path, agent_cwd: &Path) -> bool {
+        self.filesystem().may_read(repo_root, path, agent_cwd)
     }
 
     pub fn use_worktree_isolation(&self) -> bool {
-        !matches!(self.profile, PermissionProfile::Supernova)
+        self.filesystem().use_worktree_isolation()
+    }
+
+    pub fn spawn_egress_allowed(&self, cmd: &str) -> bool {
+        self.network().spawn_egress_allowed(cmd)
     }
 
     pub fn sanitize_child_env(&self, command: &mut Command) {
-        if !matches!(
-            self.profile,
-            PermissionProfile::DeepSpace | PermissionProfile::Orbit
-        ) {
-            return;
-        }
-        let keys: Vec<String> = command
-            .get_envs()
-            .filter_map(|(k, _)| k.to_str().map(str::to_string))
-            .collect();
-        for key in &keys {
-            let upper = key.to_ascii_uppercase();
-            if Self::should_strip_env_key(&upper) {
-                command.env_remove(key);
-            }
-        }
+        self.environment().sanitize_child_env(command);
     }
 
     pub fn sanitize_env_map(&self, vars: &mut std::collections::HashMap<String, String>) {
-        if !matches!(
-            self.profile,
-            PermissionProfile::DeepSpace | PermissionProfile::Orbit
-        ) {
-            return;
-        }
-        vars.retain(|key, _| !Self::should_strip_env_key(&key.to_ascii_uppercase()));
-    }
-
-    fn should_strip_env_key(upper: &str) -> bool {
-        upper.starts_with("SSH_") || upper == "GIT_SSH_COMMAND" || upper == "SSH_AUTH_SOCK"
+        self.environment().sanitize_env_map(vars);
     }
 }
 

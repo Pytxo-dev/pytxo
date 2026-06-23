@@ -7,9 +7,9 @@ title: Hypervisor Shell
 
 **Mission control for agent fleets** — not another coding chatbot.
 
-Running `pytxo` with no subcommand opens the **Hypervisor Shell**: a three-zone TUI with a **board** (runs, waves, HITL), **scrollback** (command output and plan previews), and an operator **prompt** (slash commands).
+Running `pytxo` with no subcommand opens the **Hypervisor Shell**: a three-zone TUI with a **board** (runs, waves, approvals), **scrollback** (command output and plan previews), and an operator **prompt** (slash commands).
 
-Your ADE (Antigravity, Claude Code, Codex, …) still does the thinking. Pytxo schedules waves, spawns processes in worktrees, and records telemetry.
+Your ADE (Antigravity, Claude Code, Codex, …) still does the thinking. Pytxo schedules waves, spawns processes in isolated copies, and records telemetry.
 
 ## Workflow
 
@@ -17,7 +17,7 @@ Your ADE (Antigravity, Claude Code, Codex, …) still does the thinking. Pytxo s
 1. pytxo                         → trust tier picker (first visit) → shell
 2. /models search deepseek       → browse BYOK models (key in env)
 3. /dry-run --agents 3           → preview wave plan (conflicts, task graph)
-4. /run --cmd "agy --help"       → dispatch your CLI in worktrees
+4. /run --cmd "agy --help"       → dispatch your CLI in isolated copies
 5. /status                       → poll run + agent rows on the board
 6. /logs agent-0                 → tail WAL events
 7. /stop                         → halt the active run
@@ -25,14 +25,18 @@ Your ADE (Antigravity, Claude Code, Codex, …) still does the thinking. Pytxo s
 
 Untrusted folders block `/run` but allow `/doctor` and `/dry-run`. See [Folder trust](/docs/getting-started/folder-trust).
 
-## Slash commands (v0.3.0)
+:::tip Agent waves vs fleet runs
+`/run` dispatches **agent waves** inside the current repo. For **cross-repo** barriers use `pytxo fleet run` — see [Fleet runs](/docs/concepts/fleet-runs).
+:::
+
+## Slash commands
 
 | Command | Purpose |
 |---------|---------|
 | `/help` | List commands |
 | `/doctor` | Preflight checks |
 | `/dry-run` | JSON wave plan (`--agents N`) |
-| `/run` | Dispatch fleet (`--agents N --cmd "…"`) |
+| `/run` | Dispatch swarm (`--agents N --cmd "…"`) |
 | `/status` | Recent runs (`--limit N`) |
 | `/logs <agent>` | Event tail (`--tail N`) |
 | `/stop` | Stop active run (`--all` for every tracked process) |
@@ -50,9 +54,7 @@ pytxo run --dry-run --agents 2
 pytxo run --agents 1 --cmd "echo pytxo"
 ```
 
-The router lives in the `pytxo-shell` crate so TUI, CLI, and MCP can share the same control plane over time.
-
-## Optional NL planner (v0.2.x)
+## Optional NL planner
 
 Natural-language mission lines are **off by default**. Enable with:
 
@@ -67,7 +69,7 @@ or in `pytxo.toml`:
 enabled = true
 ```
 
-When enabled, a mission line is decomposed into `Vec<Task>`, validated through `build_plan()`, previewed in scrollback, then dispatched with `/run`.
+When enabled, a mission line is decomposed into tasks, validated, previewed in scrollback, then dispatched with `/run`.
 
 ## Keyboard shortcuts
 
@@ -76,8 +78,8 @@ When enabled, a mission line is decomposed into `Vec<Task>`, validated through `
 | Enter | Submit prompt |
 | ↑ / ↓ (empty prompt) | Command history |
 | ↑ / ↓ (while typing) | Scroll scrollback |
-| Tab | Cycle HITL selection |
-| a / x | Approve / deny HITL (empty prompt) |
+| Tab | Cycle approval selection |
+| a / x | Approve / deny approval (empty prompt) |
 | q / Ctrl+C | Quit (Ctrl+C also sends `/stop`) |
 
-See also: [ADR-0012 Hypervisor Shell](/docs/developers/architecture) (in-repo `docs/05-adr/`), [CLI reference](/docs/reference/cli).
+See also: [CLI reference](/docs/reference/cli) · [Galaxy approvals](/docs/concepts/galaxy-approvals)

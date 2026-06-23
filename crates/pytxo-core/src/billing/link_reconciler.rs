@@ -36,6 +36,7 @@ impl HttpBillingReconciler {
         json!({
             "domain_id": domain_id.as_str(),
             "run_id": run_id.0,
+            "idempotency_key": format!("{}:{}", domain_id.as_str(), run_id.0),
         })
     }
 
@@ -49,6 +50,7 @@ impl HttpBillingReconciler {
         json!({
             "domain_id": domain_id.as_str(),
             "run_id": run_id.0,
+            "idempotency_key": format!("{}:{}", domain_id.as_str(), run_id.0),
             "usage": {
                 "tokens_in_billed": totals.tokens_in_billed,
                 "tokens_in_sent": totals.tokens_in_sent,
@@ -92,6 +94,28 @@ impl HttpBillingReconciler {
         if self.base_url.trim().is_empty() {
             return Err(PytxoError::Other("link base_url empty".into()));
         }
+        #[cfg(feature = "link-http")]
+        {
+            let health = self.endpoint("health");
+            let resp = ureq::get(&health)
+                .call()
+                .map_err(|e| PytxoError::Other(format!("link health: {e}")))?;
+            if resp.status() != 200 {
+                return Err(PytxoError::Other(format!(
+                    "link health {}: status {}",
+                    health,
+                    resp.status()
+                )));
+            }
+            let body = resp
+                .into_string()
+                .map_err(|e| PytxoError::Other(format!("link health body: {e}")))?;
+            if body.trim() != "ok" {
+                return Err(PytxoError::Other(format!(
+                    "link health unexpected body: {body}"
+                )));
+            }
+        }
         Ok(())
     }
 }
@@ -121,8 +145,6 @@ mod tests {
 
     #[test]
     fn ping_requires_base_url() {
-        let ok = HttpBillingReconciler::new("https://link.pytxo.com");
-        assert!(ok.ping().is_ok());
         let bad = HttpBillingReconciler::new("");
         assert!(bad.ping().is_err());
     }
@@ -148,6 +170,7 @@ mod tests {
         let start = r.run_start_body(&domain, &run);
         assert_eq!(start["domain_id"], "/repo/a");
         assert_eq!(start["run_id"], "run-123");
+        assert_eq!(start["idempotency_key"], "/repo/a:run-123");
 
         let totals = RunUsageTotals {
             tokens_in_billed: 100,
@@ -180,19 +203,24 @@ mod tests {
         let server = thread::spawn(move || {
             listener.set_nonblocking(true).ok();
             let deadline = Instant::now() + Duration::from_secs(2);
-            while Instant::now() < deadline {
+            let mut requests = 0u32;
+            while Instant::now() < deadline && requests < 2 {
                 if let Ok((mut stream, _)) = listener.accept() {
                     let mut buf = vec![0u8; 8192];
                     let n = stream.read(&mut buf).unwrap_or(0);
                     if n > 0 {
                         let req = String::from_utf8_lossy(&buf[..n]);
+                        requests += 1;
                         if req.contains("v1/runs/start") && req.contains("run-xyz") {
                             hit2.store(true, Ordering::SeqCst);
                         }
+                        let resp = if req.contains("/health") {
+                            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"
+                        } else {
+                            "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+                        };
+                        let _ = stream.write_all(resp.as_bytes());
                     }
-                    let resp = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
-                    let _ = stream.write_all(resp.as_bytes());
-                    break;
                 }
                 thread::sleep(Duration::from_millis(10));
             }

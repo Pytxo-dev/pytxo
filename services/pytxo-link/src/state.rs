@@ -1,11 +1,27 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use crate::entitlements::EntitlementStore;
 use crate::jwt::JwksValidator;
+use crate::runs::{MemoryRunStore, RunStore};
+
+#[derive(Clone)]
+pub enum RunLedger {
+    Postgres(RunStore),
+    Memory(Arc<MemoryRunStore>),
+}
+
+impl RunLedger {
+    pub fn postgres(pool: PgPool) -> Self {
+        Self::Postgres(RunStore::new(pool))
+    }
+
+    pub fn memory() -> Self {
+        Self::Memory(Arc::new(MemoryRunStore::default()))
+    }
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -15,7 +31,7 @@ pub struct AppState {
     pub jwks: Option<Arc<JwksValidator>>,
     pub entitlements: EntitlementStore,
     pub db: Option<PgPool>,
-    pub runs: Arc<Mutex<HashMap<String, RunRecord>>>,
+    pub runs: RunLedger,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

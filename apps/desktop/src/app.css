@@ -13,6 +13,22 @@ html {
   color-scheme: dark;
 }
 
+html[data-chroma-theme="light"] {
+  color-scheme: light;
+  --void: #f4f6f8;
+  --foreground: #0f1419;
+  --card: #ffffff;
+  --border: color-mix(in oklab, #0f1419 14%, transparent);
+  --brand-teal: #0d9488;
+  --brand-violet: #7c3aed;
+  --brand-gold: #d97706;
+}
+
+html.dark,
+html[data-chroma-theme="dark"] {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;

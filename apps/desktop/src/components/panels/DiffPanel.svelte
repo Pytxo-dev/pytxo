@@ -2,11 +2,13 @@
   let {
     diffText = "",
     dryRunOut = "",
+    isolationBackend = "",
     onLoad,
     onCommit,
   }: {
     diffText?: string;
     dryRunOut?: string;
+    isolationBackend?: string;
     onLoad: () => void;
     onCommit: () => void;
   } = $props();
@@ -15,6 +17,9 @@
 <section class="diff-pane glass-panel chroma-edge-top">
   <h2 class="panel-title">
     Diff
+    {#if isolationBackend}
+      <span class="backend-badge" title="Blast isolation backend">{isolationBackend}</span>
+    {/if}
     <span class="diff-actions">
       <button onclick={onLoad}>Load</button>
       <button class="gold chroma-glow" onclick={onCommit}>Approve merge</button>
@@ -38,6 +43,19 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .backend-badge {
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    color: var(--brand-teal);
+    background: color-mix(in oklab, var(--brand-teal) 15%, transparent);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .diff-actions {
     display: flex;

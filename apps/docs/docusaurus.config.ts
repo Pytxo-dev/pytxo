@@ -33,7 +33,6 @@ const config: Config = {
         docs: {
           sidebarPath: "./sidebars.ts",
           routeBasePath: "/",
-          editUrl: "https://github.com/Pytxo-dev/pytxo/tree/main/apps/docs/",
         },
         blog: false,
         theme: {
@@ -69,12 +68,6 @@ const config: Config = {
           position: "right",
           className: "navbar-download-link",
         },
-        {
-          href: "https://github.com/Pytxo-dev/pytxo",
-          label: "GitHub",
-          position: "right",
-          className: "navbar-github-link",
-        },
       ],
     },
     docs: {
@@ -103,11 +96,11 @@ const config: Config = {
           ],
         },
         {
-          title: "Developers",
+          title: "Reference",
           items: [
-            { label: "Architecture", to: "/developers/architecture" },
             { label: "CLI reference", to: "/reference/cli" },
-            { label: "Contributing", to: "/developers/contributing" },
+            { label: "pytxo.toml", to: "/reference/pytxo-toml" },
+            { label: "Permission tiers", to: "/reference/permission-tiers" },
           ],
         },
       ],

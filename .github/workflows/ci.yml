@@ -53,6 +53,14 @@ jobs:
         if: runner.os == 'Windows'
         run: cargo test -p pytxo-runner --features overlay-projfs
 
+      - name: Overlay fuse POC (macOS)
+        if: runner.os == 'macOS'
+        run: cargo test -p pytxo-runner --features overlay-fuse-macos --lib --no-run
+
+      - name: DeepSpace network isolation (Linux compile)
+        if: runner.os == 'Linux'
+        run: cargo test -p pytxo-runner --features deepspace-netns network_policy --no-run
+
       - name: Cloud sandbox client (feature)
         run: |
           cargo test -p pytxo-orchestrate --test cloud_sandbox

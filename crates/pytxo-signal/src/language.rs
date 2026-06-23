@@ -1,3 +1,9 @@
+//! Language detection for Signal Core ([[signal-core]]).
+//!
+//! Supported tree-sitter grammars (Phase 31): **Rust**, **TypeScript/TSX**, **JavaScript**,
+//! **Python**, **Go**, **Java**, **C/C++** (`.c`, `.h`, `.cpp`, `.hpp`, `.cc`), **Ruby**.
+//! Unknown extensions fall back to raw file content (`fallback_raw`).
+
 use std::path::Path;
 
 use tree_sitter::Language;
@@ -29,6 +35,22 @@ pub fn detect(path: &Path) -> Option<DetectedLanguage> {
         "go" => Some(DetectedLanguage {
             id: "go",
             grammar: tree_sitter_go::LANGUAGE.into(),
+        }),
+        "java" => Some(DetectedLanguage {
+            id: "java",
+            grammar: tree_sitter_java::LANGUAGE.into(),
+        }),
+        "c" | "h" => Some(DetectedLanguage {
+            id: "c",
+            grammar: tree_sitter_cpp::LANGUAGE.into(),
+        }),
+        "cpp" | "hpp" | "cc" | "cxx" => Some(DetectedLanguage {
+            id: "cpp",
+            grammar: tree_sitter_cpp::LANGUAGE.into(),
+        }),
+        "rb" => Some(DetectedLanguage {
+            id: "ruby",
+            grammar: tree_sitter_ruby::LANGUAGE.into(),
         }),
         _ => None,
     }

@@ -8,13 +8,22 @@ use pytxo_core::{IsolationBackend, IsolationCtx, IsolationMode, Result, Workspac
 use crate::git::{branch_name, create_worktree, remove_worktree, worktree_path};
 
 #[cfg(feature = "overlay-fuse")]
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
+fn should_skip_dir(name: &str, sparse_exclude: &[String]) -> bool {
+    sparse_exclude.iter().any(|e| e == name)
+}
+
+#[cfg(feature = "overlay-fuse")]
+fn copy_dir_recursive(src: &Path, dst: &Path, sparse_exclude: &[String]) -> Result<()> {
     std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("overlay mkdir: {e}")))?;
     for entry in
         std::fs::read_dir(src).map_err(|e| PytxoError::Runner(format!("overlay readdir: {e}")))?
     {
         let entry = entry.map_err(|e| PytxoError::Runner(format!("overlay entry: {e}")))?;
         let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if should_skip_dir(&name_str, sparse_exclude) {
+            continue;
+        }
         let from = entry.path();
         let to = dst.join(&name);
         if entry
@@ -22,7 +31,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
             .map_err(|e| PytxoError::Runner(e.to_string()))?
             .is_dir()
         {
-            copy_dir_recursive(&from, &to)?;
+            copy_dir_recursive(&from, &to, &[])?;
         } else {
             std::fs::copy(&from, &to)
                 .map_err(|e| PytxoError::Runner(format!("overlay copy: {e}")))?;
@@ -40,7 +49,7 @@ fn prepare_overlay_layer(ctx: &IsolationCtx) -> Result<WorkspaceHandle> {
     if upper.exists() {
         std::fs::remove_dir_all(&upper).ok();
     }
-    copy_dir_recursive(&ctx.repo_root, &upper)?;
+    copy_dir_recursive(&ctx.repo_root, &upper, &ctx.sparse_exclude)?;
     Ok(WorkspaceHandle {
         cwd: upper,
         branch: String::new(),
@@ -77,7 +86,7 @@ impl IsolationBackend for WorktreeIsolation {
     }
 }
 
-/// Blast Shield north-star backend — sparse overlay (FUSE / ProjFS). Not yet mounted.
+/// Blast Shield north-star backend — sparse overlay (FUSE / ProjFS).
 #[derive(Clone, Default)]
 pub struct OverlayIsolation {
     fallback: WorktreeIsolation,
@@ -103,6 +112,21 @@ impl IsolationBackend for OverlayIsolation {
                     &ctx.worktree_base,
                     &ctx.run_id.0,
                     &ctx.agent_id.0,
+                    &ctx.sparse_exclude,
+                ) {
+                    return Ok(handle);
+                }
+            }
+        }
+        #[cfg(all(feature = "overlay-fuse-macos", target_os = "macos"))]
+        {
+            if crate::overlay_fuse_macos::fuse_available() {
+                if let Ok(handle) = crate::overlay_fuse_macos::prepare_macos_overlay(
+                    &ctx.repo_root,
+                    &ctx.worktree_base,
+                    &ctx.run_id.0,
+                    &ctx.agent_id.0,
+                    &ctx.sparse_exclude,
                 ) {
                     return Ok(handle);
                 }
@@ -116,6 +140,7 @@ impl IsolationBackend for OverlayIsolation {
                     &ctx.worktree_base,
                     &ctx.run_id.0,
                     &ctx.agent_id.0,
+                    &ctx.sparse_exclude,
                 ) {
                     return Ok(handle);
                 }
@@ -140,6 +165,12 @@ impl IsolationBackend for OverlayIsolation {
                 return crate::overlay_fuse_linux::rollback_kernel_overlay(handle);
             }
         }
+        #[cfg(all(feature = "overlay-fuse-macos", target_os = "macos"))]
+        {
+            if handle.cwd.to_string_lossy().contains("/mnt") {
+                return crate::overlay_fuse_macos::rollback_macos_overlay(handle);
+            }
+        }
         #[cfg(all(feature = "overlay-projfs", target_os = "windows"))]
         {
             if handle.cwd.to_string_lossy().contains("projfs-") {
@@ -160,12 +191,39 @@ impl IsolationBackend for OverlayIsolation {
         #[cfg(feature = "overlay-fuse")]
         {
             if handle.branch.is_empty() {
-                // POC: no git merge; caller may copy upper layer manually.
-                return Ok(());
+                return flush_overlay_upper(&ctx.repo_root, &handle.cwd);
             }
         }
         self.fallback.flush(ctx, handle)
     }
+}
+
+#[cfg(feature = "overlay-fuse")]
+fn flush_overlay_upper(repo_root: &Path, upper: &Path) -> Result<()> {
+    fn walk_upper(src: &Path, dst: &Path) -> Result<()> {
+        for entry in std::fs::read_dir(src)
+            .map_err(|e| PytxoError::Runner(format!("overlay flush readdir: {e}")))?
+        {
+            let entry = entry.map_err(|e| PytxoError::Runner(format!("overlay flush entry: {e}")))?;
+            let name = entry.file_name();
+            let from = entry.path();
+            let to = dst.join(&name);
+            if entry
+                .file_type()
+                .map_err(|e| PytxoError::Runner(e.to_string()))?
+                .is_dir()
+            {
+                std::fs::create_dir_all(&to)
+                    .map_err(|e| PytxoError::Runner(format!("overlay flush mkdir: {e}")))?;
+                walk_upper(&from, &to)?;
+            } else {
+                std::fs::copy(&from, &to)
+                    .map_err(|e| PytxoError::Runner(format!("overlay flush copy: {e}")))?;
+            }
+        }
+        Ok(())
+    }
+    walk_upper(upper, repo_root)
 }
 
 pub fn isolation_for_mode(mode: IsolationMode) -> Box<dyn IsolationBackend> {
@@ -175,9 +233,61 @@ pub fn isolation_for_mode(mode: IsolationMode) -> Box<dyn IsolationBackend> {
     }
 }
 
+/// Human-readable active isolation backend for Deck telemetry (Phase 33).
+pub fn isolation_backend_label(mode: IsolationMode, sparse_exclude: &[String]) -> String {
+    match mode {
+        IsolationMode::Worktree => "worktree".into(),
+        IsolationMode::Overlay => {
+            #[cfg(all(feature = "overlay-fuse-kernel", target_os = "linux"))]
+            if crate::overlay_fuse_linux::fuse_available() {
+                return "overlay-kernel-fuse".into();
+            }
+            #[cfg(all(feature = "overlay-fuse-macos", target_os = "macos"))]
+            {
+                return crate::overlay_fuse_macos::capability_probe().into();
+            }
+            #[cfg(all(feature = "overlay-projfs", target_os = "windows"))]
+            {
+                return crate::overlay_projfs::capability_probe().into();
+            }
+            #[cfg(feature = "overlay-fuse")]
+            return format!(
+                "overlay-copy-layer (excludes: {})",
+                sparse_exclude.join(",")
+            );
+            #[cfg(not(feature = "overlay-fuse"))]
+            return format!(
+                "overlay-worktree-fallback (excludes: {})",
+                sparse_exclude.join(",")
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn isolation_backend_label_worktree() {
+        assert_eq!(
+            isolation_backend_label(IsolationMode::Worktree, &[]),
+            "worktree"
+        );
+    }
+
+    #[test]
+    fn isolation_backend_label_overlay_reports_sparse_exclude() {
+        let label = isolation_backend_label(
+            IsolationMode::Overlay,
+            &["node_modules".into(), "target".into()],
+        );
+        assert!(
+            label.starts_with("overlay-"),
+            "expected overlay backend label, got {label}"
+        );
+        assert!(label.contains("node_modules"));
+    }
 
     #[test]
     fn overlay_mode_reports_overlay() {
@@ -199,7 +309,9 @@ mod tests {
             .status()
             .unwrap()
             .success());
+        std::fs::create_dir_all(repo.join("node_modules")).unwrap();
         std::fs::write(repo.join("README.md"), "x\n").unwrap();
+        std::fs::write(repo.join("node_modules").join("pkg.js"), "x").unwrap();
         let wt = tmp.path().join("wt");
         std::fs::create_dir_all(&wt).unwrap();
         let ctx = IsolationCtx {
@@ -207,6 +319,7 @@ mod tests {
             agent_id: AgentId("agent-0".into()),
             repo_root: repo.clone(),
             worktree_base: wt,
+            sparse_exclude: vec!["node_modules".into()],
         };
         let handle = OverlayIsolation::new().prepare(&ctx).unwrap();
         assert_eq!(handle.backend, IsolationMode::Overlay);
@@ -216,5 +329,6 @@ mod tests {
             .to_string_lossy()
             .contains("overlay-run1-agent-0"));
         assert!(handle.cwd.join("README.md").exists());
+        assert!(!handle.cwd.join("node_modules").exists());
     }
 }

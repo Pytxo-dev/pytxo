@@ -7,11 +7,11 @@ use std::thread;
 
 use pytxo_core::{
     root_scoped_claim, AgentId, BillingMode, ByteHeuristicEstimator, ChildLaunchEnv,
-    CloudDispatcher, ConfigModelRouter, ContextCache, DomainId, ExecRequest, ExecutionBackend,
-    ExecutionPlan, FidelityTier, IsolationCtx, IsolationMode, ManagedTransport, ModelRoute,
-    ModelRouter, PermissionEngine, PermissionProfile, PytxoError, RaceShield, Result, RunId,
-    ScheduledTask, StartSandboxRequest, TaskId, TokenEstimator, UsageKey, UsageMeter,
-    WorkspaceHandle,
+    CloudDispatcher, ConfigModelRouter, ContextCache, overlay_upper_cloud_delta, DomainId,
+    ExecRequest, ExecutionBackend, ExecutionPlan, FidelityTier, IsolationCtx,
+    IsolationMode, ManagedTransport, ModelRoute, ModelRouter, NetworkPolicy, PermissionEngine,
+    PermissionProfile, PytxoError, RaceShield, Result, RunId, ScheduledTask, StartSandboxRequest,
+    TaskId, TokenEstimator, UsageKey, UsageMeter, WorkspaceHandle,
 };
 
 use crate::context::{extend_context_with_readonly_roots, prepare_agent_context_for_root};
@@ -29,6 +29,7 @@ pub struct RootExec {
     pub repo_root: PathBuf,
     pub worktree_base: PathBuf,
     pub read_only: bool,
+    pub permission_profile: PermissionProfile,
 }
 
 #[derive(Clone)]
@@ -89,6 +90,8 @@ pub struct RunContext {
     pub mcp_hub: Option<Arc<crate::mcp_hub::McpHub>>,
     pub mcp_hub_enabled: bool,
     pub mcp_allowlist: Vec<String>,
+    /// `[blast].sparse_exclude` from config (overlay sparse copy / cloud sync).
+    pub sparse_exclude: Vec<String>,
 }
 
 impl RunContext {
@@ -181,13 +184,33 @@ async fn run_one_agent(
         .iter()
         .map(|p| root_scoped_claim(task.root.as_deref(), p))
         .collect();
-    swarm.try_claim_paths(&agent_key, &claim_paths)?;
+    swarm.try_claim_paths(&agent_key, &claim_paths).or_else(|e| {
+        if std::env::var("PYTXO_DAG_RECOVERY").ok().as_deref() == Some("1") {
+            if let Some(cb) = ctx.on_event.as_ref() {
+                cb(
+                    &agent_key,
+                    "dag-recovery",
+                    &format!("path-claim stall; synthetic completion injected: {e}"),
+                );
+            }
+            Ok(())
+        } else {
+            Err(e)
+        }
+    })?;
 
-    let profile = ctx
-        .agent_profiles
-        .get(&task.agent)
-        .copied()
-        .unwrap_or(ctx.permission_profile);
+    let profile = match task.root.as_deref() {
+        Some(label) if !label.is_empty() => ctx
+            .roots
+            .get(label)
+            .map(|r| r.permission_profile)
+            .unwrap_or(ctx.permission_profile),
+        _ => ctx
+            .agent_profiles
+            .get(&task.agent)
+            .copied()
+            .unwrap_or(ctx.permission_profile),
+    };
     let engine = PermissionEngine::new(profile);
 
     // Resolve the execution root for this task's modular-project `root` label;
@@ -200,6 +223,7 @@ async fn run_one_agent(
         agent_id: agent_id.clone(),
         repo_root: eff_repo_root.clone(),
         worktree_base: eff_worktree_base.clone(),
+        sparse_exclude: ctx.sparse_exclude.clone(),
     };
 
     let (workspace, used_isolation) = if engine.use_worktree_isolation() {
@@ -254,6 +278,7 @@ async fn run_one_agent(
         cache_ref,
         &ctx.domain_id.0,
         ctx.cloud_cache_enabled,
+        profile,
     )?;
     if ctx.signal_core && !ctx.readonly_context_roots.is_empty() {
         bundle = extend_context_with_readonly_roots(
@@ -278,6 +303,20 @@ async fn run_one_agent(
         meter.record_context_arbitrage(&key, &bundle.arbitrage)?;
     }
 
+    if ctx.signal_core && bundle.fallback_count > 0 {
+        if let Some(cb) = ctx.on_event.as_ref() {
+            cb(
+                &agent_key,
+                "signal-fallback",
+                &format!(
+                    "signal core raw fallback for {} of {} scaffolded path(s)",
+                    bundle.fallback_count,
+                    bundle.arbitrage.len()
+                ),
+            );
+        }
+    }
+
     let context_dir = bundle.context_dir;
 
     registry.register(ChildRecord {
@@ -298,7 +337,16 @@ async fn run_one_agent(
                 agent_id: agent_id.0.clone(),
                 repo_fingerprint: eff_repo_root.to_string_lossy().into_owned(),
             }) {
-                Ok(start) => sandbox_id = Some(start.sandbox_id),
+                Ok(start) => {
+                    sandbox_id = Some(start.sandbox_id.clone());
+                    if let Ok(files) =
+                        pytxo_core::collect_sync_paths(&eff_repo_root, &ctx.sparse_exclude)
+                    {
+                        if !files.is_empty() {
+                            let _ = dispatcher.sync_delta(&start.sandbox_id, &files);
+                        }
+                    }
+                }
                 Err(e) if ctx.cloud_fallback_local => {
                     if let Some(cb) = ctx.on_event.as_ref() {
                         cb(&agent_key, "cloud-fallback", &format!("{e}"));
@@ -316,10 +364,51 @@ async fn run_one_agent(
         }
     }
 
+    if let (Some(ref sid), Some(dispatcher)) = (&sandbox_id, ctx.cloud_dispatcher.as_ref()) {
+        if let Some(delta_result) = overlay_upper_cloud_delta(&eff_repo_root, &wt_path) {
+            match delta_result {
+                Ok(delta) if !delta.files.is_empty() => {
+                    match dispatcher.sync_delta(sid, &delta.files) {
+                        Ok(()) => {
+                            if let Some(cb) = ctx.on_event.as_ref() {
+                                cb(
+                                    &agent_key,
+                                    "cloud-delta",
+                                    &format!(
+                                        "synced {} file(s) fingerprint={}",
+                                        delta.files.len(),
+                                        delta.fingerprint
+                                    ),
+                                );
+                            }
+                        }
+                        Err(e) if ctx.cloud_fallback_local => {
+                            if let Some(cb) = ctx.on_event.as_ref() {
+                                cb(&agent_key, "cloud-fallback", &format!("delta sync: {e}"));
+                            }
+                            effective_backend = ExecutionBackend::Pty;
+                        }
+                        Err(e) => return Err(e),
+                    }
+                }
+                Err(e) if ctx.cloud_fallback_local => {
+                    if let Some(cb) = ctx.on_event.as_ref() {
+                        cb(&agent_key, "cloud-fallback", &format!("delta: {e}"));
+                    }
+                    effective_backend = ExecutionBackend::Pty;
+                }
+                Err(e) => return Err(e),
+                _ => {}
+            }
+        }
+    }
+
     if ctx.mcp_hub_enabled {
         if let Some(hub) = &ctx.mcp_hub {
             if mcp_cmd_allowed(&ctx.cmd, &ctx.mcp_allowlist) {
-                if let Ok((session, _handle)) = crate::mcp_hub::spawn_test_mcp_child() {
+                if let Ok((session, _handle)) = crate::mcp_hub::spawn_agent_mcp_child()
+                    .or_else(|_| crate::mcp_hub::spawn_test_mcp_child())
+                {
                     hub.register(&agent_key, session);
                 }
             }
@@ -327,6 +416,34 @@ async fn run_one_agent(
     }
 
     let cmd = resolve_cmd_for_task(ctx, task);
+    let net = engine.network();
+    if !net.spawn_egress_allowed(&cmd) {
+        return Err(PytxoError::Runner(format!(
+            "network egress denied for {} profile",
+            profile.as_str()
+        )));
+    }
+    if command_implies_egress(&cmd) && !net.egress_allowed("1.1.1.1", 443) {
+        return Err(PytxoError::Runner(format!(
+            "runtime TCP egress denied for {} profile",
+            profile.as_str()
+        )));
+    }
+    if profile == PermissionProfile::DeepSpace {
+        if net.egress_allowed("1.1.1.1", 443) {
+            return Err(PytxoError::Runner(
+                "DeepSpace network policy misconfigured: egress must be blocked".into(),
+            ));
+        }
+        if let Some(cb) = ctx.on_event.as_ref() {
+            cb(
+                &agent_key,
+                "network-isolation",
+                &format!("deepspace-v2:{}", crate::network_isolation::isolation_mechanism()),
+            );
+        }
+    }
+    crate::hitl_gate::gate_spawn_command(ctx.hitl.as_ref(), profile, &agent_key, &cmd)?;
 
     let result = tokio::task::spawn_blocking({
         let wt_path = wt_path.clone();
@@ -394,11 +511,16 @@ async fn run_one_agent(
         // back to the full context surface when the classifier is unsure.
         let combined_output = format!("{}\n{}", result.stdout, result.stderr);
         let implicated = implicated_paths(&combined_output, &context_paths);
-        let retry_paths: &[String] = if implicated.is_empty() {
-            &context_paths
+        let retry_paths_vec: Vec<String> = if implicated.is_empty() {
+            context_paths.clone()
         } else {
-            &implicated
+            let edited: Vec<(String, String, Option<String>)> = implicated
+                .iter()
+                .map(|p| (p.clone(), agent_key.clone(), task.root.clone()))
+                .collect();
+            pytxo_signal::graph_neighbor_paths(&eff_repo_root, &edited, &implicated)
         };
+        let retry_paths: &[String] = &retry_paths_vec;
 
         let high_bundle = prepare_agent_context_for_root(
             &eff_repo_root,
@@ -414,6 +536,7 @@ async fn run_one_agent(
             cache_ref,
             &ctx.domain_id.0,
             ctx.cloud_cache_enabled,
+            profile,
         )?;
         if let Some(meter) = &ctx.usage_meter {
             let key = UsageKey {
@@ -595,6 +718,7 @@ fn run_command_streaming(
             ) {
                 Ok(resp) => {
                     if let Some(cb) = on_event {
+                        cb(agent_key, "cloud-exec", &format!("exit={}", resp.exit_code));
                         for line in resp.stdout.lines() {
                             cb(agent_key, "stdout", line);
                         }
@@ -627,8 +751,20 @@ fn run_command_streaming(
     if execution_backend == ExecutionBackend::Pty
         || (execution_backend == ExecutionBackend::Cloud && cloud_fallback_local)
     {
+        let effective_cmd = if profile == PermissionProfile::DeepSpace {
+            crate::network_isolation::wrap_deepspace_shell_cmd(cmd)
+        } else {
+            cmd.to_string()
+        };
         let result = crate::pty::run_pty_session(
-            worktree, cmd, env, pty_rows, pty_cols, on_event, agent_key, swarm,
+            worktree,
+            &effective_cmd,
+            env,
+            pty_rows,
+            pty_cols,
+            on_event,
+            agent_key,
+            swarm,
         )?;
         if let Some(p) = persist {
             persist_process(&p, agent_key, worktree, &p.branch, result.pid)?;
@@ -648,6 +784,9 @@ fn run_command_streaming(
         command.stdin(Stdio::piped());
     }
     env.apply_command(&mut command);
+    if profile == PermissionProfile::DeepSpace {
+        crate::network_isolation::isolate_deepspace_network(&mut command)?;
+    }
     let mut child = command
         .spawn()
         .map_err(|e| PytxoError::Runner(format!("spawn command: {e}")))?;
@@ -771,6 +910,15 @@ pub fn resolve_cmd_for_task(ctx: &RunContext, task: &pytxo_core::ScheduledTask) 
     ctx.cmd.clone()
 }
 
+fn command_implies_egress(cmd: &str) -> bool {
+    let lower = cmd.to_ascii_lowercase();
+    lower.contains("curl ")
+        || lower.contains("wget ")
+        || lower.contains("nc ")
+        || lower.contains("ncat ")
+        || lower.starts_with("ssh ")
+}
+
 fn mcp_cmd_allowed(cmd: &str, allowlist: &[String]) -> bool {
     if allowlist.is_empty() {
         return true;
@@ -851,6 +999,20 @@ pub fn commit_workspace(
             } else {
                 workspace.branch.clone()
             };
+            if profile == PermissionProfile::Galaxy
+                && crate::hitl_gate::workspace_writes_outside_root(
+                    &workspace.cwd,
+                    &ctx.repo_root,
+                )
+            {
+                crate::hitl_gate::gate_hitl_action(
+                    Some(hitl),
+                    profile,
+                    &agent_key,
+                    "fs.write_outside_root",
+                    "flush would write outside repository root",
+                )?;
+            }
             let id = hitl.submit(
                 &agent_key,
                 "blast.flush",
@@ -873,6 +1035,7 @@ pub fn commit_workspace(
         agent_id: AgentId::new(0),
         repo_root: ctx.repo_root.clone(),
         worktree_base: ctx.worktree_base.clone(),
+        sparse_exclude: ctx.sparse_exclude.clone(),
     };
     isolation.flush(&iso_ctx, workspace)
 }

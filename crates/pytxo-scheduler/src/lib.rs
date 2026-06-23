@@ -5,5 +5,5 @@ mod overlap;
 mod waves;
 
 pub use dag::{build_dag_plan, build_plan};
-pub use overlap::{find_conflicts, paths_overlap};
+pub use overlap::{find_conflicts, find_cross_root_conflicts, paths_overlap};
 pub use waves::build_execution_plan;

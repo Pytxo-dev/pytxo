@@ -17,6 +17,39 @@ impl TokenEstimator for ByteHeuristicEstimator {
     }
 }
 
+/// Ultra tiktoken estimator (Phase 31): `tiktoken-rs` behind `billing-tiktoken`.
+#[derive(Clone, Debug, Default)]
+pub struct TiktokenEstimator;
+
+impl TokenEstimator for TiktokenEstimator {
+    fn estimate_tokens(&self, text: &str, model: &ModelId) -> u64 {
+        #[cfg(feature = "billing-tiktoken")]
+        {
+            if let Ok(bpe) = tiktoken_rs::get_bpe_from_model("gpt-4") {
+                let count = bpe.encode_with_special_tokens(text).len() as u64;
+                let mult = model.heuristic_multiplier();
+                return ((count as f64) * mult).ceil() as u64;
+            }
+        }
+        let words = text.split_whitespace().count() as u64;
+        let base = (words as f64 * 1.35).ceil() as u64;
+        let mult = model.heuristic_multiplier();
+        ((base as f64) * mult).ceil() as u64
+    }
+}
+
+/// Select estimator based on compile-time feature flag.
+pub fn default_token_estimator() -> Box<dyn TokenEstimator> {
+    #[cfg(feature = "billing-tiktoken")]
+    {
+        return Box::new(TiktokenEstimator);
+    }
+    #[cfg(not(feature = "billing-tiktoken"))]
+    {
+        Box::new(ByteHeuristicEstimator)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

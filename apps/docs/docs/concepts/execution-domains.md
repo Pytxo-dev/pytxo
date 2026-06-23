@@ -6,9 +6,9 @@ title: Execution domains
 
 An **execution domain** is an isolated orchestration scope — typically one git repository root — with its own:
 
-- SQLite WAL channel under `.pytxo/data/`
-- Worktree directory
-- [Permission profile](/docs/reference/permission-tiers) (default **Orbit**)
+- SQLite telemetry under `.pytxo/data/`
+- Isolated agent copies under `.pytxo/worktrees/`
+- [Permission tier](/docs/reference/permission-tiers) (default **Orbit**)
 
 ## Multi-project workflows
 
@@ -21,8 +21,20 @@ Run independent swarms on different directories without shared scheduler or log 
 
 Point `--repo` at each root, or set `PYTXO_REPO` for MCP sessions.
 
-## Modular projects (roadmap)
+List registered domains:
 
-A single Pytxo project manifest may span multiple path roots (API repo + frontend + protos) so one swarm coordinates across folders. See `pytxo.toml` `root` labels on tasks.
+```bash
+pytxo domains
+```
+
+The hypervisor catalog remembers every domain the Deck or CLI has touched, so you can switch projects from one home screen.
+
+## Modular projects
+
+A single project manifest can span multiple path roots (API repo + frontend + protos) so one swarm coordinates across folders. See [Modular projects](/docs/concepts/modular-projects).
+
+## Fleet runs
+
+When repos are independent git roots with explicit barriers between them, use [Fleet runs](/docs/concepts/fleet-runs) instead of a single project manifest.
 
 Back: [What is Pytxo?](/docs/concepts/what-is-pytxo)

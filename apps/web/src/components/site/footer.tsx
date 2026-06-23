@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { Separator } from "@/components/ui/separator";
-import { GITHUB_URL, NAV_LINKS } from "@/lib/site";
+import { NAV_LINKS } from "@/lib/site";
 
 export function SiteFooter() {
   return (
@@ -22,14 +22,6 @@ export function SiteFooter() {
                 {link.badge ? ` (${link.badge})` : ""}
               </Link>
             ))}
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground"
-            >
-              GitHub
-            </a>
           </nav>
         </div>
         <Separator className="bg-white/8" />

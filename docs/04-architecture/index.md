@@ -32,7 +32,7 @@ related: [[MOC-home]], [[three-tier-model]], [[product-vision]], [[permission-pr
 
 - [[permission-profile-engine]] — four-tier local capability ladder (ADR-0008)
 - [[execution-domains]] — multi-project domains and WAL separation
-- [[modular-projects]] — multi-path workspaces per project (planned)
+- [[modular-projects]] — multi-path workspaces per project (v1 shipped)
 
 ## Engineering deep-dives
 

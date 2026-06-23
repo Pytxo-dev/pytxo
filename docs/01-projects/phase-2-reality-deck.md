@@ -44,7 +44,12 @@ UI reads SQLite through Tauri only (ADR-0001).
 
 `tail_events`, `poll_log_lines`, `list_runs`, and `list_agents` accept optional **`domain_id`** (defaults to selected domain or CWD). Store reads use the domain’s `repo_root`-anchored SQLite path (`.pytxo/data/pytxo.db`). `poll_log_lines` keeps a per-(domain, agent) cursor so switching agents does not skip or duplicate lines.
 
+## Phase 3 — shipped (fleet DAG + catalog dashboard)
+
+- [x] Global hypervisor catalog DB (`~/.pytxo/hypervisor.db`) — domain registry (v2)
+- [x] Cross-repo fleet DAG — `FleetManifest`, `pytxo fleet run`, barrier sync ([[hypervisor-fleet-dag]], [[ADR-0015-hypervisor-fleet-dag]])
+- [x] Enriched catalog dashboard — `list_catalog_domains_enriched`, Deck `list_domains_status`, TUI multi-domain board
+
 ## Phase 3 (deferred)
 
-- Global hypervisor catalog DB (`~/.pytxo/hypervisor.db`) for cross-project dashboard
-- Cross-repo DAG edges at hypervisor level
+- Cross-repo DAG edges composed automatically from unrelated `pytxo.toml` files (fleet manifest is explicit opt-in)

@@ -24,7 +24,7 @@ tier_max_agents = 3
 # [billing]
 # mode = "ultra"
 # proxy_url = "https://link.pytxo.com"      # Pytxo Link base URL (billing.proxy_url)
-# link_reconcile = true                       # POST run start/end to Link; requires proxy_url
+# link_reconcile = true                       # defaults true when mode = ultra
 # reserve_microcredits = 500000
 # initial_balance_microcredits = 10000000
 

@@ -19,7 +19,7 @@ export function ProblemSection() {
         <Alert className="glass-panel border-white/10">
           <AlertTitle>Local-first by design</AlertTitle>
           <AlertDescription>
-            Your IDE stays your IDE. Pytxo runs PTY-backed agents in git worktrees, schedules
+            Your IDE stays your IDE. Pytxo runs PTY-backed agents in isolated copies, schedules
             conflict-aware waves, and exposes MCP tools — no cloud workspace required.
           </AlertDescription>
         </Alert>
@@ -43,10 +43,10 @@ export function ProblemSection() {
               <CardTitle className="text-base">Pytxo pattern</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
-              <p>Headless agents in local PTYs + worktrees</p>
+              <p>Headless agents in local PTYs + isolated copies</p>
               <p>Rust orchestrator, SQLite WAL telemetry</p>
               <p>BYOK — never the LLM vendor</p>
-              <p>Optional Reality Deck for structural topology</p>
+              <p>Reality Deck: structural graph, approvals, fleet panel</p>
             </CardContent>
           </Card>
         </div>

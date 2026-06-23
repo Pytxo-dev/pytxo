@@ -13,7 +13,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { GITHUB_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Plans",
@@ -31,14 +30,14 @@ const ROADMAP = [
       "Local agent swarms (BYOK)",
     ],
     detail:
-      "The full local hypervisor ships open source. Install from GitHub and run headless agents today.",
+      "The full local hypervisor ships open source. Install the CLI and run headless agents today.",
     plan: null as null,
   },
   {
     name: "Pytxo Pro Cloud",
     status: "Subscribe",
     statusVariant: "secondary" as const,
-    highlights: ["Unlimited local agents", "Pytxo Link", "Cloud context caching"],
+    highlights: ["Pytxo Link entitlements", "Cloud context caching", "`pytxo doctor` connectivity checks"],
     detail: "Cloud offload for context and link routing.",
     plan: "pro" as const,
   },
@@ -61,7 +60,7 @@ const ROADMAP = [
     highlights: [
       "Managed metered billing",
       "Pytxo Link proxy",
-      "Frontier models + Signal arbitrage",
+      "Improved token estimates for Ultra workloads",
     ],
     detail: "Managed metering and model routing for production agent workloads.",
     plan: "ultra" as const,
@@ -98,12 +97,7 @@ export default function PlansPage() {
         </EmptyHeader>
         <EmptyContent className="flex flex-col gap-3 sm:flex-row">
           <Button size="lg" className="chroma-glow" asChild>
-            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
-              Releases on GitHub
-            </a>
-          </Button>
-          <Button size="lg" variant="outline" className="border-white/15 bg-card/30" asChild>
-            <Link href="/download">Install the CLI</Link>
+            <Link href="/download">Download Pytxo</Link>
           </Button>
           <Button size="lg" variant="outline" className="border-white/15 bg-card/30" asChild>
             <Link href="/account">Sign in</Link>

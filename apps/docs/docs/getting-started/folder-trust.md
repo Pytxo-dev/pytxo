@@ -48,4 +48,4 @@ Trusted tier **overrides** the default `permission_profile` in `pytxo.toml` for 
 
 - Trust is keyed by **canonical repo root**, not the current working directory inside the tree.
 - Secrets stay in environment variables — Pytxo never writes API keys to disk.
-- See [Permission tiers](/docs/reference/permission-tiers) and ADR-0013 in the main repo for design rationale.
+- See [Permission tiers](/docs/reference/permission-tiers) and [Galaxy approvals](/docs/concepts/galaxy-approvals) for what each tier allows.

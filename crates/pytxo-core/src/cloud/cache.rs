@@ -150,9 +150,7 @@ fn urlencoding_key(s: &str) -> String {
 }
 
 pub fn content_hash(bytes: &[u8]) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    let mut h = DefaultHasher::new();
-    bytes.hash(&mut h);
-    format!("{:016x}", h.finish())
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(bytes);
+    format!("{:x}", digest)
 }

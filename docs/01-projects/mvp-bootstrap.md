@@ -6,7 +6,7 @@ tags: [project]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-04
+updated: 2026-06-21
 related: [[MOC-home]], [[ADR-0005-worktree-isolation-for-mvp]], [[phase-2-reality-deck]], [[modular-projects]]
 ---
 
@@ -90,6 +90,144 @@ Modular project manifest + CLI, Galaxy HITL queue/Deck/CLI, hypervisor catalog, 
 - [x] `depends_on` DAG scheduling + ADR-0007
 - [x] Reality Deck v1 in `apps/desktop` (monorepo)
 - [x] IPC v1: `list_runs`, `list_agents`, `tail_events`, `dry_run`, `stop_run`, `git_diff` (dispatch is now `dispatch_run_cmd`)
+
+## Phases 23 — shipped (hypervisor fleet DAG)
+
+- [x] **23** — `FleetManifest` + `pytxo fleet` CLI; `fleet_runs` / `fleet_nodes` in hypervisor catalog; enriched domain dashboard (CLI, TUI, Deck) ([[ADR-0015-hypervisor-fleet-dag]], [[hypervisor-fleet-dag]])
+
+## Phases 24–29 — shipped (post–Hypervisor Phase 3)
+
+- [x] **24** — Galaxy HITL spawn gate + `{data_dir}/hitl.json` persistence; `pytxo doctor` `hitl_persistence` ([[ADR-0016-galaxy-hitl-enforcement]])
+- [x] **25** — Per-root `permission_profile`; project-scoped `~/.pytxo/projects/<id>/pytxo.db`; Deck path + fleet panels; cross-root scheduler hints
+- [x] **26** — Overlay copy-layer flush to physical tree; `overlay_isolation` doctor probe ([[ADR-0017-overlay-flush-contract]])
+- [x] **27** — Signal structural graph IPC + 2.5D Deck topology (import edges)
+- [x] **28** — `pytxo fleet run --continue-on-error`; MCP `pytxo_fleet_run` / `pytxo_fleet_status`; Deck fleet panel
+- [x] **29** — Ultra `billing-tiktoken` estimator feature; Link + cloud doctor checks when `[billing]` / `[cloud]` enabled
+
+## Phase 30 — shipped (foundation + honesty)
+
+- [x] Policy trait modules (`FilesystemPolicy`, `NetworkPolicy`, `EnvironmentPolicy`) in `pytxo-core::moat::permission`
+- [x] Signal Core `signal-fallback` WAL events + `fallback_paths` in Deck arbitrage IPC
+- [x] `permission_profile` + `isolation_mode` on CLI `status --json` and Deck run header
+- [x] Docs sync: vault / Docusaurus / `crates/README.md` shipped-vs-planned alignment
+- [x] `pytxo-link` entitlements status contract test
+
+## Phase 32 — shipped (Galaxy HITL + Orbit network)
+
+- [x] **ADR-0018** Network and MCP policy ([[ADR-0018-network-and-mcp-policy]])
+- [x] `hitl_gate` classifiers: `mcp.tool`, `fs.write_outside_root`, `proc.package_install`
+- [x] Orbit `spawn_egress_allowed` enforced before agent spawn
+- [x] Galaxy `mcp_proxy_call` gated via domain `HitlQueue`
+- [x] Galaxy outside-root flush HITL in `commit_workspace`
+- [x] Deck HITL panel shows action, agent, and reason
+- [x] `pytxo doctor` checks `network_policy` and `mcp_hitl`
+
+## Phase 33 — shipped (sparse overlay + cloud sync)
+
+- [x] `[blast].sparse_exclude` in `pytxo.toml` (defaults: `node_modules`, `.git`, `target`, `dist`, `build`)
+- [x] Cloud `sync_delta` initial path list via `collect_sync_paths` on sandbox start
+- [x] Deck shows isolation backend label (DiffPanel + run sidebar)
+- [x] Linux kernel overlay multi-lowerdir sparse excludes; copy-layer skip
+- [x] `overlay-fuse-macos` feature + `overlay_fuse_macos.rs`
+- [x] Windows ProjFS copy-layer provider in `overlay_projfs.rs`
+- [x] `isolation_backend_label` selection chain in `blast.rs`
+
+## Phase 34 — shipped (project paths + dry-run warnings)
+
+- [x] `find_cross_root_conflicts` → `warnings` in orchestrate `dry_run_json` / `ExecutionPlan`
+- [x] IPC `project_add_root_cmd` / `project_remove_root_cmd` + Deck `ProjectPathPanel` add/remove UI
+- [x] `pytxo project status --json` includes `agents_by_root` per run
+- [x] CLI `pytxo project remove --label`
+
+## Phase 35 — shipped (DAG recovery + fleet viz + cloud exec)
+
+- [x] DAG deadlock recovery: `PYTXO_DAG_RECOVERY=1` in scheduler + runner `dag-recovery` WAL ([[dag-flow-engine]])
+- [x] `fleet_run_status` IPC + `FleetPanel` wave/node DAG viz
+- [x] `pytxo-cloud-sandbox` docker exec POC (alpine container per sandbox)
+- [x] HITL audit WAL on `HitlQueue::resolve()` (`hitl-resolve` events)
+
+## Phase 36 — shipped (signal modules + sanitize + topology)
+
+- [x] Module-level aggregation in `pytxo-signal/src/graph.rs` (`build_module_graph`)
+- [x] MCP sanitize middleware when `PYTXO_SANITIZE` enabled (default on)
+- [x] Topology blast radius includes `fallback_paths` from Signal arbitrage
+- [x] Light theme CSS variables + Deck toggle in `App.svelte`
+
+## Phase 37 — shipped (MCP hub v3 + planner + audit export)
+
+- [x] MCP multi-hop routing (`agent:a->agent:b`) in `mcp_hub.rs`
+- [x] Production MCP child via `PYTXO_AGENT_MCP_ADDR` (test fixture fallback)
+- [x] `pytxo-planner` heuristic decomposer v1 (`HeuristicPlanner`, `PYTXO_PLANNER=1`)
+- [x] `export_mcp_audit` in `pytxo-orchestrate` (WAL `mcp-tool` rows per run)
+
+## Phases 38–39 — shipped (cloud hybrid + enterprise beta)
+
+- [x] **38** — Deterministic `delta_from_overlay_upper` in `pytxo-core`; runner `sync_delta` before cloud exec; Deck cloud / fallback badge from WAL events; `pytxo-cloud-sandbox` worker pool stub + auth hardening; Link production defaults documented; `link-http` on `pytxo-cli`; Ultra `link_reconcile` defaults on
+- [x] **39** — Link org policy ceiling in orchestrate when `PYTXO_ULTRA_SESSION` set; Race Shield registry contention benchmark tests; [[deepspace-network-v2]] spike; Enterprise beta in [[tiers-hobbyist-pro-max]]; [[competitive-benchmarks]] overlay vs worktree note
+
+## Phases 47–49 — shipped (Reality Deck 3D + planner v2 + Enterprise GA)
+
+- [x] **47** — ADR-0023 Three.js 3D topology; `TopologyScene3D.svelte` center viewport; collapsible log panel; light xterm theme + localStorage; structural graph IPC v2 + symbol-level nodes (`enrich_symbol_nodes`)
+- [x] **48** — `SignalBackedPlanner` (`PYTXO_PLANNER=signal` / `[planner] mode = "signal"`); canvas fleet wave graph in `FleetPanel.svelte`
+- [x] **49** — Enterprise GA in [[tiers-hobbyist-pro-max]]; overlay vs worktree estimates in [[competitive-benchmarks]]; TUI org policy indicator in board header; Link org audit log (`/v1/orgs/{id}/audit`)
+
+## Phase 40 — shipped (Link production foundation)
+
+- [x] Postgres `runs` ledger + idempotency (`migrations/003_runs.sql`, ADR-0021)
+- [x] Paddle webhook HMAC verification on Link
+- [x] `doctor` Link `/health` HTTP ping when `link_reconcile` enabled
+- [x] Account page shows Link tier via `/api/entitlements/status`
+- [x] Linux overlay-fuse-kernel CI compile matrix (existing); copy-layer labeled explicitly in telemetry
+
+## Phase 41 — shipped (Ultra managed-inference proxy)
+
+- [x] **ADR-0019** Ultra managed-inference proxy ([[ADR-0019-ultra-managed-inference-proxy]])
+- [x] `services/pytxo-proxy` Axum service with provider routes and SSE passthrough
+- [x] Bearer `PYTXO_ULTRA_SESSION` / `LINK_API_KEY` auth; server-side provider keys
+- [x] Deck Header Ultra wallet credits via `entitlement_status` IPC
+- [x] Proxy reports provider token usage to Link `POST /v1/inference/usage` (`services/pytxo-proxy/src/metering.rs`)
+
+## Phase 42 — shipped (Cloud sandbox real execution)
+
+- [x] **ADR-0020** Cloud sandbox runtime ([[ADR-0020-cloud-sandbox-runtime]])
+- [x] Fail-closed exec; `sync_sandbox` via tar + `docker cp`; teardown `docker rm -f`; TTL sweeper
+- [x] Link `cloud_enabled` gate; SHA-256 `content_hash` in `pytxo-core::cloud::cache`
+- [x] Deck cloud badge from WAL `cloud-delta` / `cloud-exec` events
+
+## Phase 43 — shipped (Billing reconciliation + CI/CD)
+
+- [x] Idempotent `settle_ultra_run`; `.github/workflows/deploy-services.yml` Railway deploy
+- [x] Entitlements cache TTL (5 min); fail-loud when `link_reconcile` on
+- [x] Account + Deck subscription portal links
+
+## Phase 44 — shipped (Billing UX + Deck auth deep-link)
+
+- [x] `pytxo-deck://` deep-link + `auth_store_session`; `UsagePanel` billing dashboard
+- [x] Org policy ceiling in Header; tree-sitter Rust/TS import edges in `graph.rs`
+
+## Phase 45 — shipped (DeepSpace network v2)
+
+- [x] `network_isolation.rs` with `isolate_deepspace_network` (Linux netns behind `deepspace-netns` + `PYTXO_DEEPSPACE_NETNS=1`, macOS `sandbox-exec`, Windows stub)
+- [x] DeepSpace hook in `run.rs` before spawn (subprocess + PTY wrap); WAL `network-isolation` event
+- [x] `NetworkPolicyEngine::egress_allowed` runtime TCP gate on network-ish spawns
+- [x] `pytxo doctor` `deepspace_network_isolation` probe ([[ADR-0022-deepspace-network-namespace]])
+- [x] `pytxo-runner` `tests/network_policy.rs`
+
+## Phase 46 — shipped (sparse overlay production)
+
+- [x] `isolation_backend_label` telemetry strings (`overlay-kernel-fuse`, `overlay-copy-layer`, …)
+- [x] Deck `DiffPanel` isolation backend badge (wired via `App.svelte` / IPC)
+- [x] `overlay_upper_cloud_delta` hook in `pytxo-core::cloud::delta`
+- [x] macOS `overlay-fuse-macos` CI compile-only step
+- [x] `isolation_backend_label` integration test stub in `blast.rs`
+
+## Phase 31 — shipped (Signal depth + DeepSpace reads)
+
+- [x] tree-sitter grammars: Java, C/C++, Ruby (`pytxo-signal`)
+- [x] Closed-loop v3: graph-neighbor path escalation before full-task fallback
+- [x] DeepSpace `may_read` on MCP reads + context materialization
+- [x] Topology nodes colored by `root_id`
+- [x] `billing-tiktoken` uses `tiktoken-rs` when feature enabled
 
 ## Build
 

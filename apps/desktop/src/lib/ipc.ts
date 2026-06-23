@@ -3,6 +3,7 @@ import type {
   AgentArbitrageDto,
   AgentDto,
   CatalogEntry,
+  CatalogEntryStatus,
   DomainDto,
   EventDto,
   HitlDto,
@@ -11,7 +12,7 @@ import type {
   RunDto,
 } from "./types";
 
-export const IPC_VERSION = "0.3.3";
+export const IPC_VERSION = "0.3.4";
 
 function unwrap<T>(result: T | PytxoIpcError): T {
   if (
@@ -35,6 +36,10 @@ export const ipc = {
   listDomains: () => invoke<DomainDto[]>("list_domains_cmd").then(unwrap),
   listAllDomains: () =>
     invoke<CatalogEntry[]>("list_all_domains").then(unwrap).catch(() => [] as CatalogEntry[]),
+  listDomainsStatus: () =>
+    invoke<CatalogEntryStatus[]>("list_domains_status")
+      .then(unwrap)
+      .catch(() => [] as CatalogEntryStatus[]),
   listProjects: () =>
     invoke<ProjectDto[]>("list_projects").then(unwrap).catch(() => [] as ProjectDto[]),
   selectDomain: (domainId: string) =>
@@ -58,6 +63,36 @@ export const ipc = {
     invoke<void>("commit_workspace", { runId, agentId, domainId }).then(unwrap),
   listHitl: (domainId: string | null) =>
     invoke<HitlDto[]>("list_hitl", { domainId }).then(unwrap).catch(() => [] as HitlDto[]),
+  listHitlAll: () =>
+    invoke<HitlDto[]>("list_hitl_all").then(unwrap).catch(() => [] as HitlDto[]),
+  projectRoots: (projectId: string) =>
+    invoke<import("./types").ProjectRootDto[]>("project_roots_cmd", { projectId })
+      .then(unwrap)
+      .catch(() => []),
+  projectAddRoot: (projectId: string, path: string, readOnly: boolean) =>
+    invoke<import("./types").ProjectRootDto[]>("project_add_root_cmd", {
+      projectId,
+      path,
+      readOnly,
+    }).then(unwrap),
+  projectRemoveRoot: (projectId: string, label: string) =>
+    invoke<import("./types").ProjectRootDto[]>("project_remove_root_cmd", {
+      projectId,
+      label,
+    }).then(unwrap),
+  listFleetRuns: (limit = 10) =>
+    invoke<import("./types").FleetRunDto[]>("list_fleet_runs", { limit })
+      .then(unwrap)
+      .catch(() => []),
+  fleetRunStatus: (fleetRunId: string) =>
+    invoke<import("./types").FleetRunStatusDto>("fleet_run_status_cmd", { fleetRunId })
+      .then(unwrap)
+      .then((dto) => dto.nodes)
+      .catch(() => [] as import("./types").FleetNodeDto[]),
+  structuralGraph: (runId: string, domainId: string | null) =>
+    invoke<import("./types").StructuralGraphDto>("structural_graph", { runId, domainId })
+      .then(unwrap)
+      .catch(() => ({ nodes: [], edges: [] })),
   hitlRespond: (requestId: string, approve: boolean, domainId: string | null) =>
     invoke<boolean>("hitl_respond", { requestId, approve, domainId }).then(unwrap),
   agentArbitrage: (runId: string, domainId: string | null) =>
@@ -65,10 +100,24 @@ export const ipc = {
       .then(unwrap)
       .catch(() => [] as AgentArbitrageDto[]),
   checkPytxoCli: () => invoke<boolean>("check_pytxo_cli").then(unwrap).catch(() => false),
-  entitlementStatus: () =>
-    invoke<{ tier: string; max_agents: number }>("entitlement_status")
+  entitlementStatus: (domainId?: string | null) =>
+    invoke<{
+      tier: string;
+      max_agents: number;
+      cloud_enabled: boolean;
+      wallet_balance_microcredits: number | null;
+      permission_ceiling: string | null;
+      subscription_portal_url: string | null;
+    }>("entitlement_status", { domainId: domainId ?? null })
       .then(unwrap)
-      .catch(() => ({ tier: "core", max_agents: 3 })),
+      .catch(() => ({
+        tier: "core",
+        max_agents: 3,
+        cloud_enabled: false,
+        wallet_balance_microcredits: null,
+        permission_ceiling: null,
+        subscription_portal_url: null,
+      })),
   authStatus: () =>
     invoke<{ signed_in: boolean; session_present: boolean }>("auth_status")
       .then(unwrap)
