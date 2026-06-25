@@ -269,6 +269,44 @@ pub async fn get_org_policy(pool: &PgPool, org_id: &str) -> Option<OrgPolicyResp
     })
 }
 
+#[derive(Debug, Deserialize)]
+pub struct OrgPolicyPutBody {
+    pub default_permission_profile: Option<String>,
+    #[serde(default)]
+    pub shared_trusted_domains: Option<Vec<String>>,
+}
+
+pub async fn upsert_org_policy(
+    pool: &PgPool,
+    org_id: &str,
+    body: &OrgPolicyPutBody,
+) -> Result<(), sqlx::Error> {
+    let domains = body
+        .shared_trusted_domains
+        .as_ref()
+        .map(|d| serde_json::to_value(d).unwrap_or(serde_json::json!([])))
+        .unwrap_or_else(|| serde_json::json!([]));
+    sqlx::query(
+        r#"
+        INSERT INTO org_policies (org_id, default_permission_profile, shared_trusted_domains, updated_at)
+        VALUES ($1, $2, $3, now())
+        ON CONFLICT (org_id) DO UPDATE SET
+            default_permission_profile = COALESCE(EXCLUDED.default_permission_profile, org_policies.default_permission_profile),
+            shared_trusted_domains = CASE
+                WHEN $3::jsonb = '[]'::jsonb THEN org_policies.shared_trusted_domains
+                ELSE EXCLUDED.shared_trusted_domains
+            END,
+            updated_at = now()
+        "#,
+    )
+    .bind(org_id)
+    .bind(&body.default_permission_profile)
+    .bind(domains)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

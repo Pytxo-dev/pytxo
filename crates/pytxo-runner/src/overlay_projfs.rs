@@ -18,13 +18,13 @@ pub fn projfs_supported() -> bool {
     }
 }
 
-/// Honest capability label for Deck / doctor telemetry (Phase 46).
+/// Honest capability label for Deck / doctor telemetry (Phase 46, 55).
 pub fn capability_probe() -> &'static str {
     #[cfg(windows)]
     {
         if projfs_supported() {
-            // Full ProjFS provider registration is not shipped; copy-layer POC only.
-            "projfs-copy-layer-poc"
+            // Sparse copy-layer v2: skips `sparse_exclude` dirs (e.g. node_modules).
+            "projfs-sparse-copy-v2"
         } else {
             "projfs-unavailable"
         }
@@ -97,12 +97,35 @@ fn copy_dir_skip_sparse(src: &Path, dst: &Path, sparse_exclude: &[String]) -> Re
     Ok(())
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Integration: sparse copy must not materialize excluded top-level dirs.
     #[test]
-    fn projfs_copy_layer_skips_node_modules() {
+    fn sparse_copy_excludes_node_modules_from_upper() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir_all(repo.join("node_modules/pkg")).unwrap();
+        std::fs::write(repo.join("README.md"), "hi\n").unwrap();
+        std::fs::write(repo.join("node_modules/pkg/x.js"), "x").unwrap();
+        let upper = tmp.path().join("upper");
+        copy_dir_skip_sparse(&repo, &upper, &["node_modules".into()]).unwrap();
+        assert!(upper.join("README.md").exists());
+        assert!(!upper.join("node_modules").exists());
+    }
+
+    #[test]
+    fn capability_probe_reports_sparse_copy_v2_on_windows() {
+        #[cfg(windows)]
+        assert_eq!(capability_probe(), "projfs-sparse-copy-v2");
+        #[cfg(not(windows))]
+        assert_eq!(capability_probe(), "projfs-non-windows");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn prepare_projfs_overlay_skips_node_modules() {
         let tmp = tempfile::tempdir().unwrap();
         let repo = tmp.path().join("repo");
         std::fs::create_dir_all(repo.join("node_modules/pkg")).unwrap();

@@ -8,10 +8,24 @@ import { SignedIn, SignedOut, SignUpButton, UserButton } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
 
+type OrgPolicy = {
+  default_permission_profile?: string | null;
+  shared_trusted_domains?: string[];
+};
+
+type OrgSeats = {
+  seats_total?: number;
+  seats_used?: number;
+  seats_available?: number;
+};
+
 type EntitlementPayload = {
   tier?: string;
   max_agents?: number;
   cloud_enabled?: boolean;
+  org_id?: string | null;
+  org_policy?: OrgPolicy;
+  org_seats?: OrgSeats;
   error?: string;
 };
 
@@ -60,6 +74,9 @@ export function AccountAuth() {
     };
   }, [isSignedIn, deckCallback, getToken]);
 
+  const policy = entitlements?.org_policy;
+  const seats = entitlements?.org_seats;
+
   return (
     <div className="flex flex-col gap-3">
       <SignedOut>
@@ -100,6 +117,40 @@ export function AccountAuth() {
                 <dd>{entitlements.max_agents ?? 3}</dd>
                 <dt className="text-muted-foreground">Cloud</dt>
                 <dd>{entitlements.cloud_enabled ? "enabled" : "off"}</dd>
+                {entitlements.org_id && (
+                  <>
+                    <dt className="text-muted-foreground">Organization</dt>
+                    <dd className="font-mono text-xs">{entitlements.org_id}</dd>
+                  </>
+                )}
+                {seats && (
+                  <>
+                    <dt className="text-muted-foreground">Seats</dt>
+                    <dd>
+                      {seats.seats_used ?? 0} / {seats.seats_total ?? "—"} used
+                      {typeof seats.seats_available === "number" && (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          ({seats.seats_available} available)
+                        </span>
+                      )}
+                    </dd>
+                  </>
+                )}
+                {policy?.default_permission_profile && (
+                  <>
+                    <dt className="text-muted-foreground">Org policy</dt>
+                    <dd className="capitalize">{policy.default_permission_profile}</dd>
+                  </>
+                )}
+                {policy?.shared_trusted_domains && policy.shared_trusted_domains.length > 0 && (
+                  <>
+                    <dt className="text-muted-foreground">Trusted domains</dt>
+                    <dd className="col-span-1 text-xs">
+                      {policy.shared_trusted_domains.join(", ")}
+                    </dd>
+                  </>
+                )}
               </dl>
             )}
           </div>

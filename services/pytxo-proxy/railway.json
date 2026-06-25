@@ -1,0 +1,29 @@
+{
+  "service": "pytxo-proxy",
+  "requiredEnv": [
+    {
+      "name": "PROXY_REQUIRE_AUTH",
+      "description": "Set to 1 in production"
+    },
+    {
+      "name": "LINK_BASE_URL",
+      "description": "Pytxo Link base URL for entitlement validation (https://link.pytxo.com)"
+    },
+    {
+      "name": "LINK_API_KEY",
+      "description": "Optional; Bearer token accepted alongside session tokens"
+    }
+  ],
+  "optionalEnv": [
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GOOGLE_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "OPENROUTER_API_KEY",
+    "AGY_UPSTREAM",
+    "PROXY_BIND",
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "SENTRY_DSN"
+  ],
+  "notes": "Railway injects PORT; provider API keys live only on this service (ADR-0019)."
+}

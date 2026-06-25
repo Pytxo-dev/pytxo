@@ -26,8 +26,12 @@ impl BillingMode {
 pub struct BillingConfig {
     #[serde(default)]
     pub mode: BillingMode,
+    /// Pytxo Link base URL (entitlements, run ledger, org policy).
     #[serde(default = "default_proxy_url")]
     pub proxy_url: String,
+    /// Ultra managed-inference proxy base URL (ADR-0024). Separate from Link.
+    #[serde(default = "default_inference_proxy_url")]
+    pub inference_proxy_url: String,
     #[serde(default = "default_reserve_microcredits")]
     pub reserve_microcredits: i64,
     #[serde(default = "default_initial_balance")]
@@ -39,6 +43,10 @@ pub struct BillingConfig {
 
 fn default_proxy_url() -> String {
     "https://link.pytxo.com".to_string()
+}
+
+fn default_inference_proxy_url() -> String {
+    "https://proxy.pytxo.com".to_string()
 }
 
 fn default_reserve_microcredits() -> i64 {
@@ -54,6 +62,16 @@ impl BillingConfig {
     pub fn link_reconcile_enabled(&self) -> bool {
         self.link_reconcile.unwrap_or_else(|| self.mode.is_ultra())
     }
+
+    /// Link base URL trimmed (entitlements + run ledger).
+    pub fn link_base_url(&self) -> &str {
+        self.proxy_url.trim()
+    }
+
+    /// Ultra inference proxy base URL trimmed (ManagedTransport env injection).
+    pub fn inference_proxy_base_url(&self) -> &str {
+        self.inference_proxy_url.trim()
+    }
 }
 
 impl Default for BillingConfig {
@@ -61,6 +79,7 @@ impl Default for BillingConfig {
         Self {
             mode: BillingMode::Byok,
             proxy_url: default_proxy_url(),
+            inference_proxy_url: default_inference_proxy_url(),
             reserve_microcredits: default_reserve_microcredits(),
             initial_balance_microcredits: default_initial_balance(),
             link_reconcile: None,
@@ -95,5 +114,13 @@ mod tests {
             ..BillingConfig::default()
         };
         assert!(!cfg.link_reconcile_enabled());
+    }
+
+    #[test]
+    fn inference_proxy_url_defaults_separate_from_link() {
+        let cfg = BillingConfig::default();
+        assert_eq!(cfg.link_base_url(), "https://link.pytxo.com");
+        assert_eq!(cfg.inference_proxy_base_url(), "https://proxy.pytxo.com");
+        assert_ne!(cfg.link_base_url(), cfg.inference_proxy_base_url());
     }
 }

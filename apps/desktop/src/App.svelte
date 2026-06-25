@@ -399,7 +399,7 @@
     <DiffPanel
       {diffText}
       {dryRunOut}
-      isolationBackend={selectedRun?.isolation_backend ?? ""}
+      isolationBackend={selectedRun?.isolation_backend || selectedRun?.isolation_mode || ""}
       onLoad={loadDiff}
       onCommit={doCommit}
     />

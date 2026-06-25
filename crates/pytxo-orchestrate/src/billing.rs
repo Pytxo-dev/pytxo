@@ -103,7 +103,7 @@ pub fn metering_for_ctx(
     let model_router: Arc<dyn ModelRouter> = Arc::new(ConfigModelRouter);
     let managed_transport = ManagedTransport {
         mode: cfg.billing_mode(),
-        proxy_base_url: cfg.billing.proxy_url.clone(),
+        proxy_base_url: cfg.billing.inference_proxy_url.clone(),
         ..Default::default()
     };
     let token_estimator: Arc<dyn TokenEstimator> = {

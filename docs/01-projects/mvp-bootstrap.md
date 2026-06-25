@@ -221,6 +221,58 @@ Modular project manifest + CLI, Galaxy HITL queue/Deck/CLI, hypervisor catalog, 
 - [x] macOS `overlay-fuse-macos` CI compile-only step
 - [x] `isolation_backend_label` integration test stub in `blast.rs`
 
+## Phase 50 — shipped (deploy + config split)
+
+- [x] ADR-0024: `billing.inference_proxy_url` separate from `billing.proxy_url` (Link)
+- [x] `ManagedTransport` routes inference to proxy host; doctor `inference_proxy_health` + `cloud_health`
+- [x] `services/pytxo-proxy/railway.toml` + `railway.json`; Railway README Part 2b for `proxy.pytxo.com`
+
+## Phase 51 — shipped (E2E money loop validation)
+
+- [x] `tooling/scripts/go-live-smoke.sh` + `.ps1` (health, entitlements, run ledger round-trip)
+- [x] Run ledger idempotency integration test (`run_ledger_idempotency.rs`)
+
+## Phase 52 — shipped (Ultra proxy production)
+
+- [x] Streaming + header token metering in `pytxo-proxy`; per-bearer rate limiting
+- [x] `GET /v1/wallet/balance` on Link; Deck UsagePanel live Ultra credits
+
+## Phase 53 — shipped (cloud sandbox isolation)
+
+- [x] ADR-0025: non-root Docker, resource limits, internal network, `CLOUD_EGRESS_ALLOWLIST`
+- [x] Optional `REDIS_URL` durable scaffold cache; concurrent load tests
+
+## Phase 54 — shipped (DeepSpace network v2 production)
+
+- [x] ADR-0026: Linux netns default for DeepSpace; doctor socket probe to `1.1.1.1:443`
+- [x] Windows WFP/AppContainer stub markers; macOS `sandbox-exec` verified path
+
+## Phase 55 — shipped (sparse overlay hardening)
+
+- [x] `projfs-sparse-copy-v2` / `macos-sparse-overlay-v2` labels; `node_modules` exclusion test
+- [x] DiffPanel backend fallback from `isolation_mode`
+
+## Phase 56 — shipped (observability + reliability)
+
+- [x] ADR-0027: JSON health contract (`uptime_secs`), structured logging, Link rate/body limits
+- [x] `docs/07-guides/link-db-backup-runbook.md`; deploy-services.yml health smoke
+
+## Phase 57 — shipped (measured benchmarks)
+
+- [x] `overlay-vs-worktree` + `multi-agent-ram` benchmark scripts; CI matrix entries
+- [x] `competitive-benchmarks.md` Phase 57 methodology section
+
+## Phase 58 — shipped (product surface)
+
+- [x] Symbol-level 3D nodes in `TopologyScene3D.svelte`; structural graph IPC v3
+- [x] `LlmPlanner` via inference proxy when `PYTXO_PLANNER_LLM=1`; `deck-3d-stills.md`
+
+## Phase 59 — shipped (Enterprise GA launch)
+
+- [x] `org_seats` migration + real seat management; `PUT /v1/orgs/{id}/policy` admin route
+- [x] Audit for policy/seat changes; web account shows seats + org policy
+- [x] `docs/07-guides/enterprise-ga-launch-checklist.md`
+
 ## Phase 31 — shipped (Signal depth + DeepSpace reads)
 
 - [x] tree-sitter grammars: Java, C/C++, Ruby (`pytxo-signal`)

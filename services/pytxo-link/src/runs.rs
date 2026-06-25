@@ -92,4 +92,41 @@ impl MemoryRunStore {
         entry.ended = true;
         entry.usage = Some(body.usage.clone());
     }
+
+    pub fn get(&self, run_id: &str) -> Option<crate::state::RunRecord> {
+        self.inner.lock().unwrap().get(run_id).cloned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_ledger_idempotent_start_end() {
+        let store = MemoryRunStore::default();
+        let start = RunStartBody {
+            domain_id: "d1".into(),
+            run_id: "r1".into(),
+        };
+        let end = RunEndBody {
+            domain_id: "d1".into(),
+            run_id: "r1".into(),
+            usage: UsagePayload {
+                tokens_in_billed: 10,
+                tokens_in_sent: 5,
+                tokens_out: 2,
+                saved_tokens: 3,
+                cost_micro_usd: 100,
+            },
+        };
+        store.start(&start);
+        store.start(&start);
+        store.end(&end);
+        store.end(&end);
+        let record = store.get("r1").unwrap();
+        assert!(record.started);
+        assert!(record.ended);
+        assert_eq!(record.usage.as_ref().unwrap().cost_micro_usd, 100);
+    }
 }

@@ -20,14 +20,14 @@ fn mount_overlay_available() -> bool {
         .unwrap_or(false)
 }
 
-/// Honest capability label for Deck / doctor telemetry (Phase 46).
+/// Honest capability label for Deck / doctor telemetry (Phase 46, 55).
 pub fn capability_probe() -> &'static str {
     if fuse_available() && mount_overlay_available() {
-        "macos-kernel-overlay-mount"
+        "macos-sparse-overlay-v2"
     } else if fuse_available() {
-        "macos-fuse-device-only"
+        "macos-fuse-sparse-pending"
     } else {
-        "macos-copy-layer-fallback"
+        "macos-sparse-copy-v2"
     }
 }
 

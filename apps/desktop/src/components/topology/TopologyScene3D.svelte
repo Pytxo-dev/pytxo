@@ -94,13 +94,15 @@
     for (const node of graph.nodes) {
       const pos = positions.get(node.id);
       if (!pos) continue;
-      const size = node.edited ? 0.35 : 0.22;
-      const color = node.edited ? gold : teal;
+      const isSymbol =
+        node.label.includes("::") || node.id.includes("::");
+      const size = isSymbol ? 0.14 : node.edited ? 0.35 : 0.22;
+      const color = isSymbol ? violet : node.edited ? gold : teal;
       const geom = new THREE.SphereGeometry(size, 16, 16);
       const mat = new THREE.MeshStandardMaterial({
         color,
-        emissive: node.edited ? gold : violet,
-        emissiveIntensity: node.edited ? 0.35 : 0.12,
+        emissive: isSymbol ? violet : node.edited ? gold : violet,
+        emissiveIntensity: isSymbol ? 0.28 : node.edited ? 0.35 : 0.12,
       });
       const mesh = new THREE.Mesh(geom, mat);
       mesh.position.copy(pos);

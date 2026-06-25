@@ -15,7 +15,7 @@ pub struct ManagedTransport {
 impl Default for ManagedTransport {
     fn default() -> Self {
         Self {
-            proxy_base_url: "https://link.pytxo.com/v1".to_string(),
+            proxy_base_url: "https://proxy.pytxo.com".to_string(),
             session_token_env: "PYTXO_ULTRA_SESSION",
             mode: BillingMode::Byok,
         }

@@ -23,7 +23,8 @@ tier_max_agents = 3
 # Pytxo Ultra (managed metered billing + Pytxo Link proxy)
 # [billing]
 # mode = "ultra"
-# proxy_url = "https://link.pytxo.com"      # Pytxo Link base URL (billing.proxy_url)
+# proxy_url = "https://link.pytxo.com"           # Pytxo Link base URL (billing + entitlements)
+# inference_proxy_url = "https://proxy.pytxo.com" # Ultra managed-inference proxy (ADR-0024)
 # link_reconcile = true                       # defaults true when mode = ultra
 # reserve_microcredits = 500000
 # initial_balance_microcredits = 10000000

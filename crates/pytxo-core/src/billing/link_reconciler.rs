@@ -110,7 +110,7 @@ impl HttpBillingReconciler {
             let body = resp
                 .into_string()
                 .map_err(|e| PytxoError::Other(format!("link health body: {e}")))?;
-            if body.trim() != "ok" {
+            if !crate::service_health_ok(&body) {
                 return Err(PytxoError::Other(format!(
                     "link health unexpected body: {body}"
                 )));

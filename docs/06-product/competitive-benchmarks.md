@@ -6,7 +6,7 @@ tags: [product, positioning]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-21
+updated: 2026-06-24
 related: [[beyond-the-ade]], [[gtm-open-source-loop]]
 ---
 
@@ -65,10 +65,35 @@ Run overlay integration: `cargo test -p pytxo-runner overlay_layer_not_git_workt
 
 Run Race Shield contention probe: `cargo test -p pytxo-runner registry_contention`
 
-## Methodology (future)
+## Phase 57 — measured methodology
 
-- Fixed hardware profile documented per run
-- Same repo / task graph for Pytxo vs baseline tool
+Repro scripts (repo root, after `cargo build -p pytxo-cli`):
+
+| Script | Measures |
+|--------|----------|
+| [`overlay-vs-worktree.sh`](../../../tooling/benchmarks/overlay-vs-worktree.sh) / [`.ps1`](../../../tooling/benchmarks/overlay-vs-worktree.ps1) | Upper-layer disk bytes + cold-start ms (worktree: 3× `git worktree add`; overlay: `pytxo run --dry-run` with `isolation = "overlay"`) on `tests/fixtures/tiny-monorepo` |
+| [`multi-agent-ram.sh`](../../../tooling/benchmarks/multi-agent-ram.sh) / [`.ps1`](../../../tooling/benchmarks/multi-agent-ram.ps1) | Peak RSS (KB/MB) of `pytxo` parent during a 3-agent `sleep` swarm |
+
+**Pinned hardware profile** (fill after each release pin):
+
+| Field | Value |
+|-------|-------|
+| Host | _e.g. AMD Ryzen 7 7840U, 32 GB RAM_ |
+| OS | _e.g. Ubuntu 24.04 / Windows 11 26200_ |
+| Rust / Pytxo | _e.g. 1.85 / 0.3.3_ |
+| Fixture | `tests/fixtures/tiny-monorepo` |
+| Date | _YYYY-MM-DD_ |
+
+**Pinned results** (replace `TBD` after local or CI run):
+
+| Metric | Worktree | Overlay copy-layer | Notes |
+|--------|----------|-------------------|-------|
+| Cold start (ms) | TBD | TBD | 3-agent fixture |
+| Upper disk (MB) | TBD | TBD | `.pytxo/worktrees` after run |
+| Peak RAM (MB) | TBD | — | 3-agent `multi-agent-ram` |
+| UI frame rate (FPS) | TBD | — | Reality Deck terminal pane |
+
+CI runs overlay integration compile-only on Linux (`cargo test -p pytxo-runner --features overlay-fuse overlay_layer`); full disk numbers remain operator-pinned on reference hardware.
 
 ## Honesty
 

@@ -20,11 +20,14 @@ $linkApi = [guid]::NewGuid().ToString("N")
 $linkAdmin = [guid]::NewGuid().ToString("N")
 $cloudApi = [guid]::NewGuid().ToString("N")
 
+$proxyApi = [guid]::NewGuid().ToString("N")
+
 Write-Host ""
 Write-Host "=== Generated API keys (copy into Railway + Vercel) ===" -ForegroundColor Cyan
 Write-Host "  LINK_API_KEY=$linkApi"
 Write-Host "  LINK_ADMIN_KEY=$linkAdmin"
 Write-Host "  CLOUD_API_KEY=$cloudApi"
+Write-Host "  PROXY_API_KEY=$proxyApi"
 Write-Host ""
 Write-Host "Vercel (pytxo.com project):"
 Write-Host "  LINK_ADMIN_URL=https://link.pytxo.com"
@@ -45,8 +48,9 @@ Write-Host "Dashboard checklist (distribution/railway/README.md):"
 Write-Host "  - PostgreSQL plugin"
 Write-Host "  - pytxo-link service (Dockerfile services/pytxo-link/Dockerfile, config services/pytxo-link/railway.toml)"
 Write-Host "  - pytxo-cloud-sandbox service (Dockerfile services/pytxo-cloud-sandbox/Dockerfile)"
+Write-Host "  - pytxo-proxy service (Dockerfile services/pytxo-proxy/Dockerfile, config services/pytxo-proxy/railway.toml)"
 Write-Host "  - DATABASE_URL=`${{Postgres.DATABASE_URL}} on pytxo-link"
-Write-Host "  - Custom domains: link.pytxo.com, cloud.pytxo.com"
+Write-Host "  - Custom domains: link.pytxo.com, cloud.pytxo.com, proxy.pytxo.com"
 Write-Host ""
 
 $confirm = Read-Host "Railway project linked and services created? Deploy now? [y/N]"
@@ -61,7 +65,11 @@ railway up -s pytxo-link
 Write-Host "Deploying pytxo-cloud-sandbox..."
 railway up -s pytxo-cloud-sandbox
 
+Write-Host "Deploying pytxo-proxy..."
+railway up -s pytxo-proxy
+
 Write-Host ""
 Write-Host "Done. Verify:"
 Write-Host "  curl https://link.pytxo.com/health"
 Write-Host "  curl https://cloud.pytxo.com/health"
+Write-Host "  curl https://proxy.pytxo.com/health"

@@ -89,8 +89,8 @@ export type FleetRunStatusDto = {
   nodes: FleetNodeDto[];
 };
 
-/** Schema version for structural graph IPC (2 = 3D Deck consumer). */
-export const STRUCTURAL_GRAPH_VERSION = 2;
+/** Schema version for structural graph IPC (3 = symbol-node styling). */
+export const STRUCTURAL_GRAPH_VERSION = 3;
 
 export type StructuralGraphDto = {
   version?: number;

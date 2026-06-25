@@ -9,6 +9,7 @@ use std::path::Path;
 use anyhow::{bail, Context};
 use pytxo_core::{PytxoConfig, Task, TaskId};
 use pytxo_signal::build_structural_graph;
+use serde::Deserialize;
 
 /// Natural-language mission from the operator prompt.
 #[derive(Clone, Debug)]
@@ -41,6 +42,7 @@ pub trait MissionPlanner: Send + Sync {
 enum PlannerMode {
     Heuristic,
     Signal,
+    Llm,
 }
 
 /// Whether planner features are active for this process.
@@ -57,6 +59,9 @@ pub fn planner_enabled(config: &PytxoConfig) -> bool {
 }
 
 fn planner_mode(config: &PytxoConfig) -> PlannerMode {
+    if llm_planner_enabled(config) {
+        return PlannerMode::Llm;
+    }
     if let Ok(v) = std::env::var("PYTXO_PLANNER") {
         if v.eq_ignore_ascii_case("signal") {
             return PlannerMode::Signal;
@@ -67,6 +72,16 @@ fn planner_mode(config: &PytxoConfig) -> PlannerMode {
     } else {
         PlannerMode::Heuristic
     }
+}
+
+/// LLM planner requires Ultra billing + `PYTXO_PLANNER_LLM=1` + planner enabled.
+pub fn llm_planner_enabled(config: &PytxoConfig) -> bool {
+    if !planner_enabled(config) || !config.billing_mode().is_ultra() {
+        return false;
+    }
+    std::env::var("PYTXO_PLANNER_LLM")
+        .ok()
+        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
 /// Default stub: instructs the operator to use `/run` or enable the planner.
@@ -123,6 +138,98 @@ impl MissionPlanner for HeuristicPlanner {
                 root: None,
                 signal_fidelity: None,
             });
+        }
+        Ok(MissionPlan {
+            tasks,
+            task_prompts,
+        })
+    }
+}
+
+/// Ultra LLM planner: decompose mission via managed inference proxy OpenAI route.
+pub struct LlmPlanner;
+
+#[derive(Debug, Deserialize)]
+struct LlmTaskRow {
+    id: String,
+    agent: String,
+    paths: Vec<String>,
+    #[serde(default)]
+    depends_on: Vec<String>,
+    prompt: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct LlmPlanResponse {
+    tasks: Vec<LlmTaskRow>,
+}
+
+impl LlmPlanner {
+    fn proxy_base(config: &PytxoConfig) -> String {
+        config.billing.inference_proxy_url.trim_end_matches('/').to_string()
+    }
+
+    fn call_proxy(mission: &str, config: &PytxoConfig) -> anyhow::Result<LlmPlanResponse> {
+        let url = format!("{}/openai/v1/chat/completions", Self::proxy_base(config));
+        let body = serde_json::json!({
+            "model": "gpt-4o-mini",
+            "response_format": { "type": "json_object" },
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Decompose the mission into parallel-safe coding tasks. Return JSON: {\"tasks\":[{\"id\":\"task-a\",\"agent\":\"agent-0\",\"paths\":[\"src/foo.ts\"],\"depends_on\":[],\"prompt\":\"...\"}]}. Max tasks from user config. Use repo-relative paths."
+                },
+                { "role": "user", "content": mission }
+            ]
+        });
+        let resp = ureq::post(&url)
+            .set("Content-Type", "application/json")
+            .send_json(body)
+            .map_err(|e| anyhow::anyhow!("llm planner proxy request failed: {e}"))?;
+        if !(200..300).contains(&resp.status()) {
+            bail!("llm planner proxy returned HTTP {}", resp.status());
+        }
+        let envelope: serde_json::Value = resp
+            .into_json()
+            .map_err(|e| anyhow::anyhow!("llm planner invalid JSON: {e}"))?;
+        let content = envelope["choices"][0]["message"]["content"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("llm planner missing message content"))?;
+        serde_json::from_str(content).context("parse llm planner task JSON")
+    }
+}
+
+impl MissionPlanner for LlmPlanner {
+    fn decompose(
+        &self,
+        mission: &MissionSpec,
+        ctx: &PlannerContext<'_>,
+    ) -> anyhow::Result<MissionPlan> {
+        let text = mission.text.trim();
+        if text.is_empty() {
+            bail!("mission text is empty");
+        }
+        let parsed = Self::call_proxy(text, ctx.config)?;
+        let n = ctx.config.max_agents.max(1);
+        let mut tasks = Vec::new();
+        let mut task_prompts = HashMap::new();
+        for row in parsed.tasks.into_iter().take(n) {
+            task_prompts.insert(row.id.clone(), row.prompt);
+            tasks.push(Task {
+                id: TaskId(row.id),
+                agent: row.agent,
+                paths: if row.paths.is_empty() {
+                    vec![".".into()]
+                } else {
+                    row.paths
+                },
+                depends_on: row.depends_on,
+                root: None,
+                signal_fidelity: None,
+            });
+        }
+        if tasks.is_empty() {
+            bail!("llm planner returned no tasks");
         }
         Ok(MissionPlan {
             tasks,
@@ -349,6 +456,7 @@ pub fn default_planner(config: &PytxoConfig) -> Box<dyn MissionPlanner> {
         return Box::new(StubPlanner);
     }
     match planner_mode(config) {
+        PlannerMode::Llm => Box::new(LlmPlanner),
         PlannerMode::Signal => Box::new(SignalBackedPlanner),
         PlannerMode::Heuristic => Box::new(HeuristicPlanner),
     }

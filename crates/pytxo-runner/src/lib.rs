@@ -43,15 +43,20 @@ pub use process::{ActiveRunHandle, ProcessRegistry};
 pub use process_registry_file::{registry_path, ProcessEntry, ProcessRegistryFile};
 pub use pty::{doctor_pty_smoke, run_pty_session};
 
-/// Doctor probe for DeepSpace network isolation (Phase 45).
+/// Doctor probe for DeepSpace network isolation (Phase 45, ADR-0026).
 pub fn doctor_network_isolation_probe() -> String {
     use pytxo_core::{NetworkPolicy, NetworkPolicyEngine, PermissionProfile};
     let deepspace = NetworkPolicyEngine::new(PermissionProfile::DeepSpace);
     let tcp_blocked = !deepspace.egress_allowed("1.1.1.1", 443);
+    let (socket_blocked, socket_detail) = crate::network_isolation::doctor_deepspace_socket_probe();
     format!(
-        "mechanism={}; tcp_probe_expect_blocked={tcp_blocked}",
-        isolation_mechanism()
+        "policy_tcp_blocked={tcp_blocked}; {socket_detail}; socket_probe_blocked={socket_blocked}"
     )
+}
+
+/// Whether the doctor socket probe observed blocked egress (ADR-0026).
+pub fn doctor_deepspace_socket_blocked() -> bool {
+    crate::network_isolation::doctor_deepspace_socket_probe().0
 }
 
 /// Doctor probe for Blast overlay isolation (Phase 26).

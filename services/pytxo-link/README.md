@@ -7,6 +7,8 @@ Minimal HTTP service for Ultra-tier run reconciliation. Matches the monorepo cli
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/health` | Liveness |
+| GET | `/v1/entitlements/status` | Current tier and agent limits |
+| GET | `/v1/wallet/balance` | Ultra wallet balance (microcredits) |
 | POST | `/v1/runs/start` | Run started envelope |
 | POST | `/v1/runs/end` | Run ended + usage totals |
 

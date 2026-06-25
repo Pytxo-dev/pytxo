@@ -245,6 +245,49 @@ fn fetch_org_policy_ceiling_for(
     }
 }
 
+#[derive(Deserialize)]
+struct LinkWalletResponse {
+    balance_microcredits: i64,
+}
+
+/// Fetch Ultra wallet balance from Link (`GET /v1/wallet/balance`).
+pub fn fetch_link_wallet_balance(base_url: &str) -> Result<i64, PytxoError> {
+    let reconciler = HttpBillingReconciler::new(base_url);
+    let endpoint = reconciler.endpoint("v1/wallet/balance");
+    reconciler.ping()?;
+
+    #[cfg(feature = "link-http")]
+    {
+        let mut req = ureq::get(&endpoint);
+        if let Ok(token) = std::env::var("PYTXO_ULTRA_SESSION") {
+            if !token.is_empty() {
+                req = req.set("Authorization", &format!("Bearer {token}"));
+            }
+        }
+        let resp = req
+            .call()
+            .map_err(|e| PytxoError::Other(format!("wallet fetch: {e}")))?;
+        if resp.status() != 200 {
+            return Err(PytxoError::Other(format!(
+                "wallet balance status {}",
+                resp.status()
+            )));
+        }
+        let body: LinkWalletResponse = resp
+            .into_json()
+            .map_err(|e| PytxoError::Other(format!("wallet json: {e}")))?;
+        return Ok(body.balance_microcredits);
+    }
+
+    #[cfg(not(feature = "link-http"))]
+    {
+        let _ = endpoint;
+        Err(PytxoError::Other(
+            "link-http feature required for remote wallet".into(),
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

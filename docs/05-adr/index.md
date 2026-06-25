@@ -39,6 +39,10 @@ Architecture Decision Records are **immutable once Accepted**. Supersede by addi
 | ADR-0020 | [[ADR-0020-cloud-sandbox-runtime]] | accepted |
 | ADR-0021 | [[ADR-0021-billing-source-of-truth]] | accepted |
 | ADR-0023 | [[ADR-0023-reality-deck-3d-renderer]] | accepted |
+| ADR-0024 | [[ADR-0024-managed-transport-endpoint-split]] | accepted |
+| ADR-0025 | [[ADR-0025-cloud-runtime-isolation]] | accepted |
+| ADR-0026 | [[ADR-0026-deepspace-netns-default]] | accepted |
+| ADR-0027 | [[ADR-0027-service-observability-contract]] | accepted |
 
 ## Template
 

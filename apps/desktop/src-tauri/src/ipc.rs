@@ -543,8 +543,12 @@ pub fn fleet_run_status_cmd(fleet_run_id: String) -> IpcResult<FleetRunStatusDto
     })
 }
 
+/// IPC schema version for Reality Deck 3D topology consumer.
+pub const STRUCTURAL_GRAPH_VERSION: u32 = 3;
+
 #[derive(Serialize)]
 pub struct StructuralGraphDto {
+    pub version: u32,
     pub nodes: Vec<StructuralNodeDto>,
     pub edges: Vec<StructuralEdgeDto>,
 }
@@ -572,6 +576,7 @@ pub fn structural_graph(
     let domain = resolve_domain(&state, domain_id)?;
     let graph = orch_structural_graph(Some(PathBuf::from(domain)), &run_id).map_err(map_orch_err)?;
     Ok(StructuralGraphDto {
+        version: STRUCTURAL_GRAPH_VERSION,
         nodes: graph
             .nodes
             .into_iter()

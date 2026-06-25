@@ -59,7 +59,7 @@ jobs:
 
       - name: DeepSpace network isolation (Linux compile)
         if: runner.os == 'Linux'
-        run: cargo test -p pytxo-runner --features deepspace-netns network_policy --no-run
+        run: cargo test -p pytxo-runner network_policy --no-run
 
       - name: Cloud sandbox client (feature)
         run: |
@@ -91,6 +91,26 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: tooling/benchmarks/three-agent-preflight.ps1
+
+      - name: Overlay vs worktree benchmark (Linux)
+        if: runner.os == 'Linux'
+        run: bash tooling/benchmarks/overlay-vs-worktree.sh
+
+      - name: Overlay vs worktree benchmark (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: tooling/benchmarks/overlay-vs-worktree.ps1
+
+      - name: Overlay layer compile (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse3-dev
+          cargo test -p pytxo-runner --features overlay-fuse overlay_layer --lib --no-run
+
+      - name: Multi-agent RAM sample (Linux)
+        if: runner.os == 'Linux'
+        run: bash tooling/benchmarks/multi-agent-ram.sh
 
   npm-cli:
     runs-on: ubuntu-latest

@@ -13,6 +13,7 @@ mod path_util;
 mod plan;
 mod fleet;
 mod project;
+mod service_health;
 mod task;
 mod trust;
 
@@ -48,6 +49,7 @@ pub use path_util::{canonical_repo_root, strip_extended_path};
 pub use plan::{AgentAssignment, ConflictPair, ExecutionPlan, ScheduledTask};
 pub use fleet::{FleetManifest, FleetMeta, FleetNode, FleetPlan, FleetWave};
 pub use project::{ProjectManifest, ProjectMeta, ProjectRoot};
+pub use service_health::response_ok as service_health_ok;
 pub use task::{AgentSpec, Task};
 pub use trust::{default_trust_path, TrustedDomain, TrustedDomainStore};
 

@@ -48,7 +48,49 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Service health unit tests
+
+      - name: Build release binaries
         run: |
-          cargo test -p pytxo-link --lib
-          cargo test -p pytxo-proxy --lib 2>/dev/null || cargo test -p pytxo-proxy 2>/dev/null || true
+          cargo build --release -p pytxo-link
+          cargo build --release -p pytxo-cloud-sandbox
+          cargo build --release -p pytxo-proxy
+
+      - name: Health smoke pytxo-link (ADR-0027)
+        run: |
+          LINK_BIND=127.0.0.1:18787 ./target/release/pytxo-link &
+          pid=$!
+          trap "kill $pid 2>/dev/null || true" EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18787/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18787/health | jq -e '.status == "ok" and (.uptime_secs | type) == "number" and .service == "pytxo-link"'
+
+      - name: Health smoke pytxo-cloud-sandbox (ADR-0027)
+        run: |
+          CLOUD_BIND=127.0.0.1:18788 ./target/release/pytxo-cloud-sandbox &
+          pid=$!
+          trap "kill $pid 2>/dev/null || true" EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18788/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18788/health | jq -e '.status == "ok" and (.uptime_secs | type) == "number" and .service == "pytxo-cloud-sandbox"'
+
+      - name: Health smoke pytxo-proxy (ADR-0027)
+        run: |
+          PROXY_BIND=127.0.0.1:18790 PROXY_REQUIRE_AUTH=0 ./target/release/pytxo-proxy &
+          pid=$!
+          trap "kill $pid 2>/dev/null || true" EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18790/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18790/health | jq -e '.status == "ok" and (.uptime_secs | type) == "number" and .service == "pytxo-proxy"'
+
+      - name: Service contract unit tests
+        run: |
+          cargo test -p pytxo-link
+          cargo test -p pytxo-proxy
+          cargo test -p pytxo-cloud-sandbox
+          cargo test -p pytxo-core service_health

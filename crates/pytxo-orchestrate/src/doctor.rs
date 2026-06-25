@@ -34,6 +34,7 @@ pub fn run_doctor(repo: Option<&Path>) -> anyhow::Result<DoctorReport> {
         check_pty_smoke(),
         check_link_reconcile(&cfg),
         check_cloud_sandbox(&cfg),
+        check_inference_proxy_health(&cfg),
         check_hitl_persistence(&repo_root, &cfg),
         check_network_policy(),
         check_deepspace_network_isolation(),
@@ -173,14 +174,14 @@ fn check_link_reconcile(cfg: &PytxoConfig) -> DoctorCheck {
 fn check_cloud_sandbox(cfg: &PytxoConfig) -> DoctorCheck {
     if cfg.execution_backend != pytxo_core::ExecutionBackend::Cloud && !cfg.cloud.enabled {
         return DoctorCheck {
-            name: "cloud_sandbox".into(),
+            name: "cloud_health".into(),
             ok: true,
             detail: "skipped (execution_backend is not cloud and [cloud].enabled is false)".into(),
         };
     }
     match crate::cloud::ping_cloud(&cfg.cloud) {
         Ok(()) => DoctorCheck {
-            name: "cloud_sandbox".into(),
+            name: "cloud_health".into(),
             ok: true,
             detail: format!(
                 "cloud reachable at {}",
@@ -188,11 +189,62 @@ fn check_cloud_sandbox(cfg: &PytxoConfig) -> DoctorCheck {
             ),
         },
         Err(e) => DoctorCheck {
-            name: "cloud_sandbox".into(),
+            name: "cloud_health".into(),
             ok: false,
             detail: format!("cloud ping failed: {e}"),
         },
     }
+}
+
+fn check_inference_proxy_health(cfg: &PytxoConfig) -> DoctorCheck {
+    if !cfg.billing_mode().is_ultra() {
+        return DoctorCheck {
+            name: "inference_proxy_health".into(),
+            ok: true,
+            detail: "skipped (billing.mode is not ultra)".into(),
+        };
+    }
+    let url = cfg.billing.inference_proxy_base_url();
+    if url.is_empty() {
+        return DoctorCheck {
+            name: "inference_proxy_health".into(),
+            ok: false,
+            detail: "billing.inference_proxy_url is empty".into(),
+        };
+    }
+    match ping_service_health(url) {
+        Ok(()) => DoctorCheck {
+            name: "inference_proxy_health".into(),
+            ok: true,
+            detail: format!("inference proxy /health ok at {url}"),
+        },
+        Err(e) => DoctorCheck {
+            name: "inference_proxy_health".into(),
+            ok: false,
+            detail: format!("inference proxy health failed: {e}"),
+        },
+    }
+}
+
+#[cfg(feature = "link-http")]
+fn ping_service_health(base: &str) -> Result<(), String> {
+    let health = format!("{}/health", base.trim_end_matches('/'));
+    let resp = ureq::get(&health)
+        .call()
+        .map_err(|e| format!("{e}"))?;
+    if resp.status() != 200 {
+        return Err(format!("status {}", resp.status()));
+    }
+    let body = resp.into_string().map_err(|e| format!("{e}"))?;
+    if !pytxo_core::service_health_ok(&body) {
+        return Err(format!("unexpected body: {body}"));
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "link-http"))]
+fn ping_service_health(_base: &str) -> Result<(), String> {
+    Ok(())
 }
 
 fn check_hitl_persistence(repo: &Path, cfg: &PytxoConfig) -> DoctorCheck {
@@ -244,11 +296,12 @@ fn check_network_policy() -> DoctorCheck {
 fn check_deepspace_network_isolation() -> DoctorCheck {
     use pytxo_core::{NetworkPolicy, NetworkPolicyEngine, PermissionProfile};
     let deepspace = NetworkPolicyEngine::new(PermissionProfile::DeepSpace);
-    let tcp_blocked = !deepspace.egress_allowed("1.1.1.1", 443);
+    let policy_blocked = !deepspace.egress_allowed("1.1.1.1", 443);
+    let socket_blocked = pytxo_runner::doctor_deepspace_socket_blocked();
     let detail = pytxo_runner::doctor_network_isolation_probe();
     DoctorCheck {
         name: "deepspace_network_isolation".into(),
-        ok: tcp_blocked,
+        ok: policy_blocked && socket_blocked,
         detail,
     }
 }

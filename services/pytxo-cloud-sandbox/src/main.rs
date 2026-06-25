@@ -13,6 +13,49 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use uuid::Uuid;
 
+/// Scaffold cache: in-memory for single-worker dev, Redis when `REDIS_URL` is set.
+#[derive(Clone)]
+enum CacheBackend {
+    Memory(Arc<Mutex<HashMap<String, CachedScaffold>>>),
+    Redis(redis::aio::ConnectionManager),
+}
+
+impl CacheBackend {
+    async fn get(&self, key: &str) -> Option<CachedScaffold> {
+        match self {
+            Self::Memory(map) => map.lock().unwrap().get(key).cloned(),
+            Self::Redis(conn) => {
+                let mut conn = conn.clone();
+                let raw: Option<String> = redis::cmd("GET")
+                    .arg(key)
+                    .query_async(&mut conn)
+                    .await
+                    .ok()?;
+                raw.and_then(|json| serde_json::from_str(&json).ok())
+            }
+        }
+    }
+
+    async fn put(&self, key: &str, value: &CachedScaffold) -> Result<(), String> {
+        match self {
+            Self::Memory(map) => {
+                map.lock().unwrap().insert(key.to_string(), value.clone());
+                Ok(())
+            }
+            Self::Redis(conn) => {
+                let json = serde_json::to_string(value).map_err(|e| e.to_string())?;
+                let mut conn = conn.clone();
+                redis::cmd("SET")
+                    .arg(key)
+                    .arg(json)
+                    .query_async::<()>(&mut conn)
+                    .await
+                    .map_err(|e| e.to_string())
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 struct AppState {
     api_key: Option<String>,
@@ -21,7 +64,7 @@ struct AppState {
     max_workers: usize,
     sandbox_ttl: Duration,
     sandboxes: Arc<Mutex<HashMap<String, SandboxRecord>>>,
-    cache: Arc<Mutex<HashMap<String, CachedScaffold>>>,
+    cache: CacheBackend,
     workers: Arc<Mutex<WorkerPool>>,
     http: reqwest::Client,
 }
@@ -177,10 +220,66 @@ fn docker_available() -> bool {
         .unwrap_or(false)
 }
 
+/// Comma-separated hostnames for documented production egress allow rules.
+fn egress_allowlist() -> Option<Vec<String>> {
+    std::env::var("CLOUD_EGRESS_ALLOWLIST")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            s.split(',')
+                .map(str::trim)
+                .filter(|h| !h.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+}
+
+fn sandbox_network_name() -> String {
+    std::env::var("CLOUD_DOCKER_NETWORK").unwrap_or_else(|_| "pytxo-sandbox-internal".into())
+}
+
+/// Ensure an internal Docker network exists (no default bridge egress).
+fn ensure_internal_network() -> Option<String> {
+    let network = sandbox_network_name();
+    let inspect = Command::new("docker")
+        .args(["network", "inspect", &network])
+        .output()
+        .ok()?;
+    if !inspect.status.success() {
+        let create = Command::new("docker")
+            .args(["network", "create", "--internal", &network])
+            .output()
+            .ok()?;
+        if !create.status.success() {
+            warn!(
+                stderr = %String::from_utf8_lossy(&create.stderr),
+                "docker network create failed"
+            );
+            return None;
+        }
+        info!(network = %network, "created internal sandbox network");
+    }
+
+    if let Some(hosts) = egress_allowlist() {
+        // CLOUD_EGRESS_ALLOWLIST documents host-side iptables/nftables rules required
+        // to punch holes from internal network to specific destinations, e.g.:
+        //   iptables -A DOCKER-USER -d <resolved-ip> -m comment --comment pytxo-egress-allow -j ACCEPT
+        // Containers remain on --internal network; without host rules egress stays blocked.
+        info!(
+            hosts = ?hosts,
+            network = %network,
+            "CLOUD_EGRESS_ALLOWLIST set; apply host iptables/nftables for allowlisted egress"
+        );
+    }
+
+    Some(network)
+}
+
 fn docker_start_container(sandbox_id: &str) -> Option<(String, String)> {
     if !docker_available() {
         return None;
     }
+    let network = ensure_internal_network()?;
     let name = format!("pytxo-{sandbox_id}");
     let output = Command::new("docker")
         .args([
@@ -188,10 +287,25 @@ fn docker_start_container(sandbox_id: &str) -> Option<(String, String)> {
             "-d",
             "--name",
             &name,
+            "--user",
+            "1000:1000",
+            "--memory",
+            "512m",
+            "--cpus",
+            "1",
+            "--security-opt",
+            "no-new-privileges",
+            "--read-only",
+            "--tmpfs",
+            "/workspace:exec,size=256m",
+            "--tmpfs",
+            "/tmp:exec,size=64m",
+            "--network",
+            &network,
             "alpine:3.20",
             "sh",
             "-c",
-            "mkdir -p /workspace && sleep infinity",
+            "sleep infinity",
         ])
         .output()
         .ok()?;
@@ -339,8 +453,8 @@ async fn cloud_entitled(state: &AppState, headers: &HeaderMap) -> bool {
     }
 }
 
-async fn health() -> &'static str {
-    "ok"
+async fn health() -> Json<telemetry::HealthBody> {
+    Json(telemetry::health_body())
 }
 
 async fn start_sandbox(
@@ -474,10 +588,8 @@ async fn cache_get(
     let key = cache_key(&q);
     state
         .cache
-        .lock()
-        .unwrap()
         .get(&key)
-        .cloned()
+        .await
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -494,15 +606,18 @@ async fn cache_put(
         "{}:{}:{}:{}",
         body.domain_id, body.path, body.fidelity, body.content_hash
     );
-    state.cache.lock().unwrap().insert(
-        key,
-        CachedScaffold {
-            content: body.content,
-            scaffolded_bytes: body.scaffolded_bytes,
-            language: body.language,
-        },
-    );
-    StatusCode::OK
+    let value = CachedScaffold {
+        content: body.content,
+        scaffolded_bytes: body.scaffolded_bytes,
+        language: body.language,
+    };
+    match state.cache.put(&key, &value).await {
+        Ok(()) => StatusCode::OK,
+        Err(e) => {
+            warn!(error = %e, "cache put failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
 }
 
 fn sweep_expired(state: &AppState) {
@@ -558,6 +673,24 @@ fn sandbox_ttl() -> Duration {
         .unwrap_or_else(|| Duration::from_secs(3600))
 }
 
+async fn init_cache_backend() -> CacheBackend {
+    if let Ok(url) = std::env::var("REDIS_URL") {
+        if !url.is_empty() {
+            match redis::Client::open(url.as_str()) {
+                Ok(client) => match redis::aio::ConnectionManager::new(client).await {
+                    Ok(conn) => {
+                        info!("scaffold cache using Redis (REDIS_URL)");
+                        return CacheBackend::Redis(conn);
+                    }
+                    Err(e) => warn!(error = %e, "Redis connect failed; falling back to in-memory"),
+                },
+                Err(e) => warn!(error = %e, "invalid REDIS_URL; falling back to in-memory"),
+            }
+        }
+    }
+    CacheBackend::Memory(Arc::new(Mutex::new(HashMap::new())))
+}
+
 #[tokio::main]
 async fn main() {
     crate::telemetry::init();
@@ -571,6 +704,8 @@ async fn main() {
         .ok()
         .filter(|s| !s.is_empty());
 
+    let cache = init_cache_backend().await;
+
     let state = AppState {
         api_key: api_key.clone(),
         require_auth,
@@ -578,7 +713,7 @@ async fn main() {
         max_workers: workers_n,
         sandbox_ttl: sandbox_ttl(),
         sandboxes: Arc::new(Mutex::new(HashMap::new())),
-        cache: Arc::new(Mutex::new(HashMap::new())),
+        cache,
         workers: Arc::new(Mutex::new(WorkerPool::new(workers_n))),
         http: reqwest::Client::new(),
     };
@@ -639,5 +774,61 @@ mod tests {
         assert!(constant_time_eq(b"secret", b"secret"));
         assert!(!constant_time_eq(b"secret", b"secrex"));
         assert!(!constant_time_eq(b"a", b"ab"));
+    }
+
+    #[test]
+    fn egress_allowlist_parses_hosts() {
+        std::env::set_var("CLOUD_EGRESS_ALLOWLIST", "api.anthropic.com, registry.npmjs.org");
+        let hosts = egress_allowlist().unwrap();
+        assert_eq!(hosts.len(), 2);
+        assert_eq!(hosts[0], "api.anthropic.com");
+        std::env::remove_var("CLOUD_EGRESS_ALLOWLIST");
+    }
+
+    #[tokio::test]
+    async fn concurrent_cache_puts_and_gets() {
+        let cache = CacheBackend::Memory(Arc::new(Mutex::new(HashMap::new())));
+        let scaffold = CachedScaffold {
+            content: "fn main() {}".into(),
+            scaffolded_bytes: 12,
+            language: Some("rust".into()),
+        };
+        let handles: Vec<_> = (0..32)
+            .map(|i| {
+                let cache = cache.clone();
+                let scaffold = scaffold.clone();
+                tokio::spawn(async move {
+                    let key = format!("domain:src/lib.rs:sparse:hash{i}");
+                    cache.put(&key, &scaffold).await.unwrap();
+                    cache.get(&key).await.unwrap().content
+                })
+            })
+            .collect();
+        for h in handles {
+            assert_eq!(h.await.unwrap(), "fn main() {}");
+        }
+    }
+
+    #[tokio::test]
+    async fn worker_pool_concurrent_lease_stress() {
+        let pool = Arc::new(Mutex::new(WorkerPool::new(4)));
+        let handles: Vec<_> = (0..32)
+            .map(|i| {
+                let pool = Arc::clone(&pool);
+                tokio::spawn(async move {
+                    let id = format!("sbx-{i}");
+                    let leased = pool.lock().unwrap().lease(&id);
+                    if leased.is_some() {
+                        tokio::task::yield_now().await;
+                        pool.lock().unwrap().release(&id);
+                    }
+                    leased.is_some()
+                })
+            })
+            .collect();
+        for h in handles {
+            let _ = h.await;
+        }
+        assert_eq!(pool.lock().unwrap().available.len(), 4);
     }
 }

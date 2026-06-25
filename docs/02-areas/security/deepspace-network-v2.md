@@ -46,7 +46,7 @@ fn isolate_deepspace_network(&self, child: &mut Command) -> Result<()>;
 
 ## Next steps
 
-1. Linux POC behind `deepspace-netns` feature on `pytxo-runner`.
+1. Linux `unshare -n` default-on for DeepSpace ([[ADR-0026-deepspace-netns-default]]); opt out with `PYTXO_DEEPSPACE_NETNS=0`.
 2. ADR if namespace lifecycle (create/teardown per agent) becomes default.
 3. Update [[permission-profile-engine]] capability table when POC lands.
 

@@ -135,7 +135,8 @@ pytxo.com (Vercel)
 
 pytxo CLI / Deck
   ├── link.pytxo.com  (billing, entitlements, runs)
-  └── cloud.pytxo.com (Max-tier cloud sandbox)
+  ├── cloud.pytxo.com (Max-tier cloud sandbox)
+  └── proxy.pytxo.com (Ultra managed-inference proxy)
 
 link.pytxo.com → Postgres (Railway plugin)
 ```
@@ -145,6 +146,7 @@ link.pytxo.com → Postgres (Railway plugin)
 | Postgres | Railway plugin | internal only |
 | `pytxo-link` | Railway Docker service | `link.pytxo.com` |
 | `pytxo-cloud-sandbox` | Railway Docker service | `cloud.pytxo.com` |
+| `pytxo-proxy` | Railway Docker service | `proxy.pytxo.com` |
 | Web + auth | Vercel | `pytxo.com` |
 
 ---
@@ -257,6 +259,50 @@ CLERK_JWKS_URL=https://<your-instance>.clerk.accounts.dev/.well-known/jwks.json
    | CNAME | `link` | value Railway shows |
 
 4. Wait for TLS → domain shows **Active**.
+
+---
+
+## Part 2b — pytxo-proxy (Ultra inference)
+
+Add after Link is healthy.
+
+1. **+ Add** → **GitHub Repo** → `Pytxo-dev/pytxo`.
+2. Rename service → **`pytxo-proxy`**.
+3. **Settings** → Build:
+
+   | Setting | Value |
+   |---------|--------|
+   | Root Directory | `/` |
+   | Dockerfile Path | `services/pytxo-proxy/Dockerfile` |
+   | Config file | `services/pytxo-proxy/railway.toml` |
+
+4. **Variables** tab:
+
+   | Variable | Value |
+   |----------|--------|
+   | `PROXY_REQUIRE_AUTH` | `1` |
+   | `LINK_BASE_URL` | `https://link.pytxo.com` |
+   | `LINK_API_KEY` | same as Railway Link `LINK_API_KEY` |
+   | `ANTHROPIC_API_KEY` | provider key (server-side only) |
+   | `OPENAI_API_KEY` | optional |
+
+5. **Apply changes** → **Deploy**.
+6. **Networking** → custom domain `proxy.pytxo.com` → CNAME at DNS.
+
+Verify:
+
+```powershell
+Invoke-WebRequest https://proxy.pytxo.com/health
+```
+
+Set in `pytxo.toml` under Ultra billing:
+
+```toml
+[billing]
+mode = "ultra"
+proxy_url = "https://link.pytxo.com"
+inference_proxy_url = "https://proxy.pytxo.com"
+```
 
 ---
 
