@@ -21,6 +21,7 @@ tier_max_agents = 3
 # enabled = true
 
 # Pytxo Ultra (managed metered billing + Pytxo Link proxy)
+# Recommended Ultra default: DeepSeek via inference proxy (no local DEEPSEEK_API_KEY).
 # [billing]
 # mode = "ultra"
 # proxy_url = "https://link.pytxo.com"           # Pytxo Link base URL (billing + entitlements)
@@ -45,10 +46,11 @@ tier_max_agents = 3
 [[agent]]
 name = "builder"
 paths = ["src/**"]
+# Ultra / BYOK example (DeepSeek recommended for Ultra):
 # model = "deepseek-chat"
 # provider = "deepseek"
 # cli_adapter = "generic"
-# api_key_env = "DEEPSEEK_API_KEY"
+# api_key_env = "DEEPSEEK_API_KEY"   # BYOK only; omit under billing.mode = ultra
 
 [[task]]
 id = "task-a"

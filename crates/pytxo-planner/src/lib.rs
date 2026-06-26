@@ -146,7 +146,7 @@ impl MissionPlanner for HeuristicPlanner {
     }
 }
 
-/// Ultra LLM planner: decompose mission via managed inference proxy OpenAI route.
+/// Ultra LLM planner: decompose mission via managed inference proxy DeepSeek route.
 pub struct LlmPlanner;
 
 #[derive(Debug, Deserialize)]
@@ -169,10 +169,18 @@ impl LlmPlanner {
         config.billing.inference_proxy_url.trim_end_matches('/').to_string()
     }
 
+    fn planner_model() -> String {
+        std::env::var("PYTXO_PLANNER_MODEL").unwrap_or_else(|_| "deepseek-chat".into())
+    }
+
     fn call_proxy(mission: &str, config: &PytxoConfig) -> anyhow::Result<LlmPlanResponse> {
-        let url = format!("{}/openai/v1/chat/completions", Self::proxy_base(config));
+        let url = format!(
+            "{}/deepseek/v1/chat/completions",
+            Self::proxy_base(config)
+        );
+        let model = Self::planner_model();
         let body = serde_json::json!({
-            "model": "gpt-4o-mini",
+            "model": model,
             "response_format": { "type": "json_object" },
             "messages": [
                 {
@@ -182,8 +190,13 @@ impl LlmPlanner {
                 { "role": "user", "content": mission }
             ]
         });
-        let resp = ureq::post(&url)
-            .set("Content-Type", "application/json")
+        let mut req = ureq::post(&url).set("Content-Type", "application/json");
+        if let Ok(token) = std::env::var("PYTXO_ULTRA_SESSION") {
+            if !token.trim().is_empty() {
+                req = req.set("Authorization", &format!("Bearer {token}"));
+            }
+        }
+        let resp = req
             .send_json(body)
             .map_err(|e| anyhow::anyhow!("llm planner proxy request failed: {e}"))?;
         if !(200..300).contains(&resp.status()) {

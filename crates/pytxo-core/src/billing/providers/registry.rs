@@ -91,7 +91,7 @@ static PROVIDERS: &[ProviderSpec] = &[
         id: ProviderId::Deepseek,
         display_name: "DeepSeek",
         api_key_env: "DEEPSEEK_API_KEY",
-        openai_base_url: Some("https://api.deepseek.com"),
+        openai_base_url: Some("https://api.deepseek.com/v1"),
         models_url: Some("https://api.deepseek.com/models"),
         openai_compatible: true,
         static_models: &["deepseek-chat", "deepseek-reasoner"],

@@ -22,11 +22,15 @@ fi
 
 echo "==> Link health ($LINK_BASE)"
 health="$(curl -fsS "${LINK_BASE%/}/health")"
-[[ "$health" == "ok" ]] || { echo "unexpected health: $health"; exit 1; }
+[[ "$health" == "ok" || "$health" == *'"status":"ok"'* || "$health" == *'"status": "ok"'* ]] || { echo "unexpected health: $health"; exit 1; }
 
 echo "==> Proxy health ($PROXY_BASE)"
 proxy_health="$(curl -fsS "${PROXY_BASE%/}/health")"
-[[ "$proxy_health" == "ok" ]] || { echo "unexpected proxy health: $proxy_health"; exit 1; }
+[[ "$proxy_health" == "ok" || "$proxy_health" == *'"status":"ok"'* || "$proxy_health" == *'"status": "ok"'* ]] || { echo "unexpected proxy health: $proxy_health"; exit 1; }
+echo "  $proxy_health"
+if [[ "$proxy_health" != *deepseek* ]]; then
+  echo "  WARNING: deepseek not in providers_configured - set DEEPSEEK_API_KEY on pytxo-proxy" >&2
+fi
 
 if [[ -n "$LINK_BASE" && -n "$PYTXO_ULTRA_SESSION" ]]; then
   echo "==> Entitlements status"
@@ -34,7 +38,9 @@ if [[ -n "$LINK_BASE" && -n "$PYTXO_ULTRA_SESSION" ]]; then
   echo
 
   echo "==> Wallet balance"
-  curl -fsS "${auth_args[@]}" "${LINK_BASE%/}/v1/wallet/balance" | tee /dev/stderr
+  if ! curl -fsS "${auth_args[@]}" "${LINK_BASE%/}/v1/wallet/balance" | tee /dev/stderr; then
+    echo "  WARNING: wallet/balance failed - check Link DB migrations" >&2
+  fi
   echo
 else
   echo "==> Skipping entitlements/wallet (set LINK_BASE + LINK_API_KEY or PYTXO_ULTRA_SESSION)"

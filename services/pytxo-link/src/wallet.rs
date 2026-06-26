@@ -22,7 +22,8 @@ pub async fn balance_for_user(pool: &PgPool, user_id: &str) -> Result<WalletBala
     )
     .bind(user_id)
     .fetch_one(pool)
-    .await?;
+    .await
+    .inspect_err(|e| tracing::warn!(?e, %user_id, "wallet balance query failed"))?;
     let initial = initial_microcredits();
     Ok(WalletBalanceResponse {
         balance_microcredits: initial.saturating_sub(spent.0),

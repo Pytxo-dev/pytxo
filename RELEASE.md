@@ -2,11 +2,32 @@
 
 **Private repo** — use GitHub Actions, not public curl URLs from this repo.
 
-1. **Actions → Release → Run workflow** → version `0.3.3` (no `v` prefix).
+1. **Actions → Release → Run workflow** → version `0.3.4` (no `v` prefix).
 2. Ensure secrets `NPM_TOKEN` and `PYTXO_RELEASES_TOKEN` are set on the private repo.
 3. Public users install via `npm i -g pytxo` or [pytxo-releases install scripts](https://github.com/Pytxo-dev/pytxo-releases).
 
 See [release-workflow.md](docs/07-guides/release-workflow.md).
+
+---
+
+# Pytxo v0.3.4
+
+**Production go-live (Phases 50–59)** — inference proxy config split, Link/Cloud/proxy health, Enterprise seats/policy, 3D symbol topology, measured benchmark scripts.
+
+## Highlights
+
+- **ADR-0024** — `billing.inference_proxy_url` separate from Link; doctor checks proxy + cloud health
+- **Ultra proxy** — streaming metering, rate limits, `GET /v1/wallet/balance` on Link
+- **Cloud hardening** — non-root Docker, Redis cache option, egress allowlist
+- **Reality Deck** — CSP allows `proxy.pytxo.com` + `cloud.pytxo.com`; symbol-level 3D nodes
+- **Enterprise GA** — org seats migration, policy admin API, audit trail
+
+## Install
+
+```bash
+npm i -g pytxo@0.3.4
+pytxo doctor
+```
 
 ---
 

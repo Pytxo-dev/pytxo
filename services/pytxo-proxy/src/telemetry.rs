@@ -18,6 +18,28 @@ pub struct HealthBody {
     pub status: &'static str,
     pub uptime_secs: u64,
     pub service: &'static str,
+    pub providers_configured: Vec<&'static str>,
+}
+
+/// Provider ids with non-empty API key env on this host (never exposes secrets).
+pub fn configured_providers() -> Vec<&'static str> {
+    let mut out = Vec::new();
+    let checks: &[(&str, &str)] = &[
+        ("deepseek", "DEEPSEEK_API_KEY"),
+        ("anthropic", "ANTHROPIC_API_KEY"),
+        ("openai", "OPENAI_API_KEY"),
+        ("google", "GOOGLE_API_KEY"),
+        ("openrouter", "OPENROUTER_API_KEY"),
+    ];
+    for (id, env) in checks {
+        if std::env::var(env)
+            .ok()
+            .is_some_and(|v| !v.trim().is_empty())
+        {
+            out.push(*id);
+        }
+    }
+    out
 }
 
 pub fn health_body() -> HealthBody {
@@ -25,6 +47,7 @@ pub fn health_body() -> HealthBody {
         status: "ok",
         uptime_secs: uptime_secs(),
         service: "pytxo-proxy",
+        providers_configured: configured_providers(),
     }
 }
 

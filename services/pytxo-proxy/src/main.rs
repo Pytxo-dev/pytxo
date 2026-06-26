@@ -1061,6 +1061,32 @@ mod tests {
 
     #[test]
 
+    fn deepseek_upstream_is_configured() {
+
+        assert_eq!(provider_upstream("deepseek"), "https://api.deepseek.com");
+
+    }
+
+
+
+    #[test]
+
+    fn health_lists_deepseek_when_key_set() {
+
+        std::env::set_var("DEEPSEEK_API_KEY", "test-key-not-real");
+
+        let providers = telemetry::configured_providers();
+
+        assert!(providers.iter().any(|p| *p == "deepseek"));
+
+        std::env::remove_var("DEEPSEEK_API_KEY");
+
+    }
+
+
+
+    #[test]
+
     fn listen_addr_defaults_to_local() {
 
         std::env::remove_var("PORT");

@@ -50,6 +50,7 @@ pub use plan::{AgentAssignment, ConflictPair, ExecutionPlan, ScheduledTask};
 pub use fleet::{FleetManifest, FleetMeta, FleetNode, FleetPlan, FleetWave};
 pub use project::{ProjectManifest, ProjectMeta, ProjectRoot};
 pub use service_health::response_ok as service_health_ok;
+pub use service_health::{health_lists_provider, providers_configured};
 pub use task::{AgentSpec, Task};
 pub use trust::{default_trust_path, TrustedDomain, TrustedDomainStore};
 

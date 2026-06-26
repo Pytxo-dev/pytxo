@@ -239,6 +239,16 @@ mod tests {
     }
 
     #[test]
+    fn parses_deepseek_usage() {
+        let body =
+            br#"{"model":"deepseek-chat","usage":{"prompt_tokens":42,"completion_tokens":11}}"#;
+        let u = parse_usage_json(body, "deepseek").unwrap();
+        assert_eq!(u.tokens_in, 42);
+        assert_eq!(u.tokens_out, 11);
+        assert_eq!(u.model.as_deref(), Some("deepseek-chat"));
+    }
+
+    #[test]
     fn parses_sse_anthropic_message_delta() {
         let body = concat!(
             "data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":7}}\n\n",

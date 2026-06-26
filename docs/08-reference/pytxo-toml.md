@@ -71,6 +71,8 @@ Ultra-tier managed metering ([[ADR-0009-ultra-managed-metering]], [[pytxo-link-s
 
 Set `PYTXO_ULTRA_SESSION` for `Authorization: Bearer` on reconcile POSTs. Local reference Link service: [`services/pytxo-link`](../../services/pytxo-link/).
 
+**Ultra default provider:** set `provider = "deepseek"` and `model = "deepseek-chat"` on `[[agent]]` rows; keys live on `pytxo-proxy` (`DEEPSEEK_API_KEY`), not on the client.
+
 ## `[cloud]`
 
 Max Swarm remote sandbox + Pro context cache ([[cloud-sandbox-service]]).

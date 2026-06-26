@@ -14,6 +14,28 @@ pub fn response_ok(body: &str) -> bool {
     false
 }
 
+/// Provider ids listed in proxy health JSON `providers_configured` (empty if absent or invalid).
+pub fn providers_configured(body: &str) -> Vec<String> {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(body.trim()) else {
+        return Vec::new();
+    };
+    v.get("providers_configured")
+        .and_then(|a| a.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|x| x.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// True when `provider` appears in `providers_configured` on a health JSON body.
+pub fn health_lists_provider(body: &str, provider: &str) -> bool {
+    providers_configured(body)
+        .iter()
+        .any(|p| p == provider)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -31,5 +53,12 @@ mod tests {
     #[test]
     fn rejects_error_body() {
         assert!(!response_ok(r#"{"status":"degraded"}"#));
+    }
+
+    #[test]
+    fn parses_providers_configured() {
+        let body = r#"{"status":"ok","providers_configured":["deepseek","openai"]}"#;
+        assert!(health_lists_provider(body, "deepseek"));
+        assert!(!health_lists_provider(body, "anthropic"));
     }
 }

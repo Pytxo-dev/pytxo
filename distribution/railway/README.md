@@ -283,11 +283,21 @@ Add after Link is healthy.
    | `PROXY_REQUIRE_AUTH` | `1` |
    | `LINK_BASE_URL` | `https://link.pytxo.com` |
    | `LINK_API_KEY` | same as Railway Link `LINK_API_KEY` |
-   | `ANTHROPIC_API_KEY` | provider key (server-side only) |
+   | `DEEPSEEK_API_KEY` | **required first** — Ultra default provider (server-side only) |
+   | `ANTHROPIC_API_KEY` | optional — Claude routes |
    | `OPENAI_API_KEY` | optional |
 
 5. **Apply changes** → **Deploy**.
 6. **Networking** → custom domain `proxy.pytxo.com` → CNAME at DNS.
+
+**DNS troubleshooting:** If `https://proxy.pytxo.com` returns a Vercel `DEPLOYMENT_NOT_FOUND` error, `proxy` is still routed to Vercel (e.g. from the `mbcz/pytxo` project). Remove `proxy.pytxo.com` from Vercel **Domains**, then add the Railway CNAME:
+
+| Type | Name | Target |
+|------|------|--------|
+| CNAME | `proxy` | value from Railway Networking modal (e.g. `qg7mpk17.up.railway.app`) |
+| TXT | `_railway-verify.proxy` | value from Railway verify modal |
+
+Wait for Railway TLS **Active** before using `inference_proxy_url = "https://proxy.pytxo.com"`.
 
 Verify:
 

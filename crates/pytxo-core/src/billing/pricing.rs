@@ -10,6 +10,7 @@ impl StaticPriceTable {
             Some("anthropic") => 15_000_000,
             Some("openai") => 10_000_000,
             Some("google") => 3_500_000,
+            Some("deepseek") => 140_000,
             _ => 10_000_000,
         }
     }
@@ -19,6 +20,7 @@ impl StaticPriceTable {
             Some("anthropic") => 75_000_000,
             Some("openai") => 30_000_000,
             Some("google") => 10_500_000,
+            Some("deepseek") => 280_000,
             _ => 30_000_000,
         }
     }
@@ -29,5 +31,26 @@ impl StaticPriceTable {
         let in_cost = (counts.tokens_in as i128 * in_rate as i128) / 1_000_000;
         let out_cost = (counts.tokens_out as i128 * out_rate as i128) / 1_000_000;
         (in_cost + out_cost) as i64
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::billing::TokenCounts;
+
+    #[test]
+    fn deepseek_chat_cost_uses_list_rates() {
+        let table = StaticPriceTable;
+        let model = ModelId::new("deepseek-chat");
+        // 1M in @ 140k micro + 1M out @ 280k micro = 420k micro-USD
+        let cost = table.cost_micro_usd(
+            &model,
+            &TokenCounts {
+                tokens_in: 1_000_000,
+                tokens_out: 1_000_000,
+            },
+        );
+        assert_eq!(cost, 420_000);
     }
 }

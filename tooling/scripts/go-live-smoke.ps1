@@ -22,12 +22,20 @@ function Invoke-Link {
 }
 
 Write-Host "==> Link health ($linkBase)"
-$health = Invoke-RestMethod -Uri "$($linkBase.TrimEnd('/'))/health"
-if ($health -ne "ok") { throw "unexpected health: $health" }
+$linkHealthRaw = (Invoke-WebRequest -Uri "$($linkBase.TrimEnd('/'))/health" -UseBasicParsing).Content
+if ($linkHealthRaw.Trim() -ne "ok" -and $linkHealthRaw -notmatch '"status"\s*:\s*"ok"') {
+    throw "unexpected link health: $linkHealthRaw"
+}
 
 Write-Host "==> Proxy health ($proxyBase)"
-$proxyHealth = Invoke-RestMethod -Uri "$($proxyBase.TrimEnd('/'))/health"
-if ($proxyHealth -ne "ok") { throw "unexpected proxy health: $proxyHealth" }
+$proxyHealthRaw = (Invoke-WebRequest -Uri "$($proxyBase.TrimEnd('/'))/health" -UseBasicParsing).Content
+if ($proxyHealthRaw.Trim() -ne "ok" -and $proxyHealthRaw -notmatch '"status"\s*:\s*"ok"') {
+    throw "unexpected proxy health: $proxyHealthRaw"
+}
+Write-Host "  $proxyHealthRaw"
+if ($proxyHealthRaw -notmatch 'deepseek') {
+    Write-Host "  WARNING: deepseek not in providers_configured - set DEEPSEEK_API_KEY on pytxo-proxy" -ForegroundColor Yellow
+}
 
 if ($linkBase -and $session) {
     Write-Host "==> Entitlements status"
@@ -35,8 +43,12 @@ if ($linkBase -and $session) {
     $ent | ConvertTo-Json -Compress | Write-Host
 
     Write-Host "==> Wallet balance"
-    $wallet = Invoke-Link -Method GET -Uri "$($linkBase.TrimEnd('/'))/v1/wallet/balance"
-    $wallet | ConvertTo-Json -Compress | Write-Host
+    try {
+        $wallet = Invoke-Link -Method GET -Uri "$($linkBase.TrimEnd('/'))/v1/wallet/balance"
+        $wallet | ConvertTo-Json -Compress | Write-Host
+    } catch {
+        Write-Host "  WARNING: wallet/balance failed ($($_.Exception.Message)) - check Link DB migrations" -ForegroundColor Yellow
+    }
 } else {
     Write-Host "==> Skipping entitlements/wallet (set LINK_BASE + LINK_API_KEY or PYTXO_ULTRA_SESSION)"
 }

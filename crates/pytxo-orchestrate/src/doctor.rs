@@ -212,11 +212,11 @@ fn check_inference_proxy_health(cfg: &PytxoConfig) -> DoctorCheck {
             detail: "billing.inference_proxy_url is empty".into(),
         };
     }
-    match ping_service_health(url) {
-        Ok(()) => DoctorCheck {
+    match ping_inference_proxy_health(url) {
+        Ok(detail) => DoctorCheck {
             name: "inference_proxy_health".into(),
             ok: true,
-            detail: format!("inference proxy /health ok at {url}"),
+            detail,
         },
         Err(e) => DoctorCheck {
             name: "inference_proxy_health".into(),
@@ -227,7 +227,7 @@ fn check_inference_proxy_health(cfg: &PytxoConfig) -> DoctorCheck {
 }
 
 #[cfg(feature = "link-http")]
-fn ping_service_health(base: &str) -> Result<(), String> {
+fn ping_inference_proxy_health(base: &str) -> Result<String, String> {
     let health = format!("{}/health", base.trim_end_matches('/'));
     let resp = ureq::get(&health)
         .call()
@@ -239,7 +239,28 @@ fn ping_service_health(base: &str) -> Result<(), String> {
     if !pytxo_core::service_health_ok(&body) {
         return Err(format!("unexpected body: {body}"));
     }
-    Ok(())
+    let providers = pytxo_core::providers_configured(&body);
+    let mut detail = format!("inference proxy /health ok at {base}");
+    if providers.is_empty() {
+        detail.push_str("; warning: no providers_configured in health JSON (set DEEPSEEK_API_KEY on proxy)");
+        return Err(detail);
+    }
+    detail.push_str(&format!("; providers={}", providers.join(",")));
+    if !pytxo_core::health_lists_provider(&body, "deepseek") {
+        detail.push_str("; warning: deepseek not configured on proxy (set DEEPSEEK_API_KEY)");
+        return Err(detail);
+    }
+    Ok(detail)
+}
+
+#[cfg(not(feature = "link-http"))]
+fn ping_inference_proxy_health(_base: &str) -> Result<String, String> {
+    Ok("skipped (link-http feature off)".into())
+}
+
+#[cfg(feature = "link-http")]
+fn ping_service_health(base: &str) -> Result<(), String> {
+    ping_inference_proxy_health(base).map(|_| ())
 }
 
 #[cfg(not(feature = "link-http"))]
