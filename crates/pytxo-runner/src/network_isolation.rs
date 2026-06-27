@@ -72,35 +72,34 @@ pub fn wrap_deepspace_shell_cmd(cmd: &str) -> String {
 pub fn isolate_deepspace_network(cmd: &mut std::process::Command) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
-        if linux_netns_enabled() {
-            let program = cmd.get_program().to_os_string();
-            let args: Vec<_> = cmd.get_args().map(|a| a.to_os_string()).collect();
-            cmd.program("unshare");
-            cmd.arg("-n");
-            cmd.arg(program);
-            for arg in args {
-                cmd.arg(arg);
-            }
-            cmd.env("PYTXO_NETWORK_ISOLATION", "deepspace-v2-netns");
+        if !linux_netns_enabled() {
+            cmd.env("PYTXO_NETWORK_ISOLATION", "deepspace-v2-disabled");
+            cmd.env("PYTXO_DEEPSPACE_NETNS", "0");
             return Ok(());
         }
-        cmd.env("PYTXO_NETWORK_ISOLATION", "deepspace-v2-disabled");
-        cmd.env("PYTXO_DEEPSPACE_NETNS", "0");
-        return Ok(());
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
-        let program = cmd.get_program().to_os_string();
-        let args: Vec<_> = cmd.get_args().map(|a| a.to_os_string()).collect();
-        let profile = "(version 1)\n(deny network-outbound)\n(allow default)\n";
-        cmd.program("sandbox-exec");
-        cmd.arg("-p");
-        cmd.arg(profile);
-        cmd.arg(program);
-        for arg in args {
-            cmd.arg(arg);
-        }
-        cmd.env("PYTXO_NETWORK_ISOLATION", "deepspace-v2-sandbox");
+        rewrap_command(cmd, |wrapped, program, args| {
+            #[cfg(target_os = "linux")]
+            {
+                wrapped.arg("-n");
+                wrapped.arg(program);
+                wrapped.args(args);
+                wrapped.env("PYTXO_NETWORK_ISOLATION", "deepspace-v2-netns");
+                Ok(())
+            }
+            #[cfg(target_os = "macos")]
+            {
+                let profile = "(version 1)\n(deny network-outbound)\n(allow default)\n";
+                wrapped.arg("-p");
+                wrapped.arg(profile);
+                wrapped.arg(program);
+                wrapped.args(args);
+                wrapped.env("PYTXO_NETWORK_ISOLATION", "deepspace-v2-sandbox");
+                Ok(())
+            }
+        })?;
         return Ok(());
     }
     #[cfg(target_os = "windows")]
@@ -194,6 +193,47 @@ pub fn doctor_deepspace_socket_probe() -> (bool, String) {
             ),
         ),
     }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn rewrap_command(
+    cmd: &mut std::process::Command,
+    configure: impl FnOnce(
+        &mut std::process::Command,
+        &std::ffi::OsStr,
+        &[std::ffi::OsString],
+    ) -> Result<()>,
+) -> Result<()> {
+    let program = cmd.get_program().to_os_string();
+    let args: Vec<_> = cmd.get_args().map(|a| a.to_os_string()).collect();
+    let envs: Vec<_> = cmd
+        .get_envs()
+        .map(|(k, v)| (k.to_os_string(), v.map(|x| x.to_os_string())))
+        .collect();
+    let cwd = cmd.get_current_dir().map(|p| p.to_path_buf());
+
+    #[cfg(target_os = "linux")]
+    let wrapper = "unshare";
+    #[cfg(target_os = "macos")]
+    let wrapper = "sandbox-exec";
+
+    let mut wrapped = std::process::Command::new(wrapper);
+    configure(&mut wrapped, program.as_os_str(), &args)?;
+    for (key, val) in envs {
+        match val {
+            Some(v) => {
+                wrapped.env(key, v);
+            }
+            None => {
+                wrapped.env_remove(key);
+            }
+        }
+    }
+    if let Some(dir) = cwd {
+        wrapped.current_dir(dir);
+    }
+    *cmd = wrapped;
+    Ok(())
 }
 
 #[allow(dead_code)]
