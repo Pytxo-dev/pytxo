@@ -91,6 +91,7 @@ jobs:
 
   release:
     needs: build
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ env.TAG_NAME }}
@@ -102,6 +103,16 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      - name: Require at least one platform binary
+        run: |
+          shopt -s nullglob
+          files=(dist/pytxo-*)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No release binaries uploaded from build matrix"
+            exit 1
+          fi
+          ls -la dist/
 
       - name: Flatten artifacts
         run: |
