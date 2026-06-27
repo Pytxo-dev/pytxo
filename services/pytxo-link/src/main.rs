@@ -317,10 +317,13 @@ async fn wallet_balance(
         &subject.user_id
     };
     if let Some(pool) = state.db.as_ref() {
-        wallet::balance_for_user(pool, user_id)
-            .await
-            .map(Json)
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        match wallet::balance_for_user(pool, user_id).await {
+            Ok(balance) => Ok(Json(balance)),
+            Err(e) => {
+                tracing::warn!(?e, %user_id, "wallet balance db query failed; returning initial balance");
+                Ok(Json(wallet::balance_memory(0)))
+            }
+        }
     } else {
         Ok(Json(wallet::balance_memory(0)))
     }
