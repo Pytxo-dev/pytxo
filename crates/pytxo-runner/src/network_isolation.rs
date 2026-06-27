@@ -44,6 +44,7 @@ pub fn wrap_deepspace_shell_cmd(cmd: &str) -> String {
         if linux_netns_enabled() {
             return format!("unshare -n sh -c {}", shell_quote(cmd));
         }
+        return cmd.to_string();
     }
     #[cfg(target_os = "macos")]
     {
