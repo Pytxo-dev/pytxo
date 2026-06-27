@@ -270,10 +270,26 @@ jobs:
         run: |
           npm ci --prefix tooling
           node tooling/scripts/generate-deck-icons.mjs
+          test -f apps/desktop/src-tauri/icons/icon.ico
+          test -f apps/desktop/src-tauri/icons/icon.icns
 
       - name: npm ci (desktop)
         working-directory: apps/desktop
         run: npm ci
+
+      - name: Configure CI signing/updater
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            node -e "
+            const fs = require('fs');
+            const p = 'apps/desktop/src-tauri/tauri.conf.json';
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            j.bundle.createUpdaterArtifacts = false;
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+            "
+            echo "createUpdaterArtifacts=false (no TAURI_SIGNING_PRIVATE_KEY)"
+          fi
 
       - name: Build Tauri bundles
         uses: tauri-apps/tauri-action@v0
@@ -308,12 +324,12 @@ jobs:
 
   mirror-desktop-release:
     needs: [release, desktop-release]
-    runs-on: ubuntu-latest
     if: >-
       ${{
-        (github.event_name == 'workflow_dispatch' && inputs.mirror_public)
-        || github.event_name == 'push'
+        always() && !cancelled() && needs.release.result == 'success'
+        && ((github.event_name == 'workflow_dispatch' && inputs.mirror_public) || github.event_name == 'push')
       }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -409,6 +425,17 @@ jobs:
             echo "::warning::NPM_TOKEN secret is not set — skipping npm publish"
             exit 0
           fi
+          set +e
           npm publish --access public
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            if npm view "pytxo@${NPM_VERSION}" version >/dev/null 2>&1; then
+              echo "::warning::pytxo@${NPM_VERSION} already on npm — skipping"
+              exit 0
+            fi
+            exit "$code"
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_VERSION: ${{ env.NPM_VERSION }}
