@@ -1,12 +1,9 @@
-# How to release
+# Release changelog (maintainers)
 
-**Private repo** — use GitHub Actions, not public curl URLs from this repo.
+Per-version notes for GitHub Releases live in [`distribution/release-notes/`](distribution/release-notes/).
+Workflow uses `distribution/release-notes/v{version}.md` when present.
 
-1. **Actions → Release → Run workflow** → version `0.3.4` (no `v` prefix).
-2. Ensure secrets `NPM_TOKEN` and `PYTXO_RELEASES_TOKEN` are set on the private repo.
-3. Public users install via `npm i -g pytxo` or [pytxo-releases install scripts](https://github.com/Pytxo-dev/pytxo-releases).
-
-See [release-workflow.md](docs/07-guides/release-workflow.md).
+Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-workflow.md)
 
 ---
 

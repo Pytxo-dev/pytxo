@@ -127,13 +127,26 @@ jobs:
           sha256sum pytxo-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      - name: Prepare release notes body
+        run: |
+          VERSION="${{ env.NPM_VERSION }}"
+          VERSION="${VERSION#v}"
+          NOTES="distribution/release-notes/v${VERSION}.md"
+          if [ -f "$NOTES" ]; then
+            cp "$NOTES" RELEASE_BODY.md
+            echo "Using $NOTES for release body"
+          else
+            cp RELEASE.md RELEASE_BODY.md
+            echo "::warning::Missing $NOTES — falling back to RELEASE.md"
+          fi
+
       - name: Create private repo release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
           name: ${{ env.TAG_NAME }}
-          generate_release_notes: true
-          body_path: RELEASE.md
+          generate_release_notes: false
+          body_path: RELEASE_BODY.md
           files: dist/*
 
       - name: Upload artifacts for downstream jobs
@@ -172,6 +185,18 @@ jobs:
           name: release-assets
           path: dist
 
+      - name: Prepare release notes body
+        if: steps.token.outputs.ok == 'true'
+        run: |
+          TAG="${{ needs.release.outputs.tag }}"
+          VERSION="${TAG#v}"
+          NOTES="distribution/release-notes/v${VERSION}.md"
+          if [ -f "$NOTES" ]; then
+            cp "$NOTES" RELEASE_BODY.md
+          else
+            cp RELEASE.md RELEASE_BODY.md
+          fi
+
       - name: Mirror to public pytxo-releases
         if: steps.token.outputs.ok == 'true'
         uses: softprops/action-gh-release@v2
@@ -180,8 +205,8 @@ jobs:
           token: ${{ secrets.PYTXO_RELEASES_TOKEN }}
           tag_name: ${{ needs.release.outputs.tag }}
           name: ${{ needs.release.outputs.tag }}
-          generate_release_notes: true
-          body_path: RELEASE.md
+          generate_release_notes: false
+          body_path: RELEASE_BODY.md
           files: |
             dist/*
         env:
