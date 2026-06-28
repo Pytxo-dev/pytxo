@@ -1,12 +1,13 @@
 use keyring::Entry;
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_shell::ShellExt;
 
 use crate::ipc_error::{map_io_err, IpcResult};
 
 const SERVICE: &str = "com.pytxo.reality-deck";
 const ACCOUNT: &str = "clerk-session";
+pub const AUTH_CHANGED_EVENT: &str = "deck-auth-changed";
 
 #[derive(Serialize)]
 pub struct AuthStatusDto {
@@ -25,18 +26,23 @@ pub fn auth_status() -> IpcResult<AuthStatusDto> {
 
 #[tauri::command]
 pub fn auth_store_session(token: String) -> IpcResult<()> {
+    store_session_token(&token)
+}
+
+fn store_session_token(token: &str) -> IpcResult<()> {
     let entry = Entry::new(SERVICE, ACCOUNT).map_err(map_io_err)?;
-    entry.set_password(&token).map_err(map_io_err)?;
-    std::env::set_var("PYTXO_ULTRA_SESSION", &token);
+    entry.set_password(token).map_err(map_io_err)?;
+    std::env::set_var("PYTXO_ULTRA_SESSION", token);
     Ok(())
 }
 
 #[tauri::command]
-pub fn auth_clear_session() -> IpcResult<()> {
+pub fn auth_clear_session(app: AppHandle) -> IpcResult<()> {
     if let Ok(entry) = Entry::new(SERVICE, ACCOUNT) {
         let _ = entry.delete_credential();
     }
     std::env::remove_var("PYTXO_ULTRA_SESSION");
+    let _ = app.emit(AUTH_CHANGED_EVENT, ());
     Ok(())
 }
 
@@ -58,7 +64,7 @@ pub fn hydrate_session_env() {
 }
 
 /// Handle `pytxo-deck://auth?token=...` deep-link callbacks from the account page.
-pub fn handle_deck_deep_link(url: &str) -> IpcResult<()> {
+pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
     if !url.starts_with("pytxo-deck:") {
         return Ok(());
     }
@@ -67,7 +73,9 @@ pub fn handle_deck_deep_link(url: &str) -> IpcResult<()> {
         if let Some(token) = pair.strip_prefix("token=") {
             if !token.is_empty() {
                 let decoded = percent_decode(token);
-                return auth_store_session(decoded);
+                store_session_token(&decoded)?;
+                let _ = app.emit(AUTH_CHANGED_EVENT, ());
+                return Ok(());
             }
         }
     }

@@ -1,34 +1,30 @@
 <script lang="ts">
   import { ipc } from "../../lib/ipc";
+  import ThemePicker from "./ThemePicker.svelte";
+  import type { DeckTheme } from "../../lib/theme";
 
   let {
-    cmd = $bindable(""),
-    dispatchRepo = $bindable(""),
+    theme = $bindable("void" as DeckTheme),
     tier = "core",
     maxAgents = 3,
     signedIn = false,
+    cliMissing = false,
     cloudRunBadge = null,
     walletMicrocredits = null as number | null,
     permissionCeiling = null as string | null,
     subscriptionPortalUrl = null as string | null,
-    onDryRun,
-    onDispatch,
-    onStop,
     onRefresh,
     onAuthChange,
   }: {
-    cmd?: string;
-    dispatchRepo?: string;
+    theme?: DeckTheme;
     tier?: string;
     maxAgents?: number;
     signedIn?: boolean;
+    cliMissing?: boolean;
     cloudRunBadge?: "cloud" | "fallback" | null;
     walletMicrocredits?: number | null;
     permissionCeiling?: string | null;
     subscriptionPortalUrl?: string | null;
-    onDryRun: () => void;
-    onDispatch: () => void;
-    onStop: () => void;
     onRefresh: () => void;
     onAuthChange?: () => void;
   } = $props();
@@ -47,47 +43,50 @@
   }
 </script>
 
-<header class="header glass-panel chroma-edge-top">
+<header class="header glass-panel">
   <div class="header__brand">
-    <h1 class="chroma-text">Pytxo Reality Deck</h1>
-    <span class="tier-badge tabular-nums">
-      {tier} · {maxAgents >= 64 ? "∞" : maxAgents} agents
-      {#if walletUsd != null && tier === "ultra"}
-        · <span class="wallet-badge">${walletUsd} credits</span>
-      {/if}
-      {#if permissionCeiling}
-        · <span class="ceiling-badge" title="Org policy ceiling">{permissionCeiling} cap</span>
-      {/if}
-      {#if cloudRunBadge === "cloud"}
-        · <span class="cloud-badge cloud-badge--active">Cloud</span>
-      {:else if cloudRunBadge === "fallback"}
-        · <span class="cloud-badge cloud-badge--fallback">Local fallback</span>
-      {/if}
-      {#if tier === "core"}
-        · <a class="upgrade" href="https://pytxo.com/plans" target="_blank" rel="noopener noreferrer">Upgrade</a>
-      {:else if subscriptionPortalUrl}
-        · <a class="upgrade" href={subscriptionPortalUrl} target="_blank" rel="noopener noreferrer">Manage plan</a>
-      {/if}
-    </span>
+    <img src="/logo.png" alt="" width="28" height="28" class="header__logo" />
+    <div>
+      <h1 class="chroma-text">Reality Deck</h1>
+      <div class="badges tabular-nums">
+        <span class="pill">{tier}</span>
+        <span class="pill">{maxAgents >= 64 ? "∞" : maxAgents} agents</span>
+        {#if walletUsd != null && tier === "ultra"}
+          <span class="pill pill--gold">${walletUsd}</span>
+        {/if}
+        {#if permissionCeiling}
+          <span class="pill pill--violet">{permissionCeiling}</span>
+        {/if}
+        {#if cloudRunBadge === "cloud"}
+          <span class="pill pill--teal">Cloud</span>
+        {:else if cloudRunBadge === "fallback"}
+          <span class="pill pill--gold">Local</span>
+        {/if}
+        {#if cliMissing}
+          <span class="pill pill--warn" title="CLI not on PATH">CLI</span>
+        {/if}
+      </div>
+    </div>
   </div>
+
   <div class="header__actions">
-    <input
-      bind:value={dispatchRepo}
-      placeholder="repo path (blank = selected domain)"
-      title="Absolute path to a project folder"
-    />
-    <input bind:value={cmd} placeholder="command" />
-    <button onclick={onDryRun}>Dry run</button>
-    <button class="primary chroma-glow" onclick={onDispatch}>Dispatch</button>
-    <button onclick={onStop}>Stop</button>
-    <button onclick={onRefresh}>Refresh</button>
+    <ThemePicker bind:theme />
+    <button type="button" onclick={onRefresh}>Refresh</button>
+    {#if tier === "core"}
+      <a class="link" href="https://pytxo.com/plans" target="_blank" rel="noopener noreferrer">
+        Upgrade
+      </a>
+    {:else if subscriptionPortalUrl}
+      <a class="link" href={subscriptionPortalUrl} target="_blank" rel="noopener noreferrer">
+        Plan
+      </a>
+    {/if}
     {#if signedIn}
-      <button onclick={signOut}>Sign out</button>
+      <button type="button" onclick={signOut}>Sign out</button>
     {:else}
-      <button class="primary" onclick={signIn}>Sign in</button>
+      <button type="button" class="primary" onclick={signIn}>Sign in</button>
     {/if}
   </div>
-  <div class="header-chroma-line" aria-hidden="true"></div>
 </header>
 
 <style>
@@ -95,75 +94,80 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.75rem 1rem;
-    margin: 0.5rem;
+    padding: 0.65rem 1rem;
+    margin: 0.5rem 0.5rem 0;
     gap: 1rem;
     flex-wrap: wrap;
-    position: relative;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
   }
   .header__brand {
     display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
+    align-items: center;
+    gap: 0.65rem;
+  }
+  .header__logo {
+    border-radius: 8px;
+    outline: 1px solid rgba(255, 255, 255, 0.08);
   }
   h1 {
-    font-size: 1.1rem;
+    font-size: 1rem;
     margin: 0;
     font-weight: 600;
+    text-wrap: balance;
   }
-  .tier-badge {
-    font-size: 0.7rem;
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.2rem;
+  }
+  .pill {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.12rem 0.4rem;
+    border-radius: 6px;
     color: var(--muted-foreground);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    background: color-mix(in oklab, var(--foreground) 8%, transparent);
   }
-  .upgrade {
+  .pill--gold {
+    color: var(--brand-gold);
+    background: color-mix(in oklab, var(--brand-gold) 12%, transparent);
+  }
+  .pill--violet {
+    color: var(--brand-violet);
+    background: color-mix(in oklab, var(--brand-violet) 12%, transparent);
+  }
+  .pill--teal {
     color: var(--brand-teal);
-    text-decoration: none;
-    text-transform: none;
-    letter-spacing: normal;
+    background: color-mix(in oklab, var(--brand-teal) 12%, transparent);
   }
-  .upgrade:hover {
-    text-decoration: underline;
-  }
-  .wallet-badge {
+  .pill--warn {
     color: var(--brand-gold);
-    text-transform: none;
-    letter-spacing: normal;
-  }
-  .ceiling-badge {
-    color: var(--brand-violet);
-    text-transform: uppercase;
-    font-size: 0.65rem;
-    padding: 0.1rem 0.35rem;
-    border-radius: 3px;
-    border: 1px solid color-mix(in srgb, var(--brand-violet) 35%, transparent);
-  }
-  .cloud-badge {
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 0.65rem;
-    padding: 0.1rem 0.35rem;
-    border-radius: 3px;
-  }
-  .cloud-badge--active {
-    color: var(--brand-violet);
-    border: 1px solid color-mix(in srgb, var(--brand-violet) 40%, transparent);
-  }
-  .cloud-badge--fallback {
-    color: var(--brand-gold);
-    border: 1px solid color-mix(in srgb, var(--brand-gold) 40%, transparent);
+    border: 1px dashed color-mix(in oklab, var(--brand-gold) 40%, transparent);
   }
   .header__actions {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.45rem;
     flex-wrap: wrap;
     align-items: center;
   }
-  .header-chroma-line {
-    position: absolute;
-    bottom: 0;
-    left: 1rem;
-    right: 1rem;
+  .header__actions button {
+    min-height: 40px;
+    border-radius: 10px;
+    transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1);
+  }
+  .header__actions button:active {
+    transform: scale(0.96);
+  }
+  .link {
+    font-size: 0.85rem;
+    color: var(--brand-teal);
+    text-decoration: none;
+    align-self: center;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
   }
 </style>

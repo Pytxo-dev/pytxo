@@ -30,5 +30,7 @@ tokio.workspace = true
 pytxo-core = { path = "../../../crates/pytxo-core" }
 pytxo-store = { path = "../../../crates/pytxo-store" }
 pytxo-orchestrate = { path = "../../../crates/pytxo-orchestrate", features = ["sanitize", "link-http"] }
+pytxo-signal = { path = "../../../crates/pytxo-signal" }
 pytxo-runner = { path = "../../../crates/pytxo-runner" }
 keyring = "3"
+rfd = "0.15"

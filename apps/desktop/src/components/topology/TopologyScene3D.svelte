@@ -3,18 +3,24 @@
   import * as THREE from "three";
   import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
   import type { StructuralGraphDto } from "../../lib/types";
+  import type { DeckTheme } from "../../lib/theme";
+  import { isLightDeck } from "../../lib/theme";
+  import { forceLayout3d } from "../../lib/force-layout";
 
   let {
     structural = null as StructuralGraphDto | null,
+    loading = false,
     selectedNodeId = $bindable(null as string | null),
-    lightTheme = false,
+    deckTheme = "void" as DeckTheme,
   }: {
     structural?: StructuralGraphDto | null;
+    loading?: boolean;
     selectedNodeId?: string | null;
-    lightTheme?: boolean;
+    deckTheme?: DeckTheme;
   } = $props();
 
   let containerEl: HTMLDivElement | undefined = $state();
+  let hoverLabel = $state<string | null>(null);
 
   let renderer: THREE.WebGLRenderer | null = null;
   let scene: THREE.Scene | null = null;
@@ -23,6 +29,8 @@
   let frameId = 0;
   let nodeMeshes = new Map<string, THREE.Mesh>();
   let resizeObserver: ResizeObserver | null = null;
+
+  const lightTheme = $derived(isLightDeck(deckTheme));
 
   function token(name: string, fallback: string): string {
     if (typeof getComputedStyle === "undefined") return fallback;
@@ -38,27 +46,6 @@
     } catch {
       return fallback;
     }
-  }
-
-  function layout3d(
-    nodes: StructuralGraphDto["nodes"],
-    radius: number,
-  ): Map<string, THREE.Vector3> {
-    const positions = new Map<string, THREE.Vector3>();
-    const n = nodes.length;
-    nodes.forEach((node, i) => {
-      const phi = Math.acos(-1 + (2 * i) / Math.max(n, 1));
-      const theta = Math.sqrt(n * Math.PI) * phi;
-      positions.set(
-        node.id,
-        new THREE.Vector3(
-          radius * Math.cos(theta) * Math.sin(phi),
-          radius * Math.sin(theta) * Math.sin(phi),
-          radius * Math.cos(phi),
-        ),
-      );
-    });
-    return positions;
   }
 
   function clearSceneNodes() {
@@ -86,16 +73,15 @@
     const graph = structural;
     if (!graph || graph.nodes.length === 0) return;
 
-    const positions = layout3d(graph.nodes, 4);
+    const layout = forceLayout3d(graph.nodes, graph.edges);
     const teal = hexColor("--brand-teal", 0x2dd4bf);
     const violet = hexColor("--brand-violet", 0xa78bfa);
     const gold = hexColor("--brand-gold", 0xfbbf24);
 
     for (const node of graph.nodes) {
-      const pos = positions.get(node.id);
+      const pos = layout.get(node.id);
       if (!pos) continue;
-      const isSymbol =
-        node.label.includes("::") || node.id.includes("::");
+      const isSymbol = node.label.includes("::") || node.id.includes("::");
       const size = isSymbol ? 0.14 : node.edited ? 0.35 : 0.22;
       const color = isSymbol ? violet : node.edited ? gold : teal;
       const geom = new THREE.SphereGeometry(size, 16, 16);
@@ -105,7 +91,7 @@
         emissiveIntensity: isSymbol ? 0.28 : node.edited ? 0.35 : 0.12,
       });
       const mesh = new THREE.Mesh(geom, mat);
-      mesh.position.copy(pos);
+      mesh.position.set(pos.x, pos.y, pos.z);
       mesh.userData = { nodeId: node.id, label: node.label };
       scene.add(mesh);
       nodeMeshes.set(node.id, mesh);
@@ -114,13 +100,16 @@
     const edgeMat = new THREE.LineBasicMaterial({
       color: hexColor("--brand-violet", 0xa78bfa),
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.45,
     });
     for (const edge of graph.edges) {
-      const a = positions.get(edge.from);
-      const b = positions.get(edge.to);
+      const a = layout.get(edge.from);
+      const b = layout.get(edge.to);
       if (!a || !b) continue;
-      const geom = new THREE.BufferGeometry().setFromPoints([a, b]);
+      const geom = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(a.x, a.y, a.z),
+        new THREE.Vector3(b.x, b.y, b.z),
+      ]);
       const line = new THREE.Line(geom, edgeMat);
       line.userData = { kind: "edge" };
       scene.add(line);
@@ -132,8 +121,9 @@
   function highlightSelection() {
     for (const [id, mesh] of nodeMeshes) {
       const mat = mesh.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = id === selectedNodeId ? 0.65 : 0.12;
-      mesh.scale.setScalar(id === selectedNodeId ? 1.25 : 1);
+      const isSel = id === selectedNodeId;
+      mat.emissiveIntensity = isSel ? 0.65 : 0.12;
+      mesh.scale.setScalar(isSel ? 1.25 : 1);
     }
   }
 
@@ -153,8 +143,8 @@
     renderer.setSize(w, h, false);
   }
 
-  function onPointerDown(ev: PointerEvent) {
-    if (!camera || !containerEl) return;
+  function pickNode(ev: PointerEvent): string | null {
+    if (!camera || !containerEl) return null;
     const rect = containerEl.getBoundingClientRect();
     const x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
@@ -162,9 +152,26 @@
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
     const hits = raycaster.intersectObjects([...nodeMeshes.values()]);
     if (hits.length > 0) {
-      const id = hits[0].object.userData.nodeId as string;
+      return hits[0].object.userData.nodeId as string;
+    }
+    return null;
+  }
+
+  function onPointerDown(ev: PointerEvent) {
+    const id = pickNode(ev);
+    if (id) {
       selectedNodeId = selectedNodeId === id ? null : id;
       highlightSelection();
+    }
+  }
+
+  function onPointerMove(ev: PointerEvent) {
+    const id = pickNode(ev);
+    if (id) {
+      const mesh = nodeMeshes.get(id);
+      hoverLabel = (mesh?.userData.label as string) ?? id;
+    } else {
+      hoverLabel = null;
     }
   }
 
@@ -201,6 +208,7 @@
     resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(containerEl);
     containerEl.addEventListener("pointerdown", onPointerDown);
+    containerEl.addEventListener("pointermove", onPointerMove);
     resize();
     rebuildGraph();
     animate();
@@ -210,6 +218,7 @@
     cancelAnimationFrame(frameId);
     resizeObserver?.disconnect();
     containerEl?.removeEventListener("pointerdown", onPointerDown);
+    containerEl?.removeEventListener("pointermove", onPointerMove);
     clearSceneNodes();
     controls?.dispose();
     renderer?.dispose();
@@ -226,22 +235,30 @@
   });
 
   $effect(() => {
-    lightTheme;
+    deckTheme;
     applySceneTheme();
   });
 </script>
 
-<section class="topology-3d glass-panel chroma-edge-top">
+<section class="topology-3d glass-panel">
   <header class="topology-3d__header">
-    <h2 class="panel-title">AST topology (3D)</h2>
-    {#if selectedNodeId}
-      <span class="selection">{selectedNodeId}</span>
+    <h2 class="panel-title">Structural topology</h2>
+    <div class="legend">
+      <span class="legend__item"><i class="dot dot--file"></i> File</span>
+      <span class="legend__item"><i class="dot dot--edited"></i> Edited</span>
+      <span class="legend__item"><i class="dot dot--symbol"></i> Symbol</span>
+    </div>
+    {#if hoverLabel || selectedNodeId}
+      <span class="selection">{hoverLabel ?? selectedNodeId}</span>
     {/if}
   </header>
-  <div class="topology-3d__canvas chroma-border" bind:this={containerEl}></div>
-  {#if !structural || structural.nodes.length === 0}
-    <p class="empty">Select a run with structural telemetry to populate the graph.</p>
-  {/if}
+  <div class="topology-3d__canvas" bind:this={containerEl}>
+    {#if loading}
+      <div class="loading">Building graph…</div>
+    {:else if !structural || structural.nodes.length === 0}
+      <div class="empty">Select a workspace folder to preview import topology.</div>
+    {/if}
+  </div>
 </section>
 
 <style>
@@ -250,36 +267,77 @@
     flex-direction: column;
     flex: 1;
     min-width: 0;
-    min-height: 0;
-    padding: 0.75rem;
-    margin: 0 0.5rem 0.5rem 0;
+    min-height: 55vh;
+    padding: 0.85rem;
+    margin: 0 0.5rem;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
   }
   .topology-3d__header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 0.75rem;
+    flex-wrap: wrap;
     margin-bottom: 0.5rem;
   }
+  .legend {
+    display: flex;
+    gap: 0.65rem;
+    font-size: 0.7rem;
+    color: var(--muted-foreground);
+  }
+  .legend__item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .dot--file {
+    background: var(--brand-teal);
+  }
+  .dot--edited {
+    background: var(--brand-gold);
+  }
+  .dot--symbol {
+    background: var(--brand-violet);
+  }
   .selection {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--brand-violet);
     font-family: ui-monospace, monospace;
+    margin-left: auto;
   }
   .topology-3d__canvas {
     flex: 1;
-    min-height: 240px;
-    border-radius: 8px;
+    min-height: 280px;
+    border-radius: 12px;
     overflow: hidden;
     background: var(--void-elevated);
+    position: relative;
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 6%, transparent);
   }
   .topology-3d__canvas :global(canvas) {
     display: block;
     width: 100% !important;
     height: 100% !important;
   }
-  .empty {
-    font-size: 0.8rem;
-    opacity: 0.7;
-    margin: 0.35rem 0 0;
+  .empty,
+  .loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    color: var(--muted-foreground);
+    pointer-events: none;
+    text-wrap: balance;
+    padding: 1rem;
+    text-align: center;
   }
 </style>

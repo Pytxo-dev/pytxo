@@ -46,7 +46,7 @@ pub use project::{
     project_roots, project_run, project_status, ProjectRunOptions, ProjectRunResult,
     ProjectStatusRow,
 };
-pub use structural::structural_graph;
+pub use structural::{structural_graph, workspace_structural_graph};
 pub use pytxo_core::ExecutionBackend;
 pub use pytxo_store::CatalogEntry;
 

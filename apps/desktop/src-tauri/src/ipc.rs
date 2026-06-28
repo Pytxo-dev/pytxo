@@ -4,6 +4,7 @@ use std::sync::Mutex;
 
 use pytxo_core::PytxoConfig;
 use pytxo_runner::isolation_backend_label;
+use pytxo_signal::StructuralGraph;
 use pytxo_orchestrate::{
     commit_workspace_for_agent, dispatch_run, dry_run_json, fleet_run_status, fleet_status,
     hitl_respond as orch_hitl_respond,
@@ -12,7 +13,8 @@ use pytxo_orchestrate::{
     list_hitl_pending as orch_list_hitl_pending, list_hitl_pending_all as orch_list_hitl_pending_all,
     list_project_manifests as orch_list_projects, project_add_root as orch_project_add_root,
     project_remove_root as orch_project_remove_root, project_roots as orch_project_roots,
-    structural_graph as orch_structural_graph, stop, CatalogEntry, CatalogEntryStatus, DomainSummary,
+    structural_graph as orch_structural_graph, workspace_structural_graph as orch_workspace_structural_graph,
+    stop, CatalogEntry, CatalogEntryStatus, DomainSummary,
     RunOptions,
 };
 use pytxo_store::{AgentRecord, EventRecord, RunRecord};
@@ -568,14 +570,18 @@ pub struct StructuralEdgeDto {
 }
 
 #[tauri::command]
-pub fn structural_graph(
+pub fn workspace_structural_graph(
     state: State<'_, AppState>,
-    run_id: String,
     domain_id: Option<String>,
 ) -> IpcResult<StructuralGraphDto> {
     let domain = resolve_domain(&state, domain_id)?;
-    let graph = orch_structural_graph(Some(PathBuf::from(domain)), &run_id).map_err(map_orch_err)?;
-    Ok(StructuralGraphDto {
+    let graph =
+        orch_workspace_structural_graph(Some(PathBuf::from(domain))).map_err(map_orch_err)?;
+    Ok(graph_to_dto(graph))
+}
+
+fn graph_to_dto(graph: pytxo_signal::StructuralGraph) -> StructuralGraphDto {
+    StructuralGraphDto {
         version: STRUCTURAL_GRAPH_VERSION,
         nodes: graph
             .nodes
@@ -595,7 +601,18 @@ pub fn structural_graph(
                 to: e.to,
             })
             .collect(),
-    })
+    }
+}
+
+#[tauri::command]
+pub fn structural_graph(
+    state: State<'_, AppState>,
+    run_id: String,
+    domain_id: Option<String>,
+) -> IpcResult<StructuralGraphDto> {
+    let domain = resolve_domain(&state, domain_id)?;
+    let graph = orch_structural_graph(Some(PathBuf::from(domain)), &run_id).map_err(map_orch_err)?;
+    Ok(graph_to_dto(graph))
 }
 
 fn domain_to_dto(d: DomainSummary) -> DomainDto {

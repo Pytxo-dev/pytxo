@@ -7,6 +7,12 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
+# Pytxo v0.3.5
+
+Reality Deck UX overhaul — setup wizard, agent dashboard, workspace 3D topology, smart CLI install, themes. See [`distribution/release-notes/v0.3.5.md`](distribution/release-notes/v0.3.5.md).
+
+---
+
 # Pytxo v0.3.4
 
 **Production go-live (Phases 50–59)** — inference proxy config split, Link/Cloud/proxy health, Enterprise seats/policy, 3D symbol topology, measured benchmark scripts.

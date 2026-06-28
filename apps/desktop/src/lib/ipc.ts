@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type {
   AgentArbitrageDto,
   AgentDto,
@@ -12,7 +13,9 @@ import type {
   RunDto,
 } from "./types";
 
-export const IPC_VERSION = "0.3.4";
+export const IPC_VERSION = "0.3.5";
+
+export const AUTH_CHANGED_EVENT = "deck-auth-changed";
 
 function unwrap<T>(result: T | PytxoIpcError): T {
   if (
@@ -30,6 +33,10 @@ function unwrap<T>(result: T | PytxoIpcError): T {
 
 export async function ipcVersion(): Promise<string> {
   return invoke<string>("ipc_version");
+}
+
+export function onAuthChanged(callback: () => void) {
+  return listen(AUTH_CHANGED_EVENT, callback);
 }
 
 export const ipc = {
@@ -93,6 +100,10 @@ export const ipc = {
     invoke<import("./types").StructuralGraphDto>("structural_graph", { runId, domainId })
       .then(unwrap)
       .catch(() => ({ nodes: [], edges: [] })),
+  workspaceStructuralGraph: (domainId: string | null) =>
+    invoke<import("./types").StructuralGraphDto>("workspace_structural_graph", { domainId })
+      .then(unwrap)
+      .catch(() => ({ nodes: [], edges: [] })),
   hitlRespond: (requestId: string, approve: boolean, domainId: string | null) =>
     invoke<boolean>("hitl_respond", { requestId, approve, domainId }).then(unwrap),
   agentArbitrage: (runId: string, domainId: string | null) =>
@@ -100,6 +111,15 @@ export const ipc = {
       .then(unwrap)
       .catch(() => [] as AgentArbitrageDto[]),
   checkPytxoCli: () => invoke<boolean>("check_pytxo_cli").then(unwrap).catch(() => false),
+  installPytxoCli: () =>
+    invoke<{ phase: string; message: string; cli_present: boolean }>("install_pytxo_cli").then(
+      unwrap,
+    ),
+  installPytxoCliStatus: () =>
+    invoke<{ phase: string; message: string; cli_present: boolean }>(
+      "install_pytxo_cli_status",
+    ).then(unwrap),
+  pickWorkspaceFolder: () => invoke<string | null>("pick_workspace_folder"),
   entitlementStatus: (domainId?: string | null) =>
     invoke<{
       tier: string;
