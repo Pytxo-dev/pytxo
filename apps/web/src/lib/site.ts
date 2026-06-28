@@ -3,7 +3,7 @@ export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
 export const PYTXO_VERSION = "0.3.4";
 
 export const DESKTOP_RELEASE_BASE =
-  "https://github.com/Pytxo-dev/pytxo-releases/releases/latest/download";
+  `https://github.com/${DISTRIBUTION_REPO}/releases/download/v${PYTXO_VERSION}`;
 
 export const DESKTOP_DOWNLOADS = {
   windows: `${DESKTOP_RELEASE_BASE}/pytxo-reality-deck-windows-x64.msi`,
