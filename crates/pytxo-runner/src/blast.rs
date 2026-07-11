@@ -12,6 +12,25 @@ fn should_skip_dir(name: &str, sparse_exclude: &[String]) -> bool {
 /// Works for git and non-git trees (Phase 69). Kernel FUSE/ProjFS remain preferred when available.
 fn copy_dir_recursive(src: &Path, dst: &Path, sparse_exclude: &[String]) -> Result<()> {
     std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("overlay mkdir: {e}")))?;
+    let source_root = std::fs::canonicalize(src)
+        .map_err(|e| PytxoError::Runner(format!("overlay canonical source: {e}")))?;
+    let destination_root = std::fs::canonicalize(dst)
+        .map_err(|e| PytxoError::Runner(format!("overlay canonical destination: {e}")))?;
+    copy_dir_recursive_inner(
+        &source_root,
+        &destination_root,
+        sparse_exclude,
+        &destination_root,
+    )
+}
+
+fn copy_dir_recursive_inner(
+    src: &Path,
+    dst: &Path,
+    sparse_exclude: &[String],
+    destination_root: &Path,
+) -> Result<()> {
+    std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("overlay mkdir: {e}")))?;
     for entry in
         std::fs::read_dir(src).map_err(|e| PytxoError::Runner(format!("overlay readdir: {e}")))?
     {
@@ -22,13 +41,16 @@ fn copy_dir_recursive(src: &Path, dst: &Path, sparse_exclude: &[String]) -> Resu
             continue;
         }
         let from = entry.path();
+        if from.starts_with(destination_root) {
+            continue;
+        }
         let to = dst.join(&name);
         if entry
             .file_type()
             .map_err(|e| PytxoError::Runner(e.to_string()))?
             .is_dir()
         {
-            copy_dir_recursive(&from, &to, &[])?;
+            copy_dir_recursive_inner(&from, &to, &[], destination_root)?;
         } else {
             std::fs::copy(&from, &to)
                 .map_err(|e| PytxoError::Runner(format!("overlay copy: {e}")))?;
@@ -368,5 +390,54 @@ mod tests {
         assert!(handle.branch.is_empty());
         assert!(handle.cwd.join("README.md").exists());
         assert!(!handle.cwd.join("node_modules").exists());
+    }
+
+    #[test]
+    fn copy_layer_works_with_overlay_base_inside_repo() {
+        use pytxo_core::{AgentId, RunId};
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::create_dir_all(repo.join(".pytxo")).unwrap();
+        std::fs::write(repo.join("README.md"), "x\n").unwrap();
+        std::fs::write(repo.join(".pytxo/keep.toml"), "keep = true\n").unwrap();
+        let ctx = IsolationCtx {
+            run_id: RunId("run2".into()),
+            agent_id: AgentId("agent-1".into()),
+            repo_root: repo.clone(),
+            worktree_base: repo.join(".pytxo/worktrees"),
+            sparse_exclude: Vec::new(),
+        };
+
+        let handle = prepare_overlay_layer(&ctx).unwrap();
+
+        assert!(handle.cwd.join("README.md").exists());
+        assert!(handle.cwd.join(".pytxo/keep.toml").exists());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn copy_layer_normalizes_mixed_case_destination() {
+        use pytxo_core::{AgentId, RunId};
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::write(repo.join("README.md"), "x\n").unwrap();
+        let mut alias = repo.to_string_lossy().into_owned();
+        if alias.as_bytes().get(1) == Some(&b':') {
+            alias.replace_range(0..1, &alias[0..1].to_ascii_lowercase());
+        }
+        let alias = std::path::PathBuf::from(alias);
+        let ctx = IsolationCtx {
+            run_id: RunId("run-case".into()),
+            agent_id: AgentId("agent-case".into()),
+            repo_root: repo,
+            worktree_base: alias.join(".pytxo/worktrees"),
+            sparse_exclude: Vec::new(),
+        };
+
+        let handle = prepare_overlay_layer(&ctx).unwrap();
+
+        assert!(handle.cwd.join("README.md").exists());
     }
 }

@@ -1,18 +1,21 @@
 <script lang="ts">
   import { getCurrentWindow } from "@tauri-apps/api/window";
 
-  const win = getCurrentWindow();
+  function currentWindow() {
+    if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return null;
+    return getCurrentWindow();
+  }
 
   async function minimize() {
-    await win.minimize();
+    await currentWindow()?.minimize();
   }
 
   async function toggleMaximize() {
-    await win.toggleMaximize();
+    await currentWindow()?.toggleMaximize();
   }
 
   async function close() {
-    await win.close();
+    await currentWindow()?.close();
   }
 </script>
 
