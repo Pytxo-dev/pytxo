@@ -6,7 +6,7 @@ tags: [product, positioning]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-24
+updated: 2026-07-10
 related: [[beyond-the-ade]], [[gtm-open-source-loop]]
 ---
 
@@ -46,7 +46,7 @@ Covers:
 4. Signal Core reduction ([`tooling/benchmarks/signal-reduction.ps1`](../../../tooling/benchmarks/signal-reduction.ps1) / [`.sh`](../../../tooling/benchmarks/signal-reduction.sh)).
 5. Desktop compile (`cd apps/desktop && npm ci`, then `cargo build -p pytxo-desktop` from repo root).
 
-Reality Deck terminal pane polls WAL at ~4 Hz; tune toward 60 FPS in Phase 2.1.
+Pytxo Desktop terminal pane polls WAL at ~4 Hz; tune toward 60 FPS in Phase 2.1.
 
 ## Phase 39 — overlay vs worktree resource repro
 
@@ -78,22 +78,22 @@ Repro scripts (repo root, after `cargo build -p pytxo-cli`):
 
 | Field | Value |
 |-------|-------|
-| Host | _e.g. AMD Ryzen 7 7840U, 32 GB RAM_ |
-| OS | _e.g. Ubuntu 24.04 / Windows 11 26200_ |
-| Rust / Pytxo | _e.g. 1.85 / 0.3.3_ |
+| Host | TBD — pin after next measured run |
+| OS | TBD |
+| Rust / Pytxo | TBD / workspace `0.3.x` |
 | Fixture | `tests/fixtures/tiny-monorepo` |
-| Date | _YYYY-MM-DD_ |
+| Pin date | 2026-07-10 (placeholders; re-run scripts to replace TBD) |
 
-**Pinned results** (replace `TBD` after local or CI run):
+**Pinned results** (TBD until operator or CI hardware pin on the date above):
 
 | Metric | Worktree | Overlay copy-layer | Notes |
 |--------|----------|-------------------|-------|
-| Cold start (ms) | TBD | TBD | 3-agent fixture |
-| Upper disk (MB) | TBD | TBD | `.pytxo/worktrees` after run |
-| Peak RAM (MB) | TBD | — | 3-agent `multi-agent-ram` |
-| UI frame rate (FPS) | TBD | — | Reality Deck terminal pane |
+| Cold start (ms) | TBD | TBD | Run `overlay-vs-worktree` script; Phase 39 directional was ~2400 / ~1100 |
+| Upper disk (MB) | TBD | TBD | 3-agent fixture; Phase 39 directional ~200 / ~12 |
+| Peak RAM (MB) | TBD | — | Run `multi-agent-ram`; prior laptop pin ~85 MB parent |
+| UI frame rate (FPS) | TBD | — | Desktop WAL poll target 60 FPS (16 ms); measure on pin host |
 
-CI runs overlay integration compile-only on Linux (`cargo test -p pytxo-runner --features overlay-fuse overlay_layer`); full disk numbers remain operator-pinned on reference hardware.
+CI runs overlay integration compile-only on Linux (`cargo test -p pytxo-runner overlay_layer`); full disk numbers remain operator-pinned on reference hardware. Do not cite TBD cells in marketing.
 
 ## Honesty
 

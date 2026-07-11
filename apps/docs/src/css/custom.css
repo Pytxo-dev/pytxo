@@ -2,8 +2,7 @@
   --void: #020205;
   --brand-teal: #2dd4bf;
   --brand-violet: #a78bfa;
-  --brand-magenta: #e879f9;
-  --brand-cyan: #22d3ee;
+  --brand-gold: #fbbf24;
   --ifm-color-primary: var(--brand-teal);
   --ifm-color-primary-dark: #14b8a6;
   --ifm-color-primary-darker: #0d9488;
@@ -18,6 +17,17 @@
   --ifm-font-color-base: #f4f4f5;
   --ifm-heading-color: #fafafa;
   --ifm-code-font-size: 95%;
+  --ifm-link-color: var(--brand-teal);
+  --ifm-link-hover-color: #5eead4;
+  --ifm-menu-color-active: var(--brand-teal);
+  --ifm-navbar-link-hover-color: var(--brand-teal);
+  --ifm-color-info: var(--brand-violet);
+  --ifm-color-info-dark: #8b5cf6;
+  --ifm-color-info-contrast-background: color-mix(in oklab, var(--brand-violet) 10%, transparent);
+  --ifm-color-info-contrast-foreground: #f4f4f5;
+  --ifm-color-success: var(--brand-teal);
+  --ifm-color-danger: #f87171;
+  --ifm-color-warning: var(--brand-gold);
   --docusaurus-highlighted-code-line-bg: rgba(45, 212, 191, 0.12);
 }
 
@@ -30,9 +40,8 @@ body {
   overflow-x: clip;
   background-color: var(--void);
   background-image:
-    radial-gradient(ellipse 90% 60% at 10% -10%, rgba(167, 139, 250, 0.12), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 95% 5%, rgba(232, 121, 249, 0.1), transparent 50%),
-    radial-gradient(ellipse 80% 55% at 50% 110%, rgba(34, 211, 238, 0.08), transparent 55%);
+    radial-gradient(ellipse 90% 55% at 12% -8%, rgba(167, 139, 250, 0.12), transparent 58%),
+    radial-gradient(ellipse 60% 45% at 88% 8%, rgba(45, 212, 191, 0.08), transparent 52%);
 }
 
 * {
@@ -50,22 +59,26 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--brand-magenta), var(--brand-violet));
+  background: color-mix(in oklab, var(--brand-violet) 55%, #27272a);
   border-radius: 999px;
   border: 2px solid #0a0a0f;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, var(--brand-cyan), var(--brand-magenta));
+  background: color-mix(in oklab, var(--brand-teal) 45%, #27272a);
 }
 
 .navbar {
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .navbar__title {
   font-weight: 600;
+}
+
+.navbar__logo img {
+  border-radius: 0.35rem;
 }
 
 .menu__link--active {
@@ -82,19 +95,14 @@ a {
 }
 
 a:hover {
-  color: var(--brand-cyan);
+  color: #5eead4;
 }
 
 .theme-doc-markdown h1 {
-  background: linear-gradient(
-    100deg,
-    var(--brand-magenta) 0%,
-    var(--brand-cyan) 50%,
-    var(--brand-violet) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #fafafa;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
 }
 
 .theme-doc-markdown h2,
@@ -110,8 +118,6 @@ blockquote {
 code {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
-
-/* --- Readable content defaults --- */
 
 .theme-doc-markdown {
   line-height: 1.7;
@@ -160,26 +166,49 @@ code {
   gap: 0.75rem;
 }
 
-/* Docusaurus admonitions */
 .theme-admonition {
   border-radius: 0.5rem;
   border-width: 1px;
   margin: 1.25rem 0;
 }
 
-.theme-admonition-tip {
+.theme-admonition-tip,
+.theme-admonition-success {
   border-color: color-mix(in oklab, var(--brand-teal) 40%, transparent);
   background: color-mix(in oklab, var(--brand-teal) 8%, transparent);
 }
 
-.theme-admonition-warning {
-  border-color: color-mix(in oklab, var(--brand-gold, #fbbf24) 40%, transparent);
-  background: color-mix(in oklab, #fbbf24 8%, transparent);
+.theme-admonition-warning,
+.theme-admonition-caution {
+  border-color: color-mix(in oklab, var(--brand-gold) 40%, transparent);
+  background: color-mix(in oklab, var(--brand-gold) 8%, transparent);
 }
 
-.theme-admonition-info {
+.theme-admonition-info,
+.theme-admonition-note {
   border-color: color-mix(in oklab, var(--brand-violet) 40%, transparent);
   background: color-mix(in oklab, var(--brand-violet) 8%, transparent);
+}
+
+.theme-admonition-danger {
+  border-color: color-mix(in oklab, #f87171 45%, transparent);
+  background: color-mix(in oklab, #f87171 8%, transparent);
+}
+
+.footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.footer__title {
+  color: #fafafa;
+}
+
+.footer__link-item {
+  color: #9494a8;
+}
+
+.footer__link-item:hover {
+  color: var(--brand-teal);
 }
 
 .table-scroll {
@@ -198,8 +227,6 @@ code {
   }
 }
 
-/* --- Mobile / tablet --- */
-
 @media (max-width: 996px) {
   html {
     -webkit-text-size-adjust: 100%;
@@ -213,10 +240,6 @@ code {
   .navbar__title {
     font-size: 1rem;
     max-width: 10rem;
-  }
-
-  .navbar-github-link {
-    display: none;
   }
 
   .main-wrapper {

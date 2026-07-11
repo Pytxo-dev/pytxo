@@ -229,6 +229,23 @@ pub fn enqueue_agent_stdin(
     let cfg = load_config(None, &repo_root)?;
     let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
     ensure_agent_live(&domain.swarm, agent_key)?;
+    if cfg.permission_profile == pytxo_core::PermissionProfile::Galaxy {
+        if let Ok(text) = std::str::from_utf8(data) {
+            for line in text.lines() {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                pytxo_runner::gate_spawn_command(
+                    Some(&domain.hitl),
+                    cfg.permission_profile,
+                    agent_key,
+                    trimmed,
+                )
+                .map_err(|e| anyhow::anyhow!(e))?;
+            }
+        }
+    }
     domain
         .swarm
         .enqueue_stdin(agent_key, data)
@@ -480,7 +497,7 @@ pub fn commit_workspace_for_agent(
         on_event: None,
         signal_core: cfg.signal_core,
         signal_fidelity: cfg.signal_fidelity,
-        isolation_mode: cfg.isolation,
+        isolation_mode: pytxo_runner::effective_isolation_mode(&cfg),
         permission_profile: cfg.permission_profile,
         agent_profiles: cfg.agent_profile_map(),
         route_agents: cfg.agent.clone(),
@@ -495,6 +512,7 @@ pub fn commit_workspace_for_agent(
         pty_cols: cfg.pty_cols,
         // Manual commit IS the human approval; no queue gate needed here.
         hitl: None,
+        hitl_manual_flush: true,
         agent_paths: std::collections::HashMap::new(),
         agent_fidelity: std::collections::HashMap::new(),
         roots: std::collections::HashMap::new(),
@@ -630,7 +648,7 @@ pub(crate) async fn execute_run_body(
         on_event: Some(on_event),
         signal_core: cfg.signal_core,
         signal_fidelity: cfg.signal_fidelity,
-        isolation_mode: cfg.isolation,
+        isolation_mode: pytxo_runner::effective_isolation_mode(&cfg),
         permission_profile: cfg.permission_profile,
         agent_profiles,
         route_agents: cfg.agent.clone(),
@@ -644,6 +662,7 @@ pub(crate) async fn execute_run_body(
         pty_rows: cfg.pty_rows,
         pty_cols: cfg.pty_cols,
         hitl: Some(domain.hitl.clone()),
+        hitl_manual_flush: false,
         agent_paths: cfg
             .agent
             .iter()
@@ -958,7 +977,7 @@ pub async fn stop(
             on_event: None,
             signal_core: cfg.signal_core,
             signal_fidelity: cfg.signal_fidelity,
-            isolation_mode: cfg.isolation,
+            isolation_mode: pytxo_runner::effective_isolation_mode(&cfg),
             permission_profile: cfg.permission_profile,
             agent_profiles: cfg.agent_profile_map(),
             route_agents: cfg.agent.clone(),
@@ -972,6 +991,7 @@ pub async fn stop(
             pty_rows: cfg.pty_rows,
             pty_cols: cfg.pty_cols,
             hitl: None,
+        hitl_manual_flush: false,
             agent_paths: std::collections::HashMap::new(),
             agent_fidelity: std::collections::HashMap::new(),
             roots: std::collections::HashMap::new(),

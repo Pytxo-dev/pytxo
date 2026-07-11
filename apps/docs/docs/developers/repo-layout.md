@@ -9,7 +9,7 @@ pytxo/
 ├── apps/
 │   ├── web/          # Marketing site (Next.js static export)
 │   ├── docs/         # Public docs (Docusaurus → pytxo.com/docs/)
-│   └── desktop/      # Reality Deck (Tauri)
+│   └── desktop/      # Pytxo Desktop (Tauri)
 ├── crates/           # Rust workspace
 └── tooling/          # Benchmarks and scripts
 ```

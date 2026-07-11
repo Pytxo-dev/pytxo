@@ -5,6 +5,13 @@ export const PYTXO_VERSION = "0.3.5";
 export const DESKTOP_RELEASE_BASE =
   `https://github.com/${DISTRIBUTION_REPO}/releases/download/v${PYTXO_VERSION}`;
 
+/** Display name for the optional desktop app. */
+export const DESKTOP_PRODUCT_NAME = "Pytxo Desktop";
+
+/**
+ * Installer asset URLs still use the legacy `pytxo-reality-deck-*` filenames until
+ * a release renames artifacts. Labels in the UI use DESKTOP_PRODUCT_NAME.
+ */
 export const DESKTOP_DOWNLOADS = {
   windows: `${DESKTOP_RELEASE_BASE}/pytxo-reality-deck-windows-x64.msi`,
   macosArm: `${DESKTOP_RELEASE_BASE}/pytxo-reality-deck-darwin-arm64.dmg`,

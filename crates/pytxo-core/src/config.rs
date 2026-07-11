@@ -12,6 +12,13 @@ pub struct BlastConfig {
     /// Top-level directory names skipped in overlay copy / sparse lowerdir (Phase 33).
     #[serde(default = "default_sparse_exclude")]
     pub sparse_exclude: Vec<String>,
+    /// When true and doctor overlay probe passes, Orbit may use kernel overlay instead of worktree (Phase 62).
+    #[serde(default = "default_prefer_kernel_overlay")]
+    pub prefer_kernel_overlay: bool,
+}
+
+fn default_prefer_kernel_overlay() -> bool {
+    true
 }
 
 fn default_sparse_exclude() -> Vec<String> {
@@ -28,6 +35,7 @@ impl Default for BlastConfig {
     fn default() -> Self {
         Self {
             sparse_exclude: default_sparse_exclude(),
+            prefer_kernel_overlay: default_prefer_kernel_overlay(),
         }
     }
 }

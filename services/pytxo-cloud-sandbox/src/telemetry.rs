@@ -18,13 +18,35 @@ pub struct HealthBody {
     pub status: &'static str,
     pub uptime_secs: u64,
     pub service: &'static str,
+    /// `deny_by_default` when internal Docker network is the egress posture; `allowlist_documented` when `CLOUD_EGRESS_ALLOWLIST` is set.
+    pub egress_mode: &'static str,
+    pub docker_available: bool,
+    pub redis_configured: bool,
 }
 
 pub fn health_body() -> HealthBody {
+    let allowlist_set = std::env::var("CLOUD_EGRESS_ALLOWLIST")
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false);
+    let docker_available = std::process::Command::new("docker")
+        .arg("version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    let redis_configured = std::env::var("REDIS_URL")
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false);
     HealthBody {
         status: "ok",
         uptime_secs: uptime_secs(),
         service: "pytxo-cloud-sandbox",
+        egress_mode: if allowlist_set {
+            "allowlist_documented"
+        } else {
+            "deny_by_default"
+        },
+        docker_available,
+        redis_configured,
     }
 }
 

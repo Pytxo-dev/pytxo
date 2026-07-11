@@ -34,7 +34,7 @@ pub fn draw(frame: &mut Frame, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(theme::chroma_border(0))
-        .title(Span::styled(" Scrollback ", theme::chroma_violet()))
+        .title(Span::styled(" Welcome ", theme::title()))
         .style(theme::panel_bg());
     let paragraph = Paragraph::new(lines)
         .block(block)

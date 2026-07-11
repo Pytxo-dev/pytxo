@@ -12,6 +12,13 @@ related: [[MOC-home]]
 
 # Documentation changelog
 
+## 2026-07-09 (Pytxo Desktop rename + plain positioning)
+
+- Product UI name: **Reality Deck** → **Pytxo Desktop** ([[ADR-0028-desktop-product-name]]).
+- Visual system note: `reality-deck-visual-system` → [[desktop-visual-system]].
+- Vision, glossary, beyond-the-ade, landscape, and compare guides rewritten with plain-language leads.
+- Workspaces = modular multi-root projects in Desktop UX docs.
+
 ## 2026-06-05 (v0.3.3 trust Enter + headless CLI)
 
 - **TUI:** Windows Enter on trust modal; `input.rs` key normalization; inline trust errors.
@@ -31,7 +38,7 @@ related: [[MOC-home]]
 - **Phase 11:** Galaxy HITL — `HitlQueue` (`pytxo-runner`), `list_hitl`/`hitl_respond` IPC, Deck approval panel, `pytxo hitl` CLI. [[race-shield]] + [[phase-2-reality-deck]] marked shipped.
 - **Phase 12:** hypervisor catalog `~/.pytxo/hypervisor.db` (`pytxo_store::Catalog`), upsert on `ensure_domain`, `pytxo domains`, Deck "All projects" home. [[execution-domains]] v2 shipped.
 - **Phase 13:** Signal closed-loop retry emits `signal-retry` WAL event; MCP `pytxo_project_run` + `project_id`/`root` read routing. [[mcp-router]] updated; [[blast-shield]] overlay marked deferred spike.
-- **Phase 14:** Deck topology consumes design tokens via `getComputedStyle` and sizes nodes by per-agent edited paths/saved tokens (`agent_arbitrage` IPC). [[reality-deck-visual-system]] updated.
+- **Phase 14:** Deck topology consumes design tokens via `getComputedStyle` and sizes nodes by per-agent edited paths/saved tokens (`agent_arbitrage` IPC). [[desktop-visual-system]] updated.
 - **Phase 15–16:** `HttpBillingReconciler` builds Link request envelopes (endpoints + bodies); `billing.link_reconcile` documented in `pytxo.toml.example`; [[cloud-sandbox-service]] split into Link vs cloud sandbox separate repos.
 
 ## 2026-06-04 (modular projects)
@@ -50,7 +57,7 @@ related: [[MOC-home]]
 
 ## 2026-06-02 (monorepo reorganization)
 
-- Reality Deck at `apps/desktop`; export slot `apps/desktop-export`; `tooling/scripts` and `tooling/benchmarks`.
+- Pytxo Desktop at `apps/desktop`; export slot `apps/desktop-export`; `tooling/scripts` and `tooling/benchmarks`.
 - Updated [[repository-layout]], [[github-organization]], [[mvp-bootstrap]], root `README.md`, `AGENTS.md`, `CONTRIBUTING.md`.
 
 ## 2026-06-02 (permission profile implementation)
@@ -65,13 +72,13 @@ related: [[MOC-home]]
 
 ## 2026-06-02 (vision)
 
-- Added [[product-vision]] — agent hypervisor thesis, three moats ([[signal-core]], [[blast-shield]], [[race-shield]]), Reality Deck aesthetic, BYOK cloud.
-- Added [[reality-deck-visual-system]]; updated [[glossary]], [[MOC-home]], [[architecture-index]], [[three-tier-model]], root `README.md`, `AGENTS.md`.
+- Added [[product-vision]] — agent hypervisor thesis, three moats ([[signal-core]], [[blast-shield]], [[race-shield]]), Pytxo Desktop aesthetic, BYOK cloud.
+- Added [[desktop-visual-system]]; updated [[glossary]], [[MOC-home]], [[architecture-index]], [[three-tier-model]], root `README.md`, `AGENTS.md`.
 
 ## 2026-06-02
 
 - Canonical GitHub org: [Pytxo-dev](https://github.com/Pytxo-dev); see [[github-organization]].
-- Phase 2 docs: Reality Deck, MCP setup, ADR-0006/0007, updated [[mvp-bootstrap]].
+- Phase 2 docs: Pytxo Desktop, MCP setup, ADR-0006/0007, updated [[mvp-bootstrap]].
 
 - Implemented Phase 0–1 Rust CLI (`crates/pytxo-*`).
 - Added ADR-0005 worktree MVP isolation, CLI/pytxo.toml reference, first-three-agent-run tutorial, benchmark scripts.

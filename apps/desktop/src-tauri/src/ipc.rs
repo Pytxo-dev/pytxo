@@ -6,8 +6,8 @@ use pytxo_core::PytxoConfig;
 use pytxo_runner::isolation_backend_label;
 use pytxo_signal::StructuralGraph;
 use pytxo_orchestrate::{
-    commit_workspace_for_agent, dispatch_run, dry_run_json, fleet_run_status, fleet_status,
-    hitl_respond as orch_hitl_respond,
+    commit_workspace_for_agent, default_hypervisor, dispatch_run, dry_run_json, fleet_run_status,
+    fleet_status, hitl_respond as orch_hitl_respond,
     list_catalog_domains as orch_list_catalog_domains,
     list_catalog_domains_enriched as orch_list_domains_status, list_domains,
     list_hitl_pending as orch_list_hitl_pending, list_hitl_pending_all as orch_list_hitl_pending_all,
@@ -135,7 +135,7 @@ pub fn list_domains_status() -> IpcResult<Vec<CatalogEntryStatus>> {
     orch_list_domains_status().map_err(map_orch_err)
 }
 
-/// Project manifests from `~/.pytxo/projects` for the Deck project picker.
+/// Project manifests from `~/.pytxo/projects` for the Desktop Workspace picker.
 #[tauri::command]
 pub fn list_projects() -> IpcResult<Vec<ProjectDto>> {
     Ok(orch_list_projects()
@@ -152,6 +152,24 @@ pub fn list_projects() -> IpcResult<Vec<ProjectDto>> {
 pub fn select_domain(state: State<'_, AppState>, domain_id: String) -> IpcResult<()> {
     *state.selected_domain_id.lock().map_err(map_lock_err)? = Some(domain_id);
     Ok(())
+}
+
+/// Canonicalize repo path and register hypervisor domain before topology/dispatch.
+#[tauri::command]
+pub fn ensure_workspace(state: State<'_, AppState>, domain_id: String) -> IpcResult<String> {
+    let repo = PathBuf::from(&domain_id);
+    let canonical = repo
+        .canonicalize()
+        .map_err(map_io_err)?
+        .to_string_lossy()
+        .into_owned();
+    let cfg = load_cfg_for_domain(&canonical, &state)?;
+    let domain = default_hypervisor()
+        .ensure_domain(Path::new(&canonical), &cfg)
+        .map_err(map_orch_err)?;
+    let id = domain.repo_root.to_string_lossy().into_owned();
+    *state.selected_domain_id.lock().map_err(map_lock_err)? = Some(id.clone());
+    Ok(id)
 }
 
 #[tauri::command]
@@ -545,7 +563,7 @@ pub fn fleet_run_status_cmd(fleet_run_id: String) -> IpcResult<FleetRunStatusDto
     })
 }
 
-/// IPC schema version for Reality Deck 3D topology consumer.
+/// IPC schema version for Pytxo Desktop 3D topology consumer.
 pub const STRUCTURAL_GRAPH_VERSION: u32 = 3;
 
 #[derive(Serialize)]

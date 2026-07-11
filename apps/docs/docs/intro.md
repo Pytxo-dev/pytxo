@@ -6,19 +6,19 @@ title: Introduction
 
 # Introduction
 
-**Pytxo** is a local-first **agent hypervisor**. It runs headless terminal agents (Claude Code, Codex, Antigravity CLI, or any shell command) in managed pseudo-terminals, schedules dependency-aware waves, and logs structured telemetry to SQLite on your machine.
+**Pytxo** runs the coding agents you already use (Claude Code, Codex, Antigravity CLI, or any shell command) in the background. It schedules them so they do not overwrite each other, shows what they changed, and lets you approve merges before those changes land in your real repo.
 
-Pytxo is **not** an IDE and **not** a cloud virtual workspace. Your editor stays your editor. Pytxo plugs in through a local MCP hub and an optional **Reality Deck** desktop app.
+Pytxo is not an IDE and not a cloud workspace. Keep your editor. Connect through a local MCP hub, or use the optional **Pytxo Desktop** app.
 
 ## At a glance
 
-- **Parallel agents** in isolated copies of your repo — no accidental overwrites
-- **Wave scheduling** so conflicting tasks never run at the same time
-- **Signal Core** — send structural code skeletons instead of whole files to save tokens
-- **Human approvals** (Galaxy tier) for risky commands and merges
-- **Multi-folder projects** — one swarm across API, web, and shared protos
-- **Fleet runs** — coordinate tasks across multiple repos when you need barriers between them
-- **MCP integration** so Cursor or your IDE drives orchestration locally
+- Run several agents at once in isolated copies of your repo
+- Schedule conflicting tasks in separate waves so they never collide
+- Send agents structural code skeletons instead of whole files (fewer tokens)
+- Approve risky commands and merges yourself (Galaxy tier)
+- Workspaces: one run across API, web, and shared protos
+- Fleet runs: coordinate work across separate repos when you need hard barriers
+- Drive it from Cursor or another IDE through local MCP
 
 ## Who this is for
 
@@ -31,18 +31,18 @@ Pytxo is **not** an IDE and **not** a cloud virtual workspace. Your editor stays
 
 ## Hypervisor Shell
 
-Run `pytxo` with no subcommand to open the **Hypervisor Shell** — trust the folder, preview waves, dispatch BYOK agents, and approve risky actions. See [Folder trust](/docs/getting-started/folder-trust) and [Hypervisor Shell](/docs/getting-started/hypervisor-shell).
+Run `pytxo` with no subcommand to open the **Hypervisor Shell**. Trust a folder, preview waves, start agents with your own API keys, and approve risky actions. See [Folder trust](/docs/getting-started/folder-trust) and [Hypervisor Shell](/docs/getting-started/hypervisor-shell).
 
 ## Quick mental model
 
 ```text
-IDE / CLI  →  MCP hub  →  Orchestration  →  PTY agents in isolated copies
+IDE / CLI  →  MCP hub  →  Orchestration  →  Agents in isolated copies
                               ↓
-                    Reality Deck (optional telemetry UI)
+                    Pytxo Desktop (optional control UI)
 ```
 
-Read [What is Pytxo?](/docs/concepts/what-is-pytxo) for how this differs from cloud agent workspaces, or jump to [Install](/docs/getting-started/install).
+Read [What is Pytxo?](/docs/concepts/what-is-pytxo) for the full picture, or jump to [Install](/docs/getting-started/install).
 
 ## Troubleshooting
 
-Run `pytxo doctor` in any repo. It checks git, writable data dirs, PTY support, approvals persistence, and (when enabled) cloud or billing connectivity.
+Run `pytxo doctor` in any repo. It checks git, writable data dirs, terminal support, approvals persistence, and (when enabled) cloud or billing connectivity.

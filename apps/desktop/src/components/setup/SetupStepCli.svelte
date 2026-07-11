@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { ipc } from "../../lib/ipc";
+  import { Button } from "$lib/components/ui/button";
 
   let {
     onContinue,
@@ -14,12 +15,15 @@
 
   let phase = $state<Phase>("checking");
   let message = $state("");
+  let pathPending = $state(false);
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
 
   async function refresh() {
     const present = await ipc.checkPytxoCli();
     if (present) {
       phase = "done";
-      message = "Pytxo CLI is on your PATH.";
+      message = "Pytxo CLI is ready.";
+      pathPending = false;
     } else if (phase !== "installing") {
       phase = "ready";
       message =
@@ -27,12 +31,30 @@
     }
   }
 
+  function stopPoll() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
   async function install() {
     phase = "installing";
     message = "Downloading from GitHub Releases…";
+    pathPending = false;
+    stopPoll();
+    pollTimer = setInterval(async () => {
+      try {
+        const st = await ipc.installPytxoCliStatus();
+        if (st.message) message = st.message;
+      } catch {
+        /* ignore poll errors */
+      }
+    }, 400);
     try {
       const status = await ipc.installPytxoCli();
       message = status.message;
+      pathPending = status.path_pending;
       if (status.cli_present) {
         phase = "done";
       } else {
@@ -41,15 +63,21 @@
     } catch (e) {
       phase = "error";
       message = String(e);
+    } finally {
+      stopPoll();
     }
   }
 
   onMount(refresh);
+  onDestroy(stopPoll);
 </script>
 
 <div class="step">
   <h2 class="title">Pytxo CLI</h2>
   <p class="lead">{message}</p>
+  {#if pathPending && phase === "done"}
+    <p class="hint">Restart Desktop later if you want `pytxo` on PATH in new terminals.</p>
+  {/if}
 
   {#if phase === "checking" || phase === "installing"}
     <div class="spinner" aria-hidden="true"></div>
@@ -57,7 +85,7 @@
 
   <div class="actions">
     {#if phase === "ready" || phase === "error"}
-      <button type="button" class="primary" onclick={install}>Install Pytxo CLI</button>
+      <Button onclick={install}>Install Pytxo CLI</Button>
       <a
         class="link"
         href="https://pytxo.com/download"
@@ -68,10 +96,10 @@
       </a>
     {/if}
     {#if phase === "done"}
-      <button type="button" class="primary" onclick={onContinue}>Continue</button>
+      <Button onclick={onContinue}>Continue</Button>
     {/if}
     {#if phase !== "installing"}
-      <button type="button" class="ghost" onclick={onSkip}>Skip for now</button>
+      <Button variant="ghost" onclick={onSkip}>Skip for now</Button>
     {/if}
   </div>
 </div>
@@ -98,12 +126,17 @@
     text-wrap: pretty;
     line-height: 1.5;
   }
+  .hint {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--muted-foreground);
+  }
   .spinner {
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    border: 2px solid color-mix(in oklab, var(--brand-teal) 25%, transparent);
-    border-top-color: var(--brand-teal);
+    border: 2px solid color-mix(in oklab, var(--primary) 25%, transparent);
+    border-top-color: var(--primary);
     animation: spin 0.8s linear infinite;
   }
   @keyframes spin {
@@ -118,17 +151,11 @@
     width: 100%;
     max-width: 280px;
   }
-  button {
-    min-height: 44px;
-    border-radius: 10px;
-  }
-  .ghost {
-    background: transparent;
-    border: none;
-    color: var(--muted-foreground);
+  .actions :global(button) {
+    width: 100%;
   }
   .link {
     font-size: 0.85rem;
-    color: var(--brand-teal);
+    color: var(--primary);
   }
 </style>

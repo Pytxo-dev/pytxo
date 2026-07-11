@@ -65,7 +65,19 @@ impl HypervisorRegistry {
                 &primary.to_string_lossy(),
                 &cfg.db_path_at(&primary).to_string_lossy(),
                 Some(&manifest.project.id),
-            )
+            )?;
+            for root in &manifest.roots {
+                let label = root.effective_label();
+                cat.upsert_project_root(
+                    &manifest.project.id,
+                    &label,
+                    root.path.to_string_lossy().as_ref(),
+                    root.read_only,
+                    root.primary,
+                    root.permission_profile.map(|p| p.as_str()),
+                )?;
+            }
+            Ok(())
         }) {
             tracing::debug!("project catalog upsert skipped: {e}");
         }

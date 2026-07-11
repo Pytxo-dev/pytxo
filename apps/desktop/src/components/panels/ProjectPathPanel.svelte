@@ -1,6 +1,9 @@
 <script lang="ts">
   import { ipc } from "../../lib/ipc";
   import type { ProjectRootDto } from "../../lib/types";
+  import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
+  import { Badge } from "$lib/components/ui/badge";
 
   let {
     projectId,
@@ -16,12 +19,6 @@
   let addReadOnly = $state(false);
   let busy = $state(false);
   let error = $state("");
-
-  async function refreshRoots() {
-    if (!projectId) return;
-    const next = await ipc.projectRoots(projectId);
-    onRootsChange?.(next);
-  }
 
   async function addRoot() {
     if (!projectId || !addPath.trim()) return;
@@ -55,22 +52,28 @@
 </script>
 
 {#if projectId}
-  <h2 class="panel-title">Project paths</h2>
+  <h2 class="panel-title">Workspace folders</h2>
   <p class="project-id">{projectId}</p>
   <ul class="roots">
     {#each roots as root}
       <li class="root-item">
         <div class="root-head">
           <span class="root-label">{root.label}</span>
-          {#if root.primary}<span class="badge">primary</span>{/if}
-          {#if root.read_only}<span class="badge badge--ro">read-only</span>{/if}
+          {#if root.primary}<Badge variant="default">primary</Badge>{/if}
+          {#if root.read_only}<Badge variant="secondary">read-only</Badge>{/if}
           {#if root.permission_profile}
-            <span class="badge badge--profile">{root.permission_profile}</span>
+            <Badge variant="muted">{root.permission_profile}</Badge>
           {/if}
           {#if !root.primary}
-            <button class="remove" disabled={busy} onclick={() => removeRoot(root.label)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="remove"
+              disabled={busy}
+              onclick={() => removeRoot(root.label)}
+            >
               Remove
-            </button>
+            </Button>
           {/if}
         </div>
         <div class="root-path">{root.path}</div>
@@ -78,22 +81,27 @@
     {/each}
   </ul>
   <div class="add-root">
-    <input bind:value={addPath} placeholder="Absolute path to add" disabled={busy} />
+    <Input bind:value={addPath} placeholder="Absolute path to add" disabled={busy} />
     <label class="ro-toggle">
       <input type="checkbox" bind:checked={addReadOnly} disabled={busy} />
       read-only
     </label>
-    <button class="primary" disabled={busy || !addPath.trim()} onclick={addRoot}>Add root</button>
+    <Button size="sm" disabled={busy || !addPath.trim()} onclick={addRoot}>Add folder</Button>
   </div>
   {#if error}
-    <p class="error">{error}</p>
+    <p class="error" role="alert">{error}</p>
   {/if}
 {/if}
 
 <style>
+  .panel-title {
+    margin: 0 0 0.25rem;
+    font-size: var(--text-sm, 0.875rem);
+    font-weight: 600;
+  }
   .project-id {
-    font-size: 0.75rem;
-    opacity: 0.7;
+    font-size: var(--text-xs, 0.75rem);
+    color: var(--muted-foreground);
     margin: 0 0 0.5rem;
   }
   ul.roots {
@@ -105,9 +113,10 @@
     gap: 0.5rem;
   }
   .root-item {
-    padding: 0.4rem 0.5rem;
-    border-radius: 6px;
-    background: color-mix(in oklab, var(--foreground) 6%, transparent);
+    padding: 0.45rem 0.55rem;
+    border-radius: var(--panel-radius);
+    border: 1px solid var(--border);
+    background: color-mix(in oklab, var(--foreground) 3%, transparent);
   }
   .root-head {
     display: flex;
@@ -117,52 +126,33 @@
   }
   .root-label {
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: var(--text-sm, 0.875rem);
   }
   .root-path {
-    font-size: 0.7rem;
-    opacity: 0.75;
+    font-size: var(--text-xs, 0.75rem);
+    color: var(--muted-foreground);
     word-break: break-all;
-  }
-  .badge {
-    font-size: 0.6rem;
-    padding: 0.05rem 0.3rem;
-    border-radius: 4px;
-    background: color-mix(in oklab, var(--brand-teal) 20%, transparent);
-    color: var(--brand-teal);
-  }
-  .badge--ro {
-    background: color-mix(in oklab, var(--brand-violet) 20%, transparent);
-    color: var(--brand-violet);
-  }
-  .badge--profile {
-    background: color-mix(in oklab, var(--brand-gold) 20%, transparent);
-    color: var(--brand-gold);
+    margin-top: 0.2rem;
   }
   .add-root {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    margin-top: 0.5rem;
-  }
-  .add-root input[type="text"] {
-    width: 100%;
-    min-width: 0;
+    gap: 0.4rem;
+    margin-top: 0.65rem;
   }
   .ro-toggle {
-    font-size: 0.75rem;
+    font-size: var(--text-xs, 0.75rem);
     display: flex;
     align-items: center;
     gap: 0.35rem;
+    color: var(--muted-foreground);
   }
-  button.remove {
+  :global(.remove) {
     margin-left: auto;
-    font-size: 0.7rem;
-    padding: 0.15rem 0.4rem;
   }
   .error {
-    font-size: 0.75rem;
-    color: var(--brand-gold);
+    font-size: var(--text-xs, 0.75rem);
+    color: var(--destructive, #f87171);
     margin: 0.35rem 0 0;
   }
 </style>

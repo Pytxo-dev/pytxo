@@ -1,6 +1,5 @@
 use serde::Serialize;
 use std::path::Path;
-use std::process::Command;
 
 use pytxo_core::DomainId;
 use pytxo_orchestrate::{effective_entitlements, fetch_link_wallet_balance};
@@ -26,16 +25,7 @@ pub fn ipc_version() -> String {
 
 #[tauri::command]
 pub fn check_pytxo_cli() -> bool {
-    if let Ok(sidecar) = std::env::var("PYTXO_SIDECAR") {
-        if !sidecar.is_empty() && std::path::Path::new(&sidecar).exists() {
-            return true;
-        }
-    }
-    Command::new(if cfg!(windows) { "where" } else { "which" })
-        .arg("pytxo")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    crate::ipc_install::cli_binary_usable()
 }
 
 #[tauri::command]

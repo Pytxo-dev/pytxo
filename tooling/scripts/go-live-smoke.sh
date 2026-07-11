@@ -11,6 +11,7 @@ cd "$ROOT"
 LINK_BASE="${LINK_BASE:-${LINK_BASE_URL:-http://127.0.0.1:8787}}"
 PROXY_BASE="${PROXY_BASE:-${PROXY_BASE_URL:-http://127.0.0.1:8790}}"
 LINK_API_KEY="${LINK_API_KEY:-}"
+LINK_ADMIN_KEY="${LINK_ADMIN_KEY:-}"
 PYTXO_ULTRA_SESSION="${PYTXO_ULTRA_SESSION:-$LINK_API_KEY}"
 RUN_ID="go-live-$(date +%s)"
 DOMAIN_ID="${PYTXO_DOMAIN_ID:-go-live-smoke}"
@@ -65,5 +66,24 @@ for attempt in 1 2; do
     "${LINK_BASE%/}/v1/runs/end" >/dev/null
   echo "  runs/end attempt $attempt OK"
 done
+
+if [[ -n "$LINK_ADMIN_KEY" && -n "${PYTXO_ORG_ID:-}" ]]; then
+  echo "==> Enterprise org seats"
+  curl -fsS -H "Authorization: Bearer ${LINK_ADMIN_KEY}" \
+    "${LINK_BASE%/}/v1/orgs/${PYTXO_ORG_ID}/seats" | tee /dev/stderr
+  echo
+
+  echo "==> Enterprise org policy (GET)"
+  curl -fsS -H "Authorization: Bearer ${LINK_ADMIN_KEY}" \
+    "${LINK_BASE%/}/v1/orgs/${PYTXO_ORG_ID}/policy" | tee /dev/stderr
+  echo
+
+  echo "==> Enterprise org audit (recent)"
+  curl -fsS -H "Authorization: Bearer ${LINK_ADMIN_KEY}" \
+    "${LINK_BASE%/}/v1/orgs/${PYTXO_ORG_ID}/audit?limit=5" | tee /dev/stderr
+  echo
+elif [[ -n "$LINK_ADMIN_KEY" ]]; then
+  echo "==> Skipping org seats/policy (set PYTXO_ORG_ID for Enterprise smoke)"
+fi
 
 echo "Go-live smoke OK (run_id=$RUN_ID)"

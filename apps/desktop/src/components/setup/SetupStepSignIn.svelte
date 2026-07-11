@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { ipc, onAuthChanged } from "../../lib/ipc";
+  import { Button } from "$lib/components/ui/button";
 
   let {
     onContinue,
@@ -11,29 +12,41 @@
   } = $props();
 
   let signedIn = $state(false);
+  let waiting = $state(false);
+  let timedOut = $state(false);
   let polling: ReturnType<typeof setInterval> | null = null;
+  let waitTimer: ReturnType<typeof setTimeout> | null = null;
   let unlisten: (() => void) | null = null;
 
-  async function refresh() {
+  async function refresh(autoAdvance = false) {
     const auth = await ipc.authStatus();
     signedIn = auth.signed_in;
     if (signedIn) {
-      onContinue();
+      waiting = false;
+      timedOut = false;
+      if (autoAdvance) onContinue();
     }
   }
 
   async function signIn() {
+    waiting = true;
+    timedOut = false;
+    if (waitTimer) clearTimeout(waitTimer);
+    waitTimer = setTimeout(() => {
+      if (!signedIn) timedOut = true;
+    }, 90_000);
     await ipc.authOpenSignIn();
   }
 
   onMount(async () => {
-    await refresh();
-    unlisten = await onAuthChanged(refresh);
-    polling = setInterval(refresh, 2000);
+    await refresh(true);
+    unlisten = await onAuthChanged(() => refresh(true));
+    polling = setInterval(() => refresh(false), 2000);
   });
 
   onDestroy(() => {
     if (polling) clearInterval(polling);
+    if (waitTimer) clearTimeout(waitTimer);
     unlisten?.();
   });
 </script>
@@ -41,16 +54,27 @@
 <div class="step">
   <h2 class="title">Sign in to Pytxo</h2>
   <p class="lead">
-    Connect your account for Ultra billing, cloud runs, and org policy. Opens in your browser —
-    you'll return here automatically.
+    Optional. Local Core runs work without an account. Sign in for Ultra billing, cloud runs, and
+    org policy. Completes in your browser, then returns here.
   </p>
 
   {#if signedIn}
     <p class="ok">Signed in</p>
-    <button type="button" class="primary" onclick={onContinue}>Continue</button>
+    <Button onclick={onContinue}>Continue</Button>
   {:else}
-    <button type="button" class="primary" onclick={signIn}>Sign in with Pytxo</button>
-    <button type="button" class="ghost" onclick={onSkip}>Skip for now</button>
+    {#if waiting}
+      <p class="waiting" role="status">Waiting for browser sign-in…</p>
+    {/if}
+    {#if timedOut}
+      <p class="warn" role="alert">
+        No callback yet. Finish sign-in in the browser, or skip and continue with Core.
+      </p>
+      <a class="link" href="https://pytxo.com/account" target="_blank" rel="noopener noreferrer">
+        Open account help
+      </a>
+    {/if}
+    <Button onclick={signIn}>{waiting ? "Open sign-in again" : "Sign in with Pytxo"}</Button>
+    <Button variant="ghost" onclick={onSkip}>Skip for now</Button>
   {/if}
 </div>
 
@@ -77,17 +101,24 @@
     line-height: 1.5;
   }
   .ok {
-    color: var(--brand-teal);
+    color: var(--primary);
     font-size: 0.9rem;
   }
-  button {
-    min-height: 44px;
-    min-width: 220px;
-    border-radius: 10px;
+  .waiting {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--primary);
   }
-  .ghost {
-    background: transparent;
-    border: none;
+  .warn {
+    margin: 0;
+    font-size: 0.85rem;
     color: var(--muted-foreground);
+  }
+  .link {
+    font-size: 0.85rem;
+    color: var(--primary);
+  }
+  :global(.step button) {
+    min-width: 220px;
   }
 </style>

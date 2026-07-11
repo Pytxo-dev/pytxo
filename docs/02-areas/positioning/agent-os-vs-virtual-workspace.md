@@ -6,7 +6,7 @@ tags: [positioning, architecture]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-07-09
 related: [[beyond-the-ade]], [[mcp-hub-integration]], [[three-tier-model]], [[execution-domains]], [[product-vision]]
 ---
 
@@ -23,7 +23,7 @@ Pytxo is an **agent hypervisor** — a bare-metal control plane, not a replaceme
 
 ## What users still get
 
-An optional **Reality Deck** ([[reality-deck-visual-system]]) shows structural blast radius and telemetry — not walls of raw terminal panes.
+Optional **Pytxo Desktop** ([[desktop-visual-system]]) shows structural blast radius and telemetry — not walls of raw terminal panes.
 
 ## Related
 

@@ -13,7 +13,7 @@ Run `pytxo` in a repo. If the canonical git root is not trusted yet, a full-scre
 
 | Tier | Summary |
 |------|---------|
-| **Deep Space** | Air-gapped bubble — minimal host access |
+| **Deep Space** | Air-gapped bubble: minimal host access |
 | **Orbit** | Default engineering (recommended) |
 | **Galaxy** | Host tools + human-in-the-loop gates |
 | **Supernova** | Full host privileges |
@@ -47,5 +47,5 @@ Trusted tier **overrides** the default `permission_profile` in `pytxo.toml` for 
 ## Security notes
 
 - Trust is keyed by **canonical repo root**, not the current working directory inside the tree.
-- Secrets stay in environment variables — Pytxo never writes API keys to disk.
+- Secrets stay in environment variables. Pytxo never writes API keys to disk.
 - See [Permission tiers](/docs/reference/permission-tiers) and [Galaxy approvals](/docs/concepts/galaxy-approvals) for what each tier allows.

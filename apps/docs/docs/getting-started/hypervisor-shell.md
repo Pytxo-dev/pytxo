@@ -5,11 +5,11 @@ title: Hypervisor Shell
 
 # Hypervisor Shell
 
-**Mission control for agent fleets** — not another coding chatbot.
+**Mission control for agent fleets.** Not another coding chatbot.
 
 Running `pytxo` with no subcommand opens the **Hypervisor Shell**: a three-zone TUI with a **board** (runs, waves, approvals), **scrollback** (command output and plan previews), and an operator **prompt** (slash commands).
 
-Your ADE (Antigravity, Claude Code, Codex, …) still does the thinking. Pytxo schedules waves, spawns processes in isolated copies, and records telemetry.
+Your agent CLI (Antigravity, Claude Code, Codex, and so on) still does the thinking. Pytxo schedules waves, spawns processes in isolated copies, and records telemetry.
 
 ## Workflow
 
@@ -26,7 +26,7 @@ Your ADE (Antigravity, Claude Code, Codex, …) still does the thinking. Pytxo s
 Untrusted folders block `/run` but allow `/doctor` and `/dry-run`. See [Folder trust](/docs/getting-started/folder-trust).
 
 :::tip Agent waves vs fleet runs
-`/run` dispatches **agent waves** inside the current repo. For **cross-repo** barriers use `pytxo fleet run` — see [Fleet runs](/docs/concepts/fleet-runs).
+`/run` dispatches **agent waves** inside the current repo. For **cross-repo** barriers use `pytxo fleet run`. See [Fleet runs](/docs/concepts/fleet-runs).
 :::
 
 ## Slash commands
@@ -77,7 +77,8 @@ When enabled, a mission line is decomposed into tasks, validated, previewed in s
 |-----|--------|
 | Enter | Submit prompt |
 | ↑ / ↓ (empty prompt) | Command history |
-| ↑ / ↓ (while typing) | Scroll scrollback |
+| ↑ / ↓ (while typing) | Select run on the board |
+| Ctrl+↑ / Ctrl+↓ | Scroll scrollback (auto-follows new output when at bottom) |
 | Tab | Cycle approval selection |
 | a / x | Approve / deny approval (empty prompt) |
 | q / Ctrl+C | Quit (Ctrl+C also sends `/stop`) |

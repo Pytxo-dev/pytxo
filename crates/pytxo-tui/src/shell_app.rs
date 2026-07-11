@@ -201,31 +201,38 @@ impl ShellApp {
         for ev in events {
             match ev {
                 ShellEvent::Output(s) => {
-                    self.scrollback.push(&s);
+                    self.push_scrollback(&s);
                     self.needs_redraw = true;
                 }
                 ShellEvent::PlanPreview(json) => {
-                    self.scrollback.push(&json);
+                    self.push_scrollback(&json);
                     self.needs_redraw = true;
                 }
                 ShellEvent::RunStarted(id) => {
                     self.active_run_label = Some(id.0.clone());
-                    self.scrollback
-                        .push(&format!("Run started: {}", id.0));
+                    self.push_scrollback(&format!("Run started: {}", id.0));
                     self.needs_redraw = true;
                 }
                 ShellEvent::RunFinished(id) => {
-                    self.scrollback
-                        .push(&format!("Run finished: {}", id.0));
+                    self.push_scrollback(&format!("Run finished: {}", id.0));
                     self.active_run_label = None;
                     self.needs_redraw = true;
                 }
                 ShellEvent::Error(e) => {
-                    self.scrollback.push(&format!("error: {e}"));
+                    self.push_scrollback(&format!("error: {e}"));
                     self.status_message = e;
                     self.needs_redraw = true;
                 }
             }
+        }
+    }
+
+    /// Push scrollback; auto-follow bottom when not scrolled up.
+    fn push_scrollback(&mut self, text: &str) {
+        let following = self.scroll_offset == 0;
+        self.scrollback.push(text);
+        if following {
+            self.scroll_offset = 0;
         }
     }
 
@@ -234,7 +241,8 @@ impl ShellApp {
             self.dismiss_splash();
         }
         self.prompt.push_history(line.clone());
-        self.scrollback.push(&format!("> {line}"));
+        self.scroll_offset = 0;
+        self.push_scrollback(&format!("> {line}"));
         let input = parse_line(&line);
         if matches!(input, ShellInput::ReplExit) {
             self.status_message = "exit".into();
@@ -291,7 +299,13 @@ impl ShellApp {
         } else {
             self.scrollback.draw(frame, chunks[1], self.scroll_offset);
         }
-        self.prompt.draw(frame, chunks[2], &self.status_message);
+        self.prompt.draw(
+            frame,
+            chunks[2],
+            &self.status_message,
+            !self.snapshot.hitl_pending.is_empty(),
+            false,
+        );
     }
 }
 
@@ -353,7 +367,8 @@ async fn run_loop(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
                                         app.session = session;
                                         app.phase = AppPhase::Shell;
                                         let tier_name = app.tier_label();
-                                        app.scrollback.push(&format!(
+                                        app.scroll_offset = 0;
+                                        app.push_scrollback(&format!(
                                             "✓ Folder trusted ({tier_name}) — /dry-run then /run"
                                         ));
                                     }
@@ -395,6 +410,16 @@ async fn run_loop(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
                         app.prompt.buffer.pop();
                         app.needs_redraw = true;
                     }
+                    KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        app.dismiss_splash();
+                        app.scroll_offset = app.scroll_offset.saturating_add(1);
+                        app.needs_redraw = true;
+                    }
+                    KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        app.dismiss_splash();
+                        app.scroll_offset = app.scroll_offset.saturating_sub(1);
+                        app.needs_redraw = true;
+                    }
                     KeyCode::Up if app.prompt.buffer.is_empty() => {
                         app.prompt.history_up();
                         app.needs_redraw = true;
@@ -412,14 +437,6 @@ async fn run_loop(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
                             && app.board.run_selected + 1 < app.snapshot.runs.len() =>
                     {
                         app.board.run_selected += 1;
-                        app.needs_redraw = true;
-                    }
-                    KeyCode::Up => {
-                        app.scroll_offset = app.scroll_offset.saturating_add(1);
-                        app.needs_redraw = true;
-                    }
-                    KeyCode::Down => {
-                        app.scroll_offset = app.scroll_offset.saturating_sub(1);
                         app.needs_redraw = true;
                     }
                     KeyCode::Tab if !app.prompt.buffer.is_empty() => {

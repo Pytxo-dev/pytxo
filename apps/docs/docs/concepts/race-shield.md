@@ -4,14 +4,14 @@ title: Race Shield
 
 # Race Shield
 
-**Race Shield** prevents cross-agent write collisions and stdin races through a lock-free swarm registry and buffered stdin handling.
+**Race Shield** stops cross-agent write collisions and stdin races. It uses a lock-free swarm registry and buffered stdin handling.
 
 ## Scheduling
 
 - Tasks declare `paths` and optional `depends_on` edges
-- Pytxo builds a **DAG** and executes **waves** of non-conflicting agents
-- `max_agents` caps parallelism per wave
-- Cross-root path overlaps in [modular projects](/docs/concepts/modular-projects) surface as scheduler warnings
+- Pytxo builds a **DAG** and runs **waves** of non-conflicting agents
+- `max_agents` caps how many agents run in parallel per wave
+- Cross-root path overlaps in [modular projects](/docs/concepts/modular-projects) show up as scheduler warnings
 
 ## Stdin
 
@@ -31,6 +31,6 @@ Use `pytxo run --dry-run` to inspect waves before execution.
 
 ## Galaxy approvals
 
-Race Shield handles **when** agents run; [Galaxy approvals](/docs/concepts/galaxy-approvals) handle **what risky commands** may run once an agent is live.
+Race Shield decides **when** agents run. [Galaxy approvals](/docs/concepts/galaxy-approvals) decide **which risky commands** may run once an agent is live.
 
 Back: [Three moats](/docs/concepts/three-moats)

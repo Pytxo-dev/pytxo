@@ -457,6 +457,21 @@ async fn health() -> Json<telemetry::HealthBody> {
     Json(telemetry::health_body())
 }
 
+/// Operator-facing egress posture note (Phase 72).
+/// Documents that `--internal` network is deny-by-default; allowlist is host-side only.
+async fn egress_notes() -> Json<serde_json::Value> {
+    let hosts = egress_allowlist().unwrap_or_default();
+    Json(serde_json::json!({
+        "network": sandbox_network_name(),
+        "posture": "deny_by_default",
+        "internal_network": true,
+        "allowlist": hosts,
+        "allowlist_advisory": true,
+        "host_rules_required": !hosts.is_empty(),
+        "docs": "ADR-0025: CLOUD_EGRESS_ALLOWLIST documents host iptables/nftables; containers stay on --internal until punched.",
+    }))
+}
+
 async fn start_sandbox(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -729,6 +744,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health))
+        .route("/v1/egress", get(egress_notes))
         .route("/v1/sandboxes/start", post(start_sandbox))
         .route("/v1/sandboxes/{id}/sync", post(sync_sandbox))
         .route("/v1/sandboxes/{id}/exec", post(exec_sandbox))

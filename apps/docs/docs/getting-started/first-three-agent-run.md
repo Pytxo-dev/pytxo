@@ -12,7 +12,7 @@ Complete [Install](/docs/getting-started/install): built CLI, `pytxo init`, and 
 
 ## Configure tasks
 
-Copy `pytxo.toml.example` from the repo to your project root as `pytxo.toml`. The example defines tasks that touch overlapping paths — Pytxo schedules them in **separate waves** automatically.
+Copy `pytxo.toml.example` from the repo to your project root as `pytxo.toml`. The example defines tasks that touch overlapping paths. Pytxo schedules them in **separate waves** automatically.
 
 ## Dry-run (preflight)
 
@@ -28,7 +28,7 @@ Inspect the JSON output: `waves` array and `conflicts` list show how scheduling 
 pytxo run --config pytxo.toml --cmd "echo hello-from-agent"
 ```
 
-Each agent executes in its own git worktree. Default execution uses **PTY** backends for interactive shell fidelity.
+Each agent executes in its own git worktree. Default execution uses **PTY** backends so interactive shells behave correctly.
 
 ## Inspect telemetry
 
@@ -61,5 +61,5 @@ From the Pytxo repo root after build:
 
 ## Learn more
 
-- [CLI reference](/docs/reference/cli) — all commands and flags
-- [Three moats](/docs/concepts/three-moats) — Signal Core, Blast Shield, Race Shield
+- [CLI reference](/docs/reference/cli): all commands and flags
+- [Three moats](/docs/concepts/three-moats): Signal Core, Blast Shield, Race Shield

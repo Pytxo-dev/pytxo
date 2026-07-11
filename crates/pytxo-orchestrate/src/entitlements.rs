@@ -175,6 +175,8 @@ fn fetch_link_entitlements(base_url: &str) -> Result<EntitlementStatus, PytxoErr
             }
         }
 
+        let _ = std::env::set_var("PYTXO_LINK_TIER", &body.tier);
+
         return Ok(EntitlementStatus {
             tier: body.tier,
             max_agents: body.max_agents,

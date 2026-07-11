@@ -106,6 +106,26 @@ async fn admin_upsert_entitlement(
 
     }
 
+    let existing = state.entitlements.get(&user_id).await;
+    if let Some(org_id) = &body.org_id {
+        if let Some(pool) = state.db.as_ref() {
+            let same_org = existing.org_id.as_deref() == Some(org_id.as_str());
+            if !same_org {
+                match seats::get(pool, org_id).await {
+                    Ok(info) if info.seats_available == 0 => {
+                        tracing::warn!(org_id = %org_id, user_id = %user_id, "org seat limit reached");
+                        return StatusCode::CONFLICT;
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "seat availability check failed");
+                        return StatusCode::INTERNAL_SERVER_ERROR;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
     let tier = Tier::parse(&body.tier);
 
     let max_agents = body.max_agents.unwrap_or_else(|| tier.max_agents());
@@ -695,6 +715,9 @@ mod contract_tests {
             "/v1/entitlements/status",
             "/v1/admin/entitlements/{user_id}",
             "/v1/orgs/{org_id}/policy",
+            "/v1/admin/orgs/{org_id}/seats",
+            "/v1/orgs/{org_id}/seats",
+            "/v1/orgs/{org_id}/audit",
             "/v1/runs/start",
             "/v1/runs/end",
             "/v1/wallet/balance",

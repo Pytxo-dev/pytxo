@@ -6,7 +6,7 @@ tags: [mcp, reference]
 audience: [agent]
 layer: orchestration
 created: 2026-06-02
-updated: 2026-06-04
+updated: 2026-07-10
 related: [[mcp-hub-integration]], [[cursor-vs-vscode-vs-neovim]], [[modular-projects]]
 ---
 
@@ -28,7 +28,7 @@ Planned component: **local-first MCP hub** in the Rust orchestration layer.
 
 ## Implementation status
 
-**Phase 2 stub:** `crates/pytxo-mcp` (stdio JSON-RPC). Tools: `pytxo_dry_run`, `pytxo_run`, `pytxo_status`, `pytxo_logs`, `pytxo_read`, `pytxo_read_scaffolded`, `pytxo_stdin`. Setup: [[mcp-cursor-setup]], [[cursor-mcp-pytxo]].
+**stdio MCP server (shipped):** `crates/pytxo-mcp` (JSON-RPC). Tools include `pytxo_dry_run`, `pytxo_run`, `pytxo_status`, `pytxo_logs`, `pytxo_read`, `pytxo_read_scaffolded`, `pytxo_stdin`, plus hub/routing tools below. Setup: [[mcp-cursor-setup]], [[cursor-mcp-pytxo]].
 
 **Modular project routing (shipped):** `pytxo_project_run` runs a command across a project's writable roots; `pytxo_read` / `pytxo_read_scaffolded` accept `project_id` (+ optional `root` label) to resolve the target folder from the project manifest ([[modular-projects]], [[ADR-0011-modular-project-manifest]]) instead of a raw `repo` path.
 
@@ -36,4 +36,6 @@ Planned component: **local-first MCP hub** in the Rust orchestration layer.
 
 **MCP hub v2 (shipped):** `pytxo_mcp_proxy` forwards JSON-RPC to live child MCP sessions registered in the domain hub; `pytxo_mcp_tools_list` aggregates child tools as `agent:{id}/{tool}`. Runner registers/deregisters on agent lifecycle when `[mcp_hub].enabled`. WAL `mcp-tool` audit preserved.
 
-**Deferred v3:** multi-hop routing, MCP resource subscriptions / streaming.
+**MCP hub v3 (shipped, Phase 67):** resource subscriptions — `subscribe_resource` / `notify_resource_updated` in runner `mcp_hub.rs`.
+
+**Deferred:** multi-hop routing across remote MCP hubs; streaming resource updates to IDE clients beyond in-process notify.

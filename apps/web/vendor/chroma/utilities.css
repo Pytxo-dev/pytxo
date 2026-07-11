@@ -1,14 +1,13 @@
 /**
  * Pytxo Chroma utility classes — framework-agnostic (no Tailwind @apply).
+ * Restrained teal/violet palette; cyan/magenta/gold are not default accents.
  */
 
 .nebula-bg {
   background-color: var(--void);
   background-image:
-    radial-gradient(ellipse 90% 60% at 10% -10%, color-mix(in oklab, var(--brand-violet) 22%, transparent), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 95% 5%, color-mix(in oklab, var(--brand-magenta) 18%, transparent), transparent 50%),
-    radial-gradient(ellipse 80% 55% at 50% 110%, color-mix(in oklab, var(--brand-cyan) 14%, transparent), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 80% 60%, color-mix(in oklab, var(--brand-teal) 10%, transparent), transparent 50%);
+    radial-gradient(ellipse 90% 55% at 12% -8%, color-mix(in oklab, var(--brand-violet) 16%, transparent), transparent 58%),
+    radial-gradient(ellipse 60% 45% at 88% 8%, color-mix(in oklab, var(--brand-teal) 10%, transparent), transparent 52%);
 }
 
 .nebula-noise {
@@ -41,11 +40,9 @@
   border-radius: inherit;
   background: linear-gradient(
     135deg,
-    var(--brand-magenta),
-    var(--brand-gold),
-    var(--brand-cyan),
-    var(--brand-violet),
-    var(--brand-magenta)
+    color-mix(in oklab, var(--brand-teal) 70%, transparent),
+    color-mix(in oklab, var(--brand-violet) 55%, transparent),
+    color-mix(in oklab, var(--brand-teal) 40%, transparent)
   );
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
@@ -61,11 +58,9 @@
 .chroma-text,
 .text-gradient-brand {
   background: linear-gradient(
-    100deg,
-    var(--brand-magenta) 0%,
-    var(--brand-gold) 32%,
-    var(--brand-cyan) 68%,
-    var(--brand-violet) 100%
+    105deg,
+    var(--brand-teal) 0%,
+    color-mix(in oklab, var(--brand-violet) 85%, white) 100%
   );
   -webkit-background-clip: text;
   background-clip: text;
@@ -74,31 +69,20 @@
 
 .chroma-glow {
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--brand-cyan) 25%, transparent),
-    0 8px 32px -8px color-mix(in oklab, var(--brand-violet) 35%, transparent),
-    0 16px 48px -16px color-mix(in oklab, var(--brand-magenta) 25%, transparent);
+    0 0 0 1px color-mix(in oklab, var(--brand-teal) 22%, transparent),
+    0 10px 36px -10px color-mix(in oklab, var(--brand-violet) 28%, transparent);
 }
 
 .chroma-edge-top {
-  border-top: 1px solid transparent;
-  border-image: linear-gradient(
-      90deg,
-      transparent,
-      var(--brand-magenta),
-      var(--brand-cyan),
-      var(--brand-violet),
-      transparent
-    )
-    1;
+  border-top: 1px solid color-mix(in oklab, var(--brand-teal) 35%, transparent);
 }
 
 .header-chroma-line {
   background: linear-gradient(
     90deg,
     transparent,
-    color-mix(in oklab, var(--brand-magenta) 50%, transparent),
-    color-mix(in oklab, var(--brand-cyan) 50%, transparent),
-    color-mix(in oklab, var(--brand-violet) 50%, transparent),
+    color-mix(in oklab, var(--brand-teal) 40%, transparent),
+    color-mix(in oklab, var(--brand-violet) 35%, transparent),
     transparent
   );
   height: 1px;

@@ -1,23 +1,32 @@
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use pytxo_core::{
     conflict_error, paths_claim_overlap, LiveAgent, PytxoError, RaceShield, Result, StdinBuffer,
 };
 
 #[derive(Default)]
-struct RegistryState {
+struct PathClaimState {
     agents: HashMap<String, LiveAgent>,
     path_claims: HashMap<String, String>,
-    stdin: StdinBuffer,
 }
 
 /// Race Shield runtime registry — path claims + stdin serialization.
-/// Hot path uses `RwLock`: concurrent disjoint claims scale; overlap checks take write lock.
-/// Profile with `registry_contention_*` tests before switching to lock-free structures.
+///
+/// # Contention model (Phase 70)
+///
+/// Path claims and stdin use **separate locks** so PTY stdin pumps (~15 ms drain)
+/// do not serialize against disjoint path-claim waves:
+///
+/// - `paths: RwLock` — concurrent `list_live` readers; writers for claim/release
+/// - `stdin: Mutex` — per-agent enqueue/drain only
+///
+/// Overlap checks still take the path write lock (correctness > shard complexity).
+/// Profile with `registry_contention_*` before introducing path-prefix shards.
 #[derive(Clone, Default)]
 pub struct SwarmRegistry {
-    inner: Arc<RwLock<RegistryState>>,
+    paths: Arc<RwLock<PathClaimState>>,
+    stdin: Arc<Mutex<StdinBuffer>>,
 }
 
 impl SwarmRegistry {
@@ -33,7 +42,7 @@ impl SwarmRegistry {
 impl RaceShield for SwarmRegistry {
     fn try_claim_paths(&self, agent_key: &str, paths: &[String]) -> Result<()> {
         let mut guard = self
-            .inner
+            .paths
             .write()
             .map_err(|_| PytxoError::Runner("race shield lock poisoned".into()))?;
 
@@ -64,22 +73,23 @@ impl RaceShield for SwarmRegistry {
     }
 
     fn release(&self, agent_key: &str) {
-        let Ok(mut guard) = self.inner.write() else {
-            return;
-        };
-        if let Some(agent) = guard.agents.remove(agent_key) {
-            for path in &agent.paths {
-                let key = pytxo_core::normalize_claim_path(path);
-                if guard.path_claims.get(&key).is_some_and(|h| h == agent_key) {
-                    guard.path_claims.remove(&key);
+        if let Ok(mut guard) = self.paths.write() {
+            if let Some(agent) = guard.agents.remove(agent_key) {
+                for path in &agent.paths {
+                    let key = pytxo_core::normalize_claim_path(path);
+                    if guard.path_claims.get(&key).is_some_and(|h| h == agent_key) {
+                        guard.path_claims.remove(&key);
+                    }
                 }
             }
         }
-        guard.stdin.drain(agent_key);
+        if let Ok(mut stdin) = self.stdin.lock() {
+            stdin.drain(agent_key);
+        }
     }
 
     fn register_pid(&self, agent_key: &str, pid: u32) {
-        if let Ok(mut guard) = self.inner.write() {
+        if let Ok(mut guard) = self.paths.write() {
             if let Some(agent) = guard.agents.get_mut(agent_key) {
                 agent.pid = Some(pid);
             }
@@ -87,17 +97,17 @@ impl RaceShield for SwarmRegistry {
     }
 
     fn enqueue_stdin(&self, agent_key: &str, data: &[u8]) -> Result<()> {
-        let mut guard = self
-            .inner
-            .write()
-            .map_err(|_| PytxoError::Runner("race shield lock poisoned".into()))?;
+        let mut stdin = self
+            .stdin
+            .lock()
+            .map_err(|_| PytxoError::Runner("race shield stdin lock poisoned".into()))?;
         // Allow pre-staging before path claim (subprocess spawn-time stdin drain).
-        guard.stdin.enqueue(agent_key, data);
+        stdin.enqueue(agent_key, data);
         Ok(())
     }
 
     fn list_live(&self) -> Vec<LiveAgent> {
-        self.inner
+        self.paths
             .read()
             .map(|g| g.agents.values().cloned().collect())
             .unwrap_or_default()
@@ -110,9 +120,9 @@ impl SwarmRegistry {
     }
 
     pub fn drain_stdin(&self, agent_key: &str) -> Vec<u8> {
-        self.inner
-            .write()
-            .map(|mut g| g.stdin.drain(agent_key))
+        self.stdin
+            .lock()
+            .map(|mut g| g.drain(agent_key))
             .unwrap_or_default()
     }
 }
@@ -140,6 +150,13 @@ mod tests {
         reg.release("a:agent-0");
         reg.try_claim_paths("a:agent-1", &["src/a.ts".into()])
             .unwrap();
+    }
+
+    #[test]
+    fn stdin_enqueue_without_path_claim() {
+        let reg = SwarmRegistry::new();
+        reg.enqueue_stdin("run:agent-0", b"hello").unwrap();
+        assert_eq!(reg.drain_stdin("run:agent-0"), b"hello");
     }
 
     /// Benchmark-style contention probe: many agents claim disjoint paths concurrently.
@@ -193,5 +210,39 @@ mod tests {
         .join()
         .unwrap();
         assert!(err.is_err());
+    }
+
+    /// Stdin pumps must not block behind path-claim writers (separate locks).
+    #[test]
+    fn stdin_and_path_claims_do_not_share_lock() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let reg = Arc::new(SwarmRegistry::new());
+        reg.try_claim_paths("run:holder", &["held/**".into()])
+            .unwrap();
+
+        let reg_stdin = Arc::clone(&reg);
+        let stdin_ok = thread::spawn(move || {
+            for i in 0..64 {
+                reg_stdin
+                    .enqueue_stdin("run:pump", format!("chunk-{i}\n").as_bytes())
+                    .unwrap();
+            }
+            reg_stdin.drain_stdin("run:pump").len()
+        });
+
+        let reg_claim = Arc::clone(&reg);
+        let claim_ok = thread::spawn(move || {
+            for i in 0..32 {
+                let key = format!("run:peer-{i}");
+                let path = format!("other/mod_{i}.rs");
+                reg_claim.try_claim_paths(&key, &[path]).unwrap();
+                reg_claim.release(&key);
+            }
+        });
+
+        assert!(stdin_ok.join().unwrap() > 0);
+        claim_ok.join().unwrap();
     }
 }

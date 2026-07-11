@@ -27,4 +27,4 @@ related: [[sandbox-dispatch]], [[delta-sync]], [[three-tier-model]]
 - `docker-compose` integration tests
 - Compiler-heavy pipelines that would saturate local silicon
 
-Flow: [[sandbox-dispatch]] → [[delta-sync]] → results on [[presentation-passive-telemetry|Reality Deck]].
+Flow: [[sandbox-dispatch]] → [[delta-sync]] → results on [[presentation-passive-telemetry|Pytxo Desktop]].

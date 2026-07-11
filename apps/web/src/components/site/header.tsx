@@ -41,19 +41,19 @@ function NavLabel({ label, badge }: { label: string; badge?: string }) {
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/5 bg-background/50 backdrop-blur-xl">
-      <div className="header-chroma-line w-full" aria-hidden />
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+    <header className="sticky top-0 z-50 border-b border-border bg-background/70 backdrop-blur-xl">
+      <div className="header-chroma-line absolute inset-x-0 top-0 h-px opacity-80" aria-hidden />
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
           <Image
             src="/logo.png"
             alt="Pytxo"
-            width={36}
-            height={36}
-            className="size-9"
+            width={32}
+            height={32}
+            className="size-8"
             priority
           />
-          <span className="text-lg font-semibold tracking-tight">Pytxo</span>
+          <span className="text-base font-semibold tracking-tight">Pytxo</span>
         </Link>
 
         <NavigationMenu className="hidden md:flex">
@@ -64,7 +64,7 @@ export function SiteHeader() {
                   <Link
                     href={link.href}
                     className={cn(
-                      "rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground",
+                      "rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground",
                       "transition-colors hover:bg-white/5 hover:text-foreground",
                     )}
                   >
@@ -79,7 +79,7 @@ export function SiteHeader() {
         <div className="flex items-center gap-2">
           <HeaderAuth />
           <Button size="sm" className="hidden chroma-glow sm:inline-flex" asChild>
-            <Link href="/download">Get started</Link>
+            <Link href="/download">Download</Link>
           </Button>
 
           <Sheet>

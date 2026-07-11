@@ -1,20 +1,22 @@
 <script lang="ts">
+  import { Button } from "$lib/components/ui/button";
+
   let { onContinue }: { onContinue: () => void } = $props();
 </script>
 
 <div class="step">
-  <img class="logo" src="/logo.png" alt="Pytxo" width="96" height="96" />
-  <h1 class="title">Welcome to Reality Deck</h1>
+  <img class="logo" src="/logo.png" alt="Pytxo" width="72" height="72" />
+  <h1 class="title">Welcome to Pytxo Desktop</h1>
   <p class="lead">
-    Your agent hypervisor console — structural telemetry, fleet runs, and Galaxy approvals in one
-    place.
+    See what your coding agents are doing — structure, runs, and approvals — without a wall of
+    terminals.
   </p>
   <ul class="features">
-    <li>3D import topology from Signal Core</li>
-    <li>Dispatch and monitor agent waves</li>
+    <li>Live map of how agent edits touch your code</li>
+    <li>Run and monitor agent waves across workspaces</li>
     <li>Approve risky actions before they land</li>
   </ul>
-  <button type="button" class="primary continue" onclick={onContinue}>Get started</button>
+  <Button class="continue" onclick={onContinue}>Get started</Button>
 </div>
 
 <style>
@@ -28,9 +30,8 @@
     margin: 0 auto;
   }
   .logo {
-    border-radius: 20px;
-    outline: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    border-radius: 12px;
+    border: 1px solid var(--border);
   }
   .title {
     margin: 0;
@@ -53,11 +54,8 @@
     font-size: 0.88rem;
     line-height: 1.6;
   }
-  .continue {
+  :global(.continue) {
     margin-top: 0.5rem;
-    min-height: 44px;
-    padding: 0.6rem 1.75rem;
-    font-size: 0.95rem;
-    border-radius: 10px;
+    min-width: 220px;
   }
 </style>

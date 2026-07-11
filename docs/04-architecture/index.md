@@ -19,7 +19,7 @@ related: [[MOC-home]], [[three-tier-model]], [[product-vision]], [[permission-pr
 ## System views
 
 - [[three-tier-model]] — Presentation · Orchestration · Execution yard
-- [[presentation-passive-telemetry]] · [[reality-deck-visual-system]]
+- [[presentation-passive-telemetry]] · [[desktop-visual-system]]
 - [[mcp-hub-integration]]
 - [[context-diagram]]
 - [[c4-container]]

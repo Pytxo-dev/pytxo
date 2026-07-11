@@ -6,8 +6,8 @@ tags: [product, orchestration, workspace]
 audience: [human, agent]
 layer: product
 created: 2026-06-04
-updated: 2026-06-04
-related: [[product-vision]], [[execution-domains]], [[permission-profile-engine]], [[race-shield]], [[blast-shield]], [[reality-deck-visual-system]], [[pytxo-toml]]
+updated: 2026-07-10
+related: [[product-vision]], [[execution-domains]], [[permission-profile-engine]], [[race-shield]], [[blast-shield]], [[desktop-visual-system]], [[pytxo-toml]]
 ---
 
 # Modular projects (multi-path workspaces)
@@ -22,9 +22,11 @@ Pytxo’s **projects system** is **modular**: you define a **project** once, the
 | CLI | `pytxo project init \| list \| paths \| run` | `pytxo project status` aggregating roots |
 | Dispatch | `project run` — **one `run_id`**, tasks use `root = "label"` for other writable roots | Cross-project DAG |
 | Telemetry | Runs tagged with `project_id` + `root_id` (store migration 004) | Project-scoped catalog DB |
-| Reality Deck | Domain switcher (one repo per row) | Project picker + path list keyed by project id |
+| Pytxo Desktop | Workspace Home + folder tabs | Multi-root Workspace settings (`ProjectPathPanel`) |
 
-**v1 shipped:** a project groups multiple folders; `pytxo project run` executes **one coordinated run** on the primary domain with `task.root` routing and `agents.root_id` telemetry. Read-only roots can be merged into agent context. The Deck lists projects from `~/.pytxo/projects` and filters agents by `root_id`. Single-repo users are unaffected — no manifest means behavior is identical to `pytxo run`.
+**v1 shipped:** a project groups multiple folders; `pytxo project run` executes **one coordinated run** on the primary domain with `task.root` routing and `agents.root_id` telemetry. Read-only roots can be merged into agent context. Single-repo users are unaffected — no manifest means behavior is identical to `pytxo run`.
+
+**v2 shipped (Phase 66 + Desktop Workspaces):** `project_roots` in hypervisor catalog; Desktop Workspace Home lists projects/domains; multi-root tabs open via `list_projects` + `ProjectPathPanel` add/remove; cross-project fleet DAG via `pytxo fleet` (Phase 23). In the UI, a modular project is called a **Workspace**.
 
 ## Concepts
 
@@ -35,7 +37,7 @@ A **project** is a named, persistent workspace that groups:
 - **Path roots** — absolute directories the project may use (monorepo root, sibling service repo, shared `packages/`, design assets folder, etc.).
 - **Primary root** — default cwd for dispatch and for `pytxo.toml` resolution when a root contains config.
 - **Policy** — one [[permission-profile-engine|permission profile]] and billing domain for the project unless overridden per root.
-- **Telemetry channel** — one logical run stream in the Deck for “this project,” even when agents touch multiple roots.
+- **Telemetry channel** — one logical run stream in Desktop for “this project,” even when agents touch multiple roots.
 
 ### Path root
 
@@ -87,7 +89,7 @@ Antigravity-style IDEs treat the workspace as **several folders the agent may se
 | User adds/removes folders | Project manifest edit + Deck “Manage paths” |
 | Single chat / task spanning repos | One `run_id` under `project_id`; waves may schedule agents on different roots |
 
-Pytxo still runs **headless PTY agents** and optional [[reality-deck-visual-system]] telemetry—it does not host the Antigravity UI or Google’s agent runtime.
+Pytxo still runs **headless PTY agents** and optional [[desktop-visual-system]] telemetry—it does not host the Antigravity UI or Google’s agent runtime.
 
 ## Orchestration sketch
 
@@ -103,7 +105,7 @@ flowchart TB
     RS[Race Shield claims]
     WAL[project WAL / catalog]
   end
-  Deck[Reality Deck] --> project
+  Deck[Pytxo Desktop] --> project
   project --> domain
   R1 --> Sched
   R2 --> Sched
@@ -114,7 +116,7 @@ flowchart TB
 
 1. **Dispatch** — `ensure_project(project_id)` loads roots, picks primary for config, registers one domain (or a project-scoped domain id).
 2. **Tasks** — `pytxo.toml` `[[task]]` paths are relative to a **root label** (e.g. `root = "api"`, `paths = ["src/..."]`) or default primary.
-3. **Telemetry** — Events record `project_id`, `root_id`, and `agent_id` so the Deck can filter by folder without merging unrelated projects.
+3. **Telemetry** — Events record `project_id`, `root_id`, and `agent_id` so Desktop can filter by folder without merging unrelated projects.
 4. **Storage** — v2 option: single `pytxo.db` per project under `~/.pytxo/projects/<id>/` with a `roots` table; v1 interim: primary root’s `.pytxo/data` plus metadata sidecar (see global catalog notes in [[execution-domains]]).
 
 ## Moats across multiple roots
@@ -125,12 +127,12 @@ flowchart TB
 | [[blast-shield]] | Isolation per agent per root; “Approve merge” may list roots with pending flush |
 | [[race-shield]] | Claims never span roots unless a task explicitly declares multi-root paths; stdin/PTY per agent unchanged |
 
-## Reality Deck (planned UX)
+## Pytxo Desktop (shipped UX — Phase 66+)
 
-- **Project list** — name, primary root, path count, active run indicator.
-- **Path panel** — roots with labels, read-only badge, disk usage optional.
-- **Topology** — nodes grouped by root (future 3D graph may color by `root_id`).
-- **Logs** — filter by root label; poll cursor keyed by `(project_id, agent_id)` (aligned with shipped Deck cursors per domain/agent).
+- **Workspace Home** — lists projects/domains; multi-root tabs via `list_projects` + `ProjectPathPanel`.
+- **Path panel** — roots with labels, read-only badge.
+- **Topology** — nodes colored by `root_id` (Phase 63).
+- **Logs** — filter by root / agent; poll cursor keyed by domain/agent.
 
 ## CLI (shipped v1)
 
@@ -157,7 +159,7 @@ Do not conflate **Pytxo project** with a customer’s application repository on 
 These were resolved in the [[ADR-0011-modular-project-manifest|ADR-0011]] Phase 17 amendment:
 
 - **Worktrees across different repos:** one worktree per root per agent. Independent repos stay independent; submodule consolidation is not pursued.
-- **Non-git paths:** allowed **read-only** for assets and scaffolding; a full Blast overlay on arbitrary directories is deferred to the overlay spike (Phase 22a).
+- **Non-git paths:** allowed for assets/scaffolding; Blast **sparse copy-layer overlay** works on non-git trees when `isolation = overlay` or `prefer_kernel_overlay` upgrades (Phase 69). Full kernel ProjFS/FUSE virtualization remains north star.
 - **Cross-root `depends_on`:** permitted within a single run with explicit edges across `root` labels (scheduler uses one `run_id` on the primary domain).
 
 `task.root`, root-scoped Race claims, and `agents.root_id` / catalog `project_id` telemetry shipped in Phase 17. Track remaining work in [[mvp-bootstrap]].

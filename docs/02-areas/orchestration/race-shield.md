@@ -6,7 +6,7 @@ tags: [orchestration, concurrency, moat]
 audience: [human, agent]
 layer: orchestration
 created: 2026-06-02
-updated: 2026-06-04
+updated: 2026-07-10
 related: [[dag-flow-engine]], [[sqlite-wal-logging]], [[execution-domains]], [[permission-profile-engine]], [[product-vision]]
 ---
 
@@ -21,15 +21,15 @@ Prevent **concurrent file-write collisions** and stdin/stdout cross-talk when mu
 ## Design
 
 ```text
-Arc<RwLock<SwarmRegistry>>
-  ├── agent_id → PTY handle, cwd, worktree/overlay binding
-  ├── path claims (coarse or semantic, per scheduler wave)
-  └── stdin stream buffers (serialize writes per target)
+SwarmRegistry
+  ├── paths: RwLock<path claims + live agents>
+  └── stdin: Mutex<StdinBuffer>   # separate lock (Phase 70)
 ```
 
 Principles:
 
-- **Lock-free where profiling proves safe**; `RwLock` on the registry is the documented baseline
+- **Separate locks for path claims vs stdin** so PTY stdin pumps do not serialize against disjoint claim waves
+- **Lock-free / path-prefix shards** only after `registry_contention_*` profiling proves need
 - Scheduler ([[dag-flow-engine]]) assigns waves; Race Shield enforces **runtime claims**
 - WAL ([[sqlite-wal-logging]]) remains the audit trail; registry is the live guard
 
@@ -39,9 +39,11 @@ Each [[execution-domains|ExecutionDomain]] owns its own `SwarmRegistry` instance
 
 ## Galaxy HITL extension
 
-For **`Galaxy`** [[permission-profile-engine|permission profiles]], high-risk actions submit to a per-domain **HITL queue** (`HitlQueue` in `pytxo-runner`) and block until orchestration resolves them. The queue exposes `submit`, `pending`, `resolve`, and `wait_blocking`; orchestration surfaces `list_hitl_pending` / `hitl_respond`, the Deck shows an approval panel, and `pytxo hitl list|approve|deny` drives it from the CLI.
+For **`Galaxy`** [[permission-profile-engine|permission profiles]], high-risk actions submit to a per-domain **HITL queue** (`HitlQueue` in `pytxo-runner`) and block until orchestration resolves them. The queue exposes `submit`, `pending`, `resolve`, and `wait_blocking`; orchestration surfaces `list_hitl_pending` / `hitl_respond`, Pytxo Desktop shows an approval panel, and `pytxo hitl list|approve|deny` drives it from the CLI.
 
-**Shipped:** the queue, orchestration API, Tauri IPC (`list_hitl`, `hitl_respond`), Deck panel, and CLI. **Remaining:** wiring runner enforcement call sites for each class of high-risk action (the flush boundary already documents this contract in `commit_workspace`).
+**Shipped:** queue, orchestration API, Tauri IPC, Deck panel, CLI; runner gates for spawn (`classify_risky_command`), MCP proxy, flush / out-of-root writes; **stdin HITL** via `enqueue_agent_stdin` → `gate_spawn_command` on Galaxy (orchestrate).
+
+**Remaining:** broader runtime syscall hooks beyond command-string classifiers; path-prefix claim shards if contention profiles demand them.
 
 ## Integration point
 
@@ -57,7 +59,8 @@ All spawns from `pytxo-runner` register before `exec`. Stop/kill paths deregiste
 | Stdin buffer + MCP `pytxo_stdin` | **Shipped** |
 | Stdin pump into agent PTY | **Shipped** when `execution_backend = pty` (default) — continuous ~15ms drain loop |
 | Subprocess stdin (`subprocess_stdin = true`) | **Shipped (opt-in)** — single drain at spawn; use PTY for long-lived interactive stdin |
-| Galaxy HITL queue + `hitl_respond` IPC + Deck panel + CLI | **Shipped** (enforcement call sites land per risky-op) |
-| Lock-free hot paths | **Deferred** until profiling |
+| Galaxy HITL queue + stdin/spawn/MCP/flush gates | **Shipped** (Phase 64/70) |
+| Separate stdin vs path-claim locks | **Shipped** (Phase 70) |
+| Lock-free / sharded path claims | **Deferred** until profiling |
 
 Do not spawn agents that bypass the registry.

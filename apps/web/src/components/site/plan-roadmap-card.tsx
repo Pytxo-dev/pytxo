@@ -1,6 +1,6 @@
 "use client";
 
-import { SparklesIcon } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -35,7 +35,7 @@ export function PlanRoadmapCard({
     <HoverCard openDelay={120} closeDelay={80}>
       <HoverCardTrigger asChild>
         <div className="block h-full rounded-xl outline-none">
-          <Card className="glass-panel chroma-edge-top h-full border-white/8 transition duration-300 hover:chroma-glow">
+          <Card className="h-full border-white/10 bg-card/30 transition-colors hover:border-white/20 hover:bg-card/45">
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-lg">{name}</CardTitle>
@@ -47,7 +47,7 @@ export function PlanRoadmapCard({
               <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
                 {highlights.map((h) => (
                   <li key={h} className="flex gap-2">
-                    <SparklesIcon className="size-4 shrink-0 text-primary" />
+                    <CheckIcon className="size-4 shrink-0 text-primary" />
                     {h}
                   </li>
                 ))}
@@ -56,7 +56,7 @@ export function PlanRoadmapCard({
           </Card>
         </div>
       </HoverCardTrigger>
-      <HoverCardContent className="glass-panel w-80 border-white/10">
+      <HoverCardContent className="w-80 border-white/10 bg-card">
         <p className="text-sm text-muted-foreground">{detail}</p>
       </HoverCardContent>
     </HoverCard>

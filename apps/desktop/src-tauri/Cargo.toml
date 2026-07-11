@@ -26,6 +26,7 @@ tauri-plugin-process = { workspace = true }
 tauri-plugin-notification = { workspace = true }
 tauri-plugin-updater = { workspace = true }
 tauri-plugin-deep-link = { workspace = true }
+tauri-plugin-single-instance = { workspace = true, features = ["deep-link"] }
 tokio.workspace = true
 pytxo-core = { path = "../../../crates/pytxo-core" }
 pytxo-store = { path = "../../../crates/pytxo-store" }

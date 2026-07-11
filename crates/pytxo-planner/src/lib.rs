@@ -74,14 +74,23 @@ fn planner_mode(config: &PytxoConfig) -> PlannerMode {
     }
 }
 
-/// LLM planner requires Ultra billing + `PYTXO_PLANNER_LLM=1` + planner enabled.
+/// LLM planner requires Ultra billing (local or Link tier) + `PYTXO_PLANNER_LLM=1` + planner enabled.
 pub fn llm_planner_enabled(config: &PytxoConfig) -> bool {
-    if !planner_enabled(config) || !config.billing_mode().is_ultra() {
+    if !planner_enabled(config) || !ultra_billing_active(config) {
         return false;
     }
     std::env::var("PYTXO_PLANNER_LLM")
         .ok()
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
+fn ultra_billing_active(config: &PytxoConfig) -> bool {
+    if config.billing_mode().is_ultra() {
+        return true;
+    }
+    std::env::var("PYTXO_LINK_TIER")
+        .ok()
+        .is_some_and(|t| t.eq_ignore_ascii_case("ultra"))
 }
 
 /// Default stub: instructs the operator to use `/run` or enable the planner.

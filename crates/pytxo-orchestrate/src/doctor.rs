@@ -33,6 +33,7 @@ pub fn run_doctor(repo: Option<&Path>) -> anyhow::Result<DoctorReport> {
         check_pytxo_dirs_writable(&repo_root),
         check_pty_smoke(),
         check_link_reconcile(&cfg),
+        check_org_policy_ceiling(&cfg),
         check_cloud_sandbox(&cfg),
         check_inference_proxy_health(&cfg),
         check_hitl_persistence(&repo_root, &cfg),
@@ -167,6 +168,47 @@ fn check_link_reconcile(cfg: &PytxoConfig) -> DoctorCheck {
             name: "link_reconcile".into(),
             ok: false,
             detail: format!("link reconcile config invalid: {e}"),
+        },
+    }
+}
+
+fn check_org_policy_ceiling(cfg: &PytxoConfig) -> DoctorCheck {
+    let session = std::env::var("PYTXO_ULTRA_SESSION")
+        .ok()
+        .filter(|s| !s.is_empty());
+    if session.is_none() {
+        return DoctorCheck {
+            name: "org_policy_ceiling".into(),
+            ok: true,
+            detail: "skipped (PYTXO_ULTRA_SESSION not set)".into(),
+        };
+    }
+    if !cfg.billing.link_reconcile_enabled() || cfg.billing.proxy_url.trim().is_empty() {
+        return DoctorCheck {
+            name: "org_policy_ceiling".into(),
+            ok: true,
+            detail: "skipped (link_reconcile disabled or proxy_url empty)".into(),
+        };
+    }
+    match crate::entitlements::effective_entitlements(cfg) {
+        Ok(ent) => {
+            let ceiling = ent
+                .permission_ceiling
+                .map(|p| format!("{p:?}"))
+                .unwrap_or_else(|| "none (no org_id on entitlement)".into());
+            DoctorCheck {
+                name: "org_policy_ceiling".into(),
+                ok: true,
+                detail: format!(
+                    "tier={} org_id={:?} permission_ceiling={ceiling}",
+                    ent.tier, ent.org_id
+                ),
+            }
+        }
+        Err(e) => DoctorCheck {
+            name: "org_policy_ceiling".into(),
+            ok: false,
+            detail: format!("entitlements fetch failed: {e}"),
         },
     }
 }

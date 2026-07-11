@@ -51,6 +51,8 @@ export const ipc = {
     invoke<ProjectDto[]>("list_projects").then(unwrap).catch(() => [] as ProjectDto[]),
   selectDomain: (domainId: string) =>
     invoke<void>("select_domain", { domainId }).then(unwrap),
+  ensureWorkspace: (domainId: string) =>
+    invoke<string>("ensure_workspace", { domainId }).then(unwrap),
   listRuns: (limit: number, domainId: string | null) =>
     invoke<RunDto[]>("list_runs", { limit, domainId }).then(unwrap),
   listAgents: (runId: string, domainId: string | null) =>
@@ -112,13 +114,19 @@ export const ipc = {
       .catch(() => [] as AgentArbitrageDto[]),
   checkPytxoCli: () => invoke<boolean>("check_pytxo_cli").then(unwrap).catch(() => false),
   installPytxoCli: () =>
-    invoke<{ phase: string; message: string; cli_present: boolean }>("install_pytxo_cli").then(
-      unwrap,
-    ),
+    invoke<{
+      phase: string;
+      message: string;
+      cli_present: boolean;
+      path_pending: boolean;
+    }>("install_pytxo_cli").then(unwrap),
   installPytxoCliStatus: () =>
-    invoke<{ phase: string; message: string; cli_present: boolean }>(
-      "install_pytxo_cli_status",
-    ).then(unwrap),
+    invoke<{
+      phase: string;
+      message: string;
+      cli_present: boolean;
+      path_pending: boolean;
+    }>("install_pytxo_cli_status").then(unwrap),
   pickWorkspaceFolder: () => invoke<string | null>("pick_workspace_folder"),
   entitlementStatus: (domainId?: string | null) =>
     invoke<{

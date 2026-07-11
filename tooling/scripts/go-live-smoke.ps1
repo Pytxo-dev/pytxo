@@ -76,4 +76,18 @@ foreach ($attempt in 1, 2) {
     Write-Host "  runs/end attempt $attempt OK"
 }
 
+$adminKey = $env:LINK_ADMIN_KEY
+$orgId = $env:PYTXO_ORG_ID
+if ($adminKey -and $orgId) {
+    $adminHeaders = @{ Authorization = "Bearer $adminKey" }
+    Write-Host "==> Enterprise org seats"
+    (Invoke-RestMethod -Uri "$($linkBase.TrimEnd('/'))/v1/orgs/$orgId/seats" -Headers $adminHeaders) | ConvertTo-Json -Compress | Write-Host
+    Write-Host "==> Enterprise org policy (GET)"
+    (Invoke-RestMethod -Uri "$($linkBase.TrimEnd('/'))/v1/orgs/$orgId/policy" -Headers $adminHeaders) | ConvertTo-Json -Compress | Write-Host
+    Write-Host "==> Enterprise org audit (recent)"
+    (Invoke-RestMethod -Uri "$($linkBase.TrimEnd('/'))/v1/orgs/$orgId/audit?limit=5" -Headers $adminHeaders) | ConvertTo-Json -Compress | Write-Host
+} elseif ($adminKey) {
+    Write-Host "==> Skipping org seats/policy (set PYTXO_ORG_ID for Enterprise smoke)"
+}
+
 Write-Host "Go-live smoke OK (run_id=$runId)"

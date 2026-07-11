@@ -88,7 +88,7 @@ Modular project manifest + CLI, Galaxy HITL queue/Deck/CLI, hypervisor catalog, 
 - [x] WAL migration 002 + cost parsers + `pytxo status --json`
 - [x] `pytxo-mcp` stdio server + [[mcp-cursor-setup]]
 - [x] `depends_on` DAG scheduling + ADR-0007
-- [x] Reality Deck v1 in `apps/desktop` (monorepo)
+- [x] Pytxo Desktop v1 in `apps/desktop` (monorepo)
 - [x] IPC v1: `list_runs`, `list_agents`, `tail_events`, `dry_run`, `stop_run`, `git_diff` (dispatch is now `dispatch_run_cmd`)
 
 ## Phases 23 — shipped (hypervisor fleet DAG)
@@ -165,7 +165,7 @@ Modular project manifest + CLI, Galaxy HITL queue/Deck/CLI, hypervisor catalog, 
 - [x] **38** — Deterministic `delta_from_overlay_upper` in `pytxo-core`; runner `sync_delta` before cloud exec; Deck cloud / fallback badge from WAL events; `pytxo-cloud-sandbox` worker pool stub + auth hardening; Link production defaults documented; `link-http` on `pytxo-cli`; Ultra `link_reconcile` defaults on
 - [x] **39** — Link org policy ceiling in orchestrate when `PYTXO_ULTRA_SESSION` set; Race Shield registry contention benchmark tests; [[deepspace-network-v2]] spike; Enterprise beta in [[tiers-hobbyist-pro-max]]; [[competitive-benchmarks]] overlay vs worktree note
 
-## Phases 47–49 — shipped (Reality Deck 3D + planner v2 + Enterprise GA)
+## Phases 47–49 — shipped (Pytxo Desktop 3D + planner v2 + Enterprise GA)
 
 - [x] **47** — ADR-0023 Three.js 3D topology; `TopologyScene3D.svelte` center viewport; collapsible log panel; light xterm theme + localStorage; structural graph IPC v2 + symbol-level nodes (`enrich_symbol_nodes`)
 - [x] **48** — `SignalBackedPlanner` (`PYTXO_PLANNER=signal` / `[planner] mode = "signal"`); canvas fleet wave graph in `FleetPanel.svelte`
@@ -273,6 +273,76 @@ Modular project manifest + CLI, Galaxy HITL queue/Deck/CLI, hypervisor catalog, 
 - [x] Audit for policy/seat changes; web account shows seats + org policy
 - [x] `docs/07-guides/enterprise-ga-launch-checklist.md`
 
+## Phase 60 — shipped (Enterprise GA ops gate)
+
+- [x] Seat enforcement on `admin_upsert_entitlement` when org is at capacity
+- [x] Paddle webhook `org_id` via `custom_data` → Link provision
+- [x] `pytxo doctor` `org_policy_ceiling` check when `PYTXO_ULTRA_SESSION` set
+- [x] LLM planner gated on Link `ultra` tier (`PYTXO_LINK_TIER` cache)
+- [x] `go-live-smoke` org seats/policy/audit paths; audit retention runbook section
+- [x] `NEXT_PUBLIC_LINK_URL` in `apps/web/.env.local.example`
+
+## Phase 61 — shipped (competitive proof + docs honesty)
+
+- [x] Pinned benchmark table in [[competitive-benchmarks]] (operator hardware profile)
+- [x] [[pytxo-vs-ade-virtual-workspace]] compare guide
+- [x] Vision + `reality-deck-visual-system` + `crates/README.md` shipped-vs-planned sync
+
+## Phase 62 — shipped (Blast kernel overlay production path)
+
+- [x] `[blast].prefer_kernel_overlay` (default true) + `effective_isolation_mode()` in `pytxo-runner`
+- [x] Orchestrate runs use effective isolation when doctor overlay probe passes
+
+## Phase 63 — shipped (Pytxo Desktop 3D v2 + Phase 2.1)
+
+- [x] `TopologyScene3D`: `root_id` color lanes, edge particles, 60 Hz WAL poll (`App.svelte` 16 ms interval)
+- [x] ADR-0023 deferred polish (instancing deferred; particles + root lanes shipped)
+
+## Phase 64 — shipped (Galaxy runtime HITL depth)
+
+- [x] Expanded `hitl_gate` classifiers: `git.destructive`, `proc.infrastructure`, `fs.permission`
+- [x] MCP `resources/subscribe` gated via Galaxy HITL queue
+
+## Phase 65 — shipped (DeepSpace Windows network)
+
+- [x] Windows WFP rule probe in `isolation_mechanism()` (`windows-wfp-rule-present`)
+- [x] Honest platform matrix documented in ADR-0026 consequences
+
+## Phase 66 — shipped (modular projects v2)
+
+- [x] `project_roots` table in hypervisor catalog (`pytxo-store::Catalog`)
+- [x] `ensure_project` upserts all roots; fleet cross-project DAG unchanged (Phase 23)
+
+## Phase 67 — shipped (MCP hub v3 + cloud hardening spike)
+
+- [x] MCP resource subscriptions: `subscribe_resource`, `notify_resource_updated` in `mcp_hub.rs`
+- [x] Cloud gVisor/Kata + in-process OTel: evaluation notes in [[ADR-0025-cloud-runtime-isolation]] / [[ADR-0027-service-observability-contract]]
+
+## Phase 69 — shipped (Blast kernel overlay default)
+
+- [x] `prefer_kernel_overlay` default true; `doctor_overlay_probe` always OK for sparse copy-layer
+- [x] `effective_isolation_mode` upgrades Orbit → Overlay when probe passes
+- [x] Non-git overlay via always-on copy-layer; Windows `projfs-sparse-copy-v2` compiled by default
+- [x] Honest ProjFS module docs: copy-layer is production interim until kernel provider
+
+## Phase 70 — shipped (Race + Galaxy depth)
+
+- [x] `SwarmRegistry`: separate `RwLock` (paths) + `Mutex` (stdin) to cut stdin/claim contention
+- [x] Expanded HITL classifier tests (`git.destructive`, `proc.infrastructure`, `fs.permission`, docker/net/packages)
+- [x] [[race-shield]] / [[permission-profile-engine]] Remaining sections updated (stdin HITL already wired in orchestrate)
+
+## Phase 71 — shipped (DeepSpace OS)
+
+- [x] Windows: `PYTXO_DEEPSPACE_WFP=1` attempts elevated program-scoped netsh rule; `isolation_mechanism` distinguishes stub vs `windows-wfp-rule-present`
+- [x] macOS: richer `sandbox-exec` Seatbelt profile (deny outbound, allow localhost + local FS)
+- [x] `PYTXO_ISOLATION_MECHANISM` env on DeepSpace Windows spawns
+
+## Phase 72 — shipped (Cloud + benchmarks honesty)
+
+- [x] Cloud sandbox `/health` adds `egress_mode`, `docker_available`, `redis_configured`; `GET /v1/egress` posture notes
+- [x] [[ADR-0025-cloud-runtime-isolation]] consequences updated; [[competitive-benchmarks]] TBD cells pinned with date
+- [x] Docs honesty: [[mcp-router]], [[github-organization]], [[modular-projects]]
+
 ## Phase 31 — shipped (Signal depth + DeepSpace reads)
 
 - [x] tree-sitter grammars: Java, C/C++, Ruby (`pytxo-signal`)
@@ -290,7 +360,7 @@ cargo test --workspace
 cargo run -p pytxo-cli -- --version
 ```
 
-Reality Deck (`apps/desktop`):
+Pytxo Desktop (`apps/desktop`):
 
 ```bash
 cd apps/desktop && npm ci && npm run check

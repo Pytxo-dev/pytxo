@@ -22,7 +22,7 @@ Pytxo targets a different layer: **cross-tool orchestration** with explicit reso
 |-----------|-------------------|--------|
 | Scope | Claude Code sessions | Headless CLIs + MCP (Cursor, VS Code, etc.) |
 | Coordination | Lead + mailbox + tasks on disk | Rust DAG + WAL + MCP hub |
-| UI | tmux/split panes optional | Optional Reality Deck (telemetry) |
+| UI | tmux/split panes optional | Optional Pytxo Desktop (telemetry) |
 | FS model | Project checkout per teammate | [[sparse-overlay-fs]] |
 | Context | Per-session CLAUDE.md load | [[adaptive-semantic-scaffolding]] fidelity tiers |
 | Cost | N × full model sessions | Bounded by tier + [[cost-and-swarm-limits]] |

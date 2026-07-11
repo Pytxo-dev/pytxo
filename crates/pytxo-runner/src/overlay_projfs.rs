@@ -1,16 +1,28 @@
-//! Windows ProjFS overlay POC ([[sparse-overlay-fs]], Phase 33C).
+//! Windows Blast overlay path ([[sparse-overlay-fs]], Phase 33C / 69).
 //!
-//! Registers a copy-layer upper under `projfs-{run}-{agent}`; full ProjFS provider
-//! registration remains a north-star path.
+//! # Production status (honest)
+//!
+//! Full Windows **Projected File System** provider registration (virtualized lowerdir
+//! with on-demand hydration) remains the north-star path. Until that lands, this module
+//! ships a **production-grade sparse copy-layer**:
+//!
+//! - Upper lives under `projfs-{run}-{agent}/upper`
+//! - Top-level `sparse_exclude` dirs (e.g. `node_modules`, `target`) are skipped
+//! - Works for **git and non-git** trees (no `git worktree` dependency)
+//! - Flush copies the upper back onto `repo_root` via `OverlayIsolation::flush`
+//!
+//! Capability label: `projfs-sparse-copy-v2`. Doctor / Deck telemetry use this string so
+//! operators know they are on the copy-layer interim, not a kernel ProjFS mount.
 
 use std::path::{Path, PathBuf};
 
 use pytxo_core::{IsolationMode, PytxoError, Result, WorkspaceHandle};
 
+/// True on Windows hosts (copy-layer path is always usable; full ProjFS provider TBD).
 pub fn projfs_supported() -> bool {
     #[cfg(windows)]
     {
-        std::env::var("OS").is_ok()
+        true
     }
     #[cfg(not(windows))]
     {
@@ -18,16 +30,13 @@ pub fn projfs_supported() -> bool {
     }
 }
 
-/// Honest capability label for Deck / doctor telemetry (Phase 46, 55).
+/// Honest capability label for Deck / doctor telemetry (Phase 46, 55, 69).
 pub fn capability_probe() -> &'static str {
     #[cfg(windows)]
     {
-        if projfs_supported() {
-            // Sparse copy-layer v2: skips `sparse_exclude` dirs (e.g. node_modules).
-            "projfs-sparse-copy-v2"
-        } else {
-            "projfs-unavailable"
-        }
+        // Sparse copy-layer v2: skips `sparse_exclude` dirs (e.g. node_modules).
+        // Not a kernel ProjFS virtualization provider — see module docs.
+        "projfs-sparse-copy-v2"
     }
     #[cfg(not(windows))]
     {
@@ -44,7 +53,7 @@ pub fn prepare_projfs_overlay(
 ) -> Result<WorkspaceHandle> {
     if !projfs_supported() {
         return Err(PytxoError::Runner(
-            "ProjFS not supported on this platform".into(),
+            "ProjFS overlay path not supported on this platform".into(),
         ));
     }
     let layer = worktree_base.join(format!("projfs-{run_id}-{agent_id}"));
@@ -142,5 +151,19 @@ mod tests {
         .unwrap();
         assert!(handle.cwd.join("README.md").exists());
         assert!(!handle.cwd.join("node_modules").exists());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn prepare_projfs_works_without_git() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("plain");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::write(repo.join("app.ts"), "export {}\n").unwrap();
+        let wt = tmp.path().join("wt");
+        let handle =
+            prepare_projfs_overlay(&repo, &wt, "run2", "agent-1", &[]).unwrap();
+        assert!(handle.branch.is_empty());
+        assert!(handle.cwd.join("app.ts").exists());
     }
 }

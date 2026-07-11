@@ -1,5 +1,8 @@
 <script lang="ts">
   import type { HitlDto, StructuralGraphDto } from "../../lib/types";
+  import { Button } from "$lib/components/ui/button";
+  import { Badge } from "$lib/components/ui/badge";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
 
   let {
     diffText = "",
@@ -26,21 +29,34 @@
   const selectedNode = $derived(
     structural?.nodes.find((n) => n.id === selectedNodeId) ?? null,
   );
+
+  const isEmpty = $derived(
+    !selectedNode && hitl.length === 0 && !dryRunOut && !diffText,
+  );
 </script>
 
-<aside class="inspector glass-panel">
+<aside class="inspector">
+  {#if isEmpty}
+    <section class="block empty-state">
+      <h2 class="panel-title">Inspector</h2>
+      <p class="empty-copy">
+        Select a file in the topology, or run agents to see diffs and approvals here.
+      </p>
+    </section>
+  {/if}
+
   {#if selectedNode}
     <section class="block">
       <h2 class="panel-title">Node</h2>
       <p class="node-id">{selectedNode.id}</p>
       <p class="node-meta">
         {#if selectedNode.edited}
-          <span class="tag tag--gold">Edited</span>
+          <Badge variant="secondary">Edited</Badge>
         {:else}
-          <span class="tag">File</span>
+          <Badge variant="muted">File</Badge>
         {/if}
         {#if selectedNode.label.includes("::")}
-          <span class="tag tag--violet">Symbol</span>
+          <Badge variant="outline">Symbol</Badge>
         {/if}
       </p>
     </section>
@@ -48,17 +64,24 @@
 
   {#if hitl.length > 0}
     <section class="block">
-      <h2 class="panel-title panel-title--gold">Approvals ({hitl.length})</h2>
+      <h2 class="panel-title">Approvals ({hitl.length})</h2>
       <ul class="hitl">
         {#each hitl as req}
           <li class="hitl-item">
             <div class="hitl-action">{req.action}</div>
             <div class="hitl-reason">{req.reason}</div>
             <div class="hitl-buttons">
-              <button type="button" class="gold" onclick={() => onRespondHitl(req.id, true)}>
+              <Button size="sm" class="flex-1" onclick={() => onRespondHitl(req.id, true)}>
                 Approve
-              </button>
-              <button type="button" onclick={() => onRespondHitl(req.id, false)}>Deny</button>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                class="flex-1"
+                onclick={() => onRespondHitl(req.id, false)}
+              >
+                Deny
+              </Button>
             </div>
           </li>
         {/each}
@@ -66,18 +89,33 @@
     </section>
   {/if}
 
+  {#if dryRunOut}
+    <section class="block">
+      <h2 class="panel-title">Preview</h2>
+      <ScrollArea class="preview-scroll">
+        <pre class="diff-body">{dryRunOut}</pre>
+      </ScrollArea>
+    </section>
+  {/if}
+
   <section class="block block--grow">
-    <h2 class="panel-title">
-      Diff
-      {#if isolationBackend}
-        <span class="backend-badge">{isolationBackend}</span>
-      {/if}
-    </h2>
-    <div class="diff-actions">
-      <button type="button" onclick={onLoad}>Load</button>
-      <button type="button" class="gold chroma-glow" onclick={onCommit}>Approve merge</button>
+    <div class="diff-header">
+      <h2 class="panel-title">
+        Diff
+        {#if isolationBackend}
+          <Badge variant="muted">{isolationBackend}</Badge>
+        {/if}
+      </h2>
+      <div class="diff-actions">
+        <Button size="sm" variant="outline" onclick={onLoad}>Load</Button>
+        <Button size="sm" onclick={onCommit}>Approve merge</Button>
+      </div>
     </div>
-    <pre class="diff-body">{diffText || dryRunOut || "Dry-run output appears here after Dry run."}</pre>
+    <ScrollArea class="diff-scroll">
+      <pre class="diff-body">
+        {diffText || "Load a diff after agents edit files. Approve merge when you are ready."}
+      </pre>
+    </ScrollArea>
   </section>
 </aside>
 
@@ -85,53 +123,54 @@
   .inspector {
     width: 300px;
     flex-shrink: 0;
-    margin: 0.5rem 0.5rem 0.5rem 0;
-    padding: 0.85rem;
-    border-radius: 16px;
+    padding: 0.75rem;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
     min-height: 0;
-    overflow: auto;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    border-left: 1px solid var(--border);
+    background: var(--card);
+  }
+  .block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-height: 0;
   }
   .block--grow {
     flex: 1;
-    display: flex;
-    flex-direction: column;
     min-height: 0;
+  }
+  .empty-state {
+    padding: 0.25rem 0;
+  }
+  .empty-copy {
+    margin: 0;
+    font-size: var(--text-sm, 0.875rem);
+    color: var(--muted-foreground);
+    line-height: 1.45;
   }
   .panel-title {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
+    margin: 0;
+    font-size: var(--text-sm, 0.875rem);
+    font-weight: 600;
   }
   .node-id {
     font-family: ui-monospace, monospace;
-    font-size: 0.75rem;
+    font-size: var(--text-xs, 0.75rem);
     word-break: break-all;
-    margin: 0 0 0.35rem;
+    margin: 0;
   }
   .node-meta {
     display: flex;
     gap: 0.35rem;
     margin: 0;
-  }
-  .tag {
-    font-size: 0.65rem;
-    padding: 0.1rem 0.35rem;
-    border-radius: 6px;
-    background: color-mix(in oklab, var(--brand-teal) 14%, transparent);
-    color: var(--brand-teal);
-  }
-  .tag--gold {
-    background: color-mix(in oklab, var(--brand-gold) 14%, transparent);
-    color: var(--brand-gold);
-  }
-  .tag--violet {
-    background: color-mix(in oklab, var(--brand-violet) 14%, transparent);
-    color: var(--brand-violet);
+    flex-wrap: wrap;
   }
   ul.hitl {
     list-style: none;
@@ -139,56 +178,52 @@
     margin: 0;
   }
   .hitl-item {
-    border-radius: 10px;
+    border-radius: var(--panel-radius);
     padding: 0.5rem;
     margin-bottom: 0.4rem;
-    background: color-mix(in oklab, var(--brand-gold) 8%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand-gold) 25%, transparent);
+    border: 1px solid var(--border);
+    background: color-mix(in oklab, var(--foreground) 3%, transparent);
   }
   .hitl-action {
     font-weight: 600;
-    color: var(--brand-gold);
-    font-size: 0.85rem;
+    font-size: var(--text-sm, 0.875rem);
   }
   .hitl-reason {
-    font-size: 0.75rem;
-    opacity: 0.85;
+    font-size: var(--text-xs, 0.75rem);
+    color: var(--muted-foreground);
     margin: 0.25rem 0 0.4rem;
   }
   .hitl-buttons {
     display: flex;
     gap: 0.35rem;
   }
-  .hitl-buttons button {
-    flex: 1;
-    min-height: 36px;
-    border-radius: 8px;
-  }
-  .backend-badge {
-    font-size: 0.65rem;
-    padding: 0.1rem 0.35rem;
-    border-radius: 6px;
-    color: var(--brand-teal);
-    background: color-mix(in oklab, var(--brand-teal) 12%, transparent);
+  .diff-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    flex-shrink: 0;
   }
   .diff-actions {
     display: flex;
     gap: 0.35rem;
-    margin-bottom: 0.5rem;
   }
-  .diff-actions button {
-    min-height: 36px;
-    border-radius: 8px;
+  :global(.preview-scroll) {
+    max-height: 140px;
+  }
+  :global(.diff-scroll) {
+    flex: 1;
+    min-height: 0;
   }
   .diff-body {
-    flex: 1;
-    overflow: auto;
-    font-size: 11px;
     margin: 0;
     padding: 0.65rem;
-    border-radius: 10px;
-    background: color-mix(in oklab, var(--card) 55%, transparent);
+    border-radius: var(--panel-radius);
+    background: color-mix(in oklab, var(--foreground) 4%, transparent);
     font-family: ui-monospace, monospace;
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 6%, transparent);
+    font-size: var(--text-xs, 0.75rem);
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid var(--border);
   }
 </style>

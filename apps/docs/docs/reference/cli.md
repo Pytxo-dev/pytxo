@@ -86,6 +86,6 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the shell.
 
 ## Agent IDs
 
-Format: `{run_uuid}:agent-N` — use with `pytxo logs --agent`.
+Format: `{run_uuid}:agent-N`. Use with `pytxo logs --agent`.
 
 See also: [`pytxo.toml`](/docs/reference/pytxo-toml) · [Fleet runs](/docs/concepts/fleet-runs) · [Galaxy approvals](/docs/concepts/galaxy-approvals)

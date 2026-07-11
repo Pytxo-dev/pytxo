@@ -10,30 +10,56 @@ export const metadata: Metadata = {
   description: "Manage your Pytxo subscription and team settings.",
 };
 
+const QUICK_LINKS = [
+  { href: "/plans", label: "Compare plans", detail: "Core, Pro, Max, Ultra" },
+  { href: "/download", label: "Download", detail: "CLI and Desktop installers" },
+  { href: "/docs", label: "Docs", detail: "Install, tutorials, reference" },
+  { href: "/docs/getting-started/mcp-from-cursor", label: "MCP setup", detail: "Connect Cursor or VS Code" },
+] as const;
+
 export default function AccountPage() {
   return (
-    <div className="mx-auto max-w-2xl px-4 py-20 sm:px-6">
-      <h1 className="text-3xl font-semibold tracking-tight">
-        <span className="chroma-text">Account</span>
-      </h1>
-      <p className="mt-2 text-muted-foreground">
-        Pro, Max, and Ultra tiers sync entitlements through Pytxo Link after sign-in.
-      </p>
+    <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-24">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Account</h1>
+        <p className="max-w-2xl text-muted-foreground">
+          Sign in to sync Pro, Max, and Ultra entitlements through Pytxo Link. Local Core
+          works without an account.
+        </p>
+      </div>
 
-      <Card className="glass-panel chroma-edge-top mt-10 border-white/8">
-        <CardHeader>
-          <CardTitle>Subscription</CardTitle>
-          <CardDescription>Sign in to view your plan and org policies.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <Suspense fallback={<p className="text-sm text-muted-foreground">Loading account…</p>}>
-            <AccountAuth />
-          </Suspense>
-          <Link href="/plans" className="text-sm text-primary hover:underline">
-            Compare plans →
-          </Link>
-        </CardContent>
-      </Card>
+      <div className="mt-10 grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:gap-12">
+        <Card className="border-border bg-card/30">
+          <CardHeader>
+            <CardTitle>Subscription</CardTitle>
+            <CardDescription>Plan, agent limits, and org policy from Pytxo Link.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Suspense fallback={<p className="text-sm text-muted-foreground">Loading account…</p>}>
+              <AccountAuth />
+            </Suspense>
+          </CardContent>
+        </Card>
+
+        <div className="flex flex-col gap-4 border-t border-border pt-6 lg:border-t-0 lg:border-l lg:pl-8 lg:pt-0">
+          <div>
+            <h2 className="text-sm font-semibold tracking-tight">Quick links</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Common next steps from your account.</p>
+          </div>
+          <nav className="flex flex-col gap-1">
+            {QUICK_LINKS.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-[var(--radius-md)] px-2 py-2.5 transition-colors hover:bg-muted/40"
+              >
+                <span className="block text-sm font-medium text-foreground">{item.label}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{item.detail}</span>
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </div>
     </div>
   );
 }

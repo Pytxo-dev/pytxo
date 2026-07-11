@@ -17,7 +17,7 @@ Pytxo wins through **developer-led, high-density value demonstration**, not ADE-
 ```text
 Open-source Rust CLI (BYOK, zero bloat) — github.com/Pytxo-dev
         ↓
-Tauri UI (Reality Deck / monitoring)
+Tauri UI (Pytxo Desktop / monitoring)
         ↓
 Cloud subscriptions (cache + hosted sandboxes)
 ```

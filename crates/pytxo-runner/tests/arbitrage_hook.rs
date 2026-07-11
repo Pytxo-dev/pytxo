@@ -84,6 +84,7 @@ async fn arbitrage_rows_written_when_signal_core_enabled() {
         pty_rows: 24,
         pty_cols: 80,
         hitl: None,
+        hitl_manual_flush: false,
         agent_paths: std::collections::HashMap::new(),
         agent_fidelity: std::collections::HashMap::new(),
         roots: std::collections::HashMap::new(),

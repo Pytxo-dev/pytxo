@@ -43,7 +43,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 ### Architecture
 
 - [[architecture-index]] — [[three-tier-model]], [[context-diagram]], [[c4-container]]
-- [[presentation-passive-telemetry]] · [[reality-deck-visual-system]]
+- [[presentation-passive-telemetry]] · [[desktop-visual-system]]
 - [[mcp-hub-integration]]
 
 ### Context (agent code materialization)

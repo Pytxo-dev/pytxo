@@ -22,6 +22,6 @@ When a swarm task exceeds local capacity or policy, the Rust core **offloads the
 
 ## Local machine
 
-Stays cool and quiet; telemetry streams to the Reality Deck.
+Stays cool and quiet; telemetry streams to the Pytxo Desktop.
 
 Parent: [[hybrid-execution]].

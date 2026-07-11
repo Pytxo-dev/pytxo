@@ -4,7 +4,7 @@ title: Testing ADE CLIs
 
 # Testing ADE CLIs with Pytxo
 
-Pytxo orchestrates **headless terminal agents** — you install the ADE CLI separately and Pytxo spawns it inside managed PTYs with git worktree isolation and Signal Core context.
+Pytxo orchestrates **headless terminal agents**. You install the agent CLI separately; Pytxo spawns it inside managed PTYs with git worktree isolation and Signal Core context.
 
 ## Prerequisites
 
@@ -111,7 +111,7 @@ cd $env:PYTXO_TEST_REPO
 ..\recipes\smoke-context.ps1
 ```
 
-The stub agent prints `PYTXO_CONTEXT_DIR` and reads `manifest.json` — see the [context launch contract](https://github.com/Pytxo-dev/pytxo/blob/main/docs/02-areas/orchestration/context-launch-contract.md) in the repo.
+The stub agent prints `PYTXO_CONTEXT_DIR` and reads `manifest.json`. See the [context launch contract](https://github.com/Pytxo-dev/pytxo/blob/main/docs/02-areas/orchestration/context-launch-contract.md) in the repo.
 
 ## Cursor (MCP, not `--cmd`)
 

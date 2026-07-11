@@ -13,55 +13,53 @@ import {
 const AGENTS = [
   {
     name: "Antigravity CLI (agy)",
-    role: "Headless PTY child",
+    role: "Background agent process",
     config: 'cli_adapter = "agy"',
-    mode: "Primary ADE",
+    mode: "Terminal agent",
   },
   {
     name: "Claude Code",
-    role: "Headless PTY child",
+    role: "Background agent process",
     config: 'cli_adapter = "claude_code"',
-    mode: "BYOK",
+    mode: "Your API keys",
   },
   {
     name: "OpenAI Codex CLI",
     role: 'pytxo run --cmd "codex …"',
     config: "generic adapter",
-    mode: "BYOK",
+    mode: "Your API keys",
   },
   {
     name: "Aider / custom scripts",
     role: "Any shell command",
     config: "generic adapter",
-    mode: "BYOK",
+    mode: "Your API keys",
   },
   {
     name: "Cursor",
-    role: "MCP (pytxo-mcp)",
+    role: "Editor integration (MCP)",
     config: "IDE drives Pytxo",
-    mode: "Local MCP",
+    mode: "Local tools",
   },
 ] as const;
 
 export function SupportedAgents() {
   return (
     <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-20">
-      <div className="mb-8 flex flex-col gap-3 text-center">
-        <h2 className="text-2xl font-semibold sm:text-3xl">
-          Works with <span className="chroma-text">your CLI</span>
-        </h2>
-        <p className="mx-auto max-w-2xl text-muted-foreground">
-          Pytxo is the hypervisor — you bring the terminal agent. Spawn agy, Claude Code,
-          Codex, or any command via{" "}
+      <div className="mb-8 flex max-w-2xl flex-col gap-3">
+        <h2 className="text-2xl font-semibold sm:text-3xl">Works with your CLI</h2>
+        <p className="text-muted-foreground">
+          Pytxo coordinates the agent. You choose the CLI. Run Antigravity (agy),
+          Claude Code, Codex, or any shell command via{" "}
           <code className="text-foreground/90">pytxo run --cmd</code>.
         </p>
       </div>
-      <div className="glass-panel overflow-hidden rounded-xl border border-white/8">
+      <div className="overflow-hidden rounded-xl border border-white/10 bg-card/30">
         <Table>
           <TableHeader>
             <TableRow className="border-white/8 hover:bg-transparent">
               <TableHead>Agent</TableHead>
-              <TableHead>Role in Pytxo</TableHead>
+              <TableHead>How it runs</TableHead>
               <TableHead className="hidden sm:table-cell">Config hint</TableHead>
               <TableHead>Mode</TableHead>
             </TableRow>
@@ -84,12 +82,12 @@ export function SupportedAgents() {
           </TableBody>
         </Table>
       </div>
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p className="mt-6 text-sm text-muted-foreground">
         <Link
           href="/docs/getting-started/testing-ade-clis"
           className="font-medium text-primary hover:underline"
         >
-          Testing ADE CLIs with Pytxo →
+          Testing terminal agent CLIs with Pytxo
         </Link>
       </p>
     </section>

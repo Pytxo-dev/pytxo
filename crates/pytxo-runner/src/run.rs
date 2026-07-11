@@ -64,6 +64,9 @@ pub struct RunContext {
     /// Galaxy HITL queue ([[permission-profile-engine]]). When set, flushes that
     /// `flush_requires_approval()` block until a human approves via the queue.
     pub hitl: Option<crate::hitl::HitlQueue>,
+    /// When true, `commit_workspace` skips the HITL queue (Deck/CLI Approve merge
+    /// is itself the human act). Automated run flushes must leave this false.
+    pub hitl_manual_flush: bool,
     /// Per-agent extra context paths (`[[agent]].paths`), merged with task paths
     /// when materializing context ([[signal-core]]).
     pub agent_paths: HashMap<String, Vec<String>>,
@@ -423,11 +426,22 @@ async fn run_one_agent(
             profile.as_str()
         )));
     }
+    // Galaxy: public egress is HITL-gated (not hard-denied) so reviewers can allow one-shot fetches.
     if command_implies_egress(&cmd) && !net.egress_allowed("1.1.1.1", 443) {
-        return Err(PytxoError::Runner(format!(
-            "runtime TCP egress denied for {} profile",
-            profile.as_str()
-        )));
+        if profile == PermissionProfile::Galaxy {
+            crate::hitl_gate::gate_hitl_action(
+                ctx.hitl.as_ref(),
+                profile,
+                &agent_key,
+                "net.egress",
+                "runtime TCP egress to public internet",
+            )?;
+        } else {
+            return Err(PytxoError::Runner(format!(
+                "runtime TCP egress denied for {} profile",
+                profile.as_str()
+            )));
+        }
     }
     if profile == PermissionProfile::DeepSpace {
         if net.egress_allowed("1.1.1.1", 443) {
@@ -993,7 +1007,9 @@ pub fn commit_workspace(
         ));
     }
     if engine.flush_requires_approval() {
-        if let Some(hitl) = ctx.hitl.as_ref() {
+        if ctx.hitl_manual_flush {
+            // Deck/CLI Approve merge is the human act; flush without queue.
+        } else if let Some(hitl) = ctx.hitl.as_ref() {
             let agent_key = if workspace.branch.is_empty() {
                 ctx.run_id.0.clone()
             } else {
@@ -1027,6 +1043,11 @@ pub fn commit_workspace(
                     return Err(PytxoError::Runner("flush approval timed out".into()));
                 }
             }
+        } else {
+            return Err(PytxoError::Runner(
+                "flush requires HITL queue (set hitl_manual_flush for Deck/CLI approve path)"
+                    .into(),
+            ));
         }
     }
     let isolation = crate::blast::isolation_for_mode(ctx.isolation_mode);

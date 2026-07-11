@@ -334,9 +334,11 @@ jobs:
           projectPath: apps/desktop
           tagName: ${{ env.TAG_NAME }}
           releaseName: ${{ env.TAG_NAME }}
-          releaseBody: "Reality Deck desktop installers"
+          releaseBody: "Pytxo Desktop installers"
           releaseDraft: true
           prerelease: false
+          includeRelease: false
+          includeUpdaterJson: false
           args: --target ${{ matrix.rust_target }}
 
       - name: Upload desktop artifact

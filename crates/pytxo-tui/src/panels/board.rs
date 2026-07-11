@@ -2,7 +2,7 @@ use pytxo_core::AgentSpec;
 use pytxo_orchestrate::{DashboardSnapshot, DoctorReport};
 use pytxo_runner::HitlRequest;
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap};
 use ratatui::Frame;
@@ -90,48 +90,54 @@ fn draw_header(
             .join(",")
     };
     let total_active: usize = snapshot.domains.iter().map(|d| d.active_runs).sum();
-    let mut spans = vec![
+
+    // Line 1: identity (product, version, repo, trust)
+    let mut identity = vec![
         Span::styled(" pytxo ", theme::title()),
         Span::styled(format!("v{} ", snapshot.version), theme::chroma_cyan()),
-        Span::styled(
-            truncate(&snapshot.repo_root, 28),
-            Style::default().fg(ratatui::style::Color::White),
-        ),
-        Span::styled(format!(" · {trust_tier} · "), theme::muted()),
+        Span::styled(truncate(&snapshot.repo_root, 36), theme::foreground()),
+        Span::styled(format!(" · {trust_tier}"), theme::muted()),
     ];
     if let Some(org) = org_policy {
-        spans.push(Span::styled(format!("{org} · "), theme::chroma_cyan()));
+        identity.push(Span::styled(format!(" · {org}"), theme::chroma_cyan()));
     }
-    spans.extend([
-        Span::styled(doctor_label, doctor_style),
-        Span::styled(format!(" · run {active} · {agent_hint}"), theme::muted()),
-        Span::styled(
-            format!(
-                " · {} domain(s) · {} active",
-                snapshot.domains.len(),
-                total_active
-            ),
-            theme::muted(),
-        ),
-    ]);
-    let text = Line::from(spans);
-    frame.render_widget(Paragraph::new(text).style(theme::header_bg()), area);
+    frame.render_widget(
+        Paragraph::new(Line::from(identity)).style(theme::header_bg()),
+        Rect {
+            height: 1,
+            ..area
+        },
+    );
 
-    if snapshot.domains.len() > 1 {
-        draw_domains_strip(frame, area, snapshot);
+    // Line 2: status (doctor, run, agents, domains)
+    if area.height >= 2 {
+        let status = Line::from(vec![
+            Span::styled(" ", theme::muted()),
+            Span::styled(doctor_label, doctor_style),
+            Span::styled(format!(" · run {active} · {agent_hint}"), theme::muted()),
+            Span::styled(
+                format!(
+                    " · {} domain(s) · {} active",
+                    snapshot.domains.len(),
+                    total_active
+                ),
+                theme::muted(),
+            ),
+        ]);
+        let status_area = Rect {
+            y: area.y + 1,
+            height: 1,
+            ..area
+        };
+        if snapshot.domains.len() > 1 {
+            draw_domains_strip(frame, status_area, snapshot);
+        } else {
+            frame.render_widget(Paragraph::new(status).style(theme::header_bg()), status_area);
+        }
     }
 }
 
-fn draw_domains_strip(frame: &mut Frame, header_area: Rect, snapshot: &DashboardSnapshot) {
-    if header_area.height < 2 {
-        return;
-    }
-    let strip = Rect {
-        x: header_area.x,
-        y: header_area.y + 1,
-        width: header_area.width,
-        height: 1,
-    };
+fn draw_domains_strip(frame: &mut Frame, strip: Rect, snapshot: &DashboardSnapshot) {
     let parts: Vec<String> = snapshot
         .domains
         .iter()
@@ -152,7 +158,7 @@ fn draw_domains_strip(frame: &mut Frame, header_area: Rect, snapshot: &Dashboard
         String::new()
     };
     frame.render_widget(
-        Paragraph::new(format!("domains {}{}", parts.join(" · "), more)).style(theme::muted()),
+        Paragraph::new(format!(" domains {}{}", parts.join(" · "), more)).style(theme::muted()),
         strip,
     );
 }
@@ -201,15 +207,11 @@ fn draw_runs(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, select
     .block(
         Block::default()
             .borders(Borders::TOP)
-            .border_style(theme::chroma_border(3))
-            .title(Span::styled(" board ", theme::chroma_gold()))
+            .border_style(theme::border())
+            .title(Span::styled(" board ", theme::title()))
             .style(theme::panel_bg()),
     )
-    .row_highlight_style(
-        Style::default()
-            .bg(ratatui::style::Color::Rgb(30, 20, 46))
-            .add_modifier(Modifier::BOLD),
-    );
+    .row_highlight_style(theme::selection_bg().add_modifier(Modifier::BOLD));
     let mut state = TableState::default().with_selected(Some(selected));
     frame.render_stateful_widget(table, area, &mut state);
 
@@ -238,26 +240,42 @@ fn draw_hitl(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, select
     let pending = &snapshot.hitl_pending;
     let body = if pending.is_empty() {
         vec![Line::from(vec![
-            Span::styled("hitl", theme::chroma_magenta()),
-            Span::styled(" — none pending", theme::muted()),
+            Span::styled("none pending", theme::muted()),
+            Span::styled(" · Tab · a · x when waiting", theme::muted()),
         ])]
     } else {
-        pending
+        let mut lines: Vec<Line> = pending
             .iter()
             .enumerate()
             .map(|(i, r)| hitl_line(r, i == selected))
-            .collect()
+            .collect();
+        if lines.len() == 1 {
+            lines.push(Line::from(Span::styled(
+                " Tab cycle · a approve · x deny",
+                theme::muted(),
+            )));
+        }
+        lines
+    };
+    let border = if pending.is_empty() {
+        theme::border()
+    } else {
+        theme::border_focused()
     };
     frame.render_widget(
         Paragraph::new(body)
             .block(
                 Block::default()
                     .borders(Borders::TOP)
-                    .border_style(if pending.is_empty() {
-                        theme::border()
-                    } else {
-                        theme::chroma_border(2)
-                    })
+                    .border_style(border)
+                    .title(Span::styled(
+                        " Approvals ",
+                        if pending.is_empty() {
+                            theme::muted()
+                        } else {
+                            theme::chroma_magenta()
+                        },
+                    ))
                     .style(theme::panel_bg()),
             )
             .wrap(Wrap { trim: true }),

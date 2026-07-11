@@ -103,6 +103,7 @@ async fn agent_receives_context_dir_and_manifest() {
         pty_rows: 24,
         pty_cols: 80,
         hitl: None,
+        hitl_manual_flush: false,
         agent_paths: HashMap::new(),
         agent_fidelity: HashMap::new(),
         roots: HashMap::new(),

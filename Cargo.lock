@@ -3729,7 +3729,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-catalog"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3742,7 +3742,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-cli"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -3776,7 +3776,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-core"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "chrono",
  "serde",
@@ -3792,7 +3792,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-desktop"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "keyring",
  "pytxo-core",
@@ -3809,6 +3809,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-process",
  "tauri-plugin-shell",
+ "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tokio",
 ]
@@ -3838,7 +3839,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-mcp"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -3853,7 +3854,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-orchestrate"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3875,7 +3876,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-planner"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -3906,7 +3907,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-runner"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "fuser",
@@ -3923,7 +3924,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-sanitize"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "pytxo-core",
  "regex",
@@ -3932,7 +3933,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-scheduler"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "glob",
  "pytxo-core",
@@ -3940,7 +3941,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-shell"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "pytxo-catalog",
@@ -3953,7 +3954,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-signal"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -3973,7 +3974,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-store"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "chrono",
  "pytxo-core",
@@ -3985,7 +3986,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-tui"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -5808,6 +5809,22 @@ dependencies = [
  "tauri-plugin",
  "thiserror 2.0.18",
  "tokio",
+]
+
+[[package]]
+name = "tauri-plugin-single-instance"
+version = "2.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c8f29386f5e9fdc699182388a33ee80a56de436d91b67459e86afef426282af"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin-deep-link",
+ "thiserror 2.0.18",
+ "tracing",
+ "windows-sys 0.60.2",
+ "zbus",
 ]
 
 [[package]]

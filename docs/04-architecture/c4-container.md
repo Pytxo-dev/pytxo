@@ -15,7 +15,7 @@ related: [[three-tier-model]], [[context-diagram]]
 ```mermaid
 flowchart TB
   subgraph presentation [Presentation]
-    ui[Svelte 5 Reality Deck]
+    ui[Svelte 5 Pytxo Desktop]
   end
   subgraph orchestration [Orchestration]
     core[Rust core]

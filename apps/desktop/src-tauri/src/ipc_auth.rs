@@ -1,6 +1,6 @@
 use keyring::Entry;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
 use crate::ipc_error::{map_io_err, IpcResult};
@@ -75,6 +75,7 @@ pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
                 let decoded = percent_decode(token);
                 store_session_token(&decoded)?;
                 let _ = app.emit(AUTH_CHANGED_EVENT, ());
+                focus_main_window(app);
                 return Ok(());
             }
         }
@@ -101,6 +102,14 @@ fn percent_decode(input: &str) -> String {
         i += 1;
     }
     String::from_utf8_lossy(&out).into_owned()
+}
+
+pub fn focus_main_window(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
 }
 
 fn read_session() -> Result<String, String> {

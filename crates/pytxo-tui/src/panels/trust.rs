@@ -1,7 +1,7 @@
 use pytxo_core::PermissionProfile;
 use pytxo_orchestrate::trust_repo;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::Frame;
@@ -93,7 +93,7 @@ impl TrustModal {
         let popup = centered_rect(74, 72, area);
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(theme::chroma_border(0))
+            .border_style(theme::border_focused())
             .title(Span::styled(" Workspace trust ", theme::title()))
             .style(theme::panel_bg());
         let inner = block.inner(popup);
@@ -120,9 +120,7 @@ impl TrustModal {
         let mut header = vec![
             Line::from(Span::styled(
                 self.heading(),
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
+                theme::foreground().add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
         ];

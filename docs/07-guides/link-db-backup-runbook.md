@@ -71,6 +71,17 @@ curl -fsS http://127.0.0.1:8787/health | jq .
 - [ ] Org policy row exists for a known `org_id`
 - [ ] Recent `runs` ledger rows visible when `link_reconcile` is enabled
 
+## Audit log retention (Phase 60)
+
+The `audit_log` table in Link Postgres retains org policy, seat, and entitlement change events.
+
+| Environment | Retention | Pruning |
+|-------------|-----------|---------|
+| Production | **90 days** minimum | Weekly cron: `DELETE FROM audit_log WHERE created_at < now() - interval '90 days'` |
+| Staging | 30 days | Same job with shorter window |
+
+Document the cron in your Railway/CI scheduler. Backups per this runbook include audit rows; pruning is **not** run automatically by Link today — operators must schedule it.
+
 ## Disaster recovery
 
 If Link Postgres is lost without backups, re-provision the database, run migrations from `services/pytxo-link/migrations/`, and reconcile entitlements from Paddle/Clerk admin exports per [[ADR-0021-billing-source-of-truth]]. Run ledger history cannot be reconstructed without backups.

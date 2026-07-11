@@ -11,7 +11,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   TAG_NAME: v${{ inputs.version }}
@@ -110,7 +110,8 @@ jobs:
           releaseName: ${{ env.TAG_NAME }}
           releaseDraft: true
           prerelease: false
-          includeRelease: true
+          # Artifacts are mirrored to pytxo-releases; skip private-repo draft release.
+          includeRelease: false
           includeUpdaterJson: false
           args: --target ${{ matrix.rust_target }}
 

@@ -4,7 +4,7 @@ title: Providers & BYOK
 
 # Providers & BYOK
 
-Pytxo v0.3.0 ships a **multi-provider registry** for bring-your-own-key (BYOK) runs. Use direct provider APIs, a single **OpenRouter** key, or local **Ollama** — without storing secrets in `pytxo.toml`.
+Pytxo v0.3.0 ships a **multi-provider registry** for bring-your-own-key (BYOK) runs. Use direct provider APIs, a single **OpenRouter** key, or local **Ollama**, without storing secrets in `pytxo.toml`.
 
 ## Check configured providers
 

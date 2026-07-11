@@ -1,5 +1,4 @@
 use ratatui::layout::Rect;
-use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
@@ -57,24 +56,33 @@ impl Prompt {
         }
     }
 
-    pub fn draw(&self, frame: &mut Frame, area: Rect, status: &str) {
+    /// Context-sensitive footer: shell idle, HITL pending, or custom status.
+    pub fn draw(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        status: &str,
+        hitl_pending: bool,
+        trust_phase: bool,
+    ) {
         let prompt = Line::from(vec![
-            Span::styled("pytxo> ", theme::chroma_cyan()),
-            Span::styled(
-                &self.buffer,
-                Style::default().fg(ratatui::style::Color::White),
-            ),
+            Span::styled("pytxo> ", theme::accent()),
+            Span::styled(&self.buffer, theme::foreground()),
             Span::styled("▌", theme::chroma_magenta()),
         ]);
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(theme::chroma_border(1))
-            .title(Span::styled(" Prompt ", theme::chroma_violet()))
+            .border_style(theme::border_focused())
+            .title(Span::styled(" Prompt ", theme::title()))
             .style(theme::panel_bg());
-        let footer = if status.is_empty() {
-            "Enter submit · Ctrl+C /q quit · /help commands".to_string()
-        } else {
+        let footer = if !status.is_empty() {
             status.to_string()
+        } else if trust_phase {
+            "↑↓ select · Enter trust · q quit".to_string()
+        } else if hitl_pending {
+            "Tab cycle · a approve · x deny · Ctrl+↑/↓ scroll".to_string()
+        } else {
+            "Enter submit · Ctrl+↑/↓ scroll · /help · q quit".to_string()
         };
         let inner = block.inner(area);
         frame.render_widget(Paragraph::new(prompt).block(block), area);

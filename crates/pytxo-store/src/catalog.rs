@@ -42,7 +42,31 @@ CREATE TABLE IF NOT EXISTS fleet_nodes (
 
 CREATE INDEX IF NOT EXISTS idx_fleet_runs_fleet_id ON fleet_runs(fleet_id);
 CREATE INDEX IF NOT EXISTS idx_fleet_nodes_run ON fleet_nodes(fleet_run_id);
+
+CREATE TABLE IF NOT EXISTS project_roots (
+    project_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    path TEXT NOT NULL,
+    read_only INTEGER NOT NULL DEFAULT 0,
+    primary_root INTEGER NOT NULL DEFAULT 0,
+    permission_profile TEXT,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, label)
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_roots_project ON project_roots(project_id);
 "#;
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ProjectRootRecord {
+    pub project_id: String,
+    pub label: String,
+    pub path: String,
+    pub read_only: bool,
+    pub primary: bool,
+    pub permission_profile: Option<String>,
+    pub updated_at: String,
+}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct CatalogEntry {
@@ -139,6 +163,66 @@ impl Catalog {
                     project_id: row.get(3)?,
                     status: row.get(4)?,
                     updated_at: row.get(5)?,
+                })
+            })
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    /// Modular projects v2: persist path roots in the hypervisor catalog (Phase 66).
+    pub fn upsert_project_root(
+        &self,
+        project_id: &str,
+        label: &str,
+        path: &str,
+        read_only: bool,
+        primary: bool,
+        permission_profile: Option<&str>,
+    ) -> Result<()> {
+        let now = Utc::now().to_rfc3339();
+        self.conn
+            .execute(
+                "INSERT INTO project_roots (project_id, label, path, read_only, primary_root, permission_profile, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(project_id, label) DO UPDATE SET
+                     path = excluded.path,
+                     read_only = excluded.read_only,
+                     primary_root = excluded.primary_root,
+                     permission_profile = excluded.permission_profile,
+                     updated_at = excluded.updated_at",
+                params![
+                    project_id,
+                    label,
+                    path,
+                    read_only as i32,
+                    primary as i32,
+                    permission_profile,
+                    now
+                ],
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn list_project_roots(&self, project_id: &str) -> Result<Vec<ProjectRootRecord>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT project_id, label, path, read_only, primary_root, permission_profile, updated_at
+                 FROM project_roots WHERE project_id = ?1 ORDER BY primary_root DESC, label",
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let rows = stmt
+            .query_map(params![project_id], |row| {
+                Ok(ProjectRootRecord {
+                    project_id: row.get(0)?,
+                    label: row.get(1)?,
+                    path: row.get(2)?,
+                    read_only: row.get::<_, i32>(3)? != 0,
+                    primary: row.get::<_, i32>(4)? != 0,
+                    permission_profile: row.get(5)?,
+                    updated_at: row.get(6)?,
                 })
             })
             .map_err(|e| PytxoError::Store(e.to_string()))?;
@@ -297,6 +381,20 @@ mod tests {
         assert_eq!(list.len(), 2);
         let a = list.iter().find(|e| e.domain_id == "/repo/a").unwrap();
         assert_eq!(a.project_id.as_deref(), Some("proj-1"));
+    }
+
+    #[test]
+    fn project_roots_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hypervisor.db");
+        let cat = Catalog::open(&path).unwrap();
+        cat.upsert_project_root("acme", "api", "/repo/api", false, true, Some("orbit"))
+            .unwrap();
+        cat.upsert_project_root("acme", "web", "/repo/web", true, false, None)
+            .unwrap();
+        let roots = cat.list_project_roots("acme").unwrap();
+        assert_eq!(roots.len(), 2);
+        assert!(roots.iter().any(|r| r.label == "api" && r.primary));
     }
 
     #[test]

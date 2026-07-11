@@ -4,22 +4,22 @@ title: Three moats
 
 # Three moats
 
-Pytxo orchestration routes through three layers — not around them.
+Every Pytxo run goes through three safety and efficiency layers.
 
-| Moat | Codename | Function |
+| What it does | Codename | Function |
 |------|----------|----------|
-| Context arbitrage | [Signal Core](/docs/concepts/signal-core) | Scaffold file context so agents spend tokens on work, not noise |
-| Copy-on-write sandbox | [Blast Shield](/docs/concepts/blast-shield) | Isolate writes until explicit approval |
-| Concurrency guard | [Race Shield](/docs/concepts/race-shield) | Lock-free registry + stdin buffering across swarms |
+| Smarter context | [Signal Core](/docs/concepts/signal-core) | Send agents code skeletons so they spend tokens on work, not noise |
+| Safe sandbox | [Blast Shield](/docs/concepts/blast-shield) | Keep writes isolated until you approve a merge |
+| No write collisions | [Race Shield](/docs/concepts/race-shield) | Registry + stdin buffering so swarms do not stomp each other |
 
 ```text
          Signal Core          Blast Shield         Race Shield
               │                     │                    │
               └────────── orchestration plane ──────────┘
                               │
-                         PTY agents
+                         Agents
 ```
 
-On **Galaxy**, [human approvals](/docs/concepts/galaxy-approvals) add a fourth safety layer for risky commands and merges.
+On **Galaxy**, [human approvals](/docs/concepts/galaxy-approvals) add a fourth layer for risky commands and merges.
 
-Each moat has a dedicated concept page with configuration knobs.
+Each moat has its own concept page with configuration options.

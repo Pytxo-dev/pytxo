@@ -4,7 +4,7 @@ Instructions for AI coding agents working in this repository.
 
 ## Project identity
 
-**Pytxo** is an **agent hypervisor and telemetry plane** ([ptyxo.com](https://ptyxo.com)). Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) (monorepo: `crates/*` + `apps/desktop`). It coordinates headless agents (Claude Code, Codex, Antigravity CLI, …) in background PTYs on local silicon or cloud sandboxes.
+**Pytxo** runs and coordinates the coding agents you already use ([ptyxo.com](https://ptyxo.com)). As a category it is a local **agent hypervisor and telemetry plane**. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) (monorepo: `crates/*` + `apps/desktop`). It schedules headless agents (Claude Code, Codex, Antigravity CLI, …) in background PTYs on local silicon or cloud sandboxes.
 
 **Stack:** Rust (tokio, portable-pty, tree-sitter) · Svelte 5 (Runes) · Tauri v2
 
@@ -12,15 +12,15 @@ Instructions for AI coding agents working in this repository.
 
 **Canonical vision:** [`docs/06-product/vision.md`](docs/06-product/vision.md)
 
-**Not:** BridgeSpace-style multi-terminal web workspaces. **Is:** bare-metal control plane + optional **Reality Deck** (structural telemetry, 3D AST topology target) via **MCP hub**.
+**Not:** BridgeSpace-style multi-terminal web workspaces (ADEs). **Is:** bare-metal control plane + optional **Pytxo Desktop** (structural telemetry, 3D AST topology) via **MCP hub**.
 
 **Three moats** — route new orchestration code through these concepts:
 
-| Moat | Doc | Responsibility |
-|------|-----|----------------|
-| Signal Core | [`docs/02-areas/orchestration/signal-core.md`](docs/02-areas/orchestration/signal-core.md) | `tree-sitter` read-path skeletons |
-| Blast Shield | [`docs/02-areas/orchestration/blast-shield.md`](docs/02-areas/orchestration/blast-shield.md) | CoW sandbox; approve-to-flush |
-| Race Shield | [`docs/02-areas/orchestration/race-shield.md`](docs/02-areas/orchestration/race-shield.md) | `SwarmRegistry`, stdin buffering |
+| Plain language | Moat | Doc | Responsibility |
+|----------------|------|-----|----------------|
+| Smarter context | Signal Core | [`docs/02-areas/orchestration/signal-core.md`](docs/02-areas/orchestration/signal-core.md) | `tree-sitter` read-path skeletons |
+| Safe sandbox until approve | Blast Shield | [`docs/02-areas/orchestration/blast-shield.md`](docs/02-areas/orchestration/blast-shield.md) | CoW sandbox; approve-to-flush |
+| No write collisions | Race Shield | [`docs/02-areas/orchestration/race-shield.md`](docs/02-areas/orchestration/race-shield.md) | `SwarmRegistry`, stdin buffering |
 
 **Pytxo Ultra billing** (when `billing.mode = ultra` in `pytxo.toml`): `TokenWallet`, `UsageMeter`, `ArbitrageProfiler`, `ManagedTransport` — see [`docs/05-adr/ADR-0009-ultra-managed-metering.md`](docs/05-adr/ADR-0009-ultra-managed-metering.md).
 
@@ -46,7 +46,7 @@ When changing `pytxo-runner` or `pytxo-orchestrate`, declare which **permission 
 | `crates/pytxo-signal` | Signal Core (`tree-sitter` skeletons) |
 | `crates/pytxo-mcp` | Stdio MCP server binary |
 | `crates/` | Core, scheduler, runner, store, CLI |
-| `apps/desktop/` | Svelte 5 + Tauri v2 Reality Deck (`pytxo-desktop` crate) |
+| `apps/desktop/` | Svelte 5 + Tauri v2 Pytxo Desktop (`pytxo-desktop` crate) |
 | `apps/docs/` | Public user docs (Docusaurus) — published to pytxo.com/docs via `apps/web` prebuild |
 | `tooling/scripts/`, `tooling/benchmarks/` | Smoke and competitive repro scripts |
 | `apps/desktop-export/` | Export / release staging (not canonical source) |
@@ -61,7 +61,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p pytxo-cli -- status --json
 ```
 
-Reality Deck (`apps/desktop`):
+Pytxo Desktop (`apps/desktop`):
 
 ```bash
 cd apps/desktop && npm ci && npm run check
@@ -88,11 +88,12 @@ cargo build -p pytxo-desktop   # from repo root; Tauri system deps on Linux
 
 | Term | Meaning |
 |------|---------|
-| **Signal Core** | Context arbitrage via AST skeletons on read |
-| **Blast Shield** | CoW sandbox; flush on user approve |
+| **Signal Core** | Smarter context via AST skeletons on read |
+| **Blast Shield** | Safe sandbox; flush on user approve |
 | **Race Shield** | Global swarm registry; collision-free writes |
 | **Execution Yard** | Headless CLI agent processes under orchestration |
-| **Reality Deck** | Space-console UI; 3D AST topology (target), not terminal walls |
+| **Pytxo Desktop** | Optional control UI; 3D AST topology, not terminal walls (formerly Reality Deck) |
+| **Workspace** | One or more project folders under one coordinated run |
 | **BYOK** | Bring your own API keys (including Pytxo Cloud) |
 | **Sovereign Shield** | Sanitization + cryptographic remote actions |
 | **Permission profile** | Local trust tier: DeepSpace, Orbit (default), Galaxy, Supernova |
