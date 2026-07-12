@@ -12,6 +12,7 @@ members = [
     "crates/pytxo-tui",
     "crates/pytxo-shell",
     "crates/pytxo-planner",
+    "crates/pytxo-voice",
     "crates/pytxo-catalog",
     "crates/pytxo-mcp",
     "apps/desktop/src-tauri",
@@ -55,6 +56,7 @@ pytxo-orchestrate = { path = "crates/pytxo-orchestrate" }
 pytxo-tui = { path = "crates/pytxo-tui" }
 pytxo-shell = { path = "crates/pytxo-shell" }
 pytxo-planner = { path = "crates/pytxo-planner" }
+pytxo-voice = { path = "crates/pytxo-voice" }
 pytxo-catalog = { path = "crates/pytxo-catalog" }
 regex = "1.11"
 portable-pty = "0.8"
