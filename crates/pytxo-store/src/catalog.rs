@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 
 use chrono::Utc;
 use pytxo_core::{PytxoError, Result};
-use rusqlite::{params, Connection};
-use serde::Serialize;
+use rusqlite::{params, Connection, OptionalExtension};
+use serde::{Deserialize, Serialize};
 
 const CATALOG_SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS domains (
@@ -57,6 +57,26 @@ CREATE TABLE IF NOT EXISTS project_roots (
 CREATE INDEX IF NOT EXISTS idx_project_roots_project ON project_roots(project_id);
 "#;
 
+const FLOW_DRAFTS_MIGRATION: &str = r#"
+BEGIN IMMEDIATE;
+CREATE TABLE IF NOT EXISTS flow_drafts (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    mission_text TEXT NOT NULL,
+    source TEXT NOT NULL CHECK (source IN ('text', 'voice')),
+    domain_id TEXT,
+    project_id TEXT,
+    status TEXT NOT NULL,
+    plan_json TEXT,
+    dispatched_run_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_flow_drafts_updated_at ON flow_drafts(updated_at DESC);
+PRAGMA user_version = 1;
+COMMIT;
+"#;
+
 #[derive(Clone, Debug, Serialize)]
 pub struct ProjectRootRecord {
     pub project_id: String,
@@ -97,6 +117,21 @@ pub struct FleetNodeRecord {
     pub status: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FlowDraftRecord {
+    pub id: String,
+    pub title: String,
+    pub mission_text: String,
+    pub source: String,
+    pub domain_id: Option<String>,
+    pub project_id: Option<String>,
+    pub status: String,
+    pub plan_json: Option<String>,
+    pub dispatched_run_id: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 pub struct Catalog {
     conn: Connection,
 }
@@ -111,6 +146,7 @@ impl Catalog {
             .map_err(|e| PytxoError::Store(e.to_string()))?;
         conn.execute_batch(CATALOG_SCHEMA)
             .map_err(|e| PytxoError::Store(e.to_string()))?;
+        migrate_catalog(&conn)?;
         Ok(Self { conn })
     }
 
@@ -292,7 +328,11 @@ impl Catalog {
         Ok(())
     }
 
-    pub fn list_fleet_runs(&self, fleet_id: Option<&str>, limit: usize) -> Result<Vec<FleetRunRecord>> {
+    pub fn list_fleet_runs(
+        &self,
+        fleet_id: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<FleetRunRecord>> {
         let sql = if fleet_id.is_some() {
             "SELECT id, fleet_id, started_at, finished_at, status FROM fleet_runs
              WHERE fleet_id = ?1 ORDER BY started_at DESC LIMIT ?2"
@@ -337,6 +377,88 @@ impl Catalog {
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(|e| PytxoError::Store(e.to_string()))
     }
+
+    pub fn upsert_flow_draft(&self, draft: &FlowDraftRecord) -> Result<()> {
+        self.conn
+            .execute(
+                "INSERT INTO flow_drafts
+                 (id, title, mission_text, source, domain_id, project_id, status, plan_json,
+                  dispatched_run_id, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                 ON CONFLICT(id) DO UPDATE SET
+                    title = excluded.title, mission_text = excluded.mission_text,
+                    source = excluded.source, domain_id = excluded.domain_id,
+                    project_id = excluded.project_id, status = excluded.status,
+                    plan_json = excluded.plan_json, dispatched_run_id = excluded.dispatched_run_id,
+                    updated_at = excluded.updated_at",
+                params![
+                    draft.id,
+                    draft.title,
+                    draft.mission_text,
+                    draft.source,
+                    draft.domain_id,
+                    draft.project_id,
+                    draft.status,
+                    draft.plan_json,
+                    draft.dispatched_run_id,
+                    draft.created_at,
+                    draft.updated_at
+                ],
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn get_flow_draft(&self, id: &str) -> Result<Option<FlowDraftRecord>> {
+        self.conn
+            .query_row(
+                "SELECT id, title, mission_text, source, domain_id, project_id, status,
+                    plan_json, dispatched_run_id, created_at, updated_at
+             FROM flow_drafts WHERE id = ?1",
+                params![id],
+                map_flow_draft,
+            )
+            .optional()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    pub fn list_flow_drafts(&self) -> Result<Vec<FlowDraftRecord>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, title, mission_text, source, domain_id, project_id, status,
+                    plan_json, dispatched_run_id, created_at, updated_at
+             FROM flow_drafts ORDER BY updated_at DESC, id ASC",
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let rows = stmt
+            .query_map([], map_flow_draft)
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    pub fn delete_flow_draft(&self, id: &str) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM flow_drafts WHERE id = ?1", params![id])
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn mark_flow_dispatched(&self, id: &str, run_id: &str) -> Result<()> {
+        let changed = self
+            .conn
+            .execute(
+                "UPDATE flow_drafts SET status = 'dispatched', dispatched_run_id = ?1,
+                    updated_at = ?2 WHERE id = ?3",
+                params![run_id, Utc::now().to_rfc3339(), id],
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        if changed == 0 {
+            return Err(PytxoError::Store(format!("flow draft not found: {id}")));
+        }
+        Ok(())
+    }
 }
 
 fn map_fleet_run(row: &rusqlite::Row<'_>) -> rusqlite::Result<FleetRunRecord> {
@@ -360,6 +482,102 @@ pub fn default_catalog_path() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::Connection;
+
+    fn draft(id: &str, title: &str, updated_at: &str) -> FlowDraftRecord {
+        FlowDraftRecord {
+            id: id.into(),
+            title: title.into(),
+            mission_text: format!("mission {id}"),
+            source: "text".into(),
+            domain_id: Some("/repo/a".into()),
+            project_id: None,
+            status: "draft".into(),
+            plan_json: None,
+            dispatched_run_id: None,
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: updated_at.into(),
+        }
+    }
+
+    #[test]
+    fn flow_schema_is_migrated_without_audio_storage() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hypervisor.db");
+        Catalog::open(&path).unwrap();
+        Catalog::open(&path).unwrap();
+
+        let conn = Connection::open(path).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert!(version >= 1);
+        let schema: String = conn
+            .query_row(
+                "SELECT group_concat(sql, ' ') FROM sqlite_master WHERE sql IS NOT NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(schema.contains("flow_drafts"));
+        assert!(!schema.to_ascii_lowercase().contains("audio"));
+        assert!(!schema.to_ascii_lowercase().contains("blob"));
+    }
+
+    #[test]
+    fn flow_migration_preserves_legacy_catalog_rows() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hypervisor.db");
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(CATALOG_SCHEMA).unwrap();
+        conn.execute(
+            "INSERT INTO domains (domain_id, repo_root, db_path, status, updated_at)
+             VALUES ('legacy', '/legacy', '/legacy/pytxo.db', 'active', '2026-01-01Z')",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        let catalog = Catalog::open(&path).unwrap();
+        assert_eq!(catalog.list_domains().unwrap()[0].domain_id, "legacy");
+        drop(catalog);
+        let reopened = Catalog::open(&path).unwrap();
+        assert_eq!(reopened.list_domains().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn flow_crud_preserves_created_at_and_orders_by_updated_at() {
+        let dir = tempfile::tempdir().unwrap();
+        let cat = Catalog::open(&dir.path().join("hypervisor.db")).unwrap();
+        cat.upsert_flow_draft(&draft("older", "Older", "2026-01-02T00:00:00Z"))
+            .unwrap();
+        cat.upsert_flow_draft(&draft("newer", "Newer", "2026-01-03T00:00:00Z"))
+            .unwrap();
+
+        let mut updated = draft("older", "Updated", "2026-01-04T00:00:00Z");
+        updated.created_at = "2099-01-01T00:00:00Z".into();
+        cat.upsert_flow_draft(&updated).unwrap();
+        let loaded = cat.get_flow_draft("older").unwrap().unwrap();
+        assert_eq!(loaded.title, "Updated");
+        assert_eq!(loaded.created_at, "2026-01-01T00:00:00Z");
+        assert_eq!(cat.list_flow_drafts().unwrap()[0].id, "older");
+
+        cat.delete_flow_draft("older").unwrap();
+        cat.delete_flow_draft("older").unwrap();
+        assert!(cat.get_flow_draft("older").unwrap().is_none());
+    }
+
+    #[test]
+    fn flow_dispatch_linkage_is_persisted() {
+        let dir = tempfile::tempdir().unwrap();
+        let cat = Catalog::open(&dir.path().join("hypervisor.db")).unwrap();
+        cat.upsert_flow_draft(&draft("flow-1", "Flow", "2026-01-02T00:00:00Z"))
+            .unwrap();
+        cat.mark_flow_dispatched("flow-1", "run-42").unwrap();
+        let loaded = cat.get_flow_draft("flow-1").unwrap().unwrap();
+        assert_eq!(loaded.status, "dispatched");
+        assert_eq!(loaded.dispatched_run_id.as_deref(), Some("run-42"));
+    }
 
     #[test]
     fn upsert_is_idempotent_and_lists() {
@@ -419,4 +637,31 @@ mod tests {
         assert_eq!(nodes.len(), 2);
         assert_eq!(nodes[1].status, "completed");
     }
+}
+
+fn migrate_catalog(conn: &Connection) -> Result<()> {
+    let version: i64 = conn
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .map_err(|e| PytxoError::Store(e.to_string()))?;
+    if version < 1 {
+        conn.execute_batch(FLOW_DRAFTS_MIGRATION)
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+    }
+    Ok(())
+}
+
+fn map_flow_draft(row: &rusqlite::Row<'_>) -> rusqlite::Result<FlowDraftRecord> {
+    Ok(FlowDraftRecord {
+        id: row.get(0)?,
+        title: row.get(1)?,
+        mission_text: row.get(2)?,
+        source: row.get(3)?,
+        domain_id: row.get(4)?,
+        project_id: row.get(5)?,
+        status: row.get(6)?,
+        plan_json: row.get(7)?,
+        dispatched_run_id: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+    })
 }

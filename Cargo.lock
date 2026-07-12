@@ -3859,6 +3859,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "pytxo-core",
+ "pytxo-planner",
  "pytxo-runner",
  "pytxo-sanitize",
  "pytxo-scheduler",

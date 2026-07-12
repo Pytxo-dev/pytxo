@@ -14,11 +14,12 @@ use serde::{Deserialize, Serialize};
 
 pub mod billing;
 pub mod cloud;
-pub mod entitlements;
 mod cost;
 mod dashboard;
 mod doctor;
+pub mod entitlements;
 mod fleet;
+pub mod flow;
 mod hypervisor;
 mod preflight;
 mod project;
@@ -36,6 +37,10 @@ pub use fleet::{
     fleet_status, fleet_status_nodes, wait_for_domain_run, FleetRunOptions, FleetRunResult,
     FleetRunStatus,
 };
+pub use flow::{
+    dispatch_flow, preview_flow, FlowAdeSummary, FlowBlockedReason, FlowDraftInput, FlowPlan,
+    FlowPlanTask, FlowSource, FlowStatus, FlowWarning,
+};
 pub use hypervisor::{
     default_hypervisor, list_catalog_domains, list_catalog_domains_enriched, CatalogEntryStatus,
     DomainState, DomainSummary, HypervisorRegistry,
@@ -46,9 +51,9 @@ pub use project::{
     project_roots, project_run, project_status, ProjectRunOptions, ProjectRunResult,
     ProjectStatusRow,
 };
-pub use structural::{structural_graph, workspace_structural_graph};
 pub use pytxo_core::ExecutionBackend;
 pub use pytxo_store::CatalogEntry;
+pub use structural::{structural_graph, workspace_structural_graph};
 
 #[cfg(feature = "sanitize")]
 use pytxo_sanitize::sanitize_line;
@@ -545,8 +550,8 @@ pub(crate) async fn execute_run_body(
     if let Some(exec) = opts.execution {
         cfg.execution_backend = exec;
     }
-    let entitlements = entitlements::effective_entitlements(&cfg)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let entitlements =
+        entitlements::effective_entitlements(&cfg).map_err(|e| anyhow::anyhow!("{e}"))?;
     if cfg.max_agents > entitlements.max_agents {
         anyhow::bail!(
             "max_agents {} exceeds tier limit {} ({})",
@@ -783,7 +788,8 @@ pub fn resolve_run_tasks(
 }
 
 pub fn plan_tasks(tasks: &[Task], cfg: &PytxoConfig) -> anyhow::Result<ExecutionPlan> {
-    let mut plan = build_plan(tasks, cfg.max_agents, cfg.dag_explicit_deps).map_err(|e| anyhow::anyhow!(e))?;
+    let mut plan =
+        build_plan(tasks, cfg.max_agents, cfg.dag_explicit_deps).map_err(|e| anyhow::anyhow!(e))?;
     for c in pytxo_scheduler::find_cross_root_conflicts(tasks) {
         let msg = format!(
             "cross-root path overlap: {} vs {} ({})",
@@ -991,7 +997,7 @@ pub async fn stop(
             pty_rows: cfg.pty_rows,
             pty_cols: cfg.pty_cols,
             hitl: None,
-        hitl_manual_flush: false,
+            hitl_manual_flush: false,
             agent_paths: std::collections::HashMap::new(),
             agent_fidelity: std::collections::HashMap::new(),
             roots: std::collections::HashMap::new(),
