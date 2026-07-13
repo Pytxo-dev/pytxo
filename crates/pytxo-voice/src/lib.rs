@@ -632,7 +632,7 @@ impl WhisperTranscriber {
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
         if let Some(cancelled) = cancelled.clone() {
-            params.set_abort_callback_safe(Some(move || cancelled.load(Ordering::Acquire)));
+            params.set_abort_callback_safe(move || cancelled.load(Ordering::Acquire));
         }
         if let Err(error) = state.full(params, samples) {
             if cancelled
@@ -654,7 +654,7 @@ impl WhisperTranscriber {
             .filter(|segment| {
                 segment
                     .as_ref()
-                    .is_err_or(|segment| !segment.text.is_empty())
+                    .map_or(true, |segment| !segment.text.is_empty())
             })
             .collect()
     }
