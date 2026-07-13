@@ -109,3 +109,16 @@ export type PytxoIpcError = {
   code: string;
   message: string;
 };
+
+export type FlowStatus = "draft" | "transcribing" | "planning" | "ready" | "blocked" | "dispatching" | "dispatched" | "failed";
+export type FlowDraftInput = { id: string; title: string; mission_text: string; source: "text" | "voice"; domain_id: string | null; project_id: string | null; ade_id: string | null };
+export type FlowDraftRecord = { id: string; title: string; mission_text: string; source: string; domain_id: string | null; project_id: string | null; status: string; plan_json: string | null; dispatched_run_id: string | null; created_at: string; updated_at: string };
+export type FlowPlan = { draft_id: string; domain_id: string; project_id: string | null; status: "ready" | "blocked"; tasks: { id: string; agent: string; prompt: string; paths: string[]; dependencies: string[]; root: string | null }[]; waves: string[][]; permission_profile: string; isolation_mode: string; isolation_backend_intent: string; execution_backend: string; ade: { requested: string | null; available: boolean; installed: string[]; command: string | null }; warnings: { code: string; message: string }[]; blocked_reasons: unknown[]; estimated_tokens: number | null; estimated_cost_usd: number | null; previewed_at: string };
+export type VoiceState = "idle" | "recording" | "paused" | "transcribing" | "ready" | "cancelled" | "failed";
+export type VoiceSessionDto = { session_id: string; device: string; language: string; state: VoiceState; elapsed_ms: number; buffered_samples: number; confidence: number | null; transcript_segments: { text: string; confidence: number; uncertain: boolean }[]; error: string | null };
+export type VoiceProgressEvent =
+  | { kind: "audio_level"; session_id: string; level: number }
+  | { kind: "capture_state"; session_id: string; state: VoiceState }
+  | { kind: "transcription_progress"; session_id: string; progress: number }
+  | { kind: "partial_transcript"; session_id: string; text: string; confidence: number };
+export type VoiceModel = { id: string; url: string; sha256: string; multilingual: boolean };

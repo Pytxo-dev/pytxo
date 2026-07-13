@@ -68,7 +68,10 @@ pub fn build_structural_graph(
                     root_id: root_id.clone(),
                 });
                 if seen_edges.insert((rel.clone(), to.clone())) {
-                    edges.push(GraphEdge { from: rel.clone(), to });
+                    edges.push(GraphEdge {
+                        from: rel.clone(),
+                        to,
+                    });
                 }
             }
         }
@@ -379,7 +382,12 @@ fn resolve_import(repo_root: &Path, from_rel: &str, target: &str) -> String {
     }
     let candidate = repo_root.join(target);
     if candidate.exists() {
-        return normalize_rel(&candidate.strip_prefix(repo_root).unwrap_or(&candidate).to_string_lossy());
+        return normalize_rel(
+            &candidate
+                .strip_prefix(repo_root)
+                .unwrap_or(&candidate)
+                .to_string_lossy(),
+        );
     }
     normalize_rel(target)
 }
@@ -394,10 +402,7 @@ mod tests {
         let repo = dir.path();
         std::fs::create_dir_all(repo.join("src")).unwrap();
         std::fs::write(repo.join("src/lib.rs"), "pub fn hi() {}\n").unwrap();
-        let g = build_structural_graph(
-            repo,
-            &[("src/lib.rs".into(), "agent-0".into(), None)],
-        );
+        let g = build_structural_graph(repo, &[("src/lib.rs".into(), "agent-0".into(), None)]);
         assert_eq!(g.nodes.len(), 1);
         assert!(g.nodes[0].edited);
     }
@@ -413,11 +418,11 @@ mod tests {
             "use crate::lib;\nfn main() { lib::hi(); }\n",
         )
         .unwrap();
-        let g = build_structural_graph(
-            repo,
-            &[("src/main.rs".into(), "agent-0".into(), None)],
-        );
-        assert!(g.edges.iter().any(|e| e.from.contains("main") && e.to.contains("lib")));
+        let g = build_structural_graph(repo, &[("src/main.rs".into(), "agent-0".into(), None)]);
+        assert!(g
+            .edges
+            .iter()
+            .any(|e| e.from.contains("main") && e.to.contains("lib")));
     }
 
     #[test]
@@ -431,10 +436,7 @@ mod tests {
         )
         .unwrap();
         let g = enrich_symbol_nodes(
-            build_structural_graph(
-                repo,
-                &[("src/lib.rs".into(), "agent-0".into(), None)],
-            ),
+            build_structural_graph(repo, &[("src/lib.rs".into(), "agent-0".into(), None)]),
             repo,
         );
         assert!(g.nodes.iter().any(|n| n.id.contains("alpha")));

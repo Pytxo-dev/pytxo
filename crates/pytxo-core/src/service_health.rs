@@ -31,9 +31,7 @@ pub fn providers_configured(body: &str) -> Vec<String> {
 
 /// True when `provider` appears in `providers_configured` on a health JSON body.
 pub fn health_lists_provider(body: &str, provider: &str) -> bool {
-    providers_configured(body)
-        .iter()
-        .any(|p| p == provider)
+    providers_configured(body).iter().any(|p| p == provider)
 }
 
 #[cfg(test)]
@@ -47,7 +45,9 @@ mod tests {
 
     #[test]
     fn accepts_json_contract() {
-        assert!(response_ok(r#"{"status":"ok","uptime_secs":42,"service":"pytxo-link"}"#));
+        assert!(response_ok(
+            r#"{"status":"ok","uptime_secs":42,"service":"pytxo-link"}"#
+        ));
     }
 
     #[test]

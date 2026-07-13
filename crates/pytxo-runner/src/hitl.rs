@@ -43,12 +43,14 @@ struct HitlState {
     decisions: HashMap<String, HitlDecision>,
 }
 
+type WalAudit = Arc<dyn Fn(&str, bool) + Send + Sync>;
+
 /// Thread-safe approval queue shared between the runner and orchestration/IPC.
 #[derive(Clone)]
 pub struct HitlQueue {
     inner: Arc<Mutex<HitlState>>,
     persist_path: Option<PathBuf>,
-    wal_audit: Option<Arc<dyn Fn(&str, bool) + Send + Sync>>,
+    wal_audit: Option<WalAudit>,
 }
 
 static HITL_SEQ: AtomicU64 = AtomicU64::new(0);
@@ -97,7 +99,7 @@ impl HitlQueue {
     }
 
     /// Append a `hitl-resolve` WAL row when `resolve()` succeeds.
-    pub fn with_wal_audit(mut self, audit: Arc<dyn Fn(&str, bool) + Send + Sync>) -> Self {
+    pub fn with_wal_audit(mut self, audit: WalAudit) -> Self {
         self.wal_audit = Some(audit);
         self
     }

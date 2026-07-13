@@ -17,7 +17,7 @@ use uuid::Uuid;
 #[derive(Clone)]
 enum CacheBackend {
     Memory(Arc<Mutex<HashMap<String, CachedScaffold>>>),
-    Redis(redis::aio::ConnectionManager),
+    Redis(Box<redis::aio::ConnectionManager>),
 }
 
 impl CacheBackend {
@@ -25,7 +25,7 @@ impl CacheBackend {
         match self {
             Self::Memory(map) => map.lock().unwrap().get(key).cloned(),
             Self::Redis(conn) => {
-                let mut conn = conn.clone();
+                let mut conn = (**conn).clone();
                 let raw: Option<String> = redis::cmd("GET")
                     .arg(key)
                     .query_async(&mut conn)
@@ -44,7 +44,7 @@ impl CacheBackend {
             }
             Self::Redis(conn) => {
                 let json = serde_json::to_string(value).map_err(|e| e.to_string())?;
-                let mut conn = conn.clone();
+                let mut conn = (**conn).clone();
                 redis::cmd("SET")
                     .arg(key)
                     .arg(json)
@@ -61,7 +61,6 @@ struct AppState {
     api_key: Option<String>,
     require_auth: bool,
     link_base: Option<String>,
-    max_workers: usize,
     sandbox_ttl: Duration,
     sandboxes: Arc<Mutex<HashMap<String, SandboxRecord>>>,
     cache: CacheBackend,
@@ -116,9 +115,9 @@ impl WorkerPool {
 
 #[derive(Clone, Debug)]
 struct SandboxRecord {
-    domain_id: String,
-    run_id: String,
-    agent_id: String,
+    _domain_id: String,
+    _run_id: String,
+    _agent_id: String,
     created_at: Instant,
     worker: Option<String>,
     container_id: Option<String>,
@@ -130,7 +129,8 @@ struct StartRequest {
     domain_id: String,
     run_id: String,
     agent_id: String,
-    repo_fingerprint: String,
+    #[serde(rename = "repo_fingerprint")]
+    _repo_fingerprint: String,
 }
 
 #[derive(Serialize)]
@@ -154,6 +154,8 @@ struct SyncFileEntry {
 struct ExecRequest {
     cmd: String,
     cwd: Option<String>,
+    #[serde(default)]
+    env: HashMap<String, String>,
 }
 
 #[derive(Serialize)]
@@ -382,9 +384,21 @@ fn docker_sync_files(container_name: &str, files: &[SyncFileEntry]) -> Result<()
     Ok(())
 }
 
-fn docker_exec(container_id: &str, cmd: &str, cwd: Option<&str>) -> ExecResponse {
+fn docker_exec(
+    container_id: &str,
+    cmd: &str,
+    cwd: Option<&str>,
+    env: &HashMap<String, String>,
+) -> ExecResponse {
     let workdir = cwd.unwrap_or("/workspace");
-    let args = vec!["exec", "-i", "-w", workdir, container_id, "sh", "-c", cmd];
+    let mut args = vec!["exec".to_string(), "-i".into(), "-w".into(), workdir.into()];
+    let mut env_entries: Vec<_> = env.iter().collect();
+    env_entries.sort_by_key(|(key, _)| *key);
+    for (key, value) in env_entries {
+        args.push("-e".into());
+        args.push(format!("{key}={value}"));
+    }
+    args.extend([container_id.into(), "sh".into(), "-c".into(), cmd.into()]);
     match Command::new("docker").args(&args).output() {
         Ok(output) => ExecResponse {
             exit_code: output.status.code().unwrap_or(1),
@@ -406,17 +420,14 @@ fn authorized(headers: &HeaderMap, state: &AppState) -> bool {
     let Some(expected) = state.api_key.as_ref() else {
         return false;
     };
-    let Some(header) = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-    else {
+    let Some(header) = headers.get("authorization").and_then(|v| v.to_str().ok()) else {
         return false;
     };
     let prefix = "Bearer ";
     if !header.starts_with(prefix) {
         return false;
     }
-    constant_time_eq(header[prefix.len()..].as_bytes(), expected.as_bytes())
+    constant_time_eq(&header.as_bytes()[prefix.len()..], expected.as_bytes())
 }
 
 async fn cloud_entitled(state: &AppState, headers: &HeaderMap) -> bool {
@@ -457,6 +468,21 @@ async fn health() -> Json<telemetry::HealthBody> {
     Json(telemetry::health_body())
 }
 
+/// Operator-facing egress posture note (Phase 72).
+/// Documents that `--internal` network is deny-by-default; allowlist is host-side only.
+async fn egress_notes() -> Json<serde_json::Value> {
+    let hosts = egress_allowlist().unwrap_or_default();
+    Json(serde_json::json!({
+        "network": sandbox_network_name(),
+        "posture": "deny_by_default",
+        "internal_network": true,
+        "allowlist": hosts,
+        "allowlist_advisory": true,
+        "host_rules_required": !hosts.is_empty(),
+        "docs": "ADR-0025: CLOUD_EGRESS_ALLOWLIST documents host iptables/nftables; containers stay on --internal until punched.",
+    }))
+}
+
 async fn start_sandbox(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -477,14 +503,14 @@ async fn start_sandbox(
         return Err(StatusCode::SERVICE_UNAVAILABLE);
     }
     info!(sandbox_id = %id, agent = %body.agent_id, worker = ?worker, "start sandbox");
-    let (container_id, container_name) = docker_start_container(&id)
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let (container_id, container_name) =
+        docker_start_container(&id).ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
     state.sandboxes.lock().unwrap().insert(
         id.clone(),
         SandboxRecord {
-            domain_id: body.domain_id,
-            run_id: body.run_id,
-            agent_id: body.agent_id,
+            _domain_id: body.domain_id,
+            _run_id: body.run_id,
+            _agent_id: body.agent_id,
             created_at: Instant::now(),
             worker,
             container_id: Some(container_id),
@@ -506,12 +532,7 @@ async fn sync_sandbox(
     if !authorized(&headers, &state) {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    let record = state
-        .sandboxes
-        .lock()
-        .unwrap()
-        .get(&sandbox_id)
-        .cloned();
+    let record = state.sandboxes.lock().unwrap().get(&sandbox_id).cloned();
     let Some(record) = record else {
         return Err(StatusCode::NOT_FOUND);
     };
@@ -542,12 +563,7 @@ async fn exec_sandbox(
     if !cloud_entitled(&state, &headers).await {
         return Err(StatusCode::FORBIDDEN);
     }
-    let record = state
-        .sandboxes
-        .lock()
-        .unwrap()
-        .get(&sandbox_id)
-        .cloned();
+    let record = state.sandboxes.lock().unwrap().get(&sandbox_id).cloned();
     let Some(record) = record else {
         return Err(StatusCode::NOT_FOUND);
     };
@@ -555,7 +571,7 @@ async fn exec_sandbox(
     let Some(cid) = record.container_id.as_deref() else {
         return Err(StatusCode::SERVICE_UNAVAILABLE);
     };
-    let response = docker_exec(cid, &body.cmd, body.cwd.as_deref());
+    let response = docker_exec(cid, &body.cmd, body.cwd.as_deref(), &body.env);
     Ok(Json(response))
 }
 
@@ -680,7 +696,7 @@ async fn init_cache_backend() -> CacheBackend {
                 Ok(client) => match redis::aio::ConnectionManager::new(client).await {
                     Ok(conn) => {
                         info!("scaffold cache using Redis (REDIS_URL)");
-                        return CacheBackend::Redis(conn);
+                        return CacheBackend::Redis(Box::new(conn));
                     }
                     Err(e) => warn!(error = %e, "Redis connect failed; falling back to in-memory"),
                 },
@@ -695,7 +711,9 @@ async fn init_cache_backend() -> CacheBackend {
 async fn main() {
     crate::telemetry::init();
 
-    let api_key = std::env::var("CLOUD_API_KEY").ok().filter(|s| !s.is_empty());
+    let api_key = std::env::var("CLOUD_API_KEY")
+        .ok()
+        .filter(|s| !s.is_empty());
     let require_auth = std::env::var("CLOUD_REQUIRE_AUTH")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or_else(|_| api_key.is_some());
@@ -710,7 +728,6 @@ async fn main() {
         api_key: api_key.clone(),
         require_auth,
         link_base,
-        max_workers: workers_n,
         sandbox_ttl: sandbox_ttl(),
         sandboxes: Arc::new(Mutex::new(HashMap::new())),
         cache,
@@ -719,7 +736,9 @@ async fn main() {
     };
 
     if require_auth && api_key.is_none() {
-        tracing::warn!("CLOUD_REQUIRE_AUTH set but CLOUD_API_KEY missing — all requests will be rejected");
+        tracing::warn!(
+            "CLOUD_REQUIRE_AUTH set but CLOUD_API_KEY missing — all requests will be rejected"
+        );
     }
 
     let sweeper_state = state.clone();
@@ -729,6 +748,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health))
+        .route("/v1/egress", get(egress_notes))
         .route("/v1/sandboxes/start", post(start_sandbox))
         .route("/v1/sandboxes/{id}/sync", post(sync_sandbox))
         .route("/v1/sandboxes/{id}/exec", post(exec_sandbox))
@@ -778,7 +798,10 @@ mod tests {
 
     #[test]
     fn egress_allowlist_parses_hosts() {
-        std::env::set_var("CLOUD_EGRESS_ALLOWLIST", "api.anthropic.com, registry.npmjs.org");
+        std::env::set_var(
+            "CLOUD_EGRESS_ALLOWLIST",
+            "api.anthropic.com, registry.npmjs.org",
+        );
         let hosts = egress_allowlist().unwrap();
         assert_eq!(hosts.len(), 2);
         assert_eq!(hosts[0], "api.anthropic.com");

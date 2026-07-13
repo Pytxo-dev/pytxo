@@ -7,7 +7,7 @@ audience: [human, agent]
 layer: meta
 created: 2026-06-02
 updated: 2026-06-04
-related: [github-organization](/docs/github-organization), [mvp-bootstrap](/docs/mvp-bootstrap)
+related: [[github-organization]], [[mvp-bootstrap]]
 ---
 
 # Repository layout
@@ -16,10 +16,12 @@ related: [github-organization](/docs/github-organization), [mvp-bootstrap](/docs
 
 | Path | Purpose |
 |------|---------|
-| `crates/*` | Rust control plane (CLI, MCP, scheduler, runner, store, signal) |
-| `apps/desktop/` | Reality Deck — Svelte 5 + Tauri v2 (`pytxo-desktop` crate) |
+| `crates/*` | Rust control plane (CLI, TUI, MCP, scheduler, runner, store, signal) |
+| `packages/pytxo/` | npm installer (`npm i -g pytxo`) |
+| `apps/desktop/` | Pytxo Desktop — Svelte 5 + Tauri v2 (`pytxo-desktop` crate) |
 | `apps/desktop-export/` | Export / release staging slot (see README there) |
-| `apps/web/` | Marketing site + docs mirror — Next.js, shadcn/ui ([pytxo.com](https://pytxo.com)) |
+| `apps/web/` | Marketing site — Next.js static export, shadcn/ui ([pytxo.com](https://pytxo.com)) |
+| `apps/docs/` | Public docs — Docusaurus, built into `apps/web/public/docs/` ([pytxo.com/docs](https://pytxo.com/docs/)) |
 | `docs/` | Obsidian vault |
 | `tooling/scripts/`, `tooling/benchmarks/` | Smoke, dev setup, competitive repro scripts |
 | `tests/fixtures/` | Integration fixtures |
@@ -43,7 +45,7 @@ pytxo-core
 
 ## GitHub org and visibility
 
-All first-party repos live under [Pytxo-dev](https://github.com/Pytxo-dev). Public OSS is in **pytxo**; optional legacy **pytxo-desktop** mirror; planned commercial/cloud repos are documented in [github-organization](/docs/github-organization) (not in this monorepo).
+All first-party repos live under [Pytxo-dev](https://github.com/Pytxo-dev). Public OSS is in **pytxo**; optional legacy **pytxo-desktop** mirror; planned commercial/cloud repos are documented in [[github-organization]] (not in this monorepo).
 
 ## Legacy split repo
 
@@ -60,7 +62,7 @@ cargo test --workspace
 ./tooling/scripts/smoke.ps1   # or tooling/scripts/smoke.sh
 ```
 
-**Reality Deck:**
+**Pytxo Desktop:**
 
 ```bash
 cd apps/desktop && npm ci && npm run check

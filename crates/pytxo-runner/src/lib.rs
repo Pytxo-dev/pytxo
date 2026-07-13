@@ -14,7 +14,7 @@ mod network_isolation;
 mod overlay_fuse_linux;
 #[cfg(all(feature = "overlay-fuse-macos", target_os = "macos"))]
 mod overlay_fuse_macos;
-#[cfg(all(feature = "overlay-projfs", target_os = "windows"))]
+#[cfg(target_os = "windows")]
 mod overlay_projfs;
 mod process;
 mod process_registry_file;
@@ -24,7 +24,8 @@ mod run;
 
 pub use arbitrage::ArbitrageProfiler;
 pub use blast::{
-    isolation_backend_label, isolation_for_mode, OverlayIsolation, WorktreeIsolation,
+    effective_isolation_mode, isolation_backend_label, isolation_for_mode, OverlayIsolation,
+    WorktreeIsolation,
 };
 pub use context::{prepare_agent_context, prepare_agent_context_for_root, ContextBundle};
 pub use failure::implicated_paths;
@@ -59,7 +60,10 @@ pub fn doctor_deepspace_socket_blocked() -> bool {
     crate::network_isolation::doctor_deepspace_socket_probe().0
 }
 
-/// Doctor probe for Blast overlay isolation (Phase 26).
+/// Doctor probe for Blast overlay isolation (Phase 26/69).
+///
+/// Always succeeds when a sparse copy-layer can materialize (git or non-git).
+/// Kernel FUSE / ProjFS labels are preferred when those backends are present.
 pub fn doctor_overlay_probe() -> pytxo_core::Result<String> {
     #[cfg(all(feature = "overlay-fuse-kernel", target_os = "linux"))]
     {
@@ -73,20 +77,14 @@ pub fn doctor_overlay_probe() -> pytxo_core::Result<String> {
             return Ok("overlay-fuse-macos mount available".into());
         }
     }
-    #[cfg(all(feature = "overlay-projfs", target_os = "windows"))]
+    #[cfg(target_os = "windows")]
     {
         if crate::overlay_projfs::projfs_supported() {
-            return Ok("overlay-projfs copy-layer available".into());
+            return Ok("overlay-projfs sparse-copy-v2 available".into());
         }
     }
-    #[cfg(feature = "overlay-fuse")]
-    {
-        return Ok("overlay-fuse copy-layer flush available".into());
-    }
-    #[cfg(not(feature = "overlay-fuse"))]
-    Err(pytxo_core::PytxoError::Runner(
-        "overlay-fuse not enabled; Orbit uses worktree fallback".into(),
-    ))
+    // Phase 69: copy-layer is always available — prefer_kernel_overlay can upgrade Orbit.
+    Ok("overlay-copy-layer available".into())
 }
 pub use race::SwarmRegistry;
 pub use run::{

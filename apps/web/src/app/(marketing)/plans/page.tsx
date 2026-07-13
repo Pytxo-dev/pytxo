@@ -1,18 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { RocketIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PlanRoadmapCard } from "@/components/site/plan-roadmap-card";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
 
 export const metadata: Metadata = {
   title: "Plans",
@@ -30,8 +21,9 @@ const ROADMAP = [
       "Local agent swarms (BYOK)",
     ],
     detail:
-      "The full local hypervisor ships open source. Install the CLI and run headless agents today.",
+      "The full local coordinator ships open source. Install the CLI and run agents today.",
     plan: null as null,
+    featured: true,
   },
   {
     name: "Pytxo Pro Cloud",
@@ -40,6 +32,7 @@ const ROADMAP = [
     highlights: ["Pytxo Link entitlements", "Cloud context caching", "`pytxo doctor` connectivity checks"],
     detail: "Cloud offload for context and link routing.",
     plan: "pro" as const,
+    featured: false,
   },
   {
     name: "Pytxo Max Swarm",
@@ -52,6 +45,7 @@ const ROADMAP = [
     ],
     detail: "For teams running large parallel agent pipelines in isolated sandboxes.",
     plan: "max" as const,
+    featured: false,
   },
   {
     name: "Pytxo Ultra",
@@ -64,57 +58,47 @@ const ROADMAP = [
     ],
     detail: "Managed metering and model routing for production agent workloads.",
     plan: "ultra" as const,
+    featured: false,
   },
 ] as const;
 
 export default function PlansPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
-      <div className="flex flex-col items-center gap-4 text-center">
-        <Badge variant="outline" className="border-white/15 bg-card/30">
+      <div className="flex max-w-2xl flex-col gap-4">
+        <Badge variant="outline" className="w-fit border-border">
           Live billing
         </Badge>
-        <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
-          Plans &{" "}
-          <span className="chroma-text">subscriptions</span>
+        <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
+          Plans and subscriptions
         </h1>
-        <p className="max-w-xl text-lg text-muted-foreground">
+        <p className="text-lg text-muted-foreground">
           Core stays open source. Subscribe to unlock Pytxo Link, cloud caching, and hosted
           sandboxes.
         </p>
-      </div>
-
-      <Empty className="mt-10 glass-panel chroma-border border-0 p-10">
-        <EmptyHeader>
-          <EmptyMedia variant="icon" className="chroma-glow size-12 rounded-full bg-card/60">
-            <RocketIcon className="size-6 text-primary" />
-          </EmptyMedia>
-          <EmptyTitle className="text-xl">Start with Core — upgrade anytime</EmptyTitle>
-          <EmptyDescription className="text-muted-foreground">
-            Install the CLI via npm, trust your folder, and orchestrate agents locally. Sign in
-            to subscribe; entitlements sync to Pytxo Link within a minute.
-          </EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent className="flex flex-col gap-3 sm:flex-row">
+        <div className="mt-2 flex flex-wrap gap-3">
           <Button size="lg" className="chroma-glow" asChild>
             <Link href="/download">Download Pytxo</Link>
           </Button>
-          <Button size="lg" variant="outline" className="border-white/15 bg-card/30" asChild>
+          <Button size="lg" variant="outline" className="border-border" asChild>
             <Link href="/account">Sign in</Link>
           </Button>
-        </EmptyContent>
-      </Empty>
+        </div>
+      </div>
 
-      <div className="mt-16 flex flex-col gap-3 text-center">
+      <div className="mt-16 border-t border-border pt-10">
         <h2 className="text-2xl font-semibold tracking-tight">Choose a tier</h2>
-        <p className="mx-auto max-w-lg text-sm text-muted-foreground">
+        <p className="mt-2 max-w-lg text-sm text-muted-foreground">
           Checkout is handled securely via MBCZ. Requires a signed-in pytxo.com account.
         </p>
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {ROADMAP.map((tier) => (
-          <div key={tier.name} className="flex flex-col gap-3">
+          <div
+            key={tier.name}
+            className={`flex flex-col gap-3 ${tier.featured ? "sm:col-span-2" : ""}`}
+          >
             <PlanRoadmapCard
               name={tier.name}
               status={tier.status}
@@ -133,7 +117,7 @@ export default function PlansPage() {
         ))}
       </div>
 
-      <p className="mt-12 text-center text-sm text-muted-foreground">
+      <p className="mt-12 text-sm text-muted-foreground">
         See{" "}
         <Link href="/docs/concepts/what-is-pytxo" className="text-primary hover:underline">
           what is Pytxo

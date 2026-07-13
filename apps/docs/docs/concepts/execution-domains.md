@@ -4,7 +4,7 @@ title: Execution domains
 
 # Execution domains
 
-An **execution domain** is an isolated orchestration scope — typically one git repository root — with its own:
+An **execution domain** is an isolated orchestration scope, usually one git repository root, with its own:
 
 - SQLite telemetry under `.pytxo/data/`
 - Isolated agent copies under `.pytxo/worktrees/`
@@ -27,7 +27,7 @@ List registered domains:
 pytxo domains
 ```
 
-The hypervisor catalog remembers every domain the Deck or CLI has touched, so you can switch projects from one home screen.
+The catalog remembers every domain Desktop or the CLI has touched, so you can switch projects from one home screen.
 
 ## Modular projects
 

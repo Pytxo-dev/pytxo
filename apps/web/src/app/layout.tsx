@@ -18,15 +18,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://pytxo.com"),
   title: {
-    default: "Pytxo — Agent hypervisor & telemetry plane",
+    default: "Pytxo: Run coding agents in parallel",
     template: "%s · Pytxo",
   },
   description:
-    "High-velocity, low-overhead coordination of headless PTY agents with structural telemetry — not a cloud-heavy virtual workspace.",
+    "Coordinate Claude Code, Codex, and other agents locally. Parallel runs, collision-safe scheduling, optional Desktop change map. Not a cloud IDE.",
   openGraph: {
     title: "Pytxo",
     description:
-      "Agent hypervisor and telemetry plane for Claude Code, Codex, Antigravity CLI, and more.",
+      "Run and coordinate the coding agents you already use, on your machine, in the background.",
     url: "https://pytxo.com",
     siteName: "Pytxo",
     images: [{ url: "/logo.png", width: 512, height: 512, alt: "Pytxo" }],
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Pytxo",
-    description: "Agent hypervisor & telemetry plane",
+    description: "Local coordinator for coding agents you already use",
     images: ["/logo.png"],
   },
 };

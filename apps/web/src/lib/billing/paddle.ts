@@ -57,7 +57,7 @@ export function verifyPaddleSignature(
 export type PaddleEvent = {
   event_type?: string;
   data?: {
-    custom_data?: { user_id?: string; tier?: string };
+    custom_data?: { user_id?: string; tier?: string; org_id?: string };
     items?: Array<{ price?: { id?: string } }>;
     status?: string;
   };
@@ -65,6 +65,11 @@ export type PaddleEvent = {
 
 export function extractUserId(event: PaddleEvent): string | null {
   return event.data?.custom_data?.user_id ?? null;
+}
+
+export function extractOrgId(event: PaddleEvent): string | null {
+  const orgId = event.data?.custom_data?.org_id;
+  return orgId && orgId.trim().length > 0 ? orgId.trim() : null;
 }
 
 export function extractTier(event: PaddleEvent): CheckoutPlan | null {

@@ -8,8 +8,7 @@ pub mod signal;
 
 pub use blast::{IsolationBackend, IsolationCtx, IsolationMode, WorkspaceHandle};
 pub use permission::{
-    DomainId, EnvironmentPolicy, FilesystemPolicy, NetworkPolicy, NetworkPolicyEngine,
-    PermissionEngine, PermissionProfile,
+    DomainId, NetworkPolicy, NetworkPolicyEngine, PermissionEngine, PermissionProfile,
 };
 pub use race::{
     conflict_error, normalize_claim_path, paths_claim_overlap, root_scoped_claim, LiveAgent,

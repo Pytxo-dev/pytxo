@@ -3,18 +3,13 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DownloadDesktop } from "@/components/site/download-desktop";
+import { InstallSnippet } from "@/components/site/install-snippet";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  DESKTOP_DOWNLOADS,
   GITHUB_URL,
   INSTALL_PS1_CMD,
   INSTALL_SH_CMD,
+  NPM_INSTALL,
   NPM_URL,
   PYTXO_VERSION,
   RELEASES_URL,
@@ -22,203 +17,116 @@ import {
 
 export const metadata: Metadata = {
   title: "Download",
-  description: "Install the Pytxo CLI and optional Reality Deck desktop app.",
+  description: "Install Pytxo Desktop and the CLI for local multi-agent orchestration.",
 };
 
 export default function DownloadPage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 sm:py-28">
-      <div className="flex flex-col gap-4">
-        <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-          <span className="chroma-text">Download</span>
-        </h1>
-        <p className="text-lg text-muted-foreground">
-          Install Pytxo v{PYTXO_VERSION} via npm or the public install script. Running{" "}
-          <code className="text-foreground/90">pytxo</code> opens the Hypervisor Shell.
+    <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-24">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Download</h1>
+          <Badge
+            variant="outline"
+            className="border-primary/30 bg-primary/10 font-mono text-xs text-primary"
+          >
+            v{PYTXO_VERSION}
+          </Badge>
+        </div>
+        <p className="max-w-2xl text-lg text-muted-foreground">
+          Start with Pytxo Desktop for topology, approvals, and diffs. The CLI powers
+          orchestration underneath—install it once, or let Desktop guide you.
         </p>
-        <ul className="mt-2 list-inside list-disc text-sm text-muted-foreground">
-          <li>Modular multi-root projects with per-folder permission tiers</li>
-          <li>Cross-repo fleet runs with DAG barriers and MCP tools</li>
-          <li>Galaxy human approvals for risky spawns and flush actions</li>
-          <li>Structural topology graph in Reality Deck</li>
-          <li>Blast Shield overlay flush and approve-to-merge workflow</li>
-        </ul>
       </div>
 
-      <div className="mt-12 flex flex-col gap-5">
-        <Card className="glass-panel chroma-edge-top border-white/8">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <CardTitle>
+      <div className="mt-12 flex flex-col gap-10">
+        <DownloadDesktop />
+
+        <section className="border-t border-border pt-10">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">CLI</h2>
+            <span className="text-sm text-muted-foreground">Required for runs</span>
+          </div>
+          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+            Entry point for multi-agent jobs, doctor checks, and MCP. Desktop downloads the
+            matching CLI at first run if needed.
+          </p>
+
+          <div className="mt-6 flex flex-col gap-6">
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-medium">
+                  <a
+                    href={NPM_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-primary"
+                  >
+                    npm
+                  </a>
+                </h3>
+                <span className="text-xs text-muted-foreground">Node 18+</span>
+              </div>
+              <InstallSnippet className="mt-3">{`${NPM_INSTALL}\npytxo doctor`}</InstallSnippet>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium">Install script</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                macOS, Linux, or Windows PowerShell. No Node required.
+              </p>
+              <InstallSnippet className="mt-3">{`# macOS / Linux\n${INSTALL_SH_CMD}\n\n# Windows PowerShell\n${INSTALL_PS1_CMD}`}</InstallSnippet>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Scripts live in the public{" "}
                 <a
-                  href={NPM_URL}
+                  href={GITHUB_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-primary"
+                  className="text-primary hover:underline"
                 >
-                  npm (recommended)
+                  pytxo-releases
+                </a>{" "}
+                repository.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-medium">Prebuilt binaries</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Manual download per platform from GitHub Releases.
+                </p>
+              </div>
+              <Button variant="outline" className="border-border" asChild>
+                <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer">
+                  Browse releases
                 </a>
-              </CardTitle>
-              <Badge className="bg-primary/20 text-primary">v{PYTXO_VERSION}</Badge>
-            </div>
-            <CardDescription>
-              Node 18+ — downloads the matching binary from public GitHub Releases
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <pre className="overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-4 font-mono text-sm text-foreground/90">
-              npm i -g pytxo{"\n"}
-              pytxo doctor
-            </pre>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-panel border-white/8">
-          <CardHeader>
-            <CardTitle>Install script</CardTitle>
-            <CardDescription>
-              macOS, Linux, or Windows PowerShell — no Node required
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <pre className="overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-4 font-mono text-sm text-foreground/90">
-              {`# macOS / Linux\n${INSTALL_SH_CMD}\n\n# Windows PowerShell\n${INSTALL_PS1_CMD}`}
-            </pre>
-            <p className="text-sm text-muted-foreground">
-              Scripts live in the public{" "}
-              <a
-                href={GITHUB_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                pytxo-releases
-              </a>{" "}
-              repository.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-panel border-white/8">
-          <CardHeader>
-            <CardTitle>Prebuilt binaries</CardTitle>
-            <CardDescription>Manual download per platform</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <p className="text-sm text-muted-foreground">
-              Grab <code className="text-foreground/90">pytxo-linux-x64</code>,{" "}
-              <code className="text-foreground/90">pytxo-darwin-arm64</code>,{" "}
-              <code className="text-foreground/90">pytxo-windows-x64.exe</code>, and checksums
-              from GitHub Releases.
-            </p>
-            <Button variant="outline" className="border-white/15 bg-card/30" asChild>
-              <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer">
-                Browse releases
-              </a>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-panel chroma-edge-top border-white/8">
-          <CardHeader>
-            <CardTitle>
-              <span className="chroma-text">Reality Deck</span>
-            </CardTitle>
-            <CardDescription>
-              Svelte 5 + Tauri v2 desktop telemetry — Chroma-themed space console
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <p className="text-sm text-muted-foreground">
-              Passive telemetry for runs, structural topology (import graph), Galaxy
-              approvals, project paths, fleet status, logs, and diffs. Auto-updates via the
-              built-in Tauri updater when new releases ship.
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Button variant="outline" className="border-white/15 bg-card/30" asChild>
-                <a href={DESKTOP_DOWNLOADS.windows}>Windows (.msi)</a>
-              </Button>
-              <Button variant="outline" className="border-white/15 bg-card/30" asChild>
-                <a href={DESKTOP_DOWNLOADS.macosArm}>macOS Apple Silicon (.dmg)</a>
-              </Button>
-              <Button variant="outline" className="border-white/15 bg-card/30" asChild>
-                <a href={DESKTOP_DOWNLOADS.macosX64}>macOS Intel (.dmg)</a>
-              </Button>
-              <Button variant="outline" className="border-white/15 bg-card/30" asChild>
-                <a href={DESKTOP_DOWNLOADS.linux}>Linux (.AppImage)</a>
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Requires the Pytxo CLI for orchestration, or use the bundled sidecar when available.
-              Installers are published alongside CLI binaries on{" "}
-              <a
-                href={RELEASES_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                GitHub Releases
-              </a>
-              .
-            </p>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card className="glass-panel border-white/8">
-          <CardHeader>
-            <CardTitle>Next steps</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <Link
-              href="/docs/concepts/modular-projects"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Modular projects →
-            </Link>
-            <Link
-              href="/docs/concepts/fleet-runs"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Fleet runs →
-            </Link>
-            <Link
-              href="/docs/concepts/galaxy-approvals"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Galaxy approvals →
-            </Link>
-            <Link
-              href="/docs/getting-started/folder-trust"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Folder trust & permission tiers →
-            </Link>
-            <Link
-              href="/docs/getting-started/testing-ade-clis"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Testing ADE CLIs (agy, Claude, Codex) →
-            </Link>
-            <Link
-              href="/docs/getting-started/first-three-agent-run"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Tutorial: first three-agent run →
-            </Link>
-            <Link
-              href="/docs/getting-started/mcp-from-cursor"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Wire Cursor MCP →
-            </Link>
-            <Link
-              href="/docs/reference/pytxo-toml"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              pytxo.toml reference →
-            </Link>
-          </CardContent>
-        </Card>
+        <section className="border-t border-border pt-10">
+          <h2 className="text-lg font-semibold tracking-tight">Next steps</h2>
+          <div className="mt-4 grid gap-1 sm:grid-cols-2">
+            {[
+              { href: "/docs/getting-started/first-three-agent-run", label: "First three-agent run" },
+              { href: "/docs/getting-started/mcp-from-cursor", label: "Wire Cursor MCP" },
+              { href: "/docs/getting-started/folder-trust", label: "Folder trust" },
+              { href: "/docs/concepts/desktop", label: "Pytxo Desktop overview" },
+              { href: "/docs/concepts/modular-projects", label: "Workspaces" },
+              { href: "/docs/reference/pytxo-toml", label: "pytxo.toml reference" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="px-1 py-2 text-sm font-medium text-primary transition-colors hover:text-foreground"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );

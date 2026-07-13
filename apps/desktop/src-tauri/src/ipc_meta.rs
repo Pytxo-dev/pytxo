@@ -1,6 +1,5 @@
 use serde::Serialize;
 use std::path::Path;
-use std::process::Command;
 
 use pytxo_core::DomainId;
 use pytxo_orchestrate::{effective_entitlements, fetch_link_wallet_balance};
@@ -26,16 +25,7 @@ pub fn ipc_version() -> String {
 
 #[tauri::command]
 pub fn check_pytxo_cli() -> bool {
-    if let Ok(sidecar) = std::env::var("PYTXO_SIDECAR") {
-        if !sidecar.is_empty() && std::path::Path::new(&sidecar).exists() {
-            return true;
-        }
-    }
-    Command::new(if cfg!(windows) { "where" } else { "which" })
-        .arg("pytxo")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    crate::ipc_install::cli_binary_usable()
 }
 
 #[tauri::command]
@@ -46,13 +36,11 @@ pub fn entitlement_status(
     let domain = resolve_domain(&state, domain_id)?;
     let cfg = load_cfg_for_domain(&domain, &state)?;
     let ent = effective_entitlements(&cfg).map_err(map_config_err)?;
-    let mut wallet_balance = open_store_for_domain(&cfg, &domain)
-        .ok()
-        .and_then(|store| {
-            DomainId::from_repo_root(Path::new(&domain))
-                .ok()
-                .and_then(|d| store.wallet_balance_microcredits(&d).ok())
-        });
+    let mut wallet_balance = open_store_for_domain(&cfg, &domain).ok().and_then(|store| {
+        DomainId::from_repo_root(Path::new(&domain))
+            .ok()
+            .and_then(|d| store.wallet_balance_microcredits(&d).ok())
+    });
     if ent.tier == "ultra" && cfg.billing.link_reconcile_enabled() {
         if let Ok(remote) = fetch_link_wallet_balance(cfg.billing.link_base_url()) {
             wallet_balance = Some(remote);

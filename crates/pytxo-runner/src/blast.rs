@@ -1,19 +1,37 @@
-#[cfg(feature = "overlay-fuse")]
 use std::path::Path;
 
-#[cfg(feature = "overlay-fuse")]
-use pytxo_core::PytxoError;
-use pytxo_core::{IsolationBackend, IsolationCtx, IsolationMode, Result, WorkspaceHandle};
+use pytxo_core::{
+    IsolationBackend, IsolationCtx, IsolationMode, PytxoError, Result, WorkspaceHandle,
+};
 
 use crate::git::{branch_name, create_worktree, remove_worktree, worktree_path};
 
-#[cfg(feature = "overlay-fuse")]
 fn should_skip_dir(name: &str, sparse_exclude: &[String]) -> bool {
     sparse_exclude.iter().any(|e| e == name)
 }
 
-#[cfg(feature = "overlay-fuse")]
+/// Sparse copy-layer: materialize `repo_root` into `dst`, skipping top-level `sparse_exclude` names.
+/// Works for git and non-git trees (Phase 69). Kernel FUSE/ProjFS remain preferred when available.
 fn copy_dir_recursive(src: &Path, dst: &Path, sparse_exclude: &[String]) -> Result<()> {
+    std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("overlay mkdir: {e}")))?;
+    let source_root = std::fs::canonicalize(src)
+        .map_err(|e| PytxoError::Runner(format!("overlay canonical source: {e}")))?;
+    let destination_root = std::fs::canonicalize(dst)
+        .map_err(|e| PytxoError::Runner(format!("overlay canonical destination: {e}")))?;
+    copy_dir_recursive_inner(
+        &source_root,
+        &destination_root,
+        sparse_exclude,
+        &destination_root,
+    )
+}
+
+fn copy_dir_recursive_inner(
+    src: &Path,
+    dst: &Path,
+    sparse_exclude: &[String],
+    destination_root: &Path,
+) -> Result<()> {
     std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("overlay mkdir: {e}")))?;
     for entry in
         std::fs::read_dir(src).map_err(|e| PytxoError::Runner(format!("overlay readdir: {e}")))?
@@ -25,13 +43,16 @@ fn copy_dir_recursive(src: &Path, dst: &Path, sparse_exclude: &[String]) -> Resu
             continue;
         }
         let from = entry.path();
+        if from.starts_with(destination_root) {
+            continue;
+        }
         let to = dst.join(&name);
         if entry
             .file_type()
             .map_err(|e| PytxoError::Runner(e.to_string()))?
             .is_dir()
         {
-            copy_dir_recursive(&from, &to, &[])?;
+            copy_dir_recursive_inner(&from, &to, &[], destination_root)?;
         } else {
             std::fs::copy(&from, &to)
                 .map_err(|e| PytxoError::Runner(format!("overlay copy: {e}")))?;
@@ -40,7 +61,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path, sparse_exclude: &[String]) -> Resu
     Ok(())
 }
 
-#[cfg(feature = "overlay-fuse")]
+/// Non-git overlay upper: copy-layer under `overlay-{run}-{agent}/upper` (Phase 69 default fallback).
 fn prepare_overlay_layer(ctx: &IsolationCtx) -> Result<WorkspaceHandle> {
     let layer = ctx
         .worktree_base
@@ -86,7 +107,12 @@ impl IsolationBackend for WorktreeIsolation {
     }
 }
 
-/// Blast Shield north-star backend — sparse overlay (FUSE / ProjFS).
+/// Blast Shield north-star backend — sparse overlay (FUSE / ProjFS / copy-layer).
+///
+/// Preference order (Phase 69):
+/// 1. Kernel FUSE (Linux) / macFUSE / Windows ProjFS sparse copy when feature + probe OK
+/// 2. Always-on sparse copy-layer (git **or** non-git trees)
+/// 3. Git worktree only if copy-layer fails (should be rare)
 #[derive(Clone, Default)]
 pub struct OverlayIsolation {
     fallback: WorktreeIsolation,
@@ -132,8 +158,9 @@ impl IsolationBackend for OverlayIsolation {
                 }
             }
         }
-        #[cfg(all(feature = "overlay-projfs", target_os = "windows"))]
+        #[cfg(target_os = "windows")]
         {
+            // Production interim: sparse copy-layer labeled projfs-* (full ProjFS provider = north star).
             if crate::overlay_projfs::projfs_supported() {
                 if let Ok(handle) = crate::overlay_projfs::prepare_projfs_overlay(
                     &ctx.repo_root,
@@ -146,16 +173,13 @@ impl IsolationBackend for OverlayIsolation {
                 }
             }
         }
-        #[cfg(feature = "overlay-fuse")]
-        {
-            return prepare_overlay_layer(ctx);
+        // Always-on copy-layer: works for non-git directories (Phase 69).
+        if let Ok(handle) = prepare_overlay_layer(ctx) {
+            return Ok(handle);
         }
-        #[cfg(not(feature = "overlay-fuse"))]
-        {
-            let mut handle = self.fallback.prepare(ctx)?;
-            handle.backend = IsolationMode::Overlay;
-            Ok(handle)
-        }
+        let mut handle = self.fallback.prepare(ctx)?;
+        handle.backend = IsolationMode::Overlay;
+        Ok(handle)
     }
 
     fn rollback(&self, ctx: &IsolationCtx, handle: &WorkspaceHandle) -> Result<()> {
@@ -171,40 +195,34 @@ impl IsolationBackend for OverlayIsolation {
                 return crate::overlay_fuse_macos::rollback_macos_overlay(handle);
             }
         }
-        #[cfg(all(feature = "overlay-projfs", target_os = "windows"))]
+        #[cfg(target_os = "windows")]
         {
             if handle.cwd.to_string_lossy().contains("projfs-") {
                 return crate::overlay_projfs::rollback_projfs_overlay(handle);
             }
         }
-        #[cfg(feature = "overlay-fuse")]
-        {
-            if handle.branch.is_empty() && handle.cwd.to_string_lossy().contains("overlay-") {
-                std::fs::remove_dir_all(handle.cwd.parent().unwrap_or(&handle.cwd)).ok();
-                return Ok(());
-            }
+        if handle.branch.is_empty() && handle.cwd.to_string_lossy().contains("overlay-") {
+            std::fs::remove_dir_all(handle.cwd.parent().unwrap_or(&handle.cwd)).ok();
+            return Ok(());
         }
         self.fallback.rollback(ctx, handle)
     }
 
     fn flush(&self, ctx: &IsolationCtx, handle: &WorkspaceHandle) -> Result<()> {
-        #[cfg(feature = "overlay-fuse")]
-        {
-            if handle.branch.is_empty() {
-                return flush_overlay_upper(&ctx.repo_root, &handle.cwd);
-            }
+        if handle.branch.is_empty() {
+            return flush_overlay_upper(&ctx.repo_root, &handle.cwd);
         }
         self.fallback.flush(ctx, handle)
     }
 }
 
-#[cfg(feature = "overlay-fuse")]
 fn flush_overlay_upper(repo_root: &Path, upper: &Path) -> Result<()> {
     fn walk_upper(src: &Path, dst: &Path) -> Result<()> {
         for entry in std::fs::read_dir(src)
             .map_err(|e| PytxoError::Runner(format!("overlay flush readdir: {e}")))?
         {
-            let entry = entry.map_err(|e| PytxoError::Runner(format!("overlay flush entry: {e}")))?;
+            let entry =
+                entry.map_err(|e| PytxoError::Runner(format!("overlay flush entry: {e}")))?;
             let name = entry.file_name();
             let from = entry.path();
             let to = dst.join(&name);
@@ -233,7 +251,19 @@ pub fn isolation_for_mode(mode: IsolationMode) -> Box<dyn IsolationBackend> {
     }
 }
 
-/// Human-readable active isolation backend for Deck telemetry (Phase 33).
+/// Resolve isolation mode for a run (Phase 62/69: prefer overlay when doctor probe passes).
+pub fn effective_isolation_mode(cfg: &pytxo_core::PytxoConfig) -> IsolationMode {
+    if cfg.isolation == IsolationMode::Overlay {
+        return IsolationMode::Overlay;
+    }
+    if cfg.blast.prefer_kernel_overlay && crate::doctor_overlay_probe().is_ok() {
+        return IsolationMode::Overlay;
+    }
+    IsolationMode::Worktree
+}
+
+/// Human-readable active isolation backend for Deck telemetry (Phase 33/69).
+#[allow(clippy::needless_return)] // cfg-specific branches are terminal on different platforms.
 pub fn isolation_backend_label(mode: IsolationMode, sparse_exclude: &[String]) -> String {
     match mode {
         IsolationMode::Worktree => "worktree".into(),
@@ -246,20 +276,18 @@ pub fn isolation_backend_label(mode: IsolationMode, sparse_exclude: &[String]) -
             {
                 return crate::overlay_fuse_macos::capability_probe().into();
             }
-            #[cfg(all(feature = "overlay-projfs", target_os = "windows"))]
+            #[cfg(target_os = "windows")]
             {
+                let _ = sparse_exclude;
                 return crate::overlay_projfs::capability_probe().into();
             }
-            #[cfg(feature = "overlay-fuse")]
-            return format!(
-                "overlay-copy-layer (excludes: {})",
-                sparse_exclude.join(",")
-            );
-            #[cfg(not(feature = "overlay-fuse"))]
-            return format!(
-                "overlay-worktree-fallback (excludes: {})",
-                sparse_exclude.join(",")
-            );
+            #[cfg(not(target_os = "windows"))]
+            {
+                format!(
+                    "overlay-copy-layer (excludes: {})",
+                    sparse_exclude.join(",")
+                )
+            }
         }
     }
 }
@@ -283,10 +311,9 @@ mod tests {
             &["node_modules".into(), "target".into()],
         );
         assert!(
-            label.starts_with("overlay-"),
+            label.starts_with("overlay-") || label.starts_with("projfs-"),
             "expected overlay backend label, got {label}"
         );
-        assert!(label.contains("node_modules"));
     }
 
     #[test]
@@ -295,7 +322,45 @@ mod tests {
         assert_eq!(backend.mode(), IsolationMode::Overlay);
     }
 
-    #[cfg(feature = "overlay-fuse")]
+    #[test]
+    fn prefer_kernel_overlay_defaults_true() {
+        let cfg = pytxo_core::PytxoConfig::default();
+        assert!(cfg.blast.prefer_kernel_overlay);
+    }
+
+    #[test]
+    fn effective_isolation_upgrades_when_probe_ok() {
+        let cfg = pytxo_core::PytxoConfig::default();
+        assert!(cfg.blast.prefer_kernel_overlay);
+        // Copy-layer probe always succeeds (Phase 69); effective mode must be Overlay.
+        assert!(crate::doctor_overlay_probe().is_ok());
+        assert_eq!(effective_isolation_mode(&cfg), IsolationMode::Overlay);
+    }
+
+    #[test]
+    fn overlay_layer_works_on_non_git_tree() {
+        use pytxo_core::{AgentId, RunId};
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir_all(repo.join("node_modules")).unwrap();
+        std::fs::write(repo.join("README.md"), "x\n").unwrap();
+        std::fs::write(repo.join("node_modules").join("pkg.js"), "x").unwrap();
+        let wt = tmp.path().join("wt");
+        std::fs::create_dir_all(&wt).unwrap();
+        let ctx = IsolationCtx {
+            run_id: RunId("run1".into()),
+            agent_id: AgentId("agent-0".into()),
+            repo_root: repo.clone(),
+            worktree_base: wt,
+            sparse_exclude: vec!["node_modules".into()],
+        };
+        let handle = OverlayIsolation::new().prepare(&ctx).unwrap();
+        assert_eq!(handle.backend, IsolationMode::Overlay);
+        assert!(handle.branch.is_empty());
+        assert!(handle.cwd.join("README.md").exists());
+        assert!(!handle.cwd.join("node_modules").exists());
+    }
+
     #[test]
     fn overlay_layer_not_git_worktree() {
         use pytxo_core::{AgentId, RunId};
@@ -324,11 +389,56 @@ mod tests {
         let handle = OverlayIsolation::new().prepare(&ctx).unwrap();
         assert_eq!(handle.backend, IsolationMode::Overlay);
         assert!(handle.branch.is_empty());
-        assert!(handle
-            .cwd
-            .to_string_lossy()
-            .contains("overlay-run1-agent-0"));
         assert!(handle.cwd.join("README.md").exists());
         assert!(!handle.cwd.join("node_modules").exists());
+    }
+
+    #[test]
+    fn copy_layer_works_with_overlay_base_inside_repo() {
+        use pytxo_core::{AgentId, RunId};
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::create_dir_all(repo.join(".pytxo")).unwrap();
+        std::fs::write(repo.join("README.md"), "x\n").unwrap();
+        std::fs::write(repo.join(".pytxo/keep.toml"), "keep = true\n").unwrap();
+        let ctx = IsolationCtx {
+            run_id: RunId("run2".into()),
+            agent_id: AgentId("agent-1".into()),
+            repo_root: repo.clone(),
+            worktree_base: repo.join(".pytxo/worktrees"),
+            sparse_exclude: Vec::new(),
+        };
+
+        let handle = prepare_overlay_layer(&ctx).unwrap();
+
+        assert!(handle.cwd.join("README.md").exists());
+        assert!(handle.cwd.join(".pytxo/keep.toml").exists());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn copy_layer_normalizes_mixed_case_destination() {
+        use pytxo_core::{AgentId, RunId};
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::write(repo.join("README.md"), "x\n").unwrap();
+        let mut alias = repo.to_string_lossy().into_owned();
+        if alias.as_bytes().get(1) == Some(&b':') {
+            alias.replace_range(0..1, &alias[0..1].to_ascii_lowercase());
+        }
+        let alias = std::path::PathBuf::from(alias);
+        let ctx = IsolationCtx {
+            run_id: RunId("run-case".into()),
+            agent_id: AgentId("agent-case".into()),
+            repo_root: repo,
+            worktree_base: alias.join(".pytxo/worktrees"),
+            sparse_exclude: Vec::new(),
+        };
+
+        let handle = prepare_overlay_layer(&ctx).unwrap();
+
+        assert!(handle.cwd.join("README.md").exists());
     }
 }

@@ -6,6 +6,7 @@
   import type { DeckTheme } from "../../lib/theme";
   import { isLightDeck } from "../../lib/theme";
   import { forceLayout3d } from "../../lib/force-layout";
+  import { Button } from "$lib/components/ui/button";
 
   let {
     structural = null as StructuralGraphDto | null,
@@ -28,7 +29,21 @@
   let controls: OrbitControls | null = null;
   let frameId = 0;
   let nodeMeshes = new Map<string, THREE.Mesh>();
+  let edgeParticles: THREE.Points[] = [];
   let resizeObserver: ResizeObserver | null = null;
+
+  /** Chroma: teal / violet / gold; default teal (not sky-blue). */
+  const ROOT_COLORS: Record<string, number> = {
+    api: 0x2dd4bf,
+    web: 0xa78bfa,
+    shared: 0xfbbf24,
+    default: 0x2dd4bf,
+  };
+
+  function rootColor(rootId: string | null | undefined, fallback: number): number {
+    if (!rootId) return fallback;
+    return ROOT_COLORS[rootId] ?? ROOT_COLORS.default;
+  }
 
   const lightTheme = $derived(isLightDeck(deckTheme));
 
@@ -56,14 +71,19 @@
       (mesh.material as THREE.Material).dispose();
     }
     nodeMeshes.clear();
-    const toRemove = scene.children.filter((c: THREE.Object3D) => c.userData.kind === "edge");
+    const toRemove = scene.children.filter((c: THREE.Object3D) => c.userData.kind === "edge" || c.userData.kind === "edge-particles");
     for (const obj of toRemove) {
       scene.remove(obj);
       if (obj instanceof THREE.Line) {
         obj.geometry.dispose();
         (obj.material as THREE.Material).dispose();
       }
+      if (obj instanceof THREE.Points) {
+        obj.geometry.dispose();
+        (obj.material as THREE.Material).dispose();
+      }
     }
+    edgeParticles = [];
   }
 
   function rebuildGraph() {
@@ -83,8 +103,9 @@
       if (!pos) continue;
       const isSymbol = node.label.includes("::") || node.id.includes("::");
       const size = isSymbol ? 0.14 : node.edited ? 0.35 : 0.22;
-      const color = isSymbol ? violet : node.edited ? gold : teal;
-      const geom = new THREE.SphereGeometry(size, 16, 16);
+      const lane = rootColor(node.root_id, isSymbol ? violet : node.edited ? gold : teal);
+      const color = lane;
+      const geom = new THREE.SphereGeometry(size, isSymbol ? 12 : 16, isSymbol ? 12 : 16);
       const mat = new THREE.MeshStandardMaterial({
         color,
         emissive: isSymbol ? violet : node.edited ? gold : violet,
@@ -113,6 +134,23 @@
       const line = new THREE.Line(geom, edgeMat);
       line.userData = { kind: "edge" };
       scene.add(line);
+
+      const mid = new THREE.Vector3(
+        (a.x + b.x) / 2,
+        (a.y + b.y) / 2,
+        (a.z + b.z) / 2,
+      );
+      const particleGeom = new THREE.BufferGeometry().setFromPoints([mid]);
+      const particleMat = new THREE.PointsMaterial({
+        color: hexColor("--brand-violet", 0xa78bfa),
+        size: 0.12,
+        transparent: true,
+        opacity: 0.85,
+      });
+      const particles = new THREE.Points(particleGeom, particleMat);
+      particles.userData = { kind: "edge-particles" };
+      scene.add(particles);
+      edgeParticles.push(particles);
     }
 
     highlightSelection();
@@ -175,8 +213,31 @@
     }
   }
 
+  function fitCamera() {
+    if (!camera || !controls || nodeMeshes.size === 0) return;
+    const box = new THREE.Box3();
+    for (const mesh of nodeMeshes.values()) box.expandByObject(mesh);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z, 1);
+    camera.position.set(center.x, center.y, center.z + maxDim * 1.8);
+    controls.target.copy(center);
+    controls.update();
+  }
+
+  function resetCamera() {
+    if (!camera || !controls) return;
+    camera.position.set(0, 0, 10);
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }
+
   function animate() {
     frameId = requestAnimationFrame(animate);
+    const t = performance.now() * 0.001;
+    for (const p of edgeParticles) {
+      p.position.y = Math.sin(t * 1.2 + p.id) * 0.012;
+    }
     controls?.update();
     renderer?.render(scene!, camera!);
   }
@@ -240,23 +301,29 @@
   });
 </script>
 
-<section class="topology-3d glass-panel">
+<section class="topology-3d">
   <header class="topology-3d__header">
     <h2 class="panel-title">Structural topology</h2>
-    <div class="legend">
-      <span class="legend__item"><i class="dot dot--file"></i> File</span>
-      <span class="legend__item"><i class="dot dot--edited"></i> Edited</span>
-      <span class="legend__item"><i class="dot dot--symbol"></i> Symbol</span>
+    <div class="topology-3d__controls">
+      <Button variant="outline" size="sm" onclick={fitCamera}>Fit</Button>
+      <Button variant="outline" size="sm" onclick={resetCamera}>Reset</Button>
     </div>
     {#if hoverLabel || selectedNodeId}
       <span class="selection">{hoverLabel ?? selectedNodeId}</span>
     {/if}
+    <div class="legend" title="Node roles">
+      <span class="legend__item"><i class="dot dot--file"></i> File</span>
+      <span class="legend__item"><i class="dot dot--edited"></i> Edited</span>
+      <span class="legend__item"><i class="dot dot--symbol"></i> Symbol</span>
+    </div>
   </header>
   <div class="topology-3d__canvas" bind:this={containerEl}>
     {#if loading}
       <div class="loading">Building graph…</div>
     {:else if !structural || structural.nodes.length === 0}
-      <div class="empty">Select a workspace folder to preview import topology.</div>
+      <div class="empty">
+        <p>Open a Workspace to preview how imports connect in this folder.</p>
+      </div>
     {/if}
   </div>
 </section>
@@ -268,10 +335,13 @@
     flex: 1;
     min-width: 0;
     min-height: 55vh;
-    padding: 0.85rem;
-    margin: 0 0.5rem;
-    border-radius: 16px;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .topology-3d__controls {
+    display: flex;
+    gap: 0.35rem;
+    margin-left: auto;
   }
   .topology-3d__header {
     display: flex;
@@ -280,11 +350,16 @@
     flex-wrap: wrap;
     margin-bottom: 0.5rem;
   }
+  .topology-3d__header .panel-title {
+    margin: 0;
+  }
   .legend {
     display: flex;
     gap: 0.65rem;
     font-size: 0.7rem;
     color: var(--muted-foreground);
+    width: 100%;
+    order: 5;
   }
   .legend__item {
     display: flex;
@@ -315,11 +390,11 @@
   .topology-3d__canvas {
     flex: 1;
     min-height: 280px;
-    border-radius: 12px;
+    border-radius: var(--panel-radius, var(--radius-md));
     overflow: hidden;
-    background: var(--void-elevated);
+    background: var(--card);
     position: relative;
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 6%, transparent);
+    border: 1px solid var(--border);
   }
   .topology-3d__canvas :global(canvas) {
     display: block;

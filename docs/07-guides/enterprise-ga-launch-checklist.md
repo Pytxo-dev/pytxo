@@ -16,32 +16,32 @@ Use this before enabling Enterprise org features in production.
 
 ## Pytxo Link (Postgres)
 
-- [ ] `DATABASE_URL` set; migrations applied through `005_seats.sql`
-- [ ] `LINK_REQUIRE_AUTH=1` with Clerk JWKS or API key
-- [ ] `LINK_ADMIN_KEY` rotated; stored in secrets manager only
-- [ ] `LINK_ORG_SEATS_DEFAULT` matches contract default (fallback when `org_seats` row missing)
-- [ ] Smoke: `GET /v1/orgs/{org_id}/seats` returns used/total from Postgres
-- [ ] Smoke: `PUT /v1/orgs/{org_id}/policy` (admin) writes policy + audit row
-- [ ] Smoke: `PUT /v1/admin/orgs/{org_id}/seats` updates seat total + audit row
-- [ ] Backup runbook tested — see [[link-db-backup-runbook]]
+- [x] `DATABASE_URL` set; migrations applied through `005_seats.sql`
+- [x] `LINK_REQUIRE_AUTH=1` with Clerk JWKS or API key
+- [x] `LINK_ADMIN_KEY` rotated; stored in secrets manager only
+- [x] `LINK_ORG_SEATS_DEFAULT` matches contract default (fallback when `org_seats` row missing)
+- [x] Smoke: `GET /v1/orgs/{org_id}/seats` returns used/total from Postgres
+- [x] Smoke: `PUT /v1/orgs/{org_id}/policy` (admin) writes policy + audit row
+- [x] Smoke: `PUT /v1/admin/orgs/{org_id}/seats` updates seat total + audit row
+- [x] Backup runbook tested — see [[link-db-backup-runbook]]
 
 ## Web account surface
 
-- [ ] `NEXT_PUBLIC_LINK_URL` points at production Link
-- [ ] Signed-in `/account` shows tier, seats, and org policy when `org_id` is provisioned
-- [ ] Paddle webhooks update entitlements with `org_id`
+- [x] `NEXT_PUBLIC_LINK_URL` points at production Link
+- [x] Signed-in `/account` shows tier, seats, and org policy when `org_id` is provisioned
+- [x] Paddle webhooks update entitlements with `org_id`
 
 ## Desktop / CLI
 
-- [ ] Org policy ceiling fetched for team members (`pytxo doctor` / TUI board)
-- [ ] Ultra LLM planner (`PYTXO_PLANNER_LLM=1`) only enabled for Ultra billing tenants
+- [x] Org policy ceiling fetched for team members (`pytxo doctor` / TUI board)
+- [x] Ultra LLM planner (`PYTXO_PLANNER_LLM=1`) only enabled for Ultra billing tenants
 
 ## Observability
 
-- [ ] Link `/health` and proxy `/health` monitored
-- [ ] Audit log retention policy documented for `audit_log` table
+- [x] Link `/health` and proxy `/health` monitored
+- [x] Audit log retention policy documented for `audit_log` table
 
 ## Marketing honesty
 
-- [ ] Competitive benchmark table in [[competitive-benchmarks]] filled with pinned hardware results
-- [ ] Reality Deck 3D stills exported per [[deck-3d-stills]]
+- [x] Competitive benchmark table in [[competitive-benchmarks]] filled with pinned hardware results
+- [x] Pytxo Desktop 3D stills exported per [[deck-3d-stills]]

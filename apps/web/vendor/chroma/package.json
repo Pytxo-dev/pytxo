@@ -1,6 +1,6 @@
 {
   "name": "@pytxo/chroma",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "description": "Pytxo Chroma design tokens and utilities",
   "exports": {

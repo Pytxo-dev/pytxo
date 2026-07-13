@@ -5,7 +5,6 @@ use crate::state::AppState;
 /// Subject returned after successful auth (Clerk user id or api-key sentinel).
 pub struct AuthSubject {
     pub user_id: String,
-    pub org_id: Option<String>,
 }
 
 /// Validates API key, admin key, or Clerk session bearer.
@@ -25,17 +24,14 @@ pub async fn authorized(headers: &HeaderMap, state: &AppState) -> Option<AuthSub
         if bearer == Some(expected.as_str()) {
             return Some(AuthSubject {
                 user_id: "api-key".to_string(),
-                org_id: None,
             });
         }
     }
 
     if let (Some(token), Some(jwks)) = (bearer, state.jwks.as_ref()) {
         if let Some(claims) = jwks.validate(token).await {
-            let org_id = claims.org_id;
             return Some(AuthSubject {
                 user_id: claims.sub,
-                org_id,
             });
         }
     }
@@ -43,7 +39,6 @@ pub async fn authorized(headers: &HeaderMap, state: &AppState) -> Option<AuthSub
     if !state.require_auth {
         return Some(AuthSubject {
             user_id: bearer.unwrap_or("anonymous").to_string(),
-            org_id: None,
         });
     }
 

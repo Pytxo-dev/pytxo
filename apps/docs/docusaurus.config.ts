@@ -4,7 +4,7 @@ import type * as Preset from "@docusaurus/preset-classic";
 
 const config: Config = {
   title: "Pytxo Docs",
-  tagline: "Agent hypervisor & telemetry plane",
+  tagline: "Local coordinator for coding agents",
   favicon: "img/favicon.ico",
 
   future: {
@@ -68,6 +68,11 @@ const config: Config = {
           position: "right",
           className: "navbar-download-link",
         },
+        {
+          href: "https://github.com/Pytxo-dev/pytxo",
+          label: "GitHub",
+          position: "right",
+        },
       ],
     },
     docs: {
@@ -92,7 +97,7 @@ const config: Config = {
           items: [
             { label: "What is Pytxo?", to: "/concepts/what-is-pytxo" },
             { label: "Three moats", to: "/concepts/three-moats" },
-            { label: "Reality Deck", to: "/concepts/reality-deck" },
+            { label: "Pytxo Desktop", to: "/concepts/desktop" },
           ],
         },
         {
@@ -101,6 +106,15 @@ const config: Config = {
             { label: "CLI reference", to: "/reference/cli" },
             { label: "pytxo.toml", to: "/reference/pytxo-toml" },
             { label: "Permission tiers", to: "/reference/permission-tiers" },
+          ],
+        },
+        {
+          title: "Site",
+          items: [
+            { label: "Home", href: "https://pytxo.com" },
+            { label: "Download", href: "https://pytxo.com/download" },
+            { label: "Plans", href: "https://pytxo.com/plans" },
+            { label: "GitHub", href: "https://github.com/Pytxo-dev/pytxo" },
           ],
         },
       ],

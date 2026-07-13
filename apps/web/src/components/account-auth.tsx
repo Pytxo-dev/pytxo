@@ -78,7 +78,7 @@ export function AccountAuth() {
   const seats = entitlements?.org_seats;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <SignedOut>
         <div className="flex flex-wrap gap-2">
           <Button asChild>
@@ -89,68 +89,77 @@ export function AccountAuth() {
           </SignUpButton>
         </div>
         <p className="text-sm text-muted-foreground">
-          Core (local CLI + Deck) works without an account. Sign in to sync Pro, Max, or Ultra
+          Core (local CLI and Desktop) works without an account. Sign in to sync Pro, Max, or Ultra
           entitlements.
         </p>
+        <Link href="/plans" className="text-sm text-primary hover:underline">
+          Compare plans
+        </Link>
       </SignedOut>
       <SignedIn>
         <div className="flex items-center gap-3">
           <UserButton afterSignOutUrl="/" />
           <span className="text-sm text-muted-foreground">
-            Signed in — entitlements sync via Pytxo Link
+            Signed in. Entitlements sync via Pytxo Link.
           </span>
         </div>
         {loading && (
           <p className="text-sm text-muted-foreground">Loading entitlements…</p>
         )}
         {entitlements && !loading && (
-          <div className="rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-sm">
+          <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm">
             {entitlements.error ? (
               <p className="text-muted-foreground">
                 Could not reach Pytxo Link ({entitlements.error}). Local Core tier still works.
               </p>
             ) : (
-              <dl className="grid grid-cols-2 gap-2">
-                <dt className="text-muted-foreground">Tier</dt>
-                <dd className="font-medium capitalize">{entitlements.tier ?? "core"}</dd>
-                <dt className="text-muted-foreground">Max agents</dt>
-                <dd>{entitlements.max_agents ?? 3}</dd>
-                <dt className="text-muted-foreground">Cloud</dt>
-                <dd>{entitlements.cloud_enabled ? "enabled" : "off"}</dd>
-                {entitlements.org_id && (
-                  <>
-                    <dt className="text-muted-foreground">Organization</dt>
-                    <dd className="font-mono text-xs">{entitlements.org_id}</dd>
-                  </>
-                )}
-                {seats && (
-                  <>
-                    <dt className="text-muted-foreground">Seats</dt>
-                    <dd>
-                      {seats.seats_used ?? 0} / {seats.seats_total ?? "—"} used
-                      {typeof seats.seats_available === "number" && (
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div>
+                  <dt className="text-xs text-muted-foreground">Tier</dt>
+                  <dd className="mt-0.5 font-medium capitalize">{entitlements.tier ?? "core"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Max agents</dt>
+                  <dd className="mt-0.5 font-medium">{entitlements.max_agents ?? 3}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Cloud</dt>
+                  <dd className="mt-0.5 font-medium">
+                    {entitlements.cloud_enabled ? "enabled" : "off"}
+                  </dd>
+                </div>
+                {entitlements.org_id ? (
+                  <div className="col-span-2">
+                    <dt className="text-xs text-muted-foreground">Organization</dt>
+                    <dd className="mt-0.5 font-mono text-xs break-all">{entitlements.org_id}</dd>
+                  </div>
+                ) : null}
+                {seats ? (
+                  <div className="col-span-2">
+                    <dt className="text-xs text-muted-foreground">Seats</dt>
+                    <dd className="mt-0.5">
+                      {seats.seats_used ?? 0} / {seats.seats_total ?? "-"} used
+                      {typeof seats.seats_available === "number" ? (
                         <span className="text-muted-foreground">
                           {" "}
                           ({seats.seats_available} available)
                         </span>
-                      )}
+                      ) : null}
                     </dd>
-                  </>
-                )}
-                {policy?.default_permission_profile && (
-                  <>
-                    <dt className="text-muted-foreground">Org policy</dt>
-                    <dd className="capitalize">{policy.default_permission_profile}</dd>
-                  </>
-                )}
-                {policy?.shared_trusted_domains && policy.shared_trusted_domains.length > 0 && (
-                  <>
-                    <dt className="text-muted-foreground">Trusted domains</dt>
-                    <dd className="col-span-1 text-xs">
-                      {policy.shared_trusted_domains.join(", ")}
-                    </dd>
-                  </>
-                )}
+                  </div>
+                ) : null}
+                {policy?.default_permission_profile ? (
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Org policy</dt>
+                    <dd className="mt-0.5 capitalize">{policy.default_permission_profile}</dd>
+                  </div>
+                ) : null}
+                {policy?.shared_trusted_domains && policy.shared_trusted_domains.length > 0 ? (
+                  <div className="col-span-2">
+                    <dt className="text-xs text-muted-foreground">Trusted domains</dt>
+                    <dd className="mt-0.5 text-xs">{policy.shared_trusted_domains.join(", ")}</dd>
+                  </div>
+                ) : null}
               </dl>
             )}
           </div>
@@ -159,7 +168,7 @@ export function AccountAuth() {
           href="https://pytxo.com/account#subscription"
           className="text-sm text-primary hover:underline"
         >
-          Manage subscription in Paddle portal →
+          Manage subscription in Paddle portal
         </Link>
       </SignedIn>
     </div>

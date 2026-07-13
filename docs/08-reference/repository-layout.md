@@ -18,7 +18,7 @@ related: [[github-organization]], [[mvp-bootstrap]]
 |------|---------|
 | `crates/*` | Rust control plane (CLI, TUI, MCP, scheduler, runner, store, signal) |
 | `packages/pytxo/` | npm installer (`npm i -g pytxo`) |
-| `apps/desktop/` | Reality Deck — Svelte 5 + Tauri v2 (`pytxo-desktop` crate) |
+| `apps/desktop/` | Pytxo Desktop — Svelte 5 + Tauri v2 (`pytxo-desktop` crate) |
 | `apps/desktop-export/` | Export / release staging slot (see README there) |
 | `apps/web/` | Marketing site — Next.js static export, shadcn/ui ([pytxo.com](https://pytxo.com)) |
 | `apps/docs/` | Public docs — Docusaurus, built into `apps/web/public/docs/` ([pytxo.com/docs](https://pytxo.com/docs/)) |
@@ -62,7 +62,7 @@ cargo test --workspace
 ./tooling/scripts/smoke.ps1   # or tooling/scripts/smoke.sh
 ```
 
-**Reality Deck:**
+**Pytxo Desktop:**
 
 ```bash
 cd apps/desktop && npm ci && npm run check

@@ -12,6 +12,7 @@ doctest = false
 anyhow.workspace = true
 chrono.workspace = true
 pytxo-core = { workspace = true }
+pytxo-planner.workspace = true
 pytxo-runner.workspace = true
 pytxo-scheduler.workspace = true
 pytxo-store.workspace = true

@@ -4,7 +4,7 @@ title: Modular projects
 
 # Modular projects
 
-A **modular project** lets you run one coordinated swarm across **multiple folders** — for example an API repo, a web app, and a read-only protos package — without merging them into a single git root.
+A **modular project** lets you run one coordinated swarm across **multiple folders**. Example: an API repo, a web app, and a read-only protos package, without merging them into a single git root.
 
 ## At a glance
 
@@ -37,12 +37,13 @@ pytxo project run --id my-platform --cmd "echo pytxo" --agents 3
 
 One `run_id` spans all writable roots. The scheduler warns when two roots claim overlapping paths in the same wave.
 
-## Reality Deck
+## Pytxo Desktop Workspaces
 
-When a project is selected in the Deck sidebar, you see:
+In Desktop, a modular project is a **Workspace**:
 
-- A **path panel** listing each root, primary badge, read-only badge, and permission tier
-- **Root filters** on agents and topology nodes
+- **Workspaces home** lists recent projects and folders
+- **Workspace folders** panel lists each root (primary, read-only, permission tier)
+- Topology and agents can show per-root labels when a multi-root Workspace is open
 
 ## Configuration
 

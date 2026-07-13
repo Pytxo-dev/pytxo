@@ -26,7 +26,7 @@ Persist to a local **SQLite** database with **Write-Ahead Logging (WAL)**:
 ## Result
 
 - Orchestration RAM stays at a **constant bound** (target on the order of ~500 MB for core process limits—tune per platform).
-- **Reality Deck** can replay or stream from WAL without retaining full scrollback in memory.
+- **Pytxo Desktop** can replay or stream from WAL without retaining full scrollback in memory.
 - Multi-day pipelines remain viable without OOM.
 
 ## Multi-project / execution domains

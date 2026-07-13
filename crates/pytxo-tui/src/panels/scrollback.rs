@@ -39,8 +39,8 @@ impl Scrollback {
         let body: Vec<Line> = self.lines[start..end].to_vec();
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(theme::chroma_border(2))
-            .title(ratatui::text::Span::styled(" Scrollback ", theme::chroma_violet()))
+            .border_style(theme::border())
+            .title(ratatui::text::Span::styled(" Scrollback ", theme::title()))
             .style(theme::panel_bg());
         frame.render_widget(
             Paragraph::new(body)

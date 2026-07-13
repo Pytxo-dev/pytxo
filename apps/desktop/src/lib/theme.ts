@@ -3,11 +3,12 @@ export type DeckTheme = "void" | "light" | "terminal" | "nebula";
 export const THEME_STORAGE_KEY = "pytxo-deck-theme";
 export const SETUP_STORAGE_KEY = "pytxo-deck-setup-v1";
 
+/** Void first; Nebula demoted as vivid optional skin. */
 export const DECK_THEMES: { id: DeckTheme; label: string }[] = [
   { id: "void", label: "Void" },
   { id: "light", label: "Light" },
   { id: "terminal", label: "Terminal" },
-  { id: "nebula", label: "Nebula" },
+  { id: "nebula", label: "Nebula (vivid)" },
 ];
 
 export function loadTheme(): DeckTheme {

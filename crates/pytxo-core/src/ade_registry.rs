@@ -77,10 +77,7 @@ pub fn ade_on_path(spec: &AdeCliSpec) -> bool {
 }
 
 pub fn detect_on_path() -> Vec<(&'static str, bool)> {
-    REGISTRY
-        .iter()
-        .map(|s| (s.id, ade_on_path(s)))
-        .collect()
+    REGISTRY.iter().map(|s| (s.id, ade_on_path(s))).collect()
 }
 
 pub fn format_agents_list() -> String {

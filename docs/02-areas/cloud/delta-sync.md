@@ -23,6 +23,6 @@ Cloud hybrid runs minimize network transfer by syncing **only changed file struc
 
 ## Developer experience
 
-Real-time visualization on the Reality Deck; final artifacts land on disk after explicit or policy-driven approval ([[pytxo-link-signing]] for remote approve paths).
+Real-time visualization on the Pytxo Desktop; final artifacts land on disk after explicit or policy-driven approval ([[pytxo-link-signing]] for remote approve paths).
 
 Parent: [[hybrid-execution]].

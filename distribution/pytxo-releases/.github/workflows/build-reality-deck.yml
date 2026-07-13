@@ -1,0 +1,140 @@
+name: Build Reality Deck
+
+# Runs on this public repo (free Actions minutes). Checks out private pytxo at tag.
+# Actions → Build Reality Deck → version 0.3.5
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver (no v prefix), e.g. 0.3.5"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  TAG_NAME: v${{ inputs.version }}
+  NPM_VERSION: ${{ inputs.version }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            rust_target: x86_64-unknown-linux-gnu
+            asset_prefix: pytxo-reality-deck-linux-x64
+          - os: macos-latest
+            rust_target: aarch64-apple-darwin
+            asset_prefix: pytxo-reality-deck-darwin-arm64
+          - os: macos-latest
+            rust_target: x86_64-apple-darwin
+            asset_prefix: pytxo-reality-deck-darwin-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - name: Checkout pytxo source
+        uses: actions/checkout@v4
+        with:
+          repository: Pytxo-dev/pytxo
+          ref: ${{ env.TAG_NAME }}
+          token: ${{ secrets.PYTXO_SOURCE_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf
+
+      - name: npm ci (tooling + desktop icons)
+        run: |
+          npm ci --prefix tooling
+          node tooling/scripts/generate-deck-icons.mjs
+          test -f apps/desktop/src-tauri/icons/icon.ico
+          test -f apps/desktop/src-tauri/icons/icon.icns
+
+      - name: npm ci (desktop)
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Disable updater artifacts when unsigned
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            node -e "
+            const fs = require('fs');
+            const p = 'apps/desktop/src-tauri/tauri.conf.json';
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            j.bundle.createUpdaterArtifacts = false;
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+            "
+          fi
+
+      - name: Build Tauri bundles
+        working-directory: apps/desktop
+        run: npx @tauri-apps/cli@2 build --target ${{ matrix.rust_target }}
+
+      - name: List bundle output
+        run: find target/${{ matrix.rust_target }}/release/bundle -type f 2>/dev/null || true
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_prefix }}
+          path: |
+            target/${{ matrix.rust_target }}/release/bundle/**/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download desktop artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pytxo-reality-deck-*
+          path: desktop-dist
+          merge-multiple: true
+
+      - name: Stage installers
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          find desktop-dist -type f \( -name '*.dmg' -o -name '*.AppImage' \) | while read -r f; do
+            base="$(basename "$f")"
+            case "$base" in
+              *aarch64*.dmg|*arm64*.dmg) dest="pytxo-reality-deck-darwin-arm64.dmg" ;;
+              *x86_64*.dmg|*x64*.dmg) dest="pytxo-reality-deck-darwin-x64.dmg" ;;
+              *.AppImage) dest="pytxo-reality-deck-linux-x64.AppImage" ;;
+              *) continue ;;
+            esac
+            cp "$f" "dist/$dest"
+            echo "staged $f → dist/$dest"
+          done
+          ls -la dist/
+          test -n "$(ls -A dist)"
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: ${{ env.TAG_NAME }}
+          generate_release_notes: false
+          files: dist/*

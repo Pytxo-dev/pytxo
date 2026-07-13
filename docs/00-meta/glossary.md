@@ -6,23 +6,24 @@ tags: [meta, glossary]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-04
+updated: 2026-07-09
 related: [[MOC-home]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]]
 ---
 
 # Glossary
 
-Canonical product and engineering terms for Pytxo.
+Canonical product and engineering terms for Pytxo. Prefer plain language in marketing; keep codenames here and in deep docs.
 
 | Term | Definition |
 |------|------------|
-| **Agent hypervisor** | Pytxo’s role: spawn, schedule, isolate, and meter headless coding agents on PTYs ([[product-vision]]) |
+| **Agent hypervisor** | Pytxo’s role: run, schedule, isolate, and meter headless coding agents on PTYs ([[product-vision]]) |
 | **ADE** | Agentic development environment — often UI-heavy multi-agent IDEs (e.g. BridgeSpace-style terminal walls) |
-| **Signal Core** | Context arbitrage moat: `tree-sitter` skeletons on read ([[signal-core]]) |
-| **Blast Shield** | CoW memory sandbox; disk flush on approve ([[blast-shield]]) |
-| **Race Shield** | Swarm registry + stdin buffering; no write collisions ([[race-shield]]) |
+| **Signal Core** | Smarter context: `tree-sitter` skeletons on read ([[signal-core]]) |
+| **Blast Shield** | Safe sandbox until you approve; disk flush on approve ([[blast-shield]]) |
+| **Race Shield** | No write collisions: swarm registry + stdin buffering ([[race-shield]]) |
 | **Execution yard** | Headless CLI agent processes under orchestration |
-| **Reality Deck** | Space-console UI: 3D AST topology + telemetry ([[reality-deck-visual-system]]) |
+| **Pytxo Desktop** | Optional control UI: 3D AST topology + telemetry ([[desktop-visual-system]]); formerly Reality Deck |
+| **Workspace** | User-facing name for a modular project: one or more folders under one coordinated run ([[modular-projects]]) |
 | **Orchestration layer** | Rust core: PTY, DAG, Signal Core, WAL, shields |
 | **Presentation layer** | Svelte + Tauri; no direct filesystem access |
 | **Pytxo Cloud** | Hosted sandboxes, server-side context cache, **BYOK** ([[hybrid-execution]]) |

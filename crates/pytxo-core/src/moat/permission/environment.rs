@@ -6,8 +6,6 @@ use std::process::Command;
 use super::PermissionProfile;
 
 pub trait EnvironmentPolicy {
-    fn profile(&self) -> PermissionProfile;
-
     fn sanitize_child_env(&self, command: &mut Command);
 
     fn sanitize_env_map(&self, vars: &mut HashMap<String, String>);
@@ -28,10 +26,6 @@ impl EnvironmentPolicyEngine {
 }
 
 impl EnvironmentPolicy for EnvironmentPolicyEngine {
-    fn profile(&self) -> PermissionProfile {
-        self.profile
-    }
-
     fn sanitize_child_env(&self, command: &mut Command) {
         if !matches!(
             self.profile,

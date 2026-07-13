@@ -67,6 +67,7 @@ fn ctx_with_hitl(repo: &std::path::Path, hitl: HitlQueue) -> RunContext {
         pty_rows: 24,
         pty_cols: 80,
         hitl: Some(hitl),
+        hitl_manual_flush: false,
         agent_paths: HashMap::new(),
         agent_fidelity: HashMap::new(),
         roots: HashMap::new(),

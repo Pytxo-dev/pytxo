@@ -12,6 +12,13 @@ pub struct BlastConfig {
     /// Top-level directory names skipped in overlay copy / sparse lowerdir (Phase 33).
     #[serde(default = "default_sparse_exclude")]
     pub sparse_exclude: Vec<String>,
+    /// When true and doctor overlay probe passes, Orbit may use kernel overlay instead of worktree (Phase 62).
+    #[serde(default = "default_prefer_kernel_overlay")]
+    pub prefer_kernel_overlay: bool,
+}
+
+fn default_prefer_kernel_overlay() -> bool {
+    true
 }
 
 fn default_sparse_exclude() -> Vec<String> {
@@ -28,6 +35,7 @@ impl Default for BlastConfig {
     fn default() -> Self {
         Self {
             sparse_exclude: default_sparse_exclude(),
+            prefer_kernel_overlay: default_prefer_kernel_overlay(),
         }
     }
 }
@@ -282,7 +290,10 @@ mod tests {
     #[test]
     fn blast_sparse_exclude_defaults() {
         let cfg = PytxoConfig::default();
-        assert!(cfg.blast.sparse_exclude.contains(&"node_modules".to_string()));
+        assert!(cfg
+            .blast
+            .sparse_exclude
+            .contains(&"node_modules".to_string()));
         assert!(cfg.blast.sparse_exclude.contains(&".git".to_string()));
     }
 

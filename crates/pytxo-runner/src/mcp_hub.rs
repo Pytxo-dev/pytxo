@@ -61,6 +61,8 @@ impl ChildMcpSession {
 #[derive(Default)]
 struct HubInner {
     sessions: HashMap<String, ChildMcpSession>,
+    /// MCP v3 resource subscriptions (Phase 67): agent_key -> resource URI.
+    subscriptions: HashMap<String, Vec<String>>,
 }
 
 /// Per-domain registry of live child MCP servers ([[mcp-router]] v2).
@@ -106,7 +108,11 @@ impl McpHub {
     }
 
     fn proxy_multi_hop(&self, route: &str, method: &str, params: Value) -> Result<Value> {
-        let hops: Vec<&str> = route.split("->").map(str::trim).filter(|s| !s.is_empty()).collect();
+        let hops: Vec<&str> = route
+            .split("->")
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
         if hops.len() < 2 {
             return self.proxy_call(route, method, params);
         }
@@ -122,7 +128,50 @@ impl McpHub {
             });
             carry = self.proxy_call(hop, "tools/call", carry)?;
         }
-        Err(PytxoError::Runner("multi-hop route produced no result".into()))
+        Err(PytxoError::Runner(
+            "multi-hop route produced no result".into(),
+        ))
+    }
+
+    /// MCP v3: register a resource URI subscription for an agent session.
+    pub fn subscribe_resource(&self, agent_key: &str, uri: &str) -> Result<()> {
+        let mut guard = self
+            .inner
+            .write()
+            .map_err(|_| PytxoError::Runner("mcp hub lock poisoned".into()))?;
+        guard
+            .subscriptions
+            .entry(agent_key.to_string())
+            .or_default()
+            .push(uri.to_string());
+        Ok(())
+    }
+
+    /// MCP v3: list active subscriptions for an agent.
+    pub fn list_subscriptions(&self, agent_key: &str) -> Vec<String> {
+        self.inner
+            .read()
+            .ok()
+            .and_then(|g| g.subscriptions.get(agent_key).cloned())
+            .unwrap_or_default()
+    }
+
+    /// MCP v3: forward `notifications/resources/updated` to subscribed agents.
+    pub fn notify_resource_updated(&self, uri: &str) -> Result<usize> {
+        let guard = self
+            .inner
+            .read()
+            .map_err(|_| PytxoError::Runner("mcp hub lock poisoned".into()))?;
+        let mut notified = 0usize;
+        for (agent_key, uris) in &guard.subscriptions {
+            if uris.iter().any(|u| u == uri) {
+                if let Some(session) = guard.sessions.get(agent_key) {
+                    let _ = session.call("notifications/resources/updated", json!({ "uri": uri }));
+                    notified += 1;
+                }
+            }
+        }
+        Ok(notified)
     }
 
     pub fn aggregate_tools(&self) -> Result<Vec<Value>> {
@@ -239,7 +288,12 @@ pub fn spawn_test_mcp_child() -> Result<(ChildMcpSession, thread::JoinHandle<()>
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
         while std::time::Instant::now() < deadline {
             match listener.accept() {
-                Ok((mut stream, _)) => handle_test_mcp_conn(&mut stream),
+                Ok((mut stream, _)) => {
+                    if stream.set_nonblocking(false).is_err() {
+                        break;
+                    }
+                    handle_test_mcp_conn(&mut stream);
+                }
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     thread::sleep(Duration::from_millis(10));
                 }

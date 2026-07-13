@@ -11,6 +11,8 @@ pub const MAGENTA: Color = Color::Rgb(232, 121, 249);
 pub const CYAN: Color = Color::Rgb(34, 211, 238);
 pub const BORDER: Color = Color::Rgb(39, 39, 42);
 pub const MUTED_FG: Color = Color::Rgb(148, 148, 168);
+pub const FOREGROUND: Color = Color::Rgb(232, 234, 237);
+pub const SELECTION_BG: Color = Color::Rgb(30, 20, 46);
 
 const CHROMA_CYCLE: [Color; 4] = [MAGENTA, GOLD, CYAN, VIOLET];
 
@@ -18,12 +20,26 @@ pub fn border() -> Style {
     Style::default().fg(BORDER)
 }
 
+/// Focused panel border — teal primary accent.
+pub fn border_focused() -> Style {
+    Style::default().fg(TEAL)
+}
+
+/// Splash / welcome chroma cycle only — not for idle shell panels.
 pub fn chroma_border(idx: usize) -> Style {
     Style::default().fg(CHROMA_CYCLE[idx % CHROMA_CYCLE.len()])
 }
 
 pub fn accent() -> Style {
     Style::default().fg(TEAL)
+}
+
+pub fn foreground() -> Style {
+    Style::default().fg(FOREGROUND)
+}
+
+pub fn selection_bg() -> Style {
+    Style::default().bg(SELECTION_BG)
 }
 
 pub fn chroma_magenta() -> Style {
@@ -47,9 +63,7 @@ pub fn muted() -> Style {
 }
 
 pub fn title() -> Style {
-    Style::default()
-        .fg(VIOLET)
-        .add_modifier(Modifier::BOLD)
+    Style::default().fg(VIOLET).add_modifier(Modifier::BOLD)
 }
 
 pub fn panel_bg() -> Style {
@@ -72,7 +86,7 @@ pub fn warn() -> Style {
     chroma_gold()
 }
 
-/// Per-line chroma shift for ASCII banner rows.
+/// Per-line chroma shift for ASCII banner rows (splash only).
 pub fn chroma_line(text: &str, line_idx: usize) -> Line<'static> {
     let color = CHROMA_CYCLE[line_idx % CHROMA_CYCLE.len()];
     Line::from(Span::styled(text.to_string(), Style::default().fg(color)))
@@ -112,6 +126,7 @@ mod tests {
         assert_eq!(rgb(GOLD), (251, 191, 36));
         assert_eq!(rgb(MAGENTA), (232, 121, 249));
         assert_eq!(rgb(CYAN), (34, 211, 238));
+        assert_eq!(rgb(FOREGROUND), (232, 234, 237));
         assert_eq!(CHROMA_CYCLE[0], MAGENTA);
         assert_eq!(CHROMA_CYCLE[3], VIOLET);
     }

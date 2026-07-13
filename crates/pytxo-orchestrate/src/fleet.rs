@@ -104,7 +104,10 @@ pub async fn wait_for_domain_run(
         };
         if status == "pending" {
             if tokio::time::Instant::now() >= deadline {
-                anyhow::bail!("timeout waiting for run {run_id} to appear in {}", db_path.display());
+                anyhow::bail!(
+                    "timeout waiting for run {run_id} to appear in {}",
+                    db_path.display()
+                );
             }
             sleep(POLL_INTERVAL).await;
             continue;
@@ -290,17 +293,19 @@ pub fn fleet_init(
         node: nodes
             .into_iter()
             .enumerate()
-            .map(|(i, (repo, cmd, agents, depends_on))| pytxo_core::FleetNode {
-                id: repo
-                    .file_name()
-                    .map(|s| s.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| format!("node-{i}")),
-                repo,
-                cmd,
-                agents,
-                depends_on,
-                config: None,
-            })
+            .map(
+                |(i, (repo, cmd, agents, depends_on))| pytxo_core::FleetNode {
+                    id: repo
+                        .file_name()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| format!("node-{i}")),
+                    repo,
+                    cmd,
+                    agents,
+                    depends_on,
+                    config: None,
+                },
+            )
             .collect(),
     };
     manifest.plan().map_err(|e| anyhow::anyhow!(e))?;
@@ -334,10 +339,7 @@ pub struct FleetRunStatus {
     pub nodes: Vec<FleetNodeRecord>,
 }
 
-pub fn fleet_status(
-    fleet_id: Option<&str>,
-    limit: usize,
-) -> anyhow::Result<Vec<FleetRunRecord>> {
+pub fn fleet_status(fleet_id: Option<&str>, limit: usize) -> anyhow::Result<Vec<FleetRunRecord>> {
     let cat = Catalog::open_default().map_err(|e| anyhow::anyhow!(e))?;
     cat.list_fleet_runs(fleet_id, limit)
         .map_err(|e| anyhow::anyhow!(e))

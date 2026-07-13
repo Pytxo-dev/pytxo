@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { provisionLinkEntitlement } from "@/lib/billing/link-admin";
 import {
+  extractOrgId,
   extractTier,
   extractUserId,
   verifyPaddleSignature,
@@ -39,8 +40,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
+  const orgId = extractOrgId(event) ?? undefined;
+
   if (eventType === "subscription.canceled") {
-    await provisionLinkEntitlement({ userId, tier: "core" });
+    await provisionLinkEntitlement({ userId, tier: "core", orgId });
     return NextResponse.json({ ok: true });
   }
 
@@ -50,6 +53,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
-  await provisionLinkEntitlement({ userId, tier });
+  await provisionLinkEntitlement({ userId, tier, orgId });
   return NextResponse.json({ ok: true });
 }

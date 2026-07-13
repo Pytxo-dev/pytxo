@@ -10,18 +10,13 @@ use crate::resolve_repo_root;
 const MAX_WORKSPACE_FILES: usize = 200;
 
 /// Build a Signal structural graph for an active or recent run.
-pub fn structural_graph(
-    repo: Option<PathBuf>,
-    run_id: &str,
-) -> anyhow::Result<StructuralGraph> {
+pub fn structural_graph(repo: Option<PathBuf>, run_id: &str) -> anyhow::Result<StructuralGraph> {
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let (_, store) = crate::open_store(None, Some(repo_root.clone()))?;
     let paths = store.arbitrage_paths_for_run(run_id)?;
     let agents = store.list_agents_for_run(run_id)?;
-    let root_by_agent: std::collections::HashMap<String, Option<String>> = agents
-        .into_iter()
-        .map(|a| (a.id, a.root_id))
-        .collect();
+    let root_by_agent: std::collections::HashMap<String, Option<String>> =
+        agents.into_iter().map(|a| (a.id, a.root_id)).collect();
     let edited: Vec<(String, String, Option<String>)> = paths
         .into_iter()
         .map(|(path, agent_id)| {
@@ -96,7 +91,9 @@ fn walk_source_dir(dir: &Path, repo_root: &Path, out: &mut Vec<String>) {
         }
         let path = entry.path();
         if path.is_dir() {
-            if path.file_name().is_some_and(|n| n == "node_modules" || n == "target" || n == ".git")
+            if path
+                .file_name()
+                .is_some_and(|n| n == "node_modules" || n == "target" || n == ".git")
             {
                 continue;
             }

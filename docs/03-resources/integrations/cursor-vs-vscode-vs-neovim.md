@@ -12,7 +12,7 @@ related: [[mcp-router]], [[agent-os-vs-virtual-workspace]]
 
 # IDE integration surfaces
 
-Pytxo does not require switching editors. Integration is via **MCP** and optional desktop **Reality Deck**.
+Pytxo does not require switching editors. Integration is via **MCP** and optional desktop **Pytxo Desktop**.
 
 | Environment | Integration pattern |
 |-------------|---------------------|

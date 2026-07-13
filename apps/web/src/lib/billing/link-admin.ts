@@ -6,6 +6,7 @@ export async function provisionLinkEntitlement(input: {
   userId: string;
   tier: LinkTier;
   clerkUserId?: string;
+  orgId?: string;
 }): Promise<void> {
   const base = process.env.LINK_ADMIN_URL ?? "https://link.pytxo.com";
   const adminKey = process.env.LINK_ADMIN_KEY;
@@ -32,6 +33,7 @@ export async function provisionLinkEntitlement(input: {
     body: JSON.stringify({
       tier: input.tier,
       clerk_user_id: input.clerkUserId,
+      org_id: input.orgId,
       max_agents: maxAgents,
       cloud_enabled: cloudEnabled,
     }),

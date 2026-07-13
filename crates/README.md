@@ -17,7 +17,7 @@ Control plane for the [agent hypervisor](https://github.com/Pytxo-dev/pytxo/blob
 | **pytxo-cli** | `pytxo` binary | — |
 | **pytxo-mcp** | stdio MCP server | — |
 
-**Planned / partial:** Blast Shield kernel sparse overlay (FUSE/ProjFS) — worktree + copy-layer MVP shipped; Race Shield PTY stdin pump shipped (subprocess mode single-drain opt-in).
+**Planned / partial:** Blast Shield full kernel ProjFS provider — sparse copy-layer + `prefer_kernel_overlay` default shipped (Phase 69); kernel FUSE/ProjFS virtualization remains north star.
 
 Dependency flow: `core` → `signal` | `scheduler` | `store` | `sanitize` → `runner` → `orchestrate` → `cli` | `mcp`.
 

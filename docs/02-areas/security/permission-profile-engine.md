@@ -6,7 +6,7 @@ tags: [security, orchestration, policy]
 audience: [human, agent]
 layer: security
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-07-10
 related: [[ADR-0008-local-permission-profile-four-tiers]], [[blast-shield]], [[race-shield]], [[signal-core]], [[execution-domains]]
 ---
 
@@ -60,9 +60,9 @@ Configure via `permission_profile` in [[pytxo-toml]] (default `orbit`). Optional
 
 | Profile | Shipping today | North star |
 |---------|----------------|------------|
-| **Orbit** | `permission_profile` in config; git worktrees; path waves; env strip (`SSH_*`); `spawn_egress_allowed` denies network fetch at spawn; `commit_workspace` → `IsolationBackend::flush` | CoW overlay; Tauri IPC approve before physical flush |
-| **DeepSpace** | Config + `PermissionEngine::max_fidelity(Low)`; env strip; `may_flush` denied; spawn egress denied | Network block + cwd-only reads |
-| **Galaxy** | Spawn HITL (`fs.delete`, `git.push`, `proc.docker`, `net.egress`, `net.bind`, `proc.package_install`); MCP proxy HITL (`mcp.tool`); flush HITL (`blast.flush`, `fs.write_outside_root`); persisted `HitlQueue` | Full runtime syscall hooks |
+| **Orbit** | `permission_profile` in config; worktree or sparse overlay (`prefer_kernel_overlay`); path waves; env strip (`SSH_*`); `spawn_egress_allowed` denies network fetch at spawn; `commit_workspace` → `IsolationBackend::flush` | Full kernel CoW; Tauri IPC approve before physical flush |
+| **DeepSpace** | Config + `PermissionEngine::max_fidelity(Low)`; env strip; `may_flush` denied; spawn egress denied; OS isolation hooks (Linux netns, macOS sandbox-exec, Windows WFP opt-in `PYTXO_DEEPSPACE_WFP=1`) | Stronger per-process WFP / AppContainer |
+| **Galaxy** | Spawn HITL (`fs.delete`, `git.push`, `git.destructive`, `proc.infrastructure`, `fs.permission`, `proc.docker`, `net.egress`, `net.bind`, `proc.package_install`); MCP proxy HITL (`mcp.tool`); flush HITL; stdin line gates; persisted `HitlQueue` | Full runtime syscall hooks |
 | **Supernova** | Skips worktree isolation (cwd = `repo_root`); flush without approval gate; spawn egress allowed | Explicit opt-in + audit logging |
 
 ## Policy traits (v2 — trait objects deferred)

@@ -12,7 +12,6 @@ pub struct PaddleWebhook {
 #[derive(Debug, Deserialize)]
 pub struct PaddleData {
     pub custom_data: Option<PaddleCustomData>,
-    pub status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

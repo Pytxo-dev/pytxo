@@ -12,6 +12,7 @@ const sidebars: SidebarsConfig = {
       label: "Getting started",
       items: [
         "getting-started/install",
+        "getting-started/desktop-setup",
         "getting-started/folder-trust",
         "getting-started/hypervisor-shell",
         "getting-started/first-three-agent-run",
@@ -32,7 +33,7 @@ const sidebars: SidebarsConfig = {
         "concepts/modular-projects",
         "concepts/fleet-runs",
         "concepts/galaxy-approvals",
-        "concepts/reality-deck",
+        "concepts/desktop",
       ],
     },
     {

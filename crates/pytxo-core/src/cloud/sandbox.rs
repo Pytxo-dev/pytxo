@@ -27,6 +27,8 @@ pub struct SyncFile {
 pub struct ExecRequest {
     pub cmd: String,
     pub cwd: Option<String>,
+    #[serde(default)]
+    pub env: std::collections::HashMap<String, String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -200,7 +202,8 @@ mod tests {
                 "x",
                 &ExecRequest {
                     cmd: "echo".into(),
-                    cwd: None
+                    cwd: None,
+                    env: std::collections::HashMap::new(),
                 }
             )
             .is_err());

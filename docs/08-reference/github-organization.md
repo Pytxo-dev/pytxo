@@ -6,7 +6,7 @@ tags: [reference, gtm]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-04
+updated: 2026-07-10
 related: [[gtm-open-source-loop]], [[mvp-bootstrap]], [[repository-layout]], [[cloud-sandbox-service]]
 ---
 
@@ -22,7 +22,7 @@ Last enumerated with `gh repo list Pytxo-dev` (2026-06-04). Re-run that command 
 
 | Repository | Visibility | Archived | Purpose | Relationship to monorepo |
 |------------|------------|----------|---------|---------------------------|
-| [pytxo](https://github.com/Pytxo-dev/pytxo) | **Private** | no | Agentic control plane + Reality Deck | **Canonical** — `crates/*`, `apps/desktop`, `docs/`, `tooling/` |
+| [pytxo](https://github.com/Pytxo-dev/pytxo) | **Private** | no | Agentic control plane + Pytxo Desktop | **Canonical** — `crates/*`, `apps/desktop`, `docs/`, `tooling/` |
 | [pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases) | **Public** | no | CLI binaries + install scripts | **Distribution** — mirrored from `pytxo` CI; npm + curl install |
 | [pytxo-desktop](https://github.com/Pytxo-dev/pytxo-desktop) | **Public** | no | Legacy split UI repo | **Mirror / legacy** — canonical UI is `apps/desktop` in **pytxo** |
 
@@ -36,11 +36,11 @@ No **private** or **internal** repositories were returned for this org at enumer
 | Public CLI binaries, install scripts, npm postinstall target | **pytxo-releases** | Public |
 | Docs vault (product + architecture) | **pytxo** `docs/` | Public |
 | CI, smoke scripts, benchmarks | **pytxo** `tooling/` | Public |
-| Hosted cloud sandboxes (Max Swarm workers) | Separate service repo | **Planned private** (or org-private) — see [[cloud-sandbox-service]] |
-| Pytxo Link (Ultra billing HTTP reconcile) | Separate service repo | **Planned** — local stub in monorepo until deployed |
+| Hosted cloud sandboxes (Max Swarm workers) | `services/pytxo-cloud-sandbox` in **pytxo** monorepo | Reference service (deploy separately); see [[cloud-sandbox-service]] |
+| Pytxo Link (Ultra billing HTTP reconcile) | `services/` / Link deploy | Stub + deployed service — see [[pytxo-link-service]] |
 | Customer secrets / BYOK vault | Never in public repos | Private infrastructure only |
 
-**Rule of thumb:** Anything that runs untrusted user code at scale, holds payment webhooks, or stores API keys stays **out of the public monorepo**. The monorepo ships local execution, telemetry, and integration **stubs** (e.g. `HttpBillingReconciler`).
+**Rule of thumb:** Anything that runs untrusted user code at scale, holds payment webhooks, or stores API keys stays **out of the public monorepo surface**. The monorepo may ship local execution, telemetry, and reference services under `services/` (e.g. `pytxo-cloud-sandbox`, `HttpBillingReconciler`).
 
 ## Planned repositories (not on GitHub yet)
 
@@ -48,14 +48,13 @@ These names appear in product/architecture docs only. Do not treat them as exist
 
 | Planned name | Role | Doc |
 |--------------|------|-----|
-| `pytxo-link` (working title) | Ultra metering HTTP API + reconcile webhooks | [[ADR-0009-ultra-managed-metering]], `billing.link_reconcile` in `pytxo.toml` |
-| `pytxo-cloud-sandbox` | Hosted sandbox dispatch + delta sync + context cache (POC shipped) | [[cloud-sandbox-service]] |
+| `pytxo-link` (working title) | Ultra metering HTTP API + reconcile webhooks (may stay monorepo `services/`) | [[ADR-0009-ultra-managed-metering]], `billing.link_reconcile` in `pytxo.toml` |
 
-Optional later: **pytxo-docs** if the vault needs its own release cycle (still public OSS unless you split commercial docs).
+Optional later: **pytxo-docs** if the vault needs its own release cycle (still public OSS unless you split commercial docs). Note: `pytxo-cloud-sandbox` reference code lives in-monorepo at `services/pytxo-cloud-sandbox` (Phase 72 honesty).
 
 ## Conventions
 
-- **Issues & PRs:** Open against **pytxo** for control plane, docs, and Reality Deck unless tracking mirror-only work on **pytxo-desktop**.
+- **Issues & PRs:** Open against **pytxo** for control plane, docs, and Pytxo Desktop unless tracking mirror-only work on **pytxo-desktop**.
 - **Cargo metadata:** `repository = "https://github.com/Pytxo-dev/pytxo"` at workspace root.
 - **Fork workflow:** Fork from `Pytxo-dev/*`, PR back to `Pytxo-dev/*`.
 - **User projects:** Developers keep their own app repos; Pytxo runs *in* those repos via `pytxo run --repo`. Only Pytxo *product* code lives under Pytxo-dev.
@@ -71,7 +70,7 @@ cargo run -p pytxo-cli -- doctor
 cargo test --workspace
 ```
 
-Reality Deck (same repo):
+Pytxo Desktop (same repo):
 
 ```bash
 cd apps/desktop

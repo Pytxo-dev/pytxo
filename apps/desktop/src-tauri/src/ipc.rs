@@ -3,27 +3,26 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use pytxo_core::PytxoConfig;
-use pytxo_runner::isolation_backend_label;
-use pytxo_signal::StructuralGraph;
 use pytxo_orchestrate::{
-    commit_workspace_for_agent, dispatch_run, dry_run_json, fleet_run_status, fleet_status,
-    hitl_respond as orch_hitl_respond,
+    commit_workspace_for_agent, default_hypervisor, dispatch_run, dry_run_json, fleet_run_status,
+    fleet_status, hitl_respond as orch_hitl_respond,
     list_catalog_domains as orch_list_catalog_domains,
     list_catalog_domains_enriched as orch_list_domains_status, list_domains,
-    list_hitl_pending as orch_list_hitl_pending, list_hitl_pending_all as orch_list_hitl_pending_all,
+    list_hitl_pending as orch_list_hitl_pending,
+    list_hitl_pending_all as orch_list_hitl_pending_all,
     list_project_manifests as orch_list_projects, project_add_root as orch_project_add_root,
-    project_remove_root as orch_project_remove_root, project_roots as orch_project_roots,
-    structural_graph as orch_structural_graph, workspace_structural_graph as orch_workspace_structural_graph,
-    stop, CatalogEntry, CatalogEntryStatus, DomainSummary,
-    RunOptions,
+    project_remove_root as orch_project_remove_root, project_roots as orch_project_roots, stop,
+    structural_graph as orch_structural_graph,
+    workspace_structural_graph as orch_workspace_structural_graph, CatalogEntry,
+    CatalogEntryStatus, DomainSummary, RunOptions,
 };
+use pytxo_runner::isolation_backend_label;
 use pytxo_store::{AgentRecord, EventRecord, RunRecord};
 use serde::Serialize;
 use tauri::State;
 
 use crate::ipc_error::{
-    map_config_err, map_io_err, map_lock_err, map_orch_err, map_store_err, PytxoIpcError,
-    IpcResult,
+    map_config_err, map_io_err, map_lock_err, map_orch_err, map_store_err, IpcResult, PytxoIpcError,
 };
 
 pub struct AppState {
@@ -31,6 +30,10 @@ pub struct AppState {
     /// Per (domain_id, agent_id) cursor for incremental log polling.
     pub poll_cursors: Mutex<HashMap<(String, String), i64>>,
     pub selected_domain_id: Mutex<Option<String>>,
+    pub voice_sessions: std::sync::Arc<Mutex<HashMap<uuid::Uuid, pytxo_voice::VoiceSession>>>,
+    pub voice_captures: std::sync::Arc<Mutex<HashMap<uuid::Uuid, pytxo_voice::CpalCapture>>>,
+    pub voice_cancellations:
+        Mutex<HashMap<uuid::Uuid, std::sync::Arc<std::sync::atomic::AtomicBool>>>,
 }
 
 pub(crate) fn open_store_for_domain(
@@ -135,7 +138,7 @@ pub fn list_domains_status() -> IpcResult<Vec<CatalogEntryStatus>> {
     orch_list_domains_status().map_err(map_orch_err)
 }
 
-/// Project manifests from `~/.pytxo/projects` for the Deck project picker.
+/// Project manifests from `~/.pytxo/projects` for the Desktop Workspace picker.
 #[tauri::command]
 pub fn list_projects() -> IpcResult<Vec<ProjectDto>> {
     Ok(orch_list_projects()
@@ -152,6 +155,24 @@ pub fn list_projects() -> IpcResult<Vec<ProjectDto>> {
 pub fn select_domain(state: State<'_, AppState>, domain_id: String) -> IpcResult<()> {
     *state.selected_domain_id.lock().map_err(map_lock_err)? = Some(domain_id);
     Ok(())
+}
+
+/// Canonicalize repo path and register hypervisor domain before topology/dispatch.
+#[tauri::command]
+pub fn ensure_workspace(state: State<'_, AppState>, domain_id: String) -> IpcResult<String> {
+    let repo = PathBuf::from(&domain_id);
+    let canonical = repo
+        .canonicalize()
+        .map_err(map_io_err)?
+        .to_string_lossy()
+        .into_owned();
+    let cfg = load_cfg_for_domain(&canonical, &state)?;
+    let domain = default_hypervisor()
+        .ensure_domain(Path::new(&canonical), &cfg)
+        .map_err(map_orch_err)?;
+    let id = domain.repo_root.to_string_lossy().into_owned();
+    *state.selected_domain_id.lock().map_err(map_lock_err)? = Some(id.clone());
+    Ok(id)
 }
 
 #[tauri::command]
@@ -210,12 +231,14 @@ pub fn agent_arbitrage(
         .arbitrage_by_agent(&run_id)
         .map_err(map_store_err)?
         .into_iter()
-        .map(|(agent_id, saved_tokens, edited_paths, fallback_paths)| AgentArbitrageDto {
-            agent_id,
-            saved_tokens,
-            edited_paths,
-            fallback_paths,
-        })
+        .map(
+            |(agent_id, saved_tokens, edited_paths, fallback_paths)| AgentArbitrageDto {
+                agent_id,
+                saved_tokens,
+                edited_paths,
+                fallback_paths,
+            },
+        )
         .collect())
 }
 
@@ -332,10 +355,7 @@ pub struct HitlDto {
 }
 
 #[tauri::command]
-pub fn list_hitl(
-    state: State<'_, AppState>,
-    domain_id: Option<String>,
-) -> IpcResult<Vec<HitlDto>> {
+pub fn list_hitl(state: State<'_, AppState>, domain_id: Option<String>) -> IpcResult<Vec<HitlDto>> {
     let domain = resolve_domain(&state, domain_id)?;
     let domain_id = domain.clone();
     let pending = orch_list_hitl_pending(Some(PathBuf::from(domain))).map_err(map_orch_err)?;
@@ -468,8 +488,13 @@ pub fn project_add_root_cmd(
     path: String,
     read_only: bool,
 ) -> IpcResult<Vec<ProjectRootDto>> {
-    orch_project_add_root(None, Some(project_id.clone()), PathBuf::from(path), read_only)
-        .map_err(map_orch_err)?;
+    orch_project_add_root(
+        None,
+        Some(project_id.clone()),
+        PathBuf::from(path),
+        read_only,
+    )
+    .map_err(map_orch_err)?;
     Ok(orch_project_roots(None, Some(project_id))
         .map_err(map_orch_err)?
         .into_iter()
@@ -486,7 +511,10 @@ pub fn project_add_root_cmd(
 }
 
 #[tauri::command]
-pub fn project_remove_root_cmd(project_id: String, label: String) -> IpcResult<Vec<ProjectRootDto>> {
+pub fn project_remove_root_cmd(
+    project_id: String,
+    label: String,
+) -> IpcResult<Vec<ProjectRootDto>> {
     orch_project_remove_root(None, Some(project_id.clone()), &label).map_err(map_orch_err)?;
     Ok(orch_project_roots(None, Some(project_id))
         .map_err(map_orch_err)?
@@ -545,7 +573,7 @@ pub fn fleet_run_status_cmd(fleet_run_id: String) -> IpcResult<FleetRunStatusDto
     })
 }
 
-/// IPC schema version for Reality Deck 3D topology consumer.
+/// IPC schema version for Pytxo Desktop 3D topology consumer.
 pub const STRUCTURAL_GRAPH_VERSION: u32 = 3;
 
 #[derive(Serialize)]
@@ -611,7 +639,8 @@ pub fn structural_graph(
     domain_id: Option<String>,
 ) -> IpcResult<StructuralGraphDto> {
     let domain = resolve_domain(&state, domain_id)?;
-    let graph = orch_structural_graph(Some(PathBuf::from(domain)), &run_id).map_err(map_orch_err)?;
+    let graph =
+        orch_structural_graph(Some(PathBuf::from(domain)), &run_id).map_err(map_orch_err)?;
     Ok(graph_to_dto(graph))
 }
 
@@ -631,10 +660,7 @@ fn run_to_dto(r: RunRecord, cfg: &PytxoConfig) -> RunDto {
         estimated_cost_usd: r.estimated_cost_usd,
         permission_profile: r.permission_profile,
         isolation_mode: cfg.isolation.as_str().to_string(),
-        isolation_backend: isolation_backend_label(
-            cfg.isolation,
-            &cfg.blast.sparse_exclude,
-        ),
+        isolation_backend: isolation_backend_label(cfg.isolation, &cfg.blast.sparse_exclude),
     }
 }
 

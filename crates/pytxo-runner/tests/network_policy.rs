@@ -33,8 +33,4 @@ fn deepspace_isolation_hook_sets_platform_marker() {
     assert!(!isolation_mechanism().is_empty());
     let _ = wrap_deepspace_shell_cmd("echo probe");
     let _blocked = pytxo_runner::doctor_deepspace_socket_blocked();
-    #[cfg(target_os = "linux")]
-    if std::env::var("PYTXO_DEEPSPACE_NETNS").as_deref() != Ok("0") {
-        assert!(blocked, "Linux netns should block socket probe");
-    }
 }

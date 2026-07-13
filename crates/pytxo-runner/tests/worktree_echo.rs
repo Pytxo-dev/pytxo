@@ -93,6 +93,7 @@ async fn single_agent_echo_in_worktree() {
         pty_rows: 24,
         pty_cols: 80,
         hitl: None,
+        hitl_manual_flush: false,
         agent_paths: std::collections::HashMap::new(),
         agent_fidelity: std::collections::HashMap::new(),
         roots: std::collections::HashMap::new(),

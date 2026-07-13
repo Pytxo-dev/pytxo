@@ -33,7 +33,7 @@ Pytxo runs **heterogeneous headless agents** (Claude Code, Codex, Antigravity CL
 | **Blast Shield** | Worktree isolation; explicit merge paths |
 | **Race Shield** | Swarm registry + stdin buffering — no monorepo write races |
 
-The **Reality Deck** ([`apps/desktop`](apps/desktop/)) is optional desktop telemetry — not raw terminal walls.
+**Pytxo Desktop** ([`apps/desktop`](apps/desktop/)) is the optional control UI — structural telemetry, not raw terminal walls.
 
 ## Repository layout
 
@@ -43,7 +43,7 @@ The **Reality Deck** ([`apps/desktop`](apps/desktop/)) is optional desktop telem
 | [`packages/pytxo`](packages/pytxo/) | npm installer wrapper |
 | [`apps/docs/`](apps/docs/) | Public docs (Docusaurus → pytxo.com/docs) |
 | [`apps/web/`](apps/web/) | Marketing site ([pytxo.com](https://pytxo.com)) |
-| [`apps/desktop/`](apps/desktop/) | Reality Deck (Svelte + Tauri) |
+| [`apps/desktop/`](apps/desktop/) | Pytxo Desktop (Svelte + Tauri) |
 | [`docs/`](docs/) | Internal Obsidian vault |
 | [`tooling/`](tooling/) | Install scripts, smoke tests, benchmarks |
 

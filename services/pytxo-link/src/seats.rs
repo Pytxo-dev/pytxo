@@ -41,7 +41,9 @@ pub async fn seats_total(pool: &PgPool, org_id: &str) -> Result<usize, sqlx::Err
     .bind(org_id)
     .fetch_optional(pool)
     .await?;
-    Ok(row.map(|(n,)| n.max(0) as usize).unwrap_or(default_seats_total()))
+    Ok(row
+        .map(|(n,)| n.max(0) as usize)
+        .unwrap_or(default_seats_total()))
 }
 
 pub fn default_seats_total() -> usize {

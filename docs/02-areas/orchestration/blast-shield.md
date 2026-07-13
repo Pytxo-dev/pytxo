@@ -52,7 +52,7 @@ Blast Shield is the primary write-isolation mechanism for **`Orbit`** ([[permiss
 
 ## UX tie-in
 
-Reality Deck shows **structural blast radius** ([[reality-deck-visual-system]]) — which symbols and modules an agent touched — before the user approves a flush.
+Pytxo Desktop shows **structural blast radius** ([[desktop-visual-system]]) — which symbols and modules an agent touched — before the user approves a flush.
 
 ## Status
 

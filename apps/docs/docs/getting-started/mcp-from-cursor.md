@@ -38,7 +38,7 @@ Adjust paths for your OS. `PYTXO_REPO` should point at the git root where `pytxo
 - Query run status and agent topology
 - Tail structured logs without opening a separate terminal grid
 
-Pytxo remains **local-first**: the MCP process talks to the Rust orchestrator on your machine. No cloud workspace required.
+Pytxo stays **local-first**: the MCP process talks to the Rust orchestrator on your machine. No cloud workspace required.
 
 ## Troubleshooting
 

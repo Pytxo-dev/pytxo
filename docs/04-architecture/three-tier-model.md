@@ -17,7 +17,7 @@ Pytxo decouples structural telemetry from process coordination using a strictly 
 ```text
 ┌─────────────────────────────────────────┐
 │  PYTXO PRESENTATION (Svelte 5)          │
-│  Reality Deck · 3D AST topology (target)│
+│  Pytxo Desktop · 3D AST topology (target)│
 └─────────────────┬───────────────────────┘
                   │ Tauri v2 IPC
 ┌─────────────────▼───────────────────────┐

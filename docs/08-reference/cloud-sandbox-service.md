@@ -16,7 +16,7 @@ Pytxo **Max Swarm** hosted sandboxes are implemented as a **separate deployable 
 
 ## Monorepo scope (this repository)
 
-- Local hypervisor, PTY execution yard, Reality Deck, MCP, Ultra **local** wallet ledger
+- Local hypervisor, PTY execution yard, Pytxo Desktop, MCP, Ultra **local** wallet ledger
 - [`HttpBillingReconciler`](../../crates/pytxo-core/src/billing/link_reconciler.rs) builds the Pytxo Link request **envelopes** (endpoints + JSON bodies for `runs/start` and `runs/end`) and is wired behind `billing.link_reconcile`. The HTTP transport itself is attached when the Link service is deployed, so the monorepo stays network-free and offline-testable.
 
 ## Pytxo Link service (separate private repo — Phase 15)

@@ -70,13 +70,13 @@
   }
 
   *::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, var(--brand-magenta), var(--brand-violet));
+    background: color-mix(in oklab, var(--brand-violet) 55%, #27272a);
     border-radius: 999px;
     border: 2px solid #0a0a0f;
   }
 
   *::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, var(--brand-cyan), var(--brand-magenta));
+    background: color-mix(in oklab, var(--brand-teal) 45%, #27272a);
   }
 
   html {
@@ -88,5 +88,42 @@
   body {
     @apply font-sans bg-background text-foreground;
     overflow-x: clip;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-semibold tracking-tight text-balance;
+  }
+
+  h1 {
+    letter-spacing: -0.03em;
+  }
+}
+
+@layer utilities {
+  .section-pad {
+    @apply px-4 py-16 sm:px-6 sm:py-20;
+  }
+
+  .section-reveal {
+    animation: section-fade-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .section-reveal {
+      animation: none;
+    }
+  }
+}
+
+@keyframes section-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

@@ -6,7 +6,7 @@ tags: [adr, cloud, security]
 audience: [human, agent]
 layer: security
 created: 2026-06-24
-updated: 2026-06-24
+updated: 2026-07-10
 related: [[ADR-0020-cloud-sandbox-runtime]], [[cloud-sandbox-service]]
 ---
 
@@ -33,8 +33,10 @@ Accepted (2026-06-24)
 - Read-only rootfs limits in-container package installs; agents sync workspace via delta API only.
 - Operators with multi-replica cloud service should set `REDIS_URL` for cache coherence.
 - `CLOUD_EGRESS_ALLOWLIST` is advisory until host firewall rules are applied; internal network alone blocks all egress.
+- `/health` reports `egress_mode`, `docker_available`, and `redis_configured` (Phase 72).
+- `GET /v1/egress` documents deny-by-default posture and any configured allowlist hosts.
 
 ## Alternatives considered
 
-- gVisor / Kata runtime — deferred; Docker flags sufficient for reference service v1.
+- gVisor / Kata runtime — evaluated in Phase 67; still deferred for reference service v1 (Docker flags + internal network sufficient). Revisit when multi-tenant Max workers need stronger kernel isolation.
 - Per-sandbox iptables from the service — rejected (requires `CAP_NET_ADMIN` in service container; document host rules instead).

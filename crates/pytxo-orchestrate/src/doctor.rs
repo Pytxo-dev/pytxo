@@ -33,11 +33,12 @@ pub fn run_doctor(repo: Option<&Path>) -> anyhow::Result<DoctorReport> {
         check_pytxo_dirs_writable(&repo_root),
         check_pty_smoke(),
         check_link_reconcile(&cfg),
+        check_org_policy_ceiling(&cfg),
         check_cloud_sandbox(&cfg),
         check_inference_proxy_health(&cfg),
         check_hitl_persistence(&repo_root, &cfg),
         check_network_policy(),
-        check_deepspace_network_isolation(),
+        check_deepspace_network_isolation(&cfg),
         check_mcp_hitl(&cfg),
         check_overlay_isolation(&cfg),
     ];
@@ -171,6 +172,47 @@ fn check_link_reconcile(cfg: &PytxoConfig) -> DoctorCheck {
     }
 }
 
+fn check_org_policy_ceiling(cfg: &PytxoConfig) -> DoctorCheck {
+    let session = std::env::var("PYTXO_ULTRA_SESSION")
+        .ok()
+        .filter(|s| !s.is_empty());
+    if session.is_none() {
+        return DoctorCheck {
+            name: "org_policy_ceiling".into(),
+            ok: true,
+            detail: "skipped (PYTXO_ULTRA_SESSION not set)".into(),
+        };
+    }
+    if !cfg.billing.link_reconcile_enabled() || cfg.billing.proxy_url.trim().is_empty() {
+        return DoctorCheck {
+            name: "org_policy_ceiling".into(),
+            ok: true,
+            detail: "skipped (link_reconcile disabled or proxy_url empty)".into(),
+        };
+    }
+    match crate::entitlements::effective_entitlements(cfg) {
+        Ok(ent) => {
+            let ceiling = ent
+                .permission_ceiling
+                .map(|p| format!("{p:?}"))
+                .unwrap_or_else(|| "none (no org_id on entitlement)".into());
+            DoctorCheck {
+                name: "org_policy_ceiling".into(),
+                ok: true,
+                detail: format!(
+                    "tier={} org_id={:?} permission_ceiling={ceiling}",
+                    ent.tier, ent.org_id
+                ),
+            }
+        }
+        Err(e) => DoctorCheck {
+            name: "org_policy_ceiling".into(),
+            ok: false,
+            detail: format!("entitlements fetch failed: {e}"),
+        },
+    }
+}
+
 fn check_cloud_sandbox(cfg: &PytxoConfig) -> DoctorCheck {
     if cfg.execution_backend != pytxo_core::ExecutionBackend::Cloud && !cfg.cloud.enabled {
         return DoctorCheck {
@@ -229,9 +271,7 @@ fn check_inference_proxy_health(cfg: &PytxoConfig) -> DoctorCheck {
 #[cfg(feature = "link-http")]
 fn ping_inference_proxy_health(base: &str) -> Result<String, String> {
     let health = format!("{}/health", base.trim_end_matches('/'));
-    let resp = ureq::get(&health)
-        .call()
-        .map_err(|e| format!("{e}"))?;
+    let resp = ureq::get(&health).call().map_err(|e| format!("{e}"))?;
     if resp.status() != 200 {
         return Err(format!("status {}", resp.status()));
     }
@@ -242,7 +282,9 @@ fn ping_inference_proxy_health(base: &str) -> Result<String, String> {
     let providers = pytxo_core::providers_configured(&body);
     let mut detail = format!("inference proxy /health ok at {base}");
     if providers.is_empty() {
-        detail.push_str("; warning: no providers_configured in health JSON (set DEEPSEEK_API_KEY on proxy)");
+        detail.push_str(
+            "; warning: no providers_configured in health JSON (set DEEPSEEK_API_KEY on proxy)",
+        );
         return Err(detail);
     }
     detail.push_str(&format!("; providers={}", providers.join(",")));
@@ -256,16 +298,6 @@ fn ping_inference_proxy_health(base: &str) -> Result<String, String> {
 #[cfg(not(feature = "link-http"))]
 fn ping_inference_proxy_health(_base: &str) -> Result<String, String> {
     Ok("skipped (link-http feature off)".into())
-}
-
-#[cfg(feature = "link-http")]
-fn ping_service_health(base: &str) -> Result<(), String> {
-    ping_inference_proxy_health(base).map(|_| ())
-}
-
-#[cfg(not(feature = "link-http"))]
-fn ping_service_health(_base: &str) -> Result<(), String> {
-    Ok(())
 }
 
 fn check_hitl_persistence(repo: &Path, cfg: &PytxoConfig) -> DoctorCheck {
@@ -308,14 +340,24 @@ fn check_network_policy() -> DoctorCheck {
     DoctorCheck {
         name: "network_policy".into(),
         ok,
-        detail: format!(
-            "orbit_denies_egress={orbit_denies} galaxy_allows_egress={galaxy_allows}"
-        ),
+        detail: format!("orbit_denies_egress={orbit_denies} galaxy_allows_egress={galaxy_allows}"),
     }
 }
 
-fn check_deepspace_network_isolation() -> DoctorCheck {
+fn check_deepspace_network_isolation(cfg: &PytxoConfig) -> DoctorCheck {
     use pytxo_core::{NetworkPolicy, NetworkPolicyEngine, PermissionProfile};
+
+    if cfg.permission_profile != PermissionProfile::DeepSpace {
+        return DoctorCheck {
+            name: "deepspace_network_isolation".into(),
+            ok: true,
+            detail: format!(
+                "skipped (permission_profile is {})",
+                cfg.permission_profile.as_str()
+            ),
+        };
+    }
+
     let deepspace = NetworkPolicyEngine::new(PermissionProfile::DeepSpace);
     let policy_blocked = !deepspace.egress_allowed("1.1.1.1", 443);
     let socket_blocked = pytxo_runner::doctor_deepspace_socket_blocked();

@@ -1,42 +1,23 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InstallSnippet } from "@/components/site/install-snippet";
 import { NPM_INSTALL } from "@/lib/site";
 
 export function CtaSection() {
   return (
-    <section className="overflow-hidden px-4 py-20 sm:px-6 sm:py-24">
-      <div className="mx-auto max-w-3xl">
-        <Card className="chroma-border chroma-glow overflow-hidden border-0 bg-card/40 text-center shadow-none">
-          <CardHeader className="gap-4 px-6 pt-10 sm:px-14 sm:pt-14">
-            <CardTitle className="text-2xl font-semibold sm:text-3xl">
-              Ready to <span className="chroma-text">orchestrate</span>?
-            </CardTitle>
-            <CardDescription className="mx-auto max-w-lg text-base text-muted-foreground">
-              Install with npm, wire MCP from Cursor or your IDE, and run your first
-              three-agent wave in minutes.
-            </CardDescription>
-            <pre className="mx-auto max-w-sm overflow-x-auto rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 font-mono text-sm text-foreground/90">
-              {NPM_INSTALL}
-            </pre>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-3 px-6 pb-10 sm:flex-row sm:justify-center sm:px-14 sm:pb-14">
-            <Button size="lg" className="chroma-glow w-full sm:w-auto" asChild>
-              <Link href="/download">Download & install</Link>
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="w-full border-white/15 bg-card/30 sm:w-auto"
-              asChild
-            >
-              <Link href="/docs/getting-started/first-three-agent-run">
-                First three-agent run
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+    <section className="section-pad section-reveal">
+      <div className="mx-auto max-w-3xl border-t border-border pt-12 text-center">
+        <h2 className="text-2xl sm:text-3xl">Install once. Run agents in parallel.</h2>
+        <p className="mx-auto mt-3 max-w-lg text-muted-foreground">
+          CLI for orchestration. Optional Desktop for topology, approvals, and diffs.
+        </p>
+        <InstallSnippet className="mx-auto mt-6 max-w-sm text-left">{NPM_INSTALL}</InstallSnippet>
+        <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <Button size="lg" variant="outline" className="w-full border-border sm:w-auto" asChild>
+            <Link href="/docs/getting-started/first-three-agent-run">First three-agent run</Link>
+          </Button>
+        </div>
       </div>
     </section>
   );

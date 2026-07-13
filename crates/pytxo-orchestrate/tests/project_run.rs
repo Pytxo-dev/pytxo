@@ -53,10 +53,7 @@ fn norm_path(p: &str) -> String {
 fn trust(path: &std::path::Path) {
     static TRUST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     let _ = shared_trust_store();
-    let _guard = TRUST_LOCK
-        .get_or_init(|| Mutex::new(()))
-        .lock()
-        .unwrap();
+    let _guard = TRUST_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
     trust_repo(path, PermissionProfile::Orbit).unwrap();
 }
 

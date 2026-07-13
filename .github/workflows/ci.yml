@@ -21,6 +21,18 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libasound2-dev
+
       - name: cargo fmt
         run: cargo fmt --all -- --check
 
@@ -31,6 +43,7 @@ jobs:
         run: cargo test --workspace
 
       - name: cargo audit
+        shell: bash
         run: |
           cargo install cargo-audit --locked 2>/dev/null || true
           cargo audit || echo "::warning::cargo-audit reported vulnerabilities"
@@ -157,6 +170,10 @@ jobs:
             apps/docs/package-lock.json
       - name: npm ci and build
         working-directory: apps/web
+        env:
+          # Clerk validates the public key during static prerendering. Production
+          # deployments replace this non-routable CI key with the Vercel secret.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
         run: |
           npm ci --legacy-peer-deps
           npm run build
@@ -197,7 +214,8 @@ jobs:
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            libasound2-dev
 
       - uses: dtolnay/rust-toolchain@stable
         with:

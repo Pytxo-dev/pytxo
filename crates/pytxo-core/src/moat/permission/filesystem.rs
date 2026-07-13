@@ -6,8 +6,6 @@ use super::PermissionProfile;
 
 /// Gates read/write/flush before Blast Shield or MCP materialization.
 pub trait FilesystemPolicy {
-    fn profile(&self) -> PermissionProfile;
-
     /// Whether a path under `repo_root` may be read for agent context.
     fn may_read(&self, repo_root: &Path, path: &Path, agent_cwd: &Path) -> bool;
 
@@ -42,10 +40,6 @@ impl FilesystemPolicyEngine {
 }
 
 impl FilesystemPolicy for FilesystemPolicyEngine {
-    fn profile(&self) -> PermissionProfile {
-        self.profile
-    }
-
     fn may_read(&self, repo_root: &Path, path: &Path, agent_cwd: &Path) -> bool {
         match self.profile {
             PermissionProfile::DeepSpace => path_under_cwd(agent_cwd, path),

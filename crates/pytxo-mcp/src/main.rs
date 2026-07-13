@@ -3,10 +3,9 @@ use std::path::PathBuf;
 
 use pytxo_core::FidelityTier;
 use pytxo_orchestrate::{
-    audit_mcp_tool, dry_run_json, enqueue_agent_stdin, fleet_dry_run_json, fleet_run,
-    fleet_status, list_live_agents, logs, mcp_proxy_call, mcp_tools_list, open_store,
-    project_load, project_run, read_file, read_file_scaffolded, resolve_repo_root, run,
-    FleetRunOptions, ProjectRunOptions, RunOptions,
+    audit_mcp_tool, dry_run_json, enqueue_agent_stdin, fleet_run, fleet_status, list_live_agents,
+    logs, mcp_proxy_call, mcp_tools_list, open_store, project_load, project_run, read_file,
+    read_file_scaffolded, resolve_repo_root, run, FleetRunOptions, ProjectRunOptions, RunOptions,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -397,7 +396,10 @@ fn handle_tool_call(params: Option<Value>) -> anyhow::Result<String> {
                 .get("fleet_id")
                 .and_then(|v| v.as_str())
                 .map(String::from);
-            let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
+            let dry_run = args
+                .get("dry_run")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let continue_on_error = args
                 .get("continue_on_error")
                 .and_then(|v| v.as_bool())

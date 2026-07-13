@@ -1,47 +1,43 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
 const STEPS = [
-  { label: "IDE / CLI", detail: "Cursor, VS Code, terminal" },
-  { label: "MCP hub", detail: "Local tool routing" },
-  { label: "Hypervisor", detail: "Catalog + domains" },
-  { label: "Orchestration", detail: "Waves + fleet DAG" },
-  { label: "Execution yard", detail: "Headless PTY agents" },
-  { label: "Reality Deck", detail: "Topology & approvals (optional)" },
+  { label: "Editor / terminal", detail: "Cursor, VS Code, or shell" },
+  { label: "MCP hub", detail: "Optional IDE bridge" },
+  { label: "Coordinator", detail: "Projects, permissions, catalog" },
+  { label: "Scheduler", detail: "Waves and fleet order" },
+  { label: "Agent processes", detail: "Claude Code, Codex, CLIs" },
+  { label: "Desktop", detail: "Topology and approvals" },
 ] as const;
 
 export function ArchitectureSection() {
   return (
-    <section className="border-y border-white/5 bg-card/20 backdrop-blur-sm">
-      <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-24">
-        <h2 className="text-center text-3xl font-semibold tracking-tight sm:text-4xl">
-          Control plane, not terminal wallpaper
+    <section className="border-y border-border bg-card/10">
+      <div className="section-pad mx-auto max-w-6xl section-reveal">
+        <h2 className="max-w-2xl text-3xl sm:text-4xl">
+          Local control plane, not a browser full of terminals
         </h2>
-        <p className="mx-auto mt-4 max-w-2xl text-center text-muted-foreground">
-          Pytxo plugs into your existing workflow. It coordinates agents and records
-          structure — it does not host sixteen panes in a browser tab.
+        <p className="mt-4 max-w-2xl text-muted-foreground">
+          Pytxo plugs into your existing workflow. It coordinates agents and records what changed.
         </p>
-        <div className="mt-12 flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
+
+        <ol className="mt-12 flex flex-col gap-0 md:flex-row md:items-stretch md:overflow-x-auto">
           {STEPS.map((step, index) => (
-            <div key={step.label} className="flex items-center gap-2">
-              <Card className="glass-panel min-w-[9rem] flex-1 border-white/8 sm:flex-none">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-sm font-medium">{step.label}</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 text-xs text-muted-foreground">
-                  {step.detail}
-                </CardContent>
-              </Card>
+            <li
+              key={step.label}
+              className="relative flex flex-1 flex-col border-l border-border px-4 py-3 first:border-l-0 first:pl-0 md:border-l-0 md:border-t-0 md:px-3 md:py-0 md:pl-0"
+            >
               {index < STEPS.length - 1 ? (
                 <span
-                  className="hidden px-1 text-muted-foreground/50 sm:inline"
+                  className="pointer-events-none absolute top-5 right-0 hidden h-px w-full bg-border md:block"
                   aria-hidden
-                >
-                  →
-                </span>
+                />
               ) : null}
-            </div>
+              <p className="relative z-10 font-mono text-xs text-primary">
+                {String(index + 1).padStart(2, "0")}
+              </p>
+              <p className="relative z-10 mt-2 text-sm font-medium">{step.label}</p>
+              <p className="relative z-10 mt-1 text-xs text-muted-foreground">{step.detail}</p>
+            </li>
           ))}
-        </div>
+        </ol>
       </div>
     </section>
   );

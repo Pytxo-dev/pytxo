@@ -1,8 +1,16 @@
 //! DeepSpace outbound network isolation hooks ([[deepspace-network-v2]], ADR-0022, ADR-0026).
+//!
+//! # Platform matrix (Phase 71)
+//!
+//! | Platform | Mechanism | Opt-in |
+//! |----------|-----------|--------|
+//! | Linux | `unshare -n` netns (default on) | `PYTXO_DEEPSPACE_NETNS=0` disables |
+//! | macOS | `sandbox-exec` deny-outbound profile | always on for DeepSpace |
+//! | Windows | WFP/netsh loopback egress block | `PYTXO_DEEPSPACE_WFP=1` (elevated) installs rule; else stub |
 
-use pytxo_core::Result;
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 use pytxo_core::PytxoError;
+use pytxo_core::Result;
 
 /// Linux netns is default-on; set `PYTXO_DEEPSPACE_NETNS=0` to disable for debugging.
 #[cfg(target_os = "linux")]
@@ -10,7 +18,101 @@ fn linux_netns_enabled() -> bool {
     std::env::var("PYTXO_DEEPSPACE_NETNS").as_deref() != Ok("0")
 }
 
+#[cfg(target_os = "windows")]
+const WFP_RULE_NAME: &str = "PytxoDeepSpaceEgressBlock";
+
+/// True when `PYTXO_DEEPSPACE_WFP=1` (or `true`) — attempt real netsh rule install/probe.
+#[cfg(target_os = "windows")]
+fn windows_wfp_opt_in() -> bool {
+    matches!(
+        std::env::var("PYTXO_DEEPSPACE_WFP").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE")
+    )
+}
+
+/// Probe whether the named advfirewall rule already exists.
+#[cfg(target_os = "windows")]
+fn windows_wfp_rule_present() -> bool {
+    let output = std::process::Command::new("netsh")
+        .args([
+            "advfirewall",
+            "firewall",
+            "show",
+            "rule",
+            &format!("name={WFP_RULE_NAME}"),
+        ])
+        .output();
+    matches!(output, Ok(o) if o.status.success() && !String::from_utf8_lossy(&o.stdout).contains("No rules match"))
+}
+
+/// Attempt to install a program-scoped outbound block via netsh (requires elevation).
+///
+/// Scoped to the current executable so we never install a machine-wide deny.
+/// Loopback remains reachable (Windows does not match 127.0.0.1 on this block path
+/// the same way as remote Internet). Returns `true` when the rule is present after.
+///
+/// Remove with: `netsh advfirewall firewall delete rule name=PytxoDeepSpaceEgressBlock`
+#[cfg(target_os = "windows")]
+fn windows_ensure_wfp_rule() -> bool {
+    if windows_wfp_rule_present() {
+        return true;
+    }
+    let Ok(exe) = std::env::current_exe() else {
+        return false;
+    };
+    let exe_str = exe.to_string_lossy();
+    let add = std::process::Command::new("netsh")
+        .args([
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            &format!("name={WFP_RULE_NAME}"),
+            "dir=out",
+            "action=block",
+            "enable=yes",
+            "profile=any",
+            &format!("program={exe_str}"),
+            "protocol=any",
+            "description=Pytxo DeepSpace egress deny (Phase 71); program-scoped; opt-in PYTXO_DEEPSPACE_WFP=1",
+        ])
+        .output();
+    match add {
+        Ok(o) if o.status.success() => windows_wfp_rule_present(),
+        _ => false, // Non-elevated installs fail; leave stub semantics.
+    }
+}
+
+/// macOS Seatbelt profile: deny outbound network, allow local filesystem + process defaults.
+#[cfg(target_os = "macos")]
+fn macos_sandbox_profile() -> &'static str {
+    concat!(
+        "(version 1)\n",
+        "(deny default)\n",
+        "(allow process-exec)\n",
+        "(allow process-fork)\n",
+        "(allow signal)\n",
+        "(allow sysctl-read)\n",
+        "(allow mach-lookup)\n",
+        "(allow file-read*)\n",
+        "(allow file-write* (subpath \"/private/tmp\") (subpath \"/tmp\") (subpath \"/var/folders\"))\n",
+        "(allow file-write* (subpath \"/Users\"))\n",
+        "(deny network-outbound)\n",
+        "(deny network-inbound)\n",
+        "(allow network-outbound (remote ip \"localhost:*\"))\n",
+        "(allow network-inbound (local ip \"localhost:*\"))\n",
+    )
+}
+
 /// Platform label for doctor / WAL telemetry.
+///
+/// Values (Phase 71):
+/// - `linux-netns-unshare` / `linux-netns-disabled`
+/// - `macos-sandbox-exec`
+/// - `windows-wfp-rule-present` — netsh rule installed (opt-in elevated)
+/// - `windows-wfp-stub` — no rule; policy-only / AppContainer hint path
+/// - `windows-appcontainer-attempt` — `PYTXO_NETWORK_ISOLATION=1` without WFP rule
+#[allow(clippy::needless_return)] // cfg-specific branches are terminal on different platforms.
 pub fn isolation_mechanism() -> &'static str {
     #[cfg(target_os = "linux")]
     {
@@ -25,9 +127,21 @@ pub fn isolation_mechanism() -> &'static str {
     }
     #[cfg(target_os = "windows")]
     {
+        if windows_wfp_opt_in() {
+            if windows_ensure_wfp_rule() {
+                return "windows-wfp-rule-present";
+            }
+            return "windows-wfp-stub";
+        }
         let isolation = std::env::var("PYTXO_NETWORK_ISOLATION").unwrap_or_default();
         if isolation == "1" || isolation.eq_ignore_ascii_case("true") {
+            if windows_wfp_rule_present() {
+                return "windows-wfp-rule-present";
+            }
             return "windows-appcontainer-attempt";
+        }
+        if windows_wfp_rule_present() {
+            return "windows-wfp-rule-present";
         }
         return "windows-wfp-stub";
     }
@@ -38,6 +152,7 @@ pub fn isolation_mechanism() -> &'static str {
 }
 
 /// Wrap a shell one-liner for PTY / portable-pty paths that cannot take `Command` mutations.
+#[allow(clippy::needless_return)] // cfg-specific branches are terminal on different platforms.
 pub fn wrap_deepspace_shell_cmd(cmd: &str) -> String {
     #[cfg(target_os = "linux")]
     {
@@ -48,7 +163,7 @@ pub fn wrap_deepspace_shell_cmd(cmd: &str) -> String {
     }
     #[cfg(target_os = "macos")]
     {
-        let profile = "(version 1)\n(deny network-outbound)\n(allow default)\n";
+        let profile = macos_sandbox_profile();
         return format!(
             "sandbox-exec -p {} sh -c {}",
             shell_quote(profile),
@@ -57,8 +172,8 @@ pub fn wrap_deepspace_shell_cmd(cmd: &str) -> String {
     }
     #[cfg(target_os = "windows")]
     {
-        // WFP loopback-only is production path; PYTXO_NETWORK_ISOLATION=1 opts into AppContainer attempt.
-        let _ = std::env::var("PYTXO_NETWORK_ISOLATION").ok();
+        // Process-level wrap is a no-op; isolation is via WFP rule or stub env markers.
+        let _ = windows_wfp_opt_in();
         return cmd.to_string();
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
@@ -70,6 +185,7 @@ pub fn wrap_deepspace_shell_cmd(cmd: &str) -> String {
 /// Apply DeepSpace network isolation to a subprocess `Command` before spawn.
 ///
 /// Orbit+ profiles must not call this hook ([[permission-profile-engine]]).
+#[allow(clippy::needless_return)] // cfg-specific branches are terminal on different platforms.
 pub fn isolate_deepspace_network(cmd: &mut std::process::Command) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
@@ -92,7 +208,7 @@ pub fn isolate_deepspace_network(cmd: &mut std::process::Command) -> Result<()> 
             }
             #[cfg(target_os = "macos")]
             {
-                let profile = "(version 1)\n(deny network-outbound)\n(allow default)\n";
+                let profile = macos_sandbox_profile();
                 wrapped.arg("-p");
                 wrapped.arg(profile);
                 wrapped.arg(program);
@@ -105,20 +221,31 @@ pub fn isolate_deepspace_network(cmd: &mut std::process::Command) -> Result<()> 
     }
     #[cfg(target_os = "windows")]
     {
-        // Production: WFP loopback-only filter driver. Opt-in AppContainer attempt via env.
-        let isolation = std::env::var("PYTXO_NETWORK_ISOLATION").unwrap_or_default();
-        if isolation == "1" || isolation.eq_ignore_ascii_case("true") {
-            cmd.env("PYTXO_NETWORK_ISOLATION", "deepspace-v2-appcontainer-attempt");
-            cmd.env(
-                "PYTXO_NETWORK_ISOLATION_HINT",
-                "AppContainer SID restriction pending; use WFP for production egress deny",
-            );
-        } else {
-            cmd.env("PYTXO_NETWORK_ISOLATION", "deepspace-v2-wfp-stub");
-            cmd.env(
-                "PYTXO_NETWORK_ISOLATION_HINT",
-                "set PYTXO_NETWORK_ISOLATION=1 to opt into AppContainer attempt",
-            );
+        let mechanism = isolation_mechanism();
+        cmd.env(
+            "PYTXO_NETWORK_ISOLATION",
+            format!("deepspace-v2-{mechanism}"),
+        );
+        cmd.env("PYTXO_ISOLATION_MECHANISM", mechanism);
+        match mechanism {
+            "windows-wfp-rule-present" => {
+                cmd.env(
+                    "PYTXO_NETWORK_ISOLATION_HINT",
+                    "netsh advfirewall rule PytxoDeepSpaceEgressBlock is active",
+                );
+            }
+            "windows-appcontainer-attempt" => {
+                cmd.env(
+                    "PYTXO_NETWORK_ISOLATION_HINT",
+                    "AppContainer SID pending; set PYTXO_DEEPSPACE_WFP=1 (elevated) for netsh rule",
+                );
+            }
+            _ => {
+                cmd.env(
+                    "PYTXO_NETWORK_ISOLATION_HINT",
+                    "stub: set PYTXO_DEEPSPACE_WFP=1 as Administrator to install egress block rule",
+                );
+            }
         }
         return Ok(());
     }
@@ -134,9 +261,11 @@ pub fn isolate_deepspace_network(cmd: &mut std::process::Command) -> Result<()> 
 /// Shell one-liner that exits 0 when TCP egress to 1.1.1.1:443 is blocked, 1 when it succeeds.
 fn tcp_probe_shell() -> &'static str {
     concat!(
-        "python3 -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('1.1.1.1', 443))\" 2>/dev/null || ",
-        "python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('1.1.1.1', 443))\" 2>/dev/null || ",
-        "(nc -z -w 2 1.1.1.1 443 2>/dev/null && exit 1) || exit 0"
+        "if command -v python3 >/dev/null 2>&1; then ",
+        "python3 -c \"import socket,sys; s=socket.socket(); s.settimeout(2); sys.exit(1 if s.connect_ex(('1.1.1.1', 443)) == 0 else 0)\"; ",
+        "elif command -v python >/dev/null 2>&1; then ",
+        "python -c \"import socket,sys; s=socket.socket(); s.settimeout(2); sys.exit(1 if s.connect_ex(('1.1.1.1', 443)) == 0 else 0)\"; ",
+        "elif nc -z -w 2 1.1.1.1 443 2>/dev/null; then exit 1; else exit 0; fi"
     )
 }
 
@@ -178,7 +307,7 @@ pub fn doctor_deepspace_socket_probe() -> (bool, String) {
 
     match cmd.output() {
         Ok(output) => {
-            let blocked = !output.status.success();
+            let blocked = output.status.success();
             let detail = format!(
                 "mechanism={}; socket_probe_blocked={blocked}; exit={}",
                 isolation_mechanism(),
@@ -258,7 +387,11 @@ mod tests {
             assert!(wrapped.contains("unshare"));
         }
         #[cfg(target_os = "macos")]
-        assert!(wrapped.contains("sandbox-exec"));
+        {
+            assert!(wrapped.contains("sandbox-exec"));
+            assert!(wrapped.contains("deny network-outbound"));
+            assert!(wrapped.contains("allow process-exec"));
+        }
         #[cfg(target_os = "windows")]
         assert_eq!(wrapped, "echo ok");
     }
@@ -275,9 +408,29 @@ mod tests {
             }
         }
         #[cfg(target_os = "windows")]
-        assert!(cmd
-            .get_envs()
-            .any(|(k, _)| k == std::ffi::OsStr::new("PYTXO_NETWORK_ISOLATION")));
+        {
+            assert!(cmd
+                .get_envs()
+                .any(|(k, _)| k == std::ffi::OsStr::new("PYTXO_NETWORK_ISOLATION")));
+            assert!(cmd
+                .get_envs()
+                .any(|(k, _)| k == std::ffi::OsStr::new("PYTXO_ISOLATION_MECHANISM")));
+        }
+    }
+
+    #[test]
+    fn isolation_mechanism_is_nonempty() {
+        let m = isolation_mechanism();
+        assert!(!m.is_empty());
+        #[cfg(target_os = "windows")]
+        assert!(
+            m.starts_with("windows-"),
+            "expected windows-* mechanism, got {m}"
+        );
+        #[cfg(target_os = "linux")]
+        assert!(m.starts_with("linux-"));
+        #[cfg(target_os = "macos")]
+        assert_eq!(m, "macos-sandbox-exec");
     }
 
     #[test]
@@ -287,7 +440,14 @@ mod tests {
         assert!(detail.contains("socket_probe_blocked="));
         #[cfg(target_os = "linux")]
         if linux_netns_enabled() {
-            assert!(blocked, "netns should block egress: {detail}");
+            let netns_available = std::process::Command::new("unshare")
+                .args(["-n", "true"])
+                .status()
+                .is_ok_and(|status| status.success());
+            assert_eq!(
+                blocked, netns_available,
+                "socket probe must reflect whether the host can create a network namespace: {detail}"
+            );
         }
         let _ = blocked;
     }

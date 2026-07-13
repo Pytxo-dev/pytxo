@@ -1,14 +1,16 @@
 use pytxo_core::PermissionProfile;
 use pytxo_orchestrate::trust_repo;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::Frame;
 
 use crate::theme;
 
-const TIERS: [(PermissionProfile, &str, &str, fn() -> Style); 4] = [
+type TierDefinition = (PermissionProfile, &'static str, &'static str, fn() -> Style);
+
+const TIERS: [TierDefinition; 4] = [
     (
         PermissionProfile::DeepSpace,
         "Deep Space",
@@ -93,15 +95,13 @@ impl TrustModal {
         let popup = centered_rect(74, 72, area);
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(theme::chroma_border(0))
+            .border_style(theme::border_focused())
             .title(Span::styled(" Workspace trust ", theme::title()))
             .style(theme::panel_bg());
         let inner = block.inner(popup);
         frame.render_widget(block, popup);
 
-        let footer_lines = if self.pending {
-            3
-        } else if self.error.is_some() {
+        let footer_lines = if self.pending || self.error.is_some() {
             3
         } else {
             2
@@ -120,9 +120,7 @@ impl TrustModal {
         let mut header = vec![
             Line::from(Span::styled(
                 self.heading(),
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
+                theme::foreground().add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
         ];
@@ -140,10 +138,7 @@ impl TrustModal {
                     "Agents may read, edit, and run commands in trusted paths.",
                     theme::muted(),
                 )),
-                Line::from(Span::styled(
-                    "Choose a permission tier:",
-                    theme::muted(),
-                )),
+                Line::from(Span::styled("Choose a permission tier:", theme::muted())),
             ]),
             chunks[1],
         );
@@ -169,16 +164,14 @@ impl TrustModal {
             chunks[2],
         );
 
-        let mut footer = vec![Line::from(
-            if self.pending {
-                Span::styled("Trusting folder…", theme::chroma_cyan())
-            } else {
-                Span::styled(
-                    "↑/↓ select tier · Enter trust folder · Esc decline",
-                    theme::chroma_magenta(),
-                )
-            },
-        )];
+        let mut footer = vec![Line::from(if self.pending {
+            Span::styled("Trusting folder…", theme::chroma_cyan())
+        } else {
+            Span::styled(
+                "↑/↓ select tier · Enter trust folder · Esc decline",
+                theme::chroma_magenta(),
+            )
+        })];
         if let Some(ref err) = self.error {
             footer.push(Line::from(Span::styled(
                 format!("Error: {err}"),

@@ -4,7 +4,7 @@ title: Fleet runs
 
 # Fleet runs
 
-A **fleet run** coordinates agent work across **multiple git repositories** with explicit barrier sync — run repo A, wait until it finishes, then run repo B.
+A **fleet run** coordinates agent work across **multiple git repositories** with explicit barrier sync. Run repo A, wait until it finishes, then run repo B.
 
 This is different from [modular projects](/docs/concepts/modular-projects), which coordinate multiple **folders** inside one project manifest and one `run_id`.
 
@@ -13,7 +13,7 @@ This is different from [modular projects](/docs/concepts/modular-projects), whic
 - Fleet manifest at `~/.pytxo/fleets/<id>.toml`
 - Nodes are repos with their own `cmd`, `agents`, and optional `depends_on`
 - Waves run in topological order; nodes in the same wave can run in parallel
-- Progress is recorded in the hypervisor catalog and shown in Reality Deck
+- Progress is recorded in the catalog and shown in Pytxo Desktop
 
 ## Create a fleet
 
@@ -47,7 +47,7 @@ Check history:
 pytxo fleet status --id my-fleet
 ```
 
-## Reality Deck
+## Pytxo Desktop
 
 The **Fleet runs** panel lists in-flight and recent fleet runs with per-node status across domains.
 

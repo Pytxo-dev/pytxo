@@ -14,11 +14,12 @@ use serde::{Deserialize, Serialize};
 
 pub mod billing;
 pub mod cloud;
-pub mod entitlements;
 mod cost;
 mod dashboard;
 mod doctor;
+pub mod entitlements;
 mod fleet;
+pub mod flow;
 mod hypervisor;
 mod preflight;
 mod project;
@@ -36,6 +37,10 @@ pub use fleet::{
     fleet_status, fleet_status_nodes, wait_for_domain_run, FleetRunOptions, FleetRunResult,
     FleetRunStatus,
 };
+pub use flow::{
+    dispatch_flow, preview_flow, save_flow_draft, save_reviewed_flow_plan, FlowAdeSummary,
+    FlowBlockedReason, FlowDraftInput, FlowPlan, FlowPlanTask, FlowSource, FlowStatus, FlowWarning,
+};
 pub use hypervisor::{
     default_hypervisor, list_catalog_domains, list_catalog_domains_enriched, CatalogEntryStatus,
     DomainState, DomainSummary, HypervisorRegistry,
@@ -46,9 +51,9 @@ pub use project::{
     project_roots, project_run, project_status, ProjectRunOptions, ProjectRunResult,
     ProjectStatusRow,
 };
-pub use structural::{structural_graph, workspace_structural_graph};
 pub use pytxo_core::ExecutionBackend;
 pub use pytxo_store::CatalogEntry;
+pub use structural::{structural_graph, workspace_structural_graph};
 
 #[cfg(feature = "sanitize")]
 use pytxo_sanitize::sanitize_line;
@@ -66,7 +71,8 @@ pub struct RunOptions {
     pub project: Option<ProjectRunContext>,
     /// Runtime task graph from Hypervisor Shell / planner; overrides config tasks when set.
     pub tasks: Option<Vec<Task>>,
-    /// Per-agent command template: `{task_id}`, `{agent}`, `{paths}`, `{prompt}`, `{wave}`.
+    /// Per-agent command template: `{task_id}`, `{agent}`, `{paths}`, `{wave}`. Task prompts are
+    /// supplied separately as `PYTXO_TASK_PROMPT`; raw shell interpolation is forbidden.
     pub task_cmd_template: Option<String>,
     /// Per-task prompt text keyed by task id (used with `task_cmd_template`).
     pub task_prompts: Option<std::collections::HashMap<String, String>>,
@@ -220,6 +226,15 @@ pub fn dispatch_run(opts: RunOptions) -> anyhow::Result<(String, String)> {
     Ok((domain.as_str().to_string(), run.0))
 }
 
+/// Dispatch with the exact configuration snapshot already validated by Flow.
+pub(crate) fn dispatch_run_with_config_snapshot(
+    opts: RunOptions,
+    cfg: PytxoConfig,
+) -> anyhow::Result<(String, String)> {
+    let (domain, run) = default_hypervisor().dispatch_with_config_snapshot(opts, cfg)?;
+    Ok((domain.as_str().to_string(), run.0))
+}
+
 pub fn enqueue_agent_stdin(
     repo: Option<PathBuf>,
     agent_key: &str,
@@ -229,6 +244,23 @@ pub fn enqueue_agent_stdin(
     let cfg = load_config(None, &repo_root)?;
     let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
     ensure_agent_live(&domain.swarm, agent_key)?;
+    if cfg.permission_profile == pytxo_core::PermissionProfile::Galaxy {
+        if let Ok(text) = std::str::from_utf8(data) {
+            for line in text.lines() {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                pytxo_runner::gate_spawn_command(
+                    Some(&domain.hitl),
+                    cfg.permission_profile,
+                    agent_key,
+                    trimmed,
+                )
+                .map_err(|e| anyhow::anyhow!(e))?;
+            }
+        }
+    }
     domain
         .swarm
         .enqueue_stdin(agent_key, data)
@@ -480,7 +512,7 @@ pub fn commit_workspace_for_agent(
         on_event: None,
         signal_core: cfg.signal_core,
         signal_fidelity: cfg.signal_fidelity,
-        isolation_mode: cfg.isolation,
+        isolation_mode: pytxo_runner::effective_isolation_mode(&cfg),
         permission_profile: cfg.permission_profile,
         agent_profiles: cfg.agent_profile_map(),
         route_agents: cfg.agent.clone(),
@@ -495,6 +527,7 @@ pub fn commit_workspace_for_agent(
         pty_cols: cfg.pty_cols,
         // Manual commit IS the human approval; no queue gate needed here.
         hitl: None,
+        hitl_manual_flush: true,
         agent_paths: std::collections::HashMap::new(),
         agent_fidelity: std::collections::HashMap::new(),
         roots: std::collections::HashMap::new(),
@@ -527,8 +560,8 @@ pub(crate) async fn execute_run_body(
     if let Some(exec) = opts.execution {
         cfg.execution_backend = exec;
     }
-    let entitlements = entitlements::effective_entitlements(&cfg)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let entitlements =
+        entitlements::effective_entitlements(&cfg).map_err(|e| anyhow::anyhow!("{e}"))?;
     if cfg.max_agents > entitlements.max_agents {
         anyhow::bail!(
             "max_agents {} exceeds tier limit {} ({})",
@@ -630,7 +663,7 @@ pub(crate) async fn execute_run_body(
         on_event: Some(on_event),
         signal_core: cfg.signal_core,
         signal_fidelity: cfg.signal_fidelity,
-        isolation_mode: cfg.isolation,
+        isolation_mode: pytxo_runner::effective_isolation_mode(&cfg),
         permission_profile: cfg.permission_profile,
         agent_profiles,
         route_agents: cfg.agent.clone(),
@@ -644,6 +677,7 @@ pub(crate) async fn execute_run_body(
         pty_rows: cfg.pty_rows,
         pty_cols: cfg.pty_cols,
         hitl: Some(domain.hitl.clone()),
+        hitl_manual_flush: false,
         agent_paths: cfg
             .agent
             .iter()
@@ -764,7 +798,8 @@ pub fn resolve_run_tasks(
 }
 
 pub fn plan_tasks(tasks: &[Task], cfg: &PytxoConfig) -> anyhow::Result<ExecutionPlan> {
-    let mut plan = build_plan(tasks, cfg.max_agents, cfg.dag_explicit_deps).map_err(|e| anyhow::anyhow!(e))?;
+    let mut plan =
+        build_plan(tasks, cfg.max_agents, cfg.dag_explicit_deps).map_err(|e| anyhow::anyhow!(e))?;
     for c in pytxo_scheduler::find_cross_root_conflicts(tasks) {
         let msg = format!(
             "cross-root path overlap: {} vs {} ({})",
@@ -958,7 +993,7 @@ pub async fn stop(
             on_event: None,
             signal_core: cfg.signal_core,
             signal_fidelity: cfg.signal_fidelity,
-            isolation_mode: cfg.isolation,
+            isolation_mode: pytxo_runner::effective_isolation_mode(&cfg),
             permission_profile: cfg.permission_profile,
             agent_profiles: cfg.agent_profile_map(),
             route_agents: cfg.agent.clone(),
@@ -972,6 +1007,7 @@ pub async fn stop(
             pty_rows: cfg.pty_rows,
             pty_cols: cfg.pty_cols,
             hitl: None,
+            hitl_manual_flush: false,
             agent_paths: std::collections::HashMap::new(),
             agent_fidelity: std::collections::HashMap::new(),
             roots: std::collections::HashMap::new(),

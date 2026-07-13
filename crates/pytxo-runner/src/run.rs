@@ -6,12 +6,12 @@ use std::sync::Arc;
 use std::thread;
 
 use pytxo_core::{
-    root_scoped_claim, AgentId, BillingMode, ByteHeuristicEstimator, ChildLaunchEnv,
-    CloudDispatcher, ConfigModelRouter, ContextCache, overlay_upper_cloud_delta, DomainId,
-    ExecRequest, ExecutionBackend, ExecutionPlan, FidelityTier, IsolationCtx,
-    IsolationMode, ManagedTransport, ModelRoute, ModelRouter, NetworkPolicy, PermissionEngine,
-    PermissionProfile, PytxoError, RaceShield, Result, RunId, ScheduledTask, StartSandboxRequest,
-    TaskId, TokenEstimator, UsageKey, UsageMeter, WorkspaceHandle,
+    overlay_upper_cloud_delta, root_scoped_claim, AgentId, BillingMode, ByteHeuristicEstimator,
+    ChildLaunchEnv, CloudDispatcher, ConfigModelRouter, ContextCache, DomainId, ExecRequest,
+    ExecutionBackend, ExecutionPlan, FidelityTier, IsolationCtx, IsolationMode, ManagedTransport,
+    ModelRoute, ModelRouter, NetworkPolicy, PermissionEngine, PermissionProfile, PytxoError,
+    RaceShield, Result, RunId, ScheduledTask, StartSandboxRequest, TaskId, TokenEstimator,
+    UsageKey, UsageMeter, WorkspaceHandle,
 };
 
 use crate::context::{extend_context_with_readonly_roots, prepare_agent_context_for_root};
@@ -39,7 +39,8 @@ pub struct RunContext {
     pub worktree_base: PathBuf,
     pub data_dir: PathBuf,
     pub cmd: String,
-    /// When set, expands per task via [`resolve_cmd_for_task`].
+    /// When set, expands non-prompt metadata via [`resolve_cmd_for_task`]. Prompt text is passed
+    /// separately in `PYTXO_TASK_PROMPT` and cannot be interpolated into shell syntax.
     pub task_cmd_template: Option<String>,
     pub task_prompts: HashMap<String, String>,
     pub keep_worktrees: bool,
@@ -64,6 +65,9 @@ pub struct RunContext {
     /// Galaxy HITL queue ([[permission-profile-engine]]). When set, flushes that
     /// `flush_requires_approval()` block until a human approves via the queue.
     pub hitl: Option<crate::hitl::HitlQueue>,
+    /// When true, `commit_workspace` skips the HITL queue (Deck/CLI Approve merge
+    /// is itself the human act). Automated run flushes must leave this false.
+    pub hitl_manual_flush: bool,
     /// Per-agent extra context paths (`[[agent]].paths`), merged with task paths
     /// when materializing context ([[signal-core]]).
     pub agent_paths: HashMap<String, Vec<String>>,
@@ -184,20 +188,22 @@ async fn run_one_agent(
         .iter()
         .map(|p| root_scoped_claim(task.root.as_deref(), p))
         .collect();
-    swarm.try_claim_paths(&agent_key, &claim_paths).or_else(|e| {
-        if std::env::var("PYTXO_DAG_RECOVERY").ok().as_deref() == Some("1") {
-            if let Some(cb) = ctx.on_event.as_ref() {
-                cb(
-                    &agent_key,
-                    "dag-recovery",
-                    &format!("path-claim stall; synthetic completion injected: {e}"),
-                );
+    swarm
+        .try_claim_paths(&agent_key, &claim_paths)
+        .or_else(|e| {
+            if std::env::var("PYTXO_DAG_RECOVERY").ok().as_deref() == Some("1") {
+                if let Some(cb) = ctx.on_event.as_ref() {
+                    cb(
+                        &agent_key,
+                        "dag-recovery",
+                        &format!("path-claim stall; synthetic completion injected: {e}"),
+                    );
+                }
+                Ok(())
+            } else {
+                Err(e)
             }
-            Ok(())
-        } else {
-            Err(e)
-        }
-    })?;
+        })?;
 
     let profile = match task.root.as_deref() {
         Some(label) if !label.is_empty() => ctx
@@ -415,7 +421,8 @@ async fn run_one_agent(
         }
     }
 
-    let cmd = resolve_cmd_for_task(ctx, task);
+    let cmd = resolve_cmd_for_task(ctx, task)?;
+    let task_prompt = ctx.task_prompts.get(&task.task_id.0).cloned();
     let net = engine.network();
     if !net.spawn_egress_allowed(&cmd) {
         return Err(PytxoError::Runner(format!(
@@ -423,11 +430,22 @@ async fn run_one_agent(
             profile.as_str()
         )));
     }
+    // Galaxy: public egress is HITL-gated (not hard-denied) so reviewers can allow one-shot fetches.
     if command_implies_egress(&cmd) && !net.egress_allowed("1.1.1.1", 443) {
-        return Err(PytxoError::Runner(format!(
-            "runtime TCP egress denied for {} profile",
-            profile.as_str()
-        )));
+        if profile == PermissionProfile::Galaxy {
+            crate::hitl_gate::gate_hitl_action(
+                ctx.hitl.as_ref(),
+                profile,
+                &agent_key,
+                "net.egress",
+                "runtime TCP egress to public internet",
+            )?;
+        } else {
+            return Err(PytxoError::Runner(format!(
+                "runtime TCP egress denied for {} profile",
+                profile.as_str()
+            )));
+        }
     }
     if profile == PermissionProfile::DeepSpace {
         if net.egress_allowed("1.1.1.1", 443) {
@@ -439,7 +457,10 @@ async fn run_one_agent(
             cb(
                 &agent_key,
                 "network-isolation",
-                &format!("deepspace-v2:{}", crate::network_isolation::isolation_mechanism()),
+                &format!(
+                    "deepspace-v2:{}",
+                    crate::network_isolation::isolation_mechanism()
+                ),
             );
         }
     }
@@ -462,6 +483,7 @@ async fn run_one_agent(
         let pty_rows = ctx.pty_rows;
         let pty_cols = ctx.pty_cols;
         let subprocess_stdin = ctx.subprocess_stdin;
+        let task_prompt = task_prompt.clone();
         let cloud_dispatcher = ctx.cloud_dispatcher.clone();
         let cloud_fallback_local = ctx.cloud_fallback_local;
         let sandbox_id = sandbox_id.clone();
@@ -480,6 +502,7 @@ async fn run_one_agent(
                 pty_cols,
                 &swarm,
                 subprocess_stdin,
+                task_prompt.as_deref(),
                 cloud_dispatcher.as_deref(),
                 sandbox_id.as_deref(),
                 cloud_fallback_local,
@@ -568,7 +591,8 @@ async fn run_one_agent(
         let sandbox_id = sandbox_id.clone();
         let retry = tokio::task::spawn_blocking({
             let wt_path = wt_path.clone();
-            let cmd = ctx.cmd.clone();
+            let cmd = cmd.clone();
+            let task_prompt = task_prompt.clone();
             let on_event = ctx.on_event.clone();
             let agent_key = agent_key.clone();
             let run_id = ctx.run_id.0.clone();
@@ -593,6 +617,7 @@ async fn run_one_agent(
                     pty_cols,
                     &swarm,
                     subprocess_stdin,
+                    task_prompt.as_deref(),
                     cloud_dispatcher.as_deref(),
                     sandbox_id.as_deref(),
                     cloud_fallback_local,
@@ -700,12 +725,16 @@ fn run_command_streaming(
     pty_cols: u16,
     swarm: &SwarmRegistry,
     subprocess_stdin: bool,
+    task_prompt: Option<&str>,
     cloud_dispatcher: Option<&dyn CloudDispatcher>,
     cloud_sandbox_id: Option<&str>,
     cloud_fallback_local: bool,
     persist: Option<ProcessPersist>,
 ) -> Result<SingleResult> {
-    let env = build_child_env(context_dir, profile, managed_transport, route);
+    let mut env = build_child_env(context_dir, profile, managed_transport, route);
+    if let Some(prompt) = task_prompt {
+        env.set("PYTXO_TASK_PROMPT", prompt);
+    }
 
     if execution_backend == ExecutionBackend::Cloud {
         if let (Some(dispatcher), Some(sid)) = (cloud_dispatcher, cloud_sandbox_id) {
@@ -714,6 +743,7 @@ fn run_command_streaming(
                 &ExecRequest {
                     cmd: cmd.to_string(),
                     cwd: Some(worktree.to_string_lossy().into_owned()),
+                    env: env.vars().clone(),
                 },
             ) {
                 Ok(resp) => {
@@ -892,22 +922,21 @@ fn persist_process(
 }
 
 /// Resolve the shell command for one scheduled task (Hypervisor Shell templates).
-pub fn resolve_cmd_for_task(ctx: &RunContext, task: &pytxo_core::ScheduledTask) -> String {
+pub fn resolve_cmd_for_task(ctx: &RunContext, task: &pytxo_core::ScheduledTask) -> Result<String> {
     if let Some(template) = &ctx.task_cmd_template {
-        let prompt = ctx
-            .task_prompts
-            .get(&task.task_id.0)
-            .map(String::as_str)
-            .unwrap_or("");
+        if template.contains("{prompt}") {
+            return Err(PytxoError::Runner(
+                "raw {prompt} shell interpolation is forbidden; use PYTXO_TASK_PROMPT".into(),
+            ));
+        }
         let paths = task.paths.join(",");
-        return template
+        return Ok(template
             .replace("{task_id}", &task.task_id.0)
             .replace("{agent}", &task.agent)
             .replace("{paths}", &paths)
-            .replace("{prompt}", prompt)
-            .replace("{wave}", &task.wave.to_string());
+            .replace("{wave}", &task.wave.to_string()));
     }
-    ctx.cmd.clone()
+    Ok(ctx.cmd.clone())
 }
 
 fn command_implies_egress(cmd: &str) -> bool {
@@ -993,17 +1022,16 @@ pub fn commit_workspace(
         ));
     }
     if engine.flush_requires_approval() {
-        if let Some(hitl) = ctx.hitl.as_ref() {
+        if ctx.hitl_manual_flush {
+            // Deck/CLI Approve merge is the human act; flush without queue.
+        } else if let Some(hitl) = ctx.hitl.as_ref() {
             let agent_key = if workspace.branch.is_empty() {
                 ctx.run_id.0.clone()
             } else {
                 workspace.branch.clone()
             };
             if profile == PermissionProfile::Galaxy
-                && crate::hitl_gate::workspace_writes_outside_root(
-                    &workspace.cwd,
-                    &ctx.repo_root,
-                )
+                && crate::hitl_gate::workspace_writes_outside_root(&workspace.cwd, &ctx.repo_root)
             {
                 crate::hitl_gate::gate_hitl_action(
                     Some(hitl),
@@ -1027,6 +1055,11 @@ pub fn commit_workspace(
                     return Err(PytxoError::Runner("flush approval timed out".into()));
                 }
             }
+        } else {
+            return Err(PytxoError::Runner(
+                "flush requires HITL queue (set hitl_manual_flush for Deck/CLI approve path)"
+                    .into(),
+            ));
         }
     }
     let isolation = crate::blast::isolation_for_mode(ctx.isolation_mode);

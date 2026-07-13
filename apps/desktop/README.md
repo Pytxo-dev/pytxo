@@ -1,4 +1,4 @@
-# Pytxo Reality Deck (desktop)
+# Pytxo Desktop
 
 Passive telemetry UI for Pytxo: run list, wave agents, xterm log stream, and per-agent git diff.
 

@@ -107,6 +107,7 @@ async fn secondary_root_worktree_under_web_repo() {
         pty_rows: 24,
         pty_cols: 80,
         hitl: None,
+        hitl_manual_flush: false,
         agent_paths: HashMap::new(),
         agent_fidelity: HashMap::new(),
         roots,

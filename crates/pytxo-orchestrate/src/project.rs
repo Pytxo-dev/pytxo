@@ -45,6 +45,9 @@ pub struct ProjectStatusRow {
     pub agents_by_root: HashMap<String, usize>,
 }
 
+/// User-facing project root details: label, path, read-only, primary, permission profile.
+pub type ProjectRootSummary = (String, String, bool, bool, Option<String>);
+
 fn discover_manifest(manifest: Option<&Path>, id: Option<&str>) -> anyhow::Result<ProjectManifest> {
     let cwd = std::env::current_dir()?;
     let path = ProjectManifest::discover(manifest, id, &cwd)
@@ -64,7 +67,7 @@ pub fn project_load(
 pub fn project_roots(
     manifest: Option<PathBuf>,
     id: Option<String>,
-) -> anyhow::Result<Vec<(String, String, bool, bool, Option<String>)>> {
+) -> anyhow::Result<Vec<ProjectRootSummary>> {
     let m = discover_manifest(manifest.as_deref(), id.as_deref())?;
     Ok(m.roots
         .iter()
@@ -151,7 +154,7 @@ pub fn project_remove_root(
     m.roots.retain(|r| {
         r.effective_label() != label_or_path
             && r.path.to_string_lossy() != label_or_path
-            && r.path != PathBuf::from(label_or_path)
+            && r.path.as_path() != Path::new(label_or_path)
     });
     if m.roots.len() == before {
         anyhow::bail!("root not found in project manifest: {label_or_path}");

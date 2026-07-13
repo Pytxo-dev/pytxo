@@ -7,47 +7,49 @@ mod cloud;
 mod config;
 mod error;
 mod execution;
+mod fleet;
 mod ids;
 mod moat;
 mod path_util;
 mod plan;
-mod fleet;
 mod project;
 mod service_health;
 mod task;
 mod trust;
 
-pub use ade_registry::{ade_on_path, all_ade_clis, detect_on_path, format_agents_list, resolve_ade, AdeCliSpec};
+pub use ade_registry::{
+    ade_on_path, all_ade_clis, detect_on_path, format_agents_list, resolve_ade, AdeCliSpec,
+};
 pub use billing::{
-    all_byok_key_envs, all_providers, get_provider, inject_byok_env, key_configured,
-    list_static_models, provider_from_hint, ArbitrageSample, ArbitrageYield, BillingConfig,
-    BillingMode, BillingReconciler, ByteHeuristicEstimator, CliAdapter, ConfigModelRouter,
-    HttpBillingReconciler, LocalHybridBilling, ManagedTransport, ModelId, ModelRoute, ModelRouter,
-    NoopBillingReconciler, ProviderId, ProviderSpec, ReservationId, RunUsageTotals,
-    StaticPriceTable, TokenCounts, TiktokenEstimator, TokenEstimator, TokenWallet, UsageKey,
-    UsageMeter, UsageSource, default_token_estimator,
+    all_byok_key_envs, all_providers, default_token_estimator, get_provider, inject_byok_env,
+    key_configured, list_static_models, provider_from_hint, ArbitrageSample, ArbitrageYield,
+    BillingConfig, BillingMode, BillingReconciler, ByteHeuristicEstimator, CliAdapter,
+    ConfigModelRouter, HttpBillingReconciler, LocalHybridBilling, ManagedTransport, ModelId,
+    ModelRoute, ModelRouter, NoopBillingReconciler, ProviderId, ProviderSpec, ReservationId,
+    RunUsageTotals, StaticPriceTable, TiktokenEstimator, TokenCounts, TokenEstimator, TokenWallet,
+    UsageKey, UsageMeter, UsageSource,
 };
 pub use child_env::ChildLaunchEnv;
 pub use cloud::{
     collect_sync_paths, content_hash, delta_from_overlay_upper, is_overlay_upper,
-    overlay_upper_cloud_delta, CacheLookup,
-    CachePut, CachedScaffold, CloudConfig, CloudDispatcher, ContextCache, ExecRequest,
-    ExecResponse, HttpCloudDispatcher, HttpContextCache, McpHubConfig, NoopCloudDispatcher,
-    NoopContextCache, OverlayDelta, StartSandboxRequest, StartSandboxResponse, SyncFile,
+    overlay_upper_cloud_delta, CacheLookup, CachePut, CachedScaffold, CloudConfig, CloudDispatcher,
+    ContextCache, ExecRequest, ExecResponse, HttpCloudDispatcher, HttpContextCache, McpHubConfig,
+    NoopCloudDispatcher, NoopContextCache, OverlayDelta, StartSandboxRequest, StartSandboxResponse,
+    SyncFile,
 };
 pub use config::{BlastConfig, PytxoConfig};
 pub use error::{PytxoError, Result};
 pub use execution::ExecutionBackend;
+pub use fleet::{FleetManifest, FleetMeta, FleetNode, FleetPlan, FleetWave};
 pub use ids::{AgentId, RunId, TaskId};
 pub use moat::{
     conflict_error, normalize_claim_path, paths_claim_overlap, root_scoped_claim, DomainId,
-    FidelityTier, IsolationBackend, IsolationCtx, IsolationMode, LiveAgent, PathConflict,
-    PermissionEngine, PermissionProfile, NetworkPolicy, NetworkPolicyEngine, RaceShield, ScaffoldResult, ScaffoldStats, SignalCore,
-    StdinBuffer, WorkspaceHandle,
+    FidelityTier, IsolationBackend, IsolationCtx, IsolationMode, LiveAgent, NetworkPolicy,
+    NetworkPolicyEngine, PathConflict, PermissionEngine, PermissionProfile, RaceShield,
+    ScaffoldResult, ScaffoldStats, SignalCore, StdinBuffer, WorkspaceHandle,
 };
 pub use path_util::{canonical_repo_root, strip_extended_path};
 pub use plan::{AgentAssignment, ConflictPair, ExecutionPlan, ScheduledTask};
-pub use fleet::{FleetManifest, FleetMeta, FleetNode, FleetPlan, FleetWave};
 pub use project::{ProjectManifest, ProjectMeta, ProjectRoot};
 pub use service_health::response_ok as service_health_ok;
 pub use service_health::{health_lists_provider, providers_configured};

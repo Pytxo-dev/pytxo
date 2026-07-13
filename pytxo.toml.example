@@ -16,6 +16,11 @@ pty_rows = 24
 pty_cols = 80
 tier_max_agents = 3
 
+# Blast Shield overlay tuning (Phase 62)
+# [blast]
+# prefer_kernel_overlay = true   # use overlay when doctor probe passes (default true)
+# sparse_exclude = ["node_modules", ".git", "target", "dist", "build"]
+
 # Optional NL mission planner for Hypervisor Shell (v0.2.x)
 # [planner]
 # enabled = true

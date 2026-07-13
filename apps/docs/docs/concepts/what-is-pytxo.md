@@ -4,38 +4,38 @@ title: What is Pytxo?
 
 # What is Pytxo?
 
-Pytxo solves a different problem than cloud **agent development environments** (ADEs) that show walls of terminal panes in a browser tab.
+Pytxo runs and coordinates the coding agents you already use. It is built for throughput: schedule work, keep agents from colliding, and show what changed. It is not a browser full of terminal panes.
 
 ## The problem
 
-Cloud ADEs optimize for demos: many parallel terminal grids, heavy RAM and GPU use, proprietary credit models, and vendor lock-in. Developers who want **throughput** need coordination, isolation, and telemetry — not another IDE surface.
+Many agent products put the UI first: grids of terminals, heavy local resource use, and platform-held credits. If you care about getting work done, you need coordination, isolation, and clear logs more than another IDE surface.
 
-## The Pytxo model
+## How Pytxo works
 
-Pytxo coordinates **headless terminal agents** in managed background PTYs. It does not replace your IDE; it plugs in via MCP and optional desktop telemetry.
+Pytxo schedules headless agents in the background on your machine. Each agent works in an isolated copy of the repo. Pytxo records what changed. Your IDE stays your IDE. You connect through MCP, and optionally **Pytxo Desktop**.
 
-| | Cloud ADE | Pytxo |
+| | Typical agent workspace UI | Pytxo |
 |---|-----------|-------|
 | Primary UI | Multi-pane terminal grid | Your existing IDE |
-| Execution | Remote containers | Local PTYs + isolated copies |
-| Parallelism | Visual panes | DAG waves + registry |
-| Telemetry | Streamed terminal text | Structural logs + optional Reality Deck |
-| LLM keys | Often platform-held | BYOK always |
+| Execution | Remote containers / heavy webviews | Local agents + isolated copies |
+| Parallelism | Visual panes | Scheduled waves + write registry |
+| Telemetry | Streamed terminal text | Structural logs + optional Desktop |
+| LLM keys | Often platform-held | Your keys (BYOK) |
 
-## Productivity layers
+## Ways to scale up
 
-1. **Many projects at once** — independent execution domains per repo with separate logs and permission tiers (default **Orbit**). See [Execution domains](/docs/concepts/execution-domains).
-2. **Modular projects** — one manifest spanning multiple folders (API + web + protos) in a single coordinated run. See [Modular projects](/docs/concepts/modular-projects).
-3. **Fleet runs** — cross-repo DAGs when barriers must span separate git roots. See [Fleet runs](/docs/concepts/fleet-runs).
+1. **Many projects at once.** Each repo gets its own logs and permission tier (default **Orbit**). See [Execution domains](/docs/concepts/execution-domains).
+2. **Workspaces.** One workspace can span several folders (API + web + protos) in a single coordinated run. See [Modular projects](/docs/concepts/modular-projects).
+3. **Fleet runs.** Cross-repo plans when barriers must span separate git roots. See [Fleet runs](/docs/concepts/fleet-runs).
 
-## Non-goals
+## What Pytxo does not do
 
 - Multi-pane embedded terminal walls in the product UI
-- Storing provider API keys in plaintext
-- Becoming an LLM vendor (Pytxo Cloud is BYOK-only)
+- Store provider API keys in plaintext
+- Become an LLM vendor (Pytxo Cloud is BYOK-only)
 
 ## Next
 
-- [Three moats](/docs/concepts/three-moats) — Signal, Blast, and Race shields
-- [Reality Deck](/docs/concepts/reality-deck) — optional telemetry UI
-- [Galaxy approvals](/docs/concepts/galaxy-approvals) — human-in-the-loop for risky actions
+- [Three moats](/docs/concepts/three-moats): smarter context, safe sandbox, no write collisions
+- [Pytxo Desktop](/docs/concepts/desktop): optional control UI
+- [Galaxy approvals](/docs/concepts/galaxy-approvals): you approve risky actions

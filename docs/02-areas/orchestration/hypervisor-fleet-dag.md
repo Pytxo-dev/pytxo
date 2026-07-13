@@ -73,7 +73,7 @@ Edit `depends_on` in the manifest after `fleet init` for ordering.
 ## Dashboard
 
 - `pytxo domains` — enriched per-domain `active_runs` and `latest_run_status` (use `--paths-only` for legacy output).
-- Reality Deck `list_domains_status` IPC — domain badges when viewing **All** projects.
+- Pytxo Desktop `list_domains_status` IPC — domain badges when viewing **All** projects.
 - TUI board aggregates recent runs when multiple catalog domains exist.
 
 Back: [[execution-domains]] · [[MOC-home]]

@@ -1,17 +1,17 @@
 name: Desktop release
 
-# Build Reality Deck installers and upload to an existing pytxo-releases tag.
-# Actions → Desktop release → version 0.3.4 (no v prefix)
+# Build Pytxo Desktop installers and upload to an existing pytxo-releases tag.
+# Actions → Desktop release → version 0.4.0 (no v prefix)
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Semver (no v prefix), e.g. 0.3.4"
+        description: "Semver (no v prefix), e.g. 0.4.0"
         required: true
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   TAG_NAME: v${{ inputs.version }}
@@ -57,7 +57,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
-            librsvg2-dev patchelf
+            librsvg2-dev patchelf \
+            cmake clang libclang-dev libasound2-dev
 
       - name: Sync desktop version
         shell: bash
@@ -104,15 +105,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          WHISPER_DONT_GENERATE_BINDINGS: "1"
         with:
           projectPath: apps/desktop
           tagName: ${{ env.TAG_NAME }}
           releaseName: ${{ env.TAG_NAME }}
           releaseDraft: true
           prerelease: false
-          includeRelease: true
+          # Artifacts are mirrored to pytxo-releases; skip private-repo draft release.
+          includeRelease: false
           includeUpdaterJson: false
-          args: --target ${{ matrix.rust_target }}
+          args: --target ${{ matrix.rust_target }} --features voice-whisper
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4

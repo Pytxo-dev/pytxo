@@ -1,5 +1,5 @@
 ---
-title: Phase 2 — Reality Deck
+title: Phase 2 — Pytxo Desktop
 slug: phase-2-reality-deck
 status: active
 tags: [project]
@@ -10,7 +10,7 @@ updated: 2026-06-04
 related: [[mvp-bootstrap]], [[presentation-passive-telemetry]], [[execution-domains]], [[permission-profile-engine]]
 ---
 
-# Phase 2 — Reality Deck
+# Phase 2 — Pytxo Desktop
 
 ## Delivered
 
