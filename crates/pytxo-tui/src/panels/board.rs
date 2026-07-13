@@ -14,6 +14,9 @@ pub struct BoardView {
     pub hitl_selected: usize,
 }
 
+// The board renderer receives independent live model slices to avoid allocating a
+// duplicate presentation model on every terminal frame.
+#[allow(clippy::too_many_arguments)]
 pub fn draw(
     frame: &mut Frame,
     area: Rect,
@@ -35,19 +38,13 @@ pub fn draw(
         .split(area);
 
     draw_header(
-        frame,
-        chunks[0],
-        snapshot,
-        doctor,
-        active_run,
-        trust_tier,
-        org_policy,
-        agents,
+        frame, chunks[0], snapshot, doctor, active_run, trust_tier, org_policy, agents,
     );
     draw_runs(frame, chunks[1], snapshot, view.run_selected);
     draw_hitl(frame, chunks[2], snapshot, view.hitl_selected);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_header(
     frame: &mut Frame,
     area: Rect,
@@ -103,10 +100,7 @@ fn draw_header(
     }
     frame.render_widget(
         Paragraph::new(Line::from(identity)).style(theme::header_bg()),
-        Rect {
-            height: 1,
-            ..area
-        },
+        Rect { height: 1, ..area },
     );
 
     // Line 2: status (doctor, run, agents, domains)
@@ -132,7 +126,10 @@ fn draw_header(
         if snapshot.domains.len() > 1 {
             draw_domains_strip(frame, status_area, snapshot);
         } else {
-            frame.render_widget(Paragraph::new(status).style(theme::header_bg()), status_area);
+            frame.render_widget(
+                Paragraph::new(status).style(theme::header_bg()),
+                status_area,
+            );
         }
     }
 }

@@ -387,9 +387,9 @@ mod tests {
             matches!(e, ShellEvent::Output(s) if s.contains("cursor") && s.contains("codex"))
         }));
         let use_cursor = session.handle(parse_line("/use cursor")).await;
-        assert!(use_cursor.iter().any(|e| {
-            matches!(e, ShellEvent::Output(s) if s.contains("cursor agent"))
-        }));
+        assert!(use_cursor
+            .iter()
+            .any(|e| { matches!(e, ShellEvent::Output(s) if s.contains("cursor agent")) }));
         assert_eq!(session.default_cmd, "cursor agent");
         let dry = session.handle(parse_line("/dry-run")).await;
         assert!(dry

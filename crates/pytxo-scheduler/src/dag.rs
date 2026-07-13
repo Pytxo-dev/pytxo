@@ -46,7 +46,10 @@ pub fn build_dag_plan(tasks: &[Task], max_agents: usize) -> Result<ExecutionPlan
     let mut scheduled = 0usize;
     let mut conflicts = find_conflicts(tasks);
     for c in find_cross_root_conflicts(tasks) {
-        if !conflicts.iter().any(|x| x.task_a == c.task_a && x.task_b == c.task_b) {
+        if !conflicts
+            .iter()
+            .any(|x| x.task_a == c.task_a && x.task_b == c.task_b)
+        {
             conflicts.push(c);
         }
     }

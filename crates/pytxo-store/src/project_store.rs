@@ -5,6 +5,8 @@ use std::path::Path;
 use pytxo_core::{PermissionProfile, ProjectManifest, PytxoError, Result};
 use rusqlite::{params, Connection};
 
+pub type ProjectRootRecord = (String, String, bool, bool, Option<PermissionProfile>);
+
 const PROJECT_SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS roots (
     label TEXT PRIMARY KEY,
@@ -41,9 +43,7 @@ impl ProjectStore {
         tx.execute("DELETE FROM roots", [])
             .map_err(|e| PytxoError::Store(e.to_string()))?;
         for r in &manifest.roots {
-            let profile = r
-                .permission_profile
-                .map(|p| p.as_str().to_string());
+            let profile = r.permission_profile.map(|p| p.as_str().to_string());
             tx.execute(
                 "INSERT INTO roots (label, path, read_only, permission_profile, primary_flag)
                  VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -61,9 +61,7 @@ impl ProjectStore {
         Ok(())
     }
 
-    pub fn list_roots(
-        &self,
-    ) -> Result<Vec<(String, String, bool, bool, Option<PermissionProfile>)>> {
+    pub fn list_roots(&self) -> Result<Vec<ProjectRootRecord>> {
         let mut stmt = self
             .conn
             .prepare(

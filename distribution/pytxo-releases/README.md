@@ -42,7 +42,7 @@ irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 
 Pin a CLI version:
 
 ```bash
-PYTXO_VERSION=v0.3.5 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
+PYTXO_VERSION=v0.4.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
 ```
 
 ## Maintainer setup
@@ -61,7 +61,7 @@ PYTXO_VERSION=v0.3.5 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytx
 
 3. In the private `pytxo` repo, add GitHub secret `PYTXO_RELEASES_TOKEN` (PAT or GitHub App) with `contents: write` on **pytxo-releases**.
 
-4. Tag a release in `pytxo` (`git tag v0.3.5 && git push origin v0.3.5`), or run **Actions → Release / Desktop release**. CI mirrors CLI + Desktop installers to this repo’s GitHub Release.
+4. Tag a release in `pytxo` (`git tag v0.4.0 && git push origin v0.4.0`), or run **Actions → Release / Desktop release**. CI mirrors CLI + Desktop installers to this repo’s GitHub Release.
 
 ## Layout
 

@@ -13,7 +13,7 @@ import type {
   RunDto,
 } from "./types";
 
-export const IPC_VERSION = "0.3.5";
+export const IPC_VERSION = "0.4.0";
 
 export const AUTH_CHANGED_EVENT = "deck-auth-changed";
 export const DEEP_LINK_EVENT = "pytxo-deep-link";

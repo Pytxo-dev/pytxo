@@ -5,7 +5,7 @@ mod filesystem;
 mod network;
 
 pub use environment::{EnvironmentPolicy, EnvironmentPolicyEngine};
-pub use filesystem::{path_under_cwd, FilesystemPolicy, FilesystemPolicyEngine};
+pub use filesystem::{FilesystemPolicy, FilesystemPolicyEngine};
 pub use network::{NetworkPolicy, NetworkPolicyEngine};
 
 use std::path::Path;

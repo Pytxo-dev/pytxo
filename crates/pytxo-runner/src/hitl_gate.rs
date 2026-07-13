@@ -23,7 +23,10 @@ pub fn classify_risky_command(cmd: &str) -> Option<(&'static str, &'static str)>
         return Some(("proc.infrastructure", "infrastructure mutation detected"));
     }
     if lower.contains("chmod ") || lower.contains("chown ") {
-        return Some(("fs.permission", "permission change detected in agent command"));
+        return Some((
+            "fs.permission",
+            "permission change detected in agent command",
+        ));
     }
     if lower.contains("rm -rf")
         || lower.contains("rm -fr")
@@ -75,22 +78,21 @@ fn classify_package_install(lower: &str) -> bool {
 }
 
 /// Classify an MCP proxy JSON-RPC method for Galaxy HITL review (ADR-0018).
-pub fn classify_mcp_proxy(method: &str, params: &serde_json::Value) -> Option<(&'static str, String)> {
+pub fn classify_mcp_proxy(
+    method: &str,
+    params: &serde_json::Value,
+) -> Option<(&'static str, String)> {
     match method {
         "tools/call" => {
             let tool = params
                 .get("name")
                 .and_then(|v| v.as_str())
                 .unwrap_or("<unknown>");
-            Some((
-                "mcp.tool",
-                format!("MCP tools/call: {tool}"),
-            ))
+            Some(("mcp.tool", format!("MCP tools/call: {tool}")))
         }
-        "resources/read" | "prompts/get" | "resources/subscribe" => Some((
-            "mcp.tool",
-            format!("MCP {method}"),
-        )),
+        "resources/read" | "prompts/get" | "resources/subscribe" => {
+            Some(("mcp.tool", format!("MCP {method}")))
+        }
         _ => None,
     }
 }

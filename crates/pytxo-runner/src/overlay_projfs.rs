@@ -163,14 +163,9 @@ mod tests {
         std::fs::write(repo.join("README.md"), "hi\n").unwrap();
         std::fs::write(repo.join("node_modules/pkg/x.js"), "x").unwrap();
         let wt = tmp.path().join("wt");
-        let handle = prepare_projfs_overlay(
-            &repo,
-            &wt,
-            "run1",
-            "agent-0",
-            &["node_modules".into()],
-        )
-        .unwrap();
+        let handle =
+            prepare_projfs_overlay(&repo, &wt, "run1", "agent-0", &["node_modules".into()])
+                .unwrap();
         assert!(handle.cwd.join("README.md").exists());
         assert!(!handle.cwd.join("node_modules").exists());
     }
@@ -183,8 +178,7 @@ mod tests {
         std::fs::create_dir_all(&repo).unwrap();
         std::fs::write(repo.join("app.ts"), "export {}\n").unwrap();
         let wt = tmp.path().join("wt");
-        let handle =
-            prepare_projfs_overlay(&repo, &wt, "run2", "agent-1", &[]).unwrap();
+        let handle = prepare_projfs_overlay(&repo, &wt, "run2", "agent-1", &[]).unwrap();
         assert!(handle.branch.is_empty());
         assert!(handle.cwd.join("app.ts").exists());
     }

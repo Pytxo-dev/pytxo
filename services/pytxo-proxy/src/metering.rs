@@ -27,10 +27,7 @@ pub fn parse_usage_json(body: &[u8], provider: &str) -> Option<ProviderUsage> {
             Some(ProviderUsage {
                 tokens_in: usage.get("input_tokens")?.as_u64()?,
                 tokens_out: usage.get("output_tokens")?.as_u64()?,
-                model: v
-                    .get("model")
-                    .and_then(|m| m.as_str())
-                    .map(str::to_string),
+                model: v.get("model").and_then(|m| m.as_str()).map(str::to_string),
             })
         }
         "openai" | "deepseek" | "openrouter" => {
@@ -38,10 +35,7 @@ pub fn parse_usage_json(body: &[u8], provider: &str) -> Option<ProviderUsage> {
             Some(ProviderUsage {
                 tokens_in: usage.get("prompt_tokens")?.as_u64()?,
                 tokens_out: usage.get("completion_tokens")?.as_u64()?,
-                model: v
-                    .get("model")
-                    .and_then(|m| m.as_str())
-                    .map(str::to_string),
+                model: v.get("model").and_then(|m| m.as_str()).map(str::to_string),
             })
         }
         "google" => {
@@ -65,8 +59,7 @@ pub fn parse_usage_headers(headers: &HeaderMap, provider: &str) -> Option<Provid
             let limit = header_u64(headers, "anthropic-ratelimit-input-tokens-limit")?;
             let remaining = header_u64(headers, "anthropic-ratelimit-input-tokens-remaining")?;
             let out_limit = header_u64(headers, "anthropic-ratelimit-output-tokens-limit");
-            let out_remaining =
-                header_u64(headers, "anthropic-ratelimit-output-tokens-remaining");
+            let out_remaining = header_u64(headers, "anthropic-ratelimit-output-tokens-remaining");
             Some(ProviderUsage {
                 tokens_in: limit.saturating_sub(remaining),
                 tokens_out: out_limit
@@ -190,10 +183,7 @@ pub async fn report_to_link(
     run_id: Option<&str>,
 ) {
     let cost = cost_micro_usd(usage, provider);
-    let url = format!(
-        "{}/v1/inference/usage",
-        link_base.trim_end_matches('/')
-    );
+    let url = format!("{}/v1/inference/usage", link_base.trim_end_matches('/'));
     let body = serde_json::json!({
         "provider": provider,
         "model": usage.model,

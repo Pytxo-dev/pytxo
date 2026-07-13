@@ -232,17 +232,8 @@ pub fn complete_line(buffer: &str) -> Option<String> {
     if !rest.contains(' ') {
         let prefix = rest.to_ascii_lowercase();
         let cmds = [
-            "help",
-            "doctor",
-            "dry-run",
-            "run",
-            "status",
-            "logs",
-            "stop",
-            "trust",
-            "models",
-            "agents",
-            "use",
+            "help", "doctor", "dry-run", "run", "status", "logs", "stop", "trust", "models",
+            "agents", "use",
         ];
         let matches: Vec<&str> = cmds
             .iter()

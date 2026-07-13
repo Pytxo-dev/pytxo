@@ -157,6 +157,10 @@ jobs:
             apps/docs/package-lock.json
       - name: npm ci and build
         working-directory: apps/web
+        env:
+          # Clerk validates the public key during static prerendering. Production
+          # deployments replace this non-routable CI key with the Vercel secret.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
         run: |
           npm ci --legacy-peer-deps
           npm run build

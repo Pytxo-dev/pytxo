@@ -15,7 +15,11 @@ pub struct InferenceUsageBody {
     pub cost_micro_usd: i64,
 }
 
-pub async fn record(pool: &PgPool, user_id: &str, body: &InferenceUsageBody) -> Result<(), sqlx::Error> {
+pub async fn record(
+    pool: &PgPool,
+    user_id: &str,
+    body: &InferenceUsageBody,
+) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
         INSERT INTO inference_usage (user_id, domain_id, run_id, provider, model, tokens_in, tokens_out, cost_micro_usd)

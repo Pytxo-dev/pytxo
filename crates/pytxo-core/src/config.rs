@@ -290,7 +290,10 @@ mod tests {
     #[test]
     fn blast_sparse_exclude_defaults() {
         let cfg = PytxoConfig::default();
-        assert!(cfg.blast.sparse_exclude.contains(&"node_modules".to_string()));
+        assert!(cfg
+            .blast
+            .sparse_exclude
+            .contains(&"node_modules".to_string()));
         assert!(cfg.blast.sparse_exclude.contains(&".git".to_string()));
     }
 

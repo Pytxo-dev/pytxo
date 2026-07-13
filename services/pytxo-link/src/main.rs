@@ -1,9 +1,7 @@
 //! Pytxo Link â€” billing reconcile, entitlements, and Paddle webhooks.
 
-
-
-mod auth;
 mod audit;
+mod auth;
 mod db;
 mod entitlements;
 mod inference;
@@ -17,8 +15,6 @@ mod telemetry;
 mod wallet;
 
 use std::sync::Arc;
-
-
 
 use axum::extract::{DefaultBodyLimit, Path, State};
 
@@ -40,56 +36,36 @@ use std::net::SocketAddr;
 
 use state::{AppState, RunEndBody, RunStartBody};
 
-
-
 use tracing::info;
 
 async fn health() -> Json<telemetry::HealthBody> {
     Json(telemetry::health_body())
 }
 
-
-
 async fn entitlements_status(
-
     State(state): State<AppState>,
 
     headers: HeaderMap,
-
 ) -> Result<Json<EntitlementStatusResponse>, StatusCode> {
-
     let subject = auth::authorized(&headers, &state)
-
         .await
-
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
     let user_id = if subject.user_id == "api-key" {
-
         headers
-
             .get("x-pytxo-user-id")
-
             .and_then(|v| v.to_str().ok())
-
             .unwrap_or("anonymous")
-
     } else {
-
         &subject.user_id
-
     };
 
     let record = state.entitlements.get(user_id).await;
 
     Ok(Json(record.into()))
-
 }
 
-
-
 async fn admin_upsert_entitlement(
-
     State(state): State<AppState>,
 
     headers: HeaderMap,
@@ -97,13 +73,9 @@ async fn admin_upsert_entitlement(
     Path(user_id): Path<String>,
 
     Json(body): Json<AdminUpsertBody>,
-
 ) -> StatusCode {
-
     if !auth::admin_authorized(&headers, &state) {
-
         return StatusCode::UNAUTHORIZED;
-
     }
 
     let existing = state.entitlements.get(&user_id).await;
@@ -131,14 +103,11 @@ async fn admin_upsert_entitlement(
     let max_agents = body.max_agents.unwrap_or_else(|| tier.max_agents());
 
     let cloud_enabled = body
-
         .cloud_enabled
-
-        .unwrap_or_else(|| matches!(tier, Tier::Max | Tier::Ultra));
+        .unwrap_or(matches!(tier, Tier::Max | Tier::Ultra));
 
     let org_id_audit = body.org_id.clone();
     let record = entitlements::EntitlementRecord {
-
         user_id: user_id.clone(),
 
         clerk_user_id: body.clerk_user_id,
@@ -150,13 +119,10 @@ async fn admin_upsert_entitlement(
         max_agents,
 
         cloud_enabled,
-
     };
 
     match state.entitlements.upsert(record).await {
-
         Ok(()) => {
-
             info!(user_id = %user_id, tier = %tier.as_str(), "admin entitlement upsert");
 
             if let Some(pool) = state.db.as_ref() {
@@ -181,22 +147,15 @@ async fn admin_upsert_entitlement(
             }
 
             StatusCode::OK
-
         }
 
         Err(e) => {
-
             tracing::error!(error = %e, "entitlement upsert failed");
 
             StatusCode::INTERNAL_SERVER_ERROR
-
         }
-
     }
-
 }
-
-
 
 async fn org_policy_put(
     State(state): State<AppState>,
@@ -256,31 +215,23 @@ async fn admin_org_seats_put(
 }
 
 async fn org_policy(
-
     State(state): State<AppState>,
 
     headers: HeaderMap,
 
     Path(org_id): Path<String>,
-
 ) -> Result<Json<OrgPolicyResponse>, StatusCode> {
-
     let _subject = auth::authorized(&headers, &state)
-
         .await
-
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
     let pool = state.db.as_ref().ok_or(StatusCode::NOT_FOUND)?;
 
     let policy = entitlements::get_org_policy(pool, &org_id)
-
         .await
-
         .ok_or(StatusCode::NOT_FOUND)?;
 
     Ok(Json(policy))
-
 }
 
 async fn org_seats(
@@ -454,10 +405,7 @@ async fn paddle_webhook(
     }
 }
 
-
-
 async fn openapi() -> Json<Value> {
-
     Json(serde_json::json!({
 
         "openapi": "3.1.0",
@@ -496,30 +444,20 @@ async fn openapi() -> Json<Value> {
         }
 
     }))
-
 }
-
-
 
 #[tokio::main]
 
 async fn main() {
-
     telemetry::init();
 
     let require_auth = std::env::var("LINK_REQUIRE_AUTH")
-
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-
         .unwrap_or(false);
-
-
 
     let (entitlements, db, runs) = if let Ok(url) = std::env::var("DATABASE_URL") {
         if !url.is_empty() {
-            let pool = db::connect(&url)
-                .await
-                .expect("postgres connect");
+            let pool = db::connect(&url).await.expect("postgres connect");
             let pool_clone = pool.clone();
             (
                 EntitlementStore::postgres(pool.clone()),
@@ -527,43 +465,29 @@ async fn main() {
                 state::RunLedger::postgres(pool),
             )
         } else {
-            (
-                EntitlementStore::memory(),
-                None,
-                state::RunLedger::memory(),
-            )
+            (EntitlementStore::memory(), None, state::RunLedger::memory())
         }
     } else {
-        (
-            EntitlementStore::memory(),
-            None,
-            state::RunLedger::memory(),
-        )
+        (EntitlementStore::memory(), None, state::RunLedger::memory())
     };
 
-
-
     let jwks = match (
-
-        std::env::var("CLERK_JWKS_URL").ok().filter(|s| !s.is_empty()),
-
+        std::env::var("CLERK_JWKS_URL")
+            .ok()
+            .filter(|s| !s.is_empty()),
         std::env::var("CLERK_ISSUER").ok().filter(|s| !s.is_empty()),
-
     ) {
-
         (Some(jwks_url), Some(issuer)) => Some(Arc::new(JwksValidator::new(jwks_url, issuer))),
 
         _ => None,
-
     };
 
-
-
     let state = AppState {
-
         api_key: std::env::var("LINK_API_KEY").ok().filter(|s| !s.is_empty()),
 
-        admin_key: std::env::var("LINK_ADMIN_KEY").ok().filter(|s| !s.is_empty()),
+        admin_key: std::env::var("LINK_ADMIN_KEY")
+            .ok()
+            .filter(|s| !s.is_empty()),
 
         require_auth,
 
@@ -574,18 +498,11 @@ async fn main() {
         db,
 
         runs,
-
     };
 
-
-
     if require_auth && state.api_key.is_none() && state.jwks.is_none() {
-
         tracing::warn!("LINK_REQUIRE_AUTH=1 but neither LINK_API_KEY nor CLERK_JWKS_URL is set");
-
     }
-
-
 
     let app = apply_service_layers(build_router(state));
 
@@ -615,31 +532,24 @@ fn listen_addr() -> String {
 fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
-
         .route("/openapi.json", get(openapi))
-
         .route("/v1/entitlements/status", get(entitlements_status))
-
         .route(
             "/v1/admin/entitlements/{user_id}",
             put(admin_upsert_entitlement),
         )
-        .route("/v1/orgs/{org_id}/policy", get(org_policy).put(org_policy_put))
         .route(
-            "/v1/admin/orgs/{org_id}/seats",
-            put(admin_org_seats_put),
+            "/v1/orgs/{org_id}/policy",
+            get(org_policy).put(org_policy_put),
         )
+        .route("/v1/admin/orgs/{org_id}/seats", put(admin_org_seats_put))
         .route("/v1/orgs/{org_id}/seats", get(org_seats))
         .route("/v1/orgs/{org_id}/audit", get(org_audit))
         .route("/v1/inference/usage", post(inference_usage))
         .route("/v1/wallet/balance", get(wallet_balance))
-
         .route("/v1/runs/start", post(runs_start))
-
         .route("/v1/runs/end", post(runs_end))
-
         .route("/v1/webhooks/paddle", post(paddle_webhook))
-
         .with_state(state)
 }
 
@@ -833,4 +743,3 @@ mod contract_tests {
         assert_eq!(end.status(), StatusCode::OK);
     }
 }
-

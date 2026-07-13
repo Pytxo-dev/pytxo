@@ -51,10 +51,7 @@ fn toml_path(p: &std::path::Path) -> String {
 fn trust(path: &std::path::Path) {
     static TRUST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     let _ = shared_trust_store();
-    let _guard = TRUST_LOCK
-        .get_or_init(|| Mutex::new(()))
-        .lock()
-        .unwrap();
+    let _guard = TRUST_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
     trust_repo(path, PermissionProfile::Orbit).unwrap();
 }
 #[tokio::test]
@@ -107,7 +104,8 @@ depends_on = ["fix-api"]
         dry_run: false,
         wait_timeout: Duration::from_secs(120),
         ..FleetRunOptions::default()
-    })    .await
+    })
+    .await
     .unwrap();
 
     assert_eq!(result.status, "completed");
@@ -122,18 +120,12 @@ depends_on = ["fix-api"]
     assert_eq!(nodes[1].node_id, "deploy-web");
     assert_eq!(nodes[1].status, "completed");
 
-    let store_a = open_store_for_domain(
-        &api.path().to_string_lossy(),
-        None,
-    )
-    .unwrap()
-    .1;
-    let store_b = open_store_for_domain(
-        &web.path().to_string_lossy(),
-        None,
-    )
-    .unwrap()
-    .1;
+    let store_a = open_store_for_domain(&api.path().to_string_lossy(), None)
+        .unwrap()
+        .1;
+    let store_b = open_store_for_domain(&web.path().to_string_lossy(), None)
+        .unwrap()
+        .1;
     assert!(!store_a.list_runs(5).unwrap().is_empty());
     assert!(!store_b.list_runs(5).unwrap().is_empty());
 

@@ -17,7 +17,7 @@ use uuid::Uuid;
 #[derive(Clone)]
 enum CacheBackend {
     Memory(Arc<Mutex<HashMap<String, CachedScaffold>>>),
-    Redis(redis::aio::ConnectionManager),
+    Redis(Box<redis::aio::ConnectionManager>),
 }
 
 impl CacheBackend {
@@ -25,7 +25,7 @@ impl CacheBackend {
         match self {
             Self::Memory(map) => map.lock().unwrap().get(key).cloned(),
             Self::Redis(conn) => {
-                let mut conn = conn.clone();
+                let mut conn = (**conn).clone();
                 let raw: Option<String> = redis::cmd("GET")
                     .arg(key)
                     .query_async(&mut conn)
@@ -44,7 +44,7 @@ impl CacheBackend {
             }
             Self::Redis(conn) => {
                 let json = serde_json::to_string(value).map_err(|e| e.to_string())?;
-                let mut conn = conn.clone();
+                let mut conn = (**conn).clone();
                 redis::cmd("SET")
                     .arg(key)
                     .arg(json)
@@ -61,7 +61,6 @@ struct AppState {
     api_key: Option<String>,
     require_auth: bool,
     link_base: Option<String>,
-    max_workers: usize,
     sandbox_ttl: Duration,
     sandboxes: Arc<Mutex<HashMap<String, SandboxRecord>>>,
     cache: CacheBackend,
@@ -116,9 +115,9 @@ impl WorkerPool {
 
 #[derive(Clone, Debug)]
 struct SandboxRecord {
-    domain_id: String,
-    run_id: String,
-    agent_id: String,
+    _domain_id: String,
+    _run_id: String,
+    _agent_id: String,
     created_at: Instant,
     worker: Option<String>,
     container_id: Option<String>,
@@ -130,7 +129,8 @@ struct StartRequest {
     domain_id: String,
     run_id: String,
     agent_id: String,
-    repo_fingerprint: String,
+    #[serde(rename = "repo_fingerprint")]
+    _repo_fingerprint: String,
 }
 
 #[derive(Serialize)]
@@ -427,7 +427,7 @@ fn authorized(headers: &HeaderMap, state: &AppState) -> bool {
     if !header.starts_with(prefix) {
         return false;
     }
-    constant_time_eq(header[prefix.len()..].as_bytes(), expected.as_bytes())
+    constant_time_eq(&header.as_bytes()[prefix.len()..], expected.as_bytes())
 }
 
 async fn cloud_entitled(state: &AppState, headers: &HeaderMap) -> bool {
@@ -508,9 +508,9 @@ async fn start_sandbox(
     state.sandboxes.lock().unwrap().insert(
         id.clone(),
         SandboxRecord {
-            domain_id: body.domain_id,
-            run_id: body.run_id,
-            agent_id: body.agent_id,
+            _domain_id: body.domain_id,
+            _run_id: body.run_id,
+            _agent_id: body.agent_id,
             created_at: Instant::now(),
             worker,
             container_id: Some(container_id),
@@ -696,7 +696,7 @@ async fn init_cache_backend() -> CacheBackend {
                 Ok(client) => match redis::aio::ConnectionManager::new(client).await {
                     Ok(conn) => {
                         info!("scaffold cache using Redis (REDIS_URL)");
-                        return CacheBackend::Redis(conn);
+                        return CacheBackend::Redis(Box::new(conn));
                     }
                     Err(e) => warn!(error = %e, "Redis connect failed; falling back to in-memory"),
                 },
@@ -728,7 +728,6 @@ async fn main() {
         api_key: api_key.clone(),
         require_auth,
         link_base,
-        max_workers: workers_n,
         sandbox_ttl: sandbox_ttl(),
         sandboxes: Arc::new(Mutex::new(HashMap::new())),
         cache,

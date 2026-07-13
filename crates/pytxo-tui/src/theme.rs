@@ -63,9 +63,7 @@ pub fn muted() -> Style {
 }
 
 pub fn title() -> Style {
-    Style::default()
-        .fg(VIOLET)
-        .add_modifier(Modifier::BOLD)
+    Style::default().fg(VIOLET).add_modifier(Modifier::BOLD)
 }
 
 pub fn panel_bg() -> Style {

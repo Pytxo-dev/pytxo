@@ -45,7 +45,11 @@ fn walk_upper(
     {
         let entry = entry.map_err(|e| PytxoError::Other(format!("delta entry: {e}")))?;
         let path = entry.path();
-        if entry.file_type().map_err(|e| PytxoError::Other(e.to_string()))?.is_dir() {
+        if entry
+            .file_type()
+            .map_err(|e| PytxoError::Other(e.to_string()))?
+            .is_dir()
+        {
             walk_upper(base, upper_root, &path, out)?;
             continue;
         }
@@ -119,7 +123,11 @@ fn walk_repo_sync(
         if path_excluded(&rel_key, sparse_exclude) {
             continue;
         }
-        if entry.file_type().map_err(|e| PytxoError::Other(e.to_string()))?.is_dir() {
+        if entry
+            .file_type()
+            .map_err(|e| PytxoError::Other(e.to_string()))?
+            .is_dir()
+        {
             walk_repo_sync(repo_root, &path, sparse_exclude, out)?;
             continue;
         }
@@ -145,9 +153,7 @@ fn walk_repo_sync(
 
 /// Returns true when `worktree` looks like an overlay upper directory.
 pub fn is_overlay_upper(worktree: &Path) -> bool {
-    worktree
-        .to_string_lossy()
-        .contains("overlay-")
+    worktree.to_string_lossy().contains("overlay-")
         || worktree.file_name().is_some_and(|n| n == "upper")
 }
 
@@ -226,8 +232,7 @@ mod tests {
     #[test]
     fn empty_upper_yields_empty_delta() {
         let tmp = tempfile::tempdir().unwrap();
-        let delta =
-            delta_from_overlay_upper(tmp.path(), &tmp.path().join("missing")).unwrap();
+        let delta = delta_from_overlay_upper(tmp.path(), &tmp.path().join("missing")).unwrap();
         assert!(delta.files.is_empty());
     }
 }

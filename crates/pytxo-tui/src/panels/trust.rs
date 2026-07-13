@@ -8,7 +8,9 @@ use ratatui::Frame;
 
 use crate::theme;
 
-const TIERS: [(PermissionProfile, &str, &str, fn() -> Style); 4] = [
+type TierDefinition = (PermissionProfile, &'static str, &'static str, fn() -> Style);
+
+const TIERS: [TierDefinition; 4] = [
     (
         PermissionProfile::DeepSpace,
         "Deep Space",
@@ -99,9 +101,7 @@ impl TrustModal {
         let inner = block.inner(popup);
         frame.render_widget(block, popup);
 
-        let footer_lines = if self.pending {
-            3
-        } else if self.error.is_some() {
+        let footer_lines = if self.pending || self.error.is_some() {
             3
         } else {
             2
@@ -138,10 +138,7 @@ impl TrustModal {
                     "Agents may read, edit, and run commands in trusted paths.",
                     theme::muted(),
                 )),
-                Line::from(Span::styled(
-                    "Choose a permission tier:",
-                    theme::muted(),
-                )),
+                Line::from(Span::styled("Choose a permission tier:", theme::muted())),
             ]),
             chunks[1],
         );
@@ -167,16 +164,14 @@ impl TrustModal {
             chunks[2],
         );
 
-        let mut footer = vec![Line::from(
-            if self.pending {
-                Span::styled("Trusting folder…", theme::chroma_cyan())
-            } else {
-                Span::styled(
-                    "↑/↓ select tier · Enter trust folder · Esc decline",
-                    theme::chroma_magenta(),
-                )
-            },
-        )];
+        let mut footer = vec![Line::from(if self.pending {
+            Span::styled("Trusting folder…", theme::chroma_cyan())
+        } else {
+            Span::styled(
+                "↑/↓ select tier · Enter trust folder · Esc decline",
+                theme::chroma_magenta(),
+            )
+        })];
         if let Some(ref err) = self.error {
             footer.push(Line::from(Span::styled(
                 format!("Error: {err}"),

@@ -175,7 +175,11 @@ struct LlmPlanResponse {
 
 impl LlmPlanner {
     fn proxy_base(config: &PytxoConfig) -> String {
-        config.billing.inference_proxy_url.trim_end_matches('/').to_string()
+        config
+            .billing
+            .inference_proxy_url
+            .trim_end_matches('/')
+            .to_string()
     }
 
     fn planner_model() -> String {
@@ -183,10 +187,7 @@ impl LlmPlanner {
     }
 
     fn call_proxy(mission: &str, config: &PytxoConfig) -> anyhow::Result<LlmPlanResponse> {
-        let url = format!(
-            "{}/deepseek/v1/chat/completions",
-            Self::proxy_base(config)
-        );
+        let url = format!("{}/deepseek/v1/chat/completions", Self::proxy_base(config));
         let model = Self::planner_model();
         let body = serde_json::json!({
             "model": model,
@@ -290,13 +291,9 @@ impl MissionPlanner for SignalBackedPlanner {
             .iter()
             .enumerate()
             .flat_map(|(i, paths)| {
-                paths.iter().map(move |p| {
-                    (
-                        p.clone(),
-                        format!("mission-{i}"),
-                        None::<String>,
-                    )
-                })
+                paths
+                    .iter()
+                    .map(move |p| (p.clone(), format!("mission-{i}"), None::<String>))
             })
             .collect();
 
@@ -347,9 +344,9 @@ fn enrich_config_tasks(
     let edited: Vec<(String, String, Option<String>)> = config_tasks
         .iter()
         .flat_map(|t| {
-            t.paths.iter().map(move |p| {
-                (p.clone(), t.id.0.clone(), t.root.clone())
-            })
+            t.paths
+                .iter()
+                .map(move |p| (p.clone(), t.id.0.clone(), t.root.clone()))
         })
         .collect();
 
@@ -375,15 +372,19 @@ fn enrich_config_tasks(
         tasks.push(task);
     }
 
-    Ok(MissionPlan { tasks, task_prompts })
+    Ok(MissionPlan {
+        tasks,
+        task_prompts,
+    })
 }
 
 fn infer_paths_from_chunk(chunk: &str, repo: &Path) -> Vec<String> {
     let mut out = Vec::new();
     let mut seen = HashSet::new();
     for token in chunk.split_whitespace() {
-        let cleaned = token
-            .trim_matches(|c: char| !c.is_alphanumeric() && c != '.' && c != '/' && c != '-' && c != '_');
+        let cleaned = token.trim_matches(|c: char| {
+            !c.is_alphanumeric() && c != '.' && c != '/' && c != '-' && c != '_'
+        });
         if cleaned.len() < 3 {
             continue;
         }
@@ -413,12 +414,7 @@ fn resolve_path_hint(repo: &Path, hint: &str) -> Option<String> {
     None
 }
 
-fn walk_repo_for_filename(
-    repo: &Path,
-    dir: &Path,
-    name: &str,
-    out: &mut Vec<String>,
-) {
+fn walk_repo_for_filename(repo: &Path, dir: &Path, name: &str, out: &mut Vec<String>) {
     if out.len() >= 4 {
         return;
     }
@@ -612,12 +608,7 @@ paths = ["src/app.ts"]
         cfg.planner.mode = "signal".into();
         cfg.max_agents = 3;
 
-        let plan = plan_mission(
-            "update src/utils.ts; wire src/app.ts",
-            repo,
-            &cfg,
-        )
-        .unwrap();
+        let plan = plan_mission("update src/utils.ts; wire src/app.ts", repo, &cfg).unwrap();
         assert_eq!(plan.tasks.len(), 2);
         assert!(
             plan.tasks[1].depends_on.contains(&"mission-0".to_string()),

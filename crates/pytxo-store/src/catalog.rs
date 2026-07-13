@@ -606,6 +606,33 @@ pub fn default_catalog_path() -> Option<PathBuf> {
         .map(|h| h.join(".pytxo").join("hypervisor.db"))
 }
 
+fn migrate_catalog(conn: &Connection) -> Result<()> {
+    let version: i64 = conn
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .map_err(|e| PytxoError::Store(e.to_string()))?;
+    if version < 1 {
+        conn.execute_batch(FLOW_DRAFTS_MIGRATION)
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+    }
+    Ok(())
+}
+
+fn map_flow_draft(row: &rusqlite::Row<'_>) -> rusqlite::Result<FlowDraftRecord> {
+    Ok(FlowDraftRecord {
+        id: row.get(0)?,
+        title: row.get(1)?,
+        mission_text: row.get(2)?,
+        source: row.get(3)?,
+        domain_id: row.get(4)?,
+        project_id: row.get(5)?,
+        status: row.get(6)?,
+        plan_json: row.get(7)?,
+        dispatched_run_id: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -815,31 +842,4 @@ mod tests {
         assert_eq!(nodes.len(), 2);
         assert_eq!(nodes[1].status, "completed");
     }
-}
-
-fn migrate_catalog(conn: &Connection) -> Result<()> {
-    let version: i64 = conn
-        .query_row("PRAGMA user_version", [], |row| row.get(0))
-        .map_err(|e| PytxoError::Store(e.to_string()))?;
-    if version < 1 {
-        conn.execute_batch(FLOW_DRAFTS_MIGRATION)
-            .map_err(|e| PytxoError::Store(e.to_string()))?;
-    }
-    Ok(())
-}
-
-fn map_flow_draft(row: &rusqlite::Row<'_>) -> rusqlite::Result<FlowDraftRecord> {
-    Ok(FlowDraftRecord {
-        id: row.get(0)?,
-        title: row.get(1)?,
-        mission_text: row.get(2)?,
-        source: row.get(3)?,
-        domain_id: row.get(4)?,
-        project_id: row.get(5)?,
-        status: row.get(6)?,
-        plan_json: row.get(7)?,
-        dispatched_run_id: row.get(8)?,
-        created_at: row.get(9)?,
-        updated_at: row.get(10)?,
-    })
 }

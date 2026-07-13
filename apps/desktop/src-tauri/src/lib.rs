@@ -1,26 +1,30 @@
 mod ipc;
 mod ipc_auth;
 mod ipc_error;
+mod ipc_flow;
 mod ipc_install;
 mod ipc_meta;
-mod ipc_flow;
 mod ipc_voice;
 
 use ipc::{
-    agent_arbitrage, commit_workspace, dispatch_run_cmd, dry_run, ensure_workspace, git_diff,
-    hitl_respond, list_agents, list_all_domains, list_domains_cmd, list_domains_status,
-    list_fleet_runs, fleet_run_status_cmd, list_hitl, list_hitl_all, list_projects, list_runs,
-    project_add_root_cmd, project_remove_root_cmd, project_roots_cmd, structural_graph,
-    workspace_structural_graph, poll_log_lines, select_domain, stop_run, tail_events, AppState,
+    agent_arbitrage, commit_workspace, dispatch_run_cmd, dry_run, ensure_workspace,
+    fleet_run_status_cmd, git_diff, hitl_respond, list_agents, list_all_domains, list_domains_cmd,
+    list_domains_status, list_fleet_runs, list_hitl, list_hitl_all, list_projects, list_runs,
+    poll_log_lines, project_add_root_cmd, project_remove_root_cmd, project_roots_cmd,
+    select_domain, stop_run, structural_graph, tail_events, workspace_structural_graph, AppState,
 };
 use ipc_auth::{auth_clear_session, auth_open_sign_in, auth_status, auth_store_session};
-use ipc_install::{install_pytxo_cli, install_pytxo_cli_status, pick_workspace_folder};
-use ipc_meta::{check_pytxo_cli, entitlement_status, ipc_version};
 use ipc_flow::{
     flow_delete, flow_dispatch, flow_history, flow_preview, flow_save_draft,
     flow_save_reviewed_plan,
 };
-use ipc_voice::{voice_cancel_session, voice_default_model, voice_finish_session, voice_get_session, voice_install_default_model, voice_list_devices, voice_local_available, voice_model_status, voice_pause_session, voice_resume_session, voice_start_session};
+use ipc_install::{install_pytxo_cli, install_pytxo_cli_status, pick_workspace_folder};
+use ipc_meta::{check_pytxo_cli, entitlement_status, ipc_version};
+use ipc_voice::{
+    voice_cancel_session, voice_default_model, voice_finish_session, voice_get_session,
+    voice_install_default_model, voice_list_devices, voice_local_available, voice_model_status,
+    voice_pause_session, voice_resume_session, voice_start_session,
+};
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -111,16 +115,14 @@ pub fn run() {
                 let handle = app.handle().clone();
                 app.deep_link().on_open_url(move |event| {
                     for url in event.urls() {
-                        if let Err(e) =
-                            ipc_auth::handle_deck_deep_link(&handle, &url.to_string())
-                        {
+                        if let Err(e) = ipc_auth::handle_deck_deep_link(&handle, url.as_ref()) {
                             eprintln!("deck deep link: {e:?}");
                         }
                     }
                 });
                 if let Ok(Some(urls)) = app.deep_link().get_current() {
                     for url in urls {
-                        let _ = ipc_auth::handle_deck_deep_link(app.handle(), &url.to_string());
+                        let _ = ipc_auth::handle_deck_deep_link(app.handle(), url.as_ref());
                     }
                 }
                 #[cfg(any(target_os = "windows", target_os = "linux"))]

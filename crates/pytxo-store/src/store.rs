@@ -219,10 +219,7 @@ impl PytxoStore {
             .map_err(|e| PytxoError::Store(e.to_string()))
     }
 
-    pub fn arbitrage_by_agent(
-        &self,
-        run_id: &str,
-    ) -> Result<Vec<(String, i64, i64, i64)>> {
+    pub fn arbitrage_by_agent(&self, run_id: &str) -> Result<Vec<(String, i64, i64, i64)>> {
         let mut stmt = self
             .conn
             .prepare(
@@ -246,9 +243,7 @@ impl PytxoStore {
     pub fn arbitrage_paths_for_run(&self, run_id: &str) -> Result<Vec<(String, String)>> {
         let mut stmt = self
             .conn
-            .prepare(
-                "SELECT DISTINCT path, agent_id FROM arbitrage_samples WHERE run_id = ?1",
-            )
+            .prepare("SELECT DISTINCT path, agent_id FROM arbitrage_samples WHERE run_id = ?1")
             .map_err(|e| PytxoError::Store(e.to_string()))?;
         let rows = stmt
             .query_map(params![run_id], |row| Ok((row.get(0)?, row.get(1)?)))

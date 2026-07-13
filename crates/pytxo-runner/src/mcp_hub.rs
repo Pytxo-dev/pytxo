@@ -108,7 +108,11 @@ impl McpHub {
     }
 
     fn proxy_multi_hop(&self, route: &str, method: &str, params: Value) -> Result<Value> {
-        let hops: Vec<&str> = route.split("->").map(str::trim).filter(|s| !s.is_empty()).collect();
+        let hops: Vec<&str> = route
+            .split("->")
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
         if hops.len() < 2 {
             return self.proxy_call(route, method, params);
         }
@@ -124,7 +128,9 @@ impl McpHub {
             });
             carry = self.proxy_call(hop, "tools/call", carry)?;
         }
-        Err(PytxoError::Runner("multi-hop route produced no result".into()))
+        Err(PytxoError::Runner(
+            "multi-hop route produced no result".into(),
+        ))
     }
 
     /// MCP v3: register a resource URI subscription for an agent session.
@@ -160,10 +166,7 @@ impl McpHub {
         for (agent_key, uris) in &guard.subscriptions {
             if uris.iter().any(|u| u == uri) {
                 if let Some(session) = guard.sessions.get(agent_key) {
-                    let _ = session.call(
-                        "notifications/resources/updated",
-                        json!({ "uri": uri }),
-                    );
+                    let _ = session.call("notifications/resources/updated", json!({ "uri": uri }));
                     notified += 1;
                 }
             }

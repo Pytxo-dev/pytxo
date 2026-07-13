@@ -7,6 +7,12 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
+# Pytxo v0.4.0
+
+Pytxo Desktop 2.0, text-first Flow, local-first Voice, and hardened ADE dispatch. See [`distribution/release-notes/v0.4.0.md`](distribution/release-notes/v0.4.0.md).
+
+---
+
 # Pytxo v0.3.5
 
 Reality Deck UX overhaul — setup wizard, agent dashboard, workspace 3D topology, smart CLI install, themes. See [`distribution/release-notes/v0.3.5.md`](distribution/release-notes/v0.3.5.md).

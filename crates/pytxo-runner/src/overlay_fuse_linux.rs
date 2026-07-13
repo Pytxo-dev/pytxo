@@ -126,7 +126,8 @@ mod tests {
         let wt = tmp.path().join("wt");
         std::fs::create_dir_all(&wt).unwrap();
         let handle =
-            prepare_kernel_overlay(&repo, &wt, "run1", "agent-0", &["node_modules".into()]).unwrap();
+            prepare_kernel_overlay(&repo, &wt, "run1", "agent-0", &["node_modules".into()])
+                .unwrap();
         assert!(handle.cwd.join("README.md").exists());
         rollback_kernel_overlay(&handle).unwrap();
     }

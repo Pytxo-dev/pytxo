@@ -3,10 +3,13 @@ use std::sync::Arc;
 use pytxo_core::{
     BillingMode, BillingReconciler, ByteHeuristicEstimator, ConfigModelRouter, DomainId,
     HttpBillingReconciler, LocalHybridBilling, ManagedTransport, ModelRouter,
-    NoopBillingReconciler, PytxoConfig, ReservationId, RunId, StaticPriceTable, TiktokenEstimator,
-    TokenEstimator, TokenWallet, UsageMeter,
+    NoopBillingReconciler, PytxoConfig, ReservationId, RunId, StaticPriceTable, TokenEstimator,
+    TokenWallet, UsageMeter,
 };
 use pytxo_store::SharedStore;
+
+#[cfg(feature = "billing-tiktoken")]
+use pytxo_core::TiktokenEstimator;
 
 /// Ultra run reconciler: noop locally, or HTTP stub when Link reconcile is enabled.
 #[derive(Clone)]

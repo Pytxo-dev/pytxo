@@ -35,6 +35,20 @@ const MOATS = [
 
 const SHIPPED = [
   {
+    title: "Mission planning with Flow",
+    badge: "Flow",
+    description:
+      "Describe a mission, review the generated tasks, permissions, ADE assignments, and execution waves, then dispatch the approved plan.",
+    href: "/docs/concepts/desktop#pytxo-flow",
+  },
+  {
+    title: "Local-first voice capture",
+    badge: "Voice",
+    description:
+      "Turn speech into an editable Flow mission locally. Audio stays in bounded memory and is never written to Pytxo logs or storage.",
+    href: "/docs/concepts/desktop#pytxo-voice",
+  },
+  {
     title: "Multi-folder Workspaces",
     badge: "Multi-root",
     description:
@@ -96,7 +110,8 @@ export function FeatureGrid() {
       <div className="mt-16 flex max-w-2xl flex-col gap-3">
         <h3 className="text-2xl font-semibold tracking-tight">Also shipped</h3>
         <p className="text-muted-foreground">
-          Multi-folder Workspaces, cross-repo fleet runs, and approval gates.
+          Text-first Flow, local-first Voice, multi-folder Workspaces, cross-repo fleets, and
+          approval gates.
         </p>
       </div>
       <div className="mt-8 grid gap-6 sm:grid-cols-3">

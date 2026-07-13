@@ -8,9 +8,9 @@
 //! | macOS | `sandbox-exec` deny-outbound profile | always on for DeepSpace |
 //! | Windows | WFP/netsh loopback egress block | `PYTXO_DEEPSPACE_WFP=1` (elevated) installs rule; else stub |
 
-use pytxo_core::Result;
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 use pytxo_core::PytxoError;
+use pytxo_core::Result;
 
 /// Linux netns is default-on; set `PYTXO_DEEPSPACE_NETNS=0` to disable for debugging.
 #[cfg(target_os = "linux")]
@@ -112,6 +112,7 @@ fn macos_sandbox_profile() -> &'static str {
 /// - `windows-wfp-rule-present` — netsh rule installed (opt-in elevated)
 /// - `windows-wfp-stub` — no rule; policy-only / AppContainer hint path
 /// - `windows-appcontainer-attempt` — `PYTXO_NETWORK_ISOLATION=1` without WFP rule
+#[allow(clippy::needless_return)] // cfg-specific branches are terminal on different platforms.
 pub fn isolation_mechanism() -> &'static str {
     #[cfg(target_os = "linux")]
     {
@@ -151,6 +152,7 @@ pub fn isolation_mechanism() -> &'static str {
 }
 
 /// Wrap a shell one-liner for PTY / portable-pty paths that cannot take `Command` mutations.
+#[allow(clippy::needless_return)] // cfg-specific branches are terminal on different platforms.
 pub fn wrap_deepspace_shell_cmd(cmd: &str) -> String {
     #[cfg(target_os = "linux")]
     {
@@ -183,6 +185,7 @@ pub fn wrap_deepspace_shell_cmd(cmd: &str) -> String {
 /// Apply DeepSpace network isolation to a subprocess `Command` before spawn.
 ///
 /// Orbit+ profiles must not call this hook ([[permission-profile-engine]]).
+#[allow(clippy::needless_return)] // cfg-specific branches are terminal on different platforms.
 pub fn isolate_deepspace_network(cmd: &mut std::process::Command) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
@@ -219,7 +222,10 @@ pub fn isolate_deepspace_network(cmd: &mut std::process::Command) -> Result<()> 
     #[cfg(target_os = "windows")]
     {
         let mechanism = isolation_mechanism();
-        cmd.env("PYTXO_NETWORK_ISOLATION", format!("deepspace-v2-{mechanism}"));
+        cmd.env(
+            "PYTXO_NETWORK_ISOLATION",
+            format!("deepspace-v2-{mechanism}"),
+        );
         cmd.env("PYTXO_ISOLATION_MECHANISM", mechanism);
         match mechanism {
             "windows-wfp-rule-present" => {

@@ -33,9 +33,9 @@ mod tests {
         let events = eval_line(None, Some(std::env::current_dir().unwrap()), "/help")
             .await
             .unwrap();
-        assert!(events.iter().any(|e| {
-            matches!(e, ShellEvent::Output(s) if s.contains("/dry-run"))
-        }));
+        assert!(events
+            .iter()
+            .any(|e| { matches!(e, ShellEvent::Output(s) if s.contains("/dry-run")) }));
     }
 
     #[tokio::test]
@@ -43,8 +43,8 @@ mod tests {
         let events = eval_line(None, Some(std::env::current_dir().unwrap()), "/agents")
             .await
             .unwrap();
-        assert!(events.iter().any(|e| {
-            matches!(e, ShellEvent::Output(s) if s.contains("cursor"))
-        }));
+        assert!(events
+            .iter()
+            .any(|e| { matches!(e, ShellEvent::Output(s) if s.contains("cursor")) }));
     }
 }

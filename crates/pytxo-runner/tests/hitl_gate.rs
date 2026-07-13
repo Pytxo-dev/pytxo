@@ -20,15 +20,13 @@ fn galaxy_spawn_gate_blocks_until_approved() {
 
     let reviewer = {
         let hitl = hitl.clone();
-        std::thread::spawn(move || {
-            loop {
-                if let Some(req) = hitl.pending().into_iter().next() {
-                    assert_eq!(req.action, "fs.delete");
-                    hitl.resolve(&req.id, true);
-                    break;
-                }
-                std::thread::sleep(Duration::from_millis(10));
+        std::thread::spawn(move || loop {
+            if let Some(req) = hitl.pending().into_iter().next() {
+                assert_eq!(req.action, "fs.delete");
+                hitl.resolve(&req.id, true);
+                break;
             }
+            std::thread::sleep(Duration::from_millis(10));
         })
     };
 

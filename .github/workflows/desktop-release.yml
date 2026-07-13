@@ -1,12 +1,12 @@
 name: Desktop release
 
-# Build Reality Deck installers and upload to an existing pytxo-releases tag.
-# Actions → Desktop release → version 0.3.4 (no v prefix)
+# Build Pytxo Desktop installers and upload to an existing pytxo-releases tag.
+# Actions → Desktop release → version 0.4.0 (no v prefix)
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Semver (no v prefix), e.g. 0.3.4"
+        description: "Semver (no v prefix), e.g. 0.4.0"
         required: true
         type: string
 

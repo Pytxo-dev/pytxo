@@ -271,9 +271,7 @@ fn check_inference_proxy_health(cfg: &PytxoConfig) -> DoctorCheck {
 #[cfg(feature = "link-http")]
 fn ping_inference_proxy_health(base: &str) -> Result<String, String> {
     let health = format!("{}/health", base.trim_end_matches('/'));
-    let resp = ureq::get(&health)
-        .call()
-        .map_err(|e| format!("{e}"))?;
+    let resp = ureq::get(&health).call().map_err(|e| format!("{e}"))?;
     if resp.status() != 200 {
         return Err(format!("status {}", resp.status()));
     }
@@ -284,7 +282,9 @@ fn ping_inference_proxy_health(base: &str) -> Result<String, String> {
     let providers = pytxo_core::providers_configured(&body);
     let mut detail = format!("inference proxy /health ok at {base}");
     if providers.is_empty() {
-        detail.push_str("; warning: no providers_configured in health JSON (set DEEPSEEK_API_KEY on proxy)");
+        detail.push_str(
+            "; warning: no providers_configured in health JSON (set DEEPSEEK_API_KEY on proxy)",
+        );
         return Err(detail);
     }
     detail.push_str(&format!("; providers={}", providers.join(",")));
@@ -298,16 +298,6 @@ fn ping_inference_proxy_health(base: &str) -> Result<String, String> {
 #[cfg(not(feature = "link-http"))]
 fn ping_inference_proxy_health(_base: &str) -> Result<String, String> {
     Ok("skipped (link-http feature off)".into())
-}
-
-#[cfg(feature = "link-http")]
-fn ping_service_health(base: &str) -> Result<(), String> {
-    ping_inference_proxy_health(base).map(|_| ())
-}
-
-#[cfg(not(feature = "link-http"))]
-fn ping_service_health(_base: &str) -> Result<(), String> {
-    Ok(())
 }
 
 fn check_hitl_persistence(repo: &Path, cfg: &PytxoConfig) -> DoctorCheck {
@@ -350,9 +340,7 @@ fn check_network_policy() -> DoctorCheck {
     DoctorCheck {
         name: "network_policy".into(),
         ok,
-        detail: format!(
-            "orbit_denies_egress={orbit_denies} galaxy_allows_egress={galaxy_allows}"
-        ),
+        detail: format!("orbit_denies_egress={orbit_denies} galaxy_allows_egress={galaxy_allows}"),
     }
 }
 

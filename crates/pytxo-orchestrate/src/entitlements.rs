@@ -175,15 +175,15 @@ fn fetch_link_entitlements(base_url: &str) -> Result<EntitlementStatus, PytxoErr
             }
         }
 
-        let _ = std::env::set_var("PYTXO_LINK_TIER", &body.tier);
+        std::env::set_var("PYTXO_LINK_TIER", &body.tier);
 
-        return Ok(EntitlementStatus {
+        Ok(EntitlementStatus {
             tier: body.tier,
             max_agents: body.max_agents,
             cloud_enabled: body.cloud_enabled,
             org_id: body.org_id,
             permission_ceiling,
-        });
+        })
     }
 
     #[cfg(not(feature = "link-http"))]
@@ -196,9 +196,8 @@ fn fetch_link_entitlements(base_url: &str) -> Result<EntitlementStatus, PytxoErr
 }
 
 fn fetch_org_policy_ceiling(cfg: &PytxoConfig) -> Result<PermissionProfile, PytxoError> {
-    let org_id = std::env::var("PYTXO_ORG_ID").map_err(|_| {
-        PytxoError::Other("PYTXO_ORG_ID required for org policy fetch".into())
-    })?;
+    let org_id = std::env::var("PYTXO_ORG_ID")
+        .map_err(|_| PytxoError::Other("PYTXO_ORG_ID required for org policy fetch".into()))?;
     fetch_org_policy_ceiling_for(&cfg.billing.proxy_url, &org_id)
 }
 
@@ -230,9 +229,9 @@ fn fetch_org_policy_ceiling_for(
         let body: OrgPolicyResponse = resp
             .into_json()
             .map_err(|e| PytxoError::Other(format!("org policy json: {e}")))?;
-        let profile_str = body
-            .default_permission_profile
-            .ok_or_else(|| PytxoError::Other("org policy missing default_permission_profile".into()))?;
+        let profile_str = body.default_permission_profile.ok_or_else(|| {
+            PytxoError::Other("org policy missing default_permission_profile".into())
+        })?;
         PermissionProfile::parse(&profile_str).ok_or_else(|| {
             PytxoError::Other(format!("unknown org permission profile: {profile_str}"))
         })
@@ -278,7 +277,7 @@ pub fn fetch_link_wallet_balance(base_url: &str) -> Result<i64, PytxoError> {
         let body: LinkWalletResponse = resp
             .into_json()
             .map_err(|e| PytxoError::Other(format!("wallet json: {e}")))?;
-        return Ok(body.balance_microcredits);
+        Ok(body.balance_microcredits)
     }
 
     #[cfg(not(feature = "link-http"))]

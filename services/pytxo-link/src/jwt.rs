@@ -28,16 +28,11 @@ struct JwkKey {
     kty: String,
     n: Option<String>,
     e: Option<String>,
-    crv: Option<String>,
-    x: Option<String>,
-    y: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ClerkClaims {
     pub sub: String,
-    #[serde(default)]
-    pub org_id: Option<String>,
 }
 
 impl JwksValidator {

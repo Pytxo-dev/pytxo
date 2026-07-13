@@ -47,9 +47,9 @@ impl NetworkPolicy for NetworkPolicyEngine {
         if !networkish {
             return true;
         }
-        match self.profile {
-            PermissionProfile::Supernova | PermissionProfile::Galaxy => true,
-            _ => false,
-        }
+        matches!(
+            self.profile,
+            PermissionProfile::Supernova | PermissionProfile::Galaxy
+        )
     }
 }

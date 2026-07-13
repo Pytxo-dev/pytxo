@@ -1,6 +1,8 @@
 use std::path::Path;
 
-use pytxo_core::{IsolationBackend, IsolationCtx, IsolationMode, PytxoError, Result, WorkspaceHandle};
+use pytxo_core::{
+    IsolationBackend, IsolationCtx, IsolationMode, PytxoError, Result, WorkspaceHandle,
+};
 
 use crate::git::{branch_name, create_worktree, remove_worktree, worktree_path};
 
@@ -219,7 +221,8 @@ fn flush_overlay_upper(repo_root: &Path, upper: &Path) -> Result<()> {
         for entry in std::fs::read_dir(src)
             .map_err(|e| PytxoError::Runner(format!("overlay flush readdir: {e}")))?
         {
-            let entry = entry.map_err(|e| PytxoError::Runner(format!("overlay flush entry: {e}")))?;
+            let entry =
+                entry.map_err(|e| PytxoError::Runner(format!("overlay flush entry: {e}")))?;
             let name = entry.file_name();
             let from = entry.path();
             let to = dst.join(&name);
@@ -260,6 +263,7 @@ pub fn effective_isolation_mode(cfg: &pytxo_core::PytxoConfig) -> IsolationMode 
 }
 
 /// Human-readable active isolation backend for Deck telemetry (Phase 33/69).
+#[allow(clippy::needless_return)] // cfg-specific branches are terminal on different platforms.
 pub fn isolation_backend_label(mode: IsolationMode, sparse_exclude: &[String]) -> String {
     match mode {
         IsolationMode::Worktree => "worktree".into(),
@@ -330,10 +334,7 @@ mod tests {
         assert!(cfg.blast.prefer_kernel_overlay);
         // Copy-layer probe always succeeds (Phase 69); effective mode must be Overlay.
         assert!(crate::doctor_overlay_probe().is_ok());
-        assert_eq!(
-            effective_isolation_mode(&cfg),
-            IsolationMode::Overlay
-        );
+        assert_eq!(effective_isolation_mode(&cfg), IsolationMode::Overlay);
     }
 
     #[test]

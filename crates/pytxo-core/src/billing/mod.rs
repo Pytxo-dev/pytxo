@@ -12,7 +12,9 @@ mod types;
 mod wallet;
 
 pub use config::{BillingConfig, BillingMode};
-pub use estimator::{ByteHeuristicEstimator, TiktokenEstimator, TokenEstimator, default_token_estimator};
+pub use estimator::{
+    default_token_estimator, ByteHeuristicEstimator, TiktokenEstimator, TokenEstimator,
+};
 pub use link_reconciler::HttpBillingReconciler;
 pub use meter::{UsageMeter, UsageSource};
 pub use pricing::StaticPriceTable;

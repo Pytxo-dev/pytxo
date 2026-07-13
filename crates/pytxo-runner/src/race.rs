@@ -204,11 +204,10 @@ mod tests {
             .unwrap();
 
         let reg2 = Arc::clone(&reg);
-        let err = thread::spawn(move || {
-            reg2.try_claim_paths("run:agent-1", &["shared/foo.ts".into()])
-        })
-        .join()
-        .unwrap();
+        let err =
+            thread::spawn(move || reg2.try_claim_paths("run:agent-1", &["shared/foo.ts".into()]))
+                .join()
+                .unwrap();
         assert!(err.is_err());
     }
 

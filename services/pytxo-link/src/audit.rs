@@ -14,6 +14,15 @@ pub struct AuditEntry {
     pub created_at: String,
 }
 
+type AuditRow = (
+    i64,
+    Option<String>,
+    String,
+    String,
+    Option<Value>,
+    chrono::DateTime<chrono::Utc>,
+);
+
 pub async fn append(
     pool: &PgPool,
     org_id: Option<&str>,
@@ -36,31 +45,36 @@ pub async fn append(
     Ok(())
 }
 
-pub async fn list_for_org(pool: &PgPool, org_id: &str, limit: i64) -> Result<Vec<AuditEntry>, sqlx::Error> {
-    let rows: Vec<(i64, Option<String>, String, String, Option<Value>, chrono::DateTime<chrono::Utc>)> =
-        sqlx::query_as(
-            r#"
+pub async fn list_for_org(
+    pool: &PgPool,
+    org_id: &str,
+    limit: i64,
+) -> Result<Vec<AuditEntry>, sqlx::Error> {
+    let rows: Vec<AuditRow> = sqlx::query_as(
+        r#"
             SELECT id, org_id, actor_id, action, detail, created_at
             FROM audit_log
             WHERE org_id = $1
             ORDER BY created_at DESC
             LIMIT $2
             "#,
-        )
-        .bind(org_id)
-        .bind(limit)
-        .fetch_all(pool)
-        .await?;
+    )
+    .bind(org_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
 
     Ok(rows
         .into_iter()
-        .map(|(id, org_id, actor_id, action, detail, created_at)| AuditEntry {
-            id,
-            org_id,
-            actor_id,
-            action,
-            detail,
-            created_at: created_at.to_rfc3339(),
-        })
+        .map(
+            |(id, org_id, actor_id, action, detail, created_at)| AuditEntry {
+                id,
+                org_id,
+                actor_id,
+                action,
+                detail,
+                created_at: created_at.to_rfc3339(),
+            },
+        )
         .collect())
 }

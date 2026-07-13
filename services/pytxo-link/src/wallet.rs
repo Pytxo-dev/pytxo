@@ -16,7 +16,10 @@ pub fn initial_microcredits() -> i64 {
         .unwrap_or(10_000_000)
 }
 
-pub async fn balance_for_user(pool: &PgPool, user_id: &str) -> Result<WalletBalanceResponse, sqlx::Error> {
+pub async fn balance_for_user(
+    pool: &PgPool,
+    user_id: &str,
+) -> Result<WalletBalanceResponse, sqlx::Error> {
     let spent: (i64,) = sqlx::query_as(
         "SELECT COALESCE(SUM(cost_micro_usd), 0) FROM inference_usage WHERE user_id = $1",
     )

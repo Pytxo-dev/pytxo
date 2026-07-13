@@ -27,7 +27,11 @@ const FAQ = [
   },
   {
     q: "What is Pytxo Desktop?",
-    a: "An optional desktop app for watching runs, seeing which code is affected, approving changes, managing workspace folders, and viewing logs and diffs. Not a wall of terminals.",
+    a: "An optional desktop app for planning missions with Flow, capturing a mission with local Voice, supervising runs, seeing affected code, approving changes, and reviewing diffs. Not a wall of terminals.",
+  },
+  {
+    q: "What are Pytxo Flow and Voice?",
+    a: "Flow turns a text mission into a reviewable execution plan before anything runs. Voice transcribes speech locally into that same editable Flow workflow; Voice never approves actions or dispatches automatically.",
   },
   {
     q: "What are Workspaces and fleet runs?",

@@ -92,10 +92,7 @@ struct ShellApp {
 fn trust_folders(repo: &Path) -> Vec<String> {
     let repo_str = repo.display().to_string();
     match project_roots(None, None) {
-        Ok(roots) if roots.len() > 1 => roots
-            .into_iter()
-            .map(|(_, path, _, _, _)| path)
-            .collect(),
+        Ok(roots) if roots.len() > 1 => roots.into_iter().map(|(_, path, _, _, _)| path).collect(),
         _ => vec![repo_str],
     }
 }
@@ -189,7 +186,8 @@ impl ShellApp {
     }
 
     fn maybe_refresh(&mut self) {
-        if self.doctor_cache.checks.is_empty() || self.last_doctor_refresh.elapsed() >= DOCTOR_INTERVAL
+        if self.doctor_cache.checks.is_empty()
+            || self.last_doctor_refresh.elapsed() >= DOCTOR_INTERVAL
         {
             self.refresh_board(true);
         } else if self.last_refresh.elapsed() >= REFRESH_INTERVAL {
@@ -491,14 +489,11 @@ mod tests {
     #[tokio::test]
     async fn submit_help_does_not_nested_block_on() {
         let mut session = ShellSession::new(None, Some(std::env::current_dir().unwrap())).unwrap();
-        let _ = pytxo_orchestrate::trust_repo(
-            &session.repo,
-            pytxo_core::PermissionProfile::Orbit,
-        );
+        let _ = pytxo_orchestrate::trust_repo(&session.repo, pytxo_core::PermissionProfile::Orbit);
         let events = session.handle(parse_line("/help")).await;
-        assert!(events.iter().any(|e| {
-            matches!(e, ShellEvent::Output(s) if s.contains("/dry-run"))
-        }));
+        assert!(events
+            .iter()
+            .any(|e| { matches!(e, ShellEvent::Output(s) if s.contains("/dry-run")) }));
     }
 
     #[tokio::test]
@@ -512,10 +507,7 @@ mod tests {
     #[tokio::test]
     async fn run_loop_submit_help_via_session() {
         let mut session = ShellSession::new(None, Some(std::env::current_dir().unwrap())).unwrap();
-        let _ = pytxo_orchestrate::trust_repo(
-            &session.repo,
-            pytxo_core::PermissionProfile::Orbit,
-        );
+        let _ = pytxo_orchestrate::trust_repo(&session.repo, pytxo_core::PermissionProfile::Orbit);
         let events = session.handle(parse_line("/help")).await;
         assert!(events
             .iter()

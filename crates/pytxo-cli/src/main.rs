@@ -319,8 +319,9 @@ async fn main() -> anyhow::Result<()> {
         }) => {
             if let Some(ref ade_id) = ade {
                 if cmd == "echo pytxo" {
-                    let spec = pytxo_core::resolve_ade(ade_id)
-                        .ok_or_else(|| anyhow::anyhow!("unknown ADE {ade_id} — try `pytxo agents`"))?;
+                    let spec = pytxo_core::resolve_ade(ade_id).ok_or_else(|| {
+                        anyhow::anyhow!("unknown ADE {ade_id} — try `pytxo agents`")
+                    })?;
                     cmd = spec.default_cmd.to_string();
                 }
             }
@@ -398,10 +399,7 @@ async fn main() -> anyhow::Result<()> {
                             .project_id
                             .map(|p| format!(" project={p}"))
                             .unwrap_or_default();
-                        let latest = d
-                            .latest_run_status
-                            .as_deref()
-                            .unwrap_or("—");
+                        let latest = d.latest_run_status.as_deref().unwrap_or("—");
                         println!(
                             "{} [{}] active={} latest={}{proj}",
                             d.repo_root, d.status, d.active_runs, latest
@@ -490,7 +488,9 @@ fn run_hitl(action: HitlAction) -> anyhow::Result<()> {
 }
 
 async fn run_fleet(action: FleetAction) -> anyhow::Result<()> {
-    use pytxo_orchestrate::{fleet_dry_run_json, fleet_init, fleet_run, fleet_status, FleetRunOptions};
+    use pytxo_orchestrate::{
+        fleet_dry_run_json, fleet_init, fleet_run, fleet_status, FleetRunOptions,
+    };
 
     match action {
         FleetAction::Init {
@@ -557,7 +557,10 @@ async fn run_fleet(action: FleetAction) -> anyhow::Result<()> {
             } else {
                 for r in rows {
                     let fin = r.finished_at.as_deref().unwrap_or("—");
-                    println!("{} [{}] fleet={} started={} finished={}", r.id, r.status, r.fleet_id, r.started_at, fin);
+                    println!(
+                        "{} [{}] fleet={} started={} finished={}",
+                        r.id, r.status, r.fleet_id, r.started_at, fin
+                    );
                 }
             }
         }

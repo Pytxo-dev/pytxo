@@ -6,7 +6,7 @@ use std::sync::{LazyLock, Mutex};
 
 use serde::Serialize;
 
-use crate::ipc_error::{map_io_err, PytxoIpcError, IpcResult};
+use crate::ipc_error::{map_io_err, IpcResult, PytxoIpcError};
 
 const RELEASES_REPO: &str = "Pytxo-dev/pytxo-releases";
 const DESKTOP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -198,10 +198,7 @@ fn download_file(url: &str, dest: &Path) -> IpcResult<()> {
         if !out.status.success() {
             return Err(PytxoIpcError::new(
                 "install",
-                format!(
-                    "download failed: {}",
-                    String::from_utf8_lossy(&out.stderr)
-                ),
+                format!("download failed: {}", String::from_utf8_lossy(&out.stderr)),
             ));
         }
         return Ok(());

@@ -2,7 +2,10 @@
 
 use sqlx::PgPool;
 
-use crate::state::{RunEndBody, RunStartBody, UsagePayload};
+use crate::state::{RunEndBody, RunStartBody};
+
+#[cfg(test)]
+use crate::state::UsagePayload;
 
 #[derive(Clone)]
 pub struct RunStore {
@@ -53,15 +56,6 @@ impl RunStore {
         .await?;
         Ok(())
     }
-
-    pub async fn get_usage(&self, run_id: &str) -> Result<Option<UsagePayload>, sqlx::Error> {
-        let row: Option<(serde_json::Value,)> =
-            sqlx::query_as("SELECT usage_json FROM runs WHERE run_id = $1")
-                .bind(run_id)
-                .fetch_optional(&self.pool)
-                .await?;
-        Ok(row.and_then(|(v,)| serde_json::from_value(v).ok()))
-    }
 }
 
 /// In-memory fallback when `DATABASE_URL` is unset (local dev only).
@@ -73,26 +67,30 @@ pub struct MemoryRunStore {
 impl MemoryRunStore {
     pub fn start(&self, body: &RunStartBody) {
         let mut m = self.inner.lock().unwrap();
-        m.entry(body.run_id.clone()).or_insert(crate::state::RunRecord {
-            domain_id: body.domain_id.clone(),
-            started: true,
-            ended: false,
-            usage: None,
-        });
+        m.entry(body.run_id.clone())
+            .or_insert(crate::state::RunRecord {
+                domain_id: body.domain_id.clone(),
+                started: true,
+                ended: false,
+                usage: None,
+            });
     }
 
     pub fn end(&self, body: &RunEndBody) {
         let mut m = self.inner.lock().unwrap();
-        let entry = m.entry(body.run_id.clone()).or_insert(crate::state::RunRecord {
-            domain_id: body.domain_id.clone(),
-            started: false,
-            ended: false,
-            usage: None,
-        });
+        let entry = m
+            .entry(body.run_id.clone())
+            .or_insert(crate::state::RunRecord {
+                domain_id: body.domain_id.clone(),
+                started: false,
+                ended: false,
+                usage: None,
+            });
         entry.ended = true;
         entry.usage = Some(body.usage.clone());
     }
 
+    #[cfg(test)]
     pub fn get(&self, run_id: &str) -> Option<crate::state::RunRecord> {
         self.inner.lock().unwrap().get(run_id).cloned()
     }

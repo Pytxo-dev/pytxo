@@ -6,7 +6,10 @@ use crate::overlap::{find_conflicts, find_cross_root_conflicts, tasks_overlap};
 pub fn build_execution_plan(tasks: &[Task], max_agents: usize) -> ExecutionPlan {
     let mut conflicts = find_conflicts(tasks);
     for c in find_cross_root_conflicts(tasks) {
-        if !conflicts.iter().any(|x| x.task_a == c.task_a && x.task_b == c.task_b) {
+        if !conflicts
+            .iter()
+            .any(|x| x.task_a == c.task_a && x.task_b == c.task_b)
+        {
             conflicts.push(c);
         }
     }
