@@ -337,7 +337,7 @@ jobs:
           tagName: ${{ env.TAG_NAME }}
           releaseName: ${{ env.TAG_NAME }}
           releaseBody: "Pytxo Desktop installers"
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           includeRelease: false
           includeUpdaterJson: false
