@@ -145,4 +145,38 @@ async fn subprocess_stdin_spawn_time_drain() {
         "stdout was {:?}",
         results[0].stdout
     );
+
+    let marker = repo.join("PROMPT_INJECTION_MARKER");
+    let prompt = format!(
+        "reviewed prompt && echo injected > {} ; $(echo unsafe)",
+        marker.display()
+    );
+    let mut secure_ctx = ctx.clone();
+    secure_ctx.run_id = RunId::new();
+    secure_ctx.subprocess_stdin = false;
+    secure_ctx.task_prompts.insert("t0".into(), prompt.clone());
+    #[cfg(windows)]
+    {
+        secure_ctx.task_cmd_template = Some(
+            r#"powershell -NoProfile -NonInteractive -Command "& { [Console]::Write($env:PYTXO_TASK_PROMPT) }""#
+                .into(),
+        );
+    }
+    #[cfg(not(windows))]
+    {
+        secure_ctx.task_cmd_template = Some(r#"printf '%s' "$PYTXO_TASK_PROMPT""#.into());
+    }
+    let secure_results = execute_plan(
+        &secure_ctx,
+        &plan,
+        &ProcessRegistry::default(),
+        &SwarmRegistry::new(),
+    )
+    .await
+    .unwrap();
+    assert!(secure_results[0].stdout.contains("reviewed prompt"));
+    assert!(
+        !marker.exists(),
+        "prompt text escaped into a second command"
+    );
 }

@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@import "@fontsource/geist/400.css";
+@import "@fontsource/geist/500.css";
+@import "@fontsource/geist/600.css";
+@import "@fontsource/geist-mono/400.css";
 @import "../../../packages/chroma/tokens.css";
 @import "../../../packages/chroma/utilities.css";
 @import "./deck-scroll.css";
@@ -46,6 +50,25 @@
   /* Panel chrome: sharp tabs/titlebar, soft cards/inputs */
   --panel-radius: var(--radius-md);
   --chrome-radius: 0px;
+  --pytxo-obsidian: #07080b;
+  --pytxo-graphite-1: #0d0f13;
+  --pytxo-graphite-2: #15181e;
+  --pytxo-line: #20232a;
+  --pytxo-teal: #43d6c2;
+  --pytxo-violet: #8b73dd;
+  --pytxo-gold: #d9a84f;
+  --pytxo-red: #df6576;
+}
+
+html[data-chroma-theme="light"] {
+  --pytxo-obsidian: #f4f6f8;
+  --pytxo-graphite-1: #ffffff;
+  --pytxo-graphite-2: #e8ebef;
+  --pytxo-line: #d8dde4;
+  --pytxo-teal: #0d9488;
+  --pytxo-violet: #6d4ed0;
+  --pytxo-gold: #b96f12;
+  --pytxo-red: #c24155;
 }
 
 html {
@@ -60,7 +83,7 @@ html[data-chroma-theme="light"] {
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: "Geist", system-ui, -apple-system, sans-serif;
   background: var(--background);
   color: var(--text);
 }

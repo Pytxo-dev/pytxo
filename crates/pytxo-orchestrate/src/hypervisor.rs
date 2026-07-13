@@ -166,7 +166,19 @@ impl HypervisorRegistry {
 
     pub fn dispatch(&self, opts: RunOptions) -> anyhow::Result<(DomainId, RunId)> {
         let repo_root = resolve_repo_root(opts.repo.as_deref())?;
-        let mut cfg = load_config(opts.config.as_deref(), &repo_root)?;
+        let cfg = load_config(opts.config.as_deref(), &repo_root)?;
+        self.dispatch_with_config_snapshot(opts, cfg)
+    }
+
+    /// Dispatch using a configuration that was already validated by an orchestration facade.
+    ///
+    /// Flow uses this path so policy cannot change between preview revalidation and execution.
+    pub(crate) fn dispatch_with_config_snapshot(
+        &self,
+        opts: RunOptions,
+        mut cfg: PytxoConfig,
+    ) -> anyhow::Result<(DomainId, RunId)> {
+        let repo_root = resolve_repo_root(opts.repo.as_deref())?;
         if opts.agents > 0 {
             cfg.max_agents = opts.agents;
         }
@@ -272,10 +284,7 @@ pub fn list_catalog_domains_enriched() -> anyhow::Result<Vec<CatalogEntryStatus>
                 row.latest_started_at = summary.latest_started_at;
             }
         }
-        row.hitl_pending = in_memory_domains
-            .get(&row.domain_id)
-            .copied()
-            .unwrap_or(0);
+        row.hitl_pending = in_memory_domains.get(&row.domain_id).copied().unwrap_or(0);
         out.push(row);
     }
     Ok(out)
@@ -285,4 +294,33 @@ static DEFAULT_HYPERVISOR: OnceLock<HypervisorRegistry> = OnceLock::new();
 
 pub fn default_hypervisor() -> &'static HypervisorRegistry {
     DEFAULT_HYPERVISOR.get_or_init(HypervisorRegistry::new)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_dispatch_does_not_reload_changed_config() {
+        let repo = tempfile::tempdir().unwrap();
+        let cfg = PytxoConfig::default();
+        fs::write(repo.path().join("pytxo.toml"), "this is not valid toml").unwrap();
+        let opts = RunOptions {
+            agents: 1,
+            cmd: "unused".into(),
+            config: None,
+            dry_run: true,
+            keep_worktrees: false,
+            repo: Some(repo.path().to_path_buf()),
+            execution: None,
+            project: None,
+            tasks: None,
+            task_cmd_template: None,
+            task_prompts: None,
+        };
+
+        HypervisorRegistry::new()
+            .dispatch_with_config_snapshot(opts, cfg)
+            .expect("validated snapshot must be used without reloading pytxo.toml");
+    }
 }

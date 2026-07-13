@@ -47,11 +47,10 @@ pub fn auth_clear_session(app: AppHandle) -> IpcResult<()> {
 }
 
 #[tauri::command]
+#[allow(deprecated)] // Compatibility path until the existing shell plugin is replaced by opener.
 pub async fn auth_open_sign_in(app: AppHandle) -> IpcResult<()> {
     let url = "https://pytxo.com/account?deck_callback=pytxo-deck";
-    app.shell()
-        .open(url, None)
-        .map_err(map_io_err)?;
+    app.shell().open(url, None).map_err(map_io_err)?;
     Ok(())
 }
 
@@ -65,6 +64,11 @@ pub fn hydrate_session_env() {
 
 /// Handle `pytxo-deck://auth?token=...` deep-link callbacks from the account page.
 pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
+    if url.starts_with("pytxo:") && !url.starts_with("pytxo-deck:") {
+        app.emit("pytxo-deep-link", url).map_err(map_io_err)?;
+        focus_main_window(app);
+        return Ok(());
+    }
     if !url.starts_with("pytxo-deck:") {
         return Ok(());
     }
@@ -80,6 +84,10 @@ pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
             }
         }
     }
+    if !url.starts_with("pytxo-deck://auth") {
+        app.emit("pytxo-deep-link", url).map_err(map_io_err)?;
+        focus_main_window(app);
+    }
     Ok(())
 }
 
@@ -89,10 +97,9 @@ fn percent_decode(input: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(v) = u8::from_str_radix(
-                std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or(""),
-                16,
-            ) {
+            if let Ok(v) =
+                u8::from_str_radix(std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or(""), 16)
+            {
                 out.push(v);
                 i += 3;
                 continue;

@@ -3,6 +3,8 @@ mod ipc_auth;
 mod ipc_error;
 mod ipc_install;
 mod ipc_meta;
+mod ipc_flow;
+mod ipc_voice;
 
 use ipc::{
     agent_arbitrage, commit_workspace, dispatch_run_cmd, dry_run, ensure_workspace, git_diff,
@@ -14,6 +16,11 @@ use ipc::{
 use ipc_auth::{auth_clear_session, auth_open_sign_in, auth_status, auth_store_session};
 use ipc_install::{install_pytxo_cli, install_pytxo_cli_status, pick_workspace_folder};
 use ipc_meta::{check_pytxo_cli, entitlement_status, ipc_version};
+use ipc_flow::{
+    flow_delete, flow_dispatch, flow_history, flow_preview, flow_save_draft,
+    flow_save_reviewed_plan,
+};
+use ipc_voice::{voice_cancel_session, voice_default_model, voice_finish_session, voice_get_session, voice_install_default_model, voice_list_devices, voice_local_available, voice_model_status, voice_pause_session, voice_resume_session, voice_start_session};
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -38,6 +45,9 @@ pub fn run() {
             config_path: Mutex::new(None),
             poll_cursors: Mutex::new(std::collections::HashMap::new()),
             selected_domain_id: Mutex::new(None),
+            voice_sessions: std::sync::Arc::new(Mutex::new(std::collections::HashMap::new())),
+            voice_captures: std::sync::Arc::new(Mutex::new(std::collections::HashMap::new())),
+            voice_cancellations: Mutex::new(std::collections::HashMap::new()),
         })
         .invoke_handler(tauri::generate_handler![
             list_domains_cmd,
@@ -76,6 +86,23 @@ pub fn run() {
             auth_store_session,
             auth_clear_session,
             auth_open_sign_in,
+            flow_save_draft,
+            flow_preview,
+            flow_save_reviewed_plan,
+            flow_dispatch,
+            flow_history,
+            flow_delete,
+            voice_list_devices,
+            voice_default_model,
+            voice_local_available,
+            voice_model_status,
+            voice_install_default_model,
+            voice_start_session,
+            voice_pause_session,
+            voice_resume_session,
+            voice_finish_session,
+            voice_cancel_session,
+            voice_get_session,
         ])
         .setup(|app| {
             #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]

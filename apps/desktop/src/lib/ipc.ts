@@ -16,6 +16,7 @@ import type {
 export const IPC_VERSION = "0.3.5";
 
 export const AUTH_CHANGED_EVENT = "deck-auth-changed";
+export const DEEP_LINK_EVENT = "pytxo-deep-link";
 
 function unwrap<T>(result: T | PytxoIpcError): T {
   if (
@@ -37,6 +38,10 @@ export async function ipcVersion(): Promise<string> {
 
 export function onAuthChanged(callback: () => void) {
   return listen(AUTH_CHANGED_EVENT, callback);
+}
+
+export function onPytxoDeepLink(callback: (url: string) => void) {
+  return listen<string>(DEEP_LINK_EVENT, (event) => callback(event.payload));
 }
 
 export const ipc = {
@@ -154,4 +159,21 @@ export const ipc = {
   authStoreSession: (token: string) =>
     invoke<void>("auth_store_session", { token }).then(unwrap),
   authClearSession: () => invoke<void>("auth_clear_session").then(unwrap),
+  flowPreview: (input: import("./types").FlowDraftInput) => invoke<import("./types").FlowPlan>("flow_preview", { input }).then(unwrap),
+  flowSaveReviewedPlan: (plan: import("./types").FlowPlan) => invoke<import("./types").FlowPlan>("flow_save_reviewed_plan", { plan }).then(unwrap),
+  flowDispatch: (draftId: string) => invoke<string>("flow_dispatch", { draftId }).then(unwrap),
+  flowHistory: () => invoke<import("./types").FlowDraftRecord[]>("flow_history").then(unwrap),
+  flowDelete: (draftId: string) => invoke<void>("flow_delete", { draftId }).then(unwrap),
+  voiceListDevices: () => invoke<string[]>("voice_list_devices").then(unwrap),
+  voiceDefaultModel: () => invoke<import("./types").VoiceModel>("voice_default_model").then(unwrap),
+  voiceLocalAvailable: () => invoke<boolean>("voice_local_available").then(unwrap),
+  voiceModelStatus: () => invoke<string | null>("voice_model_status").then(unwrap),
+  voiceInstallDefaultModel: () => invoke<string>("voice_install_default_model").then(unwrap),
+  voiceStartSession: (device: string, language: string) => invoke<import("./types").VoiceSessionDto>("voice_start_session", { device, language }).then(unwrap),
+  voicePauseSession: (sessionId: string) => invoke<import("./types").VoiceSessionDto>("voice_pause_session", { sessionId }).then(unwrap),
+  voiceResumeSession: (sessionId: string) => invoke<import("./types").VoiceSessionDto>("voice_resume_session", { sessionId }).then(unwrap),
+  voiceFinishSession: (sessionId: string) => invoke<import("./types").VoiceSessionDto>("voice_finish_session", { sessionId }).then(unwrap),
+  voiceCancelSession: (sessionId: string) => invoke<import("./types").VoiceSessionDto>("voice_cancel_session", { sessionId }).then(unwrap),
+  onVoiceProgress: (callback: (event: import("./types").VoiceProgressEvent) => void) =>
+    listen<import("./types").VoiceProgressEvent>("pytxo://voice/progress", (event) => callback(event.payload)),
 };

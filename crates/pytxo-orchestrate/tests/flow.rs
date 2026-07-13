@@ -1,6 +1,7 @@
 use chrono::Utc;
 use pytxo_orchestrate::{
-    dispatch_flow, preview_flow, FlowBlockedReason, FlowDraftInput, FlowSource, FlowStatus,
+    dispatch_flow, preview_flow, save_flow_draft, save_reviewed_flow_plan, FlowBlockedReason,
+    FlowDraftInput, FlowSource, FlowStatus,
 };
 use pytxo_store::{Catalog, FlowDraftRecord};
 
@@ -27,6 +28,16 @@ fn flow_rejects_empty_mission_and_missing_domain() {
     let mut missing = input(dir.path());
     missing.domain_id = None;
     assert!(preview_flow(&catalog, missing).is_err());
+}
+
+#[test]
+fn saving_draft_intent_cannot_create_execution_state() {
+    let dir = tempfile::tempdir().unwrap();
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let saved = save_flow_draft(&catalog, input(dir.path())).unwrap();
+    assert_eq!(saved.status, "draft");
+    assert!(saved.plan_json.is_none());
+    assert!(saved.dispatched_run_id.is_none());
 }
 
 #[test]
@@ -114,6 +125,24 @@ fn dispatch_requires_a_persisted_ready_preview() {
 }
 
 #[test]
+fn a_claimed_flow_cannot_be_dispatched_twice() {
+    let dir = tempfile::tempdir().unwrap();
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    preview_flow(&catalog, input(dir.path())).unwrap();
+    let expected = catalog
+        .get_flow_draft("flow-1")
+        .unwrap()
+        .unwrap()
+        .plan_json
+        .unwrap();
+    assert!(catalog.claim_flow_dispatch("flow-1", &expected).unwrap());
+    assert!(!catalog.claim_flow_dispatch("flow-1", &expected).unwrap());
+
+    let error = dispatch_flow(&catalog, "flow-1").unwrap_err();
+    assert!(error.to_string().contains("ready preview"));
+}
+
+#[test]
 fn task_cannot_escalate_above_domain_permission_profile() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
@@ -139,4 +168,35 @@ paths = ["src/lib.rs"]
         .blocked_reasons
         .iter()
         .any(|reason| matches!(reason, FlowBlockedReason::PermissionViolation { .. })));
+}
+
+#[test]
+fn reviewed_prompt_edits_replace_the_persisted_dispatch_snapshot() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("src/lib.rs"), "pub fn value() {}\n").unwrap();
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let mut reviewed = preview_flow(&catalog, input(dir.path())).unwrap();
+    reviewed.tasks[0].prompt = "Use the reviewed implementation constraint".into();
+
+    let saved = save_reviewed_flow_plan(&catalog, reviewed).unwrap();
+    assert_eq!(
+        saved.tasks[0].prompt,
+        "Use the reviewed implementation constraint"
+    );
+    let persisted = catalog.get_flow_draft("flow-1").unwrap().unwrap();
+    let persisted_plan: pytxo_orchestrate::FlowPlan =
+        serde_json::from_str(persisted.plan_json.as_deref().unwrap()).unwrap();
+    assert_eq!(persisted_plan.tasks[0].prompt, saved.tasks[0].prompt);
+}
+
+#[test]
+fn reviewed_plan_cannot_change_execution_structure() {
+    let dir = tempfile::tempdir().unwrap();
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let mut reviewed = preview_flow(&catalog, input(dir.path())).unwrap();
+    reviewed.tasks[0].paths = vec!["outside/**".into()];
+
+    let error = save_reviewed_flow_plan(&catalog, reviewed).unwrap_err();
+    assert!(error.to_string().contains("structure changed"));
 }

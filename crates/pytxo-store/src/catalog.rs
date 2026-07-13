@@ -409,6 +409,68 @@ impl Catalog {
         Ok(())
     }
 
+    /// Persist editable intent without accepting execution-owned state and without reopening a
+    /// dispatching or dispatched Flow.
+    pub fn upsert_flow_draft_intent(&self, draft: &FlowDraftRecord) -> Result<bool> {
+        self.conn
+            .execute(
+                "INSERT INTO flow_drafts
+                 (id, title, mission_text, source, domain_id, project_id, status, plan_json,
+                  dispatched_run_id, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'draft', NULL, NULL, ?7, ?8)
+                 ON CONFLICT(id) DO UPDATE SET
+                    title = excluded.title, mission_text = excluded.mission_text,
+                    source = excluded.source, domain_id = excluded.domain_id,
+                    project_id = excluded.project_id, status = 'draft', plan_json = NULL,
+                    dispatched_run_id = NULL, updated_at = excluded.updated_at
+                 WHERE flow_drafts.status NOT IN ('dispatching', 'dispatched')",
+                params![
+                    draft.id,
+                    draft.title,
+                    draft.mission_text,
+                    draft.source,
+                    draft.domain_id,
+                    draft.project_id,
+                    draft.created_at,
+                    draft.updated_at
+                ],
+            )
+            .map(|changed| changed == 1)
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    /// Persist a Rust-produced preview unless dispatch has already claimed this draft ID.
+    pub fn upsert_flow_preview(&self, draft: &FlowDraftRecord) -> Result<bool> {
+        self.conn
+            .execute(
+                "INSERT INTO flow_drafts
+                 (id, title, mission_text, source, domain_id, project_id, status, plan_json,
+                  dispatched_run_id, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, ?9, ?10)
+                 ON CONFLICT(id) DO UPDATE SET
+                    title = excluded.title, mission_text = excluded.mission_text,
+                    source = excluded.source, domain_id = excluded.domain_id,
+                    project_id = excluded.project_id, status = excluded.status,
+                    plan_json = excluded.plan_json, dispatched_run_id = NULL,
+                    updated_at = excluded.updated_at
+                 WHERE flow_drafts.status NOT IN ('dispatching', 'dispatched')",
+                params![
+                    draft.id,
+                    draft.title,
+                    draft.mission_text,
+                    draft.source,
+                    draft.domain_id,
+                    draft.project_id,
+                    draft.status,
+                    draft.plan_json,
+                    draft.created_at,
+                    draft.updated_at
+                ],
+            )
+            .map(|changed| changed == 1)
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
     pub fn get_flow_draft(&self, id: &str) -> Result<Option<FlowDraftRecord>> {
         self.conn
             .query_row(
@@ -439,10 +501,51 @@ impl Catalog {
     }
 
     pub fn delete_flow_draft(&self, id: &str) -> Result<()> {
-        self.conn
-            .execute("DELETE FROM flow_drafts WHERE id = ?1", params![id])
+        let changed = self
+            .conn
+            .execute(
+                "DELETE FROM flow_drafts WHERE id = ?1 AND status != 'dispatching'",
+                params![id],
+            )
             .map_err(|e| PytxoError::Store(e.to_string()))?;
+        if changed == 0
+            && self
+                .conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM flow_drafts WHERE id = ?1)",
+                    params![id],
+                    |row| row.get::<_, bool>(0),
+                )
+                .map_err(|e| PytxoError::Store(e.to_string()))?
+        {
+            return Err(PytxoError::Store(
+                "cannot delete a Flow draft while dispatching".into(),
+            ));
+        }
         Ok(())
+    }
+
+    /// Replace only the reviewed plan payload while the exact ready preview is still current.
+    pub fn replace_ready_flow_plan(
+        &self,
+        id: &str,
+        expected_plan_json: &str,
+        reviewed_plan_json: &str,
+    ) -> Result<bool> {
+        self.conn
+            .execute(
+                "UPDATE flow_drafts SET plan_json = ?1, updated_at = ?2
+                 WHERE id = ?3 AND status = 'ready' AND dispatched_run_id IS NULL
+                   AND plan_json = ?4",
+                params![
+                    reviewed_plan_json,
+                    Utc::now().to_rfc3339(),
+                    id,
+                    expected_plan_json
+                ],
+            )
+            .map(|changed| changed == 1)
+            .map_err(|e| PytxoError::Store(e.to_string()))
     }
 
     pub fn mark_flow_dispatched(&self, id: &str, run_id: &str) -> Result<()> {
@@ -450,13 +553,37 @@ impl Catalog {
             .conn
             .execute(
                 "UPDATE flow_drafts SET status = 'dispatched', dispatched_run_id = ?1,
-                    updated_at = ?2 WHERE id = ?3",
+                    updated_at = ?2 WHERE id = ?3 AND status = 'dispatching'",
                 params![run_id, Utc::now().to_rfc3339(), id],
             )
             .map_err(|e| PytxoError::Store(e.to_string()))?;
         if changed == 0 {
             return Err(PytxoError::Store(format!("flow draft not found: {id}")));
         }
+        Ok(())
+    }
+
+    /// Atomically claim a ready preview for dispatch. Exactly one concurrent caller can win.
+    pub fn claim_flow_dispatch(&self, id: &str, expected_plan_json: &str) -> Result<bool> {
+        self.conn
+            .execute(
+                "UPDATE flow_drafts SET status = 'dispatching', updated_at = ?1
+                 WHERE id = ?2 AND status = 'ready' AND dispatched_run_id IS NULL
+                   AND plan_json = ?3",
+                params![Utc::now().to_rfc3339(), id, expected_plan_json],
+            )
+            .map(|changed| changed == 1)
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    pub fn mark_flow_dispatch_failed(&self, id: &str) -> Result<()> {
+        self.conn
+            .execute(
+                "UPDATE flow_drafts SET status = 'failed', updated_at = ?1
+                 WHERE id = ?2 AND status = 'dispatching'",
+                params![Utc::now().to_rfc3339(), id],
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
         Ok(())
     }
 }
@@ -573,10 +700,61 @@ mod tests {
         let cat = Catalog::open(&dir.path().join("hypervisor.db")).unwrap();
         cat.upsert_flow_draft(&draft("flow-1", "Flow", "2026-01-02T00:00:00Z"))
             .unwrap();
+        let mut ready = draft("flow-1", "Flow", "2026-01-02T00:00:00Z");
+        ready.status = "ready".into();
+        ready.plan_json = Some("{}".into());
+        cat.upsert_flow_draft(&ready).unwrap();
+        let expected = ready.plan_json.as_deref().unwrap_or("");
+        assert!(cat.claim_flow_dispatch("flow-1", expected).unwrap());
+        assert!(!cat.claim_flow_dispatch("flow-1", expected).unwrap());
         cat.mark_flow_dispatched("flow-1", "run-42").unwrap();
         let loaded = cat.get_flow_draft("flow-1").unwrap().unwrap();
         assert_eq!(loaded.status, "dispatched");
         assert_eq!(loaded.dispatched_run_id.as_deref(), Some("run-42"));
+    }
+
+    #[test]
+    fn dispatch_claim_blocks_stale_review_save_and_delete() {
+        let dir = tempfile::tempdir().unwrap();
+        let cat = Catalog::open(&dir.path().join("hypervisor.db")).unwrap();
+        let mut ready = draft("flow-race", "Flow", "2026-01-02T00:00:00Z");
+        ready.status = "ready".into();
+        ready.plan_json = Some("{\"version\":1}".into());
+        cat.upsert_flow_draft(&ready).unwrap();
+        assert!(cat
+            .claim_flow_dispatch("flow-race", "{\"version\":1}")
+            .unwrap());
+        assert!(!cat
+            .replace_ready_flow_plan("flow-race", "{\"version\":1}", "{\"version\":2}")
+            .unwrap());
+        assert!(cat.delete_flow_draft("flow-race").is_err());
+        let mut reopened = ready.clone();
+        reopened.mission_text = "changed after claim".into();
+        assert!(!cat.upsert_flow_draft_intent(&reopened).unwrap());
+        assert!(!cat.upsert_flow_preview(&reopened).unwrap());
+        assert_eq!(
+            cat.get_flow_draft("flow-race").unwrap().unwrap().status,
+            "dispatching"
+        );
+    }
+
+    #[test]
+    fn dispatch_claim_is_bound_to_the_exact_reviewed_snapshot() {
+        let dir = tempfile::tempdir().unwrap();
+        let cat = Catalog::open(&dir.path().join("hypervisor.db")).unwrap();
+        let mut ready = draft("flow-snapshot", "Flow", "2026-01-02T00:00:00Z");
+        ready.status = "ready".into();
+        ready.plan_json = Some("{\"version\":1}".into());
+        cat.upsert_flow_draft(&ready).unwrap();
+        assert!(cat
+            .replace_ready_flow_plan("flow-snapshot", "{\"version\":1}", "{\"version\":2}")
+            .unwrap());
+        assert!(!cat
+            .claim_flow_dispatch("flow-snapshot", "{\"version\":1}")
+            .unwrap());
+        assert!(cat
+            .claim_flow_dispatch("flow-snapshot", "{\"version\":2}")
+            .unwrap());
     }
 
     #[test]

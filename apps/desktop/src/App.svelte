@@ -30,6 +30,7 @@
   import SetupWizard from "./components/setup/SetupWizard.svelte";
   import DeckWorkspace from "./components/dashboard/DeckWorkspace.svelte";
   import WorkspaceHome from "./components/workspace/WorkspaceHome.svelte";
+  import DesktopShell from "./components/desktop2/DesktopShell.svelte";
 
   let showSetup = $state(!isSetupComplete());
   let deckTheme = $state<DeckTheme>("void");
@@ -58,6 +59,7 @@
   let logExpanded = $state(false);
   let selectedTopologyNode = $state<string | null>(null);
   let showWorkspaceSettings = $state(false);
+  const useLegacyShell = localStorage.getItem("desktop_shell_v1") === "true";
 
   let termEl: HTMLDivElement | undefined = $state();
   let terminal: Terminal | null = null;
@@ -83,7 +85,7 @@
   });
 
   $effect(() => {
-    persistTabs(tabs, activeTabId);
+    if (useLegacyShell) persistTabs(tabs, activeTabId);
   });
 
   /** Terminal mounts with DeckWorkspace; recreate when the xterm host appears. */
@@ -403,12 +405,14 @@
 
   function finishSetup() {
     showSetup = false;
-    initDashboard();
+    if (useLegacyShell) initDashboard();
   }
 
   onMount(async () => {
     deckTheme = loadTheme();
     applyDeckTheme(deckTheme);
+
+    if (!useLegacyShell) return;
 
     authUnlisten = await onAuthChanged(() => {
       loadEntitlements();
@@ -437,7 +441,7 @@
 <DeckShell>
   {#if showSetup}
     <SetupWizard onComplete={finishSetup} onWorkspaceSelected={addWorkspaceTab} />
-  {:else}
+  {:else if useLegacyShell}
     <ProjectTabs
       {tabs}
       {activeTabId}
@@ -489,5 +493,7 @@
         onGoHome={goHome}
       />
     {/if}
+  {:else}
+    <DesktopShell />
   {/if}
 </DeckShell>

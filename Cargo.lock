@@ -4023,12 +4023,14 @@ dependencies = [
 name = "pytxo-desktop"
 version = "0.3.5"
 dependencies = [
+ "chrono",
  "keyring",
  "pytxo-core",
  "pytxo-orchestrate",
  "pytxo-runner",
  "pytxo-signal",
  "pytxo-store",
+ "pytxo-voice",
  "rfd",
  "serde",
  "serde_json",
@@ -4041,6 +4043,8 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tokio",
+ "ureq",
+ "uuid",
 ]
 
 [[package]]

@@ -4,9 +4,12 @@
 //! Persistence belongs to model files and sanitized transcripts only; this crate has no audio
 //! recording format or recording-storage API.
 
+use std::collections::VecDeque;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
@@ -28,6 +31,8 @@ pub enum VoiceError {
     Io(#[from] std::io::Error),
     #[error("voice backend failed: {0}")]
     Backend(String),
+    #[error("voice transcription cancelled")]
+    Cancelled,
 }
 
 pub type Result<T> = std::result::Result<T, VoiceError>;
@@ -64,7 +69,7 @@ impl TranscriptSegment {
 
 #[derive(Debug)]
 pub struct PcmBuffer {
-    samples: Vec<i16>,
+    samples: VecDeque<i16>,
     capacity: usize,
     dropped_samples: u64,
 }
@@ -72,7 +77,7 @@ pub struct PcmBuffer {
 impl PcmBuffer {
     pub fn new(capacity: usize) -> Self {
         Self {
-            samples: Vec::with_capacity(capacity),
+            samples: VecDeque::with_capacity(capacity),
             capacity,
             dropped_samples: 0,
         }
@@ -92,14 +97,18 @@ impl PcmBuffer {
             .saturating_add(incoming.len())
             .saturating_sub(self.capacity);
         if overflow > 0 {
+            self.samples
+                .iter_mut()
+                .take(overflow)
+                .for_each(|sample| *sample = 0);
             self.samples.drain(..overflow);
             self.dropped_samples = self.dropped_samples.saturating_add(overflow as u64);
         }
-        self.samples.extend_from_slice(incoming);
+        self.samples.extend(incoming.iter().copied());
     }
 
-    pub fn as_slice(&self) -> &[i16] {
-        &self.samples
+    pub fn to_vec(&self) -> Vec<i16> {
+        self.samples.iter().copied().collect()
     }
 
     pub fn dropped_samples(&self) -> u64 {
@@ -107,7 +116,7 @@ impl PcmBuffer {
     }
 
     fn clear_sensitive(&mut self) {
-        self.samples.fill(0);
+        self.samples.iter_mut().for_each(|sample| *sample = 0);
         self.samples.clear();
     }
 }
@@ -158,7 +167,7 @@ impl VoiceSession {
     }
 
     pub fn buffered_samples(&self) -> usize {
-        self.buffer.as_slice().len()
+        self.buffer.samples.len()
     }
 
     pub fn start(&mut self) -> Result<()> {
@@ -199,14 +208,14 @@ impl VoiceSession {
         Ok(())
     }
 
-    pub fn samples_for_transcription(&self) -> Result<&[i16]> {
+    pub fn samples_for_transcription(&self) -> Result<Vec<i16>> {
         if self.state != VoiceState::Transcribing {
             return Err(VoiceError::InvalidTransition {
                 from: self.state,
                 to: VoiceState::Transcribing,
             });
         }
-        Ok(self.buffer.as_slice())
+        Ok(self.buffer.to_vec())
     }
 
     pub fn complete(&mut self, segments: Vec<TranscriptSegment>) -> Result<()> {
@@ -267,6 +276,91 @@ pub fn pcm_i16_to_f32(samples: &[i16]) -> Vec<f32> {
         .collect()
 }
 
+/// Downmix interleaved PCM and linearly resample it to the transcription rate.
+pub fn normalize_pcm_i16(
+    samples: &[i16],
+    input_sample_rate: u32,
+    channels: u16,
+    output_sample_rate: u32,
+) -> Vec<i16> {
+    if samples.is_empty() || input_sample_rate == 0 || output_sample_rate == 0 || channels == 0 {
+        return Vec::new();
+    }
+    let channels = channels as usize;
+    let mono: Vec<f32> = samples
+        .chunks_exact(channels)
+        .map(|frame| frame.iter().map(|sample| *sample as f32).sum::<f32>() / channels as f32)
+        .collect();
+    if input_sample_rate == output_sample_rate {
+        return mono.into_iter().map(|sample| sample as i16).collect();
+    }
+    let output_len =
+        mono.len().saturating_mul(output_sample_rate as usize) / input_sample_rate as usize;
+    (0..output_len)
+        .map(|output_index| {
+            let source = output_index as f64 * input_sample_rate as f64 / output_sample_rate as f64;
+            let left = source.floor() as usize;
+            let right = (left + 1).min(mono.len().saturating_sub(1));
+            let fraction = (source - left as f64) as f32;
+            (mono[left] + (mono[right] - mono[left]) * fraction)
+                .round()
+                .clamp(i16::MIN as f32, i16::MAX as f32) as i16
+        })
+        .collect()
+}
+
+#[derive(Debug)]
+pub struct PcmNormalizer {
+    input_sample_rate: u32,
+    channels: usize,
+    output_sample_rate: u32,
+    source_position: f64,
+    mono: Vec<f32>,
+}
+
+impl PcmNormalizer {
+    pub fn new(input_sample_rate: u32, channels: u16, output_sample_rate: u32) -> Self {
+        Self {
+            input_sample_rate,
+            channels: channels.max(1) as usize,
+            output_sample_rate,
+            source_position: 0.0,
+            mono: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, samples: &[i16]) -> Vec<i16> {
+        if self.input_sample_rate == 0 || self.output_sample_rate == 0 {
+            return Vec::new();
+        }
+        self.mono
+            .extend(samples.chunks_exact(self.channels).map(|frame| {
+                frame.iter().map(|sample| *sample as f32).sum::<f32>() / self.channels as f32
+            }));
+        let step = self.input_sample_rate as f64 / self.output_sample_rate as f64;
+        let mut output = Vec::new();
+        while self.source_position + 1.0 < self.mono.len() as f64 {
+            let left = self.source_position.floor() as usize;
+            let right = left + 1;
+            let fraction = (self.source_position - left as f64) as f32;
+            output.push(
+                (self.mono[left] + (self.mono[right] - self.mono[left]) * fraction)
+                    .round()
+                    .clamp(i16::MIN as f32, i16::MAX as f32) as i16,
+            );
+            self.source_position += step;
+        }
+        if self.mono.len() > 1 {
+            let consumed = (self.source_position.floor() as usize).min(self.mono.len() - 1);
+            if consumed > 0 {
+                self.mono.drain(..consumed);
+                self.source_position -= consumed as f64;
+            }
+        }
+        output
+    }
+}
+
 pub fn trim_silence(samples: &[f32], threshold: f32) -> &[f32] {
     let start = samples
         .iter()
@@ -290,11 +384,14 @@ pub trait AudioCapture: Send {
 
 #[cfg(feature = "native-capture")]
 type SampleSink = std::sync::Arc<dyn Fn(&[i16]) + Send + Sync>;
+#[cfg(feature = "native-capture")]
+type CaptureErrorSink = std::sync::Arc<dyn Fn(String) + Send + Sync>;
 
 #[cfg(feature = "native-capture")]
 pub struct CpalCapture {
     stream: Option<cpal::Stream>,
     sink: SampleSink,
+    error_sink: CaptureErrorSink,
 }
 
 #[cfg(feature = "native-capture")]
@@ -307,7 +404,20 @@ impl Default for CpalCapture {
 #[cfg(feature = "native-capture")]
 impl CpalCapture {
     pub fn with_sink(sink: SampleSink) -> Self {
-        Self { stream: None, sink }
+        Self::with_sink_and_error(
+            sink,
+            std::sync::Arc::new(|message| {
+                eprintln!("Pytxo Voice capture error: {message}");
+            }),
+        )
+    }
+
+    pub fn with_sink_and_error(sink: SampleSink, error_sink: CaptureErrorSink) -> Self {
+        Self {
+            stream: None,
+            sink,
+            error_sink,
+        }
     }
 }
 
@@ -349,21 +459,27 @@ impl AudioCapture for CpalCapture {
             .map_err(|error| VoiceError::Backend(error.to_string()))?;
         let sample_format = supported.sample_format();
         let config = supported.config();
-        let error_callback = |error: cpal::StreamError| {
-            eprintln!("Pytxo Voice capture error: {error}");
-        };
+        let input_sample_rate = config.sample_rate;
+        let channels = config.channels;
+        let error_sink = self.error_sink.clone();
+        let error_callback = move |error: cpal::StreamError| error_sink(error.to_string());
         let stream = match sample_format {
             cpal::SampleFormat::I16 => {
                 let sink = self.sink.clone();
+                let mut normalizer = PcmNormalizer::new(input_sample_rate, channels, 16_000);
                 device.build_input_stream(
                     &config,
-                    move |samples: &[i16], _| sink(samples),
+                    move |samples: &[i16], _| {
+                        let normalized = normalizer.push(samples);
+                        sink(&normalized);
+                    },
                     error_callback,
                     None,
                 )
             }
             cpal::SampleFormat::U16 => {
                 let sink = self.sink.clone();
+                let mut normalizer = PcmNormalizer::new(input_sample_rate, channels, 16_000);
                 device.build_input_stream(
                     &config,
                     move |samples: &[u16], _| {
@@ -371,7 +487,8 @@ impl AudioCapture for CpalCapture {
                             .iter()
                             .map(|sample| (*sample as i32 - 32_768) as i16)
                             .collect();
-                        sink(&converted);
+                        let normalized = normalizer.push(&converted);
+                        sink(&normalized);
                     },
                     error_callback,
                     None,
@@ -379,6 +496,7 @@ impl AudioCapture for CpalCapture {
             }
             cpal::SampleFormat::F32 => {
                 let sink = self.sink.clone();
+                let mut normalizer = PcmNormalizer::new(input_sample_rate, channels, 16_000);
                 device.build_input_stream(
                     &config,
                     move |samples: &[f32], _| {
@@ -386,7 +504,8 @@ impl AudioCapture for CpalCapture {
                             .iter()
                             .map(|sample| (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
                             .collect();
-                        sink(&converted);
+                        let normalized = normalizer.push(&converted);
+                        sink(&normalized);
                     },
                     error_callback,
                     None,
@@ -432,6 +551,18 @@ impl AudioCapture for CpalCapture {
 
 pub trait Transcriber: Send + Sync {
     fn transcribe(&self, pcm_16khz_mono: &[f32], language: &str) -> Result<Vec<TranscriptSegment>>;
+
+    fn transcribe_cancellable(
+        &self,
+        pcm_16khz_mono: &[f32],
+        language: &str,
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<Vec<TranscriptSegment>> {
+        if cancelled.load(Ordering::Acquire) {
+            return Err(VoiceError::Cancelled);
+        }
+        self.transcribe(pcm_16khz_mono, language)
+    }
 }
 
 #[cfg(feature = "local-whisper")]
@@ -454,8 +585,35 @@ impl WhisperTranscriber {
 #[cfg(feature = "local-whisper")]
 impl Transcriber for WhisperTranscriber {
     fn transcribe(&self, pcm_16khz_mono: &[f32], language: &str) -> Result<Vec<TranscriptSegment>> {
+        self.transcribe_inner(pcm_16khz_mono, language, None)
+    }
+
+    fn transcribe_cancellable(
+        &self,
+        pcm_16khz_mono: &[f32],
+        language: &str,
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<Vec<TranscriptSegment>> {
+        self.transcribe_inner(pcm_16khz_mono, language, Some(cancelled))
+    }
+}
+
+#[cfg(feature = "local-whisper")]
+impl WhisperTranscriber {
+    fn transcribe_inner(
+        &self,
+        pcm_16khz_mono: &[f32],
+        language: &str,
+        cancelled: Option<Arc<AtomicBool>>,
+    ) -> Result<Vec<TranscriptSegment>> {
         use whisper_rs::{FullParams, SamplingStrategy};
 
+        if cancelled
+            .as_ref()
+            .is_some_and(|value| value.load(Ordering::Acquire))
+        {
+            return Err(VoiceError::Cancelled);
+        }
         let samples = trim_silence(pcm_16khz_mono, 0.008);
         if samples.is_empty() {
             return Ok(Vec::new());
@@ -473,9 +631,18 @@ impl Transcriber for WhisperTranscriber {
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
-        state
-            .full(params, samples)
-            .map_err(|error| VoiceError::Backend(error.to_string()))?;
+        if let Some(cancelled) = cancelled.clone() {
+            params.set_abort_callback_safe(Some(move || cancelled.load(Ordering::Acquire)));
+        }
+        if let Err(error) = state.full(params, samples) {
+            if cancelled
+                .as_ref()
+                .is_some_and(|value| value.load(Ordering::Acquire))
+            {
+                return Err(VoiceError::Cancelled);
+            }
+            return Err(VoiceError::Backend(error.to_string()));
+        }
         state
             .as_iter()
             .map(|segment| {

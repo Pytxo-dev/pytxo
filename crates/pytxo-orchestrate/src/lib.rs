@@ -38,8 +38,8 @@ pub use fleet::{
     FleetRunStatus,
 };
 pub use flow::{
-    dispatch_flow, preview_flow, FlowAdeSummary, FlowBlockedReason, FlowDraftInput, FlowPlan,
-    FlowPlanTask, FlowSource, FlowStatus, FlowWarning,
+    dispatch_flow, preview_flow, save_flow_draft, save_reviewed_flow_plan, FlowAdeSummary,
+    FlowBlockedReason, FlowDraftInput, FlowPlan, FlowPlanTask, FlowSource, FlowStatus, FlowWarning,
 };
 pub use hypervisor::{
     default_hypervisor, list_catalog_domains, list_catalog_domains_enriched, CatalogEntryStatus,
@@ -71,7 +71,8 @@ pub struct RunOptions {
     pub project: Option<ProjectRunContext>,
     /// Runtime task graph from Hypervisor Shell / planner; overrides config tasks when set.
     pub tasks: Option<Vec<Task>>,
-    /// Per-agent command template: `{task_id}`, `{agent}`, `{paths}`, `{prompt}`, `{wave}`.
+    /// Per-agent command template: `{task_id}`, `{agent}`, `{paths}`, `{wave}`. Task prompts are
+    /// supplied separately as `PYTXO_TASK_PROMPT`; raw shell interpolation is forbidden.
     pub task_cmd_template: Option<String>,
     /// Per-task prompt text keyed by task id (used with `task_cmd_template`).
     pub task_prompts: Option<std::collections::HashMap<String, String>>,
@@ -222,6 +223,15 @@ pub fn open_store_for_domain(
 /// Non-blocking multi-project dispatch ([[execution-domains]]).
 pub fn dispatch_run(opts: RunOptions) -> anyhow::Result<(String, String)> {
     let (domain, run) = dispatch(opts)?;
+    Ok((domain.as_str().to_string(), run.0))
+}
+
+/// Dispatch with the exact configuration snapshot already validated by Flow.
+pub(crate) fn dispatch_run_with_config_snapshot(
+    opts: RunOptions,
+    cfg: PytxoConfig,
+) -> anyhow::Result<(String, String)> {
+    let (domain, run) = default_hypervisor().dispatch_with_config_snapshot(opts, cfg)?;
     Ok((domain.as_str().to_string(), run.0))
 }
 

@@ -18,8 +18,8 @@ use pytxo_store::{Catalog, FlowDraftRecord};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    dispatch_run, ensure_repo_trusted, load_config_for_repo, plan_tasks, resolve_repo_root,
-    RunOptions,
+    dispatch_run_with_config_snapshot, ensure_repo_trusted, load_config_for_repo, plan_tasks,
+    resolve_repo_root, RunOptions,
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -145,6 +145,39 @@ pub struct FlowPlan {
     pub previewed_at: String,
 }
 
+/// Persist draft intent only. Execution state and plan snapshots are Rust-owned and cannot be
+/// supplied by Desktop.
+pub fn save_flow_draft(
+    catalog: &Catalog,
+    input: FlowDraftInput,
+) -> anyhow::Result<FlowDraftRecord> {
+    if input.id.trim().is_empty() {
+        bail!("Flow draft ID must not be empty");
+    }
+    let now = Utc::now().to_rfc3339();
+    let created_at = catalog
+        .get_flow_draft(&input.id)?
+        .map(|draft| draft.created_at)
+        .unwrap_or_else(|| now.clone());
+    let draft = FlowDraftRecord {
+        id: input.id,
+        title: input.title,
+        mission_text: input.mission_text,
+        source: input.source.as_str().into(),
+        domain_id: input.domain_id,
+        project_id: input.project_id,
+        status: FlowStatus::Draft.as_str().into(),
+        plan_json: None,
+        dispatched_run_id: None,
+        created_at,
+        updated_at: now,
+    };
+    if !catalog.upsert_flow_draft_intent(&draft)? {
+        bail!("Flow draft is already dispatching or dispatched");
+    }
+    Ok(draft)
+}
+
 /// Produce and persist the mandatory dry-run preview for an explicit Flow request.
 pub fn preview_flow(catalog: &Catalog, input: FlowDraftInput) -> anyhow::Result<FlowPlan> {
     if input.mission_text.trim().is_empty() {
@@ -158,6 +191,10 @@ pub fn preview_flow(catalog: &Catalog, input: FlowDraftInput) -> anyhow::Result<
     let repo = resolve_repo_root(Some(Path::new(selected_domain)))
         .context("invalid Flow repository/execution domain")?;
     let cfg = load_config_for_repo(None, &repo)?;
+    let entitlements = crate::entitlements::effective_entitlements(&cfg)
+        .map_err(|error| anyhow::anyhow!(error))?;
+    let (cfg, ceiling_blocker) =
+        apply_flow_permission_ceiling(&cfg, entitlements.permission_ceiling);
 
     // Explicit Flow requests intentionally invoke the existing public implementation directly;
     // the shell's hidden PYTXO_PLANNER gate does not apply to a user-requested preview.
@@ -175,6 +212,7 @@ pub fn preview_flow(catalog: &Catalog, input: FlowDraftInput) -> anyhow::Result<
     let execution = plan_tasks(&planned.tasks, &cfg)?;
 
     let mut blocked_reasons = validate_task_claims(&planned.tasks, input.project_id.as_deref());
+    blocked_reasons.extend(ceiling_blocker);
     blocked_reasons.extend(validate_permission_scope(&planned.tasks, &cfg));
     blocked_reasons.extend(execution.conflicts.iter().map(|conflict| {
         FlowBlockedReason::OverlappingPathClaims {
@@ -256,7 +294,7 @@ pub fn preview_flow(catalog: &Catalog, input: FlowDraftInput) -> anyhow::Result<
         .get_flow_draft(&input.id)?
         .map(|draft| draft.created_at)
         .unwrap_or_else(|| now.clone());
-    catalog.upsert_flow_draft(&FlowDraftRecord {
+    let preview_record = FlowDraftRecord {
         id: input.id,
         title: input.title,
         mission_text: input.mission_text,
@@ -268,8 +306,83 @@ pub fn preview_flow(catalog: &Catalog, input: FlowDraftInput) -> anyhow::Result<
         dispatched_run_id: None,
         created_at: previous_created,
         updated_at: now,
-    })?;
+    };
+    if !catalog.upsert_flow_preview(&preview_record)? {
+        bail!("Flow draft is already dispatching or dispatched");
+    }
     Ok(plan)
+}
+
+/// Persist prompt edits made during mandatory plan review without allowing Desktop to mutate
+/// execution structure or policy. Dispatch subsequently reloads this exact reviewed snapshot.
+pub fn save_reviewed_flow_plan(catalog: &Catalog, reviewed: FlowPlan) -> anyhow::Result<FlowPlan> {
+    let draft = catalog
+        .get_flow_draft(&reviewed.draft_id)?
+        .with_context(|| format!("Flow draft not found: {}", reviewed.draft_id))?;
+    if draft.status != FlowStatus::Ready.as_str() {
+        bail!("Flow plan review requires a persisted ready preview");
+    }
+    let expected_plan_json = draft
+        .plan_json
+        .as_deref()
+        .context("Flow plan review requires a persisted ready preview")?;
+    let mut persisted: FlowPlan =
+        serde_json::from_str(expected_plan_json).context("invalid persisted Flow preview")?;
+
+    let top_level_changed = reviewed.draft_id != persisted.draft_id
+        || reviewed.domain_id != persisted.domain_id
+        || reviewed.project_id != persisted.project_id
+        || reviewed.status != persisted.status
+        || reviewed.waves != persisted.waves
+        || reviewed.permission_profile != persisted.permission_profile
+        || reviewed.isolation_mode != persisted.isolation_mode
+        || reviewed.isolation_backend_intent != persisted.isolation_backend_intent
+        || reviewed.execution_backend != persisted.execution_backend
+        || reviewed.ade != persisted.ade
+        || reviewed.warnings != persisted.warnings
+        || reviewed.blocked_reasons != persisted.blocked_reasons
+        || reviewed.estimated_tokens != persisted.estimated_tokens
+        || reviewed.estimated_cost_usd != persisted.estimated_cost_usd
+        || reviewed.previewed_at != persisted.previewed_at
+        || reviewed.tasks.len() != persisted.tasks.len();
+    if top_level_changed {
+        bail!("Flow plan structure changed; generate a new preview");
+    }
+
+    let reviewed_tasks: HashMap<_, _> = reviewed
+        .tasks
+        .into_iter()
+        .map(|task| (task.id.clone(), task))
+        .collect();
+    if reviewed_tasks.len() != persisted.tasks.len() {
+        bail!("Flow plan structure changed; generate a new preview");
+    }
+    for task in &mut persisted.tasks {
+        let edited = reviewed_tasks
+            .get(&task.id)
+            .context("Flow plan structure changed; generate a new preview")?;
+        if edited.agent != task.agent
+            || edited.paths != task.paths
+            || edited.dependencies != task.dependencies
+            || edited.root != task.root
+        {
+            bail!("Flow plan structure changed; generate a new preview");
+        }
+        if edited.prompt.trim().is_empty() {
+            bail!("Flow task prompts must not be empty");
+        }
+        task.prompt = edited.prompt.clone();
+    }
+
+    let reviewed_plan_json = serde_json::to_string(&persisted)?;
+    if !catalog.replace_ready_flow_plan(
+        &persisted.draft_id,
+        expected_plan_json,
+        &reviewed_plan_json,
+    )? {
+        bail!("Flow preview changed or dispatch started; review the latest plan");
+    }
+    Ok(persisted)
 }
 
 /// Revalidate and dispatch a persisted ready preview through the standard `dispatch_run` path.
@@ -280,8 +393,9 @@ pub fn dispatch_flow(catalog: &Catalog, draft_id: &str) -> anyhow::Result<String
     if draft.status != FlowStatus::Ready.as_str() || draft.plan_json.is_none() {
         bail!("Flow dispatch requires a persisted ready preview");
     }
-    let plan: FlowPlan = serde_json::from_str(draft.plan_json.as_deref().unwrap())
-        .context("invalid persisted Flow preview")?;
+    let expected_plan_json = draft.plan_json.as_deref().unwrap();
+    let plan: FlowPlan =
+        serde_json::from_str(expected_plan_json).context("invalid persisted Flow preview")?;
     if plan.status != FlowStatus::Ready || !plan.blocked_reasons.is_empty() {
         bail!("Flow dispatch requires a persisted ready preview");
     }
@@ -292,6 +406,9 @@ pub fn dispatch_flow(catalog: &Catalog, draft_id: &str) -> anyhow::Result<String
     }
     let repo = resolve_repo_root(Some(Path::new(&plan.domain_id)))?;
     let cfg = load_config_for_repo(None, &repo)?;
+    let entitlements = crate::entitlements::effective_entitlements(&cfg)
+        .map_err(|error| anyhow::anyhow!(error))?;
+    let (cfg, _) = apply_flow_permission_ceiling(&cfg, entitlements.permission_ceiling);
     if cfg.permission_profile.as_str() != plan.permission_profile {
         bail!("Flow permission profile changed; generate a new preview");
     }
@@ -322,19 +439,32 @@ pub fn dispatch_flow(catalog: &Catalog, draft_id: &str) -> anyhow::Result<String
         .iter()
         .map(|task| (task.id.clone(), task.prompt.clone()))
         .collect();
-    let (_, run_id) = dispatch_run(RunOptions {
-        agents: tasks.len(),
-        cmd: ade.default_cmd.into(),
-        config: None,
-        dry_run: false,
-        keep_worktrees: false,
-        repo: Some(repo),
-        execution: None,
-        project: None,
-        tasks: Some(tasks),
-        task_cmd_template: Some(format!("{} {{prompt}}", ade.default_cmd)),
-        task_prompts: Some(prompts),
-    })?;
+    if !catalog.claim_flow_dispatch(draft_id, expected_plan_json)? {
+        bail!("Flow draft is already dispatching or dispatched");
+    }
+    let dispatch = dispatch_run_with_config_snapshot(
+        RunOptions {
+            agents: tasks.len(),
+            cmd: ade.default_cmd.into(),
+            config: None,
+            dry_run: false,
+            keep_worktrees: false,
+            repo: Some(repo),
+            execution: None,
+            project: None,
+            tasks: Some(tasks),
+            task_cmd_template: Some(ade_prompt_command(ade.default_cmd)),
+            task_prompts: Some(prompts),
+        },
+        cfg,
+    );
+    let (_, run_id) = match dispatch {
+        Ok(result) => result,
+        Err(error) => {
+            catalog.mark_flow_dispatch_failed(draft_id)?;
+            return Err(error);
+        }
+    };
     catalog.mark_flow_dispatched(draft_id, &run_id)?;
     Ok(run_id)
 }
@@ -361,6 +491,23 @@ fn summarize_ade(requested: Option<&str>) -> FlowAdeSummary {
         available: selected.is_some_and(ade_on_path),
         installed,
         command: selected.map(|spec| spec.default_cmd.to_string()),
+    }
+}
+
+/// Build a static ADE adapter command. Mission text is supplied separately through the child
+/// environment, so reviewed prompts are never parsed as shell syntax.
+fn ade_prompt_command(default_cmd: &str) -> String {
+    if cfg!(windows) {
+        let invocation = default_cmd
+            .split_whitespace()
+            .map(|part| format!("'{}'", part.replace('\'', "''")))
+            .collect::<Vec<_>>()
+            .join(" ");
+        format!(
+            "powershell -NoProfile -NonInteractive -Command \"& {{ & {invocation} $env:PYTXO_TASK_PROMPT }}\""
+        )
+    } else {
+        format!("{default_cmd} \"$PYTXO_TASK_PROMPT\"")
     }
 }
 
@@ -411,6 +558,29 @@ fn validate_permission_scope(tasks: &[Task], cfg: &PytxoConfig) -> Vec<FlowBlock
         .collect()
 }
 
+fn apply_flow_permission_ceiling(
+    cfg: &PytxoConfig,
+    ceiling: Option<PermissionProfile>,
+) -> (PytxoConfig, Option<FlowBlockedReason>) {
+    let mut effective = cfg.clone();
+    let Some(ceiling) = ceiling else {
+        return (effective, None);
+    };
+    let configured = cfg.permission_profile;
+    effective.permission_profile =
+        crate::entitlements::apply_permission_ceiling(configured, ceiling);
+    let blocker = (effective.permission_profile != configured).then(|| {
+        FlowBlockedReason::PermissionViolation {
+            message: format!(
+                "execution-domain profile {} exceeds organization ceiling {}",
+                configured.as_str(),
+                ceiling.as_str()
+            ),
+        }
+    });
+    (effective, blocker)
+}
+
 fn profile_rank(profile: PermissionProfile) -> u8 {
     match profile {
         PermissionProfile::DeepSpace => 0,
@@ -432,4 +602,38 @@ fn runtime_tasks(plan: &FlowPlan) -> Vec<Task> {
             signal_fidelity: None,
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn organization_ceiling_blocks_flow_escalation() {
+        let mut cfg = PytxoConfig {
+            permission_profile: PermissionProfile::Supernova,
+            ..PytxoConfig::default()
+        };
+        let (effective, blocker) =
+            apply_flow_permission_ceiling(&cfg, Some(PermissionProfile::Orbit));
+        assert_eq!(effective.permission_profile, PermissionProfile::Orbit);
+        assert!(matches!(
+            blocker,
+            Some(FlowBlockedReason::PermissionViolation { .. })
+        ));
+
+        cfg.permission_profile = PermissionProfile::DeepSpace;
+        let (effective, blocker) =
+            apply_flow_permission_ceiling(&cfg, Some(PermissionProfile::Orbit));
+        assert_eq!(effective.permission_profile, PermissionProfile::DeepSpace);
+        assert!(blocker.is_none());
+    }
+
+    #[test]
+    fn ade_adapter_never_interpolates_prompt_text() {
+        let command = ade_prompt_command("cursor agent");
+        assert!(command.contains("PYTXO_TASK_PROMPT"));
+        assert!(!command.contains("{prompt}"));
+        assert!(!command.contains("&& touch injected"));
+    }
 }

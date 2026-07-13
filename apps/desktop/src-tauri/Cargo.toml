@@ -20,6 +20,8 @@ tauri-build = { workspace = true }
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
 tauri = { workspace = true, features = [] }
 tauri-plugin-shell = { workspace = true }
 tauri-plugin-process = { workspace = true }
@@ -33,5 +35,11 @@ pytxo-store = { path = "../../../crates/pytxo-store" }
 pytxo-orchestrate = { path = "../../../crates/pytxo-orchestrate", features = ["sanitize", "link-http"] }
 pytxo-signal = { path = "../../../crates/pytxo-signal" }
 pytxo-runner = { path = "../../../crates/pytxo-runner" }
+pytxo-voice = { path = "../../../crates/pytxo-voice", features = ["native-capture"] }
 keyring = "3"
 rfd = "0.15"
+ureq = "2.12"
+
+[features]
+default = []
+voice-whisper = ["pytxo-voice/local-whisper"]
