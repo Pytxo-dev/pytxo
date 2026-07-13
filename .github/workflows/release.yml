@@ -339,7 +339,7 @@ jobs:
           releaseBody: "Pytxo Desktop installers"
           releaseDraft: false
           prerelease: false
-          includeRelease: false
+          includeRelease: true
           includeUpdaterJson: false
           args: --target ${{ matrix.rust_target }} --features voice-whisper
 
