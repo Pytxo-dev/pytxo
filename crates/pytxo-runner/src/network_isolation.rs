@@ -261,9 +261,11 @@ pub fn isolate_deepspace_network(cmd: &mut std::process::Command) -> Result<()> 
 /// Shell one-liner that exits 0 when TCP egress to 1.1.1.1:443 is blocked, 1 when it succeeds.
 fn tcp_probe_shell() -> &'static str {
     concat!(
-        "python3 -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('1.1.1.1', 443))\" 2>/dev/null || ",
-        "python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('1.1.1.1', 443))\" 2>/dev/null || ",
-        "(nc -z -w 2 1.1.1.1 443 2>/dev/null && exit 1) || exit 0"
+        "if command -v python3 >/dev/null 2>&1; then ",
+        "python3 -c \"import socket,sys; s=socket.socket(); s.settimeout(2); sys.exit(1 if s.connect_ex(('1.1.1.1', 443)) == 0 else 0)\"; ",
+        "elif command -v python >/dev/null 2>&1; then ",
+        "python -c \"import socket,sys; s=socket.socket(); s.settimeout(2); sys.exit(1 if s.connect_ex(('1.1.1.1', 443)) == 0 else 0)\"; ",
+        "elif nc -z -w 2 1.1.1.1 443 2>/dev/null; then exit 1; else exit 0; fi"
     )
 }
 
@@ -305,7 +307,7 @@ pub fn doctor_deepspace_socket_probe() -> (bool, String) {
 
     match cmd.output() {
         Ok(output) => {
-            let blocked = !output.status.success();
+            let blocked = output.status.success();
             let detail = format!(
                 "mechanism={}; socket_probe_blocked={blocked}; exit={}",
                 isolation_mechanism(),

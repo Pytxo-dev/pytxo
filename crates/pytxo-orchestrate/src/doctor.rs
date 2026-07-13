@@ -38,7 +38,7 @@ pub fn run_doctor(repo: Option<&Path>) -> anyhow::Result<DoctorReport> {
         check_inference_proxy_health(&cfg),
         check_hitl_persistence(&repo_root, &cfg),
         check_network_policy(),
-        check_deepspace_network_isolation(),
+        check_deepspace_network_isolation(&cfg),
         check_mcp_hitl(&cfg),
         check_overlay_isolation(&cfg),
     ];
@@ -344,8 +344,20 @@ fn check_network_policy() -> DoctorCheck {
     }
 }
 
-fn check_deepspace_network_isolation() -> DoctorCheck {
+fn check_deepspace_network_isolation(cfg: &PytxoConfig) -> DoctorCheck {
     use pytxo_core::{NetworkPolicy, NetworkPolicyEngine, PermissionProfile};
+
+    if cfg.permission_profile != PermissionProfile::DeepSpace {
+        return DoctorCheck {
+            name: "deepspace_network_isolation".into(),
+            ok: true,
+            detail: format!(
+                "skipped (permission_profile is {})",
+                cfg.permission_profile.as_str()
+            ),
+        };
+    }
+
     let deepspace = NetworkPolicyEngine::new(PermissionProfile::DeepSpace);
     let policy_blocked = !deepspace.egress_allowed("1.1.1.1", 443);
     let socket_blocked = pytxo_runner::doctor_deepspace_socket_blocked();
