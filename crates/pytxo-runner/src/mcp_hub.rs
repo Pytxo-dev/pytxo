@@ -288,7 +288,12 @@ pub fn spawn_test_mcp_child() -> Result<(ChildMcpSession, thread::JoinHandle<()>
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
         while std::time::Instant::now() < deadline {
             match listener.accept() {
-                Ok((mut stream, _)) => handle_test_mcp_conn(&mut stream),
+                Ok((mut stream, _)) => {
+                    if stream.set_nonblocking(false).is_err() {
+                        break;
+                    }
+                    handle_test_mcp_conn(&mut stream);
+                }
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     thread::sleep(Duration::from_millis(10));
                 }
