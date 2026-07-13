@@ -440,7 +440,14 @@ mod tests {
         assert!(detail.contains("socket_probe_blocked="));
         #[cfg(target_os = "linux")]
         if linux_netns_enabled() {
-            assert!(blocked, "netns should block egress: {detail}");
+            let netns_available = std::process::Command::new("unshare")
+                .args(["-n", "true"])
+                .status()
+                .is_ok_and(|status| status.success());
+            assert_eq!(
+                blocked, netns_available,
+                "socket probe must reflect whether the host can create a network namespace: {detail}"
+            );
         }
         let _ = blocked;
     }
