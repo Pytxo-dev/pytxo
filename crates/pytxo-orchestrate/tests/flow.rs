@@ -4,8 +4,35 @@ use pytxo_orchestrate::{
     FlowDraftInput, FlowSource, FlowStatus,
 };
 use pytxo_store::{Catalog, FlowDraftRecord};
+use std::sync::OnceLock;
+
+static TEST_ADE_DIR: OnceLock<tempfile::TempDir> = OnceLock::new();
+
+fn ensure_test_ade() {
+    TEST_ADE_DIR.get_or_init(|| {
+        let dir = tempfile::tempdir().unwrap();
+        #[cfg(windows)]
+        std::fs::write(dir.path().join("codex.cmd"), "@exit /b 0\r\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let executable = dir.path().join("codex");
+            std::fs::write(&executable, "#!/bin/sh\nexit 0\n").unwrap();
+            std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let mut paths = vec![dir.path().to_path_buf()];
+        paths.extend(std::env::split_paths(
+            &std::env::var_os("PATH").unwrap_or_default(),
+        ));
+        std::env::set_var("PATH", std::env::join_paths(paths).unwrap());
+        dir
+    });
+}
 
 fn input(repo: &std::path::Path) -> FlowDraftInput {
+    ensure_test_ade();
     FlowDraftInput {
         id: "flow-1".into(),
         title: "Ship it".into(),
@@ -13,7 +40,7 @@ fn input(repo: &std::path::Path) -> FlowDraftInput {
         source: FlowSource::Text,
         domain_id: Some(repo.to_string_lossy().into_owned()),
         project_id: None,
-        ade_id: None,
+        ade_id: Some("codex".into()),
     }
 }
 
