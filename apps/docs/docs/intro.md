@@ -6,7 +6,7 @@ title: Introduction
 
 # Introduction
 
-**Pytxo** runs the coding agents you already use (Claude Code, Codex, Antigravity CLI, or any shell command) in the background. It schedules them so they do not overwrite each other, shows what they changed, and lets you approve merges before those changes land in your real repo.
+**Pytxo** is a local **agent hypervisor**: it runs the coding agents you already use (Claude Code, Codex, Antigravity CLI, or any shell command) in the background, schedules them so they do not overwrite each other, shows what they changed, and lets you approve merges before those changes land in your real repo.
 
 Pytxo is not an IDE and not a cloud workspace. Keep your editor. Connect through a local MCP hub, or use the optional **Pytxo Desktop** app.
 

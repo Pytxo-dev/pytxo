@@ -19,13 +19,13 @@ Accepted — supersedes the **product naming** in [[ADR-0023-reality-deck-3d-ren
 
 ## Context
 
-The optional presentation app at `apps/desktop` was branded **Pytxo Desktop**. That name was evocative but opaque for new users and competed with simpler “Desktop” language already used in architecture docs (“desktop shell,” “desktop telemetry”).
+The optional presentation app at `apps/desktop` was branded **Reality Deck**. That name was evocative but opaque for new users and competed with simpler “Desktop” language already used in architecture docs (“desktop shell,” “desktop telemetry”).
 
 Market peers (BridgeSpace, Emdash, Warp Oz) use plain ADE / control-plane language. Pytxo’s wedge is clearer when the UI product is named for what it is: the desktop control surface for the agent hypervisor.
 
 ## Decision
 
-1. User-facing product name is **Pytxo Desktop** (not Pytxo Desktop).
+1. User-facing product name is **Pytxo Desktop** (not Reality Deck).
 2. Canonical visual-system note is [[desktop-visual-system]] (replaces `reality-deck-visual-system` slug for new links).
 3. ADR-0023’s technical choice (Three.js topology as primary viewport) is unchanged.
 4. Internal identifiers (`com.pytxo.reality-deck`, `pytxo-deck://`, `deck-*` CSS/classes, legacy installer filenames) may remain until a dedicated identity migration; they are not user-facing copy.

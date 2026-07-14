@@ -13,7 +13,7 @@ Run `pytxo` in a repo. If the canonical git root is not trusted yet, a full-scre
 
 | Tier | Summary |
 |------|---------|
-| **Deep Space** | Air-gapped bubble: minimal host access |
+| **DeepSpace** | Air-gapped bubble: minimal host access |
 | **Orbit** | Default engineering (recommended) |
 | **Galaxy** | Host tools + human-in-the-loop gates |
 | **Supernova** | Full host privileges |

@@ -1,11 +1,74 @@
-const STEPS = [
-  { label: "Editor / terminal", detail: "Cursor, VS Code, or shell" },
-  { label: "MCP hub", detail: "Optional IDE bridge" },
-  { label: "Coordinator", detail: "Projects, permissions, catalog" },
-  { label: "Scheduler", detail: "Waves and fleet order" },
-  { label: "Agent processes", detail: "Claude Code, Codex, CLIs" },
-  { label: "Desktop", detail: "Topology and approvals" },
-] as const;
+import { Blocks, Cpu, LayoutDashboard, Plug, Terminal, type LucideIcon } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+type Stage = {
+  label: string;
+  detail: string;
+  icon: LucideIcon;
+};
+
+const PIPELINE: Stage[] = [
+  { label: "Editor or terminal", detail: "Cursor, VS Code, or shell", icon: Terminal },
+  { label: "MCP hub", detail: "Optional local IDE bridge", icon: Plug },
+  { label: "Orchestration", detail: "Rust: projects, permissions, waves", icon: Cpu },
+  { label: "Execution yard", detail: "Claude Code, Codex, and other CLIs", icon: Blocks },
+];
+
+const DESKTOP: Stage = {
+  label: "Pytxo Desktop",
+  detail: "Structural telemetry and approvals",
+  icon: LayoutDashboard,
+};
+
+function PipelineNode({
+  stage,
+  emphasized = false,
+  optional = false,
+}: {
+  stage: Stage;
+  emphasized?: boolean;
+  optional?: boolean;
+}) {
+  const Icon = stage.icon;
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2 rounded-[var(--radius-lg)] border p-4",
+        emphasized ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-background/60",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={cn(
+            "flex size-8 items-center justify-center rounded-[var(--radius-md)] border",
+            emphasized
+              ? "border-primary/30 bg-primary/10 text-primary"
+              : "border-border bg-muted/30 text-muted-foreground",
+          )}
+        >
+          <Icon className="size-4" />
+        </span>
+        {optional ? (
+          <Badge variant="outline" className="border-border text-[10px] text-muted-foreground">
+            Optional
+          </Badge>
+        ) : null}
+      </div>
+      <p className="text-sm font-medium">{stage.label}</p>
+      <p className="text-xs text-muted-foreground">{stage.detail}</p>
+    </div>
+  );
+}
+
+function Connector() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <div className="h-px w-full bg-border" />
+    </div>
+  );
+}
 
 export function ArchitectureSection() {
   return (
@@ -15,28 +78,60 @@ export function ArchitectureSection() {
           Local control plane, not a browser full of terminals
         </h2>
         <p className="mt-4 max-w-2xl text-muted-foreground">
-          Pytxo plugs into your existing workflow. It coordinates agents and records what changed.
+          Pytxo plugs into your existing workflow. It coordinates agents and records what
+          changed, so Desktop is a branch off the same pipeline, not a separate product.
         </p>
 
-        <ol className="mt-12 flex flex-col gap-0 md:flex-row md:items-stretch md:overflow-x-auto">
-          {STEPS.map((step, index) => (
-            <li
-              key={step.label}
-              className="relative flex flex-1 flex-col border-l border-border px-4 py-3 first:border-l-0 first:pl-0 md:border-l-0 md:border-t-0 md:px-3 md:py-0 md:pl-0"
-            >
-              {index < STEPS.length - 1 ? (
-                <span
-                  className="pointer-events-none absolute top-5 right-0 hidden h-px w-full bg-border md:block"
-                  aria-hidden
-                />
-              ) : null}
-              <p className="relative z-10 font-mono text-xs text-primary">
-                {String(index + 1).padStart(2, "0")}
-              </p>
-              <p className="relative z-10 mt-2 text-sm font-medium">{step.label}</p>
-              <p className="relative z-10 mt-1 text-xs text-muted-foreground">{step.detail}</p>
-            </li>
-          ))}
+        <div className="mt-14 hidden lg:grid lg:grid-cols-[1fr_2.5rem_1fr_2.5rem_1fr_2.5rem_1fr] lg:gap-y-3">
+          <PipelineNode stage={PIPELINE[0]} />
+          <Connector />
+          <PipelineNode stage={PIPELINE[1]} />
+          <Connector />
+          <PipelineNode stage={PIPELINE[2]} emphasized />
+          <Connector />
+          <PipelineNode stage={PIPELINE[3]} />
+
+          <div className="col-start-5 flex justify-center py-1">
+            <div className="h-6 w-px bg-border" />
+          </div>
+
+          <div className="col-start-5">
+            <PipelineNode stage={DESKTOP} optional />
+          </div>
+        </div>
+
+        <ol className="mt-12 flex flex-col gap-3 lg:hidden">
+          {PIPELINE.map((stage) => {
+            const Icon = stage.icon;
+            return (
+              <li
+                key={stage.label}
+                className="flex items-center gap-4 rounded-[var(--radius-lg)] border border-border bg-background/60 p-4"
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-border bg-muted/30 text-muted-foreground">
+                  <Icon className="size-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium">{stage.label}</p>
+                  <p className="text-xs text-muted-foreground">{stage.detail}</p>
+                </div>
+              </li>
+            );
+          })}
+          <li className="ml-4 flex items-center gap-4 rounded-[var(--radius-lg)] border border-primary/30 bg-primary/[0.04] p-4">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-primary/30 bg-primary/10 text-primary">
+              <LayoutDashboard className="size-4" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">{DESKTOP.label}</p>
+                <Badge variant="outline" className="border-border text-[10px] text-muted-foreground">
+                  Optional
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">{DESKTOP.detail}</p>
+            </div>
+          </li>
         </ol>
       </div>
     </section>

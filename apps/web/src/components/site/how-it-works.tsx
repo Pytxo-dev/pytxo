@@ -30,7 +30,7 @@ export function HowItWorks() {
         <div className="max-w-xl">
           <h2 className="text-3xl sm:text-4xl">Up and running in three steps</h2>
           <p className="mt-3 text-muted-foreground">
-            No cloud signup. No terminal grid. A local coordinator on your machine.
+            No cloud signup. No terminal grid. A local agent hypervisor on your machine.
           </p>
         </div>
 

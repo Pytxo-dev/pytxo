@@ -37,7 +37,7 @@ Canonical product and engineering terms for Pytxo. Prefer plain language in mark
 | **Token arbitrage** | Pro-tier cloud context cache ([[token-arbitrage]]) |
 | **Blast radius** | Structural footprint of an agent’s edits on the AST graph |
 | **Permission profile** | Local capability ladder (`DeepSpace` … `Supernova`); not FidelityTier or subscription tier ([[permission-profile-engine]]) |
-| **Deep Space** | Permission profile Tier 1 — air-gapped process directory |
+| **DeepSpace** | Permission profile Tier 1 — air-gapped process directory (written as one word; occasionally seen as "Deep Space" in older prose) |
 | **Orbit** | Permission profile Tier 2 — default engineering; CoW bubble, approve-to-flush |
 | **Galaxy** | Permission profile Tier 3 — host tools + HITL for high-risk actions |
 | **Supernova** | Permission profile Tier 4 — full host user privileges |

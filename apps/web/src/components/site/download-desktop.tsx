@@ -128,7 +128,6 @@ export function DownloadDesktop() {
                 variant={suggested ? "default" : "outline"}
                 className={cn(
                   "shrink-0 pointer-events-none",
-                  suggested && "chroma-glow",
                   !suggested && "border-border",
                 )}
                 tabIndex={-1}

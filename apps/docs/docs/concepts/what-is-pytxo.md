@@ -4,7 +4,7 @@ title: What is Pytxo?
 
 # What is Pytxo?
 
-Pytxo runs and coordinates the coding agents you already use. It is built for throughput: schedule work, keep agents from colliding, and show what changed. It is not a browser full of terminal panes.
+Pytxo runs and coordinates the coding agents you already use. It is a local **agent hypervisor**: schedule work, keep agents from colliding, show what changed, and let you approve merges. It is not a browser full of terminal panes.
 
 ## The problem
 

@@ -29,7 +29,7 @@ ADR: [[ADR-0008-local-permission-profile-four-tiers]].
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PermissionProfile {
-    /// Tier 1 — Deep Space: air-gapped process directory
+    /// Tier 1 — DeepSpace: air-gapped process directory
     DeepSpace,
     /// Tier 2 — Orbit: default engineering; CoW bubble, approve-to-flush
     #[default]
@@ -105,7 +105,7 @@ Presentation ([[presentation-passive-telemetry]]) never enforces policy—only d
 
 | Profile | Codename | Typical use |
 |---------|----------|-------------|
-| `deep_space` | Deep Space | Untrusted codegen, air-gapped review |
+| `deep_space` | DeepSpace | Untrusted codegen, air-gapped review |
 | `orbit` | Orbit | Day-to-day engineering (default) |
 | `galaxy` | Galaxy | Integration tests against local Docker/DB |
 | `supernova` | Supernova | Production deploy scripts, global package managers |

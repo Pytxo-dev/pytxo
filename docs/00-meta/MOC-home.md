@@ -79,6 +79,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[modular-projects]] — multi-path workspaces (Antigravity-style)
 - [[tiers-hobbyist-pro-max]] · [[token-arbitrage]]
 - [[gtm-open-source-loop]] · [[competitive-benchmarks]]
+- [[desktop-ui-improvement-backlog]] — prioritized Pytxo Desktop UI findings
 
 ### ADRs
 

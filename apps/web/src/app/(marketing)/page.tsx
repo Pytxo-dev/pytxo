@@ -15,7 +15,7 @@ import { ProblemSection } from "@/components/site/problem-section";
 const FAQ = [
   {
     q: "Is Pytxo an IDE or a cloud workspace?",
-    a: "Neither. Pytxo is a local coordinator for coding agents: it runs the tools you already use in the background, schedules their work, and shows what changed. Your editor stays your editor.",
+    a: "Neither. Pytxo is a local agent hypervisor: it runs the tools you already use in the background, schedules their work, shows what changed, and lets you approve merges. Your editor stays your editor.",
   },
   {
     q: "Which agents are supported?",

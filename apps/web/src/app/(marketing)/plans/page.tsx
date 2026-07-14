@@ -21,7 +21,7 @@ const ROADMAP = [
       "Local agent swarms (BYOK)",
     ],
     detail:
-      "The full local coordinator ships open source. Install the CLI and run agents today.",
+      "The full local agent hypervisor ships open source. Install the CLI and run agents today.",
     plan: null as null,
     featured: true,
   },
@@ -77,7 +77,7 @@ export default function PlansPage() {
           sandboxes.
         </p>
         <div className="mt-2 flex flex-wrap gap-3">
-          <Button size="lg" className="chroma-glow" asChild>
+          <Button size="lg" asChild>
             <Link href="/download">Download Pytxo</Link>
           </Button>
           <Button size="lg" variant="outline" className="border-border" asChild>
@@ -107,7 +107,7 @@ export default function PlansPage() {
               detail={tier.detail}
             />
             {tier.plan ? (
-              <Button className="chroma-glow w-full" asChild>
+              <Button className="w-full" asChild>
                 <Link href={`/api/billing/checkout-redirect?plan=${tier.plan}`}>
                   Subscribe to {tier.name}
                 </Link>

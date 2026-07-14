@@ -4,7 +4,7 @@ import type * as Preset from "@docusaurus/preset-classic";
 
 const config: Config = {
   title: "Pytxo Docs",
-  tagline: "Local coordinator for coding agents",
+  tagline: "Local agent hypervisor for coding agents",
   favicon: "img/favicon.ico",
 
   future: {

@@ -21,7 +21,7 @@ export function Hero() {
           </p>
           <InstallSnippet className="max-w-md">{NPM_INSTALL}</InstallSnippet>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button size="lg" className="chroma-glow min-w-[10rem]" asChild>
+            <Button size="lg" className="min-w-[10rem]" asChild>
               <Link href="/download">Download</Link>
             </Button>
             <Button

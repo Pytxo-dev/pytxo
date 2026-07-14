@@ -78,7 +78,7 @@ export function SiteHeader() {
 
         <div className="flex items-center gap-2">
           <HeaderAuth />
-          <Button size="sm" className="hidden chroma-glow sm:inline-flex" asChild>
+          <Button size="sm" className="hidden sm:inline-flex" asChild>
             <Link href="/download">Download</Link>
           </Button>
 
