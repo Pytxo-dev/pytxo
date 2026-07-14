@@ -8,10 +8,11 @@ mod ipc_voice;
 
 use ipc::{
     agent_arbitrage, commit_workspace, dispatch_run_cmd, dry_run, ensure_workspace,
-    fleet_run_status_cmd, git_diff, hitl_respond, list_agents, list_all_domains, list_domains_cmd,
-    list_domains_status, list_fleet_runs, list_hitl, list_hitl_all, list_projects, list_runs,
-    poll_log_lines, project_add_root_cmd, project_remove_root_cmd, project_roots_cmd,
-    select_domain, stop_run, structural_graph, tail_events, workspace_structural_graph, AppState,
+    fleet_run_status_cmd, forget_domain, git_diff, hitl_respond, list_agents, list_all_domains,
+    list_domains_cmd, list_domains_status, list_fleet_runs, list_hitl, list_hitl_all,
+    list_projects, list_runs, poll_log_lines, project_add_root_cmd, project_remove_root_cmd,
+    project_roots_cmd, select_domain, stop_run, structural_graph, tail_events,
+    workspace_structural_graph, AppState,
 };
 use ipc_auth::{auth_clear_session, auth_open_sign_in, auth_status, auth_store_session};
 use ipc_flow::{
@@ -19,7 +20,7 @@ use ipc_flow::{
     flow_save_reviewed_plan,
 };
 use ipc_install::{install_pytxo_cli, install_pytxo_cli_status, pick_workspace_folder};
-use ipc_meta::{check_pytxo_cli, entitlement_status, ipc_version};
+use ipc_meta::{check_pytxo_cli, entitlement_status, ipc_version, list_ade_clis};
 use ipc_voice::{
     voice_cancel_session, voice_default_model, voice_finish_session, voice_get_session,
     voice_install_default_model, voice_list_devices, voice_local_available, voice_model_status,
@@ -43,6 +44,13 @@ pub fn run() {
         }));
     }
 
+    // Verification-only bridge for the Tauri MCP driver; requires the opt-in
+    // `mcp-bridge` feature and never runs in a release build.
+    #[cfg(all(feature = "mcp-bridge", debug_assertions))]
+    {
+        builder = builder.plugin(tauri_plugin_mcp_bridge::init());
+    }
+
     builder
         .plugin(tauri_plugin_deep_link::init())
         .manage(AppState {
@@ -57,6 +65,7 @@ pub fn run() {
             list_domains_cmd,
             list_all_domains,
             list_domains_status,
+            forget_domain,
             ensure_workspace,
             select_domain,
             list_runs,
@@ -86,6 +95,7 @@ pub fn run() {
             install_pytxo_cli_status,
             pick_workspace_folder,
             entitlement_status,
+            list_ade_clis,
             auth_status,
             auth_store_session,
             auth_clear_session,

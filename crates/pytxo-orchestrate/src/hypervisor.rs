@@ -242,10 +242,18 @@ pub struct CatalogEntryStatus {
     pub latest_run_status: Option<String>,
     pub latest_started_at: Option<String>,
     pub hitl_pending: usize,
+    /// `repo_root` still exists on disk. False typically means a moved/deleted
+    /// repository, or (before v0.5.0's test isolation fix) a leftover tempdir.
+    pub is_available: bool,
+    /// `repo_root` resolves inside the OS temp directory — almost always a stale
+    /// test artifact rather than a real workspace the operator opened.
+    pub is_temporary: bool,
 }
 
 impl From<pytxo_store::CatalogEntry> for CatalogEntryStatus {
     fn from(e: pytxo_store::CatalogEntry) -> Self {
+        let is_available = Path::new(&e.repo_root).exists();
+        let is_temporary = is_temporary_path(&e.repo_root);
         Self {
             domain_id: e.domain_id,
             repo_root: e.repo_root,
@@ -257,8 +265,39 @@ impl From<pytxo_store::CatalogEntry> for CatalogEntryStatus {
             latest_run_status: None,
             latest_started_at: None,
             hitl_pending: 0,
+            is_available,
+            is_temporary,
         }
     }
+}
+
+/// Heuristic: does `path` resolve inside the OS temp directory? Catches
+/// `tempfile`-crate test fixtures regardless of their random prefix.
+fn is_temporary_path(path: &str) -> bool {
+    let candidate = Path::new(path);
+    let temp_dir = std::env::temp_dir();
+    if candidate.starts_with(&temp_dir) || dunce_lossy(candidate).starts_with(&dunce_lossy(&temp_dir)) {
+        return true;
+    }
+    // `std::env::temp_dir()` returns the raw TEMP/TMP value, which Windows
+    // commonly sets to an 8.3 short path (e.g. `MATTBA~1`) even though
+    // `ensure_domain` canonicalizes `repo_root` to its long form before
+    // storing it. Canonicalize the (always-present) temp root itself to
+    // resolve that mismatch; `repo_root` may point at an already-deleted
+    // tempdir, so only the temp root — never `candidate` — is canonicalized.
+    match std::fs::canonicalize(&temp_dir) {
+        Ok(canonical) => {
+            candidate.starts_with(&canonical)
+                || dunce_lossy(candidate).starts_with(&dunce_lossy(&canonical))
+        }
+        Err(_) => false,
+    }
+}
+
+/// Best-effort case/prefix-insensitive comparison for Windows short-path and
+/// `\\?\` long-path prefix differences between `temp_dir()` and stored paths.
+fn dunce_lossy(p: &Path) -> String {
+    p.to_string_lossy().trim_start_matches(r"\\?\").to_ascii_lowercase()
 }
 
 /// Enriched catalog for hypervisor dashboard ([[execution-domains]] Phase 3).
@@ -290,6 +329,30 @@ pub fn list_catalog_domains_enriched() -> anyhow::Result<Vec<CatalogEntryStatus>
     Ok(out)
 }
 
+/// Remove a domain from the global catalog only (`~/.pytxo/hypervisor.db`).
+/// Never touches the repository on disk or the domain's own per-repo store.
+/// Refuses when the domain has active runs or pending HITL approvals so an
+/// operator cannot accidentally hide work still in flight.
+pub fn forget_catalog_domain(domain_id: &str) -> anyhow::Result<()> {
+    let rows = list_catalog_domains_enriched()?;
+    let row = rows
+        .iter()
+        .find(|r| r.domain_id == domain_id)
+        .ok_or_else(|| anyhow::anyhow!("domain not found in catalog: {domain_id}"))?;
+    if row.active_runs > 0 {
+        anyhow::bail!("cannot forget domain with {} active run(s)", row.active_runs);
+    }
+    if row.hitl_pending > 0 {
+        anyhow::bail!(
+            "cannot forget domain with {} pending approval(s)",
+            row.hitl_pending
+        );
+    }
+    let cat = pytxo_store::Catalog::open_default().map_err(|e| anyhow::anyhow!(e))?;
+    cat.delete_domain(domain_id).map_err(|e| anyhow::anyhow!(e))?;
+    Ok(())
+}
+
 static DEFAULT_HYPERVISOR: OnceLock<HypervisorRegistry> = OnceLock::new();
 
 pub fn default_hypervisor() -> &'static HypervisorRegistry {
@@ -299,9 +362,26 @@ pub fn default_hypervisor() -> &'static HypervisorRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::OnceLock;
+
+    /// `dispatch_with_config_snapshot` best-effort-registers the domain in the
+    /// real `~/.pytxo/hypervisor.db` catalog via `register_in_catalog`. Point
+    /// `PYTXO_HOME` at a throwaway directory once per test process so this
+    /// tempdir repo never pollutes the developer's actual catalog.
+    fn isolate_pytxo_home() {
+        static HOME: OnceLock<()> = OnceLock::new();
+        HOME.get_or_init(|| {
+            let dir = tempfile::tempdir().expect("pytxo home tempdir");
+            let path = dir.path().to_path_buf();
+            std::mem::forget(dir);
+            // SAFETY: test-only; isolates the hypervisor catalog from the developer's ~/.pytxo store.
+            unsafe { std::env::set_var("PYTXO_HOME", &path) };
+        });
+    }
 
     #[test]
     fn snapshot_dispatch_does_not_reload_changed_config() {
+        isolate_pytxo_home();
         let repo = tempfile::tempdir().unwrap();
         let cfg = PytxoConfig::default();
         fs::write(repo.path().join("pytxo.toml"), "this is not valid toml").unwrap();
@@ -322,5 +402,26 @@ mod tests {
         HypervisorRegistry::new()
             .dispatch_with_config_snapshot(opts, cfg)
             .expect("validated snapshot must be used without reloading pytxo.toml");
+    }
+
+    #[test]
+    fn is_temporary_path_detects_tempdir_even_through_short_path_form() {
+        // On Windows, `std::env::temp_dir()` returns the raw TEMP/TMP value,
+        // which is frequently an 8.3 short path (e.g. `MATTBA~1`), while
+        // `ensure_domain` stores a canonicalized (long-form) `repo_root`.
+        // Round-tripping through `canonicalize` reproduces that mismatch
+        // regardless of how this specific machine's temp path is configured.
+        let dir = tempfile::tempdir().unwrap();
+        let stored = std::fs::canonicalize(dir.path()).unwrap_or_else(|_| dir.path().to_path_buf());
+        assert!(
+            is_temporary_path(&stored.to_string_lossy()),
+            "canonicalized tempdir path {stored:?} must be detected as temporary"
+        );
+    }
+
+    #[test]
+    fn is_temporary_path_rejects_paths_outside_the_temp_root() {
+        let workspace = env!("CARGO_MANIFEST_DIR");
+        assert!(!is_temporary_path(workspace));
     }
 }

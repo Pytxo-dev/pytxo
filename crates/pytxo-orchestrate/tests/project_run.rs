@@ -18,6 +18,20 @@ fn shared_trust_store() -> &'static PathBuf {
     })
 }
 
+/// `project_run` registers every project root in the real `~/.pytxo/hypervisor.db`
+/// catalog. Point `PYTXO_HOME` at a throwaway directory once per test process so
+/// these tempdir projects never pollute the developer's actual catalog.
+fn isolate_pytxo_home() {
+    static HOME: OnceLock<()> = OnceLock::new();
+    HOME.get_or_init(|| {
+        let dir = TempDir::new().expect("pytxo home tempdir");
+        let path = dir.path().to_path_buf();
+        std::mem::forget(dir);
+        // SAFETY: test-only; isolates the hypervisor catalog from the developer's ~/.pytxo store.
+        unsafe { std::env::set_var("PYTXO_HOME", &path) };
+    });
+}
+
 fn init_git_repo(path: &std::path::Path) {
     for args in [
         vec!["init"],
@@ -59,6 +73,7 @@ fn trust(path: &std::path::Path) {
 
 #[tokio::test]
 async fn unified_project_run_includes_writable_roots() {
+    isolate_pytxo_home();
     let api = TempDir::new().unwrap();
     let web = TempDir::new().unwrap();
     let protos = TempDir::new().unwrap();
@@ -117,6 +132,7 @@ read_only = true
 
 #[tokio::test]
 async fn live_project_run_tags_wal_with_project_and_root() {
+    isolate_pytxo_home();
     let api = TempDir::new().unwrap();
     init_git_repo(api.path());
 
@@ -186,6 +202,7 @@ primary = true
 
 #[tokio::test]
 async fn multi_root_agents_share_run_id_and_distinct_root_ids() {
+    isolate_pytxo_home();
     let api = TempDir::new().unwrap();
     let web = TempDir::new().unwrap();
     init_git_repo(api.path());
@@ -301,6 +318,7 @@ label = "web"
 async fn project_status_lists_deduped_root_ids() {
     use pytxo_orchestrate::project_status;
 
+    isolate_pytxo_home();
     let api = TempDir::new().unwrap();
     let web = TempDir::new().unwrap();
     init_git_repo(api.path());

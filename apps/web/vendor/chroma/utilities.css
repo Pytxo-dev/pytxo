@@ -1,13 +1,15 @@
 /**
  * Pytxo Chroma utility classes — framework-agnostic (no Tailwind @apply).
- * Restrained teal/violet palette; cyan/magenta/gold are not default accents.
+ * Logo ribbon cycle: magenta → violet → gold → teal/cyan.
  */
 
 .nebula-bg {
   background-color: var(--void);
   background-image:
-    radial-gradient(ellipse 90% 55% at 12% -8%, color-mix(in oklab, var(--brand-violet) 8%, transparent), transparent 58%),
-    radial-gradient(ellipse 60% 45% at 88% 8%, color-mix(in oklab, var(--brand-teal) 6%, transparent), transparent 52%);
+    radial-gradient(ellipse 90% 55% at 12% -8%, color-mix(in oklab, var(--brand-magenta) 9%, transparent), transparent 58%),
+    radial-gradient(ellipse 70% 50% at 50% -12%, color-mix(in oklab, var(--brand-violet) 8%, transparent), transparent 55%),
+    radial-gradient(ellipse 55% 42% at 92% 6%, color-mix(in oklab, var(--brand-teal) 7%, transparent), transparent 50%),
+    radial-gradient(ellipse 45% 35% at 78% 28%, color-mix(in oklab, var(--brand-cyan) 5%, transparent), transparent 48%);
 }
 
 .nebula-noise {
@@ -40,9 +42,11 @@
   border-radius: inherit;
   background: linear-gradient(
     135deg,
-    color-mix(in oklab, var(--brand-teal) 70%, transparent),
-    color-mix(in oklab, var(--brand-violet) 55%, transparent),
-    color-mix(in oklab, var(--brand-teal) 40%, transparent)
+    color-mix(in oklab, var(--brand-magenta) 65%, transparent),
+    color-mix(in oklab, var(--brand-violet) 60%, transparent),
+    color-mix(in oklab, var(--brand-gold) 45%, transparent),
+    color-mix(in oklab, var(--brand-teal) 55%, transparent),
+    color-mix(in oklab, var(--brand-cyan) 50%, transparent)
   );
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
@@ -59,18 +63,32 @@
 .text-gradient-brand {
   background: linear-gradient(
     105deg,
-    var(--brand-teal) 0%,
-    color-mix(in oklab, var(--brand-violet) 85%, white) 100%
+    var(--brand-magenta) 0%,
+    var(--brand-violet) 28%,
+    var(--brand-gold) 55%,
+    var(--brand-teal) 78%,
+    var(--brand-cyan) 100%
   );
+  background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
+.chroma-shift {
+  animation: chroma-shift 12s ease-in-out infinite;
+}
+
+.chroma-text.chroma-shift,
+.text-gradient-brand.chroma-shift {
+  animation: chroma-shift 12s ease-in-out infinite;
+}
+
 .chroma-glow {
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--brand-teal) 22%, transparent),
-    0 10px 36px -10px color-mix(in oklab, var(--brand-violet) 28%, transparent);
+    0 0 0 1px color-mix(in oklab, var(--brand-magenta) 18%, transparent),
+    0 10px 36px -10px color-mix(in oklab, var(--brand-violet) 26%, transparent),
+    0 8px 28px -12px color-mix(in oklab, var(--brand-teal) 20%, transparent);
 }
 
 .chroma-edge-top {
@@ -81,13 +99,91 @@
   background: linear-gradient(
     90deg,
     transparent,
+    color-mix(in oklab, var(--brand-magenta) 45%, transparent),
+    color-mix(in oklab, var(--brand-violet) 40%, transparent),
+    color-mix(in oklab, var(--brand-gold) 35%, transparent),
     color-mix(in oklab, var(--brand-teal) 40%, transparent),
-    color-mix(in oklab, var(--brand-violet) 35%, transparent),
+    color-mix(in oklab, var(--brand-cyan) 35%, transparent),
     transparent
   );
+  background-size: 200% 100%;
   height: 1px;
+  animation: chroma-shift 14s ease-in-out infinite;
+}
+
+.hero-logo-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: color-mix(in oklab, var(--card) 55%, transparent);
+  min-height: 18rem;
+}
+
+.hero-logo-panel::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 30% 35%, color-mix(in oklab, var(--brand-magenta) 22%, transparent), transparent 42%),
+    radial-gradient(circle at 62% 28%, color-mix(in oklab, var(--brand-violet) 20%, transparent), transparent 40%),
+    radial-gradient(circle at 55% 68%, color-mix(in oklab, var(--brand-gold) 14%, transparent), transparent 38%),
+    radial-gradient(circle at 72% 55%, color-mix(in oklab, var(--brand-teal) 18%, transparent), transparent 42%),
+    radial-gradient(circle at 40% 75%, color-mix(in oklab, var(--brand-cyan) 12%, transparent), transparent 36%);
+  animation: hero-wash 16s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.hero-logo-mark {
+  position: relative;
+  z-index: 1;
+  animation: hero-logo-float 8s ease-in-out infinite;
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+@keyframes chroma-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes hero-wash {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(2%, -1.5%, 0) scale(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes hero-logo-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chroma-shift,
+  .chroma-text.chroma-shift,
+  .text-gradient-brand.chroma-shift,
+  .header-chroma-line,
+  .hero-logo-panel::before,
+  .hero-logo-mark {
+    animation: none;
+  }
 }

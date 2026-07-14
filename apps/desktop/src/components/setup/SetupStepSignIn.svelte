@@ -60,7 +60,7 @@
 
   {#if signedIn}
     <p class="ok">Signed in</p>
-    <Button onclick={onContinue}>Continue</Button>
+    <Button class="signin-cta" onclick={onContinue}>Continue</Button>
   {:else}
     {#if waiting}
       <p class="waiting" role="status">Waiting for browser sign-in…</p>
@@ -73,8 +73,8 @@
         Open account help
       </a>
     {/if}
-    <Button onclick={signIn}>{waiting ? "Open sign-in again" : "Sign in with Pytxo"}</Button>
-    <Button variant="ghost" onclick={onSkip}>Skip for now</Button>
+    <Button class="signin-cta" onclick={signIn}>{waiting ? "Open sign-in again" : "Sign in with Pytxo"}</Button>
+    <Button class="signin-cta" variant="ghost" onclick={onSkip}>Skip for now</Button>
   {/if}
 </div>
 
@@ -118,7 +118,9 @@
     font-size: 0.85rem;
     color: var(--primary);
   }
-  :global(.step button) {
+  /* Named (not `.step button`) so this never leaks a min-width onto buttons
+     rendered by other setup steps that also use the shared `.step` wrapper. */
+  :global(.signin-cta) {
     min-width: 220px;
   }
 </style>

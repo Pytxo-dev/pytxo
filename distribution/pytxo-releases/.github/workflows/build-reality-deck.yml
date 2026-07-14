@@ -25,13 +25,13 @@ jobs:
         include:
           - os: ubuntu-22.04
             rust_target: x86_64-unknown-linux-gnu
-            asset_prefix: pytxo-reality-deck-linux-x64
+            asset_prefix: pytxo-desktop-linux-x64
           - os: macos-latest
             rust_target: aarch64-apple-darwin
-            asset_prefix: pytxo-reality-deck-darwin-arm64
+            asset_prefix: pytxo-desktop-darwin-arm64
           - os: macos-latest
             rust_target: x86_64-apple-darwin
-            asset_prefix: pytxo-reality-deck-darwin-x64
+            asset_prefix: pytxo-desktop-darwin-x64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     steps:
@@ -73,18 +73,18 @@ jobs:
         working-directory: apps/desktop
         run: npm ci
 
-      - name: Disable updater artifacts when unsigned
+      - name: Configure updater artifacts to match signing availability
         shell: bash
         run: |
-          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
-            node -e "
-            const fs = require('fs');
-            const p = 'apps/desktop/src-tauri/tauri.conf.json';
-            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-            j.bundle.createUpdaterArtifacts = false;
-            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
-            "
-          fi
+          HAS_KEY="false"
+          if [ -n "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then HAS_KEY="true"; fi
+          node -e "
+          const fs = require('fs');
+          const p = 'apps/desktop/src-tauri/tauri.conf.json';
+          const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+          j.bundle.createUpdaterArtifacts = process.argv[1] === 'true';
+          fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+          " "$HAS_KEY"
 
       - name: Build Tauri bundles
         working-directory: apps/desktop
@@ -109,7 +109,7 @@ jobs:
       - name: Download desktop artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: pytxo-reality-deck-*
+          pattern: pytxo-desktop-*
           path: desktop-dist
           merge-multiple: true
 
@@ -120,9 +120,9 @@ jobs:
           find desktop-dist -type f \( -name '*.dmg' -o -name '*.AppImage' \) | while read -r f; do
             base="$(basename "$f")"
             case "$base" in
-              *aarch64*.dmg|*arm64*.dmg) dest="pytxo-reality-deck-darwin-arm64.dmg" ;;
-              *x86_64*.dmg|*x64*.dmg) dest="pytxo-reality-deck-darwin-x64.dmg" ;;
-              *.AppImage) dest="pytxo-reality-deck-linux-x64.AppImage" ;;
+              *aarch64*.dmg|*arm64*.dmg) dest="pytxo-desktop-darwin-arm64.dmg" ;;
+              *x86_64*.dmg|*x64*.dmg) dest="pytxo-desktop-darwin-x64.dmg" ;;
+              *.AppImage) dest="pytxo-desktop-linux-x64.AppImage" ;;
               *) continue ;;
             esac
             cp "$f" "dist/$dest"

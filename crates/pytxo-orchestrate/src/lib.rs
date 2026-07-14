@@ -42,8 +42,9 @@ pub use flow::{
     FlowBlockedReason, FlowDraftInput, FlowPlan, FlowPlanTask, FlowSource, FlowStatus, FlowWarning,
 };
 pub use hypervisor::{
-    default_hypervisor, list_catalog_domains, list_catalog_domains_enriched, CatalogEntryStatus,
-    DomainState, DomainSummary, HypervisorRegistry,
+    default_hypervisor, forget_catalog_domain, list_catalog_domains,
+    list_catalog_domains_enriched, CatalogEntryStatus, DomainState, DomainSummary,
+    HypervisorRegistry,
 };
 pub use preflight::assert_git_ready;
 pub use project::{

@@ -18,6 +18,14 @@ pub struct EntitlementStatusDto {
     pub subscription_portal_url: Option<String>,
 }
 
+#[derive(Serialize)]
+pub struct AdeCliStatusDto {
+    pub id: String,
+    pub display_name: String,
+    pub default_cmd: String,
+    pub installed: bool,
+}
+
 #[tauri::command]
 pub fn ipc_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
@@ -26,6 +34,20 @@ pub fn ipc_version() -> String {
 #[tauri::command]
 pub fn check_pytxo_cli() -> bool {
     crate::ipc_install::cli_binary_usable()
+}
+
+/// Real on-disk detection for every registered ADE CLI (Integrations screen).
+#[tauri::command]
+pub fn list_ade_clis() -> Vec<AdeCliStatusDto> {
+    pytxo_core::all_ade_clis()
+        .iter()
+        .map(|spec| AdeCliStatusDto {
+            id: spec.id.to_string(),
+            display_name: spec.display_name.to_string(),
+            default_cmd: spec.default_cmd.to_string(),
+            installed: pytxo_core::ade_on_path(spec),
+        })
+        .collect()
 }
 
 #[tauri::command]

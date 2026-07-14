@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  AdeCliStatusDto,
   AgentArbitrageDto,
   AgentDto,
   CatalogEntry,
@@ -13,7 +14,7 @@ import type {
   RunDto,
 } from "./types";
 
-export const IPC_VERSION = "0.4.0";
+export const IPC_VERSION = "0.5.0";
 
 export const AUTH_CHANGED_EVENT = "deck-auth-changed";
 export const DEEP_LINK_EVENT = "pytxo-deep-link";
@@ -48,10 +49,15 @@ export const ipc = {
   listDomains: () => invoke<DomainDto[]>("list_domains_cmd").then(unwrap),
   listAllDomains: () =>
     invoke<CatalogEntry[]>("list_all_domains").then(unwrap).catch(() => [] as CatalogEntry[]),
-  listDomainsStatus: () =>
-    invoke<CatalogEntryStatus[]>("list_domains_status")
-      .then(unwrap)
-      .catch(() => [] as CatalogEntryStatus[]),
+  /**
+   * Deliberately non-catching: this is the primary "is the hypervisor
+   * reachable" signal for the Desktop 2 shell. Swallowing failures here would
+   * make a genuine backend outage indistinguishable from an honest empty
+   * catalog. Callers that want a resilient fallback should catch explicitly.
+   */
+  listDomainsStatus: () => invoke<CatalogEntryStatus[]>("list_domains_status").then(unwrap),
+  forgetDomain: (domainId: string) =>
+    invoke<void>("forget_domain", { domainId }).then(unwrap),
   listProjects: () =>
     invoke<ProjectDto[]>("list_projects").then(unwrap).catch(() => [] as ProjectDto[]),
   selectDomain: (domainId: string) =>
@@ -118,6 +124,8 @@ export const ipc = {
       .then(unwrap)
       .catch(() => [] as AgentArbitrageDto[]),
   checkPytxoCli: () => invoke<boolean>("check_pytxo_cli").then(unwrap).catch(() => false),
+  listAdeClis: () =>
+    invoke<AdeCliStatusDto[]>("list_ade_clis").then(unwrap).catch(() => [] as AdeCliStatusDto[]),
   installPytxoCli: () =>
     invoke<{
       phase: string;

@@ -14,17 +14,19 @@ related: [[desktop-visual-system]], [[presentation-passive-telemetry]], [[produc
 
 ## Summary
 
-Pytxo Desktop (`apps/desktop`, Svelte 5 + Tauri v2, app version 0.3.5) is a functional, mostly mature control UI that already matches its own vision docs: the 3D AST topology is the primary surface, there is no multi-pane terminal wall, and the setup and workspace flows are complete. This note tracks concrete, code-referenced improvements found during a design review, ordered by priority. Nothing here is implemented yet — treat this as a project backlog, not a changelog.
+Pytxo Desktop (`apps/desktop`, Svelte 5 + Tauri v2, app version 0.5.0) is a functional, mostly mature control UI that already matches its own vision docs: the 3D AST topology is the primary surface in the legacy shell, there is no multi-pane terminal wall, and the setup and workspace flows are complete. This note tracks concrete, code-referenced improvements found during a design review, ordered by priority. Items closed by the v0.5.0 Desktop 2 polish pass are marked **Resolved in v0.5.0** with their current evidence; everything else is still an open backlog item, not a changelog.
+
+**v0.5.0 context:** the compact "Desktop 2" shell (`apps/desktop/src/components/desktop2/`) is now the default UI (`useLegacyShell` in `App.svelte` defaults to `false`); the original shell (`DeckShell.svelte` and friends, referenced throughout this note) is retained only as an opt-in rollback path. Several items below were superseded by the Desktop 2 rewrite rather than fixed in place in the legacy components.
 
 ## High priority
 
 ### 1. Title bar colors bypass the Chroma token system
 
-`apps/desktop/src/components/shell/TitleBar.svelte` hardcodes four raw hex colors (`#fbbf24` warn pill, `#34d399` live-status dot, `#c42b1c` close-button hover) instead of the shared `packages/chroma` tokens (`--brand-gold`, `--brand-cyan`, `--destructive`) that every other panel consumes. Effect: these spots do not repaint when the user switches between the `void` / `light` / `terminal` / `nebula` deck themes ([[desktop-visual-system]]), while the rest of the shell does. Fix: replace with `var(--brand-gold)`, `var(--brand-cyan)`, and `var(--destructive)`.
+**Resolved in v0.5.0.** `TitleBar.svelte` was rewritten for the v0.5.0 pass: it now renders only the brand mark and window controls, and the `.titlebar__pill` warn/live-status treatment that hardcoded `#fbbf24` / `#34d399` is gone entirely. The one remaining raw-color spot in the file (close-button hover) now uses `var(--destructive)`. No further action needed unless the pill concept is reintroduced.
 
 ### 2. Loaded entitlement data has no UI surface
 
-`App.svelte` fetches `walletMicrocredits`, `permissionCeiling`, `subscriptionPortalUrl`, `cloudRunBadge`, and `maxAgents`, but only `tier` renders, as a plain text pill in `TitleBar.svelte`. `apps/desktop/src/components/shell/DeckToolbar.svelte` exists specifically to display this data and has no call sites anywhere in the codebase. Today a user cannot see their wallet balance, permission ceiling, or cloud run status anywhere in the app. Fix: wire `DeckToolbar` into `DeckShell.svelte` or `TitleBar.svelte`, or delete it and design a replacement — either way, stop silently dropping this data.
+**Resolved in v0.5.0 (for the default shell).** In Desktop 2, `App.svelte` now passes `tier`, `signedIn`, `cliMissing`, and `subscriptionPortalUrl` into `DesktopShell.svelte`, which surfaces real account/tier state (and a route to Account settings) via `Sidebar.svelte`'s account footer instead of a hardcoded identity. Separately, the original claim that `DeckToolbar.svelte` "has no call sites anywhere in the codebase" is out of date — it is wired into `DeckWorkspace.svelte` with a `tier` prop. The legacy shell's wallet/permission-ceiling/cloud-run-badge surfacing is still unaddressed, but that shell is now an opt-in rollback path, not the default experience.
 
 ### 3. Docs claim a 2D topology fallback that no longer exists in code
 
@@ -39,27 +41,19 @@ Either is fine; leaving the mismatch between docs and code is not.
 
 ### 4. Title bar reimplements its own badge/pill styling
 
-`TitleBar.svelte`'s `.titlebar__pill` is a hand-rolled pill component, while `ActivitySidebar.svelte` and other panels use the shared shadcn-svelte `Badge` (`$lib/components/ui/badge`). Consolidate on one status-chip component so tier, demo-mode, CLI-missing, and future entitlement badges look and behave consistently.
+**Resolved in v0.5.0 (by removal).** The `.titlebar__pill` this item asks to consolidate no longer exists — see item 1. Still worth a look if a status-chip pattern reappears in Desktop 2: prefer one shared component over hand-rolled pills.
 
 ### 5. The 3D topology stage deserves flagship-level polish
 
-The topology view (`TopologyScene3D.svelte`) is the product's actual differentiator (per [[product-vision]], it is the reason Desktop exists instead of a terminal wall), but currently reads as a bare Three.js canvas. Concrete upgrades:
-
-- A cohesive on-canvas legend/HUD for node and edge color meaning (file / edited / symbol), instead of relying on users to infer it.
-- Subtle depth cues (fog or vignette) so the graph reads as a coherent space rather than floating primitives.
-- Confirm the Fit/Reset camera controls read as discoverable controls, not plain unstyled text buttons.
+**Still open, scope narrowed.** Desktop 2's Focus surface (`apps/desktop/src/components/desktop2/FocusScreen.svelte`) replaced the bare-canvas concern with a real-data structural graph / run-review view that does not use `TopologyScene3D.svelte` or Three.js at all — the v0.5.0 pass prioritized honest data and layout over 3D flagship polish. `TopologyScene3D.svelte` still exists, unpolished, in the legacy shell only. Decide whether the 3D stage remains a Desktop 2 goal or is fully superseded by the structural-graph approach before picking this back up.
 
 ### 6. Near-zero intentional motion anywhere in the app
 
-No transitions were found beyond instant state swaps (panel show/hide, tab switches). Add restrained, motivated motion only where it reinforces the product story:
-
-- Smooth expand/collapse for the telemetry log panel (`LogPanel.svelte`) and the workspace-settings drawer in `DeckWorkspace.svelte`.
-- A brief highlight pulse on a topology node when an agent just edited it — this directly reinforces the "live blast radius" narrative from [[product-vision]] instead of being decoration.
-- Respect `prefers-reduced-motion` throughout.
+**Resolved in v0.5.0 (for the default shell).** Desktop 2 now has 140–180ms transform/opacity/color transitions on clickable rows, cards, and buttons; hover/focus-visible/active/disabled states throughout `desktop2-shared.css`; and a user-controlled reduced-motion preference (`ui-prefs.svelte.ts` + `app.css`) that disables animation via `prefers-reduced-motion`-equivalent logic. The legacy shell's `LogPanel.svelte` and `DeckWorkspace.svelte` drawer were not touched and remain motion-free, consistent with that shell's rollback-only status.
 
 ### 7. No single icon library standard for Desktop
 
-Native window-chrome glyphs for minimize / maximize / close (`—`, `□`, `❐`, `×` in `TitleBar.svelte`) are fine as an OS convention. Audit the rest of the panels (`ActivitySidebar`, `InspectorPanel`, `ProjectPathPanel`) for ad hoc icon usage and standardize on one library, consistent within Desktop (it does not need to match the website's `lucide-react` choice, but it must be singular within this app).
+**Resolved in v0.5.0 (for the default shell).** Desktop 2 standardized on Tabler icons throughout (`@tabler/icons-svelte`), replacing ad hoc glyphs where a Tabler equivalent existed. The legacy shell's window-chrome glyphs and any of its remaining ad hoc icons were out of scope for this pass.
 
 ## Low priority / housekeeping
 

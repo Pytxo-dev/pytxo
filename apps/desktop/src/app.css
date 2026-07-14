@@ -81,11 +81,37 @@ html[data-chroma-theme="light"] {
   color-scheme: light;
 }
 
+/*
+ * Height chain for the frameless Tauri shell: every ancestor must resolve to
+ * a concrete height via `height: 100%` rather than `100vh`. Nested `100vh` +
+ * `calc()` + `min-height` combinations disagree with the actual WebView2
+ * client rect on maximize/restore on Windows, clipping the bottom of the
+ * app. Percentage heights always track the real box, so this chain must
+ * stay unbroken down to the Desktop 2 shell root.
+ */
+html,
+body {
+  height: 100%;
+}
+
+#app {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   font-family: "Geist", system-ui, -apple-system, sans-serif;
   background: var(--background);
   color: var(--text);
+}
+
+/* Explicit in-app override set from Settings → Appearance; layered on top of
+   the OS-level `prefers-reduced-motion` media query used elsewhere. */
+html[data-force-reduced-motion] * {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }
 
 /* Shared panel header — prefer shadcn primitives for new controls */

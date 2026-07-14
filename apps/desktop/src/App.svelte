@@ -10,6 +10,7 @@
     applyDeckTheme,
     isSetupComplete,
     loadTheme,
+    resetOnboarding,
     terminalThemeFor,
     type DeckTheme,
   } from "./lib/theme";
@@ -25,6 +26,7 @@
     openProjectAsWorkspace,
     type WorkspaceListItem,
   } from "./lib/workspace";
+  import { addWorkspaceRecent } from "./lib/navigation.svelte";
   import DeckShell from "./components/shell/DeckShell.svelte";
   import ProjectTabs from "./components/shell/ProjectTabs.svelte";
   import SetupWizard from "./components/setup/SetupWizard.svelte";
@@ -151,6 +153,26 @@
     const result = await openFolderAsWorkspace(path, tabs);
     tabs = result.tabs;
     await switchTab(result.tabId);
+  }
+
+  /**
+   * Onboarding's workspace step is shell-agnostic, but "open a workspace"
+   * means different things per shell: the legacy shell tracks open tabs,
+   * while Desktop 2 has no tab concept and instead just needs the domain
+   * registered and recorded as a sidebar recent.
+   */
+  async function onSetupWorkspaceSelected(path: string) {
+    if (useLegacyShell) {
+      await addWorkspaceTab(path);
+      return;
+    }
+    const domainId = await ipc.ensureWorkspace(path);
+    addWorkspaceRecent({ id: domainId, label: domainId.split(/[\\/]/).pop() ?? domainId, domainId });
+  }
+
+  function replayOnboarding() {
+    resetOnboarding();
+    showSetup = true;
   }
 
   async function openCatalogItem(item: WorkspaceListItem) {
@@ -412,11 +434,14 @@
     deckTheme = loadTheme();
     applyDeckTheme(deckTheme);
 
-    if (!useLegacyShell) return;
-
     authUnlisten = await onAuthChanged(() => {
       loadEntitlements();
     });
+    // Desktop 2 shows real account/entitlement state in its sidebar and
+    // Settings → Account & billing even though it has no active workspace tab.
+    void loadEntitlements();
+
+    if (!useLegacyShell) return;
 
     if (!showSetup) {
       await initDashboard();
@@ -440,7 +465,7 @@
 
 <DeckShell>
   {#if showSetup}
-    <SetupWizard onComplete={finishSetup} onWorkspaceSelected={addWorkspaceTab} />
+    <SetupWizard onComplete={finishSetup} onWorkspaceSelected={onSetupWorkspaceSelected} />
   {:else if useLegacyShell}
     <ProjectTabs
       {tabs}
@@ -494,6 +519,6 @@
       />
     {/if}
   {:else}
-    <DesktopShell />
+    <DesktopShell {tier} {signedIn} {cliMissing} {subscriptionPortalUrl} onReplayOnboarding={replayOnboarding} />
   {/if}
 </DeckShell>

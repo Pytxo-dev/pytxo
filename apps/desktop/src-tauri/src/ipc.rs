@@ -4,9 +4,9 @@ use std::sync::Mutex;
 
 use pytxo_core::PytxoConfig;
 use pytxo_orchestrate::{
-    commit_workspace_for_agent, default_hypervisor, dispatch_run, dry_run_json, fleet_run_status,
-    fleet_status, hitl_respond as orch_hitl_respond,
-    list_catalog_domains as orch_list_catalog_domains,
+    commit_workspace_for_agent, default_hypervisor, dispatch_run, dry_run_json,
+    forget_catalog_domain as orch_forget_domain, fleet_run_status, fleet_status,
+    hitl_respond as orch_hitl_respond, list_catalog_domains as orch_list_catalog_domains,
     list_catalog_domains_enriched as orch_list_domains_status, list_domains,
     list_hitl_pending as orch_list_hitl_pending,
     list_hitl_pending_all as orch_list_hitl_pending_all,
@@ -136,6 +136,14 @@ pub fn list_all_domains() -> IpcResult<Vec<CatalogEntry>> {
 #[tauri::command]
 pub fn list_domains_status() -> IpcResult<Vec<CatalogEntryStatus>> {
     orch_list_domains_status().map_err(map_orch_err)
+}
+
+/// Remove one stale/temporary domain reference from the global catalog only.
+/// Never deletes the repository on disk; refuses domains with active runs or
+/// pending approvals (see `pytxo_orchestrate::forget_catalog_domain`).
+#[tauri::command]
+pub fn forget_domain(domain_id: String) -> IpcResult<()> {
+    orch_forget_domain(&domain_id).map_err(map_orch_err)
 }
 
 /// Project manifests from `~/.pytxo/projects` for the Desktop Workspace picker.

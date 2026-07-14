@@ -41,7 +41,7 @@ function NavLabel({ label, badge }: { label: string; badge?: string }) {
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/70 backdrop-blur-xl">
+    <header className="z-50 shrink-0 border-b border-border bg-background/70 backdrop-blur-xl">
       <div className="header-chroma-line absolute inset-x-0 top-0 h-px opacity-80" aria-hidden />
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">

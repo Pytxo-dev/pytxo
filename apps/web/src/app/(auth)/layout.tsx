@@ -5,7 +5,7 @@ import { NebulaShell } from "@/components/site/nebula-shell";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <NebulaShell subtle className="flex min-h-svh flex-col">
+    <NebulaShell subtle className="flex h-dvh flex-col overflow-y-auto">
       <header className="flex items-center justify-between px-4 py-4 sm:px-6">
         <Link href="/" className="text-sm font-semibold tracking-tight text-foreground">
           Pytxo

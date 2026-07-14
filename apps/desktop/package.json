@@ -1,7 +1,7 @@
 {
   "name": "pytxo-desktop",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,9 @@
     "icons": "node ../../tooling/scripts/generate-deck-icons.mjs",
     "e2e": "playwright test",
     "storybook": "storybook dev -p 6006 --no-open",
-    "storybook:build": "storybook build"
+    "storybook:build": "storybook build",
+    "storybook:test": "test-storybook",
+    "storybook:test:ci": "concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"http-server storybook-static --port 6006 --silent\" \"wait-on tcp:127.0.0.1:6006 && test-storybook --url http://127.0.0.1:6006 --maxWorkers=1\""
   },
   "dependencies": {
     "@fontsource/geist": "^5.2.9",
@@ -33,15 +35,19 @@
     "@playwright/test": "^1.52.0",
     "@storybook/addon-a11y": "^10.5.0",
     "@storybook/svelte-vite": "^10.5.0",
+    "@storybook/test-runner": "^0.24.4",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@tailwindcss/vite": "^4.1.8",
     "@tsconfig/svelte": "^5.0.4",
     "@types/three": "^0.172.0",
+    "concurrently": "^10.0.3",
+    "http-server": "^14.1.1",
     "storybook": "^10.5.0",
     "svelte": "^5.19.0",
     "svelte-check": "^4.1.4",
     "tailwindcss": "^4.1.8",
     "typescript": "^5.7.3",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "wait-on": "^9.0.10"
   }
 }

@@ -182,6 +182,17 @@ impl Catalog {
         Ok(())
     }
 
+    /// Remove one domain reference from the global catalog. This only deletes the
+    /// catalog row (`~/.pytxo/hypervisor.db`); it never touches the repository on
+    /// disk or the domain's own per-repo store/WAL.
+    pub fn delete_domain(&self, domain_id: &str) -> Result<bool> {
+        let changed = self
+            .conn
+            .execute("DELETE FROM domains WHERE domain_id = ?1", params![domain_id])
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        Ok(changed > 0)
+    }
+
     pub fn list_domains(&self) -> Result<Vec<CatalogEntry>> {
         let mut stmt = self
             .conn
@@ -599,8 +610,14 @@ fn map_fleet_run(row: &rusqlite::Row<'_>) -> rusqlite::Result<FleetRunRecord> {
 }
 
 /// Default catalog path: `~/.pytxo/hypervisor.db`.
+///
+/// `PYTXO_HOME` takes priority over `HOME`/`USERPROFILE` so tests and other
+/// isolated invocations never write into the operator's real catalog. Prefer
+/// this override (rather than mutating `HOME`) in new test code; it cannot
+/// race with unrelated env var reads on other threads.
 pub fn default_catalog_path() -> Option<PathBuf> {
-    std::env::var_os("HOME")
+    std::env::var_os("PYTXO_HOME")
+        .or_else(|| std::env::var_os("HOME"))
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
         .map(|h| h.join(".pytxo").join("hypervisor.db"))

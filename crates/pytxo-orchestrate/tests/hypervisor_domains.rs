@@ -1,7 +1,23 @@
 use std::process::Command;
+use std::sync::OnceLock;
 
 use pytxo_orchestrate::{list_domains, HypervisorRegistry, RunOptions};
 use tempfile::TempDir;
+
+/// `HypervisorRegistry::dispatch` best-effort-registers every domain in the
+/// real `~/.pytxo/hypervisor.db` catalog. Point `PYTXO_HOME` at a throwaway
+/// directory once per test process so these tempdir repos never pollute the
+/// developer's actual catalog with `.tmp*` entries.
+fn isolate_pytxo_home() {
+    static HOME: OnceLock<()> = OnceLock::new();
+    HOME.get_or_init(|| {
+        let dir = TempDir::new().expect("pytxo home tempdir");
+        let path = dir.path().to_path_buf();
+        std::mem::forget(dir);
+        // SAFETY: test-only; isolates the hypervisor catalog from the developer's ~/.pytxo store.
+        unsafe { std::env::set_var("PYTXO_HOME", &path) };
+    });
+}
 
 fn init_git_repo(path: &std::path::Path) {
     assert!(Command::new("git")
@@ -53,6 +69,7 @@ fn run_opts(repo: &std::path::Path) -> RunOptions {
 
 #[test]
 fn same_repo_yields_same_domain_id() {
+    isolate_pytxo_home();
     let tmp = TempDir::new().unwrap();
     let repo = tmp.path();
     init_git_repo(repo);
@@ -65,6 +82,7 @@ fn same_repo_yields_same_domain_id() {
 
 #[tokio::test]
 async fn two_repos_register_two_domains() {
+    isolate_pytxo_home();
     let a = TempDir::new().unwrap();
     let b = TempDir::new().unwrap();
     init_git_repo(a.path());
@@ -79,6 +97,7 @@ async fn two_repos_register_two_domains() {
 
 #[test]
 fn default_hypervisor_is_singleton() {
+    isolate_pytxo_home();
     let _ = std::sync::Arc::new(());
     // list_domains on default should not panic
     let _domains = list_domains();

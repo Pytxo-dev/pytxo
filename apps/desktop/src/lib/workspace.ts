@@ -57,7 +57,7 @@ export async function openProjectAsWorkspace(
 export async function loadWorkspaceCatalog(): Promise<WorkspaceListItem[]> {
   const [projects, domains] = await Promise.all([
     ipc.listProjects(),
-    ipc.listAllDomains(),
+    ipc.listDomainsStatus().catch(() => []),
   ]);
 
   const items: WorkspaceListItem[] = [];
@@ -74,6 +74,7 @@ export async function loadWorkspaceCatalog(): Promise<WorkspaceListItem[]> {
   }
 
   for (const d of domains) {
+    if (!d.is_available || d.is_temporary) continue;
     if (d.project_id && projectIds.has(d.project_id)) continue;
     items.push({
       kind: "domain",

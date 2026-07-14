@@ -5,7 +5,7 @@
 The main `Pytxo-dev/pytxo` monorepo is private. This repository is **public** and hosts:
 
 - Prebuilt CLI binaries (`pytxo-linux-x64`, `pytxo-darwin-arm64`, …)
-- Pytxo Desktop installers (`pytxo-reality-deck-*.msi` / `.dmg` / `.AppImage` — legacy asset prefix; product name is Pytxo Desktop)
+- Pytxo Desktop installers (`pytxo-desktop-*.msi` / `.dmg` / `.AppImage`) plus signed updater artifacts (`*.sig`, `latest.json`) from v0.5.0 onward
 - Install scripts (`install.sh`, `install.ps1`) for the CLI
 - Checksums (`SHA256SUMS.txt`)
 
@@ -15,10 +15,12 @@ The main `Pytxo-dev/pytxo` monorepo is private. This repository is **public** an
 
 | Platform | Asset |
 |----------|--------|
-| Windows x64 | `pytxo-reality-deck-windows-x64.msi` |
-| macOS Apple Silicon | `pytxo-reality-deck-darwin-arm64.dmg` |
-| macOS Intel | `pytxo-reality-deck-darwin-x64.dmg` |
-| Linux x64 | `pytxo-reality-deck-linux-x64.AppImage` |
+| Windows x64 | `pytxo-desktop-windows-x64.msi` |
+| macOS Apple Silicon | `pytxo-desktop-darwin-arm64.dmg` |
+| macOS Intel | `pytxo-desktop-darwin-x64.dmg` |
+| Linux x64 | `pytxo-desktop-linux-x64.AppImage` |
+
+Releases before v0.5.0 used the legacy `pytxo-reality-deck-*` asset prefix.
 
 **CLI via npm:**
 
@@ -42,7 +44,7 @@ irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 
 Pin a CLI version:
 
 ```bash
-PYTXO_VERSION=v0.4.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
+PYTXO_VERSION=v0.5.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
 ```
 
 ## Maintainer setup
@@ -61,7 +63,7 @@ PYTXO_VERSION=v0.4.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytx
 
 3. In the private `pytxo` repo, add GitHub secret `PYTXO_RELEASES_TOKEN` (PAT or GitHub App) with `contents: write` on **pytxo-releases**.
 
-4. Tag a release in `pytxo` (`git tag v0.4.0 && git push origin v0.4.0`), or run **Actions → Release / Desktop release**. CI mirrors CLI + Desktop installers to this repo’s GitHub Release.
+4. Tag a release in `pytxo` (`git tag v0.5.0 && git push origin v0.5.0`), or run **Actions → Release / Desktop release**. CI mirrors CLI + Desktop installers to this repo’s GitHub Release.
 
 ## Layout
 
