@@ -1,6 +1,6 @@
 /** Public distribution repo (binaries + install scripts). */
 export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
-export const PYTXO_VERSION = "0.4.0";
+export const PYTXO_VERSION = "0.5.0";
 
 export const DESKTOP_RELEASE_BASE =
   `https://github.com/${DISTRIBUTION_REPO}/releases/download/v${PYTXO_VERSION}`;
@@ -8,15 +8,12 @@ export const DESKTOP_RELEASE_BASE =
 /** Display name for the optional desktop app. */
 export const DESKTOP_PRODUCT_NAME = "Pytxo Desktop";
 
-/**
- * Installer asset URLs still use the legacy `pytxo-reality-deck-*` filenames until
- * a release renames artifacts. Labels in the UI use DESKTOP_PRODUCT_NAME.
- */
+/** Installer asset URLs on the public distribution repo (v0.5.0+ desktop naming). */
 export const DESKTOP_DOWNLOADS = {
-  windows: `${DESKTOP_RELEASE_BASE}/pytxo-reality-deck-windows-x64.msi`,
-  macosArm: `${DESKTOP_RELEASE_BASE}/pytxo-reality-deck-darwin-arm64.dmg`,
-  macosX64: `${DESKTOP_RELEASE_BASE}/pytxo-reality-deck-darwin-x64.dmg`,
-  linux: `${DESKTOP_RELEASE_BASE}/pytxo-reality-deck-linux-x64.AppImage`,
+  windows: `${DESKTOP_RELEASE_BASE}/pytxo-desktop-windows-x64.msi`,
+  macosArm: `${DESKTOP_RELEASE_BASE}/pytxo-desktop-darwin-arm64.dmg`,
+  macosX64: `${DESKTOP_RELEASE_BASE}/pytxo-desktop-darwin-x64.dmg`,
+  linux: `${DESKTOP_RELEASE_BASE}/pytxo-desktop-linux-x64.AppImage`,
 } as const;
 
 export const GITHUB_URL = `https://github.com/${DISTRIBUTION_REPO}`;

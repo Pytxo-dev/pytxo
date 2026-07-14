@@ -3,17 +3,17 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { InstallSnippet } from "@/components/site/install-snippet";
-import { DESKTOP_PRODUCT_NAME, NPM_INSTALL } from "@/lib/site";
+import { NPM_INSTALL } from "@/lib/site";
 
 export function Hero() {
   return (
     <section className="relative overflow-hidden section-reveal">
       <div className="relative mx-auto flex max-w-6xl flex-col gap-10 px-4 pt-14 pb-16 sm:px-6 sm:pt-16 sm:pb-20 lg:flex-row lg:items-center lg:gap-14">
         <div className="flex flex-1 flex-col gap-5 text-left">
-          <p className="text-sm font-medium text-primary">Local agent hypervisor</p>
+          <p className="chroma-text chroma-shift text-sm font-medium">Local agent hypervisor</p>
           <h1 className="text-4xl leading-[1.08] sm:text-5xl lg:text-[3.25rem]">
             Run coding agents in parallel.{" "}
-            <span className="text-primary">Stay in control of every change.</span>
+            <span className="chroma-text chroma-shift">Stay in control of every change.</span>
           </h1>
           <p className="max-w-[36rem] text-base leading-relaxed text-muted-foreground sm:text-lg">
             Coordinate Claude Code, Codex, and other terminal agents on your machine while you keep
@@ -35,19 +35,23 @@ export function Hero() {
           </div>
         </div>
 
-        <div className="relative w-full shrink-0 overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card/40 lg:max-w-[52%]">
-          <Image
-            src="/desktop-topology-hero.png"
-            alt={`${DESKTOP_PRODUCT_NAME} showing structural topology and run inspector`}
-            width={1280}
-            height={720}
-            className="h-auto w-full object-cover"
-            priority
-            sizes="(max-width: 1024px) 100vw, 52vw"
-          />
-          <p className="border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
-            {DESKTOP_PRODUCT_NAME} - structural topology, not a wall of terminals
-          </p>
+        <div className="hero-logo-panel flex w-full shrink-0 items-center justify-center lg:max-w-[48%] lg:min-h-[22rem]">
+          <div className="hero-logo-mark flex flex-col items-center gap-4 px-8 py-12">
+            <Image
+              src="/logo.png"
+              alt="Pytxo"
+              width={200}
+              height={200}
+              className="size-36 sm:size-44 lg:size-52"
+              priority
+            />
+            <p className="text-center text-sm font-medium tracking-tight text-foreground/90">
+              Pytxo
+            </p>
+            <p className="max-w-[14rem] text-center text-xs text-muted-foreground">
+              Local agent hypervisor
+            </p>
+          </div>
         </div>
       </div>
     </section>

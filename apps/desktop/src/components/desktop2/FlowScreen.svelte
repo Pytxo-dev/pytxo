@@ -137,6 +137,12 @@
     history = history.filter((draft) => draft.id !== draftId);
   }
 
+  const planSummary = $derived(
+    plan
+      ? `${plan.tasks.length} task${plan.tasks.length === 1 ? "" : "s"} · ${plan.waves.length} wave${plan.waves.length === 1 ? "" : "s"} · ${[...new Set(plan.tasks.map((t) => t.agent))].join(" + ") || "no agent assigned"}`
+      : "",
+  );
+
   function useTemplate(value: string) {
     mission = value;
     missionSource = "text";
@@ -216,7 +222,7 @@
     <article class="panel plan-panel">
       <div class="panel-head"><div><p class="eyebrow">Plan preview</p><h2>{plan ? (plan.status === "ready" ? "Ready for review" : "Plan blocked") : "Waiting for a mission"}</h2></div>{#if plan}<span class="ready">{plan.status === "ready" ? "Validated" : "Blocked"}</span>{/if}</div>
       {#if plan}
-        <div class="mission-summary"><strong>{mission}</strong><p>3 tasks · 2 waves · Cursor CLI + Codex CLI</p></div>
+        <div class="mission-summary"><strong>{mission}</strong><p>{planSummary}</p></div>
         {#each plan.waves as wave, waveIndex}<div class="plan-wave"><span>Wave {waveIndex + 1}</span>{#each wave as taskId, taskIndex}{@const task = plan.tasks.find((item) => item.id === taskId)}{#if task}<div><b>{String(taskIndex + 1).padStart(2, "0")}</b><p><input aria-label={`Task ${task.id} prompt`} value={task.prompt || task.id} oninput={(event) => editTask(task.id, event.currentTarget.value)} /><small>{task.agent} · {task.paths.join(", ") || "read-only"}</small></p></div>{/if}{/each}</div>{/each}
         <div class="plan-footer"><div><span>Estimate</span><strong>{plan.estimated_cost_usd ? `$${plan.estimated_cost_usd.toFixed(2)}` : "Local"}</strong></div><div><span>Path claims</span><strong>{plan.blocked_reasons.length ? `${plan.blocked_reasons.length} blockers` : "No collisions"}</strong></div><button class="primary" disabled={plan.status !== "ready" || !!dispatchedRun || dispatching} onclick={dispatch}>{dispatchedRun ? `Dispatched ${dispatchedRun}` : dispatching ? "Dispatching…" : "Dispatch Flow"} <IconArrowRight size={16} /></button></div>
       {:else}

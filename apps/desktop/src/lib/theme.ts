@@ -1,7 +1,18 @@
 export type DeckTheme = "void" | "light" | "terminal" | "nebula";
 
 export const THEME_STORAGE_KEY = "pytxo-deck-theme";
+/** @deprecated Legacy boolean completion flag, superseded by `ONBOARDING_VERSION_KEY`. */
 export const SETUP_STORAGE_KEY = "pytxo-deck-setup-v1";
+
+/**
+ * Bump this whenever onboarding content changes meaningfully enough that
+ * existing users should see it again (new steps, new defaults to confirm,
+ * etc). Comparing against a stored version — rather than a boolean — means
+ * upgrading users see the refreshed flow exactly once, without re-showing it
+ * on every subsequent release.
+ */
+export const ONBOARDING_VERSION = "0.5.0";
+export const ONBOARDING_VERSION_KEY = "pytxo-desktop-onboarding-version";
 
 /** Void first; Nebula demoted as vivid optional skin. */
 export const DECK_THEMES: { id: DeckTheme; label: string }[] = [
@@ -34,11 +45,17 @@ export function applyDeckTheme(theme: DeckTheme) {
 }
 
 export function isSetupComplete(): boolean {
-  return localStorage.getItem(SETUP_STORAGE_KEY) === "complete";
+  return localStorage.getItem(ONBOARDING_VERSION_KEY) === ONBOARDING_VERSION;
 }
 
 export function markSetupComplete() {
+  localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
   localStorage.setItem(SETUP_STORAGE_KEY, "complete");
+}
+
+/** Used by Settings → "Run onboarding again". */
+export function resetOnboarding() {
+  localStorage.removeItem(ONBOARDING_VERSION_KEY);
 }
 
 export function terminalThemeFor(deckTheme: DeckTheme) {

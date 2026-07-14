@@ -41,3 +41,9 @@ export const OperationsError: Story = { args: { routeOverride: "operations", pre
 export const WorkspacesEmpty: Story = { args: { routeOverride: "workspaces", previewState: "empty" } };
 export const RunsEmpty: Story = { args: { routeOverride: "runs", previewState: "empty" } };
 export const ApprovalsEmpty: Story = { args: { routeOverride: "approvals", previewState: "empty" } };
+export const IntegrationsEmpty: Story = { args: { routeOverride: "integrations", previewState: "empty" } };
+
+export const OperationsSidebarCollapsed: Story = { args: { routeOverride: "operations", collapsedOverride: true } };
+export const WorkspacesSidebarCollapsed: Story = { args: { routeOverride: "workspaces", collapsedOverride: true } };
+export const FlowSidebarCollapsed: Story = { args: { routeOverride: "flow", collapsedOverride: true } };
+export const SettingsSidebarCollapsed: Story = { args: { routeOverride: "settings", collapsedOverride: true } };

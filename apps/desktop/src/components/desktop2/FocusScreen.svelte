@@ -1,8 +1,217 @@
 <script lang="ts">
-  import { IconArrowLeft, IconCheck, IconGitBranch, IconShieldCheck } from "@tabler/icons-svelte";
-  let { mode, onBack }: { mode: "topology-focus" | "run-review"; onBack: () => void } = $props();
+  import { onMount } from "svelte";
+  import { IconArrowLeft, IconCheck, IconGitBranch, IconLoader2, IconShieldCheck } from "@tabler/icons-svelte";
+  import { ipc } from "../../lib/ipc";
+  import type { AgentDto, RunDto, StructuralGraphDto } from "../../lib/types";
+
+  let {
+    mode,
+    run,
+    domainId,
+    onBack,
+    onRunCompleted,
+  }: {
+    mode: "topology-focus" | "run-review";
+    run: RunDto | null;
+    domainId: string | null;
+    onBack: () => void;
+    onRunCompleted: () => void;
+  } = $props();
+
+  let graph = $state<StructuralGraphDto>({ nodes: [], edges: [] });
+  let graphLoading = $state(true);
+  let graphError = $state<string | null>(null);
+  let editedOnly = $state(false);
+
+  let agents = $state<AgentDto[]>([]);
+  let agentsLoading = $state(true);
+  let diffText = $state("");
+  let diffLoading = $state(false);
+  let completing = $state(false);
+  let completeError = $state<string | null>(null);
+
+  const visibleNodes = $derived(editedOnly ? graph.nodes.filter((n) => n.edited) : graph.nodes);
+  function targetsOf(nodeId: string) {
+    return graph.edges.filter((e) => e.from === nodeId).map((e) => graph.nodes.find((n) => n.id === e.to)?.label ?? e.to);
+  }
+
+  const allExited = $derived(agents.length > 0 && agents.every((a) => a.exit_code === 0));
+  const anyFailed = $derived(agents.some((a) => a.exit_code !== null && a.exit_code !== 0));
+
+  async function loadTopology() {
+    graphLoading = true;
+    graphError = null;
+    try {
+      graph = run
+        ? await ipc.structuralGraph(run.id, domainId)
+        : domainId
+          ? await ipc.workspaceStructuralGraph(domainId)
+          : { nodes: [], edges: [] };
+    } catch (e) {
+      graphError = e instanceof Error ? e.message : String(e);
+    } finally {
+      graphLoading = false;
+    }
+  }
+
+  async function loadReview() {
+    if (!run) {
+      agentsLoading = false;
+      return;
+    }
+    agentsLoading = true;
+    try {
+      agents = await ipc.listAgents(run.id, domainId);
+      const withRoot = agents.find((a) => a.root_id) ?? agents[0] ?? null;
+      if (withRoot) await loadDiffFor(withRoot.id);
+    } finally {
+      agentsLoading = false;
+    }
+  }
+
+  async function loadDiffFor(agentId: string) {
+    diffLoading = true;
+    try {
+      diffText = await ipc.gitDiff(agentId, domainId);
+    } catch {
+      diffText = "";
+    } finally {
+      diffLoading = false;
+    }
+  }
+
+  async function completeRun() {
+    if (!run) return;
+    completing = true;
+    completeError = null;
+    try {
+      for (const agent of agents) {
+        if (agent.root_id) await ipc.commitWorkspace(run.id, agent.id, domainId);
+      }
+      onRunCompleted();
+    } catch (e) {
+      completeError = e instanceof Error ? e.message : String(e);
+    } finally {
+      completing = false;
+    }
+  }
+
+  onMount(() => {
+    if (mode === "topology-focus") void loadTopology();
+    else void loadReview();
+  });
 </script>
+
 <section class="screen focus-screen">
-  <header class="screen-heading"><div><button class="back" onclick={onBack}><IconArrowLeft size={15} /> Runs</button><p class="eyebrow">run-8f2c</p><h1>{mode === "topology-focus" ? "Topology Focus" : "Run Review"}</h1><p>{mode === "topology-focus" ? "Structural relationships, task claims, and execution waves." : "Validate the result before completion and Blast Shield flush."}</p></div>{#if mode === "run-review"}<button class="primary"><IconCheck size={16} /> Complete run</button>{/if}</header>
-  {#if mode === "topology-focus"}<article class="panel topology-canvas"><div class="topology-tools"><span>Structural graph</span><button>Fit</button><button>Claims</button><button>Waves</button></div><div class="graph"><div class="node root"><IconGitBranch size={17} /><strong>pytxo</strong><small>execution domain</small></div><div class="edge e1"></div><div class="edge e2"></div><div class="node a"><strong>flow.rs</strong><small>edited · desktop</small></div><div class="node b"><strong>catalog.rs</strong><small>edited · store</small></div><div class="node c"><strong>App.svelte</strong><small>claimed · desktop</small></div></div></article>{:else}<div class="review-grid"><article class="panel"><p class="eyebrow">Completion checks</p><h2>Ready to complete</h2>{#each ["All 3 agents exited successfully","No Race Shield collisions","Permission profile remained within Orbit","Test gates passed"] as check}<div class="check-row"><IconCheck size={16} />{check}</div>{/each}<div class="shield-note"><IconShieldCheck size={19} /><p><strong>Blast Shield intact</strong><small>Changes remain isolated until you approve completion.</small></p></div></article><article class="panel"><p class="eyebrow">Semantic diff</p><h2>14 files changed</h2><div class="file-change"><span>M</span><p><strong>apps/desktop/src/App.svelte</strong><small>Shell migration</small></p><b>+84 −612</b></div><div class="file-change"><span>A</span><p><strong>crates/pytxo-voice/src/lib.rs</strong><small>Local Voice core</small></p><b>+579</b></div></article></div>{/if}
+  <header class="screen-heading">
+    <div>
+      <button class="back" onclick={onBack}><IconArrowLeft size={15} /> Runs</button>
+      <p class="eyebrow">{run ? run.id : domainId ? (domainId.split(/[\\/]/).pop() ?? domainId) : "No selection"}</p>
+      <h1>{mode === "topology-focus" ? "Topology Focus" : "Run Review"}</h1>
+      <p>{mode === "topology-focus" ? "Structural relationships derived from the real Signal Core graph." : "Validate the result before completion and Blast Shield flush."}</p>
+    </div>
+    {#if mode === "run-review" && run}
+      <button class="primary" disabled={completing || agentsLoading || !agents.length} onclick={completeRun}>
+        {#if completing}<IconLoader2 size={16} class="spin" />{:else}<IconCheck size={16} />{/if} Complete run
+      </button>
+    {/if}
+  </header>
+
+  {#if mode === "topology-focus"}
+    <article class="panel topology-canvas">
+      <div class="topology-tools">
+        <span>Structural graph{domainId ? ` · ${domainId.split(/[\\/]/).pop()}` : ""}</span>
+        <button class:active={editedOnly} onclick={() => (editedOnly = !editedOnly)}>Edited only</button>
+      </div>
+      {#if graphLoading}
+        <div class="empty"><IconLoader2 size={24} class="spin" /><strong>Loading structural graph…</strong></div>
+      {:else if graphError}
+        <div class="empty"><strong>Could not load structural graph</strong><span>{graphError}</span></div>
+      {:else if !visibleNodes.length}
+        <div class="empty">
+          <IconGitBranch size={26} />
+          <strong>No structural data yet</strong>
+          <span>{run ? "This run has not touched any tracked files." : "Open a workspace with at least one run to see its structure."}</span>
+        </div>
+      {:else}
+        <div class="structural-list">
+          {#each visibleNodes as node (node.id)}
+            <div class="structural-node" class:edited={node.edited}>
+              <IconGitBranch size={15} />
+              <strong>{node.label}</strong>
+              {#if targetsOf(node.id).length}<small>→ {targetsOf(node.id).join(", ")}</small>{/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </article>
+  {:else}
+    <div class="review-grid">
+      <article class="panel">
+        <p class="eyebrow">Completion checks</p>
+        <h2>{run ? "Ready to review" : "No run selected"}</h2>
+        {#if run}
+          <div class="check-row" class:check-row--fail={!agentsLoading && !allExited}>
+            {#if agentsLoading}<IconLoader2 size={16} class="spin" />{:else}<IconCheck size={16} />{/if}
+            {agentsLoading ? "Checking agents…" : `${agents.filter((a) => a.exit_code === 0).length}/${agents.length} agents exited successfully`}
+          </div>
+          <div class="check-row"><IconCheck size={16} /> Permission profile: {run.permission_profile ?? "unknown"}</div>
+          <div class="check-row"><IconCheck size={16} /> Isolation: {run.isolation_mode} via {run.isolation_backend}</div>
+          <div class="check-row" class:check-row--fail={anyFailed}><IconCheck size={16} /> Run status: {run.status}</div>
+          <div class="shield-note">
+            <IconShieldCheck size={19} />
+            <p><strong>Blast Shield {run.isolation_mode === "copy_on_write" ? "intact" : "not isolated for this run"}</strong><small>Changes remain isolated until you approve completion.</small></p>
+          </div>
+          {#if completeError}<p class="voice-state-message error">{completeError}</p>{/if}
+        {:else}
+          <div class="empty"><strong>Select a run from the Runs table first.</strong></div>
+        {/if}
+      </article>
+      <article class="panel">
+        <p class="eyebrow">Git diff</p>
+        <h2>{diffLoading ? "Loading diff…" : diffText ? "Changes recorded" : "No file changes"}</h2>
+        {#if diffLoading}
+          <div class="empty"><IconLoader2 size={22} class="spin" /><strong>Loading diff…</strong></div>
+        {:else if diffText}
+          <pre class="diff-raw">{diffText}</pre>
+        {:else}
+          <div class="empty">
+            <strong>No file changes recorded</strong>
+            <span>{run ? "This run's agents have not modified any tracked files." : "Select a run to inspect its diff."}</span>
+          </div>
+        {/if}
+      </article>
+    </div>
+  {/if}
 </section>
+
+<style>
+  :global(.desktop2 .topology-tools button.active) {
+    border-color: #38d6c1;
+    color: #9fe6d6;
+    background: #101816;
+  }
+  .diff-raw {
+    margin: 0;
+    padding: 14px;
+    max-height: 460px;
+    overflow: auto;
+    font: 10px/1.6 "Geist Mono", monospace;
+    color: #c3c8cf;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  :global(.spin) {
+    animation: focus-spin 0.9s linear infinite;
+  }
+  @keyframes focus-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :global(.spin) {
+      animation: none;
+    }
+  }
+</style>

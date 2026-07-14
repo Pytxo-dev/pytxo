@@ -4,17 +4,19 @@
   import SetupStepCli from "./SetupStepCli.svelte";
   import SetupStepSignIn from "./SetupStepSignIn.svelte";
   import SetupStepWorkspace from "./SetupStepWorkspace.svelte";
+  import SetupStepDisplay from "./SetupStepDisplay.svelte";
   import SetupStepDone from "./SetupStepDone.svelte";
   import { Button } from "$lib/components/ui/button";
 
-  type Step = "welcome" | "cli" | "signin" | "workspace" | "done";
+  type Step = "welcome" | "cli" | "signin" | "workspace" | "display" | "done";
 
-  const STEPS: Step[] = ["welcome", "cli", "signin", "workspace", "done"];
+  const STEPS: Step[] = ["welcome", "cli", "signin", "workspace", "display", "done"];
   const STEP_LABELS: Record<Step, string> = {
     welcome: "Welcome",
     cli: "CLI",
     signin: "Account",
     workspace: "Workspace",
+    display: "Display",
     done: "Ready",
   };
 
@@ -55,7 +57,7 @@
 
 <SetupShell>
   <header class="setup__header">
-    <img src="/logo.png" alt="" width="28" height="28" class="setup__logo" />
+    <img src="/logo-mark.png" alt="" width="28" height="28" class="setup__logo" />
     <span class="setup__brand">Pytxo Desktop</span>
     <nav class="setup__progress" aria-label="Setup progress">
       {#each STEPS as s, i}
@@ -81,11 +83,13 @@
       <SetupStepSignIn onContinue={() => next("workspace")} onSkip={() => next("workspace")} />
     {:else if step === "workspace"}
       <SetupStepWorkspace
-        onContinue={() => next("done")}
-        onSkip={() => next("done")}
+        onContinue={() => next("display")}
+        onSkip={() => next("display")}
         onWorkspaceSelected={handleWorkspaceSelected}
         error={workspaceError}
       />
+    {:else if step === "display"}
+      <SetupStepDisplay onContinue={() => next("done")} />
     {:else}
       <SetupStepDone workspacePath={workspacePath} onFinish={onComplete} />
     {/if}

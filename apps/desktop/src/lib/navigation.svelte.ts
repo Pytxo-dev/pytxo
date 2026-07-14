@@ -52,6 +52,16 @@ export function persistRoute(route: AppRoute) {
 
 export type WorkspaceRecent = { id: string; label: string; domainId: string };
 
+const MAX_RECENTS = 8;
+
+/** Record a just-opened workspace as most-recent, deduplicated by domainId. */
+export function addWorkspaceRecent(recent: WorkspaceRecent): WorkspaceRecent[] {
+  const existing = migrateWorkspaceRecents().filter((r) => r.domainId !== recent.domainId);
+  const next = [recent, ...existing].slice(0, MAX_RECENTS);
+  localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+  return next;
+}
+
 export function migrateWorkspaceRecents(): WorkspaceRecent[] {
   const current = localStorage.getItem(RECENTS_KEY);
   if (current) {

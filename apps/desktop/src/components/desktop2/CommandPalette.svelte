@@ -1,0 +1,179 @@
+<script lang="ts">
+  import { IconSearch } from "@tabler/icons-svelte";
+  import type { AppRoute } from "../../lib/navigation.svelte";
+
+  type CommandItem = { route: AppRoute; label: string; icon: typeof IconSearch };
+
+  let {
+    open,
+    items,
+    onNavigate,
+    onClose,
+  }: {
+    open: boolean;
+    items: CommandItem[];
+    onNavigate: (route: AppRoute) => void;
+    onClose: () => void;
+  } = $props();
+
+  let dialogEl: HTMLDialogElement | undefined = $state();
+  let inputEl: HTMLInputElement | undefined = $state();
+  let query = $state("");
+  let highlighted = $state(0);
+
+  const filtered = $derived(
+    query.trim()
+      ? items.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()))
+      : items,
+  );
+
+  $effect(() => {
+    if (!dialogEl) return;
+    if (open) {
+      query = "";
+      highlighted = 0;
+      if (!dialogEl.open) dialogEl.showModal();
+      queueMicrotask(() => inputEl?.focus());
+    } else if (dialogEl.open) {
+      dialogEl.close();
+    }
+  });
+
+  function select(item: CommandItem) {
+    onNavigate(item.route);
+    onClose();
+  }
+
+  function onKeydown(event: KeyboardEvent) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      highlighted = filtered.length ? (highlighted + 1) % filtered.length : 0;
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      highlighted = filtered.length ? (highlighted - 1 + filtered.length) % filtered.length : 0;
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const item = filtered[highlighted];
+      if (item) select(item);
+    }
+  }
+</script>
+
+<dialog
+  bind:this={dialogEl}
+  class="command-menu"
+  aria-label="Command menu"
+  onclose={onClose}
+  onclick={(event) => {
+    if (event.target === dialogEl) onClose();
+  }}
+>
+  {#if open}
+    <section>
+      <label>
+        <IconSearch size={18} />
+        <input
+          bind:this={inputEl}
+          bind:value={query}
+          oninput={() => (highlighted = 0)}
+          onkeydown={onKeydown}
+          placeholder="Type a command or search…"
+          aria-label="Command search"
+        />
+      </label>
+      <p>Navigate</p>
+      {#if filtered.length}
+        {#each filtered as item, index (item.route)}
+          <button class:highlighted={index === highlighted} onmouseenter={() => (highlighted = index)} onclick={() => select(item)}>
+            <item.icon size={16} />{item.label}<span>Go to</span>
+          </button>
+        {/each}
+      {:else}
+        <p class="no-results">No matches for "{query}"</p>
+      {/if}
+    </section>
+  {/if}
+</dialog>
+
+<style>
+  .command-menu {
+    position: fixed;
+    top: 14vh;
+    margin: 0 auto;
+    width: min(560px, calc(100vw - 40px));
+    padding: 8px;
+    border: 1px solid #2b2e36;
+    border-radius: 9px;
+    background: #111319;
+    color: inherit;
+    box-shadow: 0 24px 80px #000;
+  }
+  .command-menu::backdrop {
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(3px);
+  }
+  .command-menu label {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px;
+    border-bottom: 1px solid #262932;
+    color: #7d8490;
+  }
+  .command-menu input {
+    flex: 1;
+    border: 0;
+    outline: 0;
+    background: none;
+    color: #eef1f4;
+    font: 13px inherit;
+  }
+  .command-menu p {
+    margin: 11px 9px 5px;
+    color: #5e6571;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .command-menu .no-results {
+    margin: 4px 9px 13px;
+    color: #767d89;
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+  .command-menu button {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    height: 34px;
+    border: 0;
+    border-radius: 5px;
+    background: none;
+    color: #aeb4be;
+    font: 11px inherit;
+    padding: 0 9px;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .command-menu button:hover,
+  .command-menu button.highlighted {
+    background: #1a1d24;
+    color: #fff;
+  }
+  .command-menu button:focus-visible {
+    outline: 2px solid #38d6c1;
+    outline-offset: -2px;
+  }
+  .command-menu button span {
+    margin-left: auto;
+    color: #565c68;
+  }
+
+  :global(html[data-chroma-theme="light"]) .command-menu {
+    background: #fff;
+    border-color: var(--pytxo-line);
+    color: #17202b;
+  }
+</style>

@@ -8,10 +8,12 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <NebulaShell className="flex min-h-svh flex-col overflow-x-clip">
+    <NebulaShell className="flex h-dvh flex-col overflow-hidden">
       <SiteHeader />
-      <main className="relative flex flex-1 flex-col">{children}</main>
-      <SiteFooter />
+      <main className="marketing-scroll relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {children}
+        <SiteFooter />
+      </main>
     </NebulaShell>
   );
 }

@@ -5,7 +5,7 @@
 </script>
 
 <div class="step">
-  <img class="logo" src="/logo.png" alt="Pytxo" width="72" height="72" />
+  <img class="logo" src="/logo-mark.png" alt="Pytxo" width="72" height="72" />
   <h1 class="title">Welcome to Pytxo Desktop</h1>
   <p class="lead">
     See what your coding agents are doing — structure, runs, and approvals — without a wall of

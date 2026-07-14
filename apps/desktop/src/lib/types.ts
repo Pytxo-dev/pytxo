@@ -45,6 +45,17 @@ export type CatalogEntryStatus = CatalogEntry & {
   latest_run_status: string | null;
   latest_started_at: string | null;
   hitl_pending: number;
+  /** `repo_root` still exists on disk. */
+  is_available: boolean;
+  /** `repo_root` resolves inside the OS temp directory (stale test artifact). */
+  is_temporary: boolean;
+};
+
+export type AdeCliStatusDto = {
+  id: string;
+  display_name: string;
+  default_cmd: string;
+  installed: boolean;
 };
 
 export type HitlDto = {

@@ -1,0 +1,445 @@
+<script lang="ts">
+  import { IconChevronsLeft, IconChevronsRight, IconSearch, IconSettings, IconUserCircle } from "@tabler/icons-svelte";
+  import type { AppRoute, WorkspaceRecent } from "../../lib/navigation.svelte";
+
+  type NavItem = { route: AppRoute; label: string; icon: typeof IconSearch };
+
+  let {
+    route,
+    primary,
+    system,
+    approvalsCount,
+    recents,
+    collapsed,
+    tier,
+    signedIn,
+    onNavigate,
+    onToggleCollapse,
+    onOpenCommand,
+    onOpenRecent,
+    onAccountClick,
+  }: {
+    route: AppRoute;
+    primary: NavItem[];
+    system: NavItem[];
+    approvalsCount: number;
+    recents: WorkspaceRecent[];
+    collapsed: boolean;
+    tier: string;
+    signedIn: boolean;
+    onNavigate: (route: AppRoute) => void;
+    onToggleCollapse: () => void;
+    onOpenCommand: () => void;
+    onOpenRecent: (recent: WorkspaceRecent) => void;
+    onAccountClick: () => void;
+  } = $props();
+
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPod|iPad/.test(navigator.userAgent);
+  const shortcutHint = isMac ? "⌘K" : "Ctrl K";
+
+  function go(next: AppRoute) {
+    return (event: MouseEvent) => {
+      event.preventDefault();
+      onNavigate(next);
+    };
+  }
+
+  const accountLabel = $derived(signedIn ? `${tier.charAt(0).toUpperCase()}${tier.slice(1)} tier` : "Local mode");
+  const accountSub = $derived(signedIn ? "Pytxo account" : "No account linked");
+</script>
+
+<aside class="sidebar" class:collapsed aria-label="Primary sidebar">
+  <div class="brand">
+    <img src="/logo-mark.png" alt="Pytxo" width="20" height="20" class="brand-mark" />
+    {#if !collapsed}<div class="brand-copy"><strong>Pytxo</strong><span>Desktop</span></div>{/if}
+    <button
+      class="collapse-btn"
+      onclick={onToggleCollapse}
+      aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+    >
+      {#if collapsed}<IconChevronsRight size={15} />{:else}<IconChevronsLeft size={15} />{/if}
+    </button>
+  </div>
+
+  <button
+    class="command-trigger"
+    onclick={onOpenCommand}
+    aria-label="Open command palette"
+    title={collapsed ? `Search or command (${shortcutHint})` : undefined}
+  >
+    <IconSearch size={15} />
+    {#if !collapsed}<span>Search or command</span><kbd>{shortcutHint}</kbd>{/if}
+  </button>
+
+  <nav aria-label="Primary">
+    {#if !collapsed}<p>Workspace</p>{/if}
+    {#each primary as item (item.route)}
+      <a
+        href={`#/${item.route}`}
+        class:active={route === item.route}
+        onclick={go(item.route)}
+        title={collapsed ? item.label : undefined}
+        aria-current={route === item.route ? "page" : undefined}
+      >
+        <item.icon size={17} stroke={1.7} />
+        {#if !collapsed}<span>{item.label}</span>{#if item.route === "approvals" && approvalsCount}<b>{approvalsCount}</b>{/if}{/if}
+      </a>
+    {/each}
+  </nav>
+
+  {#if recents.length && !collapsed}
+    <div class="recents">
+      <p>Recent</p>
+      {#each recents.slice(0, 4) as recent (recent.id)}
+        <button onclick={() => onOpenRecent(recent)} title={recent.label}><i></i><span>{recent.label}</span></button>
+      {/each}
+    </div>
+  {/if}
+
+  <nav aria-label="System" class="system-nav">
+    {#if !collapsed}<p>System</p>{/if}
+    {#each system as item (item.route)}
+      <a
+        href={`#/${item.route}`}
+        class:active={route === item.route}
+        onclick={go(item.route)}
+        title={collapsed ? item.label : undefined}
+        aria-current={route === item.route ? "page" : undefined}
+      >
+        <item.icon size={17} stroke={1.7} />
+        {#if !collapsed}<span>{item.label}</span>{/if}
+      </a>
+    {/each}
+  </nav>
+
+  <div class="sidebar-footer">
+    <button onclick={onAccountClick} title={collapsed ? `${accountLabel} · ${accountSub}` : undefined}>
+      <span class="avatar"><IconUserCircle size={18} /></span>
+      {#if !collapsed}
+        <span class="account-copy"><strong>{accountLabel}</strong><small>{accountSub}</small></span>
+        <IconSettings size={15} />
+      {/if}
+    </button>
+  </div>
+</aside>
+
+<style>
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: #0b0c10;
+    border-right: 1px solid #202229;
+    padding: 14px 12px 12px;
+    transition: padding 150ms ease;
+  }
+  .sidebar.collapsed {
+    padding: 14px 8px 12px;
+    align-items: center;
+  }
+  .brand {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 6px 12px;
+    width: 100%;
+  }
+  .sidebar.collapsed .brand {
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .brand-mark {
+    flex-shrink: 0;
+    border-radius: 6px;
+  }
+  .brand-copy {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    min-width: 0;
+  }
+  .brand strong {
+    font-size: 14px;
+    letter-spacing: -0.02em;
+  }
+  .brand span {
+    font-size: 11px;
+    color: #8b929d;
+  }
+  .collapse-btn {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 5px;
+    background: none;
+    color: #6b7280;
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .sidebar.collapsed .collapse-btn {
+    margin-left: 0;
+  }
+  .collapse-btn:hover {
+    background: #14161c;
+    color: #d9dde2;
+  }
+  .collapse-btn:focus-visible {
+    outline: 2px solid #38d6c1;
+    outline-offset: 1px;
+  }
+  button {
+    font-family: inherit;
+  }
+  .command-trigger {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+    height: 34px;
+    border: 1px solid #262932;
+    border-radius: 6px;
+    background: #111319;
+    padding: 0 9px;
+    color: #89909d;
+    font-size: 11px;
+    cursor: pointer;
+    transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
+  }
+  .sidebar.collapsed .command-trigger {
+    justify-content: center;
+    padding: 0;
+    width: 34px;
+  }
+  .command-trigger:hover {
+    border-color: #35524e;
+    color: #d9fff8;
+    background: #101816;
+  }
+  .command-trigger:focus-visible {
+    outline: 2px solid #38d6c1;
+    outline-offset: 1px;
+  }
+  .command-trigger span {
+    flex: 1;
+    text-align: left;
+  }
+  .command-trigger kbd {
+    font: 10px "Geist Mono", monospace;
+    color: #8b929d;
+    border: 1px solid #2b2e37;
+    border-radius: 4px;
+    padding: 2px 4px;
+  }
+  nav,
+  .recents {
+    margin-top: 20px;
+    width: 100%;
+  }
+  nav p,
+  .recents p {
+    margin: 0 8px 7px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 9px;
+    font-weight: 700;
+    color: #8b929d;
+  }
+  nav a {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 34px;
+    gap: 10px;
+    padding: 0 9px;
+    margin: 2px 0;
+    border-radius: 6px;
+    color: #858c98;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 520;
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .sidebar.collapsed nav a {
+    justify-content: center;
+    padding: 0;
+  }
+  nav a:hover {
+    background: #14161c;
+    color: #d9dde2;
+  }
+  nav a:focus-visible {
+    outline: 2px solid #38d6c1;
+    outline-offset: 1px;
+  }
+  nav a.active {
+    background: #17211f;
+    color: #d9fff8;
+  }
+  nav a.active:before {
+    content: "";
+    position: absolute;
+    left: 0;
+    width: 2px;
+    height: 16px;
+    border-radius: 2px;
+    background: #38d6c1;
+  }
+  .sidebar.collapsed nav a.active:before {
+    display: none;
+  }
+  nav a b {
+    margin-left: auto;
+    display: grid;
+    place-items: center;
+    min-width: 17px;
+    height: 17px;
+    border-radius: 9px;
+    background: #3b2d17;
+    color: #f1bc59;
+    font-size: 9px;
+  }
+  .recents button {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    height: 29px;
+    padding: 0 9px;
+    border: 0;
+    background: none;
+    color: #8b929d;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: color 140ms ease, background-color 140ms ease;
+  }
+  .recents button:hover {
+    color: #d8dce2;
+    background: #12141a;
+  }
+  .recents button:focus-visible {
+    outline: 2px solid #38d6c1;
+    outline-offset: -1px;
+  }
+  .recents button span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .recents i {
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    background: #745ad5;
+  }
+  .system-nav {
+    margin-top: auto;
+  }
+  .sidebar-footer {
+    border-top: 1px solid #202229;
+    margin-top: 14px;
+    padding-top: 10px;
+    width: 100%;
+  }
+  .sidebar-footer button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 5px 4px;
+    cursor: pointer;
+    border: 0;
+    background: none;
+    border-radius: 6px;
+    color: inherit;
+    transition: background-color 140ms ease;
+  }
+  .sidebar.collapsed .sidebar-footer button {
+    justify-content: center;
+  }
+  .sidebar-footer button:hover {
+    background: #14161c;
+  }
+  .sidebar-footer button:focus-visible {
+    outline: 2px solid #38d6c1;
+    outline-offset: 1px;
+  }
+  .avatar {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 7px;
+    background: #242833;
+    color: #cdd2da;
+  }
+  .account-copy {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    flex: 1;
+    min-width: 0;
+  }
+  .account-copy strong {
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .account-copy small {
+    font-size: 9px;
+    color: #8b929d;
+    margin-top: 2px;
+  }
+
+  @media (max-width: 760px) {
+    .sidebar:not(.collapsed) {
+      padding-inline: 8px;
+      align-items: center;
+    }
+    .sidebar:not(.collapsed) .brand-copy,
+    .sidebar:not(.collapsed) .collapse-btn,
+    .sidebar:not(.collapsed) .command-trigger span,
+    .sidebar:not(.collapsed) .command-trigger kbd,
+    .sidebar:not(.collapsed) nav p,
+    .sidebar:not(.collapsed) nav a span,
+    .sidebar:not(.collapsed) .recents,
+    .sidebar:not(.collapsed) .account-copy {
+      display: none;
+    }
+    .sidebar:not(.collapsed) .brand {
+      justify-content: center;
+      padding-inline: 0;
+    }
+    .sidebar:not(.collapsed) .command-trigger {
+      justify-content: center;
+      width: 34px;
+      padding: 0;
+    }
+    .sidebar:not(.collapsed) nav a {
+      justify-content: center;
+      padding: 0;
+    }
+  }
+
+  :global(html[data-chroma-theme="light"]) .sidebar {
+    background: #fff;
+    border-color: var(--pytxo-line);
+  }
+  :global(html[data-chroma-theme="light"]) nav a.active {
+    background: #e4f3f0;
+    color: #0b756c;
+  }
+  :global(html[data-chroma-theme="light"]) .command-trigger {
+    background: #f6f7f9;
+    border-color: #d8dde4;
+  }
+</style>

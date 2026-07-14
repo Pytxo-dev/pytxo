@@ -199,6 +199,11 @@ jobs:
         run: |
           npx playwright install chromium
           npm run e2e
+      - name: Storybook build and accessibility gate
+        working-directory: apps/desktop
+        run: |
+          npm run storybook:build
+          npm run storybook:test:ci
 
   desktop-tauri:
     needs: desktop-frontend

@@ -22,11 +22,18 @@ apps/desktop/node_modules/
 apps/desktop/dist/
 apps/desktop/.tauri/
 apps/desktop/storybook-static/
+apps/desktop/test-results/
+apps/desktop/playwright-report/
 ~/
 apps/desktop-export/dist/
 
 packages/pytxo/node_modules/
 packages/pytxo/vendor/
+
+tooling/node_modules/
+
+# Agent verification scratch (logs/screenshots from manual release checks)
+.verification/
 
 # Env and secrets
 .env

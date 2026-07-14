@@ -242,16 +242,16 @@ jobs:
         include:
           - os: ubuntu-22.04
             rust_target: x86_64-unknown-linux-gnu
-            asset_prefix: pytxo-reality-deck-linux-x64
+            asset_prefix: pytxo-desktop-linux-x64
           - os: macos-latest
             rust_target: aarch64-apple-darwin
-            asset_prefix: pytxo-reality-deck-darwin-arm64
+            asset_prefix: pytxo-desktop-darwin-arm64
           - os: macos-latest
             rust_target: x86_64-apple-darwin
-            asset_prefix: pytxo-reality-deck-darwin-x64
+            asset_prefix: pytxo-desktop-darwin-x64
           - os: windows-latest
             rust_target: x86_64-pc-windows-msvc
-            asset_prefix: pytxo-reality-deck-windows-x64
+            asset_prefix: pytxo-desktop-windows-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -306,16 +306,16 @@ jobs:
       - name: Configure CI signing/updater
         shell: bash
         run: |
-          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
-            node -e "
-            const fs = require('fs');
-            const p = 'apps/desktop/src-tauri/tauri.conf.json';
-            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-            j.bundle.createUpdaterArtifacts = false;
-            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
-            "
-            echo "createUpdaterArtifacts=false (no TAURI_SIGNING_PRIVATE_KEY)"
-          fi
+          HAS_KEY="false"
+          if [ -n "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then HAS_KEY="true"; fi
+          node -e "
+          const fs = require('fs');
+          const p = 'apps/desktop/src-tauri/tauri.conf.json';
+          const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+          j.bundle.createUpdaterArtifacts = process.argv[1] === 'true';
+          fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+          " "$HAS_KEY"
+          echo "createUpdaterArtifacts=$HAS_KEY"
 
       - name: Build Tauri bundles
         uses: tauri-apps/tauri-action@v0
@@ -362,6 +362,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Check PYTXO_RELEASES_TOKEN
         id: token
         env:
@@ -378,29 +382,34 @@ jobs:
         if: steps.token.outputs.ok == 'true'
         uses: actions/download-artifact@v4
         with:
-          pattern: pytxo-reality-deck-*
+          pattern: pytxo-desktop-*
           path: desktop-dist
-          merge-multiple: true
 
       - name: Stage desktop installers for pytxo-releases
         if: steps.token.outputs.ok == 'true'
         run: |
           set -euo pipefail
           mkdir -p dist
-          find desktop-dist -type f \( -name '*.msi' -o -name '*.dmg' -o -name '*.AppImage' -o -name 'latest.json' -o -name '*.sig' \) | while read -r f; do
+          find desktop-dist -type f \( -name '*.msi' -o -name '*.dmg' -o -name '*.AppImage' \) | while read -r f; do
             base="$(basename "$f")"
             case "$base" in
-              *.msi) dest="pytxo-reality-deck-windows-x64.msi" ;;
-              *aarch64*.dmg|*arm64*.dmg) dest="pytxo-reality-deck-darwin-arm64.dmg" ;;
-              *x86_64*.dmg|*x64*.dmg) dest="pytxo-reality-deck-darwin-x64.dmg" ;;
-              *.AppImage) dest="pytxo-reality-deck-linux-x64.AppImage" ;;
-              latest.json|*.sig) dest="$base" ;;
+              *.msi) dest="pytxo-desktop-windows-x64.msi" ;;
+              *aarch64*.dmg|*arm64*.dmg) dest="pytxo-desktop-darwin-arm64.dmg" ;;
+              *x86_64*.dmg|*x64*.dmg) dest="pytxo-desktop-darwin-x64.dmg" ;;
+              *.AppImage) dest="pytxo-desktop-linux-x64.AppImage" ;;
               *) continue ;;
             esac
             cp "$f" "dist/$dest"
             echo "staged $f → dist/$dest"
           done
           ls -la dist/ || true
+
+      - name: Build updater manifest (latest.json)
+        if: steps.token.outputs.ok == 'true'
+        env:
+          TAG_NAME: ${{ needs.release.outputs.tag }}
+          HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: node tooling/scripts/build-updater-manifest.mjs desktop-dist dist
 
       - name: Mirror desktop to public pytxo-releases
         if: steps.token.outputs.ok == 'true'
