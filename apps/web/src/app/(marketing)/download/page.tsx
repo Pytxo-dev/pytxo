@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,18 @@ export default function DownloadPage() {
           Start with Pytxo Desktop for topology, approvals, and diffs. The CLI powers
           orchestration underneath—install it once, or let Desktop guide you.
         </p>
+      </div>
+
+      <div className="hero-product-frame mt-10 overflow-hidden">
+        <Image
+          src="/desktop-topology-hero.png"
+          alt="Pytxo Desktop product frame"
+          width={1536}
+          height={1024}
+          className="h-auto w-full"
+          sizes="(max-width: 896px) 100vw, 896px"
+          priority
+        />
       </div>
 
       <div className="mt-12 flex flex-col gap-10">

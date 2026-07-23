@@ -6,8 +6,8 @@ tags: [meta, glossary]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-09
-related: [[MOC-home]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]]
+updated: 2026-07-23
+related: [[MOC-home]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]]
 ---
 
 # Glossary
@@ -22,7 +22,7 @@ Canonical product and engineering terms for Pytxo. Prefer plain language in mark
 | **Blast Shield** | Safe sandbox until you approve; disk flush on approve ([[blast-shield]]) |
 | **Race Shield** | No write collisions: swarm registry + stdin buffering ([[race-shield]]) |
 | **Execution yard** | Headless CLI agent processes under orchestration |
-| **Pytxo Desktop** | Optional control UI: 3D AST topology + telemetry ([[desktop-visual-system]]); formerly Reality Deck |
+| **Pytxo Desktop** | Optional control UI: Desktop 2 structural Focus + Ops/Approvals telemetry ([[desktop-visual-system]]); 3D AST topology is legacy-shell only; formerly Reality Deck |
 | **Workspace** | User-facing name for a modular project: one or more folders under one coordinated run ([[modular-projects]]) |
 | **Orchestration layer** | Rust core: PTY, DAG, Signal Core, WAL, shields |
 | **Presentation layer** | Svelte + Tauri; no direct filesystem access |
@@ -32,7 +32,7 @@ Canonical product and engineering terms for Pytxo. Prefer plain language in mark
 | **MCP hub** | Local-first Model Context Protocol router ([[mcp-hub-integration]]) |
 | **Adaptive Semantic Scaffolding** | Fidelity tiers inside Signal Core ([[adaptive-semantic-scaffolding]]) |
 | **Sovereign Shield** | Sanitization + cryptographic remote approvals |
-| **Sparse overlay FS** | FUSE/ProjFS virtual workspace ([[sparse-overlay-fs]]) |
+| **Sparse overlay FS** | Shipping: sparse **copy-layer** (plus worktrees); kernel FUSE/ProjFS remains north star ([[sparse-overlay-fs]]) |
 | **DAG flow engine** | Parallel task scheduler ([[dag-flow-engine]]) |
 | **Token arbitrage** | Pro-tier cloud context cache ([[token-arbitrage]]) |
 | **Blast radius** | Structural footprint of an agent’s edits on the AST graph |

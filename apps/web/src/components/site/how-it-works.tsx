@@ -26,7 +26,7 @@ const STEPS = [
 export function HowItWorks() {
   return (
     <section className="border-y border-border bg-card/10">
-      <div className="section-pad mx-auto max-w-6xl section-reveal">
+      <div className="section-pad mx-auto max-w-6xl">
         <div className="max-w-xl">
           <h2 className="text-3xl sm:text-4xl">Up and running in three steps</h2>
           <p className="mt-3 text-muted-foreground">

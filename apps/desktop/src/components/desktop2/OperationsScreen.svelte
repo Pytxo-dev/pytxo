@@ -1,8 +1,20 @@
 <script lang="ts">
-  import { IconAlertTriangle, IconArrowUpRight, IconCircleCheck, IconClockHour4, IconShieldCheck } from "@tabler/icons-svelte";
+  import { IconAlertTriangle, IconArrowUpRight, IconCircleCheck, IconClockHour4, IconLayersIntersect, IconShieldCheck } from "@tabler/icons-svelte";
   import type { DesktopSnapshot } from "../../lib/desktop-backend";
 
-  let { snapshot, onRoute }: { snapshot: DesktopSnapshot; onRoute: (route: "approvals" | "runs" | "flow") => void } = $props();
+  let {
+    snapshot,
+    live = false,
+    lastPollAt = null,
+    onRoute,
+    onReviewRun,
+  }: {
+    snapshot: DesktopSnapshot;
+    live?: boolean;
+    lastPollAt?: number | null;
+    onRoute: (route: "approvals" | "runs" | "flow") => void;
+    onReviewRun: (runId: string) => void;
+  } = $props();
 
   const activeRuns = $derived(snapshot.runs.filter((run) => ["running", "pending", "dispatching"].includes(run.status)).length);
   const healthyAgents = $derived(snapshot.agents.filter((agent) => agent.status !== "failed").length);
@@ -91,9 +103,9 @@
         <div class="run-list">
           {#if snapshot.runs.length}
             {#each snapshot.runs as run}
-              <button class="run-row" onclick={() => onRoute("runs")}>
+              <button class="run-row" onclick={() => onReviewRun(run.id)}>
                 <span class:running={run.status === "running"} class="status-dot"></span>
-                <span class="run-copy"><strong>{run.repo_root.split(/[\\/]/).pop()}</strong><small>{run.id} · {run.permission_profile ?? "orbit"}</small></span>
+                <span class="run-copy"><strong>{run.repo_root.split(/[\\/]/).pop()}</strong><small>{run.id} · {run.permission_profile ?? "orbit"} · {run.isolation_mode ?? "none"}</small></span>
                 <span class="run-state">{run.status}</span>
                 <span class="run-cost">${(run.estimated_cost_usd ?? 0).toFixed(2)}</span>
               </button>
@@ -108,7 +120,12 @@
         <div class="panel-head"><div><p class="eyebrow">Decision queue</p><h2>Needs attention</h2></div><button class="quiet" onclick={() => onRoute("approvals")}>Open inbox</button></div>
         {#if snapshot.approvals.length}
           {#each snapshot.approvals as approval}
-            <div class="decision-card"><span class="risk">Review</span><h3>{approval.action}</h3><p>{approval.reason}</p><small>{approval.agent_key} · {approval.domain_id}</small></div>
+            <button class="decision-card" onclick={() => onRoute("approvals")}>
+              <span class="risk">Review</span>
+              <h3>{approval.action}</h3>
+              <p>{approval.reason}</p>
+              <small>{approval.agent_key} · {approval.domain_id}</small>
+            </button>
           {/each}
         {:else}
           <div class="empty"><IconCircleCheck size={26} /><strong>Nothing needs review</strong><span>New approval requests will appear here.</span></div>
@@ -116,8 +133,27 @@
       </article>
     </div>
 
+    {#if snapshot.fleets.length}
+      <article class="panel fleet-panel">
+        <div class="panel-head"><div><p class="eyebrow">Cross-repo</p><h2>Fleet runs</h2></div><span>{snapshot.fleets.length}</span></div>
+        <div class="fleet-list">
+          {#each snapshot.fleets as fleet}
+            <div class="fleet-row">
+              <IconLayersIntersect size={16} />
+              <span class="run-copy"><strong>{fleet.fleet_id}</strong><small class="mono">{fleet.id}</small></span>
+              <span class="run-state">{fleet.status}</span>
+            </div>
+          {/each}
+        </div>
+        <p class="fleet-hint">Full fleet control remains on the CLI: <code class="mono">pytxo fleet status</code></p>
+      </article>
+    {/if}
+
     <article class="panel activity-panel">
-      <div class="panel-head"><div><p class="eyebrow">Structured events</p><h2>Recent activity</h2></div>{#if timeline.length}<span class="live">Live</span>{/if}</div>
+      <div class="panel-head">
+        <div><p class="eyebrow">Structured events</p><h2>Recent activity</h2></div>
+        {#if live}<span class="live" title={lastPollAt ? `Updated ${relativeTime(lastPollAt)}` : "Polling"}>Live</span>{:else if timeline.length}<span class="live muted">Paused</span>{/if}
+      </div>
       {#if timeline.length}
         <div class="timeline">
           {#each timeline as entry (entry.key)}
@@ -133,6 +169,39 @@
 
 <style>
   .risk-text {
-    color: #d9a44f !important;
+    color: var(--pytxo-gold, #d9a44f) !important;
+  }
+  .decision-card {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+  }
+  .fleet-panel {
+    margin-top: 12px;
+  }
+  .fleet-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .fleet-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 4px;
+    color: #8b929c;
+  }
+  .fleet-hint {
+    margin: 10px 0 0;
+    font-size: 10px;
+    color: #5e6571;
+  }
+  .live.muted {
+    opacity: 0.55;
   }
 </style>

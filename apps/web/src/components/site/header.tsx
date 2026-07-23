@@ -46,7 +46,7 @@ export function SiteHeader() {
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
           <Image
-            src="/logo.png"
+            src="/logo-mark.png"
             alt="Pytxo"
             width={32}
             height={32}

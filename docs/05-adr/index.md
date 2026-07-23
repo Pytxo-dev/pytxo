@@ -44,6 +44,7 @@ Architecture Decision Records are **immutable once Accepted**. Supersede by addi
 | ADR-0026 | [[ADR-0026-deepspace-netns-default]] | accepted |
 | ADR-0027 | [[ADR-0027-service-observability-contract]] | accepted |
 | ADR-0028 | [[ADR-0028-desktop-product-name]] | accepted |
+| ADR-0029 | [[ADR-0029-chroma-shared-design-tokens]] | accepted |
 
 ## Template
 

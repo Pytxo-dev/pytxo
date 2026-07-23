@@ -190,7 +190,7 @@
     color: #d9dde2;
   }
   .collapse-btn:focus-visible {
-    outline: 2px solid #38d6c1;
+    outline: 2px solid var(--pytxo-teal);
     outline-offset: 1px;
   }
   button {
@@ -222,7 +222,7 @@
     background: #101816;
   }
   .command-trigger:focus-visible {
-    outline: 2px solid #38d6c1;
+    outline: 2px solid var(--pytxo-teal);
     outline-offset: 1px;
   }
   .command-trigger span {
@@ -274,7 +274,7 @@
     color: #d9dde2;
   }
   nav a:focus-visible {
-    outline: 2px solid #38d6c1;
+    outline: 2px solid var(--pytxo-teal);
     outline-offset: 1px;
   }
   nav a.active {
@@ -288,7 +288,7 @@
     width: 2px;
     height: 16px;
     border-radius: 2px;
-    background: #38d6c1;
+    background: var(--pytxo-teal);
   }
   .sidebar.collapsed nav a.active:before {
     display: none;
@@ -324,7 +324,7 @@
     background: #12141a;
   }
   .recents button:focus-visible {
-    outline: 2px solid #38d6c1;
+    outline: 2px solid var(--pytxo-teal);
     outline-offset: -1px;
   }
   .recents button span {
@@ -368,7 +368,7 @@
     background: #14161c;
   }
   .sidebar-footer button:focus-visible {
-    outline: 2px solid #38d6c1;
+    outline: 2px solid var(--pytxo-teal);
     outline-offset: 1px;
   }
   .avatar {

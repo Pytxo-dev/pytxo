@@ -6,17 +6,21 @@ tags: [product, vision, architecture]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-09
-related: [[agent-os-vs-virtual-workspace]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[desktop-visual-system]]
+updated: 2026-07-23
+related: [[agent-os-vs-virtual-workspace]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[desktop-visual-system]], [[competitive-benchmarks]], [[pytxo-improvement-research]], [[beyond-the-ade]], [[pytxo-vs-github-copilot-app]]
 ---
 
 # Product vision
 
-**Pytxo** ([ptyxo.com](https://ptyxo.com)) runs and coordinates the coding agents you already use — Claude Code, Codex, Antigravity CLI, and similar — in the background on your machine. It is a local **agent hypervisor**: schedule work, keep agents from colliding, show what they changed, and let you approve merges. It is **not** another ADE with walls of terminals.
+**Pytxo** ([ptyxo.com](https://ptyxo.com)) runs and coordinates the coding agents you already use — Claude Code, Codex, Antigravity CLI, and similar — in the background on your machine. It is a local **agent hypervisor**: schedule work, keep agents from colliding, show what they changed, and let you approve merges. It is **not** another ADE with walls of terminals, and **not** a single-vendor agent desktop (see [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]]).
+
+Maturity and honesty program: [[pytxo-improvement-research]].
 
 ## Problem
 
 Products like BridgeSpace-style ADEs render many parallel terminal grids inside heavy desktop or web shells. That model burns RAM and GPU, often ties users to proprietary credits, and optimizes for demos instead of **systems throughput**.
+
+Vendor control centers (e.g. GitHub Copilot app) solve supervision with worktrees and sandboxes inside one ecosystem. Pytxo’s job is different: **cross-CLI local orchestration** for the agents you already run.
 
 ## Pytxo model
 
@@ -43,34 +47,35 @@ All future orchestration code should route through these layers — not around t
 
 | What it does | Codename | Function | Target |
 |--------------|----------|----------|--------|
-| **Smarter context** | [[signal-core]] | `tree-sitter` AST skeletons on file read (signatures, types, imports) | Up to ~60% lower agent input tokens |
-| **Safe sandbox until you approve** | [[blast-shield]] | Memory-mapped virtual FS; bash/writes isolated until explicit approval | Sub-5ms rollback; disk flush on approve only |
-| **No write collisions** | [[race-shield]] | Lock-free swarm registry + stdin buffering | No cross-agent write collisions in a monorepo |
+| **Smarter context** | [[signal-core]] | `tree-sitter` AST skeletons on file read (signatures, types, imports) | Aspirational ~60% lower input tokens on body-heavy files; measure with `signal-reduction` ([[competitive-benchmarks]]) |
+| **Safe sandbox until you approve** | [[blast-shield]] | Worktree or sparse copy-layer isolation until explicit approval | Flush on approve; kernel ProjFS/FUSE remains north star |
+| **No write collisions** | [[race-shield]] | Locked swarm registry (`RwLock`/`Mutex`) + stdin buffering | No cross-agent write collisions; lock-free shards only after profiling |
 
-Implementation status: see [[mvp-bootstrap]] and crate README. Moats are **partial or planned** where not yet in `crates/` (kernel sparse overlay production default, full Galaxy runtime syscall hooks).
+Implementation status: see [[mvp-bootstrap]] and crate README. Moats are **partial** where kernel ProjFS/FUSE virtualization and full Galaxy syscall hooks remain north star (sparse copy-layer overlay default shipped Phase 69).
 
 | Moat | Shipping today | North star gap |
 |------|----------------|----------------|
-| Signal Core | 5-language skeletons, closed-loop retry, fallback WAL | Broader grammars, symbol-level escalation |
-| Blast Shield | Git worktrees, copy-layer + `prefer_kernel_overlay` (Phase 62) | Kernel FUSE/ProjFS default on all platforms |
-| Race Shield | Registry, path claims, PTY stdin, Galaxy HITL queue + runtime MCP gates (Phase 64) | Lock-free hot paths |
+| Signal Core | 8+ language skeletons, closed-loop retry, fallback WAL | Broader grammars, symbol-level escalation; verified large-file savings |
+| Blast Shield | Git worktrees + sparse copy-layer default via `prefer_kernel_overlay` (Phase 69) | Full kernel ProjFS provider + FUSE default on all platforms |
+| Race Shield | Registry, path claims, PTY stdin, Galaxy HITL queue + runtime MCP/stdin gates (Phase 64/70); separate stdin lock | Lock-free / path-prefix shards after profiling |
 
 ## Pytxo Desktop
 
 Optional control UI — obsidian void `#020205` with **teal**, **violet**, and **solar gold** accents ([[desktop-visual-system]]). Formerly called Reality Deck.
 
-Desktop does **not** show walls of raw terminal text as the primary surface. It visualizes the codebase as an **interactive 3D AST dependency topology** so developers see the **structural blast radius** of agent edits live. Logs and diffs are supporting panels, not the product center.
+Desktop does **not** show walls of raw terminal text as the primary surface. **Desktop 2** (default) centers a **structural Focus graph** (Signal Core nodes/edges) plus Ops, Flow, Approvals, and Run Review. Interactive **3D** AST topology (`TopologyScene3D.svelte`) remains available only in the **legacy shell** (`desktop_shell_v1=true`). Logs and diffs are supporting panels, not the product center.
 
 Repo path: `apps/desktop` in [Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
 
 ## Pytxo Cloud
 
-Hosted sandboxes that scale the same hypervisor model with **server-side context caching**. Strictly **BYOK** — Pytxo never becomes the LLM vendor. See [[hybrid-execution]] and [[token-arbitrage]].
+Hosted sandboxes that scale the same hypervisor model with **server-side context caching** — **capability-gated** until a non-noop cloud dispatcher is configured ([[hybrid-execution]]). Strictly **BYOK** on supported surfaces — Pytxo never becomes the LLM vendor. See [[token-arbitrage]] and [[pytxo-improvement-research]].
 
 ## Non-goals
 
 - Multi-pane embedded terminal walls in the product UI
 - Storing provider API keys in plaintext
 - Duplicating IDE editing surfaces
+- Claiming unique multi-agent / unique sandbox / invented worktrees vs 2026 vendor products
 
-Back: [[MOC-home]] · Compare: [[beyond-the-ade]]
+Back: [[MOC-home]] · Compare: [[beyond-the-ade]] · [[pytxo-vs-claude-agent-teams]] · [[pytxo-vs-github-copilot-app]]

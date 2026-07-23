@@ -6,8 +6,8 @@ tags: [orchestration, context, tree-sitter, moat]
 audience: [human, agent]
 layer: orchestration
 created: 2026-06-02
-updated: 2026-06-02
-related: [adaptive-semantic-scaffolding](/docs/adaptive-semantic-scaffolding), [product-vision](/docs/product-vision), [closed-loop-fidelity](/docs/closed-loop-fidelity)
+updated: 2026-07-18
+related: [[adaptive-semantic-scaffolding]], [[product-vision]], [[closed-loop-fidelity]], [[competitive-benchmarks]], [[pytxo-improvement-research]]
 ---
 
 # Signal Core (context arbitrage)
@@ -16,7 +16,9 @@ related: [adaptive-semantic-scaffolding](/docs/adaptive-semantic-scaffolding), [
 
 ## Goal
 
-Cut agent **input token burn by up to ~60%** without hiding dependency structure.
+Cut agent **input token burn** without hiding dependency structure. An **aspirational** target of up to ~60% on large, body-heavy files remains a design goal — not a guaranteed marketing number.
+
+**Measured (Phase 73):** `tooling/benchmarks/signal-reduction.ps1` on `tests/fixtures/tiny-monorepo/src/a.ts` reported **4.76%** `token_reduction_pct` (21→20 bytes). Re-run the script after changing grammars or fixtures; cite [[competitive-benchmarks]] for the pinned host. Desktop 2 Focus shows per-run `agent_arbitrage` saved-token totals when samples exist.
 
 ## Behavior
 
@@ -24,8 +26,8 @@ Cut agent **input token burn by up to ~60%** without hiding dependency structure
 |-------|--------|
 | Parse | Language-aware AST via `tree-sitter` |
 | Strip | Remove bodies and noise; keep contracts and topology |
-| Tier | Route fidelity by agent role ([adaptive-semantic-scaffolding](/docs/adaptive-semantic-scaffolding)) |
-| Escalate | On compile/test failure, [closed-loop-fidelity](/docs/closed-loop-fidelity) raises fidelity for failing nodes only |
+| Tier | Route fidelity by agent role ([[adaptive-semantic-scaffolding]]) |
+| Escalate | On compile/test failure, [[closed-loop-fidelity]] raises fidelity for failing nodes only |
 
 ## Integration point
 
@@ -37,7 +39,7 @@ Signal Core must run **before** context leaves the machine (local or cloud cache
 
 ## Status
 
-- **Designed:** fidelity tiers documented in [adaptive-semantic-scaffolding](/docs/adaptive-semantic-scaffolding)
-- **Shipping:** `tree-sitter` skeletons, MCP read tools, closed-loop **high-fidelity retry** on agent failure in `pytxo-runner`
+- **Designed:** fidelity tiers documented in [[adaptive-semantic-scaffolding]]
+- **Shipping:** `tree-sitter` skeletons for **8+** grammars (Rust, TS/JS, Python, Go, Java, C/C++, Ruby), MCP read tools, closed-loop **high-fidelity retry** on agent failure in `pytxo-runner`
 
 Do not add parallel “stripper” utilities outside this module.

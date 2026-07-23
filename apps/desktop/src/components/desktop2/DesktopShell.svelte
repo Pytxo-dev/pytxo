@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { IconActivity, IconChecks, IconFolders, IconPlayerPlay, IconPlugConnected, IconSettings, IconSparkles } from "@tabler/icons-svelte";
   import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
-  import { initialRoute, migrateWorkspaceRecents, persistRoute, routeFromDeepLink, type AppRoute, type WorkspaceRecent } from "../../lib/navigation.svelte";
+  import { addWorkspaceRecent, initialRoute, migrateWorkspaceRecents, persistRoute, routeFromDeepLink, type AppRoute, type WorkspaceRecent } from "../../lib/navigation.svelte";
   import { onPytxoDeepLink } from "../../lib/ipc";
   import Sidebar from "./Sidebar.svelte";
   import AppBar from "./AppBar.svelte";
@@ -12,6 +12,8 @@
   import CollectionScreen from "./CollectionScreen.svelte";
   import FocusScreen from "./FocusScreen.svelte";
   import "./desktop2-shared.css";
+
+  const SNAPSHOT_POLL_MS = 1000;
 
   let {
     routeOverride = null,
@@ -51,6 +53,13 @@
   let collapsed = $state(readSidebarCollapsed());
   let focusRunId = $state<string | null>(null);
   let focusDomainId = $state<string | null>(null);
+  let activeDomainId = $state<string | null>(null);
+  let lastPollAt = $state<number | null>(null);
+  let pollLive = $state(false);
+
+  const activeDomain = $derived(
+    snapshot.domains.find((d) => d.domain_id === activeDomainId) ?? null,
+  );
 
   const primary = [
     { route: "operations" as const, label: "Operations", icon: IconActivity },
@@ -95,8 +104,32 @@
     navigate("topology-focus");
   }
 
-  async function refreshSnapshot() {
-    snapshot = await backend.loadSnapshot();
+  async function refreshSnapshot(opts: { silent?: boolean } = {}) {
+    try {
+      const next = await backend.loadSnapshot();
+      if (!opts.silent) snapshot = next;
+      else snapshot = next;
+      lastPollAt = Date.now();
+      pollLive = !next.error;
+    } catch {
+      pollLive = false;
+    }
+  }
+
+  function selectDomain(domainId: string, opts: { route?: AppRoute } = {}) {
+    const domain = snapshot.domains.find((d) => d.domain_id === domainId);
+    if (!domain) return;
+    activeDomainId = domainId;
+    focusDomainId = domainId;
+    const label = domain.repo_root.split(/[\\/]/).pop() ?? domain.domain_id;
+    recents = addWorkspaceRecent({ id: domain.domain_id, label, domainId: domain.domain_id });
+    navigate(opts.route ?? "operations");
+  }
+
+  function openRecent(recent: WorkspaceRecent) {
+    const domain = snapshot.domains.find((d) => d.domain_id === recent.domainId);
+    if (domain) selectDomain(domain.domain_id);
+    else navigate("workspaces");
   }
 
   async function onRunCompleted() {
@@ -104,9 +137,16 @@
     navigate("runs");
   }
 
-  async function onWorkspaceOpened() {
-    recents = migrateWorkspaceRecents();
+  async function onWorkspaceOpened(openedPath?: string | null) {
     await refreshSnapshot();
+    if (openedPath) {
+      const domain = snapshot.domains.find((d) => d.repo_root === openedPath);
+      if (domain) {
+        selectDomain(domain.domain_id);
+        return;
+      }
+    }
+    recents = migrateWorkspaceRecents();
   }
 
   function onDomainForgotten(domainId: string) {
@@ -123,6 +163,7 @@
   onMount(() => {
     let disposed = false;
     let deepLinkUnlisten: (() => void) | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
     route = routeOverride ?? initialRoute();
     const onHashChange = () => {
       if (!routeOverride) route = initialRoute();
@@ -142,6 +183,8 @@
       window.removeEventListener("hashchange", onHashChange);
       window.removeEventListener("pytxo-deep-link", onBrowserDeepLink);
       window.removeEventListener("keydown", onGlobalKeydown);
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = null;
     };
 
     if (previewState === "loading") return cleanup;
@@ -157,9 +200,15 @@
     }
     void (async () => {
       try {
-        snapshot = await backend.loadSnapshot();
+        await refreshSnapshot();
+        if (!activeDomainId && snapshot.domains[0]) activeDomainId = snapshot.domains[0].domain_id;
       } finally {
         loading = false;
+      }
+      if (!disposed && previewState === "default") {
+        pollTimer = setInterval(() => {
+          void refreshSnapshot({ silent: true });
+        }, SNAPSHOT_POLL_MS);
       }
       try {
         const unlisten = await onPytxoDeepLink(handleDeepLink);
@@ -189,7 +238,7 @@
     onNavigate={navigate}
     onToggleCollapse={toggleSidebar}
     onOpenCommand={() => (commandOpen = true)}
-    onOpenRecent={() => navigate("workspaces")}
+    onOpenRecent={openRecent}
     onAccountClick={() => navigate("settings")}
   />
 
@@ -198,6 +247,8 @@
       {route}
       approvalsCount={snapshot.approvals.length}
       hypervisorOnline={!snapshot.error}
+      activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? activeDomain.domain_id) : null}
+      live={pollLive}
       onOpenHistory={() => navigate("runs")}
       onOpenNotifications={() => navigate("approvals")}
     />
@@ -206,9 +257,15 @@
       {#if loading}
         <div class="loading-state"><div></div><div></div><div></div></div>
       {:else if route === "operations"}
-        <OperationsScreen {snapshot} onRoute={navigate} />
+        <OperationsScreen
+          {snapshot}
+          live={pollLive}
+          lastPollAt={lastPollAt}
+          onRoute={navigate}
+          onReviewRun={(runId) => onFocusRun(runId, "run-review")}
+        />
       {:else if route === "flow"}
-        <FlowScreen {backend} domains={snapshot.domains} />
+        <FlowScreen {backend} domains={snapshot.domains} preferredDomainId={activeDomainId} />
       {:else if route === "topology-focus" || route === "run-review"}
         <FocusScreen mode={route} run={focusedRun} domainId={focusDomainId} onBack={() => navigate("runs")} {onRunCompleted} />
       {:else}
@@ -224,8 +281,10 @@
           {onReplayOnboarding}
           onReviewRun={(runId) => onFocusRun(runId, "run-review")}
           {onViewTopology}
-          {onWorkspaceOpened}
+          onSelectDomain={selectDomain}
+          onWorkspaceOpened={onWorkspaceOpened}
           {onDomainForgotten}
+          onApprovalsChanged={refreshSnapshot}
         />
       {/if}
     </div>

@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { FlowDraftRecord, FlowPlan, VoiceSessionDto, VoiceState } from "../../lib/types";
-  let { backend, domains, previewState = "draft" }: { backend: DesktopBackend; domains: { repo_root: string }[]; previewState?: "draft" | "recording" | "paused" | "transcribing" | "cancelled" | "failed" | "uncertain" | "planning" | "ready" | "blocked" | "dispatched" } = $props();
+  let { backend, domains, preferredDomainId = null, previewState = "draft" }: { backend: DesktopBackend; domains: { domain_id: string; repo_root: string }[]; preferredDomainId?: string | null; previewState?: "draft" | "recording" | "paused" | "transcribing" | "cancelled" | "failed" | "uncertain" | "planning" | "ready" | "blocked" | "dispatched" } = $props();
   let selectedDomainId = $state("");
   let selectedAde = $state("cursor");
   let mission = $state("");
@@ -26,6 +26,16 @@
   let dispatchedRun = $state("");
   let dispatching = $state(false);
   let history = $state<FlowDraftRecord[]>([]);
+
+  $effect(() => {
+    const preferred = preferredDomainId;
+    const list = domains;
+    if (preferred && list.some((d) => d.domain_id === preferred)) {
+      selectedDomainId = preferred;
+    } else if (!selectedDomainId || !list.some((d) => d.domain_id === selectedDomainId)) {
+      selectedDomainId = list[0]?.domain_id ?? "";
+    }
+  });
 
   async function buildPlan() {
     planning = true; error = "";
@@ -172,7 +182,6 @@
       selectedVoiceDevice = voiceDevices[0];
     }).catch(() => (voiceDevices = ["default"]));
     void backend.flowHistory().then((drafts) => (history = drafts));
-    selectedDomainId = domains[0]?.repo_root ?? "";
     mission = previewState === "draft" ? "" : "Make the desktop shell production ready";
     if (["recording", "paused", "transcribing", "cancelled", "failed"].includes(previewState)) voiceState = previewState as VoiceState;
     if (previewState === "recording" || previewState === "paused") voiceSessionId = "preview-session";
@@ -213,7 +222,7 @@
           {#if recording}<IconPlayerRecord size={17} /> Finish recording{:else if voiceState === "paused"}<IconMicrophone size={17} /> Finish paused recording{:else if voiceState === "transcribing"}<IconSparkles size={17} /> Transcribing…{:else}<IconMicrophone size={17} /> {voiceAvailable ? "Start Voice" : "Voice unavailable"}{/if}
         </button>
         {#if voiceSessionId && (voiceState === "recording" || voiceState === "paused")}<button class="quiet" onclick={pauseOrResumeVoice}>{voiceState === "paused" ? "Resume" : "Pause"}</button>{/if}{#if voiceSessionId}<button class="quiet" onclick={cancelVoice}>Cancel</button>{/if}
-        <div class="domain"><span>Execution domain & ADE</span><select bind:value={selectedDomainId} aria-label="Execution domain">{#each domains as domain}<option value={domain.repo_root}>{domain.repo_root.split(/[\\/]/).pop()}</option>{/each}</select><select bind:value={selectedAde} aria-label="Agent development environment"><option value="cursor">Cursor CLI</option><option value="codex">Codex CLI</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="aider">Aider</option></select></div>
+        <div class="domain"><span>Execution domain & ADE</span><select bind:value={selectedDomainId} aria-label="Execution domain">{#each domains as domain}<option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}</option>{/each}</select><select bind:value={selectedAde} aria-label="Agent development environment"><option value="cursor">Cursor CLI</option><option value="codex">Codex CLI</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="aider">Aider</option></select></div>
         <button class="primary" disabled={!mission.trim() || planning} onclick={buildPlan}>{planning ? "Planning…" : "Build plan"} <IconSparkles size={16} /></button>
       </div>
       {#if recording || voiceState === "paused" || voiceState === "transcribing"}<div class="waveform" aria-label={voiceState === "transcribing" ? "Transcription progress" : "Recording audio level"}>{#each [4,8,13,20,9,25,17,7,15,22,11,5,18,10,4] as height}<i style={`height:${height}px`}></i>{/each}<span>{voiceState === "paused" ? "Paused" : voiceState === "transcribing" ? `${Math.round(transcriptionProgress * 100)}%` : "00:08"}</span></div>{/if}

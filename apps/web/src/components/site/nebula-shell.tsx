@@ -14,10 +14,10 @@ export function NebulaShell({ children, className, subtle = false }: NebulaShell
           className={cn("absolute inset-0", subtle ? "opacity-35" : "opacity-55")}
           style={{
             background:
-              "radial-gradient(ellipse 80% 50% at 50% -20%, color-mix(in oklab, var(--brand-magenta) 7%, transparent), transparent 55%), radial-gradient(ellipse 60% 45% at 12% 8%, color-mix(in oklab, var(--brand-violet) 7%, transparent), transparent 52%), radial-gradient(ellipse 50% 40% at 90% 10%, color-mix(in oklab, var(--brand-teal) 6%, transparent), transparent 50%), radial-gradient(ellipse 40% 35% at 78% 35%, color-mix(in oklab, var(--brand-cyan) 5%, transparent), transparent 48%)",
+              "radial-gradient(ellipse 70% 45% at 88% -10%, color-mix(in oklab, var(--brand-teal) 8%, transparent), transparent 55%), radial-gradient(ellipse 55% 40% at 8% 0%, color-mix(in oklab, var(--brand-violet) 6%, transparent), transparent 52%), radial-gradient(ellipse 40% 30% at 70% 20%, color-mix(in oklab, var(--brand-gold) 4%, transparent), transparent 48%)",
           }}
         />
-        <div className="absolute inset-0 nebula-noise opacity-10 mix-blend-overlay" />
+        <div className="absolute inset-0 nebula-noise opacity-8 mix-blend-overlay" />
       </div>
       {children}
     </div>

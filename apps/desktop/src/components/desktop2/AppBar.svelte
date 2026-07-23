@@ -6,12 +6,16 @@
     route,
     approvalsCount,
     hypervisorOnline,
+    activeDomainLabel = null,
+    live = false,
     onOpenHistory,
     onOpenNotifications,
   }: {
     route: AppRoute;
     approvalsCount: number;
     hypervisorOnline: boolean;
+    activeDomainLabel?: string | null;
+    live?: boolean;
     onOpenHistory: () => void;
     onOpenNotifications: () => void;
   } = $props();
@@ -20,10 +24,11 @@
 <div class="app-bar">
   <div class="breadcrumbs">
     <span>Pytxo</span><i>/</i><strong>{ROUTE_LABELS[route]}</strong>
+    {#if activeDomainLabel}<i>/</i><em title="Active workspace">{activeDomainLabel}</em>{/if}
   </div>
   <div class="app-actions">
-    <span class="connection" class:offline={!hypervisorOnline}>
-      <i></i> {hypervisorOnline ? "Local hypervisor" : "Hypervisor unreachable"}
+    <span class="connection" class:offline={!hypervisorOnline} class:live={live && hypervisorOnline}>
+      <i></i> {hypervisorOnline ? (live ? "Live" : "Local hypervisor") : "Hypervisor unreachable"}
     </span>
     <button aria-label="Run history" title="Run history" onclick={onOpenHistory}>
       <IconHistory size={17} />
@@ -42,7 +47,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid #1e2026;
+    border-bottom: 1px solid var(--pytxo-line, #1e2026);
     padding: 0 22px;
   }
   .breadcrumbs {
@@ -51,6 +56,7 @@
     align-items: center;
     font-size: 11px;
     color: #5e6571;
+    min-width: 0;
   }
   .breadcrumbs i {
     font-style: normal;
@@ -59,6 +65,14 @@
   .breadcrumbs strong {
     color: #b4bac3;
     font-weight: 550;
+  }
+  .breadcrumbs em {
+    font-style: normal;
+    color: #8b929c;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .app-actions {
     display: flex;
@@ -79,6 +93,9 @@
     border-radius: 50%;
     background: #3ed7a1;
     box-shadow: 0 0 0 3px rgba(62, 215, 161, 0.08);
+  }
+  .connection.live i {
+    background: var(--pytxo-teal, var(--pytxo-teal));
   }
   .connection.offline {
     color: #d98994;
@@ -106,7 +123,7 @@
     color: #ccd1d8;
   }
   .app-actions button:focus-visible {
-    outline: 2px solid #38d6c1;
+    outline: 2px solid var(--pytxo-teal, var(--pytxo-teal));
     outline-offset: 1px;
   }
   .app-actions button .badge {
@@ -116,7 +133,7 @@
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: #eeac47;
+    background: var(--pytxo-gold, #eeac47);
   }
 
   :global(html[data-chroma-theme="light"]) .app-bar {

@@ -87,6 +87,38 @@
     animation: section-fade-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
+  .scroll-reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+
+  .scroll-reveal[data-revealed="true"] {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .hero-product-frame {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: var(--radius-xl);
+    border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+    background: color-mix(in oklab, var(--card) 40%, transparent);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--brand-teal) 12%, transparent),
+      0 24px 64px -28px color-mix(in oklab, var(--brand-violet) 28%, transparent);
+  }
+
+  .hero-product-frame img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
   .marketing-scroll {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in oklab, var(--brand-violet) 45%, #27272a) #0a0a0f;
@@ -119,6 +151,12 @@
   @media (prefers-reduced-motion: reduce) {
     .section-reveal {
       animation: none;
+    }
+
+    .scroll-reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
     }
   }
 }

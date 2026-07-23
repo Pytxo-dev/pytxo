@@ -6,43 +6,47 @@ tags: [guides, compare]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-02
-related: [cost-and-swarm-limits](/docs/cost-and-swarm-limits), [dag-flow-engine](/docs/dag-flow-engine), [multi-agent-orchestration-landscape](/docs/multi-agent-orchestration-landscape)
+updated: 2026-07-23
+related: [[cost-and-swarm-limits]], [[dag-flow-engine]], [[multi-agent-orchestration-landscape]], [[pytxo-improvement-research]], [[blast-shield]], [[race-shield]]
 ---
 
 # Pytxo vs Claude Code Agent Teams
 
-Claude Code **Agent Teams** (2026) provide a first-party multi-session swarm: team lead, teammates with isolated context windows, shared task list, and file-based **mailbox** messaging ([Claude Code docs](https://code.claude.com/docs/en/agent-teams.md)).
+Claude Code **Agent Teams** coordinate multiple Claude Code instances: a lead, teammates with their own context windows, a shared task list, and inter-agent messaging ([official docs](https://code.claude.com/docs/en/agent-teams), as of v2.1.178+).
 
-Pytxo targets a different layer: **cross-tool orchestration** with explicit resource and dependency policy.
+They are **experimental** and opt-in (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). Display modes: in-process (default) or split panes (tmux / iTerm2). Official docs state teammates **do not** get worktree isolation — same-file edits can overwrite each other — and that teams use **significantly more tokens** than a single session.
+
+Pytxo targets a different layer: **cross-tool orchestration** with explicit isolation, Race claims, and Signal context policy. Maturity program: [[pytxo-improvement-research]].
 
 ## Comparison
 
 | Dimension | Claude Agent Teams | Pytxo |
 |-----------|-------------------|--------|
-| Scope | Claude Code sessions | Headless CLIs + MCP (Cursor, VS Code, etc.) |
-| Coordination | Lead + mailbox + tasks on disk | Rust DAG + WAL + MCP hub |
-| UI | tmux/split panes optional | Optional Reality Deck (telemetry) |
-| FS model | Project checkout per teammate | [sparse-overlay-fs](/docs/sparse-overlay-fs) |
-| Context | Per-session CLAUDE.md load | [adaptive-semantic-scaffolding](/docs/adaptive-semantic-scaffolding) fidelity tiers |
-| Cost | N × full model sessions | Bounded by tier + [cost-and-swarm-limits](/docs/cost-and-swarm-limits) |
+| Scope | Claude Code sessions only | Headless CLIs + MCP (Claude Code, Codex, …) |
+| Status | Experimental, env-flag gated | Local hypervisor + optional Desktop |
+| Coordination | Lead + mailbox + shared tasks | Rust DAG + WAL + MCP hub |
+| Write safety | Docs warn: no worktree isolation | [[race-shield]] path claims + [[blast-shield]] worktree / sparse copy-layer |
+| UI | In-process panel or tmux panes | Optional Desktop 2 (structural Focus / Ops) — not terminal walls |
+| Context | Per-teammate window; no lead history carryover | [[signal-core]] skeletons on read |
+| Cost | N × full model sessions (docs disclaimer) | Tier limits + [[cost-and-swarm-limits]]; measure Signal via [[competitive-benchmarks]] |
 
 ## When Claude teams are enough
 
 - Single-vendor Claude-only workflow
-- Moderate parallelism; team fits in one machine’s RAM
-- You accept experimental limitations (no nested teams, session resume gaps, token multiplication)
+- Moderate parallelism on one machine
+- You accept experimental limits (one team per session, resume gaps, token multiplication)
 
 ## When Pytxo adds value
 
-- **Mixed agents** (Claude Code + Codex + Aider) under one scheduler
-- **Deadlock-prone** shared repos → [dag-flow-engine](/docs/dag-flow-engine)
-- **Monorepo RAM** pressure → [sparse-overlay-fs](/docs/sparse-overlay-fs)
-- **Enterprise sanitization** → [regex-sanitization](/docs/regex-sanitization)
-- **Heavy compile/test** → [hybrid-execution](/docs/hybrid-execution)
+- **Mixed agents** (Claude Code + Codex + others) under one scheduler
+- **Same-repo write collisions** Claude’s docs already warn about → [[race-shield]]
+- **Deadlock-prone** shared paths → [[dag-flow-engine]]
+- **Monorepo isolation** via shipping worktree / copy-layer (kernel FUSE/ProjFS remains north star) → [[blast-shield]], [[sparse-overlay-fs]]
+- **Enterprise sanitization / Galaxy HITL** → [[regex-sanitization]], [[permission-profile-engine]]
+- **Heavy compile/test** only when Cloud dispatcher is configured → [[hybrid-execution]]
 
 ## Coexistence
 
-Pytxo can orchestrate Claude Code as an **execution yard** process while adding policies Claude’s native teams do not centralize.
+Pytxo can run Claude Code as an **execution yard** process while adding Race, Blast, and Signal policies native teams do not centralize.
 
-See [multi-agent-orchestration-landscape](/docs/multi-agent-orchestration-landscape).
+See [[multi-agent-orchestration-landscape]], [[pytxo-vs-github-copilot-app]].

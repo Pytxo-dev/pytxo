@@ -6,7 +6,7 @@ import { NPM_INSTALL } from "@/lib/site";
 
 export function CtaSection() {
   return (
-    <section className="section-pad section-reveal">
+    <section className="section-pad">
       <div className="mx-auto max-w-3xl border-t border-border pt-12 text-center">
         <h2 className="text-2xl sm:text-3xl">Install once. Run agents in parallel.</h2>
         <p className="mx-auto mt-3 max-w-lg text-muted-foreground">

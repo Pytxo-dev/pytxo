@@ -4,15 +4,15 @@ title: Signal Core
 
 # Signal Core
 
-**Signal Core** compresses context before agents read your code. It sends **structural skeletons** (signatures, types, imports) instead of full file dumps. On large repos that often cuts input tokens a lot.
+**Signal Core** compresses context before agents read your code. It sends **structural skeletons** (signatures, types, imports) instead of full file dumps. Savings depend on file shape — tiny fixtures may show single-digit percent; large body-heavy files approach the aspirational ~60% design goal. Measure with `tooling/benchmarks/signal-reduction.ps1` (Phase 73 pin: **4.76%** on `tiny-monorepo/src/a.ts`).
 
 ## At a glance
 
-- **tree-sitter** parsing extracts structure on the read path
+- **tree-sitter** parsing extracts structure on the read path (8+ languages)
 - `signal_core = true` in `pytxo.toml` turns scaffolding on for task paths
 - `signal_fidelity` (`low` | `medium` | `high`) controls how much structure per task
-- Savings are recorded per run and shown in Pytxo Desktop topology stats
-- Import edges between edited files show up in the Desktop topology panel during runs
+- Savings are recorded per run; Desktop 2 Focus shows an **arbitrage bar** (`agent_arbitrage`) when samples exist
+- Import edges between files show up in Topology Focus during runs
 
 ## Configuration
 

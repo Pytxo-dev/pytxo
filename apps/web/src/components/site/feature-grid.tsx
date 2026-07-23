@@ -4,10 +4,10 @@ import { Braces, GitMerge, ShieldCheck, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-type Accent = "cyan" | "gold" | "violet";
+type Accent = "teal" | "gold" | "violet";
 
 const ACCENT_VAR: Record<Accent, string> = {
-  cyan: "var(--brand-cyan)",
+  teal: "var(--brand-teal)",
   gold: "var(--brand-gold)",
   violet: "var(--brand-violet)",
 };
@@ -30,8 +30,8 @@ const MOATS: Moat[] = [
       "Sends agents file skeletons (signatures, types, imports) instead of whole files, so every read starts smaller.",
     href: "/docs/concepts/signal-core",
     icon: Braces,
-    accent: "cyan",
-    stat: { value: "~60%", label: "lower input tokens on a skeleton read" },
+    accent: "teal",
+    stat: { value: "4.8%", label: "measured on tiny fixture (aspirational ~60% on large files)" },
   },
   {
     title: "Safe parallel sandboxes",
@@ -165,7 +165,7 @@ export function FeatureGrid() {
   const [signalCore, blastShield, raceShield] = MOATS;
 
   return (
-    <section className="section-pad mx-auto max-w-6xl section-reveal">
+    <section className="section-pad mx-auto max-w-6xl">
       <div className="flex max-w-2xl flex-col gap-3">
         <h2 className="text-3xl sm:text-4xl">The three moats behind every run</h2>
         <p className="text-muted-foreground">

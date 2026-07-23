@@ -163,7 +163,7 @@
     color: #fff;
   }
   .command-menu button:focus-visible {
-    outline: 2px solid #38d6c1;
+    outline: 2px solid var(--pytxo-teal);
     outline-offset: -2px;
   }
   .command-menu button span {
