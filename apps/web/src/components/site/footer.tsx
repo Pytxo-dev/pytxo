@@ -27,7 +27,7 @@ export function SiteFooter() {
         <div className="flex flex-col gap-10 lg:flex-row lg:justify-between">
           <div className="flex max-w-sm flex-col gap-3">
             <div className="flex items-center gap-2.5">
-              <Image src="/logo.png" alt="" width={28} height={28} className="size-7" />
+              <Image src="/logo-mark.png" alt="" width={28} height={28} className="size-7" />
               <p className="font-semibold tracking-tight">Pytxo</p>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">

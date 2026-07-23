@@ -6,8 +6,8 @@ tags: [architecture, c4]
 audience: [human, agent]
 layer: orchestration
 created: 2026-06-02
-updated: 2026-06-02
-related: [[presentation-passive-telemetry]], [[execution-domains]], [[mcp-hub-integration]], [[hybrid-execution]]
+updated: 2026-07-23
+related: [[presentation-passive-telemetry]], [[execution-domains]], [[mcp-hub-integration]], [[hybrid-execution]], [[pytxo-improvement-research]]
 ---
 
 # Three-tier system model
@@ -17,7 +17,7 @@ Pytxo decouples structural telemetry from process coordination using a strictly 
 ```text
 ┌─────────────────────────────────────────┐
 │  PYTXO PRESENTATION (Svelte 5)          │
-│  Pytxo Desktop · 3D AST topology (target)│
+│  Desktop 2 Focus · Ops (3D = legacy)    │
 └─────────────────┬───────────────────────┘
                   │ Tauri v2 IPC
 ┌─────────────────▼───────────────────────┐
@@ -30,7 +30,7 @@ Pytxo decouples structural telemetry from process coordination using a strictly 
         ▼                  ▼
 ┌───────────────┐  ┌──────────────────┐
 │ LOCAL         │  │ PYTXO CLOUD      │
-│ EXECUTION     │  │ SANDBOX          │
+│ EXECUTION     │  │ (when configured)│
 │ YARD          │  │                  │
 └───────────────┘  └──────────────────┘
 ```

@@ -4,7 +4,7 @@ title: Race Shield
 
 # Race Shield
 
-**Race Shield** stops cross-agent write collisions and stdin races. It uses a lock-free swarm registry and buffered stdin handling.
+**Race Shield** stops cross-agent write collisions and stdin races. It uses a **thread-safe swarm registry** (separate locks for path claims and stdin) and buffered stdin handling. Lock-free / path-prefix shards remain a north-star option after contention profiling — not the shipping implementation.
 
 ## Scheduling
 

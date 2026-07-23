@@ -6,17 +6,19 @@ tags: [project, desktop, ui, presentation]
 audience: [human, agent]
 layer: presentation
 created: 2026-07-14
-updated: 2026-07-14
-related: [[desktop-visual-system]], [[presentation-passive-telemetry]], [[product-vision]], [[ADR-0023-reality-deck-3d-renderer]], [[ADR-0028-desktop-product-name]]
+updated: 2026-07-23
+related: [[desktop-visual-system]], [[presentation-passive-telemetry]], [[product-vision]], [[ADR-0023-reality-deck-3d-renderer]], [[ADR-0028-desktop-product-name]], [[pytxo-improvement-research]], [[market-ready-polish-research]]
 ---
 
 # Pytxo Desktop UI improvement backlog
 
 ## Summary
 
-Pytxo Desktop (`apps/desktop`, Svelte 5 + Tauri v2, app version 0.5.0) is a functional, mostly mature control UI that already matches its own vision docs: the 3D AST topology is the primary surface in the legacy shell, there is no multi-pane terminal wall, and the setup and workspace flows are complete. This note tracks concrete, code-referenced improvements found during a design review, ordered by priority. Items closed by the v0.5.0 Desktop 2 polish pass are marked **Resolved in v0.5.0** with their current evidence; everything else is still an open backlog item, not a changelog.
+Pytxo Desktop (`apps/desktop`, Svelte 5 + Tauri v2, app version 0.5.0) is a functional, mostly mature control UI that already matches its own vision docs: structural Focus is the primary surface in Desktop 2, there is no multi-pane terminal wall, and the setup and workspace flows are complete. This note tracks concrete, code-referenced improvements found during a design review, ordered by priority.
 
-**v0.5.0 context:** the compact "Desktop 2" shell (`apps/desktop/src/components/desktop2/`) is now the default UI (`useLegacyShell` in `App.svelte` defaults to `false`); the original shell (`DeckShell.svelte` and friends, referenced throughout this note) is retained only as an opt-in rollback path. Several items below were superseded by the Desktop 2 rewrite rather than fixed in place in the legacy components.
+**v0.5.0 context:** the compact "Desktop 2" shell (`apps/desktop/src/components/desktop2/`) is the default UI (`useLegacyShell` in `App.svelte` defaults to `false`); the original shell is retained only as an opt-in rollback path.
+
+**Phase 74 (2026-07-23):** market-ready supervision polish shipped — live snapshot poll, Approvals selection/refresh, active domain/recents, Ops→Run Review, thin Fleet panel, Integrations/Settings honesty, Focus structural list CSS. See [[market-ready-polish-research]].
 
 ## High priority
 
@@ -30,12 +32,15 @@ Pytxo Desktop (`apps/desktop`, Svelte 5 + Tauri v2, app version 0.5.0) is a func
 
 ### 3. Docs claim a 2D topology fallback that no longer exists in code
 
-[[desktop-visual-system]] and [[ADR-0023-reality-deck-3d-renderer]] both describe a shipped 2D `TopologyPanel.svelte` sidebar fallback ("2D canvas remains sidebar fallback"). It is not present in `apps/desktop/src` — only `TopologyScene3D.svelte` exists. Decide one of:
+**Resolved in Phase 73 (docs corrected).** [[desktop-visual-system]] and [[ADR-0023-reality-deck-3d-renderer]] honesty addendum now state Desktop 2 structural Focus is default, 3D is legacy-shell only, and `TopologyPanel.svelte` is not shipped. No reintroduction planned unless a future ADR requires it.
 
-- Reintroduce a lightweight 2D fallback (useful for large graphs or low-power / no-WebGL environments), or
-- Correct [[desktop-visual-system]]'s status table and ADR-0023 to reflect 3D-only reality.
+### 10. Live Ops and Approvals supervision gaps
 
-Either is fine; leaving the mismatch between docs and code is not.
+**Resolved in Phase 74.** Desktop 2 mounts a ~1s `loadSnapshot()` poll; Ops Live badge reflects refresh/error; Approvals rows are selectable with detail pane follow; approve/deny reloads snapshot (not local-only resolved list); Ops run rows open Focus Run Review; active domain from workspace/recents drives AppBar + Flow `domain_id`.
+
+### 11. Integrations / Settings stubs and unused fleets
+
+**Resolved in Phase 74.** MCP Integrations show CLI/`pytxo-mcp` + Cursor setup truth; Cloud stays honest local-only; Settings Coming soon entries removed (Appearance / Voice / Privacy / Account remain); thin Fleet panel on Ops; Focus `structural-list` styled; density preference wired in CSS.
 
 ## Medium priority
 
@@ -45,7 +50,7 @@ Either is fine; leaving the mismatch between docs and code is not.
 
 ### 5. The 3D topology stage deserves flagship-level polish
 
-**Still open, scope narrowed.** Desktop 2's Focus surface (`apps/desktop/src/components/desktop2/FocusScreen.svelte`) replaced the bare-canvas concern with a real-data structural graph / run-review view that does not use `TopologyScene3D.svelte` or Three.js at all — the v0.5.0 pass prioritized honest data and layout over 3D flagship polish. `TopologyScene3D.svelte` still exists, unpolished, in the legacy shell only. Decide whether the 3D stage remains a Desktop 2 goal or is fully superseded by the structural-graph approach before picking this back up.
+**Still open, scope narrowed.** Desktop 2's Focus surface (`apps/desktop/src/components/desktop2/FocusScreen.svelte`) replaced the bare-canvas concern with a real-data structural graph / run-review view that does not use `TopologyScene3D.svelte` or Three.js at all — the v0.5.0 pass prioritized honest data and layout over 3D flagship polish. Phase 74 styled the structural list further. `TopologyScene3D.svelte` still exists, unpolished, in the legacy shell only. Decide whether the 3D stage remains a Desktop 2 goal or is fully superseded by the structural-graph approach before picking this back up.
 
 ### 6. Near-zero intentional motion anywhere in the app
 
@@ -59,11 +64,15 @@ Either is fine; leaving the mismatch between docs and code is not.
 
 ### 8. Duplicate ADR-0014 identifier
 
-Two accepted ADRs both claim `ADR-0014`: `ADR-0014-multi-provider-byok-catalog` and `ADR-0014-chroma-shared-design-tokens`. Renumber the Chroma one to the next free ID and update `docs/05-adr/index.md`, which currently lists only the BYOK version.
+**Resolved in Phase 73.** Chroma tokens ADR renumbered to [[ADR-0029-chroma-shared-design-tokens]]; [[ADR-0014-multi-provider-byok-catalog]] keeps ADR-0014. Index updated.
 
 ### 9. `DeepSpace` naming in the permission-profile picker
 
 Already reconciled in [[glossary]] and [[permission-profile-engine]] to the one-word `DeepSpace` form. Check Desktop's permission-profile picker UI against this the next time it is touched, since it is the one user-visible Desktop surface where the tier name actually renders as a label.
+
+### 12. Prefer `--pytxo-*` / Chroma vars over scattered hex in Desktop 2 CSS
+
+**Still open (partial).** Phase 74 added structural/density styles; a full token pass across `desktop2-shared.css` remains optional polish (A8 in [[market-ready-polish-research]]).
 
 ## Non-issues (confirmed fine, no action needed)
 
@@ -78,5 +87,7 @@ Already reconciled in [[glossary]] and [[permission-profile-engine]] to the one-
 - [[product-vision]]
 - [[ADR-0023-reality-deck-3d-renderer]]
 - [[ADR-0028-desktop-product-name]]
+- [[pytxo-improvement-research]]
+- [[market-ready-polish-research]] — Phase 74 Desktop + marketing polish
 
 Back: [[MOC-home]]

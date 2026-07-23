@@ -6,8 +6,8 @@ tags: [security, orchestration, policy]
 audience: [human, agent]
 layer: security
 created: 2026-06-02
-updated: 2026-07-10
-related: [[ADR-0008-local-permission-profile-four-tiers]], [[blast-shield]], [[race-shield]], [[signal-core]], [[execution-domains]]
+updated: 2026-07-18
+related: [[ADR-0008-local-permission-profile-four-tiers]], [[blast-shield]], [[race-shield]], [[signal-core]], [[execution-domains]], [[pytxo-improvement-research]]
 ---
 
 # Permission Profile Engine
@@ -74,8 +74,9 @@ Composable traits behind a `PermissionEngine` facade:
 | `FilesystemPolicy` | `may_read`, `may_write`, `flush_requires_approval` | All |
 | `NetworkPolicy` | `egress_allowed(host, port)` | DeepSpace blocks all; Orbit default deny |
 | `EnvironmentPolicy` | `sanitize_env(child)` — strip `SSH_*`, blind global `.env` | DeepSpace, Orbit |
-| `ProcessPolicy` | `may_spawn`, `allowed_interpreters` | DeepSpace denies externals |
 | `HitlGate` | `await_approval(action, ctx) -> Approved \| Denied` | Galaxy required; optional on Supernova |
+
+`ProcessPolicy` (`may_spawn`, `allowed_interpreters`) is **deferred to Phase 75** — remove from docs claims until implemented in crates.
 
 ## Mapping to existing moat traits
 

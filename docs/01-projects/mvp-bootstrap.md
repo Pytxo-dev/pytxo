@@ -6,8 +6,8 @@ tags: [project]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-21
-related: [[MOC-home]], [[ADR-0005-worktree-isolation-for-mvp]], [[phase-2-reality-deck]], [[modular-projects]]
+updated: 2026-07-18
+related: [[MOC-home]], [[ADR-0005-worktree-isolation-for-mvp]], [[phase-2-reality-deck]], [[modular-projects]], [[pytxo-improvement-research]]
 ---
 
 # MVP bootstrap
@@ -343,6 +343,43 @@ Modular project manifest + CLI, Galaxy HITL queue/Deck/CLI, hypervisor catalog, 
 - [x] [[ADR-0025-cloud-runtime-isolation]] consequences updated; [[competitive-benchmarks]] TBD cells pinned with date
 - [x] Docs honesty: [[mcp-router]], [[github-organization]], [[modular-projects]]
 
+## Phase 73 — shipped (Trust capital + GTM proof)
+
+Program: [[pytxo-improvement-research]].
+
+- [x] Pin [[competitive-benchmarks]] hardware profile + overlay/RAM/signal-reduction measured cells (2026-07-18)
+- [x] Caveate Signal “~60%” with measured script result; surface `agent_arbitrage` on Desktop 2 Focus
+- [x] Docs honesty: vision/moats/Desktop primary surface, ADR-0029 Chroma renumber, public Race/fleet/MCP claims
+
+## Phase 74 — shipped (Desktop 2 market-ready polish + marketing)
+
+Companion research: [[market-ready-polish-research]].
+
+- [x] Live Ops poll (~1s) in Desktop 2 (`DesktopShell.svelte`); Live badge reflects refresh/error
+- [x] Approvals selectable inbox + snapshot reload after approve/deny; Blast flush outcome surfaced
+- [x] Active domain / recents selection; AppBar domain breadcrumb; Flow uses real `domain_id`
+- [x] Ops run rows → Focus Run Review; cost fields where backend provides estimates
+- [x] Thin Fleet panel from `snapshot.fleets` on Ops
+- [x] Integrations MCP = CLI/`pytxo-mcp` + Cursor setup honesty; Cloud stays local-only
+- [x] Settings: remove Coming soon dead ends; Voice capture/consent prefs; density styles
+- [x] Focus structural list CSS; density `data-ui-density`; keep arbitrage bar
+- [x] Marketing: product hero, proof band, triad accents (teal/gold/violet), scroll reveal, download/OG product frame
+
+## Phase 75 — planned (Moat depth)
+
+- [ ] Galaxy beyond string HITL (or documented bypass risk)
+- [ ] DeepSpace fail-closed on Windows WFP stub
+- [ ] `ProcessPolicy`: implement for real (removed from docs in Phase 73 until then)
+- [ ] Race contention profiling
+- [ ] Linux kernel overlay production CI path
+
+## Phase 76 — planned (Reliability + commercial gates)
+
+- [ ] `pytxo-cli` + `pytxo-mcp` integration tests
+- [ ] Ultra: document local-ledger-only until Link E2E (or finish Link)
+- [ ] Cloud: advertise only configured HTTP dispatcher / demote until ready
+- [ ] Dated ProjFS provider roadmap (platform SLAs)
+
 ## Phase 31 — shipped (Signal depth + DeepSpace reads)
 
 - [x] tree-sitter grammars: Java, C/C++, Ruby (`pytxo-signal`)
@@ -373,4 +410,5 @@ cargo build -p pytxo-desktop   # from repo root
 - [[cli-reference]]
 - [[cursor-mcp-pytxo]]
 - [[phase-2-reality-deck]]
+- [[pytxo-improvement-research]]
 - [[ADR-0001-three-tier-rust-svelte-tauri]]

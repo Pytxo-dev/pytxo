@@ -37,6 +37,10 @@ The Deck stack is **Svelte 5 + Tauri v2** ([[ADR-0001-three-tier-rust-svelte-tau
 - Light/dark theme tokens apply to xterm and 3D background via CSS variables.
 - Future Reality Deck work (instancing, edge particles, root_id color lanes) extends this scene graph — no second renderer fork.
 
+### Honesty addendum (Phase 73)
+
+Desktop **v0.5.0+** defaults to **Desktop 2** structural Focus (`FocusScreen.svelte`), not Three.js. `TopologyScene3D.svelte` remains on the **legacy shell** only (`desktop_shell_v1=true`). The Decision above still describes the 3D renderer when that shell is enabled; it is **not** the default primary surface. The historical `TopologyPanel.svelte` 2D fallback is **not** present in the tree — do not claim it as shipped. See [[desktop-visual-system]] and [[pytxo-improvement-research]].
+
 ## Alternatives rejected
 
 | Alternative | Why rejected |

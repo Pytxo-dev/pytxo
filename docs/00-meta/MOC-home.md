@@ -6,8 +6,8 @@ tags: [moc, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-04
-related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]]
+updated: 2026-07-23
+related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]]
 ---
 
 # Pytxo documentation home
@@ -19,6 +19,8 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 **Stack:** Rust (`portable-pty`, `tree-sitter`) · Svelte 5 Runes · Tauri v2
 
 **Vision:** [[product-vision]] — three moats: [[signal-core]], [[blast-shield]], [[race-shield]]
+
+**Improvement program:** [[pytxo-improvement-research]] — Phases **73–74 shipped**; Phases **75–76** next (moat depth, commercial gates). Phase 74 detail: [[market-ready-polish-research]].
 
 ---
 
@@ -80,6 +82,8 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[tiers-hobbyist-pro-max]] · [[token-arbitrage]]
 - [[gtm-open-source-loop]] · [[competitive-benchmarks]]
 - [[desktop-ui-improvement-backlog]] — prioritized Pytxo Desktop UI findings
+- [[pytxo-improvement-research]] — deep maturity synthesis + market landscape + ranked P0–P3 (Phases 73–74 done; 75 next)
+- [[market-ready-polish-research]] — Phase 74 Desktop supervision + marketing polish
 
 ### ADRs
 
@@ -89,6 +93,8 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 
 - [[first-three-agent-run]]
 - [[pytxo-vs-claude-agent-teams]]
+- [[pytxo-vs-github-copilot-app]]
+- [[pytxo-vs-ade-virtual-workspace]]
 - [[cost-and-swarm-limits]]
 - [[multi-agent-orchestration-landscape]]
 

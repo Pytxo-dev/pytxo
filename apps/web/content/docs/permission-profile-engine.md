@@ -6,8 +6,8 @@ tags: [security, orchestration, policy]
 audience: [human, agent]
 layer: security
 created: 2026-06-02
-updated: 2026-06-02
-related: [ADR-0008-local-permission-profile-four-tiers](/docs/adr-0008-local-permission-profile-four-tiers), [blast-shield](/docs/blast-shield), [race-shield](/docs/race-shield), [signal-core](/docs/signal-core), [execution-domains](/docs/execution-domains)
+updated: 2026-07-18
+related: [[ADR-0008-local-permission-profile-four-tiers]], [[blast-shield]], [[race-shield]], [[signal-core]], [[execution-domains]], [[pytxo-improvement-research]]
 ---
 
 # Permission Profile Engine
@@ -16,12 +16,12 @@ The **Permission Profile Engine** is the orchestration-layer policy facade that 
 
 | Term | Meaning |
 |------|---------|
-| **Three-tier model** | Presentation / Orchestration / Execution yard ([three-tier-model](/docs/three-tier-model)) |
-| **FidelityTier** | Signal Core context density: Low / Medium / High ([adaptive-semantic-scaffolding](/docs/adaptive-semantic-scaffolding)) |
-| **Subscription tier** | Hobbyist / Pro / Max billing ([tiers-hobbyist-pro-max](/docs/tiers-hobbyist-pro-max)) |
+| **Three-tier model** | Presentation / Orchestration / Execution yard ([[three-tier-model]]) |
+| **FidelityTier** | Signal Core context density: Low / Medium / High ([[adaptive-semantic-scaffolding]]) |
+| **Subscription tier** | Hobbyist / Pro / Max billing ([[tiers-hobbyist-pro-max]]) |
 | **PermissionProfile** | Local trust ladder (this document) |
 
-ADR: [ADR-0008-local-permission-profile-four-tiers](/docs/adr-0008-local-permission-profile-four-tiers).
+ADR: [[ADR-0008-local-permission-profile-four-tiers]].
 
 ## Reference type (`pytxo-core::moat::permission`)
 
@@ -29,7 +29,7 @@ ADR: [ADR-0008-local-permission-profile-four-tiers](/docs/adr-0008-local-permiss
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PermissionProfile {
-    /// Tier 1 — Deep Space: air-gapped process directory
+    /// Tier 1 — DeepSpace: air-gapped process directory
     DeepSpace,
     /// Tier 2 — Orbit: default engineering; CoW bubble, approve-to-flush
     #[default]
@@ -41,7 +41,7 @@ pub enum PermissionProfile {
 }
 ```
 
-Configure via `permission_profile` in [pytxo-toml](/docs/pytxo-toml) (default `orbit`). Optional per-`agent` override; do not confuse `agent.name` (scheduling profile label) with `PermissionProfile`.
+Configure via `permission_profile` in [[pytxo-toml]] (default `orbit`). Optional per-`[[agent]]` override; do not confuse `[[agent]].name` (scheduling profile label) with `PermissionProfile`.
 
 ## Capability matrix
 
@@ -60,10 +60,10 @@ Configure via `permission_profile` in [pytxo-toml](/docs/pytxo-toml) (default `o
 
 | Profile | Shipping today | North star |
 |---------|----------------|------------|
-| **Orbit** | `permission_profile` in config; git worktrees; path waves; env strip (`SSH_*`); `commit_workspace` → `IsolationBackend::flush` | CoW overlay; Tauri IPC approve before physical flush |
-| **DeepSpace** | Config + `PermissionEngine::max_fidelity(Low)`; env strip; `may_flush` denied | Network block + cwd-only reads |
-| **Galaxy** | Config only (same as Orbit at runtime today) | `HitlGate` queue in Race Shield registry |
-| **Supernova** | Skips worktree isolation (cwd = `repo_root`); flush without approval gate | Explicit opt-in + audit logging |
+| **Orbit** | `permission_profile` in config; worktree or sparse overlay (`prefer_kernel_overlay`); path waves; env strip (`SSH_*`); `spawn_egress_allowed` denies network fetch at spawn; `commit_workspace` → `IsolationBackend::flush` | Full kernel CoW; Tauri IPC approve before physical flush |
+| **DeepSpace** | Config + `PermissionEngine::max_fidelity(Low)`; env strip; `may_flush` denied; spawn egress denied; OS isolation hooks (Linux netns, macOS sandbox-exec, Windows WFP opt-in `PYTXO_DEEPSPACE_WFP=1`) | Stronger per-process WFP / AppContainer |
+| **Galaxy** | Spawn HITL (`fs.delete`, `git.push`, `git.destructive`, `proc.infrastructure`, `fs.permission`, `proc.docker`, `net.egress`, `net.bind`, `proc.package_install`); MCP proxy HITL (`mcp.tool`); flush HITL; stdin line gates; persisted `HitlQueue` | Full runtime syscall hooks |
+| **Supernova** | Skips worktree isolation (cwd = `repo_root`); flush without approval gate; spawn egress allowed | Explicit opt-in + audit logging |
 
 ## Policy traits (v2 — trait objects deferred)
 
@@ -74,8 +74,9 @@ Composable traits behind a `PermissionEngine` facade:
 | `FilesystemPolicy` | `may_read`, `may_write`, `flush_requires_approval` | All |
 | `NetworkPolicy` | `egress_allowed(host, port)` | DeepSpace blocks all; Orbit default deny |
 | `EnvironmentPolicy` | `sanitize_env(child)` — strip `SSH_*`, blind global `.env` | DeepSpace, Orbit |
-| `ProcessPolicy` | `may_spawn`, `allowed_interpreters` | DeepSpace denies externals |
 | `HitlGate` | `await_approval(action, ctx) -> Approved \| Denied` | Galaxy required; optional on Supernova |
+
+`ProcessPolicy` (`may_spawn`, `allowed_interpreters`) is **deferred to Phase 75** — remove from docs claims until implemented in crates.
 
 ## Mapping to existing moat traits
 
@@ -83,10 +84,10 @@ Do not duplicate moat surfaces—profiles **select and parameterize** them:
 
 | Moat | Trait / type | Profile binding |
 |------|--------------|-----------------|
-| **Blast Shield** | `IsolationBackend` | **Orbit** primary: `prepare` / `rollback` / `flush` ([blast-shield](/docs/blast-shield)). `flush()` is the approve-channel contract; UI calls `commit_workspace` over IPC, orchestration calls `flush`. |
-| **Race Shield** | `RaceShield` | All profiles: path claims per [execution-domains](/docs/execution-domains). **Galaxy** adds HITL for boundary violations and destructive ops. |
+| **Blast Shield** | `IsolationBackend` | **Orbit** primary: `prepare` / `rollback` / `flush` ([[blast-shield]]). `flush()` is the approve-channel contract; UI calls `commit_workspace` over IPC, orchestration calls `flush`. |
+| **Race Shield** | `RaceShield` | All profiles: path claims per [[execution-domains]]. **Galaxy** adds HITL for boundary violations and destructive ops. |
 | **Signal Core** | `SignalCore` | Unchanged API; profile may cap max `FidelityTier` on egress (e.g. DeepSpace → Low only). |
-| **Sovereign Shield** | `pytxo-sanitize` | All profiles when `sanitize = true` ([regex-sanitization](/docs/regex-sanitization), ADR-0006)—redaction is not authorization. |
+| **Sovereign Shield** | `pytxo-sanitize` | All profiles when `sanitize = true` ([[regex-sanitization]], ADR-0006)—redaction is not authorization. |
 
 `IsolationMode` (`worktree` | `overlay`) remains a **mechanism** under Orbit/Galaxy, not a replacement for `PermissionProfile`.
 
@@ -99,15 +100,15 @@ Do not duplicate moat surfaces—profiles **select and parameterize** them:
 | `pytxo-orchestrate` | Resolve profile from config; `HypervisorRegistry` per-domain isolation |
 | `pytxo-store` | Audit `permission_profile` on `runs` row (future migration) |
 
-Presentation ([presentation-passive-telemetry](/docs/presentation-passive-telemetry)) never enforces policy—only displays state and sends IPC intents.
+Presentation ([[presentation-passive-telemetry]]) never enforces policy—only displays state and sends IPC intents.
 
 ## Codename reference
 
 | Profile | Codename | Typical use |
 |---------|----------|-------------|
-| `deep_space` | Deep Space | Untrusted codegen, air-gapped review |
+| `deep_space` | DeepSpace | Untrusted codegen, air-gapped review |
 | `orbit` | Orbit | Day-to-day engineering (default) |
 | `galaxy` | Galaxy | Integration tests against local Docker/DB |
 | `supernova` | Supernova | Production deploy scripts, global package managers |
 
-Back: [MOC-home](/docs/moc-home) · [execution-domains](/docs/execution-domains) · [ADR-0008-local-permission-profile-four-tiers](/docs/adr-0008-local-permission-profile-four-tiers)
+Back: [[MOC-home]] · [[execution-domains]] · [[ADR-0008-local-permission-profile-four-tiers]]

@@ -39,9 +39,14 @@ paths = ["package.json"]
     & $Pytxo init
     & $Pytxo trust orbit
 
-    $proc = Start-Process -FilePath $Pytxo -ArgumentList @(
-        "run", "--config", "pytxo.toml", "--cmd", "Start-Sleep -Seconds 30"
-    ) -PassThru -NoNewWindow
+    # ProcessStartInfo keeps --cmd value as one argv (Start-Process -ArgumentList re-splits on spaces).
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $Pytxo
+    $psi.WorkingDirectory = $Repo
+    $psi.UseShellExecute = $false
+    $psi.Arguments = 'run --config pytxo.toml --cmd "ping -n 25 127.0.0.1"'
+    $proc = [System.Diagnostics.Process]::Start($psi)
+    if (-not $proc) { throw "failed to start pytxo run" }
     Start-Sleep -Seconds 2
 
     $peakKb = 0

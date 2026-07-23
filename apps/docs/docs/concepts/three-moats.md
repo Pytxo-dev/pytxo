@@ -22,4 +22,6 @@ Every Pytxo run goes through three safety and efficiency layers.
 
 On **Galaxy**, [human approvals](/docs/concepts/galaxy-approvals) add a fourth layer for risky commands and merges.
 
+Shipping today uses worktree / sparse **copy-layer** isolation and a locked write registry — not kernel ProjFS/FUSE or lock-free shards as marketing claims. Signal savings: measure with `signal-reduction` (Phase 73 pin ~4.76% on a tiny fixture; ~60% remains aspirational on large body-heavy files). See [Signal Core](/docs/concepts/signal-core).
+
 Each moat has its own concept page with configuration options.

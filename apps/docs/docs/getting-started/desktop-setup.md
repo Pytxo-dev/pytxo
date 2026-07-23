@@ -4,7 +4,7 @@ title: Desktop setup
 
 # Desktop setup
 
-First-run guide for **Pytxo Desktop** — the optional control UI for structural telemetry and 3D AST topology (not a multi-terminal IDE).
+First-run guide for **Pytxo Desktop** — the optional control UI for structural telemetry (Desktop 2 Focus graph by default; not a multi-terminal IDE).
 
 ## Prerequisites
 

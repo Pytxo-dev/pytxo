@@ -6,13 +6,13 @@ tags: [architecture, svelte, tauri]
 audience: [human, agent]
 layer: presentation
 created: 2026-06-02
-updated: 2026-06-02
-related: [[three-tier-model]], [[reality-deck-visual-system]], [[execution-domains]], [[permission-profile-engine]], [[product-vision]]
+updated: 2026-07-23
+related: [[three-tier-model]], [[desktop-visual-system]], [[execution-domains]], [[permission-profile-engine]], [[product-vision]], [[pytxo-improvement-research]]
 ---
 
 # Presentation layer — passive telemetry
 
-The Pytxo desktop shell is a **passive telemetry skin** built with **Svelte 5** and **Tauri v2** — see [[reality-deck-visual-system]] for the space-console aesthetic and 3D AST topology target.
+The Pytxo desktop shell is a **passive telemetry skin** built with **Svelte 5** and **Tauri v2** — see [[desktop-visual-system]] for the space-console aesthetic. Default product surface is **Desktop 2 structural Focus**, not a 3D canvas.
 
 ## Constraints
 
@@ -25,7 +25,8 @@ The Pytxo desktop shell is a **passive telemetry skin** built with **Svelte 5** 
 - **Svelte 5 Runes** (`$state`, `$derived`, `$effect`) for high-frequency streams.
 - Log panel: bounded scrollback, ~60 Hz poll budget (not unbounded raw text as the hero).
 - **xterm.js** for supporting log view; **Monaco** or inline diff for approve-path review.
-- **Primary (target):** 3D AST dependency graph driven by [[signal-core]] parse output.
+- **Primary (shipping):** Desktop 2 structural Focus graph driven by [[signal-core]] parse output (`FocusScreen.svelte`).
+- **Legacy only:** interactive 3D AST (`TopologyScene3D.svelte`) when `desktop_shell_v1=true`.
 
 ## IPC and permission intents
 
@@ -40,9 +41,9 @@ The UI sends **intents**; orchestration enforces [[permission-profile-engine|per
 
 Never open `pytxo.db` or repo files from Svelte—Tauri commands only ([[phase-2-reality-deck]], ADR-0001).
 
-## Reality Deck
+## Pytxo Desktop
 
-Live execution visualization for local and cloud runs. Shipped panels: runs, waves, logs, diff. North-star UI: structural blast radius on the topology graph. Multi-project: independent poll channels per `domain_id`—no global interleaved log stream.
+Live execution visualization for local runs (cloud when a dispatcher is configured — [[hybrid-execution]]). Shipped: Ops, Flow, Approvals, Focus / Run Review. Fleet panel in Desktop 2 is Phase 74 ([[pytxo-improvement-research]]). Multi-project: independent poll channels per `domain_id`—no global interleaved log stream.
 
 Repo path: `apps/desktop` (crate `pytxo-desktop`).
 

@@ -6,8 +6,8 @@ tags: [moc, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-04
-related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]]
+updated: 2026-07-23
+related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]]
 ---
 
 # Pytxo documentation home
@@ -19,6 +19,8 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 **Stack:** Rust (`portable-pty`, `tree-sitter`) · Svelte 5 Runes · Tauri v2
 
 **Vision:** [[product-vision]] — three moats: [[signal-core]], [[blast-shield]], [[race-shield]]
+
+**Improvement program:** [[pytxo-improvement-research]] — Phase **73 shipped** (proof pins); Phases **74–76** next (Desktop supervision, moat depth, commercial gates).
 
 ---
 
@@ -43,7 +45,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 ### Architecture
 
 - [[architecture-index]] — [[three-tier-model]], [[context-diagram]], [[c4-container]]
-- [[presentation-passive-telemetry]] · [[reality-deck-visual-system]]
+- [[presentation-passive-telemetry]] · [[desktop-visual-system]] · [[pytxo-desktop-2-flow-voice]]
 - [[mcp-hub-integration]]
 
 ### Context (agent code materialization)
@@ -79,6 +81,8 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[modular-projects]] — multi-path workspaces (Antigravity-style)
 - [[tiers-hobbyist-pro-max]] · [[token-arbitrage]]
 - [[gtm-open-source-loop]] · [[competitive-benchmarks]]
+- [[desktop-ui-improvement-backlog]] — prioritized Pytxo Desktop UI findings
+- [[pytxo-improvement-research]] — deep maturity synthesis + market landscape + ranked P0–P3 (Phase 73 done; 74 next)
 
 ### ADRs
 
@@ -88,6 +92,8 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 
 - [[first-three-agent-run]]
 - [[pytxo-vs-claude-agent-teams]]
+- [[pytxo-vs-github-copilot-app]]
+- [[pytxo-vs-ade-virtual-workspace]]
 - [[cost-and-swarm-limits]]
 - [[multi-agent-orchestration-landscape]]
 

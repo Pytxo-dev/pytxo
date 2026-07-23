@@ -29,7 +29,14 @@ export const metadata: Metadata = {
       "A local agent hypervisor for the coding agents you already use, running in the background on your machine.",
     url: "https://pytxo.com",
     siteName: "Pytxo",
-    images: [{ url: "/logo.png", width: 512, height: 512, alt: "Pytxo" }],
+    images: [
+      {
+        url: "/desktop-topology-hero.png",
+        width: 1536,
+        height: 1024,
+        alt: "Pytxo Desktop supervising parallel agent runs",
+      },
+    ],
     locale: "en_US",
     type: "website",
   },
@@ -37,7 +44,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Pytxo",
     description: "Local agent hypervisor for the coding agents you already use",
-    images: ["/logo.png"],
+    images: ["/desktop-topology-hero.png"],
   },
 };
 

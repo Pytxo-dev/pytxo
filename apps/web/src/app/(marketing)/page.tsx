@@ -11,6 +11,8 @@ import { FeatureGrid } from "@/components/site/feature-grid";
 import { Hero } from "@/components/site/hero";
 import { HowItWorks } from "@/components/site/how-it-works";
 import { ProblemSection } from "@/components/site/problem-section";
+import { ProofBand } from "@/components/site/proof-band";
+import { ScrollReveal } from "@/components/site/scroll-reveal";
 
 const FAQ = [
   {
@@ -55,25 +57,40 @@ export default function HomePage() {
   return (
     <>
       <Hero />
-      <ProblemSection />
-      <HowItWorks />
-      <FeatureGrid />
-      <SupportedAgents />
-      <ArchitectureSection />
-      <CtaSection />
-      <section className="mx-auto max-w-3xl px-4 pb-24 sm:px-6 section-reveal">
-        <h2 className="mb-6 text-2xl font-semibold tracking-tight">FAQ</h2>
-        <Accordion type="single" collapsible className="w-full border-t border-border">
-          {FAQ.map((item) => (
-            <AccordionItem key={item.q} value={item.q} className="border-border">
-              <AccordionTrigger className="text-left hover:no-underline">
-                {item.q}
-              </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground">{item.a}</AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      </section>
+      <ProofBand />
+      <ScrollReveal>
+        <ProblemSection />
+      </ScrollReveal>
+      <ScrollReveal delayMs={40}>
+        <HowItWorks />
+      </ScrollReveal>
+      <ScrollReveal delayMs={60}>
+        <FeatureGrid />
+      </ScrollReveal>
+      <ScrollReveal delayMs={40}>
+        <SupportedAgents />
+      </ScrollReveal>
+      <ScrollReveal delayMs={60}>
+        <ArchitectureSection />
+      </ScrollReveal>
+      <ScrollReveal>
+        <CtaSection />
+      </ScrollReveal>
+      <ScrollReveal delayMs={40}>
+        <section className="mx-auto max-w-3xl px-4 pb-24 sm:px-6">
+          <h2 className="mb-6 text-2xl font-semibold tracking-tight">FAQ</h2>
+          <Accordion type="single" collapsible className="w-full border-t border-border">
+            {FAQ.map((item) => (
+              <AccordionItem key={item.q} value={item.q} className="border-border">
+                <AccordionTrigger className="text-left hover:no-underline">
+                  {item.q}
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground">{item.a}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </section>
+      </ScrollReveal>
     </>
   );
 }

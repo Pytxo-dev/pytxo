@@ -1,20 +1,23 @@
 ---
-title: ADR-0014 Chroma shared design tokens
-slug: adr-0014-chroma-shared-design-tokens
+title: ADR-0029 Chroma shared design tokens
+slug: adr-0029-chroma-shared-design-tokens
 status: accepted
 tags: [adr, design, presentation]
 audience: [human, agent]
 layer: meta
 created: 2026-06-09
-adr_id: ADR-0014
-related: [[reality-deck-visual-system]], [[product-vision]]
+updated: 2026-07-18
+adr_id: ADR-0029
+related: [[desktop-visual-system]], [[product-vision]]
 ---
 
-# ADR-0014: Chroma shared design tokens
+# ADR-0029: Chroma shared design tokens
 
 ## Status
 
 Accepted
+
+> **Renumber (Phase 73):** Previously filed as a duplicate `ADR-0014` alongside [[ADR-0014-multi-provider-byok-catalog]]. ID **ADR-0029** is canonical; decision body unchanged.
 
 ## Context
 
@@ -43,5 +46,5 @@ Web and desktop import from `@pytxo/chroma`. TUI constants in `theme.rs` must ma
 
 ## Links
 
-- [[reality-deck-visual-system]]
+- [[desktop-visual-system]]
 - `packages/chroma/`

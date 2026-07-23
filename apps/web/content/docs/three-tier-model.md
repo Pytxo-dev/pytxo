@@ -6,18 +6,18 @@ tags: [architecture, c4]
 audience: [human, agent]
 layer: orchestration
 created: 2026-06-02
-updated: 2026-06-02
-related: [presentation-passive-telemetry](/docs/presentation-passive-telemetry), [execution-domains](/docs/execution-domains), [mcp-hub-integration](/docs/mcp-hub-integration), [hybrid-execution](/docs/hybrid-execution)
+updated: 2026-07-23
+related: [[presentation-passive-telemetry]], [[execution-domains]], [[mcp-hub-integration]], [[hybrid-execution]], [[pytxo-improvement-research]]
 ---
 
 # Three-tier system model
 
-Pytxo decouples structural telemetry from process coordination using a strictly **event-driven, three-tier** layout ([product-vision](/docs/product-vision)).
+Pytxo decouples structural telemetry from process coordination using a strictly **event-driven, three-tier** layout ([[product-vision]]).
 
 ```text
 ┌─────────────────────────────────────────┐
 │  PYTXO PRESENTATION (Svelte 5)          │
-│  Reality Deck · 3D AST topology (target)│
+│  Desktop 2 Focus · Ops (3D = legacy)    │
 └─────────────────┬───────────────────────┘
                   │ Tauri v2 IPC
 ┌─────────────────▼───────────────────────┐
@@ -30,19 +30,19 @@ Pytxo decouples structural telemetry from process coordination using a strictly 
         ▼                  ▼
 ┌───────────────┐  ┌──────────────────┐
 │ LOCAL         │  │ PYTXO CLOUD      │
-│ EXECUTION     │  │ SANDBOX          │
+│ EXECUTION     │  │ (when configured)│
 │ YARD          │  │                  │
 └───────────────┘  └──────────────────┘
 ```
 
 ## Tiers
 
-1. **Presentation** — [presentation-passive-telemetry](/docs/presentation-passive-telemetry)
-2. **Orchestration** — Rust microkernel: PTYs, [signal-core](/docs/signal-core), [blast-shield](/docs/blast-shield), [race-shield](/docs/race-shield), [permission-profile-engine](/docs/permission-profile-engine), [execution domains](/docs/execution-domains), [dag-flow-engine](/docs/dag-flow-engine), [sqlite-wal-logging](/docs/sqlite-wal-logging)
-3. **Execution yard** — Headless CLI agents via [mcp-hub-integration](/docs/mcp-hub-integration)
+1. **Presentation** — [[presentation-passive-telemetry]]
+2. **Orchestration** — Rust microkernel: PTYs, [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains|execution domains]], [[dag-flow-engine]], [[sqlite-wal-logging]]
+3. **Execution yard** — Headless CLI agents via [[mcp-hub-integration]]
 
-**Multi-project hypervisor:** concurrent swarms on different repo roots are modeled as separate [execution-domains](/docs/execution-domains) inside the orchestration tier—never in the presentation layer. Policy ([permission-profile-engine](/docs/permission-profile-engine)) and WAL routing live here only.
+**Multi-project hypervisor:** concurrent swarms on different repo roots are modeled as separate [[execution-domains]] inside the orchestration tier—never in the presentation layer. Policy ([[permission-profile-engine]]) and WAL routing live here only.
 
-Cloud offload: [hybrid-execution](/docs/hybrid-execution).
+Cloud offload: [[hybrid-execution]].
 
-ADR: [ADR-0001-three-tier-rust-svelte-tauri](/docs/adr-0001-three-tier-rust-svelte-tauri).
+ADR: [[ADR-0001-three-tier-rust-svelte-tauri]].

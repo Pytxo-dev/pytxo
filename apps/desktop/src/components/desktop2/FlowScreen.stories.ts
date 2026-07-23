@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/svelte-vite";
 import { createDesktopBackend } from "../../lib/desktop-backend";
 import FlowScreen from "./FlowScreen.svelte";
 
-const meta = { title: "Desktop 2/Flow states", component: FlowScreen, args: { backend: createDesktopBackend(), domains: [{ repo_root: "C:/dev/pytxo" }] } } satisfies Meta<typeof FlowScreen>;
+const meta = { title: "Desktop 2/Flow states", component: FlowScreen, args: { backend: createDesktopBackend(), domains: [{ domain_id: "dom-pytxo", repo_root: "C:/dev/pytxo" }] } } satisfies Meta<typeof FlowScreen>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Draft: Story = { args: { previewState: "draft" } };

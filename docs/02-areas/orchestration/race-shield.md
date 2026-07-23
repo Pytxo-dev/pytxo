@@ -7,7 +7,7 @@ audience: [human, agent]
 layer: orchestration
 created: 2026-06-02
 updated: 2026-07-10
-related: [[dag-flow-engine]], [[sqlite-wal-logging]], [[execution-domains]], [[permission-profile-engine]], [[product-vision]]
+related: [[dag-flow-engine]], [[sqlite-wal-logging]], [[execution-domains]], [[permission-profile-engine]], [[product-vision]], [[pytxo-improvement-research]]
 ---
 
 # Race Shield (swarm registry)

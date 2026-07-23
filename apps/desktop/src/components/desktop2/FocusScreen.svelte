@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { IconArrowLeft, IconCheck, IconGitBranch, IconLoader2, IconShieldCheck } from "@tabler/icons-svelte";
   import { ipc } from "../../lib/ipc";
-  import type { AgentDto, RunDto, StructuralGraphDto } from "../../lib/types";
+  import type { AgentArbitrageDto, AgentDto, RunDto, StructuralGraphDto } from "../../lib/types";
 
   let {
     mode,
@@ -30,6 +30,9 @@
   let completing = $state(false);
   let completeError = $state<string | null>(null);
 
+  let arbitrage = $state<AgentArbitrageDto[]>([]);
+  let arbitrageLoading = $state(false);
+
   const visibleNodes = $derived(editedOnly ? graph.nodes.filter((n) => n.edited) : graph.nodes);
   function targetsOf(nodeId: string) {
     return graph.edges.filter((e) => e.from === nodeId).map((e) => graph.nodes.find((n) => n.id === e.to)?.label ?? e.to);
@@ -37,6 +40,13 @@
 
   const allExited = $derived(agents.length > 0 && agents.every((a) => a.exit_code === 0));
   const anyFailed = $derived(agents.some((a) => a.exit_code !== null && a.exit_code !== 0));
+
+  const arbitrageTotals = $derived.by(() => {
+    const saved = arbitrage.reduce((n, a) => n + (a.saved_tokens ?? 0), 0);
+    const edited = arbitrage.reduce((n, a) => n + (a.edited_paths ?? 0), 0);
+    const fallback = arbitrage.reduce((n, a) => n + (a.fallback_paths ?? 0), 0);
+    return { saved, edited, fallback, agents: arbitrage.length };
+  });
 
   async function loadTopology() {
     graphLoading = true;
@@ -51,6 +61,21 @@
       graphError = e instanceof Error ? e.message : String(e);
     } finally {
       graphLoading = false;
+    }
+  }
+
+  async function loadArbitrage() {
+    if (!run) {
+      arbitrage = [];
+      return;
+    }
+    arbitrageLoading = true;
+    try {
+      arbitrage = await ipc.agentArbitrage(run.id, domainId);
+    } catch {
+      arbitrage = [];
+    } finally {
+      arbitrageLoading = false;
     }
   }
 
@@ -97,8 +122,13 @@
   }
 
   onMount(() => {
-    if (mode === "topology-focus") void loadTopology();
-    else void loadReview();
+    if (mode === "topology-focus") {
+      void loadTopology();
+      void loadArbitrage();
+    } else {
+      void loadReview();
+      void loadArbitrage();
+    }
   });
 </script>
 
@@ -116,6 +146,21 @@
       </button>
     {/if}
   </header>
+
+  {#if run}
+    <aside class="arbitrage-bar" aria-live="polite">
+      <p class="eyebrow">Signal arbitrage</p>
+      {#if arbitrageLoading}
+        <strong><IconLoader2 size={14} class="spin" /> Loading savings…</strong>
+      {:else if arbitrageTotals.agents === 0}
+        <strong>No arbitrage samples yet</strong>
+        <span>Scaffold savings appear after agents read through Signal Core.</span>
+      {:else}
+        <strong>{arbitrageTotals.saved.toLocaleString()} tokens saved</strong>
+        <span>{arbitrageTotals.agents} agent{arbitrageTotals.agents === 1 ? "" : "s"} · {arbitrageTotals.edited} edited path{arbitrageTotals.edited === 1 ? "" : "s"}{#if arbitrageTotals.fallback} · {arbitrageTotals.fallback} fallback{/if}</span>
+      {/if}
+    </aside>
+  {/if}
 
   {#if mode === "topology-focus"}
     <article class="panel topology-canvas">
@@ -186,6 +231,32 @@
 </section>
 
 <style>
+  .arbitrage-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 16px;
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border: 1px solid color-mix(in srgb, #38d6c1 28%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, #101816 80%, transparent);
+  }
+  .arbitrage-bar .eyebrow {
+    margin: 0;
+    width: 100%;
+  }
+  .arbitrage-bar strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: #9fe6d6;
+  }
+  .arbitrage-bar span {
+    font-size: 12px;
+    color: #8b929c;
+  }
   :global(.desktop2 .topology-tools button.active) {
     border-color: #38d6c1;
     color: #9fe6d6;

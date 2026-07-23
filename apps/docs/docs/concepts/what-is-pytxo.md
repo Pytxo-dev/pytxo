@@ -4,11 +4,11 @@ title: What is Pytxo?
 
 # What is Pytxo?
 
-Pytxo runs and coordinates the coding agents you already use. It is a local **agent hypervisor**: schedule work, keep agents from colliding, show what changed, and let you approve merges. It is not a browser full of terminal panes.
+Pytxo runs and coordinates the coding agents you already use. It is a local **agent hypervisor**: schedule work, keep agents from colliding, show what changed, and let you approve merges. It is not a browser full of terminal panes, and not a single-vendor agent desktop.
 
 ## The problem
 
-Many agent products put the UI first: grids of terminals, heavy local resource use, and platform-held credits. If you care about getting work done, you need coordination, isolation, and clear logs more than another IDE surface.
+Many agent products put the UI first: grids of terminals, heavy local resource use, and platform-held credits. Vendor control centers (for example GitHub Copilot’s agent app) solve supervision inside one ecosystem. If you care about **mixed CLIs** on local silicon, you need coordination, isolation, and clear logs more than another IDE surface.
 
 ## How Pytxo works
 

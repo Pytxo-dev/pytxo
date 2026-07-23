@@ -13,7 +13,7 @@ This is different from [modular projects](/docs/concepts/modular-projects), whic
 - Fleet manifest at `~/.pytxo/fleets/<id>.toml`
 - Nodes are repos with their own `cmd`, `agents`, and optional `depends_on`
 - Waves run in topological order; nodes in the same wave can run in parallel
-- Progress is recorded in the catalog and shown in Pytxo Desktop
+- Progress is recorded in the catalog; CLI `pytxo fleet status` is the shipping surface. A Desktop 2 fleet panel is **planned (Phase 74)** — do not assume it is in the default UI yet.
 
 ## Create a fleet
 
@@ -49,7 +49,7 @@ pytxo fleet status --id my-fleet
 
 ## Pytxo Desktop
 
-The **Fleet runs** panel lists in-flight and recent fleet runs with per-node status across domains.
+Desktop 2 does not yet render a Fleet panel (Phase 74). Use `pytxo fleet status` or the legacy shell’s fleet sidebar until then. MCP tools remain available from the IDE.
 
 ## MCP from Cursor
 

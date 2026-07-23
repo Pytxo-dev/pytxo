@@ -17,11 +17,11 @@ Download installers from [pytxo.com/download](https://pytxo.com/download).
 | Runs & agents | Active swarms, waves, per-folder labels |
 | Flow | Mission drafts, reviewable plans, execution waves, ADE assignments, and dispatch |
 | Run Review | Semantic changes, validation, completion evidence, and recovery |
-| Topology | Graph of edited files and import edges |
+| Topology | Structural Focus graph of edited files and import edges (Desktop 2 default; 3D only in legacy shell) |
 | Approvals | Pending Galaxy requests (with domain label) |
-| Integrations | ADE availability, providers, MCP connections, and cloud status |
+| Integrations | ADE availability; MCP hub is CLI/IDE (`pytxo-mcp`), not in-app connection config |
 | Project paths | Roots, read-only badges, permission tiers |
-| Fleet runs | Cross-repo fleet status |
+| Fleet runs | Cross-repo fleet status via CLI today; Desktop 2 fleet panel planned (Phase 74) |
 | Logs & diff | Supporting detail, not the main surface |
 
 ## Pytxo Flow
@@ -54,13 +54,13 @@ dispatch work automatically.
 
 ## Structural topology
 
-During an active run, the topology view shows:
+During an active run, Topology Focus shows:
 
-- **Nodes:** files and modules agents touched
+- **Nodes:** files and modules from the Signal Core structural graph
 - **Edges:** import relationships between them
-- **Glow:** how recent the edits are, plus context savings
+- **Arbitrage bar:** per-run saved-token totals from `agent_arbitrage` when samples exist
 
-This is a live map of how agent edits touch your code, not a wall of terminal text.
+This is a structural map of how agent edits touch your code, not a wall of terminal text. Interactive 3D topology is legacy-shell only.
 
 ## What it is not
 

@@ -73,7 +73,7 @@ function Connector() {
 export function ArchitectureSection() {
   return (
     <section className="border-y border-border bg-card/10">
-      <div className="section-pad mx-auto max-w-6xl section-reveal">
+      <div className="section-pad mx-auto max-w-6xl">
         <h2 className="max-w-2xl text-3xl sm:text-4xl">
           Local control plane, not a browser full of terminals
         </h2>

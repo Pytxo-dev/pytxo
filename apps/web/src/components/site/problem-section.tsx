@@ -1,6 +1,6 @@
 export function ProblemSection() {
   return (
-    <section className="section-pad section-reveal mx-auto max-w-6xl">
+    <section className="section-pad mx-auto max-w-6xl">
       <div className="grid gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-end lg:gap-20">
         <div className="flex flex-col gap-4">
           <h2 className="text-3xl sm:text-4xl">More output, not more terminal panes</h2>
