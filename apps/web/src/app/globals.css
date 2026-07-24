@@ -80,7 +80,8 @@
 
 @layer utilities {
   .section-pad {
-    @apply px-4 py-16 sm:px-6 sm:py-20;
+    @apply px-4 sm:px-6;
+    padding-block: clamp(3.5rem, 6vw, 5.5rem);
   }
 
   .section-reveal {
@@ -101,22 +102,10 @@
     transform: translateY(0);
   }
 
-  .hero-product-frame {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    border-radius: var(--radius-xl);
-    border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
-    background: color-mix(in oklab, var(--card) 40%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in oklab, var(--brand-teal) 12%, transparent),
-      0 24px 64px -28px color-mix(in oklab, var(--brand-violet) 28%, transparent);
-  }
-
-  .hero-product-frame img {
+  .hero-chroma-mark img {
     display: block;
-    width: 100%;
-    height: auto;
+    position: relative;
+    z-index: 1;
   }
 
   .marketing-scroll {

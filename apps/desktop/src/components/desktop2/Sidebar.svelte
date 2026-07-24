@@ -50,7 +50,6 @@
 
 <aside class="sidebar" class:collapsed aria-label="Primary sidebar">
   <div class="brand">
-    <img src="/logo-mark.png" alt="Pytxo" width="20" height="20" class="brand-mark" />
     {#if !collapsed}<div class="brand-copy"><strong>Pytxo</strong><span>Desktop</span></div>{/if}
     <button
       class="collapse-btn"
@@ -139,12 +138,30 @@
     align-items: center;
   }
   .brand {
+    position: relative;
     height: 38px;
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 0 6px 12px;
     width: 100%;
+  }
+  .brand::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    bottom: 0;
+    height: 1px;
+    background: var(--pytxo-hairline);
+    opacity: 0.9;
+  }
+  .brand .collapse-btn {
+    margin-left: auto;
+  }
+  .sidebar.collapsed .brand::after {
+    left: 2px;
+    right: 2px;
   }
   .sidebar.collapsed .brand {
     justify-content: center;

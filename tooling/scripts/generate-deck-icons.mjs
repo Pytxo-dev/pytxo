@@ -115,12 +115,29 @@ async function writeIcns(pngBuffers, glyph, outPath) {
     fs.renameSync(tmp, iconset);
     try {
       execSync(`iconutil -c icns "${iconset}" -o "${outPath}"`, { stdio: "pipe" });
+      console.log(`generate-deck-icons: wrote ${outPath} (iconutil)`);
+      return;
+    } catch {
+      // Fall through to png2icons on non-macOS hosts.
     } finally {
       fs.rmSync(iconset, { recursive: true, force: true });
     }
-  } catch (e) {
+  } catch {
     fs.rmSync(tmp, { recursive: true, force: true });
-    console.warn("generate-deck-icons: icon.icns skipped (iconutil unavailable on this OS)");
+  }
+
+  // Cross-platform fallback (Windows CI / local): build ICNS from a 1024 PNG.
+  try {
+    const { createRequire } = await import("node:module");
+    const require = createRequire(import.meta.url);
+    const png2icons = require("png2icons");
+    const png1024 = pngBuffers.get(1024) ?? (await iconPng(glyph, 1024));
+    const icns = png2icons.createICNS(png1024, png2icons.BILINEAR, 0);
+    if (!icns) throw new Error("png2icons.createICNS returned null");
+    fs.writeFileSync(outPath, icns);
+    console.log(`generate-deck-icons: wrote ${outPath} (png2icons)`);
+  } catch (e) {
+    console.warn(`generate-deck-icons: icon.icns skipped (${e.message ?? e})`);
   }
 }
 

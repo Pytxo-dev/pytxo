@@ -14,7 +14,7 @@ import type {
   RunDto,
 } from "./types";
 
-export const IPC_VERSION = "0.5.0";
+export const IPC_VERSION = "0.6.0";
 
 export const AUTH_CHANGED_EVENT = "deck-auth-changed";
 export const DEEP_LINK_EVENT = "pytxo-deep-link";
@@ -62,6 +62,18 @@ export const ipc = {
     invoke<ProjectDto[]>("list_projects").then(unwrap).catch(() => [] as ProjectDto[]),
   selectDomain: (domainId: string) =>
     invoke<void>("select_domain", { domainId }).then(unwrap),
+  listTrustedDomains: () =>
+    invoke<{ domain_id: string; permission_profile: string; trusted_at: string; label: string | null }[]>(
+      "list_trusted_domains",
+    )
+      .then(unwrap)
+      .catch(() => []),
+  getDomainPermission: (repoRoot: string) =>
+    invoke<string | null>("get_domain_permission", { repoRoot }).then(unwrap).catch(() => null),
+  setDomainPermission: (repoRoot: string, profile: string) =>
+    invoke<string>("set_domain_permission", { repoRoot, profile }).then(unwrap),
+  domainIsTrusted: (repoRoot: string) =>
+    invoke<boolean>("domain_is_trusted", { repoRoot }).then(unwrap).catch(() => false),
   ensureWorkspace: (domainId: string) =>
     invoke<string>("ensure_workspace", { domainId }).then(unwrap),
   listRuns: (limit: number, domainId: string | null) =>

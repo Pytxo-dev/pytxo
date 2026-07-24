@@ -4,7 +4,7 @@ title: CLI reference
 
 # CLI reference
 
-Binary: `pytxo` (v0.5.0)
+Binary: `pytxo` (v0.6.0)
 
 ## Default behavior
 

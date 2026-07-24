@@ -6,13 +6,13 @@ use pytxo_core::PytxoConfig;
 use pytxo_orchestrate::{
     commit_workspace_for_agent, default_hypervisor, dispatch_run, dry_run_json,
     forget_catalog_domain as orch_forget_domain, fleet_run_status, fleet_status,
-    hitl_respond as orch_hitl_respond, list_catalog_domains as orch_list_catalog_domains,
+    hitl_respond as orch_hitl_respond, is_repo_trusted, list_catalog_domains as orch_list_catalog_domains,
     list_catalog_domains_enriched as orch_list_domains_status, list_domains,
     list_hitl_pending as orch_list_hitl_pending,
     list_hitl_pending_all as orch_list_hitl_pending_all,
     list_project_manifests as orch_list_projects, project_add_root as orch_project_add_root,
     project_remove_root as orch_project_remove_root, project_roots as orch_project_roots, stop,
-    structural_graph as orch_structural_graph,
+    structural_graph as orch_structural_graph, trust_repo, trusted_permission_for,
     workspace_structural_graph as orch_workspace_structural_graph, CatalogEntry,
     CatalogEntryStatus, DomainSummary, RunOptions,
 };
@@ -163,6 +163,49 @@ pub fn list_projects() -> IpcResult<Vec<ProjectDto>> {
 pub fn select_domain(state: State<'_, AppState>, domain_id: String) -> IpcResult<()> {
     *state.selected_domain_id.lock().map_err(map_lock_err)? = Some(domain_id);
     Ok(())
+}
+
+#[derive(Serialize)]
+pub struct TrustedDomainDto {
+    pub domain_id: String,
+    pub permission_profile: String,
+    pub trusted_at: String,
+    pub label: Option<String>,
+}
+
+#[tauri::command]
+pub fn list_trusted_domains() -> IpcResult<Vec<TrustedDomainDto>> {
+    let store = pytxo_core::TrustedDomainStore::open_default()
+        .map_err(|e| PytxoIpcError::from_err("trust", e))?;
+    Ok(store
+        .list()
+        .into_iter()
+        .map(|(domain_id, entry)| TrustedDomainDto {
+            domain_id,
+            permission_profile: entry.permission_profile.as_str().to_string(),
+            trusted_at: entry.trusted_at.to_rfc3339(),
+            label: entry.label,
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub fn get_domain_permission(repo_root: String) -> IpcResult<Option<String>> {
+    let profile = trusted_permission_for(Path::new(&repo_root)).map_err(map_orch_err)?;
+    Ok(profile.map(|p| p.as_str().to_string()))
+}
+
+#[tauri::command]
+pub fn set_domain_permission(repo_root: String, profile: String) -> IpcResult<String> {
+    let parsed = pytxo_core::PermissionProfile::parse(&profile)
+        .ok_or_else(|| PytxoIpcError::new("trust", format!("unknown permission profile: {profile}")))?;
+    trust_repo(Path::new(&repo_root), parsed).map_err(map_orch_err)?;
+    Ok(parsed.as_str().to_string())
+}
+
+#[tauri::command]
+pub fn domain_is_trusted(repo_root: String) -> IpcResult<bool> {
+    is_repo_trusted(Path::new(&repo_root)).map_err(map_orch_err)
 }
 
 /// Canonicalize repo path and register hypervisor domain before topology/dispatch.

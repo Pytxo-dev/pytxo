@@ -84,3 +84,41 @@ export function migrateWorkspaceRecents(): WorkspaceRecent[] {
     return [];
   }
 }
+
+/** Drop a forgotten domain from the recent list. */
+export function removeWorkspaceRecent(domainId: string): WorkspaceRecent[] {
+  const next = migrateWorkspaceRecents().filter((r) => r.domainId !== domainId);
+  localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+  return next;
+}
+
+export type SettingsSectionId =
+  | "general"
+  | "appearance"
+  | "workspaces"
+  | "agents"
+  | "voice"
+  | "privacy"
+  | "account";
+
+const SETTINGS_SECTION_KEY = "pytxo-desktop-settings-section-v1";
+
+export function loadSettingsSection(): SettingsSectionId {
+  const raw = localStorage.getItem(SETTINGS_SECTION_KEY);
+  if (
+    raw === "general" ||
+    raw === "appearance" ||
+    raw === "workspaces" ||
+    raw === "agents" ||
+    raw === "voice" ||
+    raw === "privacy" ||
+    raw === "account"
+  ) {
+    return raw;
+  }
+  return "appearance";
+}
+
+export function persistSettingsSection(section: SettingsSectionId) {
+  localStorage.setItem(SETTINGS_SECTION_KEY, section);
+}

@@ -6,13 +6,15 @@
     snapshot,
     live = false,
     lastPollAt = null,
+    activeDomainLabel = null,
     onRoute,
     onReviewRun,
   }: {
     snapshot: DesktopSnapshot;
     live?: boolean;
     lastPollAt?: number | null;
-    onRoute: (route: "approvals" | "runs" | "flow") => void;
+    activeDomainLabel?: string | null;
+    onRoute: (route: "approvals" | "runs" | "flow" | "workspaces") => void;
     onReviewRun: (runId: string) => void;
   } = $props();
 
@@ -61,12 +63,16 @@
 
 <section class="screen operations">
   <header class="screen-heading">
-    <div><p class="eyebrow">Live supervision</p><h1>Operations</h1><p>One calm view of active work, risk, and system health.</p></div>
+    <div>
+      <p class="eyebrow">Live supervision{#if activeDomainLabel} · {activeDomainLabel}{/if}</p>
+      <h1>Operations</h1>
+      <p>One calm view of active work, risk, and system health.</p>
+    </div>
     <button class="primary" onclick={() => onRoute("flow")}>New Flow <IconArrowUpRight size={16} /></button>
   </header>
 
   {#if snapshot.error}
-    <div class="panel">
+    <div class="panel chroma-edge">
       <div class="empty">
         <IconAlertTriangle size={26} />
         <strong>Hypervisor unreachable</strong>
@@ -116,7 +122,7 @@
         </div>
       </article>
 
-      <article class="panel approval-panel">
+      <article class="panel approval-panel chroma-edge">
         <div class="panel-head"><div><p class="eyebrow">Decision queue</p><h2>Needs attention</h2></div><button class="quiet" onclick={() => onRoute("approvals")}>Open inbox</button></div>
         {#if snapshot.approvals.length}
           {#each snapshot.approvals as approval}

@@ -31,10 +31,10 @@ export const metadata: Metadata = {
     siteName: "Pytxo",
     images: [
       {
-        url: "/desktop-topology-hero.png",
-        width: 1536,
-        height: 1024,
-        alt: "Pytxo Desktop supervising parallel agent runs",
+        url: "/logo.png",
+        width: 2000,
+        height: 2000,
+        alt: "Pytxo",
       },
     ],
     locale: "en_US",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Pytxo",
     description: "Local agent hypervisor for the coding agents you already use",
-    images: ["/desktop-topology-hero.png"],
+    images: ["/logo.png"],
   },
 };
 

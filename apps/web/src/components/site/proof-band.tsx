@@ -13,10 +13,11 @@ const MARKS = [
 export function ProofBand() {
   return (
     <section
-      className="border-y border-border/80 bg-card/20"
+      className="relative border-y border-border/80 bg-card/20"
       aria-label="Trust and measured proof"
     >
-      <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-7">
+      <div className="header-chroma-line absolute inset-x-0 top-0" aria-hidden />
+      <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-7 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-8">
         <ul className="flex flex-wrap items-center gap-x-5 gap-y-2">
           {MARKS.map((mark) => (
             <li key={mark.label}>

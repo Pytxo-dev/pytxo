@@ -82,9 +82,24 @@ export function AccountAuth() {
       <SignedOut>
         <div className="flex flex-wrap gap-2">
           <Button asChild>
-            <Link href="/sign-in">Sign in</Link>
+            <Link
+              href={
+                deckCallback === "pytxo-deck"
+                  ? "/sign-in?deck_callback=pytxo-deck"
+                  : "/sign-in"
+              }
+            >
+              Sign in
+            </Link>
           </Button>
-          <SignUpButton mode="redirect" forceRedirectUrl="/account">
+          <SignUpButton
+            mode="redirect"
+            forceRedirectUrl={
+              deckCallback === "pytxo-deck"
+                ? "/account?deck_callback=pytxo-deck"
+                : "/account"
+            }
+          >
             <Button variant="outline">Sign up</Button>
           </SignUpButton>
         </div>

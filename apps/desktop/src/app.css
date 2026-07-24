@@ -57,7 +57,30 @@
   --pytxo-teal: var(--brand-teal);
   --pytxo-violet: var(--brand-violet);
   --pytxo-gold: var(--brand-gold);
+  --pytxo-magenta: var(--brand-magenta);
+  --pytxo-cyan: var(--brand-cyan);
   --pytxo-red: #df6576;
+  /* Accent-driven chrome (overridden by data-pytxo-accent) */
+  --pytxo-accent: var(--brand-teal);
+  --pytxo-accent-soft: color-mix(in oklab, var(--brand-teal) 22%, transparent);
+  --pytxo-hairline: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--brand-magenta) 40%, transparent),
+    color-mix(in oklab, var(--brand-violet) 35%, transparent),
+    color-mix(in oklab, var(--brand-gold) 30%, transparent),
+    color-mix(in oklab, var(--brand-teal) 40%, transparent),
+    color-mix(in oklab, var(--brand-cyan) 30%, transparent),
+    transparent
+  );
+  --pytxo-edge: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--brand-magenta) 50%, transparent),
+    color-mix(in oklab, var(--brand-violet) 45%, transparent),
+    color-mix(in oklab, var(--brand-gold) 35%, transparent),
+    color-mix(in oklab, var(--brand-teal) 45%, transparent),
+    color-mix(in oklab, var(--brand-cyan) 40%, transparent)
+  );
 }
 
 html[data-chroma-theme="light"] {
@@ -68,7 +91,58 @@ html[data-chroma-theme="light"] {
   --pytxo-teal: var(--brand-teal);
   --pytxo-violet: var(--brand-violet);
   --pytxo-gold: var(--brand-gold);
+  --pytxo-magenta: var(--brand-magenta);
+  --pytxo-cyan: var(--brand-cyan);
   --pytxo-red: #c24155;
+}
+
+html[data-pytxo-accent="teal"] {
+  --pytxo-accent: var(--brand-teal);
+  --pytxo-accent-soft: color-mix(in oklab, var(--brand-teal) 22%, transparent);
+  --pytxo-hairline: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--brand-teal) 55%, transparent),
+    transparent
+  );
+  --pytxo-edge: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--brand-teal) 55%, transparent),
+    color-mix(in oklab, var(--brand-cyan) 40%, transparent)
+  );
+}
+
+html[data-pytxo-accent="violet"] {
+  --pytxo-accent: var(--brand-violet);
+  --pytxo-accent-soft: color-mix(in oklab, var(--brand-violet) 22%, transparent);
+  --pytxo-hairline: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--brand-violet) 55%, transparent),
+    color-mix(in oklab, var(--brand-magenta) 35%, transparent),
+    transparent
+  );
+  --pytxo-edge: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--brand-magenta) 45%, transparent),
+    color-mix(in oklab, var(--brand-violet) 55%, transparent)
+  );
+}
+
+html[data-pytxo-accent="gold"] {
+  --pytxo-accent: var(--brand-gold);
+  --pytxo-accent-soft: color-mix(in oklab, var(--brand-gold) 22%, transparent);
+  --pytxo-hairline: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--brand-gold) 55%, transparent),
+    transparent
+  );
+  --pytxo-edge: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--brand-gold) 55%, transparent),
+    color-mix(in oklab, var(--brand-teal) 30%, transparent)
+  );
 }
 
 html {

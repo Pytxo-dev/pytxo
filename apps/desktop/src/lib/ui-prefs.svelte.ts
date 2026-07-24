@@ -1,10 +1,10 @@
 /**
- * Persisted display preferences for Pytxo Desktop (v0.5.0 compact shell).
+ * Persisted display preferences for Pytxo Desktop.
  *
  * Scale maps to the real Tauri webview zoom factor (`setZoom`) so text,
  * icons, and hit targets shrink/grow together instead of a CSS-only
  * approximation. Density toggles a data attribute that compact/comfortable
- * component styles read from, independent of scale.
+ * component styles read from, independent of scale. Default scale is 100%.
  */
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 
@@ -28,9 +28,9 @@ function isTauriRuntime(): boolean {
 }
 
 function readScale(): UiScale {
-  if (typeof localStorage === "undefined") return 0.9;
+  if (typeof localStorage === "undefined") return 1;
   const raw = Number(localStorage.getItem(SCALE_KEY));
-  return VALID_SCALES.includes(raw) ? (raw as UiScale) : 0.9;
+  return VALID_SCALES.includes(raw) ? (raw as UiScale) : 1;
 }
 
 function readDensity(): UiDensity {

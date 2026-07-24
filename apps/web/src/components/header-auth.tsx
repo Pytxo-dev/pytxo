@@ -18,7 +18,7 @@ export function HeaderAuth() {
           <Link href="/sign-in">Sign in</Link>
         </Button>
         <SignUpButton mode="redirect" forceRedirectUrl="/account">
-          <Button size="sm" className="hidden sm:inline-flex">
+          <Button size="sm" variant="outline" className="hidden border-border bg-transparent sm:inline-flex">
             Sign up
           </Button>
         </SignUpButton>

@@ -59,8 +59,36 @@ html[data-chroma-theme="light"] .desktop2 main{background:#f4f6f8}html[data-chro
 .desktop2 .integration-card.wide{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid #20232a;border-radius:8px;background:#0d0f13}
 .desktop2 .integration-card.wide .setup-hint{margin:6px 0 0;font-size:10px;color:#6b7280}
 .desktop2 .run-cost{font-variant-numeric:tabular-nums;font-family:"Geist Mono",ui-monospace,monospace;font-size:11px;color:#9aa1ab}
-html[data-ui-density="comfortable"] .desktop2 .screen{padding:28px 36px}
+html[data-ui-density="compact"] .desktop2 .screen{padding:22px 24px 52px}
+html[data-ui-density="compact"] .desktop2 .screen-heading{margin-bottom:18px}
+html[data-ui-density="compact"] .desktop2 .screen-heading h1{font-size:var(--text-lg,1.125rem)}
+html[data-ui-density="compact"] .desktop2 .workspace-card,
+html[data-ui-density="compact"] .desktop2 .panel{padding:12px}
+html[data-ui-density="compact"] .desktop2 .run-row,
+html[data-ui-density="compact"] .desktop2 .inbox-row{padding-block:8px}
+html[data-ui-density="compact"] .desktop2 .metrics article{min-height:88px;padding:12px}
+html[data-ui-density="compact"] .desktop2 .setting-row{min-height:52px}
+html[data-ui-density="comfortable"] .desktop2 .screen{padding:28px 36px 64px}
+html[data-ui-density="comfortable"] .desktop2 .screen-heading{margin-bottom:28px}
+html[data-ui-density="comfortable"] .desktop2 .screen-heading h1{font-size:1.55rem}
 html[data-ui-density="comfortable"] .desktop2 .workspace-card,
 html[data-ui-density="comfortable"] .desktop2 .panel{padding:18px}
 html[data-ui-density="comfortable"] .desktop2 .run-row,
-html[data-ui-density="comfortable"] .desktop2 .inbox-row{padding-block:12px}
+html[data-ui-density="comfortable"] .desktop2 .inbox-row{padding-block:14px}
+html[data-ui-density="comfortable"] .desktop2 .metrics article{min-height:112px;padding:18px}
+html[data-ui-density="comfortable"] .desktop2 .run-copy strong,
+html[data-ui-density="comfortable"] .desktop2 .workspace-title h2{font-size:var(--text-sm,0.875rem)}
+html[data-ui-density="comfortable"] .desktop2 .setting-row{min-height:72px}
+html[data-ui-density="comfortable"] .desktop2 .quiet,
+html[data-ui-density="comfortable"] .desktop2 .primary{font-size:var(--text-xs,0.75rem);height:36px}
+
+/* Chroma brand edges (accent-aware) */
+.desktop2 .panel.chroma-edge,
+.desktop2 .metrics article.chroma-edge{position:relative}
+.desktop2 .panel.chroma-edge::before,
+.desktop2 .decision-card::before{content:"";position:absolute;inset:0;padding:1px;border-radius:inherit;background:var(--pytxo-edge);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.desktop2 .decision-card{position:relative}
+.desktop2 .screen-heading .eyebrow{color:var(--pytxo-accent,var(--pytxo-teal))!important;background:none;-webkit-background-clip:unset;background-clip:unset}
+.desktop2 .workspace-card.active{box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--pytxo-accent,var(--pytxo-teal)) 45%,transparent)}
+.desktop2 .card-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.desktop2 .primary{background:color-mix(in oklab,var(--pytxo-accent,var(--pytxo-teal)) 88%,#0a0b0e);border-color:transparent}
