@@ -1,6 +1,8 @@
 export type DeckTheme = "void" | "light" | "terminal" | "nebula";
+export type AccentPreset = "spectrum" | "teal" | "violet" | "gold";
 
 export const THEME_STORAGE_KEY = "pytxo-deck-theme";
+export const ACCENT_STORAGE_KEY = "pytxo-accent";
 /** @deprecated Legacy boolean completion flag, superseded by `ONBOARDING_VERSION_KEY`. */
 export const SETUP_STORAGE_KEY = "pytxo-deck-setup-v1";
 
@@ -11,7 +13,7 @@ export const SETUP_STORAGE_KEY = "pytxo-deck-setup-v1";
  * upgrading users see the refreshed flow exactly once, without re-showing it
  * on every subsequent release.
  */
-export const ONBOARDING_VERSION = "0.5.0";
+export const ONBOARDING_VERSION = "0.6.0";
 export const ONBOARDING_VERSION_KEY = "pytxo-desktop-onboarding-version";
 
 /** Void first; Nebula demoted as vivid optional skin. */
@@ -19,10 +21,18 @@ export const DECK_THEMES: { id: DeckTheme; label: string }[] = [
   { id: "void", label: "Void" },
   { id: "light", label: "Light" },
   { id: "terminal", label: "Terminal" },
-  { id: "nebula", label: "Nebula (vivid)" },
+  { id: "nebula", label: "Nebula" },
+];
+
+export const ACCENT_PRESETS: { id: AccentPreset; label: string }[] = [
+  { id: "spectrum", label: "Spectrum" },
+  { id: "teal", label: "Teal" },
+  { id: "violet", label: "Violet" },
+  { id: "gold", label: "Gold" },
 ];
 
 export function loadTheme(): DeckTheme {
+  if (typeof localStorage === "undefined") return "void";
   const raw = localStorage.getItem(THEME_STORAGE_KEY);
   if (raw === "light" || raw === "terminal" || raw === "nebula" || raw === "void") {
     return raw;
@@ -31,10 +41,17 @@ export function loadTheme(): DeckTheme {
   return "void";
 }
 
+export function loadAccent(): AccentPreset {
+  if (typeof localStorage === "undefined") return "spectrum";
+  const raw = localStorage.getItem(ACCENT_STORAGE_KEY);
+  if (raw === "spectrum" || raw === "teal" || raw === "violet" || raw === "gold") return raw;
+  return "spectrum";
+}
+
 export function applyDeckTheme(theme: DeckTheme) {
   const root = document.documentElement;
   root.setAttribute("data-chroma-theme", theme);
-  localStorage.setItem(THEME_STORAGE_KEY, theme);
+  if (typeof localStorage !== "undefined") localStorage.setItem(THEME_STORAGE_KEY, theme);
   if (theme === "light") {
     root.classList.remove("dark");
     root.style.colorScheme = "light";
@@ -42,6 +59,17 @@ export function applyDeckTheme(theme: DeckTheme) {
     root.classList.add("dark");
     root.style.colorScheme = "dark";
   }
+}
+
+export function applyAccent(accent: AccentPreset) {
+  const root = document.documentElement;
+  root.setAttribute("data-pytxo-accent", accent);
+  if (typeof localStorage !== "undefined") localStorage.setItem(ACCENT_STORAGE_KEY, accent);
+}
+
+export function initThemeChrome() {
+  applyDeckTheme(loadTheme());
+  applyAccent(loadAccent());
 }
 
 export function isSetupComplete(): boolean {

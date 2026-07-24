@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +22,7 @@ export const metadata: Metadata = {
 
 export default function DownloadPage() {
   return (
-    <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-24">
+    <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6 sm:py-20">
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Download</h1>
@@ -35,24 +34,12 @@ export default function DownloadPage() {
           </Badge>
         </div>
         <p className="max-w-2xl text-lg text-muted-foreground">
-          Start with Pytxo Desktop for topology, approvals, and diffs. The CLI powers
-          orchestration underneath—install it once, or let Desktop guide you.
+          Start with Pytxo Desktop for runs, approvals, and diffs. The CLI powers orchestration
+          underneath - install it once, or let Desktop guide you.
         </p>
       </div>
 
-      <div className="hero-product-frame mt-10 overflow-hidden">
-        <Image
-          src="/desktop-topology-hero.png"
-          alt="Pytxo Desktop product frame"
-          width={1536}
-          height={1024}
-          className="h-auto w-full"
-          sizes="(max-width: 896px) 100vw, 896px"
-          priority
-        />
-      </div>
-
-      <div className="mt-12 flex flex-col gap-10">
+      <div className="mt-10 flex flex-col gap-10">
         <DownloadDesktop />
 
         <section className="border-t border-border pt-10">

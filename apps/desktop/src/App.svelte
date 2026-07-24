@@ -8,6 +8,7 @@
   import { ipc, onAuthChanged } from "./lib/ipc";
   import {
     applyDeckTheme,
+    initThemeChrome,
     isSetupComplete,
     loadTheme,
     resetOnboarding,
@@ -432,6 +433,7 @@
 
   onMount(async () => {
     deckTheme = loadTheme();
+    initThemeChrome();
     applyDeckTheme(deckTheme);
 
     authUnlisten = await onAuthChanged(() => {
@@ -519,6 +521,6 @@
       />
     {/if}
   {:else}
-    <DesktopShell {tier} {signedIn} {cliMissing} {subscriptionPortalUrl} onReplayOnboarding={replayOnboarding} />
+    <DesktopShell {tier} {signedIn} {cliMissing} {subscriptionPortalUrl} onReplayOnboarding={replayOnboarding} onAuthChange={loadEntitlements} />
   {/if}
 </DeckShell>

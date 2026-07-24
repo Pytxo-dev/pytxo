@@ -8,33 +8,19 @@ import { NPM_INSTALL } from "@/lib/site";
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
-      <div className="relative mx-auto grid max-w-6xl gap-10 px-4 pt-14 pb-12 sm:px-6 sm:pt-16 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center lg:gap-12 lg:pb-16">
+      <div className="relative mx-auto grid max-w-6xl gap-8 px-4 pt-10 pb-12 sm:px-6 sm:pt-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-center lg:gap-14 lg:pb-16">
         <div className="flex flex-col gap-5 text-left">
-          <div className="flex items-center gap-3">
-            <Image
-              src="/logo-mark.png"
-              alt=""
-              width={40}
-              height={40}
-              className="size-10"
-              priority
-            />
-            <div className="flex flex-col gap-0.5">
-              <span className="text-lg font-semibold tracking-tight text-foreground">Pytxo</span>
-              <span className="text-xs font-medium text-muted-foreground">
-                Local agent hypervisor
-              </span>
-            </div>
-          </div>
-          <h1 className="text-4xl leading-[1.1] tracking-tight sm:text-5xl lg:text-[3.1rem]">
+          <p className="text-sm font-medium tracking-wide text-muted-foreground">
+            Local agent hypervisor
+          </p>
+          <h1 className="text-4xl leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.15rem]">
             Run coding agents in parallel.{" "}
-            <span style={{ color: "var(--brand-teal)" }}>Stay in control of every change.</span>
+            <span className="chroma-text">Stay in control of every change.</span>
           </h1>
           <p className="max-w-[34rem] text-base leading-relaxed text-muted-foreground sm:text-lg">
             Coordinate Claude Code, Codex, and other terminal agents on your machine while you keep
             your IDE.
           </p>
-          <InstallSnippet className="max-w-md">{NPM_INSTALL}</InstallSnippet>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button size="lg" className="min-w-[10rem]" asChild>
               <Link href="/download">Download</Link>
@@ -48,24 +34,19 @@ export function Hero() {
               <Link href="/docs">Docs</Link>
             </Button>
           </div>
+          <InstallSnippet className="max-w-md">{NPM_INSTALL}</InstallSnippet>
         </div>
 
-        <figure className="w-full">
-          <div className="hero-product-frame w-full">
-            <Image
-              src="/desktop-topology-hero.png"
-              alt="Pytxo Desktop supervising parallel agent runs with structural topology and approvals"
-              width={1536}
-              height={1024}
-              className="h-auto w-full"
-              priority
-              sizes="(max-width: 1024px) 100vw, 560px"
-            />
-          </div>
-          <figcaption className="mt-3 text-center text-xs text-muted-foreground lg:text-left">
-            Pytxo Desktop - structural topology, not a wall of terminals.
-          </figcaption>
-        </figure>
+        <div className="hero-chroma-mark flex w-full items-center justify-center py-10 sm:py-14">
+          <Image
+            src="/logo-mark.png"
+            alt="Pytxo"
+            width={320}
+            height={320}
+            className="hero-logo-mark size-44 sm:size-56 lg:size-64"
+            priority
+          />
+        </div>
       </div>
     </section>
   );

@@ -26,7 +26,13 @@ pub struct EntitlementStatus {
 
 /// Effective tier limits for the current config (local defaults + optional Link fetch).
 pub fn effective_entitlements(cfg: &PytxoConfig) -> Result<EntitlementStatus, PytxoError> {
-    if cfg.billing.link_reconcile_enabled() && !cfg.billing.proxy_url.trim().is_empty() {
+    let proxy = cfg.billing.proxy_url.trim();
+    // Fetch remote entitlements when Link reconcile is on (Ultra default) OR when a
+    // Clerk/Desktop session token is present — so BYOK users who sign in still sync tier.
+    let should_fetch_link =
+        !proxy.is_empty() && (cfg.billing.link_reconcile_enabled() || ultra_session_present());
+
+    if should_fetch_link {
         if let Ok(guard) = ENTITLEMENTS_CACHE.lock() {
             if let Some(cached) = guard.as_ref() {
                 if cached.fetched_at.elapsed() < ENTITLEMENTS_CACHE_TTL {
@@ -34,14 +40,22 @@ pub fn effective_entitlements(cfg: &PytxoConfig) -> Result<EntitlementStatus, Py
                 }
             }
         }
-        let remote = fetch_link_entitlements(&cfg.billing.proxy_url)?;
-        if let Ok(mut guard) = ENTITLEMENTS_CACHE.lock() {
-            *guard = Some(CachedEntitlements {
-                value: remote.clone(),
-                fetched_at: Instant::now(),
-            });
+        match fetch_link_entitlements(proxy) {
+            Ok(remote) => {
+                if let Ok(mut guard) = ENTITLEMENTS_CACHE.lock() {
+                    *guard = Some(CachedEntitlements {
+                        value: remote.clone(),
+                        fetched_at: Instant::now(),
+                    });
+                }
+                return Ok(remote);
+            }
+            Err(e) if ultra_session_present() && !cfg.billing.link_reconcile_enabled() => {
+                // Signed-in BYOK: fall through to local defaults if Link is unreachable.
+                eprintln!("link entitlements (session present): {e}");
+            }
+            Err(e) => return Err(e),
         }
-        return Ok(remote);
     }
 
     let tier = if cfg.billing_mode().is_ultra() {

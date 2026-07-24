@@ -29,8 +29,10 @@ The workflow will:
 |--------|---------|
 | `NPM_TOKEN` | `npm publish` for `packages/pytxo` |
 | `PYTXO_RELEASES_TOKEN` | PAT with `contents: write` on **Pytxo-dev/pytxo-releases** |
+| `TAURI_SIGNING_PRIVATE_KEY` | Minisign private key for Desktop auto-updater `.sig` + `latest.json` (see `distribution/tauri/README.md`) |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Optional password if the private key is encrypted |
 
-Create a fine-grained PAT scoped to `pytxo-releases` only, or a classic PAT with `repo` on that public repo.
+Without `TAURI_SIGNING_PRIVATE_KEY`, Desktop installers still publish, but the updater channel (`latest.json`) is skipped.
 
 ## CLI release (alternative)
 

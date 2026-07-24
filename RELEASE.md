@@ -7,9 +7,11 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
-# Pytxo v0.5.0
+# Pytxo v0.6.0
 
-Pytxo Desktop polish and honesty pass — compact adjustable shell, real data and honest empty states, versioned onboarding, restrained interaction/a11y polish, and a fixed release pipeline (`pytxo-desktop-*` installer naming, working auto-updater artifacts). See [`distribution/release-notes/v0.5.0.md`](distribution/release-notes/v0.5.0.md).
+Desktop Settings / workspaces / chroma accents. See [`distribution/release-notes/v0.6.0.md`](distribution/release-notes/v0.6.0.md).
+
+Previous: [`v0.5.0`](distribution/release-notes/v0.5.0.md).
 
 ---
 

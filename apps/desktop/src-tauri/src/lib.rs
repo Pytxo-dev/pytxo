@@ -7,12 +7,13 @@ mod ipc_meta;
 mod ipc_voice;
 
 use ipc::{
-    agent_arbitrage, commit_workspace, dispatch_run_cmd, dry_run, ensure_workspace,
-    fleet_run_status_cmd, forget_domain, git_diff, hitl_respond, list_agents, list_all_domains,
-    list_domains_cmd, list_domains_status, list_fleet_runs, list_hitl, list_hitl_all,
-    list_projects, list_runs, poll_log_lines, project_add_root_cmd, project_remove_root_cmd,
-    project_roots_cmd, select_domain, stop_run, structural_graph, tail_events,
-    workspace_structural_graph, AppState,
+    agent_arbitrage, commit_workspace, dispatch_run_cmd, domain_is_trusted, dry_run, ensure_workspace,
+    fleet_run_status_cmd, forget_domain, get_domain_permission, git_diff, hitl_respond, list_agents,
+    list_all_domains, list_domains_cmd, list_domains_status, list_fleet_runs, list_hitl,
+    list_hitl_all, list_projects, list_runs, list_trusted_domains, poll_log_lines,
+    project_add_root_cmd, project_remove_root_cmd, project_roots_cmd, select_domain,
+    set_domain_permission, stop_run, structural_graph, tail_events, workspace_structural_graph,
+    AppState,
 };
 use ipc_auth::{auth_clear_session, auth_open_sign_in, auth_status, auth_store_session};
 use ipc_flow::{
@@ -68,6 +69,10 @@ pub fn run() {
             forget_domain,
             ensure_workspace,
             select_domain,
+            list_trusted_domains,
+            get_domain_permission,
+            set_domain_permission,
+            domain_is_trusted,
             list_runs,
             list_agents,
             tail_events,
@@ -137,10 +142,9 @@ pub fn run() {
                 }
                 #[cfg(any(target_os = "windows", target_os = "linux"))]
                 {
-                    #[cfg(debug_assertions)]
-                    {
-                        let _ = app.deep_link().register_all();
-                    }
+                    // Register custom URL schemes for portable/dev installs.
+                    // Packaged MSI/NSIS also registers schemes from tauri.conf.
+                    let _ = app.deep_link().register_all();
                 }
             }
             ipc_auth::hydrate_session_env();

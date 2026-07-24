@@ -2,8 +2,18 @@
   import { onMount } from "svelte";
   import { IconActivity, IconChecks, IconFolders, IconPlayerPlay, IconPlugConnected, IconSettings, IconSparkles } from "@tabler/icons-svelte";
   import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
-  import { addWorkspaceRecent, initialRoute, migrateWorkspaceRecents, persistRoute, routeFromDeepLink, type AppRoute, type WorkspaceRecent } from "../../lib/navigation.svelte";
-  import { onPytxoDeepLink } from "../../lib/ipc";
+  import {
+    addWorkspaceRecent,
+    initialRoute,
+    migrateWorkspaceRecents,
+    persistRoute,
+    removeWorkspaceRecent,
+    routeFromDeepLink,
+    type AppRoute,
+    type SettingsSectionId,
+    type WorkspaceRecent,
+  } from "../../lib/navigation.svelte";
+  import { ipc, onPytxoDeepLink } from "../../lib/ipc";
   import Sidebar from "./Sidebar.svelte";
   import AppBar from "./AppBar.svelte";
   import CommandPalette from "./CommandPalette.svelte";
@@ -11,9 +21,13 @@
   import FlowScreen from "./FlowScreen.svelte";
   import CollectionScreen from "./CollectionScreen.svelte";
   import FocusScreen from "./FocusScreen.svelte";
+  import SettingsScreen from "./SettingsScreen.svelte";
+  import WorkspaceSettingsPanel from "./WorkspaceSettingsPanel.svelte";
+  import UpdateBanner from "../shell/UpdateBanner.svelte";
   import "./desktop2-shared.css";
 
   const SNAPSHOT_POLL_MS = 1000;
+  const OPEN_BEHAVIOR_KEY = "pytxo-workspace-open-behavior-v1";
 
   let {
     routeOverride = null,
@@ -24,16 +38,17 @@
     cliMissing = false,
     subscriptionPortalUrl = null,
     onReplayOnboarding = () => {},
+    onAuthChange = () => {},
   }: {
     routeOverride?: AppRoute | null;
     previewState?: "default" | "loading" | "empty" | "offline" | "error";
-    /** Forces initial sidebar collapse state for Storybook; real usage always reads localStorage. */
     collapsedOverride?: boolean | null;
     tier?: string;
     signedIn?: boolean;
     cliMissing?: boolean;
     subscriptionPortalUrl?: string | null;
     onReplayOnboarding?: () => void;
+    onAuthChange?: () => void;
   } = $props();
 
   const SIDEBAR_KEY = "pytxo-desktop-sidebar-collapsed-v1";
@@ -56,9 +71,16 @@
   let activeDomainId = $state<string | null>(null);
   let lastPollAt = $state<number | null>(null);
   let pollLive = $state(false);
+  let settingsSection = $state<SettingsSectionId | null>(null);
+  let editingWorkspaceId = $state<string | null>(null);
+  let voiceModelPath = $state<string | null>(null);
+  let voiceInstalling = $state(false);
 
   const activeDomain = $derived(
     snapshot.domains.find((d) => d.domain_id === activeDomainId) ?? null,
+  );
+  const editingDomain = $derived(
+    snapshot.domains.find((d) => d.domain_id === editingWorkspaceId) ?? null,
   );
 
   const primary = [
@@ -76,9 +98,11 @@
 
   const focusedRun = $derived(snapshot.runs.find((r) => r.id === focusRunId) ?? null);
 
-  function navigate(next: AppRoute) {
+  function navigate(next: AppRoute, section?: SettingsSectionId) {
     route = next;
     persistRoute(next);
+    if (next === "settings" && section) settingsSection = section;
+    else if (next !== "settings") settingsSection = null;
   }
 
   function toggleSidebar() {
@@ -107,8 +131,7 @@
   async function refreshSnapshot(opts: { silent?: boolean } = {}) {
     try {
       const next = await backend.loadSnapshot();
-      if (!opts.silent) snapshot = next;
-      else snapshot = next;
+      snapshot = next;
       lastPollAt = Date.now();
       pollLive = !next.error;
     } catch {
@@ -116,19 +139,24 @@
     }
   }
 
-  function selectDomain(domainId: string, opts: { route?: AppRoute } = {}) {
+  async function selectDomain(domainId: string, opts: { route?: AppRoute } = {}) {
     const domain = snapshot.domains.find((d) => d.domain_id === domainId);
     if (!domain) return;
     activeDomainId = domainId;
     focusDomainId = domainId;
     const label = domain.repo_root.split(/[\\/]/).pop() ?? domain.domain_id;
     recents = addWorkspaceRecent({ id: domain.domain_id, label, domainId: domain.domain_id });
+    try {
+      await ipc.selectDomain(domain.domain_id);
+    } catch {
+      /* Preview / Storybook backends may lack select_domain. */
+    }
     navigate(opts.route ?? "operations");
   }
 
   function openRecent(recent: WorkspaceRecent) {
     const domain = snapshot.domains.find((d) => d.domain_id === recent.domainId);
-    if (domain) selectDomain(domain.domain_id);
+    if (domain) void selectDomain(domain.domain_id);
     else navigate("workspaces");
   }
 
@@ -142,7 +170,7 @@
     if (openedPath) {
       const domain = snapshot.domains.find((d) => d.repo_root === openedPath);
       if (domain) {
-        selectDomain(domain.domain_id);
+        await selectDomain(domain.domain_id);
         return;
       }
     }
@@ -151,6 +179,23 @@
 
   function onDomainForgotten(domainId: string) {
     snapshot = { ...snapshot, domains: snapshot.domains.filter((d) => d.domain_id !== domainId) };
+    recents = removeWorkspaceRecent(domainId);
+    if (activeDomainId === domainId) activeDomainId = snapshot.domains[0]?.domain_id ?? null;
+    if (editingWorkspaceId === domainId) editingWorkspaceId = null;
+  }
+
+  async function addWorkspace() {
+    const opened = await backend.openWorkspace();
+    if (opened) await onWorkspaceOpened(opened);
+  }
+
+  async function installVoiceModel() {
+    voiceInstalling = true;
+    try {
+      voiceModelPath = await backend.installVoiceModel();
+    } finally {
+      voiceInstalling = false;
+    }
   }
 
   function onGlobalKeydown(event: KeyboardEvent) {
@@ -201,7 +246,31 @@
     void (async () => {
       try {
         await refreshSnapshot();
-        if (!activeDomainId && snapshot.domains[0]) activeDomainId = snapshot.domains[0].domain_id;
+        const openBehavior =
+          typeof localStorage !== "undefined" &&
+          localStorage.getItem(OPEN_BEHAVIOR_KEY) === "picker"
+            ? "picker"
+            : "last";
+        if (openBehavior === "picker") {
+          if (!routeOverride && route === "operations") navigate("workspaces");
+        } else if (!activeDomainId) {
+          const preferred =
+            recents.find((r) => snapshot.domains.some((d) => d.domain_id === r.domainId))
+              ?.domainId ?? snapshot.domains[0]?.domain_id;
+          if (preferred) {
+            activeDomainId = preferred;
+            try {
+              await ipc.selectDomain(preferred);
+            } catch {
+              /* preview */
+            }
+          }
+        }
+        try {
+          voiceModelPath = await backend.voiceModelStatus();
+        } catch {
+          /* optional */
+        }
       } finally {
         loading = false;
       }
@@ -235,22 +304,28 @@
     {collapsed}
     {tier}
     {signedIn}
-    onNavigate={navigate}
+    onNavigate={(next) => navigate(next)}
     onToggleCollapse={toggleSidebar}
     onOpenCommand={() => (commandOpen = true)}
     onOpenRecent={openRecent}
-    onAccountClick={() => navigate("settings")}
+    onAccountClick={() => navigate("settings", "account")}
   />
 
   <main>
+    <UpdateBanner />
     <AppBar
       {route}
       approvalsCount={snapshot.approvals.length}
       hypervisorOnline={!snapshot.error}
       activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? activeDomain.domain_id) : null}
+      {activeDomainId}
+      domains={snapshot.domains}
       live={pollLive}
       onOpenHistory={() => navigate("runs")}
       onOpenNotifications={() => navigate("approvals")}
+      onSelectDomain={(id) => void selectDomain(id)}
+      onAddWorkspace={() => void addWorkspace()}
+      onOpenWorkspaceSettings={(id) => (editingWorkspaceId = id)}
     />
     <div class="content">
       {#if loadMessage}<div class:error-banner={previewState === "error"} class="status-banner">{loadMessage}</div>{/if}
@@ -261,6 +336,7 @@
           {snapshot}
           live={pollLive}
           lastPollAt={lastPollAt}
+          activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? null) : null}
           onRoute={navigate}
           onReviewRun={(runId) => onFocusRun(runId, "run-review")}
         />
@@ -268,29 +344,52 @@
         <FlowScreen {backend} domains={snapshot.domains} preferredDomainId={activeDomainId} />
       {:else if route === "topology-focus" || route === "run-review"}
         <FocusScreen mode={route} run={focusedRun} domainId={focusDomainId} onBack={() => navigate("runs")} {onRunCompleted} />
+      {:else if route === "settings"}
+        <SettingsScreen
+          initialSection={settingsSection}
+          {activeDomain}
+          {tier}
+          {signedIn}
+          {cliMissing}
+          {subscriptionPortalUrl}
+          {voiceModelPath}
+          {voiceInstalling}
+          onBack={() => navigate("operations")}
+          {onReplayOnboarding}
+          {onAuthChange}
+          onInstallVoiceModel={installVoiceModel}
+          onEditWorkspace={(id) => (editingWorkspaceId = id)}
+          onOpenWorkspaces={() => navigate("workspaces")}
+        />
       {:else}
         <CollectionScreen
           {route}
           {snapshot}
           {backend}
           onRoute={navigate}
-          {tier}
-          {signedIn}
-          {cliMissing}
-          {subscriptionPortalUrl}
-          {onReplayOnboarding}
+          {activeDomainId}
           onReviewRun={(runId) => onFocusRun(runId, "run-review")}
           {onViewTopology}
           onSelectDomain={selectDomain}
           onWorkspaceOpened={onWorkspaceOpened}
           {onDomainForgotten}
           onApprovalsChanged={refreshSnapshot}
+          onEditWorkspace={(id) => (editingWorkspaceId = id)}
         />
       {/if}
     </div>
   </main>
 
   <CommandPalette open={commandOpen} items={commandItems} onNavigate={navigate} onClose={() => (commandOpen = false)} />
+
+  {#if editingDomain}
+    <WorkspaceSettingsPanel
+      domain={editingDomain}
+      onClose={() => (editingWorkspaceId = null)}
+      onForgotten={onDomainForgotten}
+      onChanged={refreshSnapshot}
+    />
+  {/if}
 </div>
 
 <style>
@@ -310,7 +409,7 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background: radial-gradient(circle at 80% -10%, rgba(62, 93, 107, 0.08), transparent 30%), #08090c;
+    background: radial-gradient(circle at 80% -10%, color-mix(in oklab, var(--pytxo-accent, #3ed7a1) 8%, transparent), transparent 30%), #08090c;
   }
   .content {
     flex: 1;
