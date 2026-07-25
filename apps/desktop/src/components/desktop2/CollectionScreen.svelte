@@ -80,8 +80,12 @@
   }
 
   async function openWorkspace() {
-    openedWorkspace = await backend.openWorkspace();
-    if (openedWorkspace) await onWorkspaceOpened(openedWorkspace);
+    try {
+      openedWorkspace = await backend.openWorkspace();
+      if (openedWorkspace) await onWorkspaceOpened(openedWorkspace);
+    } catch (e) {
+      forgetError = e instanceof Error ? e.message : String(e);
+    }
   }
 
   async function forgetDomain(domainId: string) {
@@ -135,6 +139,7 @@
       <button class="quiet" onclick={() => (healthFilter = healthFilter === "all" ? "active" : "all")}>{healthFilter === "all" ? "Health: all" : "Health: active only"}</button>
     </div>
     {#if openedWorkspace}<p class="workspace-opened">Added {openedWorkspace}</p>{/if}
+    {#if forgetError}<p class="voice-state-message error" role="alert">{forgetError}</p>{/if}
     {#if filteredDomains.length}
       <div class="catalog-grid">
         {#each filteredDomains as domain}
@@ -154,6 +159,8 @@
           </article>
         {/each}
       </div>
+    {:else if snapshot.error}
+      <div class="empty"><IconFolder size={26} /><strong>Hypervisor unreachable</strong><span>{snapshot.error.message}</span></div>
     {:else}
       <div class="empty"><IconFolder size={26} /><strong>No workspaces {query || healthFilter === "active" ? "match this filter" : "yet"}</strong><span>{query || healthFilter === "active" ? "Try clearing the search or health filter." : "Add a workspace to start dispatching runs."}</span></div>
     {/if}

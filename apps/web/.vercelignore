@@ -1,5 +1,4 @@
-# Keep upload lean; docs are built from apps/docs at prebuild.
+# Keep upload lean.
 node_modules
 .next
-content/docs
 .docs-vault

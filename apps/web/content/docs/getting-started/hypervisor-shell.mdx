@@ -1,0 +1,83 @@
+---
+title: Hypervisor Shell
+---
+
+**Mission control for agent fleets.** Not another coding chatbot.
+
+Running `pytxo` with no subcommand opens the **Hypervisor Shell**: a three-zone TUI with a **board** (runs, waves, approvals), **scrollback** (command output and plan previews), and an operator **prompt** (slash commands).
+
+Your agent CLI (Antigravity, Claude Code, Codex, and so on) still does the thinking. Pytxo schedules waves, spawns processes in isolated copies, and records telemetry.
+
+## Workflow
+
+```text
+1. pytxo                         -> trust tier picker (first visit) -> shell
+2. /models search deepseek       -> browse BYOK models (key in env)
+3. /dry-run --agents 3           -> preview wave plan (conflicts, task graph)
+4. /run --cmd "agy --help"       -> dispatch your CLI in isolated copies
+5. /status                       -> poll run + agent rows on the board
+6. /logs agent-0                 -> tail WAL events
+7. /stop                         -> halt the active run
+```
+
+Untrusted folders block `/run` but allow `/doctor` and `/dry-run`. See [Folder trust](/docs/getting-started/folder-trust).
+
+<Callout title="Agent waves vs fleet runs">
+`/run` dispatches **agent waves** inside the current repo. For **cross-repo** barriers use `pytxo fleet run`. See [Fleet runs](/docs/concepts/fleet-runs).
+</Callout>
+
+## Slash commands
+
+| Command | Purpose |
+|---------|---------|
+| `/help` | List commands |
+| `/doctor` | Preflight checks |
+| `/dry-run` | JSON wave plan (`--agents N`) |
+| `/run` | Dispatch swarm (`--agents N --cmd "..."`) |
+| `/status` | Recent runs (`--limit N`) |
+| `/logs <agent>` | Event tail (`--tail N`) |
+| `/stop` | Stop active run (`--all` for every tracked process) |
+| `/trust [tier]` | Trust folder or change permission tier |
+| `/models list` | List cached models (`--provider ...`) |
+| `/models search Q` | Fuzzy model search |
+
+## Scripts and CI
+
+Set `PYTXO_NO_TUI=1` (or pass an explicit subcommand) to keep the classic CLI for automation:
+
+```bash
+pytxo doctor
+pytxo run --dry-run --agents 2
+pytxo run --agents 1 --cmd "echo pytxo"
+```
+
+## Optional NL planner
+
+Natural-language mission lines are **off by default**. Enable with:
+
+```bash
+export PYTXO_PLANNER=1
+```
+
+or in `pytxo.toml`:
+
+```toml
+[planner]
+enabled = true
+```
+
+When enabled, a mission line is decomposed into tasks, validated, previewed in scrollback, then dispatched with `/run`.
+
+## Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| Enter | Submit prompt |
+| â†‘ / â†“ (empty prompt) | Command history |
+| â†‘ / â†“ (while typing) | Select run on the board |
+| Ctrl+â†‘ / Ctrl+â†“ | Scroll scrollback (auto-follows new output when at bottom) |
+| Tab | Cycle approval selection |
+| a / x | Approve / deny approval (empty prompt) |
+| q / Ctrl+C | Quit (Ctrl+C also sends `/stop`) |
+
+See also: [CLI reference](/docs/reference/cli) Â· [Galaxy approvals](/docs/concepts/galaxy-approvals)

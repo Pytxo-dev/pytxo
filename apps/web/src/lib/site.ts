@@ -1,6 +1,6 @@
 /** Public distribution repo (binaries + install scripts). */
 export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
-export const PYTXO_VERSION = "0.6.0";
+export const PYTXO_VERSION = "0.8.0";
 
 export const DESKTOP_RELEASE_BASE =
   `https://github.com/${DISTRIBUTION_REPO}/releases/download/v${PYTXO_VERSION}`;
@@ -18,6 +18,8 @@ export const DESKTOP_DOWNLOADS = {
 
 export const GITHUB_URL = `https://github.com/${DISTRIBUTION_REPO}`;
 export const RELEASES_URL = `${GITHUB_URL}/releases`;
+/** Community Discord invite (canonical). */
+export const DISCORD_URL = "https://discord.gg/AUFRPFjSYv";
 export const NPM_URL = "https://www.npmjs.com/package/pytxo";
 export const NPM_INSTALL = "npm i -g pytxo";
 

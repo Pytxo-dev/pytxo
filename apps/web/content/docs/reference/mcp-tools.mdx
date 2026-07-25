@@ -1,0 +1,49 @@
+---
+title: MCP tools
+description: Tools exposed by the local pytxo-mcp server.
+---
+
+These tools are registered by `pytxo-mcp`. Setup: [MCP from Cursor](/docs/getting-started/mcp-from-cursor).
+
+Set `PYTXO_REPO` to the target git root. Responses are sanitized when `sanitize = true` in config.
+
+## Tool catalog
+
+| Tool | Purpose |
+|------|---------|
+| `pytxo_dry_run` | Dry-run execution plan (waves / conflicts) |
+| `pytxo_run` | Start a Pytxo run |
+| `pytxo_status` | Recent runs and agents |
+| `pytxo_logs` | Tail agent log events |
+| `pytxo_read` | Read a repo file (Signal Core skeleton when `signal_core=true`) |
+| `pytxo_read_scaffolded` | Always return an AST skeleton for the path |
+| `pytxo_stdin` | Enqueue stdin bytes for a live agent |
+| `pytxo_route_stdin` | Route stdin to a live agent (validates session is active) |
+| `pytxo_list_live_agents` | List live agent sessions in the domain Race Shield registry |
+| `pytxo_mcp_proxy` | Forward JSON-RPC to a live child agent MCP session |
+| `pytxo_mcp_tools_list` | Aggregate tools from live child MCP sessions (namespaced) |
+| `pytxo_project_run` | Run across a modular project's writable roots |
+| `pytxo_fleet_run` | Run a cross-repo fleet DAG |
+| `pytxo_fleet_status` | List recent fleet runs from the hypervisor catalog |
+
+## Typical args
+
+Exact JSON schemas evolve with the binary; common fields:
+
+| Field | Used by | Notes |
+|-------|---------|-------|
+| `agents` | run / dry-run | Parallelism cap |
+| `cmd` | run / project_run | Shell command |
+| `config` | run family | Path to `pytxo.toml` |
+| `agent` | logs / stdin | `{run_uuid}:agent-N` |
+| `path` | read tools | Repo-relative path |
+| `project_id` / `manifest` | project_run | Modular project selector |
+| `fleet_id` / `manifest` | fleet tools | Fleet selector |
+
+Use `pytxo_list_live_agents` before stdin routing so you target an active session.
+
+## Related
+
+- [CLI reference](/docs/reference/cli)
+- [Signal Core](/docs/concepts/signal-core)
+- [Fleet runs](/docs/concepts/fleet-runs)

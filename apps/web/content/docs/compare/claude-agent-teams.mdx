@@ -1,0 +1,41 @@
+---
+title: vs Claude Agent Teams
+description: Mixed-CLI hypervisor compared with Claude Code Agent Teams.
+---
+
+Claude Code **Agent Teams** coordinate multiple Claude Code instances: a lead, teammates with their own context windows, a shared task list, and inter-agent messaging ([official docs](https://code.claude.com/docs/en/agent-teams)).
+
+They are experimental and opt-in. Official docs state teammates do not get worktree isolation (same-file edits can overwrite each other) and that teams use significantly more tokens than a single session.
+
+Pytxo targets a different layer: **cross-tool orchestration** with explicit isolation, Race claims, and Signal context policy.
+
+## Comparison
+
+| Dimension | Claude Agent Teams | Pytxo |
+|-----------|-------------------|--------|
+| Scope | Claude Code sessions only | Headless CLIs + MCP (Claude Code, Codex, ...) |
+| Status | Experimental, env-flag gated | Local hypervisor + optional Desktop |
+| Coordination | Lead + mailbox + shared tasks | Rust DAG + WAL + MCP hub |
+| Write safety | Docs warn: no worktree isolation | Race Shield path claims + Blast Shield worktrees |
+| UI | In-process panel or tmux panes | Optional Desktop (structural Focus / Ops) |
+| Context | Per-teammate window | Signal Core skeletons on read |
+
+## When Claude teams are enough
+
+- Single-vendor Claude-only workflow
+- Moderate parallelism on one machine
+- You accept experimental limits and token multiplication
+
+## When Pytxo adds value
+
+- Mixed agents under one scheduler
+- Same-repo write collisions Claude’s docs already warn about
+- Monorepo isolation via shipping worktrees / copy-layer
+- Galaxy HITL and sanitization policy
+- Drive from Cursor via local MCP while agents stay headless CLIs
+
+## Coexistence
+
+Pytxo can run Claude Code as an execution-yard process while adding Race, Blast, and Signal policies native teams do not centralize.
+
+See also: [vs GitHub Copilot app](/docs/compare/github-copilot-app).

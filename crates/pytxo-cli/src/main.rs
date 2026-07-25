@@ -5,7 +5,7 @@ use clap::{CommandFactory, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
-#[command(name = "pytxo", version, about = "Pytxo agent control plane")]
+#[command(name = "pytxo", version, about = "Pytxo agent control plane", after_help = "Discord: https://discord.gg/AUFRPFjSYv")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -24,6 +24,9 @@ enum Commands {
         repo: Option<std::path::PathBuf>,
         #[arg(long)]
         json: bool,
+        /// Git + dirs only (skip PTY smoke and network probes)
+        #[arg(long)]
+        quick: bool,
     },
     Run {
         #[arg(long, default_value = "3")]
@@ -306,7 +309,7 @@ async fn main() -> anyhow::Result<()> {
             commands::init(repo)?;
             println!("Initialized Pytxo.");
         }
-        Some(Commands::Doctor { repo, json }) => commands::doctor(repo, json)?,
+        Some(Commands::Doctor { repo, json, quick }) => commands::doctor(repo, json, quick)?,
         Some(Commands::Run {
             agents,
             mut cmd,

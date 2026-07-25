@@ -76,7 +76,7 @@ Already reconciled in [[glossary]] and [[permission-profile-engine]] to the one-
 
 ## Non-issues (confirmed fine, no action needed)
 
-- No system tray implementation exists; this matches current scope, not a regression.
+- No system tray implementation exists; close-to-tray ships in Desktop 0.8.0 (`tray-icon` + hide on close).
 - `WorkspaceHome.svelte` already has a considered empty state ("No workspaces yet. Open a folder to start a run.").
 - The setup wizard flow (`SetupWizard.svelte` and its steps) is complete and has end-to-end coverage (`e2e/shell.spec.ts`).
 

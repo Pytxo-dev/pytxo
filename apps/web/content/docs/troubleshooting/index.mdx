@@ -1,0 +1,29 @@
+---
+title: Troubleshooting
+description: Fix common Pytxo install, trust, doctor, and MCP failures.
+---
+
+Start with `pytxo doctor` in the repo you care about. It checks git, writable data dirs, terminal support, approvals persistence, and (when enabled) cloud or billing connectivity.
+
+| Symptom | Where to look |
+|---------|----------------|
+| Doctor failures | [Doctor checks](/docs/troubleshooting/doctor) |
+| Trust / spawn blocked | [Common failures](/docs/troubleshooting/common-failures) |
+| MCP path or version mismatch | [Common failures](/docs/troubleshooting/common-failures) |
+| HITL stuck | [Galaxy approvals](/docs/concepts/galaxy-approvals) |
+
+## Quick checks
+
+```bash
+pytxo doctor
+pytxo doctor --json
+pytxo trust orbit
+```
+
+If the Hypervisor Shell will not open in CI or pipes, set `PYTXO_NO_TUI=1` and use explicit subcommands.
+
+## Still stuck?
+
+- [Install](/docs/getting-started/install)
+- [Folder trust](/docs/getting-started/folder-trust)
+- [Discord](https://discord.gg/AUFRPFjSYv)

@@ -39,6 +39,8 @@ PYTXO_VERSION=v0.3.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytx
 
 Download platform assets directly from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases) (`pytxo-linux-x64`, `pytxo-darwin-arm64`, `pytxo-windows-x64.exe`, …).
 
+Community help: [Discord](https://discord.gg/AUFRPFjSYv).
+
 ## Default TUI
 
 Running `pytxo` with no subcommand opens the **Hypervisor Shell**: trust picker, board, and scrollback. Use explicit subcommands in scripts:

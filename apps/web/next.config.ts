@@ -1,20 +1,14 @@
 import type { NextConfig } from "next";
+import { createMDX } from "fumadocs-mdx/next";
+
+const withMDX = createMDX();
 
 const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
   trailingSlash: false,
-  async rewrites() {
-    return {
-      beforeFiles: [
-        {
-          source: "/docs/:path((?!assets/)(?!img/).*)",
-          destination: "/docs/:path.html",
-        },
-      ],
-    };
-  },
+  reactStrictMode: true,
 };
 
-export default nextConfig;
+export default withMDX(nextConfig);

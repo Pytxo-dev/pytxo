@@ -232,7 +232,15 @@
     controls.update();
   }
 
+  let animating = false;
+
   function animate() {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      animating = false;
+      frameId = 0;
+      return;
+    }
+    animating = true;
     frameId = requestAnimationFrame(animate);
     const t = performance.now() * 0.001;
     for (const p of edgeParticles) {
@@ -240,6 +248,11 @@
     }
     controls?.update();
     renderer?.render(scene!, camera!);
+  }
+
+  function resumeAnimation() {
+    if (animating || frameId) return;
+    animate();
   }
 
   onMount(() => {
@@ -252,7 +265,7 @@
     camera.position.set(0, 0, 10);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     containerEl.appendChild(renderer.domElement);
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.65);
@@ -270,13 +283,23 @@
     resizeObserver.observe(containerEl);
     containerEl.addEventListener("pointerdown", onPointerDown);
     containerEl.addEventListener("pointermove", onPointerMove);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") resumeAnimation();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     resize();
     rebuildGraph();
     animate();
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   });
 
   onDestroy(() => {
     cancelAnimationFrame(frameId);
+    frameId = 0;
+    animating = false;
     resizeObserver?.disconnect();
     containerEl?.removeEventListener("pointerdown", onPointerDown);
     containerEl?.removeEventListener("pointermove", onPointerMove);

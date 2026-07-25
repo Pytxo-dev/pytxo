@@ -21,7 +21,7 @@ related: [[github-organization]], [[mvp-bootstrap]]
 | `apps/desktop/` | Pytxo Desktop — Svelte 5 + Tauri v2 (`pytxo-desktop` crate) |
 | `apps/desktop-export/` | Export / release staging slot (see README there) |
 | `apps/web/` | Marketing site — Next.js static export, shadcn/ui ([pytxo.com](https://pytxo.com)) |
-| `apps/docs/` | Public docs — Docusaurus, built into `apps/web/public/docs/` ([pytxo.com/docs](https://pytxo.com/docs/)) |
+| `apps/web/content/docs/` | Public docs — Fumadocs MDX inside Next.js ([pytxo.com/docs](https://pytxo.com/docs/)); see [[ADR-0030-public-docs-fumadocs-next]] |
 | `docs/` | Obsidian vault |
 | `tooling/scripts/`, `tooling/benchmarks/` | Smoke, dev setup, competitive repro scripts |
 | `tests/fixtures/` | Integration fixtures |

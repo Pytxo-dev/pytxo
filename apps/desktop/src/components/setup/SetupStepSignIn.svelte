@@ -69,8 +69,11 @@
       <p class="warn" role="alert">
         No callback yet. Finish sign-in in the browser, or skip and continue with Core.
       </p>
-      <a class="link" href="https://pytxo.com/account" target="_blank" rel="noopener noreferrer">
+      <a class="link" href="https://pytxo.com/account?deck_callback=pytxo-deck" target="_blank" rel="noopener noreferrer">
         Open account help
+      </a>
+      <a class="link" href="https://discord.gg/AUFRPFjSYv" target="_blank" rel="noopener noreferrer">
+        Discord
       </a>
     {/if}
     <Button class="signin-cta" onclick={signIn}>{waiting ? "Open sign-in again" : "Sign in with Pytxo"}</Button>

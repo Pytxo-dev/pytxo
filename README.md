@@ -9,6 +9,7 @@
 
 - **Site:** [pytxo.com](https://pytxo.com)
 - **Docs:** [pytxo.com/docs](https://pytxo.com/docs)
+- **Discord:** [discord.gg/AUFRPFjSYv](https://discord.gg/AUFRPFjSYv)
 - **Releases:** [github.com/Pytxo-dev/pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases)
 - **Stack:** Rust (`portable-pty`, `tree-sitter`) · ratatui TUI · Svelte 5 · Tauri v2
 
@@ -41,7 +42,7 @@ Pytxo runs **heterogeneous headless agents** (Claude Code, Codex, Antigravity CL
 |------|---------|
 | [`crates/`](crates/) | Rust control plane (CLI, TUI, MCP, scheduler, runner, store) |
 | [`packages/pytxo`](packages/pytxo/) | npm installer wrapper |
-| [`apps/docs/`](apps/docs/) | Public docs (Docusaurus → pytxo.com/docs) |
+| [`apps/web/content/docs/`](apps/web/content/docs/) | Public docs (Fumadocs → pytxo.com/docs) |
 | [`apps/web/`](apps/web/) | Marketing site ([pytxo.com](https://pytxo.com)) |
 | [`apps/desktop/`](apps/desktop/) | Pytxo Desktop (Svelte + Tauri) |
 | [`docs/`](docs/) | Internal Obsidian vault |

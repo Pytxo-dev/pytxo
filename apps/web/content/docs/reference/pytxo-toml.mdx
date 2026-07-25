@@ -1,0 +1,126 @@
+---
+title: pytxo.toml
+description: Configuration reference for agents, tasks, billing, cloud, and MCP hub.
+---
+
+## Top-level keys
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `max_agents` | `3` | Max parallel agents per wave |
+| `worktree_dir` | `.pytxo/worktrees` | Worktree root |
+| `data_dir` | `.pytxo/data` | SQLite + state |
+| `fail_fast` | `true` | Fail run if any agent exits non-zero |
+| `permission_profile` | `orbit` | See [permission tiers](/docs/reference/permission-tiers) |
+| `sanitize` | `true` | Redact secrets before WAL/MCP |
+| `signal_core` | `true` | Scaffold context for task paths |
+| `signal_fidelity` | `low` | `low` \| `medium` \| `high` (context tier, not permission) |
+| `isolation` | `worktree` | `worktree` \| `overlay` |
+| `dag_explicit_deps` | `false` | Force DAG scheduling mode |
+| `subprocess_stdin` | off | Pump Race Shield stdin into subprocess children at spawn |
+| `execution_backend` | `pty` | `pty` \| `subprocess` \| `cloud` |
+
+## `[[agent]]`
+
+| Key | Description |
+|-----|-------------|
+| `name` | Scheduling profile name (referenced by `[[task]].agent`) |
+| `paths` | Optional owned globs |
+| `permission_profile` | Optional per-agent override |
+| `model` | Model id for billing router / BYOK |
+| `provider` | Provider id (`deepseek`, `openrouter`, `openai`, ...) |
+| `cli_adapter` | CLI adapter (`claude`, `generic`, ...) |
+| `api_key_env` | Optional env var name for BYOK key |
+
+Trusted folder tier from [Folder trust](/docs/getting-started/folder-trust) overrides top-level `permission_profile` when the repo is trusted.
+
+## `[[task]]`
+
+| Key | Description |
+|-----|-------------|
+| `id` | Task identifier |
+| `agent` | Agent profile name |
+| `paths` | Paths for conflict preflight and Signal Core |
+| `depends_on` | Task ids that must finish first |
+| `root` | Optional modular project root label |
+| `signal_fidelity` | Per-task fidelity override |
+
+Tasks with overlapping `paths` are scheduled in different **waves**.
+
+## `[billing]`
+
+Ultra managed metering. Default remains BYOK.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `mode` | `byok` | `byok` \| `ultra` |
+| `proxy_url` | `https://link.pytxo.com` | Pytxo Link base URL |
+| `inference_proxy_url` | `https://proxy.pytxo.com` | Ultra managed-inference proxy |
+| `link_reconcile` | depends on mode | POST run start/end envelopes when Ultra |
+| `reserve_microcredits` | `500000` | Wallet reserve per run |
+| `initial_balance_microcredits` | `10000000` | Local Ultra seed balance |
+
+Set `PYTXO_ULTRA_SESSION` for Link Authorization. User guide: [Ultra](/docs/plans/ultra).
+
+## `[cloud]`
+
+Remote sandbox execution (capability-gated).
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `enabled` | `false` | Enable cloud HTTP clients |
+| `sandbox_url` | `https://cloud.pytxo.com/v1` | Cloud sandbox API base |
+| `cache_enabled` | `true` | Scaffold cache |
+| `fallback_local` | `true` | Fall back to local PTY when cloud unreachable |
+
+Set `PYTXO_CLOUD_SESSION` for Authorization. Use `execution_backend = "cloud"` or `pytxo run --execution cloud`.
+
+## `[mcp_hub]`
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `enabled` | `true` | Register child MCP sessions during runs |
+| `allowlist` | `[]` | Empty = all commands; else match substrings in run `cmd` |
+
+## `[planner]`
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `enabled` | `false` | Natural-language mission planner in the shell |
+
+## Minimal example
+
+```toml
+max_agents = 3
+permission_profile = "orbit"
+signal_core = true
+signal_fidelity = "low"
+isolation = "worktree"
+
+[[agent]]
+name = "builder"
+paths = ["src/**"]
+cli_adapter = "generic"
+provider = "deepseek"
+model = "deepseek-chat"
+api_key_env = "DEEPSEEK_API_KEY"
+
+[[task]]
+id = "build-a"
+agent = "builder"
+paths = ["src/a.ts"]
+
+[[task]]
+id = "build-b"
+agent = "builder"
+paths = ["src/b.ts"]
+```
+
+Overlapping paths force separate waves. For a fuller sample, copy `pytxo.toml.example` from the monorepo root.
+
+```bash
+pytxo run --config pytxo.toml --dry-run
+pytxo run --config pytxo.toml --cmd "echo pytxo"
+```
+
+If no config tasks are defined, `pytxo run --agents N` uses synthetic disjoint paths.

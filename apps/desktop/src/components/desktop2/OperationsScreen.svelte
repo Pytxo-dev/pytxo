@@ -21,6 +21,11 @@
   const activeRuns = $derived(snapshot.runs.filter((run) => ["running", "pending", "dispatching"].includes(run.status)).length);
   const healthyAgents = $derived(snapshot.agents.filter((agent) => agent.status !== "failed").length);
   const failedAgents = $derived(snapshot.agents.length - healthyAgents);
+  const activeRunList = $derived(
+    snapshot.runs
+      .filter((run) => ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()))
+      .slice(0, 12),
+  );
   const isolatedRuns = $derived(snapshot.runs.filter((run) => run.isolation_mode && run.isolation_mode !== "none").length);
   const isolationPct = $derived(snapshot.runs.length ? Math.round((isolatedRuns / snapshot.runs.length) * 100) : null);
 
@@ -107,8 +112,8 @@
       <article class="panel run-panel">
         <div class="panel-head"><div><p class="eyebrow">Execution yard</p><h2>Active runs</h2></div><button class="quiet" onclick={() => onRoute("runs")}>View all</button></div>
         <div class="run-list">
-          {#if snapshot.runs.length}
-            {#each snapshot.runs as run}
+          {#if activeRunList.length}
+            {#each activeRunList as run (run.id)}
               <button class="run-row" onclick={() => onReviewRun(run.id)}>
                 <span class:running={run.status === "running"} class="status-dot"></span>
                 <span class="run-copy"><strong>{run.repo_root.split(/[\\/]/).pop()}</strong><small>{run.id} · {run.permission_profile ?? "orbit"} · {run.isolation_mode ?? "none"}</small></span>
@@ -117,7 +122,7 @@
               </button>
             {/each}
           {:else}
-            <div class="empty"><IconClockHour4 size={24} /><strong>No runs yet</strong><span>Dispatch a Flow to see it here.</span></div>
+            <div class="empty"><IconClockHour4 size={24} /><strong>No active runs</strong><span>Dispatch a Flow to see it here.</span></div>
           {/if}
         </div>
       </article>

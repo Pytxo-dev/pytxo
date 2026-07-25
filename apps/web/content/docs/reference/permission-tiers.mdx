@@ -1,0 +1,55 @@
+---
+title: Permission tiers
+description: DeepSpace, Orbit, Galaxy, and Supernova capability ladder.
+---
+
+Pytxo uses local **permission profiles** to gate filesystem, network, and tool capabilities per agent. Set globally, per `[[agent]]`, or per [modular project](/docs/concepts/modular-projects) root.
+
+| Profile | Intent |
+|---------|--------|
+| `deep_space` | Most restrictive: air-gapped bubble, minimal host access |
+| `orbit` | **Default:** balanced local development with isolated copies |
+| `galaxy` | Host tools plus **[human approval](/docs/concepts/galaxy-approvals)** for risky commands and merges |
+| `supernova` | Highest local capability (use deliberately) |
+
+```toml
+permission_profile = "orbit"
+
+[[agent]]
+name = "scout"
+permission_profile = "deep_space"
+```
+
+## Capability matrix (shipping)
+
+| Capability | DeepSpace | Orbit | Galaxy | Supernova |
+|------------|-----------|-------|--------|-----------|
+| Read repo | Agent cwd focus | Full repo | Full repo | Full repo |
+| Writes | Ephemeral / denied flush | Worktree or overlay; approve flush | Physical writes; HITL for destructive / flush | Unrestricted cwd = repo |
+| Network at spawn | Denied | Default deny for fetch tools | Local service ports + HITL on egress tools | Allowed |
+| Host secrets (`.ssh`, global `.env`) | Stripped | Filtered child env | Partial inherit | Full inherit |
+| Docker / git push / rm -rf | No | Limited / spawn policy | Allowed with HITL | Allowed |
+| Max Signal fidelity | Low | Config default | Config default | Config default |
+
+Shipping enforcement is spawn-time policy, env sanitization, worktree/overlay isolation, and Galaxy HITL queues. It is not a full syscall sandbox on every platform.
+
+## Galaxy in practice
+
+When you trust a folder as **Galaxy**:
+
+- Risky spawn commands (`rm -rf`, `git push`, `docker`, network tools) pause until you approve
+- Merging agent changes into your real tree requires approval
+- Pending requests persist across restarts (`hitl.json` under `.pytxo/data/`)
+
+```bash
+pytxo hitl list
+pytxo hitl approve hitl-0
+```
+
+## Folder trust
+
+The first time you open a repo in the Hypervisor Shell, you pick a tier. See [Folder trust](/docs/getting-started/folder-trust).
+
+Permission profiles are **not** the same as `signal_fidelity` (context compression tier).
+
+Ultra metering (`[billing]` with `mode = "ultra"`) is a separate commercial layer. BYOK remains the default. See [Ultra](/docs/plans/ultra).

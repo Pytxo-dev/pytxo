@@ -103,6 +103,7 @@
   let updateInstalling = $state(false);
   let pendingUpdate = $state<Update | null>(null);
   let updateMessage = $state("");
+  let closeToTray = $state(true);
 
   const filteredSections = $derived(
     SECTIONS.filter((s) => {
@@ -128,7 +129,19 @@
     if (profile && PROFILES.some((p) => p.id === profile)) defaultProfile = profile;
     const behavior = localStorage.getItem(OPEN_BEHAVIOR_KEY);
     if (behavior === "last" || behavior === "picker") openBehavior = behavior;
+    void ipc.getCloseToTray().then((v) => {
+      closeToTray = v;
+    });
   });
+
+  async function setCloseToTray(enabled: boolean) {
+    closeToTray = enabled;
+    try {
+      await ipc.setCloseToTray(enabled);
+    } catch {
+      /* ignore when not in Tauri */
+    }
+  }
 
   function selectSection(id: SettingsSectionId) {
     section = id;
@@ -269,6 +282,16 @@
           <div><strong>Reduced motion</strong><small>Force off transitions and animations, regardless of OS setting.</small></div>
           <button class="toggle" class:active={uiPrefs.reducedMotion} aria-pressed={uiPrefs.reducedMotion} aria-label="Reduced motion" onclick={() => setReducedMotion(!uiPrefs.reducedMotion)}><i></i></button>
         </div>
+        <div class="setting-row">
+          <div><strong>Close to tray</strong><small>Keep Pytxo running when you close the window. Quit from the tray icon to exit.</small></div>
+          <button
+            class="toggle"
+            class:active={closeToTray}
+            aria-pressed={closeToTray}
+            aria-label="Close to tray"
+            onclick={() => void setCloseToTray(!closeToTray)}
+          ><i></i></button>
+        </div>
       </article>
     {:else if section === "appearance"}
       <article class="settings-group">
@@ -382,7 +405,7 @@
     {:else if section === "account"}
       <article class="settings-group">
         <h2>Account</h2>
-        <div class="setting-row"><div><strong>Status</strong><small>{signedIn ? "Signed in to your Pytxo account." : "Running in local mode; no account linked."}</small></div><strong>{signedIn ? "Signed in" : "Local mode"}</strong></div>
+        <div class="setting-row"><div><strong>Status</strong><small>{signedIn ? "Signed in to your Pytxo account." : "Not signed in. Core local runs work without an account."}</small></div><strong>{signedIn ? "Signed in" : "Not signed in"}</strong></div>
         <div class="setting-row">
           <div><strong>Sign in</strong><small>{signedIn ? "Clear the local session stored in the OS keyring." : "Opens pytxo.com in your browser, then returns via deep link."}</small></div>
           {#if signedIn}
@@ -415,6 +438,7 @@
           </div>
         </div>
         <div class="setting-row"><div><strong>Onboarding</strong><small>Replay the welcome flow, including CLI, account, and workspace checks.</small></div><button class="quiet" onclick={onReplayOnboarding}>Run onboarding again</button></div>
+        <div class="setting-row"><div><strong>Community</strong><small>Ask questions, report issues, and follow releases with other Pytxo users.</small></div><a class="quiet" href="https://discord.gg/AUFRPFjSYv" target="_blank" rel="noopener noreferrer">Open Discord</a></div>
       </article>
     {/if}
   </div>

@@ -1,0 +1,45 @@
+---
+title: Ultra
+description: BYOK vs Ultra managed metering, sessions, and what leaves your machine.
+---
+
+Default Pytxo usage is **BYOK**: your provider keys stay in environment variables on your machine. **Ultra** is an optional billing mode for managed metering and proxy paths when you subscribe on [Plans](/plans).
+
+## Modes
+
+| Mode | Config | Keys |
+|------|--------|------|
+| BYOK (default) | `billing.mode = "byok"` or omit `[billing]` | Your provider keys (`ANTHROPIC_API_KEY`, ...) |
+| Ultra | `billing.mode = "ultra"` | Provider keys for managed inference live on the proxy; set `PYTXO_ULTRA_SESSION` for Link |
+
+```toml
+[billing]
+mode = "ultra"
+proxy_url = "https://link.pytxo.com"
+inference_proxy_url = "https://proxy.pytxo.com"
+```
+
+## What Ultra changes
+
+- Local wallet / usage metering hooks run around agent context preparation
+- Child environments can use managed transport instead of your raw BYOK keys
+- Run start/end envelopes may POST to Pytxo Link when reconcile is enabled
+- Signal Core still scaffolds context; savings show up in arbitrage samples when profiling is on
+
+## What stays local-first
+
+- Orchestration, worktrees, SQLite WAL, and MCP still run on your machine unless you explicitly enable cloud execution
+- Secrets should not be committed; examples use env vars only
+- Doctor checks billing connectivity only when Ultra is enabled
+
+## Environment
+
+| Variable | Purpose |
+|----------|---------|
+| `PYTXO_ULTRA_SESSION` | Bearer token for Link reconcile |
+
+See [`pytxo.toml` billing](/docs/reference/pytxo-toml) for keys and local seed balances used in development.
+
+## Pricing UI
+
+Product tiers and checkout live on [pytxo.com/plans](/plans). This page documents runtime behavior, not marketing copy.

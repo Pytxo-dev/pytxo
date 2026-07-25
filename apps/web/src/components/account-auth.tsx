@@ -32,9 +32,12 @@ type EntitlementPayload = {
 export function AccountAuth() {
   const [entitlements, setEntitlements] = useState<EntitlementPayload | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deckToken, setDeckToken] = useState<string | null>(null);
+  const [deckTokenError, setDeckTokenError] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const deckCallback = searchParams.get("deck_callback");
-  const { isSignedIn, getToken } = useAuth();
+  const { isSignedIn, isLoaded, getToken } = useAuth();
+  const wantsDesktopReturn = deckCallback === "pytxo-deck";
 
   useEffect(() => {
     let cancelled = false;
@@ -60,19 +63,47 @@ export function AccountAuth() {
     };
   }, []);
 
+  // Resolve a Clerk JWT for the Desktop deep link. Prefer an explicit user-gesture
+  // <a href="pytxo-deck://..."> because Chromium often blocks programmatic custom-protocol
+  // redirects from an async effect.
   useEffect(() => {
-    if (!isSignedIn || deckCallback !== "pytxo-deck") return;
+    if (!isLoaded || !isSignedIn || !wantsDesktopReturn) {
+      setDeckToken(null);
+      setDeckTokenError(null);
+      return;
+    }
     let cancelled = false;
-    (async () => {
-      const token = await getToken();
-      if (!cancelled && token) {
-        window.location.href = `pytxo-deck://auth?token=${encodeURIComponent(token)}`;
+    let attempts = 0;
+    async function resolveToken() {
+      while (!cancelled && attempts < 8) {
+        attempts += 1;
+        try {
+          const token = await getToken();
+          if (token) {
+            if (!cancelled) {
+              setDeckToken(token);
+              setDeckTokenError(null);
+            }
+            return;
+          }
+        } catch {
+          /* retry */
+        }
+        await new Promise((r) => setTimeout(r, 250));
       }
-    })();
+      if (!cancelled) {
+        setDeckTokenError("Could not get a session token. Refresh and try again.");
+      }
+    }
+    void resolveToken();
     return () => {
       cancelled = true;
     };
-  }, [isSignedIn, deckCallback, getToken]);
+  }, [isLoaded, isSignedIn, wantsDesktopReturn, getToken]);
+
+  const deckReturnHref = deckToken
+    ? `pytxo-deck://auth?token=${encodeURIComponent(deckToken)}`
+    : null;
 
   const policy = entitlements?.org_policy;
   const seats = entitlements?.org_seats;
@@ -84,7 +115,7 @@ export function AccountAuth() {
           <Button asChild>
             <Link
               href={
-                deckCallback === "pytxo-deck"
+                wantsDesktopReturn
                   ? "/sign-in?deck_callback=pytxo-deck"
                   : "/sign-in"
               }
@@ -95,7 +126,7 @@ export function AccountAuth() {
           <SignUpButton
             mode="redirect"
             forceRedirectUrl={
-              deckCallback === "pytxo-deck"
+              wantsDesktopReturn
                 ? "/account?deck_callback=pytxo-deck"
                 : "/account"
             }
@@ -118,6 +149,24 @@ export function AccountAuth() {
             Signed in. Entitlements sync via Pytxo Link.
           </span>
         </div>
+        {wantsDesktopReturn && (
+          <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3">
+            <p className="text-muted-foreground">
+              Click below to return the session to Pytxo Desktop. Your browser may ask to open the
+              app.
+            </p>
+            {deckReturnHref ? (
+              <Button asChild>
+                <a href={deckReturnHref}>Return to Pytxo Desktop</a>
+              </Button>
+            ) : (
+              <Button disabled>{deckTokenError ? "Token unavailable" : "Preparing return link…"}</Button>
+            )}
+            {deckTokenError ? (
+              <p className="text-sm text-muted-foreground">{deckTokenError}</p>
+            ) : null}
+          </div>
+        )}
         {loading && (
           <p className="text-sm text-muted-foreground">Loading entitlements…</p>
         )}

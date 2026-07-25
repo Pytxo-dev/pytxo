@@ -533,6 +533,90 @@ pub fn list_fleet_runs(limit: usize) -> IpcResult<Vec<FleetRunDto>> {
         .collect())
 }
 
+#[derive(Serialize)]
+pub struct DesktopSnapshotDto {
+    pub domains: Vec<CatalogEntryStatus>,
+    pub runs: Vec<RunDto>,
+    pub agents: Vec<AgentDto>,
+    pub approvals: Vec<HitlDto>,
+    pub fleets: Vec<FleetRunDto>,
+}
+
+/// Single-round-trip snapshot for Desktop 2 polling (avoids N+1 list_runs/list_agents IPC).
+#[tauri::command]
+pub fn load_desktop_snapshot(
+    state: State<'_, AppState>,
+    run_limit: Option<usize>,
+    fleet_limit: Option<usize>,
+    include_agents: Option<bool>,
+) -> IpcResult<DesktopSnapshotDto> {
+    let run_limit = run_limit.unwrap_or(30);
+    let fleet_limit = fleet_limit.unwrap_or(20);
+    let include_agents = include_agents.unwrap_or(true);
+    let domains = orch_list_domains_status().map_err(map_orch_err)?;
+    let mut runs = Vec::new();
+    let mut agents = Vec::new();
+    for domain in &domains {
+        let domain_id = domain.domain_id.clone();
+        let cfg = match load_cfg_for_domain(&domain_id, &state) {
+            Ok(cfg) => cfg,
+            Err(_) => continue,
+        };
+        let store = match open_store_for_domain(&cfg, &domain_id) {
+            Ok(store) => store,
+            Err(_) => continue,
+        };
+        let domain_runs = match store.list_runs(run_limit) {
+            Ok(rows) => rows,
+            Err(_) => continue,
+        };
+        for run in domain_runs {
+            let status = run.status.to_lowercase();
+            let active = matches!(
+                status.as_str(),
+                "running" | "pending" | "dispatching" | "active"
+            );
+            let run_id = run.id.clone();
+            runs.push(run_to_dto(run, &cfg));
+            if include_agents && active {
+                if let Ok(rows) = store.list_agents_for_run(&run_id) {
+                    agents.extend(rows.into_iter().map(agent_to_dto));
+                }
+            }
+        }
+    }
+    let approvals = orch_list_hitl_pending_all()
+        .map_err(map_orch_err)?
+        .into_iter()
+        .map(|row| HitlDto {
+            id: row.request.id,
+            agent_key: row.request.agent_key,
+            action: row.request.action,
+            reason: row.request.reason,
+            created_at_ms: row.request.created_at_ms.to_string(),
+            domain_id: row.domain_id,
+        })
+        .collect();
+    let fleets = fleet_status(None, fleet_limit)
+        .map_err(map_orch_err)?
+        .into_iter()
+        .map(|r| FleetRunDto {
+            id: r.id,
+            fleet_id: r.fleet_id,
+            started_at: r.started_at,
+            finished_at: r.finished_at,
+            status: r.status,
+        })
+        .collect();
+    Ok(DesktopSnapshotDto {
+        domains,
+        runs,
+        agents,
+        approvals,
+        fleets,
+    })
+}
+
 #[tauri::command]
 pub fn project_add_root_cmd(
     project_id: String,

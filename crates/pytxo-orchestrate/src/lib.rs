@@ -30,8 +30,11 @@ pub use dashboard::{dashboard_snapshot, dashboard_snapshot_light, DashboardSnaps
 pub use cloud::{cloud_clients, cloud_health_url, ping_cloud, CloudClients};
 
 pub use cost::{parse_cost_from_lines, CostEstimate};
-pub use doctor::{run_doctor, DoctorCheck, DoctorReport};
-pub use entitlements::{effective_entitlements, fetch_link_wallet_balance, EntitlementStatus};
+pub use doctor::{run_doctor, run_doctor_with_tier, DoctorCheck, DoctorReport, DoctorTier};
+pub use entitlements::{
+    effective_entitlements, fetch_link_wallet_balance, invalidate_entitlements_cache,
+    runtime_session_token, set_runtime_session_token, EntitlementStatus,
+};
 pub use fleet::{
     fleet_dry_run_json, fleet_init, fleet_plan_from_manifest, fleet_run, fleet_run_status,
     fleet_status, fleet_status_nodes, wait_for_domain_run, FleetRunOptions, FleetRunResult,
@@ -179,8 +182,13 @@ pub fn resolve_repo_root(repo: Option<&Path>) -> anyhow::Result<PathBuf> {
     canonical_repo_root(&repo_root).map_err(|e| anyhow::anyhow!(e))
 }
 
-pub fn doctor(repo: Option<PathBuf>, json: bool) -> anyhow::Result<()> {
-    let report = run_doctor(repo.as_deref())?;
+pub fn doctor(repo: Option<PathBuf>, json: bool, quick: bool) -> anyhow::Result<()> {
+    let tier = if quick {
+        DoctorTier::Quick
+    } else {
+        DoctorTier::Full
+    };
+    let report = run_doctor_with_tier(repo.as_deref(), tier)?;
     if json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {

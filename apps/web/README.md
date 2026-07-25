@@ -1,26 +1,20 @@
 # Pytxo marketing site
 
-Next.js static marketing site for [pytxo.com](https://pytxo.com). Public docs are built with Docusaurus in `../docs` and copied to `public/docs/` at build time.
+Next.js site for [pytxo.com](https://pytxo.com). Public docs are Fumadocs MDX under `content/docs` and render at `/docs` in the same app.
 
 ## Development
 
 ```bash
-npm install --legacy-peer-deps
-npm run dev
+pnpm install
+pnpm dev
 ```
 
-For docs preview during development:
-
-```bash
-cd ../docs && npm install && npm start   # localhost:3000/docs/
-# or after a full docs build:
-cd ../web && npm run build:docs && npm run copy:docs
-```
+Open [http://localhost:3000/docs](http://localhost:3000/docs) for documentation.
 
 ## Production build
 
 ```bash
-npm run build   # builds Docusaurus, copies to public/docs, static Next export â†’ out/
+pnpm build
 ```
 
 ## Vercel
@@ -28,7 +22,7 @@ npm run build   # builds Docusaurus, copies to public/docs, static Next export â
 Set the Vercel project **Root Directory** to `apps/web`.
 
 ```bash
-npm run deploy   # vercel deploy --prod
+pnpm deploy   # vercel deploy --prod
 ```
 
 Custom domain: **pytxo.com**

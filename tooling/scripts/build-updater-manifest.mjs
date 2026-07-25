@@ -37,9 +37,17 @@ const PREFIX_TO_PLATFORM = {
 // the plain installer so the updater and the manual download agree.
 const PREFERRED_EXTENSION = {
   "linux-x86_64": ".appimage",
-  "darwin-aarch64": ".dmg",
-  "darwin-x86_64": ".dmg",
+  // Tauri updater consumes the signed .app.tar.gz (or .tar.gz), not the .dmg installer.
+  "darwin-aarch64": ".app.tar.gz",
+  "darwin-x86_64": ".app.tar.gz",
   "windows-x86_64": ".msi",
+};
+
+const FALLBACK_EXTENSIONS = {
+  "linux-x86_64": [".AppImage", ".appimage"],
+  "darwin-aarch64": [".app.tar.gz", ".tar.gz"],
+  "darwin-x86_64": [".app.tar.gz", ".tar.gz"],
+  "windows-x86_64": [".msi", ".exe"],
 };
 
 function walk(dir) {
@@ -84,8 +92,14 @@ function main() {
     }
 
     const preferred = PREFERRED_EXTENSION[platformKey];
+    const fallbacks = FALLBACK_EXTENSIONS[platformKey] ?? [];
+    const lower = (p) => p.toLowerCase();
     const chosen =
-      candidates.find((p) => p.toLowerCase().includes(preferred)) ?? candidates[0];
+      candidates.find((p) => lower(p).endsWith(preferred)) ??
+      fallbacks
+        .map((ext) => candidates.find((p) => lower(p).endsWith(ext.toLowerCase())))
+        .find(Boolean) ??
+      candidates[0];
     if (candidates.length > 1) {
       console.log(
         `updater: ${platformKey} had ${candidates.length} signed candidates, chose ${path.basename(chosen)}`,

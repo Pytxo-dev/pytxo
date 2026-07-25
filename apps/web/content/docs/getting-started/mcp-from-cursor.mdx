@@ -1,0 +1,56 @@
+---
+title: MCP from Cursor
+description: Connect Cursor (or another MCP client) to the local Pytxo orchestrator.
+---
+
+Pytxo exposes orchestration through a **local MCP server** so Cursor (or any MCP-capable IDE) can start runs, inspect status, and tail logs without replacing your editor.
+
+## Install
+
+1. Install the [CLI](/docs/getting-started/install) (`npm i -g pytxo` or a release binary).
+2. Confirm the MCP binary is available. The npm package ships `pytxo-mcp` next to `pytxo`. Find it with:
+
+```bash
+# npm global (example paths)
+which pytxo-mcp        # macOS / Linux
+where.exe pytxo-mcp    # Windows
+```
+
+If you only have the CLI zip from GitHub Releases, download the matching platform archive that includes `pytxo-mcp`, or build from source under [Developers](/docs/developers/contributing).
+
+## Configure Cursor
+
+Add a local MCP server entry (`.cursor/mcp.json` or your global MCP config):
+
+```json
+{
+  "mcpServers": {
+    "pytxo": {
+      "command": "pytxo-mcp",
+      "args": [],
+      "env": {
+        "PYTXO_REPO": "/absolute/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+On Windows, set `command` to the full path of `pytxo-mcp.exe` if it is not on `PATH`. `PYTXO_REPO` must be the git root where `pytxo.toml` lives.
+
+## What MCP enables
+
+- Trigger runs and dry-runs from the agent context
+- Query status and live agents
+- Tail structured logs
+- Route stdin to live agents
+- Start modular project and fleet runs
+
+Full tool list: [MCP tools](/docs/reference/mcp-tools).
+
+## Troubleshooting
+
+1. Run `pytxo doctor` in the target repo before MCP-driven runs.
+2. Keep `pytxo` and `pytxo-mcp` on the same release.
+3. Ensure `.pytxo/data/` is writable.
+4. See [Troubleshooting](/docs/troubleshooting) for trust blocks and path mismatches.

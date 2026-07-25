@@ -1,11 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { Terminal } from "@xterm/xterm";
-  import { FitAddon } from "@xterm/addon-fit";
-  import "@xterm/xterm/css/xterm.css";
   import "./app.css";
 
-  import { ipc, onAuthChanged } from "./lib/ipc";
+  import { ipc, onAuthChanged, onAuthError } from "./lib/ipc";
   import {
     applyDeckTheme,
     initThemeChrome,
@@ -31,7 +28,6 @@
   import DeckShell from "./components/shell/DeckShell.svelte";
   import ProjectTabs from "./components/shell/ProjectTabs.svelte";
   import SetupWizard from "./components/setup/SetupWizard.svelte";
-  import DeckWorkspace from "./components/dashboard/DeckWorkspace.svelte";
   import WorkspaceHome from "./components/workspace/WorkspaceHome.svelte";
   import DesktopShell from "./components/desktop2/DesktopShell.svelte";
 
@@ -59,17 +55,23 @@
   let maxAgents = $state(3);
   let cliMissing = $state(false);
   let signedIn = $state(false);
+  let authErrorMessage = $state<string | null>(null);
   let logExpanded = $state(false);
   let selectedTopologyNode = $state<string | null>(null);
   let showWorkspaceSettings = $state(false);
   const useLegacyShell = localStorage.getItem("desktop_shell_v1") === "true";
 
   let termEl: HTMLDivElement | undefined = $state();
-  let terminal: Terminal | null = null;
-  let fitAddon: FitAddon | null = null;
+  let terminal: import("@xterm/xterm").Terminal | null = null;
+  let fitAddon: import("@xterm/addon-fit").FitAddon | null = null;
+  let TerminalCtor: typeof import("@xterm/xterm").Terminal | null = null;
+  let FitAddonCtor: typeof import("@xterm/addon-fit").FitAddon | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let hitlTimer: ReturnType<typeof setInterval> | null = null;
+  let structuralTimer: ReturnType<typeof setInterval> | null = null;
+  let pollLogsInflight = false;
   let authUnlisten: (() => void) | null = null;
+  let authErrorUnlisten: (() => void) | null = null;
   const MAX_TERMINAL_LINES = 2000;
   let terminalLineCount = 0;
 
@@ -93,6 +95,7 @@
 
   /** Terminal mounts with DeckWorkspace; recreate when the xterm host appears. */
   $effect(() => {
+    if (!useLegacyShell) return;
     if (!termEl) {
       if (terminal) {
         terminal.dispose();
@@ -103,15 +106,32 @@
       return;
     }
     if (terminal) return;
-    terminal = new Terminal({
-      theme: terminalThemeFor(deckTheme),
-      fontSize: 13,
-      convertEol: true,
-    });
-    fitAddon = new FitAddon();
-    terminal.loadAddon(fitAddon);
-    terminal.open(termEl);
-    fitAddon.fit();
+    let cancelled = false;
+    void (async () => {
+      if (!TerminalCtor || !FitAddonCtor) {
+        const [xterm, fit] = await Promise.all([
+          import("@xterm/xterm"),
+          import("@xterm/addon-fit"),
+        ]);
+        // @ts-expect-error Vite resolves CSS side-effect imports at build time.
+        await import("@xterm/xterm/css/xterm.css");
+        TerminalCtor = xterm.Terminal;
+        FitAddonCtor = fit.FitAddon;
+      }
+      if (cancelled || !termEl || terminal || !TerminalCtor || !FitAddonCtor) return;
+      terminal = new TerminalCtor({
+        theme: terminalThemeFor(deckTheme),
+        fontSize: 13,
+        convertEol: true,
+      });
+      fitAddon = new FitAddonCtor();
+      terminal.loadAddon(fitAddon);
+      terminal.open(termEl);
+      fitAddon.fit();
+    })();
+    return () => {
+      cancelled = true;
+    };
   });
 
   async function switchTab(tabId: string) {
@@ -168,6 +188,15 @@
       return;
     }
     const domainId = await ipc.ensureWorkspace(path);
+    const profile =
+      (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-default-permission-profile-v1")) ||
+      "orbit";
+    try {
+      const trusted = await ipc.domainIsTrusted(domainId);
+      if (!trusted) await ipc.setDomainPermission(domainId, profile);
+    } catch {
+      /* Trust is best-effort during onboarding; Workspaces can retry. */
+    }
     addWorkspaceRecent({ id: domainId, label: domainId.split(/[\\/]/).pop() ?? domainId, domainId });
   }
 
@@ -208,7 +237,8 @@
     }
   }
 
-  async function refreshTabData(tabId: string) {
+  async function refreshTabData(tabId: string, opts: { includeStructural?: boolean } = {}) {
+    const includeStructural = opts.includeStructural !== false;
     const tab = tabs.find((t) => t.id === tabId);
     if (!tab) return;
     const runs = await ipc.listRuns(20, tab.domainId);
@@ -227,6 +257,11 @@
     } else {
       agents = [];
       selectedAgentId = null;
+    }
+
+    if (!includeStructural) {
+      updateTab(tabId, { runs, agents, selectedRunId, selectedAgentId });
+      return;
     }
 
     let structural = null;
@@ -280,11 +315,16 @@
   }
 
   async function pollLogs() {
-    if (!activeTab?.selectedAgentId || !terminal) return;
-    const lines = await ipc.pollLogLines(activeTab.selectedAgentId, 32, activeTab.domainId);
-    for (const ev of lines) {
-      writelnCapped(`[${ev.kind}] ${ev.payload}`);
-      recordEvent(ev.kind, ev.payload);
+    if (pollLogsInflight || !activeTab?.selectedAgentId || !terminal) return;
+    pollLogsInflight = true;
+    try {
+      const lines = await ipc.pollLogLines(activeTab.selectedAgentId, 32, activeTab.domainId);
+      for (const ev of lines) {
+        writelnCapped(`[${ev.kind}] ${ev.payload}`);
+        recordEvent(ev.kind, ev.payload);
+      }
+    } finally {
+      pollLogsInflight = false;
     }
   }
 
@@ -347,14 +387,22 @@
   }
 
   async function loadEntitlements() {
-    const status = await ipc.entitlementStatus(activeTab?.domainId ?? null);
-    tier = status.tier;
-    maxAgents = status.max_agents;
-    walletMicrocredits = status.wallet_balance_microcredits;
-    permissionCeiling = status.permission_ceiling;
-    subscriptionPortalUrl = status.subscription_portal_url;
-    const auth = await ipc.authStatus();
-    signedIn = auth.signed_in;
+    try {
+      const auth = await ipc.authStatus();
+      signedIn = auth.signed_in;
+    } catch {
+      signedIn = false;
+    }
+    try {
+      const status = await ipc.entitlementStatus(activeTab?.domainId ?? null);
+      tier = status.tier;
+      maxAgents = status.max_agents;
+      walletMicrocredits = status.wallet_balance_microcredits;
+      permissionCeiling = status.permission_ceiling;
+      subscriptionPortalUrl = status.subscription_portal_url;
+    } catch {
+      /* Link/config errors must not block signed-in UI from updating. */
+    }
   }
 
   async function initDashboard() {
@@ -437,7 +485,11 @@
     applyDeckTheme(deckTheme);
 
     authUnlisten = await onAuthChanged(() => {
+      authErrorMessage = null;
       loadEntitlements();
+    });
+    authErrorUnlisten = await onAuthError((message) => {
+      authErrorMessage = message;
     });
     // Desktop 2 shows real account/entitlement state in its sidebar and
     // Settings → Account & billing even though it has no active workspace tab.
@@ -449,18 +501,23 @@
       await initDashboard();
     }
 
-    pollTimer = setInterval(pollLogs, 16);
+    pollTimer = setInterval(pollLogs, 250);
     hitlTimer = setInterval(() => {
       refreshHitl();
-      if (activeTabId && !showHome) refreshTabData(activeTabId);
+      if (activeTabId && !showHome) void refreshTabData(activeTabId, { includeStructural: false });
       refreshFleetRuns();
     }, 1000);
+    structuralTimer = setInterval(() => {
+      if (activeTabId && !showHome) void refreshTabData(activeTabId, { includeStructural: true });
+    }, 8000);
   });
 
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
     if (hitlTimer) clearInterval(hitlTimer);
+    if (structuralTimer) clearInterval(structuralTimer);
     authUnlisten?.();
+    authErrorUnlisten?.();
     terminal?.dispose();
   });
 </script>
@@ -481,6 +538,7 @@
     {#if onHome}
       <WorkspaceHome onOpenFolder={openFolderTab} onOpenItem={openCatalogItem} />
     {:else}
+      {#await import("./components/dashboard/DeckWorkspace.svelte") then { default: DeckWorkspace }}
       <DeckWorkspace
         bind:deckTheme
         bind:cmd
@@ -519,8 +577,9 @@
         onRootsChange={onRootsChange}
         onGoHome={goHome}
       />
+      {/await}
     {/if}
   {:else}
-    <DesktopShell {tier} {signedIn} {cliMissing} {subscriptionPortalUrl} onReplayOnboarding={replayOnboarding} onAuthChange={loadEntitlements} />
+    <DesktopShell {tier} {signedIn} {cliMissing} {subscriptionPortalUrl} authErrorMessage={authErrorMessage} onReplayOnboarding={replayOnboarding} onAuthChange={loadEntitlements} />
   {/if}
 </DeckShell>

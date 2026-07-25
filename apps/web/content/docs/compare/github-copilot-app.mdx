@@ -1,0 +1,38 @@
+---
+title: vs GitHub Copilot app
+description: Heterogeneous local hypervisor compared with the Copilot agent desktop.
+---
+
+The **GitHub Copilot app** is an agent-native desktop control center: parallel sessions, git worktree per session, local and cloud sandboxes, canvases, and Agent Merge ([GitHub blog](https://github.blog/news-insights/product-news/github-copilot-app-the-agent-native-desktop-experience/), [docs](https://docs.github.com/en/copilot/concepts/agents/github-copilot-app)).
+
+It is a close category peer for supervision. Pytxo still differs on **cross-vendor local hypervisor** scope.
+
+## Comparison
+
+| Dimension | GitHub Copilot app | Pytxo |
+|-----------|-------------------|--------|
+| Scope | Copilot / GitHub-native agents | Heterogeneous headless CLIs via MCP |
+| Isolation | Dedicated git worktree per session | Blast Shield worktree or copy-layer; Race Shield when paths contend |
+| Sandbox | Local restrict + cloud Linux | Approve-to-flush Blast + permission profiles |
+| UI | My Work, canvases, Agent Merge | Desktop structural Focus / Ops / Approvals |
+| Billing | Copilot seat; cloud sandbox metered | Local-first BYOK; Ultra optional |
+
+## When Copilot app is enough
+
+- You already live in GitHub + Copilot seats
+- Parallel Copilot sessions with automatic worktrees cover the job
+- You want GitHub-native canvases and Agent Merge
+
+## When Pytxo adds value
+
+- Mixed CLIs under one scheduler (not Copilot-only)
+- Race claims across agents that share less isolation than one worktree each
+- Signal Core structural context
+- Local silicon + BYOK without Copilot cloud metering
+- Sovereign Shield sanitization and Galaxy HITL
+
+## Honesty
+
+Pytxo did not invent worktree isolation for agents. Copilot ships that. The claim is heterogeneous-CLI orchestration plus Race and Signal.
+
+See also: [vs Claude Agent Teams](/docs/compare/claude-agent-teams).

@@ -1,0 +1,11 @@
+{
+  "title": "Reference",
+  "pages": [
+    "cli",
+    "pytxo-toml",
+    "mcp-tools",
+    "providers-byok",
+    "models",
+    "permission-tiers"
+  ]
+}

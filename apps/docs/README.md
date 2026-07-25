@@ -1,22 +1,9 @@
-# Pytxo public docs
+# Public docs (retired)
 
-Docusaurus site served at [pytxo.com/docs/](https://pytxo.com/docs/). Curated consumer and developer documentation for installers and contributors.
+Public user documentation now lives in **`apps/web/content/docs`** (Fumadocs inside the Next.js site).
 
-## Development
+- Edit MDX there
+- Preview: `pnpm --dir apps/web dev` → http://localhost:3000/docs
+- ADR: `docs/05-adr/ADR-0030-public-docs-fumadocs-next.md`
 
-```bash
-npm install
-npm start
-```
-
-Open `http://localhost:3000/docs/` (baseUrl is `/docs/`).
-
-## Production
-
-Built automatically during `apps/web` prebuild:
-
-```bash
-npm run build
-```
-
-Output is copied to `apps/web/public/docs/` before Next.js static export.
+This `apps/docs` Docusaurus package is no longer part of the deploy path.

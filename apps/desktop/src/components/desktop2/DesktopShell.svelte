@@ -26,8 +26,11 @@
   import UpdateBanner from "../shell/UpdateBanner.svelte";
   import "./desktop2-shared.css";
 
-  const SNAPSHOT_POLL_MS = 1000;
+  const SNAPSHOT_POLL_ACTIVE_MS = 2500;
+  const SNAPSHOT_POLL_IDLE_MS = 5000;
+  const SNAPSHOT_POLL_HIDDEN_MS = 15000;
   const OPEN_BEHAVIOR_KEY = "pytxo-workspace-open-behavior-v1";
+  const DEFAULT_PROFILE_KEY = "pytxo-default-permission-profile-v1";
 
   let {
     routeOverride = null,
@@ -39,6 +42,7 @@
     subscriptionPortalUrl = null,
     onReplayOnboarding = () => {},
     onAuthChange = () => {},
+    authErrorMessage = null,
   }: {
     routeOverride?: AppRoute | null;
     previewState?: "default" | "loading" | "empty" | "offline" | "error";
@@ -49,6 +53,7 @@
     subscriptionPortalUrl?: string | null;
     onReplayOnboarding?: () => void;
     onAuthChange?: () => void;
+    authErrorMessage?: string | null;
   } = $props();
 
   const SIDEBAR_KEY = "pytxo-desktop-sidebar-collapsed-v1";
@@ -61,9 +66,12 @@
   const backend = createDesktopBackend();
   let route = $state<AppRoute>("operations");
   let snapshot = $state<DesktopSnapshot>({ domains: [], runs: [], agents: [], approvals: [], fleets: [], error: null });
+  let snapshotFingerprint = $state("");
   let loading = $state(true);
   let commandOpen = $state(false);
   let loadMessage = $state("");
+  let workspaceMessage = $state("");
+  let workspaceError = $state("");
   let recents = $state<WorkspaceRecent[]>([]);
   let collapsed = $state(readSidebarCollapsed());
   let focusRunId = $state<string | null>(null);
@@ -75,6 +83,7 @@
   let editingWorkspaceId = $state<string | null>(null);
   let voiceModelPath = $state<string | null>(null);
   let voiceInstalling = $state(false);
+  let windowFocused = $state(true);
 
   const activeDomain = $derived(
     snapshot.domains.find((d) => d.domain_id === activeDomainId) ?? null,
@@ -97,6 +106,54 @@
   const commandItems = [...primary, ...system];
 
   const focusedRun = $derived(snapshot.runs.find((r) => r.id === focusRunId) ?? null);
+  const hasActiveRuns = $derived(
+    snapshot.runs.some((r) =>
+      ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+    ),
+  );
+
+  function fingerprintSnapshot(snap: DesktopSnapshot): string {
+    const domainIds = snap.domains.map((d) => d.domain_id).join(",");
+    const runSig = snap.runs.map((r) => `${r.id}:${r.status}`).join(",");
+    const agentSig = snap.agents.map((a) => a.id).join(",");
+    const approvalSig = snap.approvals.map((a) => a.id).join(",");
+    const fleetSig = snap.fleets.map((f) => `${f.id}:${f.status}`).join(",");
+    const err = snap.error?.message ?? "";
+    return `${domainIds}|${runSig}|${agentSig}|${approvalSig}|${fleetSig}|${err}`;
+  }
+
+  function defaultPermissionProfile(): string {
+    if (typeof localStorage === "undefined") return "orbit";
+    const raw = localStorage.getItem(DEFAULT_PROFILE_KEY);
+    if (raw === "deep_space" || raw === "orbit" || raw === "galaxy" || raw === "supernova") return raw;
+    return "orbit";
+  }
+
+  function profileLabel(profile: string): string {
+    switch (profile) {
+      case "deep_space":
+        return "DeepSpace";
+      case "galaxy":
+        return "Galaxy";
+      case "supernova":
+        return "Supernova";
+      default:
+        return "Orbit";
+    }
+  }
+
+  async function trustOpenedWorkspace(canonicalPath: string) {
+    const profile = defaultPermissionProfile();
+    try {
+      const trusted = await ipc.domainIsTrusted(canonicalPath);
+      if (!trusted) {
+        await ipc.setDomainPermission(canonicalPath, profile);
+        workspaceMessage = `Trusted as ${profileLabel(profile)}.`;
+      }
+    } catch (e) {
+      workspaceError = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   function navigate(next: AppRoute, section?: SettingsSectionId) {
     route = next;
@@ -130,13 +187,33 @@
 
   async function refreshSnapshot(opts: { silent?: boolean } = {}) {
     try {
-      const next = await backend.loadSnapshot();
-      snapshot = next;
-      lastPollAt = Date.now();
+      const includeAgents = route === "operations" || route === "topology-focus" || route === "run-review";
+      const next = await backend.loadSnapshot({ includeAgents });
+      const nextFp = fingerprintSnapshot(next);
+      if (nextFp !== snapshotFingerprint) {
+        snapshot = next;
+        snapshotFingerprint = nextFp;
+        lastPollAt = Date.now();
+      }
       pollLive = !next.error;
+      if (next.error && !opts.silent) {
+        loadMessage = next.error.message;
+      } else if (!next.error && loadMessage && previewState === "default") {
+        loadMessage = "";
+      }
     } catch {
       pollLive = false;
     }
+  }
+
+  function pollIntervalMs(): number {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      return SNAPSHOT_POLL_HIDDEN_MS;
+    }
+    if (!windowFocused) return SNAPSHOT_POLL_HIDDEN_MS;
+    if (route === "operations" && hasActiveRuns) return SNAPSHOT_POLL_ACTIVE_MS;
+    if (route === "settings" || route === "integrations") return SNAPSHOT_POLL_IDLE_MS;
+    return SNAPSHOT_POLL_IDLE_MS;
   }
 
   async function selectDomain(domainId: string, opts: { route?: AppRoute } = {}) {
@@ -166,27 +243,55 @@
   }
 
   async function onWorkspaceOpened(openedPath?: string | null) {
+    workspaceError = "";
     await refreshSnapshot();
-    if (openedPath) {
-      const domain = snapshot.domains.find((d) => d.repo_root === openedPath);
-      if (domain) {
-        await selectDomain(domain.domain_id);
-        return;
-      }
+    if (!openedPath) {
+      recents = migrateWorkspaceRecents();
+      return;
     }
-    recents = migrateWorkspaceRecents();
+    const normalized = openedPath.replace(/\\/g, "/").toLowerCase();
+    const domain =
+      snapshot.domains.find((d) => d.domain_id === openedPath) ??
+      snapshot.domains.find((d) => d.repo_root === openedPath) ??
+      snapshot.domains.find((d) => d.repo_root.replace(/\\/g, "/").toLowerCase() === normalized);
+    if (domain) {
+      await trustOpenedWorkspace(domain.repo_root);
+      await selectDomain(domain.domain_id);
+      return;
+    }
+    // Catalog row may lag; still trust and select by canonical path.
+    try {
+      await trustOpenedWorkspace(openedPath);
+      await ipc.selectDomain(openedPath);
+      activeDomainId = openedPath;
+      const label = openedPath.split(/[\\/]/).pop() ?? openedPath;
+      recents = addWorkspaceRecent({ id: openedPath, label, domainId: openedPath });
+      navigate("operations");
+    } catch (e) {
+      workspaceError = e instanceof Error ? e.message : String(e);
+      recents = migrateWorkspaceRecents();
+      navigate("workspaces");
+    }
   }
 
   function onDomainForgotten(domainId: string) {
     snapshot = { ...snapshot, domains: snapshot.domains.filter((d) => d.domain_id !== domainId) };
+    snapshotFingerprint = fingerprintSnapshot(snapshot);
     recents = removeWorkspaceRecent(domainId);
     if (activeDomainId === domainId) activeDomainId = snapshot.domains[0]?.domain_id ?? null;
     if (editingWorkspaceId === domainId) editingWorkspaceId = null;
   }
 
   async function addWorkspace() {
-    const opened = await backend.openWorkspace();
-    if (opened) await onWorkspaceOpened(opened);
+    workspaceError = "";
+    workspaceMessage = "";
+    try {
+      const opened = await backend.openWorkspace();
+      if (opened) await onWorkspaceOpened(opened);
+    } catch (e) {
+      workspaceError = e instanceof Error ? e.message : String(e);
+      navigate("workspaces");
+    }
   }
 
   async function installVoiceModel() {
@@ -208,7 +313,7 @@
   onMount(() => {
     let disposed = false;
     let deepLinkUnlisten: (() => void) | null = null;
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
     route = routeOverride ?? initialRoute();
     const onHashChange = () => {
       if (!routeOverride) route = initialRoute();
@@ -218,18 +323,42 @@
       if (target) navigate(target);
     };
     const onBrowserDeepLink = (event: Event) => handleDeepLink((event as CustomEvent<string>).detail);
+    const onFocus = () => {
+      windowFocused = true;
+    };
+    const onBlur = () => {
+      windowFocused = false;
+    };
     window.addEventListener("hashchange", onHashChange);
     window.addEventListener("pytxo-deep-link", onBrowserDeepLink);
     window.addEventListener("keydown", onGlobalKeydown);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
     recents = migrateWorkspaceRecents();
+
+    const clearPoll = () => {
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = null;
+    };
+
+    const schedulePoll = () => {
+      clearPoll();
+      if (disposed || previewState !== "default") return;
+      pollTimer = setTimeout(() => {
+        void refreshSnapshot({ silent: true }).finally(() => {
+          if (!disposed) schedulePoll();
+        });
+      }, pollIntervalMs());
+    };
 
     const cleanup = () => {
       disposed = true;
       window.removeEventListener("hashchange", onHashChange);
       window.removeEventListener("pytxo-deep-link", onBrowserDeepLink);
       window.removeEventListener("keydown", onGlobalKeydown);
-      if (pollTimer) clearInterval(pollTimer);
-      pollTimer = null;
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+      clearPoll();
     };
 
     if (previewState === "loading") return cleanup;
@@ -274,11 +403,7 @@
       } finally {
         loading = false;
       }
-      if (!disposed && previewState === "default") {
-        pollTimer = setInterval(() => {
-          void refreshSnapshot({ silent: true });
-        }, SNAPSHOT_POLL_MS);
-      }
+      if (!disposed && previewState === "default") schedulePoll();
       try {
         const unlisten = await onPytxoDeepLink(handleDeepLink);
         if (disposed) unlisten();
@@ -328,7 +453,10 @@
       onOpenWorkspaceSettings={(id) => (editingWorkspaceId = id)}
     />
     <div class="content">
-      {#if loadMessage}<div class:error-banner={previewState === "error"} class="status-banner">{loadMessage}</div>{/if}
+      {#if authErrorMessage}<div class="status-banner error-banner">{authErrorMessage}</div>{/if}
+      {#if workspaceError}<div class="status-banner error-banner">{workspaceError}</div>{/if}
+      {#if workspaceMessage}<div class="status-banner">{workspaceMessage}</div>{/if}
+      {#if loadMessage}<div class:error-banner={previewState === "error" || !!snapshot.error} class="status-banner">{loadMessage}</div>{/if}
       {#if loading}
         <div class="loading-state"><div></div><div></div><div></div></div>
       {:else if route === "operations"}

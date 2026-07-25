@@ -47,7 +47,7 @@ When changing `pytxo-runner` or `pytxo-orchestrate`, declare which **permission 
 | `crates/pytxo-mcp` | Stdio MCP server binary |
 | `crates/` | Core, scheduler, runner, store, CLI |
 | `apps/desktop/` | Svelte 5 + Tauri v2 Pytxo Desktop (`pytxo-desktop` crate) |
-| `apps/docs/` | Public user docs (Docusaurus) — published to pytxo.com/docs via `apps/web` prebuild |
+| `apps/web/content/docs/` | Public user docs (Fumadocs MDX) — served at pytxo.com/docs from the Next app |
 | `tooling/scripts/`, `tooling/benchmarks/` | Smoke and competitive repro scripts |
 | `apps/desktop-export/` | Export / release staging (not canonical source) |
 

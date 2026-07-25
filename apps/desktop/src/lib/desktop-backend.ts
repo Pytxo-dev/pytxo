@@ -20,7 +20,7 @@ export type DesktopSnapshot = {
 };
 
 export interface DesktopBackend {
-  loadSnapshot(): Promise<DesktopSnapshot>;
+  loadSnapshot(opts?: { includeAgents?: boolean }): Promise<DesktopSnapshot>;
   approve(requestId: string, domainId: string | null): Promise<void>;
   deny(requestId: string, domainId: string | null): Promise<void>;
   forgetDomain(domainId: string): Promise<void>;
@@ -44,10 +44,17 @@ export interface DesktopBackend {
 }
 
 class TauriDesktopBackend implements DesktopBackend {
-  async loadSnapshot(): Promise<DesktopSnapshot> {
-    let domains: CatalogEntryStatus[];
+  async loadSnapshot(opts: { includeAgents?: boolean } = {}): Promise<DesktopSnapshot> {
     try {
-      domains = await ipc.listDomainsStatus();
+      const snap = await ipc.loadDesktopSnapshot(30, 20, opts.includeAgents !== false);
+      return {
+        domains: snap.domains,
+        runs: snap.runs,
+        agents: snap.agents,
+        approvals: snap.approvals,
+        fleets: snap.fleets,
+        error: null,
+      };
     } catch (e) {
       return {
         domains: [],
@@ -58,20 +65,6 @@ class TauriDesktopBackend implements DesktopBackend {
         error: { kind: "hypervisor-unavailable", message: e instanceof Error ? e.message : String(e) },
       };
     }
-    const runsByDomain = await Promise.all(
-      domains.map(async (domain) => ({ domain, runs: await ipc.listRuns(30, domain.domain_id) })),
-    );
-    const runs = runsByDomain.flatMap((entry) => entry.runs);
-    const agentGroups = await Promise.all(
-      runsByDomain.flatMap(({ domain, runs: domainRuns }) =>
-        domainRuns
-          .filter((run) => ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()))
-          .map((run) => ipc.listAgents(run.id, domain.domain_id)),
-      ),
-    );
-    const agents = agentGroups.flat();
-    const [approvals, fleets] = await Promise.all([ipc.listHitlAll(), ipc.listFleetRuns(20)]);
-    return { domains, runs, agents, approvals, fleets, error: null };
   }
   async approve(requestId: string, domainId: string | null) {
     await ipc.hitlRespond(requestId, true, domainId);

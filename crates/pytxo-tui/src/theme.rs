@@ -87,6 +87,7 @@ pub fn warn() -> Style {
 }
 
 /// Per-line chroma shift for ASCII banner rows (splash only).
+#[allow(dead_code)] // Used by richer splash variants; keep for chroma demos.
 pub fn chroma_line(text: &str, line_idx: usize) -> Line<'static> {
     let color = CHROMA_CYCLE[line_idx % CHROMA_CYCLE.len()];
     Line::from(Span::styled(text.to_string(), Style::default().fg(color)))

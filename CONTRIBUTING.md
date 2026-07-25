@@ -19,7 +19,7 @@ New first-party repos should be created in the **Pytxo-dev** org. See [`docs/08-
 1. Read [`README.md`](README.md).
 2. Install the CLI: `npm i -g pytxo` or `cargo install --path crates/pytxo-cli`.
 3. Open [`docs/00-meta/MOC-home.md`](docs/00-meta/MOC-home.md) in Obsidian or your editor.
-4. Public docs live in [`apps/docs/`](apps/docs/) (published at [pytxo.com/docs](https://pytxo.com/docs)).
+4. Public docs live in [`apps/web/content/docs/`](apps/web/content/docs/) (Fumadocs → [pytxo.com/docs](https://pytxo.com/docs)).
 5. Agents: read [`AGENTS.md`](AGENTS.md).
 
 ### TUI development
