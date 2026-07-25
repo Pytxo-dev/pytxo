@@ -6,13 +6,30 @@ tags: [project, research, strategy]
 audience: [human, agent]
 layer: meta
 created: 2026-07-17
-updated: 2026-07-23
-related: [[product-vision]], [[signal-core]], [[blast-shield]], [[race-shield]], [[desktop-ui-improvement-backlog]], [[competitive-benchmarks]], [[mvp-bootstrap]], [[permission-profile-engine]], [[desktop-visual-system]], [[multi-agent-orchestration-landscape]], [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]]
+updated: 2026-07-25
+related: [[product-vision]], [[signal-core]], [[blast-shield]], [[race-shield]], [[desktop-ui-improvement-backlog]], [[competitive-benchmarks]], [[mvp-bootstrap]], [[permission-profile-engine]], [[desktop-visual-system]], [[multi-agent-orchestration-landscape]], [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]], [[gtm-open-source-loop]]
 ---
 
 # Pytxo deep-improvement research
 
 Primary-source synthesis (vault + crates + 2026 competitor docs). Longer than an atomic note by design — market landscape plus ranked program for the next cycle.
+
+**Community:** [Discord](https://discord.gg/AUFRPFjSYv)
+
+## Pre-marketing readiness gates
+
+Before ramping paid/ads marketing, these must be true (or explicitly labeled Windows-first):
+
+1. Daily path works: sign-in → trust workspace → dispatch → approvals (v0.7.0 Desktop reliability).
+2. No High session/MCP path-escape holes (session not in child env; Orbit+ repo-bound reads; JWT-shaped deep-link tokens).
+3. CLI/Desktop cold path feels instant (`doctor --quick`, deferred TUI doctor, batched Desktop snapshot).
+4. Honest claims only (Signal pins, Blast interim, Ultra/Cloud gated).
+5. Cross-platform Desktop/CLI matrix green **or** clearly labeled Windows-first on download.
+6. Discord live as the support loop so early users are not abandoned.
+
+Repos: `Pytxo-dev/pytxo` (source) · `Pytxo-dev/pytxo-releases` (binaries) · `npm:pytxo` · [pytxo.com](https://pytxo.com).
+
+Marketing later stays CLI-first hypervisor wedge ([[gtm-open-source-loop]]) — Discord + Race/Blast proof demos; do not claim unique multi-agent/sandbox.
 
 ## Executive verdict
 

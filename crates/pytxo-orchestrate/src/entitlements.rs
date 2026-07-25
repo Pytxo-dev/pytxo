@@ -12,11 +12,36 @@ struct CachedEntitlements {
 
 static ENTITLEMENTS_CACHE: Mutex<Option<CachedEntitlements>> = Mutex::new(None);
 
+/// Process-local session bearer (Desktop keyring hydrate / CLI env). Prefer this over
+/// putting `PYTXO_ULTRA_SESSION` in the process environment where agent children inherit it.
+static RUNTIME_SESSION_TOKEN: Mutex<Option<String>> = Mutex::new(None);
+
 /// Drop cached Link entitlements so the next fetch reflects sign-in / sign-out.
 pub fn invalidate_entitlements_cache() {
     if let Ok(mut guard) = ENTITLEMENTS_CACHE.lock() {
         *guard = None;
     }
+}
+
+/// Install or clear the in-process Ultra/Clerk session token (does not touch env).
+pub fn set_runtime_session_token(token: Option<String>) {
+    if let Ok(mut guard) = RUNTIME_SESSION_TOKEN.lock() {
+        *guard = token.filter(|t| !t.is_empty());
+    }
+}
+
+/// Session token for Link HTTP: runtime store first, then `PYTXO_ULTRA_SESSION` (CLI).
+pub fn runtime_session_token() -> Option<String> {
+    if let Ok(guard) = RUNTIME_SESSION_TOKEN.lock() {
+        if let Some(t) = guard.as_ref() {
+            if !t.is_empty() {
+                return Some(t.clone());
+            }
+        }
+    }
+    std::env::var("PYTXO_ULTRA_SESSION")
+        .ok()
+        .filter(|t| !t.is_empty())
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -142,9 +167,7 @@ fn profile_rank(p: PermissionProfile) -> u8 {
 }
 
 fn ultra_session_present() -> bool {
-    std::env::var("PYTXO_ULTRA_SESSION")
-        .map(|t| !t.is_empty())
-        .unwrap_or(false)
+    runtime_session_token().is_some()
 }
 
 #[derive(Deserialize)]
@@ -171,10 +194,8 @@ fn fetch_link_entitlements(base_url: &str) -> Result<EntitlementStatus, PytxoErr
     #[cfg(feature = "link-http")]
     {
         let mut req = ureq::get(&endpoint);
-        if let Ok(token) = std::env::var("PYTXO_ULTRA_SESSION") {
-            if !token.is_empty() {
-                req = req.set("Authorization", &format!("Bearer {token}"));
-            }
+        if let Some(token) = runtime_session_token() {
+            req = req.set("Authorization", &format!("Bearer {token}"));
         }
         let resp = req
             .call()
@@ -233,10 +254,8 @@ fn fetch_org_policy_ceiling_for(
     #[cfg(feature = "link-http")]
     {
         let mut req = ureq::get(&endpoint);
-        if let Ok(token) = std::env::var("PYTXO_ULTRA_SESSION") {
-            if !token.is_empty() {
-                req = req.set("Authorization", &format!("Bearer {token}"));
-            }
+        if let Some(token) = runtime_session_token() {
+            req = req.set("Authorization", &format!("Bearer {token}"));
         }
         let resp = req
             .call()
@@ -281,10 +300,8 @@ pub fn fetch_link_wallet_balance(base_url: &str) -> Result<i64, PytxoError> {
     #[cfg(feature = "link-http")]
     {
         let mut req = ureq::get(&endpoint);
-        if let Ok(token) = std::env::var("PYTXO_ULTRA_SESSION") {
-            if !token.is_empty() {
-                req = req.set("Authorization", &format!("Bearer {token}"));
-            }
+        if let Some(token) = runtime_session_token() {
+            req = req.set("Authorization", &format!("Bearer {token}"));
         }
         let resp = req
             .call()

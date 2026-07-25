@@ -87,6 +87,8 @@ struct ShellApp {
     phase: AppPhase,
     needs_redraw: bool,
     show_splash: bool,
+    /// First paint uses light snapshot only; full doctor runs on the next refresh cycle.
+    doctor_boot_deferred: bool,
 }
 
 fn trust_folders(repo: &Path) -> Vec<String> {
@@ -129,9 +131,10 @@ impl ShellApp {
             phase,
             needs_redraw: true,
             show_splash: true,
+            doctor_boot_deferred: false,
         };
         app.scrollback
-            .push("Hypervisor Shell — /help for commands · /models search …");
+            .push("Hypervisor Shell — /help · Discord: https://discord.gg/AUFRPFjSYv");
         Ok(app)
     }
 
@@ -186,6 +189,12 @@ impl ShellApp {
     }
 
     fn maybe_refresh(&mut self) {
+        // Cold path: never block first paint on full doctor (PTY smoke + git + HTTP).
+        if !self.doctor_boot_deferred {
+            self.refresh_board(false);
+            self.doctor_boot_deferred = true;
+            return;
+        }
         if self.doctor_cache.checks.is_empty()
             || self.last_doctor_refresh.elapsed() >= DOCTOR_INTERVAL
         {

@@ -34,8 +34,18 @@
   let arbitrageLoading = $state(false);
 
   const visibleNodes = $derived(editedOnly ? graph.nodes.filter((n) => n.edited) : graph.nodes);
+  const targetsByNode = $derived.by(() => {
+    const labelById = new Map(graph.nodes.map((n) => [n.id, n.label] as const));
+    const map = new Map<string, string[]>();
+    for (const e of graph.edges) {
+      const list = map.get(e.from) ?? [];
+      list.push(labelById.get(e.to) ?? e.to);
+      map.set(e.from, list);
+    }
+    return map;
+  });
   function targetsOf(nodeId: string) {
-    return graph.edges.filter((e) => e.from === nodeId).map((e) => graph.nodes.find((n) => n.id === e.to)?.label ?? e.to);
+    return targetsByNode.get(nodeId) ?? [];
   }
 
   const allExited = $derived(agents.length > 0 && agents.every((a) => a.exit_code === 0));
@@ -181,10 +191,11 @@
       {:else}
         <div class="structural-list">
           {#each visibleNodes as node (node.id)}
+            {@const targets = targetsOf(node.id)}
             <div class="structural-node" class:edited={node.edited}>
               <IconGitBranch size={15} />
               <strong>{node.label}</strong>
-              {#if targetsOf(node.id).length}<small>→ {targetsOf(node.id).join(", ")}</small>{/if}
+              {#if targets.length}<small>→ {targets.join(", ")}</small>{/if}
             </div>
           {/each}
         </div>

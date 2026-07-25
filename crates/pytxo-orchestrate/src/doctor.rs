@@ -23,25 +23,40 @@ impl DoctorReport {
 }
 
 pub fn run_doctor(repo: Option<&Path>) -> anyhow::Result<DoctorReport> {
+    run_doctor_with_tier(repo, DoctorTier::Full)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DoctorTier {
+    /// Git + writable dirs only (CI / scripts).
+    Quick,
+    Full,
+}
+
+pub fn run_doctor_with_tier(repo: Option<&Path>, tier: DoctorTier) -> anyhow::Result<DoctorReport> {
     let repo_root = super::resolve_repo_root(repo)?;
     let cfg = super::load_config(None, &repo_root).unwrap_or_default();
-    let checks = vec![
+    let mut checks = vec![
         check_git_installed(),
         check_inside_git_repo(&repo_root),
         check_head_exists(&repo_root),
         check_worktree_command(&repo_root),
         check_pytxo_dirs_writable(&repo_root),
-        check_pty_smoke(),
-        check_link_reconcile(&cfg),
-        check_org_policy_ceiling(&cfg),
-        check_cloud_sandbox(&cfg),
-        check_inference_proxy_health(&cfg),
-        check_hitl_persistence(&repo_root, &cfg),
-        check_network_policy(),
-        check_deepspace_network_isolation(&cfg),
-        check_mcp_hitl(&cfg),
-        check_overlay_isolation(&cfg),
     ];
+    if matches!(tier, DoctorTier::Full) {
+        checks.extend([
+            check_pty_smoke(),
+            check_link_reconcile(&cfg),
+            check_org_policy_ceiling(&cfg),
+            check_cloud_sandbox(&cfg),
+            check_inference_proxy_health(&cfg),
+            check_hitl_persistence(&repo_root, &cfg),
+            check_network_policy(),
+            check_deepspace_network_isolation(&cfg),
+            check_mcp_hitl(&cfg),
+            check_overlay_isolation(&cfg),
+        ]);
+    }
     Ok(DoctorReport { checks })
 }
 
@@ -173,14 +188,11 @@ fn check_link_reconcile(cfg: &PytxoConfig) -> DoctorCheck {
 }
 
 fn check_org_policy_ceiling(cfg: &PytxoConfig) -> DoctorCheck {
-    let session = std::env::var("PYTXO_ULTRA_SESSION")
-        .ok()
-        .filter(|s| !s.is_empty());
-    if session.is_none() {
+    if crate::entitlements::runtime_session_token().is_none() {
         return DoctorCheck {
             name: "org_policy_ceiling".into(),
             ok: true,
-            detail: "skipped (PYTXO_ULTRA_SESSION not set)".into(),
+            detail: "skipped (no Ultra session)".into(),
         };
     }
     if !cfg.billing.link_reconcile_enabled() || cfg.billing.proxy_url.trim().is_empty() {

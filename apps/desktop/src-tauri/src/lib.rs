@@ -5,6 +5,7 @@ mod ipc_flow;
 mod ipc_install;
 mod ipc_meta;
 mod ipc_voice;
+mod tray;
 
 use ipc::{
     agent_arbitrage, commit_workspace, dispatch_run_cmd, domain_is_trusted, dry_run, ensure_workspace,
@@ -15,7 +16,7 @@ use ipc::{
     set_domain_permission, stop_run, structural_graph, tail_events, workspace_structural_graph,
     AppState,
 };
-use ipc_auth::{auth_clear_session, auth_open_sign_in, auth_status, auth_store_session};
+use ipc_auth::{auth_clear_session, auth_open_sign_in, auth_status};
 use ipc_flow::{
     flow_delete, flow_dispatch, flow_history, flow_preview, flow_save_draft,
     flow_save_reviewed_plan,
@@ -54,6 +55,7 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_deep_link::init())
+        .manage(tray::TrayPrefs::load())
         .manage(AppState {
             config_path: Mutex::new(None),
             poll_cursors: Mutex::new(std::collections::HashMap::new()),
@@ -61,6 +63,14 @@ pub fn run() {
             voice_sessions: std::sync::Arc::new(Mutex::new(std::collections::HashMap::new())),
             voice_captures: std::sync::Arc::new(Mutex::new(std::collections::HashMap::new())),
             voice_cancellations: Mutex::new(std::collections::HashMap::new()),
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if tray::close_to_tray_enabled(window.app_handle()) {
+                    api.prevent_close();
+                    tray::hide_main_window_to_tray(window.app_handle());
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             list_domains_cmd,
@@ -103,7 +113,6 @@ pub fn run() {
             entitlement_status,
             list_ade_clis,
             auth_status,
-            auth_store_session,
             auth_clear_session,
             auth_open_sign_in,
             flow_save_draft,
@@ -123,8 +132,16 @@ pub fn run() {
             voice_finish_session,
             voice_cancel_session,
             voice_get_session,
+            tray::get_close_to_tray,
+            tray::set_close_to_tray,
         ])
         .setup(|app| {
+            #[cfg(desktop)]
+            {
+                if let Err(e) = tray::install_tray(app.handle()) {
+                    eprintln!("tray: failed to install system tray: {e:?}");
+                }
+            }
             #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;

@@ -2,12 +2,6 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm run build",
   "framework": "nextjs",
-  "rewrites": [
-    {
-      "source": "/docs/:path((?!assets/)(?!img/).*)",
-      "destination": "/docs/:path.html"
-    }
-  ],
   "redirects": [
     {
       "source": "/pricing",
@@ -61,7 +55,12 @@
     },
     {
       "source": "/docs/reality-deck-visual-system",
-      "destination": "/docs/concepts/reality-deck",
+      "destination": "/docs/concepts/desktop",
+      "permanent": true
+    },
+    {
+      "source": "/docs/concepts/reality-deck",
+      "destination": "/docs/concepts/desktop",
       "permanent": true
     },
     {
@@ -76,26 +75,11 @@
     },
     {
       "source": "/docs/repository-layout",
-      "destination": "/docs",
+      "destination": "/docs/developers/repo-layout",
       "permanent": true
     },
     {
       "source": "/docs/adr-index",
-      "destination": "/docs",
-      "permanent": true
-    },
-    {
-      "source": "/docs/developers/contributing",
-      "destination": "/docs",
-      "permanent": true
-    },
-    {
-      "source": "/docs/developers/architecture",
-      "destination": "/docs/concepts/what-is-pytxo",
-      "permanent": true
-    },
-    {
-      "source": "/docs/developers/repo-layout",
       "destination": "/docs",
       "permanent": true
     },

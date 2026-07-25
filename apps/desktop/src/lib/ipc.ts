@@ -14,7 +14,7 @@ import type {
   RunDto,
 } from "./types";
 
-export const IPC_VERSION = "0.7.0";
+export const IPC_VERSION = "0.8.0";
 
 export const AUTH_CHANGED_EVENT = "deck-auth-changed";
 export const AUTH_ERROR_EVENT = "deck-auth-error";
@@ -61,14 +61,14 @@ export const ipc = {
    * catalog. Callers that want a resilient fallback should catch explicitly.
    */
   listDomainsStatus: () => invoke<CatalogEntryStatus[]>("list_domains_status").then(unwrap),
-  loadDesktopSnapshot: (runLimit = 30, fleetLimit = 20) =>
+  loadDesktopSnapshot: (runLimit = 30, fleetLimit = 20, includeAgents = true) =>
     invoke<{
       domains: CatalogEntryStatus[];
       runs: RunDto[];
       agents: AgentDto[];
       approvals: HitlDto[];
       fleets: import("./types").FleetRunDto[];
-    }>("load_desktop_snapshot", { runLimit, fleetLimit }).then(unwrap),
+    }>("load_desktop_snapshot", { runLimit, fleetLimit, includeAgents }).then(unwrap),
   forgetDomain: (domainId: string) =>
     invoke<void>("forget_domain", { domainId }).then(unwrap),
   listProjects: () =>
@@ -189,8 +189,6 @@ export const ipc = {
       .then(unwrap)
       .catch(() => ({ signed_in: false, session_present: false })),
   authOpenSignIn: () => invoke<void>("auth_open_sign_in").then(unwrap),
-  authStoreSession: (token: string) =>
-    invoke<void>("auth_store_session", { token }).then(unwrap),
   authClearSession: () => invoke<void>("auth_clear_session").then(unwrap),
   flowPreview: (input: import("./types").FlowDraftInput) => invoke<import("./types").FlowPlan>("flow_preview", { input }).then(unwrap),
   flowSaveReviewedPlan: (plan: import("./types").FlowPlan) => invoke<import("./types").FlowPlan>("flow_save_reviewed_plan", { plan }).then(unwrap),
@@ -209,4 +207,8 @@ export const ipc = {
   voiceCancelSession: (sessionId: string) => invoke<import("./types").VoiceSessionDto>("voice_cancel_session", { sessionId }).then(unwrap),
   onVoiceProgress: (callback: (event: import("./types").VoiceProgressEvent) => void) =>
     listen<import("./types").VoiceProgressEvent>("pytxo://voice/progress", (event) => callback(event.payload)),
+  getCloseToTray: () =>
+    invoke<boolean>("get_close_to_tray").catch(() => true),
+  setCloseToTray: (enabled: boolean) =>
+    invoke<void>("set_close_to_tray", { enabled }),
 };

@@ -1,0 +1,39 @@
+---
+title: What is Pytxo?
+---
+
+Pytxo runs and coordinates the coding agents you already use. It is a local **agent hypervisor**: schedule work, keep agents from colliding, show what changed, and let you approve merges. It is not a browser full of terminal panes, and not a single-vendor agent desktop.
+
+## The problem
+
+Many agent products put the UI first: grids of terminals, heavy local resource use, and platform-held credits. Vendor control centers (for example GitHub Copilotâ€™s agent app) solve supervision inside one ecosystem. If you care about **mixed CLIs** on local silicon, you need coordination, isolation, and clear logs more than another IDE surface.
+
+## How Pytxo works
+
+Pytxo schedules headless agents in the background on your machine. Each agent works in an isolated copy of the repo. Pytxo records what changed. Your IDE stays your IDE. You connect through MCP, and optionally **Pytxo Desktop**.
+
+| | Typical agent workspace UI | Pytxo |
+|---|-----------|-------|
+| Primary UI | Multi-pane terminal grid | Your existing IDE |
+| Execution | Remote containers / heavy webviews | Local agents + isolated copies |
+| Parallelism | Visual panes | Scheduled waves + write registry |
+| Telemetry | Streamed terminal text | Structural logs + optional Desktop |
+| LLM keys | Often platform-held | Your keys (BYOK) |
+
+## Ways to scale up
+
+1. **Many projects at once.** Each repo gets its own logs and permission tier (default **Orbit**). See [Execution domains](/docs/concepts/execution-domains).
+2. **Workspaces.** One workspace can span several folders (API + web + protos) in a single coordinated run. See [Modular projects](/docs/concepts/modular-projects).
+3. **Fleet runs.** Cross-repo plans when barriers must span separate git roots. See [Fleet runs](/docs/concepts/fleet-runs).
+
+## What Pytxo does not do
+
+- Multi-pane embedded terminal walls in the product UI
+- Store provider API keys in plaintext
+- Become an LLM vendor (Pytxo Cloud is BYOK-only)
+
+## Next
+
+- [Three moats](/docs/concepts/three-moats): smarter context, safe sandbox, no write collisions
+- [Pytxo Desktop](/docs/concepts/desktop): optional control UI
+- [Galaxy approvals](/docs/concepts/galaxy-approvals): you approve risky actions

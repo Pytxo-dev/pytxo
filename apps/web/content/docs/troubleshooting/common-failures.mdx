@@ -1,0 +1,73 @@
+---
+title: Common failures
+description: Trust blocks, MCP mismatches, PTY vs subprocess, and HITL stalls.
+---
+
+## Trust blocks run
+
+**Symptom:** `/run` or `pytxo run` refuses to spawn; dry-run still works.
+
+**Fix:** Trust the folder and pick a tier:
+
+```bash
+pytxo trust orbit
+# or Galaxy if you want HITL gates
+pytxo trust galaxy
+```
+
+See [Folder trust](/docs/getting-started/folder-trust).
+
+## Missing ADE CLI
+
+**Symptom:** Spawn fails because `claude`, `agy`, `codex`, etc. are not found.
+
+**Fix:** Install the agent CLI on `PATH`, then smoke with:
+
+```bash
+pytxo run --agents 1 --cmd "your-cli --help"
+```
+
+Guide: [Testing ADE CLIs](/docs/getting-started/testing-ade-clis).
+
+## PTY vs subprocess
+
+**Symptom:** Interactive ADE CLIs hang or misbehave under `subprocess`.
+
+**Fix:** Prefer the default PTY backend. Force subprocess only when needed (CI without a TTY):
+
+```bash
+pytxo run --execution subprocess --cmd "echo pytxo"
+```
+
+Set `execution_backend` in config if you need a permanent override.
+
+## MCP path or version mismatch
+
+**Symptom:** Cursor cannot start the server, or tools fail after a CLI upgrade.
+
+**Fix:**
+
+1. Point `command` at the same release as `pytxo` (`which pytxo-mcp` / `where.exe pytxo-mcp`).
+2. Set `PYTXO_REPO` to the absolute git root.
+3. Restart the MCP client after changing config.
+
+## HITL stalls (Galaxy)
+
+**Symptom:** Agents pause waiting for approval.
+
+**Fix:**
+
+```bash
+pytxo hitl list
+pytxo hitl approve <id>
+# or deny
+pytxo hitl deny <id>
+```
+
+In the Hypervisor Shell with an empty prompt: Tab to select, `a` approve, `x` deny. Desktop: Approvals panel.
+
+## Writable `.pytxo/`
+
+**Symptom:** Doctor fails on data dir or HITL persistence.
+
+**Fix:** Ensure the repo (or configured `data_dir`) can create `.pytxo/data`. Avoid read-only mounts for the worktree root.

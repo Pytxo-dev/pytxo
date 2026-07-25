@@ -68,6 +68,8 @@
   let FitAddonCtor: typeof import("@xterm/addon-fit").FitAddon | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let hitlTimer: ReturnType<typeof setInterval> | null = null;
+  let structuralTimer: ReturnType<typeof setInterval> | null = null;
+  let pollLogsInflight = false;
   let authUnlisten: (() => void) | null = null;
   let authErrorUnlisten: (() => void) | null = null;
   const MAX_TERMINAL_LINES = 2000;
@@ -235,7 +237,8 @@
     }
   }
 
-  async function refreshTabData(tabId: string) {
+  async function refreshTabData(tabId: string, opts: { includeStructural?: boolean } = {}) {
+    const includeStructural = opts.includeStructural !== false;
     const tab = tabs.find((t) => t.id === tabId);
     if (!tab) return;
     const runs = await ipc.listRuns(20, tab.domainId);
@@ -254,6 +257,11 @@
     } else {
       agents = [];
       selectedAgentId = null;
+    }
+
+    if (!includeStructural) {
+      updateTab(tabId, { runs, agents, selectedRunId, selectedAgentId });
+      return;
     }
 
     let structural = null;
@@ -307,11 +315,16 @@
   }
 
   async function pollLogs() {
-    if (!activeTab?.selectedAgentId || !terminal) return;
-    const lines = await ipc.pollLogLines(activeTab.selectedAgentId, 32, activeTab.domainId);
-    for (const ev of lines) {
-      writelnCapped(`[${ev.kind}] ${ev.payload}`);
-      recordEvent(ev.kind, ev.payload);
+    if (pollLogsInflight || !activeTab?.selectedAgentId || !terminal) return;
+    pollLogsInflight = true;
+    try {
+      const lines = await ipc.pollLogLines(activeTab.selectedAgentId, 32, activeTab.domainId);
+      for (const ev of lines) {
+        writelnCapped(`[${ev.kind}] ${ev.payload}`);
+        recordEvent(ev.kind, ev.payload);
+      }
+    } finally {
+      pollLogsInflight = false;
     }
   }
 
@@ -488,17 +501,21 @@
       await initDashboard();
     }
 
-    pollTimer = setInterval(pollLogs, 16);
+    pollTimer = setInterval(pollLogs, 250);
     hitlTimer = setInterval(() => {
       refreshHitl();
-      if (activeTabId && !showHome) refreshTabData(activeTabId);
+      if (activeTabId && !showHome) void refreshTabData(activeTabId, { includeStructural: false });
       refreshFleetRuns();
     }, 1000);
+    structuralTimer = setInterval(() => {
+      if (activeTabId && !showHome) void refreshTabData(activeTabId, { includeStructural: true });
+    }, 8000);
   });
 
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
     if (hitlTimer) clearInterval(hitlTimer);
+    if (structuralTimer) clearInterval(structuralTimer);
     authUnlisten?.();
     authErrorUnlisten?.();
     terminal?.dispose();

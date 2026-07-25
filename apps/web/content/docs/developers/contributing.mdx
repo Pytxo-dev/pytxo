@@ -1,0 +1,57 @@
+---
+title: Contributing
+description: Build Pytxo from source and open pull requests.
+---
+
+Pytxo is open source under the **MIT License**. Contributions welcome via GitHub pull requests.
+
+## Development setup
+
+```bash
+git clone https://github.com/Pytxo-dev/pytxo.git
+cd pytxo
+cargo build --workspace
+```
+
+Desktop from source:
+
+```bash
+cd apps/desktop
+npm ci
+npm run check
+cd ../..
+cargo build -p pytxo-desktop
+```
+
+MCP binary from source:
+
+```bash
+cargo build -p pytxo-mcp --release
+```
+
+Smoke checks:
+
+```bash
+./tooling/scripts/smoke.sh
+# Windows: ./tooling/scripts/smoke.ps1
+```
+
+## Public docs
+
+Edit MDX under `apps/web/content/docs`. Preview with `pnpm --dir apps/web dev` and open `/docs`.
+
+## Guidelines
+
+- Route orchestration changes through the three moats where applicable
+- Add tests for scheduling, worktree, and store behavior
+- Update public docs when user-facing behavior changes
+- Follow existing Rust formatting (`cargo fmt`) and CI
+
+## Pull requests
+
+1. Fork and branch from `main`
+2. Keep commits focused
+3. Ensure `cargo test` and CI pass
+4. Link related issues or ADRs in the PR description
+
+Full policy: [CONTRIBUTING.md](https://github.com/Pytxo-dev/pytxo/blob/main/CONTRIBUTING.md) on GitHub.

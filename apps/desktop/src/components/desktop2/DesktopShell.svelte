@@ -26,8 +26,9 @@
   import UpdateBanner from "../shell/UpdateBanner.svelte";
   import "./desktop2-shared.css";
 
-  const SNAPSHOT_POLL_ACTIVE_MS = 1000;
-  const SNAPSHOT_POLL_IDLE_MS = 4000;
+  const SNAPSHOT_POLL_ACTIVE_MS = 2500;
+  const SNAPSHOT_POLL_IDLE_MS = 5000;
+  const SNAPSHOT_POLL_HIDDEN_MS = 15000;
   const OPEN_BEHAVIOR_KEY = "pytxo-workspace-open-behavior-v1";
   const DEFAULT_PROFILE_KEY = "pytxo-default-permission-profile-v1";
 
@@ -186,13 +187,14 @@
 
   async function refreshSnapshot(opts: { silent?: boolean } = {}) {
     try {
-      const next = await backend.loadSnapshot();
+      const includeAgents = route === "operations" || route === "topology-focus" || route === "run-review";
+      const next = await backend.loadSnapshot({ includeAgents });
       const nextFp = fingerprintSnapshot(next);
       if (nextFp !== snapshotFingerprint) {
         snapshot = next;
         snapshotFingerprint = nextFp;
+        lastPollAt = Date.now();
       }
-      lastPollAt = Date.now();
       pollLive = !next.error;
       if (next.error && !opts.silent) {
         loadMessage = next.error.message;
@@ -205,7 +207,10 @@
   }
 
   function pollIntervalMs(): number {
-    if (!windowFocused) return SNAPSHOT_POLL_IDLE_MS;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      return SNAPSHOT_POLL_HIDDEN_MS;
+    }
+    if (!windowFocused) return SNAPSHOT_POLL_HIDDEN_MS;
     if (route === "operations" && hasActiveRuns) return SNAPSHOT_POLL_ACTIVE_MS;
     if (route === "settings" || route === "integrations") return SNAPSHOT_POLL_IDLE_MS;
     return SNAPSHOT_POLL_IDLE_MS;

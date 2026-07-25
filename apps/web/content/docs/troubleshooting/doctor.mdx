@@ -1,0 +1,22 @@
+---
+title: Doctor checks
+description: What pytxo doctor verifies and how to fix failures.
+---
+
+```bash
+pytxo doctor
+pytxo doctor --json
+```
+
+Typical checks:
+
+| Check | Meaning | Fix |
+|-------|---------|-----|
+| Git root | Cwd resolves to a git repository | `git init` or `cd` into the repo; use `--repo` |
+| Writable `.pytxo/data` | Orchestrator can persist SQLite / HITL | Fix permissions on `.pytxo/` |
+| PTY / terminal | Local PTY backend can spawn | On restricted CI, try `--execution subprocess` |
+| `hitl_persistence` | Galaxy approvals can save to disk | Ensure `.pytxo/data/` is writable |
+| Overlay isolation | Overlay mode is usable when configured | Switch to `isolation = "worktree"` or install overlay deps |
+| Cloud / billing | Only when `[cloud]` or `[billing]` ultra is enabled | Set `PYTXO_CLOUD_SESSION` / `PYTXO_ULTRA_SESSION`, or disable those sections |
+
+Doctor does not install ADE CLIs for you. If `claude`, `agy`, or `codex` are missing, install them separately and confirm they are on `PATH`.

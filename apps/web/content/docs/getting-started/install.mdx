@@ -1,0 +1,76 @@
+---
+title: Install
+description: Install the Pytxo CLI on Windows, macOS, and Linux.
+---
+
+Keep version pins in sync with `PYTXO_VERSION` in `apps/web/src/lib/site.ts` (currently **0.7.0**).
+
+## npm (recommended)
+
+Requires Node.js 18+.
+
+```bash
+npm i -g pytxo
+pytxo doctor
+```
+
+The npm package downloads the matching prebuilt binary from [Pytxo-dev/pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases) on install.
+
+## Install scripts
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 | iex
+```
+
+Pin a release:
+
+```bash
+PYTXO_VERSION=v0.7.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
+```
+
+## Prebuilt binaries
+
+| Platform | Asset |
+|----------|--------|
+| Linux x64 | `pytxo-linux-x64` |
+| Linux arm64 | `pytxo-linux-arm64` |
+| macOS Apple Silicon | `pytxo-darwin-arm64` |
+| macOS Intel | `pytxo-darwin-x64` |
+| Windows x64 | `pytxo-windows-x64.exe` |
+
+Download from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases). Put the binary on your `PATH`, then run `pytxo doctor`.
+
+Community help: [Discord](https://discord.gg/AUFRPFjSYv).
+
+## Default TUI
+
+Running `pytxo` with no subcommand opens the [Hypervisor Shell](/docs/getting-started/hypervisor-shell). For scripts:
+
+```bash
+pytxo run --dry-run --config pytxo.toml
+PYTXO_NO_TUI=1 pytxo   # print help instead of TUI
+```
+
+## Initialize a project
+
+```bash
+pytxo trust orbit
+pytxo init
+pytxo doctor
+```
+
+## Next steps
+
+- [Desktop setup](/docs/getting-started/desktop-setup)
+- [Folder trust](/docs/getting-started/folder-trust)
+- [First three-agent run](/docs/getting-started/first-three-agent-run)
+- [MCP from Cursor](/docs/getting-started/mcp-from-cursor)
+- [Troubleshooting](/docs/troubleshooting)

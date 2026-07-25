@@ -1,9 +1,9 @@
 use keyring::Entry;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_shell::ShellExt;
 
-use crate::ipc_error::{map_io_err, IpcResult};
+use crate::ipc_error::{map_io_err, PytxoIpcError, IpcResult};
 
 const SERVICE: &str = "com.pytxo.reality-deck";
 const ACCOUNT: &str = "clerk-session";
@@ -30,18 +30,13 @@ pub fn auth_status() -> IpcResult<AuthStatusDto> {
     })
 }
 
-#[tauri::command]
-pub fn auth_store_session(app: AppHandle, token: String) -> IpcResult<()> {
-    store_session_token(&token)?;
-    pytxo_orchestrate::invalidate_entitlements_cache();
-    let _ = app.emit(AUTH_CHANGED_EVENT, ());
-    Ok(())
-}
-
 fn store_session_token(token: &str) -> IpcResult<()> {
+    validate_session_jwt(token)?;
     let entry = Entry::new(SERVICE, ACCOUNT).map_err(map_io_err)?;
     entry.set_password(token).map_err(map_io_err)?;
-    std::env::set_var("PYTXO_ULTRA_SESSION", token);
+    // Keep the bearer out of process env so agent PTY/subprocess children cannot read it.
+    pytxo_orchestrate::set_runtime_session_token(Some(token.to_string()));
+    std::env::remove_var("PYTXO_ULTRA_SESSION");
     Ok(())
 }
 
@@ -50,6 +45,7 @@ pub fn auth_clear_session(app: AppHandle) -> IpcResult<()> {
     if let Ok(entry) = Entry::new(SERVICE, ACCOUNT) {
         let _ = entry.delete_credential();
     }
+    pytxo_orchestrate::set_runtime_session_token(None);
     std::env::remove_var("PYTXO_ULTRA_SESSION");
     pytxo_orchestrate::invalidate_entitlements_cache();
     let _ = app.emit(AUTH_CHANGED_EVENT, ());
@@ -67,7 +63,8 @@ pub async fn auth_open_sign_in(app: AppHandle) -> IpcResult<()> {
 pub fn hydrate_session_env() {
     if let Ok(token) = read_session() {
         if !token.is_empty() {
-            std::env::set_var("PYTXO_ULTRA_SESSION", token);
+            pytxo_orchestrate::set_runtime_session_token(Some(token));
+            std::env::remove_var("PYTXO_ULTRA_SESSION");
         }
     }
 }
@@ -118,11 +115,16 @@ pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
         focus_main_window(app);
         return Ok(());
     }
-    if !url.starts_with("pytxo-deck://auth") {
-        app.emit("pytxo-deep-link", url).map_err(map_io_err)?;
-        focus_main_window(app);
-    }
     Ok(())
+}
+
+pub fn focus_main_window(app: &AppHandle) {
+    crate::tray::show_main_window(app);
+}
+
+fn read_session() -> Result<String, ()> {
+    let entry = Entry::new(SERVICE, ACCOUNT).map_err(|_| ())?;
+    entry.get_password().map_err(|_| ())
 }
 
 fn percent_decode(input: &str) -> String {
@@ -131,29 +133,83 @@ fn percent_decode(input: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(v) =
-                u8::from_str_radix(std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or(""), 16)
-            {
-                out.push(v);
+            if let (Some(h), Some(l)) = (from_hex(bytes[i + 1]), from_hex(bytes[i + 2])) {
+                out.push((h << 4) | l);
                 i += 3;
                 continue;
             }
         }
-        out.push(bytes[i]);
+        if bytes[i] == b'+' {
+            out.push(b' ');
+        } else {
+            out.push(bytes[i]);
+        }
         i += 1;
     }
     String::from_utf8_lossy(&out).into_owned()
 }
 
-pub fn focus_main_window(app: &AppHandle) {
-    if let Some(win) = app.get_webview_window("main") {
-        let _ = win.unminimize();
-        let _ = win.show();
-        let _ = win.set_focus();
+fn from_hex(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
     }
 }
 
-fn read_session() -> Result<String, String> {
-    let entry = Entry::new(SERVICE, ACCOUNT).map_err(|e| e.to_string())?;
-    entry.get_password().map_err(|e| e.to_string())
+/// Accept Clerk-shaped JWTs only: three segments + JSON payload with unexpired `exp`.
+fn validate_session_jwt(token: &str) -> IpcResult<()> {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 || parts.iter().any(|p| p.is_empty()) {
+        return Err(PytxoIpcError::new(
+            "auth",
+            "Session token must be a JWT (three segments).",
+        ));
+    }
+    let payload = decode_jwt_segment(parts[1]).map_err(|e| PytxoIpcError::new("auth", e))?;
+    let value: serde_json::Value = serde_json::from_slice(&payload)
+        .map_err(|_| PytxoIpcError::new("auth", "Session token payload is not valid JSON."))?;
+    let exp = value
+        .get("exp")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| PytxoIpcError::new("auth", "Session token is missing exp."))?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    if exp < now {
+        return Err(PytxoIpcError::new("auth", "Session token has expired."));
+    }
+    Ok(())
+}
+
+fn decode_jwt_segment(segment: &str) -> Result<Vec<u8>, String> {
+    let mut s = segment.replace('-', "+").replace('_', "/");
+    while s.len() % 4 != 0 {
+        s.push('=');
+    }
+    base64_decode(&s).map_err(|_| "Session token segment is not valid base64.".into())
+}
+
+fn base64_decode(input: &str) -> Result<Vec<u8>, ()> {
+    const TABLE: &[u8] =
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = Vec::new();
+    let mut buf = 0u32;
+    let mut bits = 0u32;
+    for &b in input.as_bytes() {
+        if b == b'=' {
+            break;
+        }
+        let val = TABLE.iter().position(|&c| c == b).ok_or(())? as u32;
+        buf = (buf << 6) | val;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buf >> bits) as u8);
+            buf &= (1 << bits) - 1;
+        }
+    }
+    Ok(out)
 }

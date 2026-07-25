@@ -48,7 +48,12 @@ impl ChildLaunchEnv {
     }
 
     pub fn apply_command(&self, command: &mut Command) {
+        // Never inherit a desktop/CLI session bearer into agent children.
+        command.env_remove("PYTXO_ULTRA_SESSION");
         for (k, v) in &self.vars {
+            if k.eq_ignore_ascii_case("PYTXO_ULTRA_SESSION") {
+                continue;
+            }
             command.env(k, v);
         }
     }

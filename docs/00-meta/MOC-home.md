@@ -6,7 +6,7 @@ tags: [moc, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-23
+updated: 2026-07-25
 related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]]
 ---
 
@@ -20,7 +20,12 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 
 **Vision:** [[product-vision]] — three moats: [[signal-core]], [[blast-shield]], [[race-shield]]
 
-**Improvement program:** [[pytxo-improvement-research]] — Phases **73–74 shipped**; Phases **75–76** next (moat depth, commercial gates). Phase 74 detail: [[market-ready-polish-research]].
+**Improvement program:** [[pytxo-improvement-research]] — Phases **73–74 shipped**; Phases **75–76** next (moat depth, commercial gates). Phase 74 detail: [[market-ready-polish-research]]. Pre-marketing gates live in that note.
+
+---
+
+**GitHub:** [[github-organization]] · [[repository-layout]] · [Pytxo-dev](https://github.com/Pytxo-dev)  
+**Discord:** [discord.gg/AUFRPFjSYv](https://discord.gg/AUFRPFjSYv)
 
 ---
 
@@ -31,6 +36,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 | Humans | [[product-vision]] → [[glossary]] → [[architecture-index]] |
 | Agents | [`AGENTS.md`](../../AGENTS.md) (repo root) |
 | GitHub | [[github-organization]] · [[repository-layout]] · [Pytxo-dev](https://github.com/Pytxo-dev) |
+| Discord | [discord.gg/AUFRPFjSYv](https://discord.gg/AUFRPFjSYv) |
 | Claude Code | [[claude-vault-context]] |
 
 ---

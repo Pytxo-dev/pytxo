@@ -104,7 +104,12 @@ pub fn run_pty_session(
     }
     builder.arg(cmd);
     builder.cwd(worktree);
+    // portable-pty inherits process env; clear session bearer before applying launch vars.
+    builder.env("PYTXO_ULTRA_SESSION", "");
     env.for_each(|k, v| {
+        if k.eq_ignore_ascii_case("PYTXO_ULTRA_SESSION") {
+            return;
+        }
         builder.env(k, v);
     });
 

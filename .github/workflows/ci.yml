@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           cargo install cargo-audit --locked 2>/dev/null || true
-          cargo audit || echo "::warning::cargo-audit reported vulnerabilities"
+          cargo audit
 
       - name: Link HTTP reconciler (feature)
         run: |
@@ -167,7 +167,6 @@ jobs:
           cache: npm
           cache-dependency-path: |
             apps/web/package-lock.json
-            apps/docs/package-lock.json
       - name: npm ci and build
         working-directory: apps/web
         env:
@@ -176,6 +175,7 @@ jobs:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
         run: |
           npm ci --legacy-peer-deps
+          npm audit --omit=dev --audit-level=high
           npm run build
 
   desktop-frontend:
@@ -193,6 +193,7 @@ jobs:
           npm ci --prefix ../../tooling
           node ../../tooling/scripts/generate-deck-icons.mjs
           npm ci
+          npm audit --omit=dev --audit-level=high
           npm run check
       - name: Playwright shell E2E
         working-directory: apps/desktop

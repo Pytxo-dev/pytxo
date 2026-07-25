@@ -1,0 +1,47 @@
+---
+title: Desktop setup
+description: Install Pytxo Desktop from release installers.
+---
+
+**Pytxo Desktop** is the optional control UI for structural telemetry (Desktop 2 Focus graph by default). It is not a multi-terminal IDE.
+
+## Download
+
+Get installers from [pytxo.com/download](https://pytxo.com/download) or [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases) (v0.7.0):
+
+| Platform | Installer |
+|----------|-----------|
+| Windows x64 | `pytxo-desktop-windows-x64.msi` (also a setup.exe on the releases page) |
+| macOS Apple Silicon | `pytxo-desktop-darwin-arm64.dmg` |
+| macOS Intel | `pytxo-desktop-darwin-x64.dmg` |
+| Linux x64 | `pytxo-desktop-linux-x64.AppImage` |
+
+## Prerequisites
+
+1. Install the [CLI](/docs/getting-started/install) and confirm `pytxo doctor` passes.
+2. Install the Desktop package for your OS.
+3. On Linux AppImage: mark executable (`chmod +x ...AppImage`) before launch.
+
+## First session
+
+1. Trust a folder: `pytxo trust orbit` (or pick a profile in the Desktop trust flow).
+2. Initialize config in the repo: `pytxo init`.
+3. Open that repo in Desktop. Workspace Home lists projects and domains.
+4. Dry-run a swarm: `pytxo run --dry-run --config pytxo.toml`, then a real run when ready.
+
+## What you should see
+
+- **Topology** - AST / dependency graph (not a wall of terminals)
+- **Diff / logs** - supporting panels for agent writes and WAL events
+- **Galaxy approvals** - HITL panel when `permission_profile = galaxy`
+
+## Build from source
+
+Contributors building Desktop from the monorepo: see [Contributing](/docs/developers/contributing) and the `apps/desktop` README. End users should use the installers above.
+
+## Next steps
+
+- [Folder trust](/docs/getting-started/folder-trust)
+- [First three-agent run](/docs/getting-started/first-three-agent-run)
+- [Pytxo Desktop concepts](/docs/concepts/desktop)
+- [Troubleshooting](/docs/troubleshooting)

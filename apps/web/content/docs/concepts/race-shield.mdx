@@ -1,0 +1,34 @@
+---
+title: Race Shield
+---
+
+**Race Shield** stops cross-agent write collisions and stdin races. It uses a **thread-safe swarm registry** (separate locks for path claims and stdin) and buffered stdin handling. Lock-free / path-prefix shards remain a north-star option after contention profiling - not the shipping implementation.
+
+## Scheduling
+
+- Tasks declare `paths` and optional `depends_on` edges
+- Pytxo builds a **DAG** and runs **waves** of non-conflicting agents
+- `max_agents` caps how many agents run in parallel per wave
+- Cross-root path overlaps in [modular projects](/docs/concepts/modular-projects) show up as scheduler warnings
+
+## Stdin
+
+- PTY backend: continuous stdin drain loop
+- Subprocess backend: `subprocess_stdin = true` pumps the Race Shield queue at spawn time
+
+MCP tools `pytxo_stdin` and `pytxo_route_stdin` route bytes to live agents from your IDE.
+
+## Configuration
+
+```toml
+max_agents = 3
+dag_explicit_deps = false   # set true to force DAG mode
+```
+
+Use `pytxo run --dry-run` to inspect waves before execution.
+
+## Galaxy approvals
+
+Race Shield decides **when** agents run. [Galaxy approvals](/docs/concepts/galaxy-approvals) decide **which risky commands** may run once an agent is live.
+
+Back: [Three moats](/docs/concepts/three-moats)

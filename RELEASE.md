@@ -7,6 +7,20 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
+# Pytxo v0.8.0
+
+Tray-resident Desktop, full-matrix updater, UI lag fixes, Fumadocs docs. See [`distribution/release-notes/v0.8.0.md`](distribution/release-notes/v0.8.0.md).
+
+Previous: [`v0.7.0`](distribution/release-notes/v0.7.0.md).
+
+---
+
+# Pytxo v0.7.0
+
+Desktop daily-path reliability. See [`distribution/release-notes/v0.7.0.md`](distribution/release-notes/v0.7.0.md).
+
+---
+
 # Pytxo v0.6.0
 
 Desktop Settings / workspaces / chroma accents. See [`distribution/release-notes/v0.6.0.md`](distribution/release-notes/v0.6.0.md).
@@ -102,7 +116,7 @@ pytxo
 - **Model catalog** — `pytxo models list|search|refresh` and `/models` in the shell (`pytxo-catalog` crate)
 - **Routing fix** — per-agent `model`, `provider`, `cli_adapter`, `api_key_env` honored in `RunContext`
 - **TUI polish** — trust modal, minimalist board header, Tab slash completion, `RunFinished` events
-- **Docs** — [Folder trust](apps/docs/docs/getting-started/folder-trust.md), [Providers & BYOK](apps/docs/docs/reference/providers-byok.md), [Models](apps/docs/docs/reference/models.md), ADR-0013, ADR-0014
+- **Docs** — [Folder trust](apps/web/content/docs/getting-started/folder-trust.mdx), [Providers & BYOK](apps/web/content/docs/reference/providers-byok.mdx), [Models](apps/web/content/docs/reference/models.mdx), ADR-0013, ADR-0014
 
 ## Install
 
@@ -124,7 +138,7 @@ pytxo models search deepseek --provider openrouter
 - **pytxo-shell** — slash command parser + orchestrate dispatch wrappers (TUI, future MCP)
 - **Runtime tasks** — `RunOptions.tasks`, `task_cmd_template`, `task_prompts` for shell-driven runs
 - **pytxo-planner** — stub + heuristic decomposer when planner flag is on
-- **Docs** — [Hypervisor Shell guide](apps/docs/docs/getting-started/hypervisor-shell.md), ADR-0012
+- **Docs** — [Hypervisor Shell guide](apps/web/content/docs/getting-started/hypervisor-shell.mdx), ADR-0012
 
 ---
 

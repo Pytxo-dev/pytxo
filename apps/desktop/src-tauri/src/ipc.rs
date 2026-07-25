@@ -548,9 +548,11 @@ pub fn load_desktop_snapshot(
     state: State<'_, AppState>,
     run_limit: Option<usize>,
     fleet_limit: Option<usize>,
+    include_agents: Option<bool>,
 ) -> IpcResult<DesktopSnapshotDto> {
     let run_limit = run_limit.unwrap_or(30);
     let fleet_limit = fleet_limit.unwrap_or(20);
+    let include_agents = include_agents.unwrap_or(true);
     let domains = orch_list_domains_status().map_err(map_orch_err)?;
     let mut runs = Vec::new();
     let mut agents = Vec::new();
@@ -576,7 +578,7 @@ pub fn load_desktop_snapshot(
             );
             let run_id = run.id.clone();
             runs.push(run_to_dto(run, &cfg));
-            if active {
+            if include_agents && active {
                 if let Ok(rows) = store.list_agents_for_run(&run_id) {
                     agents.extend(rows.into_iter().map(agent_to_dto));
                 }

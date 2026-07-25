@@ -1,0 +1,24 @@
+---
+title: Repository layout
+description: Map of the Pytxo monorepo for contributors.
+---
+
+```
+pytxo/
+├── apps/
+│   ├── web/          # Marketing site + public docs (Next.js + Fumadocs)
+│   └── desktop/      # Pytxo Desktop (Tauri)
+├── crates/           # Rust workspace
+├── docs/             # Architecture vault (Obsidian) - not the public site
+└── tooling/          # Benchmarks and scripts
+```
+
+## Web + docs
+
+Marketing pages and public docs both live in `apps/web`. Docs content is MDX under `apps/web/content/docs` and renders at `/docs` via Fumadocs.
+
+The Obsidian vault at repo-root `docs/` remains architecture source of truth for agents and ADRs. Do not publish the vault wholesale.
+
+## Contributing
+
+See [Contributing](/docs/developers/contributing) and `CONTRIBUTING.md` in the repo root.

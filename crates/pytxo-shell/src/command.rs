@@ -349,6 +349,8 @@ pub fn help_text() -> String {
         "",
         "Mission lines (NL) require PYTXO_PLANNER=1 or [planner] enabled.",
         "exit / quit          Leave the shell",
+        "",
+        "Discord: https://discord.gg/AUFRPFjSYv",
     ]
     .join("\n")
 }

@@ -93,7 +93,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
   private readonly voiceDevices = new Map<string, string>();
   private readonly cancelledVoiceSessions = new Set<string>();
   private readonly activeVoiceSessions = new Set<string>();
-  async loadSnapshot() {
+  async loadSnapshot(_opts: { includeAgents?: boolean } = {}) {
     return structuredClone(previewSnapshot);
   }
   async approve() {}

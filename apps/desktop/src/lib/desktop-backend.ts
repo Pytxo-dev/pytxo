@@ -20,7 +20,7 @@ export type DesktopSnapshot = {
 };
 
 export interface DesktopBackend {
-  loadSnapshot(): Promise<DesktopSnapshot>;
+  loadSnapshot(opts?: { includeAgents?: boolean }): Promise<DesktopSnapshot>;
   approve(requestId: string, domainId: string | null): Promise<void>;
   deny(requestId: string, domainId: string | null): Promise<void>;
   forgetDomain(domainId: string): Promise<void>;
@@ -44,9 +44,9 @@ export interface DesktopBackend {
 }
 
 class TauriDesktopBackend implements DesktopBackend {
-  async loadSnapshot(): Promise<DesktopSnapshot> {
+  async loadSnapshot(opts: { includeAgents?: boolean } = {}): Promise<DesktopSnapshot> {
     try {
-      const snap = await ipc.loadDesktopSnapshot(30, 20);
+      const snap = await ipc.loadDesktopSnapshot(30, 20, opts.includeAgents !== false);
       return {
         domains: snap.domains,
         runs: snap.runs,

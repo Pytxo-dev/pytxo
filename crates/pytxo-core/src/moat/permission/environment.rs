@@ -21,31 +21,42 @@ impl EnvironmentPolicyEngine {
     }
 
     pub fn should_strip_env_key(upper: &str) -> bool {
-        upper.starts_with("SSH_") || upper == "GIT_SSH_COMMAND" || upper == "SSH_AUTH_SOCK"
+        upper.starts_with("SSH_")
+            || upper == "GIT_SSH_COMMAND"
+            || upper == "SSH_AUTH_SOCK"
+            || upper == "PYTXO_ULTRA_SESSION"
     }
 }
 
 impl EnvironmentPolicy for EnvironmentPolicyEngine {
     fn sanitize_child_env(&self, command: &mut Command) {
-        if !matches!(
-            self.profile,
-            PermissionProfile::DeepSpace | PermissionProfile::Orbit
-        ) {
-            return;
-        }
+        // Always strip session secrets from agent children (all profiles).
         let keys: Vec<String> = command
             .get_envs()
             .filter_map(|(k, _)| k.to_str().map(str::to_string))
             .collect();
         for key in &keys {
             let upper = key.to_ascii_uppercase();
-            if Self::should_strip_env_key(&upper) {
+            if upper == "PYTXO_ULTRA_SESSION" {
+                command.env_remove(key);
+            }
+        }
+        if !matches!(
+            self.profile,
+            PermissionProfile::DeepSpace | PermissionProfile::Orbit
+        ) {
+            return;
+        }
+        for key in &keys {
+            let upper = key.to_ascii_uppercase();
+            if Self::should_strip_env_key(&upper) && upper != "PYTXO_ULTRA_SESSION" {
                 command.env_remove(key);
             }
         }
     }
 
     fn sanitize_env_map(&self, vars: &mut HashMap<String, String>) {
+        vars.retain(|key, _| key.to_ascii_uppercase() != "PYTXO_ULTRA_SESSION");
         if !matches!(
             self.profile,
             PermissionProfile::DeepSpace | PermissionProfile::Orbit
