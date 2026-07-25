@@ -382,7 +382,7 @@
     {:else if section === "account"}
       <article class="settings-group">
         <h2>Account</h2>
-        <div class="setting-row"><div><strong>Status</strong><small>{signedIn ? "Signed in to your Pytxo account." : "Running in local mode; no account linked."}</small></div><strong>{signedIn ? "Signed in" : "Local mode"}</strong></div>
+        <div class="setting-row"><div><strong>Status</strong><small>{signedIn ? "Signed in to your Pytxo account." : "Not signed in. Core local runs work without an account."}</small></div><strong>{signedIn ? "Signed in" : "Not signed in"}</strong></div>
         <div class="setting-row">
           <div><strong>Sign in</strong><small>{signedIn ? "Clear the local session stored in the OS keyring." : "Opens pytxo.com in your browser, then returns via deep link."}</small></div>
           {#if signedIn}

@@ -31,7 +31,10 @@ pub use cloud::{cloud_clients, cloud_health_url, ping_cloud, CloudClients};
 
 pub use cost::{parse_cost_from_lines, CostEstimate};
 pub use doctor::{run_doctor, DoctorCheck, DoctorReport};
-pub use entitlements::{effective_entitlements, fetch_link_wallet_balance, EntitlementStatus};
+pub use entitlements::{
+    effective_entitlements, fetch_link_wallet_balance, invalidate_entitlements_cache,
+    EntitlementStatus,
+};
 pub use fleet::{
     fleet_dry_run_json, fleet_init, fleet_plan_from_manifest, fleet_run, fleet_run_status,
     fleet_status, fleet_status_nodes, wait_for_domain_run, FleetRunOptions, FleetRunResult,

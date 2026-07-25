@@ -69,7 +69,7 @@
       <p class="warn" role="alert">
         No callback yet. Finish sign-in in the browser, or skip and continue with Core.
       </p>
-      <a class="link" href="https://pytxo.com/account" target="_blank" rel="noopener noreferrer">
+      <a class="link" href="https://pytxo.com/account?deck_callback=pytxo-deck" target="_blank" rel="noopener noreferrer">
         Open account help
       </a>
     {/if}

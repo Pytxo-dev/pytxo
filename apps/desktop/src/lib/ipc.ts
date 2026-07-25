@@ -14,9 +14,10 @@ import type {
   RunDto,
 } from "./types";
 
-export const IPC_VERSION = "0.6.0";
+export const IPC_VERSION = "0.7.0";
 
 export const AUTH_CHANGED_EVENT = "deck-auth-changed";
+export const AUTH_ERROR_EVENT = "deck-auth-error";
 export const DEEP_LINK_EVENT = "pytxo-deep-link";
 
 function unwrap<T>(result: T | PytxoIpcError): T {
@@ -41,6 +42,10 @@ export function onAuthChanged(callback: () => void) {
   return listen(AUTH_CHANGED_EVENT, callback);
 }
 
+export function onAuthError(callback: (message: string) => void) {
+  return listen<{ message: string }>(AUTH_ERROR_EVENT, (event) => callback(event.payload.message));
+}
+
 export function onPytxoDeepLink(callback: (url: string) => void) {
   return listen<string>(DEEP_LINK_EVENT, (event) => callback(event.payload));
 }
@@ -56,6 +61,14 @@ export const ipc = {
    * catalog. Callers that want a resilient fallback should catch explicitly.
    */
   listDomainsStatus: () => invoke<CatalogEntryStatus[]>("list_domains_status").then(unwrap),
+  loadDesktopSnapshot: (runLimit = 30, fleetLimit = 20) =>
+    invoke<{
+      domains: CatalogEntryStatus[];
+      runs: RunDto[];
+      agents: AgentDto[];
+      approvals: HitlDto[];
+      fleets: import("./types").FleetRunDto[];
+    }>("load_desktop_snapshot", { runLimit, fleetLimit }).then(unwrap),
   forgetDomain: (domainId: string) =>
     invoke<void>("forget_domain", { domainId }).then(unwrap),
   listProjects: () =>

@@ -12,6 +12,13 @@ struct CachedEntitlements {
 
 static ENTITLEMENTS_CACHE: Mutex<Option<CachedEntitlements>> = Mutex::new(None);
 
+/// Drop cached Link entitlements so the next fetch reflects sign-in / sign-out.
+pub fn invalidate_entitlements_cache() {
+    if let Ok(mut guard) = ENTITLEMENTS_CACHE.lock() {
+        *guard = None;
+    }
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct EntitlementStatus {
     pub tier: String,

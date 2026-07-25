@@ -8,11 +8,17 @@ use crate::ipc_error::{map_io_err, IpcResult};
 const SERVICE: &str = "com.pytxo.reality-deck";
 const ACCOUNT: &str = "clerk-session";
 pub const AUTH_CHANGED_EVENT: &str = "deck-auth-changed";
+pub const AUTH_ERROR_EVENT: &str = "deck-auth-error";
 
 #[derive(Serialize)]
 pub struct AuthStatusDto {
     pub signed_in: bool,
     pub session_present: bool,
+}
+
+#[derive(Clone, Serialize)]
+struct AuthErrorPayload {
+    message: String,
 }
 
 #[tauri::command]
@@ -25,8 +31,11 @@ pub fn auth_status() -> IpcResult<AuthStatusDto> {
 }
 
 #[tauri::command]
-pub fn auth_store_session(token: String) -> IpcResult<()> {
-    store_session_token(&token)
+pub fn auth_store_session(app: AppHandle, token: String) -> IpcResult<()> {
+    store_session_token(&token)?;
+    pytxo_orchestrate::invalidate_entitlements_cache();
+    let _ = app.emit(AUTH_CHANGED_EVENT, ());
+    Ok(())
 }
 
 fn store_session_token(token: &str) -> IpcResult<()> {
@@ -42,6 +51,7 @@ pub fn auth_clear_session(app: AppHandle) -> IpcResult<()> {
         let _ = entry.delete_credential();
     }
     std::env::remove_var("PYTXO_ULTRA_SESSION");
+    pytxo_orchestrate::invalidate_entitlements_cache();
     let _ = app.emit(AUTH_CHANGED_EVENT, ());
     Ok(())
 }
@@ -77,12 +87,36 @@ pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
         if let Some(token) = pair.strip_prefix("token=") {
             if !token.is_empty() {
                 let decoded = percent_decode(token);
-                store_session_token(&decoded)?;
-                let _ = app.emit(AUTH_CHANGED_EVENT, ());
-                focus_main_window(app);
-                return Ok(());
+                match store_session_token(&decoded) {
+                    Ok(()) => {
+                        pytxo_orchestrate::invalidate_entitlements_cache();
+                        let _ = app.emit(AUTH_CHANGED_EVENT, ());
+                        focus_main_window(app);
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        let message = format!("Could not store desktop session: {}", e.message);
+                        let _ = app.emit(
+                            AUTH_ERROR_EVENT,
+                            AuthErrorPayload {
+                                message: message.clone(),
+                            },
+                        );
+                        return Err(e);
+                    }
+                }
             }
         }
+    }
+    if url.starts_with("pytxo-deck://auth") {
+        let _ = app.emit(
+            AUTH_ERROR_EVENT,
+            AuthErrorPayload {
+                message: "Desktop auth link was missing a session token.".into(),
+            },
+        );
+        focus_main_window(app);
+        return Ok(());
     }
     if !url.starts_with("pytxo-deck://auth") {
         app.emit("pytxo-deep-link", url).map_err(map_io_err)?;

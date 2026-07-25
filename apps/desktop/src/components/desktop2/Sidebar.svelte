@@ -44,8 +44,8 @@
     };
   }
 
-  const accountLabel = $derived(signedIn ? `${tier.charAt(0).toUpperCase()}${tier.slice(1)} tier` : "Local mode");
-  const accountSub = $derived(signedIn ? "Pytxo account" : "No account linked");
+  const accountLabel = $derived(signedIn ? `${tier.charAt(0).toUpperCase()}${tier.slice(1)} tier` : "Not signed in");
+  const accountSub = $derived(signedIn ? "Account & billing" : "Local Core · optional sign-in");
 </script>
 
 <aside class="sidebar" class:collapsed aria-label="Primary sidebar">

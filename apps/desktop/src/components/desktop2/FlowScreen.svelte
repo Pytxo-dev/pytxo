@@ -47,10 +47,17 @@
 
   async function dispatch() {
     if (!plan || plan.status !== "ready" || dispatching) return;
+    if (!domains.length || !selectedDomainId) {
+      error = "Add a workspace first, then pick an execution domain.";
+      return;
+    }
     dispatching = true;
+    error = "";
     try {
       plan = await backend.saveReviewedFlow(plan);
       dispatchedRun = await backend.dispatchFlow(plan.draft_id);
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : String(cause);
     } finally {
       dispatching = false;
     }
@@ -209,6 +216,9 @@
 
 <section class="screen flow-screen">
   <header class="screen-heading"><div><p class="eyebrow">Mission planning</p><h1>Flow</h1><p>Turn an outcome into a safe, reviewable execution plan.</p></div><span class="policy-chip"><IconShieldCheck size={15} /> Preview required</span></header>
+  {#if !domains.length}
+    <div class="panel"><div class="empty"><strong>Add a workspace first</strong><p>Flow needs a trusted execution domain before you can plan or dispatch.</p></div></div>
+  {:else}
   <div class="flow-layout">
     <article class="panel composer-panel">
       <div class="panel-head"><div><p class="eyebrow">Draft mission</p><h2>What should Pytxo accomplish?</h2></div><span class="source">Text + Voice</span></div>
@@ -234,10 +244,12 @@
         <div class="mission-summary"><strong>{mission}</strong><p>{planSummary}</p></div>
         {#each plan.waves as wave, waveIndex}<div class="plan-wave"><span>Wave {waveIndex + 1}</span>{#each wave as taskId, taskIndex}{@const task = plan.tasks.find((item) => item.id === taskId)}{#if task}<div><b>{String(taskIndex + 1).padStart(2, "0")}</b><p><input aria-label={`Task ${task.id} prompt`} value={task.prompt || task.id} oninput={(event) => editTask(task.id, event.currentTarget.value)} /><small>{task.agent} · {task.paths.join(", ") || "read-only"}</small></p></div>{/if}{/each}</div>{/each}
         <div class="plan-footer"><div><span>Estimate</span><strong>{plan.estimated_cost_usd ? `$${plan.estimated_cost_usd.toFixed(2)}` : "Local"}</strong></div><div><span>Path claims</span><strong>{plan.blocked_reasons.length ? `${plan.blocked_reasons.length} blockers` : "No collisions"}</strong></div><button class="primary" disabled={plan.status !== "ready" || !!dispatchedRun || dispatching} onclick={dispatch}>{dispatchedRun ? `Dispatched ${dispatchedRun}` : dispatching ? "Dispatching…" : "Dispatch Flow"} <IconArrowRight size={16} /></button></div>
+        {#if error}<p class="voice-state-message error" role="alert">{error}</p>{/if}
       {:else}
         <div class="plan-empty"><div class="orbit"><span></span></div><strong>{error || "A plan will appear here"}</strong><p>Pytxo will enrich paths, validate claims, check permissions and ADE availability before anything can run.</p></div>
       {/if}
     </article>
   </div>
   {#if history.length}<article class="panel flow-history"><div class="panel-head"><div><p class="eyebrow">Saved locally</p><h2>Draft history</h2></div><span>{history.length} drafts</span></div>{#each history.slice(0, 6) as draft}<div><button onclick={() => restoreDraft(draft)}><strong>{draft.title}</strong><small>{draft.source} · {draft.status} · {draft.updated_at}</small></button><button aria-label={`Delete ${draft.title}`} onclick={() => deleteDraft(draft.id)}>×</button></div>{/each}</article>{/if}
+  {/if}
 </section>
