@@ -9,7 +9,7 @@ import { test, expect, type Page } from "@playwright/test";
  * and the current versioned key.
  */
 const ONBOARDING_VERSION_KEY = "pytxo-desktop-onboarding-version";
-const ONBOARDING_VERSION = "0.8.0";
+const ONBOARDING_VERSION = "0.9.0";
 const SETUP_STORAGE_KEY = "pytxo-deck-setup-v1";
 
 async function completeOnboarding(page: Page, extra?: Record<string, string>) {

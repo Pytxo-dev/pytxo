@@ -1,6 +1,6 @@
 /** Public distribution repo (binaries + install scripts). */
 export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
-export const PYTXO_VERSION = "0.8.0";
+export const PYTXO_VERSION = "0.9.0";
 
 export const DESKTOP_RELEASE_BASE =
   `https://github.com/${DISTRIBUTION_REPO}/releases/download/v${PYTXO_VERSION}`;

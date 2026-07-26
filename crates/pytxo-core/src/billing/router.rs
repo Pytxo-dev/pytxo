@@ -72,6 +72,12 @@ pub enum ProviderId {
     Cohere,
     Xai,
     Ollama,
+    Cerebras,
+    Sambanova,
+    Hyperbolic,
+    Perplexity,
+    Nvidia,
+    Lmstudio,
     Generic,
 }
 
@@ -91,6 +97,12 @@ impl ProviderId {
             "cohere" => Some(Self::Cohere),
             "xai" | "x.ai" => Some(Self::Xai),
             "ollama" => Some(Self::Ollama),
+            "cerebras" => Some(Self::Cerebras),
+            "sambanova" | "samba_nova" => Some(Self::Sambanova),
+            "hyperbolic" => Some(Self::Hyperbolic),
+            "perplexity" | "pplx" => Some(Self::Perplexity),
+            "nvidia" | "nim" | "nvidia_nim" => Some(Self::Nvidia),
+            "lmstudio" | "lm_studio" => Some(Self::Lmstudio),
             "generic" => Some(Self::Generic),
             _ => None,
         }
@@ -111,6 +123,12 @@ impl ProviderId {
             Self::Cohere => "cohere",
             Self::Xai => "xai",
             Self::Ollama => "ollama",
+            Self::Cerebras => "cerebras",
+            Self::Sambanova => "sambanova",
+            Self::Hyperbolic => "hyperbolic",
+            Self::Perplexity => "perplexity",
+            Self::Nvidia => "nvidia",
+            Self::Lmstudio => "lmstudio",
             Self::Generic => "generic",
         }
     }
@@ -151,6 +169,8 @@ pub struct ModelRoute {
     pub api_key_env: Option<String>,
     /// Raw `cli_adapter` from agent config (e.g. `cursor`, `codex`) for telemetry.
     pub ade_id: Option<String>,
+    /// Original provider string from config (for custom `providers.json` lookup).
+    pub provider_label: Option<String>,
 }
 
 pub trait ModelRouter: Send + Sync {
@@ -171,6 +191,7 @@ impl ModelRouter for ConfigModelRouter {
             cli_adapter: CliAdapter::ClaudeCode,
             api_key_env: None,
             ade_id: Some("claude".into()),
+            provider_label: None,
         }
     }
 }

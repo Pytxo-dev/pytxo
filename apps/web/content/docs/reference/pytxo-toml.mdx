@@ -12,7 +12,7 @@ description: Configuration reference for agents, tasks, billing, cloud, and MCP 
 | `data_dir` | `.pytxo/data` | SQLite + state |
 | `fail_fast` | `true` | Fail run if any agent exits non-zero |
 | `permission_profile` | `orbit` | See [permission tiers](/docs/reference/permission-tiers) |
-| `sanitize` | `true` | Redact secrets before WAL/MCP |
+| `sanitize` | `true` | Redact secrets before logs/MCP |
 | `signal_core` | `true` | Scaffold context for task paths |
 | `signal_fidelity` | `low` | `low` \| `medium` \| `high` (context tier, not permission) |
 | `isolation` | `worktree` | `worktree` \| `overlay` |
@@ -116,7 +116,7 @@ agent = "builder"
 paths = ["src/b.ts"]
 ```
 
-Overlapping paths force separate waves. For a fuller sample, copy `pytxo.toml.example` from the monorepo root.
+Overlapping paths force separate waves. The sample above is enough to dry-run; extend `[[agent]]` and `[[task]]` blocks as your project grows.
 
 ```bash
 pytxo run --config pytxo.toml --dry-run

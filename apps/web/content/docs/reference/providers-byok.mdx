@@ -4,12 +4,24 @@ title: Providers & BYOK
 
 # Providers & BYOK
 
-Pytxo ships a **multi-provider registry** for bring-your-own-key (BYOK) runs. Use direct provider APIs, a single **OpenRouter** key, or local **Ollama**, without storing secrets in `pytxo.toml`.
+Pytxo ships a **multi-provider registry** for bring-your-own-key (BYOK) runs. Use direct provider APIs, a single **OpenRouter** key, local **Ollama** / **LM Studio**, or custom OpenAI-compatible endpoints — without storing secrets in `pytxo.toml` or Desktop.
 
 ## Check configured providers
 
 ```bash
 pytxo providers              # registry + whether each API key env is set (boolean only)
+pytxo providers --json       # includes base URLs when known
+```
+
+Desktop: **Settings → Providers** shows the same status (never key values).
+
+## Fast path: OpenRouter
+
+One key unlocks hundreds of models for generic OpenAI-compat CLIs:
+
+```bash
+export OPENROUTER_API_KEY=sk-or-...
+pytxo models search claude --provider openrouter
 ```
 
 ## Environment variables
@@ -17,24 +29,51 @@ pytxo providers              # registry + whether each API key env is set (boole
 | Provider | API key env | OpenAI-compat base (generic CLI) |
 |----------|-------------|----------------------------------|
 | Anthropic | `ANTHROPIC_API_KEY` | - (native Claude adapters) |
-| OpenAI | `OPENAI_API_KEY` | default OpenAI |
+| OpenAI | `OPENAI_API_KEY` | `https://api.openai.com/v1` |
 | Google | `GOOGLE_API_KEY` | - |
-| DeepSeek | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` |
+| DeepSeek | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/v1` |
 | Groq | `GROQ_API_KEY` | `https://api.groq.com/openai/v1` |
-| Mistral | `MISTRAL_API_KEY` | Mistral API |
+| Mistral | `MISTRAL_API_KEY` | `https://api.mistral.ai/v1` |
 | OpenRouter | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
-| Together | `TOGETHER_API_KEY` | Together API |
-| Fireworks | `FIREWORKS_API_KEY` | Fireworks API |
-| Cohere | `COHERE_API_KEY` | Cohere API |
-| xAI | `XAI_API_KEY` | xAI API |
+| Together | `TOGETHER_API_KEY` | `https://api.together.xyz/v1` |
+| Fireworks | `FIREWORKS_API_KEY` | Fireworks inference API |
+| Cohere | `COHERE_API_KEY` | `https://api.cohere.com/compatibility/v1` |
+| xAI | `XAI_API_KEY` | `https://api.x.ai/v1` |
+| Cerebras | `CEREBRAS_API_KEY` | `https://api.cerebras.ai/v1` |
+| SambaNova | `SAMBANOVA_API_KEY` | `https://api.sambanova.ai/v1` |
+| Hyperbolic | `HYPERBOLIC_API_KEY` | `https://api.hyperbolic.xyz/v1` |
+| Perplexity | `PERPLEXITY_API_KEY` | `https://api.perplexity.ai` |
+| NVIDIA NIM | `NVIDIA_API_KEY` | `https://integrate.api.nvidia.com/v1` |
 | Ollama | _(none)_ | `http://127.0.0.1:11434/v1` |
-| Azure | `AZURE_OPENAI_API_KEY` | your deployment URL |
+| LM Studio | _(none)_ | `http://127.0.0.1:1234/v1` |
+| Azure | `AZURE_OPENAI_API_KEY` | from `AZURE_OPENAI_ENDPOINT` |
+
+For Azure, set both the key and `AZURE_OPENAI_ENDPOINT` (resource root or full `.../openai/v1` URL).
 
 Ultra managed mode strips registered BYOK keys from child environments.
 
-## `pytxo.toml` agent routing
+## Custom providers (`~/.pytxo/providers.json`)
 
-Per-agent model and provider override the default router:
+Add OpenAI-compatible endpoints without waiting for a Pytxo release:
+
+```json
+{
+  "providers": [
+    {
+      "id": "my-proxy",
+      "display_name": "My proxy",
+      "api_key_env": "MY_PROXY_API_KEY",
+      "openai_base_url": "https://llm.example.com/v1",
+      "models_url": "https://llm.example.com/v1/models",
+      "openai_compatible": true
+    }
+  ]
+}
+```
+
+Then route an agent with `provider = "my-proxy"` and `cli_adapter = "generic"`.
+
+## `pytxo.toml` agent routing
 
 ```toml
 [[agent]]
@@ -45,7 +84,7 @@ cli_adapter = "generic"
 api_key_env = "DEEPSEEK_API_KEY"   # optional override
 ```
 
-OpenRouter gateway (one key, many models):
+OpenRouter gateway:
 
 ```toml
 [[agent]]
@@ -55,12 +94,6 @@ provider = "openrouter"
 cli_adapter = "generic"
 ```
 
-```bash
-export OPENROUTER_API_KEY=sk-or-...
-pytxo models search claude --provider openrouter
-pytxo run --agents 1 --cmd "your-openai-compat-cli"
-```
-
-Native ADE CLIs (Claude Code, Antigravity, etc.) keep their own env contracts; generic `--cmd` shells benefit most from OpenAI-compat injection.
+Native agent CLIs (Claude Code, Antigravity, etc.) keep their own env contracts; generic `--cmd` shells benefit most from OpenAI-compat injection.
 
 See also: [Models CLI](/docs/reference/models), [`pytxo.toml`](/docs/reference/pytxo-toml).

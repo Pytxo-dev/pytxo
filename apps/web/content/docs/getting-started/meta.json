@@ -6,7 +6,6 @@
     "folder-trust",
     "hypervisor-shell",
     "first-three-agent-run",
-    "mcp-from-cursor",
-    "testing-ade-clis"
+    "mcp-from-cursor"
   ]
 }

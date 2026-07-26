@@ -98,6 +98,8 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 ### Guides
 
 - [[first-three-agent-run]]
+- [[demo-video-shot-list]]
+- [[release-workflow]]
 - [[pytxo-vs-claude-agent-teams]]
 - [[pytxo-vs-github-copilot-app]]
 - [[pytxo-vs-ade-virtual-workspace]]

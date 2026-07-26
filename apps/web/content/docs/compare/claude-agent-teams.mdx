@@ -15,7 +15,7 @@ Pytxo targets a different layer: **cross-tool orchestration** with explicit isol
 |-----------|-------------------|--------|
 | Scope | Claude Code sessions only | Headless CLIs + MCP (Claude Code, Codex, ...) |
 | Status | Experimental, env-flag gated | Local hypervisor + optional Desktop |
-| Coordination | Lead + mailbox + shared tasks | Rust DAG + WAL + MCP hub |
+| Coordination | Lead + mailbox + shared tasks | Scheduled waves + event log + MCP hub |
 | Write safety | Docs warn: no worktree isolation | Race Shield path claims + Blast Shield worktrees |
 | UI | In-process panel or tmux panes | Optional Desktop (structural Focus / Ops) |
 | Context | Per-teammate window | Signal Core skeletons on read |
@@ -29,13 +29,13 @@ Pytxo targets a different layer: **cross-tool orchestration** with explicit isol
 ## When Pytxo adds value
 
 - Mixed agents under one scheduler
-- Same-repo write collisions Claude’s docs already warn about
-- Monorepo isolation via shipping worktrees / copy-layer
-- Galaxy HITL and sanitization policy
+- Same-repo write collisions Claude's docs already warn about
+- Multi-folder repos with isolated copies per agent
+- Galaxy approvals and secret redaction in logs/MCP
 - Drive from Cursor via local MCP while agents stay headless CLIs
 
 ## Coexistence
 
-Pytxo can run Claude Code as an execution-yard process while adding Race, Blast, and Signal policies native teams do not centralize.
+Pytxo can run Claude Code as a headless agent process while adding Race, Blast, and Signal policies native teams do not centralize.
 
 See also: [vs GitHub Copilot app](/docs/compare/github-copilot-app).

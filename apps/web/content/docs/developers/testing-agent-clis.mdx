@@ -1,8 +1,11 @@
 ---
-title: Testing ADE CLIs
+title: Testing agent CLIs
+description: Contributor recipes for exercising headless agent CLIs from a Pytxo source checkout.
 ---
 
-Pytxo orchestrates **headless terminal agents**. You install the agent CLI separately; Pytxo spawns it inside managed PTYs with git worktree isolation and Signal Core context.
+Pytxo orchestrates **headless terminal agents** (sometimes called ADEs — agent CLIs). You install the agent CLI separately; Pytxo spawns it inside managed PTYs with git worktree isolation and Signal Core context.
+
+This page is for contributors working from a Pytxo source checkout. End users: install with [npm](/docs/getting-started/install) and point `--cmd` at your agent CLI.
 
 ## Prerequisites
 
@@ -14,7 +17,7 @@ pytxo doctor
 You need:
 
 - Git 2.20+ with at least one commit in your test repo
-- The ADE CLI on `PATH` (for live runs)
+- The agent CLI on `PATH` (for live runs)
 - API keys for live LLM-backed agents (BYOK)
 
 ## Quick scaffold (recommended)
@@ -26,7 +29,7 @@ From the Pytxo repo root:
 ```powershell
 .\tooling\test-envs\scaffold.ps1 -Profile antigravity
 cd $env:PYTXO_TEST_REPO
-& C:\pytxo\tooling\test-envs\recipes\live-antigravity.ps1
+.\tooling\test-envs\recipes\live-antigravity.ps1
 ```
 
 If `pytxo` is not on PATH, scaffold sets `$env:PYTXO_BIN` automatically (npm global, local `target/release/pytxo.exe`, etc.).
@@ -109,13 +112,13 @@ cd $env:PYTXO_TEST_REPO
 ..\recipes\smoke-context.ps1
 ```
 
-The stub agent prints `PYTXO_CONTEXT_DIR` and reads `manifest.json`. See the [context launch contract](https://github.com/Pytxo-dev/pytxo/blob/main/docs/02-areas/orchestration/context-launch-contract.md) in the repo.
+The stub agent prints `PYTXO_CONTEXT_DIR` and reads `manifest.json`.
 
 ## Cursor (MCP, not `--cmd`)
 
 Cursor drives Pytxo through **MCP**, not `pytxo run --cmd`. See [MCP from Cursor](/docs/getting-started/mcp-from-cursor).
 
-## ADE compatibility matrix
+## Agent CLI compatibility matrix
 
 | Agent | `cli_adapter` | Typical `--cmd` |
 |-------|---------------|-----------------|
@@ -130,3 +133,4 @@ Cursor drives Pytxo through **MCP**, not `pytxo run --cmd`. See [MCP from Cursor
 - [First three-agent run](/docs/getting-started/first-three-agent-run)
 - [pytxo.toml reference](/docs/reference/pytxo-toml)
 - [CLI reference](/docs/reference/cli)
+- [Contributing](/docs/developers/contributing)

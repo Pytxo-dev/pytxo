@@ -84,7 +84,7 @@ export function SupportedAgents() {
       </div>
       <p className="mt-6 text-sm text-muted-foreground">
         <Link
-          href="/docs/getting-started/testing-ade-clis"
+          href="/docs/developers/testing-agent-clis"
           className="font-medium text-primary hover:underline"
         >
           Testing terminal agent CLIs with Pytxo

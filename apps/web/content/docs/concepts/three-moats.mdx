@@ -4,7 +4,7 @@ title: Three moats
 
 Every Pytxo run goes through three safety and efficiency layers.
 
-| What it does | Codename | Function |
+| What it does | Feature | Function |
 |------|----------|----------|
 | Smarter context | [Signal Core](/docs/concepts/signal-core) | Send agents code skeletons so they spend tokens on work, not noise |
 | Safe sandbox | [Blast Shield](/docs/concepts/blast-shield) | Keep writes isolated until you approve a merge |
@@ -12,14 +12,16 @@ Every Pytxo run goes through three safety and efficiency layers.
 
 ```text
          Signal Core          Blast Shield         Race Shield
-              â”‚                     â”‚                    â”‚
-              â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ orchestration plane â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-                              â”‚
-                         Agents
+              |                     |                    |
+              +----------+----------+----------+---------+
+                         |
+                    Orchestrator
+                         |
+                      Agents
 ```
 
 On **Galaxy**, [human approvals](/docs/concepts/galaxy-approvals) add a fourth layer for risky commands and merges.
 
-Shipping today uses worktree / sparse **copy-layer** isolation and a locked write registry - not kernel ProjFS/FUSE or lock-free shards as marketing claims. Signal savings: measure with `signal-reduction` (Phase 73 pin ~4.76% on a tiny fixture; ~60% remains aspirational on large body-heavy files). See [Signal Core](/docs/concepts/signal-core).
+Today, agents run in isolated copies of your repo (git worktrees by default), and Race Shield tracks write claims so parallel work does not collide. See [Signal Core](/docs/concepts/signal-core) for how context scaffolding works.
 
 Each moat has its own concept page with configuration options.
