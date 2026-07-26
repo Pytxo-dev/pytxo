@@ -6,16 +6,11 @@
 
 <div class="step">
   <img class="logo" src="/logo-mark.png" alt="Pytxo" width="72" height="72" />
-  <h1 class="title">Welcome to Pytxo Desktop</h1>
+  <h1 class="title">Pytxo</h1>
   <p class="lead">
-    See what your coding agents are doing — structure, runs, and approvals — without a wall of
+    Run and supervise coding agents locally — structure, spend, and approvals — without a wall of
     terminals.
   </p>
-  <ul class="features">
-    <li>Live map of how agent edits touch your code</li>
-    <li>Run and monitor agent waves across workspaces</li>
-    <li>Approve risky actions before they land</li>
-  </ul>
   <Button class="continue" onclick={onContinue}>Get started</Button>
 </div>
 
@@ -45,14 +40,6 @@
     font-size: 0.95rem;
     text-wrap: pretty;
     line-height: 1.5;
-  }
-  .features {
-    text-align: left;
-    margin: 0;
-    padding-left: 1.25rem;
-    color: var(--muted-foreground);
-    font-size: 0.88rem;
-    line-height: 1.6;
   }
   :global(.continue) {
     margin-top: 0.5rem;

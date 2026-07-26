@@ -88,14 +88,7 @@
     color-mix(in oklab, var(--brand-cyan) 30%, transparent),
     transparent
   );
-  --pytxo-edge: linear-gradient(
-    135deg,
-    color-mix(in oklab, var(--brand-magenta) 50%, transparent),
-    color-mix(in oklab, var(--brand-violet) 45%, transparent),
-    color-mix(in oklab, var(--brand-gold) 35%, transparent),
-    color-mix(in oklab, var(--brand-teal) 45%, transparent),
-    color-mix(in oklab, var(--brand-cyan) 40%, transparent)
-  );
+  --pytxo-edge: color-mix(in oklab, var(--brand-teal) 55%, transparent);
 }
 
 html[data-chroma-theme="light"] {
@@ -188,11 +181,7 @@ html[data-pytxo-accent="teal"] {
     color-mix(in oklab, var(--brand-teal) 55%, transparent),
     transparent
   );
-  --pytxo-edge: linear-gradient(
-    135deg,
-    color-mix(in oklab, var(--brand-teal) 55%, transparent),
-    color-mix(in oklab, var(--brand-cyan) 40%, transparent)
-  );
+  --pytxo-edge: color-mix(in oklab, var(--brand-teal) 55%, transparent);
 }
 
 html[data-pytxo-accent="violet"] {
@@ -205,11 +194,7 @@ html[data-pytxo-accent="violet"] {
     color-mix(in oklab, var(--brand-magenta) 35%, transparent),
     transparent
   );
-  --pytxo-edge: linear-gradient(
-    135deg,
-    color-mix(in oklab, var(--brand-magenta) 45%, transparent),
-    color-mix(in oklab, var(--brand-violet) 55%, transparent)
-  );
+  --pytxo-edge: color-mix(in oklab, var(--brand-violet) 50%, transparent);
 }
 
 html[data-pytxo-accent="gold"] {
@@ -221,11 +206,7 @@ html[data-pytxo-accent="gold"] {
     color-mix(in oklab, var(--brand-gold) 55%, transparent),
     transparent
   );
-  --pytxo-edge: linear-gradient(
-    135deg,
-    color-mix(in oklab, var(--brand-gold) 55%, transparent),
-    color-mix(in oklab, var(--brand-teal) 30%, transparent)
-  );
+  --pytxo-edge: color-mix(in oklab, var(--brand-gold) 50%, transparent);
 }
 
 html[data-pytxo-accent="custom"] {
@@ -237,11 +218,7 @@ html[data-pytxo-accent="custom"] {
     color-mix(in oklab, var(--pytxo-accent) 55%, transparent),
     transparent
   );
-  --pytxo-edge: linear-gradient(
-    135deg,
-    color-mix(in oklab, var(--pytxo-accent) 55%, transparent),
-    color-mix(in oklab, var(--pytxo-accent) 30%, transparent)
-  );
+  --pytxo-edge: color-mix(in oklab, var(--pytxo-accent) 50%, transparent);
 }
 
 html {

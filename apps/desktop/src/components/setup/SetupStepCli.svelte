@@ -16,7 +16,9 @@
   let phase = $state<Phase>("checking");
   let message = $state("");
   let pathPending = $state(false);
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let pollInflight = false;
+  let disposed = false;
 
   async function refresh() {
     const present = await ipc.checkPytxoCli();
@@ -33,8 +35,31 @@
 
   function stopPoll() {
     if (pollTimer) {
-      clearInterval(pollTimer);
+      clearTimeout(pollTimer);
       pollTimer = null;
+    }
+  }
+
+  function schedulePoll() {
+    stopPoll();
+    if (disposed || phase !== "installing") return;
+    pollTimer = setTimeout(() => {
+      void pollOnce().finally(() => {
+        if (!disposed && phase === "installing") schedulePoll();
+      });
+    }, 500);
+  }
+
+  async function pollOnce() {
+    if (pollInflight) return;
+    pollInflight = true;
+    try {
+      const st = await ipc.installPytxoCliStatus();
+      if (st.message) message = st.message;
+    } catch {
+      /* ignore poll errors */
+    } finally {
+      pollInflight = false;
     }
   }
 
@@ -42,15 +67,7 @@
     phase = "installing";
     message = "Downloading from GitHub Releases…";
     pathPending = false;
-    stopPoll();
-    pollTimer = setInterval(async () => {
-      try {
-        const st = await ipc.installPytxoCliStatus();
-        if (st.message) message = st.message;
-      } catch {
-        /* ignore poll errors */
-      }
-    }, 400);
+    schedulePoll();
     try {
       const status = await ipc.installPytxoCli();
       message = status.message;
@@ -68,15 +85,27 @@
     }
   }
 
-  onMount(refresh);
-  onDestroy(stopPoll);
+  onMount(() => {
+    disposed = false;
+    void refresh();
+    return () => {
+      disposed = true;
+      stopPoll();
+    };
+  });
+  onDestroy(() => {
+    disposed = true;
+    stopPoll();
+  });
 </script>
 
 <div class="step">
   <h2 class="title">Pytxo CLI</h2>
   <p class="lead">{message}</p>
   {#if pathPending && phase === "done"}
-    <p class="hint">Restart Desktop later if you want `pytxo` on PATH in new terminals.</p>
+    <p class="hint">
+      CLI installed. Restart this shell (or open a new terminal) so <code>pytxo</code> appears on PATH.
+    </p>
   {/if}
 
   {#if phase === "checking" || phase === "installing"}

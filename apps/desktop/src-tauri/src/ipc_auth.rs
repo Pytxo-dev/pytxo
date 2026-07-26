@@ -5,6 +5,8 @@ use tauri_plugin_shell::ShellExt;
 
 use crate::ipc_error::{map_io_err, PytxoIpcError, IpcResult};
 
+/// Keyring service id. Kept distinct from bundle `identifier` (`com.pytxo.desktop`)
+/// so existing signed-in sessions remain readable after the Reality Deck rename.
 const SERVICE: &str = "com.pytxo.reality-deck";
 const ACCOUNT: &str = "clerk-session";
 pub const AUTH_CHANGED_EVENT: &str = "deck-auth-changed";

@@ -70,7 +70,7 @@
       if (approve) await backend.approve(selectedApproval.id, selectedApproval.domain_id ?? null);
       else await backend.deny(selectedApproval.id, selectedApproval.domain_id ?? null);
       decisionMessage = approve
-        ? "Approved. Blast Shield flush proceeds under the domain permission profile."
+        ? "Approved. Sandbox flush proceeds under the workspace permission profile."
         : "Denied. Isolated changes were not flushed.";
       selectedApprovalId = null;
       await onApprovalsChanged();
@@ -122,12 +122,12 @@
       <h1>{route === "run-review" ? "Run Review" : route[0].toUpperCase() + route.slice(1)}</h1>
       <p>
         {route === "workspaces"
-          ? "Execution domains, roots, and health in one catalog."
+          ? "Workspaces, roots, and health in one catalog."
           : route === "runs"
             ? "Every orchestration run, from dispatch through recovery."
             : route === "approvals"
               ? "Human decisions with the context needed to act confidently."
-              : "ADE CLIs and how to connect the MCP hub."}
+              : "Agent CLIs and how to connect the MCP hub."}
       </p>
     </div>
     {#if route === "workspaces"}<button class="primary" onclick={openWorkspace}><IconPlus size={16} /> Add workspace</button>{/if}
@@ -160,7 +160,7 @@
         {/each}
       </div>
     {:else if snapshot.error}
-      <div class="empty"><IconFolder size={26} /><strong>Hypervisor unreachable</strong><span>{snapshot.error.message}</span></div>
+      <div class="empty"><IconFolder size={26} /><strong>Local service offline</strong><span>{snapshot.error.message}</span></div>
     {:else}
       <div class="empty"><IconFolder size={26} /><strong>No workspaces {query || healthFilter === "active" ? "match this filter" : "yet"}</strong><span>{query || healthFilter === "active" ? "Try clearing the search or health filter." : "Add a workspace to start dispatching runs."}</span></div>
     {/if}
@@ -199,7 +199,7 @@
     </article>
   {:else if route === "approvals"}
     <div class="approval-layout">
-      <article class="panel inbox chroma-edge">
+      <article class="panel inbox">
         <div class="panel-head"><h2>Inbox</h2><span>{openApprovals.length} open</span></div>
         {#if openApprovals.length}
           {#each openApprovals as approval}
@@ -211,18 +211,17 @@
             </button>
           {/each}
         {:else}
-          <div class="empty"><strong>Inbox clear</strong><span>New HITL requests appear here during Galaxy runs.</span></div>
+          <div class="empty"><strong>Inbox clear</strong><span>New approval requests appear here when agents wait on you.</span></div>
         {/if}
       </article>
       <article class="panel decision-detail">
-        <p class="eyebrow">Decision context</p>
         <h2>{selectedApproval?.action ?? "Inbox clear"}</h2>
         <p>{selectedApproval?.reason ?? "All decisions have been resolved."}</p>
         {#if selectedApproval}
           <div class="diff-summary">
-            <span><IconShieldLock size={17} /> Blast Shield</span>
+            <span><IconShieldLock size={17} /> Sandbox</span>
             <strong>Approve to flush · Deny to discard</strong>
-            <small>Pytxo enforces the execution-domain permission profile when this workspace is flushed. Open Run Review for file-level evidence.</small>
+            <small>Pytxo applies this workspace permission profile when you flush. Open Run Review for file-level evidence.</small>
           </div>
           {#if decisionMessage}<p class="voice-state-message">{decisionMessage}</p>{/if}
           <div class="decision-actions">
@@ -235,7 +234,7 @@
   {:else if route === "integrations"}
     <div class="integration-sections">
       <article class="panel">
-        <div class="panel-head"><div><p class="eyebrow">Agent development environments</p><h2>ADE registry</h2></div></div>
+        <div class="panel-head"><div><h2>Agent CLIs</h2></div></div>
         {#if adeLoading}
           <div class="empty"><IconLoader2 size={22} class="spin" /><strong>Checking installed CLIs…</strong></div>
         {:else}

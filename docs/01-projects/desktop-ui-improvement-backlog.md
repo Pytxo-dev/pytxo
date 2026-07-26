@@ -6,15 +6,17 @@ tags: [project, desktop, ui, presentation]
 audience: [human, agent]
 layer: presentation
 created: 2026-07-14
-updated: 2026-07-23
-related: [[desktop-visual-system]], [[presentation-passive-telemetry]], [[product-vision]], [[ADR-0023-reality-deck-3d-renderer]], [[ADR-0028-desktop-product-name]], [[pytxo-improvement-research]], [[market-ready-polish-research]]
+updated: 2026-07-26
+related: [[desktop-visual-system]], [[presentation-passive-telemetry]], [[product-vision]], [[ADR-0023-reality-deck-3d-renderer]], [[ADR-0028-desktop-product-name]], [[pytxo-improvement-research]], [[market-ready-polish-research]], [[desktop-dangerous-ux-2026-07]]
 ---
 
 # Pytxo Desktop UI improvement backlog
 
 ## Summary
 
-Pytxo Desktop (`apps/desktop`, Svelte 5 + Tauri v2, app version 0.5.0) is a functional, mostly mature control UI that already matches its own vision docs: structural Focus is the primary surface in Desktop 2, there is no multi-pane terminal wall, and the setup and workspace flows are complete. This note tracks concrete, code-referenced improvements found during a design review, ordered by priority.
+Pytxo Desktop (`apps/desktop`, Svelte 5 + Tauri v2) is a functional, mostly mature control UI that already matches its own vision docs: structural Focus is the primary surface in Desktop 2, there is no multi-pane terminal wall, and the setup and workspace flows are complete. This note tracks concrete, code-referenced improvements found during a design review, ordered by priority.
+
+**v0.11.0 (2026-07-26):** install-trust + dangerous UX polish — CLI install without PowerShell spawn storm, NSIS logo branding (`com.pytxo.desktop`), SetupWizard anti-slop, Ops fingerprint/cost freshness + DPI zoom re-apply, eyebrow/chroma-edge cutback, tray “needs you” tooltip. Research: [[desktop-dangerous-ux-2026-07]].
 
 **v0.5.0 context:** the compact "Desktop 2" shell (`apps/desktop/src/components/desktop2/`) is the default UI (`useLegacyShell` in `App.svelte` defaults to `false`); the original shell is retained only as an opt-in rollback path.
 
@@ -72,7 +74,7 @@ Already reconciled in [[glossary]] and [[permission-profile-engine]] to the one-
 
 ### 12. Prefer `--pytxo-*` / Chroma vars over scattered hex in Desktop 2 CSS
 
-**Still open (partial).** Phase 74 added structural/density styles; a full token pass across `desktop2-shared.css` remains optional polish (A8 in [[market-ready-polish-research]]).
+**Resolved in v0.11.0 (partial → default chrome).** AppBar live-dot and chroma-edge decoration now use accent tokens; rainbow `--pytxo-edge` gradients softened to single-accent. Residual hex in dense list CSS remains optional cleanup.
 
 ## Non-issues (confirmed fine, no action needed)
 
@@ -89,5 +91,6 @@ Already reconciled in [[glossary]] and [[permission-profile-engine]] to the one-
 - [[ADR-0028-desktop-product-name]]
 - [[pytxo-improvement-research]]
 - [[market-ready-polish-research]] — Phase 74 Desktop + marketing polish
+- [[desktop-dangerous-ux-2026-07]] — 0.11.0 ops-console / anti-slop research
 
 Back: [[MOC-home]]

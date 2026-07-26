@@ -211,6 +211,8 @@ export const ipc = {
     invoke<boolean>("get_close_to_tray").catch(() => true),
   setCloseToTray: (enabled: boolean) =>
     invoke<void>("set_close_to_tray", { enabled }),
+  setTrayNeedsYou: (count: number) =>
+    invoke<void>("set_tray_needs_you", { count }).catch(() => undefined),
   openFlowWindow: () => invoke<void>("open_flow_window").then(unwrap),
   listProviders: () =>
     invoke<

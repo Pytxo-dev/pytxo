@@ -12,6 +12,11 @@ related: [[MOC-home]]
 
 # Documentation changelog
 
+## 2026-07-26 (Desktop 0.11.0 dangerous UX + install trust)
+
+- Landed [[desktop-dangerous-ux-2026-07]]; linked from [[MOC-home]] and [[desktop-ui-improvement-backlog]].
+- Install trust: Rust CLI install (no PowerShell storm), NSIS logo branding, bundle id `com.pytxo.desktop`.
+
 ## 2026-07-09 (Pytxo Desktop rename + plain positioning)
 
 - Product UI name: **Reality Deck** → **Pytxo Desktop** ([[ADR-0028-desktop-product-name]]).

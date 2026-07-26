@@ -30,8 +30,7 @@
 <div class="step">
   <h2 class="title">You're ready</h2>
   <p class="lead">
-    Default trust is Orbit: agents write in a sandbox until you approve a flush (Blast Shield).
-    Approvals show in the inspector when something needs a decision.
+    Agents write in a sandbox until you approve a flush. Approvals show when something needs a decision.
   </p>
   {#if workspacePath}
     <code class="path">{workspacePath}</code>

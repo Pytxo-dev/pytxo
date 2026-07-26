@@ -96,22 +96,24 @@ pub fn format_agents_list() -> String {
 }
 
 fn which_binary(name: &str) -> bool {
-    #[cfg(windows)]
-    {
-        std::process::Command::new("where")
-            .arg(name)
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
+    // Prefer PATH walk — no console flash from GUI parents (Desktop).
+    if let Some(path) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&path) {
+            #[cfg(windows)]
+            {
+                if dir.join(format!("{name}.exe")).is_file() || dir.join(name).is_file() {
+                    return true;
+                }
+            }
+            #[cfg(not(windows))]
+            {
+                if dir.join(name).is_file() {
+                    return true;
+                }
+            }
+        }
     }
-    #[cfg(not(windows))]
-    {
-        std::process::Command::new("sh")
-            .args(["-c", &format!("command -v {name}")])
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-    }
+    false
 }
 
 #[cfg(test)]
