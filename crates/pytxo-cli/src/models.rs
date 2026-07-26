@@ -1,7 +1,7 @@
 use std::io::Write;
 
 use pytxo_catalog::ModelCatalog;
-use pytxo_core::{all_providers, key_configured, ProviderId};
+use pytxo_core::{list_provider_status, ProviderId};
 
 fn writeln_stdout(args: std::fmt::Arguments<'_>) -> bool {
     std::io::stdout()
@@ -10,27 +10,16 @@ fn writeln_stdout(args: std::fmt::Arguments<'_>) -> bool {
 }
 
 pub fn providers_list(json: bool) -> anyhow::Result<()> {
-    let rows: Vec<_> = all_providers()
-        .iter()
-        .map(|p| {
-            serde_json::json!({
-                "id": p.id.as_str(),
-                "name": p.display_name,
-                "api_key_env": p.api_key_env,
-                "key_configured": key_configured(p),
-            })
-        })
-        .collect();
+    let rows = list_provider_status();
     if json {
         println!("{}", serde_json::to_string_pretty(&rows)?);
     } else {
-        for p in all_providers() {
-            let mark = if key_configured(p) { "✓" } else { "·" };
+        for p in &rows {
+            let mark = if p.key_configured { "✓" } else { "·" };
+            let kind = if p.builtin { "" } else { " (custom)" };
             if !writeln_stdout(format_args!(
-                "{mark} {:<12} {:<20} {}",
-                p.id.as_str(),
-                p.display_name,
-                p.api_key_env
+                "{mark} {:<12} {:<20} {}{kind}",
+                p.id, p.name, p.api_key_env
             )) {
                 break;
             }

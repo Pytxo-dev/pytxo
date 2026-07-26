@@ -34,10 +34,17 @@ impl AgentSpec {
                 .clone()
                 .unwrap_or_else(|| "claude-opus-4-8".to_string()),
         );
+        let provider_label = self.provider.clone();
         let provider = self
             .provider
             .as_deref()
             .and_then(ProviderId::parse)
+            .or_else(|| {
+                // Custom providers.json ids map to Generic for OpenAI-compat inject.
+                self.provider.as_deref().and_then(|id| {
+                    crate::billing::providers::find_custom_provider(id).map(|_| ProviderId::Generic)
+                })
+            })
             .or_else(|| {
                 self.cli_adapter
                     .as_deref()
@@ -68,6 +75,7 @@ impl AgentSpec {
             cli_adapter,
             api_key_env: self.api_key_env.clone(),
             ade_id: self.cli_adapter.clone(),
+            provider_label,
         }
     }
 }

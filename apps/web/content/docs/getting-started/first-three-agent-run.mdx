@@ -6,11 +6,32 @@ This tutorial runs three parallel agents with conflict-aware wave scheduling.
 
 ## Prerequisites
 
-Complete [Install](/docs/getting-started/install): built CLI, `pytxo init`, and `pytxo doctor` passing.
+Complete [Install](/docs/getting-started/install): CLI on `PATH`, `pytxo init`, and `pytxo doctor` passing.
 
 ## Configure tasks
 
-Copy `pytxo.toml.example` from the repo to your project root as `pytxo.toml`. The example defines tasks that touch overlapping paths. Pytxo schedules them in **separate waves** automatically.
+Create a `pytxo.toml` in your project root. Start with two tasks that touch different files:
+
+```toml
+max_agents = 3
+
+[[agent]]
+name = "builder"
+paths = ["src/**"]
+cli_adapter = "generic"
+
+[[task]]
+id = "build-a"
+agent = "builder"
+paths = ["src/a.ts"]
+
+[[task]]
+id = "build-b"
+agent = "builder"
+paths = ["src/b.ts"]
+```
+
+If tasks touch overlapping paths, Pytxo schedules them in **separate waves** automatically.
 
 ## Dry-run (preflight)
 
@@ -35,7 +56,7 @@ pytxo status
 pytxo logs --agent <run_uuid>:agent-0 --tail 20
 ```
 
-Use agent IDs printed under `status`. Events are stored in SQLite under `.pytxo/data/`.
+Use agent IDs printed under `status`. Events are stored under `.pytxo/data/`.
 
 ## Without a config file
 
@@ -47,17 +68,8 @@ pytxo run --agents 3 --cmd "echo pytxo"
 
 Uses synthetic disjoint paths (`src/agent-0.ts`, etc.) so all three agents can run in one wave.
 
-## Benchmark script
-
-From the Pytxo repo root after build:
-
-```bash
-./tooling/benchmarks/three-agent-preflight.sh
-# Windows:
-./tooling/benchmarks/three-agent-preflight.ps1
-```
-
 ## Learn more
 
 - [CLI reference](/docs/reference/cli): all commands and flags
 - [Three moats](/docs/concepts/three-moats): Signal Core, Blast Shield, Race Shield
+- [Testing agent CLIs](/docs/developers/testing-agent-clis): contributor recipes from a source checkout

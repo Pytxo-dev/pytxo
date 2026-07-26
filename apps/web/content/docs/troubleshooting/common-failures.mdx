@@ -17,7 +17,7 @@ pytxo trust galaxy
 
 See [Folder trust](/docs/getting-started/folder-trust).
 
-## Missing ADE CLI
+## Missing agent CLI
 
 **Symptom:** Spawn fails because `claude`, `agy`, `codex`, etc. are not found.
 
@@ -27,11 +27,11 @@ See [Folder trust](/docs/getting-started/folder-trust).
 pytxo run --agents 1 --cmd "your-cli --help"
 ```
 
-Guide: [Testing ADE CLIs](/docs/getting-started/testing-ade-clis).
+Guide: [Testing agent CLIs](/docs/developers/testing-agent-clis).
 
 ## PTY vs subprocess
 
-**Symptom:** Interactive ADE CLIs hang or misbehave under `subprocess`.
+**Symptom:** Interactive agent CLIs hang or misbehave under `subprocess`.
 
 **Fix:** Prefer the default PTY backend. Force subprocess only when needed (CI without a TTY):
 

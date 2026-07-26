@@ -7,7 +7,7 @@ Pytxo follows a **three-tier model**:
 ```text
 Presentation  ->  Orchestration  ->  Execution
 (Pytxo Desktop)   (pytxo-orchestrate)   (pytxo-runner + PTY)
-       â†‘                  â†‘
+       ^                  ^
    passive telemetry   MCP / CLI
 ```
 
@@ -19,7 +19,7 @@ Presentation  ->  Orchestration  ->  Execution
 | `pytxo-orchestrate` | Scheduling, hypervisor, doctor |
 | `pytxo-runner` | Agent execution, worktrees, PTY |
 | `pytxo-core` | Config, tasks, billing types, moat interfaces |
-| `pytxo-store` | SQLite schema and WAL |
+| `pytxo-store` | SQLite schema and event log |
 | `pytxo-mcp` | MCP server for IDE integration |
 
 ## Data flow

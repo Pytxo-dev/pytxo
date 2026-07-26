@@ -779,6 +779,31 @@ pub fn structural_graph(
     Ok(graph_to_dto(graph))
 }
 
+#[tauri::command]
+pub fn list_providers() -> IpcResult<Vec<ProviderStatusDto>> {
+    Ok(pytxo_core::list_provider_status()
+        .into_iter()
+        .map(|p| ProviderStatusDto {
+            id: p.id,
+            name: p.name,
+            api_key_env: p.api_key_env,
+            key_configured: p.key_configured,
+            openai_compatible: p.openai_compatible,
+            builtin: p.builtin,
+        })
+        .collect())
+}
+
+#[derive(Serialize)]
+pub struct ProviderStatusDto {
+    pub id: String,
+    pub name: String,
+    pub api_key_env: String,
+    pub key_configured: bool,
+    pub openai_compatible: bool,
+    pub builtin: bool,
+}
+
 fn domain_to_dto(d: DomainSummary) -> DomainDto {
     DomainDto {
         domain_id: d.domain_id,

@@ -14,7 +14,7 @@ import type {
   RunDto,
 } from "./types";
 
-export const IPC_VERSION = "0.8.0";
+export const IPC_VERSION = "0.9.0";
 
 export const AUTH_CHANGED_EVENT = "deck-auth-changed";
 export const AUTH_ERROR_EVENT = "deck-auth-error";
@@ -211,4 +211,15 @@ export const ipc = {
     invoke<boolean>("get_close_to_tray").catch(() => true),
   setCloseToTray: (enabled: boolean) =>
     invoke<void>("set_close_to_tray", { enabled }),
+  listProviders: () =>
+    invoke<
+      Array<{
+        id: string;
+        name: string;
+        api_key_env: string;
+        key_configured: boolean;
+        openai_compatible: boolean;
+        builtin: boolean;
+      }>
+    >("list_providers").then(unwrap),
 };

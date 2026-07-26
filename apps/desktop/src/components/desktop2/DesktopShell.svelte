@@ -525,8 +525,8 @@
     display: grid;
     grid-template-columns: 224px minmax(0, 1fr);
     height: 100%;
-    background: #07080b;
-    color: #f1f3f5;
+    background: var(--pytxo-surface-shell);
+    color: var(--pytxo-text-strong);
     font-family: "Geist", Inter, ui-sans-serif, system-ui, sans-serif;
     transition: grid-template-columns 150ms ease;
   }
@@ -537,7 +537,12 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background: radial-gradient(circle at 80% -10%, color-mix(in oklab, var(--pytxo-accent, #3ed7a1) 8%, transparent), transparent 30%), #08090c;
+    background: radial-gradient(
+        circle at 80% -10%,
+        color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 8%, transparent),
+        transparent 30%
+      ),
+      var(--pytxo-surface-shell);
   }
   .content {
     flex: 1;
@@ -596,8 +601,17 @@
     }
   }
 
-  :global(html[data-chroma-theme="light"]) .desktop2 {
-    background: var(--pytxo-obsidian);
-    color: #17202b;
+  :global(html[data-chroma-theme="nebula"]) main {
+    background: radial-gradient(
+        circle at 20% -20%,
+        color-mix(in oklab, var(--brand-magenta) 12%, transparent),
+        transparent 40%
+      ),
+      radial-gradient(
+        circle at 80% -10%,
+        color-mix(in oklab, var(--pytxo-accent, var(--brand-violet)) 10%, transparent),
+        transparent 35%
+      ),
+      var(--pytxo-surface-shell);
   }
 </style>

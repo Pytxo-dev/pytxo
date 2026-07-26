@@ -128,8 +128,8 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
-    background: #0b0c10;
-    border-right: 1px solid #202229;
+    background: var(--pytxo-surface-shell);
+    border-right: 1px solid var(--pytxo-line);
     padding: 14px 12px 12px;
     transition: padding 150ms ease;
   }
@@ -183,7 +183,7 @@
   }
   .brand span {
     font-size: 11px;
-    color: #8b929d;
+    color: var(--pytxo-text-muted);
   }
   .collapse-btn {
     margin-left: auto;
@@ -207,7 +207,7 @@
     color: #d9dde2;
   }
   .collapse-btn:focus-visible {
-    outline: 2px solid var(--pytxo-teal);
+    outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
     outline-offset: 1px;
   }
   button {
@@ -239,7 +239,7 @@
     background: #101816;
   }
   .command-trigger:focus-visible {
-    outline: 2px solid var(--pytxo-teal);
+    outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
     outline-offset: 1px;
   }
   .command-trigger span {
@@ -248,7 +248,7 @@
   }
   .command-trigger kbd {
     font: 10px "Geist Mono", monospace;
-    color: #8b929d;
+    color: var(--pytxo-text-muted);
     border: 1px solid #2b2e37;
     border-radius: 4px;
     padding: 2px 4px;
@@ -265,7 +265,7 @@
     letter-spacing: 0.1em;
     font-size: 9px;
     font-weight: 700;
-    color: #8b929d;
+    color: var(--pytxo-text-muted);
   }
   nav a {
     position: relative;
@@ -291,7 +291,7 @@
     color: #d9dde2;
   }
   nav a:focus-visible {
-    outline: 2px solid var(--pytxo-teal);
+    outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
     outline-offset: 1px;
   }
   nav a.active {
@@ -305,7 +305,7 @@
     width: 2px;
     height: 16px;
     border-radius: 2px;
-    background: var(--pytxo-teal);
+    background: var(--pytxo-accent, var(--pytxo-teal));
   }
   .sidebar.collapsed nav a.active:before {
     display: none;
@@ -330,7 +330,7 @@
     padding: 0 9px;
     border: 0;
     background: none;
-    color: #8b929d;
+    color: var(--pytxo-text-muted);
     font-size: 11px;
     cursor: pointer;
     border-radius: 5px;
@@ -341,7 +341,7 @@
     background: #12141a;
   }
   .recents button:focus-visible {
-    outline: 2px solid var(--pytxo-teal);
+    outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
     outline-offset: -1px;
   }
   .recents button span {
@@ -360,7 +360,7 @@
     margin-top: auto;
   }
   .sidebar-footer {
-    border-top: 1px solid #202229;
+    border-top: 1px solid var(--pytxo-line);
     margin-top: 14px;
     padding-top: 10px;
     width: 100%;
@@ -385,7 +385,7 @@
     background: #14161c;
   }
   .sidebar-footer button:focus-visible {
-    outline: 2px solid var(--pytxo-teal);
+    outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
     outline-offset: 1px;
   }
   .avatar {
@@ -413,7 +413,7 @@
   }
   .account-copy small {
     font-size: 9px;
-    color: #8b929d;
+    color: var(--pytxo-text-muted);
     margin-top: 2px;
   }
 
@@ -447,16 +447,12 @@
     }
   }
 
-  :global(html[data-chroma-theme="light"]) .sidebar {
-    background: #fff;
-    border-color: var(--pytxo-line);
-  }
   :global(html[data-chroma-theme="light"]) nav a.active {
-    background: #e4f3f0;
-    color: #0b756c;
+    background: var(--pytxo-surface-active);
+    color: var(--pytxo-accent, var(--pytxo-teal));
   }
   :global(html[data-chroma-theme="light"]) .command-trigger {
-    background: #f6f7f9;
-    border-color: #d8dde4;
+    background: var(--pytxo-surface-raised);
+    border-color: var(--pytxo-line);
   }
 </style>

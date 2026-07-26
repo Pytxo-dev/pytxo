@@ -4,6 +4,7 @@
     IconArrowLeft,
     IconBell,
     IconFolder,
+    IconKey,
     IconMicrophone,
     IconPalette,
     IconSearch,
@@ -16,9 +17,14 @@
     ACCENT_PRESETS,
     applyAccent,
     applyDeckTheme,
+    applyMatchSystem,
     DECK_THEMES,
     loadAccent,
+    loadCustomAccent,
+    loadMatchSystem,
     loadTheme,
+    MATCH_SYSTEM_STORAGE_KEY,
+    syncSystemThemeListener,
     type AccentPreset,
     type DeckTheme,
   } from "../../lib/theme";
@@ -44,6 +50,7 @@
   }[] = [
     { id: "general", label: "General", icon: IconSettings },
     { id: "appearance", label: "Appearance", icon: IconPalette },
+    { id: "providers", label: "Providers", icon: IconKey },
     { id: "workspaces", label: "Workspaces", icon: IconFolder },
     { id: "agents", label: "Agents & permissions", icon: IconShieldLock },
     { id: "voice", label: "Voice", icon: IconMicrophone },
@@ -94,6 +101,8 @@
   let section = $state<SettingsSectionId>(initialSection ?? loadSettingsSection());
   let theme = $state<DeckTheme>(loadTheme());
   let accent = $state<AccentPreset>(loadAccent());
+  let customAccent = $state(loadCustomAccent());
+  let matchSystem = $state(loadMatchSystem());
   let voiceCapture = $state<"both" | "hold" | "click">("both");
   let voiceConsentNoted = $state(false);
   let showCloudConsent = $state(false);
@@ -104,6 +113,18 @@
   let pendingUpdate = $state<Update | null>(null);
   let updateMessage = $state("");
   let closeToTray = $state(true);
+  let providers = $state<
+    Array<{
+      id: string;
+      name: string;
+      api_key_env: string;
+      key_configured: boolean;
+      openai_compatible: boolean;
+      builtin: boolean;
+    }>
+  >([]);
+  let providersLoading = $state(false);
+  let providersError = $state("");
 
   const filteredSections = $derived(
     SECTIONS.filter((s) => {
@@ -132,7 +153,21 @@
     void ipc.getCloseToTray().then((v) => {
       closeToTray = v;
     });
+    void refreshProviders();
   });
+
+  async function refreshProviders() {
+    providersLoading = true;
+    providersError = "";
+    try {
+      providers = await ipc.listProviders();
+    } catch (e) {
+      providersError = e instanceof Error ? e.message : String(e);
+      providers = [];
+    } finally {
+      providersLoading = false;
+    }
+  }
 
   async function setCloseToTray(enabled: boolean) {
     closeToTray = enabled;
@@ -149,13 +184,38 @@
   }
 
   function setTheme(next: DeckTheme) {
+    matchSystem = false;
+    syncSystemThemeListener(false);
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(MATCH_SYSTEM_STORAGE_KEY, "false");
+    }
     theme = next;
     applyDeckTheme(next);
   }
 
   function setAccent(next: AccentPreset) {
     accent = next;
-    applyAccent(next);
+    applyAccent(next, next === "custom" ? customAccent : undefined);
+  }
+
+  function setCustomAccent(hex: string) {
+    customAccent = hex;
+    accent = "custom";
+    applyAccent("custom", hex);
+  }
+
+  function setMatchSystem(enabled: boolean) {
+    matchSystem = enabled;
+    if (enabled) {
+      theme = applyMatchSystem(true);
+      syncSystemThemeListener(true);
+    } else {
+      syncSystemThemeListener(false);
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(MATCH_SYSTEM_STORAGE_KEY, "false");
+      }
+      applyDeckTheme(theme);
+    }
   }
 
   function setVoiceCapture(value: "both" | "hold" | "click") {
@@ -258,6 +318,7 @@
         <h1>{SECTIONS.find((s) => s.id === section)?.label ?? "Settings"}</h1>
         <p>
           {#if section === "appearance"}Theme skins and chroma accents for the shell.
+          {:else if section === "providers"}BYOK provider status. Keys stay in OS environment variables — Pytxo never stores them.
           {:else if section === "workspaces"}Default workspace behavior and the active domain.
           {:else if section === "agents"}Permission ladder defaults for new trusted folders.
           {:else if section === "voice"}Local Whisper capture and optional cloud consent.
@@ -297,15 +358,37 @@
       <article class="settings-group">
         <h2>Theme</h2>
         <div class="setting-row">
+          <div><strong>Match system</strong><small>Follow OS light/dark. Uses Void and Light only.</small></div>
+          <button
+            class="toggle"
+            class:active={matchSystem}
+            aria-pressed={matchSystem}
+            aria-label="Match system theme"
+            onclick={() => setMatchSystem(!matchSystem)}
+          ><i></i></button>
+        </div>
+        <div class="setting-row stack">
           <div><strong>Skin</strong><small>Void is canonical. Terminal and Nebula are optional skins.</small></div>
-          <div class="segmented wrap">
+          <div class="theme-previews" role="group" aria-label="Theme skin">
             {#each DECK_THEMES as opt (opt.id)}
-              <button class:active={theme === opt.id} onclick={() => setTheme(opt.id)}>{opt.label}</button>
+              <button
+                type="button"
+                class="theme-preview"
+                class:active={theme === opt.id}
+                data-skin={opt.id}
+                disabled={matchSystem && opt.id !== "void" && opt.id !== "light"}
+                onclick={() => setTheme(opt.id)}
+                aria-pressed={theme === opt.id}
+                title={opt.hint}
+              >
+                <span class="theme-preview-swatch" aria-hidden="true"></span>
+                <span class="theme-preview-label">{opt.label}</span>
+              </button>
             {/each}
           </div>
         </div>
         <div class="setting-row">
-          <div><strong>Accent</strong><small>Hairlines, focus rings, and primary edges follow this preset.</small></div>
+          <div><strong>Accent</strong><small>Primary buttons, focus rings, and chroma edges follow this color.</small></div>
           <div class="accent-swatches" role="group" aria-label="Accent">
             {#each ACCENT_PRESETS as opt (opt.id)}
               <button
@@ -319,6 +402,18 @@
                 aria-pressed={accent === opt.id}
               ></button>
             {/each}
+            <label
+              class="swatch custom-swatch"
+              class:active={accent === "custom"}
+              title="Custom"
+              aria-label="Custom accent color"
+            >
+              <input
+                type="color"
+                value={customAccent}
+                oninput={(e) => setCustomAccent((e.currentTarget as HTMLInputElement).value)}
+              />
+            </label>
           </div>
         </div>
       </article>
@@ -332,6 +427,43 @@
             {/each}
           </div>
         </div>
+      </article>
+    {:else if section === "providers"}
+      <article class="settings-group">
+        <h2>Bring your own key</h2>
+        <p class="providers-lead">
+          Set provider keys in your OS environment, then restart Desktop. Prefer
+          <span class="mono">OPENROUTER_API_KEY</span> when you want one key for many models.
+          Custom OpenAI-compatible endpoints go in <span class="mono">~/.pytxo/providers.json</span>.
+        </p>
+        <div class="setting-row">
+          <div><strong>Status</strong><small>Boolean only — never shows key values.</small></div>
+          <button class="quiet" onclick={() => void refreshProviders()} disabled={providersLoading}>
+            {providersLoading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+        {#if providersError}
+          <p class="providers-error">{providersError}</p>
+        {/if}
+        <div class="provider-list">
+          {#each providers as p (p.id)}
+            <div class="provider-row">
+              <div>
+                <strong>{p.name}</strong>
+                <small class="mono">{p.api_key_env || "(no key)"}{#if !p.builtin} · custom{/if}</small>
+              </div>
+              <span class="provider-badge" class:ok={p.key_configured} class:missing={!p.key_configured}>
+                {p.key_configured ? "Configured" : "Missing"}
+              </span>
+            </div>
+          {:else}
+            <p class="providers-empty">{providersLoading ? "Loading…" : "No providers returned."}</p>
+          {/each}
+        </div>
+        <p class="providers-docs">
+          Docs: <span class="mono">pytxo.com/docs/reference/providers-byok</span>
+          · CLI: <span class="mono">pytxo providers</span>
+        </p>
       </article>
     {:else if section === "workspaces"}
       <article class="settings-group">
@@ -656,6 +788,132 @@
   .swatch.active {
     box-shadow: 0 0 0 2px color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 50%, transparent);
     border-color: #0a0b0e;
+  }
+  .custom-swatch {
+    position: relative;
+    overflow: hidden;
+    background: conic-gradient(from 90deg, #f43f5e, #fbbf24, #22c55e, #22d3ee, #a78bfa, #f43f5e);
+  }
+  .custom-swatch input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    padding: 0;
+  }
+  .theme-previews {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(72px, 1fr));
+    gap: 8px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .theme-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: stretch;
+    padding: 8px;
+    border: 1px solid var(--pytxo-line, #1e2026);
+    border-radius: 8px;
+    background: var(--pytxo-surface-panel, #0a0b0e);
+    cursor: pointer;
+    color: var(--pytxo-text-muted, #8b929d);
+  }
+  .theme-preview:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .theme-preview.active {
+    border-color: color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 45%, transparent);
+    color: var(--pytxo-text-strong, #e8eaed);
+  }
+  .theme-preview-swatch {
+    display: block;
+    height: 28px;
+    border-radius: 5px;
+    border: 1px solid color-mix(in oklab, var(--pytxo-line) 80%, transparent);
+  }
+  .theme-preview[data-skin="void"] .theme-preview-swatch {
+    background: linear-gradient(135deg, #020205, #0d0f13 55%, #2dd4bf);
+  }
+  .theme-preview[data-skin="light"] .theme-preview-swatch {
+    background: linear-gradient(135deg, #f4f6f8, #ffffff 55%, #0d9488);
+  }
+  .theme-preview[data-skin="terminal"] .theme-preview-swatch {
+    background: linear-gradient(135deg, #001a0a, #002212 55%, #4ade80);
+  }
+  .theme-preview[data-skin="nebula"] .theme-preview-swatch {
+    background: linear-gradient(135deg, #08051a, #12082a 55%, #e879f9);
+  }
+  .theme-preview-label {
+    font-size: 11px;
+    text-align: left;
+  }
+  .setting-row.stack {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    padding-block: 14px;
+  }
+  .setting-row.stack > div:first-child {
+    width: 100%;
+  }
+  .providers-lead,
+  .providers-docs,
+  .providers-empty,
+  .providers-error {
+    margin: 0 0 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--pytxo-text-muted, #8b929d);
+  }
+  .providers-error {
+    color: #d98994;
+  }
+  .provider-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .provider-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--pytxo-line, #1e2026);
+    border-radius: 8px;
+    background: var(--pytxo-surface-panel, #0a0b0e);
+  }
+  .provider-row strong {
+    display: block;
+    font-size: 12.5px;
+  }
+  .provider-row small {
+    display: block;
+    margin-top: 3px;
+    color: var(--pytxo-text-muted, #8b929d);
+    font-size: 11px;
+  }
+  .provider-badge {
+    flex-shrink: 0;
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+  }
+  .provider-badge.ok {
+    color: var(--pytxo-success, #52ba9a);
+    background: color-mix(in oklab, var(--pytxo-success, #52ba9a) 14%, transparent);
+  }
+  .provider-badge.missing {
+    color: var(--pytxo-text-soft, #707783);
+    background: color-mix(in oklab, var(--pytxo-text-soft, #707783) 12%, transparent);
   }
   .profile-grid {
     display: grid;

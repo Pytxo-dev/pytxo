@@ -21,13 +21,15 @@ pub use ade_registry::{
     ade_on_path, all_ade_clis, detect_on_path, format_agents_list, resolve_ade, AdeCliSpec,
 };
 pub use billing::{
-    all_byok_key_envs, all_providers, default_token_estimator, get_provider, inject_byok_env,
-    key_configured, list_static_models, provider_from_hint, ArbitrageSample, ArbitrageYield,
-    BillingConfig, BillingMode, BillingReconciler, ByteHeuristicEstimator, CliAdapter,
-    ConfigModelRouter, HttpBillingReconciler, LocalHybridBilling, ManagedTransport, ModelId,
-    ModelRoute, ModelRouter, NoopBillingReconciler, ProviderId, ProviderSpec, ReservationId,
-    RunUsageTotals, StaticPriceTable, TiktokenEstimator, TokenCounts, TokenEstimator, TokenWallet,
-    UsageKey, UsageMeter, UsageSource,
+    all_byok_key_envs, all_providers, default_token_estimator, find_custom_provider, get_provider,
+    inject_byok_env, key_configured, key_env_configured, list_provider_status, list_static_models,
+    load_custom_providers, provider_from_hint, providers_json_path, resolve_openai_base_url,
+    ArbitrageSample, ArbitrageYield, BillingConfig, BillingMode, BillingReconciler,
+    ByteHeuristicEstimator, CliAdapter, ConfigModelRouter, CustomProviderSpec,
+    HttpBillingReconciler, LocalHybridBilling, ManagedTransport, ModelId, ModelRoute, ModelRouter,
+    NoopBillingReconciler, ProviderId, ProviderSpec, ProviderStatus, ReservationId, RunUsageTotals,
+    StaticPriceTable, TiktokenEstimator, TokenCounts, TokenEstimator, TokenWallet, UsageKey,
+    UsageMeter, UsageSource,
 };
 pub use child_env::ChildLaunchEnv;
 pub use cloud::{

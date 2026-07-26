@@ -7,6 +7,7 @@ import {
 import { SupportedAgents } from "@/components/site/supported-agents";
 import { ArchitectureSection } from "@/components/site/architecture-section";
 import { CtaSection } from "@/components/site/cta-section";
+import { DemoSection } from "@/components/site/demo-section";
 import { FeatureGrid } from "@/components/site/feature-grid";
 import { Hero } from "@/components/site/hero";
 import { HowItWorks } from "@/components/site/how-it-works";
@@ -57,6 +58,7 @@ export default function HomePage() {
   return (
     <>
       <Hero />
+      <DemoSection />
       <ProofBand />
       <ScrollReveal>
         <ProblemSection />

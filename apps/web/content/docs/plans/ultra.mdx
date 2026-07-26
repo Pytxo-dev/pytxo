@@ -28,7 +28,7 @@ inference_proxy_url = "https://proxy.pytxo.com"
 
 ## What stays local-first
 
-- Orchestration, worktrees, SQLite WAL, and MCP still run on your machine unless you explicitly enable cloud execution
+- Orchestration, worktrees, local event store, and MCP still run on your machine unless you explicitly enable cloud execution
 - Secrets should not be committed; examples use env vars only
 - Doctor checks billing connectivity only when Ultra is enabled
 
@@ -38,7 +38,7 @@ inference_proxy_url = "https://proxy.pytxo.com"
 |----------|---------|
 | `PYTXO_ULTRA_SESSION` | Bearer token for Link reconcile |
 
-See [`pytxo.toml` billing](/docs/reference/pytxo-toml) for keys and local seed balances used in development.
+See [`pytxo.toml` billing](/docs/reference/pytxo-toml) for billing keys and related options.
 
 ## Pricing UI
 

@@ -1,4 +1,4 @@
 {
   "title": "Developers",
-  "pages": ["architecture", "repo-layout", "contributing"]
+  "pages": ["architecture", "repo-layout", "contributing", "testing-agent-clis"]
 }

@@ -95,6 +95,7 @@ export function removeWorkspaceRecent(domainId: string): WorkspaceRecent[] {
 export type SettingsSectionId =
   | "general"
   | "appearance"
+  | "providers"
   | "workspaces"
   | "agents"
   | "voice"
@@ -108,6 +109,7 @@ export function loadSettingsSection(): SettingsSectionId {
   if (
     raw === "general" ||
     raw === "appearance" ||
+    raw === "providers" ||
     raw === "workspaces" ||
     raw === "agents" ||
     raw === "voice" ||

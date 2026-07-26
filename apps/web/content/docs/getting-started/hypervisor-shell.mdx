@@ -16,7 +16,7 @@ Your agent CLI (Antigravity, Claude Code, Codex, and so on) still does the think
 3. /dry-run --agents 3           -> preview wave plan (conflicts, task graph)
 4. /run --cmd "agy --help"       -> dispatch your CLI in isolated copies
 5. /status                       -> poll run + agent rows on the board
-6. /logs agent-0                 -> tail WAL events
+6. /logs agent-0                 -> tail event log
 7. /stop                         -> halt the active run
 ```
 
@@ -73,11 +73,11 @@ When enabled, a mission line is decomposed into tasks, validated, previewed in s
 | Key | Action |
 |-----|--------|
 | Enter | Submit prompt |
-| â†‘ / â†“ (empty prompt) | Command history |
-| â†‘ / â†“ (while typing) | Select run on the board |
-| Ctrl+â†‘ / Ctrl+â†“ | Scroll scrollback (auto-follows new output when at bottom) |
+| Up / Down (empty prompt) | Command history |
+| Up / Down (while typing) | Select run on the board |
+| Ctrl+Up / Ctrl+Down | Scroll scrollback (auto-follows new output when at bottom) |
 | Tab | Cycle approval selection |
 | a / x | Approve / deny approval (empty prompt) |
 | q / Ctrl+C | Quit (Ctrl+C also sends `/stop`) |
 
-See also: [CLI reference](/docs/reference/cli) Â· [Galaxy approvals](/docs/concepts/galaxy-approvals)
+See also: [CLI reference](/docs/reference/cli) · [Galaxy approvals](/docs/concepts/galaxy-approvals)
