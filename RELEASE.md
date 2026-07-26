@@ -7,6 +7,14 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
+# Pytxo v0.10.0
+
+Windows auth deep-link fix, Flow as a dedicated Tauri window, Ops habit loops, expanded compare docs. See [`distribution/release-notes/v0.10.0.md`](distribution/release-notes/v0.10.0.md).
+
+Previous: [`v0.9.0`](distribution/release-notes/v0.9.0.md).
+
+---
+
 # Pytxo v0.9.0
 
 Desktop themes, broader BYOK providers, Providers settings panel. See [`distribution/release-notes/v0.9.0.md`](distribution/release-notes/v0.9.0.md).

@@ -7,14 +7,16 @@ The **GitHub Copilot app** is an agent-native desktop control center: parallel s
 
 It is a close category peer for supervision. Pytxo still differs on **cross-vendor local hypervisor** scope.
 
+Be honest: Copilot ships worktree-per-session as product. Pytxo did not invent that. The claim is mixed-CLI orchestration plus Race and Signal on your machine.
+
 ## Comparison
 
 | Dimension | GitHub Copilot app | Pytxo |
 |-----------|-------------------|--------|
-| Scope | Copilot / GitHub-native agents | Heterogeneous headless CLIs via MCP |
-| Isolation | Dedicated git worktree per session | Blast Shield worktree or copy-layer; Race Shield when paths contend |
-| Sandbox | Local restrict + cloud Linux | Approve-to-flush Blast + permission profiles |
-| UI | My Work, canvases, Agent Merge | Desktop structural Focus / Ops / Approvals |
+| Scope | Copilot / GitHub-native agents | Heterogeneous headless CLIs |
+| Isolation | Dedicated git worktree per session | Blast Shield + Race when paths contend |
+| Sandbox | Local restrict + cloud Linux | Approve-to-flush + permission profiles |
+| UI | My Work, canvases, Agent Merge | Structural Ops / Focus / Approvals |
 | Billing | Copilot seat; cloud sandbox metered | Local-first BYOK; Ultra optional |
 
 ## When Copilot app is enough
@@ -26,13 +28,8 @@ It is a close category peer for supervision. Pytxo still differs on **cross-vend
 ## When Pytxo adds value
 
 - Mixed CLIs under one scheduler (not Copilot-only)
-- Race claims across agents that share less isolation than one worktree each
-- Signal Core structural context
+- Race claims across agents that share thinner isolation than one worktree each
+- Structural context (Signal Core) and Galaxy approvals
 - Your own machine + BYOK without Copilot cloud metering
-- Secret redaction in logs/MCP (Sovereign Shield) and Galaxy approvals
 
-## Where they overlap
-
-Pytxo did not invent worktree isolation for agents. Copilot ships that. The claim is heterogeneous-CLI orchestration plus Race and Signal.
-
-See also: [vs Claude Agent Teams](/docs/compare/claude-agent-teams).
+See also: [vs Claude Agent Teams](/docs/compare/claude-agent-teams) · [vs ADE workspaces](/docs/compare/ade-virtual-workspaces).

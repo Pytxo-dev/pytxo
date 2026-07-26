@@ -1,17 +1,39 @@
 ---
 title: Compare
-description: How Pytxo differs from Claude Agent Teams and the GitHub Copilot app.
+description: When to pick Pytxo versus Claude teams, Copilot app, Cursor Cloud, ADE workrooms, Warp Oz, and managed remote agents.
 ---
 
-Pytxo is a **local agent hypervisor** for mixed headless CLIs. Vendor-native team UIs solve a related problem inside one ecosystem. Use these pages when you are choosing a coordination layer.
+Pytxo is a **local agent hypervisor**. It runs the coding agents you already pay for — Claude Code, Codex, Cursor CLI, and friends — under one scheduler with path collision policy, approve-to-flush sandboxes, and structural telemetry. It is not another terminal wall and not a single-vendor team UI.
+
+Use these pages when you are choosing a coordination layer.
 
 | Guide | Compare against |
 |-------|-----------------|
 | [Claude Agent Teams](/docs/compare/claude-agent-teams) | Multi-Claude sessions with shared tasks |
-| [GitHub Copilot app](/docs/compare/github-copilot-app) | Copilot-native desktop supervision + worktrees |
+| [GitHub Copilot app](/docs/compare/github-copilot-app) | Copilot-native desktop + worktrees |
+| [Cursor Cloud Agents](/docs/compare/cursor-cloud-agents) | Cursor-metered background cloud agents |
+| [ADE / BridgeSpace-style](/docs/compare/ade-virtual-workspaces) | Multi-pane terminal cinema |
+| [Warp Oz](/docs/compare/warp-oz) | Cloud fleet control plane |
+| [Devin / Amp](/docs/compare/devin-amp) | Managed remote engineer vs coordinate what you run |
 
-## Short version
+## When to pick Pytxo
 
-- Pick Claude teams when you stay Claude-only and accept experimental limits.
-- Pick Copilot app when you already live in GitHub + Copilot seats.
-- Pick Pytxo when you need mixed CLIs, Race Shield path claims, Signal Core scaffolding, and BYOK on your machine under one scheduler.
+| You want… | Pick |
+|-----------|------|
+| Mixed CLIs on your machine, BYOK, collision policy | **Pytxo** |
+| Claude-only teammates and accept experimental limits | Claude Agent Teams |
+| GitHub + Copilot seats with worktree-per-session | Copilot app |
+| Agents that keep going when the laptop is closed inside Cursor’s bill | Cursor Cloud Agents |
+| A visual room of agent terminals | ADE / BridgeSpace-style |
+| Fleet ops for cloud agents | Warp Oz |
+| A managed remote “AI engineer” seat | Devin / Amp |
+
+## Short frame
+
+- **Runs the agents you already pay for.**
+- **Local agent hypervisor** — silicon and keys stay yours.
+- **Collisions are a systems problem** — Race Shield path claims.
+- **Approve to flush** — Blast Shield until you say so.
+- **Structural telemetry, not terminal walls.**
+
+Forbidden claims elsewhere on this site: “only multi-agent,” invented worktrees, fake 10×, ADE hero theater.

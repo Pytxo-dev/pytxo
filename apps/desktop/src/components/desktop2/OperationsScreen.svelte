@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { IconAlertTriangle, IconArrowUpRight, IconCircleCheck, IconClockHour4, IconLayersIntersect, IconShieldCheck } from "@tabler/icons-svelte";
+  import { IconAlertTriangle, IconArrowUpRight, IconCircleCheck, IconClockHour4, IconLayersIntersect, IconLock, IconShieldCheck } from "@tabler/icons-svelte";
   import type { DesktopSnapshot } from "../../lib/desktop-backend";
 
   let {
@@ -18,7 +18,15 @@
     onReviewRun: (runId: string) => void;
   } = $props();
 
-  const activeRuns = $derived(snapshot.runs.filter((run) => ["running", "pending", "dispatching"].includes(run.status)).length);
+  const activeRuns = $derived(
+    snapshot.runs.filter((run) =>
+      ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
+    ).length,
+  );
+  const needsYou = $derived(snapshot.approvals.length);
+  const spendUsd = $derived(
+    snapshot.runs.reduce((sum, run) => sum + (run.estimated_cost_usd ?? 0), 0),
+  );
   const healthyAgents = $derived(snapshot.agents.filter((agent) => agent.status !== "failed").length);
   const failedAgents = $derived(snapshot.agents.length - healthyAgents);
   const activeRunList = $derived(
@@ -28,6 +36,20 @@
   );
   const isolatedRuns = $derived(snapshot.runs.filter((run) => run.isolation_mode && run.isolation_mode !== "none").length);
   const isolationPct = $derived(snapshot.runs.length ? Math.round((isolatedRuns / snapshot.runs.length) * 100) : null);
+
+  const contendedAgents = $derived(
+    snapshot.agents.filter((agent) => {
+      const status = agent.status.toLowerCase();
+      return (
+        status.includes("block") ||
+        status.includes("wait") ||
+        status.includes("hold") ||
+        status.includes("claim") ||
+        status === "queued"
+      );
+    }),
+  );
+  const raceVisible = $derived(contendedAgents.length > 0 || snapshot.agents.length > 1);
 
   type TimelineEntry = { key: string; ts: number; kind: "run" | "approval"; label: string; detail: string; tone: "teal" | "gold" };
 
@@ -69,9 +91,9 @@
 <section class="screen operations">
   <header class="screen-heading">
     <div>
-      <p class="eyebrow">Live supervision{#if activeDomainLabel} · {activeDomainLabel}{/if}</p>
-      <h1>Operations</h1>
-      <p>One calm view of active work, risk, and system health.</p>
+      <p class="eyebrow">Live{#if activeDomainLabel} · {activeDomainLabel}{/if}</p>
+      <h1>Ops</h1>
+      <p>Running work, what needs you, and spend — in about ten seconds.</p>
     </div>
     <button class="primary" onclick={() => onRoute("flow")}>New Flow <IconArrowUpRight size={16} /></button>
   </header>
@@ -85,19 +107,39 @@
       </div>
     </div>
   {:else}
-    <div class="metrics" aria-label="Operations summary">
-      <article><span>Active runs</span><strong>{activeRuns}</strong><small>Across {snapshot.domains.length} execution domain{snapshot.domains.length === 1 ? "" : "s"}</small></article>
+    <div class="ops-truth" aria-label="Ops truth strip">
+      <article>
+        <button type="button" onclick={() => onRoute("runs")}>
+          <span>Running</span>
+          <strong>{activeRuns}</strong>
+          <small>{snapshot.domains.length} workspace{snapshot.domains.length === 1 ? "" : "s"}</small>
+        </button>
+      </article>
+      <article class:needs-you={needsYou > 0}>
+        <button type="button" onclick={() => onRoute("approvals")}>
+          <span>Needs you</span>
+          <strong>{needsYou}</strong>
+          <small>{needsYou ? "Open approvals" : "Inbox clear"}</small>
+        </button>
+      </article>
+      <article>
+        <span>Cost</span>
+        <strong>${spendUsd.toFixed(2)}</strong>
+        <small>Estimated across listed runs</small>
+      </article>
+    </div>
+
+    <div class="metrics" aria-label="Ops detail">
       <article>
         <span>Agent health</span><strong>{healthyAgents}/{snapshot.agents.length}</strong>
         {#if snapshot.agents.length === 0}
-          <small>No agents dispatched yet</small>
+          <small>No agents yet</small>
         {:else if failedAgents > 0}
           <small class="risk-text"><IconAlertTriangle size={14} /> {failedAgents} failed</small>
         {:else}
           <small class="good"><IconCircleCheck size={14} /> All responsive</small>
         {/if}
       </article>
-      <article><span>Approvals</span><strong>{snapshot.approvals.length}</strong><small>{snapshot.approvals.length ? "Operator review required" : "Inbox clear"}</small></article>
       <article>
         <span>Isolation</span><strong>{isolationPct === null ? "—" : `${isolationPct}%`}</strong>
         {#if isolationPct === null}
@@ -106,11 +148,15 @@
           <small class="good"><IconShieldCheck size={14} /> Blast Shield coverage</small>
         {/if}
       </article>
+      <article>
+        <span>Race</span><strong>{contendedAgents.length}</strong>
+        <small>{contendedAgents.length ? "Path contention" : raceVisible ? "Agents active" : "No locks"}</small>
+      </article>
     </div>
 
     <div class="workspace-grid">
       <article class="panel run-panel">
-        <div class="panel-head"><div><p class="eyebrow">Execution yard</p><h2>Active runs</h2></div><button class="quiet" onclick={() => onRoute("runs")}>View all</button></div>
+        <div class="panel-head"><div><p class="eyebrow">Yard</p><h2>Active runs</h2></div><button class="quiet" onclick={() => onRoute("runs")}>View all</button></div>
         <div class="run-list">
           {#if activeRunList.length}
             {#each activeRunList as run (run.id)}
@@ -122,13 +168,13 @@
               </button>
             {/each}
           {:else}
-            <div class="empty"><IconClockHour4 size={24} /><strong>No active runs</strong><span>Dispatch a Flow to see it here.</span></div>
+            <div class="empty"><IconClockHour4 size={24} /><strong>No active runs</strong><span>Start a Flow to see it here.</span></div>
           {/if}
         </div>
       </article>
 
       <article class="panel approval-panel chroma-edge">
-        <div class="panel-head"><div><p class="eyebrow">Decision queue</p><h2>Needs attention</h2></div><button class="quiet" onclick={() => onRoute("approvals")}>Open inbox</button></div>
+        <div class="panel-head"><div><p class="eyebrow">Beat</p><h2>Needs attention</h2></div><button class="quiet" onclick={() => onRoute("approvals")}>Open inbox</button></div>
         {#if snapshot.approvals.length}
           {#each snapshot.approvals as approval}
             <button class="decision-card" onclick={() => onRoute("approvals")}>
@@ -139,10 +185,35 @@
             </button>
           {/each}
         {:else}
-          <div class="empty"><IconCircleCheck size={26} /><strong>Nothing needs review</strong><span>New approval requests will appear here.</span></div>
+          <div class="empty"><IconCircleCheck size={26} /><strong>Nothing needs review</strong><span>Approvals appear here when agents wait on you.</span></div>
         {/if}
       </article>
     </div>
+
+    {#if raceVisible}
+      <article class="panel race-panel">
+        <div class="panel-head">
+          <div><p class="eyebrow">Race Shield</p><h2>Path locks</h2></div>
+          <span>{contendedAgents.length || snapshot.agents.length}</span>
+        </div>
+        {#if contendedAgents.length}
+          {#each contendedAgents as agent}
+            <div class="race-row">
+              <IconLock size={15} />
+              <span class="run-copy"><strong>{agent.id}</strong><small>{agent.status} · wave {agent.wave} · {agent.task_id}</small></span>
+            </div>
+          {/each}
+        {:else}
+          {#each snapshot.agents.slice(0, 6) as agent}
+            <div class="race-row">
+              <IconLock size={15} />
+              <span class="run-copy"><strong>{agent.id}</strong><small>{agent.status} · wave {agent.wave}</small></span>
+            </div>
+          {/each}
+          <p class="fleet-hint">Locks surface when agents contend for the same paths.</p>
+        {/if}
+      </article>
+    {/if}
 
     {#if snapshot.fleets.length}
       <article class="panel fleet-panel">
@@ -162,7 +233,7 @@
 
     <article class="panel activity-panel">
       <div class="panel-head">
-        <div><p class="eyebrow">Structured events</p><h2>Recent activity</h2></div>
+        <div><p class="eyebrow">Events</p><h2>Recent activity</h2></div>
         {#if live}<span class="live" title={lastPollAt ? `Updated ${relativeTime(lastPollAt)}` : "Polling"}>Live</span>{:else if timeline.length}<span class="live muted">Paused</span>{/if}
       </div>
       {#if timeline.length}
@@ -172,7 +243,7 @@
           {/each}
         </div>
       {:else}
-        <div class="empty"><IconClockHour4 size={24} /><strong>No activity yet</strong><span>Runs and approvals will show up here as they happen.</span></div>
+        <div class="empty"><IconClockHour4 size={24} /><strong>No activity yet</strong><span>Runs and approvals show up here as they happen.</span></div>
       {/if}
     </article>
   {/if}

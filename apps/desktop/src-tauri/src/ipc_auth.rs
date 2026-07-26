@@ -69,43 +69,50 @@ pub fn hydrate_session_env() {
     }
 }
 
-/// Handle `pytxo-deck://auth?token=...` deep-link callbacks from the account page.
+/// True when argv/URL looks like a Pytxo deep link we should handle.
+pub fn looks_like_deep_link(arg: &str) -> bool {
+    let lower = arg.to_ascii_lowercase();
+    lower.starts_with("pytxo-deck:")
+        || lower.starts_with("pytxo:")
+        || lower.contains("://auth")
+}
+
+/// Handle `pytxo-deck://auth?token=...` (and `pytxo://auth?token=...`) from the account page,
+/// plus `pytxo://…` navigation deep links.
 pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
-    if url.starts_with("pytxo:") && !url.starts_with("pytxo-deck:") {
-        app.emit("pytxo-deep-link", url).map_err(map_io_err)?;
-        focus_main_window(app);
+    eprintln!("deck deep link: received {url}");
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
         return Ok(());
     }
-    if !url.starts_with("pytxo-deck:") {
-        return Ok(());
-    }
-    let query = url.split('?').nth(1).unwrap_or("");
-    for pair in query.split('&') {
-        if let Some(token) = pair.strip_prefix("token=") {
-            if !token.is_empty() {
-                let decoded = percent_decode(token);
-                match store_session_token(&decoded) {
-                    Ok(()) => {
-                        pytxo_orchestrate::invalidate_entitlements_cache();
-                        let _ = app.emit(AUTH_CHANGED_EVENT, ());
-                        focus_main_window(app);
-                        return Ok(());
-                    }
-                    Err(e) => {
-                        let message = format!("Could not store desktop session: {}", e.message);
-                        let _ = app.emit(
-                            AUTH_ERROR_EVENT,
-                            AuthErrorPayload {
-                                message: message.clone(),
-                            },
-                        );
-                        return Err(e);
-                    }
-                }
+
+    if let Some(token) = extract_auth_token(trimmed) {
+        eprintln!("deck deep link: auth token present (len={})", token.len());
+        match store_session_token(&token) {
+            Ok(()) => {
+                eprintln!("deck deep link: session stored");
+                pytxo_orchestrate::invalidate_entitlements_cache();
+                let _ = app.emit(AUTH_CHANGED_EVENT, ());
+                focus_main_window(app);
+                return Ok(());
+            }
+            Err(e) => {
+                eprintln!("deck deep link: store failed: {}", e.message);
+                let message = format!("Could not store desktop session: {}", e.message);
+                let _ = app.emit(
+                    AUTH_ERROR_EVENT,
+                    AuthErrorPayload {
+                        message: message.clone(),
+                    },
+                );
+                focus_main_window(app);
+                return Err(e);
             }
         }
     }
-    if url.starts_with("pytxo-deck://auth") {
+
+    if is_auth_callback_without_token(trimmed) {
+        eprintln!("deck deep link: auth URL missing token");
         let _ = app.emit(
             AUTH_ERROR_EVENT,
             AuthErrorPayload {
@@ -115,6 +122,17 @@ pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
         focus_main_window(app);
         return Ok(());
     }
+
+    // Navigation deep links (pytxo://flow, pytxo-deck://settings, …).
+    if trimmed.to_ascii_lowercase().starts_with("pytxo") {
+        app.emit("pytxo-deep-link", trimmed).map_err(map_io_err)?;
+        // Flow deep links may focus the Flow window when present.
+        if trimmed.to_ascii_lowercase().contains("flow") {
+            crate::flow_window::focus_or_open_flow(app);
+        } else {
+            focus_main_window(app);
+        }
+    }
     Ok(())
 }
 
@@ -122,12 +140,50 @@ pub fn focus_main_window(app: &AppHandle) {
     crate::tray::show_main_window(app);
 }
 
+fn is_auth_callback_without_token(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    (lower.starts_with("pytxo-deck://auth") || lower.starts_with("pytxo://auth"))
+        && extract_auth_token(url).is_none()
+}
+
+/// Pull `token=` from a deep-link URL (query string or after `auth?`).
+pub fn extract_auth_token(url: &str) -> Option<String> {
+    let lower = url.to_ascii_lowercase();
+    let is_auth = lower.contains("://auth")
+        || lower.starts_with("pytxo-deck://auth")
+        || lower.starts_with("pytxo://auth");
+    if !is_auth {
+        // Still allow token= anywhere for malformed but usable callbacks.
+        if !lower.contains("token=") {
+            return None;
+        }
+    }
+
+    let query = url
+        .split_once('?')
+        .map(|(_, q)| q)
+        .unwrap_or(url);
+    for pair in query.split('&') {
+        let pair = pair.split('#').next().unwrap_or(pair);
+        if let Some(raw) = pair.strip_prefix("token=") {
+            if raw.is_empty() {
+                continue;
+            }
+            let decoded = percent_decode(raw);
+            if !decoded.is_empty() {
+                return Some(decoded);
+            }
+        }
+    }
+    None
+}
+
 fn read_session() -> Result<String, ()> {
     let entry = Entry::new(SERVICE, ACCOUNT).map_err(|_| ())?;
     entry.get_password().map_err(|_| ())
 }
 
-fn percent_decode(input: &str) -> String {
+pub fn percent_decode(input: &str) -> String {
     let bytes = input.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
@@ -159,7 +215,7 @@ fn from_hex(b: u8) -> Option<u8> {
 }
 
 /// Accept Clerk-shaped JWTs only: three segments + JSON payload with unexpired `exp`.
-fn validate_session_jwt(token: &str) -> IpcResult<()> {
+pub fn validate_session_jwt(token: &str) -> IpcResult<()> {
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 3 || parts.iter().any(|p| p.is_empty()) {
         return Err(PytxoIpcError::new(
@@ -212,4 +268,85 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, ()> {
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_jwt(exp: u64) -> String {
+        let header = base64url(br#"{"alg":"none"}"#);
+        let payload = base64url(format!(r#"{{"exp":{exp}}}"#).as_bytes());
+        format!("{header}.{payload}.sig")
+    }
+
+    fn base64url(bytes: &[u8]) -> String {
+        const TABLE: &[u8] =
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut out = String::new();
+        let mut i = 0;
+        while i < bytes.len() {
+            let b0 = bytes[i] as u32;
+            let b1 = if i + 1 < bytes.len() {
+                bytes[i + 1] as u32
+            } else {
+                0
+            };
+            let b2 = if i + 2 < bytes.len() {
+                bytes[i + 2] as u32
+            } else {
+                0
+            };
+            let triple = (b0 << 16) | (b1 << 8) | b2;
+            out.push(TABLE[((triple >> 18) & 63) as usize] as char);
+            out.push(TABLE[((triple >> 12) & 63) as usize] as char);
+            if i + 1 < bytes.len() {
+                out.push(TABLE[((triple >> 6) & 63) as usize] as char);
+            }
+            if i + 2 < bytes.len() {
+                out.push(TABLE[(triple & 63) as usize] as char);
+            }
+            i += 3;
+        }
+        out.replace('+', "-").replace('/', "_")
+    }
+
+    #[test]
+    fn extract_token_from_pytxo_deck() {
+        let t = extract_auth_token("pytxo-deck://auth?token=abc.def.ghi").unwrap();
+        assert_eq!(t, "abc.def.ghi");
+    }
+
+    #[test]
+    fn extract_token_from_pytxo_scheme() {
+        let t = extract_auth_token("pytxo://auth?token=abc.def.ghi").unwrap();
+        assert_eq!(t, "abc.def.ghi");
+    }
+
+    #[test]
+    fn extract_token_percent_decoded() {
+        let t = extract_auth_token("pytxo-deck://auth?token=a%2Eb.c").unwrap();
+        assert_eq!(t, "a.b.c");
+    }
+
+    #[test]
+    fn validate_jwt_accepts_future_exp() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert!(validate_session_jwt(&make_jwt(now + 3600)).is_ok());
+    }
+
+    #[test]
+    fn validate_jwt_rejects_expired() {
+        assert!(validate_session_jwt(&make_jwt(1)).is_err());
+    }
+
+    #[test]
+    fn looks_like_deep_link_detects_schemes() {
+        assert!(looks_like_deep_link("pytxo-deck://auth?token=x"));
+        assert!(looks_like_deep_link("pytxo://flow"));
+        assert!(!looks_like_deep_link("--flag"));
+    }
 }

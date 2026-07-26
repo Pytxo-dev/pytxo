@@ -90,6 +90,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[desktop-ui-improvement-backlog]] — prioritized Pytxo Desktop UI findings
 - [[pytxo-improvement-research]] — deep maturity synthesis + market landscape + ranked P0–P3 (Phases 73–74 done; 75 next)
 - [[market-ready-polish-research]] — Phase 74 Desktop supervision + marketing polish
+- [[competitive-landscape-2026-07]] — primary-source competitor map + GTM compare priorities (2026-07)
 
 ### ADRs
 
@@ -103,6 +104,9 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[pytxo-vs-claude-agent-teams]]
 - [[pytxo-vs-github-copilot-app]]
 - [[pytxo-vs-ade-virtual-workspace]]
+- [[pytxo-vs-cursor-cloud-agents]]
+- [[pytxo-vs-warp-oz]]
+- [[pytxo-vs-devin-amp]]
 - [[cost-and-swarm-limits]]
 - [[multi-agent-orchestration-landscape]]
 

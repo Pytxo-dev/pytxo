@@ -93,15 +93,15 @@
   );
 
   const primary = [
-    { route: "operations" as const, label: "Operations", icon: IconActivity },
-    { route: "workspaces" as const, label: "Workspaces", icon: IconFolders },
+    { route: "operations" as const, label: "Ops", icon: IconActivity },
+    { route: "workspaces" as const, label: "Spaces", icon: IconFolders },
     { route: "runs" as const, label: "Runs", icon: IconPlayerPlay },
     { route: "flow" as const, label: "Flow", icon: IconSparkles },
     { route: "approvals" as const, label: "Approvals", icon: IconChecks },
   ];
   const system = [
-    { route: "integrations" as const, label: "Integrations", icon: IconPlugConnected },
     { route: "settings" as const, label: "Settings", icon: IconSettings },
+    { route: "integrations" as const, label: "Integrations", icon: IconPlugConnected },
   ];
   const commandItems = [...primary, ...system];
 
@@ -155,7 +155,21 @@
     }
   }
 
+  async function openFlowWindow() {
+    try {
+      await ipc.openFlowWindow();
+    } catch {
+      /* Preview / browser: keep Flow inside the main shell. */
+      route = "flow";
+      persistRoute("flow");
+    }
+  }
+
   function navigate(next: AppRoute, section?: SettingsSectionId) {
+    if (next === "flow" && !routeOverride) {
+      void openFlowWindow();
+      return;
+    }
     route = next;
     persistRoute(next);
     if (next === "settings" && section) settingsSection = section;
@@ -315,6 +329,10 @@
     let deepLinkUnlisten: (() => void) | null = null;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     route = routeOverride ?? initialRoute();
+    if (!routeOverride && route === "flow") {
+      route = "operations";
+      void openFlowWindow();
+    }
     const onHashChange = () => {
       if (!routeOverride) route = initialRoute();
     };
@@ -469,7 +487,12 @@
           onReviewRun={(runId) => onFocusRun(runId, "run-review")}
         />
       {:else if route === "flow"}
-        <FlowScreen {backend} domains={snapshot.domains} preferredDomainId={activeDomainId} />
+        <FlowScreen
+          {backend}
+          domains={snapshot.domains}
+          preferredDomainId={activeDomainId}
+          onAddWorkspace={addWorkspace}
+        />
       {:else if route === "topology-focus" || route === "run-review"}
         <FocusScreen mode={route} run={focusedRun} domainId={focusDomainId} onBack={() => navigate("runs")} {onRunCompleted} />
       {:else if route === "settings"}

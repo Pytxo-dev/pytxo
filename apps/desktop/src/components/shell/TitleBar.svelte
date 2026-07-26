@@ -3,6 +3,12 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { IconCopy, IconWindowMaximize, IconWindowMinimize, IconX } from "@tabler/icons-svelte";
 
+  let {
+    title = "Pytxo Desktop",
+  }: {
+    title?: string;
+  } = $props();
+
   let isMaximized = $state(false);
 
   function currentWindow() {
@@ -52,7 +58,7 @@
 <header class="titlebar" data-tauri-drag-region>
   <div class="titlebar__brand" data-tauri-drag-region>
     <img src="/logo-mark.png" alt="" width="16" height="16" class="titlebar__logo" />
-    <span class="titlebar__name">Pytxo Desktop</span>
+    <span class="titlebar__name">{title}</span>
   </div>
   <div class="titlebar__controls">
     <button type="button" class="titlebar__btn" onclick={minimize} aria-label="Minimize">
