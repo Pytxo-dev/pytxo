@@ -148,7 +148,7 @@
       <button class="back" onclick={onBack}><IconArrowLeft size={15} /> Runs</button>
       <p class="eyebrow">{run ? run.id : domainId ? (domainId.split(/[\\/]/).pop() ?? domainId) : "No selection"}</p>
       <h1>{mode === "topology-focus" ? "Topology Focus" : "Run Review"}</h1>
-      <p>{mode === "topology-focus" ? "Structural relationships derived from the real Signal Core graph." : "Validate the result before completion and Blast Shield flush."}</p>
+      <p>{mode === "topology-focus" ? "Structural relationships from the workspace graph." : "Validate the result before completion and sandbox flush."}</p>
     </div>
     {#if mode === "run-review" && run}
       <button class="primary" disabled={completing || agentsLoading || !agents.length} onclick={completeRun}>
@@ -159,12 +159,12 @@
 
   {#if run}
     <aside class="arbitrage-bar" aria-live="polite">
-      <p class="eyebrow">Signal arbitrage</p>
+      <p class="eyebrow">Structure savings</p>
       {#if arbitrageLoading}
         <strong><IconLoader2 size={14} class="spin" /> Loading savings…</strong>
       {:else if arbitrageTotals.agents === 0}
-        <strong>No arbitrage samples yet</strong>
-        <span>Scaffold savings appear after agents read through Signal Core.</span>
+        <strong>No savings samples yet</strong>
+        <span>Scaffold savings appear after agents read structured context.</span>
       {:else}
         <strong>{arbitrageTotals.saved.toLocaleString()} tokens saved</strong>
         <span>{arbitrageTotals.agents} agent{arbitrageTotals.agents === 1 ? "" : "s"} · {arbitrageTotals.edited} edited path{arbitrageTotals.edited === 1 ? "" : "s"}{#if arbitrageTotals.fallback} · {arbitrageTotals.fallback} fallback{/if}</span>
@@ -204,7 +204,6 @@
   {:else}
     <div class="review-grid">
       <article class="panel">
-        <p class="eyebrow">Completion checks</p>
         <h2>{run ? "Ready to review" : "No run selected"}</h2>
         {#if run}
           <div class="check-row" class:check-row--fail={!agentsLoading && !allExited}>
@@ -216,7 +215,7 @@
           <div class="check-row" class:check-row--fail={anyFailed}><IconCheck size={16} /> Run status: {run.status}</div>
           <div class="shield-note">
             <IconShieldCheck size={19} />
-            <p><strong>Blast Shield {run.isolation_mode === "copy_on_write" ? "intact" : "not isolated for this run"}</strong><small>Changes remain isolated until you approve completion.</small></p>
+            <p><strong>Sandbox {run.isolation_mode === "copy_on_write" ? "intact" : "not isolated for this run"}</strong><small>Changes stay isolated until you approve completion.</small></p>
           </div>
           {#if completeError}<p class="voice-state-message error">{completeError}</p>{/if}
         {:else}
@@ -224,7 +223,6 @@
         {/if}
       </article>
       <article class="panel">
-        <p class="eyebrow">Git diff</p>
         <h2>{diffLoading ? "Loading diff…" : diffText ? "Changes recorded" : "No file changes"}</h2>
         {#if diffLoading}
           <div class="empty"><IconLoader2 size={22} class="spin" /><strong>Loading diff…</strong></div>

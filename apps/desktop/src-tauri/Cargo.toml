@@ -39,6 +39,7 @@ pytxo-voice = { path = "../../../crates/pytxo-voice", features = ["native-captur
 keyring = "3"
 rfd = "0.15"
 ureq = "2.12"
+winreg = "0.52"
 tauri-plugin-mcp-bridge = { version = "0.11", optional = true }
 
 [features]

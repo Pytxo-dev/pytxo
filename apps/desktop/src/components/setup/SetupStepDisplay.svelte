@@ -13,8 +13,8 @@
 <div class="step">
   <h2 class="title">Set your display</h2>
   <p class="lead">
-    Pytxo Desktop defaults to a compact 90% scale so more fits on screen. Adjust now, or later from
-    Settings → Appearance.
+    Defaults to compact density at 100% scale. Drop to 90% if you want more on screen, or change later
+    in Settings → Appearance.
   </p>
 
   <div class="field">

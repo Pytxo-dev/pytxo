@@ -114,8 +114,11 @@
 
   function fingerprintSnapshot(snap: DesktopSnapshot): string {
     const domainIds = snap.domains.map((d) => d.domain_id).join(",");
-    const runSig = snap.runs.map((r) => `${r.id}:${r.status}`).join(",");
-    const agentSig = snap.agents.map((a) => a.id).join(",");
+    // Include status + estimated cost so Ops truth strip / spend refresh when either moves.
+    const runSig = snap.runs
+      .map((r) => `${r.id}:${r.status}:${r.estimated_cost_usd ?? 0}`)
+      .join(",");
+    const agentSig = snap.agents.map((a) => `${a.id}:${a.status}`).join(",");
     const approvalSig = snap.approvals.map((a) => a.id).join(",");
     const fleetSig = snap.fleets.map((f) => `${f.id}:${f.status}`).join(",");
     const err = snap.error?.message ?? "";
@@ -201,13 +204,24 @@
 
   async function refreshSnapshot(opts: { silent?: boolean } = {}) {
     try {
-      const includeAgents = route === "operations" || route === "topology-focus" || route === "run-review";
-      const next = await backend.loadSnapshot({ includeAgents });
+      const opsHeavy =
+        route === "operations" || route === "topology-focus" || route === "run-review";
+      const documentHidden =
+        typeof document !== "undefined" && document.visibilityState === "hidden";
+      const idleChrome = !windowFocused || documentHidden || route === "settings" || route === "integrations";
+      // Skip agent enumeration off Ops/Focus or when blurred; cheaper IPC on idle routes.
+      const includeAgents = opsHeavy && !idleChrome;
+      const next = await backend.loadSnapshot({
+        includeAgents,
+        runLimit: idleChrome && !opsHeavy ? 12 : 30,
+        fleetLimit: idleChrome && !opsHeavy ? 8 : 20,
+      });
       const nextFp = fingerprintSnapshot(next);
       if (nextFp !== snapshotFingerprint) {
         snapshot = next;
         snapshotFingerprint = nextFp;
         lastPollAt = Date.now();
+        void ipc.setTrayNeedsYou(next.approvals.length);
       }
       pollLive = !next.error;
       if (next.error && !opts.silent) {
@@ -387,7 +401,7 @@
     }
     if (previewState === "error") {
       loading = false;
-      loadMessage = "Pytxo could not reach the local hypervisor. Retry when the service is available.";
+      loadMessage = "Pytxo could not reach the local service. Retry when it is available.";
       return cleanup;
     }
     void (async () => {
@@ -464,6 +478,10 @@
       {activeDomainId}
       domains={snapshot.domains}
       live={pollLive}
+      runningCount={snapshot.runs.filter((r) =>
+        ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+      ).length}
+      spendUsd={snapshot.runs.reduce((sum, r) => sum + (r.estimated_cost_usd ?? 0), 0)}
       onOpenHistory={() => navigate("runs")}
       onOpenNotifications={() => navigate("approvals")}
       onSelectDomain={(id) => void selectDomain(id)}

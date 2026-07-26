@@ -165,6 +165,7 @@ pub fn run() {
             voice_get_session,
             tray::get_close_to_tray,
             tray::set_close_to_tray,
+            tray::set_tray_needs_you,
         ])
         .setup(|app| {
             #[cfg(desktop)]

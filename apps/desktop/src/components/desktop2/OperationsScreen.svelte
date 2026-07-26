@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { IconAlertTriangle, IconArrowUpRight, IconCircleCheck, IconClockHour4, IconLayersIntersect, IconLock, IconShieldCheck } from "@tabler/icons-svelte";
+  import { IconAlertTriangle, IconArrowUpRight, IconCircleCheck, IconClockHour4, IconLayersIntersect, IconLock } from "@tabler/icons-svelte";
   import type { DesktopSnapshot } from "../../lib/desktop-backend";
 
   let {
@@ -91,18 +91,17 @@
 <section class="screen operations">
   <header class="screen-heading">
     <div>
-      <p class="eyebrow">Live{#if activeDomainLabel} · {activeDomainLabel}{/if}</p>
-      <h1>Ops</h1>
-      <p>Running work, what needs you, and spend — in about ten seconds.</p>
+      <h1>Ops{#if activeDomainLabel} <span class="ops-domain">{activeDomainLabel}</span>{/if}</h1>
+      <p>Running work, what needs you, sandboxed share, and spend.</p>
     </div>
     <button class="primary" onclick={() => onRoute("flow")}>New Flow <IconArrowUpRight size={16} /></button>
   </header>
 
   {#if snapshot.error}
-    <div class="panel chroma-edge">
+    <div class="panel">
       <div class="empty">
         <IconAlertTriangle size={26} />
-        <strong>Hypervisor unreachable</strong>
+        <strong>Local service offline</strong>
         <span>{snapshot.error.message}</span>
       </div>
     </div>
@@ -123,13 +122,18 @@
         </button>
       </article>
       <article>
+        <span>Sandboxed</span>
+        <strong>{isolationPct === null ? "—" : `${isolationPct}%`}</strong>
+        <small>{isolationPct === null ? "No runs yet" : "Isolated runs"}</small>
+      </article>
+      <article>
         <span>Cost</span>
         <strong>${spendUsd.toFixed(2)}</strong>
         <small>Estimated across listed runs</small>
       </article>
     </div>
 
-    <div class="metrics" aria-label="Ops detail">
+    <div class="metrics metrics--two" aria-label="Ops detail">
       <article>
         <span>Agent health</span><strong>{healthyAgents}/{snapshot.agents.length}</strong>
         {#if snapshot.agents.length === 0}
@@ -141,22 +145,14 @@
         {/if}
       </article>
       <article>
-        <span>Isolation</span><strong>{isolationPct === null ? "—" : `${isolationPct}%`}</strong>
-        {#if isolationPct === null}
-          <small>No runs yet</small>
-        {:else}
-          <small class="good"><IconShieldCheck size={14} /> Blast Shield coverage</small>
-        {/if}
-      </article>
-      <article>
-        <span>Race</span><strong>{contendedAgents.length}</strong>
+        <span>Path locks</span><strong>{contendedAgents.length}</strong>
         <small>{contendedAgents.length ? "Path contention" : raceVisible ? "Agents active" : "No locks"}</small>
       </article>
     </div>
 
     <div class="workspace-grid">
       <article class="panel run-panel">
-        <div class="panel-head"><div><p class="eyebrow">Yard</p><h2>Active runs</h2></div><button class="quiet" onclick={() => onRoute("runs")}>View all</button></div>
+        <div class="panel-head"><div><h2>Active runs</h2></div><button class="quiet" onclick={() => onRoute("runs")}>View all</button></div>
         <div class="run-list">
           {#if activeRunList.length}
             {#each activeRunList as run (run.id)}
@@ -173,8 +169,8 @@
         </div>
       </article>
 
-      <article class="panel approval-panel chroma-edge">
-        <div class="panel-head"><div><p class="eyebrow">Beat</p><h2>Needs attention</h2></div><button class="quiet" onclick={() => onRoute("approvals")}>Open inbox</button></div>
+      <article class="panel approval-panel">
+        <div class="panel-head"><div><h2>Needs attention</h2></div><button class="quiet" onclick={() => onRoute("approvals")}>Open inbox</button></div>
         {#if snapshot.approvals.length}
           {#each snapshot.approvals as approval}
             <button class="decision-card" onclick={() => onRoute("approvals")}>
@@ -193,7 +189,7 @@
     {#if raceVisible}
       <article class="panel race-panel">
         <div class="panel-head">
-          <div><p class="eyebrow">Race Shield</p><h2>Path locks</h2></div>
+          <div><h2>Path locks</h2></div>
           <span>{contendedAgents.length || snapshot.agents.length}</span>
         </div>
         {#if contendedAgents.length}
@@ -217,7 +213,7 @@
 
     {#if snapshot.fleets.length}
       <article class="panel fleet-panel">
-        <div class="panel-head"><div><p class="eyebrow">Cross-repo</p><h2>Fleet runs</h2></div><span>{snapshot.fleets.length}</span></div>
+        <div class="panel-head"><div><h2>Fleet runs</h2></div><span>{snapshot.fleets.length}</span></div>
         <div class="fleet-list">
           {#each snapshot.fleets as fleet}
             <div class="fleet-row">
@@ -233,7 +229,7 @@
 
     <article class="panel activity-panel">
       <div class="panel-head">
-        <div><p class="eyebrow">Events</p><h2>Recent activity</h2></div>
+        <div><h2>Recent activity</h2></div>
         {#if live}<span class="live" title={lastPollAt ? `Updated ${relativeTime(lastPollAt)}` : "Polling"}>Live</span>{:else if timeline.length}<span class="live muted">Paused</span>{/if}
       </div>
       {#if timeline.length}

@@ -133,6 +133,21 @@ pub fn install_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 }
 
 #[tauri::command]
+pub fn set_tray_needs_you(app: AppHandle, count: u32) {
+    let Some(tray) = app.tray_by_id("pytxo-main-tray") else {
+        return;
+    };
+    let tip = if count == 0 {
+        "Pytxo Desktop".to_string()
+    } else if count == 1 {
+        "Pytxo Desktop — 1 needs you".to_string()
+    } else {
+        format!("Pytxo Desktop — {count} need you")
+    };
+    let _ = tray.set_tooltip(Some(&tip));
+}
+
+#[tauri::command]
 pub fn get_close_to_tray(prefs: tauri::State<'_, TrayPrefs>) -> bool {
     prefs.close_to_tray()
 }

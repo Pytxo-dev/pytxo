@@ -11,6 +11,8 @@
     activeDomainId = null,
     domains = [],
     live = false,
+    runningCount = 0,
+    spendUsd = 0,
     onOpenHistory,
     onOpenNotifications,
     onSelectDomain,
@@ -24,6 +26,8 @@
     activeDomainId?: string | null;
     domains?: CatalogEntryStatus[];
     live?: boolean;
+    runningCount?: number;
+    spendUsd?: number;
     onOpenHistory: () => void;
     onOpenNotifications: () => void;
     onSelectDomain: (domainId: string) => void;
@@ -34,6 +38,9 @@
   let open = $state(false);
 
   const available = $derived(domains.filter((d) => d.is_available && !d.is_temporary));
+  const connectionLabel = $derived(
+    !hypervisorOnline ? "Offline" : live ? "Live" : "Local",
+  );
 
   function close() {
     open = false;
@@ -96,15 +103,28 @@
     </div>
   </div>
   <div class="app-actions">
+    <div class="truth-glance" aria-label="Ops glance">
+      <button type="button" onclick={onOpenHistory} title="Running">
+        <span>Run</span><strong class="tabular">{runningCount}</strong>
+      </button>
+      <button type="button" class:needs={approvalsCount > 0} onclick={onOpenNotifications} title="Needs you">
+        <span>You</span><strong class="tabular">{approvalsCount}</strong>
+      </button>
+      <span class="cost" title="Estimated spend"><span>Cost</span><strong class="tabular">${spendUsd.toFixed(2)}</strong></span>
+    </div>
     <span class="connection" class:offline={!hypervisorOnline} class:live={live && hypervisorOnline}>
-      <i></i> {hypervisorOnline ? (live ? "Live" : "Local hypervisor") : "Hypervisor unreachable"}
+      <i></i> {connectionLabel}
     </span>
     <button aria-label="Run history" title="Run history" onclick={onOpenHistory}>
       <IconHistory size={17} />
     </button>
-    <button aria-label="Notifications" title="Approvals" onclick={onOpenNotifications}>
+    <button
+      aria-label={approvalsCount ? `Approvals, ${approvalsCount} open` : "Approvals"}
+      title="Approvals"
+      onclick={onOpenNotifications}
+    >
       <IconBell size={17} />
-      {#if approvalsCount}<i class="badge"></i>{/if}
+      {#if approvalsCount}<span class="badge-count">{approvalsCount > 99 ? "99+" : approvalsCount}</span>{/if}
     </button>
   </div>
 </div>
@@ -264,30 +284,81 @@
     align-items: center;
     gap: 6px;
   }
+  .truth-glance {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    margin-right: 6px;
+    padding: 2px;
+    border: 1px solid var(--pytxo-line, #252830);
+    border-radius: 6px;
+    background: color-mix(in oklab, var(--pytxo-surface-panel, #111319) 80%, transparent);
+  }
+  .truth-glance button,
+  .truth-glance .cost {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    min-width: 44px;
+    padding: 3px 8px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+  }
+  .truth-glance .cost {
+    cursor: default;
+  }
+  .truth-glance button:hover {
+    background: var(--pytxo-surface-hover, #161a20);
+  }
+  .truth-glance button.needs strong {
+    color: var(--pytxo-gold, #eeac47);
+  }
+  .truth-glance span {
+    color: var(--pytxo-text-muted, #5d6470);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .truth-glance strong {
+    color: var(--pytxo-text-body, #d7dbe0);
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.1;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-family: "Geist Mono", ui-monospace, monospace;
+  }
   .connection {
     display: flex;
     align-items: center;
     gap: 6px;
     margin-right: 8px;
     color: #717885;
-    font-size: 10px;
+    font-size: 11px;
   }
   .connection i {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #3ed7a1;
-    box-shadow: 0 0 0 3px rgba(62, 215, 161, 0.08);
+    background: var(--pytxo-accent, var(--pytxo-teal));
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 12%, transparent);
   }
   .connection.live i {
     background: var(--pytxo-accent, var(--pytxo-teal));
   }
   .connection.offline {
-    color: #d98994;
+    color: var(--pytxo-danger, #d98994);
   }
   .connection.offline i {
-    background: #df6576;
-    box-shadow: 0 0 0 3px rgba(223, 101, 118, 0.1);
+    background: var(--pytxo-danger, #df6576);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--pytxo-danger, #df6576) 14%, transparent);
   }
   .app-actions button {
     position: relative;
@@ -310,14 +381,19 @@
     outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
     outline-offset: 1px;
   }
-  .app-actions button .badge {
+  .app-actions button .badge-count {
     position: absolute;
-    right: 5px;
-    top: 5px;
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
+    right: 2px;
+    top: 2px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: 7px;
     background: var(--pytxo-gold, #eeac47);
+    color: #16120a;
+    font: 700 9px/14px "Geist Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
   }
   .mono {
     font-family: "Geist Mono", ui-monospace, monospace;

@@ -88,6 +88,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[tiers-hobbyist-pro-max]] · [[token-arbitrage]]
 - [[gtm-open-source-loop]] · [[competitive-benchmarks]]
 - [[desktop-ui-improvement-backlog]] — prioritized Pytxo Desktop UI findings
+- [[desktop-dangerous-ux-2026-07]] — ops-console / anti-slop Desktop UX research (0.11.0 polish)
 - [[pytxo-improvement-research]] — deep maturity synthesis + market landscape + ranked P0–P3 (Phases 73–74 done; 75 next)
 - [[market-ready-polish-research]] — Phase 74 Desktop supervision + marketing polish
 - [[competitive-landscape-2026-07]] — primary-source competitor map + GTM compare priorities (2026-07)

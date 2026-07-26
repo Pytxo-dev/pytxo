@@ -5,8 +5,13 @@
  * icons, and hit targets shrink/grow together instead of a CSS-only
  * approximation. Density toggles a data attribute that compact/comfortable
  * component styles read from, independent of scale. Default scale is 100%.
+ *
+ * OS DPI (125%/150% Windows) is handled by the webview itself — we do **not**
+ * multiply user scale by `scaleFactor` (that double-zooms). On boot and on
+ * monitor DPI changes we re-apply the user zoom so chrome stays crisp.
  */
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export type UiScale = 0.85 | 0.9 | 1 | 1.1;
 export type UiDensity = "compact" | "comfortable";
@@ -90,9 +95,28 @@ export function setReducedMotion(reducedMotion: boolean) {
   applyReducedMotion(reducedMotion);
 }
 
+let scaleUnlisten: (() => void) | null = null;
+
 /** Call once on app boot, after onboarding has chosen (or defaulted) a scale. */
 export function initUiPrefs() {
   applyDensity(uiPrefs.density);
   applyReducedMotion(uiPrefs.reducedMotion);
   void applyScale(uiPrefs.scale);
+
+  if (!isTauriRuntime()) return;
+  void (async () => {
+    try {
+      // Touch OS factor so we notice monitor DPI; zoom stays user-scale only.
+      await getCurrentWindow().scaleFactor();
+      if (scaleUnlisten) {
+        scaleUnlisten();
+        scaleUnlisten = null;
+      }
+      scaleUnlisten = await getCurrentWindow().onScaleChanged(() => {
+        void applyScale(uiPrefs.scale);
+      });
+    } catch {
+      /* Preview / missing window API */
+    }
+  })();
 }

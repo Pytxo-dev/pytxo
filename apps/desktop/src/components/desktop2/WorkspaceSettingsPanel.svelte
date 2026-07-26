@@ -5,7 +5,7 @@
 
   const PROFILES = [
     { id: "deep_space", label: "DeepSpace", hint: "Air-gapped cwd reads only" },
-    { id: "orbit", label: "Orbit", hint: "Default; Blast Shield approve-to-flush" },
+    { id: "orbit", label: "Orbit", hint: "Default; approve-to-flush sandbox" },
     { id: "galaxy", label: "Galaxy", hint: "Host tools; high-risk actions need HITL" },
     { id: "supernova", label: "Supernova", hint: "Full host user privileges" },
   ] as const;

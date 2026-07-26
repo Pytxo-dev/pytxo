@@ -234,7 +234,6 @@
 <section class="screen flow-screen">
   <header class="screen-heading">
     <div>
-      <p class="eyebrow">Mission</p>
       <h1>Flow</h1>
       <p>Write an outcome, review the plan, then run.</p>
     </div>
@@ -263,12 +262,11 @@
     <article class="panel composer-panel">
       <div class="panel-head">
         <div>
-          <p class="eyebrow">Step {Math.min(step, 2)}</p>
           <h2>What should happen?</h2>
         </div>
         <span class="source">Text or voice</span>
       </div>
-      <textarea bind:value={mission} aria-label="Flow mission" placeholder="Describe the outcome and any constraints…"></textarea>
+      <textarea bind:value={mission} aria-label="Flow outcome" placeholder="Describe the outcome and any constraints…"></textarea>
       <div class="flow-templates">
         <span>Ideas</span>
         <button type="button" onclick={() => useTemplate("Diagnose the failing checks, implement the smallest safe fix, and verify it")}>Fix a failure</button>
@@ -349,7 +347,6 @@
       <article class="panel plan-panel">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Step {plan ? 3 : 2}</p>
             <h2>{planning ? "Building plan…" : plan ? (plan.status === "ready" ? "Review plan" : "Plan blocked") : "Plan"}</h2>
           </div>
           {#if plan}<span class="ready">{plan.status === "ready" ? "Ready" : "Blocked"}</span>{/if}
@@ -386,7 +383,7 @@
         {:else}
           <div class="plan-empty">
             <strong>{error || "No plan yet"}</strong>
-            <p>Write a mission, then Build plan.</p>
+            <p>Write an outcome, then Build plan.</p>
             {#if mission.trim()}
               <button class="primary" onclick={buildPlan} disabled={planning}>Build plan</button>
             {/if}
@@ -398,7 +395,7 @@
   {#if history.length}
     <article class="panel flow-history">
       <div class="panel-head">
-        <div><p class="eyebrow">Saved locally</p><h2>Drafts</h2></div>
+        <div><h2>Drafts</h2></div>
         <span>{history.length}</span>
       </div>
       {#each history.slice(0, 6) as draft}
