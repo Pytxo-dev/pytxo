@@ -1,0 +1,34 @@
+---
+title: vs Cursor Cloud Agents
+description: Local mixed-CLI hypervisor compared with Cursor-metered background cloud agents.
+---
+
+**Cursor Cloud Agents** (background agents) run inside Cursor’s product and billing: async work that continues when your laptop is elsewhere, metered on Cursor plans ([cursor.com/pricing](https://cursor.com/pricing)).
+
+Pytxo is the opposite locus of control: a **local agent hypervisor** that schedules the CLIs you already run — including Cursor CLI — under Race / Blast / Signal on your silicon.
+
+## Comparison
+
+| Dimension | Cursor Cloud Agents | Pytxo |
+|-----------|---------------------|--------|
+| Where agents run | Cursor cloud / product | Your machine (PTY yard) |
+| What agents | Cursor’s agent stack | Mixed CLIs you already pay for |
+| Billing | Cursor plan + usage | BYOK. Your keys. Your silicon. |
+| Collision policy | Inside Cursor’s product | Race Shield path claims across tools |
+| UI | IDE + cloud agent chrome | Optional Desktop structural Ops / Focus |
+
+## When Cursor Cloud is enough
+
+- You live in Cursor and want laptop-closed async inside one bill
+- You do not need Claude Code / Codex / others under one policy
+- Cloud metering is acceptable
+
+## When Pytxo adds value
+
+- You run **more than Cursor’s agent** and need one collision / approval plane
+- You want local-first BYOK without Cursor cloud as the execution home
+- Structural telemetry (Focus graph) beats chat walls for seeing the system
+
+Pytxo does not replace Cursor as an editor. It coordinates agents — including Cursor CLI — outside a single vendor’s cloud yard.
+
+See also: [vs Claude Agent Teams](/docs/compare/claude-agent-teams) · [vs Devin / Amp](/docs/compare/devin-amp).

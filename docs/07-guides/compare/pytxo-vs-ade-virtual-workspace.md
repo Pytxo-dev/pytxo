@@ -6,13 +6,13 @@ tags: [compare, positioning]
 audience: [human]
 layer: guide
 created: 2026-07-07
-updated: 2026-07-23
-related: [[beyond-the-ade]], [[competitive-benchmarks]], [[product-vision]], [[multi-agent-orchestration-landscape]], [[pytxo-improvement-research]], [[pytxo-vs-github-copilot-app]]
+updated: 2026-07-26
+related: [[beyond-the-ade]], [[competitive-benchmarks]], [[product-vision]], [[multi-agent-orchestration-landscape]], [[pytxo-improvement-research]], [[pytxo-vs-github-copilot-app]], [[pytxo-vs-cursor-cloud-agents]], [[pytxo-vs-warp-oz]]
 ---
 
 # Pytxo vs ADE virtual workspaces
 
-Category comparison — not a feature matrix for any single vendor. BridgeSpace (BridgeMind), Emdash, and similar products represent the **IDE-embedded ADE / virtual workspace** archetype ([[beyond-the-ade]]). Warp Oz is adjacent as a **cloud control plane** for coding agents ([[multi-agent-orchestration-landscape]]). Vendor agent desktops (Copilot app) are a separate peer — [[pytxo-vs-github-copilot-app]]. Non-goals and maturity: [[pytxo-improvement-research]].
+Category comparison — not a feature matrix for any single vendor. BridgeSpace (BridgeMind), Emdash, and similar products represent the **IDE-embedded ADE / virtual workspace** archetype ([[beyond-the-ade]]). Warp Oz is adjacent as a **cloud control plane** for coding agents ([[pytxo-vs-warp-oz]]). Vendor agent desktops (Copilot app) are a separate peer — [[pytxo-vs-github-copilot-app]]. Consumer page: [pytxo.com/docs/compare/ade-virtual-workspaces](https://pytxo.com/docs/compare/ade-virtual-workspaces). Non-goals and maturity: [[pytxo-improvement-research]].
 
 ## Plain difference
 

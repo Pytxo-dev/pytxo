@@ -1,0 +1,32 @@
+---
+title: vs Warp Oz
+description: Local agent hypervisor compared with Warp’s cloud fleet control plane.
+---
+
+**Warp Oz** is a cloud orchestration / fleet plane for coding agents — ops language for agents that live in the cloud ([Warp Oz overview](https://docs.warp.dev/platform/overview/), [announcement](https://www.warp.dev/blog/oz-orchestration-platform-cloud-agents)).
+
+Pytxo uses some of the same words (**orchestration**, **agents**, **fleet**) for a different locus: a **local agent hypervisor** that schedules headless CLIs on your machine with Race path claims and Blast approve-to-flush.
+
+## Comparison
+
+| Dimension | Warp Oz | Pytxo |
+|-----------|---------|--------|
+| Locus | Cloud fleet control plane | Local silicon + optional Desktop |
+| Job | Operate cloud agent fleets | Coordinate mixed CLIs you already run |
+| Billing / keys | Warp / cloud posture | BYOK. Your keys. Your silicon. |
+| Collision story | Cloud product policy | Race Shield on local path claims |
+| UI | Fleet ops surface | Structural Ops / Focus / Approvals |
+
+## When Warp Oz is enough
+
+- Cloud fleet ops is the job
+- Agents should live off-laptop by default
+- You want Warp’s control plane, not a local yard
+
+## When Pytxo adds value
+
+- Local-first mixed CLI yard (Claude Code + Codex + Cursor CLI + …)
+- Collisions and approvals as local systems problems
+- Structural telemetry without moving execution into a cloud fleet product
+
+See also: [vs Cursor Cloud Agents](/docs/compare/cursor-cloud-agents) · [vs Devin / Amp](/docs/compare/devin-amp).

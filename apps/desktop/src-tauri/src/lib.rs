@@ -1,3 +1,4 @@
+mod flow_window;
 mod ipc;
 mod ipc_auth;
 mod ipc_error;
@@ -33,18 +34,45 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default()
+    // single-instance MUST be first so Windows protocol argv reaches this process.
+    #[allow(unused_mut)]
+    let mut builder = {
+        #[cfg(desktop)]
+        {
+            tauri::Builder::default().plugin(tauri_plugin_single_instance::init(
+                |app, argv, _cwd| {
+                    let mut handled_auth = false;
+                    for arg in &argv {
+                        if ipc_auth::looks_like_deep_link(arg) {
+                            eprintln!("single-instance: forwarding deep link {arg}");
+                            if let Err(e) = ipc_auth::handle_deck_deep_link(app, arg) {
+                                eprintln!("single-instance deep link: {e:?}");
+                            }
+                            if arg.to_ascii_lowercase().contains("://auth")
+                                || arg.to_ascii_lowercase().contains("auth?")
+                            {
+                                handled_auth = true;
+                            }
+                        }
+                    }
+                    if !handled_auth {
+                        // Still focus main when a second instance launches without a URL.
+                        ipc_auth::focus_main_window(app);
+                    }
+                },
+            ))
+        }
+        #[cfg(not(desktop))]
+        {
+            tauri::Builder::default()
+        }
+    };
+
+    builder = builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build());
-
-    #[cfg(desktop)]
-    {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            ipc_auth::focus_main_window(app);
-        }));
-    }
 
     // Verification-only bridge for the Tauri MCP driver; requires the opt-in
     // `mcp-bridge` feature and never runs in a release build.
@@ -66,7 +94,8 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if tray::close_to_tray_enabled(window.app_handle()) {
+                // Flow window closes normally; only main uses close-to-tray.
+                if window.label() == "main" && tray::close_to_tray_enabled(window.app_handle()) {
                     api.prevent_close();
                     tray::hide_main_window_to_tray(window.app_handle());
                 }
@@ -122,6 +151,7 @@ pub fn run() {
             flow_dispatch,
             flow_history,
             flow_delete,
+            flow_window::open_flow_window,
             voice_list_devices,
             voice_default_model,
             voice_local_available,

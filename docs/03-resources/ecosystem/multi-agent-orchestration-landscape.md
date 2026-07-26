@@ -6,13 +6,13 @@ tags: [ecosystem, research]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-23
-related: [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]], [[pytxo-vs-ade-virtual-workspace]], [[pytxo-improvement-research]]
+updated: 2026-07-26
+related: [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]], [[pytxo-vs-ade-virtual-workspace]], [[pytxo-improvement-research]], [[competitive-landscape-2026-07]]
 ---
 
 # Multi-agent orchestration landscape (2026)
 
-Informal map of approaches—not a competitive hit piece. Revisit quarterly. Deep synthesis: [[pytxo-improvement-research]].
+Informal map of approaches—not a competitive hit piece. Revisit quarterly. Deep synthesis: [[pytxo-improvement-research]]. Full competitor dossiers + GTM compare priorities: [[competitive-landscape-2026-07]].
 
 ## Categories
 

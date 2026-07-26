@@ -1,4 +1,12 @@
 {
   "title": "Compare",
-  "pages": ["index", "claude-agent-teams", "github-copilot-app"]
+  "pages": [
+    "index",
+    "claude-agent-teams",
+    "github-copilot-app",
+    "cursor-cloud-agents",
+    "ade-virtual-workspaces",
+    "warp-oz",
+    "devin-amp"
+  ]
 }

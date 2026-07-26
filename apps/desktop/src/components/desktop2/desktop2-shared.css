@@ -18,6 +18,31 @@
 .desktop2 .consent-sheet{position:fixed;right:24px;bottom:24px;z-index:30;width:min(380px,calc(100vw - 48px));padding:19px;border:1px solid #30343d;border-radius:8px;background:#111319;box-shadow:0 20px 70px #000}.desktop2 .consent-sheet h2{font-size:15px;margin:5px 0 12px}.desktop2 .consent-sheet dl{margin:0}.desktop2 .consent-sheet dl div{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid #24272e;font-size:9px}.desktop2 .consent-sheet dt{color:#616874}.desktop2 .consent-sheet dd{margin:0;color:#b1b7c0}.desktop2 .consent-sheet>p:not(.eyebrow){color:#777e89;font-size:9px;line-height:1.5}.desktop2 .consent-sheet>div:last-child{display:flex;justify-content:flex-end;gap:7px;margin-top:13px}
 @media(max-width:1050px){.desktop2 .metrics{grid-template-columns:repeat(2,1fr)}.desktop2 .workspace-grid,.desktop2 .flow-layout{grid-template-columns:1fr}.desktop2 .catalog-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){.desktop2 .screen{padding:22px 18px 50px}.desktop2 .catalog-grid{grid-template-columns:1fr}.desktop2 .approval-layout,.desktop2 .settings-layout,.desktop2 .review-grid{grid-template-columns:1fr}}
+
+/* Flow window / stepped mission UX */
+.desktop2 .flow-steps{display:flex;gap:6px;list-style:none;margin:0;padding:0;flex-wrap:wrap}
+.desktop2 .flow-steps li{padding:6px 10px;border:1px solid var(--pytxo-line-soft,#252830);border-radius:5px;color:var(--pytxo-text-muted,#5d6470);font-size:11px;font-weight:600;letter-spacing:.02em}
+.desktop2 .flow-steps li.active{border-color:var(--pytxo-accent,var(--pytxo-teal));color:var(--pytxo-accent,var(--pytxo-teal))}
+.desktop2 .flow-steps li.done{color:#9aa1ab;border-color:#2a3238}
+.desktop2 .flow-layout--solo{grid-template-columns:1fr;max-width:720px}
+.desktop2 .flow-empty{gap:12px}
+.desktop2 .flow-empty p{max-width:36ch;margin:0;font-size:13px;line-height:1.5;color:var(--pytxo-text-soft,#8b929c)}
+.desktop2 .flow-screen .screen-heading p:not(.eyebrow){font-size:13px!important;line-height:1.45}
+.desktop2 .composer-panel textarea{font-size:14px!important;line-height:1.65!important;min-height:180px}
+.desktop2 .flow-templates{opacity:.72}
+.desktop2 .flow-templates span,.desktop2 .flow-templates button{font-size:11px!important}
+.desktop2 .domain>span{font-size:10px!important;letter-spacing:.04em}
+.desktop2 .ops-truth{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.desktop2 .ops-truth article{padding:14px 16px;border:1px solid var(--pytxo-line,#252830);border-radius:8px;background:var(--pytxo-surface-panel,#10141a)}
+.desktop2 .ops-truth span{display:block;color:var(--pytxo-text-muted,#5d6470);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.desktop2 .ops-truth strong{display:block;margin-top:6px;font-size:22px;letter-spacing:-.03em;font-weight:650}
+.desktop2 .ops-truth small{display:block;margin-top:4px;color:#8b929c;font-size:12px}
+.desktop2 .ops-truth button{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;cursor:pointer;font:inherit;padding:0}
+.desktop2 .ops-truth .needs-you{border-color:color-mix(in srgb,var(--pytxo-gold,#d9a44f) 45%,#252830)}
+.desktop2 .race-panel{margin-top:12px}
+.desktop2 .race-row{display:flex;align-items:center;gap:10px;padding:8px 4px;color:#8b929c;font-size:12px}
+.desktop2 .race-row strong{color:#d7dbe0;font-weight:600}
+@media(max-width:900px){.desktop2 .ops-truth{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.desktop2 *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 html[data-chroma-theme="light"] .desktop2 main{background:var(--pytxo-surface-shell)}html[data-chroma-theme="light"] .desktop2 .panel-head{border-color:var(--pytxo-line)}html[data-chroma-theme="light"] .desktop2 .panel,html[data-chroma-theme="light"] .desktop2 .metrics article,html[data-chroma-theme="light"] .desktop2 .workspace-card{background:var(--pytxo-surface-panel);border-color:var(--pytxo-line)}html[data-chroma-theme="light"] .desktop2 h1,html[data-chroma-theme="light"] .desktop2 h2,html[data-chroma-theme="light"] .desktop2 h3,html[data-chroma-theme="light"] .desktop2 strong{color:var(--pytxo-text-strong)}
 html[data-chroma-theme="terminal"] .desktop2 .primary,html[data-chroma-theme="nebula"] .desktop2 .primary{color:var(--pytxo-accent-ink)}

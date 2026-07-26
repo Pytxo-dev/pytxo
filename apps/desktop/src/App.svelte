@@ -30,6 +30,12 @@
   import SetupWizard from "./components/setup/SetupWizard.svelte";
   import WorkspaceHome from "./components/workspace/WorkspaceHome.svelte";
   import DesktopShell from "./components/desktop2/DesktopShell.svelte";
+  import FlowStandalone from "./components/desktop2/FlowStandalone.svelte";
+
+  const isFlowStandalone =
+    typeof window !== "undefined" &&
+    (window.location.hash.includes("flow-standalone") ||
+      window.location.hash === "#/flow-standalone");
 
   let showSetup = $state(!isSetupComplete());
   let deckTheme = $state<DeckTheme>("void");
@@ -522,6 +528,9 @@
   });
 </script>
 
+{#if isFlowStandalone}
+  <FlowStandalone />
+{:else}
 <DeckShell>
   {#if showSetup}
     <SetupWizard onComplete={finishSetup} onWorkspaceSelected={onSetupWorkspaceSelected} />
@@ -583,3 +592,4 @@
     <DesktopShell {tier} {signedIn} {cliMissing} {subscriptionPortalUrl} authErrorMessage={authErrorMessage} onReplayOnboarding={replayOnboarding} onAuthChange={loadEntitlements} />
   {/if}
 </DeckShell>
+{/if}

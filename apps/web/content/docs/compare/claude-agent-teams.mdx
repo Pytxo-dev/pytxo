@@ -1,24 +1,24 @@
 ---
 title: vs Claude Agent Teams
-description: Mixed-CLI hypervisor compared with Claude Code Agent Teams.
+description: Mixed-CLI local hypervisor compared with Claude Code Agent Teams.
 ---
 
 Claude Code **Agent Teams** coordinate multiple Claude Code instances: a lead, teammates with their own context windows, a shared task list, and inter-agent messaging ([official docs](https://code.claude.com/docs/en/agent-teams)).
 
-They are experimental and opt-in. Official docs state teammates do not get worktree isolation (same-file edits can overwrite each other) and that teams use significantly more tokens than a single session.
+They are experimental and opt-in. Anthropic’s own docs warn that teammates **do not** get worktree isolation — same-file edits can overwrite each other — and that teams use significantly more tokens than a single session.
 
-Pytxo targets a different layer: **cross-tool orchestration** with explicit isolation, Race claims, and Signal context policy.
+Pytxo targets a different layer: **cross-tool orchestration** on your machine. It runs Claude Code as one agent among others, with Race path claims and Blast approve-to-flush.
 
 ## Comparison
 
 | Dimension | Claude Agent Teams | Pytxo |
 |-----------|-------------------|--------|
-| Scope | Claude Code sessions only | Headless CLIs + MCP (Claude Code, Codex, ...) |
+| Scope | Claude Code sessions only | Headless CLIs you already use (Claude, Codex, Cursor CLI, …) |
 | Status | Experimental, env-flag gated | Local hypervisor + optional Desktop |
 | Coordination | Lead + mailbox + shared tasks | Scheduled waves + event log + MCP hub |
-| Write safety | Docs warn: no worktree isolation | Race Shield path claims + Blast Shield worktrees |
-| UI | In-process panel or tmux panes | Optional Desktop (structural Focus / Ops) |
-| Context | Per-teammate window | Signal Core skeletons on read |
+| Write safety | Docs warn: no worktree isolation | Race Shield path claims + Blast Shield |
+| UI | In-process panel or tmux panes | Optional Desktop (Ops / Focus / Approvals) |
+| Keys | Anthropic plan | BYOK. Your keys. Your silicon. |
 
 ## When Claude teams are enough
 
@@ -29,13 +29,12 @@ Pytxo targets a different layer: **cross-tool orchestration** with explicit isol
 ## When Pytxo adds value
 
 - Mixed agents under one scheduler
-- Same-repo write collisions Claude's docs already warn about
-- Multi-folder repos with isolated copies per agent
-- Galaxy approvals and secret redaction in logs/MCP
-- Drive from Cursor via local MCP while agents stay headless CLIs
+- Same-repo write collisions Claude’s docs already warn about
+- Approvals and secret redaction in logs/MCP
+- Drive from your editor via local MCP while agents stay headless CLIs
 
 ## Coexistence
 
-Pytxo can run Claude Code as a headless agent process while adding Race, Blast, and Signal policies native teams do not centralize.
+Pytxo can run Claude Code as a headless agent while adding Race, Blast, and Signal policies native teams do not centralize.
 
-See also: [vs GitHub Copilot app](/docs/compare/github-copilot-app).
+See also: [vs GitHub Copilot app](/docs/compare/github-copilot-app) · [vs Cursor Cloud Agents](/docs/compare/cursor-cloud-agents).
