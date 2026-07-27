@@ -44,6 +44,7 @@ pub fn build_execution_plan(tasks: &[Task], max_agents: usize) -> ExecutionPlan 
                     wave: wave_index,
                     root: t.root.clone(),
                     signal_fidelity: t.signal_fidelity,
+                    verify: t.verify.clone(),
                 })
                 .collect(),
         );
@@ -70,6 +71,7 @@ mod tests {
             depends_on: Vec::new(),
             root: None,
             signal_fidelity: None,
+            verify: vec![],
         }
     }
 

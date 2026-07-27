@@ -1,4 +1,5 @@
 mod commands;
+mod mission;
 mod models;
 
 use clap::{CommandFactory, Parser, Subcommand};
@@ -47,6 +48,25 @@ enum Commands {
         /// `pty` (default) or `subprocess`
         #[arg(long)]
         execution: Option<String>,
+    },
+    /// Natural-language mission: plan → approve → isolated run → report
+    Mission {
+        /// Mission description
+        text: String,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+        /// Skip interactive approve prompt
+        #[arg(long)]
+        yes: bool,
+        /// Print plan JSON and exit (no dispatch)
+        #[arg(long)]
+        json: bool,
+        /// Preferred ADE id (claude, codex, opencode, …)
+        #[arg(long)]
+        ade: Option<String>,
+        /// Write plan JSON to this path before approve
+        #[arg(long)]
+        plan_file: Option<std::path::PathBuf>,
     },
     /// List ADE CLIs from the registry (PATH detection)
     Agents {
@@ -304,6 +324,24 @@ async fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
             pytxo_tui::run()?;
+        }
+        Some(Commands::Mission {
+            text,
+            repo,
+            yes,
+            json,
+            ade,
+            plan_file,
+        }) => {
+            mission::run_mission(mission::MissionOptions {
+                text,
+                repo,
+                yes,
+                json,
+                ade,
+                plan_file,
+            })
+            .await?;
         }
         Some(Commands::Init { repo }) => {
             commands::init(repo)?;

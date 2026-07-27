@@ -50,7 +50,7 @@ Trusted folder tier ([[ADR-0013-folder-trust-tier-picker]]) overrides top-level 
 | `paths` | Paths/globs for conflict preflight and Signal Core context |
 | `depends_on` | Optional task ids that must finish first |
 | `root` | Optional modular project root label ([[modular-projects]], [[ADR-0011-modular-project-manifest]]) |
-| `signal_fidelity` | Optional per-task fidelity override (`low` / `medium` / `high`) |
+| `verify` | Optional shell commands to run after the agent exits 0 (mission loop). Failure blocks flush. |
 
 Tasks with overlapping `paths` are scheduled in different **waves**.
 

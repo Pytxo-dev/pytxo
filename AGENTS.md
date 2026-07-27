@@ -113,37 +113,3 @@ Scoped rules live in [`.cursor/rules/`](.cursor/rules/). Root [`.cursorrules`](.
 ## Claude Code
 
 See [`CLAUDE.md`](CLAUDE.md) and [`docs/00-meta/CLAUDE.md`](docs/00-meta/CLAUDE.md).
-
-# AGENTS — PlugDev project
-
-This is a Minecraft Paper plugin developed with PlugDev. Prefer `plug run` over manually starting Paper.
-
-## Loop
-
-1. `npm install -g @plugdev/cli` (once)
-2. `plugdev init --setup --agents --mcp` (once per project)
-3. `plug run` — server + watch + client
-4. Players are auto-OP on join when `dev.op` is true (default). Type console commands in the same terminal after ready (`list`, `gamemode creative @a`, …)
-5. `plug doctor` if boot or detection fails
-6. Multi-module: `plugdev module list` / `plugdev module use <name>`
-7. Deps: `plugdev deps add|remove|list` (or TUI Dependencies)
-8. `plug clean` when you need a fresh world; `plug clean --all` for a cold `.plugdev/run`
-
-## Facts
-
-| Item | Value |
-|------|--------|
-| Bins | `plug` and `plugdev` (same CLI) |
-| Config | `plugdev.yml` |
-| Run dir | `.plugdev/run/` |
-| Cache | `~/.plugdev/` |
-| Modules | `plugdev module list|use` (multi-module Maven/Gradle) |
-| Deps | `plugdev deps add|remove|list` (+ TUI Dependencies) |
-| Reload | Safe JAR reload (not `/reload`); optional `--hotswap` for method bodies |
-| Folia | Prefer full restart over safe reload |
-| Headless | `plugdev server start|stop|status|command|logs` + `--json` |
-| MCP | `npx @plugdev/mcp` — structured tools for the same loop |
-| Skill install | `npx skills add mattbaconz/plugdev --skill plugdev` |
-| Docs | https://pluglabs.app/plugdev |
-
-Optional MCP: `plugdev agent install --mcp` writes `.cursor/mcp.json` and `.mcp.json`. Prefer MCP tools for headless control when configured; otherwise use CLI `--json`.

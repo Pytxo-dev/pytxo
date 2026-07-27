@@ -6,21 +6,23 @@ tags: [moc, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-25
-related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]]
+updated: 2026-07-27
+related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]]
 ---
 
 # Pytxo documentation home
 
 **Pytxo** — agent hypervisor & telemetry plane ([ptyxo.com](https://ptyxo.com)).
 
-**Thesis:** Bare-metal coordination of headless PTY agents (Claude Code, Codex, Antigravity CLI, …) with structural telemetry — not cloud-heavy multi-terminal workspaces.
+**Thesis:** Local inspectable workflow engine for existing agent CLIs — one mission → plan → isolated waves → verify → one reviewable apply ([[mission-loop]]).
 
 **Stack:** Rust (`portable-pty`, `tree-sitter`) · Svelte 5 Runes · Tauri v2
 
-**Vision:** [[product-vision]] — three moats: [[signal-core]], [[blast-shield]], [[race-shield]]
+**Vision:** [[product-vision]] — three moats: [[signal-core]], [[blast-shield]], [[race-shield]] · Mission loop: [[mission-loop]]
 
-**Improvement program:** [[pytxo-improvement-research]] — Phases **73–74 shipped**; Phases **75–76** next (moat depth, commercial gates). Phase 74 detail: [[market-ready-polish-research]]. Pre-marketing gates live in that note.
+**Architecture synthesis:** [[pytxo-architecture-research]] — full primary-source map of vision, tiers, moats, policy, ADRs, crates.
+
+**Improvement program:** [[pytxo-improvement-research]] — Phases **73–74 shipped**; **Phase 77 = Mission Loop Phase 1** (primary). Phases 75–76 honesty/moat items remain secondary.
 
 ---
 
@@ -59,6 +61,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[signal-core]] — tree-sitter scaffolding and token arbitrage
 - [[context-launch-contract]] — `PYTXO_CONTEXT_DIR`, `manifest.json`, agent responsibilities
 - [[closed-loop-fidelity]] — targeted retry and per-path escalation
+- [[mission-loop]] — one mission → plan → verify → one reviewable apply
 
 ### Technical moats
 
@@ -89,7 +92,10 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[gtm-open-source-loop]] · [[competitive-benchmarks]]
 - [[desktop-ui-improvement-backlog]] — prioritized Pytxo Desktop UI findings
 - [[desktop-dangerous-ux-2026-07]] — ops-console / anti-slop Desktop UX research (0.11.0 polish)
-- [[pytxo-improvement-research]] — deep maturity synthesis + market landscape + ranked P0–P3 (Phases 73–74 done; 75 next)
+- [[pytxo-architecture-research]] — architecture / vision / ADR / crate synthesis (2026-07-27)
+- [[mission-loop]] — one mission → plan → verify → apply
+- [[mission-loop-dogfood]] — Phase 1 comparison matrix scaffold
+- [[pytxo-improvement-research]] — deep maturity synthesis + market landscape + ranked P0–P3 (Phases 73–74 done; 77 mission loop primary)
 - [[market-ready-polish-research]] — Phase 74 Desktop supervision + marketing polish
 - [[competitive-landscape-2026-07]] — primary-source competitor map + GTM compare priorities (2026-07)
 
@@ -100,6 +106,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 ### Guides
 
 - [[first-three-agent-run]]
+- [[first-mission]]
 - [[demo-video-shot-list]]
 - [[release-workflow]]
 - [[pytxo-vs-claude-agent-teams]]

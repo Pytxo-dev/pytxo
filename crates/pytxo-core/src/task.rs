@@ -94,6 +94,10 @@ pub struct Task {
     /// precedence over the agent and global fidelity, still capped by permissions.
     #[serde(default)]
     pub signal_fidelity: Option<crate::moat::FidelityTier>,
+    /// Shell commands to run in the isolation bubble after the agent exits 0.
+    /// Empty means no verification step. Failure blocks flush eligibility.
+    #[serde(default)]
+    pub verify: Vec<String>,
 }
 
 #[cfg(test)]

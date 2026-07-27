@@ -6,76 +6,94 @@ tags: [product, vision, architecture]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-23
-related: [[agent-os-vs-virtual-workspace]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[desktop-visual-system]], [[competitive-benchmarks]], [[pytxo-improvement-research]], [[beyond-the-ade]], [[pytxo-vs-github-copilot-app]]
+updated: 2026-07-27
+related: [[agent-os-vs-virtual-workspace]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[desktop-visual-system]], [[competitive-benchmarks]], [[pytxo-improvement-research]], [[beyond-the-ade]], [[pytxo-vs-github-copilot-app]], [[mission-loop]]
 ---
 
 # Product vision
 
-**Pytxo** ([ptyxo.com](https://ptyxo.com)) runs and coordinates the coding agents you already use — Claude Code, Codex, Antigravity CLI, and similar — in the background on your machine. It is a local **agent hypervisor**: schedule work, keep agents from colliding, show what they changed, and let you approve merges. It is **not** another ADE with walls of terminals, and **not** a single-vendor agent desktop (see [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]]).
+**Pytxo** ([ptyxo.com](https://ptyxo.com)) is a local, **inspectable workflow engine** that coordinates the coding agents you already use — Claude Code, Codex, OpenCode, and similar — through explicit plans, dependencies, isolation, verification, and one reviewable apply.
 
-Maturity and honesty program: [[pytxo-improvement-research]].
+Grounded thesis: turn **one messy engineering mission** into **safe parallel work and one verified result** — not the product with the most agents on screen, and not another opaque autonomous swarm ([[mission-loop]]).
+
+It is **not** an ADE with walls of terminals, and **not** a single-vendor agent desktop (see [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]]).
+
+Maturity and honesty program: [[pytxo-improvement-research]]. Mission Loop Phase 1: [[mission-loop]], [[ADR-0031-mission-planner-byok-scout]].
 
 ## Problem
 
-Products like BridgeSpace-style ADEs render many parallel terminal grids inside heavy desktop or web shells. That model burns RAM and GPU, often ties users to proprietary credits, and optimizes for demos instead of **systems throughput**.
+Independent worktrees are good for unrelated tasks. Interconnected work needs an execution order, handoffs, isolation, and checks after integration. Vendor control centers solve supervision inside one ecosystem; ADE terminal walls optimize for demos. Pytxo’s job is **cross-CLI local orchestration** with an inspectable plan the operator owns.
 
-Vendor control centers (e.g. GitHub Copilot app) solve supervision with worktrees and sandboxes inside one ecosystem. Pytxo’s job is different: **cross-CLI local orchestration** for the agents you already run.
+## Primary loop
 
-## Pytxo model
+```text
+one mission → proposed plan → human edit/approve → isolated execution
+→ verification → one reviewable result
+```
 
-Pytxo coordinates **headless terminal agents** inside **managed background pseudo-terminals** (`portable-pty`). It does not replace your IDE; it plugs in via a local-first [[mcp-hub-integration]] and optional [[desktop-visual-system|Pytxo Desktop]].
+CLI: `pytxo mission "…"`. Desktop: Flow → Approvals / Run Review ([[ADR-0032-desktop-2-focus-flow-primary]]).
+
+## Plain language at the product boundary
+
+| Internal | User-facing |
+|----------|-------------|
+| Race Shield | Conflict-aware scheduling |
+| Blast Shield | Isolated changes |
+| Signal Core | Codebase map |
+| DAG / wave | Task dependencies / execution stage |
+| Flush | Apply changes |
+| Galaxy HITL | Approval required |
+
+Deep docs keep moat codenames; first-run UX should not require them.
 
 ## Workspaces (multi-project)
 
 **Productivity max** has two layers:
 
-1. **Many projects at once** — dispatch independent swarms on different directories (e.g. `/project1` “Fix bug” and `/project2` “Deploy theme”) without blocking Desktop or leaking scheduler, registry, or log state. Today each repo is an [[execution-domains|execution domain]] with its own WAL channel and [[permission-profile-engine|permission profile]] (default **Orbit**).
-2. **Workspaces (modular projects)** — one Pytxo **Workspace** can include **multiple path roots** (API repo + web repo + shared protos), so a single swarm can work across folders without treating them as unrelated domains. See [[modular-projects]].
+1. **Many projects at once** — dispatch independent swarms on different directories without leaking scheduler, registry, or log state. Each repo is an [[execution-domains|execution domain]] with its own WAL and [[permission-profile-engine|permission profile]] (default **Orbit**).
+2. **Workspaces (modular projects)** — one Pytxo **Workspace** can include **multiple path roots**. See [[modular-projects]].
 
-See [[ADR-0008-local-permission-profile-four-tiers]].
+Mission Phase 1 is **single-domain**; multi-root stays `project` / `fleet` until a later phase.
 
 ```text
 IDE / CLI  →  MCP hub  →  Orchestration (Rust)  →  Execution yard (PTY agents)
                               ↓
-                    Pytxo Desktop (structural telemetry)
+                    Pytxo Desktop (mission review + evidence)
 ```
 
 ## Three technical moats
 
-All future orchestration code should route through these layers — not around them. Plain language first; codenames for deep docs.
+All future orchestration code should route through these layers — not around them.
 
 | What it does | Codename | Function | Target |
 |--------------|----------|----------|--------|
-| **Smarter context** | [[signal-core]] | `tree-sitter` AST skeletons on file read (signatures, types, imports) | Aspirational ~60% lower input tokens on body-heavy files; measure with `signal-reduction` ([[competitive-benchmarks]]) |
-| **Safe sandbox until you approve** | [[blast-shield]] | Worktree or sparse copy-layer isolation until explicit approval | Flush on approve; kernel ProjFS/FUSE remains north star |
-| **No write collisions** | [[race-shield]] | Locked swarm registry (`RwLock`/`Mutex`) + stdin buffering | No cross-agent write collisions; lock-free shards only after profiling |
-
-Implementation status: see [[mvp-bootstrap]] and crate README. Moats are **partial** where kernel ProjFS/FUSE virtualization and full Galaxy syscall hooks remain north star (sparse copy-layer overlay default shipped Phase 69).
+| **Smarter context** | [[signal-core]] | `tree-sitter` AST skeletons on file read | Aspirational ~60% on body-heavy files; measure with `signal-reduction` ([[competitive-benchmarks]]) |
+| **Safe sandbox until you approve** | [[blast-shield]] | Worktree or sparse copy-layer until explicit approval | Flush on approve; kernel ProjFS/FUSE remains north star |
+| **No write collisions** | [[race-shield]] | Locked swarm registry + stdin buffering | No cross-agent write collisions; lock-free shards only after profiling |
 
 | Moat | Shipping today | North star gap |
 |------|----------------|----------------|
-| Signal Core | 8+ language skeletons, closed-loop retry, fallback WAL | Broader grammars, symbol-level escalation; verified large-file savings |
-| Blast Shield | Git worktrees + sparse copy-layer default via `prefer_kernel_overlay` (Phase 69) | Full kernel ProjFS provider + FUSE default on all platforms |
-| Race Shield | Registry, path claims, PTY stdin, Galaxy HITL queue + runtime MCP/stdin gates (Phase 64/70); separate stdin lock | Lock-free / path-prefix shards after profiling |
+| Signal Core | 8+ language skeletons, closed-loop retry, mission codebase map | Broader grammars; verified large-file savings |
+| Blast Shield | Git worktrees + sparse copy-layer default | Full kernel ProjFS provider + FUSE default |
+| Race Shield | Registry, path claims, PTY stdin, Galaxy HITL | Lock-free / path-prefix shards after profiling; runtime claim updates (Phase 2) |
 
 ## Pytxo Desktop
 
-Optional control UI — obsidian void `#020205` with **teal**, **violet**, and **solar gold** accents ([[desktop-visual-system]]). Formerly called Reality Deck.
+Optional **mission-review and intervention** UI ([[desktop-visual-system]], [[ADR-0032-desktop-2-focus-flow-primary]]). Formerly Reality Deck.
 
-Desktop does **not** show walls of raw terminal text as the primary surface. **Desktop 2** (default) centers a **structural Focus graph** (Signal Core nodes/edges) plus Ops, Flow, Approvals, and Run Review. Interactive **3D** AST topology (`TopologyScene3D.svelte`) remains available only in the **legacy shell** (`desktop_shell_v1=true`). Logs and diffs are supporting panels, not the product center.
-
-Repo path: `apps/desktop` in [Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
+**Desktop 2** (default): Flow, Ops, Focus, Approvals, Run Review. Interactive **3D** topology remains **legacy shell only** (`desktop_shell_v1=true`).
 
 ## Pytxo Cloud
 
-Hosted sandboxes that scale the same hypervisor model with **server-side context caching** — **capability-gated** until a non-noop cloud dispatcher is configured ([[hybrid-execution]]). Strictly **BYOK** on supported surfaces — Pytxo never becomes the LLM vendor. See [[token-arbitrage]] and [[pytxo-improvement-research]].
+Hosted sandboxes — **capability-gated** until a non-noop cloud dispatcher is configured ([[hybrid-execution]]). Strictly **BYOK** on supported surfaces.
 
 ## Non-goals
 
-- Multi-pane embedded terminal walls in the product UI
+- Multi-pane embedded terminal walls
 - Storing provider API keys in plaintext
 - Duplicating IDE editing surfaces
-- Claiming unique multi-agent / unique sandbox / invented worktrees vs 2026 vendor products
+- Claiming unique multi-agent / unique sandbox / invented worktrees vs 2026 peers
+- Out-feature-matching Warp Oz across cloud fleets, schedules, and teams
+- Semantic cross-file “contract conflict” engines before verification-after-integration works
 
-Back: [[MOC-home]] · Compare: [[beyond-the-ade]] · [[pytxo-vs-claude-agent-teams]] · [[pytxo-vs-github-copilot-app]]
+Back: [[MOC-home]] · [[mission-loop]] · [[beyond-the-ade]]

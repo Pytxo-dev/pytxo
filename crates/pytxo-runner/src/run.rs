@@ -644,7 +644,30 @@ async fn run_one_agent(
         let _ = dispatcher.teardown(sid);
     }
 
-    if used_isolation && !ctx.keep_worktrees {
+    let mut exit_code = result.exit_code;
+    let mut stderr = result.stderr;
+    if exit_code == Some(0) && !task.verify.is_empty() {
+        match run_verify_commands(&wt_path, &task.verify, ctx.on_event.as_ref(), &agent_key) {
+            Ok(()) => {
+                if let Some(cb) = ctx.on_event.as_ref() {
+                    cb(
+                        &agent_key,
+                        "verify-ok",
+                        &format!("{} check(s) passed", task.verify.len()),
+                    );
+                }
+            }
+            Err(err) => {
+                if let Some(cb) = ctx.on_event.as_ref() {
+                    cb(&agent_key, "verify-failed", &err.to_string());
+                }
+                stderr = format!("{stderr}\nverify failed: {err}");
+                exit_code = Some(1);
+            }
+        }
+    }
+
+    if used_isolation && !ctx.keep_worktrees && exit_code == Some(0) {
         let _ = isolation.rollback(&iso_ctx, &workspace);
     }
 
@@ -653,11 +676,48 @@ async fn run_one_agent(
         task_id: task.task_id.0.clone(),
         wave: task.wave,
         worktree_path: result.worktree_path,
-        exit_code: result.exit_code,
+        exit_code,
         stdout: result.stdout,
-        stderr: result.stderr,
+        stderr,
         root_id: task.root.clone(),
     })
+}
+
+fn run_verify_commands(
+    cwd: &Path,
+    commands: &[String],
+    on_event: Option<&EventCallback>,
+    agent_key: &str,
+) -> Result<()> {
+    for cmd in commands {
+        let cmd = cmd.trim();
+        if cmd.is_empty() {
+            continue;
+        }
+        if let Some(cb) = on_event {
+            cb(agent_key, "verify", cmd);
+        }
+        let output = if cfg!(windows) {
+            std::process::Command::new("cmd")
+                .args(["/C", cmd])
+                .current_dir(cwd)
+                .output()
+        } else {
+            std::process::Command::new("sh")
+                .args(["-lc", cmd])
+                .current_dir(cwd)
+                .output()
+        }
+        .map_err(|e| PytxoError::Runner(format!("verify spawn `{cmd}`: {e}")))?;
+        if !output.status.success() {
+            let code = output.status.code().unwrap_or(-1);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(PytxoError::Runner(format!(
+                "verify `{cmd}` failed (exit {code}): {stderr}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 struct ProcessPersist {

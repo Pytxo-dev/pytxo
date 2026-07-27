@@ -6,8 +6,8 @@ tags: [reference, cli]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-02
-related: [[pytxo-toml]], [[repository-layout]]
+updated: 2026-07-27
+related: [[pytxo-toml]], [[repository-layout]], [[mission-loop]], [[first-mission]]
 ---
 
 # CLI reference
@@ -23,46 +23,41 @@ Binary: `cargo run -p pytxo-cli -- <cmd>`
 
 | Command | Description |
 |---------|-------------|
+| `pytxo mission "…"` | Plan → approve → isolated run → mission report ([[mission-loop]], [[first-mission]]) |
 | `pytxo init` | Create `.pytxo/` dirs and gitignore hint |
 | `pytxo doctor` | Verify git, HEAD, worktree support, writable `.pytxo/`, PTY smoke |
-| `pytxo run` | Schedule and execute agents in worktrees |
+| `pytxo run` | Schedule and execute agents in worktrees (`--dry-run` for plan JSON) |
 | `pytxo status` | List runs and agents from SQLite |
 | `pytxo logs --agent <id>` | Tail stored stdout/stderr events |
 | `pytxo stop` | Stop active run or all tracked processes |
 | `pytxo trust [tier]` | Trust repo folder (`orbit`, `galaxy`, `deep_space`, `supernova`) |
+| `pytxo agents` | List ADE CLIs from the registry (PATH detection) |
+| `pytxo shell --eval "…"` | One-shot shell slash command without TUI |
+| `pytxo project` | Modular multi-path workspaces (`init`, `list`, `run`, …) |
+| `pytxo fleet` | Cross-repo fleet DAG (`init`, `dry-run`, `run`, `status`) |
+| `pytxo domains` | List execution domains |
+| `pytxo hitl` | Galaxy approval queue (`list`, `approve`, `deny`) |
 | `pytxo providers` | Provider registry + whether each API key env is set |
 | `pytxo models` | `list`, `search`, or `refresh` model catalog per provider |
+
+### `pytxo mission`
+
+```bash
+pytxo mission "Add input validation and update unit tests"
+pytxo mission "…" --yes          # skip approve prompt
+pytxo mission "…" --json         # plan only
+pytxo mission "…" --ade claude
+pytxo mission "…" --plan-file plan.json
+```
 
 ## Shared flags
 
 | Flag | Commands | Description |
 |------|----------|-------------|
-| `--repo` | `init`, `doctor`, `run`, `status`, `logs`, `stop` | Git repository root (default: cwd) |
-| `--config` | `run`, `status`, `logs`, `stop` | Path to `pytxo.toml` |
-| `--json` | `doctor`, `status` | Machine-readable output |
+| `--repo` | most commands | Git repository root (default: cwd) |
+| `--json` | `doctor`, `status`, `mission`, … | Machine-readable output |
+| `--yes` | `mission` | Approve without interactive prompt |
 
-## `pytxo doctor`
+See also: [[pytxo-toml]], [[first-mission]].
 
-Fails fast before `run` when:
-
-- `git` is on PATH
-- cwd (or `--repo`) is inside a git work tree
-- `HEAD` exists (at least one commit)
-- `git worktree` works
-- `.pytxo/` is writable
-
-## `pytxo run` flags
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--agents` | `3` | Cap parallel agents per wave |
-| `--cmd` | `echo pytxo` | Shell command run in each worktree |
-| `--dry-run` | off | Print JSON execution plan |
-| `--keep-worktrees` | off | Do not remove worktrees after run |
-| `--execution` | from `pytxo.toml` | Override `execution_backend`: `pty` or `subprocess` |
-
-`run` calls the same git preflight as `doctor` before scheduling. Default execution uses **PTY** ([[ADR-0010-pty-default-execution-backend]]).
-
-## Agent IDs in logs
-
-Format: `{run_uuid}:{agent-N}` (e.g. for `pytxo logs --agent`).
+Back: [[MOC-home]]

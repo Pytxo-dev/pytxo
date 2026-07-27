@@ -67,7 +67,7 @@ async fn failing_run_retries_only_implicated_file() {
             wave: 0,
             root: None,
             signal_fidelity: None,
-        }]],
+        verify: vec![],        }]],
         conflicts: vec![],
         max_agents: 1,
         warnings: vec![],

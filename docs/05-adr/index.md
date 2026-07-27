@@ -46,6 +46,8 @@ Architecture Decision Records are **immutable once Accepted**. Supersede by addi
 | ADR-0028 | [[ADR-0028-desktop-product-name]] | accepted |
 | ADR-0029 | [[ADR-0029-chroma-shared-design-tokens]] | accepted |
 | ADR-0030 | [[ADR-0030-public-docs-fumadocs-next]] | accepted |
+| ADR-0031 | [[ADR-0031-mission-planner-byok-scout]] | accepted |
+| ADR-0032 | [[ADR-0032-desktop-2-focus-flow-primary]] | accepted |
 
 ## Template
 

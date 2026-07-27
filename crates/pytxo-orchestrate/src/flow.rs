@@ -13,7 +13,7 @@ use chrono::Utc;
 use pytxo_core::{
     ade_on_path, all_ade_clis, resolve_ade, PermissionProfile, PytxoConfig, Task, TaskId,
 };
-use pytxo_planner::{MissionPlanner, MissionSpec, PlannerContext, SignalBackedPlanner};
+use pytxo_planner::{MissionSpec, PlannerContext};
 use pytxo_store::{Catalog, FlowDraftRecord};
 use serde::{Deserialize, Serialize};
 
@@ -86,6 +86,8 @@ pub struct FlowPlanTask {
     pub paths: Vec<String>,
     pub dependencies: Vec<String>,
     pub root: Option<String>,
+    #[serde(default)]
+    pub verify: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -196,12 +198,11 @@ pub fn preview_flow(catalog: &Catalog, input: FlowDraftInput) -> anyhow::Result<
     let (cfg, ceiling_blocker) =
         apply_flow_permission_ceiling(&cfg, entitlements.permission_ceiling);
 
-    // Explicit Flow requests intentionally invoke the existing public implementation directly;
-    // the shell's hidden PYTXO_PLANNER gate does not apply to a user-requested preview.
+    // Explicit Flow / mission requests use the mission planner (ADR-0031).
     let mission = MissionSpec {
         text: input.mission_text.clone(),
     };
-    let planner = SignalBackedPlanner;
+    let planner = pytxo_planner::default_mission_planner(&cfg);
     let planned = planner.decompose(
         &mission,
         &PlannerContext {
@@ -214,13 +215,28 @@ pub fn preview_flow(catalog: &Catalog, input: FlowDraftInput) -> anyhow::Result<
     let mut blocked_reasons = validate_task_claims(&planned.tasks, input.project_id.as_deref());
     blocked_reasons.extend(ceiling_blocker);
     blocked_reasons.extend(validate_permission_scope(&planned.tasks, &cfg));
-    blocked_reasons.extend(execution.conflicts.iter().map(|conflict| {
-        FlowBlockedReason::OverlappingPathClaims {
-            task_a: conflict.task_a.0.clone(),
-            task_b: conflict.task_b.0.clone(),
-            paths: conflict.paths.clone(),
+    // Path overlaps that the scheduler already placed in different waves are warnings only —
+    // they will not run concurrently. Same-wave overlaps remain hard blocks.
+    let wave_of: HashMap<String, usize> = execution
+        .waves
+        .iter()
+        .enumerate()
+        .flat_map(|(i, wave)| {
+            wave.iter()
+                .map(move |t| (t.task_id.0.clone(), i))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    for conflict in &execution.conflicts {
+        let same_wave = wave_of.get(&conflict.task_a.0) == wave_of.get(&conflict.task_b.0);
+        if same_wave {
+            blocked_reasons.push(FlowBlockedReason::OverlappingPathClaims {
+                task_a: conflict.task_a.0.clone(),
+                task_b: conflict.task_b.0.clone(),
+                paths: conflict.paths.clone(),
+            });
         }
-    }));
+    }
     let ade = summarize_ade(input.ade_id.as_deref());
     if !ade.available {
         blocked_reasons.push(FlowBlockedReason::AdeUnavailable {
@@ -235,14 +251,26 @@ pub fn preview_flow(catalog: &Catalog, input: FlowDraftInput) -> anyhow::Result<
             message: message.clone(),
         })
         .collect();
-    warnings.extend(execution.conflicts.iter().map(|conflict| FlowWarning {
-        code: "path_claim_overlap".into(),
-        message: format!(
-            "{} and {} overlap on {}",
-            conflict.task_a.0,
-            conflict.task_b.0,
-            conflict.paths.join(", ")
-        ),
+    warnings.extend(execution.conflicts.iter().map(|conflict| {
+        let same_wave = wave_of.get(&conflict.task_a.0) == wave_of.get(&conflict.task_b.0);
+        FlowWarning {
+            code: if same_wave {
+                "path_claim_overlap".into()
+            } else {
+                "path_claim_staged".into()
+            },
+            message: format!(
+                "{} and {} overlap on {}{}",
+                conflict.task_a.0,
+                conflict.task_b.0,
+                conflict.paths.join(", "),
+                if same_wave {
+                    String::new()
+                } else {
+                    " — scheduled in separate stages".into()
+                }
+            ),
+        }
     }));
     let tasks = planned
         .tasks
@@ -258,6 +286,7 @@ pub fn preview_flow(catalog: &Catalog, input: FlowDraftInput) -> anyhow::Result<
             paths: task.paths.clone(),
             dependencies: task.depends_on.clone(),
             root: task.root.clone(),
+            verify: task.verify.clone(),
         })
         .collect();
     let waves = execution
@@ -448,7 +477,7 @@ pub fn dispatch_flow(catalog: &Catalog, draft_id: &str) -> anyhow::Result<String
             cmd: ade.default_cmd.into(),
             config: None,
             dry_run: false,
-            keep_worktrees: false,
+            keep_worktrees: true,
             repo: Some(repo),
             execution: None,
             project: None,
@@ -600,6 +629,7 @@ fn runtime_tasks(plan: &FlowPlan) -> Vec<Task> {
             depends_on: task.dependencies.clone(),
             root: task.root.clone(),
             signal_fidelity: None,
+            verify: task.verify.clone(),
         })
         .collect()
 }

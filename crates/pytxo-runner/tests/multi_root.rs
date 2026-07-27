@@ -71,7 +71,7 @@ async fn secondary_root_worktree_under_web_repo() {
             wave: 0,
             root: Some("web".into()),
             signal_fidelity: None,
-        }]],
+        verify: vec![],        }]],
         conflicts: vec![],
         max_agents: 3,
         warnings: vec![],

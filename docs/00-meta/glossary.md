@@ -16,6 +16,7 @@ Canonical product and engineering terms for Pytxo. Prefer plain language in mark
 
 | Term | Definition |
 |------|------------|
+| **Mission loop** | One mission → proposed plan → isolated waves → verify → one reviewable apply ([[mission-loop]]) |
 | **Agent hypervisor** | Pytxo’s role: run, schedule, isolate, and meter headless coding agents on PTYs ([[product-vision]]) |
 | **ADE** | Agentic development environment — often UI-heavy multi-agent IDEs (e.g. BridgeSpace-style terminal walls) |
 | **Signal Core** | Smarter context: `tree-sitter` skeletons on read ([[signal-core]]) |

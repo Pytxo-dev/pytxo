@@ -57,7 +57,7 @@ async fn single_agent_echo_in_worktree() {
             wave: 0,
             root: None,
             signal_fidelity: None,
-        }]],
+        verify: vec![],        }]],
         conflicts: vec![],
         max_agents: 3,
         warnings: vec![],
