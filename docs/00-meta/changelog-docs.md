@@ -6,11 +6,16 @@ tags: [meta]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-05
+updated: 2026-07-27
 related: [[MOC-home]]
 ---
 
 # Documentation changelog
+
+## 2026-07-27 (architecture research synthesis)
+
+- Added [[pytxo-architecture-research]] — primary-source map of vision, three-tier model, moats, permission profiles, ADRs, crates, and program state; linked from [[MOC-home]].
+- Mission Loop Phase 1 docs: [[mission-loop]], [[first-mission]], [[mission-loop-dogfood]], [[ADR-0031-mission-planner-byok-scout]], [[ADR-0032-desktop-2-focus-flow-primary]]; vision/positioning locked to inspectable mission thesis; `pytxo mission` CLI.
 
 ## 2026-07-26 (Desktop 0.11.0 dangerous UX + install trust)
 

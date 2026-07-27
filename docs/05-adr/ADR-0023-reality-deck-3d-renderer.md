@@ -41,6 +41,8 @@ The Deck stack is **Svelte 5 + Tauri v2** ([[ADR-0001-three-tier-rust-svelte-tau
 
 Desktop **v0.5.0+** defaults to **Desktop 2** structural Focus (`FocusScreen.svelte`), not Three.js. `TopologyScene3D.svelte` remains on the **legacy shell** only (`desktop_shell_v1=true`). The Decision above still describes the 3D renderer when that shell is enabled; it is **not** the default primary surface. The historical `TopologyPanel.svelte` 2D fallback is **not** present in the tree — do not claim it as shipped. See [[desktop-visual-system]] and [[pytxo-improvement-research]].
 
+**Superseded (primary viewport):** [[ADR-0032-desktop-2-focus-flow-primary]] supersedes the “3D is the primary center viewport” claim in this ADR.
+
 ## Alternatives rejected
 
 | Alternative | Why rejected |

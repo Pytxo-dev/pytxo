@@ -14,6 +14,9 @@ pub struct ScheduledTask {
     /// Per-task Signal Core fidelity override ([[closed-loop-fidelity]]).
     #[serde(default)]
     pub signal_fidelity: Option<crate::moat::FidelityTier>,
+    /// Post-task verify shell commands.
+    #[serde(default)]
+    pub verify: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

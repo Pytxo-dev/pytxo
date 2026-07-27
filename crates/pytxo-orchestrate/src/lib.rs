@@ -498,6 +498,13 @@ pub fn commit_workspace_for_agent(
     let agent = store
         .get_agent(&agent_key)?
         .ok_or_else(|| anyhow::anyhow!("agent not found: {agent_key}"))?;
+    if agent.exit_code != Some(0) || agent.status != "completed" {
+        anyhow::bail!(
+            "cannot apply changes: agent {agent_id} status={} exit_code={:?} (verifies must pass)",
+            agent.status,
+            agent.exit_code
+        );
+    }
     let worktree = agent
         .worktree_path
         .filter(|p| !p.is_empty())
@@ -750,7 +757,13 @@ pub(crate) async fn execute_run_body(
             all_lines.extend(result.stderr.lines().map(String::from));
         }
         let exit = result.exit_code.unwrap_or(-1);
-        let status = if exit == 0 { "completed" } else { "failed" };
+        let status = if exit == 0 {
+            "completed"
+        } else if result.stderr.contains("verify failed") {
+            "verify_failed"
+        } else {
+            "failed"
+        };
         if exit != 0 {
             failed = true;
         }
@@ -1162,6 +1175,7 @@ pub(crate) fn synthetic_tasks(count: usize) -> Vec<Task> {
             depends_on: Vec::new(),
             root: None,
             signal_fidelity: None,
+            verify: vec![],
         })
         .collect()
 }

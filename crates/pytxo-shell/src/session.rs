@@ -8,7 +8,7 @@ use pytxo_orchestrate::{
     dispatch, dry_run_with_tasks, is_repo_trusted, load_config_for_repo, logs, plan_tasks,
     resolve_repo_root, run_doctor, status_json, trust_repo, RunOptions,
 };
-use pytxo_planner::{plan_mission, planner_enabled};
+use pytxo_planner::plan_mission;
 
 use crate::command::{help_text, ModelsSub, ShellInput, SlashCommand};
 
@@ -64,11 +64,6 @@ impl ShellSession {
     }
 
     async fn handle_mission(&mut self, text: &str) -> Vec<ShellEvent> {
-        if !planner_enabled(&self.config) {
-            return vec![ShellEvent::Output(format!(
-                "Planner disabled. Use /run --cmd \"...\" or enable PYTXO_PLANNER=1.\nMission: {text}"
-            ))];
-        }
         match plan_mission(text, &self.repo, &self.config) {
             Ok(plan) => {
                 self.last_tasks = plan.tasks.clone();

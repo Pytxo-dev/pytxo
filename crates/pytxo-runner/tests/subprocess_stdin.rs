@@ -64,7 +64,7 @@ async fn subprocess_stdin_spawn_time_drain() {
             wave: 0,
             root: None,
             signal_fidelity: None,
-        }]],
+        verify: vec![],        }]],
         conflicts: vec![],
         max_agents: 1,
         warnings: vec![],

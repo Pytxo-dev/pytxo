@@ -117,11 +117,15 @@
 
   async function completeRun() {
     if (!run) return;
+    if (!allExited) {
+      completeError = "Cannot apply: every agent must exit 0 with verifies passing.";
+      return;
+    }
     completing = true;
     completeError = null;
     try {
       for (const agent of agents) {
-        if (agent.root_id) await ipc.commitWorkspace(run.id, agent.id, domainId);
+        if (agent.exit_code === 0) await ipc.commitWorkspace(run.id, agent.id, domainId);
       }
       onRunCompleted();
     } catch (e) {
@@ -151,7 +155,7 @@
       <p>{mode === "topology-focus" ? "Structural relationships from the workspace graph." : "Validate the result before completion and sandbox flush."}</p>
     </div>
     {#if mode === "run-review" && run}
-      <button class="primary" disabled={completing || agentsLoading || !agents.length} onclick={completeRun}>
+      <button class="primary" disabled={completing || agentsLoading || !agents.length || !allExited} onclick={completeRun} title={!allExited ? "All agents must exit successfully with verifies passing before apply" : "Apply accepted isolated changes"}>
         {#if completing}<IconLoader2 size={16} class="spin" />{:else}<IconCheck size={16} />{/if} Complete run
       </button>
     {/if}

@@ -74,12 +74,29 @@ fn planner_mode(config: &PytxoConfig) -> PlannerMode {
     }
 }
 
-/// LLM planner requires Ultra billing (local or Link tier) + `PYTXO_PLANNER_LLM=1` + planner enabled.
+/// LLM planner: Ultra managed proxy **or** BYOK OpenAI-compatible providers.
 pub fn llm_planner_enabled(config: &PytxoConfig) -> bool {
-    if !planner_enabled(config) || !ultra_billing_active(config) {
+    if !planner_enabled(config) && !mission_planner_unlocked() {
+        // Mission path unlocks BYOK even when [planner] is off.
+        if byok_scout_endpoint().is_some() {
+            return true;
+        }
+        return false;
+    }
+    if byok_scout_endpoint().is_some() {
+        return true;
+    }
+    if !ultra_billing_active(config) {
         return false;
     }
     std::env::var("PYTXO_PLANNER_LLM")
+        .ok()
+        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
+/// Mission CLI/Flow always plan (ADR-0031); shell slash-run still respects planner flag.
+fn mission_planner_unlocked() -> bool {
+    std::env::var("PYTXO_MISSION_PLAN")
         .ok()
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
@@ -146,12 +163,16 @@ impl MissionPlanner for HeuristicPlanner {
                 depends_on: vec![],
                 root: None,
                 signal_fidelity: None,
+                verify: vec![],
             });
         }
-        Ok(MissionPlan {
-            tasks,
-            task_prompts,
-        })
+        Ok(attach_verify_suggestions(
+            MissionPlan {
+                tasks,
+                task_prompts,
+            },
+            ctx.repo,
+        ))
     }
 }
 
@@ -166,6 +187,8 @@ struct LlmTaskRow {
     #[serde(default)]
     depends_on: Vec<String>,
     prompt: String,
+    #[serde(default)]
+    verify: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -187,19 +210,35 @@ impl LlmPlanner {
     }
 
     fn call_proxy(mission: &str, config: &PytxoConfig) -> anyhow::Result<LlmPlanResponse> {
+        let system = "Decompose the mission into parallel-safe coding tasks. Return JSON: {\"tasks\":[{\"id\":\"task-a\",\"agent\":\"agent-0\",\"paths\":[\"src/foo.ts\"],\"depends_on\":[],\"prompt\":\"...\",\"verify\":[\"npm test\"]}]}. Max tasks from user config. Use repo-relative paths. Suggest verify commands only when obvious (cargo test, npm test, pytest).";
+        let body_for = |model: &str| {
+            serde_json::json!({
+                "model": model,
+                "response_format": { "type": "json_object" },
+                "messages": [
+                    { "role": "system", "content": system },
+                    { "role": "user", "content": mission }
+                ]
+            })
+        };
+
+        // Prefer BYOK OpenAI-compatible scout (ADR-0031).
+        if let Some((base, key, model)) = byok_scout_endpoint() {
+            let url = format!("{}/chat/completions", base.trim_end_matches('/'));
+            let resp = ureq::post(&url)
+                .set("Content-Type", "application/json")
+                .set("Authorization", &format!("Bearer {key}"))
+                .send_json(body_for(&model))
+                .map_err(|e| anyhow::anyhow!("byok scout request failed: {e}"))?;
+            if !(200..300).contains(&resp.status()) {
+                bail!("byok scout returned HTTP {}", resp.status());
+            }
+            return Self::parse_chat_response(resp);
+        }
+
+        // Ultra managed proxy fallback.
         let url = format!("{}/deepseek/v1/chat/completions", Self::proxy_base(config));
         let model = Self::planner_model();
-        let body = serde_json::json!({
-            "model": model,
-            "response_format": { "type": "json_object" },
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "Decompose the mission into parallel-safe coding tasks. Return JSON: {\"tasks\":[{\"id\":\"task-a\",\"agent\":\"agent-0\",\"paths\":[\"src/foo.ts\"],\"depends_on\":[],\"prompt\":\"...\"}]}. Max tasks from user config. Use repo-relative paths."
-                },
-                { "role": "user", "content": mission }
-            ]
-        });
         let mut req = ureq::post(&url).set("Content-Type", "application/json");
         if let Ok(token) = std::env::var("PYTXO_ULTRA_SESSION") {
             if !token.trim().is_empty() {
@@ -207,11 +246,15 @@ impl LlmPlanner {
             }
         }
         let resp = req
-            .send_json(body)
+            .send_json(body_for(&model))
             .map_err(|e| anyhow::anyhow!("llm planner proxy request failed: {e}"))?;
         if !(200..300).contains(&resp.status()) {
             bail!("llm planner proxy returned HTTP {}", resp.status());
         }
+        Self::parse_chat_response(resp)
+    }
+
+    fn parse_chat_response(resp: ureq::Response) -> anyhow::Result<LlmPlanResponse> {
         let envelope: serde_json::Value = resp
             .into_json()
             .map_err(|e| anyhow::anyhow!("llm planner invalid JSON: {e}"))?;
@@ -249,15 +292,19 @@ impl MissionPlanner for LlmPlanner {
                 depends_on: row.depends_on,
                 root: None,
                 signal_fidelity: None,
+                verify: row.verify,
             });
         }
         if tasks.is_empty() {
             bail!("llm planner returned no tasks");
         }
-        Ok(MissionPlan {
-            tasks,
-            task_prompts,
-        })
+        Ok(attach_verify_suggestions(
+            MissionPlan {
+                tasks,
+                task_prompts,
+            },
+            ctx.repo,
+        ))
     }
 }
 
@@ -321,13 +368,17 @@ impl MissionPlanner for SignalBackedPlanner {
                 depends_on,
                 root: None,
                 signal_fidelity: None,
+                verify: vec![],
             });
         }
 
-        Ok(MissionPlan {
-            tasks,
-            task_prompts,
-        })
+        Ok(attach_verify_suggestions(
+            MissionPlan {
+                tasks,
+                task_prompts,
+            },
+            ctx.repo,
+        ))
     }
 }
 
@@ -372,10 +423,13 @@ fn enrich_config_tasks(
         tasks.push(task);
     }
 
-    Ok(MissionPlan {
-        tasks,
-        task_prompts,
-    })
+    Ok(attach_verify_suggestions(
+        MissionPlan {
+            tasks,
+            task_prompts,
+        },
+        ctx.repo,
+    ))
 }
 
 fn infer_paths_from_chunk(chunk: &str, repo: &Path) -> Vec<String> {
@@ -480,8 +534,98 @@ pub fn default_planner(config: &PytxoConfig) -> Box<dyn MissionPlanner> {
     }
 }
 
-/// Decompose a mission line when planner is enabled; otherwise returns a helpful error.
+/// Planner for Flow / `pytxo mission` — always on (ADR-0031). Prefer BYOK scout LLM,
+/// then Signal-backed, then heuristic when explicitly requested.
+pub fn default_mission_planner(config: &PytxoConfig) -> Box<dyn MissionPlanner> {
+    if byok_scout_endpoint().is_some() || (ultra_billing_active(config) && llm_planner_flag()) {
+        return Box::new(LlmPlanner);
+    }
+    if std::env::var("PYTXO_PLANNER")
+        .ok()
+        .is_some_and(|v| v.eq_ignore_ascii_case("heuristic"))
+    {
+        return Box::new(HeuristicPlanner);
+    }
+    Box::new(SignalBackedPlanner)
+}
+
+fn llm_planner_flag() -> bool {
+    std::env::var("PYTXO_PLANNER_LLM")
+        .ok()
+        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
+/// OpenAI-compatible BYOK scout: (base_url, api_key, model).
+fn byok_scout_endpoint() -> Option<(String, String, String)> {
+    let candidates = [
+        ("DEEPSEEK_API_KEY", "https://api.deepseek.com/v1", "deepseek-chat"),
+        ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4.1-mini"),
+        ("OPENROUTER_API_KEY", "https://openrouter.ai/api/v1", "openai/gpt-4.1-mini"),
+        ("MISTRAL_API_KEY", "https://api.mistral.ai/v1", "mistral-small-latest"),
+    ];
+    for (env, base, model) in candidates {
+        if let Ok(key) = std::env::var(env) {
+            if !key.trim().is_empty() {
+                let model = std::env::var("PYTXO_PLANNER_MODEL").unwrap_or_else(|_| model.into());
+                return Some((base.into(), key, model));
+            }
+        }
+    }
+    None
+}
+
+fn suggest_verify_commands(repo: &Path) -> Vec<String> {
+    let mut cmds = Vec::new();
+    if repo.join("Cargo.toml").is_file() {
+        cmds.push("cargo test".into());
+    }
+    if repo.join("package.json").is_file() {
+        // Prefer npm test when present; do not invent scripts.
+        if let Ok(raw) = std::fs::read_to_string(repo.join("package.json")) {
+            if raw.contains("\"test\"") {
+                cmds.push("npm test".into());
+            }
+        }
+    }
+    if repo.join("pyproject.toml").is_file() || repo.join("pytest.ini").is_file() {
+        cmds.push("pytest".into());
+    }
+    if repo.join("go.mod").is_file() {
+        cmds.push("go test ./...".into());
+    }
+    cmds
+}
+
+fn attach_verify_suggestions(mut plan: MissionPlan, repo: &Path) -> MissionPlan {
+    let suggested = suggest_verify_commands(repo);
+    if suggested.is_empty() {
+        return plan;
+    }
+    for task in &mut plan.tasks {
+        if task.verify.is_empty() {
+            task.verify = suggested.clone();
+        }
+    }
+    plan
+}
+
+/// Decompose a mission for Flow / CLI mission (always uses mission planner).
 pub fn plan_mission(
+    mission: &str,
+    repo: &Path,
+    config: &PytxoConfig,
+) -> anyhow::Result<MissionPlan> {
+    let spec = MissionSpec {
+        text: mission.to_string(),
+    };
+    let ctx = PlannerContext { repo, config };
+    default_mission_planner(config)
+        .decompose(&spec, &ctx)
+        .with_context(|| format!("planner failed for mission: {}", spec.text))
+}
+
+/// Legacy shell entry: respects PYTXO_PLANNER / [planner] enabled gate.
+pub fn plan_mission_gated(
     mission: &str,
     repo: &Path,
     config: &PytxoConfig,
@@ -510,12 +654,28 @@ mod tests {
         std::env::set_var("PYTXO_PLANNER", "0");
         let cfg = PytxoConfig::default();
         assert!(!planner_enabled(&cfg));
-        let err = plan_mission("fix tests", Path::new("."), &cfg).unwrap_err();
+        let err = plan_mission_gated("fix tests", Path::new("."), &cfg).unwrap_err();
         let msg = format!("{err:#}");
         assert!(
             msg.contains("disabled") || msg.contains("NL planner"),
             "unexpected error: {msg}"
         );
+        match prev {
+            Some(v) => std::env::set_var("PYTXO_PLANNER", v),
+            None => std::env::remove_var("PYTXO_PLANNER"),
+        }
+    }
+
+    #[test]
+    fn mission_planner_works_without_flag() {
+        let _guard = PLANNER_ENV_LOCK.lock().unwrap();
+        let prev = std::env::var("PYTXO_PLANNER").ok();
+        std::env::set_var("PYTXO_PLANNER", "0");
+        let mut cfg = PytxoConfig::default();
+        cfg.planner.enabled = false;
+        cfg.max_agents = 2;
+        let plan = plan_mission("fix auth; update docs", Path::new("."), &cfg).unwrap();
+        assert!(!plan.tasks.is_empty());
         match prev {
             Some(v) => std::env::set_var("PYTXO_PLANNER", v),
             None => std::env::remove_var("PYTXO_PLANNER"),

@@ -7,6 +7,14 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
+# Pytxo v0.12.0
+
+Mission Loop Phase 1 — `pytxo mission`, BYOK scout, verify-gated flush, Desktop Focus/Flow primary. See [`distribution/release-notes/v0.12.0.md`](distribution/release-notes/v0.12.0.md).
+
+Previous: [`v0.11.0`](distribution/release-notes/v0.11.0.md).
+
+---
+
 # Pytxo v0.11.0
 
 Install trust, NSIS branding, mature Ops chrome (sandboxed strip, AppBar glance, operator English). See [`distribution/release-notes/v0.11.0.md`](distribution/release-notes/v0.11.0.md).

@@ -108,6 +108,7 @@ mod tests {
             depends_on: Vec::new(),
             root: None,
             signal_fidelity: None,
+            verify: vec![],
         }
     }
 

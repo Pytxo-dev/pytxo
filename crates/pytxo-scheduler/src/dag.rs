@@ -133,6 +133,7 @@ pub fn build_dag_plan(tasks: &[Task], max_agents: usize) -> Result<ExecutionPlan
                     wave: wave_index,
                     root: t.root.clone(),
                     signal_fidelity: t.signal_fidelity,
+                    verify: t.verify.clone(),
                 })
                 .collect(),
         );
@@ -223,6 +224,7 @@ mod tests {
             depends_on: deps.iter().map(|s| (*s).to_string()).collect(),
             root: None,
             signal_fidelity: None,
+            verify: vec![],
         }
     }
 

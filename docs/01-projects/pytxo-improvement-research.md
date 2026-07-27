@@ -6,8 +6,8 @@ tags: [project, research, strategy]
 audience: [human, agent]
 layer: meta
 created: 2026-07-17
-updated: 2026-07-25
-related: [[product-vision]], [[signal-core]], [[blast-shield]], [[race-shield]], [[desktop-ui-improvement-backlog]], [[competitive-benchmarks]], [[mvp-bootstrap]], [[permission-profile-engine]], [[desktop-visual-system]], [[multi-agent-orchestration-landscape]], [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]], [[gtm-open-source-loop]]
+updated: 2026-07-27
+related: [[product-vision]], [[signal-core]], [[blast-shield]], [[race-shield]], [[desktop-ui-improvement-backlog]], [[competitive-benchmarks]], [[mvp-bootstrap]], [[permission-profile-engine]], [[desktop-visual-system]], [[multi-agent-orchestration-landscape]], [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]], [[gtm-open-source-loop]], [[mission-loop]]
 ---
 
 # Pytxo deep-improvement research
@@ -15,6 +15,8 @@ related: [[product-vision]], [[signal-core]], [[blast-shield]], [[race-shield]],
 Primary-source synthesis (vault + crates + 2026 competitor docs). Longer than an atomic note by design — market landscape plus ranked program for the next cycle.
 
 **Community:** [Discord](https://discord.gg/AUFRPFjSYv)
+
+**Current build focus:** **Phase 77 — Mission Loop Phase 1** ([[mission-loop]], [[ADR-0031-mission-planner-byok-scout]]). Phases 75–76 (moat depth / commercial gates) remain secondary until the mission loop success criterion is met.
 
 ## Pre-marketing readiness gates
 
@@ -162,11 +164,11 @@ Market leverage maps onto engineering phases: Race + isolation honesty (Claude/C
 
 ## How to use this note
 
-[[mvp-bootstrap]]: **73–74 shipped**. **75–76** = P2 moat depth, P3 reliability/commercial.
+[[mvp-bootstrap]]: **73–74 shipped**. **77 = Mission Loop Phase 1** ([[mission-loop]]). **75–76** = P2 moat depth / P3 reliability remain secondary until mission success criterion.
 
 - **Product / GTM:** residual P0 honesty + compare guides; Phase 74 marketing polish shipped ([[market-ready-polish-research]]).
-- **Desktop:** Phase 74 supervision polish shipped; residual items in [[desktop-ui-improvement-backlog]].
-- **Orchestration:** Phases 75–76; declare permission profile + execution domain per [`AGENTS.md`](../../AGENTS.md).
+- **Desktop:** Phase 74 supervision polish shipped; residual items in [[desktop-ui-improvement-backlog]]; primary surfaces per [[ADR-0032-desktop-2-focus-flow-primary]].
+- **Orchestration:** Mission loop (`pytxo mission`, BYOK scout, verify gates) first; then Phases 75–76.
 
 ## Sources (accessed 2026-07-23)
 

@@ -14,7 +14,8 @@ related: [[MOC-home]], [[three-tier-model]], [[product-vision]], [[permission-pr
 
 ## Vision
 
-- [[product-vision]] — hypervisor model and three moats
+- [[product-vision]] — inspectable mission loop and three moats
+- [[mission-loop]] — one mission → plan → verify → apply
 
 ## System views
 
@@ -36,6 +37,7 @@ related: [[MOC-home]], [[three-tier-model]], [[product-vision]], [[permission-pr
 
 ## Engineering deep-dives
 
+- [[mission-loop]]
 - [[adaptive-semantic-scaffolding]]
 - [[sparse-overlay-fs]]
 - [[dag-flow-engine]]

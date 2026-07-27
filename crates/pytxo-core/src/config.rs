@@ -123,6 +123,9 @@ pub struct TaskConfig {
     /// Per-task Signal Core fidelity override ([[closed-loop-fidelity]]).
     #[serde(default)]
     pub signal_fidelity: Option<FidelityTier>,
+    /// Post-task verify shell commands (mission loop).
+    #[serde(default)]
+    pub verify: Vec<String>,
 }
 
 fn default_max_agents() -> usize {
@@ -219,6 +222,7 @@ impl PytxoConfig {
                 depends_on: t.depends_on.clone(),
                 root: t.root.clone(),
                 signal_fidelity: t.signal_fidelity,
+                verify: t.verify.clone(),
             })
             .collect()
     }
