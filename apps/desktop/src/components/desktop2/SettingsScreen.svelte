@@ -98,7 +98,7 @@
   } = $props();
 
   let search = $state("");
-  let section = $state<SettingsSectionId>(initialSection ?? loadSettingsSection());
+  let section = $state<SettingsSectionId>(loadSettingsSection());
   let theme = $state<DeckTheme>(loadTheme());
   let accent = $state<AccentPreset>(loadAccent());
   let customAccent = $state(loadCustomAccent());
@@ -742,11 +742,6 @@
     border-radius: 7px;
     background: #0a0b0e;
     border: 1px solid var(--pytxo-line, #1e2026);
-  }
-  .segmented.wrap {
-    flex-wrap: wrap;
-    max-width: 320px;
-    justify-content: flex-end;
   }
   .segmented button {
     border: 0;

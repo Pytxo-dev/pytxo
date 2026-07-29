@@ -167,7 +167,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             apps/web/package-lock.json
-      - name: npm ci and build
+      - name: npm ci, verify, and build
         working-directory: apps/web
         env:
           # Clerk validates the public key during static prerendering. Production
@@ -176,6 +176,9 @@ jobs:
         run: |
           npm ci --legacy-peer-deps
           npm audit --omit=dev --audit-level=high
+          npm run lint
+          npx playwright install --with-deps chromium
+          npm run e2e
           npm run build
 
   desktop-frontend:
@@ -239,11 +242,12 @@ jobs:
         working-directory: apps/desktop
         run: npm ci
 
+      - name: Build release desktop with current frontend
+        working-directory: apps/desktop
+        run: npm run build:native
+
       - name: cargo test pytxo-desktop
         run: cargo test -p pytxo-desktop
-
-      - name: cargo build pytxo-desktop
-        run: cargo build -p pytxo-desktop
 
   pytxo-link:
     runs-on: ubuntu-latest

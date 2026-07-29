@@ -6,7 +6,7 @@ tags: [project, research, strategy]
 audience: [human, agent]
 layer: meta
 created: 2026-07-17
-updated: 2026-07-27
+updated: 2026-07-29
 related: [[product-vision]], [[signal-core]], [[blast-shield]], [[race-shield]], [[desktop-ui-improvement-backlog]], [[competitive-benchmarks]], [[mvp-bootstrap]], [[permission-profile-engine]], [[desktop-visual-system]], [[multi-agent-orchestration-landscape]], [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]], [[gtm-open-source-loop]], [[mission-loop]]
 ---
 
@@ -28,6 +28,9 @@ Before ramping paid/ads marketing, these must be true (or explicitly labeled Win
 4. Honest claims only (Signal pins, Blast interim, Ultra/Cloud gated).
 5. Cross-platform Desktop/CLI matrix green **or** clearly labeled Windows-first on download.
 6. Discord live as the support loop so early users are not abandoned.
+7. Workspace release gates are green. On 2026-07-29, the remaining baseline
+   rustfmt drift was normalized; workspace tests, clippy with warnings denied,
+   and `cargo fmt --all -- --check` pass.
 
 Repos: `Pytxo-dev/pytxo` (source) · `Pytxo-dev/pytxo-releases` (binaries) · `npm:pytxo` · [pytxo.com](https://pytxo.com).
 
@@ -39,7 +42,12 @@ Pytxo is **past MVP as a local agent hypervisor**. [[mvp-bootstrap]] Phases 0–
 
 The 2026 market has **converged on parallel agents + sandbox + control-center UX**. That makes “we have multi-agent” and “we have a sandbox” table stakes — not moats. Pytxo’s wedge is the **local multi-CLI hypervisor**: heterogeneous agents you already run, Race write-collision control, Signal structural context, and honest approve-to-flush — not another vendor control center.
 
-Phase 73 closed several narrative gaps (pinned benchmarks, caveated ~60%, Focus arbitrage bar, vision lock-free/3D/languages wording). Residual risk is **leftover overclaim** (glossary 3D-primary, Ultra/Cloud “shipped,” ProjFS-as-default) plus **supervision parity** with Copilot App / Cursor cloud UX.
+Phase 73 closed several narrative gaps (pinned benchmarks, caveated ~60%,
+Focus arbitrage bar, vision lock-free/3D/languages wording). The 2026-07-29
+claim-integrity pass then corrected the remaining public Plans, Ultra, Cloud,
+copy-layer, glossary, and C4 surfaces. Residual risk is now **capability
+maturity itself**, not copy that presents those paths as generally available,
+plus supervision parity with Copilot App / Cursor cloud UX.
 
 ```mermaid
 flowchart LR
@@ -91,21 +99,21 @@ Deep compares: [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]],
 | **Permission profiles** | Medium–high | `PermissionEngine` FS/network/env; DeepSpace isolation | `ProcessPolicy` docs-only; Orbit allowlist TBD; WFP often stub |
 | **Ultra billing** | Local high / cloud low | SQLite wallet | Default `NoopBillingReconciler`; Link ping-only stub |
 | **Pytxo Cloud** | Low | Trait + `HttpCloudDispatcher` | Default `NoopCloudDispatcher`; gVisor/Kata deferred |
-| **Desktop 2** | High for Ops/Flow/HITL/Focus | Default shell; Focus arbitrage bar (Phase 73) | No live Ops poll; fleets loaded unused; Integrations stubs; Settings “Coming soon” |
+| **Desktop 2** | High for Ops/Flow/HITL/Focus | Default shell; live Ops, exact-stop confirmation, keyboard Approvals, Flow, DPI matrix | Physical macOS Retina and unobserved Windows scale factors remain open |
 | **MCP / CLI** | High surface / thin tests | Wired to orchestrate | Zero dedicated integration tests |
 
 ## Doc-vs-code mismatches
 
-| Claim | Status (2026-07-23) |
+| Claim | Status (2026-07-29) |
 |-------|---------------------|
 | Vision lock-free / 5-language / 3D primary | **Fixed Phase 73** in [[product-vision]] — locked registry, 8+, Desktop 2 Focus |
 | Competitive TBD cells | **Fixed Phase 73** pins in [[competitive-benchmarks]] (methodology caveats remain) |
 | Focus without arbitrage | **Fixed Phase 73** — Focus surfaces savings bar |
 | Duplicate ADR-0014 | **Fixed** — Chroma → [[ADR-0029-chroma-shared-design-tokens]] |
-| Glossary / presentation / three-tier “3D primary” | **Open** — residual honesty pass |
-| Sparse-overlay leads with FUSE/ProjFS | **Open** — lead with copy-layer shipping |
-| Ultra/Link / Enterprise sandboxes “Shipped/GA” in tiers | **Open** — vs Noop reconciler/dispatcher |
-| Hybrid-execution as live default path | **Open** — Noop dispatcher caveat needed |
+| Glossary / presentation / three-tier “3D primary” | **Fixed** — Desktop 2 Focus is primary; 3D is legacy-only |
+| Sparse-overlay leads with FUSE/ProjFS | **Fixed** — shipping copy-layer leads; kernel providers are north star |
+| Ultra/Link / Enterprise sandboxes “Shipped/GA” in tiers | **Fixed** — public Plans and Ultra docs expose capability gates before checkout |
+| Hybrid-execution as live default path | **Fixed** — default `NoopCloudDispatcher` is explicit in owning notes and C4 views |
 | Fleet panel in Desktop 2 | **Fixed Phase 74** — thin Ops fleet list from `snapshot.fleets` |
 | MCP Integrations in-app config | **Fixed Phase 74** — honesty copy for CLI/`pytxo-mcp` + Cursor docs |
 | `ProcessPolicy` trait | **Open** — documented only |
@@ -116,15 +124,19 @@ Market leverage maps onto engineering phases: Race + isolation honesty (Claude/C
 
 ### P0 — Residual trust and GTM honesty
 
-| # | Action | Surface | Why |
-|---|--------|---------|-----|
-| 1 | Finish honesty pass: glossary, presentation, three-tier, sparse-overlay, hybrid, tiers, GTM | Vault + public mirrors | Codex/Copilot sell real sandboxes; overclaim kills trust |
-| 2 | Keep Signal pin + aspirational ~60%; prefer large-file repro before stronger marketing | [[competitive-benchmarks]], [[signal-core]], feature-grid | Claude teams warn of token multiplication |
-| 3 | Frame proof targets vs Copilot App / Codex, not ADE walls alone | [[competitive-benchmarks]], [[beyond-the-ade]] | Category peers shifted |
+| # | Action | Surface | Status |
+|---|--------|---------|--------|
+| 1 | Finish honesty pass: glossary, presentation, three-tier, sparse-overlay, hybrid, tiers, GTM | Vault + public mirrors | **Done 2026-07-29** |
+| 2 | Keep Signal pin + aspirational ~60%; prefer large-file repro before stronger marketing | [[competitive-benchmarks]], [[signal-core]], feature-grid | **Guard in place** |
+| 3 | Frame proof targets vs Copilot App / Codex, not ADE walls alone | [[competitive-benchmarks]], [[beyond-the-ade]] | **Done Phase 73** |
 
 ### P1 — Supervision parity (Desktop 2)
 
-**Shipped in Phase 74** — see [[market-ready-polish-research]] and [[mvp-bootstrap]]. Live poll, Approvals selection/refresh, domain/recents, Fleet Ops panel, Integrations/Settings honesty, Focus list CSS, marketing product hero.
+**Shipped in Phase 74 and re-verified 2026-07-29** — see
+[[market-ready-polish-research]] and [[mvp-bootstrap]]. Live poll, Approvals
+selection/refresh, domain/recents, Fleet Ops panel, Integrations/Settings
+honesty, Focus list CSS, exact-stop lifecycle, DPI coverage, and a marketing
+product-evidence guard are present.
 
 | # | Action | Surface | Status |
 |---|--------|---------|--------|
@@ -166,7 +178,10 @@ Market leverage maps onto engineering phases: Race + isolation honesty (Claude/C
 
 [[mvp-bootstrap]]: **73–74 shipped**. **77 = Mission Loop Phase 1** ([[mission-loop]]). **75–76** = P2 moat depth / P3 reliability remain secondary until mission success criterion.
 
-- **Product / GTM:** residual P0 honesty + compare guides; Phase 74 marketing polish shipped ([[market-ready-polish-research]]).
+- **Product / GTM:** maintain the P0 claim-integrity guard and compare guides.
+  The marketing surface now has real Flow / Ops / Approvals evidence,
+  build-time duplicate detection, and capability-gated Plans / Ultra copy
+  ([[market-ready-polish-research]]).
 - **Desktop:** Phase 74 supervision polish shipped; residual items in [[desktop-ui-improvement-backlog]]; primary surfaces per [[ADR-0032-desktop-2-focus-flow-primary]].
 - **Orchestration:** Mission loop (`pytxo mission`, BYOK scout, verify gates) first; then Phases 75–76.
 

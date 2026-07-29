@@ -22,6 +22,10 @@
   }
 
   onMount(async () => {
+    if (!("__TAURI_INTERNALS__" in window)) {
+      checking = false;
+      return;
+    }
     try {
       const found = await check();
       if (found) update = found;

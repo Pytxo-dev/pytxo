@@ -8,14 +8,17 @@
     "predev": "node scripts/generate-favicon.mjs",
     "build": "next build",
     "preinstall": "node scripts/ensure-chroma.mjs",
-    "prebuild": "node scripts/generate-favicon.mjs",
+    "prebuild": "node scripts/generate-favicon.mjs && node scripts/verify-product-assets.mjs",
     "generate-favicon": "node scripts/generate-favicon.mjs",
     "deploy": "vercel deploy --prod",
-    "lint": "eslint"
+    "e2e": "playwright test",
+    "lint": "eslint",
+    "verify:product-assets": "node scripts/verify-product-assets.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.31.0",
     "@clerk/ui": "^1.16.0",
+    "@gsap/react": "^2.1.2",
     "@pytxo/chroma": "file:./vendor/chroma",
     "@types/mdx": "^2.0.14",
     "class-variance-authority": "^0.7.1",
@@ -23,8 +26,9 @@
     "fumadocs-core": "^16.12.1",
     "fumadocs-mdx": "^15.2.0",
     "fumadocs-ui": "^16.12.1",
+    "gsap": "^3.15.0",
     "lucide-react": "^1.17.0",
-    "next": "16.2.7",
+    "next": "16.2.12",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -32,16 +36,30 @@
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.7",
+    "eslint-config-next": "16.2.12",
     "shadcn": "^4.10.0",
-    "sharp": "^0.34.5",
+    "sharp": "0.35.3",
+    "simple-icons": "^16.27.1",
     "tailwindcss": "^4",
     "to-ico": "^1.1.5",
     "typescript": "^5"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.24"
+    },
+    "sharp": "$sharp"
+  },
+  "pnpm": {
+    "overrides": {
+      "next>postcss": "8.5.24",
+      "sharp": "0.35.3"
+    }
   }
 }

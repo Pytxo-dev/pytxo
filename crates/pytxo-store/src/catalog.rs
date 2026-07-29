@@ -188,7 +188,10 @@ impl Catalog {
     pub fn delete_domain(&self, domain_id: &str) -> Result<bool> {
         let changed = self
             .conn
-            .execute("DELETE FROM domains WHERE domain_id = ?1", params![domain_id])
+            .execute(
+                "DELETE FROM domains WHERE domain_id = ?1",
+                params![domain_id],
+            )
             .map_err(|e| PytxoError::Store(e.to_string()))?;
         Ok(changed > 0)
     }

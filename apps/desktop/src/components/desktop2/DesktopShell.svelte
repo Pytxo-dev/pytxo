@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { IconActivity, IconChecks, IconFolders, IconPlayerPlay, IconPlugConnected, IconSettings, IconSparkles } from "@tabler/icons-svelte";
   import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
   import {
@@ -84,6 +84,7 @@
   let voiceModelPath = $state<string | null>(null);
   let voiceInstalling = $state(false);
   let windowFocused = $state(true);
+  let operationsScreen = $state<{ focusActiveRun: () => void } | null>(null);
 
   const activeDomain = $derived(
     snapshot.domains.find((d) => d.domain_id === activeDomainId) ?? null,
@@ -270,6 +271,11 @@
     navigate("runs");
   }
 
+  async function stopRunFromOps(runId: string, domainId: string) {
+    await backend.stopRun(runId, domainId);
+    await refreshSnapshot();
+  }
+
   async function onWorkspaceOpened(openedPath?: string | null) {
     workspaceError = "";
     await refreshSnapshot();
@@ -331,7 +337,37 @@
     }
   }
 
+  function isEditableTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    return (
+      target.isContentEditable ||
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT"
+    );
+  }
+
+  async function focusOperations() {
+    navigate("operations");
+    await tick();
+    operationsScreen?.focusActiveRun();
+  }
+
   function onGlobalKeydown(event: KeyboardEvent) {
+    const modifier = event.metaKey || event.ctrlKey;
+    if (
+      !event.defaultPrevented &&
+      !event.repeat &&
+      modifier &&
+      event.shiftKey &&
+      !event.altKey &&
+      event.key.toLowerCase() === "o" &&
+      !isEditableTarget(event.target)
+    ) {
+      event.preventDefault();
+      void focusOperations();
+      return;
+    }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
       commandOpen = true;
@@ -497,12 +533,14 @@
         <div class="loading-state"><div></div><div></div><div></div></div>
       {:else if route === "operations"}
         <OperationsScreen
+          bind:this={operationsScreen}
           {snapshot}
           live={pollLive}
           lastPollAt={lastPollAt}
           activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? null) : null}
           onRoute={navigate}
           onReviewRun={(runId) => onFocusRun(runId, "run-review")}
+          onStopRun={stopRunFromOps}
         />
       {:else if route === "flow"}
         <FlowScreen

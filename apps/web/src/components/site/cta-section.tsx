@@ -10,7 +10,7 @@ export function CtaSection() {
       <div className="mx-auto max-w-3xl border-t border-border pt-12 text-center">
         <h2 className="text-2xl sm:text-3xl">Install once. Run agents in parallel.</h2>
         <p className="mx-auto mt-3 max-w-lg text-muted-foreground">
-          CLI for orchestration. Optional Desktop for topology, approvals, and diffs.
+          CLI for orchestration. Optional Desktop for Focus, Ops, approvals, and diffs.
         </p>
         <InstallSnippet className="mx-auto mt-6 max-w-sm text-left">{NPM_INSTALL}</InstallSnippet>
         <div className="mt-6 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">

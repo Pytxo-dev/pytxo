@@ -60,11 +60,9 @@ export default function HomePage() {
       <Hero />
       <DemoSection />
       <ProofBand />
+      <HowItWorks />
       <ScrollReveal>
         <ProblemSection />
-      </ScrollReveal>
-      <ScrollReveal delayMs={40}>
-        <HowItWorks />
       </ScrollReveal>
       <ScrollReveal delayMs={60}>
         <FeatureGrid />

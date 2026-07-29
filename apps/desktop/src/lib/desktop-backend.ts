@@ -27,6 +27,7 @@ export interface DesktopBackend {
   }): Promise<DesktopSnapshot>;
   approve(requestId: string, domainId: string | null): Promise<void>;
   deny(requestId: string, domainId: string | null): Promise<void>;
+  stopRun(runId: string, domainId: string): Promise<void>;
   forgetDomain(domainId: string): Promise<void>;
   listAdeClis(): Promise<AdeCliStatusDto[]>;
   previewFlow(input: FlowDraftInput): Promise<FlowPlan>;
@@ -81,6 +82,9 @@ class TauriDesktopBackend implements DesktopBackend {
   }
   async deny(requestId: string, domainId: string | null) {
     await ipc.hitlRespond(requestId, false, domainId);
+  }
+  async stopRun(runId: string, domainId: string) {
+    await ipc.stopRun(false, domainId, runId);
   }
   async forgetDomain(domainId: string) {
     await ipc.forgetDomain(domainId);

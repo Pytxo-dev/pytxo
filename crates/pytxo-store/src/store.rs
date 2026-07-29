@@ -132,6 +132,23 @@ impl PytxoStore {
         Ok(())
     }
 
+    /// Finalize a worker-owned run only while it is still active.
+    ///
+    /// Explicit cancellation deliberately uses `finish_run` so an operator can
+    /// transition a running run to `cancelled`; this guarded transition keeps a
+    /// worker that unwinds afterward from overwriting that terminal state.
+    pub fn finish_run_if_running(&self, id: &str, status: &str) -> Result<bool> {
+        let now = Utc::now().to_rfc3339();
+        let changed = self
+            .conn
+            .execute(
+                "UPDATE runs SET finished_at = ?1, status = ?2 WHERE id = ?3 AND status = 'running'",
+                params![now, status, id],
+            )
+            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        Ok(changed > 0)
+    }
+
     pub fn insert_agent(
         &self,
         id: &str,
@@ -495,5 +512,32 @@ mod tests {
         let agents = store.list_agents_for_run("run-1").unwrap();
         assert_eq!(agents.len(), 1);
         assert_eq!(agents[0].exit_code, Some(0));
+    }
+
+    #[test]
+    fn finalizes_a_running_run_atomically() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = PytxoStore::open(&dir.path().join("pytxo.db")).unwrap();
+        store.insert_run("run-1", "/tmp/repo").unwrap();
+
+        assert!(store.finish_run_if_running("run-1", "completed").unwrap());
+
+        let (status, finished_at) = store.get_run_status("run-1").unwrap().unwrap();
+        assert_eq!(status, "completed");
+        assert!(finished_at.is_some());
+    }
+
+    #[test]
+    fn running_only_finalization_preserves_explicit_cancellation() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = PytxoStore::open(&dir.path().join("pytxo.db")).unwrap();
+        store.insert_run("run-1", "/tmp/repo").unwrap();
+        store.finish_run("run-1", "cancelled").unwrap();
+
+        assert!(!store.finish_run_if_running("run-1", "failed").unwrap());
+
+        let (status, finished_at) = store.get_run_status("run-1").unwrap().unwrap();
+        assert_eq!(status, "cancelled");
+        assert!(finished_at.is_some());
     }
 }

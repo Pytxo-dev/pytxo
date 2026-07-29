@@ -32,10 +32,10 @@ export const metadata: Metadata = {
     siteName: "Pytxo",
     images: [
       {
-        url: "/logo.png",
-        width: 2000,
-        height: 2000,
-        alt: "Pytxo",
+        url: "/product/operations-1600x1000.png",
+        width: 1600,
+        height: 1000,
+        alt: "Pytxo Desktop Operations",
       },
     ],
     locale: "en_US",
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Pytxo",
     description: "Local agent hypervisor for the coding agents you already use",
-    images: ["/logo.png"],
+    images: ["/product/operations-1600x1000.png"],
   },
 };
 

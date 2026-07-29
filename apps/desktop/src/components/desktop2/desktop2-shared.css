@@ -51,6 +51,8 @@
 @media(max-width:900px){.desktop2 .ops-truth{grid-template-columns:repeat(2,1fr)}.desktop2 .metrics--two{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.desktop2 *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 html[data-chroma-theme="light"] .desktop2 main{background:var(--pytxo-surface-shell)}html[data-chroma-theme="light"] .desktop2 .panel-head{border-color:var(--pytxo-line)}html[data-chroma-theme="light"] .desktop2 .panel,html[data-chroma-theme="light"] .desktop2 .metrics article,html[data-chroma-theme="light"] .desktop2 .workspace-card{background:var(--pytxo-surface-panel);border-color:var(--pytxo-line)}html[data-chroma-theme="light"] .desktop2 h1,html[data-chroma-theme="light"] .desktop2 h2,html[data-chroma-theme="light"] .desktop2 h3,html[data-chroma-theme="light"] .desktop2 strong{color:var(--pytxo-text-strong)}
+html[data-chroma-theme="light"] .desktop2 .decision-card{border-color:color-mix(in oklab,var(--pytxo-gold) 30%,var(--pytxo-line));background:color-mix(in oklab,var(--pytxo-gold) 7%,var(--pytxo-surface-panel))}
+html[data-chroma-theme="light"] .desktop2 .risk{background:color-mix(in oklab,var(--pytxo-gold) 18%,var(--pytxo-surface-panel));color:#70511f}
 html[data-chroma-theme="terminal"] .desktop2 .primary,html[data-chroma-theme="nebula"] .desktop2 .primary{color:var(--pytxo-accent-ink)}
 html[data-chroma-theme="terminal"] .desktop2 .quiet:hover:not(:disabled),html[data-chroma-theme="nebula"] .desktop2 .quiet:hover:not(:disabled){border-color:color-mix(in oklab,var(--pytxo-accent,var(--pytxo-teal)) 40%,transparent);color:var(--pytxo-text-strong);background:var(--pytxo-surface-active)}
 .desktop2 .primary{color:var(--pytxo-accent-ink)}
@@ -124,3 +126,82 @@ html[data-ui-density="comfortable"] .desktop2 .primary{font-size:var(--text-xs,0
 .desktop2 .workspace-card.active{box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--pytxo-accent,var(--pytxo-teal)) 45%,transparent)}
 .desktop2 .card-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .desktop2 .primary{background:color-mix(in oklab,var(--pytxo-accent,var(--pytxo-teal)) 88%,#0a0b0e);border-color:transparent}
+
+/* Keep Flow controls reachable when the plan preview narrows the composer. */
+.desktop2 .composer-actions{flex-wrap:wrap}
+.desktop2 .composer-actions>.primary{flex:none;margin-left:auto}
+.desktop2 .voice-device{min-width:0;flex:0 1 115px}
+.desktop2 .domain{flex:1 1 240px;min-width:0;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.desktop2 .domain select{min-width:0;width:100%}
+
+/* Keyboard-first approval decisions with explicit evidence and policy semantics. */
+.desktop2 .screen-heading.approval-heading{gap:18px;flex-wrap:wrap}
+.desktop2 .approval-shortcuts{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;color:var(--pytxo-text-muted);font-size:9px}
+.desktop2 .approval-shortcuts span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.desktop2 kbd{display:inline-flex;align-items:center;min-height:18px;padding:0 5px;border:1px solid var(--pytxo-line);border-bottom-color:#343943;border-radius:4px;background:#111319;color:#8f96a1;font:8px "Geist Mono",monospace;box-shadow:0 1px 0 #050608}
+.desktop2 .decision-message{margin:-8px 0 12px}
+.desktop2 .decision-title{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.desktop2 .decision-title>div>span{color:var(--pytxo-gold);font-size:9px;font-weight:650;text-transform:uppercase;letter-spacing:.07em}
+.desktop2 .selection-position{flex:none;color:var(--pytxo-text-muted);font:9px "Geist Mono",monospace}
+.desktop2 .decision-reason{font:10px/1.5 "Geist Mono",monospace;color:#9097a2!important;overflow-wrap:anywhere}
+.desktop2 .decision-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:18px 0 0;border-block:1px solid var(--pytxo-line-soft)}
+.desktop2 .decision-meta>div{min-width:0;padding:11px 10px 11px 0}
+.desktop2 .decision-meta dt{margin-bottom:5px;color:var(--pytxo-text-muted);font-size:8px}
+.desktop2 .decision-meta dd{margin:0;color:#b9bec6;font-size:9px;overflow-wrap:anywhere}
+.desktop2 .decision-evidence{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 18px;padding:12px 0;border-bottom:1px solid var(--pytxo-line-soft)}
+.desktop2 .decision-evidence>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.desktop2 .decision-evidence strong{font-size:10px}
+.desktop2 .decision-evidence small{color:var(--pytxo-text-muted);font-size:8px;line-height:1.4}
+.desktop2 .decision-evidence button{display:inline-flex;align-items:center;gap:5px;flex:none}
+.desktop2 .decision-actions{flex-wrap:wrap}
+.desktop2 .decision-actions button{display:inline-flex;align-items:center;gap:7px}
+.desktop2 .decision-actions button kbd{margin-left:3px;background:transparent}
+.desktop2 .decision-actions .primary kbd{border-color:rgba(6,17,15,.3);color:#0a4038;box-shadow:none}
+.desktop2 .decision-actions .deny kbd{border-color:#5f343b;color:#d98994;box-shadow:none}
+
+/* Exact-run process control: shortcuts request review, never execute a stop. */
+.desktop2 .ops-shortcuts{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin:-12px 0 14px;color:var(--pytxo-text-muted);font-size:9px}
+.desktop2 .ops-shortcuts span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.desktop2 .ops-feedback{margin:-4px 0 14px;padding:9px 11px;border:1px solid color-mix(in oklab,var(--pytxo-success) 32%,var(--pytxo-line));border-radius:6px;background:color-mix(in oklab,var(--pytxo-success) 7%,var(--pytxo-surface-panel));color:var(--pytxo-success);font-size:10px}
+.desktop2 .ops-feedback.error{border-color:color-mix(in oklab,var(--pytxo-danger,#d98994) 38%,var(--pytxo-line));background:color-mix(in oklab,var(--pytxo-danger,#d98994) 7%,var(--pytxo-surface-panel));color:var(--pytxo-danger,#d98994)}
+.desktop2 .run-row-group{display:grid;grid-template-columns:minmax(0,1fr) 54px;align-items:center;border-bottom:1px solid #191c22}
+.desktop2 .run-row-group .run-row{min-width:0;border-bottom:0}
+.desktop2 .run-stop{display:inline-flex;align-items:center;justify-content:center;gap:4px;width:50px;height:28px;padding:0 6px;border:1px solid transparent;border-radius:5px;background:transparent;color:#6f7681;font-size:8px;cursor:pointer;transition:border-color .15s ease,color .15s ease,background-color .15s ease}
+.desktop2 .run-stop:hover{border-color:color-mix(in oklab,var(--pytxo-danger,#d98994) 45%,transparent);background:color-mix(in oklab,var(--pytxo-danger,#d98994) 8%,transparent);color:var(--pytxo-danger,#d98994)}
+.desktop2 .run-stop:focus-visible{outline:2px solid var(--pytxo-danger,#d98994);outline-offset:1px}
+.desktop2 .stop-run-dialog{position:fixed;inset:0;width:min(440px,calc(100vw - 36px));max-height:calc(100dvh - 36px);margin:auto;padding:0;border:1px solid color-mix(in oklab,var(--pytxo-danger,#d98994) 34%,var(--pytxo-line));border-radius:9px;background:var(--pytxo-surface-panel);color:var(--pytxo-text-strong);box-shadow:0 24px 80px color-mix(in oklab,var(--pytxo-surface-shell) 82%,transparent);overflow:auto}
+.desktop2 .stop-run-dialog::backdrop{background:rgba(4,5,8,.72);backdrop-filter:blur(3px)}
+.desktop2 .stop-run-dialog>section{padding:20px}
+.desktop2 .stop-run-heading{display:flex;align-items:center;gap:11px}
+.desktop2 .stop-run-heading>span{display:grid;place-items:center;width:34px;height:34px;border-radius:7px;background:color-mix(in oklab,var(--pytxo-danger,#d98994) 12%,var(--pytxo-surface-panel));color:var(--pytxo-danger,#d98994)}
+.desktop2 .stop-run-heading small{display:block;margin-bottom:3px;color:var(--pytxo-danger,#d98994);font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.desktop2 .stop-run-heading h2{margin:0;font-size:15px}
+.desktop2 .stop-run-dialog>section>p{margin:16px 0;color:var(--pytxo-text-soft);font-size:11px;line-height:1.5}
+.desktop2 .stop-run-dialog dl{margin:0;border-block:1px solid var(--pytxo-line-soft)}
+.desktop2 .stop-run-dialog dl>div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:10px;padding:9px 0}
+.desktop2 .stop-run-dialog dt{color:var(--pytxo-text-muted);font-size:9px}
+.desktop2 .stop-run-dialog dd{min-width:0;margin:0;color:var(--pytxo-text-body);font-size:10px;overflow-wrap:anywhere}
+.desktop2 .stop-run-consequence{display:flex;align-items:flex-start;gap:9px;margin-top:15px;padding:11px;border-radius:6px;background:color-mix(in oklab,var(--pytxo-success) 7%,var(--pytxo-surface-panel));color:var(--pytxo-success)}
+.desktop2 .stop-run-consequence p{display:flex;flex-direction:column;gap:3px;margin:0}
+.desktop2 .stop-run-consequence strong{font-size:10px}
+.desktop2 .stop-run-consequence small{color:var(--pytxo-text-soft);font-size:9px;line-height:1.4}
+.desktop2 .stop-run-error{margin-top:12px;padding:9px 10px;border:1px solid color-mix(in oklab,var(--pytxo-danger,#d98994) 38%,var(--pytxo-line));border-radius:5px;background:color-mix(in oklab,var(--pytxo-danger,#d98994) 7%,var(--pytxo-surface-panel));color:var(--pytxo-danger,#d98994);font-size:9px;overflow-wrap:anywhere}
+.desktop2 .stop-run-dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.desktop2 .stop-run-dialog footer .quiet{height:34px}
+.desktop2 .stop-confirm{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 12px;border:1px solid color-mix(in oklab,var(--pytxo-danger,#d98994) 78%,#241015);border-radius:6px;background:color-mix(in oklab,var(--pytxo-danger,#d98994) 68%,#241015);color:#fff1f3;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap}
+.desktop2 .stop-confirm:hover:not(:disabled){background:color-mix(in oklab,var(--pytxo-danger,#d98994) 78%,#241015)}
+.desktop2 .stop-confirm:focus-visible{outline:2px solid var(--pytxo-danger,#d98994);outline-offset:2px}
+.desktop2 .stop-confirm:disabled{opacity:.45;cursor:not-allowed}
+
+@media(max-width:1250px){
+  .desktop2 .decision-meta{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:1050px){
+  .desktop2 .approval-layout{grid-template-columns:1fr}
+}
+@media(max-width:760px){
+  .desktop2 .approval-shortcuts{justify-content:flex-start}
+  .desktop2 .decision-evidence{align-items:flex-start;flex-direction:column}
+  .desktop2 .ops-shortcuts{justify-content:flex-start}
+  .desktop2 .stop-run-dialog dl>div{grid-template-columns:1fr;gap:4px}
+}

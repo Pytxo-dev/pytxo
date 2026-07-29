@@ -46,50 +46,71 @@ fn spawn_link_stub(ledger: Ledger) -> (u16, thread::JoinHandle<()>) {
 
     let handle = thread::spawn(move || {
         listener.set_nonblocking(true).ok();
-        let deadline = Instant::now() + Duration::from_secs(5);
+        let deadline = Instant::now() + Duration::from_secs(8);
         while Instant::now() < deadline {
-            if let Ok((mut stream, _)) = listener.accept() {
-                let mut buf = vec![0u8; 16_384];
-                let n = stream.read(&mut buf).unwrap_or(0);
-                if n == 0 {
-                    continue;
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    stream
+                        .set_read_timeout(Some(Duration::from_millis(500)))
+                        .ok();
+                    let mut buf = vec![0u8; 16_384];
+                    let mut n = 0usize;
+                    let read_deadline = Instant::now() + Duration::from_millis(500);
+                    while Instant::now() < read_deadline {
+                        match stream.read(&mut buf[n..]) {
+                            Ok(0) if n > 0 => break,
+                            Ok(0) => thread::sleep(Duration::from_millis(5)),
+                            Ok(k) => {
+                                n += k;
+                                if buf[..n].windows(4).any(|w| w == b"\r\n\r\n") {
+                                    break;
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    if n == 0 {
+                        continue;
+                    }
+                    let req = String::from_utf8_lossy(&buf[..n]);
+                    let status = if req.contains("runs/start") {
+                        if let Some(body) = req.split("\r\n\r\n").nth(1) {
+                            if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
+                                ledger.start(
+                                    v["domain_id"].as_str().unwrap_or(""),
+                                    v["run_id"].as_str().unwrap_or(""),
+                                );
+                            }
+                        }
+                        "200"
+                    } else if req.contains("runs/end") {
+                        if let Some(body) = req.split("\r\n\r\n").nth(1) {
+                            if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
+                                ledger.end(
+                                    v["domain_id"].as_str().unwrap_or(""),
+                                    v["run_id"].as_str().unwrap_or(""),
+                                    &v["usage"],
+                                );
+                            }
+                        }
+                        "200"
+                    } else if req.contains("/health") {
+                        "200"
+                    } else {
+                        "404"
+                    };
+                    let body = if req.contains("/health") { "ok" } else { "{}" };
+                    let resp = format!(
+                        "HTTP/1.1 {status} OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    let _ = stream.write_all(resp.as_bytes());
+                    let _ = stream.flush();
                 }
-                let req = String::from_utf8_lossy(&buf[..n]);
-                let status = if req.contains("runs/start") {
-                    if let Some(body) = req.split("\r\n\r\n").nth(1) {
-                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
-                            ledger.start(
-                                v["domain_id"].as_str().unwrap_or(""),
-                                v["run_id"].as_str().unwrap_or(""),
-                            );
-                        }
-                    }
-                    "200"
-                } else if req.contains("runs/end") {
-                    if let Some(body) = req.split("\r\n\r\n").nth(1) {
-                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
-                            ledger.end(
-                                v["domain_id"].as_str().unwrap_or(""),
-                                v["run_id"].as_str().unwrap_or(""),
-                                &v["usage"],
-                            );
-                        }
-                    }
-                    "200"
-                } else if req.contains("/health") {
-                    "200"
-                } else {
-                    "404"
-                };
-                let body = if req.contains("/health") { "ok" } else { "" };
-                let resp = format!(
-                    "HTTP/1.1 {status} OK\r\nContent-Length: {}\r\n\r\n{body}",
-                    body.len()
-                );
-                let _ = stream.write_all(resp.as_bytes());
-                let _ = stream.flush();
-            } else {
-                thread::sleep(Duration::from_millis(5));
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(_) => thread::sleep(Duration::from_millis(5)),
             }
         }
     });
@@ -98,17 +119,35 @@ fn spawn_link_stub(ledger: Ledger) -> (u16, thread::JoinHandle<()>) {
 }
 
 fn post_json(port: u16, path: &str, body: &str) {
-    let mut stream = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
     let req = format!(
-        "POST {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+        "POST {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
-    stream.write_all(req.as_bytes()).unwrap();
-    stream.flush().unwrap();
-    let mut resp = vec![0u8; 1024];
-    let n = stream.read(&mut resp).unwrap_or(0);
-    let text = String::from_utf8_lossy(&resp[..n]);
-    assert!(text.contains("200"), "unexpected response: {text}");
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let mut last = String::new();
+    while Instant::now() < deadline {
+        if let Ok(mut stream) = std::net::TcpStream::connect(format!("127.0.0.1:{port}")) {
+            stream
+                .set_read_timeout(Some(Duration::from_millis(500)))
+                .ok();
+            stream
+                .set_write_timeout(Some(Duration::from_millis(500)))
+                .ok();
+            if stream.write_all(req.as_bytes()).is_err() {
+                thread::sleep(Duration::from_millis(20));
+                continue;
+            }
+            let _ = stream.flush();
+            let mut resp = vec![0u8; 1024];
+            let n = stream.read(&mut resp).unwrap_or(0);
+            last = String::from_utf8_lossy(&resp[..n]).into_owned();
+            if last.contains("200") {
+                return;
+            }
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    panic!("unexpected response: {last}");
 }
 
 #[test]

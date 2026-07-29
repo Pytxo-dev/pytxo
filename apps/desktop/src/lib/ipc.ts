@@ -101,7 +101,8 @@ export const ipc = {
     invoke<string>("dry_run", { agents, domainId }).then(unwrap),
   dispatchRun: (cmd: string, agents: number, repoRoot?: string) =>
     invoke<string>("dispatch_run_cmd", { cmd, agents, repoRoot }).then(unwrap),
-  stopRun: (all = false) => invoke<void>("stop_run", { all }).then(unwrap),
+  stopRun: (all = false, domainId: string | null = null, runId: string | null = null) =>
+    invoke<void>("stop_run", { all, domainId, runId }).then(unwrap),
   gitDiff: (agentId: string, domainId: string | null) =>
     invoke<string>("git_diff", { agentId, domainId }).then(unwrap),
   commitWorkspace: (runId: string, agentId: string, domainId: string | null) =>

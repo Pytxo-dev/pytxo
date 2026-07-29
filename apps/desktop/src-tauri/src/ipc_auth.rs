@@ -3,7 +3,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_shell::ShellExt;
 
-use crate::ipc_error::{map_io_err, PytxoIpcError, IpcResult};
+use crate::ipc_error::{map_io_err, IpcResult, PytxoIpcError};
 
 /// Keyring service id. Kept distinct from bundle `identifier` (`com.pytxo.desktop`)
 /// so existing signed-in sessions remain readable after the Reality Deck rename.
@@ -74,9 +74,7 @@ pub fn hydrate_session_env() {
 /// True when argv/URL looks like a Pytxo deep link we should handle.
 pub fn looks_like_deep_link(arg: &str) -> bool {
     let lower = arg.to_ascii_lowercase();
-    lower.starts_with("pytxo-deck:")
-        || lower.starts_with("pytxo:")
-        || lower.contains("://auth")
+    lower.starts_with("pytxo-deck:") || lower.starts_with("pytxo:") || lower.contains("://auth")
 }
 
 /// Handle `pytxo-deck://auth?token=...` (and `pytxo://auth?token=...`) from the account page,
@@ -161,10 +159,7 @@ pub fn extract_auth_token(url: &str) -> Option<String> {
         }
     }
 
-    let query = url
-        .split_once('?')
-        .map(|(_, q)| q)
-        .unwrap_or(url);
+    let query = url.split_once('?').map(|(_, q)| q).unwrap_or(url);
     for pair in query.split('&') {
         let pair = pair.split('#').next().unwrap_or(pair);
         if let Some(raw) = pair.strip_prefix("token=") {
@@ -251,8 +246,7 @@ fn decode_jwt_segment(segment: &str) -> Result<Vec<u8>, String> {
 }
 
 fn base64_decode(input: &str) -> Result<Vec<u8>, ()> {
-    const TABLE: &[u8] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = Vec::new();
     let mut buf = 0u32;
     let mut bits = 0u32;
@@ -283,8 +277,7 @@ mod tests {
     }
 
     fn base64url(bytes: &[u8]) -> String {
-        const TABLE: &[u8] =
-            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         let mut out = String::new();
         let mut i = 0;
         while i < bytes.len() {

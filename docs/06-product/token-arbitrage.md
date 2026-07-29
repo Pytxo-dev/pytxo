@@ -6,13 +6,16 @@ tags: [product, tokens]
 audience: [human, agent]
 layer: cloud
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-07-29
 related: [[tiers-hobbyist-pro-max]], [[adaptive-semantic-scaffolding]], [[ADR-0009-ultra-managed-metering]]
 ---
 
 # Cloud context caching (token arbitrage)
 
-**Pro Cloud** tier includes **cloud context caching**: semantic code signatures stored on fast cloud infrastructure to reduce repeated LLM input tokens during large multi-agent refactors.
+Pytxo ships **local token-arbitrage profiling** today: it compares raw context
+estimates with the Signal Core scaffold sent to an agent. The Pro Cloud
+**server-side context cache is a capability-gated target**, not a default
+hosted service. It requires a configured cache and cloud path.
 
 ## Pytxo Ultra: billed vs sent
 
@@ -28,10 +31,14 @@ Rust: `ArbitrageProfiler` in `pytxo-runner`, `UsageMeter` / `TokenWallet` in `py
 
 ## Relationship to scaffolding
 
-Local [[adaptive-semantic-scaffolding]] still governs fidelity per agent. Cache layer optimizes **repeated** structural payloads across swarm members.
+Local [[adaptive-semantic-scaffolding]] governs fidelity per agent. When a
+server-side cache is configured, that cache can optimize **repeated**
+structural payloads across swarm members.
 
 ## Honest positioning
 
-Parallel agents still incur provider costs (see [[cost-and-swarm-limits]]). Caching and scaffolding mitigate duplication; they do not eliminate spend.
+Parallel agents still incur provider costs (see [[cost-and-swarm-limits]]).
+Shipping local scaffolding mitigates duplication; configured caching can reduce
+repeated payload work. Neither eliminates spend.
 
 Part of [[tiers-hobbyist-pro-max]].

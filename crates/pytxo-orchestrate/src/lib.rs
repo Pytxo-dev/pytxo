@@ -45,9 +45,8 @@ pub use flow::{
     FlowBlockedReason, FlowDraftInput, FlowPlan, FlowPlanTask, FlowSource, FlowStatus, FlowWarning,
 };
 pub use hypervisor::{
-    default_hypervisor, forget_catalog_domain, list_catalog_domains,
-    list_catalog_domains_enriched, CatalogEntryStatus, DomainState, DomainSummary,
-    HypervisorRegistry,
+    default_hypervisor, forget_catalog_domain, list_catalog_domains, list_catalog_domains_enriched,
+    CatalogEntryStatus, DomainState, DomainSummary, HypervisorRegistry,
 };
 pub use preflight::assert_git_ready;
 pub use project::{
@@ -792,7 +791,7 @@ pub(crate) async fn execute_run_body(
     store_for_events
         .lock()
         .map_err(|e| anyhow::anyhow!(e.to_string()))?
-        .finish_run(&run_id.0, run_status)?;
+        .finish_run_if_running(&run_id.0, run_status)?;
     let state_path = domain.data_dir.join("active_run.json");
     let _ = fs::remove_file(state_path);
 
@@ -978,6 +977,38 @@ pub async fn stop(
     all: bool,
     cleanup_worktrees: bool,
 ) -> anyhow::Result<()> {
+    stop_impl(config, repo, all, cleanup_worktrees, None).await
+}
+
+/// Stop one explicitly named run only when it is still the active run for the
+/// supplied execution domain.
+///
+/// Desktop uses this guard so a stale supervision snapshot cannot terminate a
+/// newer run that started in the same domain after the operator opened a stop
+/// confirmation.
+pub async fn stop_exact(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    expected_run_id: &str,
+    cleanup_worktrees: bool,
+) -> anyhow::Result<()> {
+    stop_impl(
+        config,
+        repo,
+        false,
+        cleanup_worktrees,
+        Some(expected_run_id),
+    )
+    .await
+}
+
+async fn stop_impl(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    all: bool,
+    cleanup_worktrees: bool,
+    expected_run_id: Option<&str>,
+) -> anyhow::Result<()> {
     let repo = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo)?;
     let data_dir = repo.join(&cfg.data_dir);
@@ -994,11 +1025,26 @@ pub async fn stop(
 
     let state_path = repo.join(&cfg.data_dir).join("active_run.json");
     if !state_path.exists() {
+        if let Some(expected) = expected_run_id {
+            anyhow::bail!(
+                "refusing to stop run {expected}: no run is active in execution domain {}",
+                repo.display()
+            );
+        }
         println!("No active run.");
         return Ok(());
     }
     let raw = fs::read_to_string(&state_path)?;
     let state: ActiveRunState = serde_json::from_str(&raw)?;
+    if let Some(expected) = expected_run_id {
+        if state.run_id != expected {
+            anyhow::bail!(
+                "refusing to stop run {expected}: active run in execution domain {} is {}",
+                repo.display(),
+                state.run_id
+            );
+        }
+    }
     let pids = stop_run(&data_dir, &state.run_id, true).map_err(|e| anyhow::anyhow!(e))?;
     if cleanup_worktrees {
         let repo_path = PathBuf::from(&state.repo_root);
@@ -1046,6 +1092,16 @@ pub async fn stop(
         };
         let registry = ProcessRegistry::default();
         pytxo_runner::cleanup_worktrees(&ctx, &registry).map_err(|e| anyhow::anyhow!(e))?;
+    }
+    if let Err(error) = PytxoStore::open(&cfg.db_path_at(&repo))
+        .and_then(|store| store.finish_run(&state.run_id, "cancelled"))
+    {
+        tracing::warn!(
+            run_id = %state.run_id,
+            domain = %repo.display(),
+            %error,
+            "stopped processes but could not persist cancelled run status"
+        );
     }
     fs::remove_file(&state_path)?;
     println!(

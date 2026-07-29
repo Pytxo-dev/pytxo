@@ -56,7 +56,7 @@ impl EnvironmentPolicy for EnvironmentPolicyEngine {
     }
 
     fn sanitize_env_map(&self, vars: &mut HashMap<String, String>) {
-        vars.retain(|key, _| key.to_ascii_uppercase() != "PYTXO_ULTRA_SESSION");
+        vars.retain(|key, _| !key.eq_ignore_ascii_case("PYTXO_ULTRA_SESSION"));
         if !matches!(
             self.profile,
             PermissionProfile::DeepSpace | PermissionProfile::Orbit

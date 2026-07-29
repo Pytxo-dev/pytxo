@@ -44,6 +44,7 @@ tauri-plugin-mcp-bridge = { version = "0.11", optional = true }
 
 [features]
 default = []
+custom-protocol = ["tauri/custom-protocol"]
 voice-whisper = ["pytxo-voice/local-whisper"]
 # Verification-only automation bridge; never enabled by CI/release builds.
 mcp-bridge = ["tauri-plugin-mcp-bridge"]

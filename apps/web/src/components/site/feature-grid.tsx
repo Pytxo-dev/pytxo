@@ -31,7 +31,10 @@ const MOATS: Moat[] = [
     href: "/docs/concepts/signal-core",
     icon: Braces,
     accent: "teal",
-    stat: { value: "4.8%", label: "measured on tiny fixture (aspirational ~60% on large files)" },
+    stat: {
+      value: "4.76%",
+      label: "measured byte reduction on a tiny fixture; ~60% remains aspirational on large files",
+    },
   },
   {
     title: "Safe parallel sandboxes",
@@ -167,10 +170,10 @@ export function FeatureGrid() {
   return (
     <section className="section-pad mx-auto max-w-6xl">
       <div className="flex max-w-2xl flex-col gap-3">
-        <h2 className="text-3xl sm:text-4xl">The three moats behind every run</h2>
+        <h2 className="text-3xl sm:text-4xl">Built-in protections for real repositories</h2>
         <p className="text-muted-foreground">
-          Signal Core, Blast Shield, and Race Shield run on every job. They are what make
-          parallel agents safe on a real repository, not just a demo.
+          Every run starts with smaller context, isolated changes, and conflict-aware
+          scheduling. Signal, Blast, and Race are the internal names.
         </p>
       </div>
 
@@ -187,7 +190,7 @@ export function FeatureGrid() {
           approval gates.
         </p>
       </div>
-      <div className="mt-8 grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-8 grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-border bg-border sm:grid-cols-2">
         {ALSO_INCLUDED.map((item) => (
           <div key={item.title} className="flex h-full flex-col gap-3 bg-background p-6">
             <div className="flex items-start justify-between gap-2">

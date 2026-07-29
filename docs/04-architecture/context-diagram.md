@@ -6,7 +6,7 @@ tags: [architecture, c4]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-07-29
 related: [[three-tier-model]], [[c4-container]]
 ---
 
@@ -18,16 +18,18 @@ flowchart LR
   ide[IDE or CLI]
   pytxo[Pytxo control plane]
   agents[Headless agent CLIs]
-  cloud[Pytxo Cloud sandbox]
+  cloud[Pytxo Cloud sandbox - configured only]
   llm[LLM providers BYOK]
 
   dev --> ide
   dev --> pytxo
   ide -->|MCP| pytxo
   pytxo --> agents
-  pytxo --> cloud
+  pytxo -.->|non-noop dispatcher| cloud
   agents --> llm
   cloud --> llm
 ```
 
-Pytxo sits between the developer’s environment and parallel agent processes, optionally offloading heavy work to [[hybrid-execution]].
+Pytxo sits between the developer’s environment and parallel agent processes.
+The dashed Cloud path exists only when a non-noop dispatcher is configured;
+local execution is the default ([[hybrid-execution]]).

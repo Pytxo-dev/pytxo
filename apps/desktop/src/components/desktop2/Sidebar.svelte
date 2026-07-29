@@ -167,10 +167,6 @@
     justify-content: center;
     padding-inline: 0;
   }
-  .brand-mark {
-    flex-shrink: 0;
-    border-radius: 6px;
-  }
   .brand-copy {
     display: flex;
     align-items: baseline;
