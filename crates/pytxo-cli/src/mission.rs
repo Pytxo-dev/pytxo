@@ -32,10 +32,7 @@ pub async fn run_mission(opts: MissionOptions) -> anyhow::Result<()> {
         trust_repo(&repo, PermissionProfile::Orbit)?;
     }
 
-    let installed: Vec<_> = all_ade_clis()
-        .iter()
-        .filter(|s| ade_on_path(s))
-        .collect();
+    let installed: Vec<_> = all_ade_clis().iter().filter(|s| ade_on_path(s)).collect();
     if installed.is_empty() {
         bail!("No coding agent CLIs found on PATH. Install Claude Code, Codex, or OpenCode, then retry.");
     }
@@ -166,11 +163,7 @@ fn print_preflight(plan: &FlowPlan) {
     eprintln!();
 }
 
-fn print_mission_report(
-    run_id: &str,
-    run: &pytxo_orchestrate::RunStatusJson,
-    plan: &FlowPlan,
-) {
+fn print_mission_report(run_id: &str, run: &pytxo_orchestrate::RunStatusJson, plan: &FlowPlan) {
     eprintln!();
     eprintln!("Mission report");
     eprintln!("--------------");
@@ -192,9 +185,7 @@ fn print_mission_report(
         .filter(|w| w.code == "path_claim_overlap")
         .count();
     if overlaps > 0 {
-        eprintln!(
-            "Predicted path overlaps scheduled apart: {overlaps} (see stage layout above)"
-        );
+        eprintln!("Predicted path overlaps scheduled apart: {overlaps} (see stage layout above)");
     }
     eprintln!();
 }

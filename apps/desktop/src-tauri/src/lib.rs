@@ -9,13 +9,13 @@ mod ipc_voice;
 mod tray;
 
 use ipc::{
-    agent_arbitrage, commit_workspace, dispatch_run_cmd, domain_is_trusted, dry_run, ensure_workspace,
-    fleet_run_status_cmd, forget_domain, get_domain_permission, git_diff, hitl_respond, list_agents,
-    list_all_domains, list_domains_cmd, list_domains_status, list_fleet_runs, list_hitl,
-    list_hitl_all, list_projects, list_providers, list_runs, list_trusted_domains,
-    load_desktop_snapshot, poll_log_lines, project_add_root_cmd, project_remove_root_cmd,
-    project_roots_cmd, select_domain, set_domain_permission, stop_run, structural_graph, tail_events,
-    workspace_structural_graph, AppState,
+    agent_arbitrage, commit_workspace, dispatch_run_cmd, domain_is_trusted, dry_run,
+    ensure_workspace, fleet_run_status_cmd, forget_domain, get_domain_permission, git_diff,
+    hitl_respond, list_agents, list_all_domains, list_domains_cmd, list_domains_status,
+    list_fleet_runs, list_hitl, list_hitl_all, list_projects, list_providers, list_runs,
+    list_trusted_domains, load_desktop_snapshot, poll_log_lines, project_add_root_cmd,
+    project_remove_root_cmd, project_roots_cmd, select_domain, set_domain_permission, stop_run,
+    structural_graph, tail_events, workspace_structural_graph, AppState,
 };
 use ipc_auth::{auth_clear_session, auth_open_sign_in, auth_status};
 use ipc_flow::{

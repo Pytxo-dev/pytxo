@@ -6,7 +6,12 @@ use clap::{CommandFactory, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
-#[command(name = "pytxo", version, about = "Pytxo agent control plane", after_help = "Discord: https://discord.gg/AUFRPFjSYv")]
+#[command(
+    name = "pytxo",
+    version,
+    about = "Pytxo agent control plane",
+    after_help = "Discord: https://discord.gg/AUFRPFjSYv"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,

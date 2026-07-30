@@ -6,7 +6,7 @@ tags: [project, research, desktop, ux, competitive, polish]
 audience: [human, agent]
 layer: presentation
 created: 2026-07-26
-updated: 2026-07-26
+updated: 2026-07-29
 related: [[competitive-landscape-2026-07]], [[market-ready-polish-research]], [[desktop-ui-improvement-backlog]], [[desktop-visual-system]], [[beyond-the-ade]], [[pytxo-vs-github-copilot-app]], [[product-vision]]
 ---
 
@@ -132,8 +132,8 @@ Aligned with Desktop 2 visual system ([[desktop-visual-system]]: void + teal / v
 
 | ID | Recommendation | Competitive cue | Notes |
 |----|----------------|-----------------|-------|
-| **P2.1** | **DPI / scaling** — verify 100/125/150% Windows + macOS retina; crisp titlebar; no blurry WebView scale. | Native Copilot / Warp feel | Tauri-specific; screenshot QA checklist. |
-| **P2.2** | **Keyboard-first ops** — shortcuts for Approvals next/approve/deny, Ops focus, kill run. | Copilot Help → Keyboard Shortcuts; BridgeSpace ⌘-first (copy the *habit*, not the grid) | Power users reopen tools they can drive blind. |
+| **P2.1** | **DPI / scaling** — simulated device scales 100/125/150% × user zoom 90/100/110% pass; physical Windows 125% also passes, including the native logical floor. At that observed target, the custom titlebar was crisp and the current UI was legible. Physical Windows 100%/150% and macOS Retina remain open. | Native Copilot / Warp feel | Partial 2026-07-29. Playwright scale factors are simulated coverage, not physical-monitor evidence; Tauri-specific screenshot QA checklist. |
+| **P2.2** | **Keyboard-first ops** — shortcuts for Approvals next/approve/deny, Ops focus, kill run. | Copilot Help → Keyboard Shortcuts; BridgeSpace ⌘-first (copy the *habit*, not the grid) | Completed 2026-07-28. Approvals uses guarded decision chords. Ops focus and exact-run stop review are keyboard-accessible; termination still requires a separate confirmation. |
 | **P2.3** | **Shareable run truth** — export or deep-link run status for humans (even local file / MCP). | Cursor share URL; Oz session links | Local-first variant; don’t require Warp cloud. |
 | **P2.4** | **Motion policy** — keep 140–180ms; state-change only; honor reduced-motion. | Already in Desktop 2 | Do not add ambient glow. |
 | **P2.5** | **Tray / reopen habit** — close-to-tray + badge for needs-you (when shipped). | Background agent products | Supports “dangerous daily driver” reopen loop. |

@@ -276,7 +276,9 @@ impl From<pytxo_store::CatalogEntry> for CatalogEntryStatus {
 fn is_temporary_path(path: &str) -> bool {
     let candidate = Path::new(path);
     let temp_dir = std::env::temp_dir();
-    if candidate.starts_with(&temp_dir) || dunce_lossy(candidate).starts_with(&dunce_lossy(&temp_dir)) {
+    if candidate.starts_with(&temp_dir)
+        || dunce_lossy(candidate).starts_with(&dunce_lossy(&temp_dir))
+    {
         return true;
     }
     // `std::env::temp_dir()` returns the raw TEMP/TMP value, which Windows
@@ -297,7 +299,9 @@ fn is_temporary_path(path: &str) -> bool {
 /// Best-effort case/prefix-insensitive comparison for Windows short-path and
 /// `\\?\` long-path prefix differences between `temp_dir()` and stored paths.
 fn dunce_lossy(p: &Path) -> String {
-    p.to_string_lossy().trim_start_matches(r"\\?\").to_ascii_lowercase()
+    p.to_string_lossy()
+        .trim_start_matches(r"\\?\")
+        .to_ascii_lowercase()
 }
 
 /// Enriched catalog for hypervisor dashboard ([[execution-domains]] Phase 3).
@@ -340,7 +344,10 @@ pub fn forget_catalog_domain(domain_id: &str) -> anyhow::Result<()> {
         .find(|r| r.domain_id == domain_id)
         .ok_or_else(|| anyhow::anyhow!("domain not found in catalog: {domain_id}"))?;
     if row.active_runs > 0 {
-        anyhow::bail!("cannot forget domain with {} active run(s)", row.active_runs);
+        anyhow::bail!(
+            "cannot forget domain with {} active run(s)",
+            row.active_runs
+        );
     }
     if row.hitl_pending > 0 {
         anyhow::bail!(
@@ -349,7 +356,8 @@ pub fn forget_catalog_domain(domain_id: &str) -> anyhow::Result<()> {
         );
     }
     let cat = pytxo_store::Catalog::open_default().map_err(|e| anyhow::anyhow!(e))?;
-    cat.delete_domain(domain_id).map_err(|e| anyhow::anyhow!(e))?;
+    cat.delete_domain(domain_id)
+        .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }
 

@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PlanRoadmapCard } from "@/components/site/plan-roadmap-card";
 
 export const metadata: Metadata = {
   title: "Plans",
-  description: "Pytxo Core is open source. Subscribe to Pro, Max, or Ultra for cloud features.",
+  description:
+    "Pytxo Core is available now. Paid entitlements are capability-gated while Link, cloud dispatch, and managed metering mature.",
 };
 
 const ROADMAP = [
@@ -23,58 +23,62 @@ const ROADMAP = [
     detail:
       "The full local agent hypervisor ships open source. Install the CLI and run agents today.",
     plan: null as null,
-    featured: true,
+    ctaLabel: null as null,
   },
   {
     name: "Pytxo Pro Cloud",
-    status: "Subscribe",
+    status: "Capability-gated",
     statusVariant: "secondary" as const,
-    highlights: ["Pytxo Link entitlements", "Cloud context caching", "`pytxo doctor` connectivity checks"],
-    detail: "Cloud offload for context and link routing.",
+    highlights: [
+      "Higher local agent limits",
+      "Link entitlements when configured",
+      "Cloud context cache roadmap",
+    ],
+    detail:
+      "Checkout provisions the Pro entitlement. Link routing and cloud caching still require their services to be configured.",
     plan: "pro" as const,
-    featured: false,
+    ctaLabel: "Subscribe to Pro",
   },
   {
     name: "Pytxo Max Swarm",
-    status: "Subscribe",
+    status: "Configured deployments",
     statusVariant: "secondary" as const,
     highlights: [
-      "Hosted cloud sandboxes",
-      "Heavy parallel pipelines",
-      "High-throughput swarms",
+      "Higher local swarm limits",
+      "Cloud dispatch when configured",
+      "Sandbox service when configured",
     ],
-    detail: "For teams running large parallel agent pipelines in isolated sandboxes.",
+    detail:
+      "Cloud execution is not a default hosted service yet. It works only in deployments with a configured cloud dispatcher.",
     plan: "max" as const,
-    featured: false,
+    ctaLabel: "Subscribe to Max",
   },
   {
     name: "Pytxo Ultra",
-    status: "Subscribe",
+    status: "Local ledger available",
     statusVariant: "secondary" as const,
     highlights: [
-      "Managed metered billing",
-      "Pytxo Link proxy",
-      "Improved token estimates for Ultra workloads",
+      "Local wallet and usage ledger",
+      "Managed transport when configured",
+      "Link reconciliation target",
     ],
-    detail: "Managed metering and model routing for production agent workloads.",
+    detail:
+      "Ultra mode includes local metering hooks. Managed inference and Link reconciliation are not end-to-end on the default path.",
     plan: "ultra" as const,
-    featured: false,
+    ctaLabel: "Subscribe to Ultra",
   },
 ] as const;
 
 export default function PlansPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
-      <div className="flex max-w-2xl flex-col gap-4">
-        <Badge variant="outline" className="w-fit border-border">
-          Live billing
-        </Badge>
+      <div className="flex max-w-3xl flex-col gap-4">
         <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-          Plans and subscriptions
+          Plans and availability
         </h1>
-        <p className="text-lg text-muted-foreground">
-          Core stays open source. Subscribe to unlock Pytxo Link, cloud caching, and hosted
-          sandboxes.
+        <p className="max-w-2xl text-lg text-muted-foreground">
+          Core works today. Paid entitlements are available, while cloud dispatch and managed
+          metering remain capability-gated.
         </p>
         <div className="mt-2 flex flex-wrap gap-3">
           <Button size="lg" asChild>
@@ -87,18 +91,16 @@ export default function PlansPage() {
       </div>
 
       <div className="mt-16 border-t border-border pt-10">
-        <h2 className="text-2xl font-semibold tracking-tight">Choose a tier</h2>
-        <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-          Checkout is handled securely via MBCZ. Requires a signed-in pytxo.com account.
+        <h2 className="text-2xl font-semibold tracking-tight">Availability by tier</h2>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Checkout provisions a Pytxo entitlement through MBCZ. Runtime availability still
+          depends on the configured Link, cloud, and proxy services.
         </p>
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+      <div data-testid="plans-grid" className="mt-8 grid gap-4 md:grid-cols-2">
         {ROADMAP.map((tier) => (
-          <div
-            key={tier.name}
-            className={`flex flex-col gap-3 ${tier.featured ? "sm:col-span-2" : ""}`}
-          >
+          <div key={tier.name} data-testid="plan-cell" className="flex flex-col gap-3">
             <PlanRoadmapCard
               name={tier.name}
               status={tier.status}
@@ -109,7 +111,7 @@ export default function PlansPage() {
             {tier.plan ? (
               <Button className="w-full" asChild>
                 <Link href={`/api/billing/checkout-redirect?plan=${tier.plan}`}>
-                  Subscribe to {tier.name}
+                  {tier.ctaLabel}
                 </Link>
               </Button>
             ) : null}

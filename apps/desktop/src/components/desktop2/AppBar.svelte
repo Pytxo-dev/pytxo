@@ -73,8 +73,12 @@
         <IconChevronDown size={14} />
       </button>
       {#if open}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="backdrop" onclick={close}></div>
+        <button
+          type="button"
+          class="backdrop"
+          aria-label="Close workspace switcher"
+          onclick={close}
+        ></button>
         <div class="menu" role="listbox" aria-label="Workspaces">
           {#each available as domain (domain.domain_id)}
             <button
@@ -208,6 +212,9 @@
     position: fixed;
     inset: 0;
     z-index: 15;
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
   .menu {
     position: absolute;

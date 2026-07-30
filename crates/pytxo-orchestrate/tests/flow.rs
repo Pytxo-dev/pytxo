@@ -93,7 +93,7 @@ fn valid_flow_is_persisted_ready_with_execution_metadata() {
 }
 
 #[test]
-fn overlapping_claims_and_unavailable_requested_ade_block_preview() {
+fn staged_overlapping_claims_warn_and_unavailable_requested_ade_blocks_preview() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("pytxo.toml"),
@@ -112,11 +112,15 @@ paths = ["src/shared.rs"]
     .unwrap();
     let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
     let overlap = preview_flow(&catalog, input(dir.path())).unwrap();
-    assert_eq!(overlap.status, FlowStatus::Blocked);
-    assert!(overlap
+    assert_eq!(overlap.status, FlowStatus::Ready);
+    assert!(!overlap
         .blocked_reasons
         .iter()
         .any(|reason| matches!(reason, FlowBlockedReason::OverlappingPathClaims { .. })));
+    assert!(overlap
+        .warnings
+        .iter()
+        .any(|warning| warning.code == "path_claim_staged"));
 
     let other = tempfile::tempdir().unwrap();
     let other_catalog = Catalog::open(&other.path().join("catalog.db")).unwrap();

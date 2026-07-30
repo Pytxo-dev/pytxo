@@ -4,15 +4,15 @@ use std::sync::Mutex;
 
 use pytxo_core::PytxoConfig;
 use pytxo_orchestrate::{
-    commit_workspace_for_agent, default_hypervisor, dispatch_run, dry_run_json,
-    forget_catalog_domain as orch_forget_domain, fleet_run_status, fleet_status,
-    hitl_respond as orch_hitl_respond, is_repo_trusted, list_catalog_domains as orch_list_catalog_domains,
+    commit_workspace_for_agent, default_hypervisor, dispatch_run, dry_run_json, fleet_run_status,
+    fleet_status, forget_catalog_domain as orch_forget_domain, hitl_respond as orch_hitl_respond,
+    is_repo_trusted, list_catalog_domains as orch_list_catalog_domains,
     list_catalog_domains_enriched as orch_list_domains_status, list_domains,
     list_hitl_pending as orch_list_hitl_pending,
     list_hitl_pending_all as orch_list_hitl_pending_all,
     list_project_manifests as orch_list_projects, project_add_root as orch_project_add_root,
     project_remove_root as orch_project_remove_root, project_roots as orch_project_roots, stop,
-    structural_graph as orch_structural_graph, trust_repo, trusted_permission_for,
+    stop_exact, structural_graph as orch_structural_graph, trust_repo, trusted_permission_for,
     workspace_structural_graph as orch_workspace_structural_graph, CatalogEntry,
     CatalogEntryStatus, DomainSummary, RunOptions,
 };
@@ -197,8 +197,9 @@ pub fn get_domain_permission(repo_root: String) -> IpcResult<Option<String>> {
 
 #[tauri::command]
 pub fn set_domain_permission(repo_root: String, profile: String) -> IpcResult<String> {
-    let parsed = pytxo_core::PermissionProfile::parse(&profile)
-        .ok_or_else(|| PytxoIpcError::new("trust", format!("unknown permission profile: {profile}")))?;
+    let parsed = pytxo_core::PermissionProfile::parse(&profile).ok_or_else(|| {
+        PytxoIpcError::new("trust", format!("unknown permission profile: {profile}"))
+    })?;
     trust_repo(Path::new(&repo_root), parsed).map_err(map_orch_err)?;
     Ok(parsed.as_str().to_string())
 }
@@ -374,9 +375,25 @@ pub fn dispatch_run_cmd(
 }
 
 #[tauri::command]
-pub async fn stop_run(state: State<'_, AppState>, all: bool) -> IpcResult<()> {
+pub async fn stop_run(
+    state: State<'_, AppState>,
+    all: bool,
+    domain_id: Option<String>,
+    run_id: Option<String>,
+) -> IpcResult<()> {
     let path = state.config_path.lock().map_err(map_lock_err)?.clone();
-    let domain = resolve_domain(&state, None)?;
+    let domain = resolve_domain(&state, domain_id)?;
+    if let Some(expected_run_id) = run_id {
+        if all {
+            return Err(PytxoIpcError::new(
+                "stop",
+                "an exact run stop cannot also target all runs",
+            ));
+        }
+        return stop_exact(path, Some(PathBuf::from(domain)), &expected_run_id, false)
+            .await
+            .map_err(map_orch_err);
+    }
     stop(path, Some(PathBuf::from(domain)), all, false)
         .await
         .map_err(map_orch_err)

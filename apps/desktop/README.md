@@ -19,9 +19,14 @@ Run the UI from the **same git repository** where you execute `pytxo run`.
 From repository root:
 
 ```bash
-cd apps/desktop && npm ci && npm run check
-cargo build -p pytxo-desktop
+cd apps/desktop
+npm ci
+npm run check
+npm run build:native
 ```
+
+The self-contained executable is written to the root workspace's
+`target/release` directory.
 
 ## Architecture
 

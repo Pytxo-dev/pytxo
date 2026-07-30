@@ -34,8 +34,12 @@ function isTauriRuntime(): boolean {
 
 function readScale(): UiScale {
   if (typeof localStorage === "undefined") return 1;
-  const raw = Number(localStorage.getItem(SCALE_KEY));
-  return VALID_SCALES.includes(raw) ? (raw as UiScale) : 1;
+  const stored = localStorage.getItem(SCALE_KEY);
+  if (stored === null) return 1;
+  const raw = Number(stored);
+  if (VALID_SCALES.includes(raw)) return raw as UiScale;
+  localStorage.setItem(SCALE_KEY, "1");
+  return 1;
 }
 
 function readDensity(): UiDensity {

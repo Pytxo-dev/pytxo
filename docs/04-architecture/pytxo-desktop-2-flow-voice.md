@@ -6,7 +6,7 @@ tags: [desktop, flow, voice, architecture]
 audience: [human, agent]
 layer: presentation
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-07-29
 related: [[desktop-visual-system]], [[presentation-passive-telemetry]], [[dag-flow-engine]], [[permission-profile-engine]], [[execution-domains]]
 ---
 
@@ -32,4 +32,13 @@ Voice v1 creates Flow missions only. It does not navigate, approve, stop, or aut
 
 ## Verification artifacts
 
-The 27 reference renders under `docs/_attachments/desktop-2/` cover all nine routes at 1600×1000, 1280×800, and 960×640. Matching Storybook stories use the same production components and preview backend. Release verification includes Svelte diagnostics, Playwright navigation and rollback coverage, Storybook build plus accessibility checks, Rust Flow/store/Voice suites, native platform smoke tests, and Tauri compilation.
+The 27 reference renders under `docs/_attachments/desktop-2/` cover all nine
+routes at 1600×1000, 1280×800, and 960×640. The deterministic
+`marketing-captures.spec.ts` path checks each expected heading before writing
+the image. The web asset verifier then checks dimensions, byte-distinct
+content, and exact correspondence between public marketing images and their
+Desktop sources. Matching Storybook stories use the same production
+components and preview backend. Release verification includes Svelte
+diagnostics, Playwright navigation and rollback coverage, Storybook build plus
+accessibility checks, Rust Flow/store/Voice suites, native platform smoke
+tests, and Tauri compilation.

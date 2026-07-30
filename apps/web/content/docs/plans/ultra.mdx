@@ -3,14 +3,17 @@ title: Ultra
 description: BYOK vs Ultra managed metering, sessions, and what leaves your machine.
 ---
 
-Default Pytxo usage is **BYOK**: your provider keys stay in environment variables on your machine. **Ultra** is an optional billing mode for managed metering and proxy paths when you subscribe on [Plans](/plans).
+Default Pytxo usage is **BYOK**: your provider keys stay in environment
+variables on your machine. **Ultra** is an optional billing mode. The local
+wallet and usage ledger work today; managed inference and Link reconciliation
+require configured services and are not end-to-end on the default path.
 
 ## Modes
 
 | Mode | Config | Keys |
 |------|--------|------|
 | BYOK (default) | `billing.mode = "byok"` or omit `[billing]` | Your provider keys (`ANTHROPIC_API_KEY`, ...) |
-| Ultra | `billing.mode = "ultra"` | Provider keys for managed inference live on the proxy; set `PYTXO_ULTRA_SESSION` for Link |
+| Ultra | `billing.mode = "ultra"` | Local wallet works without provider-key custody; configured managed inference keeps provider keys on the proxy |
 
 ```toml
 [billing]
@@ -22,8 +25,8 @@ inference_proxy_url = "https://proxy.pytxo.com"
 ## What Ultra changes
 
 - Local wallet / usage metering hooks run around agent context preparation
-- Child environments can use managed transport instead of your raw BYOK keys
-- Run start/end envelopes may POST to Pytxo Link when reconcile is enabled
+- Child environments can use managed transport when a proxy is configured
+- Run start/end envelopes can POST to Pytxo Link when reconciliation is enabled and reachable
 - Signal Core still scaffolds context; savings show up in arbitrage samples when profiling is on
 
 ## What stays local-first
@@ -31,6 +34,16 @@ inference_proxy_url = "https://proxy.pytxo.com"
 - Orchestration, worktrees, local event store, and MCP still run on your machine unless you explicitly enable cloud execution
 - Secrets should not be committed; examples use env vars only
 - Doctor checks billing connectivity only when Ultra is enabled
+
+## Current availability
+
+| Capability | Availability |
+|------------|--------------|
+| Local wallet, reservations, and usage ledger | Available |
+| Signal Core arbitrage samples | Available when profiling is enabled |
+| Managed inference proxy | Requires a configured proxy deployment |
+| Link reconciliation | Requires a configured Link deployment; default orchestration remains local-ledger only |
+| Cloud execution | Separate capability gate; requires a configured cloud dispatcher |
 
 ## Environment
 
@@ -42,4 +55,6 @@ See [`pytxo.toml` billing](/docs/reference/pytxo-toml) for billing keys and rela
 
 ## Pricing UI
 
-Product tiers and checkout live on [pytxo.com/plans](/plans). This page documents runtime behavior, not marketing copy.
+Product tiers and checkout live on [pytxo.com/plans](/plans). Checkout
+provisions an entitlement; it does not make an unconfigured proxy, Link
+deployment, or cloud dispatcher available.

@@ -27,7 +27,13 @@ Presentation  ->  Orchestration  ->  Execution
 1. CLI or MCP submits a run plan from `pytxo.toml`
 2. Orchestrator computes waves (path conflicts + `depends_on`)
 3. Runner spawns agents in worktrees, streams events to SQLite
-4. Optional Pytxo Desktop reads store for topology UI
+4. Optional Pytxo Desktop reads telemetry through Tauri IPC; presentation code does not open the store directly
+
+## Optional Cloud path
+
+Local PTY execution is the default. Cloud execution appears only when a
+non-noop dispatcher is configured; the default orchestrator does not send a
+run to a hosted sandbox.
 
 ## Moat routing
 

@@ -11,7 +11,7 @@ signal_fidelity = "low"
 isolation = "worktree"
 execution_backend = "pty"
 # subprocess_stdin = true   # pump Race Shield stdin queue when using subprocess backend
-# execution_backend = "cloud"  # pty | subprocess | cloud (Max Swarm remote sandbox)
+# execution_backend = "cloud"  # requires a configured non-noop cloud dispatcher
 pty_rows = 24
 pty_cols = 80
 tier_max_agents = 3
@@ -25,17 +25,17 @@ tier_max_agents = 3
 # [planner]
 # enabled = true
 
-# Pytxo Ultra (managed metered billing + Pytxo Link proxy)
-# Recommended Ultra default: DeepSeek via inference proxy (no local DEEPSEEK_API_KEY).
+# Pytxo Ultra local wallet + optional managed transport.
+# Managed inference and Link reconciliation require configured services.
 # [billing]
 # mode = "ultra"
 # proxy_url = "https://link.pytxo.com"           # Pytxo Link base URL (billing + entitlements)
 # inference_proxy_url = "https://proxy.pytxo.com" # Ultra managed-inference proxy (ADR-0024)
-# link_reconcile = true                       # defaults true when mode = ultra
+# link_reconcile = true                         # attempts Link only when configured and reachable
 # reserve_microcredits = 500000
 # initial_balance_microcredits = 10000000
 
-# Pytxo Cloud sandbox + Pro context cache (separate pytxo-cloud-sandbox repo)
+# Pytxo Cloud sandbox + Pro context cache (capability-gated; not a default hosted path)
 # [cloud]
 # enabled = true
 # sandbox_url = "https://cloud.pytxo.com/v1"

@@ -6,7 +6,7 @@ tags: [meta, glossary]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-23
+updated: 2026-07-29
 related: [[MOC-home]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]]
 ---
 
@@ -27,7 +27,7 @@ Canonical product and engineering terms for Pytxo. Prefer plain language in mark
 | **Workspace** | User-facing name for a modular project: one or more folders under one coordinated run ([[modular-projects]]) |
 | **Orchestration layer** | Rust core: PTY, DAG, Signal Core, WAL, shields |
 | **Presentation layer** | Svelte + Tauri; no direct filesystem access |
-| **Pytxo Cloud** | Hosted sandboxes, server-side context cache, **BYOK** ([[hybrid-execution]]) |
+| **Pytxo Cloud** | Optional hosted-sandbox and server-side cache path, available only when a non-noop dispatcher is configured; local surfaces remain **BYOK** ([[hybrid-execution]]) |
 | **Pytxo Link** | P2P remote control with signing ([[pytxo-link-signing]]) |
 | **BYOK** | Bring your own LLM API keys |
 | **MCP hub** | Local-first Model Context Protocol router ([[mcp-hub-integration]]) |
@@ -35,7 +35,7 @@ Canonical product and engineering terms for Pytxo. Prefer plain language in mark
 | **Sovereign Shield** | Sanitization + cryptographic remote approvals |
 | **Sparse overlay FS** | Shipping: sparse **copy-layer** (plus worktrees); kernel FUSE/ProjFS remains north star ([[sparse-overlay-fs]]) |
 | **DAG flow engine** | Parallel task scheduler ([[dag-flow-engine]]) |
-| **Token arbitrage** | Pro-tier cloud context cache ([[token-arbitrage]]) |
+| **Token arbitrage** | Local billed-vs-sent profiling today; server-side context cache remains capability-gated ([[token-arbitrage]]) |
 | **Blast radius** | Structural footprint of an agent’s edits on the AST graph |
 | **Permission profile** | Local capability ladder (`DeepSpace` … `Supernova`); not FidelityTier or subscription tier ([[permission-profile-engine]]) |
 | **DeepSpace** | Permission profile Tier 1 — air-gapped process directory (written as one word; occasionally seen as "Deep Space" in older prose) |

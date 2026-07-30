@@ -349,9 +349,7 @@ mod tests {
     fn new_builtins_present() {
         assert!(get_provider(ProviderId::Cerebras).is_some());
         assert!(get_provider(ProviderId::Lmstudio).is_some());
-        assert!(get_provider(ProviderId::Cohere)
-            .unwrap()
-            .openai_compatible);
+        assert!(get_provider(ProviderId::Cohere).unwrap().openai_compatible);
     }
 
     #[test]

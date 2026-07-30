@@ -34,7 +34,7 @@ export const previewSnapshot: DesktopSnapshot = {
       active_runs: 0,
       latest_run_status: "completed",
       latest_started_at: new Date().toISOString(),
-      hitl_pending: 0,
+      hitl_pending: 1,
       is_available: true,
       is_temporary: false,
     },
@@ -70,10 +70,18 @@ export const previewSnapshot: DesktopSnapshot = {
     {
       id: "approval-1",
       agent_key: "desktop",
-      action: "Flush Blast Shield workspace",
-      reason: "14 files changed · permission profile Orbit",
+      action: "blast.flush",
+      reason: "commit agent workspace to repo root",
       created_at_ms: String(Date.now()),
       domain_id: "pytxo",
+    },
+    {
+      id: "approval-2",
+      agent_key: "verification",
+      action: "net.egress",
+      reason: "network fetch detected in agent command",
+      created_at_ms: String(Date.now() - 90_000),
+      domain_id: "signal-lab",
     },
   ],
   fleets: [],
@@ -90,15 +98,57 @@ const previewAdeClis: AdeCliStatusDto[] = [
 ];
 
 export class PreviewDesktopBackend implements DesktopBackend {
+  private readonly snapshot = structuredClone(previewSnapshot);
   private readonly voiceDevices = new Map<string, string>();
   private readonly cancelledVoiceSessions = new Set<string>();
   private readonly activeVoiceSessions = new Set<string>();
-  async loadSnapshot(_opts: { includeAgents?: boolean } = {}) {
-    return structuredClone(previewSnapshot);
+
+  private resolveApproval(requestId: string) {
+    const resolved = this.snapshot.approvals.find((approval) => approval.id === requestId);
+    this.snapshot.approvals = this.snapshot.approvals.filter((approval) => approval.id !== requestId);
+    if (!resolved?.domain_id) return;
+    const domain = this.snapshot.domains.find((item) => item.domain_id === resolved.domain_id);
+    if (domain) {
+      domain.hitl_pending = this.snapshot.approvals.filter(
+        (approval) => approval.domain_id === domain.domain_id,
+      ).length;
+    }
   }
-  async approve() {}
-  async deny() {}
-  async forgetDomain() {}
+
+  async loadSnapshot(_opts: { includeAgents?: boolean } = {}) {
+    return structuredClone(this.snapshot);
+  }
+  async approve(requestId: string) {
+    this.resolveApproval(requestId);
+  }
+  async deny(requestId: string) {
+    this.resolveApproval(requestId);
+  }
+  async stopRun(runId: string, domainId: string) {
+    const domain = this.snapshot.domains.find((item) => item.domain_id === domainId);
+    if (!domain) throw new Error(`Execution domain not found: ${domainId}`);
+    const active = this.snapshot.runs.find(
+      (run) =>
+        run.repo_root === domain.repo_root &&
+        ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
+    );
+    if (!active || active.id !== runId) {
+      throw new Error(
+        `Refusing to stop ${runId}: ${active ? `${active.id} is now active` : "no run is active"} in ${domainId}`,
+      );
+    }
+    active.status = "cancelled";
+    this.snapshot.agents = this.snapshot.agents.filter((agent) => agent.run_id !== runId);
+    domain.active_runs = this.snapshot.runs.filter(
+      (run) =>
+        run.repo_root === domain.repo_root &&
+        ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
+    ).length;
+    domain.latest_run_status = active.status;
+  }
+  async forgetDomain(domainId: string) {
+    this.snapshot.domains = this.snapshot.domains.filter((domain) => domain.domain_id !== domainId);
+  }
   async listAdeClis() {
     return previewAdeClis;
   }
@@ -122,7 +172,9 @@ export class PreviewDesktopBackend implements DesktopBackend {
   async pauseVoice(sessionId: string): Promise<VoiceSessionDto> { return { session_id: sessionId, device: "default", language: "en", state: "paused", elapsed_ms: 1200, buffered_samples: 16000, confidence: null, transcript_segments: [], error: null }; }
   async resumeVoice(sessionId: string): Promise<VoiceSessionDto> { return { session_id: sessionId, device: "default", language: "en", state: "recording", elapsed_ms: 1200, buffered_samples: 16000, confidence: null, transcript_segments: [], error: null }; }
   async finishVoice(sessionId: string): Promise<VoiceSessionDto> {
-    await new Promise((resolve) => setTimeout(resolve, 180));
+    // Keep the browser-preview cancellation affordance operable long enough
+    // for a human or E2E pointer action; native transcription owns its timing.
+    await new Promise((resolve) => setTimeout(resolve, 650));
     const device = this.voiceDevices.get(sessionId) ?? "default";
     this.activeVoiceSessions.delete(sessionId);
     if (this.cancelledVoiceSessions.has(sessionId)) return { session_id: sessionId, device, language: "en", state: "cancelled", elapsed_ms: 0, buffered_samples: 0, confidence: null, transcript_segments: [], error: null };

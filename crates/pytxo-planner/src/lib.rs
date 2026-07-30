@@ -558,10 +558,26 @@ fn llm_planner_flag() -> bool {
 /// OpenAI-compatible BYOK scout: (base_url, api_key, model).
 fn byok_scout_endpoint() -> Option<(String, String, String)> {
     let candidates = [
-        ("DEEPSEEK_API_KEY", "https://api.deepseek.com/v1", "deepseek-chat"),
-        ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4.1-mini"),
-        ("OPENROUTER_API_KEY", "https://openrouter.ai/api/v1", "openai/gpt-4.1-mini"),
-        ("MISTRAL_API_KEY", "https://api.mistral.ai/v1", "mistral-small-latest"),
+        (
+            "DEEPSEEK_API_KEY",
+            "https://api.deepseek.com/v1",
+            "deepseek-chat",
+        ),
+        (
+            "OPENAI_API_KEY",
+            "https://api.openai.com/v1",
+            "gpt-4.1-mini",
+        ),
+        (
+            "OPENROUTER_API_KEY",
+            "https://openrouter.ai/api/v1",
+            "openai/gpt-4.1-mini",
+        ),
+        (
+            "MISTRAL_API_KEY",
+            "https://api.mistral.ai/v1",
+            "mistral-small-latest",
+        ),
     ];
     for (env, base, model) in candidates {
         if let Ok(key) = std::env::var(env) {

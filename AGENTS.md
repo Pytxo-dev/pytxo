@@ -64,8 +64,10 @@ cargo run -p pytxo-cli -- status --json
 Pytxo Desktop (`apps/desktop`):
 
 ```bash
-cd apps/desktop && npm ci && npm run check
-cargo build -p pytxo-desktop   # from repo root; Tauri system deps on Linux
+cd apps/desktop
+npm ci
+npm run check
+npm run build:native  # builds the frontend, then the release Desktop artifact
 ```
 
 ## Documentation rules

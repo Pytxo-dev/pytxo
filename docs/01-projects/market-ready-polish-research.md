@@ -6,7 +6,7 @@ tags: [project, research, desktop, marketing, ux]
 audience: [human, agent]
 layer: meta
 created: 2026-07-23
-updated: 2026-07-23
+updated: 2026-07-29
 related: [[pytxo-improvement-research]], [[desktop-ui-improvement-backlog]], [[desktop-visual-system]], [[product-vision]], [[competitive-benchmarks]]
 ---
 
@@ -48,21 +48,42 @@ A user opening Pytxo Desktop must answer in ~10 seconds: **what’s running, wha
 | Focus structural list unstyled | Vision oversells “graph” |
 | Flow `domain_id` from `repo_root` | Wrong domain wiring |
 
-## Marketing gap map
+## Marketing product-truth re-audit
 
-| Gap | Impact |
-|-----|--------|
-| Hero = logo panel | Reads brand mark, not product |
-| Unused `desktop-topology-hero.png` | Asset ready, unused |
-| Thin trust/proof | No logo cloud / measured strip under hero |
-| Moat accents use cyan | Triad is teal / gold / violet |
-| Load-time section fade only | Weak scroll presence |
+The original Phase 74 note marked the product-led hero shipped before the
+implementation matched that claim. A 2026-07-29 re-audit found a logo-only
+hero and 27 route aliases that all repeated the Operations render at each
+resolution.
+
+The corrective pass now uses current Desktop evidence:
+
+- the hero leads with the mission loop and a real Operations capture;
+- Flow, Operations, and Approvals form the Plan / Run / Approve story;
+- `capture:marketing` renders all nine Desktop routes at 1600×1000,
+  1280×800, and 960×640 from the preview backend;
+- `verify:product-assets` rejects missing, incorrectly sized, duplicated, or
+  detached marketing captures before the web build;
+- the measured Signal claim reads **4.76% byte reduction on a tiny fixture**,
+  while about 60% on large files remains explicitly aspirational.
+
+Web Playwright coverage fixes the desktop viewport at 1440×900 and mobile at
+390×844. It checks the hero hierarchy, current product image, overflow,
+reduced-motion static story, GSAP pinning, and agent accordion behavior.
+The release gate also pins Next.js 16.2.12 and forces Next's nested PostCSS
+and Sharp packages to patched 8.5.24 and 0.35.3 releases. The high-severity
+production audit passes; the remaining moderate Clerk wallet-adapter chain
+requires a breaking auth change and stays outside this marketing pass.
 
 ## Ranked program (this cycle)
 
 1. Live snapshot poll + Approvals selection/refresh + Ops→Run Review — **shipped**
 2. Active domain / recents + Flow domain_id + Integrations/Settings honesty + thin Fleet + Focus CSS — **shipped**
-3. Marketing hero product imagery + proof + triad + scroll motion + download/OG — **shipped**
+3. Marketing mission hero + truthful product evidence + proof + restrained
+   scroll story + product-led OG image — **verified 2026-07-29**
 4. Backlog / Phase 74 docs sync — **shipped**
+5. Plans claim-integrity closeout — capability-gated copy, always-visible
+   maturity details, exact 2×2 plan grid, Focus/Ops wording instead of
+   topology, and Playwright + browser QA at 1440×900 / 390×844 —
+   **verified 2026-07-29**
 
 Back: [[MOC-home]] · [[pytxo-improvement-research]]
