@@ -609,6 +609,12 @@ pub(crate) async fn execute_run_body(
     let plan = plan_tasks(&tasks, &cfg)?;
 
     if opts.dry_run {
+        eprintln!("Isolated copies until you approve (Blast).");
+        eprintln!(
+            "Overlapping paths wait in later stages (Race): {} stage(s), {} conflict pair(s).",
+            plan.waves.len(),
+            plan.conflicts.len()
+        );
         println!("{}", serde_json::to_string_pretty(&plan)?);
         return Ok(RunId::new());
     }

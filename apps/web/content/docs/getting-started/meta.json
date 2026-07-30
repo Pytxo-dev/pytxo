@@ -2,10 +2,11 @@
   "title": "Getting started",
   "pages": [
     "install",
+    "first-mission",
+    "first-three-agent-run",
     "desktop-setup",
     "folder-trust",
     "hypervisor-shell",
-    "first-three-agent-run",
     "mcp-from-cursor"
   ]
 }

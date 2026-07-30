@@ -36,9 +36,9 @@ Pytxo will:
 
 1. Detect available agents
 2. Propose tasks, paths, and execution stages (waves)
-3. Show predicted path overlaps and isolation mode
+3. Show predicted path overlaps and isolation mode in plain language (Blast / Race)
 4. Ask `Approve mission? [Y/n]` (use `--yes` to skip)
-5. Run agents in isolated changes
+5. Run agents in isolated copies of the repo
 6. Run any suggested verify commands
 7. Print a mission report and how to apply (flush) accepted work
 

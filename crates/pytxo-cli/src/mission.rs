@@ -107,7 +107,7 @@ pub async fn run_mission(opts: MissionOptions) -> anyhow::Result<()> {
                     bail!("Mission run {run_id} finished with status={state}");
                 }
                 eprintln!(
-                    "Apply accepted changes via Desktop Approvals / Run Review, or:\n  pytxo hitl list"
+                    "Isolated copies still hold the work (Blast). Apply accepted changes via Desktop Approvals / Run Review, or:\n  pytxo hitl list"
                 );
                 return Ok(());
             }
@@ -120,12 +120,15 @@ fn print_preflight(plan: &FlowPlan) {
     eprintln!();
     eprintln!("Mission plan");
     eprintln!("------------");
-    eprintln!("Tasks: {}", plan.tasks.len());
-    eprintln!("Execution stages (waves): {}", plan.waves.len());
     eprintln!(
-        "Isolation: {} ({})",
+        "Isolated copies until you approve (Blast): {} via {}",
         plan.isolation_mode, plan.isolation_backend_intent
     );
+    eprintln!(
+        "Overlapping paths wait in later stages (Race): {} stage(s)",
+        plan.waves.len()
+    );
+    eprintln!("Tasks: {}", plan.tasks.len());
     eprintln!("Permission: {}", plan.permission_profile);
     if let Some(usd) = plan.estimated_cost_usd {
         eprintln!("Estimated model budget: ${usd:.2}");
@@ -155,7 +158,7 @@ fn print_preflight(plan: &FlowPlan) {
     }
     for w in &plan.warnings {
         if w.code == "path_claim_overlap" {
-            eprintln!("Conflict-aware scheduling: {}", w.message);
+            eprintln!("Overlapping paths wait (Race): {}", w.message);
         } else {
             eprintln!("Note [{}]: {}", w.code, w.message);
         }

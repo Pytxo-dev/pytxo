@@ -1,37 +1,57 @@
 ---
-title: First three-agent run
+title: Collision demo
+description: Prove overlapping path claims wait before any agent runs.
 ---
 
-This tutorial runs three parallel agents with conflict-aware wave scheduling.
+This tutorial is the **sixty-second Race + Blast proof**: overlapping work is detected before execution, independent work runs together in isolated copies, and nothing lands in your real checkout until you approve.
 
 ## Prerequisites
 
-Complete [Install](/docs/getting-started/install): CLI on `PATH`, `pytxo init`, and `pytxo doctor` passing.
+Complete [Install](/docs/getting-started/install): CLI on `PATH`, then `pytxo doctor`.
 
-## Configure tasks
+No coding-agent API keys are required for the dry-run and echo smoke below. For a natural-language mission with real CLIs, see [First mission](/docs/getting-started/first-mission).
 
-Create a `pytxo.toml` in your project root. Start with two tasks that touch different files:
+## Option A: use the repo fixture
+
+From a Pytxo source checkout:
+
+```bash
+cd tooling/demos/collision
+git init
+git add -A && git commit -m "collision demo" --allow-empty
+pytxo trust orbit
+pytxo run --config pytxo.toml --dry-run
+```
+
+## Option B: paste this config
+
+Create `pytxo.toml` in any trusted git repo:
 
 ```toml
 max_agents = 3
+permission_profile = "orbit"
+isolation = "worktree"
 
 [[agent]]
-name = "builder"
+name = "demo"
 paths = ["src/**"]
 cli_adapter = "generic"
 
 [[task]]
-id = "build-a"
-agent = "builder"
-paths = ["src/a.ts"]
+id = "touch-shared-a"
+agent = "demo"
+paths = ["src/shared.ts"]
 
 [[task]]
-id = "build-b"
-agent = "builder"
-paths = ["src/b.ts"]
-```
+id = "touch-shared-b"
+agent = "demo"
+paths = ["src/shared.ts"]
 
-If tasks touch overlapping paths, Pytxo schedules them in **separate waves** automatically.
+[[task]]
+id = "touch-alone"
+agent = "demo"
+paths = ["src/alone.ts"]
+```
 
 ## Dry-run (preflight)
 
@@ -39,37 +59,46 @@ If tasks touch overlapping paths, Pytxo schedules them in **separate waves** aut
 pytxo run --config pytxo.toml --dry-run
 ```
 
-Inspect the JSON output: `waves` array and `conflicts` list show how scheduling will behave before any agent runs.
+Before any process starts, stderr summarizes:
 
-## Run agents
+- Isolated copies (Blast)
+- Overlapping paths wait (Race)
+- Wave count and conflict pairs
+
+JSON fields to inspect:
+
+| Field | What you should see |
+|-------|---------------------|
+| `conflicts` | `touch-shared-a` vs `touch-shared-b` on `src/shared.ts` |
+| `waves` | At least two stages; the overlapping tasks are not in the same wave |
+| `waves[*]` | `touch-alone` can share a wave with one of the shared tasks |
+
+That is Race Shield: overlapping path claims do not run together.
+
+## Run (still safe)
 
 ```bash
-pytxo run --config pytxo.toml --cmd "echo hello-from-agent"
+pytxo run --config pytxo.toml --cmd "echo pytxo-collision-demo"
 ```
 
-Each agent executes in its own git worktree. Default execution uses **PTY** backends so interactive shells behave correctly.
-
-## Inspect telemetry
+Each agent executes in its own git worktree (Blast). The echo command does not rewrite your real checkout. Inspect:
 
 ```bash
 pytxo status
-pytxo logs --agent <run_uuid>:agent-0 --tail 20
 ```
 
-Use agent IDs printed under `status`. Events are stored under `.pytxo/data/`.
+## Real agents next
 
-## Without a config file
-
-For a quick smoke test:
+When Claude Code, Codex, or Cursor CLI is on `PATH`:
 
 ```bash
-pytxo run --agents 3 --cmd "echo pytxo"
+pytxo mission "Add a one-line comment to src/shared.ts and a unit test"
 ```
 
-Uses synthetic disjoint paths (`src/agent-0.ts`, etc.) so all three agents can run in one wave.
+Same isolation and wave rules; you still approve the flush. See [First mission](/docs/getting-started/first-mission) and Desktop **Approvals** / **Run Review**.
 
 ## Learn more
 
-- [CLI reference](/docs/reference/cli): all commands and flags
-- [Three moats](/docs/concepts/three-moats): Signal Core, Blast Shield, Race Shield
-- [Testing agent CLIs](/docs/developers/testing-agent-clis): contributor recipes from a source checkout
+- [First mission](/docs/getting-started/first-mission)
+- [Three moats](/docs/concepts/three-moats): Blast, Race, Signal
+- [CLI reference](/docs/reference/cli)
