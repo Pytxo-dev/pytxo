@@ -54,6 +54,7 @@ async fn single_agent_echo_in_worktree() {
             task_id: TaskId("t0".into()),
             agent: "default".into(),
             paths: vec!["README.md".into()],
+            depends_on: vec![],
             wave: 0,
             root: None,
             signal_fidelity: None,

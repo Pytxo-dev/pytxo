@@ -61,6 +61,7 @@ async fn subprocess_stdin_spawn_time_drain() {
             task_id: TaskId("t0".into()),
             agent: "default".into(),
             paths: vec!["README.md".into()],
+            depends_on: vec![],
             wave: 0,
             root: None,
             signal_fidelity: None,

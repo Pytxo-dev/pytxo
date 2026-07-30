@@ -61,7 +61,7 @@ pub fn prepare_projfs_overlay(
     if upper.exists() {
         std::fs::remove_dir_all(&upper).ok();
     }
-    copy_dir_skip_sparse(repo_root, &upper, sparse_exclude)?;
+    copy_dir_skip_sparse(repo_root, &upper, sparse_exclude, Some(worktree_base))?;
     Ok(WorkspaceHandle {
         cwd: upper,
         branch: String::new(),
@@ -77,17 +77,27 @@ pub fn rollback_projfs_overlay(handle: &WorkspaceHandle) -> Result<()> {
     Ok(())
 }
 
-fn copy_dir_skip_sparse(src: &Path, dst: &Path, sparse_exclude: &[String]) -> Result<()> {
+fn copy_dir_skip_sparse(
+    src: &Path,
+    dst: &Path,
+    sparse_exclude: &[String],
+    excluded_source_root: Option<&Path>,
+) -> Result<()> {
     std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("projfs mkdir: {e}")))?;
     let source_root = std::fs::canonicalize(src)
         .map_err(|e| PytxoError::Runner(format!("projfs canonical source: {e}")))?;
     let destination_root = std::fs::canonicalize(dst)
         .map_err(|e| PytxoError::Runner(format!("projfs canonical destination: {e}")))?;
+    let excluded_source_root = excluded_source_root
+        .map(std::fs::canonicalize)
+        .transpose()
+        .map_err(|e| PytxoError::Runner(format!("projfs canonical exclusion: {e}")))?;
     copy_dir_skip_sparse_inner(
         &source_root,
         &destination_root,
         sparse_exclude,
         &destination_root,
+        excluded_source_root.as_deref(),
     )
 }
 
@@ -96,6 +106,7 @@ fn copy_dir_skip_sparse_inner(
     dst: &Path,
     sparse_exclude: &[String],
     destination_root: &Path,
+    excluded_source_root: Option<&Path>,
 ) -> Result<()> {
     std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("projfs mkdir: {e}")))?;
     for entry in
@@ -110,7 +121,9 @@ fn copy_dir_skip_sparse_inner(
             continue;
         }
         let from = entry.path();
-        if from.starts_with(destination_root) {
+        if from.starts_with(destination_root)
+            || excluded_source_root.is_some_and(|root| from.starts_with(root))
+        {
             continue;
         }
         let to = dst.join(&name);
@@ -119,7 +132,7 @@ fn copy_dir_skip_sparse_inner(
             .map_err(|e| PytxoError::Runner(e.to_string()))?
             .is_dir()
         {
-            copy_dir_skip_sparse_inner(&from, &to, &[], destination_root)?;
+            copy_dir_skip_sparse_inner(&from, &to, &[], destination_root, excluded_source_root)?;
         } else {
             std::fs::copy(&from, &to)
                 .map_err(|e| PytxoError::Runner(format!("projfs copy: {e}")))?;
@@ -141,7 +154,7 @@ mod tests {
         std::fs::write(repo.join("README.md"), "hi\n").unwrap();
         std::fs::write(repo.join("node_modules/pkg/x.js"), "x").unwrap();
         let upper = tmp.path().join("upper");
-        copy_dir_skip_sparse(&repo, &upper, &["node_modules".into()]).unwrap();
+        copy_dir_skip_sparse(&repo, &upper, &["node_modules".into()], None).unwrap();
         assert!(upper.join("README.md").exists());
         assert!(!upper.join("node_modules").exists());
     }
@@ -197,6 +210,27 @@ mod tests {
 
         assert!(handle.cwd.join("app.ts").exists());
         assert!(handle.cwd.join(".pytxo/keep.toml").exists());
+        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn prepare_projfs_excludes_sibling_agent_workspaces() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        let wt = repo.join(".pytxo/worktrees");
+        std::fs::create_dir_all(wt.join("projfs-old-agent/upper")).unwrap();
+        std::fs::write(repo.join("app.ts"), "export {}\n").unwrap();
+        std::fs::write(
+            wt.join("projfs-old-agent/upper/stale.ts"),
+            "export const stale = true;\n",
+        )
+        .unwrap();
+
+        let handle = prepare_projfs_overlay(&repo, &wt, "run-new", "agent-new", &[]).unwrap();
+
+        assert!(handle.cwd.join("app.ts").exists());
+        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
     }
 
     #[cfg(windows)]

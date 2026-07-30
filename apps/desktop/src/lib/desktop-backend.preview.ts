@@ -6,7 +6,7 @@
  * — a failed IPC call surfaces as a real error instead.
  */
 import type { DesktopBackend, DesktopSnapshot } from "./desktop-backend";
-import type { AdeCliStatusDto, FlowDraftInput, FlowDraftRecord, FlowPlan, VoiceProgressEvent, VoiceSessionDto } from "./types";
+import type { AdeCliStatusDto, FlowDraftInput, FlowDraftRecord, FlowPlan, ProviderStatusDto, VoiceProgressEvent, VoiceSessionDto } from "./types";
 
 export const previewSnapshot: DesktopSnapshot = {
   domains: [
@@ -89,12 +89,23 @@ export const previewSnapshot: DesktopSnapshot = {
 };
 
 const previewAdeClis: AdeCliStatusDto[] = [
-  { id: "claude", display_name: "Claude Code", default_cmd: "claude", installed: true },
-  { id: "cursor", display_name: "Cursor Agent", default_cmd: "cursor agent", installed: true },
-  { id: "codex", display_name: "OpenAI Codex", default_cmd: "codex", installed: false },
-  { id: "agy", display_name: "Antigravity", default_cmd: "agy", installed: false },
-  { id: "opencode", display_name: "OpenCode", default_cmd: "opencode", installed: false },
-  { id: "aider", display_name: "Aider", default_cmd: "aider", installed: false },
+  { id: "codex", display_name: "OpenAI Codex", default_cmd: "codex exec --sandbox workspace-write", installed: true, auth_state: "signed_in", auth_label: "ChatGPT connected", auth_owner: "Codex", login_supported: true, login_label: "Connect with ChatGPT", docs_url: "https://developers.openai.com/codex/auth", detail: "Codex owns the browser session, token storage, and refresh." },
+  { id: "claude", display_name: "Claude Code", default_cmd: "claude -p", installed: true, auth_state: "signed_in", auth_label: "Claude account connected", auth_owner: "Claude Code", login_supported: true, login_label: "Open Claude Code sign-in", docs_url: "https://code.claude.com/docs/en/authentication", detail: "Pytxo opens Claude Code's official sign-in and never receives its token." },
+  { id: "cursor", display_name: "Cursor Agent", default_cmd: "cursor-agent -p --trust", installed: true, auth_state: "signed_in", auth_label: "Cursor account connected", auth_owner: "Cursor Agent", login_supported: true, login_label: "Open Cursor sign-in", docs_url: "https://docs.cursor.com/en/cli/reference/authentication", detail: "Cursor Agent keeps its account credential outside Pytxo." },
+  { id: "opencode", display_name: "OpenCode", default_cmd: "opencode run", installed: true, auth_state: "signed_out", auth_label: "No OpenCode provider connected", auth_owner: "OpenCode", login_supported: true, login_label: "Connect an OpenCode provider", docs_url: "https://opencode.ai/docs/providers/", detail: "Provider-specific credentials remain owned by OpenCode." },
+  { id: "gemini", display_name: "Gemini CLI", default_cmd: "gemini --skip-trust -p", installed: true, auth_state: "unknown", auth_label: "Check authentication in Gemini CLI", auth_owner: "Gemini CLI", login_supported: true, login_label: "Open Gemini authentication", docs_url: "https://geminicli.com/docs/get-started/authentication/", detail: "Gemini CLI owns Google OAuth; Pytxo does not reuse its cached token." },
+  { id: "copilot", display_name: "GitHub Copilot CLI", default_cmd: "copilot -p", installed: false, auth_state: "not_installed", auth_label: "Not installed", auth_owner: "Copilot CLI", login_supported: true, login_label: "Open GitHub sign-in", docs_url: "https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli", detail: "Copilot CLI owns the GitHub device flow and stores its token in the OS keychain." },
+  { id: "agy", display_name: "Antigravity", default_cmd: "agy", installed: false, auth_state: "not_installed", auth_label: "Not installed", auth_owner: "Vendor CLI", login_supported: false, login_label: null, docs_url: "https://pytxo.com/docs/reference/providers-byok", detail: "Pytxo detects the executable without reading vendor credential stores." },
+  { id: "aider", display_name: "Aider", default_cmd: "aider --message", installed: false, auth_state: "not_installed", auth_label: "Not installed", auth_owner: "Pytxo run policy", login_supported: false, login_label: null, docs_url: "https://aider.chat/docs/config/api-keys.html", detail: "Choose one explicit BYOK credential for the run; unrelated keys stay hidden." },
+];
+
+const previewProviders: ProviderStatusDto[] = [
+  { id: "deepseek", name: "DeepSeek", api_key_env: "DEEPSEEK_API_KEY", key_configured: false, openai_compatible: true, builtin: true },
+  { id: "openrouter", name: "OpenRouter", api_key_env: "OPENROUTER_API_KEY", key_configured: false, openai_compatible: true, builtin: true },
+  { id: "openai", name: "OpenAI", api_key_env: "OPENAI_API_KEY", key_configured: false, openai_compatible: true, builtin: true },
+  { id: "anthropic", name: "Anthropic", api_key_env: "ANTHROPIC_API_KEY", key_configured: false, openai_compatible: false, builtin: true },
+  { id: "gemini", name: "Google Gemini", api_key_env: "GOOGLE_API_KEY", key_configured: false, openai_compatible: false, builtin: true },
+  { id: "mistral", name: "Mistral", api_key_env: "MISTRAL_API_KEY", key_configured: false, openai_compatible: true, builtin: true },
 ];
 
 export class PreviewDesktopBackend implements DesktopBackend {
@@ -152,12 +163,20 @@ export class PreviewDesktopBackend implements DesktopBackend {
   async listAdeClis() {
     return previewAdeClis;
   }
+  async startAdeLogin(id: string) {
+    const target = previewAdeClis.find((item) => item.id === id);
+    if (!target?.installed) throw new Error(`${target?.display_name ?? id} is not installed or is not on PATH.`);
+    return { id, message: `${target.display_name} sign-in opened. Finish the vendor flow, then recheck.` };
+  }
+  async listProviders() {
+    return structuredClone(previewProviders);
+  }
   async previewFlow(input: FlowDraftInput): Promise<FlowPlan> {
     return { draft_id: input.id, domain_id: input.domain_id ?? "pytxo", project_id: input.project_id, status: "ready", tasks: [
       { id: "map", agent: "architect", prompt: input.mission_text, paths: ["src/**"], dependencies: [], root: null },
       { id: "implement", agent: input.ade_id ?? "cursor", prompt: input.mission_text, paths: ["src/**"], dependencies: ["map"], root: null },
       { id: "verify", agent: "codex", prompt: `Verify: ${input.mission_text}`, paths: ["tests/**"], dependencies: ["implement"], root: null },
-    ], waves: [["map"], ["implement", "verify"]], permission_profile: "orbit", isolation_mode: "copy_on_write", isolation_backend_intent: "projfs", execution_backend: "pty", ade: { requested: input.ade_id ?? "cursor", available: true, installed: ["cursor", "codex"], command: "cursor agent" }, warnings: [], blocked_reasons: [], estimated_tokens: 18000, estimated_cost_usd: 0.64, previewed_at: new Date().toISOString() };
+    ], waves: [["map"], ["implement", "verify"]], permission_profile: "orbit", isolation_mode: "copy_on_write", isolation_backend_intent: "projfs", execution_backend: "pty", ade: { requested: input.ade_id ?? "cursor", available: true, installed: ["cursor", "codex"], command: "cursor-agent -p --trust" }, warnings: [], blocked_reasons: [], estimated_tokens: 18000, estimated_cost_usd: 0.64, previewed_at: new Date().toISOString() };
   }
   async dispatchFlow() { return "run-preview"; }
   async saveReviewedFlow(plan: FlowPlan) { return plan; }
@@ -187,6 +206,26 @@ export class PreviewDesktopBackend implements DesktopBackend {
   async voiceModelStatus() { return null; }
   async installVoiceModel() { return "~/.pytxo/models/voice/base.en.bin"; }
   async openWorkspace() { return "C:/dev/new-workspace"; }
+  async createExampleWorkspace() {
+    const path = "C:/Users/demo/Documents/Pytxo Examples/approval-risk-demo";
+    if (!this.snapshot.domains.some((domain) => domain.repo_root === path)) {
+      this.snapshot.domains.push({
+        domain_id: "approval-risk-demo",
+        repo_root: path,
+        db_path: "~/.pytxo/domains/approval-risk-demo.db",
+        project_id: null,
+        status: "healthy",
+        updated_at: new Date().toISOString(),
+        active_runs: 0,
+        latest_run_status: null,
+        latest_started_at: null,
+        hitl_pending: 0,
+        is_available: true,
+        is_temporary: false,
+      });
+    }
+    return path;
+  }
   async voiceAvailable() { return true; }
   async flowHistory() { return [] as FlowDraftRecord[]; }
   async deleteFlowDraft() {}

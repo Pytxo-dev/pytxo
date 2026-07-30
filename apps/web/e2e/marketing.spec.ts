@@ -51,6 +51,15 @@ test("desktop hero leads with the mission and current product evidence", async (
   const productBox = await product.boundingBox();
   expect(productBox?.y).toBeLessThan(260);
   expect(productBox ? productBox.y + productBox.height : 901).toBeLessThan(650);
+  const proof = page.getByRole("region", {
+    name: "Supported tools and measured proof",
+  });
+  await expect(proof.getByText("82.9%", { exact: true })).toBeVisible();
+  await expect(
+    proof.getByRole("link", {
+      name: "82.9% measured scaffold-byte reduction across 185 tracked production files. This is not a model-token or task-success claim.",
+    }),
+  ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 
@@ -96,6 +105,21 @@ test("the product story is complete when reduced motion is requested", async ({ 
     { opacity: "1", transform: "none" },
     { opacity: "1", transform: "none" },
   ]);
+});
+
+test("agent readiness uses the current Integrations product capture", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const section = page.getByRole("region", { name: "Keep the accounts you already trust" });
+  await expect(section).toBeVisible();
+  await expect(section.getByText("Agent sessions stay vendor-owned")).toBeVisible();
+  await expect(section.getByText("API billing stays separate")).toBeVisible();
+  await expect(section.getByText("Readiness checks are non-billable")).toBeVisible();
+  const image = page.getByTestId("agent-readiness-product").getByRole("img");
+  await image.scrollIntoViewIfNeeded();
+  await expect(image).toHaveJSProperty("naturalWidth", 1600);
+  await expectNoHorizontalOverflow(page);
 });
 
 test("desktop storytelling and the agent accordion remain interactive", async ({ page }) => {

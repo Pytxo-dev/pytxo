@@ -1,5 +1,6 @@
 <script lang="ts">
   import { markSetupComplete } from "../../lib/theme";
+  import { displayPath } from "../../lib/path-display";
   import { Button } from "$lib/components/ui/button";
 
   let {
@@ -33,7 +34,7 @@
     Agents write in a sandbox until you approve a flush. Approvals show when something needs a decision.
   </p>
   {#if workspacePath}
-    <code class="path">{workspacePath}</code>
+    <code class="path" title={workspacePath}>{displayPath(workspacePath)}</code>
   {/if}
   <Button size="lg" onclick={enter}>Enter Pytxo Desktop</Button>
   <Button variant="ghost" size="sm" onclick={() => void requestNotify()}>

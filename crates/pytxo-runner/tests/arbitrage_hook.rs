@@ -105,6 +105,7 @@ async fn arbitrage_rows_written_when_signal_core_enabled() {
             task_id: TaskId("t0".into()),
             agent: "default".into(),
             paths: vec!["sample.rs".into()],
+            depends_on: vec![],
             wave: 0,
             root: None,
             signal_fidelity: None,

@@ -532,9 +532,13 @@ fn ade_prompt_command(default_cmd: &str) -> String {
             .map(|part| format!("'{}'", part.replace('\'', "''")))
             .collect::<Vec<_>>()
             .join(" ");
-        format!(
-            "powershell -NoProfile -NonInteractive -Command \"& {{ & {invocation} $env:PYTXO_TASK_PROMPT }}\""
-        )
+        let script = format!("& {invocation} $env:PYTXO_TASK_PROMPT");
+        let utf16le = script
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>();
+        let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, utf16le);
+        format!("powershell -NoProfile -NonInteractive -EncodedCommand {encoded}")
     } else {
         format!("{default_cmd} \"$PYTXO_TASK_PROMPT\"")
     }
@@ -661,9 +665,24 @@ mod tests {
 
     #[test]
     fn ade_adapter_never_interpolates_prompt_text() {
-        let command = ade_prompt_command("cursor agent");
-        assert!(command.contains("PYTXO_TASK_PROMPT"));
+        let command = ade_prompt_command("cursor-agent");
         assert!(!command.contains("{prompt}"));
         assert!(!command.contains("&& touch injected"));
+        if cfg!(windows) {
+            let encoded = command
+                .split_whitespace()
+                .last()
+                .expect("encoded command payload");
+            let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded)
+                .expect("valid PowerShell base64");
+            let units = bytes
+                .chunks_exact(2)
+                .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+                .collect::<Vec<_>>();
+            let script = String::from_utf16(&units).expect("valid UTF-16LE PowerShell");
+            assert_eq!(script, "& 'cursor-agent' $env:PYTXO_TASK_PROMPT");
+        } else {
+            assert!(command.contains("PYTXO_TASK_PROMPT"));
+        }
     }
 }

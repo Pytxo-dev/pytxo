@@ -554,6 +554,7 @@
       {:else if route === "settings"}
         <SettingsScreen
           initialSection={settingsSection}
+          {backend}
           {activeDomain}
           {tier}
           {signedIn}

@@ -6,7 +6,7 @@ tags: [product, positioning]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-23
+updated: 2026-07-30
 related: [[beyond-the-ade]], [[gtm-open-source-loop]], [[pytxo-improvement-research]], [[mvp-bootstrap]], [[pytxo-vs-github-copilot-app]], [[pytxo-vs-claude-agent-teams]]
 ---
 
@@ -105,5 +105,36 @@ Marketing copy must match measured results. Absolute “~60% token savings” is
 **Methodology caveats (Phase 73 pin):** overlay “cold start” includes `pytxo init` / trust / planner CLI overhead — not a pure FS mount timer. Overlay upper-disk shows **0 B** on the dry-run script path (no materialized upper layer); use a full overlay flush run for write-set MB. Do not cite blocked cells.
 
 Category compares: [[pytxo-vs-claude-agent-teams]] (Claude’s own collision + token warnings), [[pytxo-vs-github-copilot-app]] (worktree control center), [[beyond-the-ade]].
+
+## Phase 78 — real-monorepo candidate pin
+
+The Phase 73 tiny fixture remains historical evidence. The release-candidate
+benchmark now runs against the tracked production source in the real Pytxo
+monorepo at `3acdc77`.
+
+Raw evidence:
+
+- [`2026-07-30-pytxo-signal.json`](../../../tooling/benchmarks/results/2026-07-30-pytxo-signal.json)
+- [`2026-07-30-pytxo-control-plane.json`](../../../tooling/benchmarks/results/2026-07-30-pytxo-control-plane.json)
+
+| Measurement | Result | Boundary |
+|-------------|--------|----------|
+| Signal corpus | 185 tracked production files; 1,253,675 input bytes | Rust, TypeScript, and JavaScript files ≥1 KiB; tests, fixtures, vendor, generated output, and dependencies excluded |
+| Signal scaffold output | 213,847 bytes; **82.9% weighted reduction** | Structural-byte reduction, not tokenizer output or billable-token savings |
+| Signal median file reduction | **86.25%** | Median across eligible files; file shape and language mix matter |
+| Race preflight | 5 real-path tasks; 1 declared overlap; 2 waves; **0 same-wave path collisions** | Deterministic scheduler workload, not agent coding quality |
+| Isolated echo run | **17,578 ms**, 5/5 agents exit 0, primary checkout changes **0** | Local control-plane/workspace overhead; zero model calls |
+
+The real-repo execution initially exposed a Windows copy-layer recursion bug:
+concurrent agent destinations under `.pytxo/worktrees` could copy sibling
+destinations into one another and terminate with `0xC00000FD`. The candidate
+fix excludes the shared workspace subtree during copy preparation and adds
+Windows/generic regression coverage. The passing control-plane result above is
+from the fixed working tree, so rerun and repin after the fix receives a commit
+SHA.
+
+**Not measured yet:** model task success, review quality, paid token cost,
+competitor completion time, or voluntary repeat usage. Do not turn this pin
+into a “Pytxo beats Codex/Claude” claim.
 
 Related: [[pytxo-improvement-research]] · Phase 73 in [[mvp-bootstrap]].

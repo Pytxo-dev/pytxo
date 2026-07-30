@@ -56,6 +56,22 @@ export type AdeCliStatusDto = {
   display_name: string;
   default_cmd: string;
   installed: boolean;
+  auth_state: "signed_in" | "signed_out" | "unknown" | "not_applicable" | "not_installed";
+  auth_label: string;
+  auth_owner: string;
+  login_supported: boolean;
+  login_label: string | null;
+  docs_url: string;
+  detail: string;
+};
+
+export type ProviderStatusDto = {
+  id: string;
+  name: string;
+  api_key_env: string;
+  key_configured: boolean;
+  openai_compatible: boolean;
+  builtin: boolean;
 };
 
 export type HitlDto = {

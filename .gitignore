@@ -27,6 +27,17 @@ apps/desktop/playwright-report/
 ~/
 apps/desktop-export/dist/
 
+# Local release staging and gate output
+dist-release/
+.gate-*.txt
+.gate-*.log
+apps/web/test-results/
+
+# Remotion product demo
+apps/demo-video/node_modules/
+apps/demo-video/out/
+apps/demo-video/public/voiceover/*.mp3
+
 packages/pytxo/node_modules/
 packages/pytxo/vendor/
 

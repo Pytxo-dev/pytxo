@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::cloud::CloudConfig;
-use crate::{PytxoError, Result};
+#[cfg(feature = "cloud-http")]
+use crate::PytxoError;
+use crate::Result;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CacheLookup {
@@ -63,6 +65,7 @@ impl HttpContextCache {
         }
     }
 
+    #[cfg(feature = "cloud-http")]
     fn auth_headers(&self) -> Vec<(String, String)> {
         let mut h = vec![];
         if let Ok(token) = std::env::var("PYTXO_CLOUD_SESSION") {
@@ -140,6 +143,7 @@ impl ContextCache for HttpContextCache {
     }
 }
 
+#[cfg(feature = "cloud-http")]
 fn urlencoding_key(s: &str) -> String {
     s.chars()
         .map(|c| match c {

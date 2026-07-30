@@ -7,6 +7,17 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
+# Pytxo v1.0.0
+
+The first dependable Pytxo mission loop — provider readiness, guided example,
+dependency-aware isolated waves, durable local state, real-repository evidence,
+and a release-ready Desktop control surface. See
+[`distribution/release-notes/v1.0.0.md`](distribution/release-notes/v1.0.0.md).
+
+Previous: [`v0.13.0`](distribution/release-notes/v0.13.0.md).
+
+---
+
 # Pytxo v0.13.0
 
 Desktop readiness — exact-run Stop, DPI/zoom matrix, truthful marketing evidence, Plans claim integrity. See [`distribution/release-notes/v0.13.0.md`](distribution/release-notes/v0.13.0.md).

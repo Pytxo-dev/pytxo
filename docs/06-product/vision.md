@@ -73,7 +73,7 @@ All future orchestration code should route through these layers — not around t
 
 | Moat | Shipping today | North star gap |
 |------|----------------|----------------|
-| Signal Core | 8+ language skeletons, closed-loop retry, mission codebase map | Broader grammars; verified large-file savings |
+| Signal Core | 8+ language skeletons, closed-loop retry, mission codebase map, 185-file scaffold-byte pin | Billable-token and task-outcome proof; broader grammars |
 | Blast Shield | Git worktrees + sparse copy-layer default | Full kernel ProjFS provider + FUSE default |
 | Race Shield | Registry, path claims, PTY stdin, Galaxy HITL | Lock-free / path-prefix shards after profiling; runtime claim updates (Phase 2) |
 

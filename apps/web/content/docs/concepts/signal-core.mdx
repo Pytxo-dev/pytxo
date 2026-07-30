@@ -12,6 +12,17 @@ title: Signal Core
 - Savings are recorded per run; Pytxo Desktop Topology Focus shows a token-savings indicator when samples exist
 - Import edges between files show up in Topology Focus during runs
 
+## Measured evidence
+
+On 2026-07-31, `real-repo-signal.ps1` measured **82.9% weighted
+scaffold-byte reduction** across 185 tracked production Rust, TypeScript, and
+JavaScript files in the Pytxo monorepo (1,253,675 bytes to 213,847 bytes).
+
+This measures the bytes emitted by the structural scaffold, not billable model
+tokens, task success, cost, or end-to-end agent quality. Re-run the benchmark
+on your own repository; file shape and language mix materially change the
+result.
+
 ## Configuration
 
 ```toml

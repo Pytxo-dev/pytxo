@@ -22,8 +22,10 @@ use ipc_flow::{
     flow_delete, flow_dispatch, flow_history, flow_preview, flow_save_draft,
     flow_save_reviewed_plan,
 };
-use ipc_install::{install_pytxo_cli, install_pytxo_cli_status, pick_workspace_folder};
-use ipc_meta::{check_pytxo_cli, entitlement_status, ipc_version, list_ade_clis};
+use ipc_install::{
+    create_example_workspace, install_pytxo_cli, install_pytxo_cli_status, pick_workspace_folder,
+};
+use ipc_meta::{check_pytxo_cli, entitlement_status, ipc_version, list_ade_clis, start_ade_login};
 use ipc_voice::{
     voice_cancel_session, voice_default_model, voice_finish_session, voice_get_session,
     voice_install_default_model, voice_list_devices, voice_local_available, voice_model_status,
@@ -140,8 +142,10 @@ pub fn run() {
             install_pytxo_cli,
             install_pytxo_cli_status,
             pick_workspace_folder,
+            create_example_workspace,
             entitlement_status,
             list_ade_clis,
+            start_ade_login,
             auth_status,
             auth_clear_session,
             auth_open_sign_in,

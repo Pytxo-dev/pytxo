@@ -2,19 +2,19 @@
   import SetupShell from "./SetupShell.svelte";
   import SetupStepWelcome from "./SetupStepWelcome.svelte";
   import SetupStepCli from "./SetupStepCli.svelte";
-  import SetupStepSignIn from "./SetupStepSignIn.svelte";
+  import SetupStepAgents from "./SetupStepAgents.svelte";
   import SetupStepWorkspace from "./SetupStepWorkspace.svelte";
   import SetupStepDisplay from "./SetupStepDisplay.svelte";
   import SetupStepDone from "./SetupStepDone.svelte";
   import { Button } from "$lib/components/ui/button";
 
-  type Step = "welcome" | "cli" | "signin" | "workspace" | "display" | "done";
+  type Step = "welcome" | "cli" | "agents" | "workspace" | "display" | "done";
 
-  const STEPS: Step[] = ["welcome", "cli", "signin", "workspace", "display", "done"];
+  const STEPS: Step[] = ["welcome", "cli", "agents", "workspace", "display", "done"];
   const STEP_LABELS: Record<Step, string> = {
     welcome: "Welcome",
     cli: "CLI",
-    signin: "Account",
+    agents: "Agents",
     workspace: "Workspace",
     display: "Display",
     done: "Ready",
@@ -24,7 +24,7 @@
     onComplete,
     onWorkspaceSelected,
   }: {
-    onComplete: () => void;
+    onComplete: (openGuidedFlow?: boolean) => void;
     onWorkspaceSelected: (path: string) => Promise<void> | void;
   } = $props();
 
@@ -78,9 +78,9 @@
     {#if step === "welcome"}
       <SetupStepWelcome onContinue={() => next("cli")} />
     {:else if step === "cli"}
-      <SetupStepCli onContinue={() => next("signin")} onSkip={() => next("signin")} />
-    {:else if step === "signin"}
-      <SetupStepSignIn onContinue={() => next("workspace")} onSkip={() => next("workspace")} />
+      <SetupStepCli onContinue={() => next("agents")} onSkip={() => next("agents")} />
+    {:else if step === "agents"}
+      <SetupStepAgents onContinue={() => next("workspace")} onSkip={() => next("workspace")} />
     {:else if step === "workspace"}
       <SetupStepWorkspace
         onContinue={() => next("display")}
@@ -91,7 +91,10 @@
     {:else if step === "display"}
       <SetupStepDisplay onContinue={() => next("done")} />
     {:else}
-      <SetupStepDone workspacePath={workspacePath} onFinish={onComplete} />
+      <SetupStepDone
+        workspacePath={workspacePath}
+        onFinish={() => onComplete(workspacePath !== null)}
+      />
     {/if}
   </div>
 

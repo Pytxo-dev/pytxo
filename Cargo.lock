@@ -1706,6 +1706,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs2"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "fs_extra"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4219,7 +4229,7 @@ checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
 name = "pytxo-catalog"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4232,7 +4242,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-cli"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -4268,9 +4278,10 @@ dependencies = [
 
 [[package]]
 name = "pytxo-core"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "chrono",
+ "fs2",
  "serde",
  "serde_json",
  "sha2",
@@ -4284,7 +4295,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-desktop"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "chrono",
  "keyring",
@@ -4306,6 +4317,7 @@ dependencies = [
  "tauri-plugin-shell",
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
+ "tempfile",
  "tokio",
  "ureq",
  "uuid",
@@ -4337,7 +4349,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-mcp"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -4352,9 +4364,10 @@ dependencies = [
 
 [[package]]
 name = "pytxo-orchestrate"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "chrono",
  "pytxo-core",
  "pytxo-planner",
@@ -4375,7 +4388,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-planner"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -4406,9 +4419,10 @@ dependencies = [
 
 [[package]]
 name = "pytxo-runner"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
+ "fs2",
  "fuser",
  "glob",
  "portable-pty",
@@ -4419,11 +4433,12 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
 name = "pytxo-sanitize"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "pytxo-core",
  "regex",
@@ -4432,7 +4447,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-scheduler"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "glob",
  "pytxo-core",
@@ -4440,7 +4455,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-shell"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "pytxo-catalog",
@@ -4453,7 +4468,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-signal"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -4473,7 +4488,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-store"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "chrono",
  "pytxo-core",
@@ -4485,7 +4500,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-tui"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -4499,7 +4514,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-voice"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "cpal",
  "serde",

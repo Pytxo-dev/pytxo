@@ -3,18 +3,22 @@ title: Desktop setup
 description: Install Pytxo Desktop from release installers.
 ---
 
-**Pytxo Desktop** is the optional control UI for structural telemetry (Topology Focus graph by default). It is not a multi-terminal IDE.
+**Pytxo Desktop** is the optional control UI for Flow, Operations, approvals,
+run review, and structural Focus. It is not a multi-terminal IDE.
 
 ## Download
 
-Get installers from [pytxo.com/download](https://pytxo.com/download) or [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases) (v0.8.0):
+Get installers from [pytxo.com/download](https://pytxo.com/download) or
+[GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases)
+(current release: **v1.0.0**):
 
 | Platform | Installer |
 |----------|-----------|
 | Windows x64 | `pytxo-desktop-windows-x64.msi` (also a setup.exe on the releases page) |
-| macOS Apple Silicon | `pytxo-desktop-darwin-arm64.dmg` |
-| macOS Intel | `pytxo-desktop-darwin-x64.dmg` |
-| Linux x64 | `pytxo-desktop-linux-x64.AppImage` |
+| macOS / Linux | No v1 binary yet; the GitHub Actions multi-OS Desktop matrix is currently account/billing-blocked |
+
+The v1.0.0 Desktop release is deliberately Windows-first. Do not treat older
+macOS or Linux Desktop artifacts as v1 builds.
 
 ## Prerequisites
 
@@ -26,14 +30,34 @@ Get installers from [pytxo.com/download](https://pytxo.com/download) or [GitHub 
 
 1. Trust a folder: `pytxo trust orbit` (or pick a profile in the Desktop trust flow).
 2. Initialize config in the repo: `pytxo init`.
-3. Open that repo in Desktop. Workspace Home lists projects and domains.
-4. Dry-run a swarm: `pytxo run --dry-run --config pytxo.toml`, then a real run when ready.
+3. Open that repo in Desktop. Workspace Home lists projects and execution domains.
+4. Open **Integrations** and confirm at least one installed agent has an active vendor session.
+5. Open **Flow**, describe a mission, inspect its task paths and waves, then dispatch.
+
+Desktop can also create the bundled **Approval risk demo** from onboarding or
+Workspace Home. Its baseline tests run without model credentials; dispatching
+the mission uses the agent CLI selected in Flow.
 
 ## What you should see
 
-- **Topology** - AST / dependency graph (not a wall of terminals)
-- **Diff / logs** - supporting panels for agent writes and event-log rows
-- **Galaxy approvals** - HITL panel when `permission_profile = galaxy`
+- **Flow** — mission text, inspectable plan, execution waves, then dispatch
+- **Operations** — active work, health, path locks, cost, and attention state
+- **Approvals** — evidence, consequence, approve/apply, or deny/discard
+- **Run Review** — semantic changes, validation, recovery, and completion evidence
+- **Topology Focus** — optional AST/dependency context, not the primary workflow
+
+## Agent sessions and API providers
+
+Pytxo does not ask for ChatGPT, Claude, or other vendor passwords. **Integrations**
+detects installed CLIs and can launch their official sign-in command:
+
+- ChatGPT subscription access is represented by the vendor-owned **Codex CLI** session.
+- Claude subscription access is represented by the vendor-owned **Claude Code** session.
+- Cursor Agent, OpenCode, Gemini CLI, and Aider keep their own login or provider setup.
+
+Direct API keys are separate. Configure those under **Settings → Providers**;
+Desktop shows only configured/not-configured state and never returns key values
+to the webview.
 
 ## Build from source
 

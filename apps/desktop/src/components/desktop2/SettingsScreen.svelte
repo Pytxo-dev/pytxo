@@ -12,7 +12,8 @@
     IconShieldLock,
     IconUserCircle,
   } from "@tabler/icons-svelte";
-  import type { CatalogEntryStatus } from "../../lib/types";
+  import type { DesktopBackend } from "../../lib/desktop-backend";
+  import type { CatalogEntryStatus, ProviderStatusDto } from "../../lib/types";
   import {
     ACCENT_PRESETS,
     applyAccent,
@@ -67,6 +68,7 @@
 
   let {
     initialSection = null,
+    backend,
     activeDomain = null,
     tier,
     signedIn,
@@ -82,6 +84,7 @@
     onOpenWorkspaces,
   }: {
     initialSection?: SettingsSectionId | null;
+    backend: DesktopBackend;
     activeDomain?: CatalogEntryStatus | null;
     tier: string;
     signedIn: boolean;
@@ -113,18 +116,11 @@
   let pendingUpdate = $state<Update | null>(null);
   let updateMessage = $state("");
   let closeToTray = $state(true);
-  let providers = $state<
-    Array<{
-      id: string;
-      name: string;
-      api_key_env: string;
-      key_configured: boolean;
-      openai_compatible: boolean;
-      builtin: boolean;
-    }>
-  >([]);
+  let providers = $state<ProviderStatusDto[]>([]);
   let providersLoading = $state(false);
   let providersError = $state("");
+  let showAllProviders = $state(false);
+  let copiedProviderEnv = $state("");
 
   const filteredSections = $derived(
     SECTIONS.filter((s) => {
@@ -133,6 +129,21 @@
       return s.label.toLowerCase().includes(q) || s.id.includes(q);
     }),
   );
+  const configuredProviderCount = $derived(providers.filter((provider) => provider.key_configured).length);
+  const visibleProviders = $derived.by(() => {
+    const featured = ["deepseek", "openrouter", "openai", "anthropic"];
+    const visible = showAllProviders
+      ? providers
+      : providers.filter((provider) => featured.includes(provider.id) || provider.key_configured);
+    return [...visible].sort((a, b) => {
+      const aPriority = featured.indexOf(a.id);
+      const bPriority = featured.indexOf(b.id);
+      if (aPriority >= 0 || bPriority >= 0) {
+        return (aPriority < 0 ? 99 : aPriority) - (bPriority < 0 ? 99 : bPriority);
+      }
+      return a.name.localeCompare(b.name);
+    });
+  });
 
   $effect(() => {
     if (initialSection) {
@@ -160,12 +171,33 @@
     providersLoading = true;
     providersError = "";
     try {
-      providers = await ipc.listProviders();
+      providers = await backend.listProviders();
     } catch (e) {
       providersError = e instanceof Error ? e.message : String(e);
       providers = [];
     } finally {
       providersLoading = false;
+    }
+  }
+
+  function providerDetail(id: string): string {
+    if (id === "deepseek") return "Metered DeepSeek API access. This is an API key, not a consumer login.";
+    if (id === "openrouter") return "One metered key for multiple OpenAI-compatible models.";
+    if (id === "openai") return "OpenAI API billing. ChatGPT subscription access stays with Codex.";
+    if (id === "anthropic") return "Anthropic API billing. Claude subscription access stays with Claude Code.";
+    return "Direct provider API access for explicitly selected runs.";
+  }
+
+  async function copyProviderVariable(variable: string) {
+    if (!variable || typeof navigator === "undefined" || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(variable);
+      copiedProviderEnv = variable;
+      window.setTimeout(() => {
+        if (copiedProviderEnv === variable) copiedProviderEnv = "";
+      }, 1800);
+    } catch {
+      copiedProviderEnv = "";
     }
   }
 
@@ -237,10 +269,6 @@
     voiceConsentNoted = true;
     if (typeof localStorage !== "undefined") localStorage.setItem(VOICE_CONSENT_KEY, "true");
     showCloudConsent = false;
-  }
-
-  async function signIn() {
-    await ipc.authOpenSignIn();
   }
 
   async function signOut() {
@@ -318,7 +346,7 @@
         <h1>{SECTIONS.find((s) => s.id === section)?.label ?? "Settings"}</h1>
         <p>
           {#if section === "appearance"}Theme skins and chroma accents for the shell.
-          {:else if section === "providers"}BYOK provider status. Keys stay in OS environment variables — Pytxo never stores them.
+          {:else if section === "providers"}Direct API access for selected runs. Agent subscription sessions live under Integrations.
           {:else if section === "workspaces"}Default workspace behavior and the active domain.
           {:else if section === "agents"}Permission ladder defaults for new trusted folders.
           {:else if section === "voice"}Local Whisper capture and optional cloud consent.
@@ -430,30 +458,37 @@
       </article>
     {:else if section === "providers"}
       <article class="settings-group">
-        <h2>Bring your own key</h2>
+        <h2>API providers</h2>
         <p class="providers-lead">
-          Set provider keys in your OS environment, then restart Desktop. Prefer
-          <span class="mono">OPENROUTER_API_KEY</span> when you want one key for many models.
-          Custom OpenAI-compatible endpoints go in <span class="mono">~/.pytxo/providers.json</span>.
+          API billing is separate from agent subscriptions. ChatGPT connects through Codex and
+          Claude subscriptions connect through Claude Code in Integrations. For direct API calls,
+          set one provider variable in your OS environment and restart Desktop.
         </p>
         <div class="setting-row">
-          <div><strong>Status</strong><small>Boolean only — never shows key values.</small></div>
-          <button class="quiet" onclick={() => void refreshProviders()} disabled={providersLoading}>
-            {providersLoading ? "Refreshing…" : "Refresh"}
-          </button>
+          <div><strong>{configuredProviderCount} configured</strong><small>Status is boolean only. Key values never enter Desktop.</small></div>
+          <div class="provider-toolbar">
+            <button class="quiet" onclick={() => (showAllProviders = !showAllProviders)}>{showAllProviders ? "Featured only" : `Show all ${providers.length}`}</button>
+            <button class="quiet" onclick={() => void refreshProviders()} disabled={providersLoading}>
+              {providersLoading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
         </div>
         {#if providersError}
           <p class="providers-error">{providersError}</p>
         {/if}
         <div class="provider-list">
-          {#each providers as p (p.id)}
+          {#each visibleProviders as p (p.id)}
             <div class="provider-row">
               <div>
                 <strong>{p.name}</strong>
-                <small class="mono">{p.api_key_env || "(no key)"}{#if !p.builtin} · custom{/if}</small>
+                <small>{providerDetail(p.id)}</small>
+                <button class="provider-env mono" disabled={!p.api_key_env} onclick={() => void copyProviderVariable(p.api_key_env)}>
+                  {p.api_key_env || "No key required"}{#if !p.builtin} · custom{/if}
+                  {#if copiedProviderEnv === p.api_key_env && p.api_key_env}<span>Copied</span>{/if}
+                </button>
               </div>
               <span class="provider-badge" class:ok={p.key_configured} class:missing={!p.key_configured}>
-                {p.key_configured ? "Configured" : "Missing"}
+                {p.key_configured ? "Configured" : p.api_key_env ? "Not configured" : "Local"}
               </span>
             </div>
           {:else}
@@ -463,6 +498,7 @@
         <p class="providers-docs">
           Docs: <span class="mono">pytxo.com/docs/reference/providers-byok</span>
           · CLI: <span class="mono">pytxo providers</span>
+          · Custom endpoints: <span class="mono">~/.pytxo/providers.json</span>
         </p>
       </article>
     {:else if section === "workspaces"}
@@ -539,11 +575,11 @@
         <h2>Account</h2>
         <div class="setting-row"><div><strong>Status</strong><small>{signedIn ? "Signed in to your Pytxo account." : "Not signed in. Core local runs work without an account."}</small></div><strong>{signedIn ? "Signed in" : "Not signed in"}</strong></div>
         <div class="setting-row">
-          <div><strong>Sign in</strong><small>{signedIn ? "Clear the local session stored in the OS keyring." : "Opens pytxo.com in your browser, then returns via deep link."}</small></div>
+          <div><strong>Pytxo account connection</strong><small>{signedIn ? "Clear the existing local session stored in the OS keyring." : "Paused while the browser return moves to one-time authorization codes. Agent accounts are available in Integrations."}</small></div>
           {#if signedIn}
             <button class="quiet" onclick={() => void signOut()}>Sign out</button>
           {:else}
-            <button class="quiet" onclick={() => void signIn()}>Sign in</button>
+            <strong>Local Core</strong>
           {/if}
         </div>
         <div class="setting-row"><div><strong>Tier</strong><small>Controls concurrent agent limits and cloud features.</small></div><strong class="mono">{tier}</strong></div>
@@ -869,6 +905,11 @@
   .providers-error {
     color: #d98994;
   }
+  .provider-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
   .provider-list {
     display: flex;
     flex-direction: column;
@@ -885,6 +926,9 @@
     border-radius: 8px;
     background: var(--pytxo-surface-panel, #0a0b0e);
   }
+  .provider-row > div {
+    min-width: 0;
+  }
   .provider-row strong {
     display: block;
     font-size: 12.5px;
@@ -894,6 +938,32 @@
     margin-top: 3px;
     color: var(--pytxo-text-muted, #8b929d);
     font-size: 11px;
+  }
+  .provider-env {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 7px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #7e8792;
+    font-size: 10px;
+    cursor: pointer;
+  }
+  .provider-env:hover:not(:disabled) {
+    color: #a4eee0;
+  }
+  .provider-env:focus-visible {
+    outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
+    outline-offset: 2px;
+  }
+  .provider-env:disabled {
+    cursor: default;
+  }
+  .provider-env span {
+    color: var(--pytxo-success, #52ba9a);
+    font-family: "Geist", sans-serif;
   }
   .provider-badge {
     flex-shrink: 0;

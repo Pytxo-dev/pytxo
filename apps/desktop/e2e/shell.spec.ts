@@ -73,6 +73,70 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible();
   });
 
+  test("Integrations reports vendor-owned sessions without exposing account identifiers", async ({ page }) => {
+    test.slow();
+    await completeOnboarding(page);
+    await page.goto("/#/integrations", { waitUntil: "domcontentloaded", timeout: 60_000 });
+
+    await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agent sessions" })).toBeVisible();
+    await expect(page.getByText("ChatGPT connected", { exact: true })).toBeVisible();
+    await expect(page.getByText("Claude account connected", { exact: true })).toBeVisible();
+    await expect(page.getByText("Cursor account connected", { exact: true })).toBeVisible();
+    await expect(page.getByText("No OpenCode provider connected", { exact: true })).toBeVisible();
+    await expect(page.getByText("credentials stay with each vendor CLI")).toBeVisible();
+    await expect(page.getByText(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/)).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Recheck all" }).click();
+    await expect(page.getByText("ChatGPT connected", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Use in Flow" }).first().click();
+    await expect(page.getByRole("heading", { name: "Flow" })).toBeVisible();
+  });
+
+  test("Providers distinguishes direct API keys from agent subscription sessions", async ({ page }) => {
+    await completeOnboarding(page);
+    await page.goto("/#/settings");
+    await page.getByRole("button", { name: "Providers" }).click();
+
+    await expect(page.getByRole("heading", { name: "API providers" })).toBeVisible();
+    await expect(page.getByText("DeepSeek", { exact: true })).toBeVisible();
+    await expect(page.getByText("Metered DeepSeek API access. This is an API key, not a consumer login.")).toBeVisible();
+    await expect(page.getByText("ChatGPT connects through Codex")).toBeVisible();
+    await expect(page.getByText("Key values never enter Desktop.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "DEEPSEEK_API_KEY" })).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+
+    await page.getByRole("button", { name: /Show all/ }).click();
+    await expect(page.getByText("Google Gemini", { exact: true })).toBeVisible();
+  });
+
+  test("onboarding offers detected agents and a no-key guided example", async ({ page }) => {
+    await clearOnboarding(page);
+    await page.goto("/");
+    await page.getByRole("button", { name: "Get started" }).click();
+    await page.getByRole("button", { name: "Skip for now" }).click();
+
+    await expect(page.getByRole("heading", { name: "Connect your coding agents" })).toBeVisible();
+    await expect(page.getByText("ChatGPT connected", { exact: true })).toBeVisible();
+    await expect(page.getByText("credentials never move into Pytxo.")).toBeVisible();
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await expect(page.getByRole("heading", { name: "Open a Workspace" })).toBeVisible();
+    await page.getByRole("button", { name: "Try the guided example" }).click();
+    await expect(page.getByText("C:/Users/demo/Documents/Pytxo Examples/approval-risk-demo", { exact: true })).toBeVisible();
+    await expect(page.getByText("Local git example ready. No API key required.")).toBeVisible();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByRole("heading", { name: "Set your display" })).toBeVisible();
+  });
+
+  test("Workspaces creates the guided example and takes it into Flow", async ({ page }) => {
+    await completeOnboarding(page);
+    await page.goto("/#/workspaces");
+    await page.getByRole("button", { name: "Try guided example" }).click();
+    await expect(page.getByRole("heading", { name: "Flow" })).toBeVisible();
+  });
+
   test("legacy workspace tabs migrate to recents without deletion", async ({ page }) => {
     await completeOnboarding(page, {
       "pytxo-deck-tabs-v1": JSON.stringify({
@@ -206,6 +270,8 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByRole("heading", { name: "Review plan" })).toBeVisible();
     await page.getByRole("button", { name: "Run", exact: true }).click();
     await expect(page.getByRole("button", { name: "Running run-preview" })).toBeVisible();
+    await page.getByRole("button", { name: "Build plan", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Run", exact: true })).toBeEnabled();
   });
 
   test("Voice capture produces an editable Flow mission with the preview backend", async ({ page }) => {
@@ -466,20 +532,27 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
 
         const composer = page.locator(".composer-panel");
         const actions = page.locator(".composer-actions");
+        const workspaceSelect = page.getByLabel("Workspace");
+        const agentSelect = page.getByLabel("Agent CLI");
         const overflow = await actions.evaluate(
           (element) => element.scrollWidth - element.clientWidth,
         );
         expect(overflow).toBeLessThanOrEqual(1);
 
         const composerBox = await composer.boundingBox();
+        const workspaceBox = await workspaceSelect.boundingBox();
+        const agentBox = await agentSelect.boundingBox();
         const buildButtonBox = await page
           .getByRole("button", { name: "Build plan", exact: true })
           .boundingBox();
         expect(composerBox).not.toBeNull();
+        expect(workspaceBox).not.toBeNull();
+        expect(agentBox).not.toBeNull();
         expect(buildButtonBox).not.toBeNull();
-        expect(buildButtonBox!.x + buildButtonBox!.width).toBeLessThanOrEqual(
-          composerBox!.x + composerBox!.width + 1,
-        );
+        for (const box of [workspaceBox!, agentBox!, buildButtonBox!]) {
+          expect(box.x).toBeGreaterThanOrEqual(composerBox!.x - 1);
+          expect(box.x + box.width).toBeLessThanOrEqual(composerBox!.x + composerBox!.width + 1);
+        }
       });
 
       test("Approvals keeps evidence and decision controls reachable", async ({ page }) => {

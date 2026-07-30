@@ -375,6 +375,25 @@ fn resolve_import(repo_root: &Path, from_rel: &str, target: &str) -> String {
                 _ => {}
             }
         }
+        let mut candidates = vec![canon.clone()];
+        if canon.extension().is_none() {
+            // TypeScript/JavaScript commonly omit the extension in relative
+            // imports. Resolve against the importing file first, then the
+            // small set of source extensions Signal Core understands.
+            if let Some(extension) = Path::new(from_rel).extension() {
+                candidates.push(canon.with_extension(extension));
+            }
+            for extension in ["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs"] {
+                candidates.push(canon.with_extension(extension));
+                candidates.push(canon.join(format!("index.{extension}")));
+            }
+        }
+        if let Some(existing) = candidates
+            .into_iter()
+            .find(|relative| repo_root.join(relative).is_file())
+        {
+            return normalize_rel(&existing.to_string_lossy());
+        }
         return normalize_rel(&canon.to_string_lossy());
     }
     if target.starts_with('/') || target.contains(':') {
@@ -423,6 +442,25 @@ mod tests {
             .edges
             .iter()
             .any(|e| e.from.contains("main") && e.to.contains("lib")));
+    }
+
+    #[test]
+    fn resolves_extensionless_typescript_imports_to_existing_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path();
+        std::fs::create_dir_all(repo.join("src")).unwrap();
+        std::fs::write(repo.join("src/utils.ts"), "export const x = 1;\n").unwrap();
+        std::fs::write(
+            repo.join("src/app.ts"),
+            "import './utils';\nexport const run = () => x;\n",
+        )
+        .unwrap();
+
+        let graph = build_structural_graph(repo, &[("src/app.ts".into(), "agent-0".into(), None)]);
+        assert!(graph
+            .edges
+            .iter()
+            .any(|edge| edge.from == "src/app.ts" && edge.to == "src/utils.ts"));
     }
 
     #[test]

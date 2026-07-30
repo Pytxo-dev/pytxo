@@ -1,6 +1,25 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { IconCheck, IconChevronRight, IconCloud, IconFolder, IconGitBranch, IconLoader2, IconPlugConnected, IconPlus, IconSearch, IconSettings, IconShieldLock, IconTerminal2 } from "@tabler/icons-svelte";
+  import {
+    IconAlertCircle,
+    IconCheck,
+    IconChevronRight,
+    IconCircleCheck,
+    IconCloud,
+    IconExternalLink,
+    IconFolder,
+    IconGitBranch,
+    IconLoader2,
+    IconLogin2,
+    IconPlugConnected,
+    IconPlus,
+    IconRefresh,
+    IconSearch,
+    IconSettings,
+    IconShieldLock,
+    IconSparkles,
+    IconTerminal2,
+  } from "@tabler/icons-svelte";
   import { approvalPresentation } from "../../lib/approval-presentation";
   import type { DesktopBackend, DesktopSnapshot } from "../../lib/desktop-backend";
   import type { AppRoute } from "../../lib/navigation.svelte";
@@ -38,8 +57,12 @@
   let healthFilter = $state<"all" | "active">("all");
   let selectedApprovalId = $state<string | null>(null);
   let openedWorkspace = $state<string | null>(null);
+  let creatingExample = $state(false);
   let adeClis = $state<AdeCliStatusDto[]>([]);
   let adeLoading = $state(true);
+  let adeMessage = $state<string | null>(null);
+  let adeMessageTone = $state<"success" | "error" | null>(null);
+  let loginOpeningId = $state<string | null>(null);
   let showCleanup = $state(false);
   let forgettingId = $state<string | null>(null);
   let forgetError = $state<string | null>(null);
@@ -73,6 +96,15 @@
     selectedDomain
       ? snapshot.runs.find((run) => run.repo_root === selectedDomain.repo_root) ?? null
       : null,
+  );
+  const sortedAdeClis = $derived(
+    [...adeClis].sort((a, b) => {
+      const priority = ["codex", "claude", "cursor", "opencode", "gemini", "copilot", "aider", "agy"];
+      return priority.indexOf(a.id) - priority.indexOf(b.id);
+    }),
+  );
+  const connectedAdeCount = $derived(
+    adeClis.filter((cli) => cli.installed && cli.auth_state === "signed_in").length,
   );
 
   function workspaceLabel(): string {
@@ -169,6 +201,52 @@
     }
   }
 
+  async function createGuidedExample() {
+    creatingExample = true;
+    forgetError = null;
+    try {
+      openedWorkspace = await backend.createExampleWorkspace();
+      await onWorkspaceOpened(openedWorkspace);
+      onRoute("flow");
+    } catch (error) {
+      forgetError = error instanceof Error ? error.message : String(error);
+    } finally {
+      creatingExample = false;
+    }
+  }
+
+  async function refreshAdeClis() {
+    adeLoading = true;
+    adeMessage = null;
+    adeMessageTone = null;
+    try {
+      adeClis = await backend.listAdeClis();
+    } catch (error) {
+      adeClis = [];
+      adeMessage = error instanceof Error ? error.message : String(error);
+      adeMessageTone = "error";
+    } finally {
+      adeLoading = false;
+    }
+  }
+
+  async function openAdeLogin(cli: AdeCliStatusDto) {
+    if (!cli.installed || !cli.login_supported || loginOpeningId) return;
+    loginOpeningId = cli.id;
+    adeMessage = null;
+    adeMessageTone = null;
+    try {
+      const launched = await backend.startAdeLogin(cli.id);
+      adeMessage = launched.message;
+      adeMessageTone = "success";
+    } catch (error) {
+      adeMessage = error instanceof Error ? error.message : String(error);
+      adeMessageTone = "error";
+    } finally {
+      loginOpeningId = null;
+    }
+  }
+
   $effect(() => {
     if (route === "approvals" && openApprovals.length && !openApprovals.some((a) => a.id === selectedApprovalId)) {
       selectedApprovalId = openApprovals[0]?.id ?? null;
@@ -177,13 +255,7 @@
 
   onMount(() => {
     window.addEventListener("keydown", onApprovalKeydown);
-    void backend.listAdeClis()
-      .then((items) => {
-        adeClis = items;
-      })
-      .finally(() => {
-        adeLoading = false;
-      });
+    void refreshAdeClis();
     return () => window.removeEventListener("keydown", onApprovalKeydown);
   });
 </script>
@@ -199,10 +271,24 @@
             ? "Every orchestration run, from dispatch through recovery."
             : route === "approvals"
               ? "Human decisions with the context needed to act confidently."
-              : "Agent CLIs and how to connect the MCP hub."}
+              : "Installed agent CLIs, vendor-owned sessions, and the MCP hub."}
       </p>
     </div>
-    {#if route === "workspaces"}<button class="primary" onclick={openWorkspace}><IconPlus size={16} /> Add workspace</button>{/if}
+    {#if route === "workspaces"}
+      <div class="workspace-heading-actions">
+        <button class="quiet" disabled={creatingExample} onclick={() => void createGuidedExample()}>
+          {#if creatingExample}<IconLoader2 size={14} class="spin" />{:else}<IconSparkles size={14} />{/if}
+          {creatingExample ? "Creating example" : "Try guided example"}
+        </button>
+        <button class="primary" onclick={openWorkspace}><IconPlus size={16} /> Add workspace</button>
+      </div>
+    {/if}
+    {#if route === "integrations"}
+      <button class="quiet integration-refresh" onclick={() => void refreshAdeClis()} disabled={adeLoading}>
+        <IconRefresh size={14} class={adeLoading ? "spin" : undefined} />
+        {adeLoading ? "Checking" : "Recheck all"}
+      </button>
+    {/if}
     {#if route === "approvals" && openApprovals.length}
       <div class="approval-shortcuts" aria-label="Approval keyboard shortcuts">
         <span><kbd>J</kbd><kbd>K</kbd> Select</span>
@@ -353,14 +439,63 @@
     </div>
   {:else if route === "integrations"}
     <div class="integration-sections">
-      <article class="panel">
-        <div class="panel-head"><div><h2>Agent CLIs</h2></div></div>
+      <article class="panel integration-agent-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Agent sessions</h2>
+            <p>{connectedAdeCount} connected · credentials stay with each vendor CLI</p>
+          </div>
+          <span class="integration-safety"><IconShieldLock size={13} /> Pytxo never reads token stores</span>
+        </div>
+        <p class="integration-intro">
+          Pytxo launches official sign-in commands from your home directory and reads only
+          non-billable, redacted status. ChatGPT connects through Codex; Claude, Cursor, Gemini,
+          Copilot, and OpenCode keep their own sessions.
+        </p>
+        {#if adeMessage}
+          <p class="integration-message" class:error={adeMessageTone === "error"} role={adeMessageTone === "error" ? "alert" : "status"}>
+            {#if adeMessageTone === "error"}<IconAlertCircle size={14} />{:else}<IconCircleCheck size={14} />{/if}
+            {adeMessage}
+          </p>
+        {/if}
         {#if adeLoading}
-          <div class="empty"><IconLoader2 size={22} class="spin" /><strong>Checking installed CLIs…</strong></div>
+          <div class="empty"><IconLoader2 size={22} class="spin" /><strong>Checking installed CLIs and sessions…</strong><span>No model request is sent.</span></div>
         {:else}
           <div class="integration-grid">
-            {#each adeClis as cli}
-              <div class="integration-card"><div class="provider-icon"><IconTerminal2 size={19} /></div><p><strong>{cli.display_name}</strong><small class="mono">{cli.default_cmd}</small></p><span class:healthy={cli.installed}>{cli.installed ? "Installed" : "Not installed"}</span></div>
+            {#each sortedAdeClis as cli (cli.id)}
+              <article class="integration-card integration-card--session" class:connected={cli.auth_state === "signed_in"}>
+                <div class="integration-card__top">
+                  <div class="provider-icon"><IconTerminal2 size={19} /></div>
+                  <div class="integration-card__title">
+                    <strong>{cli.display_name}</strong>
+                    <small class="mono">{cli.default_cmd}</small>
+                  </div>
+                  <span class="integration-state" class:healthy={cli.installed}>{cli.installed ? "Installed" : "Not installed"}</span>
+                </div>
+                <div class="integration-auth-state" data-state={cli.auth_state}>
+                  {#if cli.auth_state === "signed_in"}<IconCircleCheck size={14} />
+                  {:else if cli.auth_state === "signed_out"}<IconAlertCircle size={14} />
+                  {:else}<IconTerminal2 size={14} />{/if}
+                  <span>
+                    <strong>{cli.auth_label}</strong>
+                    <small>Owned by {cli.auth_owner}</small>
+                  </span>
+                </div>
+                <p class="integration-detail">{cli.detail}</p>
+                <div class="integration-actions">
+                  <a href={cli.docs_url} target="_blank" rel="noopener noreferrer">
+                    {cli.installed ? "Docs" : "Install guide"} <IconExternalLink size={12} />
+                  </a>
+                  {#if cli.installed && cli.auth_state === "signed_in"}
+                    <button class="quiet" onclick={() => onRoute("flow")}>Use in Flow</button>
+                  {:else if cli.installed && cli.login_supported && cli.login_label}
+                    <button class="quiet" disabled={loginOpeningId !== null} onclick={() => void openAdeLogin(cli)}>
+                      {#if loginOpeningId === cli.id}<IconLoader2 size={12} class="spin" />{:else}<IconLogin2 size={12} />{/if}
+                      {cli.login_label}
+                    </button>
+                  {/if}
+                </div>
+              </article>
             {/each}
           </div>
         {/if}

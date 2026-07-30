@@ -1,0 +1,5 @@
+max_agents = 3
+permission_profile = "orbit"
+isolation = "worktree"
+execution_backend = "pty"
+fail_fast = true

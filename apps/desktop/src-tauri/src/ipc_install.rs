@@ -12,6 +12,16 @@ use crate::ipc_error::{map_io_err, IpcResult, PytxoIpcError};
 
 const RELEASES_REPO: &str = "Pytxo-dev/pytxo-releases";
 const DESKTOP_VERSION: &str = env!("CARGO_PKG_VERSION");
+const EXAMPLE_README: &str = include_str!("../../../../examples/pytxo-first-mission/README.md");
+const EXAMPLE_PACKAGE: &str = include_str!("../../../../examples/pytxo-first-mission/package.json");
+const EXAMPLE_CONFIG: &str = include_str!("../../../../examples/pytxo-first-mission/pytxo.toml");
+const EXAMPLE_GITIGNORE: &str = include_str!("../../../../examples/pytxo-first-mission/.gitignore");
+const EXAMPLE_MARKER: &str =
+    include_str!("../../../../examples/pytxo-first-mission/.pytxo-example-v1");
+const EXAMPLE_SOURCE: &str =
+    include_str!("../../../../examples/pytxo-first-mission/src/risk-policy.mjs");
+const EXAMPLE_TEST: &str =
+    include_str!("../../../../examples/pytxo-first-mission/test/risk-policy.test.mjs");
 
 static INSTALL_STATE: LazyLock<Mutex<InstallState>> = LazyLock::new(|| {
     Mutex::new(InstallState {
@@ -352,6 +362,86 @@ pub fn pick_workspace_folder() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
+#[tauri::command]
+pub fn create_example_workspace() -> IpcResult<String> {
+    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
+        .map(PathBuf::from)
+        .ok_or_else(|| {
+            PytxoIpcError::new("example", "Could not find the user profile directory.")
+        })?;
+    let parent = home.join("Documents").join("Pytxo Examples");
+    create_example_workspace_in(&parent).map(|path| path.to_string_lossy().into_owned())
+}
+
+fn create_example_workspace_in(parent: &Path) -> IpcResult<PathBuf> {
+    std::fs::create_dir_all(parent).map_err(map_io_err)?;
+    let destination = (1..=99)
+        .map(|index| {
+            if index == 1 {
+                parent.join("approval-risk-demo")
+            } else {
+                parent.join(format!("approval-risk-demo-{index}"))
+            }
+        })
+        .find(|candidate| !candidate.exists())
+        .ok_or_else(|| {
+            PytxoIpcError::new(
+                "example",
+                "Too many guided examples exist. Remove an old example and try again.",
+            )
+        })?;
+
+    std::fs::create_dir_all(destination.join("src")).map_err(map_io_err)?;
+    std::fs::create_dir_all(destination.join("test")).map_err(map_io_err)?;
+    for (relative, contents) in [
+        ("README.md", EXAMPLE_README),
+        ("package.json", EXAMPLE_PACKAGE),
+        ("pytxo.toml", EXAMPLE_CONFIG),
+        (".gitignore", EXAMPLE_GITIGNORE),
+        (".pytxo-example-v1", EXAMPLE_MARKER),
+        ("src/risk-policy.mjs", EXAMPLE_SOURCE),
+        ("test/risk-policy.test.mjs", EXAMPLE_TEST),
+    ] {
+        std::fs::write(destination.join(relative), contents).map_err(map_io_err)?;
+    }
+
+    run_git(&destination, &["init", "-q"])?;
+    run_git(&destination, &["branch", "-M", "main"])?;
+    run_git(&destination, &["add", "."])?;
+    run_git(
+        &destination,
+        &[
+            "-c",
+            "user.name=Pytxo Example",
+            "-c",
+            "user.email=example@pytxo.local",
+            "commit",
+            "-q",
+            "-m",
+            "Create guided first mission",
+        ],
+    )?;
+    Ok(destination.canonicalize().unwrap_or(destination))
+}
+
+fn run_git(repo: &Path, args: &[&str]) -> IpcResult<()> {
+    let mut command = Command::new("git");
+    command.arg("-C").arg(repo).args(args);
+    hide_window(&mut command);
+    let output = command.output().map_err(map_io_err)?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let detail = String::from_utf8_lossy(&output.stderr);
+    Err(PytxoIpcError::new(
+        "example",
+        format!(
+            "Could not initialize the example repository: {}",
+            detail.trim()
+        ),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,5 +455,26 @@ mod tests {
     #[test]
     fn binary_on_path_does_not_panic() {
         let _ = binary_on_path("pytxo");
+    }
+
+    #[test]
+    fn example_workspace_is_a_committed_testable_project() {
+        let root = tempfile::tempdir().expect("temp examples root");
+        let example = create_example_workspace_in(root.path()).expect("create example");
+        assert!(example.join(".pytxo-example-v1").is_file());
+        assert!(example.join("src/risk-policy.mjs").is_file());
+        assert!(example.join("test/risk-policy.test.mjs").is_file());
+
+        let output = Command::new("git")
+            .args([
+                "-C",
+                &example.to_string_lossy(),
+                "rev-parse",
+                "--verify",
+                "HEAD",
+            ])
+            .output()
+            .expect("git rev-parse");
+        assert!(output.status.success());
     }
 }

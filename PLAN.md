@@ -397,3 +397,140 @@ interrupted. This pass closes verification and residual overclaim wording.
 - `npm run lint` / `npm run build` / `npm run e2e` (from `apps/web`)
 - Browser QA at 1440x900 and 390x844 on `/plans`
 - `git diff --check`
+
+---
+
+# Plan: Demo, real-repo proof, and release closeout (pass 7)
+
+## DO NOT TOUCH
+
+- Paid model accounts or competitor agents
+- Checkout, entitlement, Clerk, or hosted Cloud behavior
+- Permission-profile policy, Race scheduling semantics, or approve-to-flush
+- v0.13.0 published artifacts; this pass prepares a reviewable patch candidate
+
+## Phase 1: Truthful product demo
+
+- [x] Add an editable Remotion composition using real Desktop captures
+  (`apps/demo-video/`)
+- [x] Add scene-bounded ElevenLabs lines and a key-safe optional generator
+- [x] Render and inspect all eight scenes plus the final 1080p MP4
+
+## Phase 2: Real-repository evidence
+
+- [x] Measure Signal across tracked production files, not the tiny fixture
+  (`tooling/benchmarks/real-repo-signal.ps1`)
+- [x] Measure Race/Blast control-plane behavior in a temporary real-monorepo
+  snapshot (`tooling/benchmarks/real-repo-control-plane.ps1`)
+- [x] Publish raw JSON with explicit non-claims
+
+## Phase 3: Release defect and ship gates
+
+- [x] Fix recursive sibling copy-layers found by the real workload and add
+  regressions (`crates/pytxo-runner/src/{blast,overlay_projfs}.rs`)
+- [x] Report effective isolation telemetry
+  (`crates/pytxo-orchestrate/src/lib.rs`)
+- [x] Run complete Rust, Desktop, web, Remotion, and diff gates (build, type,
+  lint, Rust test, native artifact, audit, render, benchmark, and Playwright
+  gates pass)
+
+## Acceptance criteria
+
+- Demo source renders a 63-second 1920×1080 MP4 without external credentials.
+- Signal proof names the corpus and remains a byte claim.
+- Control-plane proof finishes 5/5 agents, separates the declared overlap, and
+  leaves the primary checkout unchanged.
+- Concurrent copy-layer preparation cannot traverse `.pytxo/worktrees`.
+- Public docs, benchmark evidence, and effective isolation telemetry agree.
+
+## Test commands
+
+- `npm ci && npm run typecheck && npm run compositions && npm run render`
+  (from `apps/demo-video`)
+- `powershell -File tooling/benchmarks/real-repo-signal.ps1`
+- `powershell -File tooling/benchmarks/real-repo-control-plane.ps1`
+- Project Rust, Desktop, and web commands from `AGENTS.md`
+- `git diff --check`
+
+---
+
+# Plan: v1 provider readiness, first mission, and live demo (pass 8)
+
+## Context
+
+The v1 provider boundary and product references are recorded in
+`docs/01-projects/v1-provider-auth-onboarding-research.md`. Pytxo coordinates
+vendor-owned agent sessions; it does not capture consumer credentials or copy
+vendor token stores. Direct inference credentials remain a separate BYOK
+surface.
+
+## DO NOT TOUCH
+
+- Vendor password, cookie, OAuth-token, or credential-file capture.
+- Permission-profile meanings, execution-domain ownership, Race scheduling, or
+  Blast approve-to-flush semantics.
+- Checkout, Clerk entitlement provisioning, hosted Cloud behavior, or the
+  legacy Desktop shell.
+- The disclosed DeepSeek key; it must not enter source, logs, fixtures,
+  screenshots, command arguments, or generated artifacts.
+- Existing unrelated workspace changes and v0.13.0 published artifacts.
+
+## Phase 1: Make agent readiness honest and useful
+
+- [x] Expand the ADE registry and PATH detection for current Codex, Claude Code,
+  Cursor Agent, OpenCode, Gemini CLI, and Aider commands.
+- [x] Add safe vendor-owned auth probes and fixed-command login launchers in the
+  host control plane; return only redacted readiness metadata to Svelte.
+- [x] Replace the Integrations binary grid with actionable installed/session
+  states, recheck, official sign-in, documentation, and Use in Flow actions.
+- [x] Clear inherited child environments and rebuild an allowlisted runtime
+  baseline before injecting the explicitly selected provider route.
+
+## Phase 2: Ship a real first-mission path
+
+- [x] Add a dependency-free, testable first-mission example repository with a
+  concrete risk-policy mission.
+- [x] Add a native example-workspace generator that creates a local git repo
+  outside the source tree without requiring global git identity.
+- [x] Expose Try guided example from first-run and the Workspaces catalog, then
+  take the user directly to Flow with the example selected.
+- [x] Simplify Providers into a featured, status-led BYOK surface with precise
+  subscription-login versus API-billing language.
+
+## Phase 3: Record and prove the v1 story
+
+- [x] Upgrade the Remotion composition and ElevenLabs script around real
+  Integrations, Flow, Operations, and Approvals footage.
+- [x] Write the Screen Studio recording runbook, reset path, shot timings,
+  voice lines, and exact example mission.
+- [x] Add official product-reference notes and current auth architecture to the
+  documentation map.
+- [x] Run focused Rust/Svelte/browser tests, native build, Computer Use QA,
+  real-repo benchmarks, secret scans, and diff checks.
+
+## Acceptance criteria
+
+- Codex, Claude Code, Cursor Agent, and OpenCode status checks are non-billable,
+  redact account identity, and do not read credential files.
+- Login actions open official vendor CLI flows from a host-safe directory;
+  vendor logout is not performed implicitly.
+- An unrelated sentinel secret in the parent environment is absent from both
+  PTY and subprocess agent children.
+- The example project is created on demand, passes its baseline tests, opens as
+  an Orbit workspace, and provides one copyable mission with visible path
+  overlap and verification.
+- Desktop remains usable at 1280x800 and 960x640; website/demo media use real
+  product captures and reduced-motion-safe presentation.
+- No secret-like value appears in tracked source, logs, screenshots, benchmark
+  results, or demo artifacts.
+
+## Test commands
+
+- `cargo test -p pytxo-core -p pytxo-runner -p pytxo-desktop`
+- `cargo clippy --workspace --all-targets -- -D warnings`
+- `npm run check && npm run build` (from `apps/desktop`)
+- Desktop Playwright focused integration/onboarding coverage, then the full suite
+- `npm run typecheck && npm run render` (from `apps/demo-video`)
+- Web lint, build, asset verification, and marketing Playwright coverage
+- Real-repository Signal and control-plane benchmark scripts
+- `git diff --check`

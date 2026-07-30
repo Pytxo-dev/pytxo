@@ -10,6 +10,7 @@ doctest = false
 
 [dependencies]
 anyhow.workspace = true
+base64.workspace = true
 chrono.workspace = true
 pytxo-core = { workspace = true }
 pytxo-planner.workspace = true

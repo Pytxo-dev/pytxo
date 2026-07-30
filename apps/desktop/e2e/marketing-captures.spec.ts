@@ -9,6 +9,7 @@ import { completeOnboarding } from "./helpers";
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const DOCS_CAPTURE_DIR = path.join(REPO_ROOT, "docs", "_attachments", "desktop-2");
 const WEB_CAPTURE_DIR = path.join(REPO_ROOT, "apps", "web", "public", "product");
+const DEMO_CAPTURE_DIR = path.join(REPO_ROOT, "apps", "demo-video", "public", "product");
 
 const VIEWPORTS = [
   { slug: "1600x1000", width: 1600, height: 1000 },
@@ -22,7 +23,7 @@ const ROUTES = [
   { route: "runs", heading: "Runs", marketing: false },
   { route: "flow", heading: "Flow", marketing: true },
   { route: "approvals", heading: "Approvals", marketing: true },
-  { route: "integrations", heading: "Integrations", marketing: false },
+  { route: "integrations", heading: "Integrations", marketing: true },
   { route: "settings", heading: "Appearance", marketing: false },
   { route: "topology-focus", heading: "Topology Focus", marketing: false },
   { route: "run-review", heading: "Run Review", marketing: false },
@@ -81,6 +82,7 @@ test.describe("@marketing-capture current Desktop product captures", () => {
   test.beforeAll(async () => {
     await mkdir(DOCS_CAPTURE_DIR, { recursive: true });
     await mkdir(WEB_CAPTURE_DIR, { recursive: true });
+    await mkdir(DEMO_CAPTURE_DIR, { recursive: true });
   });
 
   for (const viewport of VIEWPORTS) {
@@ -109,6 +111,13 @@ test.describe("@marketing-capture current Desktop product captures", () => {
         ) {
           await writeCapture(
             path.join(WEB_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`),
+            png,
+          );
+        }
+
+        if (route.marketing && viewport.slug === "1600x1000") {
+          await writeCapture(
+            path.join(DEMO_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`),
             png,
           );
         }

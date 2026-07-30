@@ -1,0 +1,203 @@
+﻿{
+    "schema_version":  1,
+    "benchmark":  "control-plane-real-repo",
+    "measured_at_utc":  "2026-07-30T23:35:54.2586296Z",
+    "repository":  {
+                       "source_commit":  "3acdc77eacd3b4c75a1ff51c5c4a464ba3155103",
+                       "clone_commit":  "cac8e9a023bcaeb7c2c932c6ee0ef63662c3e0a3",
+                       "tracked_files":  920
+                   },
+    "binary":  {
+                   "version":  "pytxo 1.0.0",
+                   "base_commit":  "3acdc77eacd3b4c75a1ff51c5c4a464ba3155103",
+                   "source_worktree_dirty":  true
+               },
+    "host":  {
+                 "label":  "local-windows-host",
+                 "os":  "Microsoft Windows NT 10.0.26200.0",
+                 "cpu":  "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+                 "rustc":  "rustc 1.95.0 (59807616e 2026-04-14)"
+             },
+    "workload":  {
+                     "description":  "Five deterministic tasks mapped to real v1.0.0 Desktop, Tauri IPC, test, and release-note paths. Two tasks intentionally overlap OperationsScreen.svelte.",
+                     "tasks":  5,
+                     "agents":  5,
+                     "max_parallel_agents":  3,
+                     "command":  "echo pytxo-real-repo-benchmark",
+                     "model_calls":  0
+                 },
+    "dry_run":  {
+                    "wall_time_ms":  10851,
+                    "conflicts_detected":  1,
+                    "waves":  2,
+                    "same_wave_path_collisions":  0,
+                    "plan":  {
+                                 "waves":  [
+                                               [
+                                                   {
+                                                       "task_id":  "desktop-stop-contract",
+                                                       "agent":  "benchmark",
+                                                       "paths":  [
+                                                                     "apps/desktop/src/components/desktop2/OperationsScreen.svelte"
+                                                                 ],
+                                                       "depends_on":  [
+
+                                                                      ],
+                                                       "wave":  0,
+                                                       "root":  null,
+                                                       "signal_fidelity":  null,
+                                                       "verify":  [
+
+                                                                  ]
+                                                   },
+                                                   {
+                                                       "task_id":  "tauri-ipc",
+                                                       "agent":  "benchmark",
+                                                       "paths":  [
+                                                                     "apps/desktop/src-tauri/src/ipc.rs"
+                                                                 ],
+                                                       "depends_on":  [
+
+                                                                      ],
+                                                       "wave":  0,
+                                                       "root":  null,
+                                                       "signal_fidelity":  null,
+                                                       "verify":  [
+
+                                                                  ]
+                                                   },
+                                                   {
+                                                       "task_id":  "orchestrate-stop-test",
+                                                       "agent":  "benchmark",
+                                                       "paths":  [
+                                                                     "crates/pytxo-orchestrate/tests/stop_exact.rs"
+                                                                 ],
+                                                       "depends_on":  [
+
+                                                                      ],
+                                                       "wave":  0,
+                                                       "root":  null,
+                                                       "signal_fidelity":  null,
+                                                       "verify":  [
+
+                                                                  ]
+                                                   }
+                                               ],
+                                               [
+                                                   {
+                                                       "task_id":  "desktop-stop-evidence",
+                                                       "agent":  "benchmark",
+                                                       "paths":  [
+                                                                     "apps/desktop/src/components/desktop2/OperationsScreen.svelte"
+                                                                 ],
+                                                       "depends_on":  [
+
+                                                                      ],
+                                                       "wave":  1,
+                                                       "root":  null,
+                                                       "signal_fidelity":  null,
+                                                       "verify":  [
+
+                                                                  ]
+                                                   },
+                                                   {
+                                                       "task_id":  "release-notes",
+                                                       "agent":  "benchmark",
+                                                       "paths":  [
+                                                                     "distribution/release-notes/v1.0.0.md"
+                                                                 ],
+                                                       "depends_on":  [
+
+                                                                      ],
+                                                       "wave":  1,
+                                                       "root":  null,
+                                                       "signal_fidelity":  null,
+                                                       "verify":  [
+
+                                                                  ]
+                                                   }
+                                               ]
+                                           ],
+                                 "conflicts":  [
+                                                   {
+                                                       "task_a":  "desktop-stop-contract",
+                                                       "task_b":  "desktop-stop-evidence",
+                                                       "paths":  [
+                                                                     "apps/desktop/src/components/desktop2/OperationsScreen.svelte"
+                                                                 ]
+                                                   }
+                                               ],
+                                 "max_agents":  3,
+                                 "warnings":  [
+
+                                              ]
+                             }
+                },
+    "execution":  {
+                      "wall_time_ms":  17578,
+                      "exit_code":  0,
+                      "registered_worktrees":  1,
+                      "isolated_workspace_directories":  0,
+                      "primary_checkout_changes":  0,
+                      "status":  {
+                                     "runs":  [
+                                                  {
+                                                      "id":  "abb00247-4f32-416a-872e-2719ec768a0e",
+                                                      "status":  "completed",
+                                                      "repo_root":  "\u003ctemporary-source-snapshot\u003e/repo",
+                                                      "started_at":  "2026-07-30T23:35:46.522298700+00:00",
+                                                      "estimated_tokens_in":  null,
+                                                      "estimated_tokens_out":  null,
+                                                      "estimated_cost_usd":  null,
+                                                      "permission_profile":  "orbit",
+                                                      "isolation_mode":  "overlay",
+                                                      "isolation_backend":  "projfs-sparse-copy-v2",
+                                                      "arbitrage_saved_tokens":  0,
+                                                      "wallet_balance_microcredits":  0,
+                                                      "agents":  [
+                                                                     {
+                                                                         "id":  "abb00247-4f32-416a-872e-2719ec768a0e:agent-0",
+                                                                         "task_id":  "desktop-stop-contract",
+                                                                         "wave":  0,
+                                                                         "status":  "completed",
+                                                                         "exit_code":  0
+                                                                     },
+                                                                     {
+                                                                         "id":  "abb00247-4f32-416a-872e-2719ec768a0e:agent-1",
+                                                                         "task_id":  "tauri-ipc",
+                                                                         "wave":  0,
+                                                                         "status":  "completed",
+                                                                         "exit_code":  0
+                                                                     },
+                                                                     {
+                                                                         "id":  "abb00247-4f32-416a-872e-2719ec768a0e:agent-2",
+                                                                         "task_id":  "orchestrate-stop-test",
+                                                                         "wave":  0,
+                                                                         "status":  "completed",
+                                                                         "exit_code":  0
+                                                                     },
+                                                                     {
+                                                                         "id":  "abb00247-4f32-416a-872e-2719ec768a0e:agent-3",
+                                                                         "task_id":  "desktop-stop-evidence",
+                                                                         "wave":  1,
+                                                                         "status":  "completed",
+                                                                         "exit_code":  0
+                                                                     },
+                                                                     {
+                                                                         "id":  "abb00247-4f32-416a-872e-2719ec768a0e:agent-4",
+                                                                         "task_id":  "release-notes",
+                                                                         "wave":  1,
+                                                                         "status":  "completed",
+                                                                         "exit_code":  0
+                                                                     }
+                                                                 ]
+                                                  }
+                                              ]
+                                 }
+                  },
+    "limitations":  [
+                        "This isolates Pytxo control-plane and worktree overhead; echo tasks do not measure model quality or coding-task completion.",
+                        "No competitor agent product was invoked, so this result supports no competitor outcome claim.",
+                        "One path overlap is deliberate and declared in the workload."
+                    ]
+}

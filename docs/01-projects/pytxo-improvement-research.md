@@ -93,7 +93,7 @@ Deep compares: [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]],
 
 | Surface | Maturity | Shipping evidence | Gap |
 |---------|----------|-------------------|-----|
-| **Signal Core** | High | 8+ grammars; closed-loop; MCP scaffolded reads; Phase 73 pin **4.76%** on tiny fixture | Large-file ~60% still aspirational; symbol-level escalation incomplete |
+| **Signal Core** | High | 8+ grammars; closed-loop; MCP scaffolded reads; Phase 78 pin **82.9% weighted scaffold-byte reduction across 185 production files** | Billable-token/task impact unmeasured; symbol-level escalation incomplete |
 | **Blast Shield** | Medium–high MVP | Worktree + sparse copy-layer default (Phase 69) | No mmap CoW; no Seatbelt/bwrap parity; ProjFS/FUSE north star |
 | **Race Shield** | High for claims/stdin | Locked `SwarmRegistry`; Galaxy HITL queue | Not lock-free; string HITL classifiers; no syscall intercept |
 | **Permission profiles** | Medium–high | `PermissionEngine` FS/network/env; DeepSpace isolation | `ProcessPolicy` docs-only; Orbit allowlist TBD; WFP often stub |
@@ -127,7 +127,7 @@ Market leverage maps onto engineering phases: Race + isolation honesty (Claude/C
 | # | Action | Surface | Status |
 |---|--------|---------|--------|
 | 1 | Finish honesty pass: glossary, presentation, three-tier, sparse-overlay, hybrid, tiers, GTM | Vault + public mirrors | **Done 2026-07-29** |
-| 2 | Keep Signal pin + aspirational ~60%; prefer large-file repro before stronger marketing | [[competitive-benchmarks]], [[signal-core]], feature-grid | **Guard in place** |
+| 2 | Keep the real-repo Signal byte pin distinct from billable-token/task claims | [[competitive-benchmarks]], [[signal-core]], feature-grid | **Real-repo byte pin shipped; outcome proof open** |
 | 3 | Frame proof targets vs Copilot App / Codex, not ADE walls alone | [[competitive-benchmarks]], [[beyond-the-ade]] | **Done Phase 73** |
 
 ### P1 — Supervision parity (Desktop 2)

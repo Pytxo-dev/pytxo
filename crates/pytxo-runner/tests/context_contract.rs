@@ -65,6 +65,7 @@ async fn agent_receives_context_dir_and_manifest() {
             task_id: TaskId("t0".into()),
             agent: "default".into(),
             paths: vec!["src/lib.rs".into()],
+            depends_on: vec![],
             wave: 0,
             root: None,
             signal_fidelity: None,

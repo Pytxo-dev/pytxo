@@ -36,13 +36,22 @@
   let planning = $state(false);
   let error = $state("");
   let dispatchedRun = $state("");
+  let dispatchedStatus = $state("");
   let dispatching = $state(false);
   let history = $state<FlowDraftRecord[]>([]);
+  let runWatchGeneration = 0;
 
   const step = $derived(
     dispatchedRun ? 4 : plan ? 3 : mission.trim() ? 2 : 1,
   );
   const showPlanPanel = $derived(planning || !!plan);
+  const dispatchedLabel = $derived(
+    dispatchedStatus === "verify_failed"
+      ? "Verification failed"
+      : dispatchedStatus
+        ? `${dispatchedStatus.charAt(0).toUpperCase()}${dispatchedStatus.slice(1)}`
+        : "Running",
+  );
 
   $effect(() => {
     const preferred = preferredDomainId;
@@ -56,6 +65,9 @@
 
   async function buildPlan() {
     planning = true; error = "";
+    runWatchGeneration += 1;
+    dispatchedRun = "";
+    dispatchedStatus = "";
     try {
       plan = await backend.previewFlow({ id: crypto.randomUUID(), title: mission.slice(0, 72), mission_text: mission, source: missionSource, domain_id: selectedDomainId || null, project_id: null, ade_id: selectedAde });
       history = await backend.flowHistory();
@@ -73,10 +85,30 @@
     try {
       plan = await backend.saveReviewedFlow(plan);
       dispatchedRun = await backend.dispatchFlow(plan.draft_id);
+      dispatchedStatus = "running";
+      const generation = ++runWatchGeneration;
+      void watchRun(dispatchedRun, generation);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
     } finally {
       dispatching = false;
+    }
+  }
+
+  async function watchRun(runId: string, generation: number) {
+    const terminal = new Set(["cancelled", "completed", "failed", "verify_failed"]);
+    while (generation === runWatchGeneration) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (generation !== runWatchGeneration) return;
+      const snapshot = await backend.loadSnapshot({ includeAgents: false, runLimit: 100, fleetLimit: 0 });
+      if (snapshot.error) continue;
+      const run = snapshot.runs.find((item) => item.id === runId);
+      if (!run) continue;
+      dispatchedStatus = run.status.toLowerCase();
+      if (terminal.has(dispatchedStatus)) {
+        history = await backend.flowHistory();
+        return;
+      }
     }
   }
 
@@ -225,6 +257,7 @@
     } else if (previewState === "planning") planning = true;
     return () => {
       disposed = true;
+      runWatchGeneration += 1;
       unlisten?.();
       if (voiceSessionId) void backend.cancelVoice(voiceSessionId);
     };
@@ -292,48 +325,52 @@
         </div>
       {/if}
       <div class="composer-actions">
-        <select class="voice-device" bind:value={selectedVoiceDevice} aria-label="Voice input device" disabled={!!voiceSessionId}>
-          {#each voiceDevices as device}<option value={device}>{device}</option>{/each}
-        </select>
-        <button
-          data-testid="voice-capture"
-          class:recording
-          class="voice-button"
-          onclick={handleVoiceClick}
-          onpointerdown={handleVoicePointerDown}
-          onpointerup={handleVoicePointerUp}
-          onpointercancel={handleVoicePointerCancel}
-          aria-pressed={recording}
-          disabled={!voiceAvailable || voiceState === "transcribing"}
-          title={voiceAvailable ? "Click to record or press and hold" : "Enable the voice-whisper build feature"}
-        >
-          {#if recording}<IconPlayerRecord size={17} /> Finish recording
-          {:else if voiceState === "paused"}<IconMicrophone size={17} /> Finish paused recording
-          {:else if voiceState === "transcribing"}<IconSparkles size={17} /> Transcribing…
-          {:else}<IconMicrophone size={17} /> {voiceAvailable ? "Start Voice" : "Voice unavailable"}{/if}
-        </button>
-        {#if voiceSessionId && (voiceState === "recording" || voiceState === "paused")}
-          <button class="quiet" onclick={pauseOrResumeVoice}>{voiceState === "paused" ? "Resume" : "Pause"}</button>
-        {/if}
-        {#if voiceSessionId}<button class="quiet" onclick={cancelVoice}>Cancel</button>{/if}
-        <div class="domain">
-          <span>Workspace &amp; agent CLI</span>
-          <select bind:value={selectedDomainId} aria-label="Workspace">
-            {#each domains as domain}
-              <option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}</option>
-            {/each}
+        <div class="voice-controls">
+          <select class="voice-device" bind:value={selectedVoiceDevice} aria-label="Voice input device" disabled={!!voiceSessionId}>
+            {#each voiceDevices as device}<option value={device}>{device}</option>{/each}
           </select>
-          <select bind:value={selectedAde} aria-label="Agent CLI">
-            <option value="cursor">Cursor CLI</option>
-            <option value="codex">Codex CLI</option>
-            <option value="claude">Claude Code</option>
-            <option value="opencode">OpenCode</option>
-            <option value="aider">Aider</option>
-          </select>
+          <button
+            data-testid="voice-capture"
+            class:recording
+            class="voice-button"
+            onclick={handleVoiceClick}
+            onpointerdown={handleVoicePointerDown}
+            onpointerup={handleVoicePointerUp}
+            onpointercancel={handleVoicePointerCancel}
+            aria-pressed={recording}
+            disabled={!voiceAvailable || voiceState === "transcribing"}
+            title={voiceAvailable ? "Click to record or press and hold" : "Enable the voice-whisper build feature"}
+          >
+            {#if recording}<IconPlayerRecord size={17} /> Finish recording
+            {:else if voiceState === "paused"}<IconMicrophone size={17} /> Finish paused recording
+            {:else if voiceState === "transcribing"}<IconSparkles size={17} /> Transcribing…
+            {:else}<IconMicrophone size={17} /> {voiceAvailable ? "Start Voice" : "Voice unavailable"}{/if}
+          </button>
+          {#if voiceSessionId && (voiceState === "recording" || voiceState === "paused")}
+            <button class="quiet" onclick={pauseOrResumeVoice}>{voiceState === "paused" ? "Resume" : "Pause"}</button>
+          {/if}
+          {#if voiceSessionId}<button class="quiet" onclick={cancelVoice}>Cancel</button>{/if}
         </div>
-        <button class="primary" disabled={!mission.trim() || planning} onclick={buildPlan}>
-          {planning ? "Building…" : "Build plan"} <IconSparkles size={16} />
-        </button>
+        <div class="dispatch-controls">
+          <div class="domain">
+            <span>Workspace &amp; agent CLI</span>
+            <select bind:value={selectedDomainId} aria-label="Workspace">
+              {#each domains as domain}
+                <option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}</option>
+              {/each}
+            </select>
+            <select bind:value={selectedAde} aria-label="Agent CLI">
+              <option value="cursor">Cursor CLI</option>
+              <option value="codex">Codex CLI</option>
+              <option value="claude">Claude Code</option>
+              <option value="opencode">OpenCode</option>
+              <option value="aider">Aider</option>
+            </select>
+          </div>
+          <button class="primary" disabled={!mission.trim() || planning} onclick={buildPlan}>
+            {planning ? "Building…" : "Build plan"} <IconSparkles size={16} />
+          </button>
+        </div>
       </div>
       {#if recording || voiceState === "paused" || voiceState === "transcribing"}
         <div class="waveform" aria-label={voiceState === "transcribing" ? "Transcription progress" : "Recording audio level"}>
@@ -374,7 +411,7 @@
             <div><span>Estimate</span><strong>{plan.estimated_cost_usd ? `$${plan.estimated_cost_usd.toFixed(2)}` : "Local"}</strong></div>
             <div><span>Path locks</span><strong>{plan.blocked_reasons.length ? `${plan.blocked_reasons.length} collisions` : "Clear"}</strong></div>
             <button class="primary" disabled={plan.status !== "ready" || !!dispatchedRun || dispatching} onclick={dispatch}>
-              {dispatchedRun ? `Running ${dispatchedRun}` : dispatching ? "Starting…" : "Run"} <IconArrowRight size={16} />
+              {dispatchedRun ? `${dispatchedLabel} ${dispatchedRun}` : dispatching ? "Starting…" : "Run"} <IconArrowRight size={16} />
             </button>
           </div>
           {#if error}<p class="voice-state-message error" role="alert">{error}</p>{/if}

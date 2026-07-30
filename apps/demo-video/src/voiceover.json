@@ -1,0 +1,47 @@
+[
+  {
+    "id": "01-mission",
+    "durationInFrames": 210,
+    "voiceLine": "One repository. Several coding agents. The hard part is no longer generating code. It is controlling the work."
+  },
+  {
+    "id": "02-agent-sessions",
+    "durationInFrames": 240,
+    "voiceLine": "Pytxo keeps Codex, Claude Code, Cursor, Gemini, and OpenCode where they belong. Each vendor owns its own session."
+  },
+  {
+    "id": "03-flow",
+    "durationInFrames": 285,
+    "voiceLine": "Open your project, or create the guided example with no API key. Describe the outcome, then inspect the plan before anything runs."
+  },
+  {
+    "id": "04-race",
+    "durationInFrames": 270,
+    "voiceLine": "Race Shield maps path claims and dependencies into execution waves, so overlapping edits cannot run in the same stage."
+  },
+  {
+    "id": "05-blast",
+    "durationInFrames": 240,
+    "voiceLine": "Blast Shield gives every agent an isolated workspace. The primary checkout stays unchanged until a human approves the result."
+  },
+  {
+    "id": "06-operations",
+    "durationInFrames": 285,
+    "voiceLine": "Operations compresses terminal noise into state: running work, agents, path locks, approvals, isolation, cost, and the exact run needing attention."
+  },
+  {
+    "id": "07-approval",
+    "durationInFrames": 270,
+    "voiceLine": "High-risk actions arrive with requester, workspace, consequence, and run evidence. Approve and apply, or deny and discard."
+  },
+  {
+    "id": "08-benchmarks",
+    "durationInFrames": 270,
+    "voiceLine": "In this reproducible local harness, Signal reduced structural bytes by eighty-two point eight percent across one hundred eighty-five files, and five of five isolated agents passed."
+  },
+  {
+    "id": "09-result",
+    "durationInFrames": 225,
+    "voiceLine": "Keep your tools. Keep control. Turn one engineering mission into one safe, reviewable result. That is Pytxo."
+  }
+]

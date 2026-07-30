@@ -346,7 +346,7 @@ pub fn dry_run(
 }
 
 #[tauri::command]
-pub fn dispatch_run_cmd(
+pub async fn dispatch_run_cmd(
     state: State<'_, AppState>,
     cmd: String,
     agents: usize,

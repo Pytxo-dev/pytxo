@@ -1,0 +1,1533 @@
+﻿{
+    "schema_version":  1,
+    "benchmark":  "signal-real-repo",
+    "measured_at_utc":  "2026-07-30T23:34:10.7743064Z",
+    "repository":  {
+                       "name":  "pytxo",
+                       "commit":  "3acdc77eacd3b4c75a1ff51c5c4a464ba3155103",
+                       "worktree_dirty":  true
+                   },
+    "host":  {
+                 "label":  "local-windows-host",
+                 "os":  "Microsoft Windows NT 10.0.26200.0",
+                 "cpu":  "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+                 "rustc":  "rustc 1.95.0 (59807616e 2026-04-14)"
+             },
+    "corpus":  {
+                   "rule":  "Tracked production source under crates, services, packages, Desktop/Web source, and tooling; supported Signal grammars only; tests, fixtures, stories, specs, vendor, dependencies, and generated output excluded.",
+                   "minimum_bytes":  1024,
+                   "files":  185,
+                   "original_bytes":  1253675,
+                   "scaffolded_bytes":  213847
+               },
+    "summary":  {
+                    "weighted_reduction_pct":  82.9424,
+                    "median_file_reduction_pct":  86.2898,
+                    "fallback_files":  0
+                },
+    "languages":  [
+                      {
+                          "language":  "javascript",
+                          "files":  6,
+                          "original_bytes":  21541,
+                          "scaffolded_bytes":  1238,
+                          "weighted_reduction_pct":  94.2528
+                      },
+                      {
+                          "language":  "rust",
+                          "files":  125,
+                          "original_bytes":  1010931,
+                          "scaffolded_bytes":  121245,
+                          "weighted_reduction_pct":  88.0066
+                      },
+                      {
+                          "language":  "typescript",
+                          "files":  54,
+                          "original_bytes":  221203,
+                          "scaffolded_bytes":  91364,
+                          "weighted_reduction_pct":  58.6968
+                      }
+                  ],
+    "files":  [
+                  {
+                      "path":  "apps/desktop/src/lib/approval-presentation.ts",
+                      "language":  "typescript",
+                      "original_bytes":  4376,
+                      "scaffolded_bytes":  1423,
+                      "reduction_pct":  67.4817,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src/lib/deck-store.svelte.ts",
+                      "language":  "typescript",
+                      "original_bytes":  2840,
+                      "scaffolded_bytes":  2815,
+                      "reduction_pct":  0.8803,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src/lib/desktop-backend.preview.ts",
+                      "language":  "typescript",
+                      "original_bytes":  14648,
+                      "scaffolded_bytes":  10204,
+                      "reduction_pct":  30.3386,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src/lib/desktop-backend.ts",
+                      "language":  "typescript",
+                      "original_bytes":  5723,
+                      "scaffolded_bytes":  2724,
+                      "reduction_pct":  52.4026,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src/lib/force-layout.ts",
+                      "language":  "typescript",
+                      "original_bytes":  2980,
+                      "scaffolded_bytes":  2911,
+                      "reduction_pct":  2.3154,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src/lib/ipc.ts",
+                      "language":  "typescript",
+                      "original_bytes":  11836,
+                      "scaffolded_bytes":  11449,
+                      "reduction_pct":  3.2697,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src/lib/navigation.svelte.ts",
+                      "language":  "typescript",
+                      "original_bytes":  3614,
+                      "scaffolded_bytes":  3210,
+                      "reduction_pct":  11.1787,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src/lib/theme.ts",
+                      "language":  "typescript",
+                      "original_bytes":  6166,
+                      "scaffolded_bytes":  5376,
+                      "reduction_pct":  12.8122,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src/lib/types.ts",
+                      "language":  "typescript",
+                      "original_bytes":  5088,
+                      "scaffolded_bytes":  4955,
+                      "reduction_pct":  2.614,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src/lib/ui-prefs.svelte.ts",
+                      "language":  "typescript",
+                      "original_bytes":  4592,
+                      "scaffolded_bytes":  2811,
+                      "reduction_pct":  38.7848,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src/lib/workspace.ts",
+                      "language":  "typescript",
+                      "original_bytes":  2743,
+                      "scaffolded_bytes":  2570,
+                      "reduction_pct":  6.307,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/flow_window.rs",
+                      "language":  "rust",
+                      "original_bytes":  1515,
+                      "scaffolded_bytes":  267,
+                      "reduction_pct":  82.3762,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/ipc.rs",
+                      "language":  "rust",
+                      "original_bytes":  26796,
+                      "scaffolded_bytes":  6789,
+                      "reduction_pct":  74.6641,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/ipc_auth.rs",
+                      "language":  "rust",
+                      "original_bytes":  8712,
+                      "scaffolded_bytes":  1358,
+                      "reduction_pct":  84.4123,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/ipc_flow.rs",
+                      "language":  "rust",
+                      "original_bytes":  1557,
+                      "scaffolded_bytes":  719,
+                      "reduction_pct":  53.8215,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/ipc_install.rs",
+                      "language":  "rust",
+                      "original_bytes":  15886,
+                      "scaffolded_bytes":  2083,
+                      "reduction_pct":  86.8878,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/ipc_meta.rs",
+                      "language":  "rust",
+                      "original_bytes":  17178,
+                      "scaffolded_bytes":  1632,
+                      "reduction_pct":  90.4995,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/ipc_voice.rs",
+                      "language":  "rust",
+                      "original_bytes":  20127,
+                      "scaffolded_bytes":  2455,
+                      "reduction_pct":  87.8025,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/lib.rs",
+                      "language":  "rust",
+                      "original_bytes":  8510,
+                      "scaffolded_bytes":  1502,
+                      "reduction_pct":  82.3502,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/desktop/src-tauri/src/tray.rs",
+                      "language":  "rust",
+                      "original_bytes":  5433,
+                      "scaffolded_bytes":  1209,
+                      "reduction_pct":  77.7471,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/scripts/generate-favicon.mjs",
+                      "language":  "javascript",
+                      "original_bytes":  1407,
+                      "scaffolded_bytes":  190,
+                      "reduction_pct":  86.4961,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/scripts/verify-product-assets.mjs",
+                      "language":  "javascript",
+                      "original_bytes":  3129,
+                      "scaffolded_bytes":  275,
+                      "reduction_pct":  91.2112,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/app/(marketing)/account/page.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  2762,
+                      "scaffolded_bytes":  2359,
+                      "reduction_pct":  14.5909,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/app/(marketing)/download/page.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  5467,
+                      "scaffolded_bytes":  5452,
+                      "reduction_pct":  0.2744,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/app/(marketing)/page.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  4403,
+                      "scaffolded_bytes":  2193,
+                      "reduction_pct":  50.1931,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/app/(marketing)/plans/page.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  4603,
+                      "scaffolded_bytes":  2726,
+                      "reduction_pct":  40.7778,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/app/api/billing/checkout-redirect/route.ts",
+                      "language":  "typescript",
+                      "original_bytes":  1053,
+                      "scaffolded_bytes":  989,
+                      "reduction_pct":  6.0779,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/app/api/billing/paddle/webhook/route.ts",
+                      "language":  "typescript",
+                      "original_bytes":  1815,
+                      "scaffolded_bytes":  1804,
+                      "reduction_pct":  0.6061,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/app/api/entitlements/status/route.ts",
+                      "language":  "typescript",
+                      "original_bytes":  1910,
+                      "scaffolded_bytes":  1681,
+                      "reduction_pct":  11.9895,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/app/docs/[[...slug]]/page.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  1371,
+                      "scaffolded_bytes":  338,
+                      "reduction_pct":  75.3465,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/app/layout.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  2188,
+                      "scaffolded_bytes":  1987,
+                      "reduction_pct":  9.1865,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/account-auth.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  8683,
+                      "scaffolded_bytes":  701,
+                      "reduction_pct":  91.9268,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/header-auth.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  1042,
+                      "scaffolded_bytes":  1017,
+                      "reduction_pct":  2.3992,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/architecture-section.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  5074,
+                      "scaffolded_bytes":  482,
+                      "reduction_pct":  90.5006,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/cta-section.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  1276,
+                      "scaffolded_bytes":  1267,
+                      "reduction_pct":  0.7053,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/demo-section.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  2736,
+                      "scaffolded_bytes":  161,
+                      "reduction_pct":  94.1155,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/download-desktop.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  5212,
+                      "scaffolded_bytes":  516,
+                      "reduction_pct":  90.0998,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/feature-grid.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  7436,
+                      "scaffolded_bytes":  411,
+                      "reduction_pct":  94.4728,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/footer.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  3729,
+                      "scaffolded_bytes":  116,
+                      "reduction_pct":  96.8892,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/header.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  4355,
+                      "scaffolded_bytes":  585,
+                      "reduction_pct":  86.5672,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/hero.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  3023,
+                      "scaffolded_bytes":  221,
+                      "reduction_pct":  92.6894,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/os-icons.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  7514,
+                      "scaffolded_bytes":  99,
+                      "reduction_pct":  98.6825,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/plan-roadmap-card.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  1328,
+                      "scaffolded_bytes":  1317,
+                      "reduction_pct":  0.8283,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/problem-section.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  1929,
+                      "scaffolded_bytes":  1928,
+                      "reduction_pct":  0.0518,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/product-story.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  4921,
+                      "scaffolded_bytes":  184,
+                      "reduction_pct":  96.2609,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/proof-band.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  3343,
+                      "scaffolded_bytes":  112,
+                      "reduction_pct":  96.6497,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/scroll-reveal.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  1251,
+                      "scaffolded_bytes":  1224,
+                      "reduction_pct":  2.1583,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/site/supported-agents.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  4950,
+                      "scaffolded_bytes":  98,
+                      "reduction_pct":  98.0202,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/accordion.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  2685,
+                      "scaffolded_bytes":  773,
+                      "reduction_pct":  71.2104,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/alert.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  2048,
+                      "scaffolded_bytes":  266,
+                      "reduction_pct":  87.0117,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/badge.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  1865,
+                      "scaffolded_bytes":  388,
+                      "reduction_pct":  79.1957,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/breadcrumb.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  2476,
+                      "scaffolded_bytes":  479,
+                      "reduction_pct":  80.6543,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/button.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  3452,
+                      "scaffolded_bytes":  271,
+                      "reduction_pct":  92.1495,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/card.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  2630,
+                      "scaffolded_bytes":  64,
+                      "reduction_pct":  97.5665,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/empty.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  2397,
+                      "scaffolded_bytes":  99,
+                      "reduction_pct":  95.8698,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/hover-card.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  1520,
+                      "scaffolded_bytes":  227,
+                      "reduction_pct":  85.0658,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/navigation-menu.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  6524,
+                      "scaffolded_bytes":  227,
+                      "reduction_pct":  96.5205,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/scroll-area.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  1692,
+                      "scaffolded_bytes":  450,
+                      "reduction_pct":  73.4043,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/sheet.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  4570,
+                      "scaffolded_bytes":  607,
+                      "reduction_pct":  86.7177,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/sidebar.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  21227,
+                      "scaffolded_bytes":  1462,
+                      "reduction_pct":  93.1125,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/table.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  2402,
+                      "scaffolded_bytes":  332,
+                      "reduction_pct":  86.1782,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/components/ui/tooltip.tsx",
+                      "language":  "typescript",
+                      "original_bytes":  2111,
+                      "scaffolded_bytes":  340,
+                      "reduction_pct":  83.8939,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/lib/billing/link-admin.ts",
+                      "language":  "typescript",
+                      "original_bytes":  1264,
+                      "scaffolded_bytes":  1257,
+                      "reduction_pct":  0.5538,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/lib/billing/paddle.ts",
+                      "language":  "typescript",
+                      "original_bytes":  2575,
+                      "scaffolded_bytes":  2199,
+                      "reduction_pct":  14.6019,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "apps/web/src/lib/site.ts",
+                      "language":  "typescript",
+                      "original_bytes":  1785,
+                      "scaffolded_bytes":  1507,
+                      "reduction_pct":  15.5742,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-catalog/src/cache.rs",
+                      "language":  "rust",
+                      "original_bytes":  2767,
+                      "scaffolded_bytes":  350,
+                      "reduction_pct":  87.3509,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-catalog/src/fetch.rs",
+                      "language":  "rust",
+                      "original_bytes":  3481,
+                      "scaffolded_bytes":  566,
+                      "reduction_pct":  83.7403,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-catalog/src/lib.rs",
+                      "language":  "rust",
+                      "original_bytes":  1472,
+                      "scaffolded_bytes":  237,
+                      "reduction_pct":  83.8995,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-catalog/src/search.rs",
+                      "language":  "rust",
+                      "original_bytes":  1440,
+                      "scaffolded_bytes":  152,
+                      "reduction_pct":  89.4444,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-cli/src/main.rs",
+                      "language":  "rust",
+                      "original_bytes":  22998,
+                      "scaffolded_bytes":  587,
+                      "reduction_pct":  97.4476,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-cli/src/mission.rs",
+                      "language":  "rust",
+                      "original_bytes":  6575,
+                      "scaffolded_bytes":  733,
+                      "reduction_pct":  88.8517,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-cli/src/models.rs",
+                      "language":  "rust",
+                      "original_bytes":  2259,
+                      "scaffolded_bytes":  537,
+                      "reduction_pct":  76.2284,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/ade_registry.rs",
+                      "language":  "rust",
+                      "original_bytes":  5055,
+                      "scaffolded_bytes":  510,
+                      "reduction_pct":  89.911,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/billing/config.rs",
+                      "language":  "rust",
+                      "original_bytes":  3589,
+                      "scaffolded_bytes":  463,
+                      "reduction_pct":  87.0995,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/billing/estimator.rs",
+                      "language":  "rust",
+                      "original_bytes":  2229,
+                      "scaffolded_bytes":  366,
+                      "reduction_pct":  83.5801,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/billing/link_reconciler.rs",
+                      "language":  "rust",
+                      "original_bytes":  8338,
+                      "scaffolded_bytes":  334,
+                      "reduction_pct":  95.9942,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/billing/mod.rs",
+                      "language":  "rust",
+                      "original_bytes":  1231,
+                      "scaffolded_bytes":  1122,
+                      "reduction_pct":  8.8546,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/billing/pricing.rs",
+                      "language":  "rust",
+                      "original_bytes":  1810,
+                      "scaffolded_bytes":  135,
+                      "reduction_pct":  92.5414,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/billing/providers/custom.rs",
+                      "language":  "rust",
+                      "original_bytes":  2157,
+                      "scaffolded_bytes":  526,
+                      "reduction_pct":  75.6143,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/billing/providers/registry.rs",
+                      "language":  "rust",
+                      "original_bytes":  12703,
+                      "scaffolded_bytes":  955,
+                      "reduction_pct":  92.4821,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/billing/router.rs",
+                      "language":  "rust",
+                      "original_bytes":  6279,
+                      "scaffolded_bytes":  489,
+                      "reduction_pct":  92.2121,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/billing/transport.rs",
+                      "language":  "rust",
+                      "original_bytes":  4589,
+                      "scaffolded_bytes":  359,
+                      "reduction_pct":  92.1769,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/billing/types.rs",
+                      "language":  "rust",
+                      "original_bytes":  1466,
+                      "scaffolded_bytes":  400,
+                      "reduction_pct":  72.7149,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/billing/wallet.rs",
+                      "language":  "rust",
+                      "original_bytes":  2282,
+                      "scaffolded_bytes":  462,
+                      "reduction_pct":  79.7546,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/child_env.rs",
+                      "language":  "rust",
+                      "original_bytes":  5437,
+                      "scaffolded_bytes":  365,
+                      "reduction_pct":  93.2867,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/cloud/cache.rs",
+                      "language":  "rust",
+                      "original_bytes":  4817,
+                      "scaffolded_bytes":  604,
+                      "reduction_pct":  87.4611,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/cloud/config.rs",
+                      "language":  "rust",
+                      "original_bytes":  1571,
+                      "scaffolded_bytes":  374,
+                      "reduction_pct":  76.1935,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/cloud/delta.rs",
+                      "language":  "rust",
+                      "original_bytes":  8870,
+                      "scaffolded_bytes":  1057,
+                      "reduction_pct":  88.0834,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/cloud/sandbox.rs",
+                      "language":  "rust",
+                      "original_bytes":  6874,
+                      "scaffolded_bytes":  623,
+                      "reduction_pct":  90.9369,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/config.rs",
+                      "language":  "rust",
+                      "original_bytes":  9978,
+                      "scaffolded_bytes":  1368,
+                      "reduction_pct":  86.2898,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/fleet.rs",
+                      "language":  "rust",
+                      "original_bytes":  9600,
+                      "scaffolded_bytes":  636,
+                      "reduction_pct":  93.375,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/ids.rs",
+                      "language":  "rust",
+                      "original_bytes":  1076,
+                      "scaffolded_bytes":  371,
+                      "reduction_pct":  65.5204,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/lib.rs",
+                      "language":  "rust",
+                      "original_bytes":  2864,
+                      "scaffolded_bytes":  2653,
+                      "reduction_pct":  7.3673,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/moat/blast.rs",
+                      "language":  "rust",
+                      "original_bytes":  1899,
+                      "scaffolded_bytes":  281,
+                      "reduction_pct":  85.2027,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/moat/permission/environment.rs",
+                      "language":  "rust",
+                      "original_bytes":  2128,
+                      "scaffolded_bytes":  291,
+                      "reduction_pct":  86.3252,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/moat/permission/filesystem.rs",
+                      "language":  "rust",
+                      "original_bytes":  4107,
+                      "scaffolded_bytes":  511,
+                      "reduction_pct":  87.5578,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/moat/permission/mod.rs",
+                      "language":  "rust",
+                      "original_bytes":  5144,
+                      "scaffolded_bytes":  650,
+                      "reduction_pct":  87.3639,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/moat/permission/network.rs",
+                      "language":  "rust",
+                      "original_bytes":  1724,
+                      "scaffolded_bytes":  213,
+                      "reduction_pct":  87.645,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/moat/race.rs",
+                      "language":  "rust",
+                      "original_bytes":  3440,
+                      "scaffolded_bytes":  627,
+                      "reduction_pct":  81.7733,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/moat/signal.rs",
+                      "language":  "rust",
+                      "original_bytes":  1903,
+                      "scaffolded_bytes":  281,
+                      "reduction_pct":  85.2338,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/plan.rs",
+                      "language":  "rust",
+                      "original_bytes":  1485,
+                      "scaffolded_bytes":  228,
+                      "reduction_pct":  84.6465,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/project.rs",
+                      "language":  "rust",
+                      "original_bytes":  6368,
+                      "scaffolded_bytes":  402,
+                      "reduction_pct":  93.6872,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/service_health.rs",
+                      "language":  "rust",
+                      "original_bytes":  1943,
+                      "scaffolded_bytes":  229,
+                      "reduction_pct":  88.2141,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/task.rs",
+                      "language":  "rust",
+                      "original_bytes":  4418,
+                      "scaffolded_bytes":  301,
+                      "reduction_pct":  93.187,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-core/src/trust.rs",
+                      "language":  "rust",
+                      "original_bytes":  9292,
+                      "scaffolded_bytes":  822,
+                      "reduction_pct":  91.1537,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-mcp/src/main.rs",
+                      "language":  "rust",
+                      "original_bytes":  17437,
+                      "scaffolded_bytes":  1142,
+                      "reduction_pct":  93.4507,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/billing.rs",
+                      "language":  "rust",
+                      "original_bytes":  5766,
+                      "scaffolded_bytes":  1426,
+                      "reduction_pct":  75.2688,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/cloud.rs",
+                      "language":  "rust",
+                      "original_bytes":  1837,
+                      "scaffolded_bytes":  316,
+                      "reduction_pct":  82.798,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/cost.rs",
+                      "language":  "rust",
+                      "original_bytes":  1578,
+                      "scaffolded_bytes":  346,
+                      "reduction_pct":  78.0735,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/dashboard.rs",
+                      "language":  "rust",
+                      "original_bytes":  3149,
+                      "scaffolded_bytes":  1047,
+                      "reduction_pct":  66.7513,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/doctor.rs",
+                      "language":  "rust",
+                      "original_bytes":  15386,
+                      "scaffolded_bytes":  1863,
+                      "reduction_pct":  87.8916,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/entitlements.rs",
+                      "language":  "rust",
+                      "original_bytes":  12410,
+                      "scaffolded_bytes":  1879,
+                      "reduction_pct":  84.859,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/fleet.rs",
+                      "language":  "rust",
+                      "original_bytes":  12346,
+                      "scaffolded_bytes":  1784,
+                      "reduction_pct":  85.55,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/flow.rs",
+                      "language":  "rust",
+                      "original_bytes":  24349,
+                      "scaffolded_bytes":  1972,
+                      "reduction_pct":  91.9011,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/hypervisor.rs",
+                      "language":  "rust",
+                      "original_bytes":  16688,
+                      "scaffolded_bytes":  1396,
+                      "reduction_pct":  91.6347,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/lib.rs",
+                      "language":  "rust",
+                      "original_bytes":  45509,
+                      "scaffolded_bytes":  8475,
+                      "reduction_pct":  81.3773,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/project.rs",
+                      "language":  "rust",
+                      "original_bytes":  12249,
+                      "scaffolded_bytes":  2199,
+                      "reduction_pct":  82.0475,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-orchestrate/src/structural.rs",
+                      "language":  "rust",
+                      "original_bytes":  4132,
+                      "scaffolded_bytes":  655,
+                      "reduction_pct":  84.1481,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-planner/src/lib.rs",
+                      "language":  "rust",
+                      "original_bytes":  27769,
+                      "scaffolded_bytes":  2655,
+                      "reduction_pct":  90.439,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/arbitrage.rs",
+                      "language":  "rust",
+                      "original_bytes":  1341,
+                      "scaffolded_bytes":  191,
+                      "reduction_pct":  85.7569,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/blast.rs",
+                      "language":  "rust",
+                      "original_bytes":  18331,
+                      "scaffolded_bytes":  1359,
+                      "reduction_pct":  92.5863,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/context.rs",
+                      "language":  "rust",
+                      "original_bytes":  11494,
+                      "scaffolded_bytes":  1760,
+                      "reduction_pct":  84.6877,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/failure.rs",
+                      "language":  "rust",
+                      "original_bytes":  4651,
+                      "scaffolded_bytes":  449,
+                      "reduction_pct":  90.3462,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/git.rs",
+                      "language":  "rust",
+                      "original_bytes":  2641,
+                      "scaffolded_bytes":  744,
+                      "reduction_pct":  71.8289,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/hitl.rs",
+                      "language":  "rust",
+                      "original_bytes":  7500,
+                      "scaffolded_bytes":  646,
+                      "reduction_pct":  91.3867,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/hitl_gate.rs",
+                      "language":  "rust",
+                      "original_bytes":  8283,
+                      "scaffolded_bytes":  1148,
+                      "reduction_pct":  86.1403,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/lib.rs",
+                      "language":  "rust",
+                      "original_bytes":  3537,
+                      "scaffolded_bytes":  1643,
+                      "reduction_pct":  53.5482,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/mcp_hub.rs",
+                      "language":  "rust",
+                      "original_bytes":  11562,
+                      "scaffolded_bytes":  709,
+                      "reduction_pct":  93.8678,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/network_isolation.rs",
+                      "language":  "rust",
+                      "original_bytes":  15671,
+                      "scaffolded_bytes":  1139,
+                      "reduction_pct":  92.7318,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/overlay_fuse_linux.rs",
+                      "language":  "rust",
+                      "original_bytes":  4204,
+                      "scaffolded_bytes":  735,
+                      "reduction_pct":  82.5167,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/overlay_fuse_macos.rs",
+                      "language":  "rust",
+                      "original_bytes":  3572,
+                      "scaffolded_bytes":  817,
+                      "reduction_pct":  77.1277,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/overlay_projfs.rs",
+                      "language":  "rust",
+                      "original_bytes":  9235,
+                      "scaffolded_bytes":  866,
+                      "reduction_pct":  90.6226,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/process.rs",
+                      "language":  "rust",
+                      "original_bytes":  1195,
+                      "scaffolded_bytes":  312,
+                      "reduction_pct":  73.8912,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/process_registry_file.rs",
+                      "language":  "rust",
+                      "original_bytes":  7382,
+                      "scaffolded_bytes":  638,
+                      "reduction_pct":  91.3574,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/pty.rs",
+                      "language":  "rust",
+                      "original_bytes":  6438,
+                      "scaffolded_bytes":  733,
+                      "reduction_pct":  88.6145,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/race.rs",
+                      "language":  "rust",
+                      "original_bytes":  7868,
+                      "scaffolded_bytes":  407,
+                      "reduction_pct":  94.8271,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-runner/src/run.rs",
+                      "language":  "rust",
+                      "original_bytes":  53538,
+                      "scaffolded_bytes":  4847,
+                      "reduction_pct":  90.9466,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-sanitize/src/lib.rs",
+                      "language":  "rust",
+                      "original_bytes":  1528,
+                      "scaffolded_bytes":  194,
+                      "reduction_pct":  87.3037,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-scheduler/src/dag.rs",
+                      "language":  "rust",
+                      "original_bytes":  8172,
+                      "scaffolded_bytes":  544,
+                      "reduction_pct":  93.3431,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-scheduler/src/overlap.rs",
+                      "language":  "rust",
+                      "original_bytes":  3741,
+                      "scaffolded_bytes":  521,
+                      "reduction_pct":  86.0732,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-scheduler/src/waves.rs",
+                      "language":  "rust",
+                      "original_bytes":  2999,
+                      "scaffolded_bytes":  254,
+                      "reduction_pct":  91.5305,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-shell/src/command.rs",
+                      "language":  "rust",
+                      "original_bytes":  13017,
+                      "scaffolded_bytes":  574,
+                      "reduction_pct":  95.5904,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-shell/src/eval.rs",
+                      "language":  "rust",
+                      "original_bytes":  1629,
+                      "scaffolded_bytes":  320,
+                      "reduction_pct":  80.356,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-shell/src/session.rs",
+                      "language":  "rust",
+                      "original_bytes":  15843,
+                      "scaffolded_bytes":  625,
+                      "reduction_pct":  96.055,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-signal/examples/scaffold_report.rs",
+                      "language":  "rust",
+                      "original_bytes":  1091,
+                      "scaffolded_bytes":  150,
+                      "reduction_pct":  86.2511,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-signal/src/emit.rs",
+                      "language":  "rust",
+                      "original_bytes":  6136,
+                      "scaffolded_bytes":  1322,
+                      "reduction_pct":  78.455,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-signal/src/graph.rs",
+                      "language":  "rust",
+                      "original_bytes":  17140,
+                      "scaffolded_bytes":  1690,
+                      "reduction_pct":  90.14,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-signal/src/language.rs",
+                      "language":  "rust",
+                      "original_bytes":  1942,
+                      "scaffolded_bytes":  161,
+                      "reduction_pct":  91.7096,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-signal/src/lib.rs",
+                      "language":  "rust",
+                      "original_bytes":  4039,
+                      "scaffolded_bytes":  773,
+                      "reduction_pct":  80.8616,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-store/src/billing.rs",
+                      "language":  "rust",
+                      "original_bytes":  11210,
+                      "scaffolded_bytes":  1578,
+                      "reduction_pct":  85.9233,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-store/src/catalog.rs",
+                      "language":  "rust",
+                      "original_bytes":  33540,
+                      "scaffolded_bytes":  886,
+                      "reduction_pct":  97.3584,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-store/src/migrate.rs",
+                      "language":  "rust",
+                      "original_bytes":  1895,
+                      "scaffolded_bytes":  232,
+                      "reduction_pct":  87.7573,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-store/src/project_store.rs",
+                      "language":  "rust",
+                      "original_bytes":  3210,
+                      "scaffolded_bytes":  332,
+                      "reduction_pct":  89.6573,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-store/src/schema.rs",
+                      "language":  "rust",
+                      "original_bytes":  3081,
+                      "scaffolded_bytes":  230,
+                      "reduction_pct":  92.5349,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-store/src/store.rs",
+                      "language":  "rust",
+                      "original_bytes":  19888,
+                      "scaffolded_bytes":  487,
+                      "reduction_pct":  97.5513,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-tui/src/input.rs",
+                      "language":  "rust",
+                      "original_bytes":  1684,
+                      "scaffolded_bytes":  264,
+                      "reduction_pct":  84.323,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-tui/src/panels/board.rs",
+                      "language":  "rust",
+                      "original_bytes":  10017,
+                      "scaffolded_bytes":  1336,
+                      "reduction_pct":  86.6627,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-tui/src/panels/prompt.rs",
+                      "language":  "rust",
+                      "original_bytes":  2993,
+                      "scaffolded_bytes":  209,
+                      "reduction_pct":  93.017,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-tui/src/panels/scrollback.rs",
+                      "language":  "rust",
+                      "original_bytes":  2952,
+                      "scaffolded_bytes":  283,
+                      "reduction_pct":  90.4133,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-tui/src/panels/trust.rs",
+                      "language":  "rust",
+                      "original_bytes":  6643,
+                      "scaffolded_bytes":  616,
+                      "reduction_pct":  90.7271,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-tui/src/shell_app.rs",
+                      "language":  "rust",
+                      "original_bytes":  20651,
+                      "scaffolded_bytes":  1629,
+                      "reduction_pct":  92.1118,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-tui/src/theme.rs",
+                      "language":  "rust",
+                      "original_bytes":  3685,
+                      "scaffolded_bytes":  1483,
+                      "reduction_pct":  59.7558,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "crates/pytxo-voice/src/lib.rs",
+                      "language":  "rust",
+                      "original_bytes":  24513,
+                      "scaffolded_bytes":  1906,
+                      "reduction_pct":  92.2245,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "packages/pytxo/postinstall.js",
+                      "language":  "javascript",
+                      "original_bytes":  2139,
+                      "scaffolded_bytes":  75,
+                      "reduction_pct":  96.4937,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-cloud-sandbox/src/main.rs",
+                      "language":  "rust",
+                      "original_bytes":  26221,
+                      "scaffolded_bytes":  3409,
+                      "reduction_pct":  86.999,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-cloud-sandbox/src/telemetry.rs",
+                      "language":  "rust",
+                      "original_bytes":  2521,
+                      "scaffolded_bytes":  332,
+                      "reduction_pct":  86.8306,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/audit.rs",
+                      "language":  "rust",
+                      "original_bytes":  1742,
+                      "scaffolded_bytes":  549,
+                      "reduction_pct":  68.4845,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/auth.rs",
+                      "language":  "rust",
+                      "original_bytes":  1851,
+                      "scaffolded_bytes":  280,
+                      "reduction_pct":  84.873,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/entitlements.rs",
+                      "language":  "rust",
+                      "original_bytes":  9365,
+                      "scaffolded_bytes":  1268,
+                      "reduction_pct":  86.4602,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/inference.rs",
+                      "language":  "rust",
+                      "original_bytes":  1026,
+                      "scaffolded_bytes":  225,
+                      "reduction_pct":  78.0702,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/jwt.rs",
+                      "language":  "rust",
+                      "original_bytes":  2888,
+                      "scaffolded_bytes":  407,
+                      "reduction_pct":  85.9072,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/limits.rs",
+                      "language":  "rust",
+                      "original_bytes":  1976,
+                      "scaffolded_bytes":  773,
+                      "reduction_pct":  60.8806,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/main.rs",
+                      "language":  "rust",
+                      "original_bytes":  23855,
+                      "scaffolded_bytes":  3153,
+                      "reduction_pct":  86.7826,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/paddle.rs",
+                      "language":  "rust",
+                      "original_bytes":  2898,
+                      "scaffolded_bytes":  489,
+                      "reduction_pct":  83.1263,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/runs.rs",
+                      "language":  "rust",
+                      "original_bytes":  3947,
+                      "scaffolded_bytes":  261,
+                      "reduction_pct":  93.3874,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/seats.rs",
+                      "language":  "rust",
+                      "original_bytes":  2172,
+                      "scaffolded_bytes":  628,
+                      "reduction_pct":  71.0866,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/state.rs",
+                      "language":  "rust",
+                      "original_bytes":  1437,
+                      "scaffolded_bytes":  444,
+                      "reduction_pct":  69.1023,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/telemetry.rs",
+                      "language":  "rust",
+                      "original_bytes":  1583,
+                      "scaffolded_bytes":  332,
+                      "reduction_pct":  79.0272,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-link/src/wallet.rs",
+                      "language":  "rust",
+                      "original_bytes":  1291,
+                      "scaffolded_bytes":  362,
+                      "reduction_pct":  71.9597,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-proxy/src/main.rs",
+                      "language":  "rust",
+                      "original_bytes":  18704,
+                      "scaffolded_bytes":  1787,
+                      "reduction_pct":  90.4459,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-proxy/src/metering.rs",
+                      "language":  "rust",
+                      "original_bytes":  9498,
+                      "scaffolded_bytes":  1067,
+                      "reduction_pct":  88.7661,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "services/pytxo-proxy/src/telemetry.rs",
+                      "language":  "rust",
+                      "original_bytes":  2297,
+                      "scaffolded_bytes":  398,
+                      "reduction_pct":  82.6731,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "tooling/scripts/build-updater-manifest.mjs",
+                      "language":  "javascript",
+                      "original_bytes":  5741,
+                      "scaffolded_bytes":  121,
+                      "reduction_pct":  97.8924,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "tooling/scripts/generate-deck-icons.mjs",
+                      "language":  "javascript",
+                      "original_bytes":  7567,
+                      "scaffolded_bytes":  470,
+                      "reduction_pct":  93.7888,
+                      "fallback_raw":  false
+                  },
+                  {
+                      "path":  "tooling/scripts/set-vercel-env.mjs",
+                      "language":  "javascript",
+                      "original_bytes":  1558,
+                      "scaffolded_bytes":  107,
+                      "reduction_pct":  93.1322,
+                      "fallback_raw":  false
+                  }
+              ]
+}

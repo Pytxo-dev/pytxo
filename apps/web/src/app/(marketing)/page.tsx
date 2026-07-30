@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/accordion";
 import { SupportedAgents } from "@/components/site/supported-agents";
 import { ArchitectureSection } from "@/components/site/architecture-section";
+import { AgentReadiness } from "@/components/site/agent-readiness";
 import { CtaSection } from "@/components/site/cta-section";
 import { DemoSection } from "@/components/site/demo-section";
 import { FeatureGrid } from "@/components/site/feature-grid";
@@ -61,6 +62,9 @@ export default function HomePage() {
       <DemoSection />
       <ProofBand />
       <HowItWorks />
+      <ScrollReveal>
+        <AgentReadiness />
+      </ScrollReveal>
       <ScrollReveal>
         <ProblemSection />
       </ScrollReveal>

@@ -14,7 +14,7 @@ const REGISTRY: &[AdeCliSpec] = &[
         id: "claude",
         display_name: "Claude Code",
         probe_bin: "claude",
-        default_cmd: "claude",
+        default_cmd: "claude -p",
         cli_adapter: CliAdapter::ClaudeCode,
     },
     AdeCliSpec {
@@ -28,28 +28,42 @@ const REGISTRY: &[AdeCliSpec] = &[
         id: "codex",
         display_name: "OpenAI Codex",
         probe_bin: "codex",
-        default_cmd: "codex",
+        default_cmd: "codex exec --sandbox workspace-write",
         cli_adapter: CliAdapter::Generic,
     },
     AdeCliSpec {
         id: "cursor",
         display_name: "Cursor Agent",
-        probe_bin: "cursor",
-        default_cmd: "cursor agent",
+        probe_bin: "cursor-agent",
+        default_cmd: "cursor-agent -p --trust",
         cli_adapter: CliAdapter::Generic,
     },
     AdeCliSpec {
         id: "opencode",
         display_name: "OpenCode",
         probe_bin: "opencode",
-        default_cmd: "opencode",
+        default_cmd: "opencode run",
+        cli_adapter: CliAdapter::Generic,
+    },
+    AdeCliSpec {
+        id: "gemini",
+        display_name: "Gemini CLI",
+        probe_bin: "gemini",
+        default_cmd: "gemini --skip-trust -p",
+        cli_adapter: CliAdapter::Generic,
+    },
+    AdeCliSpec {
+        id: "copilot",
+        display_name: "GitHub Copilot CLI",
+        probe_bin: "copilot",
+        default_cmd: "copilot -p",
         cli_adapter: CliAdapter::Generic,
     },
     AdeCliSpec {
         id: "aider",
         display_name: "Aider",
         probe_bin: "aider",
-        default_cmd: "aider",
+        default_cmd: "aider --message",
         cli_adapter: CliAdapter::Generic,
     },
 ];
@@ -67,6 +81,8 @@ pub fn resolve_ade(id: &str) -> Option<&'static AdeCliSpec> {
                 "antigravity" | "agy" => s.id == "agy",
                 "openai_codex" => s.id == "codex",
                 "cursor_agent" => s.id == "cursor",
+                "gemini_cli" => s.id == "gemini",
+                "github_copilot" | "copilot_cli" => s.id == "copilot",
                 other => s.id == other,
             }
     })
@@ -101,7 +117,11 @@ fn which_binary(name: &str) -> bool {
         for dir in std::env::split_paths(&path) {
             #[cfg(windows)]
             {
-                if dir.join(format!("{name}.exe")).is_file() || dir.join(name).is_file() {
+                if ["exe", "com", "cmd", "bat"]
+                    .iter()
+                    .any(|extension| dir.join(format!("{name}.{extension}")).is_file())
+                    || dir.join(name).is_file()
+                {
                     return true;
                 }
             }
@@ -124,6 +144,24 @@ mod tests {
     fn resolves_aliases() {
         assert!(resolve_ade("claude_code").is_some());
         assert!(resolve_ade("cursor").is_some());
+        assert!(resolve_ade("gemini_cli").is_some());
+        assert!(resolve_ade("github_copilot").is_some());
         assert!(resolve_ade("unknown-xyz").is_none());
+    }
+
+    #[test]
+    fn flow_defaults_are_headless_prompt_commands() {
+        let expected = [
+            ("claude", "claude -p"),
+            ("codex", "codex exec --sandbox workspace-write"),
+            ("cursor", "cursor-agent -p --trust"),
+            ("opencode", "opencode run"),
+            ("gemini", "gemini --skip-trust -p"),
+            ("copilot", "copilot -p"),
+            ("aider", "aider --message"),
+        ];
+        for (id, command) in expected {
+            assert_eq!(resolve_ade(id).map(|spec| spec.default_cmd), Some(command));
+        }
     }
 }

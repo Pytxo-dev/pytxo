@@ -6,7 +6,7 @@ tags: [project, research, desktop, marketing, ux]
 audience: [human, agent]
 layer: meta
 created: 2026-07-23
-updated: 2026-07-29
+updated: 2026-07-30
 related: [[pytxo-improvement-research]], [[desktop-ui-improvement-backlog]], [[desktop-visual-system]], [[product-vision]], [[competitive-benchmarks]]
 ---
 
@@ -63,8 +63,9 @@ The corrective pass now uses current Desktop evidence:
   1280×800, and 960×640 from the preview backend;
 - `verify:product-assets` rejects missing, incorrectly sized, duplicated, or
   detached marketing captures before the web build;
-- the measured Signal claim reads **4.76% byte reduction on a tiny fixture**,
-  while about 60% on large files remains explicitly aspirational.
+- the Signal proof reads **82.9% weighted scaffold-byte reduction across 185
+  tracked production files**, while model-token and task impact remain
+  explicitly unmeasured.
 
 Web Playwright coverage fixes the desktop viewport at 1440×900 and mobile at
 390×844. It checks the hero hierarchy, current product image, overflow,
@@ -85,5 +86,9 @@ requires a breaking auth change and stays outside this marketing pass.
    maturity details, exact 2×2 plan grid, Focus/Ops wording instead of
    topology, and Playwright + browser QA at 1440×900 / 390×844 —
    **verified 2026-07-29**
+6. Release demo + real-repo proof — 63-second Remotion composition using real
+   Desktop captures, ElevenLabs-ready scene script, production-source Signal
+   corpus, and fixed Race/Blast control-plane workload — **verified
+   2026-07-30** ([[v0.13-demo-benchmark-readiness]])
 
 Back: [[MOC-home]] · [[pytxo-improvement-research]]

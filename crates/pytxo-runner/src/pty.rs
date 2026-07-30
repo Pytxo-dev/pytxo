@@ -104,8 +104,10 @@ pub fn run_pty_session(
     }
     builder.arg(cmd);
     builder.cwd(worktree);
-    // portable-pty inherits process env; clear session bearer before applying launch vars.
-    builder.env("PYTXO_ULTRA_SESSION", "");
+    builder.env_clear();
+    for (key, value) in ChildLaunchEnv::inherited_baseline() {
+        builder.env(key, value);
+    }
     env.for_each(|k, v| {
         if k.eq_ignore_ascii_case("PYTXO_ULTRA_SESSION") {
             return;
@@ -183,4 +185,38 @@ pub fn run_pty_session(
         stderr: String::new(),
         pid,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pty_does_not_inherit_parent_sentinel() {
+        const SENTINEL: &str = "PYTXO_SENTINEL_PTY_SECRET";
+        std::env::set_var(SENTINEL, "must-not-leak");
+        let worktree = tempfile::tempdir().expect("temp worktree");
+        let command = if cfg!(windows) {
+            "if defined PYTXO_SENTINEL_PTY_SECRET (exit /b 9) else (exit /b 0)"
+        } else {
+            "test -z \"$PYTXO_SENTINEL_PTY_SECRET\""
+        };
+        let result = run_pty_session(
+            worktree.path(),
+            command,
+            ChildLaunchEnv::new(),
+            12,
+            80,
+            None,
+            "sentinel",
+            &SwarmRegistry::new(),
+        )
+        .expect("run pty sentinel probe");
+        std::env::remove_var(SENTINEL);
+        assert_eq!(
+            result.exit_code,
+            Some(0),
+            "unrelated parent secret reached PTY child"
+        );
+    }
 }

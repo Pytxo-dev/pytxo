@@ -80,11 +80,14 @@ pub fn looks_like_deep_link(arg: &str) -> bool {
 /// Handle `pytxo-deck://auth?token=...` (and `pytxo://auth?token=...`) from the account page,
 /// plus `pytxo://…` navigation deep links.
 pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
-    eprintln!("deck deep link: received {url}");
     let trimmed = url.trim();
     if trimmed.is_empty() {
         return Ok(());
     }
+    eprintln!(
+        "deck deep link: received {} callback",
+        trimmed.split(':').next().unwrap_or("unknown")
+    );
 
     if let Some(token) = extract_auth_token(trimmed) {
         eprintln!("deck deep link: auth token present (len={})", token.len());
@@ -211,100 +214,20 @@ fn from_hex(b: u8) -> Option<u8> {
     }
 }
 
-/// Accept Clerk-shaped JWTs only: three segments + JSON payload with unexpired `exp`.
+/// Legacy bearer-token callbacks are intentionally rejected. Desktop account
+/// connection must return as a one-time authorization code with PKCE; parsing
+/// an unsigned JWT payload is not authentication.
 pub fn validate_session_jwt(token: &str) -> IpcResult<()> {
-    let parts: Vec<&str> = token.split('.').collect();
-    if parts.len() != 3 || parts.iter().any(|p| p.is_empty()) {
-        return Err(PytxoIpcError::new(
-            "auth",
-            "Session token must be a JWT (three segments).",
-        ));
-    }
-    let payload = decode_jwt_segment(parts[1]).map_err(|e| PytxoIpcError::new("auth", e))?;
-    let value: serde_json::Value = serde_json::from_slice(&payload)
-        .map_err(|_| PytxoIpcError::new("auth", "Session token payload is not valid JSON."))?;
-    let exp = value
-        .get("exp")
-        .and_then(|v| v.as_u64())
-        .ok_or_else(|| PytxoIpcError::new("auth", "Session token is missing exp."))?;
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    if exp < now {
-        return Err(PytxoIpcError::new("auth", "Session token has expired."));
-    }
-    Ok(())
-}
-
-fn decode_jwt_segment(segment: &str) -> Result<Vec<u8>, String> {
-    let mut s = segment.replace('-', "+").replace('_', "/");
-    while s.len() % 4 != 0 {
-        s.push('=');
-    }
-    base64_decode(&s).map_err(|_| "Session token segment is not valid base64.".into())
-}
-
-fn base64_decode(input: &str) -> Result<Vec<u8>, ()> {
-    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = Vec::new();
-    let mut buf = 0u32;
-    let mut bits = 0u32;
-    for &b in input.as_bytes() {
-        if b == b'=' {
-            break;
-        }
-        let val = TABLE.iter().position(|&c| c == b).ok_or(())? as u32;
-        buf = (buf << 6) | val;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((buf >> bits) as u8);
-            buf &= (1 << bits) - 1;
-        }
-    }
-    Ok(out)
+    let _ = token;
+    Err(PytxoIpcError::new(
+        "auth",
+        "Legacy bearer-token callbacks are disabled. Use a one-time authorization-code flow.",
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn make_jwt(exp: u64) -> String {
-        let header = base64url(br#"{"alg":"none"}"#);
-        let payload = base64url(format!(r#"{{"exp":{exp}}}"#).as_bytes());
-        format!("{header}.{payload}.sig")
-    }
-
-    fn base64url(bytes: &[u8]) -> String {
-        const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        let mut out = String::new();
-        let mut i = 0;
-        while i < bytes.len() {
-            let b0 = bytes[i] as u32;
-            let b1 = if i + 1 < bytes.len() {
-                bytes[i + 1] as u32
-            } else {
-                0
-            };
-            let b2 = if i + 2 < bytes.len() {
-                bytes[i + 2] as u32
-            } else {
-                0
-            };
-            let triple = (b0 << 16) | (b1 << 8) | b2;
-            out.push(TABLE[((triple >> 18) & 63) as usize] as char);
-            out.push(TABLE[((triple >> 12) & 63) as usize] as char);
-            if i + 1 < bytes.len() {
-                out.push(TABLE[((triple >> 6) & 63) as usize] as char);
-            }
-            if i + 2 < bytes.len() {
-                out.push(TABLE[(triple & 63) as usize] as char);
-            }
-            i += 3;
-        }
-        out.replace('+', "-").replace('/', "_")
-    }
 
     #[test]
     fn extract_token_from_pytxo_deck() {
@@ -325,17 +248,8 @@ mod tests {
     }
 
     #[test]
-    fn validate_jwt_accepts_future_exp() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        assert!(validate_session_jwt(&make_jwt(now + 3600)).is_ok());
-    }
-
-    #[test]
-    fn validate_jwt_rejects_expired() {
-        assert!(validate_session_jwt(&make_jwt(1)).is_err());
+    fn validate_jwt_rejects_legacy_bearer_callbacks() {
+        assert!(validate_session_jwt("header.payload.signature").is_err());
     }
 
     #[test]
