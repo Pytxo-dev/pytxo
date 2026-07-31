@@ -68,6 +68,7 @@ async fn secondary_root_worktree_under_web_repo() {
             task_id: TaskId("t-web".into()),
             agent: "default".into(),
             paths: vec!["README.md".into()],
+            depends_on: vec![],
             wave: 0,
             root: Some("web".into()),
             signal_fidelity: None,

@@ -1,5 +1,5 @@
 import { ipc } from "./ipc";
-import type { AdeCliStatusDto, AgentDto, CatalogEntryStatus, FleetRunDto, HitlDto, RunDto } from "./types";
+import type { AdeCliStatusDto, AgentDto, CatalogEntryStatus, FleetRunDto, HitlDto, ProviderStatusDto, RunDto } from "./types";
 import type { FlowDraftInput, FlowDraftRecord, FlowPlan, VoiceProgressEvent, VoiceSessionDto } from "./types";
 import { PreviewDesktopBackend } from "./desktop-backend.preview";
 
@@ -30,6 +30,8 @@ export interface DesktopBackend {
   stopRun(runId: string, domainId: string): Promise<void>;
   forgetDomain(domainId: string): Promise<void>;
   listAdeClis(): Promise<AdeCliStatusDto[]>;
+  startAdeLogin(id: string): Promise<{ id: string; message: string }>;
+  listProviders(): Promise<ProviderStatusDto[]>;
   previewFlow(input: FlowDraftInput): Promise<FlowPlan>;
   saveReviewedFlow(plan: FlowPlan): Promise<FlowPlan>;
   dispatchFlow(draftId: string): Promise<string>;
@@ -43,6 +45,7 @@ export interface DesktopBackend {
   voiceModelStatus(): Promise<string | null>;
   installVoiceModel(): Promise<string>;
   openWorkspace(): Promise<string | null>;
+  createExampleWorkspace(): Promise<string>;
   voiceAvailable(): Promise<boolean>;
   flowHistory(): Promise<FlowDraftRecord[]>;
   deleteFlowDraft(draftId: string): Promise<void>;
@@ -92,6 +95,12 @@ class TauriDesktopBackend implements DesktopBackend {
   async listAdeClis() {
     return ipc.listAdeClis();
   }
+  async startAdeLogin(id: string) {
+    return ipc.startAdeLogin(id);
+  }
+  async listProviders() {
+    return ipc.listProviders();
+  }
   async previewFlow(input: FlowDraftInput) { return ipc.flowPreview(input); }
   async saveReviewedFlow(plan: FlowPlan) { return ipc.flowSaveReviewedPlan(plan); }
   async dispatchFlow(draftId: string) { return ipc.flowDispatch(draftId); }
@@ -107,6 +116,10 @@ class TauriDesktopBackend implements DesktopBackend {
   async openWorkspace() {
     const selected = await ipc.pickWorkspaceFolder();
     return selected ? ipc.ensureWorkspace(selected) : null;
+  }
+  async createExampleWorkspace() {
+    const created = await ipc.createExampleWorkspace();
+    return ipc.ensureWorkspace(created);
   }
   async voiceAvailable() { return ipc.voiceLocalAvailable(); }
   async flowHistory() { return ipc.flowHistory(); }

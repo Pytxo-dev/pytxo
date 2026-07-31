@@ -1,0 +1,66 @@
+---
+title: First mission
+description: Run one natural-language mission without hand-writing [[task]] rows.
+---
+
+You do not need to hand-write `[[task]]` rows to try Pytxo. One mission becomes planned waves, isolated agent work, and an approve-to-apply result.
+
+## Who this is for
+
+You already run **more than one** coding agent on a real repo and care about write collisions, unsafe merges, or scattered logs. If you only ever use a single agent session, start with [Install](/docs/getting-started/install) and skip ahead only when that pain appears.
+
+## Prerequisites
+
+- `pytxo` on `PATH` (`npm i -g pytxo@1.0.0` or a release binary)
+- At least one coding agent CLI on `PATH` (Claude Code, Codex, Cursor CLI, or OpenCode)
+- A git repo you are willing to trust at Orbit (or higher)
+
+```bash
+cd my-project
+pytxo trust orbit
+pytxo agents
+```
+
+## Run a mission
+
+```bash
+pytxo mission "Add input validation to the public API and update unit tests"
+```
+
+Pytxo will:
+
+1. Detect available agents
+2. Propose tasks, paths, and execution stages (waves)
+3. Show predicted path overlaps and isolation mode in plain language
+4. Ask `Approve mission? [Y/n]` (use `--yes` to skip)
+5. Run agents in **isolated copies** of the repo (Blast)
+6. Keep overlapping path claims in **separate waves** (Race)
+7. Run any suggested verify commands
+8. Print a mission report and how to apply (flush) accepted work
+
+Preview only (no dispatch):
+
+```bash
+pytxo mission "…" --json
+```
+
+## After the run
+
+Review the report. Apply accepted changes when verifies passed:
+
+```bash
+pytxo hitl list
+# or use Pytxo Desktop → Approvals / Run Review → Complete run
+```
+
+Orbit never auto-merges. Verification unlocks eligibility; you still approve the flush.
+
+## Without agent CLIs
+
+Prove scheduling and isolation with the [collision demo](/docs/getting-started/first-three-agent-run) using `--cmd` echo (no paid model keys).
+
+## Learn more
+
+- [Collision demo](/docs/getting-started/first-three-agent-run)
+- [CLI reference](/docs/reference/cli)
+- [Three moats](/docs/concepts/three-moats)

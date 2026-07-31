@@ -6,7 +6,7 @@ tags: [moc, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-27
+updated: 2026-07-31
 related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]]
 ---
 
@@ -97,6 +97,10 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[mission-loop-dogfood]] — Phase 1 comparison matrix scaffold
 - [[pytxo-improvement-research]] — deep maturity synthesis + market landscape + ranked P0–P3 (Phases 73–74 done; 77 mission loop primary)
 - [[market-ready-polish-research]] — Phase 74 Desktop supervision + marketing polish
+- [[v0.13-first-run-research]] — v0.13.0 impact, live-site docs drift, first-run next steps (2026-07-30)
+- [[v0.13-demo-benchmark-readiness]] — Remotion demo, voiceover, real-repo pins, and isolation recursion fix (2026-07-30)
+- [[v1-provider-auth-onboarding-research]] — official vendor auth boundaries, child-environment blocker, and v1 integration acceptance criteria (2026-07-30)
+- [[v1-product-reference-research]] — 18 official product references and the v1 Desktop, website, and demo design decisions (2026-07-30)
 - [[competitive-landscape-2026-07]] — primary-source competitor map + GTM compare priorities (2026-07)
 
 ### ADRs

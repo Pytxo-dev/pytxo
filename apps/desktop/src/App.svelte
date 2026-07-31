@@ -31,6 +31,7 @@
   import WorkspaceHome from "./components/workspace/WorkspaceHome.svelte";
   import DesktopShell from "./components/desktop2/DesktopShell.svelte";
   import FlowStandalone from "./components/desktop2/FlowStandalone.svelte";
+  import { isTauriRuntime } from "./lib/desktop-backend";
 
   const isFlowStandalone =
     typeof window !== "undefined" &&
@@ -191,6 +192,14 @@
   async function onSetupWorkspaceSelected(path: string) {
     if (useLegacyShell) {
       await addWorkspaceTab(path);
+      return;
+    }
+    if (!isTauriRuntime()) {
+      addWorkspaceRecent({
+        id: path,
+        label: path.split(/[\\/]/).pop() ?? path,
+        domainId: path,
+      });
       return;
     }
     const domainId = await ipc.ensureWorkspace(path);
@@ -480,7 +489,12 @@
     updateTab(activeTabId, { roots });
   }
 
-  function finishSetup() {
+  function finishSetup(openGuidedFlow = false) {
+    if (openGuidedFlow && !useLegacyShell) {
+      // DesktopShell consumes this on first mount and opens the dedicated
+      // planner. A skipped setup still lands on the operational home.
+      localStorage.setItem("pytxo-desktop-route-v2", "flow");
+    }
     showSetup = false;
     if (useLegacyShell) initDashboard();
   }

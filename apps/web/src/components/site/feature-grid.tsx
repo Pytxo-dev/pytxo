@@ -32,8 +32,9 @@ const MOATS: Moat[] = [
     icon: Braces,
     accent: "teal",
     stat: {
-      value: "4.76%",
-      label: "measured byte reduction on a tiny fixture; ~60% remains aspirational on large files",
+      value: "82.9%",
+      label:
+        "measured scaffold-byte reduction across 185 tracked production files; model-token and task impact are not measured",
     },
   },
   {

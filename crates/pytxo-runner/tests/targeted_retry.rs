@@ -64,6 +64,7 @@ async fn failing_run_retries_only_implicated_file() {
             task_id: TaskId("t0".into()),
             agent: "default".into(),
             paths: vec!["src/bad.rs".into(), "src/good.rs".into()],
+            depends_on: vec![],
             wave: 0,
             root: None,
             signal_fidelity: None,

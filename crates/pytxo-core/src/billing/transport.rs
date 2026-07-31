@@ -90,3 +90,42 @@ impl ManagedTransport {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::billing::{ModelId, ModelRoute};
+
+    #[test]
+    fn deepseek_byok_maps_one_selected_key_into_the_openai_compatible_contract() {
+        const SELECTED: &str = "PYTXO_DEEPSEEK_CONTRACT_KEY";
+        std::env::set_var(SELECTED, "contract-test-not-a-secret");
+
+        let route = ModelRoute {
+            model: ModelId::new("deepseek-chat"),
+            provider: ProviderId::Deepseek,
+            cli_adapter: CliAdapter::Generic,
+            api_key_env: Some(SELECTED.into()),
+            ade_id: Some("codex".into()),
+            provider_label: Some("deepseek".into()),
+        };
+        let mut launch = ChildLaunchEnv::new();
+        ManagedTransport::default().inject_into(&mut launch, &route);
+        std::env::remove_var(SELECTED);
+
+        assert_eq!(
+            launch.vars().get("OPENAI_BASE_URL").map(String::as_str),
+            Some("https://api.deepseek.com/v1")
+        );
+        assert_eq!(
+            launch.vars().get("OPENAI_API_KEY").map(String::as_str),
+            Some("contract-test-not-a-secret")
+        );
+        assert_eq!(
+            launch.vars().get(SELECTED).map(String::as_str),
+            Some("contract-test-not-a-secret")
+        );
+        assert!(!launch.vars().contains_key("OPENROUTER_API_KEY"));
+        assert!(!launch.vars().contains_key("ANTHROPIC_API_KEY"));
+    }
+}

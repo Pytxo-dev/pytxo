@@ -12,7 +12,7 @@ Instructions for AI coding agents working in this repository.
 
 **Canonical vision:** [`docs/06-product/vision.md`](docs/06-product/vision.md)
 
-**Not:** BridgeSpace-style multi-terminal web workspaces (ADEs). **Is:** bare-metal control plane + optional **Pytxo Desktop** (structural telemetry, 3D AST topology) via **MCP hub**.
+**Not:** BridgeSpace-style multi-terminal web workspaces (ADEs). **Is:** bare-metal control plane + optional **Pytxo Desktop** for Flow, Operations, approvals, review, and structural Focus. The MCP hub remains available to agents and editors.
 
 **Three moats** — route new orchestration code through these concepts:
 
@@ -47,7 +47,9 @@ When changing `pytxo-runner` or `pytxo-orchestrate`, declare which **permission 
 | `crates/pytxo-mcp` | Stdio MCP server binary |
 | `crates/` | Core, scheduler, runner, store, CLI |
 | `apps/desktop/` | Svelte 5 + Tauri v2 Pytxo Desktop (`pytxo-desktop` crate) |
+| `apps/web/` | Next.js marketing site + public Fumadocs documentation |
 | `apps/web/content/docs/` | Public user docs (Fumadocs MDX) — served at pytxo.com/docs from the Next app |
+| `apps/demo-video/` | Remotion product demo source, real Desktop captures, and ElevenLabs script |
 | `tooling/scripts/`, `tooling/benchmarks/` | Smoke and competitive repro scripts |
 | `apps/desktop-export/` | Export / release staging (not canonical source) |
 
@@ -94,7 +96,7 @@ npm run build:native  # builds the frontend, then the release Desktop artifact
 | **Blast Shield** | Safe sandbox; flush on user approve |
 | **Race Shield** | Global swarm registry; collision-free writes |
 | **Execution Yard** | Headless CLI agent processes under orchestration |
-| **Pytxo Desktop** | Optional control UI; 3D AST topology, not terminal walls (formerly Reality Deck) |
+| **Pytxo Desktop** | Optional control UI for Flow, Ops, approvals, review, and structural Focus; 3D topology is legacy/secondary (formerly Reality Deck) |
 | **Workspace** | One or more project folders under one coordinated run |
 | **BYOK** | Bring your own API keys (including Pytxo Cloud) |
 | **Sovereign Shield** | Sanitization + cryptographic remote actions |

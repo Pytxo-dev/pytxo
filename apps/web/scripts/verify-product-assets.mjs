@@ -24,7 +24,7 @@ const VIEWPORTS = [
   { slug: "1280x800", width: 1280, height: 800 },
   { slug: "960x640", width: 960, height: 640 },
 ];
-const MARKETING_ROUTES = ["operations", "flow", "approvals"];
+const MARKETING_ROUTES = ["operations", "flow", "approvals", "integrations"];
 const MARKETING_VIEWPORTS = VIEWPORTS.filter(({ slug }) => slug !== "1280x800");
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 

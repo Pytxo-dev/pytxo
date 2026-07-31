@@ -1,0 +1,27 @@
+max_agents = 3
+permission_profile = "orbit"
+isolation = "worktree"
+execution_backend = "subprocess"
+fail_fast = true
+
+[[agent]]
+name = "demo"
+paths = ["src/**"]
+cli_adapter = "generic"
+
+# Intentional overlap: these two must not run in the same wave.
+[[task]]
+id = "touch-shared-a"
+agent = "demo"
+paths = ["src/shared.ts"]
+
+[[task]]
+id = "touch-shared-b"
+agent = "demo"
+paths = ["src/shared.ts"]
+
+# Disjoint path: can run with the first shared task.
+[[task]]
+id = "touch-alone"
+agent = "demo"
+paths = ["src/alone.ts"]

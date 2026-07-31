@@ -62,7 +62,13 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         <Providers>
-          <RootProvider>
+          <RootProvider
+            theme={{
+              defaultTheme: "dark",
+              enableSystem: false,
+              forcedTheme: "dark",
+            }}
+          >
             <TooltipProvider>{children}</TooltipProvider>
           </RootProvider>
         </Providers>

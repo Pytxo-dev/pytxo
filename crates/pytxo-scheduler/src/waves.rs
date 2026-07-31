@@ -41,6 +41,7 @@ pub fn build_execution_plan(tasks: &[Task], max_agents: usize) -> ExecutionPlan 
                     task_id: t.id.clone(),
                     agent: t.agent.clone(),
                     paths: t.paths.clone(),
+                    depends_on: t.depends_on.clone(),
                     wave: wave_index,
                     root: t.root.clone(),
                     signal_fidelity: t.signal_fidelity,

@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ipc } from "../../lib/ipc";
+  import { createDesktopBackend } from "../../lib/desktop-backend";
   import {
     loadWorkspaceCatalog,
     type WorkspaceListItem,
   } from "../../lib/workspace";
+  import { displayPath } from "../../lib/path-display";
   import { Button } from "$lib/components/ui/button";
 
   let {
@@ -21,16 +22,18 @@
 
   let selected = $state<string | null>(null);
   let busy = $state(false);
+  let creatingExample = $state(false);
   let localError = $state("");
   let recent = $state<WorkspaceListItem[]>([]);
 
   const displayError = $derived(localError || error);
+  const backend = createDesktopBackend();
 
   async function pickFolder() {
     busy = true;
     localError = "";
     try {
-      const path = await ipc.pickWorkspaceFolder();
+      const path = await backend.openWorkspace();
       if (path) {
         await selectPath(path);
       }
@@ -51,6 +54,23 @@
       localError = e instanceof Error ? e.message : String(e);
       selected = null;
     } finally {
+      busy = false;
+    }
+  }
+
+  async function createExample() {
+    busy = true;
+    creatingExample = true;
+    localError = "";
+    try {
+      const path = await backend.createExampleWorkspace();
+      await onWorkspaceSelected(path);
+      selected = path;
+    } catch (e) {
+      localError = e instanceof Error ? e.message : String(e);
+      selected = null;
+    } finally {
+      creatingExample = false;
       busy = false;
     }
   }
@@ -78,12 +98,20 @@
   {/if}
 
   {#if selected}
-    <code class="path">{selected}</code>
+    <code class="path" title={selected}>{displayPath(selected)}</code>
+    <small class="selected-note">Local git example ready. No API key required.</small>
     <Button class="wide" onclick={onContinue}>Continue</Button>
   {:else}
     <Button class="wide" disabled={busy} onclick={pickFolder}>
       {busy ? "Opening…" : "Select folder"}
     </Button>
+    <div class="example-choice">
+      <span>or</span>
+      <Button variant="outline" class="wide" disabled={busy} onclick={() => void createExample()}>
+        {creatingExample ? "Creating example…" : "Try the guided example"}
+      </Button>
+      <small>Creates a small local git repo with passing tests. No API key required.</small>
+    </div>
   {/if}
 
   {#if recent.length > 0 && !selected}
@@ -99,7 +127,7 @@
               onclick={() => void selectPath(item.path)}
             >
               <span class="recent__name">{item.label}</span>
-              <span class="recent__path">{item.path}</span>
+              <span class="recent__path" title={item.path}>{displayPath(item.path)}</span>
             </button>
           </li>
         {/each}
@@ -199,6 +227,26 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .example-choice {
+    display: grid;
+    justify-items: center;
+    gap: 0.55rem;
+    width: 100%;
+  }
+  .example-choice > span {
+    color: var(--muted-foreground);
+    font-size: 0.72rem;
+  }
+  .example-choice > small {
+    max-width: 320px;
+    color: var(--muted-foreground);
+    font-size: 0.72rem;
+    line-height: 1.45;
+  }
+  .selected-note {
+    color: var(--muted-foreground);
+    font-size: 0.72rem;
   }
   :global(.wide) {
     min-width: 220px;

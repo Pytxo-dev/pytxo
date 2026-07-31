@@ -79,6 +79,7 @@ impl HttpCloudDispatcher {
         format!("{}/{}", self.base_url, path.trim_start_matches('/'))
     }
 
+    #[cfg(feature = "cloud-http")]
     fn auth_headers(&self) -> Vec<(String, String)> {
         let mut h = vec![("Content-Type".to_string(), "application/json".to_string())];
         if let Ok(token) = std::env::var("PYTXO_CLOUD_SESSION") {

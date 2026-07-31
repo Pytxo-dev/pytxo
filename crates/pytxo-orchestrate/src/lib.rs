@@ -609,6 +609,12 @@ pub(crate) async fn execute_run_body(
     let plan = plan_tasks(&tasks, &cfg)?;
 
     if opts.dry_run {
+        eprintln!("Isolated copies until you approve (Blast).");
+        eprintln!(
+            "Overlapping paths wait in later stages (Race): {} stage(s), {} conflict pair(s).",
+            plan.waves.len(),
+            plan.conflicts.len()
+        );
         println!("{}", serde_json::to_string_pretty(&plan)?);
         return Ok(RunId::new());
     }
@@ -879,6 +885,7 @@ pub fn run_status_json(
     let wallet_balance = DomainId::from_repo_root(Path::new(&run.repo_root))
         .ok()
         .and_then(|d| store.wallet_balance_microcredits(&d).ok());
+    let (isolation_mode, isolation_backend) = resolved_isolation_status(cfg);
     Ok(RunStatusJson {
         id: run.id.clone(),
         status: run.status.clone(),
@@ -888,15 +895,20 @@ pub fn run_status_json(
         estimated_tokens_out: run.estimated_tokens_out,
         estimated_cost_usd: run.estimated_cost_usd,
         permission_profile: run.permission_profile.clone(),
-        isolation_mode: cfg.isolation.as_str().to_string(),
-        isolation_backend: pytxo_runner::isolation_backend_label(
-            cfg.isolation,
-            &cfg.blast.sparse_exclude,
-        ),
+        isolation_mode,
+        isolation_backend,
         arbitrage_saved_tokens: arbitrage_saved,
         wallet_balance_microcredits: wallet_balance,
         agents,
     })
+}
+
+fn resolved_isolation_status(cfg: &PytxoConfig) -> (String, String) {
+    let effective = pytxo_runner::effective_isolation_mode(cfg);
+    (
+        effective.as_str().to_string(),
+        pytxo_runner::isolation_backend_label(effective, &cfg.blast.sparse_exclude),
+    )
 }
 
 pub fn status_json(
@@ -1261,4 +1273,21 @@ fn ensure_gitignore(repo: &Path) -> anyhow::Result<()> {
         fs::write(gi, format!("{marker}\n"))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_reports_effective_isolation_backend() {
+        let cfg = PytxoConfig::default();
+        let (mode, backend) = resolved_isolation_status(&cfg);
+
+        assert_eq!(mode, "overlay");
+        assert!(
+            backend.starts_with("overlay-") || backend.starts_with("projfs-"),
+            "expected effective overlay backend, got {backend}"
+        );
+    }
 }

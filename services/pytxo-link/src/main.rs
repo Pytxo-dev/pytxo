@@ -1,4 +1,4 @@
-//! Pytxo Link â€” billing reconcile, entitlements, and Paddle webhooks.
+//! Pytxo Link — billing reconcile, entitlements, and Paddle webhooks.
 
 mod audit;
 mod auth;

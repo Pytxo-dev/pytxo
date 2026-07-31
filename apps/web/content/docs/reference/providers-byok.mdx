@@ -4,7 +4,38 @@ title: Providers & BYOK
 
 # Providers & BYOK
 
-Pytxo ships a **multi-provider registry** for bring-your-own-key (BYOK) runs. Use direct provider APIs, a single **OpenRouter** key, local **Ollama** / **LM Studio**, or custom OpenAI-compatible endpoints — without storing secrets in `pytxo.toml` or Desktop.
+Pytxo separates two forms of access that are often confused:
+
+1. **Vendor-owned agent sessions** — Codex CLI, Claude Code, Cursor Agent,
+   OpenCode, Gemini CLI, or Aider authenticate with their own vendor flow.
+2. **Direct inference credentials** — OpenAI, Anthropic, DeepSeek, OpenRouter,
+   local Ollama / LM Studio, and other providers use BYOK routing.
+
+Pytxo never asks for a ChatGPT or Claude password, copies a vendor token store,
+or returns account identity and token values to the Desktop webview.
+
+## Agent subscription sessions
+
+Desktop **Integrations** checks whether supported agent CLIs are installed and
+whether their non-billable local status probe reports a usable session. When a
+session is missing, **Sign in** launches the CLI's fixed official login command
+from a host-safe directory.
+
+| Product access | Pytxo integration |
+|----------------|-------------------|
+| ChatGPT plan with Codex access | Install Codex CLI and use its official session |
+| Claude plan with Claude Code access | Install Claude Code and use its official session |
+| Cursor | Install Cursor Agent and follow Cursor's own authentication flow |
+| OpenCode / Gemini CLI / Aider | Install the CLI and configure its supported provider flow |
+
+These sessions remain owned by the vendor CLI. Pytxo does not log users out or
+silently exchange them for API billing.
+
+## Direct providers
+
+Use direct provider APIs, a single **OpenRouter** key, local **Ollama** /
+**LM Studio**, or custom OpenAI-compatible endpoints without storing secrets in
+`pytxo.toml`.
 
 ## Check configured providers
 
@@ -13,7 +44,10 @@ pytxo providers              # registry + whether each API key env is set (boole
 pytxo providers --json       # includes base URLs when known
 ```
 
-Desktop: **Settings → Providers** shows the same status (never key values).
+Desktop: **Settings → Providers** shows the same status and names the environment
+variable to configure. Set it in the operating-system environment, restart
+Desktop, and refresh the panel. The UI receives only boolean readiness metadata,
+never key values.
 
 ## Fast path: OpenRouter
 
@@ -94,6 +128,9 @@ provider = "openrouter"
 cli_adapter = "generic"
 ```
 
-Native agent CLIs (Claude Code, Antigravity, etc.) keep their own env contracts; generic `--cmd` shells benefit most from OpenAI-compat injection.
+Native agent CLIs keep their own session and environment contracts. Before a
+child starts, Pytxo rebuilds its environment from an allowlist and injects only
+the provider route selected for that agent. Unrelated parent-process secrets
+are excluded from both PTY and subprocess execution.
 
 See also: [Models CLI](/docs/reference/models), [`pytxo.toml`](/docs/reference/pytxo-toml).

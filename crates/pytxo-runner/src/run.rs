@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::thread;
@@ -139,6 +139,20 @@ pub struct SingleResult {
     pub pid: Option<u32>,
 }
 
+#[derive(Clone, Debug)]
+struct DependencyOutput {
+    task_id: String,
+    workspace_path: PathBuf,
+    paths: Vec<String>,
+    root_id: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+enum DependencyChange {
+    Copy(PathBuf),
+    Delete,
+}
+
 pub async fn execute_plan(
     ctx: &RunContext,
     plan: &ExecutionPlan,
@@ -146,6 +160,7 @@ pub async fn execute_plan(
     swarm: &SwarmRegistry,
 ) -> Result<Vec<AgentRunResult>> {
     let mut all_results = Vec::new();
+    let mut completed: HashMap<String, DependencyOutput> = HashMap::new();
     let mut agent_index = 0usize;
 
     for wave in &plan.waves {
@@ -157,22 +172,296 @@ pub async fn execute_plan(
             let task = task.clone();
             let registry = registry.clone();
             let swarm = swarm.clone();
-            set.spawn(
-                async move { run_one_agent(&ctx, &task, &agent_id, &registry, &swarm).await },
-            );
+            let dependencies = task
+                .depends_on
+                .iter()
+                .map(|dependency_id| {
+                    completed.get(dependency_id).cloned().ok_or_else(|| {
+                        PytxoError::Runner(format!(
+                            "task {} dependency {} has no completed output",
+                            task.task_id.0, dependency_id
+                        ))
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            set.spawn(async move {
+                run_one_agent(&ctx, &task, &agent_id, &registry, &swarm, &dependencies).await
+            });
         }
 
+        let mut wave_results = Vec::new();
         while let Some(joined) = set.join_next().await {
             let result = joined.map_err(|e| PytxoError::Runner(format!("join: {e}")))??;
+            wave_results.push(result);
+        }
+        for result in wave_results {
+            let task = wave
+                .iter()
+                .find(|task| task.task_id.0 == result.task_id)
+                .ok_or_else(|| {
+                    PytxoError::Runner(format!(
+                        "completed task {} was not present in its execution wave",
+                        result.task_id
+                    ))
+                })?;
+            completed.insert(
+                result.task_id.clone(),
+                DependencyOutput {
+                    task_id: result.task_id.clone(),
+                    workspace_path: result.worktree_path.clone(),
+                    paths: task.paths.clone(),
+                    root_id: result.root_id.clone(),
+                },
+            );
             all_results.push(result);
         }
     }
 
-    let mut proc_file = ProcessRegistryFile::load(&registry_path(&ctx.data_dir))?;
-    proc_file.remove_run(&ctx.run_id.0);
-    proc_file.save(&registry_path(&ctx.data_dir))?;
+    ProcessRegistryFile::update(&registry_path(&ctx.data_dir), |registry| {
+        registry.remove_run(&ctx.run_id.0);
+        Ok(())
+    })?;
 
     Ok(all_results)
+}
+
+fn compose_dependency_outputs(
+    base: &Path,
+    destination: &Path,
+    dependencies: &[DependencyOutput],
+    sparse_exclude: &[String],
+) -> Result<usize> {
+    let mut changes = BTreeMap::<PathBuf, DependencyChange>::new();
+    for dependency in dependencies {
+        collect_claimed_changes(
+            base,
+            &dependency.workspace_path,
+            &dependency.paths,
+            sparse_exclude,
+            &mut changes,
+        )?;
+    }
+
+    for (relative, change) in &changes {
+        let target = destination.join(relative);
+        match change {
+            DependencyChange::Delete => {
+                if target.is_file() {
+                    std::fs::remove_file(&target).map_err(|error| {
+                        PytxoError::Runner(format!(
+                            "remove inherited dependency file {}: {error}",
+                            target.display()
+                        ))
+                    })?;
+                }
+            }
+            DependencyChange::Copy(source) => {
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent).map_err(|error| {
+                        PytxoError::Runner(format!(
+                            "create dependency output directory {}: {error}",
+                            parent.display()
+                        ))
+                    })?;
+                }
+                std::fs::copy(source, &target).map_err(|error| {
+                    PytxoError::Runner(format!(
+                        "compose dependency output {} -> {}: {error}",
+                        source.display(),
+                        target.display()
+                    ))
+                })?;
+            }
+        }
+    }
+    Ok(changes.len())
+}
+
+fn collect_claimed_changes(
+    base: &Path,
+    workspace: &Path,
+    claims: &[String],
+    sparse_exclude: &[String],
+    changes: &mut BTreeMap<PathBuf, DependencyChange>,
+) -> Result<()> {
+    for claim in claims {
+        let relative = Path::new(claim);
+        if relative.is_absolute()
+            || relative
+                .components()
+                .any(|component| matches!(component, Component::ParentDir))
+        {
+            return Err(PytxoError::Runner(format!(
+                "unsafe dependency claim: {claim}"
+            )));
+        }
+
+        if claim.contains('*') || claim.contains('?') || claim.contains('[') {
+            let workspace_pattern = workspace
+                .join(relative)
+                .to_string_lossy()
+                .replace('\\', "/");
+            let entries = glob::glob(&workspace_pattern)
+                .map_err(|error| PytxoError::Runner(format!("dependency glob {claim}: {error}")))?;
+            for entry in entries {
+                let path = entry.map_err(|error| {
+                    PytxoError::Runner(format!("dependency glob entry {claim}: {error}"))
+                })?;
+                collect_changed_path(base, workspace, &path, sparse_exclude, changes)?;
+            }
+
+            let base_pattern = base.join(relative).to_string_lossy().replace('\\', "/");
+            let base_entries = glob::glob(&base_pattern)
+                .map_err(|error| PytxoError::Runner(format!("dependency glob {claim}: {error}")))?;
+            for entry in base_entries {
+                let path = entry.map_err(|error| {
+                    PytxoError::Runner(format!("dependency base glob entry {claim}: {error}"))
+                })?;
+                collect_missing_files(base, workspace, &path, sparse_exclude, changes)?;
+            }
+            continue;
+        }
+
+        let source = workspace.join(relative);
+        if source.exists() {
+            collect_changed_path(base, workspace, &source, sparse_exclude, changes)?;
+            let base_claim = base.join(relative);
+            if base_claim.exists() {
+                collect_missing_files(base, workspace, &base_claim, sparse_exclude, changes)?;
+            }
+        } else if base.join(relative).is_file()
+            && !dependency_path_ignored(relative, sparse_exclude)
+        {
+            changes.insert(relative.to_path_buf(), DependencyChange::Delete);
+        }
+    }
+    Ok(())
+}
+
+fn collect_changed_path(
+    base: &Path,
+    workspace: &Path,
+    path: &Path,
+    sparse_exclude: &[String],
+    changes: &mut BTreeMap<PathBuf, DependencyChange>,
+) -> Result<()> {
+    let relative = path.strip_prefix(workspace).map_err(|error| {
+        PytxoError::Runner(format!(
+            "dependency output {} escaped workspace {}: {error}",
+            path.display(),
+            workspace.display()
+        ))
+    })?;
+    if dependency_path_ignored(relative, sparse_exclude) {
+        return Ok(());
+    }
+
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        PytxoError::Runner(format!(
+            "read dependency output metadata {}: {error}",
+            path.display()
+        ))
+    })?;
+    if metadata.file_type().is_symlink() {
+        return Ok(());
+    }
+    if metadata.is_dir() {
+        for entry in std::fs::read_dir(path).map_err(|error| {
+            PytxoError::Runner(format!(
+                "read dependency output directory {}: {error}",
+                path.display()
+            ))
+        })? {
+            let entry = entry.map_err(|error| {
+                PytxoError::Runner(format!("read dependency output entry: {error}"))
+            })?;
+            collect_changed_path(base, workspace, &entry.path(), sparse_exclude, changes)?;
+        }
+        return Ok(());
+    }
+    if !metadata.is_file() {
+        return Ok(());
+    }
+
+    let changed = match (std::fs::read(path), std::fs::read(base.join(relative))) {
+        (Ok(candidate), Ok(original)) => candidate != original,
+        (Ok(_), Err(error)) if error.kind() == std::io::ErrorKind::NotFound => true,
+        (Err(error), _) => {
+            return Err(PytxoError::Runner(format!(
+                "read dependency output {}: {error}",
+                path.display()
+            )))
+        }
+        (_, Err(error)) => {
+            return Err(PytxoError::Runner(format!(
+                "read dependency base {}: {error}",
+                base.join(relative).display()
+            )))
+        }
+    };
+    if changed {
+        changes.insert(
+            relative.to_path_buf(),
+            DependencyChange::Copy(path.to_path_buf()),
+        );
+    }
+    Ok(())
+}
+
+fn collect_missing_files(
+    base: &Path,
+    workspace: &Path,
+    path: &Path,
+    sparse_exclude: &[String],
+    changes: &mut BTreeMap<PathBuf, DependencyChange>,
+) -> Result<()> {
+    let relative = path.strip_prefix(base).map_err(|error| {
+        PytxoError::Runner(format!(
+            "dependency base path {} escaped repository {}: {error}",
+            path.display(),
+            base.display()
+        ))
+    })?;
+    if dependency_path_ignored(relative, sparse_exclude) {
+        return Ok(());
+    }
+
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        PytxoError::Runner(format!(
+            "read dependency base metadata {}: {error}",
+            path.display()
+        ))
+    })?;
+    if metadata.file_type().is_symlink() {
+        return Ok(());
+    }
+    if metadata.is_dir() {
+        for entry in std::fs::read_dir(path).map_err(|error| {
+            PytxoError::Runner(format!(
+                "read dependency base directory {}: {error}",
+                path.display()
+            ))
+        })? {
+            let entry = entry.map_err(|error| {
+                PytxoError::Runner(format!("read dependency base entry: {error}"))
+            })?;
+            collect_missing_files(base, workspace, &entry.path(), sparse_exclude, changes)?;
+        }
+    } else if metadata.is_file() && !workspace.join(relative).is_file() {
+        changes.insert(relative.to_path_buf(), DependencyChange::Delete);
+    }
+    Ok(())
+}
+
+fn dependency_path_ignored(relative: &Path, sparse_exclude: &[String]) -> bool {
+    let key = relative.to_string_lossy().replace('\\', "/");
+    if key == ".git" || key.starts_with(".git/") || key == ".pytxo" || key.starts_with(".pytxo/") {
+        return true;
+    }
+    sparse_exclude.iter().any(|excluded| {
+        let excluded = excluded.trim_matches(|character| character == '/' || character == '\\');
+        !excluded.is_empty() && (key == excluded || key.starts_with(&format!("{excluded}/")))
+    })
 }
 
 async fn run_one_agent(
@@ -181,6 +470,7 @@ async fn run_one_agent(
     agent_id: &AgentId,
     registry: &ProcessRegistry,
     swarm: &SwarmRegistry,
+    dependencies: &[DependencyOutput],
 ) -> Result<AgentRunResult> {
     let agent_key = format!("{}:{}", ctx.run_id, agent_id);
     let claim_paths: Vec<String> = task
@@ -248,6 +538,34 @@ async fn run_one_agent(
     };
     let wt_path = workspace.cwd.clone();
     let branch = workspace.branch.clone();
+
+    let applicable_dependencies = dependencies
+        .iter()
+        .filter(|dependency| dependency.root_id.as_deref() == task.root.as_deref())
+        .cloned()
+        .collect::<Vec<_>>();
+    if !applicable_dependencies.is_empty() {
+        let composed = compose_dependency_outputs(
+            &eff_repo_root,
+            &wt_path,
+            &applicable_dependencies,
+            &ctx.sparse_exclude,
+        )?;
+        if let Some(cb) = ctx.on_event.as_ref() {
+            cb(
+                &agent_key,
+                "dependency-context",
+                &format!(
+                    "composed {composed} changed file(s) from {}",
+                    applicable_dependencies
+                        .iter()
+                        .map(|dependency| dependency.task_id.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            );
+        }
+    }
 
     // Materialize context over task paths unioned with the agent's own
     // `[[agent]].paths` ([[signal-core]] context launch contract).
@@ -968,17 +1286,17 @@ fn persist_process(
     pid: Option<u32>,
 ) -> Result<()> {
     let pid = pid.ok_or_else(|| PytxoError::Runner("missing child pid".into()))?;
-    let mut proc_file = ProcessRegistryFile::load(&registry_path(&p.data_dir))?;
-    proc_file.push(ProcessEntry {
-        run_id: p.run_id.clone(),
-        repo_root: p.repo_root.clone(),
-        agent_key: agent_key.to_string(),
-        pid,
-        worktree_path: worktree.to_string_lossy().to_string(),
-        branch: branch.to_string(),
-    });
-    proc_file.save(&registry_path(&p.data_dir))?;
-    Ok(())
+    ProcessRegistryFile::update(&registry_path(&p.data_dir), |registry| {
+        registry.push(ProcessEntry {
+            run_id: p.run_id.clone(),
+            repo_root: p.repo_root.clone(),
+            agent_key: agent_key.to_string(),
+            pid,
+            worktree_path: worktree.to_string_lossy().to_string(),
+            branch: branch.to_string(),
+        });
+        Ok(())
+    })
 }
 
 /// Resolve the shell command for one scheduled task (Hypervisor Shell templates).
@@ -1027,28 +1345,32 @@ pub fn stop_run(data_dir: &Path, run_id: &str, kill: bool) -> Result<Vec<u32>> {
     use crate::kill::kill_pids;
 
     let path = registry_path(data_dir);
-    let mut file = ProcessRegistryFile::load(&path)?;
-    let pids: Vec<u32> = file.for_run(run_id).iter().map(|e| e.pid).collect();
-    if kill {
-        kill_pids(&pids)?;
-    }
-    file.remove_run(run_id);
-    file.save(&path)?;
-    Ok(pids)
+    ProcessRegistryFile::update(&path, |registry| {
+        let pids: Vec<u32> = registry
+            .for_run(run_id)
+            .iter()
+            .map(|entry| entry.pid)
+            .collect();
+        if kill {
+            kill_pids(&pids)?;
+        }
+        registry.remove_run(run_id);
+        Ok(pids)
+    })
 }
 
 pub fn stop_all(data_dir: &Path, kill: bool) -> Result<()> {
     use crate::kill::kill_pids;
 
     let path = registry_path(data_dir);
-    let mut file = ProcessRegistryFile::load(&path)?;
-    let pids = file.all_pids();
-    if kill {
-        kill_pids(&pids)?;
-    }
-    file.clear();
-    file.save(&path)?;
-    Ok(())
+    ProcessRegistryFile::update(&path, |registry| {
+        let pids = registry.all_pids();
+        if kill {
+            kill_pids(&pids)?;
+        }
+        registry.clear();
+        Ok(())
+    })
 }
 
 pub fn cleanup_worktrees(ctx: &RunContext, registry: &ProcessRegistry) -> Result<()> {
@@ -1131,4 +1453,71 @@ pub fn commit_workspace(
         sparse_exclude: ctx.sparse_exclude.clone(),
     };
     isolation.flush(&iso_ctx, workspace)
+}
+
+#[cfg(test)]
+mod dependency_output_tests {
+    use super::*;
+
+    fn write(path: &Path, contents: &str) {
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("create parent");
+        std::fs::write(path, contents).expect("write fixture");
+    }
+
+    #[test]
+    fn composes_changed_and_deleted_claimed_files_only() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let base = temp.path().join("base");
+        let upstream = temp.path().join("upstream");
+        let downstream = temp.path().join("downstream");
+
+        for root in [&base, &upstream, &downstream] {
+            write(&root.join("src/value.txt"), "base");
+            write(&root.join("src/removed.txt"), "remove me");
+            write(&root.join("README.md"), "unchanged");
+        }
+        write(&upstream.join("src/value.txt"), "upstream");
+        std::fs::remove_file(upstream.join("src/removed.txt")).expect("remove upstream fixture");
+        write(&upstream.join(".pytxo/private.txt"), "never compose");
+
+        let count = compose_dependency_outputs(
+            &base,
+            &downstream,
+            &[DependencyOutput {
+                task_id: "implementation".into(),
+                workspace_path: upstream,
+                paths: vec!["src".into()],
+                root_id: None,
+            }],
+            &[],
+        )
+        .expect("compose dependency outputs");
+
+        assert_eq!(count, 2);
+        assert_eq!(
+            std::fs::read_to_string(downstream.join("src/value.txt")).unwrap(),
+            "upstream"
+        );
+        assert!(!downstream.join("src/removed.txt").exists());
+        assert_eq!(
+            std::fs::read_to_string(downstream.join("README.md")).unwrap(),
+            "unchanged"
+        );
+        assert!(!downstream.join(".pytxo/private.txt").exists());
+    }
+
+    #[test]
+    fn rejects_parent_directory_claims() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let output = DependencyOutput {
+            task_id: "unsafe".into(),
+            workspace_path: temp.path().join("upstream"),
+            paths: vec!["../outside.txt".into()],
+            root_id: None,
+        };
+
+        let error =
+            compose_dependency_outputs(temp.path(), temp.path(), &[output], &[]).unwrap_err();
+        assert!(error.to_string().contains("unsafe dependency claim"));
+    }
 }

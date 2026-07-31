@@ -78,10 +78,10 @@ export function ProofBand() {
             className="font-mono text-base font-semibold tabular-nums"
             style={{ color: "var(--brand-teal)" }}
           >
-            4.76%
+            82.9%
           </span>{" "}
-          measured byte reduction on a tiny fixture. About 60% on large files remains
-          aspirational.
+          measured scaffold-byte reduction across 185 tracked production files. This is
+          not a model-token or task-success claim.
         </Link>
       </div>
     </section>

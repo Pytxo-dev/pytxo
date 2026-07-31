@@ -384,10 +384,16 @@
   class="stop-run-dialog"
   aria-labelledby="stop-run-title"
   onclose={() => {
-    if (!stopping) {
+    // A native `close` event is queued. If the operator immediately opens a
+    // second confirmation, that stale event must not clear the new target.
+    if (!stopping && !stopDialog?.open) {
       stopTarget = null;
       stopError = "";
     }
+  }}
+  oncancel={(event) => {
+    event.preventDefault();
+    closeStopDialog();
   }}
   onclick={(event) => {
     if (event.target === stopDialog) closeStopDialog();

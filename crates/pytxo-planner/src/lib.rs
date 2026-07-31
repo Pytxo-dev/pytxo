@@ -357,7 +357,10 @@ impl MissionPlanner for SignalBackedPlanner {
                 paths
             };
             let mut depends_on = infer_depends_on(i, &paths, &chunk_paths, &graph.edges, &task_ids);
-            if depends_on.is_empty() && i > 0 {
+            // Unknown/broad ownership stays conservative. Explicit, unrelated
+            // files remain parallel so Race Shield can build the widest safe
+            // wave instead of serializing every natural-language chunk.
+            if depends_on.is_empty() && i > 0 && paths.iter().any(|path| path == ".") {
                 depends_on.push(task_ids[i - 1].0.clone());
             }
             task_prompts.insert(task_ids[i].0.clone(), part.to_string());
@@ -439,6 +442,11 @@ fn infer_paths_from_chunk(chunk: &str, repo: &Path) -> Vec<String> {
         let cleaned = token.trim_matches(|c: char| {
             !c.is_alphanumeric() && c != '.' && c != '/' && c != '-' && c != '_'
         });
+        // A sentence-ending period is prose punctuation, not part of a path.
+        // This matters on Windows, where `README.md.` resolves to `README.md`
+        // and would otherwise survive the existence check with the wrong
+        // reader-facing claim.
+        let cleaned = cleaned.trim_end_matches('.');
         if cleaned.len() < 3 {
             continue;
         }
@@ -790,6 +798,35 @@ paths = ["src/app.ts"]
             plan.tasks[1].depends_on.contains(&"mission-0".to_string()),
             "expected mission-1 to depend on mission-0 via import graph, got {:?}",
             plan.tasks[1].depends_on
+        );
+
+        match prev {
+            Some(v) => std::env::set_var("PYTXO_PLANNER", v),
+            None => std::env::remove_var("PYTXO_PLANNER"),
+        }
+    }
+
+    #[test]
+    fn signal_planner_keeps_unrelated_explicit_paths_parallel() {
+        let _guard = PLANNER_ENV_LOCK.lock().unwrap();
+        let prev = std::env::var("PYTXO_PLANNER").ok();
+        std::env::set_var("PYTXO_PLANNER", "signal");
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path();
+        std::fs::create_dir_all(repo.join("src")).unwrap();
+        std::fs::write(repo.join("src/a.ts"), "export const a = 1;\n").unwrap();
+        std::fs::write(repo.join("README.md"), "# Demo\n").unwrap();
+
+        let mut cfg = PytxoConfig::default();
+        cfg.planner.enabled = true;
+        cfg.planner.mode = "signal".into();
+        cfg.max_agents = 3;
+
+        let plan = plan_mission("update src/a.ts; document it in README.md.", repo, &cfg).unwrap();
+        assert_eq!(plan.tasks[1].paths, vec!["README.md"]);
+        assert!(
+            plan.tasks.iter().all(|task| task.depends_on.is_empty()),
+            "unrelated explicit paths should share a safe parallel wave"
         );
 
         match prev {

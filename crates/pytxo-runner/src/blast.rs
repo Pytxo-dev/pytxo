@@ -12,17 +12,27 @@ fn should_skip_dir(name: &str, sparse_exclude: &[String]) -> bool {
 
 /// Sparse copy-layer: materialize `repo_root` into `dst`, skipping top-level `sparse_exclude` names.
 /// Works for git and non-git trees (Phase 69). Kernel FUSE/ProjFS remain preferred when available.
-fn copy_dir_recursive(src: &Path, dst: &Path, sparse_exclude: &[String]) -> Result<()> {
+fn copy_dir_recursive(
+    src: &Path,
+    dst: &Path,
+    sparse_exclude: &[String],
+    excluded_source_root: Option<&Path>,
+) -> Result<()> {
     std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("overlay mkdir: {e}")))?;
     let source_root = std::fs::canonicalize(src)
         .map_err(|e| PytxoError::Runner(format!("overlay canonical source: {e}")))?;
     let destination_root = std::fs::canonicalize(dst)
         .map_err(|e| PytxoError::Runner(format!("overlay canonical destination: {e}")))?;
+    let excluded_source_root = excluded_source_root
+        .map(std::fs::canonicalize)
+        .transpose()
+        .map_err(|e| PytxoError::Runner(format!("overlay canonical exclusion: {e}")))?;
     copy_dir_recursive_inner(
         &source_root,
         &destination_root,
         sparse_exclude,
         &destination_root,
+        excluded_source_root.as_deref(),
     )
 }
 
@@ -31,6 +41,7 @@ fn copy_dir_recursive_inner(
     dst: &Path,
     sparse_exclude: &[String],
     destination_root: &Path,
+    excluded_source_root: Option<&Path>,
 ) -> Result<()> {
     std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("overlay mkdir: {e}")))?;
     for entry in
@@ -43,7 +54,9 @@ fn copy_dir_recursive_inner(
             continue;
         }
         let from = entry.path();
-        if from.starts_with(destination_root) {
+        if from.starts_with(destination_root)
+            || excluded_source_root.is_some_and(|root| from.starts_with(root))
+        {
             continue;
         }
         let to = dst.join(&name);
@@ -52,7 +65,7 @@ fn copy_dir_recursive_inner(
             .map_err(|e| PytxoError::Runner(e.to_string()))?
             .is_dir()
         {
-            copy_dir_recursive_inner(&from, &to, &[], destination_root)?;
+            copy_dir_recursive_inner(&from, &to, &[], destination_root, excluded_source_root)?;
         } else {
             std::fs::copy(&from, &to)
                 .map_err(|e| PytxoError::Runner(format!("overlay copy: {e}")))?;
@@ -70,7 +83,12 @@ fn prepare_overlay_layer(ctx: &IsolationCtx) -> Result<WorkspaceHandle> {
     if upper.exists() {
         std::fs::remove_dir_all(&upper).ok();
     }
-    copy_dir_recursive(&ctx.repo_root, &upper, &ctx.sparse_exclude)?;
+    copy_dir_recursive(
+        &ctx.repo_root,
+        &upper,
+        &ctx.sparse_exclude,
+        Some(&ctx.worktree_base),
+    )?;
     Ok(WorkspaceHandle {
         cwd: upper,
         branch: String::new(),
@@ -414,6 +432,34 @@ mod tests {
 
         assert!(handle.cwd.join("README.md").exists());
         assert!(handle.cwd.join(".pytxo/keep.toml").exists());
+        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
+    }
+
+    #[test]
+    fn copy_layer_excludes_sibling_agent_workspaces() {
+        use pytxo_core::{AgentId, RunId};
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        let worktree_base = repo.join(".pytxo/worktrees");
+        std::fs::create_dir_all(worktree_base.join("overlay-old-agent/upper")).unwrap();
+        std::fs::write(repo.join("README.md"), "x\n").unwrap();
+        std::fs::write(
+            worktree_base.join("overlay-old-agent/upper/stale.txt"),
+            "stale\n",
+        )
+        .unwrap();
+        let ctx = IsolationCtx {
+            run_id: RunId("run-new".into()),
+            agent_id: AgentId("agent-new".into()),
+            repo_root: repo,
+            worktree_base,
+            sparse_exclude: Vec::new(),
+        };
+
+        let handle = prepare_overlay_layer(&ctx).unwrap();
+
+        assert!(handle.cwd.join("README.md").exists());
+        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
     }
 
     #[cfg(windows)]

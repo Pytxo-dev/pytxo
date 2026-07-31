@@ -7,6 +7,10 @@ pub struct ScheduledTask {
     pub task_id: TaskId,
     pub agent: String,
     pub paths: Vec<String>,
+    /// Explicit upstream task ids whose isolated outputs must be composed into
+    /// this task's workspace before its agent starts.
+    #[serde(default)]
+    pub depends_on: Vec<String>,
     pub wave: u32,
     /// Modular project root label ([[ADR-0011-modular-project-manifest]]); `None` = primary root.
     #[serde(default)]

@@ -26,30 +26,34 @@ const PLATFORMS = [
     label: "Windows",
     detail: ".msi · x64",
     href: DESKTOP_DOWNLOADS.windows,
+    available: true,
     Icon: WindowsIcon,
     match: (os: DetectedOs) => os === "windows",
   },
   {
     id: "macos-arm" as const,
     label: "macOS",
-    detail: "Apple Silicon · .dmg",
+    detail: "v1 build not available yet",
     href: DESKTOP_DOWNLOADS.macosArm,
+    available: false,
     Icon: AppleIcon,
     match: (os: DetectedOs) => os === "macos",
   },
   {
     id: "macos-intel" as const,
     label: "macOS",
-    detail: "Intel · .dmg",
+    detail: "v1 build not available yet",
     href: DESKTOP_DOWNLOADS.macosX64,
+    available: false,
     Icon: AppleIcon,
     match: () => false,
   },
   {
     id: "linux" as const,
     label: "Linux",
-    detail: ".AppImage · x64",
+    detail: "v1 build not available yet",
     href: DESKTOP_DOWNLOADS.linux,
+    available: false,
     Icon: LinuxIcon,
     match: (os: DetectedOs) => os === "linux",
   },
@@ -87,19 +91,10 @@ export function DownloadDesktop() {
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         {PLATFORMS.map((platform) => {
-          const suggested = platform.match(os);
+          const suggested = platform.available && platform.match(os);
           const Icon = platform.Icon;
-          return (
-            <a
-              key={platform.id}
-              href={platform.href}
-              className={cn(
-                "group flex items-center gap-4 rounded-[var(--radius-md)] border px-4 py-4 transition-colors",
-                suggested
-                  ? "border-primary/40 bg-primary/8 hover:bg-primary/12"
-                  : "border-border bg-background/40 hover:border-border hover:bg-card/50",
-              )}
-            >
+          const body = (
+            <>
               <span
                 className={cn(
                   "flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border",
@@ -131,10 +126,28 @@ export function DownloadDesktop() {
                   !suggested && "border-border",
                 )}
                 tabIndex={-1}
+                disabled={!platform.available}
               >
-                Download
+                {platform.available ? "Download" : "Not yet"}
               </Button>
+            </>
+          );
+          const className = cn(
+            "group flex items-center gap-4 rounded-[var(--radius-md)] border px-4 py-4 transition-colors",
+            suggested
+              ? "border-primary/40 bg-primary/8 hover:bg-primary/12"
+              : "border-border bg-background/40",
+            platform.available ? "hover:border-border hover:bg-card/50" : "opacity-65",
+          );
+
+          return platform.available ? (
+            <a key={platform.id} href={platform.href} className={className}>
+              {body}
             </a>
+          ) : (
+            <div key={platform.id} className={className} aria-disabled="true">
+              {body}
+            </div>
           );
         })}
       </div>

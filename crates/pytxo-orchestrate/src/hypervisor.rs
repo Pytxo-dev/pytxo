@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use anyhow::Context;
 use pytxo_core::{DomainId, ProjectManifest, PytxoConfig, RunId};
 use pytxo_runner::{HitlQueue, McpHub, ProcessRegistry, SwarmRegistry};
 use tracing::error;
@@ -196,7 +197,9 @@ impl HypervisorRegistry {
 
         ensure_repo_trusted(&repo_root)?;
 
-        tokio::spawn(async move {
+        let runtime = tokio::runtime::Handle::try_current()
+            .context("dispatch requires an active Tokio runtime")?;
+        runtime.spawn(async move {
             if let Err(e) = execute_run_body(domain, opts, cfg, Some(run_id_for_task.clone())).await
             {
                 error!("dispatch run {} failed: {e:#}", run_id_for_task.0);

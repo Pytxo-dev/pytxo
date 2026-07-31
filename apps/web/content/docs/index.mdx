@@ -3,40 +3,49 @@ title: Introduction
 description: Pytxo is a local agent hypervisor for the coding agents you already use.
 ---
 
-**Pytxo** is a local **agent hypervisor**: it runs the coding agents you already use (Claude Code, Codex, Antigravity CLI, or any shell command) in the background, schedules them so they do not overwrite each other, shows what they changed, and lets you approve merges before those changes land in your real repo.
+**Pytxo** is a local **agent hypervisor** for developers who already run multiple coding agents on substantial repos and are hitting collisions, unsafe writes, or vendor fragmentation.
 
-Pytxo is not an IDE and not a cloud workspace. Keep your editor. Connect through a local MCP hub, or use the optional **Pytxo Desktop** app.
+It schedules the agents you already use (Claude Code, Codex, Cursor CLI, or any shell command) so overlapping file work waits, each agent writes in an isolated copy, and nothing lands in your real checkout until you approve.
+
+Pytxo is not an IDE and not a cloud workspace. Keep your editor. Connect through a local MCP hub, or use the optional **Pytxo Desktop** app for Ops, Approvals, and Run Review.
+
+## The sixty-second story
+
+1. Three agents start one feature.
+2. Two would edit overlapping paths.
+3. Pytxo detects the conflict **before** execution.
+4. Independent work runs together in isolated copies.
+5. The conflicting task waits for the next wave.
+6. You review and approve clean changes.
+7. The original repo stays intact until flush.
 
 ## At a glance
 
-- Run several agents at once in isolated copies of your repo
-- Schedule conflicting tasks in separate waves so they never collide
-- Send agents structural code skeletons instead of whole files (fewer tokens)
-- Approve risky commands and merges yourself (Galaxy tier)
-- Workspaces: one run across API, web, and shared protos
-- Fleet runs: coordinate work across separate repos when you need hard barriers
-- Drive it from Cursor or another IDE through local MCP
+- Isolated copies until you approve (Blast)
+- Overlapping path claims wait in later waves (Race)
+- Structural code skeletons instead of whole files when Signal is on (fewer tokens; savings vary by repo)
+- Mixed CLIs under one local scheduler (BYOK)
+- Optional Desktop: what is running, what needs you, what is sandboxed
 
 ## Who this is for
 
 | You want to... | Start here |
 |--------------|------------|
-| Install and run your first swarm | [Install](/docs/getting-started/install) -> [First three-agent run](/docs/getting-started/first-three-agent-run) |
-| Use Cursor or another IDE | [MCP from Cursor](/docs/getting-started/mcp-from-cursor) |
-| Operate from the terminal | [Hypervisor Shell](/docs/getting-started/hypervisor-shell) |
+| Install, then run one natural-language mission | [Install](/docs/getting-started/install) → [First mission](/docs/getting-started/first-mission) |
+| Prove collisions are detected before agents run | [Collision demo](/docs/getting-started/first-three-agent-run) |
+| Review and approve from a desktop UI | [Desktop setup](/docs/getting-started/desktop-setup) → Approvals / Run Review |
+| Drive Pytxo from Cursor later | [MCP from Cursor](/docs/getting-started/mcp-from-cursor) |
 | Look up commands and config | [CLI reference](/docs/reference/cli), [`pytxo.toml`](/docs/reference/pytxo-toml) |
 | Fix doctor / trust / MCP issues | [Troubleshooting](/docs/troubleshooting) |
 
-## Hypervisor Shell
-
-Run `pytxo` with no subcommand to open the **Hypervisor Shell**. Trust a folder, preview waves, start agents with your own API keys, and approve risky actions. See [Folder trust](/docs/getting-started/folder-trust) and [Hypervisor Shell](/docs/getting-started/hypervisor-shell).
+Secondary surfaces (workspaces, fleets, Hypervisor Shell TUI) stay available once the mission loop is clear. Start with mission → collision dry-run → approve.
 
 ## Quick mental model
 
 ```text
-IDE / CLI  ->  MCP hub  ->  Orchestration  ->  Agents in isolated copies
-                              ↓
-                    Pytxo Desktop (optional control UI)
+Mission or pytxo.toml  →  wave plan (Race)  →  agents in isolated copies (Blast)
+                                                      ↓
+                                         you approve → flush to real repo
 ```
 
 Read [What is Pytxo?](/docs/concepts/what-is-pytxo) for the full picture, or jump to [Install](/docs/getting-started/install).

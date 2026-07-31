@@ -24,7 +24,7 @@ pub fn flow_save_reviewed_plan(plan: FlowPlan) -> IpcResult<FlowPlan> {
 }
 
 #[tauri::command]
-pub fn flow_dispatch(draft_id: String) -> IpcResult<String> {
+pub async fn flow_dispatch(draft_id: String) -> IpcResult<String> {
     let catalog = Catalog::open_default().map_err(map_store_err)?;
     dispatch_flow(&catalog, &draft_id).map_err(map_orch_err)
 }

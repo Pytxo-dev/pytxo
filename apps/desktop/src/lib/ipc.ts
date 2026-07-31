@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AdeCliStatusDto,
@@ -9,6 +9,7 @@ import type {
   DomainDto,
   EventDto,
   HitlDto,
+  ProviderStatusDto,
   ProjectDto,
   PytxoIpcError,
   RunDto,
@@ -19,6 +20,30 @@ export const IPC_VERSION = "0.10.0";
 export const AUTH_CHANGED_EVENT = "deck-auth-changed";
 export const AUTH_ERROR_EVENT = "deck-auth-error";
 export const DEEP_LINK_EVENT = "pytxo-deep-link";
+
+export function normalizeIpcError(cause: unknown): Error {
+  if (cause instanceof Error) return cause;
+  if (cause && typeof cause === "object") {
+    const payload = cause as Record<string, unknown>;
+    if (typeof payload.message === "string") {
+      const code = typeof payload.code === "string" ? `[${payload.code}] ` : "";
+      return new Error(`${code}${payload.message}`);
+    }
+    if (typeof payload.error === "string") return new Error(payload.error);
+    try {
+      return new Error(JSON.stringify(payload));
+    } catch {
+      return new Error("Pytxo Desktop received an unreadable backend error.");
+    }
+  }
+  return new Error(String(cause));
+}
+
+function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  return tauriInvoke<T>(command, args).catch((cause: unknown) => {
+    throw normalizeIpcError(cause);
+  });
+}
 
 function unwrap<T>(result: T | PytxoIpcError): T {
   if (
@@ -151,7 +176,9 @@ export const ipc = {
       .catch(() => [] as AgentArbitrageDto[]),
   checkPytxoCli: () => invoke<boolean>("check_pytxo_cli").then(unwrap).catch(() => false),
   listAdeClis: () =>
-    invoke<AdeCliStatusDto[]>("list_ade_clis").then(unwrap).catch(() => [] as AdeCliStatusDto[]),
+    invoke<AdeCliStatusDto[]>("list_ade_clis").then(unwrap),
+  startAdeLogin: (id: string) =>
+    invoke<{ id: string; message: string }>("start_ade_login", { id }).then(unwrap),
   installPytxoCli: () =>
     invoke<{
       phase: string;
@@ -167,6 +194,7 @@ export const ipc = {
       path_pending: boolean;
     }>("install_pytxo_cli_status").then(unwrap),
   pickWorkspaceFolder: () => invoke<string | null>("pick_workspace_folder"),
+  createExampleWorkspace: () => invoke<string>("create_example_workspace").then(unwrap),
   entitlementStatus: (domainId?: string | null) =>
     invoke<{
       tier: string;
@@ -215,15 +243,5 @@ export const ipc = {
   setTrayNeedsYou: (count: number) =>
     invoke<void>("set_tray_needs_you", { count }).catch(() => undefined),
   openFlowWindow: () => invoke<void>("open_flow_window").then(unwrap),
-  listProviders: () =>
-    invoke<
-      Array<{
-        id: string;
-        name: string;
-        api_key_env: string;
-        key_configured: boolean;
-        openai_compatible: boolean;
-        builtin: boolean;
-      }>
-    >("list_providers").then(unwrap),
+  listProviders: () => invoke<ProviderStatusDto[]>("list_providers").then(unwrap),
 };

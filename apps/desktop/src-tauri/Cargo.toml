@@ -48,3 +48,6 @@ custom-protocol = ["tauri/custom-protocol"]
 voice-whisper = ["pytxo-voice/local-whisper"]
 # Verification-only automation bridge; never enabled by CI/release builds.
 mcp-bridge = ["tauri-plugin-mcp-bridge"]
+
+[dev-dependencies]
+tempfile = "3.14"

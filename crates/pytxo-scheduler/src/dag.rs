@@ -130,6 +130,7 @@ pub fn build_dag_plan(tasks: &[Task], max_agents: usize) -> Result<ExecutionPlan
                     task_id: t.id.clone(),
                     agent: t.agent.clone(),
                     paths: t.paths.clone(),
+                    depends_on: t.depends_on.clone(),
                     wave: wave_index,
                     root: t.root.clone(),
                     signal_fidelity: t.signal_fidelity,
@@ -235,6 +236,7 @@ mod tests {
         assert_eq!(plan.waves.len(), 2);
         assert_eq!(plan.waves[0][0].task_id.0, "a");
         assert_eq!(plan.waves[1][0].task_id.0, "b");
+        assert_eq!(plan.waves[1][0].depends_on, vec!["a"]);
     }
 
     #[test]

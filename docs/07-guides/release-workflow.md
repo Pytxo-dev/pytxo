@@ -11,7 +11,7 @@ The **pytxo** monorepo is **private**. Public installs use [Pytxo-dev/pytxo-rele
 ## One-click release (recommended)
 
 1. Open **Actions → Release → Run workflow** on the private `pytxo` repo.
-2. Enter **version** without a `v` prefix (e.g. `0.3.1`).
+2. Enter **version** without a `v` prefix (e.g. `1.0.1`).
 3. Leave **Publish npm** and **Mirror public** enabled unless you only want a private draft.
 4. Run.
 
@@ -37,14 +37,39 @@ Without `TAURI_SIGNING_PRIVATE_KEY`, Desktop installers still publish, but the u
 ## CLI release (alternative)
 
 ```bash
-git tag v0.3.1
-git push origin v0.3.1
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
 Pushes the same **Release** workflow via the `v*` tag trigger.
 
+## Account/billing-blocked runner fallback
+
+Use this only when GitHub jobs fail before their first step. A code or test
+failure is not a reason to bypass CI.
+
+1. Run the complete local gate from `AGENTS.md`, including Desktop browser
+   tests, native build, web lint/build/E2E, demo typecheck/render, and secret
+   scan.
+2. Build the fresh host CLI and Desktop installers. Do not rename a prior binary
+   and claim it is current.
+3. If other operating systems cannot be built, either omit them or mirror the
+   last complete matrix with an explicit compatibility label in release notes
+   and public install docs. A mirrored binary keeps its embedded old version.
+4. Generate `SHA256SUMS.txt` from the exact staged assets.
+5. Create matching `v{version}` releases in the private source repo and public
+   distribution repo, sync install scripts, then publish the matching npm
+   wrapper.
+6. Deploy `apps/web` to production only after the release URLs resolve.
+7. Verify downloaded checksums, `pytxo --version`, `npm i -g`, the Windows
+   installer, website `/download`, and current-version documentation.
+
+Without a Tauri signing key, publish manual installers only. Do not replace
+`latest.json`; the updater channel must continue pointing to the last signed
+manifest.
+
 ## After release
 
 - Verify [pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases/releases) has all five binaries + `SHA256SUMS.txt`
-- Verify `npm i -g pytxo@0.3.1` downloads the correct binary
+- Verify `npm i -g pytxo@1.0.1` downloads the correct binary
 - Update `RELEASE.md` and `apps/web/src/lib/site.ts` (`PYTXO_VERSION`) before tagging

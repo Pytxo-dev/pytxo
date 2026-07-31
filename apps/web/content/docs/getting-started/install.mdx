@@ -3,14 +3,14 @@ title: Install
 description: Install the Pytxo CLI on Windows, macOS, and Linux.
 ---
 
-Current release: **0.8.0**.
+Current release: **1.0.0**.
 
 ## npm (recommended)
 
 Requires Node.js 18+.
 
 ```bash
-npm i -g pytxo
+npm i -g pytxo@1.0.0
 pytxo doctor
 ```
 
@@ -33,7 +33,7 @@ irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 
 Pin a release:
 
 ```bash
-PYTXO_VERSION=v0.8.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
+PYTXO_VERSION=v1.0.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
 ```
 
 ## Prebuilt binaries
@@ -46,7 +46,9 @@ PYTXO_VERSION=v0.8.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytx
 | macOS Intel | `pytxo-darwin-x64` |
 | Windows x64 | `pytxo-windows-x64.exe` |
 
-Download from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases). Put the binary on your `PATH`, then run `pytxo doctor`.
+Download from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases/tag/v1.0.0). Put the binary on your `PATH`, then run `pytxo doctor`.
+
+**Windows-first note:** v1.0.0 ships a fresh Windows CLI and Desktop build. GitHub-hosted runners are currently account/billing-blocked, so the macOS and Linux assets attached to v1.0.0 are compatibility mirrors from the v0.13.0 matrix and still report that version. They keep existing installs working; they do not contain the v1 orchestration changes.
 
 Community help: [Discord](https://discord.gg/AUFRPFjSYv).
 
@@ -69,8 +71,8 @@ pytxo doctor
 
 ## Next steps
 
+- [First mission](/docs/getting-started/first-mission) — natural language, no hand-written tasks
+- [Collision demo](/docs/getting-started/first-three-agent-run) — prove overlapping paths wait
 - [Desktop setup](/docs/getting-started/desktop-setup)
 - [Folder trust](/docs/getting-started/folder-trust)
-- [First three-agent run](/docs/getting-started/first-three-agent-run)
-- [MCP from Cursor](/docs/getting-started/mcp-from-cursor)
 - [Troubleshooting](/docs/troubleshooting)

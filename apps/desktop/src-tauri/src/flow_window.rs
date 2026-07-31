@@ -4,7 +4,8 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub const FLOW_WINDOW_LABEL: &str = "flow";
 
-/// Focus an existing Flow window or create one loading `#/flow-standalone`.
+/// Focus an existing Flow window or create one loading the packaged entry
+/// point with the standalone hash route.
 pub fn focus_or_open_flow(app: &AppHandle) {
     if let Some(win) = app.get_webview_window(FLOW_WINDOW_LABEL) {
         let _ = win.show();
@@ -13,7 +14,10 @@ pub fn focus_or_open_flow(app: &AppHandle) {
         return;
     }
 
-    let url = WebviewUrl::App("#/flow-standalone".into());
+    // `WebviewUrl::App` takes an asset *path*. Passing only a fragment is
+    // treated as a nonexistent packaged asset on Windows and produces a blank
+    // webview. Keep the real entry point explicit, then append the hash route.
+    let url = WebviewUrl::App("index.html#/flow-standalone".into());
     match WebviewWindowBuilder::new(app, FLOW_WINDOW_LABEL, url)
         .title("Pytxo Flow")
         .inner_size(1100.0, 760.0)
@@ -34,7 +38,7 @@ pub fn focus_or_open_flow(app: &AppHandle) {
 }
 
 #[tauri::command]
-pub fn open_flow_window(app: AppHandle) -> Result<(), String> {
+pub async fn open_flow_window(app: AppHandle) -> Result<(), String> {
     focus_or_open_flow(&app);
     Ok(())
 }

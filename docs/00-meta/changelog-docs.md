@@ -6,11 +6,24 @@ tags: [meta]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-27
+updated: 2026-07-31
 related: [[MOC-home]]
 ---
 
 # Documentation changelog
+
+## 2026-07-31 (v1.0.0 release)
+
+- Synchronized install, Desktop setup, first-mission, provider, website, npm,
+  Tauri, Cargo, onboarding, and release metadata on **1.0.0**.
+- Documented the vendor-owned CLI session boundary for Codex / ChatGPT, Claude
+  Code, Cursor Agent, OpenCode, Gemini CLI, and Aider; direct provider keys
+  remain a separate native credential surface.
+- Added [[v1-provider-auth-onboarding-research]],
+  [[v1-product-reference-research]], [[v0.13-demo-benchmark-readiness]], and the
+  real-repository Signal / control-plane evidence to the documentation map.
+- Added the guided first-mission example, Remotion demo source, ElevenLabs
+  voiceover, Screen Studio shot list, and Windows-first distribution caveat.
 
 ## 2026-07-27 (architecture research synthesis)
 
