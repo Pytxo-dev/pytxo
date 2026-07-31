@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { SignedIn, SignedOut, SignUpButton, UserButton } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
+import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
 
 type OrgPolicy = {
   default_permission_profile?: string | null;
@@ -29,7 +30,7 @@ type EntitlementPayload = {
   error?: string;
 };
 
-export function AccountAuth() {
+function ConfiguredAccountAuth() {
   const [entitlements, setEntitlements] = useState<EntitlementPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [deckToken, setDeckToken] = useState<string | null>(null);
@@ -237,4 +238,29 @@ export function AccountAuth() {
       </SignedIn>
     </div>
   );
+}
+
+export function AccountAuth() {
+  if (!SITE_AUTH_ENABLED) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-muted-foreground">
+          Account sync is not configured on this deployment. Pytxo Core,
+          Desktop, and local provider sessions work without an account.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link href="/download">Download Pytxo</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/docs/getting-started/desktop-setup">
+              Set up Desktop
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return <ConfiguredAccountAuth />;
 }

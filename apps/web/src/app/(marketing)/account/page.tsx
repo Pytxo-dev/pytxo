@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { AccountAuth } from "@/components/account-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
 
 export const metadata: Metadata = {
   title: "Account",
@@ -23,8 +24,9 @@ export default function AccountPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Account</h1>
         <p className="max-w-2xl text-muted-foreground">
-          Sign in to sync Pro, Max, and Ultra entitlements through Pytxo Link. Local Core
-          works without an account.
+          {SITE_AUTH_ENABLED
+            ? "Sign in to sync Pro, Max, and Ultra entitlements through Pytxo Link. Local Core works without an account."
+            : "Local Core works without an account. Account and paid-entitlement sync will appear here when production authentication is configured."}
         </p>
       </div>
 

@@ -16,6 +16,16 @@ async function linkFetch(path: string, headers: LinkHeaders) {
 }
 
 export async function GET() {
+  if (
+    !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+    !process.env.CLERK_SECRET_KEY
+  ) {
+    return NextResponse.json(
+      { error: "account_auth_unavailable" },
+      { status: 503 },
+    );
+  }
+
   const { userId, getToken } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

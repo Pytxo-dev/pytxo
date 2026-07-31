@@ -4,8 +4,13 @@ import Link from "next/link";
 import { SignedIn, SignedOut, SignUpButton, UserButton } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
+import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
 
 export function HeaderAuth() {
+  if (!SITE_AUTH_ENABLED) {
+    return null;
+  }
+
   return (
     <div className="flex items-center gap-2">
       <SignedOut>

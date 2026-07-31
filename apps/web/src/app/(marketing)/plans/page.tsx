@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { PlanRoadmapCard } from "@/components/site/plan-roadmap-card";
+import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
 
 export const metadata: Metadata = {
   title: "Plans",
@@ -84,9 +85,11 @@ export default function PlansPage() {
           <Button size="lg" asChild>
             <Link href="/download">Download Pytxo</Link>
           </Button>
-          <Button size="lg" variant="outline" className="border-border" asChild>
-            <Link href="/account">Sign in</Link>
-          </Button>
+          {SITE_AUTH_ENABLED ? (
+            <Button size="lg" variant="outline" className="border-border" asChild>
+              <Link href="/account">Sign in</Link>
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -108,11 +111,15 @@ export default function PlansPage() {
               highlights={tier.highlights}
               detail={tier.detail}
             />
-            {tier.plan ? (
+            {tier.plan && SITE_AUTH_ENABLED ? (
               <Button className="w-full" asChild>
                 <Link href={`/api/billing/checkout-redirect?plan=${tier.plan}`}>
                   {tier.ctaLabel}
                 </Link>
+              </Button>
+            ) : tier.plan ? (
+              <Button className="w-full" disabled>
+                Account checkout not configured
               </Button>
             ) : null}
           </div>
