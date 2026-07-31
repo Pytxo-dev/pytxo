@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -62,17 +62,6 @@ async function inspectSet(entries, label) {
   return entries;
 }
 
-const docs = await inspectSet(
-  ROUTES.flatMap((route) =>
-    VIEWPORTS.map((viewport) => ({
-      ...viewport,
-      route,
-      file: path.join(DOCS_CAPTURE_DIR, `${route}-${viewport.slug}.png`),
-    })),
-  ),
-  "Desktop reference set",
-);
-
 const marketing = await inspectSet(
   MARKETING_ROUTES.flatMap((route) =>
     MARKETING_VIEWPORTS.map((viewport) => ({
@@ -84,15 +73,41 @@ const marketing = await inspectSet(
   "Marketing product set",
 );
 
-for (const asset of marketing) {
-  const source = docs.find(
-    ({ route, slug }) => route === asset.route && slug === asset.slug,
+let docs = [];
+let docsAvailable = true;
+try {
+  await access(DOCS_CAPTURE_DIR);
+} catch (error) {
+  if (error?.code !== "ENOENT") {
+    throw error;
+  }
+  docsAvailable = false;
+}
+
+if (docsAvailable) {
+  docs = await inspectSet(
+    ROUTES.flatMap((route) =>
+      VIEWPORTS.map((viewport) => ({
+        ...viewport,
+        route,
+        file: path.join(DOCS_CAPTURE_DIR, `${route}-${viewport.slug}.png`),
+      })),
+    ),
+    "Desktop reference set",
   );
-  if (!source || source.hash !== asset.hash) {
-    throw new Error(`${asset.file} does not match its current Desktop reference capture`);
+
+  for (const asset of marketing) {
+    const source = docs.find(
+      ({ route, slug }) => route === asset.route && slug === asset.slug,
+    );
+    if (!source || source.hash !== asset.hash) {
+      throw new Error(`${asset.file} does not match its current Desktop reference capture`);
+    }
   }
 }
 
 console.log(
-  `Verified ${docs.length} Desktop references and ${marketing.length} marketing product captures: correct dimensions, distinct content, and matching sources.`,
+  docs.length > 0
+    ? `Verified ${docs.length} Desktop references and ${marketing.length} marketing product captures: correct dimensions, distinct content, and matching sources.`
+    : `Verified ${marketing.length} deployment product captures: correct dimensions and distinct content. Canonical Desktop source parity runs from the monorepo checkout.`,
 );
