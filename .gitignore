@@ -24,6 +24,8 @@ apps/desktop/.tauri/
 apps/desktop/storybook-static/
 apps/desktop/test-results/
 apps/desktop/playwright-report/
+apps/desktop/.playwright-cli/
+apps/desktop/output/
 ~/
 apps/desktop-export/dist/
 
@@ -32,6 +34,8 @@ dist-release/
 .gate-*.txt
 .gate-*.log
 apps/web/test-results/
+apps/web/.playwright-cli/
+apps/web/output/
 
 # Remotion product demo
 apps/demo-video/node_modules/

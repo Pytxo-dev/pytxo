@@ -7,6 +7,18 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
+# Pytxo v1.1.0 (release preparation)
+
+Pytxo v1.1 prepares the exact result of an Orbit or Galaxy run for review,
+shows that package inside Flow, and applies only those reviewed bytes to one
+repository root. Interrupted Apply attempts are reconciled from a local
+journal before the next run or Apply. See
+[`distribution/release-notes/v1.1.0.md`](distribution/release-notes/v1.1.0.md).
+
+Previous: [`v1.0.0`](distribution/release-notes/v1.0.0.md).
+
+---
+
 # Pytxo v1.0.0
 
 The first dependable Pytxo mission loop — provider readiness, guided example,
