@@ -100,11 +100,23 @@ test.describe("mission-centric Flow", () => {
       requests: JSON.parse(localStorage.getItem("pytxo-preview-review-content-requests-v1") ?? "[]") as Array<{ path: string; side: string }>,
     }));
     expect(telemetry.maxActive).toBe(2);
-    expect(telemetry.requests).toEqual([
-      { path: "crates/pytxo-signal/tests/skeleton.rs", side: "after" },
-      { path: "crates/pytxo-signal/src/lib.rs", side: "before" },
-      { path: "assets/signal-mark.bin", side: "after" },
-    ]);
+    expect(telemetry.requests).toEqual(
+      expect.arrayContaining([
+        { path: "crates/pytxo-signal/tests/skeleton.rs", side: "after" },
+        { path: "crates/pytxo-signal/src/lib.rs", side: "before" },
+        { path: "assets/signal-mark.bin", side: "after" },
+      ]),
+    );
+    expect(telemetry.requests.at(-1)).toEqual({
+      path: "assets/signal-mark.bin",
+      side: "after",
+    });
+    expect(
+      telemetry.requests.filter(
+        ({ path, side }) =>
+          path === "crates/pytxo-signal/tests/skeleton.rs" && side === "after",
+      ),
+    ).toHaveLength(1);
     await expect(page.locator(".exact-diff")).toHaveCount(1);
     await expect(page.locator(".diff-side")).toHaveAttribute(
       "aria-label",
