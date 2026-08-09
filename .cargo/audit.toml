@@ -1,0 +1,10 @@
+[advisories]
+# tauri-plugin-notification 2.3.3 currently pins tauri-winrt-notification
+# 0.7.x, whose quick-xml 0.37.x dependency cannot be upgraded in-place
+# without replacing the notification plugin. Keep the advisories visible in
+# audit output but allow the release gate to proceed with this documented,
+# Windows-notification-only transitive exception.
+ignore = [
+  "RUSTSEC-2026-0194",
+  "RUSTSEC-2026-0195",
+]
