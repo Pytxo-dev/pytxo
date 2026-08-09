@@ -1,10 +1,16 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { IconActivity, IconChecks, IconFolders, IconPlayerPlay, IconPlugConnected, IconSettings, IconSparkles } from "@tabler/icons-svelte";
+  import { IconActivity, IconChecks, IconFolders, IconPlugConnected, IconSettings, IconSparkles } from "@tabler/icons-svelte";
   import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
+  import {
+    consumeDomainChanges,
+    fingerprintDesktopSnapshot,
+    loadConsistentDesktopSnapshot,
+  } from "../../lib/desktop-sync";
   import {
     addWorkspaceRecent,
     initialRoute,
+    legacyFlowSurface,
     migrateWorkspaceRecents,
     persistRoute,
     removeWorkspaceRecent,
@@ -18,7 +24,7 @@
   import AppBar from "./AppBar.svelte";
   import CommandPalette from "./CommandPalette.svelte";
   import OperationsScreen from "./OperationsScreen.svelte";
-  import FlowScreen from "./FlowScreen.svelte";
+  import MissionFlowScreen from "./MissionFlowScreen.svelte";
   import CollectionScreen from "./CollectionScreen.svelte";
   import FocusScreen from "./FocusScreen.svelte";
   import SettingsScreen from "./SettingsScreen.svelte";
@@ -26,9 +32,9 @@
   import UpdateBanner from "../shell/UpdateBanner.svelte";
   import "./desktop2-shared.css";
 
-  const SNAPSHOT_POLL_ACTIVE_MS = 2500;
-  const SNAPSHOT_POLL_IDLE_MS = 5000;
-  const SNAPSHOT_POLL_HIDDEN_MS = 15000;
+  const DOMAIN_DELTA_ACTIVE_MS = 2500;
+  const DOMAIN_DELTA_IDLE_MS = 8000;
+  const INTEGRITY_REFRESH_MS = 60_000;
   const OPEN_BEHAVIOR_KEY = "pytxo-workspace-open-behavior-v1";
   const DEFAULT_PROFILE_KEY = "pytxo-default-permission-profile-v1";
 
@@ -85,6 +91,8 @@
   let voiceInstalling = $state(false);
   let windowFocused = $state(true);
   let operationsScreen = $state<{ focusActiveRun: () => void } | null>(null);
+  let flowSurface = $state<"compose" | "active" | "history" | "review">("compose");
+  const domainCursors = new Map<string, number>();
 
   const activeDomain = $derived(
     snapshot.domains.find((d) => d.domain_id === activeDomainId) ?? null,
@@ -94,14 +102,13 @@
   );
 
   const primary = [
+    { route: "flow" as const, label: "Flow", icon: IconSparkles },
     { route: "operations" as const, label: "Ops", icon: IconActivity },
     { route: "workspaces" as const, label: "Spaces", icon: IconFolders },
-    { route: "runs" as const, label: "Runs", icon: IconPlayerPlay },
-    { route: "flow" as const, label: "Flow", icon: IconSparkles },
-    { route: "approvals" as const, label: "Approvals", icon: IconChecks },
+    { route: "settings" as const, label: "Settings", icon: IconSettings },
   ];
   const system = [
-    { route: "settings" as const, label: "Settings", icon: IconSettings },
+    { route: "approvals" as const, label: "Approvals", icon: IconChecks },
     { route: "integrations" as const, label: "Integrations", icon: IconPlugConnected },
   ];
   const commandItems = [...primary, ...system];
@@ -112,19 +119,6 @@
       ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
     ),
   );
-
-  function fingerprintSnapshot(snap: DesktopSnapshot): string {
-    const domainIds = snap.domains.map((d) => d.domain_id).join(",");
-    // Include status + estimated cost so Ops truth strip / spend refresh when either moves.
-    const runSig = snap.runs
-      .map((r) => `${r.id}:${r.status}:${r.estimated_cost_usd ?? 0}`)
-      .join(",");
-    const agentSig = snap.agents.map((a) => `${a.id}:${a.status}`).join(",");
-    const approvalSig = snap.approvals.map((a) => a.id).join(",");
-    const fleetSig = snap.fleets.map((f) => `${f.id}:${f.status}`).join(",");
-    const err = snap.error?.message ?? "";
-    return `${domainIds}|${runSig}|${agentSig}|${approvalSig}|${fleetSig}|${err}`;
-  }
 
   function defaultPermissionProfile(): string {
     if (typeof localStorage === "undefined") return "orbit";
@@ -159,20 +153,15 @@
     }
   }
 
-  async function openFlowWindow() {
-    try {
-      await ipc.openFlowWindow();
-    } catch {
-      /* Preview / browser: keep Flow inside the main shell. */
-      route = "flow";
-      persistRoute("flow");
-    }
-  }
-
   function navigate(next: AppRoute, section?: SettingsSectionId) {
-    if (next === "flow" && !routeOverride) {
-      void openFlowWindow();
-      return;
+    if (next === "runs") {
+      flowSurface = "history";
+      next = "flow";
+    } else if (next === "run-review") {
+      flowSurface = "review";
+      next = "flow";
+    } else if (next === "flow" && route !== "flow") {
+      flowSurface = "compose";
     }
     route = next;
     persistRoute(next);
@@ -194,7 +183,12 @@
   function onFocusRun(runId: string, mode: "topology-focus" | "run-review") {
     focusRunId = runId;
     focusDomainId = domainIdForRun(runId);
-    navigate(mode);
+    if (mode === "run-review") {
+      navigate("flow");
+      flowSurface = "review";
+    } else {
+      navigate(mode);
+    }
   }
 
   function onViewTopology(domainId: string) {
@@ -203,7 +197,7 @@
     navigate("topology-focus");
   }
 
-  async function refreshSnapshot(opts: { silent?: boolean } = {}) {
+  async function refreshSnapshot(opts: { silent?: boolean; primeCursors?: boolean } = {}) {
     try {
       const opsHeavy =
         route === "operations" || route === "topology-focus" || route === "run-review";
@@ -212,12 +206,19 @@
       const idleChrome = !windowFocused || documentHidden || route === "settings" || route === "integrations";
       // Skip agent enumeration off Ops/Focus or when blurred; cheaper IPC on idle routes.
       const includeAgents = opsHeavy && !idleChrome;
-      const next = await backend.loadSnapshot({
+      const load = () => backend.loadSnapshot({
         includeAgents,
         runLimit: idleChrome && !opsHeavy ? 12 : 30,
         fleetLimit: idleChrome && !opsHeavy ? 8 : 20,
       });
-      const nextFp = fingerprintSnapshot(next);
+      const next = opts.primeCursors === false
+        ? await load()
+        : await loadConsistentDesktopSnapshot(
+            load,
+            (domainId, cursor, limit) => backend.domainChanges(domainId, cursor, limit),
+            domainCursors,
+          );
+      const nextFp = fingerprintDesktopSnapshot(next);
       if (nextFp !== snapshotFingerprint) {
         snapshot = next;
         snapshotFingerprint = nextFp;
@@ -235,14 +236,20 @@
     }
   }
 
-  function pollIntervalMs(): number {
-    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-      return SNAPSHOT_POLL_HIDDEN_MS;
+  async function catchUpDomainChanges() {
+    const result = await consumeDomainChanges(
+      snapshot.domains.map((domain) => domain.domain_id),
+      domainCursors,
+      (domainId, cursor, limit) => backend.domainChanges(domainId, cursor, limit),
+    );
+    if (result.changed || result.needsSnapshot) {
+      await refreshSnapshot({ silent: true, primeCursors: false });
     }
-    if (!windowFocused) return SNAPSHOT_POLL_HIDDEN_MS;
-    if (route === "operations" && hasActiveRuns) return SNAPSHOT_POLL_ACTIVE_MS;
-    if (route === "settings" || route === "integrations") return SNAPSHOT_POLL_IDLE_MS;
-    return SNAPSHOT_POLL_IDLE_MS;
+  }
+
+  function deltaIntervalMs(): number {
+    if (!windowFocused || document.visibilityState === "hidden") return DOMAIN_DELTA_IDLE_MS;
+    return hasActiveRuns ? DOMAIN_DELTA_ACTIVE_MS : DOMAIN_DELTA_IDLE_MS;
   }
 
   async function selectDomain(domainId: string, opts: { route?: AppRoute } = {}) {
@@ -257,6 +264,7 @@
     } catch {
       /* Preview / Storybook backends may lack select_domain. */
     }
+    await refreshSnapshot({ silent: true });
     navigate(opts.route ?? "operations");
   }
 
@@ -268,7 +276,8 @@
 
   async function onRunCompleted() {
     await refreshSnapshot();
-    navigate("runs");
+    flowSurface = "history";
+    navigate("flow");
   }
 
   async function stopRunFromOps(runId: string, domainId: string) {
@@ -310,7 +319,7 @@
 
   function onDomainForgotten(domainId: string) {
     snapshot = { ...snapshot, domains: snapshot.domains.filter((d) => d.domain_id !== domainId) };
-    snapshotFingerprint = fingerprintSnapshot(snapshot);
+    snapshotFingerprint = fingerprintDesktopSnapshot(snapshot);
     recents = removeWorkspaceRecent(domainId);
     if (activeDomainId === domainId) activeDomainId = snapshot.domains[0]?.domain_id ?? null;
     if (editingWorkspaceId === domainId) editingWorkspaceId = null;
@@ -377,46 +386,66 @@
   onMount(() => {
     let disposed = false;
     let deepLinkUnlisten: (() => void) | null = null;
-    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let domainChangedUnlisten: (() => void) | null = null;
+    let deltaTimer: ReturnType<typeof setTimeout> | null = null;
+    let integrityTimer: ReturnType<typeof setInterval> | null = null;
     route = routeOverride ?? initialRoute();
-    if (!routeOverride && route === "flow") {
-      route = "operations";
-      void openFlowWindow();
+    const legacySurface = !routeOverride ? legacyFlowSurface() : null;
+    if (legacySurface) {
+      flowSurface = legacySurface;
+      persistRoute("flow");
     }
     const onHashChange = () => {
-      if (!routeOverride) route = initialRoute();
+      if (!routeOverride) {
+        const legacy = legacyFlowSurface();
+        if (legacy) {
+          flowSurface = legacy;
+          route = "flow";
+          persistRoute("flow");
+        } else {
+          route = initialRoute();
+        }
+      }
     };
     const handleDeepLink = (value: string) => {
+      if (/run-review/i.test(value)) flowSurface = "review";
+      else if (/runs/i.test(value)) flowSurface = "history";
       const target = routeFromDeepLink(value);
       if (target) navigate(target);
     };
     const onBrowserDeepLink = (event: Event) => handleDeepLink((event as CustomEvent<string>).detail);
     const onFocus = () => {
+      const resumed = !windowFocused;
       windowFocused = true;
+      if (resumed) void refreshSnapshot({ silent: true });
     };
     const onBlur = () => {
       windowFocused = false;
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshSnapshot({ silent: true });
     };
     window.addEventListener("hashchange", onHashChange);
     window.addEventListener("pytxo-deep-link", onBrowserDeepLink);
     window.addEventListener("keydown", onGlobalKeydown);
     window.addEventListener("focus", onFocus);
     window.addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     recents = migrateWorkspaceRecents();
 
-    const clearPoll = () => {
-      if (pollTimer) clearTimeout(pollTimer);
-      pollTimer = null;
+    const clearDelta = () => {
+      if (deltaTimer) clearTimeout(deltaTimer);
+      deltaTimer = null;
     };
 
-    const schedulePoll = () => {
-      clearPoll();
+    const scheduleDelta = () => {
+      clearDelta();
       if (disposed || previewState !== "default") return;
-      pollTimer = setTimeout(() => {
-        void refreshSnapshot({ silent: true }).finally(() => {
-          if (!disposed) schedulePoll();
+      deltaTimer = setTimeout(() => {
+        void catchUpDomainChanges().finally(() => {
+          if (!disposed) scheduleDelta();
         });
-      }, pollIntervalMs());
+      }, deltaIntervalMs());
     };
 
     const cleanup = () => {
@@ -426,7 +455,10 @@
       window.removeEventListener("keydown", onGlobalKeydown);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("blur", onBlur);
-      clearPoll();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearDelta();
+      if (integrityTimer) clearInterval(integrityTimer);
+      integrityTimer = null;
     };
 
     if (previewState === "loading") return cleanup;
@@ -471,11 +503,27 @@
       } finally {
         loading = false;
       }
-      if (!disposed && previewState === "default") schedulePoll();
+      if (!disposed && previewState === "default") {
+        scheduleDelta();
+        integrityTimer = setInterval(
+          () => void refreshSnapshot({ silent: true }),
+          INTEGRITY_REFRESH_MS,
+        );
+      }
       try {
-        const unlisten = await onPytxoDeepLink(handleDeepLink);
-        if (disposed) unlisten();
-        else deepLinkUnlisten = unlisten;
+        const [deepLinkStop, domainStop] = await Promise.all([
+          onPytxoDeepLink(handleDeepLink),
+          backend.onDomainChanged(() => {
+            void refreshSnapshot({ silent: true, primeCursors: false });
+          }),
+        ]);
+        if (disposed) {
+          deepLinkStop();
+          domainStop();
+        } else {
+          deepLinkUnlisten = deepLinkStop;
+          domainChangedUnlisten = domainStop;
+        }
       } catch {
         /* Browser and Storybook use the preview backend without Tauri events. */
       }
@@ -483,6 +531,7 @@
     return () => {
       cleanup();
       deepLinkUnlisten?.();
+      domainChangedUnlisten?.();
     };
   });
 </script>
@@ -543,14 +592,17 @@
           onStopRun={stopRunFromOps}
         />
       {:else if route === "flow"}
-        <FlowScreen
+        <MissionFlowScreen
           {backend}
-          domains={snapshot.domains}
+          {snapshot}
           preferredDomainId={activeDomainId}
+          initialSurface={flowSurface}
+          initialRunId={focusRunId}
           onAddWorkspace={addWorkspace}
+          onSnapshotChanged={() => refreshSnapshot({ silent: true })}
         />
-      {:else if route === "topology-focus" || route === "run-review"}
-        <FocusScreen mode={route} run={focusedRun} domainId={focusDomainId} onBack={() => navigate("runs")} {onRunCompleted} />
+      {:else if route === "topology-focus"}
+        <FocusScreen {backend} mode="topology-focus" run={focusedRun} domainId={focusDomainId} onBack={() => navigate("operations")} {onRunCompleted} />
       {:else if route === "settings"}
         <SettingsScreen
           initialSection={settingsSection}

@@ -2,35 +2,68 @@
 title: Blast Shield
 ---
 
-**Blast Shield** isolates agent writes so parallel swarms do not corrupt shared files. Changes only land in your real tree after an explicit merge path.
+**Blast Shield** keeps eligible agent writes outside your primary repository
+until you review a prepared package. Reviewed Apply supports Orbit and Galaxy
+in one execution domain and one repository root.
 
-## At a glance
+## Workspace modes
 
 | Mode | Description |
 |------|-------------|
-| `worktree` | Git worktree per agent (default, ready for daily use) |
-| `overlay` | Copy-layer upper directory; flush copies approved changes into the physical tree |
+| `worktree` | Git worktree per agent |
+| `overlay` | Sparse copy-layer workspace |
 
-## Behavior
+Both modes produce the same immutable package. The copy-layer is not a kernel
+ProjFS/FUSE provider.
 
-- Each agent runs in an isolated copy under `.pytxo/worktrees/` (or an overlay upper layer)
-- Overlapping `paths` in `pytxo.toml` tasks trigger **separate scheduling waves**
-- Copies are removed after the run unless `--keep-worktrees` is set
-- On **Galaxy**, merging back into your real tree needs [human approval](/docs/concepts/galaxy-approvals)
+## Package preparation
 
-## Configuration
+After a successful Orbit or Galaxy run, Pytxo writes
+`.pytxo/data/reviews/<run-id>/`. Target bytes are stored as
+content-addressed blobs. The manifest records:
 
-```toml
-isolation = "worktree"   # default
-# isolation = "overlay"  # copy-layer; requires optional overlay support on your platform
-```
+- path and add/modify/delete kind
+- before and after SHA-256 digests
+- byte count and target blob digest
+- task and agent ownership
+- base revision, preparation time, and package digest
 
-## Approve-to-merge
+Preparation includes untracked and binary additions. It rejects traversal,
+protected `.git`/`.pytxo` paths, symlinks, sockets, FIFOs, devices,
+non-regular targets, and divergent ownership. Eligible workspaces remain
+available until dependent waves finish and the package is durably written.
 
-When an agent finishes in an isolated copy, changes are not applied to your checkout until you approve:
+Apply reads only this package. It never rebuilds approved bytes from a live
+workspace.
 
-- **CLI / Desktop:** commit workspace / approve merge actions
-- **Galaxy tier:** approval queue blocks flush until you confirm
+## Drift, retry, and recovery
+
+Before mutation, Pytxo compares each affected path with its recorded preimage.
+Unrelated dirty checkout files are allowed. Drift on an affected path marks
+the review stale; Refresh prepares a new package.
+
+Every attempt records backups, operations, temporary paths, progress, and phase
+under `.pytxo/data/apply/<run-id>/<attempt-id>/`. Pytxo reconciles an
+interrupted journal before another run or Apply in that execution domain.
+
+- A proven rollback returns the package to `ready`, where Apply can be retried.
+- A proven commit records `applied`.
+- Source drift becomes `stale`.
+- Evidence that cannot prove the result becomes `recovery_required`.
+
+Discard removes staged blobs and retained workspaces after confirmation while
+keeping the manifest and audit history.
+
+## Permission profiles and limits
+
+DeepSpace is non-flushable. Supernova writes directly to the host tree and has
+no reviewed Apply step.
+
+v1.1 does not provide cross-root transactions or partial-file acceptance. The
+journal supports automatic process-crash recovery; it is not a power-loss ACID
+or cross-filesystem durability guarantee. Host filesystem and network controls
+remain advisory when the operating system cannot supply the requested kernel
+boundary.
 
 Run `pytxo doctor` and check `overlay_isolation` if you use overlay mode.
 

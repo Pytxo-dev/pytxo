@@ -6,8 +6,8 @@ tags: [architecture, moc]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-04
-related: [[MOC-home]], [[three-tier-model]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]]
+updated: 2026-08-01
+related: [[MOC-home]], [[three-tier-model]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[ADR-0034-immutable-review-package-and-durable-apply]]
 ---
 
 # Architecture index
@@ -38,6 +38,7 @@ related: [[MOC-home]], [[three-tier-model]], [[product-vision]], [[permission-pr
 ## Engineering deep-dives
 
 - [[mission-loop]]
+- [[ADR-0034-immutable-review-package-and-durable-apply]]: prepared review packages, affected-path drift checks, and durable single-root Apply recovery
 - [[adaptive-semantic-scaffolding]]
 - [[sparse-overlay-fs]]
 - [[dag-flow-engine]]

@@ -36,5 +36,6 @@ cloud-http = ["pytxo-core/cloud-http"]
 billing-tiktoken = ["pytxo-core/billing-tiktoken"]
 
 [dev-dependencies]
+rusqlite.workspace = true
 tempfile = "3.14"
 tokio = { workspace = true }

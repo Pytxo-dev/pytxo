@@ -3,7 +3,8 @@ title: First mission
 description: Run one natural-language mission without hand-writing [[task]] rows.
 ---
 
-You do not need to hand-write `[[task]]` rows to try Pytxo. One mission becomes planned waves, isolated agent work, and an approve-to-apply result.
+You do not need to hand-write `[[task]]` rows to try Pytxo. One mission becomes
+an owned task plan, isolated agent work, and an immutable package for review.
 
 ## Who this is for
 
@@ -11,7 +12,7 @@ You already run **more than one** coding agent on a real repo and care about wri
 
 ## Prerequisites
 
-- `pytxo` on `PATH` (`npm i -g pytxo@1.0.0` or a release binary)
+- `pytxo` on `PATH` (`npm i -g pytxo` or a release binary)
 - At least one coding agent CLI on `PATH` (Claude Code, Codex, Cursor CLI, or OpenCode)
 - A git repo you are willing to trust at Orbit (or higher)
 
@@ -36,7 +37,7 @@ Pytxo will:
 5. Run agents in **isolated copies** of the repo (Blast)
 6. Keep overlapping path claims in **separate waves** (Race)
 7. Run any suggested verify commands
-8. Print a mission report and how to apply (flush) accepted work
+8. Persist the run contract and prepare an immutable review package
 
 Preview only (no dispatch):
 
@@ -46,14 +47,25 @@ pytxo mission "…" --json
 
 ## After the run
 
-Review the report. Apply accepted changes when verifies passed:
+Open **Pytxo Desktop -> Flow -> History -> Run Review**. Run Review is the
+reviewed-package Apply surface for Orbit and Galaxy. It shows the exact
+prepared additions, modifications, and deletions. Before Apply, Pytxo checks
+the current preimage of every affected path; unrelated dirty files are
+allowed. A changed affected path marks the review stale.
+
+The `hitl` command manages Galaxy approval requests only:
 
 ```bash
 pytxo hitl list
-# or use Pytxo Desktop → Approvals / Run Review → Complete run
+pytxo hitl approve <id>
 ```
 
-Orbit never auto-merges. Verification unlocks eligibility; you still approve the flush.
+These commands do not initiate Apply. Orbit has no Galaxy HITL step; Orbit
+users review and Apply the prepared package in Run Review.
+
+Reviewed Apply covers Orbit and Galaxy in one execution domain and one
+repository root. DeepSpace is non-flushable. Supernova writes directly to the
+host tree.
 
 ## Without agent CLIs
 

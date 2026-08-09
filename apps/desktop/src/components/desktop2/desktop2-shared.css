@@ -29,7 +29,7 @@
 .desktop2 .flow-empty p{max-width:36ch;margin:0;font-size:13px;line-height:1.5;color:var(--pytxo-text-soft,#8b929c)}
 .desktop2 .flow-screen .screen-heading p:not(.eyebrow){font-size:13px!important;line-height:1.45}
 .desktop2 .composer-panel textarea{font-size:14px!important;line-height:1.65!important;min-height:180px}
-.desktop2 .flow-templates{opacity:.72}
+.desktop2 .flow-templates{opacity:1}
 .desktop2 .flow-templates span,.desktop2 .flow-templates button{font-size:11px!important}
 .desktop2 .domain>span{font-size:10px!important;letter-spacing:.04em}
 .desktop2 .ops-truth{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
@@ -97,7 +97,7 @@ html[data-chroma-theme="terminal"] .desktop2 .quiet:hover:not(:disabled),html[da
 .desktop2 .inbox-row.active{border-color:var(--pytxo-accent,var(--pytxo-teal));background:var(--pytxo-surface-active)}
 .desktop2 .integration-truth{display:flex;flex-direction:column;gap:10px;margin-top:12px}
 .desktop2 .integration-card.wide{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--pytxo-line);border-radius:8px;background:var(--pytxo-surface-panel)}
-.desktop2 .integration-card.wide .setup-hint{margin:6px 0 0;font-size:10px;color:#6b7280}
+.desktop2 .integration-card.wide .setup-hint{margin:6px 0 0;font-size:10px;color:#89929d}
 .desktop2 .integration-refresh{display:inline-flex;align-items:center;gap:6px}
 .desktop2 .workspace-heading-actions{display:flex;align-items:center;gap:8px}.desktop2 .workspace-heading-actions .quiet{display:inline-flex;align-items:center;gap:5px}
 .desktop2 .integration-agent-panel>.panel-head p{margin:4px 0 0;color:var(--pytxo-text-muted);font-size:9px}
@@ -112,13 +112,13 @@ html[data-chroma-theme="terminal"] .desktop2 .quiet:hover:not(:disabled),html[da
 .desktop2 .integration-card__title strong{font-size:11px}
 .desktop2 .integration-card__title small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .desktop2 .integration-state{font-size:8px;color:var(--pytxo-text-muted)}
-.desktop2 .integration-auth-state{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid #252a31;border-radius:6px;background:#11141a;color:#747c88}
+.desktop2 .integration-auth-state{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid #252a31;border-radius:6px;background:#11141a;color:#8b949f}
 .desktop2 .integration-auth-state[data-state="signed_in"]{border-color:#26463e;background:#101915;color:#5fc8aa}
 .desktop2 .integration-auth-state[data-state="signed_out"]{border-color:#463629;background:#18140f;color:#d6a65e}
 .desktop2 .integration-auth-state>span{display:flex;min-width:0;flex-direction:column;gap:2px}
 .desktop2 .integration-auth-state strong{font-size:9px;font-weight:620}
-.desktop2 .integration-auth-state small{font-size:8px;color:#656d78}
-.desktop2 .integration-detail{min-height:32px!important;margin:0!important;color:#6f7782!important;font-size:9px!important;line-height:1.45}
+.desktop2 .integration-auth-state small{font-size:8px;color:#8b949f}
+.desktop2 .integration-detail{min-height:32px!important;margin:0!important;color:#838b96!important;font-size:9px!important;line-height:1.45}
 .desktop2 .integration-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto}
 .desktop2 .integration-actions a{display:inline-flex;align-items:center;gap:4px;color:#79818c;font-size:8px;text-decoration:none}
 .desktop2 .integration-actions a:hover{color:#a4eee0}
@@ -196,7 +196,7 @@ html[data-ui-density="comfortable"] .desktop2 .primary{font-size:var(--text-xs,0
 .desktop2 .ops-feedback.error{border-color:color-mix(in oklab,var(--pytxo-danger,#d98994) 38%,var(--pytxo-line));background:color-mix(in oklab,var(--pytxo-danger,#d98994) 7%,var(--pytxo-surface-panel));color:var(--pytxo-danger,#d98994)}
 .desktop2 .run-row-group{display:grid;grid-template-columns:minmax(0,1fr) 54px;align-items:center;border-bottom:1px solid #191c22}
 .desktop2 .run-row-group .run-row{min-width:0;border-bottom:0}
-.desktop2 .run-stop{display:inline-flex;align-items:center;justify-content:center;gap:4px;width:50px;height:28px;padding:0 6px;border:1px solid transparent;border-radius:5px;background:transparent;color:#6f7681;font-size:8px;cursor:pointer;transition:border-color .15s ease,color .15s ease,background-color .15s ease}
+.desktop2 .run-stop{display:inline-flex;align-items:center;justify-content:center;gap:4px;width:50px;height:28px;padding:0 6px;border:1px solid transparent;border-radius:5px;background:transparent;color:#838b96;font-size:8px;cursor:pointer;transition:border-color .15s ease,color .15s ease,background-color .15s ease}
 .desktop2 .run-stop:hover{border-color:color-mix(in oklab,var(--pytxo-danger,#d98994) 45%,transparent);background:color-mix(in oklab,var(--pytxo-danger,#d98994) 8%,transparent);color:var(--pytxo-danger,#d98994)}
 .desktop2 .run-stop:focus-visible{outline:2px solid var(--pytxo-danger,#d98994);outline-offset:1px}
 .desktop2 .stop-run-dialog{position:fixed;inset:0;width:min(440px,calc(100vw - 36px));max-height:calc(100dvh - 36px);margin:auto;padding:0;border:1px solid color-mix(in oklab,var(--pytxo-danger,#d98994) 34%,var(--pytxo-line));border-radius:9px;background:var(--pytxo-surface-panel);color:var(--pytxo-text-strong);box-shadow:0 24px 80px color-mix(in oklab,var(--pytxo-surface-shell) 82%,transparent);overflow:auto}

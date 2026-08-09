@@ -13,13 +13,15 @@ import type {
   ProjectDto,
   PytxoIpcError,
   RunDto,
+  DesktopChangedEvent,
 } from "./types";
 
-export const IPC_VERSION = "0.10.0";
+export const IPC_VERSION = "1.1.0";
 
 export const AUTH_CHANGED_EVENT = "deck-auth-changed";
 export const AUTH_ERROR_EVENT = "deck-auth-error";
 export const DEEP_LINK_EVENT = "pytxo-deep-link";
+export const DOMAIN_CHANGED_EVENT = "pytxo://domain-changed";
 
 export function normalizeIpcError(cause: unknown): Error {
   if (cause instanceof Error) return cause;
@@ -63,16 +65,28 @@ export async function ipcVersion(): Promise<string> {
   return invoke<string>("ipc_version");
 }
 
+function inTauriRuntime(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
 export function onAuthChanged(callback: () => void) {
+  if (!inTauriRuntime()) return Promise.resolve(() => {});
   return listen(AUTH_CHANGED_EVENT, callback);
 }
 
 export function onAuthError(callback: (message: string) => void) {
+  if (!inTauriRuntime()) return Promise.resolve(() => {});
   return listen<{ message: string }>(AUTH_ERROR_EVENT, (event) => callback(event.payload.message));
 }
 
 export function onPytxoDeepLink(callback: (url: string) => void) {
+  if (!inTauriRuntime()) return Promise.resolve(() => {});
   return listen<string>(DEEP_LINK_EVENT, (event) => callback(event.payload));
+}
+
+export function onDomainChanged(callback: (event: DesktopChangedEvent) => void) {
+  if (!inTauriRuntime()) return Promise.resolve(() => {});
+  return listen<DesktopChangedEvent>(DOMAIN_CHANGED_EVENT, (event) => callback(event.payload));
 }
 
 export const ipc = {
@@ -116,6 +130,31 @@ export const ipc = {
     invoke<string>("ensure_workspace", { domainId }).then(unwrap),
   listRuns: (limit: number, domainId: string | null) =>
     invoke<RunDto[]>("list_runs", { limit, domainId }).then(unwrap),
+  runReview: (runId: string, domainId: string | null) =>
+    invoke<import("./types").RunReviewDto>("run_review", { runId, domainId }).then(unwrap),
+  runReviewContent: (
+    runId: string,
+    path: string,
+    side: "before" | "after",
+    offset: number,
+    limit: number,
+    domainId: string | null,
+  ) => invoke<import("./types").PreparedContentChunkDto>("run_review_content", {
+    runId,
+    path,
+    side,
+    offset,
+    limit,
+    domainId,
+  }).then(unwrap),
+  refreshRunReview: (runId: string, domainId: string | null) =>
+    invoke<import("./types").PreparedRunManifest>("refresh_run_review", { runId, domainId }).then(unwrap),
+  discardRunReview: (runId: string, domainId: string | null) =>
+    invoke<void>("discard_run_review", { runId, domainId }).then(unwrap),
+  reconcileRunRecovery: (runId: string, domainId: string | null) =>
+    invoke<{ outcome: string; attempt_id: string | null }>("reconcile_run_recovery", { runId, domainId }).then(unwrap),
+  domainChanges: (domainId: string, cursor: number, limit = 200) =>
+    invoke<import("./types").DomainChangesPageDto>("domain_changes", { domainId, cursor, limit }).then(unwrap),
   listAgents: (runId: string, domainId: string | null) =>
     invoke<AgentDto[]>("list_agents", { runId, domainId }).then(unwrap),
   tailEvents: (agentId: string, tail: number, domainId: string | null) =>
@@ -130,8 +169,8 @@ export const ipc = {
     invoke<void>("stop_run", { all, domainId, runId }).then(unwrap),
   gitDiff: (agentId: string, domainId: string | null) =>
     invoke<string>("git_diff", { agentId, domainId }).then(unwrap),
-  commitWorkspace: (runId: string, agentId: string, domainId: string | null) =>
-    invoke<void>("commit_workspace", { runId, agentId, domainId }).then(unwrap),
+  applyRunChanges: (runId: string, domainId: string | null) =>
+    invoke<import("./types").RunApplyManifest>("apply_run_changes", { runId, domainId }).then(unwrap),
   listHitl: (domainId: string | null) =>
     invoke<HitlDto[]>("list_hitl", { domainId }).then(unwrap).catch(() => [] as HitlDto[]),
   listHitlAll: () =>
@@ -244,4 +283,5 @@ export const ipc = {
     invoke<void>("set_tray_needs_you", { count }).catch(() => undefined),
   openFlowWindow: () => invoke<void>("open_flow_window").then(unwrap),
   listProviders: () => invoke<ProviderStatusDto[]>("list_providers").then(unwrap),
+  onDomainChanged,
 };

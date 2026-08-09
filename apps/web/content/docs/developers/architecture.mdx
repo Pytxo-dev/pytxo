@@ -17,17 +17,35 @@ Presentation  ->  Orchestration  ->  Execution
 |-------|------|
 | `pytxo-cli` | User-facing commands |
 | `pytxo-orchestrate` | Scheduling, hypervisor, doctor |
-| `pytxo-runner` | Agent execution, worktrees, PTY |
-| `pytxo-core` | Config, tasks, billing types, moat interfaces |
-| `pytxo-store` | SQLite schema and event log |
+| `pytxo-runner` | Agent execution, isolated workspaces, immutable review packages, journaled Apply, recovery |
+| `pytxo-core` | Config, tasks, shared review contracts, billing types, moat interfaces |
+| `pytxo-store` | SQLite schema, event log, review lifecycle, errors, and domain change cursor |
 | `pytxo-mcp` | MCP server for IDE integration |
 
 ## Data flow
 
-1. CLI or MCP submits a run plan from `pytxo.toml`
-2. Orchestrator computes waves (path conflicts + `depends_on`)
-3. Runner spawns agents in worktrees, streams events to SQLite
-4. Optional Pytxo Desktop reads telemetry through Tauri IPC; presentation code does not open the store directly
+1. CLI, MCP, or Desktop submits a bounded mission plan
+2. Orchestrator validates unique task IDs, explicit path claims, dependencies,
+   and an acyclic wave graph
+3. SQLite persists the pinned base revision, validated plan, permission
+   profile, and enforcement receipt as one run contract
+4. Runner spawns agents in isolated workspaces and streams events to SQLite
+5. Optional Pytxo Desktop reads the same contract through Tauri IPC;
+   presentation code does not open the store directly
+6. A successful Orbit or Galaxy run stores target blobs and an immutable
+   manifest under `.pytxo/data/reviews/<run-id>/`
+7. Run Review reads that package; Apply validates affected-path preimages and
+   writes only the stored target blobs to that one repository root
+8. Each attempt writes a durable journal. Reconciliation settles an
+   interrupted process before another run or Apply in the execution domain
+
+Unrelated dirty checkout files do not invalidate a package. Drift on an
+affected path marks the review stale. DeepSpace is non-flushable, and
+Supernova writes directly to the host tree.
+
+The journal is a process-crash recovery mechanism, not a power-loss ACID or
+cross-filesystem durability guarantee. Cross-root transactions and
+partial-file acceptance are outside v1.1.
 
 ## Optional Cloud path
 

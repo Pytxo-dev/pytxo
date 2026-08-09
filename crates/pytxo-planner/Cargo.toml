@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 pytxo-core.workspace = true
+pytxo-sanitize.workspace = true
 pytxo-signal.workspace = true
 serde.workspace = true
 serde_json.workspace = true

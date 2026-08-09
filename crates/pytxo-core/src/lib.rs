@@ -13,6 +13,7 @@ mod moat;
 mod path_util;
 mod plan;
 mod project;
+mod review;
 mod service_health;
 mod task;
 mod trust;
@@ -53,6 +54,10 @@ pub use moat::{
 pub use path_util::{canonical_repo_root, strip_extended_path};
 pub use plan::{AgentAssignment, ConflictPair, ExecutionPlan, ScheduledTask};
 pub use project::{ProjectManifest, ProjectMeta, ProjectRoot};
+pub use review::{
+    PreparedBlobChunk, PreparedRunFile, PreparedRunFileKind, PreparedRunManifest,
+    PreparedRunSummary, RunApplyError,
+};
 pub use service_health::response_ok as service_health_ok;
 pub use service_health::{health_lists_provider, providers_configured};
 pub use task::{AgentSpec, Task};

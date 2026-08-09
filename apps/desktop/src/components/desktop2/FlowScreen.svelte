@@ -2,19 +2,23 @@
   import { IconArrowRight, IconFolderPlus, IconMicrophone, IconPlayerRecord, IconSparkles } from "@tabler/icons-svelte";
   import { onMount } from "svelte";
   import type { DesktopBackend } from "../../lib/desktop-backend";
-  import type { FlowDraftRecord, FlowPlan, VoiceSessionDto, VoiceState } from "../../lib/types";
+  import type { FlowDraftRecord, FlowPlan, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
   let {
     backend,
     domains,
+    runs = [],
     preferredDomainId = null,
     previewState = "draft",
     onAddWorkspace = null,
+    embedded = false,
   }: {
     backend: DesktopBackend;
     domains: { domain_id: string; repo_root: string }[];
+    runs?: RunDto[];
     preferredDomainId?: string | null;
     previewState?: "draft" | "recording" | "paused" | "transcribing" | "cancelled" | "failed" | "uncertain" | "planning" | "ready" | "blocked" | "dispatched";
     onAddWorkspace?: (() => void | Promise<void>) | null;
+    embedded?: boolean;
   } = $props();
   let selectedDomainId = $state("");
   let selectedAde = $state("cursor");
@@ -39,7 +43,7 @@
   let dispatchedStatus = $state("");
   let dispatching = $state(false);
   let history = $state<FlowDraftRecord[]>([]);
-  let runWatchGeneration = 0;
+  let historySyncedRun = "";
 
   const step = $derived(
     dispatchedRun ? 4 : plan ? 3 : mission.trim() ? 2 : 1,
@@ -63,11 +67,25 @@
     }
   });
 
+  $effect(() => {
+    const runId = dispatchedRun;
+    const observed = runs.find((run) => run.id === runId);
+    if (!runId || !observed) return;
+    dispatchedStatus = observed.status.toLowerCase();
+    if (
+      ["cancelled", "completed", "failed", "verify_failed"].includes(dispatchedStatus) &&
+      historySyncedRun !== runId
+    ) {
+      historySyncedRun = runId;
+      void backend.flowHistory().then((drafts) => (history = drafts));
+    }
+  });
+
   async function buildPlan() {
     planning = true; error = "";
-    runWatchGeneration += 1;
     dispatchedRun = "";
     dispatchedStatus = "";
+    historySyncedRun = "";
     try {
       plan = await backend.previewFlow({ id: crypto.randomUUID(), title: mission.slice(0, 72), mission_text: mission, source: missionSource, domain_id: selectedDomainId || null, project_id: null, ade_id: selectedAde });
       history = await backend.flowHistory();
@@ -86,29 +104,10 @@
       plan = await backend.saveReviewedFlow(plan);
       dispatchedRun = await backend.dispatchFlow(plan.draft_id);
       dispatchedStatus = "running";
-      const generation = ++runWatchGeneration;
-      void watchRun(dispatchedRun, generation);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
     } finally {
       dispatching = false;
-    }
-  }
-
-  async function watchRun(runId: string, generation: number) {
-    const terminal = new Set(["cancelled", "completed", "failed", "verify_failed"]);
-    while (generation === runWatchGeneration) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      if (generation !== runWatchGeneration) return;
-      const snapshot = await backend.loadSnapshot({ includeAgents: false, runLimit: 100, fleetLimit: 0 });
-      if (snapshot.error) continue;
-      const run = snapshot.runs.find((item) => item.id === runId);
-      if (!run) continue;
-      dispatchedStatus = run.status.toLowerCase();
-      if (terminal.has(dispatchedStatus)) {
-        history = await backend.flowHistory();
-        return;
-      }
     }
   }
 
@@ -257,7 +256,6 @@
     } else if (previewState === "planning") planning = true;
     return () => {
       disposed = true;
-      runWatchGeneration += 1;
       unlisten?.();
       if (voiceSessionId) void backend.cancelVoice(voiceSessionId);
     };
@@ -265,7 +263,7 @@
 </script>
 
 <section class="screen flow-screen">
-  <header class="screen-heading">
+  {#if !embedded}<header class="screen-heading">
     <div>
       <h1>Flow</h1>
       <p>Write an outcome, review the plan, then run.</p>
@@ -276,7 +274,7 @@
       <li class:active={step === 3} class:done={step > 3}>Review</li>
       <li class:active={step === 4} class:done={step >= 4}>Run</li>
     </ol>
-  </header>
+  </header>{/if}
 
   {#if !domains.length}
     <div class="panel">

@@ -10,25 +10,25 @@ gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 const STORY = [
   {
-    title: "Plan before anything runs",
+    title: "Set ownership before dispatch",
     description:
-      "Turn one outcome into editable tasks, execution waves, path claims, permissions, and agent assignments.",
+      "Turn one mission into explicit tasks, paths, owners, dependencies, execution waves, and verification.",
     image: "/product/flow-1600x1000.png",
     alt: "Pytxo Flow showing an editable mission and a reviewable three-task execution plan",
   },
   {
-    title: "Run in isolation",
+    title: "Review the prepared package",
     description:
-      "Supervise active agents, path locks, approval demand, sandbox coverage, and estimated spend from one local control plane.",
-    image: "/product/operations-1600x1000.png",
-    alt: "Pytxo Operations showing active work, path locks, pending approvals, and isolated runs",
+      "Inspect the base revision, package digest, permission profile, enforcement receipt, ownership DAG, and exact additions, edits, and deletions.",
+    image: "/product/run-review-1600x1000.png",
+    alt: "Pytxo Run Review showing the base revision, package digest, enforcement surfaces, ownership DAG, and exact prepared changes",
   },
   {
-    title: "Review and approve",
+    title: "Apply exactly what you reviewed",
     description:
-      "Inspect the requester, workspace, action, and run evidence before isolated changes reach the repository.",
-    image: "/product/approvals-1600x1000.png",
-    alt: "Pytxo Approvals showing a selected Blast Shield flush with requester and run evidence",
+      "For an Orbit or Galaxy run, Pytxo revalidates affected paths and applies only the stored package within one execution domain and one repository root. A process crash is reconciled from its journal.",
+    image: "/product/run-applied-1600x1000.png",
+    alt: "Pytxo Run Review showing the completed ownership plan and applied run contract",
   },
 ] as const;
 
@@ -106,11 +106,11 @@ export function ProductStory() {
       <div className="section-pad mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,0.62fr)_minmax(0,1.38fr)] lg:gap-16">
         <div data-story-intro className="h-fit max-w-lg">
           <h2 id="product-story-title" className="text-3xl sm:text-4xl">
-            From mission to verified result
+            Review one prepared result before it reaches your repository
           </h2>
           <p className="mt-4 max-w-md leading-relaxed text-muted-foreground">
-            Pytxo makes the operating sequence inspectable: plan the work, run it in isolation,
-            then decide what reaches your repository.
+            Set path ownership before dispatch. After the run, inspect the exact package,
+            permission evidence, and Apply history in Flow.
           </p>
         </div>
 

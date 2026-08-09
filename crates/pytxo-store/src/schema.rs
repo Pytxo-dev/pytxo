@@ -102,3 +102,39 @@ ALTER TABLE agents ADD COLUMN root_id TEXT;
 pub const MIGRATION_005: &str = r#"
 ALTER TABLE runs ADD COLUMN permission_profile TEXT;
 "#;
+
+/// Run-level review/apply contract. Keeping this normalized avoids widening the
+/// hot run-list query while making one atomic apply state authoritative.
+pub const MIGRATION_006: &str = r#"
+CREATE TABLE IF NOT EXISTS run_contracts (
+    run_id TEXT PRIMARY KEY,
+    base_revision TEXT,
+    plan_json TEXT NOT NULL,
+    apply_status TEXT NOT NULL DEFAULT 'pending',
+    apply_manifest_json TEXT,
+    applied_at TEXT,
+    enforcement_json TEXT NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_run_contracts_apply_status
+ON run_contracts(apply_status);
+"#;
+
+pub const MIGRATION_007: &str = r#"
+ALTER TABLE run_contracts ADD COLUMN prepared_manifest_json TEXT;
+ALTER TABLE run_contracts ADD COLUMN prepared_digest TEXT;
+ALTER TABLE run_contracts ADD COLUMN prepared_at TEXT;
+ALTER TABLE run_contracts ADD COLUMN last_apply_error_json TEXT;
+ALTER TABLE run_contracts ADD COLUMN recovery_state TEXT;
+
+CREATE TABLE domain_changes (
+    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_kind TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    changed_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_domain_changes_entity
+ON domain_changes(entity_kind, entity_id, sequence);
+"#;

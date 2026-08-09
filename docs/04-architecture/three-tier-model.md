@@ -6,7 +6,7 @@ tags: [architecture, c4]
 audience: [human, agent]
 layer: orchestration
 created: 2026-06-02
-updated: 2026-07-23
+updated: 2026-08-01
 related: [[presentation-passive-telemetry]], [[execution-domains]], [[mcp-hub-integration]], [[hybrid-execution]], [[pytxo-improvement-research]]
 ---
 
@@ -17,7 +17,7 @@ Pytxo decouples structural telemetry from process coordination using a strictly 
 ```text
 ┌─────────────────────────────────────────┐
 │  PYTXO PRESENTATION (Svelte 5)          │
-│  Desktop 2 Focus · Ops (3D = legacy)    │
+│  Flow · Ops · Review (3D = dev legacy)  │
 └─────────────────┬───────────────────────┘
                   │ Tauri v2 IPC
 ┌─────────────────▼───────────────────────┐

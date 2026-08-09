@@ -1,0 +1,36 @@
+# Demo media license record
+
+## Modern Chillout (Future Calm)
+
+- Track: `penguinmusic - Modern Chillout (Future Calm)`
+- Creator: `penguinmusic`
+- Canonical source:
+  <https://pixabay.com/music/upbeat-penguinmusic-modern-chillout-future-calm-12641/>
+- License: Pixabay Content License
+  (<https://pixabay.com/service/license-summary/>)
+- Source status checked: 2026-08-01
+- Content ID: **Registered**, as disclosed on the canonical track page.
+- Certificate: **Required before production use.** Download the track while signed in to
+  Pixabay, retain its download certificate as
+  `private-licenses/modern-chillout-future-calm-license.txt`, and keep the certificate with the
+  release evidence.
+- Repository status: no approved local source file or certificate was available during this
+  recut. The track is therefore not included in the silent visual master and no standalone copy
+  is committed.
+- Expected ignored source file:
+  `public/audio/music/modern-chillout-future-calm.mp3`
+
+The Pixabay license permits use and adaptation subject to its prohibited uses; it does not permit
+redistributing the track on a standalone basis. A Content ID claim is not a copyright strike, but
+the download certificate is the evidence used to dispute a claim.
+
+## Narration and interface cues
+
+- Narration is generated only through the approved ElevenLabs credentials and voice ID. It is
+  written to `public/audio/narration/pytxo-demo-narration.mp3` and is not committed.
+- Three restrained, project-approved interface cues are required:
+  `plan-ready.wav`, `apply-click.wav`, and `applied-confirmation.wav` under
+  `public/audio/sfx/`. Their source and redistribution approval must be retained with release
+  evidence. No whoosh cue is used.
+- The narrated render gate fails if narration, music, the music certificate, or any cue is
+  absent or structurally invalid.

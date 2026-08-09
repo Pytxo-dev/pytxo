@@ -32,6 +32,7 @@ export function routeFromDeepLink(value: string): AppRoute | null {
   try {
     const parsed = new URL(value);
     const target = parsed.hostname || parsed.pathname.replace(/^\//, "");
+    if (target === "runs" || target === "run-review") return "flow";
     return isRoute(target) ? target : null;
   } catch {
     return null;
@@ -40,9 +41,18 @@ export function routeFromDeepLink(value: string): AppRoute | null {
 
 export function initialRoute(): AppRoute {
   const hash = window.location.hash.replace(/^#\/?/, "");
+  if (hash === "runs" || hash === "run-review") return "flow";
   if (isRoute(hash)) return hash;
   const stored = localStorage.getItem(ROUTE_KEY);
-  return isRoute(stored) ? stored : "operations";
+  if (stored === "runs" || stored === "run-review") return "flow";
+  return isRoute(stored) ? stored : "flow";
+}
+
+export function legacyFlowSurface(): "history" | "review" | null {
+  const hash = window.location.hash.replace(/^#\/?/, "");
+  if (hash === "runs") return "history";
+  if (hash === "run-review") return "review";
+  return null;
 }
 
 export function persistRoute(route: AppRoute) {

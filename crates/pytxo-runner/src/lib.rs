@@ -2,7 +2,9 @@
 
 mod arbitrage;
 mod blast;
+mod change_set;
 mod context;
+mod enforcement;
 mod failure;
 mod git;
 mod hitl;
@@ -27,7 +29,22 @@ pub use blast::{
     effective_isolation_mode, isolation_backend_label, isolation_for_mode, OverlayIsolation,
     WorktreeIsolation,
 };
+pub use change_set::{
+    apply_attempt_ids, apply_prepared_review, apply_prepared_review_under_lease,
+    apply_prepared_review_with_fault, apply_prepared_review_with_fault_under_lease,
+    load_review_manifest, load_review_package, prepare_review_package, prepare_run_change_set,
+    read_review_content_chunk, read_review_content_chunk_with_fault,
+    read_review_content_chunk_with_metrics, reconcile_apply_journals,
+    reconcile_apply_journals_under_lease, AgentWorkspaceInput, AppliedRunChange, ApplyFaultPoint,
+    ExecutionDomainMutationLease, PreparedRunChangeSet, RecoveryOutcome, ReviewContentChunk,
+    ReviewContentSide, ReviewReadFaultPoint, ReviewReadMetrics, RunApplyManifest, RunChange,
+    RunChangeKind,
+};
 pub use context::{prepare_agent_context, prepare_agent_context_for_root, ContextBundle};
+pub use enforcement::{
+    permission_enforcement_receipt, permission_enforcement_receipt_for_mechanism,
+    EnforcementSurfaceReceipt, PermissionEnforcementReceipt,
+};
 pub use failure::implicated_paths;
 pub use git::{branch_name, create_worktree, merge_agent_branch, remove_worktree};
 pub use hitl::{HitlDecision, HitlQueue, HitlRequest};

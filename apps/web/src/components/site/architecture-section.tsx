@@ -18,7 +18,7 @@ const PIPELINE: Stage[] = [
 
 const DESKTOP: Stage = {
   label: "Pytxo Desktop",
-  detail: "Structural telemetry and approvals",
+  detail: "Flow, Run Review, operations, and recovery",
   icon: LayoutDashboard,
 };
 
@@ -75,11 +75,11 @@ export function ArchitectureSection() {
     <section className="border-y border-border bg-card/10">
       <div className="section-pad mx-auto max-w-6xl">
         <h2 className="max-w-2xl text-3xl sm:text-4xl">
-          Local control plane, not a browser full of terminals
+          One local orchestrator behind every surface
         </h2>
         <p className="mt-4 max-w-2xl text-muted-foreground">
-          Pytxo plugs into your existing workflow. It coordinates agents and records what
-          changed, so Desktop is a branch off the same pipeline, not a separate product.
+          Desktop and the CLI read the same persisted run contract: plan, permission
+          profile, enforcement receipt, prepared package, and Apply state.
         </p>
 
         <div className="mt-14 hidden lg:grid lg:grid-cols-[1fr_2.5rem_1fr_2.5rem_1fr_2.5rem_1fr] lg:gap-y-3">

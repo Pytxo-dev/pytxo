@@ -26,6 +26,7 @@ function embedUrl(raw: string): { kind: "youtube" | "video"; src: string } | nul
 
 export function DemoSection() {
   const raw = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL ?? "";
+  const captionsUrl = process.env.NEXT_PUBLIC_DEMO_CAPTIONS_URL?.trim() ?? "";
   const media = embedUrl(raw);
   if (!media) return null;
 
@@ -33,14 +34,12 @@ export function DemoSection() {
     <section className="relative border-t border-white/5 bg-[#020205] px-6 py-20 sm:py-24">
       <div className="mx-auto max-w-5xl">
         <ScrollReveal>
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-teal-300/80">
-            Demo
-          </p>
-          <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight text-zinc-50 sm:text-4xl">
-            See the control plane, not a wall of terminals.
+          <h2 className="max-w-2xl text-3xl font-semibold tracking-tight text-zinc-50 sm:text-4xl">
+            Watch the reviewed Apply path.
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-zinc-400 sm:text-base">
-            Run agents you already use. Approve what lands. Keep keys in your environment.
+            For Orbit and Galaxy in one execution domain and one repository root,
+            Run Review shows the prepared package and Apply uses only its stored bytes.
           </p>
         </ScrollReveal>
 
@@ -63,7 +62,14 @@ export function DemoSection() {
                 preload="metadata"
                 src={media.src}
               >
-                <track kind="captions" />
+                {captionsUrl ? (
+                  <track
+                    kind="captions"
+                    src={captionsUrl}
+                    srcLang="en"
+                    label="English"
+                  />
+                ) : null}
               </video>
             )}
           </div>

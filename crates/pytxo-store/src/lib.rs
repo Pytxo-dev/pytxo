@@ -12,4 +12,7 @@ pub use catalog::{
     default_catalog_path, Catalog, CatalogEntry, FleetNodeRecord, FleetRunRecord, FlowDraftRecord,
 };
 pub use project_store::ProjectStore;
-pub use store::{AgentRecord, DomainRunSummary, EventRecord, PytxoStore, RunRecord};
+pub use store::{
+    AgentRecord, DomainChange, DomainChangesPage, DomainRunSummary, EventRecord, PytxoStore,
+    RunContractRecord, RunRecord,
+};

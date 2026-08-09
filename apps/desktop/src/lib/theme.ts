@@ -15,7 +15,7 @@ export const SETUP_STORAGE_KEY = "pytxo-deck-setup-v1";
  * upgrading users see the refreshed flow exactly once, without re-showing it
  * on every subsequent release.
  */
-export const ONBOARDING_VERSION = "1.0.0";
+export const ONBOARDING_VERSION = "1.1.0";
 export const ONBOARDING_VERSION_KEY = "pytxo-desktop-onboarding-version";
 
 /** Void first; Nebula demoted as vivid optional skin. */
