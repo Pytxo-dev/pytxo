@@ -19,6 +19,11 @@ on:
         required: true
         type: boolean
         default: true
+      sign_desktop:
+        description: "Sign Desktop installers (requires valid Apple/Windows signing secrets)"
+        required: true
+        type: boolean
+        default: false
   push:
     tags:
       - "v*"
@@ -323,14 +328,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          # Code-signing is opt-in. This prevents a malformed or stale signing
+          # secret from blocking an otherwise valid unsigned distribution.
+          APPLE_CERTIFICATE: ${{ (github.event_name == 'workflow_dispatch' && inputs.sign_desktop == true) && secrets.APPLE_CERTIFICATE || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ (github.event_name == 'workflow_dispatch' && inputs.sign_desktop == true) && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_SIGNING_IDENTITY: ${{ (github.event_name == 'workflow_dispatch' && inputs.sign_desktop == true) && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          APPLE_API_ISSUER: ${{ (github.event_name == 'workflow_dispatch' && inputs.sign_desktop == true) && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_API_KEY: ${{ (github.event_name == 'workflow_dispatch' && inputs.sign_desktop == true) && secrets.APPLE_API_KEY || '' }}
+          APPLE_API_KEY_ID: ${{ (github.event_name == 'workflow_dispatch' && inputs.sign_desktop == true) && secrets.APPLE_API_KEY_ID || '' }}
+          WINDOWS_CERTIFICATE: ${{ (github.event_name == 'workflow_dispatch' && inputs.sign_desktop == true) && secrets.WINDOWS_CERTIFICATE || '' }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ (github.event_name == 'workflow_dispatch' && inputs.sign_desktop == true) && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
           MACOSX_DEPLOYMENT_TARGET: "10.15"
         with:
           projectPath: apps/desktop
@@ -348,8 +355,8 @@ jobs:
         with:
           name: ${{ matrix.asset_prefix }}
           path: |
-            apps/desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/**/*
-          if-no-files-found: warn
+            target/${{ matrix.rust_target }}/release/bundle/**/*
+          if-no-files-found: error
 
   mirror-desktop-release:
     needs: [release, desktop-release]
