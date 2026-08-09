@@ -6,8 +6,8 @@ tags: [security, orchestration, policy]
 audience: [human, agent]
 layer: security
 created: 2026-06-02
-updated: 2026-07-18
-related: [[ADR-0008-local-permission-profile-four-tiers]], [[blast-shield]], [[race-shield]], [[signal-core]], [[execution-domains]], [[pytxo-improvement-research]]
+updated: 2026-07-31
+related: [[ADR-0008-local-permission-profile-four-tiers]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[blast-shield]], [[race-shield]], [[signal-core]], [[execution-domains]], [[pytxo-improvement-research]]
 ---
 
 # Permission Profile Engine
@@ -48,8 +48,8 @@ Configure via `permission_profile` in [[pytxo-toml]] (default `orbit`). Optional
 | Capability | DeepSpace | Orbit | Galaxy | Supernova |
 |------------|-----------|-------|--------|-----------|
 | Read repo tree | Agent cwd only | Full repo read | Full repo read | Full repo read |
-| Writes | Denied or ephemeral cwd only | CoW / worktree; flush via IPC approve | Physical writes; HITL for destructive / out-of-root | Unrestricted |
-| Network egress | Blocked | Default deny (allowlist TBD) | Local service ports (Postgres, Docker API, dev servers) | Full |
+| Writes | Denied or ephemeral cwd only | Isolated workspace; immutable-package Apply | Isolated workspace; immutable-package Apply + HITL for destructive / out-of-root actions | Unrestricted host-direct writes |
+| Network egress | Blocked (fail closed when unavailable) | Spawn-command deny; arbitrary child sockets advisory | Local service and egress tools through HITL; arbitrary child sockets advisory | Full |
 | Host env (`.ssh`, global `.env`) | Stripped / blinded | Filtered child env | Partial inherit | Full inherit |
 | External script runners | Disabled | Sandboxed shell in isolation bubble | Allowed; HITL hooks | Full shell |
 | Docker / local DB / dev servers | No | No (or stub) | Yes + HITL | Yes |
@@ -60,10 +60,16 @@ Configure via `permission_profile` in [[pytxo-toml]] (default `orbit`). Optional
 
 | Profile | Shipping today | North star |
 |---------|----------------|------------|
-| **Orbit** | `permission_profile` in config; worktree or sparse overlay (`prefer_kernel_overlay`); path waves; env strip (`SSH_*`); `spawn_egress_allowed` denies network fetch at spawn; `commit_workspace` → `IsolationBackend::flush` | Full kernel CoW; Tauri IPC approve before physical flush |
-| **DeepSpace** | Config + `PermissionEngine::max_fidelity(Low)`; env strip; `may_flush` denied; spawn egress denied; OS isolation hooks (Linux netns, macOS sandbox-exec, Windows WFP opt-in `PYTXO_DEEPSPACE_WFP=1`) | Stronger per-process WFP / AppContainer |
-| **Galaxy** | Spawn HITL (`fs.delete`, `git.push`, `git.destructive`, `proc.infrastructure`, `fs.permission`, `proc.docker`, `net.egress`, `net.bind`, `proc.package_install`); MCP proxy HITL (`mcp.tool`); flush HITL; stdin line gates; persisted `HitlQueue` | Full runtime syscall hooks |
-| **Supernova** | Skips worktree isolation (cwd = `repo_root`); flush without approval gate; spawn egress allowed | Explicit opt-in + audit logging |
+| **Orbit** | Worktree or sparse copy-layer; path waves; filtered child env; spawn-command network policy; persisted enforcement receipt; single-root immutable-package Apply | Kernel CoW and syscall-grade network/filesystem boundary |
+| **DeepSpace** | Low Signal fidelity; filtered env; non-flushable; spawn egress denied; dispatch fails closed when the required socket-isolation mechanism is unavailable | Strong per-process WFP / AppContainer on Windows and equivalent boundaries everywhere |
+| **Galaxy** | Isolated workspace plus single-root immutable-package Apply; spawn/MCP/stdin HITL for high-risk actions; persisted `HitlQueue` and enforcement receipt | Full runtime syscall hooks |
+| **Supernova** | Skips workspace isolation (`cwd = repo_root`); writes directly to the host tree; spawn egress allowed | Explicit opt-in + audit logging |
+
+Every run records `requested_profile`, `effective_profile`, execution domain,
+and four enforcement surfaces: workspace isolation, host filesystem boundary,
+network, and Apply boundary. A surface is labeled `enforced`, `advisory`,
+`unavailable`, or `bypassed`; presentation must not upgrade an advisory check
+into a sandbox claim.
 
 ## Policy traits (v2 — trait objects deferred)
 
@@ -84,7 +90,7 @@ Do not duplicate moat surfaces—profiles **select and parameterize** them:
 
 | Moat | Trait / type | Profile binding |
 |------|--------------|-----------------|
-| **Blast Shield** | `IsolationBackend` | **Orbit** primary: `prepare` / `rollback` / `flush` ([[blast-shield]]). `flush()` is the approve-channel contract; UI calls `commit_workspace` over IPC, orchestration calls `flush`. |
+| **Blast Shield** | `IsolationBackend` + prepared review package | Orbit/Galaxy stage exact add/modify/delete bytes for one repository root. Desktop calls `apply_run_changes`; orchestration validates affected paths and applies only the immutable package ([[ADR-0034-immutable-review-package-and-durable-apply]]). |
 | **Race Shield** | `RaceShield` | All profiles: path claims per [[execution-domains]]. **Galaxy** adds HITL for boundary violations and destructive ops. |
 | **Signal Core** | `SignalCore` | Unchanged API; profile may cap max `FidelityTier` on egress (e.g. DeepSpace → Low only). |
 | **Sovereign Shield** | `pytxo-sanitize` | All profiles when `sanitize = true` ([[regex-sanitization]], ADR-0006)—redaction is not authorization. |
@@ -96,9 +102,9 @@ Do not duplicate moat surfaces—profiles **select and parameterize** them:
 | Crate | Role |
 |-------|------|
 | `pytxo-core` | `PermissionProfile`, `DomainId`, `PermissionEngine` |
-| `pytxo-runner` | Enforce at `run_one_agent`: env, fidelity cap, Supernova cwd, `commit_workspace` |
-| `pytxo-orchestrate` | Resolve profile from config; `HypervisorRegistry` per-domain isolation |
-| `pytxo-store` | Audit `permission_profile` on `runs` row (future migration) |
+| `pytxo-runner` | Enforce agent env, fidelity cap, isolation, receipts, immutable package preparation, journaled Apply, and recovery |
+| `pytxo-orchestrate` | Resolve profile, keep workspaces through package preparation, and reconcile each execution domain |
+| `pytxo-store` | Persist requested/effective enforcement JSON, prepared manifests, Apply lifecycle/errors, and domain change cursors |
 
 Presentation ([[presentation-passive-telemetry]]) never enforces policy—only displays state and sends IPC intents.
 

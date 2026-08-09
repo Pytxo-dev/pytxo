@@ -2,7 +2,8 @@
 title: Pytxo Desktop
 ---
 
-**Pytxo Desktop** is an optional control UI for planning, supervising, and reviewing agent work. It is not a wall of terminal panes.
+**Pytxo Desktop** is an optional control UI for composing missions, watching
+execution, reviewing prepared changes, and deciding whether to Apply.
 
 Download installers from [pytxo.com/download](https://pytxo.com/download).
 
@@ -10,27 +11,49 @@ Download installers from [pytxo.com/download](https://pytxo.com/download).
 
 | Panel | What you see |
 |-------|----------------|
-| Operations | Active runs, agent health, approvals, failures, and structured activity |
-| Workspaces | One or more project folders under one coordinated run |
-| Runs & agents | Active swarms, waves, per-folder labels |
-| Flow | Mission drafts, reviewable plans, execution waves, agent CLI assignments, and dispatch |
-| Run Review | Semantic changes, validation, completion evidence, and recovery |
-| Topology | Structural Focus graph of edited files and import edges |
+| Flow | Compose, Active, History, and contextual Run Review |
+| Operations | Active runs, agent health, failures, and structured activity |
+| Workspaces | Project folders and execution-domain scope |
+| Run Review | Immutable manifest, exact changes, policy evidence, Apply history, and recovery |
+| Focus | Contextual structural graph of edited files and import edges |
 | Approvals | Pending Galaxy requests (with domain label) |
 | Integrations | Agent CLI availability; MCP hub is CLI/IDE (`pytxo-mcp`), not in-app connection config |
-| Project paths | Roots, read-only badges, permission tiers |
-| Fleet runs | Cross-repo fleet status via CLI today; Desktop fleet panel coming later |
-| Logs & diff | Supporting detail, not the main surface |
+| Settings | Theme, providers, update channel, and developer controls |
 
 ## Pytxo Flow
 
-Flow is the mission-to-plan workflow. Enter a text mission, select an execution domain, and
-review the resulting tasks, waves, path claims, agent CLI assignments, permissions, isolation, cost
-estimates, warnings, and blockers before dispatch.
+Flow is the mission home. Compose a mission, select one execution domain, and
+review tasks, waves, path claims, agent assignments, permissions, isolation,
+warnings, and blockers before dispatch. Active shows live state. History opens
+a completed run in Run Review without leaving Flow.
 
-Desktop sends intent; the orchestrator enforces Signal Core, Race Shield, Blast Shield,
-permission ceilings, and execution-domain validation before a plan can run.
+Desktop sends intent; the orchestrator enforces the permission ceiling,
+execution-domain boundary, path claims, and isolation requirements before a
+plan can run.
 There is no quick-run path: every Flow mission must be previewed first.
+
+## Run Review
+
+Run Review reads the persisted immutable manifest and exact diff content. It
+shows the full base revision and package digest, ownership DAG, requested and
+effective permission profile, enforcement receipt, verification result, and
+each addition, modification, and deletion.
+
+Orbit and Galaxy expose a guarded **Apply** action only when the package is
+ready. Pytxo validates the current preimage of each affected path and applies
+only the stored package to that repository root. Unrelated dirty files are
+allowed. A changed affected path marks the review stale.
+
+The view also covers preparation failure, retry after confirmed rollback,
+active Apply, recovered state, applied state, discard, and manual recovery.
+Advisory host controls remain visibly advisory.
+
+## Updates and reconnects
+
+Desktop receives immediate events for native mutations and catches up CLI or
+external changes through a monotonic domain cursor. Full snapshots are used
+for initial load, domain changes, reconnect or cursor reset, and an infrequent
+integrity refresh.
 
 ## Pytxo Voice
 

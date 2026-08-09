@@ -24,10 +24,10 @@ type Moat = {
 
 const MOATS: Moat[] = [
   {
-    title: "Less noise, lower token bills",
+    title: "Structure before source",
     badge: "Signal Core",
     description:
-      "Sends agents file skeletons (signatures, types, imports) instead of whole files, so every read starts smaller.",
+      "Starts reads with AST skeletons (signatures, types, and imports) so agents pull full source only when the task needs it.",
     href: "/docs/concepts/signal-core",
     icon: Braces,
     accent: "teal",
@@ -38,19 +38,19 @@ const MOATS: Moat[] = [
     },
   },
   {
-    title: "Safe parallel sandboxes",
+    title: "Prepared changes, one Apply",
     badge: "Blast Shield",
     description:
-      "Each agent works in its own copy. Nothing touches your real files until you approve the merge.",
+      "Orbit and Galaxy keep writes isolated. Within one execution domain and one repository root, Pytxo stores target blobs, validates affected paths, and journals Apply.",
     href: "/docs/concepts/blast-shield",
     icon: ShieldCheck,
     accent: "gold",
   },
   {
-    title: "Parallel runs without collisions",
+    title: "Schedule overlapping paths in order",
     badge: "Race Shield",
     description:
-      "Dependency-aware scheduling so agents that must run in order do, without locking your whole repo.",
+      "Path claims and dependencies become execution waves, so tasks that touch the same area do not run as independent work.",
     href: "/docs/concepts/race-shield",
     icon: GitMerge,
     accent: "violet",
@@ -60,45 +60,27 @@ const MOATS: Moat[] = [
 const ALSO_INCLUDED = [
   {
     title: "Mission planning with Flow",
-    badge: "Flow",
     description:
-      "Describe a mission, review the generated tasks, permissions, ADE assignments, and execution waves, then dispatch the approved plan.",
+      "Compose a mission, review tasks, paths, permissions, agent assignments, and waves, then dispatch the approved plan.",
     href: "/docs/concepts/desktop#pytxo-flow",
   },
   {
-    title: "Local-first voice capture",
-    badge: "Voice",
+    title: "Flow and Run Review",
     description:
-      "Turn speech into an editable Flow mission locally. Audio stays in bounded memory and is never written to Pytxo logs or storage.",
-    href: "/docs/concepts/desktop#pytxo-voice",
+      "Track active work and history in Flow. Run Review shows the package, exact file changes, policy evidence, recovery state, and Apply history.",
+    href: "/docs/concepts/desktop",
   },
   {
-    title: "Works with Cursor and your IDE",
-    badge: "MCP",
+    title: "Your agents keep their sessions",
     description:
-      "Local tool bridge so you can trigger runs and inspect status from the editor you already use.",
-    href: "/docs/getting-started/mcp-from-cursor",
+      "Codex, Claude Code, Cursor, Gemini, OpenCode, and generic commands stay vendor-owned while Pytxo coordinates execution.",
+    href: "/docs/reference/providers-byok",
   },
   {
-    title: "Multi-folder Workspaces",
-    badge: "Multi-root",
+    title: "Workspaces and fleet runs",
     description:
-      "One coordinated run across API, web, and shared folders. Each folder can have its own trust level.",
+      "Coordinate folders for planning and execution, or order separate repositories in a fleet. Each repository root keeps its own Apply boundary.",
     href: "/docs/concepts/modular-projects",
-  },
-  {
-    title: "Cross-repo fleet runs",
-    badge: "Fleet",
-    description:
-      "Coordinate agents across separate git repos when steps must finish in order, with status in Pytxo Desktop.",
-    href: "/docs/concepts/fleet-runs",
-  },
-  {
-    title: "Approval gates for risky actions",
-    badge: "Approvals",
-    description:
-      "Require a human OK before sensitive spawns or applying batched changes, from CLI, Desktop, or your editor.",
-    href: "/docs/concepts/galaxy-approvals",
   },
 ] as const;
 
@@ -171,10 +153,10 @@ export function FeatureGrid() {
   return (
     <section className="section-pad mx-auto max-w-6xl">
       <div className="flex max-w-2xl flex-col gap-3">
-        <h2 className="text-3xl sm:text-4xl">Built-in protections for real repositories</h2>
+        <h2 className="text-3xl sm:text-4xl">Controls around repository changes</h2>
         <p className="text-muted-foreground">
-          Every run starts with smaller context, isolated changes, and conflict-aware
-          scheduling. Signal, Blast, and Race are the internal names.
+          Pytxo starts reads from syntax structure, isolates agent writes, assigns path
+          ownership, and prepares one package for review.
         </p>
       </div>
 
@@ -185,21 +167,18 @@ export function FeatureGrid() {
       </div>
 
       <div className="mt-16 flex max-w-2xl flex-col gap-3">
-        <h3 className="text-2xl font-semibold tracking-tight">Also included</h3>
+        <h3 className="text-2xl font-semibold tracking-tight">
+          Fits the tools you already use
+        </h3>
         <p className="text-muted-foreground">
-          Text-first Flow, local-first Voice, editor integration, Workspaces, fleets, and
-          approval gates.
+          Keep your editor, agent accounts, and provider keys. Add the coordination layer
+          around them.
         </p>
       </div>
       <div className="mt-8 grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-border bg-border sm:grid-cols-2">
         {ALSO_INCLUDED.map((item) => (
           <div key={item.title} className="flex h-full flex-col gap-3 bg-background p-6">
-            <div className="flex items-start justify-between gap-2">
-              <h4 className="font-semibold tracking-tight">{item.title}</h4>
-              <Badge variant="secondary" className="shrink-0 bg-white/5">
-                {item.badge}
-              </Badge>
-            </div>
+            <h4 className="font-semibold tracking-tight">{item.title}</h4>
             <p className="text-sm leading-relaxed text-muted-foreground">{item.description}</p>
             <Link
               href={item.href}

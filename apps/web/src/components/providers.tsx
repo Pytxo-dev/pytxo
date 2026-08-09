@@ -1,7 +1,7 @@
 "use client";
 
 import { ClerkProvider } from "@clerk/nextjs";
-import { shadcn } from "@clerk/ui/themes";
+import { shadcn } from "@clerk/themes";
 import type { ReactNode } from "react";
 
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";

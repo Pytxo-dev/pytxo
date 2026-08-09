@@ -40,7 +40,7 @@ Pytxo will:
 4. Ask `Approve mission? [Y/n]` (use `--yes` to skip)
 5. Run agents in isolated copies of the repo
 6. Run any suggested verify commands
-7. Print a mission report and how to apply (flush) accepted work
+7. Persist the run contract and prepare an immutable review package
 
 Preview only:
 
@@ -50,13 +50,24 @@ pytxo mission "…" --json
 
 ## After the run
 
-Review the report. Apply accepted changes when verifies passed:
+Open **Pytxo Desktop -> Flow -> History -> Run Review**. Run Review is the
+reviewed-package Apply surface for Orbit and Galaxy. It shows the exact
+prepared additions, modifications, and deletions. Before Apply, Pytxo checks
+the current preimage of every affected path; unrelated dirty files are
+allowed. A changed affected path marks the review stale.
+
+The `hitl` command manages Galaxy approval requests only:
 
 ```bash
 pytxo hitl list
-# or use Pytxo Desktop → Approvals / Run Review → Complete run
+pytxo hitl approve <id>
 ```
 
-Orbit never auto-merges. Verification unlocks eligibility; you still approve the flush.
+These commands do not initiate Apply. Orbit has no Galaxy HITL step; Orbit
+users review and Apply the prepared package in Run Review.
+
+Reviewed Apply covers Orbit and Galaxy in one execution domain and one
+repository root. DeepSpace is non-flushable. Supernova writes directly to the
+host tree.
 
 Back: [[mission-loop]] · [[MOC-home]]

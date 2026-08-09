@@ -12,6 +12,21 @@ related: [[MOC-home]]
 
 # Documentation changelog
 
+## 2026-07-31 (v1.1 release preparation)
+
+- Preserved [[ADR-0033-reviewed-run-atomic-apply]] and added
+  [[ADR-0034-immutable-review-package-and-durable-apply]] to record the
+  superseding v1.1 Apply contract.
+- Aligned public and canonical docs on immutable prepared bytes,
+  affected-path drift detection, one repository root, and automatic
+  process-crash reconciliation.
+- Updated Flow and Run Review documentation for mission history, exact package
+  evidence, retry, stale refresh, discard, and manual recovery.
+- Replaced product images with the final deterministic Desktop captures.
+- Updated the 52-second demo documentation for no burned subtitles, an external
+  transcript, a provisional SRT that still needs retiming, and the blocked
+  narrated master.
+
 ## 2026-07-31 (v1.0.0 release)
 
 - Synchronized install, Desktop setup, first-mission, provider, website, npm,

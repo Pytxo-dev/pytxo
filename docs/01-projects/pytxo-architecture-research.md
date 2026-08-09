@@ -6,8 +6,8 @@ tags: [project, research, architecture, synthesis]
 audience: [human, agent]
 layer: meta
 created: 2026-07-27
-updated: 2026-07-27
-related: [[MOC-home]], [[product-vision]], [[architecture-index]], [[three-tier-model]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[adr-index]], [[repository-layout]], [[pytxo-improvement-research]], [[glossary]]
+updated: 2026-08-01
+related: [[MOC-home]], [[product-vision]], [[architecture-index]], [[three-tier-model]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[adr-index]], [[repository-layout]], [[pytxo-improvement-research]], [[glossary]], [[ADR-0034-immutable-review-package-and-durable-apply]]
 ---
 
 # Pytxo architecture research synthesis
@@ -55,7 +55,15 @@ The presentation contract is concrete: the UI sends intents (`list_domains`, `ta
 
 **Signal Core.** Intercepts file reads and emits structural skeletons before context leaves the machine. The Phase 78 real-repo pin reports **82.9% weighted scaffold-byte reduction** across 185 tracked production files; it is explicitly not a billable-token, cost, or task-success claim (`tooling/benchmarks/real-repo-signal.ps1`, [[signal-core]], [[competitive-benchmarks]]). Code confirms 9 grammar ids across 8+ languages: Rust, TypeScript/TSX, JavaScript, Python, Go, Java, C, C++, Ruby (`crates/pytxo-signal/src/language.rs`); unknown extensions fall back to raw bytes.
 
-**Blast Shield.** Model is physical disk ← flush-on-approve ← per-agent worktree or copy-layer upper ← PTY agents. Shipping since Phase 69 is git worktrees plus a sparse **copy-layer** default via `prefer_kernel_overlay`, labeled `projfs-sparse-copy-v2` on Windows — explicitly *not* a kernel ProjFS provider and *not* an mmap CoW filesystem ([[blast-shield]], [[sparse-overlay-fs]], [[mvp-bootstrap]] Phase 69). Flush semantics are fixed by [[ADR-0017-overlay-flush-contract]]: copy-layer flush recursively copies the upper tree into `repo_root`; worktree backends use `merge_agent_branch`.
+**Blast Shield.** The shipping path is physical repository ← affected-path
+validation and journaled Apply ← immutable review package ← per-agent worktree
+or copy-layer ← PTY agent. Git worktrees and the sparse copy-layer share the
+same package format, including untracked and binary additions. The Windows
+label `projfs-sparse-copy-v2` is not a kernel ProjFS provider or mmap CoW
+filesystem. [[ADR-0034-immutable-review-package-and-durable-apply]]
+supersedes ADR-0033: Orbit and Galaxy Apply only stored target blobs for one
+repository root, with process-crash reconciliation before another run or
+Apply.
 
 **Race Shield.** `SwarmRegistry` splits locks — `RwLock` over path claims, `Mutex` over the stdin buffer (Phase 70) — so PTY stdin pumps do not serialize against disjoint claim waves. Lock-free or path-prefix shards are deferred until `registry_contention_*` profiling justifies them ([[race-shield]]). Galaxy profiles route high-risk actions to a per-domain `HitlQueue` persisted to `{data_dir}/hitl.json` ([[ADR-0016-galaxy-hitl-enforcement]]).
 
@@ -66,8 +74,8 @@ The presentation contract is concrete: the UI sends intents (`list_domains`, `ta
 | Profile | Reads | Writes | Network | Primary moat binding |
 |---------|-------|--------|---------|----------------------|
 | **DeepSpace** (1) | Agent cwd only | Denied or ephemeral | Blocked | Signal read-only scaffold; fidelity capped to Low |
-| **Orbit** (2, default) | Full repo | CoW/worktree; flush via IPC approve | Default deny (allowlist TBD) | Blast + Race + Signal |
-| **Galaxy** (3) | Full repo | Physical writes; HITL for destructive/out-of-root | Local service ports | Race HITL + optional Blast |
+| **Orbit** (2, default) | Full repo | Isolated workspace; immutable-package Apply | Default deny (allowlist TBD) | Blast + Race + Signal |
+| **Galaxy** (3) | Full repo | Isolated workspace; immutable-package Apply; HITL for destructive/out-of-root | Local service ports | Race HITL + Blast |
 | **Supernova** (4) | Full repo | Unrestricted | Full | Race advisory only |
 
 The type lives in `crates/pytxo-core/src/moat/permission/mod.rs` with `filesystem.rs`, `network.rs`, and `environment.rs` sub-policies; `PermissionEngine` exposes `max_fidelity`, `flush_requires_approval`, `may_flush`, `may_read`, `use_worktree_isolation`, `spawn_egress_allowed`, and env sanitization. `ProcessPolicy` is documented as **deferred to Phase 75** and is correctly absent from the crates (verified: no matches in `crates/`).
@@ -97,7 +105,15 @@ Execution backend default is `portable-pty`, with `execution_backend = "subproce
 
 **MCP hub** (`crates/pytxo-mcp`). Stdio MCP server exposing 13 tools (`crates/pytxo-mcp/src/main.rs`): `pytxo_dry_run`, `pytxo_run`, `pytxo_status`, `pytxo_logs`, `pytxo_read`, `pytxo_read_scaffolded`, `pytxo_stdin`, `pytxo_route_stdin`, `pytxo_list_live_agents`, `pytxo_mcp_proxy`, `pytxo_mcp_tools_list`, `pytxo_project_run`, `pytxo_fleet_run`, `pytxo_fleet_status`. Read tools scaffold on demand through the same Signal Core; `mcp_proxy_call` passes through a Galaxy `mcp.tool` HITL gate ([[ADR-0018-network-and-mcp-policy]]). Runtime registry and resource subscriptions live in `crates/pytxo-runner/src/mcp_hub.rs` ([[mvp-bootstrap]] Phase 67).
 
-**Desktop** (`apps/desktop`, crate `pytxo-desktop`). Default surface is **Desktop 2**: a structural Focus graph (`FocusScreen.svelte`) plus Ops, Flow, Approvals, and Run Review; the interactive 3D AST topology (`TopologyScene3D.svelte`) is legacy-shell only behind `desktop_shell_v1=true` ([[desktop-visual-system]], [[presentation-passive-telemetry]], [[ADR-0028-desktop-product-name]]). Visual language: obsidian void `#020205` with teal / violet / solar gold accents, shared through `packages/chroma` ([[ADR-0029-chroma-shared-design-tokens]]). Phase 74 shipped live ~1s Ops polling, a selectable Approvals inbox, domain breadcrumbs, and a thin Fleet panel from `snapshot.fleets` ([[market-ready-polish-research]], [[mvp-bootstrap]]).
+**Desktop** (`apps/desktop`, crate `pytxo-desktop`). Flow is the default
+mission surface: Compose, Active, History, and contextual Run Review.
+Operations, Workspaces, and Settings are the other primary destinations.
+Structural Focus is contextual. The 3D Deck is excluded from the normal
+production startup path and lazy-loads only in development behind both legacy
+flags. Native mutations emit domain events; a monotonic cursor catches up CLI
+and external changes, with snapshots reserved for load, reconnect/reset, and
+an infrequent integrity check ([[desktop-visual-system]],
+[[presentation-passive-telemetry]]).
 
 **Public docs** (`apps/web`). Fumadocs MDX inside the Next.js App Router at `/docs`, sourced from `apps/web/content/docs/**/*.mdx` (38 pages), with Docusaurus retired from the deploy path ([[ADR-0030-public-docs-fumadocs-next]]).
 
@@ -116,7 +132,8 @@ Sovereign Shield is sanitization plus cryptographic remote actions ([[glossary]]
 
 ## 9. ADR index summary
 
-All 30 ADRs in `docs/05-adr/` are **accepted**; the catalog states they are immutable once accepted and must be superseded rather than edited ([[adr-index]]).
+All 34 ADRs in `docs/05-adr/` are accepted. The catalog states that accepted
+records are immutable and must be superseded by a new ADR ([[adr-index]]).
 
 | ID | Decision in one line |
 |----|----------------------|
@@ -150,6 +167,10 @@ All 30 ADRs in `docs/05-adr/` are **accepted**; the catalog states they are immu
 | [[ADR-0028-desktop-product-name]] | Product name is Pytxo Desktop (not Reality Deck); ADR-0023 technical choice unchanged |
 | [[ADR-0029-chroma-shared-design-tokens]] | Extract `packages/chroma` shared tokens (renumbered from a duplicate ADR-0014) |
 | [[ADR-0030-public-docs-fumadocs-next]] | Public docs move to Fumadocs MDX in `apps/web`; retire Docusaurus from deploy |
+| [[ADR-0031-mission-planner-byok-scout]] | Bounded mission planning with optional BYOK scout and explicit ownership |
+| [[ADR-0032-desktop-2-focus-flow-primary]] | Flow and structural Focus replace the 3D Deck as the primary Desktop path |
+| [[ADR-0033-reviewed-run-atomic-apply]] | Historical run-level reviewed Apply contract; superseded by ADR-0034 |
+| [[ADR-0034-immutable-review-package-and-durable-apply]] | Immutable target blobs, affected-path validation, and journaled single-root Apply recovery |
 
 ## 10. Repository and crate map (docs vs code)
 
@@ -159,11 +180,11 @@ All 30 ADRs in `docs/05-adr/` are **accepted**; the catalog states they are immu
 |-------|------|----------|
 | `pytxo-core` | Config, plan/task types, ids, path utils, `moat::{permission,blast,race,signal}`, `billing/*`, `cloud/*`, `child_env`, `trust`, `ade_registry`, `service_health` | `crates/pytxo-core/src/**` |
 | `pytxo-scheduler` | DAG construction, waves, path-overlap preflight | `dag.rs`, `waves.rs`, `overlap.rs` |
-| `pytxo-runner` | PTY/subprocess spawn, Blast overlays, Race registry, HITL gates, MCP hub, context materialization, arbitrage, network isolation, kill/process registry | `pty.rs`, `blast.rs`, `race.rs`, `hitl*.rs`, `mcp_hub.rs`, `context.rs`, `arbitrage.rs`, `network_isolation.rs` |
-| `pytxo-store` | SQLite schema/migrations, per-domain store, hypervisor catalog, project store, billing tables | `schema.rs`, `migrate.rs`, `catalog.rs`, `project_store.rs`, `billing.rs` |
+| `pytxo-runner` | Agent spawn, isolation, Race/HITL, context materialization, immutable review packages, journaled Apply, recovery | `pty.rs`, `blast.rs`, `change_set.rs`, `race.rs`, `hitl*.rs`, `context.rs` |
+| `pytxo-store` | SQLite schema/migrations, per-domain store, review lifecycle/errors, domain change cursor, hypervisor catalog, billing | `schema.rs`, `migrate.rs`, `store.rs`, `catalog.rs`, `billing.rs` |
 | `pytxo-sanitize` | Regex redaction rules | `lib.rs` |
 | `pytxo-signal` | tree-sitter language detection, skeleton emit, structural graph | `language.rs`, `emit.rs`, `graph.rs` |
-| `pytxo-orchestrate` | Shared run/stop/status/dry-run, hypervisor registry, fleet, projects, billing, cloud dispatch, doctor, dashboard, entitlements, structural snapshots | `hypervisor.rs`, `fleet.rs`, `project.rs`, `billing.rs`, `cloud.rs`, `doctor.rs`, `dashboard.rs` |
+| `pytxo-orchestrate` | Run finalization, package preparation, reviewed Apply/recovery, run/stop/status, hypervisor registry, fleet, billing, cloud dispatch, doctor, snapshots | `lib.rs`, `hypervisor.rs`, `fleet.rs`, `billing.rs`, `cloud.rs`, `doctor.rs`, `dashboard.rs` |
 | `pytxo-cli` | Argument parsing and wiring only | `main.rs`, `commands.rs`, `models.rs` |
 | `pytxo-tui` | Hypervisor Shell TUI, theme, input | `shell_app.rs`, `theme.rs`, `input.rs` |
 | `pytxo-shell` | Slash-command grammar/session shared by TUI and other surfaces | `command.rs`, `eval.rs`, `session.rs` |
@@ -194,7 +215,7 @@ Condensed from [[glossary]] and the product-language table in [`AGENTS.md`](../.
 | **Permission profile** | Local trust ladder: DeepSpace, Orbit (default), Galaxy, Supernova |
 | **Workspace / Pytxo project** | Modular project: one or more path roots under one coordinated run |
 | **Path root** | One directory on a project's allowlist; tasks and claims resolve relative to it |
-| **Pytxo Desktop** | Optional control UI — Desktop 2 structural Focus; 3D topology is legacy-shell only |
+| **Pytxo Desktop** | Optional control UI: Flow mission home, Run Review, Operations, Workspaces, Settings; Focus is contextual |
 | **Sovereign Shield** | Sanitization plus cryptographic remote approvals |
 | **Sparse overlay FS** | Shipping sparse copy-layer (plus worktrees); kernel FUSE/ProjFS is north star |
 | **Adaptive Semantic Scaffolding** | Fidelity tiers (Low/Medium/High) inside Signal Core |
@@ -259,7 +280,7 @@ Read for this synthesis (paths relative to repo root):
 15. `docs/02-areas/security/permission-profile-engine.md`, `regex-sanitization.md`, `pytxo-link-signing.md`, `deepspace-network-v2.md`
 16. `docs/02-areas/cloud/hybrid-execution.md`, `sandbox-dispatch.md`, `delta-sync.md`
 17. `docs/02-areas/positioning/beyond-the-ade.md`, `agent-os-vs-virtual-workspace.md`
-18. `docs/05-adr/index.md` and all 30 ADR files (full reads: 0001, 0006, 0008, 0009, 0010; decision sections for the rest)
+18. `docs/05-adr/index.md` and all 34 ADR files (full reads: 0001, 0006, 0008, 0009, 0010, 0033, 0034; decision sections for the rest)
 19. `docs/08-reference/repository-layout.md`, `cli.md`, `pytxo-toml.md`
 20. `docs/01-projects/pytxo-improvement-research.md`, `mvp-bootstrap.md`
 21. `docs/07-guides/compare/pytxo-vs-claude-agent-teams.md`

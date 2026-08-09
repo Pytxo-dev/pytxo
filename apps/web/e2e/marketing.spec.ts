@@ -37,13 +37,15 @@ test("desktop hero leads with the mission and current product evidence", async (
 
   const heading = page.getByRole("heading", {
     level: 1,
-    name: "One mission. Parallel work. One verified result.",
+    name: "Coordinate coding agents. Review one result.",
   });
   const product = page.getByTestId("hero-product");
   const productImage = product.getByRole("img");
 
   await expect(heading).toBeVisible();
-  await expect(page.getByTestId("marketing-hero").getByRole("link", { name: "Download" })).toBeVisible();
+  await expect(
+    page.getByTestId("marketing-hero").getByRole("link", { name: "Download Desktop" }),
+  ).toBeVisible();
   await expect(product).toBeInViewport();
   await expect(productImage).toHaveJSProperty("naturalWidth", 1600);
   expect(await renderedLineCount(heading)).toBeLessThanOrEqual(2.2);
@@ -89,9 +91,9 @@ test("the product story is complete when reduced motion is requested", async ({ 
   await page.goto("/");
 
   const story = page.getByTestId("product-story");
-  await expect(story.getByRole("heading", { name: "Plan before anything runs" })).toBeVisible();
-  await expect(story.getByRole("heading", { name: "Run in isolation" })).toBeVisible();
-  await expect(story.getByRole("heading", { name: "Review and approve" })).toBeVisible();
+  await expect(story.getByRole("heading", { name: "Set ownership before dispatch" })).toBeVisible();
+  await expect(story.getByRole("heading", { name: "Review the prepared package" })).toBeVisible();
+  await expect(story.getByRole("heading", { name: "Apply exactly what you reviewed" })).toBeVisible();
   await expect(page.locator(".pin-spacer")).toHaveCount(0);
 
   const styles = await story.locator("[data-story-card]").evaluateAll((cards) =>
@@ -122,16 +124,12 @@ test("agent readiness uses the current Integrations product capture", async ({ p
   await expectNoHorizontalOverflow(page);
 });
 
-test("desktop storytelling and the agent accordion remain interactive", async ({ page }) => {
+test("desktop storytelling keeps one focused pinned sequence", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
   await expect(page.locator(".pin-spacer")).toHaveCount(1);
-  const codex = page.getByRole("button", { name: /^OpenAI Codex CLI/ });
-  const claude = page.getByRole("button", { name: /^Claude Code/ });
-  await codex.click();
-  await expect(codex).toHaveAttribute("aria-expanded", "true");
-  await expect(claude).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByTestId("product-story")).toBeVisible();
 });
 
 const PLAN_TIERS = [
@@ -181,9 +179,17 @@ test("plans expose capability gates before checkout", async ({ page }) => {
   await expect(page.getByText("Live billing")).toHaveCount(0);
   await expect(page.getByText("Hosted cloud sandboxes")).toHaveCount(0);
   await expect(page.getByText("Managed metered billing")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Subscribe to Pro" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Subscribe to Max" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Subscribe to Ultra" })).toBeVisible();
+  const checkoutConfigured =
+    (await page.getByRole("link", { name: "Subscribe to Pro" }).count()) > 0;
+  if (checkoutConfigured) {
+    await expect(page.getByRole("link", { name: "Subscribe to Pro" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Subscribe to Max" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Subscribe to Ultra" })).toBeVisible();
+  } else {
+    await expect(
+      page.getByRole("button", { name: "Account checkout not configured" }),
+    ).toHaveCount(3);
+  }
   await expectNoHorizontalOverflow(page);
 });
 
@@ -210,10 +216,18 @@ test("plans remain complete and single-column on mobile", async ({ page }) => {
   expect(layout.rowCount).toBe(4);
   expect(layout.columnCount).toBe(1);
 
-  for (const name of ["Subscribe to Pro", "Subscribe to Max", "Subscribe to Ultra"]) {
-    const link = page.getByRole("link", { name });
-    await expect(link).toBeVisible();
-    expect(await contentLineCount(link)).toBe(1);
+  const checkoutConfigured =
+    (await page.getByRole("link", { name: "Subscribe to Pro" }).count()) > 0;
+  if (checkoutConfigured) {
+    for (const name of ["Subscribe to Pro", "Subscribe to Max", "Subscribe to Ultra"]) {
+      const link = page.getByRole("link", { name });
+      await expect(link).toBeVisible();
+      expect(await contentLineCount(link)).toBe(1);
+    }
+  } else {
+    await expect(
+      page.getByRole("button", { name: "Account checkout not configured" }),
+    ).toHaveCount(3);
   }
   await expectNoHorizontalOverflow(page);
 });

@@ -5,28 +5,52 @@ import { fileURLToPath } from "node:url";
 
 const WEB_ROOT = fileURLToPath(new URL("../", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+const DESKTOP_CAPTURE_DIR = path.join(
+  REPO_ROOT,
+  "apps",
+  "desktop",
+  "captures",
+  "desktop-2",
+);
 const DOCS_CAPTURE_DIR = path.join(REPO_ROOT, "docs", "_attachments", "desktop-2");
 const WEB_CAPTURE_DIR = path.join(WEB_ROOT, "public", "product");
 
-const ROUTES = [
+const REFERENCE_ROUTES = [
   "operations",
   "workspaces",
-  "runs",
   "flow",
   "approvals",
   "integrations",
   "settings",
   "topology-focus",
   "run-review",
+  "run-applied",
 ];
 const VIEWPORTS = [
   { slug: "1600x1000", width: 1600, height: 1000 },
   { slug: "1280x800", width: 1280, height: 800 },
   { slug: "960x640", width: 960, height: 640 },
 ];
-const MARKETING_ROUTES = ["operations", "flow", "approvals", "integrations"];
+const MARKETING_ROUTES = [
+  "operations",
+  "flow",
+  "approvals",
+  "integrations",
+  "run-review",
+  "run-applied",
+];
 const MARKETING_VIEWPORTS = VIEWPORTS.filter(({ slug }) => slug !== "1280x800");
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+function entriesFor(directory, routes, viewports) {
+  return routes.flatMap((route) =>
+    viewports.map((viewport) => ({
+      ...viewport,
+      route,
+      file: path.join(directory, `${route}-${viewport.slug}.png`),
+    })),
+  );
+}
 
 function inspectPng(buffer, file, expected) {
   if (buffer.byteLength < 40_000) {
@@ -62,52 +86,61 @@ async function inspectSet(entries, label) {
   return entries;
 }
 
-const marketing = await inspectSet(
-  MARKETING_ROUTES.flatMap((route) =>
-    MARKETING_VIEWPORTS.map((viewport) => ({
-      ...viewport,
-      route,
-      file: path.join(WEB_CAPTURE_DIR, `${route}-${viewport.slug}.png`),
-    })),
-  ),
-  "Marketing product set",
-);
-
-let docs = [];
-let docsAvailable = true;
-try {
-  await access(DOCS_CAPTURE_DIR);
-} catch (error) {
-  if (error?.code !== "ENOENT") {
+async function directoryExists(directory) {
+  try {
+    await access(directory);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
     throw error;
   }
-  docsAvailable = false;
 }
 
-if (docsAvailable) {
-  docs = await inspectSet(
-    ROUTES.flatMap((route) =>
-      VIEWPORTS.map((viewport) => ({
-        ...viewport,
-        route,
-        file: path.join(DOCS_CAPTURE_DIR, `${route}-${viewport.slug}.png`),
-      })),
-    ),
-    "Desktop reference set",
-  );
+async function requireDirectory(directory, label) {
+  if (!(await directoryExists(directory))) {
+    throw new Error(`Missing ${label}: ${directory}`);
+  }
+}
 
-  for (const asset of marketing) {
-    const source = docs.find(
+function assertParity(actual, source, label) {
+  for (const asset of actual) {
+    const reference = source.find(
       ({ route, slug }) => route === asset.route && slug === asset.slug,
     );
-    if (!source || source.hash !== asset.hash) {
-      throw new Error(`${asset.file} does not match its current Desktop reference capture`);
+    if (!reference || reference.hash !== asset.hash) {
+      throw new Error(`${asset.file} does not match ${label}`);
     }
   }
 }
 
+const marketing = await inspectSet(
+  entriesFor(WEB_CAPTURE_DIR, MARKETING_ROUTES, MARKETING_VIEWPORTS),
+  "Marketing product set",
+);
+
+await requireDirectory(
+  DESKTOP_CAPTURE_DIR,
+  "canonical deterministic Desktop capture directory",
+);
+const desktop = await inspectSet(
+  entriesFor(DESKTOP_CAPTURE_DIR, REFERENCE_ROUTES, VIEWPORTS),
+  "Deterministic Desktop source set",
+);
+
+let docs = [];
+if (await directoryExists(DOCS_CAPTURE_DIR)) {
+  docs = await inspectSet(
+    entriesFor(DOCS_CAPTURE_DIR, REFERENCE_ROUTES, VIEWPORTS),
+    "Documentation reference set",
+  );
+}
+
+if (docs.length > 0) {
+  assertParity(docs, desktop, "its deterministic Desktop source capture");
+}
+
+assertParity(marketing, desktop, "its deterministic Desktop source capture");
+
 console.log(
-  docs.length > 0
-    ? `Verified ${docs.length} Desktop references and ${marketing.length} marketing product captures: correct dimensions, distinct content, and matching sources.`
-    : `Verified ${marketing.length} deployment product captures: correct dimensions and distinct content. Canonical Desktop source parity runs from the monorepo checkout.`,
+  `Verified ${desktop.length} Desktop source captures, ${docs.length} documentation references, and ${marketing.length} marketing captures: dimensions, distinct content, and source parity.`,
 );
