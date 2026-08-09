@@ -19,6 +19,11 @@ echo "=== dry-run ==="
 
 echo "=== execute (echo) ==="
 "$PYTXO" trust orbit
+# Trust setup writes the local policy metadata used by the real Apply guard.
+# Commit it before dispatch so the smoke test reaches execution instead of
+# rejecting its own fixture bootstrap as dirty.
+git add -A
+git commit -q -m "record pytxo trust fixture"
 "$PYTXO" run --config pytxo.toml --cmd "echo pytxo-agent"
 
 echo "=== status ==="
