@@ -1,17 +1,11 @@
 import "@fontsource-variable/geist";
 import {Composition} from "remotion";
 import {
+  FPS,
   PytxoLaunchDemo,
-  TRANSITION_FRAMES,
+  TOTAL_FRAMES,
   type PytxoLaunchDemoProps,
 } from "./PytxoLaunchDemo";
-import voiceover from "./voiceover.json";
-
-export const FPS = 30;
-export const TOTAL_FRAMES = voiceover.reduce(
-  (sum, scene) => sum + scene.durationInFrames,
-  0,
-) - (voiceover.length - 1) * TRANSITION_FRAMES;
 
 export const RemotionRoot = () => {
   return (
@@ -24,7 +18,7 @@ export const RemotionRoot = () => {
       height={1080}
       defaultProps={
         {
-          includeVoiceover: false,
+          includeAudio: false,
         } satisfies PytxoLaunchDemoProps
       }
     />
