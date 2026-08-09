@@ -9,6 +9,12 @@ export type RunDto = {
   permission_profile: string | null;
   isolation_mode: string;
   isolation_backend: string;
+  apply_status: string | null;
+  applied_at: string | null;
+  prepared_digest: string | null;
+  prepared_at: string | null;
+  last_apply_error: RunApplyError | null;
+  recovery_state: string | null;
 };
 
 export type AgentDto = {
@@ -19,6 +25,159 @@ export type AgentDto = {
   status: string;
   exit_code: number | null;
   root_id: string | null;
+};
+
+export type RunApplyManifest = {
+  transaction_id: string;
+  changes: Array<{
+    path: string;
+    kind: "add" | "modify" | "delete";
+    source_agent_id: string;
+    source_task_id: string;
+    base_digest: string | null;
+    result_digest: string | null;
+  }>;
+};
+
+export type RunApplyError = {
+  at: string;
+  code: string;
+  message: string;
+  attempt_id: string | null;
+  rollback_confirmed: boolean;
+};
+
+export type RunApplyAttempt = {
+  attempt_id: string;
+  created_at: string | null;
+  phase: string;
+  outcome: "committed" | "rolled_back" | "recovery_required" | "interrupted";
+  error_code: string | null;
+  error_message: string | null;
+  rollback_confirmed: boolean;
+};
+
+export type PreparedRunSummary = {
+  added: number;
+  modified: number;
+  deleted: number;
+  bytes: number;
+};
+
+export type PreparedRunFile = {
+  path: string;
+  kind: "add" | "modify" | "delete";
+  before_sha256: string | null;
+  after_sha256: string | null;
+  byte_count: number;
+  task_id: string;
+  agent_id: string;
+  blob_digest: string | null;
+  before_mode: number | null;
+  after_mode: number | null;
+  before_byte_count: number;
+  after_byte_count: number;
+  before_is_binary: boolean | null;
+  after_is_binary: boolean | null;
+  before_chunks: PreparedBlobChunk[];
+  after_chunks: PreparedBlobChunk[];
+};
+
+export type PreparedBlobChunk = {
+  offset: number;
+  length: number;
+  sha256: string;
+};
+
+export type PreparedContentChunkDto = {
+  run_id: string;
+  package_digest: string;
+  path: string;
+  side: "before" | "after";
+  digest: string;
+  byte_count: number;
+  binary: boolean;
+  offset: number;
+  length: number;
+  next_offset: number;
+  complete: boolean;
+  data_base64: string;
+};
+
+export type PreparedRunManifest = {
+  version: number;
+  run_id: string;
+  base_revision: string;
+  prepared_at: string;
+  package_digest: string;
+  summary: PreparedRunSummary;
+  files: PreparedRunFile[];
+};
+
+export type DomainChangeDto = {
+  sequence: number;
+  entity_kind: string;
+  entity_id: string;
+  changed_at: string;
+};
+
+export type DomainChangesPageDto = {
+  changes: DomainChangeDto[];
+  next_cursor: number;
+  has_more: boolean;
+  cursor_gap: boolean;
+};
+
+export type DesktopChangedEvent = {
+  domain_id: string;
+  entity_kind: string;
+  entity_id: string;
+};
+
+export type EnforcementSurface = {
+  status: "enforced" | "advisory" | "unavailable" | "bypassed";
+  mechanism: string;
+  detail: string;
+};
+
+export type PermissionEnforcementReceipt = {
+  requested_profile: string;
+  effective_profile: string;
+  execution_domain: string;
+  workspace_isolation: EnforcementSurface;
+  host_filesystem_boundary: EnforcementSurface;
+  network: EnforcementSurface;
+  apply_boundary: EnforcementSurface;
+};
+
+export type RunReviewDto = {
+  run_id: string;
+  base_revision: string | null;
+  apply_status: string;
+  applied_at: string | null;
+  plan: {
+    waves: Array<Array<{
+      task_id: string;
+      agent: string;
+      paths: string[];
+      depends_on: string[];
+      wave: number;
+      root: string | null;
+      verify: string[];
+    }>>;
+    warnings: string[];
+  };
+  enforcement: {
+    run: PermissionEnforcementReceipt;
+    agents: Record<string, PermissionEnforcementReceipt>;
+  };
+  apply_manifest: RunApplyManifest | { error: string } | null;
+  prepared_manifest: PreparedRunManifest | null;
+  prepared_digest: string | null;
+  prepared_at: string | null;
+  last_apply_error: RunApplyError | null;
+  recovery_state: string | null;
+  apply_attempts: RunApplyAttempt[];
 };
 
 export type ProjectDto = { id: string; manifest_path: string };

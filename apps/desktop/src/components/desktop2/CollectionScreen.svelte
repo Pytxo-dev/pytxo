@@ -352,10 +352,10 @@
     <article class="panel table-panel">
       <div class="panel-head"><h2>Run history</h2><span>{snapshot.runs.length} run{snapshot.runs.length === 1 ? "" : "s"}</span></div>
       <div class="data-table" role="table">
-        <div class="table-row table-header" role="row"><span role="columnheader">Run</span><span role="columnheader">Workspace</span><span role="columnheader">Status</span><span role="columnheader">Policy</span><span role="columnheader">Estimate</span></div>
+        <div class="table-row table-header" role="row"><span role="columnheader">Run</span><span role="columnheader">Workspace</span><span role="columnheader">Execution</span><span role="columnheader">Apply</span><span role="columnheader">Policy</span><span role="columnheader">Estimate</span></div>
         {#if snapshot.runs.length}
           {#each snapshot.runs as run}
-            <div class="table-row" role="row" tabindex="0" onclick={() => onReviewRun(run.id)} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onReviewRun(run.id); } }}><span class="mono" role="cell">{run.id}</span><span role="cell">{run.repo_root.split(/[\\/]/).pop()}</span><span role="cell"><i class:active={run.status === "running"}></i>{run.status}</span><span role="cell">{run.permission_profile}</span><span role="cell">${(run.estimated_cost_usd ?? 0).toFixed(2)} <IconChevronRight size={15} /></span></div>
+            <div class="table-row" role="row" tabindex="0" onclick={() => onReviewRun(run.id)} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onReviewRun(run.id); } }}><span class="mono" role="cell">{run.id}</span><span role="cell">{run.repo_root.split(/[\\/]/).pop()}</span><span role="cell"><i class:active={run.status === "running"}></i>{run.status}</span><span role="cell" class:healthy={run.apply_status === "ready" || run.apply_status === "applied"}>{run.apply_status ?? "legacy"}</span><span role="cell">{run.permission_profile}</span><span role="cell">${(run.estimated_cost_usd ?? 0).toFixed(2)} <IconChevronRight size={15} /></span></div>
           {/each}
         {:else}
           <div class="empty"><strong>No runs yet</strong><span>Dispatch a Flow to populate run history.</span></div>
@@ -518,3 +518,9 @@
     </div>
   {/if}
 </section>
+
+<style>
+  :global(.desktop2) .data-table .table-row {
+    grid-template-columns: 1fr 1.2fr 0.72fr 0.76fr 0.66fr 0.72fr;
+  }
+</style>

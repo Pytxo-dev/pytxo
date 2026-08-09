@@ -61,14 +61,20 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
   });
 
-  test("desktop 2 shell opens in operations and navigates primary routes", async ({ page }) => {
+  test("desktop 2 shell opens in Flow and navigates the four primary routes", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/");
     await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Flow", exact: true })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("link")).toHaveText([
+      "Flow",
+      "Ops",
+      "Spaces",
+      "Settings",
+    ]);
     await expect(page.getByText(/^Updater:/)).toHaveCount(0);
-    await page.getByRole("link", { name: "Flow" }).click();
-    await expect(page.getByRole("heading", { name: "Flow" })).toBeVisible();
+    await page.getByRole("link", { name: "Ops" }).click();
+    await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
     await page.getByRole("link", { name: "Integrations" }).click();
     await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible();
   });
@@ -165,10 +171,14 @@ test.describe("Pytxo Desktop shell", () => {
     expect(migration.recents).toContain("demo");
   });
 
-  test("legacy shell remains available for one rollback release", async ({ page }) => {
-    await completeOnboarding(page, { desktop_shell_v1: "true" });
+  test("production preview ignores development-only legacy shell flags", async ({ page }) => {
+    await completeOnboarding(page, {
+      desktop_shell_v1: "true",
+      "pytxo-developer-deck-v1": "true",
+    });
     await page.goto("/");
-    await expect(page.getByRole("navigation", { name: "Open workspaces" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Open workspaces" })).toHaveCount(0);
   });
 
   test("sidebar collapse state persists across reload", async ({ page }) => {
@@ -238,11 +248,11 @@ test.describe("Pytxo Desktop shell", () => {
   test("route persists across a cold reload at the root URL", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/");
-    await page.getByRole("link", { name: "Runs" }).click();
-    await expect(page.getByRole("heading", { name: "Runs" })).toBeVisible();
+    await page.getByRole("link", { name: "Ops" }).click();
+    await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
 
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Runs" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
   });
 
   test("workspaces show an honest empty state when a search matches nothing", async ({ page }) => {
@@ -493,7 +503,7 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
 
       test("Operations renders without page-level overflow", async ({ page }) => {
         await completeOnboarding(page);
-        await page.goto("/");
+        await page.goto("/#/operations");
         await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
         // `#app` is intentionally `overflow: hidden` so inner panes scroll
         // instead of the page (see app.css); scrollHeight ignores `overflow`

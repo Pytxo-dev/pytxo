@@ -66,7 +66,17 @@
   let logExpanded = $state(false);
   let selectedTopologyNode = $state<string | null>(null);
   let showWorkspaceSettings = $state(false);
-  const useLegacyShell = localStorage.getItem("desktop_shell_v1") === "true";
+  // The legacy Deck is a development-only rollback surface. Its workspace
+  // implementation remains behind a dynamic import and cannot be selected by
+  // persisted production profiles.
+  const devMode =
+    (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV === true;
+  const useLegacyShell =
+    devMode &&
+    localStorage.getItem("pytxo-developer-deck-v1") === "true" &&
+    localStorage.getItem("desktop_shell_v1") === "true";
+  const developerDeckModule = "./components/dashboard/DeckWorkspace.svelte";
+  const loadDeveloperDeck = () => import(/* @vite-ignore */ developerDeckModule);
 
   let termEl: HTMLDivElement | undefined = $state();
   let terminal: import("@xterm/xterm").Terminal | null = null;
@@ -394,10 +404,8 @@
   }
 
   async function doCommit() {
-    if (!activeTab?.selectedRunId || !activeTab.selectedAgentId) return;
-    const parts = activeTab.selectedAgentId.split(":");
-    const agentOnly = parts.length > 1 ? parts[1] : activeTab.selectedAgentId;
-    await ipc.commitWorkspace(activeTab.selectedRunId, agentOnly, activeTab.domainId);
+    if (!activeTab?.selectedRunId) return;
+    await ipc.applyRunChanges(activeTab.selectedRunId, activeTab.domainId);
     await loadDiff();
   }
 
@@ -561,7 +569,7 @@
     {#if onHome}
       <WorkspaceHome onOpenFolder={openFolderTab} onOpenItem={openCatalogItem} />
     {:else}
-      {#await import("./components/dashboard/DeckWorkspace.svelte") then { default: DeckWorkspace }}
+      {#await loadDeveloperDeck() then { default: DeckWorkspace }}
       <DeckWorkspace
         bind:deckTheme
         bind:cmd

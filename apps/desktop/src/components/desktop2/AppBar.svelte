@@ -402,6 +402,20 @@
     font-variant-numeric: tabular-nums;
     text-align: center;
   }
+  @media (max-width: 1050px) {
+    .truth-glance button,
+    .truth-glance .cost {
+      flex-direction: row;
+      align-items: center;
+      gap: 4px;
+      min-width: auto;
+      padding: 3px 6px;
+    }
+    .truth-glance span,
+    .truth-glance strong {
+      line-height: 1;
+    }
+  }
   .mono {
     font-family: "Geist Mono", ui-monospace, monospace;
   }

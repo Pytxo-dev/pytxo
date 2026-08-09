@@ -108,7 +108,7 @@
       </h2>
       <div class="diff-actions">
         <Button size="sm" variant="outline" onclick={onLoad}>Load</Button>
-        <Button size="sm" onclick={onCommit}>Approve merge</Button>
+        <Button size="sm" onclick={onCommit}>Apply run</Button>
       </div>
     </div>
     <ScrollArea class="diff-scroll">

@@ -22,7 +22,7 @@ for (const deviceScaleFactor of DEVICE_SCALE_FACTORS) {
       test(`keeps ${userScale.label} user zoom independent from simulated DPI`, async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/");
-        await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Flow", exact: true })).toBeVisible();
 
         await openAppearance(page);
         await setBrowserPreviewScale(page, userScale.label);
