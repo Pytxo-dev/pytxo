@@ -111,7 +111,8 @@ impl HypervisorRegistry {
                         "decision": if approved { "approved" } else { "denied" },
                     })
                     .to_string();
-                    let _ = store.append_event("hitl-resolver", "hitl-resolve", &payload);
+                    let _ =
+                        store.append_approval_event("hitl-resolver", id, "hitl-resolve", &payload);
                 }
             }))
         };

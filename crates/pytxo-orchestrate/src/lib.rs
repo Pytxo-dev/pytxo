@@ -3,10 +3,16 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pytxo_core::{
-    canonical_repo_root, DomainId, ExecutionPlan, FidelityTier, PermissionEngine, PytxoConfig,
-    PytxoError, RunId, SignalCore, Task, TaskId, TokenWallet, UsageMeter,
+    canonical_repo_root, DomainId, ExecutionPlan, FidelityTier, PermissionEngine,
+    PermissionProfile, PytxoConfig, PytxoError, RunApplyError, RunId, SignalCore, Task, TaskId,
+    TokenWallet, UsageMeter,
 };
-use pytxo_runner::{execute_plan, stop_all, stop_run, ProcessRegistry, RunContext};
+use pytxo_runner::{
+    apply_attempt_ids, apply_prepared_review_under_lease, execute_plan, load_review_package,
+    permission_enforcement_receipt, prepare_review_package, reconcile_apply_journals_under_lease,
+    stop_all, stop_run, AgentWorkspaceInput, ExecutionDomainMutationLease,
+    PermissionEnforcementReceipt, ProcessRegistry, RecoveryOutcome, RunApplyManifest, RunContext,
+};
 use pytxo_scheduler::build_plan;
 use pytxo_signal::TreeSitterSignalCore;
 use pytxo_store::{PytxoStore, SharedStore};
@@ -94,6 +100,45 @@ pub struct ProjectRunContext {
 struct ActiveRunState {
     run_id: String,
     repo_root: String,
+}
+
+struct RunFinalizer {
+    db_path: PathBuf,
+    active_path: PathBuf,
+    run_id: String,
+    settled: bool,
+}
+
+impl RunFinalizer {
+    fn new(db_path: PathBuf, active_path: PathBuf, run_id: String) -> Self {
+        Self {
+            db_path,
+            active_path,
+            run_id,
+            settled: false,
+        }
+    }
+
+    fn settle(&mut self, status: &str) -> anyhow::Result<()> {
+        let store = PytxoStore::open(&self.db_path)?;
+        let _ = store.finish_run_if_running(&self.run_id, status)?;
+        clear_active_run_if_matches(&self.active_path, &self.run_id)?;
+        tracing::info!(run_id = %self.run_id, terminal_status = status, "run settled");
+        self.settled = true;
+        Ok(())
+    }
+}
+
+impl Drop for RunFinalizer {
+    fn drop(&mut self) {
+        if !self.settled {
+            if let Ok(store) = PytxoStore::open(&self.db_path) {
+                let _ = store.finish_run_if_running(&self.run_id, "failed");
+            }
+            let _ = clear_active_run_if_matches(&self.active_path, &self.run_id);
+            tracing::error!(run_id = %self.run_id, terminal_status = "failed", "run settled during error unwind");
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -561,6 +606,664 @@ pub fn commit_workspace_for_agent(
         .map_err(|e| anyhow::anyhow!(e))
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct RunEnforcementEnvelope {
+    run: PermissionEnforcementReceipt,
+    agents: std::collections::BTreeMap<String, PermissionEnforcementReceipt>,
+}
+
+/// Apply one completed run as one reviewed filesystem transaction.
+///
+/// Scope for v1.1: one execution domain under Orbit or Galaxy. DeepSpace is
+/// intentionally non-flushable, Supernova already writes directly to the host,
+/// and multi-root runs are rejected instead of pretending to be atomic.
+pub fn apply_run_changes(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    run_id: &str,
+) -> anyhow::Result<RunApplyManifest> {
+    apply_run_changes_with(config, repo, run_id, apply_prepared_review_under_lease)
+}
+
+/// Reconcile one reviewed Apply journal and persist its authoritative run-contract state.
+///
+/// Scope: one execution domain and one repository root. This preserves the reviewed
+/// Apply permission boundary established by the run contract; it does not make
+/// DeepSpace flushable or alter Supernova's host-direct behavior.
+pub fn reconcile_run_recovery(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    run_id: &str,
+) -> anyhow::Result<RecoveryOutcome> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(config.as_deref(), &repo_root)?;
+    let data_dir = repo_root.join(&cfg.data_dir);
+    let mutation_lease = ExecutionDomainMutationLease::try_acquire(&data_dir)?;
+    let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
+    let contract = store
+        .get_run_contract(run_id)?
+        .ok_or_else(|| anyhow::anyhow!("run has no persisted review/apply contract: {run_id}"))?;
+    if !matches!(
+        contract.apply_status.as_str(),
+        "applying" | "recovery_required"
+    ) {
+        anyhow::bail!(
+            "run recovery cannot be reconciled from status {}",
+            contract.apply_status
+        );
+    }
+
+    let journal_outcome =
+        reconcile_apply_journals_under_lease(&repo_root, &data_dir, run_id, &mutation_lease)?;
+    let journal_missing = matches!(journal_outcome, RecoveryOutcome::NothingToDo);
+    let outcome = if journal_missing {
+        RecoveryOutcome::RecoveryRequired {
+            attempt_id: contract
+                .last_apply_error
+                .as_ref()
+                .and_then(|error| error.attempt_id.clone()),
+        }
+    } else {
+        journal_outcome
+    };
+    match &outcome {
+        RecoveryOutcome::RolledBack { attempt_id } => store.finish_run_recovery_error(
+            run_id,
+            "ready",
+            &run_apply_error(
+                "interrupted_apply",
+                "interrupted Apply was rolled back",
+                true,
+                Some(attempt_id.clone()),
+            ),
+            Some("rolled_back"),
+        )?,
+        RecoveryOutcome::RecoveryRequired { attempt_id } => {
+            store.finish_run_recovery_error(
+                run_id,
+                "recovery_required",
+                &run_apply_error(
+                    if journal_missing {
+                        "recovery_journal_missing"
+                    } else {
+                        "recovery_unprovable"
+                    },
+                    if journal_missing {
+                        "no durable Apply journal was found; recovery cannot be proven"
+                    } else {
+                        "interrupted Apply could not be proven restored"
+                    },
+                    false,
+                    attempt_id.clone(),
+                ),
+                Some("unprovable"),
+            )?;
+        }
+        RecoveryOutcome::Committed(manifest) => {
+            let audit = serde_json::to_string(manifest)?;
+            store.finish_run_recovery_apply(run_id, &audit)?;
+        }
+        RecoveryOutcome::NothingToDo => unreachable!("NothingToDo is normalized above"),
+    }
+    Ok(outcome)
+}
+
+fn apply_run_changes_with(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    run_id: &str,
+    apply: impl FnOnce(
+        &Path,
+        &Path,
+        &pytxo_core::PreparedRunManifest,
+        &ExecutionDomainMutationLease,
+    ) -> pytxo_core::Result<RunApplyManifest>,
+) -> anyhow::Result<RunApplyManifest> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(config.as_deref(), &repo_root)?;
+    let data_dir = repo_root.join(&cfg.data_dir);
+    let mutation_lease = ExecutionDomainMutationLease::try_acquire(&data_dir)?;
+    let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
+    let run = store
+        .get_run(run_id)?
+        .ok_or_else(|| anyhow::anyhow!("run not found: {run_id}"))?;
+    let mut contract = store
+        .get_run_contract(run_id)?
+        .ok_or_else(|| anyhow::anyhow!("run has no persisted review/apply contract: {run_id}"))?;
+    match reconcile_apply_journals_under_lease(&repo_root, &data_dir, run_id, &mutation_lease)? {
+        RecoveryOutcome::RolledBack { attempt_id } if contract.apply_status == "applying" => {
+            store.finish_run_apply_error(
+                run_id,
+                "ready",
+                &run_apply_error(
+                    "interrupted_apply",
+                    "interrupted Apply was rolled back",
+                    true,
+                    Some(attempt_id),
+                ),
+                Some("rolled_back"),
+            )?;
+            contract = store.get_run_contract(run_id)?.expect("contract exists");
+        }
+        RecoveryOutcome::RecoveryRequired { attempt_id } if contract.apply_status == "applying" => {
+            store.finish_run_apply_error(
+                run_id,
+                "recovery_required",
+                &run_apply_error(
+                    "recovery_unprovable",
+                    "interrupted Apply could not be proven restored",
+                    false,
+                    attempt_id,
+                ),
+                Some("unprovable"),
+            )?;
+            contract = store.get_run_contract(run_id)?.expect("contract exists");
+        }
+        RecoveryOutcome::Committed(manifest) if contract.apply_status == "applying" => {
+            let audit = serde_json::to_string(&manifest)?;
+            store.finish_run_apply(run_id, "applied", Some(&audit))?;
+            return Ok(manifest);
+        }
+        RecoveryOutcome::NothingToDo if contract.apply_status == "applying" => {
+            store.finish_run_apply_error(
+                run_id,
+                "recovery_required",
+                &run_apply_error(
+                    "recovery_journal_missing",
+                    "no durable Apply journal was found; recovery cannot be proven",
+                    false,
+                    contract
+                        .last_apply_error
+                        .as_ref()
+                        .and_then(|error| error.attempt_id.clone()),
+                ),
+                Some("unprovable"),
+            )?;
+            contract = store.get_run_contract(run_id)?.expect("contract exists");
+        }
+        _ => {}
+    }
+    if contract.apply_status != "ready" {
+        anyhow::bail!(
+            "run apply is not ready: {run_id} status={}",
+            contract.apply_status
+        );
+    }
+    if run.status != "completed" {
+        anyhow::bail!("run apply is not ready: {run_id} run_status={}", run.status);
+    }
+    let stored_root = canonical_repo_root(Path::new(&run.repo_root))?;
+    if stored_root != canonical_repo_root(&repo_root)? {
+        anyhow::bail!(
+            "run belongs to a different execution domain: {}",
+            run.repo_root
+        );
+    }
+    let profile = run
+        .permission_profile
+        .as_deref()
+        .and_then(PermissionProfile::parse)
+        .ok_or_else(|| anyhow::anyhow!("run has no valid effective permission profile"))?;
+    match profile {
+        PermissionProfile::Orbit | PermissionProfile::Galaxy => {}
+        PermissionProfile::DeepSpace => {
+            anyhow::bail!("DeepSpace runs are non-flushable by policy")
+        }
+        PermissionProfile::Supernova => {
+            anyhow::bail!("Supernova runs write directly to the host and have no apply step")
+        }
+    }
+
+    let plan: ExecutionPlan = serde_json::from_str(
+        contract
+            .plan_json
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("run contract has no execution plan"))?,
+    )?;
+    let tasks: Vec<_> = plan.waves.iter().flatten().collect();
+    let enforcement: RunEnforcementEnvelope = serde_json::from_str(
+        contract
+            .enforcement_json
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("run contract has no enforcement receipt"))?,
+    )
+    .map_err(|error| anyhow::anyhow!("invalid run enforcement receipt: {error}"))?;
+    for task in &tasks {
+        let receipt = enforcement
+            .agents
+            .get(&task.agent)
+            .unwrap_or(&enforcement.run);
+        let task_profile = PermissionProfile::parse(&receipt.effective_profile)
+            .ok_or_else(|| anyhow::anyhow!("invalid task enforcement profile"))?;
+        if !matches!(
+            task_profile,
+            PermissionProfile::Orbit | PermissionProfile::Galaxy
+        ) {
+            anyhow::bail!(
+                "task {} uses {} and cannot enter reviewed run Apply",
+                task.task_id.0,
+                receipt.effective_profile
+            );
+        }
+    }
+    if tasks
+        .iter()
+        .any(|task| task.root.as_deref().is_some_and(|root| !root.is_empty()))
+    {
+        anyhow::bail!("multi-root run apply is not atomic in v1.1 and was rejected");
+    }
+
+    if !store.claim_run_apply(run_id)? {
+        anyhow::bail!("run apply is not ready or is already being applied: {run_id}");
+    }
+    let prepared = match load_review_package(&data_dir, run_id) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            let error_code = if error.to_string().contains("package version 1") {
+                "review_package_upgrade_required"
+            } else {
+                "review_package_invalid"
+            };
+            store.finish_run_apply_error(
+                run_id,
+                "review_failed",
+                &run_apply_error(error_code, &error.to_string(), false, None),
+                None,
+            )?;
+            return Err(anyhow::anyhow!(error));
+        }
+    };
+    if contract.prepared_digest.as_deref() != Some(&prepared.package_digest) {
+        let error =
+            PytxoError::Runner("durable review package does not match the claimed contract".into());
+        store.finish_run_apply_error(
+            run_id,
+            "review_failed",
+            &run_apply_error("review_package_mismatch", &error.to_string(), false, None),
+            None,
+        )?;
+        return Err(anyhow::anyhow!(error));
+    }
+    let previous_attempts = apply_attempt_ids(&data_dir, run_id)?;
+    let result = apply(&repo_root, &data_dir, &prepared, &mutation_lease);
+    match result {
+        Ok(manifest) => {
+            let manifest_json = serde_json::to_string(&manifest)?;
+            store.finish_run_apply(run_id, "applied", Some(&manifest_json))?;
+            if let Ok(workspaces) = review_workspaces(&store, run_id, &plan) {
+                cleanup_preserved_workspaces(&repo_root, run_id, &workspaces);
+            }
+            Ok(manifest)
+        }
+        Err(error) => {
+            let stale = error.to_string().contains("changed since review");
+            let current_attempts = apply_attempt_ids(&data_dir, run_id)?;
+            let new_attempts = current_attempts
+                .difference(&previous_attempts)
+                .cloned()
+                .collect::<Vec<_>>();
+            let new_attempt = (new_attempts.len() == 1).then(|| new_attempts[0].clone());
+            let recovery = (!new_attempts.is_empty())
+                .then(|| {
+                    reconcile_apply_journals_under_lease(
+                        &repo_root,
+                        &data_dir,
+                        run_id,
+                        &mutation_lease,
+                    )
+                })
+                .transpose()?;
+            if let Some(RecoveryOutcome::Committed(manifest)) = recovery {
+                let audit = serde_json::to_string(&manifest)?;
+                store.finish_run_apply(run_id, "applied", Some(&audit))?;
+                return Ok(manifest);
+            }
+            let rollback_confirmed = matches!(
+                recovery,
+                Some(RecoveryOutcome::RolledBack { .. } | RecoveryOutcome::NothingToDo)
+            ) || error.to_string().contains("was rolled back");
+            let recovery_required =
+                matches!(recovery, Some(RecoveryOutcome::RecoveryRequired { .. }));
+            let attempt_id = match &recovery {
+                Some(RecoveryOutcome::RolledBack { attempt_id }) => Some(attempt_id.clone()),
+                Some(RecoveryOutcome::RecoveryRequired { attempt_id }) => attempt_id.clone(),
+                _ => new_attempt,
+            };
+            let (status, code, recovery_state) =
+                classify_apply_failure(stale, recovery_required, rollback_confirmed);
+            store.finish_run_apply_error(
+                run_id,
+                status,
+                &run_apply_error(code, &error.to_string(), rollback_confirmed, attempt_id),
+                recovery_state,
+            )?;
+            Err(anyhow::anyhow!(error))
+        }
+    }
+}
+
+fn classify_apply_failure(
+    stale: bool,
+    recovery_required: bool,
+    rollback_confirmed: bool,
+) -> (&'static str, &'static str, Option<&'static str>) {
+    if recovery_required {
+        (
+            "recovery_required",
+            "apply_recovery_required",
+            Some("unprovable"),
+        )
+    } else if stale {
+        ("stale", "source_drift", Some("source_drift"))
+    } else if rollback_confirmed {
+        ("ready", "apply_failed", Some("rolled_back"))
+    } else {
+        ("review_failed", "review_package_invalid", None)
+    }
+}
+
+pub fn refresh_run_review(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    run_id: &str,
+) -> anyhow::Result<pytxo_core::PreparedRunManifest> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(config.as_deref(), &repo_root)?;
+    let data_dir = repo_root.join(&cfg.data_dir);
+    let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
+    let contract = store
+        .get_run_contract(run_id)?
+        .ok_or_else(|| anyhow::anyhow!("run has no persisted review contract: {run_id}"))?;
+    if !matches!(contract.apply_status.as_str(), "stale" | "review_failed") {
+        anyhow::bail!(
+            "run review cannot be refreshed from status {}",
+            contract.apply_status
+        );
+    }
+    let plan: ExecutionPlan = serde_json::from_str(
+        contract
+            .plan_json
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("run contract has no execution plan"))?,
+    )?;
+    let workspaces = review_workspaces(&store, run_id, &plan)?;
+    if !store.begin_run_preparation(run_id)? {
+        anyhow::bail!("run review could not enter preparing state");
+    }
+    let base_revision = current_head_revision(&repo_root)?;
+    match prepare_review_package(
+        &repo_root,
+        &data_dir,
+        run_id,
+        &base_revision,
+        &workspaces,
+        &cfg.blast.sparse_exclude,
+    ) {
+        Ok(manifest) => {
+            persist_finished_run_review(&store, run_id, &manifest)?;
+            Ok(manifest)
+        }
+        Err(error) => {
+            let apply_error =
+                run_apply_error("review_refresh_failed", &error.to_string(), false, None);
+            let _ = store.fail_run_preparation(run_id, &apply_error);
+            Err(anyhow::anyhow!(error))
+        }
+    }
+}
+
+pub fn discard_run_review(
+    config: Option<PathBuf>,
+    repo: Option<PathBuf>,
+    run_id: &str,
+) -> anyhow::Result<()> {
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let cfg = load_config(config.as_deref(), &repo_root)?;
+    let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
+    let contract = store
+        .get_run_contract(run_id)?
+        .ok_or_else(|| anyhow::anyhow!("run has no persisted review contract: {run_id}"))?;
+    let workspaces = contract
+        .plan_json
+        .as_deref()
+        .and_then(|json| serde_json::from_str::<ExecutionPlan>(json).ok())
+        .and_then(|plan| review_workspaces(&store, run_id, &plan).ok());
+    if !store.discard_run_review(run_id)? {
+        anyhow::bail!("run review cannot be discarded from its current state: {run_id}");
+    }
+    let package = repo_root.join(&cfg.data_dir).join("reviews").join(run_id);
+    if package.exists() {
+        fs::remove_dir_all(package)?;
+    }
+    if let Some(workspaces) = workspaces {
+        cleanup_preserved_workspaces(&repo_root, run_id, &workspaces);
+    }
+    Ok(())
+}
+
+fn review_workspaces(
+    store: &PytxoStore,
+    run_id: &str,
+    plan: &ExecutionPlan,
+) -> anyhow::Result<Vec<AgentWorkspaceInput>> {
+    let tasks: std::collections::BTreeMap<_, _> = plan
+        .waves
+        .iter()
+        .flatten()
+        .map(|task| (task.task_id.0.as_str(), task))
+        .collect();
+    let agents = store.list_agents_for_run(run_id)?;
+    if agents.len() != tasks.len() {
+        anyhow::bail!("run review workspace count does not match its task plan");
+    }
+    agents
+        .into_iter()
+        .map(|agent| {
+            if agent.status != "completed" || agent.exit_code != Some(0) {
+                anyhow::bail!("agent result is not reviewable: {}", agent.id);
+            }
+            let task = tasks
+                .get(agent.task_id.as_str())
+                .ok_or_else(|| anyhow::anyhow!("unknown review task: {}", agent.task_id))?;
+            Ok(AgentWorkspaceInput {
+                agent_id: agent
+                    .id
+                    .strip_prefix(&format!("{run_id}:"))
+                    .unwrap_or(&agent.id)
+                    .to_owned(),
+                task_id: agent.task_id,
+                workspace_path: agent
+                    .worktree_path
+                    .filter(|path| !path.is_empty())
+                    .map(PathBuf::from)
+                    .ok_or_else(|| anyhow::anyhow!("agent has no preserved workspace"))?,
+                claims: task.paths.clone(),
+                depends_on: task.depends_on.clone(),
+            })
+        })
+        .collect()
+}
+
+fn run_apply_error(
+    code: &str,
+    message: &str,
+    rollback_confirmed: bool,
+    attempt_id: Option<String>,
+) -> RunApplyError {
+    RunApplyError {
+        at: chrono::Utc::now().to_rfc3339(),
+        code: code.to_owned(),
+        message: message.to_owned(),
+        attempt_id,
+        rollback_confirmed,
+    }
+}
+
+fn persist_finished_run_review(
+    store: &PytxoStore,
+    run_id: &str,
+    manifest: &pytxo_core::PreparedRunManifest,
+) -> anyhow::Result<()> {
+    match store.finish_run_preparation(run_id, manifest) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let original = error.to_string();
+            let apply_error = run_apply_error("review_persistence_failed", &original, false, None);
+            match store.fail_run_preparation(run_id, &apply_error) {
+                Ok(()) => Err(anyhow::anyhow!(original)),
+                Err(settle_error) => Err(anyhow::anyhow!(
+                    "{original}; additionally failed to settle review contract: {settle_error}"
+                )),
+            }
+        }
+    }
+}
+
+fn reconcile_domain_apply_journals(
+    repo_root: &Path,
+    data_dir: &Path,
+    store: &PytxoStore,
+) -> anyhow::Result<()> {
+    let mutation_lease = ExecutionDomainMutationLease::try_acquire(data_dir)?;
+    let apply_root = data_dir.join("apply");
+    let mut run_ids = store
+        .list_run_contract_ids_with_status("applying")?
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    for entry in fs::read_dir(apply_root)? {
+        let entry = entry?;
+        if !entry.path().is_dir() {
+            continue;
+        }
+        run_ids.insert(entry.file_name().to_string_lossy().to_string());
+    }
+    for run_id in run_ids {
+        let Some(contract) = store.get_run_contract(&run_id)? else {
+            continue;
+        };
+        if contract.apply_status != "applying" {
+            continue;
+        }
+        match reconcile_apply_journals_under_lease(repo_root, data_dir, &run_id, &mutation_lease)? {
+            RecoveryOutcome::RolledBack { attempt_id } => store.finish_run_apply_error(
+                &run_id,
+                "ready",
+                &run_apply_error(
+                    "interrupted_apply",
+                    "interrupted Apply was rolled back",
+                    true,
+                    Some(attempt_id),
+                ),
+                Some("rolled_back"),
+            )?,
+            RecoveryOutcome::Committed(manifest) => {
+                let audit = serde_json::to_string(&manifest)?;
+                store.finish_run_apply(&run_id, "applied", Some(&audit))?;
+            }
+            RecoveryOutcome::RecoveryRequired { attempt_id } => store.finish_run_apply_error(
+                &run_id,
+                "recovery_required",
+                &run_apply_error(
+                    "recovery_unprovable",
+                    "interrupted Apply could not be proven restored",
+                    false,
+                    attempt_id,
+                ),
+                Some("unprovable"),
+            )?,
+            RecoveryOutcome::NothingToDo => store.finish_run_apply_error(
+                &run_id,
+                "recovery_required",
+                &run_apply_error(
+                    "recovery_journal_missing",
+                    "no durable Apply journal was found; recovery cannot be proven",
+                    false,
+                    contract
+                        .last_apply_error
+                        .as_ref()
+                        .and_then(|error| error.attempt_id.clone()),
+                ),
+                Some("unprovable"),
+            )?,
+        }
+    }
+    Ok(())
+}
+
+fn cleanup_preserved_workspaces(
+    repo_root: &Path,
+    run_id: &str,
+    workspaces: &[AgentWorkspaceInput],
+) {
+    for workspace in workspaces {
+        let path = &workspace.workspace_path;
+        let cleanup = if path.join(".git").exists() {
+            let branch = pytxo_runner::branch_name(run_id, &workspace.agent_id);
+            pytxo_runner::remove_worktree(repo_root, path, &branch, true)
+        } else if path.exists() {
+            fs::remove_dir_all(path).map_err(PytxoError::Io)
+        } else {
+            Ok(())
+        };
+        if let Err(error) = cleanup {
+            tracing::warn!(
+                run_id,
+                workspace = %path.display(),
+                %error,
+                "durable review prepared but workspace cleanup failed"
+            );
+        }
+    }
+}
+
+fn current_head_revision(repo_root: &Path) -> anyhow::Result<String> {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(repo_root)
+        .output()?;
+    if !output.status.success() {
+        anyhow::bail!(
+            "git rev-parse HEAD failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn assert_clean_primary_checkout(repo_root: &Path) -> anyhow::Result<()> {
+    let output = std::process::Command::new("git")
+        .args([
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--",
+            ".",
+            ":(exclude).pytxo",
+            ":(exclude).pytxo/**",
+        ])
+        .current_dir(repo_root)
+        .output()?;
+    if !output.status.success() {
+        anyhow::bail!(
+            "git status failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    let dirty = String::from_utf8_lossy(&output.stdout);
+    if !dirty.trim().is_empty() {
+        let paths = dirty
+            .lines()
+            .take(8)
+            .map(|line| line.get(3..).unwrap_or(line))
+            .collect::<Vec<_>>()
+            .join(", ");
+        anyhow::bail!(
+            "uncommitted changes block trustworthy run apply: {paths}. Commit or stash them, then dispatch/review again"
+        );
+    }
+    Ok(())
+}
+
 pub(crate) async fn execute_run_body(
     domain: Arc<hypervisor::DomainState>,
     opts: RunOptions,
@@ -575,6 +1278,8 @@ pub(crate) async fn execute_run_body(
     if let Some(exec) = opts.execution {
         cfg.execution_backend = exec;
     }
+    let requested_profile = cfg.permission_profile;
+    let requested_agent_profiles = cfg.agent_profile_map();
     let entitlements =
         entitlements::effective_entitlements(&cfg).map_err(|e| anyhow::anyhow!("{e}"))?;
     if cfg.max_agents > entitlements.max_agents {
@@ -622,8 +1327,83 @@ pub(crate) async fn execute_run_body(
     ensure_repo_trusted(&domain.repo_root)?;
 
     let run_id = run_id.unwrap_or_default();
+    let domain_id = DomainId::from_repo_root(&domain.repo_root).map_err(|e| anyhow::anyhow!(e))?;
+    let isolation_mode = pytxo_runner::effective_isolation_mode(&cfg);
+    let agent_profiles = entitlements::effective_agent_profiles(&cfg, &entitlements);
+    let enforcement = RunEnforcementEnvelope {
+        run: permission_enforcement_receipt(
+            requested_profile,
+            cfg.permission_profile,
+            &domain_id,
+            isolation_mode,
+            &cfg.blast.sparse_exclude,
+        )
+        .map_err(|error| anyhow::anyhow!(error))?,
+        agents: agent_profiles
+            .iter()
+            .map(|(name, effective)| {
+                let requested = requested_agent_profiles
+                    .get(name)
+                    .copied()
+                    .unwrap_or(requested_profile);
+                permission_enforcement_receipt(
+                    requested,
+                    *effective,
+                    &domain_id,
+                    isolation_mode,
+                    &cfg.blast.sparse_exclude,
+                )
+                .map(|receipt| (name.clone(), receipt))
+            })
+            .collect::<pytxo_core::Result<_>>()
+            .map_err(|error| anyhow::anyhow!(error))?,
+    };
+    let task_profiles: Vec<_> = plan
+        .waves
+        .iter()
+        .flatten()
+        .map(|task| {
+            agent_profiles
+                .get(&task.agent)
+                .copied()
+                .unwrap_or(cfg.permission_profile)
+        })
+        .collect();
+    let apply_status = if plan
+        .waves
+        .iter()
+        .flatten()
+        .any(|task| task.root.as_deref().is_some_and(|root| !root.is_empty()))
+    {
+        "unsupported"
+    } else if task_profiles.contains(&PermissionProfile::DeepSpace) {
+        "non_flushable"
+    } else if task_profiles.contains(&PermissionProfile::Supernova) {
+        "not_applicable"
+    } else {
+        "pending"
+    };
     let db_path = domain.data_dir.join("pytxo.db");
     let store_for_events = Arc::new(SharedStore::open(&db_path)?);
+    {
+        let store = store_for_events
+            .lock()
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        reconcile_domain_apply_journals(&domain.repo_root, &domain.data_dir, &store)?;
+    }
+    let base_revision = if apply_status == "pending" {
+        assert_clean_primary_checkout(&domain.repo_root)?;
+        Some(current_head_revision(&domain.repo_root)?)
+    } else {
+        current_head_revision(&domain.repo_root).ok()
+    };
+    let plan_json = serde_json::to_string(&plan)?;
+    let enforcement_json = serde_json::to_string(&enforcement)?;
+    let mut run_finalizer = RunFinalizer::new(
+        db_path.clone(),
+        domain.data_dir.join("active_run.json"),
+        run_id.0.clone(),
+    );
     {
         let store = store_for_events
             .lock()
@@ -633,12 +1413,18 @@ pub(crate) async fn execute_run_body(
             &domain.repo_root.to_string_lossy(),
             Some(cfg.permission_profile.as_str()),
         )?;
+        store.save_run_contract_with_status(
+            &run_id.0,
+            base_revision.as_deref(),
+            &plan_json,
+            &enforcement_json,
+            apply_status,
+        )?;
         if let Some(proj) = &opts.project {
             store.tag_run_project(&run_id.0, &proj.project_id, None)?;
         }
     }
 
-    let domain_id = DomainId::from_repo_root(&domain.repo_root).map_err(|e| anyhow::anyhow!(e))?;
     let mut ultra =
         billing::setup_ultra_billing(Arc::clone(&store_for_events), &cfg, domain_id.clone())?;
     if let Some(u) = ultra.as_mut() {
@@ -669,7 +1455,6 @@ pub(crate) async fn execute_run_body(
         }
     });
 
-    let agent_profiles = entitlements::effective_agent_profiles(&cfg, &entitlements);
     let metering = billing::metering_for_ctx(&cfg, &domain.repo_root, &ultra);
     let cloud = cloud::cloud_clients(&cfg);
     let ctx = RunContext {
@@ -680,11 +1465,12 @@ pub(crate) async fn execute_run_body(
         cmd: opts.cmd.clone(),
         task_cmd_template: opts.task_cmd_template.clone(),
         task_prompts: opts.task_prompts.clone().unwrap_or_default(),
-        keep_worktrees: opts.keep_worktrees,
+        // Review-eligible workspaces must survive until their immutable package is durable.
+        keep_worktrees: opts.keep_worktrees || apply_status == "pending",
         on_event: Some(on_event),
         signal_core: cfg.signal_core,
         signal_fidelity: cfg.signal_fidelity,
-        isolation_mode: pytxo_runner::effective_isolation_mode(&cfg),
+        isolation_mode,
         permission_profile: cfg.permission_profile,
         agent_profiles,
         route_agents: cfg.agent.clone(),
@@ -736,6 +1522,7 @@ pub(crate) async fn execute_run_body(
     let results = execute_plan(&ctx, &plan, &domain.process_registry, &domain.swarm).await?;
 
     let mut failed = false;
+    let mut review_error: Option<anyhow::Error> = None;
     let mut all_lines: Vec<String> = Vec::new();
     let store = store_for_events
         .lock()
@@ -781,6 +1568,64 @@ pub(crate) async fn execute_run_body(
         store.update_run_cost(&run_id.0, cost.tokens_in, cost.tokens_out, cost.cost_usd)?;
     }
 
+    if !failed && apply_status == "pending" {
+        let tasks_by_id: std::collections::BTreeMap<_, _> = plan
+            .waves
+            .iter()
+            .flatten()
+            .map(|task| (task.task_id.0.as_str(), task))
+            .collect();
+        let workspaces = results
+            .iter()
+            .map(|result| {
+                let task = tasks_by_id.get(result.task_id.as_str()).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "completed task missing from review plan: {}",
+                        result.task_id
+                    )
+                })?;
+                Ok(AgentWorkspaceInput {
+                    agent_id: result.agent_id.0.clone(),
+                    task_id: result.task_id.clone(),
+                    workspace_path: result.worktree_path.clone(),
+                    claims: task.paths.clone(),
+                    depends_on: task.depends_on.clone(),
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        if !store.begin_run_preparation(&run_id.0)? {
+            review_error = Some(anyhow::anyhow!(
+                "run review contract could not enter preparing state"
+            ));
+        } else {
+            let expected_revision = base_revision.as_deref().unwrap_or_default();
+            match prepare_review_package(
+                &domain.repo_root,
+                &domain.data_dir,
+                &run_id.0,
+                expected_revision,
+                &workspaces,
+                &cfg.blast.sparse_exclude,
+            ) {
+                Ok(manifest) => {
+                    if let Err(error) = persist_finished_run_review(&store, &run_id.0, &manifest) {
+                        review_error = Some(error);
+                    }
+                }
+                Err(error) => {
+                    let apply_error = run_apply_error(
+                        "review_preparation_failed",
+                        &error.to_string(),
+                        false,
+                        None,
+                    );
+                    let _ = store.fail_run_preparation(&run_id.0, &apply_error);
+                    review_error = Some(anyhow::anyhow!(error));
+                }
+            }
+        }
+    }
+
     drop(store);
 
     if let Some(ref mut u) = ultra {
@@ -793,16 +1638,19 @@ pub(crate) async fn execute_run_body(
         billing::settle_ultra_run(u, &run_id, cost_micro)?;
     }
 
-    let run_status = if failed { "failed" } else { "completed" };
-    store_for_events
-        .lock()
-        .map_err(|e| anyhow::anyhow!(e.to_string()))?
-        .finish_run_if_running(&run_id.0, run_status)?;
-    let state_path = domain.data_dir.join("active_run.json");
-    let _ = fs::remove_file(state_path);
+    let run_status = if failed || review_error.is_some() {
+        "failed"
+    } else {
+        "completed"
+    };
+    run_finalizer.settle(run_status)?;
 
     if failed && cfg.fail_fast {
         anyhow::bail!("one or more agents failed (fail_fast=true)");
+    }
+
+    if let Some(error) = review_error {
+        return Err(error.context("run completed but durable review preparation failed"));
     }
 
     Ok(run_id)
@@ -1260,6 +2108,19 @@ fn save_active_run(cfg: &PytxoConfig, run_id: &RunId, repo: &Path) -> Result<(),
     Ok(())
 }
 
+fn clear_active_run_if_matches(path: &Path, run_id: &str) -> anyhow::Result<()> {
+    let raw = match fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    let state: ActiveRunState = serde_json::from_str(&raw)?;
+    if state.run_id == run_id {
+        fs::remove_file(path)?;
+    }
+    Ok(())
+}
+
 fn ensure_gitignore(repo: &Path) -> anyhow::Result<()> {
     let gi = repo.join(".gitignore");
     let marker = ".pytxo/";
@@ -1288,6 +2149,456 @@ mod tests {
         assert!(
             backend.starts_with("overlay-") || backend.starts_with("projfs-"),
             "expected effective overlay backend, got {backend}"
+        );
+    }
+
+    #[test]
+    fn finalizer_only_clears_its_matching_active_marker() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("active_run.json");
+        fs::write(
+            &path,
+            serde_json::to_vec(&ActiveRunState {
+                run_id: "newer-run".into(),
+                repo_root: temp.path().display().to_string(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+        clear_active_run_if_matches(&path, "older-run").unwrap();
+        assert!(path.exists());
+        clear_active_run_if_matches(&path, "newer-run").unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn interrupted_apply_is_reconciled_before_checkout_cleanliness_validation() {
+        fn git(repo: &Path, args: &[&str]) {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(repo)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        }
+
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q"]);
+        git(&repo, &["config", "user.email", "pytxo@example.invalid"]);
+        git(&repo, &["config", "user.name", "Pytxo Test"]);
+        fs::write(repo.join(".gitignore"), ".pytxo/\n").unwrap();
+        fs::write(repo.join("owned.txt"), "before\n").unwrap();
+        git(&repo, &["add", "."]);
+        git(&repo, &["commit", "-q", "-m", "base"]);
+
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(workspace.join(".gitignore"), ".pytxo/\n").unwrap();
+        fs::write(workspace.join("owned.txt"), "after\n").unwrap();
+        let data_dir = repo.join(".pytxo/data");
+        let manifest = prepare_review_package(
+            &repo,
+            &data_dir,
+            "run-ordering",
+            "base",
+            &[AgentWorkspaceInput {
+                agent_id: "agent".into(),
+                task_id: "task".into(),
+                workspace_path: workspace,
+                claims: vec!["owned.txt".into()],
+                depends_on: vec![],
+            }],
+            &[],
+        )
+        .unwrap();
+        let store = PytxoStore::open(&data_dir.join("pytxo.db")).unwrap();
+        store
+            .insert_run_with_profile("run-ordering", &repo.to_string_lossy(), Some("orbit"))
+            .unwrap();
+        store
+            .save_run_contract("run-ordering", "base", "{}", "{}")
+            .unwrap();
+        assert!(store.begin_run_preparation("run-ordering").unwrap());
+        store
+            .finish_run_preparation("run-ordering", &manifest)
+            .unwrap();
+        store.finish_run("run-ordering", "completed").unwrap();
+        assert!(store.claim_run_apply("run-ordering").unwrap());
+        pytxo_runner::apply_prepared_review_with_fault(
+            &repo,
+            &data_dir,
+            &manifest,
+            Some(pytxo_runner::ApplyFaultPoint::InterruptAfterRename(1)),
+        )
+        .expect_err("interrupt");
+        assert!(assert_clean_primary_checkout(&repo).is_err());
+
+        reconcile_domain_apply_journals(&repo, &data_dir, &store).unwrap();
+
+        assert_clean_primary_checkout(&repo).unwrap();
+        let contract = store.get_run_contract("run-ordering").unwrap().unwrap();
+        assert_eq!(contract.apply_status, "ready");
+        assert!(contract
+            .last_apply_error
+            .unwrap()
+            .attempt_id
+            .is_some_and(|attempt| !attempt.is_empty()));
+    }
+
+    #[test]
+    fn explicit_recovery_reconciliation_persists_rolled_back_contract() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        fs::write(repo.join("owned.txt"), "before\n").unwrap();
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(workspace.join("owned.txt"), "after\n").unwrap();
+        let run_id = "run-explicit-recovery";
+        let data_dir = repo.join(".pytxo/data");
+        let manifest = prepare_review_package(
+            &repo,
+            &data_dir,
+            run_id,
+            "base",
+            &[AgentWorkspaceInput {
+                agent_id: "agent".into(),
+                task_id: "task".into(),
+                workspace_path: workspace,
+                claims: vec!["owned.txt".into()],
+                depends_on: vec![],
+            }],
+            &[],
+        )
+        .unwrap();
+        let store = PytxoStore::open(&data_dir.join("pytxo.db")).unwrap();
+        store
+            .insert_run_with_profile(run_id, &repo.to_string_lossy(), Some("orbit"))
+            .unwrap();
+        store.save_run_contract(run_id, "base", "{}", "{}").unwrap();
+        assert!(store.begin_run_preparation(run_id).unwrap());
+        store.finish_run_preparation(run_id, &manifest).unwrap();
+        store.finish_run(run_id, "completed").unwrap();
+        assert!(store.claim_run_apply(run_id).unwrap());
+        pytxo_runner::apply_prepared_review_with_fault(
+            &repo,
+            &data_dir,
+            &manifest,
+            Some(pytxo_runner::ApplyFaultPoint::InterruptAfterRename(1)),
+        )
+        .expect_err("interrupt");
+        store
+            .finish_run_apply_error(
+                run_id,
+                "recovery_required",
+                &run_apply_error(
+                    "apply_recovery_required",
+                    "reconciliation required",
+                    false,
+                    None,
+                ),
+                Some("unprovable"),
+            )
+            .unwrap();
+        drop(store);
+
+        let outcome = reconcile_run_recovery(None, Some(repo.clone()), run_id).unwrap();
+
+        assert!(matches!(outcome, RecoveryOutcome::RolledBack { .. }));
+        assert_eq!(
+            fs::read_to_string(repo.join("owned.txt")).unwrap(),
+            "before\n"
+        );
+        let contract = PytxoStore::open(&data_dir.join("pytxo.db"))
+            .unwrap()
+            .get_run_contract(run_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(contract.apply_status, "ready");
+        let error = contract.last_apply_error.unwrap();
+        assert_eq!(error.code, "interrupted_apply");
+        assert!(error.rollback_confirmed);
+        assert_eq!(contract.recovery_state.as_deref(), Some("rolled_back"));
+    }
+
+    #[test]
+    fn explicit_recovery_reconciliation_persists_committed_contract() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        fs::write(repo.join("owned.txt"), "before\n").unwrap();
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(workspace.join("owned.txt"), "after\n").unwrap();
+        let run_id = "run-explicit-committed-recovery";
+        let data_dir = repo.join(".pytxo/data");
+        let manifest = prepare_review_package(
+            &repo,
+            &data_dir,
+            run_id,
+            "base",
+            &[AgentWorkspaceInput {
+                agent_id: "agent".into(),
+                task_id: "task".into(),
+                workspace_path: workspace,
+                claims: vec!["owned.txt".into()],
+                depends_on: vec![],
+            }],
+            &[],
+        )
+        .unwrap();
+        let store = PytxoStore::open(&data_dir.join("pytxo.db")).unwrap();
+        store
+            .insert_run_with_profile(run_id, &repo.to_string_lossy(), Some("orbit"))
+            .unwrap();
+        store.save_run_contract(run_id, "base", "{}", "{}").unwrap();
+        assert!(store.begin_run_preparation(run_id).unwrap());
+        store.finish_run_preparation(run_id, &manifest).unwrap();
+        store.finish_run(run_id, "completed").unwrap();
+        assert!(store.claim_run_apply(run_id).unwrap());
+        let applied = pytxo_runner::apply_prepared_review(&repo, &data_dir, &manifest).unwrap();
+        store
+            .finish_run_apply_error(
+                run_id,
+                "recovery_required",
+                &run_apply_error(
+                    "apply_recovery_required",
+                    "commit outcome was not persisted",
+                    false,
+                    Some(applied.transaction_id.clone()),
+                ),
+                Some("unprovable"),
+            )
+            .unwrap();
+        drop(store);
+
+        let outcome = reconcile_run_recovery(None, Some(repo.clone()), run_id).unwrap();
+
+        let RecoveryOutcome::Committed(recovered) = outcome else {
+            panic!("expected committed recovery");
+        };
+        assert_eq!(recovered.transaction_id, applied.transaction_id);
+        let contract = PytxoStore::open(&data_dir.join("pytxo.db"))
+            .unwrap()
+            .get_run_contract(run_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(contract.apply_status, "applied");
+        assert!(contract.applied_at.is_some());
+        assert_eq!(
+            contract
+                .apply_manifest_json
+                .as_deref()
+                .map(serde_json::from_str::<RunApplyManifest>)
+                .transpose()
+                .unwrap()
+                .unwrap()
+                .transaction_id,
+            applied.transaction_id
+        );
+        assert!(contract.recovery_state.is_none());
+    }
+
+    #[test]
+    fn explicit_recovery_without_journal_refreshes_recovery_required_error() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let data_dir = repo.join(".pytxo/data");
+        fs::create_dir_all(&data_dir).unwrap();
+        let run_id = "run-missing-recovery-journal";
+        let store = PytxoStore::open(&data_dir.join("pytxo.db")).unwrap();
+        store
+            .insert_run_with_profile(run_id, &repo.to_string_lossy(), Some("orbit"))
+            .unwrap();
+        store.save_run_contract(run_id, "base", "{}", "{}").unwrap();
+        let manifest = pytxo_core::PreparedRunManifest {
+            version: 1,
+            run_id: run_id.into(),
+            base_revision: "base".into(),
+            prepared_at: "2026-08-01T00:00:00Z".into(),
+            package_digest: "digest".into(),
+            summary: Default::default(),
+            files: vec![],
+        };
+        assert!(store.begin_run_preparation(run_id).unwrap());
+        store.finish_run_preparation(run_id, &manifest).unwrap();
+        store.finish_run(run_id, "completed").unwrap();
+        assert!(store.claim_run_apply(run_id).unwrap());
+        store
+            .finish_run_apply_error(
+                run_id,
+                "recovery_required",
+                &run_apply_error("old_error", "old recovery evidence", false, None),
+                Some("unprovable"),
+            )
+            .unwrap();
+        drop(store);
+
+        let outcome = reconcile_run_recovery(None, Some(repo.clone()), run_id).unwrap();
+
+        assert!(matches!(
+            outcome,
+            RecoveryOutcome::RecoveryRequired { attempt_id: None }
+        ));
+        let contract = PytxoStore::open(&data_dir.join("pytxo.db"))
+            .unwrap()
+            .get_run_contract(run_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(contract.apply_status, "recovery_required");
+        assert_eq!(
+            contract.last_apply_error.unwrap().code,
+            "recovery_journal_missing"
+        );
+        assert_eq!(contract.recovery_state.as_deref(), Some("unprovable"));
+    }
+
+    #[test]
+    fn unprovable_recovery_takes_precedence_over_affected_path_drift() {
+        let (status, code, recovery_state) = classify_apply_failure(true, true, false);
+        assert_eq!(status, "recovery_required");
+        assert_eq!(code, "apply_recovery_required");
+        assert_eq!(recovery_state, Some("unprovable"));
+    }
+
+    #[test]
+    fn future_dated_prior_attempt_cannot_hide_a_new_interrupted_apply() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        fs::write(repo.join("owned.txt"), "before\n").unwrap();
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(workspace.join("owned.txt"), "after\n").unwrap();
+        let run_id = "run-future-prior-attempt";
+        let data_dir = repo.join(".pytxo/data");
+        let db_path = data_dir.join("pytxo.db");
+        let plan = ExecutionPlan {
+            waves: vec![vec![pytxo_core::ScheduledTask {
+                task_id: TaskId("task".into()),
+                agent: "codex".into(),
+                paths: vec!["owned.txt".into()],
+                depends_on: vec![],
+                wave: 0,
+                root: None,
+                signal_fidelity: None,
+                verify: vec![],
+            }]],
+            conflicts: vec![],
+            max_agents: 1,
+            warnings: vec![],
+        };
+        let receipt = permission_enforcement_receipt(
+            PermissionProfile::Orbit,
+            PermissionProfile::Orbit,
+            &DomainId::from_repo_root(&repo).unwrap(),
+            pytxo_core::IsolationMode::Worktree,
+            &[],
+        )
+        .unwrap();
+        let enforcement = serde_json::json!({
+            "run": receipt,
+            "agents": { "codex": receipt }
+        });
+        let manifest = prepare_review_package(
+            &repo,
+            &data_dir,
+            run_id,
+            "base",
+            &[AgentWorkspaceInput {
+                agent_id: "agent".into(),
+                task_id: "task".into(),
+                workspace_path: workspace,
+                claims: vec!["owned.txt".into()],
+                depends_on: vec![],
+            }],
+            &[],
+        )
+        .unwrap();
+        let store = PytxoStore::open(&db_path).unwrap();
+        store
+            .insert_run_with_profile(run_id, &repo.to_string_lossy(), Some("orbit"))
+            .unwrap();
+        store
+            .save_run_contract(
+                run_id,
+                "base",
+                &serde_json::to_string(&plan).unwrap(),
+                &serde_json::to_string(&enforcement).unwrap(),
+            )
+            .unwrap();
+        assert!(store.begin_run_preparation(run_id).unwrap());
+        store.finish_run_preparation(run_id, &manifest).unwrap();
+        store.finish_run(run_id, "completed").unwrap();
+        drop(store);
+
+        pytxo_runner::apply_prepared_review_with_fault(
+            &repo,
+            &data_dir,
+            &manifest,
+            Some(pytxo_runner::ApplyFaultPoint::InterruptAfterJournalPrepared),
+        )
+        .expect_err("create prior attempt");
+        let prior_attempt = pytxo_runner::apply_attempt_ids(&data_dir, run_id)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let prior_journal = data_dir
+            .join("apply")
+            .join(run_id)
+            .join(&prior_attempt)
+            .join("journal.json");
+        let mut journal: serde_json::Value =
+            serde_json::from_slice(&fs::read(&prior_journal).unwrap()).unwrap();
+        journal["created_at"] = "2999-01-01T00:00:00Z".into();
+        fs::write(&prior_journal, serde_json::to_vec_pretty(&journal).unwrap()).unwrap();
+        assert!(matches!(
+            pytxo_runner::reconcile_apply_journals(&repo, &data_dir, run_id).unwrap(),
+            RecoveryOutcome::RolledBack { .. }
+        ));
+
+        apply_run_changes_with(
+            None,
+            Some(repo.clone()),
+            run_id,
+            |repo_root, data_dir, prepared, lease| {
+                pytxo_runner::apply_prepared_review_with_fault_under_lease(
+                    repo_root,
+                    data_dir,
+                    prepared,
+                    lease,
+                    Some(pytxo_runner::ApplyFaultPoint::InterruptAfterRename(1)),
+                )
+            },
+        )
+        .expect_err("the new interrupted attempt is reconciled and reported");
+
+        assert_eq!(
+            fs::read_to_string(repo.join("owned.txt")).unwrap(),
+            "before\n"
+        );
+        let contract = PytxoStore::open(&db_path)
+            .unwrap()
+            .get_run_contract(run_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(contract.apply_status, "ready");
+        let error = contract.last_apply_error.unwrap();
+        assert_eq!(error.code, "apply_failed");
+        assert!(error.rollback_confirmed);
+        assert!(error
+            .attempt_id
+            .is_some_and(|attempt| attempt != prior_attempt));
+        assert!(
+            refresh_run_review(None, Some(repo), run_id)
+                .unwrap_err()
+                .to_string()
+                .contains("cannot be refreshed from status ready"),
+            "a reconciled failed Apply must not be misclassified as refreshable review_failed"
         );
     }
 }

@@ -56,6 +56,21 @@ fn init_git_repo(path: &std::path::Path) {
         .status();
 }
 
+fn commit_fixture(path: &std::path::Path, message: &str) {
+    assert!(Command::new("git")
+        .args(["add", "."])
+        .current_dir(path)
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new("git")
+        .args(["commit", "-m", message])
+        .current_dir(path)
+        .status()
+        .unwrap()
+        .success());
+}
+
 fn toml_path(p: &std::path::Path) -> String {
     p.to_string_lossy().replace('\\', "/")
 }
@@ -150,6 +165,7 @@ root = "api"
 "#,
     )
     .unwrap();
+    commit_fixture(api.path(), "add run config");
 
     let manifest_dir = TempDir::new().unwrap();
     let manifest_path = manifest_dir.path().join("project.toml");
@@ -246,6 +262,7 @@ root = "web"
 "#,
     )
     .unwrap();
+    commit_fixture(api.path(), "add run config");
 
     let manifest_dir = TempDir::new().unwrap();
     let manifest_path = manifest_dir.path().join("project.toml");
@@ -344,6 +361,7 @@ root = "web"
 "#,
     )
     .unwrap();
+    commit_fixture(api.path(), "add run config");
 
     let manifest_dir = TempDir::new().unwrap();
     let manifest_path = manifest_dir.path().join("project.toml");

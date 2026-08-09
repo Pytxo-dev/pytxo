@@ -42,6 +42,10 @@ jobs:
       - name: cargo test
         run: cargo test --workspace
 
+      - name: Unix reviewed-file mode and recovery matrix
+        if: runner.os == 'Linux'
+        run: cargo test -p pytxo-runner --test run_change_set unix_
+
       - name: cargo audit
         shell: bash
         run: |

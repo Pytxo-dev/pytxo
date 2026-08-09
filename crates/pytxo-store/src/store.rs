@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
-use pytxo_core::{PytxoError, Result};
-use rusqlite::{params, Connection};
+use pytxo_core::{PreparedRunManifest, PytxoError, Result, RunApplyError};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::Serialize;
 
 use crate::migrate::apply_migrations;
@@ -18,6 +18,38 @@ pub struct RunRecord {
     pub estimated_tokens_out: Option<i64>,
     pub estimated_cost_usd: Option<f64>,
     pub permission_profile: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct RunContractRecord {
+    pub run_id: String,
+    pub base_revision: Option<String>,
+    pub plan_json: Option<String>,
+    pub apply_status: String,
+    pub apply_manifest_json: Option<String>,
+    pub applied_at: Option<String>,
+    pub enforcement_json: Option<String>,
+    pub prepared_manifest: Option<PreparedRunManifest>,
+    pub prepared_digest: Option<String>,
+    pub prepared_at: Option<String>,
+    pub last_apply_error: Option<RunApplyError>,
+    pub recovery_state: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DomainChange {
+    pub sequence: i64,
+    pub entity_kind: String,
+    pub entity_id: String,
+    pub changed_at: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DomainChangesPage {
+    pub changes: Vec<DomainChange>,
+    pub next_cursor: i64,
+    pub has_more: bool,
+    pub cursor_gap: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -80,12 +112,15 @@ impl PytxoStore {
         permission_profile: Option<&str>,
     ) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        self.conn
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        tx
             .execute(
                 "INSERT INTO runs (id, started_at, status, repo_root, permission_profile) VALUES (?1, ?2, 'running', ?3, ?4)",
                 params![id, now, repo_root, permission_profile],
             )
-            .map_err(|e| PytxoError::Store(e.to_string()))?;
+            .map_err(store_error)?;
+        append_domain_change(&tx, "run", id)?;
+        tx.commit().map_err(store_error)?;
         Ok(())
     }
 
@@ -97,12 +132,14 @@ impl PytxoStore {
         project_id: &str,
         root_id: Option<&str>,
     ) -> Result<()> {
-        self.conn
-            .execute(
-                "UPDATE runs SET project_id = ?1, root_id = ?2 WHERE id = ?3",
-                params![project_id, root_id, run_id],
-            )
-            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        tx.execute(
+            "UPDATE runs SET project_id = ?1, root_id = ?2 WHERE id = ?3",
+            params![project_id, root_id, run_id],
+        )
+        .map_err(store_error)?;
+        append_domain_change(&tx, "run", run_id)?;
+        tx.commit().map_err(store_error)?;
         Ok(())
     }
 
@@ -123,12 +160,14 @@ impl PytxoStore {
 
     pub fn finish_run(&self, id: &str, status: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        self.conn
-            .execute(
-                "UPDATE runs SET finished_at = ?1, status = ?2 WHERE id = ?3",
-                params![now, status, id],
-            )
-            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        tx.execute(
+            "UPDATE runs SET finished_at = ?1, status = ?2 WHERE id = ?3",
+            params![now, status, id],
+        )
+        .map_err(store_error)?;
+        append_domain_change(&tx, "run", id)?;
+        tx.commit().map_err(store_error)?;
         Ok(())
     }
 
@@ -139,14 +178,416 @@ impl PytxoStore {
     /// worker that unwinds afterward from overwriting that terminal state.
     pub fn finish_run_if_running(&self, id: &str, status: &str) -> Result<bool> {
         let now = Utc::now().to_rfc3339();
-        let changed = self
-            .conn
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let changed = tx
             .execute(
                 "UPDATE runs SET finished_at = ?1, status = ?2 WHERE id = ?3 AND status = 'running'",
                 params![now, status, id],
             )
-            .map_err(|e| PytxoError::Store(e.to_string()))?;
+            .map_err(store_error)?;
+        if changed > 0 {
+            append_domain_change(&tx, "run", id)?;
+        }
+        tx.commit().map_err(store_error)?;
         Ok(changed > 0)
+    }
+
+    pub fn save_run_contract(
+        &self,
+        run_id: &str,
+        base_revision: &str,
+        plan_json: &str,
+        enforcement_json: &str,
+    ) -> Result<()> {
+        self.save_run_contract_with_status(
+            run_id,
+            Some(base_revision),
+            plan_json,
+            enforcement_json,
+            "pending",
+        )
+    }
+
+    pub fn save_run_contract_with_status(
+        &self,
+        run_id: &str,
+        base_revision: Option<&str>,
+        plan_json: &str,
+        enforcement_json: &str,
+        apply_status: &str,
+    ) -> Result<()> {
+        if !matches!(
+            apply_status,
+            "pending" | "non_flushable" | "not_applicable" | "unsupported"
+        ) {
+            return Err(PytxoError::Store(format!(
+                "invalid initial run apply status: {apply_status}"
+            )));
+        }
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        tx.execute(
+            "INSERT INTO run_contracts (
+                    run_id, base_revision, plan_json, apply_status, enforcement_json
+                 ) VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(run_id) DO UPDATE SET
+                    base_revision = excluded.base_revision,
+                    plan_json = excluded.plan_json,
+                    apply_status = excluded.apply_status,
+                    apply_manifest_json = NULL,
+                    applied_at = NULL,
+                    enforcement_json = excluded.enforcement_json",
+            params![
+                run_id,
+                base_revision,
+                plan_json,
+                apply_status,
+                enforcement_json
+            ],
+        )
+        .map_err(store_error)?;
+        append_domain_change(&tx, "contract", run_id)?;
+        tx.commit().map_err(store_error)?;
+        Ok(())
+    }
+
+    pub fn get_run_contract(&self, run_id: &str) -> Result<Option<RunContractRecord>> {
+        self.conn
+            .query_row(
+                "SELECT run_id, base_revision, plan_json, apply_status,
+                        apply_manifest_json, applied_at, enforcement_json,
+                        prepared_manifest_json, prepared_digest, prepared_at,
+                        last_apply_error_json, recovery_state
+                 FROM run_contracts WHERE run_id = ?1",
+                params![run_id],
+                |row| {
+                    let prepared_json: Option<String> = row.get(7)?;
+                    let error_json: Option<String> = row.get(10)?;
+                    Ok(RunContractRecord {
+                        run_id: row.get(0)?,
+                        base_revision: row.get(1)?,
+                        plan_json: row.get(2)?,
+                        apply_status: row.get(3)?,
+                        apply_manifest_json: row.get(4)?,
+                        applied_at: row.get(5)?,
+                        enforcement_json: row.get(6)?,
+                        prepared_manifest: prepared_json
+                            .and_then(|json| serde_json::from_str(&json).ok()),
+                        prepared_digest: row.get(8)?,
+                        prepared_at: row.get(9)?,
+                        last_apply_error: error_json
+                            .and_then(|json| serde_json::from_str(&json).ok()),
+                        recovery_state: row.get(11)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    pub fn list_run_contract_ids_with_status(&self, status: &str) -> Result<Vec<String>> {
+        let mut statement = self
+            .conn
+            .prepare("SELECT run_id FROM run_contracts WHERE apply_status = ?1 ORDER BY run_id")
+            .map_err(store_error)?;
+        let rows = statement
+            .query_map(params![status], |row| row.get(0))
+            .map_err(store_error)?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(store_error)
+    }
+
+    pub fn begin_run_preparation(&self, run_id: &str) -> Result<bool> {
+        self.transition_contract(
+            run_id,
+            &["pending", "stale", "review_failed"],
+            "preparing",
+            None,
+        )
+    }
+
+    pub fn finish_run_preparation(
+        &self,
+        run_id: &str,
+        manifest: &PreparedRunManifest,
+    ) -> Result<()> {
+        let manifest_json = serde_json::to_string(manifest)
+            .map_err(|error| PytxoError::Store(error.to_string()))?;
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let changed = tx
+            .execute(
+                "UPDATE run_contracts
+                 SET apply_status='ready', prepared_manifest_json=?1,
+                     prepared_digest=?2, prepared_at=?3,
+                     base_revision=?4, last_apply_error_json=NULL, recovery_state=NULL
+                 WHERE run_id=?5 AND apply_status='preparing'",
+                params![
+                    manifest_json,
+                    manifest.package_digest,
+                    manifest.prepared_at,
+                    manifest.base_revision,
+                    run_id
+                ],
+            )
+            .map_err(store_error)?;
+        if changed != 1 {
+            return Err(PytxoError::Store(format!(
+                "run review was not preparing: {run_id}"
+            )));
+        }
+        append_domain_change(&tx, "contract", run_id)?;
+        tx.commit().map_err(store_error)?;
+        Ok(())
+    }
+
+    pub fn fail_run_preparation(&self, run_id: &str, error: &RunApplyError) -> Result<()> {
+        self.set_contract_outcome(run_id, "review_failed", Some(error), None, &["preparing"])
+    }
+
+    pub fn discard_run_review(&self, run_id: &str) -> Result<bool> {
+        self.transition_contract(
+            run_id,
+            &["ready", "stale", "review_failed"],
+            "discarded",
+            None,
+        )
+    }
+
+    pub fn finish_run_apply_error(
+        &self,
+        run_id: &str,
+        status: &str,
+        error: &RunApplyError,
+        recovery_state: Option<&str>,
+    ) -> Result<()> {
+        if !matches!(
+            status,
+            "ready" | "stale" | "review_failed" | "recovery_required"
+        ) {
+            return Err(PytxoError::Store(format!(
+                "invalid failed apply status: {status}"
+            )));
+        }
+        self.set_contract_outcome(run_id, status, Some(error), recovery_state, &["applying"])
+    }
+
+    pub fn finish_run_recovery_error(
+        &self,
+        run_id: &str,
+        status: &str,
+        error: &RunApplyError,
+        recovery_state: Option<&str>,
+    ) -> Result<()> {
+        if !matches!(status, "ready" | "recovery_required") {
+            return Err(PytxoError::Store(format!(
+                "invalid recovery status: {status}"
+            )));
+        }
+        self.set_contract_outcome(
+            run_id,
+            status,
+            Some(error),
+            recovery_state,
+            &["applying", "recovery_required"],
+        )
+    }
+
+    fn set_contract_outcome(
+        &self,
+        run_id: &str,
+        status: &str,
+        error: Option<&RunApplyError>,
+        recovery_state: Option<&str>,
+        expected: &[&str],
+    ) -> Result<()> {
+        let error_json = error
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|error| PytxoError::Store(error.to_string()))?;
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let placeholders = expected.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "UPDATE run_contracts SET apply_status=?1, last_apply_error_json=?2, recovery_state=?3
+             WHERE run_id=?4 AND apply_status IN ({placeholders})"
+        );
+        let mut values: Vec<rusqlite::types::Value> = vec![
+            status.to_owned().into(),
+            error_json.into(),
+            recovery_state.map(str::to_owned).into(),
+            run_id.to_owned().into(),
+        ];
+        values.extend(expected.iter().map(|value| (*value).to_owned().into()));
+        let changed = tx
+            .execute(&sql, rusqlite::params_from_iter(values))
+            .map_err(store_error)?;
+        if changed != 1 {
+            return Err(PytxoError::Store(format!(
+                "invalid run contract transition for {run_id}"
+            )));
+        }
+        append_domain_change(&tx, "contract", run_id)?;
+        tx.commit().map_err(store_error)?;
+        Ok(())
+    }
+
+    fn transition_contract(
+        &self,
+        run_id: &str,
+        expected: &[&str],
+        status: &str,
+        recovery_state: Option<&str>,
+    ) -> Result<bool> {
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let placeholders = expected.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "UPDATE run_contracts SET apply_status=?1, recovery_state=?2
+             WHERE run_id=?3 AND apply_status IN ({placeholders})"
+        );
+        let mut values: Vec<rusqlite::types::Value> = vec![
+            status.to_owned().into(),
+            recovery_state.map(str::to_owned).into(),
+            run_id.to_owned().into(),
+        ];
+        values.extend(expected.iter().map(|value| (*value).to_owned().into()));
+        let changed = tx
+            .execute(&sql, rusqlite::params_from_iter(values))
+            .map_err(store_error)?;
+        if changed == 1 {
+            append_domain_change(&tx, "contract", run_id)?;
+        }
+        tx.commit().map_err(store_error)?;
+        Ok(changed == 1)
+    }
+
+    pub fn changes_since(&self, cursor: i64, limit: usize) -> Result<DomainChangesPage> {
+        let limit = limit.clamp(1, 1_000);
+        let (oldest, newest): (Option<i64>, Option<i64>) = self
+            .conn
+            .query_row(
+                "SELECT MIN(sequence), MAX(sequence) FROM domain_changes",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(store_error)?;
+        let boundary = newest.unwrap_or(0);
+        let cursor_gap =
+            cursor > boundary || oldest.is_some_and(|oldest| cursor > 0 && cursor < oldest - 1);
+        if cursor_gap {
+            return Ok(DomainChangesPage {
+                changes: Vec::new(),
+                next_cursor: boundary,
+                has_more: false,
+                cursor_gap: true,
+            });
+        }
+        let mut statement = self
+            .conn
+            .prepare(
+                "SELECT sequence, entity_kind, entity_id, changed_at
+                 FROM domain_changes WHERE sequence > ?1
+                 ORDER BY sequence LIMIT ?2",
+            )
+            .map_err(store_error)?;
+        let mut changes = statement
+            .query_map(params![cursor, (limit + 1) as i64], |row| {
+                Ok(DomainChange {
+                    sequence: row.get(0)?,
+                    entity_kind: row.get(1)?,
+                    entity_id: row.get(2)?,
+                    changed_at: row.get(3)?,
+                })
+            })
+            .map_err(store_error)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(store_error)?;
+        let has_more = changes.len() > limit;
+        changes.truncate(limit);
+        let next_cursor = changes.last().map_or(cursor, |change| change.sequence);
+        Ok(DomainChangesPage {
+            changes,
+            next_cursor,
+            has_more,
+            cursor_gap,
+        })
+    }
+
+    pub fn claim_run_apply(&self, run_id: &str) -> Result<bool> {
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let changed = tx
+            .execute(
+                "UPDATE run_contracts SET apply_status = 'applying'
+                 WHERE run_id = ?1
+                   AND apply_status = 'ready'
+                   AND prepared_manifest_json IS NOT NULL
+                   AND EXISTS (
+                       SELECT 1 FROM runs
+                       WHERE runs.id = run_contracts.run_id
+                         AND runs.status = 'completed'
+                   )",
+                params![run_id],
+            )
+            .map_err(store_error)?;
+        if changed == 1 {
+            append_domain_change(&tx, "contract", run_id)?;
+        }
+        tx.commit().map_err(store_error)?;
+        Ok(changed == 1)
+    }
+
+    pub fn finish_run_apply(
+        &self,
+        run_id: &str,
+        apply_status: &str,
+        manifest_json: Option<&str>,
+    ) -> Result<()> {
+        if !matches!(
+            apply_status,
+            "applied" | "ready" | "stale" | "recovery_required"
+        ) {
+            return Err(PytxoError::Store(format!(
+                "invalid run apply status: {apply_status}"
+            )));
+        }
+        let applied_at = (apply_status == "applied").then(|| Utc::now().to_rfc3339());
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let changed = tx
+            .execute(
+                "UPDATE run_contracts
+                 SET apply_status = ?1, apply_manifest_json = ?2, applied_at = ?3
+                 WHERE run_id = ?4 AND apply_status = 'applying'",
+                params![apply_status, manifest_json, applied_at, run_id],
+            )
+            .map_err(store_error)?;
+        if changed != 1 {
+            return Err(PytxoError::Store(format!(
+                "run apply was not claimed: {run_id}"
+            )));
+        }
+        append_domain_change(&tx, "contract", run_id)?;
+        tx.commit().map_err(store_error)?;
+        Ok(())
+    }
+
+    pub fn finish_run_recovery_apply(&self, run_id: &str, manifest_json: &str) -> Result<()> {
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let changed = tx
+            .execute(
+                "UPDATE run_contracts
+                 SET apply_status = 'applied', apply_manifest_json = ?1,
+                     applied_at = ?2, last_apply_error_json = NULL,
+                     recovery_state = NULL
+                 WHERE run_id = ?3
+                   AND apply_status IN ('applying', 'recovery_required')",
+                params![manifest_json, Utc::now().to_rfc3339(), run_id],
+            )
+            .map_err(store_error)?;
+        if changed != 1 {
+            return Err(PytxoError::Store(format!(
+                "run recovery was not pending: {run_id}"
+            )));
+        }
+        append_domain_change(&tx, "contract", run_id)?;
+        tx.commit().map_err(store_error)?;
+        Ok(())
     }
 
     pub fn insert_agent(
@@ -174,34 +615,72 @@ impl PytxoStore {
         cmd: &str,
         root_id: Option<&str>,
     ) -> Result<()> {
-        self.conn
-            .execute(
-                "INSERT INTO agents (id, run_id, task_id, wave, worktree_path, cmd, status, root_id)
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        tx.execute(
+            "INSERT INTO agents (id, run_id, task_id, wave, worktree_path, cmd, status, root_id)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'running', ?7)",
-                params![id, run_id, task_id, wave as i32, worktree_path, cmd, root_id],
-            )
-            .map_err(|e| PytxoError::Store(e.to_string()))?;
+            params![
+                id,
+                run_id,
+                task_id,
+                wave as i32,
+                worktree_path,
+                cmd,
+                root_id
+            ],
+        )
+        .map_err(store_error)?;
+        append_domain_change(&tx, "agent", id)?;
+        tx.commit().map_err(store_error)?;
         Ok(())
     }
 
     pub fn finish_agent(&self, id: &str, exit_code: Option<i32>, status: &str) -> Result<()> {
-        self.conn
-            .execute(
-                "UPDATE agents SET exit_code = ?1, status = ?2 WHERE id = ?3",
-                params![exit_code, status, id],
-            )
-            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        tx.execute(
+            "UPDATE agents SET exit_code = ?1, status = ?2 WHERE id = ?3",
+            params![exit_code, status, id],
+        )
+        .map_err(store_error)?;
+        append_domain_change(&tx, "agent", id)?;
+        tx.commit().map_err(store_error)?;
         Ok(())
     }
 
     pub fn append_event(&self, agent_id: &str, kind: &str, payload: &str) -> Result<()> {
+        self.append_event_with_change(agent_id, kind, payload, None)
+    }
+
+    pub fn append_approval_event(
+        &self,
+        agent_id: &str,
+        approval_id: &str,
+        kind: &str,
+        payload: &str,
+    ) -> Result<()> {
+        self.append_event_with_change(agent_id, kind, payload, Some(("approval", approval_id)))
+    }
+
+    fn append_event_with_change(
+        &self,
+        agent_id: &str,
+        kind: &str,
+        payload: &str,
+        entity_change: Option<(&str, &str)>,
+    ) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        self.conn
-            .execute(
-                "INSERT INTO events (agent_id, ts, kind, payload) VALUES (?1, ?2, ?3, ?4)",
-                params![agent_id, now, kind, payload],
-            )
-            .map_err(|e| PytxoError::Store(e.to_string()))?;
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        tx.execute(
+            "INSERT INTO events (agent_id, ts, kind, payload) VALUES (?1, ?2, ?3, ?4)",
+            params![agent_id, now, kind, payload],
+        )
+        .map_err(store_error)?;
+        let event_id = tx.last_insert_rowid().to_string();
+        append_domain_change(&tx, "event", &event_id)?;
+        if let Some((entity_kind, entity_id)) = entity_change {
+            append_domain_change(&tx, entity_kind, entity_id)?;
+        }
+        tx.commit().map_err(store_error)?;
         Ok(())
     }
 
@@ -233,6 +712,32 @@ impl PytxoStore {
             .map_err(|e| PytxoError::Store(e.to_string()))?;
 
         rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    pub fn get_run(&self, run_id: &str) -> Result<Option<RunRecord>> {
+        self.conn
+            .query_row(
+                "SELECT id, started_at, finished_at, status, repo_root,
+                        estimated_tokens_in, estimated_tokens_out, estimated_cost_usd,
+                        permission_profile
+                 FROM runs WHERE id = ?1",
+                params![run_id],
+                |row| {
+                    Ok(RunRecord {
+                        id: row.get(0)?,
+                        started_at: parse_dt(row.get::<_, String>(1)?),
+                        finished_at: row.get::<_, Option<String>>(2)?.map(parse_dt),
+                        status: row.get(3)?,
+                        repo_root: row.get(4)?,
+                        estimated_tokens_in: row.get(5)?,
+                        estimated_tokens_out: row.get(6)?,
+                        estimated_cost_usd: row.get(7)?,
+                        permission_profile: row.get(8)?,
+                    })
+                },
+            )
+            .optional()
             .map_err(|e| PytxoError::Store(e.to_string()))
     }
 
@@ -365,13 +870,15 @@ impl PytxoStore {
         tokens_out: i64,
         cost_usd: f64,
     ) -> Result<()> {
-        self.conn
-            .execute(
-                "UPDATE runs SET estimated_tokens_in = ?1, estimated_tokens_out = ?2,
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        tx.execute(
+            "UPDATE runs SET estimated_tokens_in = ?1, estimated_tokens_out = ?2,
                  estimated_cost_usd = ?3 WHERE id = ?4",
-                params![tokens_in, tokens_out, cost_usd, run_id],
-            )
-            .map_err(|e| PytxoError::Store(e.to_string()))?;
+            params![tokens_in, tokens_out, cost_usd, run_id],
+        )
+        .map_err(store_error)?;
+        append_domain_change(&tx, "run", run_id)?;
+        tx.commit().map_err(store_error)?;
         Ok(())
     }
 
@@ -487,6 +994,19 @@ impl PytxoStore {
     }
 }
 
+fn store_error(error: rusqlite::Error) -> PytxoError {
+    PytxoError::Store(error.to_string())
+}
+
+fn append_domain_change(tx: &Transaction<'_>, entity_kind: &str, entity_id: &str) -> Result<()> {
+    tx.execute(
+        "INSERT INTO domain_changes(entity_kind, entity_id, changed_at) VALUES (?1, ?2, ?3)",
+        params![entity_kind, entity_id, Utc::now().to_rfc3339()],
+    )
+    .map_err(store_error)?;
+    Ok(())
+}
+
 fn parse_dt(s: String) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(&s)
         .map(|d| d.with_timezone(&Utc))
@@ -539,5 +1059,323 @@ mod tests {
         let (status, finished_at) = store.get_run_status("run-1").unwrap().unwrap();
         assert_eq!(status, "cancelled");
         assert!(finished_at.is_some());
+    }
+
+    #[test]
+    fn persists_and_claims_one_run_level_apply_contract() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = PytxoStore::open(&dir.path().join("pytxo.db")).unwrap();
+        store
+            .insert_run_with_profile("run-1", "/tmp/repo", Some("orbit"))
+            .unwrap();
+        store
+            .save_run_contract(
+                "run-1",
+                "abc123",
+                r#"{"waves":[[]]}"#,
+                r#"{"effective_profile":"orbit"}"#,
+            )
+            .unwrap();
+        assert!(store.begin_run_preparation("run-1").unwrap());
+        store
+            .finish_run_preparation(
+                "run-1",
+                &PreparedRunManifest {
+                    version: 1,
+                    run_id: "run-1".into(),
+                    base_revision: "abc123".into(),
+                    prepared_at: "2026-07-31T00:00:00Z".into(),
+                    package_digest: "prepared-digest".into(),
+                    summary: Default::default(),
+                    files: Vec::new(),
+                },
+            )
+            .unwrap();
+        assert!(store.finish_run_if_running("run-1", "completed").unwrap());
+
+        let contract = store.get_run_contract("run-1").unwrap().unwrap();
+        assert_eq!(contract.base_revision.as_deref(), Some("abc123"));
+        assert_eq!(contract.plan_json.as_deref(), Some(r#"{"waves":[[]]}"#));
+        assert_eq!(contract.apply_status, "ready");
+        assert_eq!(
+            contract.enforcement_json.as_deref(),
+            Some(r#"{"effective_profile":"orbit"}"#)
+        );
+
+        assert!(store.claim_run_apply("run-1").unwrap());
+        assert!(!store.claim_run_apply("run-1").unwrap());
+        store
+            .finish_run_apply("run-1", "applied", Some(r#"{"paths":["src/lib.rs"]}"#))
+            .unwrap();
+
+        let applied = store.get_run_contract("run-1").unwrap().unwrap();
+        assert_eq!(applied.apply_status, "applied");
+        assert_eq!(
+            applied.apply_manifest_json.as_deref(),
+            Some(r#"{"paths":["src/lib.rs"]}"#)
+        );
+        assert!(applied.applied_at.is_some());
+    }
+
+    #[test]
+    fn contract_preparation_and_domain_changes_are_durable_and_bounded() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = PytxoStore::open(&dir.path().join("pytxo.db")).unwrap();
+        store
+            .insert_run_with_profile("run-delta", "/tmp/repo", Some("orbit"))
+            .unwrap();
+        store
+            .save_run_contract(
+                "run-delta",
+                "abc123",
+                r#"{"waves":[[]]}"#,
+                r#"{"effective_profile":"orbit"}"#,
+            )
+            .unwrap();
+
+        let manifest = pytxo_core::PreparedRunManifest {
+            version: 1,
+            run_id: "run-delta".into(),
+            base_revision: "abc123".into(),
+            prepared_at: "2026-07-31T00:00:00Z".into(),
+            package_digest: "digest".into(),
+            summary: Default::default(),
+            files: Vec::new(),
+        };
+        assert!(store.begin_run_preparation("run-delta").unwrap());
+        store
+            .finish_run_preparation("run-delta", &manifest)
+            .unwrap();
+
+        let contract = store.get_run_contract("run-delta").unwrap().unwrap();
+        assert_eq!(contract.apply_status, "ready");
+        assert_eq!(contract.prepared_digest.as_deref(), Some("digest"));
+        assert_eq!(contract.prepared_manifest.as_ref(), Some(&manifest));
+
+        let first_page = store.changes_since(0, 2).unwrap();
+        assert_eq!(first_page.changes.len(), 2);
+        assert!(first_page.has_more);
+        assert!(!first_page.cursor_gap);
+        let second_page = store.changes_since(first_page.next_cursor, 100).unwrap();
+        assert!(second_page
+            .changes
+            .iter()
+            .any(|change| change.entity_kind == "contract" && change.entity_id == "run-delta"));
+    }
+
+    #[test]
+    fn concurrent_apply_claim_retry_and_discard_follow_contract_states() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("pytxo.db");
+        let store = PytxoStore::open(&db_path).unwrap();
+        store.insert_run("run-race", "/tmp/repo").unwrap();
+        store
+            .save_run_contract("run-race", "base", "{}", "{}")
+            .unwrap();
+        assert!(store.begin_run_preparation("run-race").unwrap());
+        store
+            .finish_run_preparation(
+                "run-race",
+                &PreparedRunManifest {
+                    version: 1,
+                    run_id: "run-race".into(),
+                    base_revision: "base".into(),
+                    prepared_at: "2026-07-31T00:00:00Z".into(),
+                    package_digest: "digest".into(),
+                    summary: Default::default(),
+                    files: Vec::new(),
+                },
+            )
+            .unwrap();
+        store.finish_run("run-race", "completed").unwrap();
+        drop(store);
+
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let threads = (0..2)
+            .map(|_| {
+                let path = db_path.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    let store = PytxoStore::open(&path).unwrap();
+                    barrier.wait();
+                    store.claim_run_apply("run-race").unwrap()
+                })
+            })
+            .collect::<Vec<_>>();
+        let claims = threads
+            .into_iter()
+            .map(|thread| thread.join().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(claims.iter().filter(|claimed| **claimed).count(), 1);
+
+        let store = PytxoStore::open(&db_path).unwrap();
+        let error = RunApplyError {
+            at: "2026-07-31T00:00:01Z".into(),
+            code: "copy_failed".into(),
+            message: "rolled back".into(),
+            attempt_id: Some("attempt-1".into()),
+            rollback_confirmed: true,
+        };
+        store
+            .finish_run_apply_error("run-race", "ready", &error, Some("rolled_back"))
+            .unwrap();
+        assert!(store.claim_run_apply("run-race").unwrap());
+        store
+            .finish_run_apply_error("run-race", "ready", &error, Some("rolled_back"))
+            .unwrap();
+        assert!(store.discard_run_review("run-race").unwrap());
+        assert_eq!(
+            store
+                .get_run_contract("run-race")
+                .unwrap()
+                .unwrap()
+                .apply_status,
+            "discarded"
+        );
+    }
+
+    #[test]
+    fn explicit_recovery_transitions_are_authoritative_and_audited() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = PytxoStore::open(&dir.path().join("pytxo.db")).unwrap();
+        let run_id = "run-recovery-transition";
+        store.insert_run(run_id, "/tmp/repo").unwrap();
+        store.save_run_contract(run_id, "base", "{}", "{}").unwrap();
+        assert!(store.begin_run_preparation(run_id).unwrap());
+        store
+            .finish_run_preparation(
+                run_id,
+                &PreparedRunManifest {
+                    version: 1,
+                    run_id: run_id.into(),
+                    base_revision: "base".into(),
+                    prepared_at: "2026-08-01T00:00:00Z".into(),
+                    package_digest: "digest".into(),
+                    summary: Default::default(),
+                    files: vec![],
+                },
+            )
+            .unwrap();
+        store.finish_run(run_id, "completed").unwrap();
+        let error = RunApplyError {
+            at: "2026-08-01T00:01:00Z".into(),
+            code: "recovery_unprovable".into(),
+            message: "recovery required".into(),
+            attempt_id: Some("attempt-1".into()),
+            rollback_confirmed: false,
+        };
+        assert!(store.claim_run_apply(run_id).unwrap());
+        store
+            .finish_run_apply_error(run_id, "recovery_required", &error, Some("unprovable"))
+            .unwrap();
+        let rolled_back = RunApplyError {
+            rollback_confirmed: true,
+            message: "rolled back".into(),
+            ..error.clone()
+        };
+        store
+            .finish_run_recovery_error(run_id, "ready", &rolled_back, Some("rolled_back"))
+            .unwrap();
+        assert_eq!(
+            store
+                .get_run_contract(run_id)
+                .unwrap()
+                .unwrap()
+                .apply_status,
+            "ready"
+        );
+
+        assert!(store.claim_run_apply(run_id).unwrap());
+        store
+            .finish_run_apply_error(run_id, "recovery_required", &error, Some("unprovable"))
+            .unwrap();
+        store
+            .finish_run_recovery_apply(run_id, r#"{"transaction_id":"attempt-1","changes":[]}"#)
+            .unwrap();
+        let applied = store.get_run_contract(run_id).unwrap().unwrap();
+        assert_eq!(applied.apply_status, "applied");
+        assert!(applied.applied_at.is_some());
+        assert!(applied.last_apply_error.is_none());
+        assert!(applied.recovery_state.is_none());
+        assert!(store
+            .changes_since(0, 100)
+            .unwrap()
+            .changes
+            .iter()
+            .any(|change| change.entity_kind == "contract" && change.entity_id == run_id));
+    }
+
+    #[test]
+    fn approval_event_and_delta_are_written_in_one_store_operation() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = PytxoStore::open(&dir.path().join("pytxo.db")).unwrap();
+        store.insert_run("run-approval", "/tmp/repo").unwrap();
+        store
+            .insert_agent(
+                "approval-resolver",
+                "run-approval",
+                "resolve",
+                0,
+                None,
+                "internal",
+            )
+            .unwrap();
+        let cursor = store.changes_since(0, 100).unwrap().next_cursor;
+
+        store
+            .append_approval_event(
+                "approval-resolver",
+                "approval-123",
+                "hitl-resolve",
+                r#"{"decision":"approved"}"#,
+            )
+            .unwrap();
+
+        let page = store.changes_since(cursor, 100).unwrap();
+        assert!(page
+            .changes
+            .iter()
+            .any(|change| change.entity_kind == "approval" && change.entity_id == "approval-123"));
+        assert!(page
+            .changes
+            .iter()
+            .any(|change| change.entity_kind == "event"));
+    }
+
+    #[test]
+    fn cursor_beyond_replacement_database_max_requests_reset() {
+        let dir = tempfile::tempdir().unwrap();
+        let database = dir.path().join("pytxo.db");
+        let old_cursor = {
+            let store = PytxoStore::open(&database).unwrap();
+            store.insert_run("old-run", "/tmp/repo").unwrap();
+            store
+                .insert_agent("old-agent", "old-run", "task", 0, None, "internal")
+                .unwrap();
+            store.changes_since(0, 100).unwrap().next_cursor
+        };
+        std::fs::remove_file(&database).unwrap();
+
+        let replacement = PytxoStore::open(&database).unwrap();
+        let empty_reset = replacement.changes_since(old_cursor, 100).unwrap();
+        assert!(empty_reset.cursor_gap);
+        assert!(empty_reset.changes.is_empty());
+        assert_eq!(empty_reset.next_cursor, 0);
+        let empty_settled = replacement
+            .changes_since(empty_reset.next_cursor, 100)
+            .unwrap();
+        assert!(!empty_settled.cursor_gap);
+        assert_eq!(empty_settled.next_cursor, 0);
+
+        replacement.insert_run("new-run", "/tmp/repo").unwrap();
+        let page = replacement.changes_since(old_cursor, 100).unwrap();
+        assert!(page.cursor_gap);
+        assert!(page.changes.is_empty());
+        assert_eq!(page.next_cursor, 1);
+
+        let settled = replacement.changes_since(page.next_cursor, 100).unwrap();
+        assert!(!settled.cursor_gap);
+        assert!(settled.changes.is_empty());
+        assert_eq!(settled.next_cursor, 1);
     }
 }

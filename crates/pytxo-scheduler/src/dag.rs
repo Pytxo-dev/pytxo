@@ -6,7 +6,18 @@ use crate::overlap::{find_conflicts, find_cross_root_conflicts, tasks_overlap};
 use crate::waves::build_execution_plan;
 
 pub fn build_dag_plan(tasks: &[Task], max_agents: usize) -> Result<ExecutionPlan> {
-    let ids: HashSet<_> = tasks.iter().map(|t| t.id.0.as_str()).collect();
+    let mut ids = HashSet::new();
+    for task in tasks {
+        if task.id.0.trim().is_empty() {
+            return Err(PytxoError::Scheduler("task id cannot be empty".into()));
+        }
+        if !ids.insert(task.id.0.as_str()) {
+            return Err(PytxoError::Scheduler(format!(
+                "duplicate task id: {}",
+                task.id.0
+            )));
+        }
+    }
     for t in tasks {
         for dep in &t.depends_on {
             if !ids.contains(dep.as_str()) {
@@ -243,5 +254,19 @@ mod tests {
     fn cycle_errors_by_default() {
         let tasks = vec![task("a", &["a.ts"], &["b"]), task("b", &["b.ts"], &["a"])];
         assert!(build_dag_plan(&tasks, 3).is_err());
+    }
+
+    #[test]
+    fn duplicate_task_ids_are_rejected_before_scheduling() {
+        let tasks = vec![
+            task("duplicate", &["a.ts"], &[]),
+            task("duplicate", &["b.ts"], &[]),
+        ];
+        let error = build_dag_plan(&tasks, 3).expect_err("duplicate ids make receipts ambiguous");
+        assert!(
+            error.to_string().contains("duplicate task id")
+                && error.to_string().contains("duplicate"),
+            "unexpected error: {error}"
+        );
     }
 }
