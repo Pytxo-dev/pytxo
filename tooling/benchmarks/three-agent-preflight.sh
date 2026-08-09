@@ -41,6 +41,9 @@ echo "=== dry-run plan ==="
 echo "=== execute ==="
 "$PYTXO" init
 "$PYTXO" trust orbit
+git add -A
+git add -f .gitignore pytxo.toml
+git commit -q -m "record pytxo benchmark trust fixture"
 "$PYTXO" run --config pytxo.toml --cmd "echo pytxo-agent"
 
 echo "=== status ==="
