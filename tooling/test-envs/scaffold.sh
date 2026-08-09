@@ -43,6 +43,7 @@ cp "$CONFIGS/$CONFIG" pytxo.toml
 # repository ignores. Commit that fixture setup so the smoke run exercises the
 # real clean-checkout trust boundary instead of failing on its own bootstrap.
 git add -A
+git add -f .gitignore pytxo.toml
 git commit -q -m "initialize pytxo test fixture"
 
 export PYTXO_TEST_REPO="$REPO"

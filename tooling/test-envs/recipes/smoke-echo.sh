@@ -23,6 +23,7 @@ echo "=== execute (echo) ==="
 # Commit it before dispatch so the smoke test reaches execution instead of
 # rejecting its own fixture bootstrap as dirty.
 git add -A
+git add -f .gitignore pytxo.toml
 git commit -q -m "record pytxo trust fixture"
 "$PYTXO" run --config pytxo.toml --cmd "echo pytxo-agent"
 
