@@ -13,7 +13,10 @@ The **pytxo** monorepo is **private**. Public installs use [Pytxo-dev/pytxo-rele
 1. Open **Actions → Release → Run workflow** on the private `pytxo` repo.
 2. Enter **version** without a `v` prefix (e.g. `1.0.1`).
 3. Leave **Publish npm** and **Mirror public** enabled unless you only want a private draft.
-4. Run.
+4. Leave **Sign Desktop installers** disabled unless the Apple and Windows signing
+   secrets have been validated for this run. Unsigned installers are supported;
+   the updater channel still requires `TAURI_SIGNING_PRIVATE_KEY`.
+5. Run.
 
 The workflow will:
 
@@ -31,6 +34,8 @@ The workflow will:
 | `PYTXO_RELEASES_TOKEN` | PAT with `contents: write` on **Pytxo-dev/pytxo-releases** |
 | `TAURI_SIGNING_PRIVATE_KEY` | Minisign private key for Desktop auto-updater `.sig` + `latest.json` (see `distribution/tauri/README.md`) |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Optional password if the private key is encrypted |
+| `APPLE_CERTIFICATE*`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_*` | Optional Apple signing/notarization credentials; only used when **Sign Desktop installers** is enabled |
+| `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` | Optional Windows signing credentials; only used when **Sign Desktop installers** is enabled |
 
 Without `TAURI_SIGNING_PRIVATE_KEY`, Desktop installers still publish, but the updater channel (`latest.json`) is skipped.
 
