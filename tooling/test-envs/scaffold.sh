@@ -44,7 +44,7 @@ cp "$CONFIGS/$CONFIG" pytxo.toml
 # real clean-checkout trust boundary instead of failing on its own bootstrap.
 git add -A
 git add -f .gitignore pytxo.toml
-git commit -q -m "initialize pytxo test fixture"
+git diff --cached --quiet || git commit -q -m "initialize pytxo test fixture"
 
 export PYTXO_TEST_REPO="$REPO"
 echo ""
