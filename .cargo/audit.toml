@@ -4,7 +4,10 @@
 # without replacing the notification plugin. Keep the advisories visible in
 # audit output but allow the release gate to proceed with this documented,
 # Windows-notification-only transitive exception.
+# `rsa` has no fixed release for RUSTSEC-2023-0071; it is pulled by the
+# macOS/desktop dependency graph and is not used for Pytxo's key handling.
 ignore = [
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
+  "RUSTSEC-2023-0071",
 ]
