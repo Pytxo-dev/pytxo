@@ -17,7 +17,6 @@
     IconSearch,
     IconSettings,
     IconShieldLock,
-    IconSparkles,
     IconTerminal2,
   } from "@tabler/icons-svelte";
   import { approvalPresentation } from "../../lib/approval-presentation";
@@ -167,7 +166,7 @@
     try {
       if (approve) await backend.approve(resolved.id, resolved.domain_id ?? null);
       else await backend.deny(resolved.id, resolved.domain_id ?? null);
-      decisionMessage = `${approve ? "Approved" : "Denied"} ${presentation.title}. ${approve ? presentation.approvedMessage : presentation.deniedMessage}`;
+      decisionMessage = `${approve ? "Approved" : "Denied"}. ${approve ? presentation.approvedMessage : presentation.deniedMessage}`;
       decisionMessageTone = "success";
       selectedApprovalId = openApprovals.find((approval) => approval.id !== resolved.id)?.id ?? null;
       await onApprovalsChanged();
@@ -270,15 +269,15 @@
           : route === "runs"
             ? "Every orchestration run, from dispatch through recovery."
             : route === "approvals"
-              ? "Human decisions with the context needed to act confidently."
+              ? "Review blocked actions and their consequences."
               : "Installed agent CLIs, vendor-owned sessions, and the MCP hub."}
       </p>
     </div>
     {#if route === "workspaces"}
       <div class="workspace-heading-actions">
         <button class="quiet" disabled={creatingExample} onclick={() => void createGuidedExample()}>
-          {#if creatingExample}<IconLoader2 size={14} class="spin" />{:else}<IconSparkles size={14} />{/if}
-          {creatingExample ? "Creating example" : "Try guided example"}
+          {#if creatingExample}<IconLoader2 size={14} class="spin" />{:else}<IconGitBranch size={14} />{/if}
+          {creatingExample ? "Creating example" : "Open guided example"}
         </button>
         <button class="primary" onclick={openWorkspace}><IconPlus size={16} /> Add workspace</button>
       </div>
@@ -312,7 +311,7 @@
             <div class="workspace-icon"><IconFolder size={19} /></div>
             <div class="workspace-title">
               <h2>{domain.repo_root.split(/[\\/]/).pop()}</h2>
-              <span class="healthy"><i></i>{domain.status}{#if domain.domain_id === activeDomainId} · active{/if}</span>
+              <span class="healthy">{domain.domain_id === activeDomainId ? "Active workspace" : domain.status}</span>
             </div>
             <p>{domain.repo_root}</p>
             <div class="workspace-stats"><span><small>Active runs</small><strong>{domain.active_runs}</strong></span><span><small>Approvals</small><strong>{domain.hitl_pending}</strong></span><span><small>Policy</small><strong>{profileHint(domain.domain_id, domain.repo_root)}</strong></span></div>
@@ -443,14 +442,11 @@
         <div class="panel-head">
           <div>
             <h2>Agent sessions</h2>
-            <p>{connectedAdeCount} connected · credentials stay with each vendor CLI</p>
+            <p>{connectedAdeCount} connected. Credentials stay with each vendor CLI.</p>
           </div>
-          <span class="integration-safety"><IconShieldLock size={13} /> Pytxo never reads token stores</span>
         </div>
         <p class="integration-intro">
-          Pytxo launches official sign-in commands from your home directory and reads only
-          non-billable, redacted status. ChatGPT connects through Codex; Claude, Cursor, Gemini,
-          Copilot, and OpenCode keep their own sessions.
+          Pytxo reads redacted connection status, not tokens. Sign-in remains inside each agent CLI.
         </p>
         {#if adeMessage}
           <p class="integration-message" class:error={adeMessageTone === "error"} role={adeMessageTone === "error" ? "alert" : "status"}>

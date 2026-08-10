@@ -8,6 +8,7 @@ import { completeOnboarding } from "./helpers";
 
 const DESKTOP_ROOT = fileURLToPath(new URL("../", import.meta.url));
 const CAPTURE_DIR = path.join(DESKTOP_ROOT, "captures", "desktop-2");
+const DEMO_CAPTURE_DIR = path.join(DESKTOP_ROOT, "..", "demo-video", "public", "product");
 
 const VIEWPORTS = [
   { slug: "1600x1000", width: 1600, height: 1000 },
@@ -16,7 +17,7 @@ const VIEWPORTS = [
 ] as const;
 
 const ROUTES = [
-  { route: "operations", heading: /^Ops/, marketing: true },
+  { route: "operations", heading: /^Operations/, marketing: true },
   { route: "workspaces", heading: "Workspaces", marketing: false },
   { route: "flow", heading: "Flow", marketing: true },
   { route: "approvals", heading: "Approvals", marketing: true },
@@ -71,7 +72,7 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
 
   if (route.route === "approvals") {
     await expect(
-      page.getByRole("heading", { name: "Flush Blast Shield workspace" }),
+      page.getByRole("heading", { name: "Apply reviewed workspace changes" }),
     ).toBeVisible();
   }
 
@@ -129,5 +130,41 @@ test.describe("@marketing-capture current Desktop product captures", () => {
 
       });
     }
+  }
+});
+
+test.describe("@marketing-capture current demo product captures", () => {
+  test.describe.configure({ mode: "serial" });
+
+  test.beforeAll(async () => {
+    await mkdir(DEMO_CAPTURE_DIR, { recursive: true });
+  });
+
+  for (const entry of [
+    { route: "flow", file: "flow-plan-1920x1080.png" },
+    { route: "operations", file: "operations-1920x1080.png" },
+    { route: "run-review", file: "run-review-ready-1920x1080.png" },
+  ] as const) {
+    test(`${entry.route} is ready for the 1920x1080 product film`, async ({ page }) => {
+      const route = ROUTES.find((candidate) => candidate.route === entry.route);
+      if (!route) throw new Error(`Unknown capture route: ${entry.route}`);
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await prepareRoute(page, route);
+
+      const png = await page.screenshot({ animations: "disabled", caret: "hide", scale: "css" });
+      expect(png.byteLength).toBeGreaterThan(40_000);
+      await writeCapture(path.join(DEMO_CAPTURE_DIR, entry.file), png);
+
+      if (entry.route === "run-review") {
+        await page.getByRole("button", { name: "Apply reviewed changes" }).click();
+        await expect(page.getByText("Applied successfully", { exact: true })).toBeVisible();
+        const applied = await page.screenshot({ animations: "disabled", caret: "hide", scale: "css" });
+        await writeCapture(
+          path.join(DEMO_CAPTURE_DIR, "run-review-applied-1920x1080.png"),
+          applied,
+        );
+      }
+    });
   }
 });

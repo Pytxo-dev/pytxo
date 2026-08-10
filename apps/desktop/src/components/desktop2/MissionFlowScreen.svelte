@@ -114,9 +114,8 @@
   <section class="screen mission-flow">
     <header class="screen-heading mission-heading">
       <div>
-        <p class="eyebrow">Mission control</p>
         <h1>Flow</h1>
-        <p>Compose, run, and review one mission from a single operational surface.</p>
+        <p>Plan, run, and review work in one place.</p>
       </div>
       <div class="mission-tabs" aria-label="Flow mission views" role="tablist">
         <button id="flow-tab-compose" role="tab" aria-selected={surface === "compose"} aria-controls="flow-panel-compose" tabindex={surface === "compose" ? 0 : -1} class:active={surface === "compose"} onclick={() => activateTab("compose")} onkeydown={(event) => handleTabKeydown(event, "compose")}>
@@ -145,7 +144,7 @@
     {:else if surface === "active"}
       <div id="flow-panel-active" role="tabpanel" aria-labelledby="flow-tab-active" class="panel missions-panel">
         <div class="panel-head">
-          <div><p class="eyebrow">In progress</p><h2>Active missions</h2></div>
+          <div><h2>Active missions</h2></div>
           <span>{activeRuns.length}</span>
         </div>
         {#if activeRuns.length}
@@ -173,7 +172,7 @@
     {:else}
       <div id="flow-panel-history" role="tabpanel" aria-labelledby="flow-tab-history" class="panel missions-panel">
         <div class="panel-head">
-          <div><p class="eyebrow">Completed runs</p><h2>Mission history</h2></div>
+          <div><h2>Mission history</h2></div>
           <span>{completedRuns.length}</span>
         </div>
         {#if completedRuns.length}
@@ -210,7 +209,7 @@
 
 <style>
   .mission-heading { align-items: flex-end; }
-  .mission-heading .eyebrow, .mission-heading h1, .mission-heading p { margin-top: 0; }
+  .mission-heading h1, .mission-heading p { margin-top: 0; }
   .mission-tabs {
     display: flex;
     gap: 3px;
@@ -233,7 +232,7 @@
   .mission-tabs span { min-width: 15px; padding: 2px 4px; border-radius: 8px; color: #7bbdb3; background: #12201e; font: 600 8px/1 "Geist Mono", monospace; }
   .missions-panel { padding: 0; overflow: hidden; }
   .missions-panel .panel-head { padding: 14px 16px; }
-  .missions-panel .panel-head h2, .missions-panel .panel-head .eyebrow { margin: 0; }
+  .missions-panel .panel-head h2 { margin: 0; }
   .missions-panel .panel-head h2 { margin-top: 4px; font-size: 15px; }
   .mission-list { display: grid; }
   .mission-row {

@@ -5,9 +5,9 @@ description: Pytxo is a local agent hypervisor for the coding agents you already
 
 **Pytxo** is a local **agent hypervisor** for developers who already run multiple coding agents on substantial repos and are hitting collisions, unsafe writes, or vendor fragmentation.
 
-It schedules the agents you already use (Claude Code, Codex, Cursor CLI, or any shell command) so overlapping file work waits, each agent writes in an isolated copy, and nothing lands in your real checkout until you approve.
+It schedules the agents you already use (Claude Code, Codex, Cursor CLI, or any shell command). Overlapping path claims wait for a later wave. Eligible Orbit and Galaxy runs prepare isolated changes for Run Review before Apply.
 
-Pytxo is not an IDE and not a cloud workspace. Keep your editor. Connect through a local MCP hub, or use the optional **Pytxo Desktop** app for Ops, Approvals, and Run Review.
+Pytxo is not an IDE or a managed cloud workspace. Keep your editor. Connect through the local MCP hub, or use **Pytxo Desktop** for Flow, Operations, Approvals, and Run Review.
 
 ## The sixty-second story
 
@@ -16,8 +16,8 @@ Pytxo is not an IDE and not a cloud workspace. Keep your editor. Connect through
 3. Pytxo detects the conflict **before** execution.
 4. Independent work runs together in isolated copies.
 5. The conflicting task waits for the next wave.
-6. You review and approve clean changes.
-7. The original repo stays intact until flush.
+6. Pytxo prepares the exact changed bytes for review.
+7. You Apply that package, or refresh it if an affected path has moved.
 
 ## At a glance
 

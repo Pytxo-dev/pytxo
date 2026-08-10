@@ -1,32 +1,32 @@
 ---
-title: vs Warp Oz
-description: Local agent hypervisor compared with Warp’s cloud fleet control plane.
+title: Pytxo and Warp Oz
+description: Cross-tool repository review compared with Warp's local and cloud agent platform.
 ---
 
-**Warp Oz** is a cloud orchestration / fleet plane for coding agents — ops language for agents that live in the cloud ([Warp Oz overview](https://docs.warp.dev/platform/overview/), [announcement](https://www.warp.dev/blog/oz-orchestration-platform-cloud-agents)).
+[Warp Oz](https://docs.warp.dev/agent-platform) spans interactive local agents, autonomous cloud agents, schedules, integrations, an API and SDK, and Warp-hosted or self-hosted execution. It is not accurately described as cloud-only. Oz is a strong fit when one platform should cover agent interaction, automation, hosting, and fleet visibility.
 
-Pytxo uses some of the same words (**orchestration**, **agents**, **fleet**) for a different locus: a **local agent hypervisor** that schedules headless CLIs on your machine with Race path claims and Blast approve-to-flush.
+Pytxo is narrower. It coordinates installed third-party agent CLIs and concentrates on repository ownership, isolated workspaces, immutable review, and crash-recoverable Apply.
 
-## Comparison
+## Practical differences
 
-| Dimension | Warp Oz | Pytxo |
-|-----------|---------|--------|
-| Locus | Cloud fleet control plane | Local silicon + optional Desktop |
-| Job | Operate cloud agent fleets | Coordinate mixed CLIs you already run |
-| Billing / keys | Warp / cloud posture | BYOK. Your keys. Your silicon. |
-| Collision story | Cloud product policy | Race Shield on local path claims |
-| UI | Fleet ops surface | Structural Ops / Focus / Approvals |
+| | Warp Oz | Pytxo |
+|---|---|---|
+| Agent model | Oz local and cloud agents | Installed third-party CLI agents |
+| Hosting | Warp-hosted, self-hosted, and local modes | Local or user-configured execution host |
+| Automation | Schedules, triggers, integrations, API and SDK | Mission dispatch, CLI, MCP, local events |
+| Repository contract | Oz environments and run records | Path ownership plus prepared review package |
+| Interface | Warp, Oz web app, CLI and APIs | CLI, MCP, and optional Desktop |
 
-## When Warp Oz is enough
+## Choose Warp Oz when
 
-- Cloud fleet ops is the job
-- Agents should live off-laptop by default
-- You want Warp’s control plane, not a local yard
+- You want a full local-to-cloud agent platform.
+- Scheduled automation and external integrations are central.
+- Hosted or self-hosted fleet operations matter more than supporting arbitrary installed CLIs.
 
-## When Pytxo adds value
+## Choose Pytxo when
 
-- Local-first mixed CLI yard (Claude Code + Codex + Cursor CLI + …)
-- Collisions and approvals as local systems problems
-- Structural telemetry without moving execution into a cloud fleet product
+- You want to keep using several existing CLI agents.
+- One repository's exact reviewed bytes and Apply recovery are the primary control boundary.
+- A smaller local orchestration layer is preferable to adopting a broader agent platform.
 
-See also: [vs Cursor Cloud Agents](/docs/compare/cursor-cloud-agents) · [vs Devin / Amp](/docs/compare/devin-amp).
+Pytxo does not currently match Oz's web fleet, scheduling, integration, or managed-hosting breadth.

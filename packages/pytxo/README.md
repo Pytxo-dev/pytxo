@@ -1,6 +1,6 @@
 # pytxo (npm)
 
-npm wrapper for the [Pytxo](https://pytxo.com) CLI. Downloads the matching prebuilt binary from the public [pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases) repo on `postinstall`.
+npm wrapper for the [Pytxo](https://pytxo.com) CLI. It downloads the same-version prebuilt binary from the public [pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases) repository during `postinstall`.
 
 Community: [Discord](https://discord.gg/AUFRPFjSYv)
 

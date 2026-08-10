@@ -140,6 +140,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Verify shared release version
+        run: node tooling/scripts/verify-release-version.mjs
       - name: Smoke npm wrapper with local binary
         run: |
           mkdir -p packages/pytxo/vendor

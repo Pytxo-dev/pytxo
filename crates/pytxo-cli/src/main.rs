@@ -9,7 +9,7 @@ use tracing_subscriber::EnvFilter;
 #[command(
     name = "pytxo",
     version,
-    about = "Pytxo agent control plane",
+    about = "Pytxo local agent hypervisor",
     after_help = "Discord: https://discord.gg/AUFRPFjSYv"
 )]
 struct Cli {
@@ -721,4 +721,18 @@ async fn run_project(action: ProjectAction) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn help_uses_the_same_product_language_as_desktop() {
+        let mut help = Vec::new();
+        Cli::command().write_long_help(&mut help).unwrap();
+        let help = String::from_utf8(help).unwrap();
+        assert!(help.contains("Pytxo local agent hypervisor"));
+        assert!(!help.contains("agent control plane"));
+    }
 }

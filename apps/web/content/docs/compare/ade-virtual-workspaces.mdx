@@ -1,33 +1,31 @@
 ---
-title: vs ADE / BridgeSpace-style workspaces
-description: Structural control plane compared with multi-pane terminal cinema.
+title: Pytxo and ADE virtual workspaces
+description: Structural repository supervision compared with visual multi-session workrooms.
 ---
 
-**ADE / virtual workspace** products (BridgeSpace, Emdash, and similar) optimize a workroom of agent terminals, kanban, and visual parallel panes. They look like “mission control” in a demo. Pytxo bets the other way: **structural telemetry and collision policy**, not terminal walls.
+Agent development environments and virtual workspaces put terminals, editors, tasks, and multiple agent sessions into one visual workroom. That model is useful when people want to observe and intervene in several sessions directly.
 
-## Comparison
+Pytxo Desktop is not designed to be a multi-terminal IDE. It summarizes mission state, decisions, ownership, exact reviewed changes, and operational outcomes while the agents remain headless processes.
 
-| Dimension | ADE / BridgeSpace-style | Pytxo |
-|-----------|-------------------------|--------|
-| What you open | A room of agent terminals | Your IDE + optional Desktop |
-| What it optimizes | Visual parallel panes | Throughput, isolation, path claims |
-| Product center | Terminal cinema | Hypervisor moats + Ops / Focus |
-| Keys | Often platform-shaped | BYOK. Your keys. Your silicon. |
-| Agents | Often product-tied | Runs the agents you already pay for |
+## Practical differences
 
-## When an ADE fits
+| | Visual agent workspace | Pytxo |
+|---|---|---|
+| Primary surface | Terminals, editors, chats, and task panes | Missions, operations, approvals, and review |
+| Human role | Observe and steer individual sessions | Supervise the repository-level outcome |
+| Agent scope | Varies by product | Installed headless CLIs |
+| Repository safety | Varies by workspace and sandbox | Path ownership and prepared Apply for eligible runs |
 
-- You want an all-in-one visual swarm room
-- Demo-first multi-pane terminals are the job
-- Single-vendor or hosted sandbox workflow is enough
+## Choose a visual workspace when
 
-## When Pytxo fits
+- Direct access to every terminal or editor is important.
+- The work benefits from frequent manual steering.
+- An all-in-one development room is preferable to separate tools.
 
-- Mixed headless CLIs under one scheduler
-- Collisions are a systems problem you need solved, not painted over
-- Approve-to-flush sandboxes and Galaxy HITL
-- Structural Focus graph instead of sixteen scrolling PTYs
+## Choose Pytxo when
 
-Pytxo Desktop is optional supervision — Ops, Approvals, Focus — not another ADE hero theater.
+- Operators need decisions and exact changes more than terminal output.
+- Several CLIs must share one ownership and review contract.
+- Your existing editor should remain the main coding surface.
 
-See also: [vs GitHub Copilot app](/docs/compare/github-copilot-app) · [vs Warp Oz](/docs/compare/warp-oz).
+Pytxo intentionally provides less session-level visibility than a full agent workspace. If watching and editing inside each agent's environment is the job, a visual workspace is the better fit.

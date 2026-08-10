@@ -71,49 +71,51 @@
     {#if !collapsed}<span>Search or command</span><kbd>{shortcutHint}</kbd>{/if}
   </button>
 
-  <nav aria-label="Primary">
-    {#if !collapsed}<p>Workspace</p>{/if}
-    {#each primary as item (item.route)}
-      <a
-        href={`#/${item.route}`}
-        class:active={route === item.route}
-        onclick={go(item.route)}
-        title={collapsed ? item.label : undefined}
-        aria-current={route === item.route ? "page" : undefined}
-      >
-        <item.icon size={17} stroke={1.7} />
-        {#if !collapsed}<span>{item.label}</span>{#if item.route === "approvals" && approvalsCount}<b>{approvalsCount}</b>{/if}{/if}
-      </a>
-    {/each}
-  </nav>
-
-  {#if recents.length && !collapsed}
-    <div class="recents">
-      <p>Recent</p>
-      {#each recents.slice(0, 4) as recent (recent.id)}
-        <button onclick={() => onOpenRecent(recent)} title={recent.label}><i></i><span>{recent.label}</span></button>
+  <div class="sidebar-scroll">
+    <nav aria-label="Primary">
+      {#if !collapsed}<p>Workspace</p>{/if}
+      {#each primary as item (item.route)}
+        <a
+          href={`#/${item.route}`}
+          class:active={route === item.route}
+          onclick={go(item.route)}
+          title={collapsed ? item.label : undefined}
+          aria-current={route === item.route ? "page" : undefined}
+        >
+          <item.icon size={17} stroke={1.7} />
+          {#if !collapsed}<span>{item.label}</span>{#if item.route === "approvals" && approvalsCount}<b>{approvalsCount}</b>{/if}{/if}
+        </a>
       {/each}
-    </div>
-  {/if}
+    </nav>
 
-  <nav aria-label="System" class="system-nav">
-    {#if !collapsed}<p>System</p>{/if}
-    {#each system as item (item.route)}
-      <a
-        href={`#/${item.route}`}
-        class:active={route === item.route}
-        onclick={go(item.route)}
-        title={collapsed ? item.label : undefined}
-        aria-current={route === item.route ? "page" : undefined}
-      >
-        <item.icon size={17} stroke={1.7} />
-        {#if !collapsed}<span>{item.label}</span>{/if}
-      </a>
-    {/each}
-  </nav>
+    {#if recents.length && !collapsed}
+      <div class="recents">
+        <p>Recent</p>
+        {#each recents.slice(0, 4) as recent (recent.id)}
+          <button onclick={() => onOpenRecent(recent)} title={recent.label}><i></i><span>{recent.label}</span></button>
+        {/each}
+      </div>
+    {/if}
+
+    <nav aria-label="System" class="system-nav">
+      {#if !collapsed}<p>System</p>{/if}
+      {#each system as item (item.route)}
+        <a
+          href={`#/${item.route}`}
+          class:active={route === item.route}
+          onclick={go(item.route)}
+          title={collapsed ? item.label : undefined}
+          aria-current={route === item.route ? "page" : undefined}
+        >
+          <item.icon size={17} stroke={1.7} />
+          {#if !collapsed}<span>{item.label}</span>{/if}
+        </a>
+      {/each}
+    </nav>
+  </div>
 
   <div class="sidebar-footer">
-    <button onclick={onAccountClick} title={collapsed ? `${accountLabel} · ${accountSub}` : undefined}>
+    <button aria-label="Open account and billing" onclick={onAccountClick} title={collapsed ? `${accountLabel} · ${accountSub}` : undefined}>
       <span class="avatar"><IconUserCircle size={18} /></span>
       {#if !collapsed}
         <span class="account-copy"><strong>{accountLabel}</strong><small>{accountSub}</small></span>
@@ -127,6 +129,10 @@
   .sidebar {
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
     min-width: 0;
     background: var(--pytxo-surface-shell);
     border-right: 1px solid var(--pytxo-line);
@@ -208,6 +214,15 @@
   }
   button {
     font-family: inherit;
+  }
+  .sidebar-scroll {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--pytxo-line) transparent;
   }
   .command-trigger {
     display: flex;
@@ -353,9 +368,10 @@
     background: #745ad5;
   }
   .system-nav {
-    margin-top: auto;
+    margin-bottom: 4px;
   }
   .sidebar-footer {
+    flex: none;
     border-top: 1px solid var(--pytxo-line);
     margin-top: 14px;
     padding-top: 10px;

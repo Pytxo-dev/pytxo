@@ -1,4 +1,4 @@
-# Pytxo v1.1: reviewed mission control
+# Pytxo v1.1.1: reviewed mission control polish
 
 Status: implementation complete; final release verification and publication pending.
 
@@ -142,8 +142,8 @@ git status --short
 cargo run -p pytxo-cli -- --version
 ```
 
-Confirm `distribution/release-notes/v1.1.0.md`, `RELEASE.md`, package versions,
-installer metadata, and website download metadata all name v1.1.0. Then follow
+Confirm `distribution/release-notes/v1.1.1.md`, `RELEASE.md`, package versions,
+installer metadata, and website download metadata all name v1.1.1. Then follow
 the linked workflow to create the tag, installers, checksums, npm package,
 public mirror, website deployment, and post-release download checks.
 
@@ -160,7 +160,7 @@ public mirror, website deployment, and post-release download checks.
 - The silent demo master passes publishing and media validation with no burned
   subtitles. The external SRT remains provisional until retimed.
 - Version metadata, release notes, installers, checksums, npm, public mirror,
-  download page, and documentation all resolve to the same v1.1.0 artifacts.
+  download page, and documentation all resolve to the same v1.1.1 artifacts.
 - No tag, installer, website, or demo is published before the final repository
   gates and both blockers below are cleared.
 

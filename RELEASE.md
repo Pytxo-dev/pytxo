@@ -7,7 +7,18 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
-# Pytxo v1.1.0 (release preparation)
+# Pytxo v1.1.1 (release preparation)
+
+Pytxo v1.1.1 polishes the Desktop shell, fixes compact-height sidebar access,
+aligns CLI and Desktop version metadata, and replaces competitive shorthand
+with current, balanced comparisons. See
+[`distribution/release-notes/v1.1.1.md`](distribution/release-notes/v1.1.1.md).
+
+Previous: [`v1.1.0`](distribution/release-notes/v1.1.0.md).
+
+---
+
+# Pytxo v1.1.0
 
 Pytxo v1.1 prepares the exact result of an Orbit or Galaxy run for review,
 shows that package inside Flow, and applies only those reviewed bytes to one

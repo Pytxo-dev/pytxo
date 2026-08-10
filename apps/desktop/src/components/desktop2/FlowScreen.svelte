@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { IconArrowRight, IconFolderPlus, IconMicrophone, IconPlayerRecord, IconSparkles } from "@tabler/icons-svelte";
+  import { IconArrowRight, IconFolderPlus, IconMicrophone, IconPlayerRecord } from "@tabler/icons-svelte";
   import { onMount } from "svelte";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { FlowDraftRecord, FlowPlan, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
@@ -208,11 +208,6 @@
       : "",
   );
 
-  function useTemplate(value: string) {
-    mission = value;
-    missionSource = "text";
-  }
-
   function restoreDraft(draft: FlowDraftRecord) {
     mission = draft.mission_text;
     missionSource = draft.source === "voice" ? "voice" : "text";
@@ -293,17 +288,10 @@
     <article class="panel composer-panel">
       <div class="panel-head">
         <div>
-          <h2>What should happen?</h2>
+          <h2>Mission</h2>
         </div>
-        <span class="source">Text or voice</span>
       </div>
       <textarea bind:value={mission} aria-label="Flow outcome" placeholder="Describe the outcome and any constraints…"></textarea>
-      <div class="flow-templates">
-        <span>Ideas</span>
-        <button type="button" onclick={() => useTemplate("Diagnose the failing checks, implement the smallest safe fix, and verify it")}>Fix a failure</button>
-        <button type="button" onclick={() => useTemplate("Map the affected architecture, implement the feature, and prepare Run Review")}>Build a feature</button>
-        <button type="button" onclick={() => useTemplate("Review security, permissions, and path claims without changing files")}>Audit safely</button>
-      </div>
       {#if voiceState === "cancelled" || voiceState === "failed"}
         <p class:error={voiceState === "failed"} class="voice-state-message">
           {voiceState === "cancelled" ? "Voice capture cancelled · no audio retained" : "Voice capture failed · choose another input device"}
@@ -341,7 +329,7 @@
           >
             {#if recording}<IconPlayerRecord size={17} /> Finish recording
             {:else if voiceState === "paused"}<IconMicrophone size={17} /> Finish paused recording
-            {:else if voiceState === "transcribing"}<IconSparkles size={17} /> Transcribing…
+            {:else if voiceState === "transcribing"}Transcribing…
             {:else}<IconMicrophone size={17} /> {voiceAvailable ? "Start Voice" : "Voice unavailable"}{/if}
           </button>
           {#if voiceSessionId && (voiceState === "recording" || voiceState === "paused")}
@@ -366,7 +354,7 @@
             </select>
           </div>
           <button class="primary" disabled={!mission.trim() || planning} onclick={buildPlan}>
-            {planning ? "Building…" : "Build plan"} <IconSparkles size={16} />
+            {planning ? "Building…" : "Build plan"} <IconArrowRight size={16} />
           </button>
         </div>
       </div>

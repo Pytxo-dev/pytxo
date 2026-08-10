@@ -345,7 +345,7 @@
       <div>
         <h1>{SECTIONS.find((s) => s.id === section)?.label ?? "Settings"}</h1>
         <p>
-          {#if section === "appearance"}Theme skins and chroma accents for the shell.
+          {#if section === "appearance"}Choose how Pytxo Desktop looks.
           {:else if section === "providers"}Direct API access for selected runs. Agent subscription sessions live under Integrations.
           {:else if section === "workspaces"}Default workspace behavior and the active domain.
           {:else if section === "agents"}Permission ladder defaults for new trusted folders.
@@ -386,7 +386,7 @@
       <article class="settings-group">
         <h2>Theme</h2>
         <div class="setting-row">
-          <div><strong>Match system</strong><small>Follow OS light/dark. Uses Void and Light only.</small></div>
+          <div><strong>Match system</strong><small>Follow the operating system light or dark setting.</small></div>
           <button
             class="toggle"
             class:active={matchSystem}
@@ -396,8 +396,8 @@
           ><i></i></button>
         </div>
         <div class="setting-row stack">
-          <div><strong>Skin</strong><small>Void is canonical. Terminal and Nebula are optional skins.</small></div>
-          <div class="theme-previews" role="group" aria-label="Theme skin">
+          <div><strong>Theme</strong><small>Choose a preset for the Desktop shell.</small></div>
+          <div class="theme-previews" role="group" aria-label="Theme">
             {#each DECK_THEMES as opt (opt.id)}
               <button
                 type="button"
@@ -416,7 +416,7 @@
           </div>
         </div>
         <div class="setting-row">
-          <div><strong>Accent</strong><small>Primary buttons, focus rings, and chroma edges follow this color.</small></div>
+          <div><strong>Color</strong><small>Used for primary buttons and keyboard focus.</small></div>
           <div class="accent-swatches" role="group" aria-label="Accent">
             {#each ACCENT_PRESETS as opt (opt.id)}
               <button
@@ -738,7 +738,7 @@
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #6f7784;
+    color: #7d8591;
   }
   .setting-row {
     display: flex;
@@ -761,7 +761,7 @@
   .setting-row small {
     display: block;
     margin-top: 3px;
-    color: #6f7784;
+    color: #7d8591;
     font-size: 11.5px;
     line-height: 1.4;
   }
@@ -1003,7 +1003,7 @@
   }
   .profile-grid small {
     margin-top: 4px;
-    color: #6f7784;
+    color: #7d8591;
     font-size: 11px;
   }
   .toggle {

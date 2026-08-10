@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { IconBell, IconChevronDown, IconFolder, IconHistory, IconPlus, IconSettings } from "@tabler/icons-svelte";
+  import { IconChevronDown, IconFolder, IconPlus, IconSettings } from "@tabler/icons-svelte";
   import { ROUTE_LABELS, type AppRoute } from "../../lib/navigation.svelte";
   import type { CatalogEntryStatus } from "../../lib/types";
 
@@ -10,7 +10,6 @@
     activeDomainLabel = null,
     activeDomainId = null,
     domains = [],
-    live = false,
     runningCount = 0,
     spendUsd = 0,
     onOpenHistory,
@@ -25,7 +24,6 @@
     activeDomainLabel?: string | null;
     activeDomainId?: string | null;
     domains?: CatalogEntryStatus[];
-    live?: boolean;
     runningCount?: number;
     spendUsd?: number;
     onOpenHistory: () => void;
@@ -38,9 +36,8 @@
   let open = $state(false);
 
   const available = $derived(domains.filter((d) => d.is_available && !d.is_temporary));
-  const connectionLabel = $derived(
-    !hypervisorOnline ? "Offline" : live ? "Live" : "Local",
-  );
+  const runningLabel = $derived(`${runningCount} running`);
+  const approvalsLabel = $derived(`${approvalsCount} ${approvalsCount === 1 ? "approval" : "approvals"}`);
 
   function close() {
     open = false;
@@ -107,29 +104,16 @@
     </div>
   </div>
   <div class="app-actions">
-    <div class="truth-glance" aria-label="Ops glance">
-      <button type="button" onclick={onOpenHistory} title="Running">
-        <span>Run</span><strong class="tabular">{runningCount}</strong>
+    <div class="ops-summary" role="group" aria-label="Operations summary">
+      <button type="button" onclick={onOpenHistory} aria-label={runningLabel} title="Open active runs">
+        <span>Running</span><strong class="tabular">{runningCount}</strong>
       </button>
-      <button type="button" class:needs={approvalsCount > 0} onclick={onOpenNotifications} title="Needs you">
-        <span>You</span><strong class="tabular">{approvalsCount}</strong>
+      <button type="button" class:needs={approvalsCount > 0} onclick={onOpenNotifications} aria-label={approvalsLabel} title="Open approvals">
+        <span>Approvals</span><strong class="tabular">{approvalsCount}</strong>
       </button>
       <span class="cost" title="Estimated spend"><span>Cost</span><strong class="tabular">${spendUsd.toFixed(2)}</strong></span>
     </div>
-    <span class="connection" class:offline={!hypervisorOnline} class:live={live && hypervisorOnline}>
-      <i></i> {connectionLabel}
-    </span>
-    <button aria-label="Run history" title="Run history" onclick={onOpenHistory}>
-      <IconHistory size={17} />
-    </button>
-    <button
-      aria-label={approvalsCount ? `Approvals, ${approvalsCount} open` : "Approvals"}
-      title="Approvals"
-      onclick={onOpenNotifications}
-    >
-      <IconBell size={17} />
-      {#if approvalsCount}<span class="badge-count">{approvalsCount > 99 ? "99+" : approvalsCount}</span>{/if}
-    </button>
+    {#if !hypervisorOnline}<span class="service-state" role="status">Offline</span>{/if}
   </div>
 </div>
 
@@ -145,16 +129,6 @@
     padding: 0 22px;
     gap: 12px;
   }
-  .app-bar::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 1px;
-    background: var(--pytxo-hairline);
-    pointer-events: none;
-  }
   .left {
     display: flex;
     align-items: center;
@@ -166,7 +140,7 @@
     gap: 8px;
     align-items: center;
     font-size: 11px;
-    color: #5e6571;
+    color: #7d8591;
     min-width: 0;
   }
   .breadcrumbs i {
@@ -253,13 +227,13 @@
     font-weight: 550;
   }
   .menu small {
-    color: #6f7784;
+    color: #7d8591;
     font-size: 10.5px;
   }
   .menu .empty {
     margin: 0;
     padding: 10px;
-    color: #6f7784;
+    color: #7d8591;
     font-size: 12px;
   }
   .menu-actions {
@@ -291,129 +265,62 @@
     align-items: center;
     gap: 6px;
   }
-  .truth-glance {
+  .ops-summary {
     display: flex;
-    align-items: stretch;
-    gap: 2px;
-    margin-right: 6px;
-    padding: 2px;
-    border: 1px solid var(--pytxo-line, #252830);
-    border-radius: 6px;
-    background: color-mix(in oklab, var(--pytxo-surface-panel, #111319) 80%, transparent);
+    align-items: center;
+    gap: 14px;
   }
-  .truth-glance button,
-  .truth-glance .cost {
+  .ops-summary button,
+  .ops-summary .cost {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1px;
-    min-width: 44px;
-    padding: 3px 8px;
+    align-items: baseline;
+    gap: 5px;
+    padding: 5px 0;
     border: 0;
-    border-radius: 4px;
     background: transparent;
     color: inherit;
     cursor: pointer;
     font: inherit;
   }
-  .truth-glance .cost {
+  .ops-summary .cost {
     cursor: default;
   }
-  .truth-glance button:hover {
-    background: var(--pytxo-surface-hover, #161a20);
+  .ops-summary button:hover span,
+  .ops-summary button:hover strong {
+    color: var(--pytxo-text-strong, #e1e5ea);
   }
-  .truth-glance button.needs strong {
+  .ops-summary button.needs strong {
     color: var(--pytxo-gold, #eeac47);
   }
-  .truth-glance span {
+  .ops-summary span {
     color: var(--pytxo-text-muted, #5d6470);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    font-size: 10px;
+    font-weight: 520;
   }
-  .truth-glance strong {
+  .ops-summary strong {
     color: var(--pytxo-text-body, #d7dbe0);
-    font-size: 12px;
-    font-weight: 650;
-    line-height: 1.1;
+    font-size: 11px;
+    font-weight: 620;
   }
   .tabular {
     font-variant-numeric: tabular-nums;
     font-family: "Geist Mono", ui-monospace, monospace;
   }
-  .connection {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-right: 8px;
-    color: #717885;
+  .service-state {
+    color: var(--pytxo-danger, #d98994);
     font-size: 11px;
   }
-  .connection i {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--pytxo-accent, var(--pytxo-teal));
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 12%, transparent);
-  }
-  .connection.live i {
-    background: var(--pytxo-accent, var(--pytxo-teal));
-  }
-  .connection.offline {
-    color: var(--pytxo-danger, #d98994);
-  }
-  .connection.offline i {
-    background: var(--pytxo-danger, #df6576);
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--pytxo-danger, #df6576) 14%, transparent);
-  }
-  .app-actions button {
-    position: relative;
-    width: 30px;
-    height: 30px;
-    border-radius: 5px;
-    border: 0;
-    background: none;
-    color: #707783;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .app-actions button:hover {
-    background: #14161c;
-    color: #ccd1d8;
-  }
-  .app-actions button:focus-visible {
+  .ops-summary button:focus-visible {
     outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
     outline-offset: 1px;
   }
-  .app-actions button .badge-count {
-    position: absolute;
-    right: 2px;
-    top: 2px;
-    min-width: 14px;
-    height: 14px;
-    padding: 0 3px;
-    border-radius: 7px;
-    background: var(--pytxo-gold, #eeac47);
-    color: #16120a;
-    font: 700 9px/14px "Geist Mono", ui-monospace, monospace;
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-  }
   @media (max-width: 1050px) {
-    .truth-glance button,
-    .truth-glance .cost {
-      flex-direction: row;
-      align-items: center;
-      gap: 4px;
-      min-width: auto;
-      padding: 3px 6px;
+    .ops-summary {
+      gap: 9px;
     }
-    .truth-glance span,
-    .truth-glance strong {
-      line-height: 1;
+    .ops-summary button,
+    .ops-summary .cost {
+      gap: 3px;
     }
   }
   .mono {

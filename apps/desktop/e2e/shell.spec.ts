@@ -68,13 +68,13 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByRole("heading", { name: "Flow", exact: true })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("link")).toHaveText([
       "Flow",
-      "Ops",
-      "Spaces",
+      "Operations",
+      "Workspaces",
       "Settings",
     ]);
     await expect(page.getByText(/^Updater:/)).toHaveCount(0);
-    await page.getByRole("link", { name: "Ops" }).click();
-    await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
+    await page.getByRole("link", { name: "Operations" }).click();
+    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
     await page.getByRole("link", { name: "Integrations" }).click();
     await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible();
   });
@@ -139,7 +139,7 @@ test.describe("Pytxo Desktop shell", () => {
   test("Workspaces creates the guided example and takes it into Flow", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/workspaces");
-    await page.getByRole("button", { name: "Try guided example" }).click();
+    await page.getByRole("button", { name: "Open guided example" }).click();
     await expect(page.getByRole("heading", { name: "Flow" })).toBeVisible();
   });
 
@@ -248,11 +248,11 @@ test.describe("Pytxo Desktop shell", () => {
   test("route persists across a cold reload at the root URL", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/");
-    await page.getByRole("link", { name: "Ops" }).click();
-    await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
+    await page.getByRole("link", { name: "Operations" }).click();
+    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
 
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
   });
 
   test("workspaces show an honest empty state when a search matches nothing", async ({ page }) => {
@@ -269,6 +269,75 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByText("Not signed in", { exact: true })).toBeVisible();
     await expect(page.getByText("Matt Bacon")).toHaveCount(0);
     await expect(page.getByText("MB", { exact: true })).toHaveCount(0);
+  });
+
+  test("compact Flow keeps the account control inside the visible sidebar", async ({ page }) => {
+    await page.setViewportSize({ width: 960, height: 640 });
+    await completeOnboarding(page);
+    await page.goto("/#/flow");
+
+    const account = page.getByRole("button", { name: "Open account and billing" });
+    await expect(account).toBeVisible();
+    const box = await account.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(640);
+  });
+
+  test("app bar uses one plain operations summary without a healthy-state Live ornament", async ({ page }) => {
+    await completeOnboarding(page);
+    await page.goto("/#/flow");
+
+    const summary = page.getByRole("group", { name: "Operations summary" });
+    await expect(summary.getByRole("button", { name: "1 running" })).toBeVisible();
+    await expect(summary.getByRole("button", { name: "2 approvals" })).toBeVisible();
+    await expect(summary.getByText("$0.60", { exact: true })).toBeVisible();
+    await expect(page.getByText("Live", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".connection")).toHaveCount(0);
+  });
+
+  test("compact app bar keeps each operations value readable", async ({ page }) => {
+    await page.setViewportSize({ width: 960, height: 640 });
+    await completeOnboarding(page);
+    await page.goto("/#/flow");
+
+    const items = page.getByLabel("Operations summary").locator(":scope > *");
+    await expect(items).toHaveCount(3);
+    const boxes = await items.evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const box = node.getBoundingClientRect();
+        return { left: box.left, right: box.right, width: box.width };
+      }),
+    );
+    expect(boxes[0].width).toBeGreaterThan(45);
+    expect(boxes[1].width).toBeGreaterThan(55);
+    expect(boxes[0].right).toBeLessThanOrEqual(boxes[1].left);
+    expect(boxes[1].right).toBeLessThanOrEqual(boxes[2].left);
+  });
+
+  test("Flow uses direct mission language without decorative prompt chrome", async ({ page }) => {
+    await completeOnboarding(page);
+    await page.goto("/#/flow");
+
+    await expect(page.getByRole("heading", { name: "Mission", exact: true })).toBeVisible();
+    await expect(page.getByText("Mission control", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Ideas", { exact: true })).toHaveCount(0);
+  });
+
+  test("workspace cards do not repeat the active state", async ({ page }) => {
+    await completeOnboarding(page);
+    await page.goto("/#/workspaces");
+
+    await expect(page.getByText("active: active", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Active workspace", { exact: true })).toBeVisible();
+  });
+
+  test("Appearance uses plain theme and color language", async ({ page }) => {
+    await completeOnboarding(page);
+    await page.goto("/#/settings");
+
+    await expect(page.getByText("Choose how Pytxo Desktop looks.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Skin", { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/chroma|canonical/i)).toHaveCount(0);
   });
 
   test("text Flow requires preview before mock dispatch", async ({ page }) => {
@@ -325,7 +394,7 @@ test.describe("Pytxo Desktop shell", () => {
     await completeOnboarding(page);
     await page.goto("/#/flow");
     await page.getByRole("button", { name: "Start Voice" }).click();
-    await page.getByRole("link", { name: "Ops" }).click();
+    await page.getByRole("link", { name: "Operations" }).click();
     await page.getByRole("link", { name: "Flow" }).click();
     await page.getByRole("button", { name: "Start Voice" }).click();
     await expect(page.getByRole("button", { name: "Finish recording" })).toBeVisible();
@@ -406,8 +475,8 @@ test.describe("Pytxo Desktop shell", () => {
         }),
       ),
     );
-    await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
-    await expect(page.getByLabel("Ops keyboard shortcuts")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
+    await expect(page.getByLabel("Operations keyboard shortcuts")).toBeVisible();
 
     const activeRun = page.locator(".run-row").filter({ hasText: "run-8f2c" });
     await expect(activeRun).toBeFocused();
@@ -436,15 +505,13 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(dialog).toBeHidden();
     await expect(page.getByRole("status")).toContainText("Stop requested for run-8f2c in pytxo.");
     await expect(page.getByText("No active runs", { exact: true })).toBeVisible();
-    await expect(page.getByLabel("Ops truth strip").getByRole("button", { name: /Running 0/ })).toBeVisible();
-    await expect(page.getByLabel("Ops detail")).toContainText("0/0");
-    await expect(page.getByLabel("Ops detail")).toContainText("No agents yet");
+    await expect(page.getByLabel("Operations summary").getByRole("button", { name: /Running 0/ })).toBeVisible();
   });
 
   test("approval resolution, focus routes, and restart persistence work", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/approvals");
-    await expect(page.getByRole("heading", { name: "Flush Blast Shield workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
     await expect(page.getByLabel("Approval keyboard shortcuts")).toBeVisible();
     await expect(page.locator(".decision-meta").getByText("desktop", { exact: true })).toBeVisible();
     await expect(page.locator(".decision-meta").getByText("pytxo", { exact: true })).toBeVisible();
@@ -456,18 +523,18 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByRole("heading", { name: "Allow network access" })).toBeVisible();
     await expect(page.locator(".decision-meta").getByText("net.egress", { exact: true })).toBeVisible();
     await page.keyboard.press("k");
-    await expect(page.getByRole("heading", { name: "Flush Blast Shield workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
 
     await page.getByRole("button", { name: "Review latest run" }).click();
     await expect(page.getByRole("heading", { name: "Run Review" })).toBeVisible();
     await page.goto("/#/approvals");
     await page.keyboard.press("Control+Enter");
-    await expect(page.getByRole("status")).toContainText("Approved Flush Blast Shield workspace.");
+    await expect(page.getByRole("status")).toContainText("Approved. Reviewed workspace changes can be applied.");
     await expect(page.getByRole("heading", { name: "Allow network access" })).toBeVisible();
     await page.keyboard.press("Control+Backspace");
-    await expect(page.getByRole("status")).toContainText("Denied Allow network access.");
+    await expect(page.getByRole("status")).toContainText("Denied. The blocked action will not run.");
     await expect(page.getByRole("heading", { name: "Inbox clear" })).toBeVisible();
-    await page.getByRole("link", { name: "Spaces" }).click();
+    await page.getByRole("link", { name: "Workspaces" }).click();
     for (const workspace of ["pytxo", "signal-lab"]) {
       const card = page.locator(".workspace-card").filter({
         has: page.getByRole("heading", { name: workspace, exact: true }),
@@ -504,7 +571,7 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
       test("Operations renders without page-level overflow", async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/#/operations");
-        await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
         // `#app` is intentionally `overflow: hidden` so inner panes scroll
         // instead of the page (see app.css); scrollHeight ignores `overflow`
         // entirely, so the meaningful check is the actual root scrolling
@@ -516,7 +583,7 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
         expect(overflow.horizontal).toBeLessThanOrEqual(1);
         expect(overflow.vertical).toBeLessThanOrEqual(1);
 
-        await expect(page.getByLabel("Ops keyboard shortcuts")).toBeVisible();
+        await expect(page.getByLabel("Operations keyboard shortcuts")).toBeVisible();
         const stopButton = page.getByRole("button", { name: "Review stop for run run-8f2c" });
         await stopButton.scrollIntoViewIfNeeded();
         await expect(stopButton).toBeVisible();
@@ -568,7 +635,7 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
       test("Approvals keeps evidence and decision controls reachable", async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/#/approvals");
-        await expect(page.getByRole("heading", { name: "Flush Blast Shield workspace" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
 
         const layout = page.locator(".approval-layout");
         const decision = page.locator(".decision-detail");
@@ -590,7 +657,7 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
         expect(decisionOverflow).toBeLessThanOrEqual(1);
         expect(actionsOverflow).toBeLessThanOrEqual(1);
 
-        const approve = page.getByRole("button", { name: "Approve & flush" });
+        const approve = page.getByRole("button", { name: "Approve and apply" });
         await approve.scrollIntoViewIfNeeded();
         await expect(approve).toBeVisible();
         await expect(page.getByRole("button", { name: "Review latest run" })).toBeVisible();
