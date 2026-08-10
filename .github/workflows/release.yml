@@ -70,6 +70,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify shared release version
+        shell: bash
+        run: |
+          VERSION="${NPM_VERSION#v}"
+          node tooling/scripts/verify-release-version.mjs "$VERSION"
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
