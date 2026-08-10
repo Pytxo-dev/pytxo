@@ -1,35 +1,32 @@
 ---
-title: vs GitHub Copilot app
-description: Heterogeneous local hypervisor compared with the Copilot agent desktop.
+title: Pytxo and the GitHub Copilot app
+description: Mixed-CLI orchestration compared with GitHub- and Copilot-native parallel work.
 ---
 
-The **GitHub Copilot app** is an agent-native desktop control center: parallel sessions, git worktree per session, local and cloud sandboxes, canvases, and Agent Merge ([GitHub blog](https://github.blog/news-insights/product-news/github-copilot-app-the-agent-native-desktop-experience/), [docs](https://docs.github.com/en/copilot/concepts/agents/github-copilot-app)).
+The [GitHub Copilot app](https://docs.github.com/en/copilot/concepts/agents/github-copilot-app) is a polished GitHub-native environment for parallel agent sessions. It provides a worktree per session, local and cloud sandboxes, canvases, and Agent Merge. For teams already standardized on GitHub and Copilot, that integration is a substantial advantage.
 
-It is a close category peer for supervision. Pytxo still differs on **cross-vendor local hypervisor** scope.
+Pytxo does not claim to have invented agent worktrees or to match Agent Merge. Its different focus is coordinating heterogeneous local CLIs under a common execution-domain and review contract.
 
-Be honest: Copilot ships worktree-per-session as product. Pytxo did not invent that. The claim is mixed-CLI orchestration plus Race and Signal on your machine.
+## Practical differences
 
-## Comparison
+| | GitHub Copilot app | Pytxo |
+|---|---|---|
+| Agent scope | Copilot and GitHub-native agents | Several installed headless agent CLIs |
+| Isolation | Dedicated worktree per session | Worktree or overlay workspace by execution mode |
+| Merge path | Agent Merge and GitHub workflow | Prepared Apply, then your normal Git workflow |
+| Review | Copilot app and GitHub | Exact immutable package in Pytxo Desktop |
+| Best integration | GitHub and Copilot | Local CLI and MCP ecosystem |
 
-| Dimension | GitHub Copilot app | Pytxo |
-|-----------|-------------------|--------|
-| Scope | Copilot / GitHub-native agents | Heterogeneous headless CLIs |
-| Isolation | Dedicated git worktree per session | Blast Shield + Race when paths contend |
-| Sandbox | Local restrict + cloud Linux | Approve-to-flush + permission profiles |
-| UI | My Work, canvases, Agent Merge | Structural Ops / Focus / Approvals |
-| Billing | Copilot seat; cloud sandbox metered | Local-first BYOK; Ultra optional |
+## Choose the Copilot app when
 
-## When Copilot app is enough
+- GitHub and Copilot are your standard tools.
+- Integrated canvases, worktrees, and Agent Merge cover the workflow.
+- A product-managed local and cloud sandbox experience is preferable.
 
-- You already live in GitHub + Copilot seats
-- Parallel Copilot sessions with automatic worktrees cover the job
-- You want GitHub-native canvases and Agent Merge
+## Choose Pytxo when
 
-## When Pytxo adds value
+- Claude Code, Codex, and other CLIs must share one scheduler and ownership model.
+- Apply must use the exact package shown in review.
+- Local execution and editor-independent MCP control matter.
 
-- Mixed CLIs under one scheduler (not Copilot-only)
-- Race claims across agents that share thinner isolation than one worktree each
-- Structural context (Signal Core) and Galaxy approvals
-- Your own machine + BYOK without Copilot cloud metering
-
-See also: [vs Claude Agent Teams](/docs/compare/claude-agent-teams) · [vs ADE workspaces](/docs/compare/ade-virtual-workspaces).
+Pytxo's limitation is less GitHub-native workflow depth. It expects your existing Git or pull-request process after Apply.

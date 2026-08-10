@@ -25,13 +25,13 @@ Companion category map: [[multi-agent-orchestration-landscape]]. Deep compares: 
 | **Vendor coding agent** (Claude Code, Codex, Cursor Agent) | One agent that writes code | High — “I already have an agent” |
 | **Vendor agent desktop** (Copilot app) | Control center for *their* agents | High — closest UX peer |
 | **Cloud VM / autonomous engineer** (Devin, Cursor Cloud Agents, Amp orbs) | Agents that keep working when laptop closed | Medium — different locus of execution |
-| **ADE / workroom** (BridgeSpace, Emdash) | Multi-pane terminals + kanban | High visual confusion; opposite product bet |
+| **ADE / workroom** (BridgeSpace, Emdash) | Multi-pane terminals + kanban | High visual overlap; a different supervision model |
 | **Cloud control plane** (Warp Oz) | Fleet ops for cloud agents | Medium — orchestration word collision |
 | **IDE assistant / OSS agent** (Cline, Aider, Cody, Tabnine) | Chat / edit / BYOK in editor | Low as category peer; high as “why another tool?” |
 | **Multi-agent SDK** (CrewAI, AutoGen → MAF) | Build your own agent app | Low — builders vs operators |
 | **Governance “hypervisor”** (Microsoft AGT) | Policy rings for enterprise agents | Lexical only |
 
-Pytxo’s durable wedge (honest, not unique-sandbox claims): **heterogeneous local CLI orchestration + Race collision policy + Signal structural context + Blast approve-to-flush + BYOK**, with Desktop as supervision — not the product center as terminal cinema.
+Pytxo’s durable wedge (without claiming unique sandboxing): **heterogeneous local CLI orchestration + Race collision policy + Signal structural context + Blast approve-to-flush + BYOK**, with Desktop focused on summaries, review, and decisions.
 
 ---
 
@@ -45,7 +45,7 @@ Pytxo’s durable wedge (honest, not unique-sandbox claims): **heterogeneous loc
 | **Who** | Individual Claude subscribers and Team/Enterprise orgs living in Anthropic’s stack. |
 | **Pricing (public)** | Bundled into Claude plans — Pro ~$17–20/mo, Max 5x $100, Max 20x $200; Team Premium seats include Claude Code; Enterprise seat + usage ([claude.com/product/claude-code](https://claude.com/product/claude-code), [claude.com/pricing](https://claude.com/pricing)). |
 | **Fatal overlap** | Parallel agents on one repo; “teams”; Agent view / routines / computer use expand supervision surface. |
-| **Where Pytxo wins** | Cross-vendor yard (Claude + Codex + others); Race path claims vs Anthropic’s own warning that teammates **do not** get worktree isolation and can overwrite same files; token multiplication is explicit in docs ([code.claude.com/docs/en/agent-teams](https://code.claude.com/docs/en/agent-teams)). |
+| **Practical difference** | Pytxo coordinates Claude, Codex, and other CLIs under one path-ownership policy. Anthropic notes that Agent Teams teammates **do not** get automatic worktree isolation and can overwrite the same files; its docs also make the added token use explicit ([code.claude.com/docs/en/agent-teams](https://code.claude.com/docs/en/agent-teams)). |
 | **Honest Pytxo weakness** | Claude alone is enough for many Claude-only shops; Agent Teams are free with the seat (experimental flag); Anthropic ships Agent view and workflows faster than a small control plane. |
 
 Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significantly more tokens than one session, in-process or split panes — not a multi-CLI hypervisor.
@@ -58,7 +58,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **Who** | Indie and team developers who want editor + agent as one product. |
 | **Pricing (public)** | Hobby free; Individual from $20/mo (Pro / Pro+ / Ultra); Teams $40/user/mo; Enterprise custom. Cloud agents + Bugbot on usage-based billing ([cursor.com/pricing](https://cursor.com/pricing), [cursor.com/docs/bugbot](https://cursor.com/docs/bugbot)). |
 | **Fatal overlap** | “Background agents,” parallel work, MCP hub language, spend limits — buyers say “I already run agents in Cursor.” |
-| **Where Pytxo wins** | Coordinates **agents outside Cursor’s product** (Claude Code CLI, Codex, …) under one Race/Blast policy; local-first BYOK hypervisor vs Cursor-metered cloud agents; structural Desktop vs IDE chat chrome. |
+| **Practical difference** | Pytxo coordinates **agents outside Cursor’s product** (Claude Code CLI, Codex, …) under one Race/Blast policy and can run locally with BYOK. Cursor combines its agent and editing experience in one product. |
 | **Honest Pytxo weakness** | Cursor owns the daily editing surface and distribution; Cloud Agents + Bugbot close the “async agent” loop inside one bill; Continue’s acqui-hire consolidates OSS BYOK refugees into Cursor’s orbit ([continue.dev](https://continue.dev/)). |
 
 ### GitHub Copilot (coding agent + Copilot app)
@@ -69,8 +69,8 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **Who** | Developers and orgs already on GitHub + Copilot seats. |
 | **Pricing (public)** | Seat + **GitHub AI Credits** usage (from June 2026): Pro ~$10/mo, Pro+ ~$39, Business ~$19/user, Enterprise ~$39/user; completions unlimited on paid; agent/chat consume credits ([github.com/features/copilot](https://github.com/features/copilot), [github.blog usage-based billing](https://github.blog/news-insights/company-news/github-copilot-is-moving-to-usage-based-billing/)). Copilot app: technical preview on Pro/Pro+/Business/Enterprise ([GitHub blog Build 2026](https://github.blog/news-insights/product-news/github-copilot-app-the-agent-native-desktop-experience/)). |
 | **Fatal overlap** | Closest **category peer** to Pytxo Desktop: parallel sessions, worktrees, sandboxes, approvals, merge automation. |
-| **Where Pytxo wins** | Heterogeneous CLIs (not Copilot-only); Race when isolation is thinner than one worktree each; Signal skeletons; Sovereign Shield / Galaxy HITL; BYOK local silicon without GitHub credit metering. |
-| **Honest Pytxo weakness** | Copilot ships worktree-per-session and Agent Merge as productized GitHub workflow; do **not** claim Pytxo invented worktree isolation ([[pytxo-vs-github-copilot-app]]). Distribution + CI identity are unbeatable for GitHub-native teams. |
+| **Practical difference** | Pytxo coordinates heterogeneous CLIs and adds Race ownership, Signal skeletons, and Galaxy HITL outside a GitHub-only workflow. Copilot is integrated directly with GitHub identity, pull requests, and billing. |
+| **Honest Pytxo weakness** | Copilot ships worktree-per-session and Agent Merge as a productized GitHub workflow; do **not** claim Pytxo invented worktree isolation ([[pytxo-vs-github-copilot-app]]). Its distribution and CI integration are a strong fit for GitHub-native teams. |
 
 ### OpenAI Codex / ChatGPT coding agent
 
@@ -80,7 +80,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **Who** | ChatGPT subscribers and API-key users wanting OpenAI’s coding harness. |
 | **Pricing (public)** | Included in ChatGPT Free/Go/Plus/Pro/Business/Enterprise; Plus ~$20; Pro from ~$100 with 5×/20× usage; API key = token rates, no cloud features ([chatgpt.com/codex/pricing](https://chatgpt.com/codex/pricing/), [developers.openai.com/codex/pricing](https://developers.openai.com/codex/pricing)). |
 | **Fatal overlap** | Local sandbox + approval mental model mirrors Blast/HITL language; CLI is an execution-yard peer. |
-| **Where Pytxo wins** | Mixed-CLI Race registry; Signal across vendors; Desktop structural ops; does not replace Codex — **runs** it. |
+| **Practical difference** | Pytxo can run Codex alongside other CLIs under shared ownership and review policy. Codex provides the coding agent and its own sandbox and approval model. |
 | **Honest Pytxo weakness** | Codex’s Seatbelt/bwrap/Windows sandbox story is stronger OS containment than Pytxo’s current worktree/copy-layer Blast (kernel ProjFS/FUSE still north star). |
 
 ### Devin (Cognition)
@@ -91,7 +91,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **Who** | Teams buying a managed “AI engineer” seat/quota. |
 | **Pricing (public)** | Free / Pro $20 / Max $200 / Teams $80 min (+ $40 full seats) / Enterprise custom; daily+weekly quotas, overage at API pricing ([devin.ai/pricing](https://devin.ai/pricing), [docs.devin.ai/admin/billing](https://docs.devin.ai/admin/billing)). |
 | **Fatal overlap** | “Agents ship PRs while I sleep”; concurrent sessions; cloud agents. |
-| **Where Pytxo wins** | You keep Claude/Codex/Cursor CLI of choice; local hypervisor + BYOK; no Devin identity lock-in. |
+| **Practical difference** | Pytxo lets teams keep their chosen Claude, Codex, and other CLIs with local BYOK execution. Devin offers a managed agent and cloud workflow as one product. |
 | **Honest Pytxo weakness** | Devin owns end-to-end autonomous loop + cloud compute brand; Pytxo requires users to already run (or install) yard agents. |
 
 ---
@@ -105,7 +105,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **What** | Open-source terminal pair-programmer: codebase map, git auto-commits, multi-LLM BYOK ([aider.chat](https://aider.chat/)). |
 | **Who** | CLI-native developers who want transparent git diffs and provider choice. |
 | **Pricing** | Free OSS; cost = provider tokens. |
-| **Overlap / Pytxo win / weakness** | Overlap: local BYOK coding. Win: multi-agent Race/Blast/Flow, Desktop supervision. Weakness: Aider is lighter to adopt for one-shot edits; no Pytxo needed for single-agent git loops. |
+| **Practical comparison** | Both support local BYOK coding. Pytxo adds multi-agent Race/Blast/Flow and Desktop supervision; Aider is lighter to adopt for single-agent git loops. |
 
 ### Continue (acquired by Cursor)
 
@@ -122,7 +122,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **What** | Open-source coding agent runtime: IDE extension, CLI, SDK; Plan/Act; MCP; multi-agent teams/schedules; BYOK ([cline.bot](https://cline.bot/)). |
 | **Who** | Developers wanting Apache-2.0 agent without vendor IDE lock-in. |
 | **Pricing** | Free OSS; pay model providers; commercial surfaces via Cline ecosystem. |
-| **Overlap / win / weakness** | Overlap: Plan/Act, multi-agent, MCP. Win: Pytxo orchestrates Cline **and** Claude Code **and** Codex under Race. Weakness: Cline’s “one agent everywhere” story competes for mindshare of “open agent OS.” |
+| **Practical comparison** | Both cover Plan/Act, multi-agent work, and MCP. Pytxo coordinates Cline, Claude Code, and Codex under shared Race policy; Cline offers one agent runtime across its supported surfaces. |
 
 ### Roo Code
 
@@ -131,7 +131,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **What** | VS Code agent extension marketed as “a whole dev team of AI agents in your editor” ([github.com/RooCodeInc/Roo-Code](https://github.com/RooCodeInc/Roo-Code)). |
 | **Who** | VS Code users wanting modes / multi-agent-in-editor workflows. |
 | **Pricing** | Extension historically free/OSS; cloud add-ons when offered — verify live site before quoting. |
-| **Overlap / win / weakness** | Overlap: multi-agent-in-IDE. Win: headless PTY hypervisor + structural Desktop. Weakness: lives where users already type; Pytxo is another install. |
+| **Practical comparison** | Roo Code keeps multi-agent work in VS Code. Pytxo runs headless PTYs with a separate structural Desktop, which adds another install. |
 
 ### Windsurf (Codeium)
 
@@ -140,7 +140,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **What** | AI IDE with Cascade agent, local/cloud agents, tab complete. |
 | **Who** | Developers wanting Cursor-class IDE alternative. |
 | **Pricing (reported / verify)** | Free + Pro ~$20 / Max ~$200 / Teams ~$40/user with daily/weekly quotas (third-party summaries cite windsurf pricing — confirm on [windsurf.com](https://www.windsurf.com/) before GTM). |
-| **Overlap / win / weakness** | Same as Cursor: IDE owns the day. Pytxo wins on mixed CLI orchestration outside Windsurf. |
+| **Practical comparison** | Windsurf integrates agents into the editor. Pytxo coordinates mixed CLIs outside any one IDE. |
 
 ### Amp (Sourcegraph Amp / ampcode)
 
@@ -149,7 +149,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **What** | “Frontier agent” — web, terminal, phone; **orbs** = remote machines that keep working; plugins; subscription or pay-as-you-go ([ampcode.com](https://ampcode.com/)). |
 | **Who** | Power users optimizing for unsupervised remote agent runs. |
 | **Pricing (public)** | Megawatt $20/mo (orbs + $20 agent usage); Gigawatt $200/mo; PAYG still available ([ampcode.com/news/subscriptions](https://ampcode.com/news/subscriptions)). |
-| **Overlap / win / weakness** | Overlap: remote unsupervised agents, “kill your singleton local env.” Win: Pytxo local silicon + mixed harnesses. Weakness: Amp’s orb thesis is the opposite of local-first — if buyers want laptop-closed scale, Amp/Oz/Devin win. |
+| **Practical comparison** | Amp emphasizes remote, unsupervised agents and orbs. Pytxo emphasizes local silicon and mixed harnesses; Amp, Oz, or Devin are better fits when laptop-closed scale is the priority. |
 
 ### Sourcegraph Cody
 
@@ -158,7 +158,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **What** | Enterprise AI coding assistant grounded in Sourcegraph code graph / search ([sourcegraph.com/cody](https://sourcegraph.com/cody)). |
 | **Who** | Large-codebase enterprise on Sourcegraph. |
 | **Pricing** | Enterprise / Sourcegraph-bundled (contact sales; individual Free/Pro discontinued in 2025 per market reports — confirm with Sourcegraph). |
-| **Overlap / win / weakness** | Overlap: “understand huge repos.” Win: Pytxo Signal is local AST skeletons for agent context, not enterprise search. Weakness: Cody’s monorepo context depth exceeds Pytxo today. |
+| **Practical comparison** | Both address large-repository context. Pytxo Signal provides local AST skeletons for agent context; Cody provides deeper Sourcegraph-backed monorepo search today. |
 
 ### Tabnine
 
@@ -167,7 +167,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **What** | Privacy-first code assistant + agentic platform; on-prem / private LLM emphasis ([tabnine.com/pricing](https://www.tabnine.com/pricing/)). |
 | **Who** | Regulated enterprises needing air-gap / governance. |
 | **Pricing** | Quote-based Code Assistant and Agentic Platform (per-user/month annual); BYO LLM unlimited; Tabnine-hosted LLM = provider + handling fee. |
-| **Overlap / win / weakness** | Overlap: agent governance language. Win: mixed open CLI yard. Weakness: Tabnine wins procurement for regulated on-prem; Pytxo is not an air-gap LLM product. |
+| **Practical comparison** | Both use agent-governance language. Pytxo coordinates mixed CLIs; Tabnine is designed for regulated, private, and on-premise deployments that Pytxo does not yet cover. |
 
 ---
 
@@ -181,7 +181,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **Who** | Builders prototyping business/agent workflows. |
 | **Pricing** | OSS + CrewAI enterprise/cloud offerings (check crewai.com). |
 | **Overlap** | Marketing uses “teams of agents” — consumers may conflate with coding swarms. |
-| **Pytxo win** | Operators run **existing** coding CLIs; CrewAI is a library to build new agents. |
+| **Practical difference** | Pytxo operators run **existing** coding CLIs; CrewAI users build new agent applications. |
 | **Weakness** | If buyer wants to *author* agent graphs in Python, CrewAI/LangGraph fit; Pytxo does not. |
 
 ### AutoGen → Microsoft Agent Framework
@@ -191,12 +191,12 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **What** | Research multi-agent conversations (AutoGen) consolidating into **Microsoft Agent Framework** for production Azure/.NET/Python stacks. |
 | **Who** | Enterprise builders on Microsoft AI stack. |
 | **Overlap** | “Orchestration,” group chat, Magentic patterns. |
-| **Pytxo win** | Local coding-CLI hypervisor vs SDK to build chatty agents. |
+| **Practical difference** | Pytxo is a local coding-CLI hypervisor; Microsoft Agent Framework is an SDK for building agent applications. |
 | **Weakness** | Procurement-aligned Microsoft stack; Pytxo is not an Azure agent SDK. |
 
 ---
 
-## ADE / multi-terminal workrooms (anti-category)
+## ADE / multi-terminal workrooms
 
 ### BridgeSpace (BridgeMind)
 
@@ -206,7 +206,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **Who** | “Vibe coding” users who want a visual swarm room. |
 | **Pricing** | Included with paid BridgeMind plans (Basic+) — compare on BridgeMind pricing. |
 | **Fatal overlap** | Multi-agent + Claude Code/Codex/Cursor in terminals; BridgeSwarm claims **file ownership** so agents don’t collide — Race Shield adjacency. |
-| **Where Pytxo wins** | Headless throughput, RAM-bounded PTYs, structural Desktop (not 16-pane cinema), BYOK without ADE credit gravity ([[beyond-the-ade]], [[pytxo-vs-ade-virtual-workspace]]). |
+| **Practical difference** | BridgeSpace emphasizes direct observation through a multi-terminal workroom. Pytxo keeps agents headless and uses Desktop for ownership, review, approvals, and cost ([[beyond-the-ade]], [[pytxo-vs-ade-virtual-workspace]]). |
 | **Honest Pytxo weakness** | BridgeSpace demos better; Swarm + Kanban feel like “mission control” immediately. Pytxo must win on *after* the demo: collisions, cost, mixed CLI policy. |
 
 ### Emdash (YC W26)
@@ -217,7 +217,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **Who** | Developers wanting OSS multi-agent workroom without BridgeMind lock-in. |
 | **Pricing** | Free / open-source (verify commercial add-ons). |
 | **Fatal overlap** | Explicitly multi-CLI + worktrees + review — very close to “local orchestration UI.” |
-| **Where Pytxo wins** | Rust scheduler, Race registry, Signal, Blast approve-flush, MCP hub as hypervisor — not another terminal grid ADE. |
+| **Practical difference** | Emdash centers a worktree-based multi-agent workroom. Pytxo centers a Rust scheduler, Race registry, Signal context, prepared Apply, and an MCP-facing hypervisor. |
 | **Honest Pytxo weakness** | Emdash already speaks “any coding agent + worktrees”; Pytxo must show **policy + telemetry moats**, not “we also run Claude Code.” |
 
 ---
@@ -232,8 +232,8 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 | **Who** | Teams scaling **cloud** agent fleets with Slack/GitHub/CI triggers. |
 | **Pricing** | Warp credits / team plans (see Warp billing). |
 | **Fatal overlap** | “Orchestration platform,” heterogeneous harnesses, observability — strongest **cloud** peer to Pytxo’s control-plane story. |
-| **Where Pytxo wins** | Local-first silicon, Desktop structural ops, no cloud control-plane requirement for the happy path. |
-| **Honest Pytxo weakness** | Oz wins laptop-closed, event-triggered fleet ops and team audit trails on Warp’s servers. |
+| **Practical difference** | Pytxo’s ordinary path is local-first and does not require a cloud control plane. Oz supports laptop-closed, event-triggered fleet operations and hosted team audit trails. |
+| **Honest Pytxo weakness** | Oz is the stronger fit when hosted triggers, remote execution, and shared fleet operations are primary requirements. |
 
 ### Microsoft Agent Governance Toolkit — “Agent Hypervisor”
 
@@ -248,7 +248,7 @@ Agent Teams: experimental (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), significan
 
 ## Matrix — confusion risk vs Pytxo advantage
 
-| Product | Confusion | Pytxo advantage if buyer fits | Default loser if… |
+| Product | Confusion | Pytxo fit | Prefer the competitor when… |
 |---------|-----------|-------------------------------|-------------------|
 | Claude Agent Teams | High | Mixed CLI + Race | Claude-only is enough |
 | Cursor Agent/Cloud | High | Outside-Cursor yard + BYOK policy | User lives only in Cursor |
@@ -273,7 +273,7 @@ Ship / keep these as first-class compare pages (already have 1–3):
 
 1. **Pytxo vs Claude Agent Teams** — same-vendor swarm vs cross-CLI hypervisor; cite Anthropic’s no-worktree warning.  
 2. **Pytxo vs GitHub Copilot app** — closest supervision peer; honesty on worktrees.  
-3. **Pytxo vs ADE virtual workspaces** (BridgeSpace / Emdash archetype) — terminal cinema vs structural control.  
+3. **Pytxo vs ADE virtual workspaces** (BridgeSpace / Emdash archetype) — direct terminal observation vs structural control.
 4. **Pytxo vs Cursor Cloud Agents** — cloud VM agents inside Cursor vs local mixed-CLI yard (new page recommended).  
 5. **Pytxo vs Warp Oz** — cloud fleet control plane vs local-first hypervisor (new page recommended).  
 6. **Pytxo vs Devin / Amp (autonomous remote)** — managed/remote engineer vs coordinate-what-you-already-run (optional sixth).

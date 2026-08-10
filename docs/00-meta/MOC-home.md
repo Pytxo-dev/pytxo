@@ -6,8 +6,8 @@ tags: [moc, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-31
-related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[pytxo-v1-1-trustworthy-mission-control]], [[ADR-0034-immutable-review-package-and-durable-apply]]
+updated: 2026-08-10
+related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[v1-1-architecture]], [[pytxo-v1-1-trustworthy-mission-control]], [[ADR-0034-immutable-review-package-and-durable-apply]]
 ---
 
 # Pytxo documentation home
@@ -53,6 +53,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 ### Architecture
 
 - [[architecture-index]] — [[three-tier-model]], [[context-diagram]], [[c4-container]]
+- [[v1-1-architecture]] — immutable review bytes, execution-domain serialization, journaled Apply, and exact limits
 - [[presentation-passive-telemetry]] · [[desktop-visual-system]] · [[pytxo-desktop-2-flow-voice]]
 - [[mcp-hub-integration]]
 

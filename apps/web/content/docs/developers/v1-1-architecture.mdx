@@ -1,0 +1,30 @@
+---
+title: What v1.1 changed
+description: The concrete architectural changes behind immutable Run Review and recoverable Apply.
+---
+
+Pytxo v1.1 changed the mission loop from reviewing a live workspace and later reconstructing its changes to preparing exact bytes once and applying only that reviewed package.
+
+## Immutable review packages
+
+After a successful Orbit or Galaxy run, Pytxo records the base revision, change kinds, ownership, file modes, byte counts, before and after digests, and content-addressed blobs under `.pytxo/data/reviews/<run-id>/`. Run Review reads those immutable blobs. Large text and binary content is delivered in fixed, digest-covered chunks rather than one unbounded payload.
+
+Workspaces remain available until dependent waves finish and the package is durably prepared. Untracked additions, modifications, binaries, and deletions use the same contract.
+
+## A recoverable Apply lifecycle
+
+Apply validates only affected checkout paths. Unrelated dirty files are allowed; drift on a reviewed path makes the package stale.
+
+Before changing the repository, Pytxo claims the execution domain and persists an Apply journal with backups, operations, temporary paths, directory ownership, and phase progress. Reconciliation runs before another mutation in that domain after a process interruption. It can confirm the Apply, prove a rollback and return the package to `ready`, classify source drift as `stale`, or stop at `recovery_required` when the tree cannot be proven safe.
+
+The durable states include `preparing`, `ready`, `applying`, `applied`, `stale`, `review_failed`, `recovery_required`, and `discarded`. Structured finalization also prevents failed runs from leaving the active-run marker behind.
+
+## One shared domain model
+
+Desktop, CLI, and MCP consume the same persisted run contract. Domain events and a change cursor provide immediate updates and reconnect catch-up, so Desktop no longer owns a parallel polling interpretation of mission state.
+
+## Boundaries
+
+Reviewed Apply covers Orbit and Galaxy within one execution domain and one repository root. DeepSpace is non-flushable and Supernova writes directly. It is process-crash recovery, not power-loss ACID behavior, a cross-root transaction, partial-file acceptance, or kernel-grade isolation.
+
+Read the [architecture overview](/docs/developers/architecture) for the full component map.

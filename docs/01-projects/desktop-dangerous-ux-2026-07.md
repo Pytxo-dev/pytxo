@@ -12,7 +12,7 @@ related: [[competitive-landscape-2026-07]], [[market-ready-polish-research]], [[
 
 # Desktop dangerous-daily-driver UX — July 2026
 
-Competitive UX research for making **Pytxo Desktop** feel like a dangerous daily driver — a tool you reopen impulsively because it tells the truth about parallel agents — not an AI-slop dashboard.
+Competitive UX research for making **Pytxo Desktop** a dependable daily tool that reports parallel-agent work clearly.
 
 **Research date:** 2026-07-26. Companion maps: [[competitive-landscape-2026-07]], [[market-ready-polish-research]]. Stance: [[beyond-the-ade]].
 
@@ -57,7 +57,7 @@ Primary: [Oz launch post](https://www.warp.dev/blog/oz-orchestration-platform-cl
 | Pattern | What they ship | Why it reads mature |
 |---------|----------------|---------------------|
 | **Task lifecycle vocabulary** | Trigger → Task → Host/Environment → Outputs; states queued → in progress → succeeded/failed. | SRE language, not “swarm vibes.” |
-| **Auto-tracking** | Every run gets a share link + persistent record; CLI is cloud-connected even for local starts. | Visibility without a terminal cinema. |
+| **Auto-tracking** | Every run gets a share link + persistent record; CLI is cloud-connected even for local starts. | Persistent visibility without requiring every terminal to stay visible. |
 | **Admin surface separate from interactive** | Oz web / Management UI for fleet; Warp “Cloud Mode” for interactive steer. | Density where it belongs. |
 | **Programmable defaults** | CLI/API/SDK parity; schedules; session sharing. | Daily driver for teams, not demo. |
 
@@ -67,7 +67,7 @@ Primary: [Agent Teams docs](https://code.claude.com/docs/en/agent-teams).
 
 | Pattern | What they ship | Why it matters for Pytxo |
 |---------|----------------|--------------------------|
-| **Agent panel, not 16 panes by default** | In-process panel: select teammate → Enter for transcript; idle rows collapse (`N idle agents`). | Dense roster > terminal grid as default. |
+| **Agent panel, not 16 panes by default** | In-process panel: select teammate → Enter for transcript; idle rows collapse (`N idle agents`). | A dense roster is efficient when transcripts are secondary. |
 | **Honest cost** | Teams use significantly more tokens; experimental flag required. | Maturity = warn, don’t hide burn. |
 | **Optional split panes** | tmux/iTerm2 opt-in — not the product center. | Cinema is a power mode, not the home screen. |
 
@@ -87,16 +87,16 @@ Drawn from ADE marketing (BridgeSpace) vs control-plane peers, plus Pytxo’s ow
 
 | Anti-pattern | Symptom | Why it feels like slop |
 |--------------|---------|------------------------|
-| **Terminal cinema as home** | Up to 16 GPU panes “every agent visible at once” ([BridgeSpace](https://www.bridgemind.ai/products/bridgespace)) | Demo dopamine; RAM tax; no 10-second truth. |
+| **Every terminal on the home screen** | Up to 16 GPU panes “every agent visible at once” ([BridgeSpace](https://www.bridgemind.ai/products/bridgespace)) | Useful for direct observation, but slower for scanning decisions, ownership, and cost. |
 | **Chat wall as status** | Primary UI = scrolling agent prose | Copilot explicitly demotes this; work must be inspectable (canvas / diff / PR). |
-| **Avatar / role theater** | Builder / scout / reviewer personas as chrome | Costume party; operators want path locks and spend. |
-| **Fake live / stub settings** | “Live” without poll; “Coming soon” rows | Trust death; Phase 74 closed several of these. |
+| **Roles without operational detail** | Builder / scout / reviewer personas as chrome | Roles help orientation only when paired with ownership, state, and cost. |
+| **Unverified live state / stub settings** | “Live” without poll; “Coming soon” rows | The interface promises more than the underlying state supports. |
 | **Marketing composition in-app** | Hero cards, glassmorphism, glow, invented 10× | Landing page inside the tool. |
 | **Feature bingo sidebar** | Moat names as nav without an action | [[competitive-landscape-2026-07]] habit list: status → approve → claim → cost. |
 | **Unbounded autonomy with no mode** | No Interactive / Plan / Autopilot equivalent | Feels reckless, not dangerous-in-a-good-way. |
 | **Unmetered swarm** | Parallel agents without burn strip | Claude’s own docs warn token multiplication; hiding it is amateur. |
 | **Decorative motion** | Particles, endless shimmer on idle cards | Ops tools breathe on *state change*, not ambient. |
-| **Inconsistent type / DPI** | Soft wrap chaos; non-tabular costs; blurry Tauri scale | “Indie prototype,” not daily driver. |
+| **Inconsistent type / DPI** | Soft wrap chaos; non-tabular costs; blurry Tauri scale | Makes frequent scanning and comparison harder. |
 
 **Dangerous ≠ chaotic.** Dangerous daily driver = sharp instruments, visible blast radius, one-click kill/approve. Slop = spectacle without control.
 
@@ -144,7 +144,7 @@ Aligned with Desktop 2 visual system ([[desktop-visual-system]]: void + teal / v
 
 | Do not copy | From | Why |
 |-------------|------|-----|
-| **16-pane terminal wall / GPU terminal cinema** | BridgeSpace ADE | Opposite of hypervisor thesis ([[beyond-the-ade]]); demo ≠ throughput. |
+| **Terminal wall as the default home** | BridgeSpace ADE | BridgeSpace serves direct observation well; Pytxo instead prioritizes summaries, decisions, and structural detail ([[beyond-the-ade]]). |
 | **Kanban-as-product-center** | BridgeBoard-style | Fine as optional Flow dispatch; bad as home chrome. |
 | **Chat as the primary supervision surface** | Generic multi-agent UIs | Copilot moved work to canvases for a reason. |
 | **Role avatars / “vibe coding workroom” copy** | ADE marketing | Undercuts “dangerous” ops brand. |

@@ -1,36 +1,32 @@
 ---
-title: vs Devin / Amp
-description: Coordinate what you run compared with managed remote engineers and Amp orbs.
+title: Pytxo, Devin, and Amp
+description: Coordinate existing local CLIs or use a managed, durable agent environment.
 ---
 
-**Devin** (Cognition) sells a managed autonomous software engineer — Desktop, Cloud, review, integrations — Cognition’s agent, not your mixed CLIs ([devin.ai/pricing](https://devin.ai/pricing)).
+[Devin](https://docs.devin.ai/get-started/first-run) provides managed agent sessions with an IDE, shell, browser, repository integrations, review, and parallel managed Devins. [Amp](https://ampcode.com/) supports agents across terminal, web, mobile, local machines, and remote orbs that continue without a laptop. Both offer a more complete remote-agent service than Pytxo.
 
-**Amp** pushes remote, unsupervised “orbs” — scale when the laptop is closed ([ampcode.com](https://ampcode.com/)).
+Pytxo is an orchestration layer for agent CLIs you already run. It does not supply a managed software engineer or a durable hosted machine.
 
-Pytxo’s bet is narrower and more plural: **coordinate the agents you already pay for** on local silicon (or your own sandboxes), with Race / Blast / Signal. It does not replace Devin or Amp as a managed remote engineer.
+## Practical differences
 
-## Comparison
+| | Devin / Amp | Pytxo |
+|---|---|---|
+| Product | Managed agent and remote execution environment | Local multi-CLI orchestrator |
+| Agent choice | Product's agent model | Installed CLIs you select |
+| Remote continuity | Core capability | Depends on your execution host |
+| Interaction | Web, IDE, terminal, mobile, or hosted machine | CLI, MCP, and optional Desktop |
+| Repository control | Product session and Git workflow | Local path ownership and prepared Apply package |
 
-| Dimension | Devin / Amp | Pytxo |
-|-----------|-------------|--------|
-| Product | Managed / remote engineer | Local agent hypervisor |
-| Who runs | Their agent identity | Your Claude / Codex / Cursor CLI / … |
-| Laptop-closed | Core story | Optional; local-first by default |
-| Keys | Product quotas / seats | BYOK. Your keys. Your silicon. |
-| Collisions | Inside their product | Race Shield across your yard |
+## Choose Devin or Amp when
 
-## When Devin / Amp fit
+- You want managed remote execution and minimal local operations.
+- Work must continue reliably while your laptop is closed.
+- Their agent experience and integrations fit the organization.
 
-- You want to buy a remote engineer seat/quota
-- Laptop-closed unsupervised scale is the requirement
-- Single managed identity is simpler than operating CLIs
+## Choose Pytxo when
 
-## When Pytxo adds value
+- Existing Claude Code, Codex, or other CLI subscriptions should remain in use.
+- You want a vendor-neutral repository control layer on your own host.
+- Exact review and local Apply recovery matter more than a hosted agent service.
 
-- You already run (or will run) heterogeneous CLIs
-- You want collision policy and approvals without vendor lock on the agent identity
-- Structural Ops / Focus beats another chat-first remote product
-
-Honest limit: if buyers want “ship PRs while I sleep” as a managed service, Devin/Amp/Oz win that pitch. Pytxo wins when the job is **hypervisor for what you already run**.
-
-See also: [vs Cursor Cloud Agents](/docs/compare/cursor-cloud-agents) · [vs Warp Oz](/docs/compare/warp-oz).
+Pytxo is the weaker choice when the requirement is a managed remote engineer, web/mobile continuity, or hosted compute supplied as part of the product.
