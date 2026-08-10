@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { IconActivity, IconChecks, IconFolders, IconPlugConnected, IconSettings, IconSparkles } from "@tabler/icons-svelte";
+  import { IconActivity, IconChecks, IconFolders, IconPlugConnected, IconRoute, IconSettings } from "@tabler/icons-svelte";
   import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
   import {
     consumeDomainChanges,
@@ -84,7 +84,6 @@
   let focusDomainId = $state<string | null>(null);
   let activeDomainId = $state<string | null>(null);
   let lastPollAt = $state<number | null>(null);
-  let pollLive = $state(false);
   let settingsSection = $state<SettingsSectionId | null>(null);
   let editingWorkspaceId = $state<string | null>(null);
   let voiceModelPath = $state<string | null>(null);
@@ -102,9 +101,9 @@
   );
 
   const primary = [
-    { route: "flow" as const, label: "Flow", icon: IconSparkles },
-    { route: "operations" as const, label: "Ops", icon: IconActivity },
-    { route: "workspaces" as const, label: "Spaces", icon: IconFolders },
+    { route: "flow" as const, label: "Flow", icon: IconRoute },
+    { route: "operations" as const, label: "Operations", icon: IconActivity },
+    { route: "workspaces" as const, label: "Workspaces", icon: IconFolders },
     { route: "settings" as const, label: "Settings", icon: IconSettings },
   ];
   const system = [
@@ -225,14 +224,12 @@
         lastPollAt = Date.now();
         void ipc.setTrayNeedsYou(next.approvals.length);
       }
-      pollLive = !next.error;
       if (next.error && !opts.silent) {
         loadMessage = next.error.message;
       } else if (!next.error && loadMessage && previewState === "default") {
         loadMessage = "";
       }
     } catch {
-      pollLive = false;
     }
   }
 
@@ -562,7 +559,6 @@
       activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? activeDomain.domain_id) : null}
       {activeDomainId}
       domains={snapshot.domains}
-      live={pollLive}
       runningCount={snapshot.runs.filter((r) =>
         ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
       ).length}
@@ -584,7 +580,6 @@
         <OperationsScreen
           bind:this={operationsScreen}
           {snapshot}
-          live={pollLive}
           lastPollAt={lastPollAt}
           activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? null) : null}
           onRoute={navigate}
@@ -656,7 +651,11 @@
   .desktop2 {
     display: grid;
     grid-template-columns: 224px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    flex: 1;
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
     background: var(--pytxo-surface-shell);
     color: var(--pytxo-text-strong);
     font-family: "Geist", Inter, ui-sans-serif, system-ui, sans-serif;
@@ -669,12 +668,7 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background: radial-gradient(
-        circle at 80% -10%,
-        color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 8%, transparent),
-        transparent 30%
-      ),
-      var(--pytxo-surface-shell);
+    background: var(--pytxo-surface-shell);
   }
   .content {
     flex: 1;
@@ -733,17 +727,4 @@
     }
   }
 
-  :global(html[data-chroma-theme="nebula"]) main {
-    background: radial-gradient(
-        circle at 20% -20%,
-        color-mix(in oklab, var(--brand-magenta) 12%, transparent),
-        transparent 40%
-      ),
-      radial-gradient(
-        circle at 80% -10%,
-        color-mix(in oklab, var(--pytxo-accent, var(--brand-violet)) 10%, transparent),
-        transparent 35%
-      ),
-      var(--pytxo-surface-shell);
-  }
 </style>

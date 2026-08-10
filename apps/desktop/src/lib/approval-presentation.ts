@@ -104,14 +104,14 @@ export function approvalPresentation(approval: HitlDto): ApprovalPresentation {
   const action = approval.action.trim().toLowerCase();
   if (action === "blast.flush" || action.includes("flush blast shield")) {
     return {
-      title: "Flush Blast Shield workspace",
+      title: "Apply reviewed workspace changes",
       category: "Sandbox",
-      approveLabel: "Approve & flush",
-      denyLabel: "Deny & discard",
+      approveLabel: "Approve and apply",
+      denyLabel: "Deny and discard",
       consequence:
         "Approving writes the isolated workspace changes into the repository. Denying discards them.",
-      approvedMessage: "Sandbox flush can proceed.",
-      deniedMessage: "Isolated changes will not be flushed.",
+      approvedMessage: "Reviewed workspace changes can be applied.",
+      deniedMessage: "Isolated changes will be discarded.",
     };
   }
 

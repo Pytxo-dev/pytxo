@@ -14,7 +14,6 @@
 
   let {
     snapshot,
-    live = false,
     lastPollAt = null,
     activeDomainLabel = null,
     onRoute,
@@ -22,7 +21,6 @@
     onStopRun,
   }: {
     snapshot: DesktopSnapshot;
-    live?: boolean;
     lastPollAt?: number | null;
     activeDomainLabel?: string | null;
     onRoute: (route: "approvals" | "runs" | "flow" | "workspaces") => void;
@@ -54,8 +52,6 @@
   const spendUsd = $derived(
     snapshot.runs.reduce((sum, run) => sum + (run.estimated_cost_usd ?? 0), 0),
   );
-  const healthyAgents = $derived(snapshot.agents.filter((agent) => agent.status !== "failed").length);
-  const failedAgents = $derived(snapshot.agents.length - healthyAgents);
   const activeRunList = $derived(
     snapshot.runs
       .filter((run) => ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()))
@@ -197,13 +193,13 @@
 <section class="screen operations">
   <header class="screen-heading">
     <div bind:this={operationsHeading} tabindex="-1">
-      <h1>Ops{#if activeDomainLabel} <span class="ops-domain">{activeDomainLabel}</span>{/if}</h1>
-      <p>Running work, what needs you, sandboxed share, and spend.</p>
+      <h1>Operations{#if activeDomainLabel} <span class="ops-domain">{activeDomainLabel}</span>{/if}</h1>
+      <p>Runs, approvals, isolation, and estimated cost.</p>
     </div>
-    <button class="primary" onclick={() => onRoute("flow")}>New Flow <IconArrowUpRight size={16} /></button>
+    <button class="primary" onclick={() => onRoute("flow")}>New mission <IconArrowUpRight size={16} /></button>
   </header>
 
-  <div class="ops-shortcuts" aria-label="Ops keyboard shortcuts">
+  <div class="ops-shortcuts" aria-label="Operations keyboard shortcuts">
     <span><kbd>Ctrl/⌘ Shift O</kbd> Focus active work</span>
     <span><kbd>Ctrl/⌘ Shift ⌫</kbd> Review stop</span>
   </div>
@@ -223,7 +219,7 @@
       </div>
     </div>
   {:else}
-    <div class="ops-truth" aria-label="Ops truth strip">
+    <div class="ops-truth" aria-label="Operations summary">
       <article>
         <button type="button" onclick={() => onRoute("runs")}>
           <span>Running</span>
@@ -247,23 +243,6 @@
         <span>Cost</span>
         <strong>${spendUsd.toFixed(2)}</strong>
         <small>Estimated across listed runs</small>
-      </article>
-    </div>
-
-    <div class="metrics metrics--two" aria-label="Ops detail">
-      <article>
-        <span>Agent health</span><strong>{healthyAgents}/{snapshot.agents.length}</strong>
-        {#if snapshot.agents.length === 0}
-          <small>No agents yet</small>
-        {:else if failedAgents > 0}
-          <small class="risk-text"><IconAlertTriangle size={14} /> {failedAgents} failed</small>
-        {:else}
-          <small class="good"><IconCircleCheck size={14} /> All responsive</small>
-        {/if}
-      </article>
-      <article>
-        <span>Path locks</span><strong>{contendedAgents.length}</strong>
-        <small>{contendedAgents.length ? "Path contention" : raceVisible ? "Agents active" : "No locks"}</small>
       </article>
     </div>
 
@@ -298,7 +277,7 @@
               </div>
             {/each}
           {:else}
-            <div class="empty"><IconClockHour4 size={24} /><strong>No active runs</strong><span>Start a Flow to see it here.</span></div>
+            <div class="empty"><IconClockHour4 size={24} /><strong>No active runs</strong><span>Start a mission to see it here.</span></div>
           {/if}
         </div>
       </article>
@@ -364,7 +343,7 @@
     <article class="panel activity-panel">
       <div class="panel-head">
         <div><h2>Recent activity</h2></div>
-        {#if live}<span class="live" title={lastPollAt ? `Updated ${relativeTime(lastPollAt)}` : "Polling"}>Live</span>{:else if timeline.length}<span class="live muted">Paused</span>{/if}
+        {#if timeline.length && lastPollAt}<span class="activity-updated">Updated {relativeTime(lastPollAt)}</span>{/if}
       </div>
       {#if timeline.length}
         <div class="timeline">
@@ -430,9 +409,6 @@
 </dialog>
 
 <style>
-  .risk-text {
-    color: var(--pytxo-gold, #d9a44f) !important;
-  }
   .decision-card {
     display: block;
     width: 100%;
@@ -463,7 +439,9 @@
     font-size: 10px;
     color: #5e6571;
   }
-  .live.muted {
-    opacity: 0.55;
+  .activity-updated {
+    color: #7d8591;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
   }
 </style>
