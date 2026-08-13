@@ -59,15 +59,15 @@ const MOATS: Moat[] = [
 
 const ALSO_INCLUDED = [
   {
-    title: "Mission planning with Flow",
+    title: "Mission planning",
     description:
       "Compose a mission, review tasks, paths, permissions, agent assignments, and waves, then dispatch the approved plan.",
-    href: "/docs/concepts/desktop#pytxo-flow",
+    href: "/docs/concepts/desktop#new-mission",
   },
   {
-    title: "Flow and Run Review",
+    title: "Missions and Run Review",
     description:
-      "Track active work and history in Flow. Run Review shows the package, exact file changes, policy evidence, recovery state, and Apply history.",
+      "Track active work and history in Missions. Run Review shows the package, exact file changes, policy evidence, recovery state, and Apply history.",
     href: "/docs/concepts/desktop",
   },
   {

@@ -93,7 +93,7 @@
         </div>
       {/each}
     </div>
-    <p class="summary">{installedCount} agent CLI{installedCount === 1 ? "" : "s"} detected. You can recheck and add more from Integrations.</p>
+    <p class="summary">{installedCount} agent CLI{installedCount === 1 ? "" : "s"} detected. You can recheck and add more from Agents.</p>
   {/if}
 
   {#if message}<p class="message" role="status">{message}</p>{/if}

@@ -11,26 +11,27 @@ Download installers from [pytxo.com/download](https://pytxo.com/download).
 
 | Panel | What you see |
 |-------|----------------|
-| Flow | Compose, Active, History, and contextual Run Review |
-| Operations | Active runs, agent health, failures, and structured activity |
-| Workspaces | Project folders and execution-domain scope |
-| Run Review | Immutable manifest, exact changes, policy evidence, Apply history, and recovery |
-| Focus | Contextual structural graph of edited files and import edges |
+| Ops | Needs you, Running rows, path locks, spend, and attention state |
+| Missions | Past work, **New mission**, and a selected mission’s Plan / Live / Review |
 | Approvals | Pending Galaxy requests (with domain label) |
-| Integrations | Agent CLI availability; MCP hub is CLI/IDE (`pytxo-mcp`), not in-app connection config |
-| Settings | Theme, providers, update channel, and developer controls |
+| Workspaces | Project folders and execution-domain scope |
+| Agents | Installed CLIs and vendor-owned session readiness; MCP hub is CLI/IDE (`pytxo-mcp`) |
+| Settings | Appearance (Void / Light, teal), Providers, and shortcuts |
 
-## Pytxo Flow
+Older hashes such as `#/flow`, `#/integrations`, `#/runs`, `#/topology-focus`, and `#/run-review` still open the matching Missions or Agents view.
 
-Flow is the mission home. Compose a mission, select one execution domain, and
-review tasks, waves, path claims, agent assignments, permissions, isolation,
-warnings, and blockers before dispatch. Active shows live state. History opens
-a completed run in Run Review without leaving Flow.
+## New mission
 
-Desktop sends intent; the orchestrator enforces the permission ceiling,
-execution-domain boundary, path claims, and isolation requirements before a
-plan can run.
-There is no quick-run path: every Flow mission must be previewed first.
+**New mission** is the mission-to-plan workflow. Enter an outcome, select one execution domain, and
+review the resulting tasks, waves, path claims, agent CLI assignments, permissions, isolation, cost
+estimates, warnings, and blockers before **Run**.
+
+Desktop sends intent; the orchestrator enforces Signal Core, Race Shield, Blast Shield,
+permission ceilings, and execution-domain validation before a plan can run.
+There is no quick-run path: every mission must be previewed first.
+
+Open a running or finished mission to switch **Plan**, **Live**, and **Review**. Mission Review is the
+reviewed-package Apply surface. It is not a separate Runs or Focus destination.
 
 ## Run Review
 
@@ -57,7 +58,7 @@ integrity refresh.
 
 ## Pytxo Voice
 
-Voice captures speech and turns the transcript into an editable Flow mission. Transcription runs
+Voice captures speech and turns the transcript into an editable mission. Transcription runs
 locally with an on-demand model. Raw microphone audio remains in bounded memory and
 is cleared on completion, cancellation, device loss, or shutdown; it is never stored in Pytxo's
 catalog, logs, events, or diagnostics.
@@ -67,7 +68,7 @@ dispatch work automatically.
 
 ## Design principles
 
-- Dark UI with teal, violet, and gold accents
+- Void or Light, with a calm teal accent
 - Structural views over raw terminal walls
 - No direct filesystem access from the UI; all data comes through local IPC
 - Plan preview before dispatch
@@ -75,7 +76,7 @@ dispatch work automatically.
 
 ## Structural topology
 
-During an active run, Topology Focus shows:
+During an active run, the mission **Live** pane shows:
 
 - **Nodes:** files and modules from the Signal Core structural graph
 - **Edges:** import relationships between them

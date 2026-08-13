@@ -6,8 +6,8 @@ tags: [moc, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-08-10
-related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[v1-1-architecture]], [[pytxo-v1-1-trustworthy-mission-control]], [[ADR-0034-immutable-review-package-and-durable-apply]]
+updated: 2026-08-13
+related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[v1-1-architecture]], [[pytxo-v1-1-trustworthy-mission-control]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
 ---
 
 # Pytxo documentation home
@@ -104,6 +104,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[v1-provider-auth-onboarding-research]] — official vendor auth boundaries, child-environment blocker, and v1 integration acceptance criteria (2026-07-30)
 - [[v1-product-reference-research]] — 18 official product references and the v1 Desktop, website, and demo design decisions (2026-07-30)
 - [[pytxo-v1-1-trustworthy-mission-control]]: v1.1 release thesis, implemented trust contract, and remaining priorities
+- [[ADR-0035-desktop-2-quiet-instrument-ia]] — Desktop 2 Ops / Missions / Approvals quiet instrument
 - [[competitive-landscape-2026-07]] — primary-source competitor map + GTM compare priorities (2026-07)
 
 ### ADRs

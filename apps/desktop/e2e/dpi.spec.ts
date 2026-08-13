@@ -22,14 +22,14 @@ for (const deviceScaleFactor of DEVICE_SCALE_FACTORS) {
       test(`keeps ${userScale.label} user zoom independent from simulated DPI`, async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/");
-        await expect(page.getByRole("heading", { name: "Flow", exact: true })).toBeVisible();
+        await expect(page.getByRole("heading", { name: /^Ops/ })).toBeVisible();
 
         await openAppearance(page);
         await setBrowserPreviewScale(page, userScale.label);
         await expectRootZoom(page, userScale.value);
         expect(await page.evaluate(() => window.devicePixelRatio)).toBe(deviceScaleFactor);
 
-        await page.getByRole("link", { name: "Operations" }).click();
+        await page.getByRole("link", { name: "Ops" }).click();
         const pageOverflow = await rootOverflow(page);
         expect(pageOverflow.horizontal).toBeLessThanOrEqual(1);
         expect(pageOverflow.vertical).toBeLessThanOrEqual(1);

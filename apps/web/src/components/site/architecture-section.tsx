@@ -18,7 +18,7 @@ const PIPELINE: Stage[] = [
 
 const DESKTOP: Stage = {
   label: "Pytxo Desktop",
-  detail: "Flow, Run Review, operations, and recovery",
+  detail: "Ops, Missions, Run Review, and recovery",
   icon: LayoutDashboard,
 };
 

@@ -6,8 +6,8 @@ tags: [product, vision, architecture]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-08-01
-related: [[agent-os-vs-virtual-workspace]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[desktop-visual-system]], [[competitive-benchmarks]], [[pytxo-improvement-research]], [[beyond-the-ade]], [[mission-loop]], [[ADR-0034-immutable-review-package-and-durable-apply]]
+updated: 2026-08-13
+related: [[agent-os-vs-virtual-workspace]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[desktop-visual-system]], [[competitive-benchmarks]], [[pytxo-improvement-research]], [[beyond-the-ade]], [[pytxo-vs-github-copilot-app]], [[mission-loop]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
 ---
 
 # Product vision
@@ -34,8 +34,7 @@ one mission -> proposed plan -> human edit/approve -> isolated waves
 -> verification -> immutable review package -> Apply
 ```
 
-CLI: `pytxo mission "..."`. Desktop: Flow -> History -> Run Review
-([[ADR-0032-desktop-2-focus-flow-primary]]).
+CLI: `pytxo mission "…"`. Desktop: Ops → Missions (plan / live / review) → Approvals ([[ADR-0035-desktop-2-quiet-instrument-ia]]).
 
 For Orbit and Galaxy, a successful run prepares an immutable package for one
 execution domain and one repository root. Run Review displays the package
@@ -90,10 +89,7 @@ claim ([[competitive-benchmarks]]).
 
 ## Pytxo Desktop
 
-Desktop is optional. Flow contains mission composition, active state, history,
-and completed-run review. Operations, Workspaces, and Settings remain primary
-destinations; structural Focus is contextual mission detail. The interactive
-3D Deck is development-only legacy code.
+Optional **mission-review and intervention** UI ([[desktop-visual-system]], [[ADR-0035-desktop-2-quiet-instrument-ia]]). Formerly Reality Deck. Operations, Workspaces, and Settings remain primary destinations. The interactive 3D Deck is development-only legacy code.
 
 Desktop sends intents through Tauri IPC. Orchestration owns permission checks,
 package preparation, Apply, and recovery.

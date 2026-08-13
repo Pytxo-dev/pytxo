@@ -14,21 +14,21 @@ const STORY = [
     description:
       "Turn one mission into explicit tasks, paths, owners, dependencies, execution waves, and verification.",
     image: "/product/flow-1600x1000.png",
-    alt: "Pytxo Flow showing an editable mission and a reviewable three-task execution plan",
+    alt: "Pytxo Desktop New mission showing an editable outcome and a reviewable execution plan",
   },
   {
     title: "Review the prepared package",
     description:
       "Inspect the base revision, package digest, permission profile, enforcement receipt, ownership DAG, and exact additions, edits, and deletions.",
     image: "/product/run-review-1600x1000.png",
-    alt: "Pytxo Run Review showing the base revision, package digest, enforcement surfaces, ownership DAG, and exact prepared changes",
+    alt: "Pytxo Desktop Run Review showing the base revision, package digest, enforcement surfaces, ownership DAG, and exact prepared changes",
   },
   {
     title: "Apply exactly what you reviewed",
     description:
       "For an Orbit or Galaxy run, Pytxo revalidates affected paths and applies only the stored package within one execution domain and one repository root. A process crash is reconciled from its journal.",
     image: "/product/run-applied-1600x1000.png",
-    alt: "Pytxo Run Review showing the completed ownership plan and applied run contract",
+    alt: "Pytxo Desktop Run Review showing the completed ownership plan and applied run contract",
   },
 ] as const;
 
@@ -110,7 +110,7 @@ export function ProductStory() {
           </h2>
           <p className="mt-4 max-w-md leading-relaxed text-muted-foreground">
             Set path ownership before dispatch. After the run, inspect the exact package,
-            permission evidence, and Apply history in Flow.
+            permission evidence, and Apply history in Missions.
           </p>
         </div>
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { IconArrowRight, IconFolderPlus, IconMicrophone, IconPlayerRecord } from "@tabler/icons-svelte";
+  import { IconArrowRight, IconFolderPlus, IconLoader2, IconMicrophone, IconPlayerRecord } from "@tabler/icons-svelte";
   import { onMount } from "svelte";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { FlowDraftRecord, FlowPlan, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
@@ -10,7 +10,7 @@
     preferredDomainId = null,
     previewState = "draft",
     onAddWorkspace = null,
-    embedded = false,
+    onDispatched = null,
   }: {
     backend: DesktopBackend;
     domains: { domain_id: string; repo_root: string }[];
@@ -18,7 +18,7 @@
     preferredDomainId?: string | null;
     previewState?: "draft" | "recording" | "paused" | "transcribing" | "cancelled" | "failed" | "uncertain" | "planning" | "ready" | "blocked" | "dispatched";
     onAddWorkspace?: (() => void | Promise<void>) | null;
-    embedded?: boolean;
+    onDispatched?: ((runId: string) => void) | null;
   } = $props();
   let selectedDomainId = $state("");
   let selectedAde = $state("cursor");
@@ -45,9 +45,6 @@
   let history = $state<FlowDraftRecord[]>([]);
   let historySyncedRun = "";
 
-  const step = $derived(
-    dispatchedRun ? 4 : plan ? 3 : mission.trim() ? 2 : 1,
-  );
   const showPlanPanel = $derived(planning || !!plan);
   const dispatchedLabel = $derived(
     dispatchedStatus === "verify_failed"
@@ -56,16 +53,6 @@
         ? `${dispatchedStatus.charAt(0).toUpperCase()}${dispatchedStatus.slice(1)}`
         : "Running",
   );
-
-  $effect(() => {
-    const preferred = preferredDomainId;
-    const list = domains;
-    if (preferred && list.some((d) => d.domain_id === preferred)) {
-      selectedDomainId = preferred;
-    } else if (!selectedDomainId || !list.some((d) => d.domain_id === selectedDomainId)) {
-      selectedDomainId = list[0]?.domain_id ?? "";
-    }
-  });
 
   $effect(() => {
     const runId = dispatchedRun;
@@ -78,6 +65,16 @@
     ) {
       historySyncedRun = runId;
       void backend.flowHistory().then((drafts) => (history = drafts));
+    }
+  });
+
+  $effect(() => {
+    const preferred = preferredDomainId;
+    const list = domains;
+    if (preferred && list.some((d) => d.domain_id === preferred)) {
+      selectedDomainId = preferred;
+    } else if (!selectedDomainId || !list.some((d) => d.domain_id === selectedDomainId)) {
+      selectedDomainId = list[0]?.domain_id ?? "";
     }
   });
 
@@ -104,6 +101,7 @@
       plan = await backend.saveReviewedFlow(plan);
       dispatchedRun = await backend.dispatchFlow(plan.draft_id);
       dispatchedStatus = "running";
+      onDispatched?.(dispatchedRun);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
     } finally {
@@ -208,6 +206,11 @@
       : "",
   );
 
+  function useTemplate(value: string) {
+    mission = value;
+    missionSource = "text";
+  }
+
   function restoreDraft(draft: FlowDraftRecord) {
     mission = draft.mission_text;
     missionSource = draft.source === "voice" ? "voice" : "text";
@@ -258,18 +261,11 @@
 </script>
 
 <section class="screen flow-screen">
-  {#if !embedded}<header class="screen-heading">
+  <header class="screen-heading">
     <div>
-      <h1>Flow</h1>
-      <p>Write an outcome, review the plan, then run.</p>
+      <h1>New mission</h1>
     </div>
-    <ol class="flow-steps" aria-label="Flow steps">
-      <li class:active={step === 1} class:done={step > 1}>Write</li>
-      <li class:active={step === 2} class:done={step > 2}>Build</li>
-      <li class:active={step === 3} class:done={step > 3}>Review</li>
-      <li class:active={step === 4} class:done={step >= 4}>Run</li>
-    </ol>
-  </header>{/if}
+  </header>
 
   {#if !domains.length}
     <div class="panel">
@@ -285,13 +281,20 @@
     </div>
   {:else}
   <div class="flow-layout" class:flow-layout--solo={!showPlanPanel}>
+    {#if !showPlanPanel}
     <article class="panel composer-panel">
       <div class="panel-head">
         <div>
-          <h2>Mission</h2>
+          <h2>Outcome</h2>
         </div>
       </div>
-      <textarea bind:value={mission} aria-label="Flow outcome" placeholder="Describe the outcome and any constraints…"></textarea>
+      <textarea bind:value={mission} aria-label="Mission outcome" placeholder="Describe the outcome and any constraints…"></textarea>
+      <div class="flow-templates">
+        <span>Ideas</span>
+        <button type="button" onclick={() => useTemplate("Diagnose the failing checks, implement the smallest safe fix, and verify it")}>Fix a failure</button>
+        <button type="button" onclick={() => useTemplate("Map the affected architecture, implement the feature, and prepare review")}>Build a feature</button>
+        <button type="button" onclick={() => useTemplate("Review security, permissions, and path claims without changing files")}>Audit safely</button>
+      </div>
       {#if voiceState === "cancelled" || voiceState === "failed"}
         <p class:error={voiceState === "failed"} class="voice-state-message">
           {voiceState === "cancelled" ? "Voice capture cancelled · no audio retained" : "Voice capture failed · choose another input device"}
@@ -329,7 +332,7 @@
           >
             {#if recording}<IconPlayerRecord size={17} /> Finish recording
             {:else if voiceState === "paused"}<IconMicrophone size={17} /> Finish paused recording
-            {:else if voiceState === "transcribing"}Transcribing…
+            {:else if voiceState === "transcribing"}<IconLoader2 size={17} class="spin" /> Transcribing…
             {:else}<IconMicrophone size={17} /> {voiceAvailable ? "Start Voice" : "Voice unavailable"}{/if}
           </button>
           {#if voiceSessionId && (voiceState === "recording" || voiceState === "paused")}
@@ -354,17 +357,12 @@
             </select>
           </div>
           <button class="primary" disabled={!mission.trim() || planning} onclick={buildPlan}>
-            {planning ? "Building…" : "Build plan"} <IconArrowRight size={16} />
+            {planning ? "Building…" : "Build plan"}
           </button>
         </div>
       </div>
-      {#if recording || voiceState === "paused" || voiceState === "transcribing"}
-        <div class="waveform" aria-label={voiceState === "transcribing" ? "Transcription progress" : "Recording audio level"}>
-          {#each [4,8,13,20,9,25,17,7,15,22,11,5,18,10,4] as height}<i style={`height:${height}px`}></i>{/each}
-          <span>{voiceState === "paused" ? "Paused" : voiceState === "transcribing" ? `${Math.round(transcriptionProgress * 100)}%` : "00:08"}</span>
-        </div>
-      {/if}
     </article>
+    {/if}
 
     {#if showPlanPanel}
       <article class="panel plan-panel">
@@ -375,10 +373,10 @@
           {#if plan}<span class="ready">{plan.status === "ready" ? "Ready" : "Blocked"}</span>{/if}
         </div>
         {#if plan}
-          <div class="mission-summary"><strong>{mission}</strong><p>{planSummary}</p></div>
+          <p class="plan-summary">{planSummary}</p>
           {#each plan.waves as wave, waveIndex}
             <div class="plan-wave">
-              <span>Wave {waveIndex + 1}</span>
+              <span>Stage {waveIndex + 1}</span>
               {#each wave as taskId, taskIndex}
                 {@const task = plan.tasks.find((item) => item.id === taskId)}
                 {#if task}
@@ -396,13 +394,14 @@
           <div class="plan-footer">
             <div><span>Estimate</span><strong>{plan.estimated_cost_usd ? `$${plan.estimated_cost_usd.toFixed(2)}` : "Local"}</strong></div>
             <div><span>Path locks</span><strong>{plan.blocked_reasons.length ? `${plan.blocked_reasons.length} collisions` : "Clear"}</strong></div>
+            <button class="quiet" disabled={planning} onclick={buildPlan}>Build plan</button>
             <button class="primary" disabled={plan.status !== "ready" || !!dispatchedRun || dispatching} onclick={dispatch}>
               {dispatchedRun ? `${dispatchedLabel} ${dispatchedRun}` : dispatching ? "Starting…" : "Run"} <IconArrowRight size={16} />
             </button>
           </div>
           {#if error}<p class="voice-state-message error" role="alert">{error}</p>{/if}
         {:else if planning}
-          <div class="plan-empty"><div class="orbit"><span></span></div><strong>Building plan</strong><p>Checking paths, permissions, and agent CLI availability.</p></div>
+          <div class="plan-empty"><strong>Building plan</strong><p>Checking paths, permissions, and agent CLI availability.</p></div>
         {:else}
           <div class="plan-empty">
             <strong>{error || "No plan yet"}</strong>

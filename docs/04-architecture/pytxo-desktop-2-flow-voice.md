@@ -1,34 +1,24 @@
 ---
-title: Pytxo Desktop 2, Flow, and Voice
+title: Pytxo Desktop 2, missions, and Voice
 slug: pytxo-desktop-2-flow-voice
 status: active
 tags: [desktop, flow, voice, architecture]
 audience: [human, agent]
 layer: presentation
 created: 2026-07-12
-updated: 2026-08-01
-related: [[desktop-visual-system]], [[presentation-passive-telemetry]], [[dag-flow-engine]], [[permission-profile-engine]], [[execution-domains]], [[ADR-0034-immutable-review-package-and-durable-apply]]
+updated: 2026-08-13
+related: [[desktop-visual-system]], [[presentation-passive-telemetry]], [[dag-flow-engine]], [[permission-profile-engine]], [[execution-domains]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
 ---
 
-# Pytxo Desktop 2, Flow, and Voice
+# Pytxo Desktop 2, missions, and Voice
 
-Pytxo Desktop 2 opens on Flow. Compose, Active, History, and contextual Run
-Review share that mission surface. Operations, Workspaces, and Settings remain
-primary destinations. Approvals and Integrations are secondary system
-destinations; structural Focus is contextual mission detail. Legacy Runs and
-Run Review deep links redirect into Flow.
+Pytxo Desktop 2 is a route-driven supervision shell. **Ops** is today (needs-you, running work, spend). **Missions** is the core object: inventory, New mission composer, and Plan / Live / Review detail. **Approvals** is the decision inbox. Workspaces, Agents, and Settings are catalogs. Agents, logs, diffs, and file lists remain contextual. This keeps Desktop aligned with [[presentation-passive-telemetry]] instead of turning it into an IDE or terminal wall. IA: [[ADR-0035-desktop-2-quiet-instrument-ia]].
 
-The Svelte application depends on a `DesktopBackend` contract. Production uses
-Tauri IPC; browser tests use deterministic preview data. `AppRoute` is
-persisted separately from workspace recents. The 3D Deck is absent from the
-normal production startup path. Its lazy development import requires
-`pytxo-developer-deck-v1=true` and the compatibility
-`desktop_shell_v1=true` flag. `pytxo://` is the current deep-link scheme;
-`pytxo-deck://` remains registered for compatibility.
+The Svelte application depends on a `DesktopBackend` contract. Production uses Tauri IPC; Storybook and browser tests use deterministic preview data. Canonical hashes (`#/missions`, `#/agents`) persist; aliases (`#/flow`, `#/runs`, `#/integrations`, `#/topology-focus`, `#/run-review`) still resolve. The `pytxo-deck-tabs-v1` payload is migrated into recents without deleting the original payload, and the old shell remains available through `desktop_shell_v1` for one rollback release. `pytxo://` is the current deep-link scheme; `pytxo-deck://` remains registered for compatibility. `pytxo://flow` opens New mission in-shell.
 
 ## Flow boundary
 
-Text Flow enters Rust through `pytxo-orchestrate::flow`. A preview requires a selected [[execution-domains|execution domain]] and non-empty mission. Signal Core enriches path context, the scheduler and Race Shield reject collisions, the permission engine checks the domain ceiling, Blast Shield supplies isolation intent, and the ADE registry verifies the requested CLI. A ready plan is persisted in the global catalog. Dispatch is impossible without a persisted ready preview and revalidates domain, permission, isolation, execution backend, ADE availability, and path claims before calling the standard run dispatcher.
+Text missions enter Rust through `pytxo-orchestrate::flow`. A preview requires a selected [[execution-domains|execution domain]] and non-empty mission. Signal Core enriches path context, the scheduler and Race Shield reject collisions, the permission engine checks the domain ceiling, Blast Shield supplies isolation intent, and the ADE registry verifies the requested CLI. A ready plan is persisted in the global catalog. Dispatch is impossible without a persisted ready preview and revalidates domain, permission, isolation, execution backend, ADE availability, and path claims before calling the standard run dispatcher.
 
 Draft metadata and plan JSON live in `flow_drafts`. Dispatched telemetry stays in the selected domain WAL. No quick-run path exists.
 
@@ -52,17 +42,8 @@ delta is consumed.
 
 CPAL capture is enabled through `native-capture`. whisper.cpp support is isolated behind `local-whisper`, allowing default CI to exercise the complete state machine without audio hardware. Native Whisper builds require CMake plus LLVM/libclang; Linux also requires the platform audio development packages used by CPAL. The default `base.en` model URL is revision-pinned and checked against its SHA-256 before installation under `~/.pytxo/models/voice`.
 
-Voice v1 creates Flow missions only. It does not navigate, approve, stop, or automatically dispatch. Remote transcription implementations must use the `RemoteTranscriber` consent contract, name the provider, destination, and retention policy, and pass the returned transcript through Sovereign Shield before later cloud planning.
+Voice v1 creates missions only. It does not navigate, approve, stop, or automatically dispatch. Remote transcription implementations must use the `RemoteTranscriber` consent contract, name the provider, destination, and retention policy, and pass the returned transcript through Sovereign Shield before later cloud planning.
 
 ## Verification artifacts
 
-The 27 reference renders under `docs/_attachments/desktop-2/` cover
-Operations, Workspaces, Flow, Approvals, Integrations, Settings, Focus, ready
-Run Review, and applied Run Review at 1600×1000, 1280×800, and 960×640.
-`marketing-captures.spec.ts` checks the expected state before writing each
-image. The web verifier checks dimensions, distinct content, and byte-for-byte
-correspondence with `apps/desktop/captures/desktop-2/`.
-
-Release verification includes Svelte diagnostics, keyboard and reduced-motion
-coverage, review-state and cursor regressions, all three capture widths,
-native contract tests, and the Tauri release build.
+Reference renders under `docs/_attachments/desktop-2/` cover canonical and alias routes at 1600×1000, 1280×800, and 960×640. The deterministic `marketing-captures.spec.ts` path checks each expected heading before writing the image. Filenames `flow-*` and `integrations-*` remain so the web asset verifier stays stable. Matching Storybook stories use the same production components and preview backend. Release verification includes Svelte diagnostics, Playwright navigation and rollback coverage, Storybook build plus accessibility checks, review-state and cursor regressions, native contract tests, and Tauri compilation.

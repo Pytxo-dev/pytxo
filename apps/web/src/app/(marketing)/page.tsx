@@ -29,11 +29,11 @@ const FAQ = [
   },
   {
     q: "What is Pytxo Desktop?",
-    a: "An optional native UI for composing and tracking missions in Flow, reviewing the prepared package, inspecting enforcement evidence, and applying eligible Orbit or Galaxy runs to one repository root.",
+    a: "An optional native UI for Ops, Missions, Approvals, and applying eligible Orbit or Galaxy runs to one repository root.",
   },
   {
-    q: "What are Pytxo Flow and Voice?",
-    a: "Flow turns a text mission into a reviewable execution plan before anything runs. Voice transcribes speech locally into that same editable Flow workflow; Voice never approves actions or dispatches automatically.",
+    q: "What are Pytxo missions and Voice?",
+    a: "A mission turns an outcome into a reviewable execution plan before anything runs. Voice transcribes speech locally into that same editable mission; Voice never approves actions or dispatches automatically.",
   },
   {
     q: "What are Workspaces and fleet runs?",

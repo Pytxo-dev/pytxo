@@ -6,8 +6,8 @@ tags: [orchestration, product, mission]
 audience: [human, agent]
 layer: orchestration
 created: 2026-07-27
-updated: 2026-07-31
-related: [[product-vision]], [[ADR-0031-mission-planner-byok-scout]], [[ADR-0032-desktop-2-focus-flow-primary]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[signal-core]], [[blast-shield]], [[race-shield]], [[dag-flow-engine]], [[pytxo-improvement-research]]
+updated: 2026-08-13
+related: [[product-vision]], [[ADR-0031-mission-planner-byok-scout]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]], [[signal-core]], [[blast-shield]], [[race-shield]], [[dag-flow-engine]], [[pytxo-improvement-research]]
 ---
 
 # Mission loop
@@ -37,8 +37,8 @@ one mission → proposed plan → human edit/approve → isolated execution
 | Surface | Role |
 |---------|------|
 | `pytxo mission "…"` | CLI dogfood path — preview, approve, dispatch, report |
-| Desktop Flow | Compose, dispatch, active state, history, and completed-run review |
-| Run Review in Flow | Immutable package, exact changes, enforcement evidence, and Apply history |
+| Desktop Missions | Compose, dispatch, live state, history, and completed-run review |
+| Mission Review | Immutable package, exact changes, enforcement evidence, and Apply history |
 
 ## Planner
 
@@ -65,8 +65,6 @@ Reviewed Apply covers one execution domain and one repository root. Multi-root
 and fleet missions do not share a transaction. DeepSpace is non-flushable;
 Supernova writes directly to the host tree.
 
-ADRs: [[ADR-0031-mission-planner-byok-scout]],
-[[ADR-0032-desktop-2-focus-flow-primary]],
-[[ADR-0034-immutable-review-package-and-durable-apply]].
+ADRs: [[ADR-0031-mission-planner-byok-scout]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]] (supersedes the Flow/Focus primary-surface claim in [[ADR-0032-desktop-2-focus-flow-primary]]).
 
 Back: [[MOC-home]] · [[architecture-index]]

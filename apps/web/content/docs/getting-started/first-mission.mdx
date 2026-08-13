@@ -12,7 +12,7 @@ You already run **more than one** coding agent on a real repo and care about wri
 
 ## Prerequisites
 
-- `pytxo` on `PATH` (`npm i -g pytxo` or a release binary)
+- `pytxo` on `PATH` (`npm i -g pytxo@1.1.1` or a release binary)
 - At least one coding agent CLI on `PATH` (Claude Code, Codex, Cursor CLI, or OpenCode)
 - A git repo you are willing to trust at Orbit (or higher)
 
@@ -47,7 +47,7 @@ pytxo mission "…" --json
 
 ## After the run
 
-Open **Pytxo Desktop -> Flow -> History -> Run Review**. Run Review is the
+Open **Pytxo Desktop → Missions → Review**. Mission Review is the
 reviewed-package Apply surface for Orbit and Galaxy. It shows the exact
 prepared additions, modifications, and deletions. Before Apply, Pytxo checks
 the current preimage of every affected path; unrelated dirty files are
@@ -58,10 +58,11 @@ The `hitl` command manages Galaxy approval requests only:
 ```bash
 pytxo hitl list
 pytxo hitl approve <id>
+# or use Pytxo Desktop → Approvals / mission Review → Apply
 ```
 
 These commands do not initiate Apply. Orbit has no Galaxy HITL step; Orbit
-users review and Apply the prepared package in Run Review.
+users review and Apply the prepared package in mission Review.
 
 Reviewed Apply covers Orbit and Galaxy in one execution domain and one
 repository root. DeepSpace is non-flushable. Supernova writes directly to the

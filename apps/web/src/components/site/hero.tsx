@@ -49,8 +49,8 @@ export function Hero() {
           data-testid="hero-product"
         >
           <Image
-            src="/product/run-review-1600x1000.png"
-            alt="Pytxo Desktop Run Review showing the base revision, package digest, ownership plan, enforcement receipt, and exact prepared changes"
+            src="/product/operations-1600x1000.png"
+            alt="Pytxo Desktop Ops showing Needs you approvals and Running mission rows"
             width={1600}
             height={1000}
             className="h-auto w-full"

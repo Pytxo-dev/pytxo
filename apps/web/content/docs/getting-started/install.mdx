@@ -3,14 +3,14 @@ title: Install
 description: Install the Pytxo CLI on Windows, macOS, and Linux.
 ---
 
-Current release: **1.0.0**.
+Current release: **1.1.1**.
 
 ## npm (recommended)
 
 Requires Node.js 18+.
 
 ```bash
-npm i -g pytxo@1.0.0
+npm i -g pytxo@1.1.1
 pytxo doctor
 ```
 
@@ -33,7 +33,7 @@ irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 
 Pin a release:
 
 ```bash
-PYTXO_VERSION=v1.0.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
+PYTXO_VERSION=v1.1.1 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
 ```
 
 ## Prebuilt binaries
@@ -46,9 +46,9 @@ PYTXO_VERSION=v1.0.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytx
 | macOS Intel | `pytxo-darwin-x64` |
 | Windows x64 | `pytxo-windows-x64.exe` |
 
-Download from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases/tag/v1.0.0). Put the binary on your `PATH`, then run `pytxo doctor`.
+Download from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases/tag/v1.1.1). Put the binary on your `PATH`, then run `pytxo doctor`.
 
-**Windows-first note:** v1.0.0 ships a fresh Windows CLI and Desktop build. GitHub-hosted runners are currently account/billing-blocked, so the macOS and Linux assets attached to v1.0.0 are compatibility mirrors from the v0.13.0 matrix and still report that version. They keep existing installs working; they do not contain the v1 orchestration changes.
+**Windows-first note:** GitHub-hosted runners were account/billing-blocked for earlier v1 cuts. v1.1.1 prefers the Actions Release workflow. If that matrix is still blocked, only a fresh Windows CLI and Desktop are claimed; macOS and Linux assets remain compatibility mirrors that report their original versions.
 
 Community help: [Discord](https://discord.gg/AUFRPFjSYv).
 

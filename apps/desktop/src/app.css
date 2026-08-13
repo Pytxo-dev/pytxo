@@ -78,17 +78,10 @@
   --pytxo-accent: var(--brand-teal);
   --pytxo-accent-soft: color-mix(in oklab, var(--brand-teal) 22%, transparent);
   --pytxo-accent-ink: #06110f;
-  --pytxo-hairline: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in oklab, var(--brand-magenta) 40%, transparent),
-    color-mix(in oklab, var(--brand-violet) 35%, transparent),
-    color-mix(in oklab, var(--brand-gold) 30%, transparent),
-    color-mix(in oklab, var(--brand-teal) 40%, transparent),
-    color-mix(in oklab, var(--brand-cyan) 30%, transparent),
-    transparent
-  );
-  --pytxo-edge: color-mix(in oklab, var(--brand-teal) 55%, transparent);
+  --pytxo-hairline: var(--pytxo-line);
+  --pytxo-edge: transparent;
+  --pytxo-control-radius: 4px;
+  --pytxo-panel-radius: 6px;
 }
 
 html[data-chroma-theme="light"] {
@@ -118,53 +111,8 @@ html[data-chroma-theme="light"] {
   --pytxo-accent-ink: #ffffff;
 }
 
-html[data-chroma-theme="terminal"] {
-  --pytxo-obsidian: #001a0a;
-  --pytxo-graphite-1: #002212;
-  --pytxo-graphite-2: #00301a;
-  --pytxo-line: #14532d;
-  --pytxo-line-soft: #0f3d22;
-  --pytxo-surface-shell: #001a0a;
-  --pytxo-surface-panel: #002212;
-  --pytxo-surface-raised: #00301a;
-  --pytxo-surface-hover: #002a16;
-  --pytxo-surface-active: #003820;
-  --pytxo-surface-input: #001a0a;
-  --pytxo-text-body: #86efac;
-  --pytxo-text-muted: #6b9080;
-  --pytxo-text-soft: #5a7a6a;
-  --pytxo-text-strong: #bbf7d0;
-  --pytxo-success: #4ade80;
-  --pytxo-success-bright: #86efac;
-  --pytxo-accent-ink: #001a0a;
-}
-
-html[data-chroma-theme="nebula"] {
-  --pytxo-obsidian: #08051a;
-  --pytxo-graphite-1: #12082a;
-  --pytxo-graphite-2: #1a0f38;
-  --pytxo-line: #3b2667;
-  --pytxo-line-soft: #2a1a4a;
-  --pytxo-surface-shell: #08051a;
-  --pytxo-surface-panel: #12082a;
-  --pytxo-surface-raised: #1a0f38;
-  --pytxo-surface-hover: #160c30;
-  --pytxo-surface-active: #1e0a3a;
-  --pytxo-surface-input: #0c061f;
-  --pytxo-text-body: #e9d5ff;
-  --pytxo-text-muted: #a78bfa;
-  --pytxo-text-soft: #8b7bb8;
-  --pytxo-text-strong: #f0e6ff;
-  --pytxo-success: #67e8f9;
-  --pytxo-success-bright: #a5f3fc;
-  --pytxo-accent-ink: #08051a;
-}
-
 /* Accent → shadcn primary/ring so buttons and focus match the shell accent */
-html[data-pytxo-accent="spectrum"],
 html[data-pytxo-accent="teal"],
-html[data-pytxo-accent="violet"],
-html[data-pytxo-accent="gold"],
 html[data-pytxo-accent="custom"] {
   --primary: var(--pytxo-accent);
   --ring: var(--pytxo-accent);
@@ -175,50 +123,15 @@ html[data-pytxo-accent="custom"] {
 html[data-pytxo-accent="teal"] {
   --pytxo-accent: var(--brand-teal);
   --pytxo-accent-soft: color-mix(in oklab, var(--brand-teal) 22%, transparent);
-  --pytxo-hairline: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in oklab, var(--brand-teal) 55%, transparent),
-    transparent
-  );
-  --pytxo-edge: color-mix(in oklab, var(--brand-teal) 55%, transparent);
-}
-
-html[data-pytxo-accent="violet"] {
-  --pytxo-accent: var(--brand-violet);
-  --pytxo-accent-soft: color-mix(in oklab, var(--brand-violet) 22%, transparent);
-  --pytxo-hairline: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in oklab, var(--brand-violet) 55%, transparent),
-    color-mix(in oklab, var(--brand-magenta) 35%, transparent),
-    transparent
-  );
-  --pytxo-edge: color-mix(in oklab, var(--brand-violet) 50%, transparent);
-}
-
-html[data-pytxo-accent="gold"] {
-  --pytxo-accent: var(--brand-gold);
-  --pytxo-accent-soft: color-mix(in oklab, var(--brand-gold) 22%, transparent);
-  --pytxo-hairline: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in oklab, var(--brand-gold) 55%, transparent),
-    transparent
-  );
-  --pytxo-edge: color-mix(in oklab, var(--brand-gold) 50%, transparent);
+  --pytxo-hairline: var(--pytxo-line);
+  --pytxo-edge: transparent;
 }
 
 html[data-pytxo-accent="custom"] {
   /* --pytxo-accent set inline from Settings color picker */
   --pytxo-accent-soft: color-mix(in oklab, var(--pytxo-accent) 22%, transparent);
-  --pytxo-hairline: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in oklab, var(--pytxo-accent) 55%, transparent),
-    transparent
-  );
-  --pytxo-edge: color-mix(in oklab, var(--pytxo-accent) 50%, transparent);
+  --pytxo-hairline: var(--pytxo-line);
+  --pytxo-edge: transparent;
 }
 
 html {

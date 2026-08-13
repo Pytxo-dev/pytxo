@@ -1,8 +1,8 @@
 <script lang="ts">
   import { IconChevronsLeft, IconChevronsRight, IconSearch, IconSettings, IconUserCircle } from "@tabler/icons-svelte";
-  import type { AppRoute, WorkspaceRecent } from "../../lib/navigation.svelte";
+  import type { CanonicalRoute, WorkspaceRecent } from "../../lib/navigation.svelte";
 
-  type NavItem = { route: AppRoute; label: string; icon: typeof IconSearch };
+  type NavItem = { route: CanonicalRoute; label: string; icon: typeof IconSearch };
 
   let {
     route,
@@ -19,7 +19,7 @@
     onOpenRecent,
     onAccountClick,
   }: {
-    route: AppRoute;
+    route: CanonicalRoute;
     primary: NavItem[];
     system: NavItem[];
     approvalsCount: number;
@@ -27,7 +27,7 @@
     collapsed: boolean;
     tier: string;
     signedIn: boolean;
-    onNavigate: (route: AppRoute) => void;
+    onNavigate: (route: CanonicalRoute) => void;
     onToggleCollapse: () => void;
     onOpenCommand: () => void;
     onOpenRecent: (recent: WorkspaceRecent) => void;
@@ -37,7 +37,7 @@
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPod|iPad/.test(navigator.userAgent);
   const shortcutHint = isMac ? "⌘K" : "Ctrl K";
 
-  function go(next: AppRoute) {
+  function go(next: CanonicalRoute) {
     return (event: MouseEvent) => {
       event.preventDefault();
       onNavigate(next);
@@ -72,46 +72,46 @@
   </button>
 
   <div class="sidebar-scroll">
-    <nav aria-label="Primary">
-      {#if !collapsed}<p>Workspace</p>{/if}
-      {#each primary as item (item.route)}
-        <a
-          href={`#/${item.route}`}
-          class:active={route === item.route}
-          onclick={go(item.route)}
-          title={collapsed ? item.label : undefined}
-          aria-current={route === item.route ? "page" : undefined}
-        >
-          <item.icon size={17} stroke={1.7} />
-          {#if !collapsed}<span>{item.label}</span>{#if item.route === "approvals" && approvalsCount}<b>{approvalsCount}</b>{/if}{/if}
-        </a>
-      {/each}
-    </nav>
+  <nav aria-label="Primary">
+    {#each primary as item (item.route)}
+      <a
+        href={`#/${item.route}`}
+        class:active={route === item.route}
+        onclick={go(item.route)}
+        title={collapsed ? item.label : undefined}
+        aria-current={route === item.route ? "page" : undefined}
+      >
+        <item.icon size={17} stroke={1.7} />
+        {#if !collapsed}<span>{item.label}</span>{#if item.route === "approvals" && approvalsCount}<b>{approvalsCount}</b>{/if}{/if}
+      </a>
+    {/each}
+  </nav>
 
-    {#if recents.length && !collapsed}
-      <div class="recents">
-        <p>Recent</p>
-        {#each recents.slice(0, 4) as recent (recent.id)}
-          <button onclick={() => onOpenRecent(recent)} title={recent.label}><i></i><span>{recent.label}</span></button>
-        {/each}
-      </div>
-    {/if}
-
-    <nav aria-label="System" class="system-nav">
-      {#if !collapsed}<p>System</p>{/if}
-      {#each system as item (item.route)}
-        <a
-          href={`#/${item.route}`}
-          class:active={route === item.route}
-          onclick={go(item.route)}
-          title={collapsed ? item.label : undefined}
-          aria-current={route === item.route ? "page" : undefined}
-        >
-          <item.icon size={17} stroke={1.7} />
-          {#if !collapsed}<span>{item.label}</span>{/if}
-        </a>
+  {#if recents.length && !collapsed}
+    <div class="recents">
+      <p>Recent</p>
+      {#each recents.slice(0, 4) as recent (recent.id)}
+        <button onclick={() => onOpenRecent(recent)} title={recent.label}><i></i><span>{recent.label}</span></button>
       {/each}
-    </nav>
+    </div>
+  {/if}
+
+  {#if system.length}
+  <nav aria-label="System" class="system-nav">
+    {#each system as item (item.route)}
+      <a
+        href={`#/${item.route}`}
+        class:active={route === item.route}
+        onclick={go(item.route)}
+        title={collapsed ? item.label : undefined}
+        aria-current={route === item.route ? "page" : undefined}
+      >
+        <item.icon size={17} stroke={1.7} />
+        {#if !collapsed}<span>{item.label}</span>{/if}
+      </a>
+    {/each}
+  </nav>
+  {/if}
   </div>
 
   <div class="sidebar-footer">
@@ -129,11 +129,9 @@
   .sidebar {
     display: flex;
     flex-direction: column;
-    box-sizing: border-box;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
     min-width: 0;
+    min-height: 0;
+    height: 100%;
     background: var(--pytxo-surface-shell);
     border-right: 1px solid var(--pytxo-line);
     padding: 14px 12px 12px;
@@ -215,15 +213,6 @@
   button {
     font-family: inherit;
   }
-  .sidebar-scroll {
-    flex: 1;
-    min-height: 0;
-    width: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: thin;
-    scrollbar-color: var(--pytxo-line) transparent;
-  }
   .command-trigger {
     display: flex;
     align-items: center;
@@ -264,18 +253,24 @@
     border-radius: 4px;
     padding: 2px 4px;
   }
+  .sidebar-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--pytxo-line) transparent;
+  }
   nav,
   .recents {
     margin-top: 20px;
     width: 100%;
   }
-  nav p,
   .recents p {
     margin: 0 8px 7px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-size: 9px;
-    font-weight: 700;
+    letter-spacing: 0.04em;
+    font-size: 12px;
+    font-weight: 600;
     color: var(--pytxo-text-muted);
   }
   nav a {
@@ -289,8 +284,7 @@
     border-radius: 6px;
     color: #858c98;
     text-decoration: none;
-    font-size: 12px;
-    font-weight: 520;
+    font-size: 13px;
     transition: background-color 140ms ease, color 140ms ease;
   }
   .sidebar.collapsed nav a {
@@ -330,7 +324,7 @@
     border-radius: 9px;
     background: #3b2d17;
     color: #f1bc59;
-    font-size: 9px;
+    font-size: 11px;
   }
   .recents button {
     display: flex;
@@ -365,13 +359,12 @@
     width: 7px;
     height: 7px;
     border-radius: 2px;
-    background: #745ad5;
+    background: var(--pytxo-text-muted);
   }
   .system-nav {
-    margin-bottom: 4px;
+    margin-top: auto;
   }
   .sidebar-footer {
-    flex: none;
     border-top: 1px solid var(--pytxo-line);
     margin-top: 14px;
     padding-top: 10px;
@@ -438,7 +431,6 @@
     .sidebar:not(.collapsed) .collapse-btn,
     .sidebar:not(.collapsed) .command-trigger span,
     .sidebar:not(.collapsed) .command-trigger kbd,
-    .sidebar:not(.collapsed) nav p,
     .sidebar:not(.collapsed) nav a span,
     .sidebar:not(.collapsed) .recents,
     .sidebar:not(.collapsed) .account-copy {

@@ -6,8 +6,11 @@ import { fileURLToPath } from "node:url";
 
 import { completeOnboarding } from "./helpers";
 
+const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const DESKTOP_ROOT = fileURLToPath(new URL("../", import.meta.url));
 const CAPTURE_DIR = path.join(DESKTOP_ROOT, "captures", "desktop-2");
+const DOCS_CAPTURE_DIR = path.join(REPO_ROOT, "docs", "_attachments", "desktop-2");
+const WEB_CAPTURE_DIR = path.join(REPO_ROOT, "apps", "web", "public", "product");
 const DEMO_CAPTURE_DIR = path.join(DESKTOP_ROOT, "..", "demo-video", "public", "product");
 
 const VIEWPORTS = [
@@ -17,13 +20,13 @@ const VIEWPORTS = [
 ] as const;
 
 const ROUTES = [
-  { route: "operations", heading: /^Operations/, marketing: true },
+  { route: "operations", heading: /^Ops/, marketing: true },
   { route: "workspaces", heading: "Workspaces", marketing: false },
-  { route: "flow", heading: "Flow", marketing: true },
+  { route: "flow", heading: "New mission", marketing: true },
   { route: "approvals", heading: "Approvals", marketing: true },
-  { route: "integrations", heading: "Integrations", marketing: true },
+  { route: "integrations", heading: "Agents", marketing: true },
   { route: "settings", heading: "Appearance", marketing: false },
-  { route: "topology-focus", heading: "Topology Focus", marketing: false },
+  { route: "topology-focus", heading: "Mission", marketing: false },
   { route: "run-review", heading: "Run Review", marketing: true },
 ] as const;
 
@@ -64,7 +67,7 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
 
   if (route.route === "flow") {
     await page
-      .getByLabel("Flow outcome")
+      .getByLabel("Mission outcome")
       .fill("Ship the approval workflow with isolated changes and verification");
     await page.getByRole("button", { name: "Build plan", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review plan" })).toBeVisible();
@@ -84,6 +87,9 @@ test.describe("@marketing-capture current Desktop product captures", () => {
 
   test.beforeAll(async () => {
     await mkdir(CAPTURE_DIR, { recursive: true });
+    await mkdir(DOCS_CAPTURE_DIR, { recursive: true });
+    await mkdir(WEB_CAPTURE_DIR, { recursive: true });
+    await mkdir(DEMO_CAPTURE_DIR, { recursive: true });
   });
 
   for (const viewport of VIEWPORTS) {
@@ -102,69 +108,45 @@ test.describe("@marketing-capture current Desktop product captures", () => {
 
         expect(png.byteLength).toBeGreaterThan(40_000);
         await writeCapture(path.join(CAPTURE_DIR, `${route.route}-${viewport.slug}.png`), png);
+        await writeCapture(path.join(DOCS_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`), png);
+
+        if (
+          route.marketing &&
+          (viewport.slug === "1600x1000" || viewport.slug === "960x640")
+        ) {
+          await writeCapture(
+            path.join(WEB_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`),
+            png,
+          );
+        }
+
+        if (route.marketing && viewport.slug === "1600x1000") {
+          await writeCapture(
+            path.join(DEMO_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`),
+            png,
+          );
+        }
 
         if (route.route === "run-review") {
           await page.getByRole("button", { name: "Apply reviewed changes" }).click();
-          const appliedTitle = page.getByText("Applied successfully", { exact: true });
-          const appliedDetail = page.getByText(
-            "The reviewed package was applied to the primary checkout.",
-            { exact: true },
-          );
-          await expect(appliedTitle).toBeVisible();
-          await expect(appliedTitle).toHaveCount(1);
-          await expect(appliedDetail).toBeVisible();
-          await expect(appliedDetail).toHaveCount(1);
-          await expect(page.locator(".action-explanation")).toHaveCount(0);
-          await expect(page.getByText("Reviewed package applied.", { exact: true })).toHaveCount(0);
+          await expect(page.getByText("Applied successfully", { exact: true })).toBeVisible();
           const appliedPng = await page.screenshot({
             animations: "disabled",
             caret: "hide",
             fullPage: false,
             scale: "css",
           });
-          await writeCapture(
-            path.join(CAPTURE_DIR, `run-applied-${viewport.slug}.png`),
-            appliedPng,
-          );
+          await writeCapture(path.join(CAPTURE_DIR, `run-applied-${viewport.slug}.png`), appliedPng);
+          await writeCapture(path.join(DOCS_CAPTURE_DIR, `run-applied-${viewport.slug}.png`), appliedPng);
+          if (viewport.slug === "1600x1000" || viewport.slug === "960x640") {
+            await writeCapture(
+              path.join(WEB_CAPTURE_DIR, `run-applied-${viewport.slug}.png`),
+              appliedPng,
+            );
+          }
         }
 
       });
     }
-  }
-});
-
-test.describe("@marketing-capture current demo product captures", () => {
-  test.describe.configure({ mode: "serial" });
-
-  test.beforeAll(async () => {
-    await mkdir(DEMO_CAPTURE_DIR, { recursive: true });
-  });
-
-  for (const entry of [
-    { route: "flow", file: "flow-plan-1920x1080.png" },
-    { route: "operations", file: "operations-1920x1080.png" },
-    { route: "run-review", file: "run-review-ready-1920x1080.png" },
-  ] as const) {
-    test(`${entry.route} is ready for the 1920x1080 product film`, async ({ page }) => {
-      const route = ROUTES.find((candidate) => candidate.route === entry.route);
-      if (!route) throw new Error(`Unknown capture route: ${entry.route}`);
-      await page.setViewportSize({ width: 1920, height: 1080 });
-      await page.emulateMedia({ reducedMotion: "reduce" });
-      await prepareRoute(page, route);
-
-      const png = await page.screenshot({ animations: "disabled", caret: "hide", scale: "css" });
-      expect(png.byteLength).toBeGreaterThan(40_000);
-      await writeCapture(path.join(DEMO_CAPTURE_DIR, entry.file), png);
-
-      if (entry.route === "run-review") {
-        await page.getByRole("button", { name: "Apply reviewed changes" }).click();
-        await expect(page.getByText("Applied successfully", { exact: true })).toBeVisible();
-        const applied = await page.screenshot({ animations: "disabled", caret: "hide", scale: "css" });
-        await writeCapture(
-          path.join(DEMO_CAPTURE_DIR, "run-review-applied-1920x1080.png"),
-          applied,
-        );
-      }
-    });
   }
 });

@@ -14,26 +14,25 @@ test("the release E2E gate owns a production-preview server", () => {
 
 test("Flow follows the shell snapshot and native dispatch emits a domain event", () => {
   const flow = readFileSync(new URL("../src/components/desktop2/FlowScreen.svelte", import.meta.url), "utf8");
-  const missionFlow = readFileSync(new URL("../src/components/desktop2/MissionFlowScreen.svelte", import.meta.url), "utf8");
+  const missions = readFileSync(new URL("../src/components/desktop2/MissionsScreen.svelte", import.meta.url), "utf8");
   const flowIpc = readFileSync(new URL("../src-tauri/src/ipc_flow.rs", import.meta.url), "utf8");
 
   expect(flow).not.toContain("backend.loadSnapshot");
   expect(flow).not.toContain("watchRun(");
-  expect(missionFlow).toContain("runs={snapshot.runs}");
+  expect(missions).toContain("RunReviewScreen");
   expect(flowIpc).toContain("emit_domain_changed(&app");
 });
 
-test("mission tabs expose roving tab semantics and keyboard navigation", () => {
-  const missionFlow = readFileSync(
-    new URL("../src/components/desktop2/MissionFlowScreen.svelte", import.meta.url),
+test("mission tabs expose Plan Live Review panes", () => {
+  const missionDetail = readFileSync(
+    new URL("../src/components/desktop2/MissionDetail.svelte", import.meta.url),
     "utf8",
   );
 
-  expect(missionFlow).toContain('role="tablist"');
-  expect(missionFlow).toContain('role="tab"');
-  expect(missionFlow).toContain('role="tabpanel"');
-  expect(missionFlow).toContain("aria-selected");
-  expect(missionFlow).toContain("handleTabKeydown");
+  expect(missionDetail).toContain('role="tablist"');
+  expect(missionDetail).toContain("Plan");
+  expect(missionDetail).toContain("Live");
+  expect(missionDetail).toContain("Review");
 });
 
 test("Desktop and Storybook share a checked-in Chrome channel contract", () => {

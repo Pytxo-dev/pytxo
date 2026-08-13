@@ -5,30 +5,27 @@ const REVIEW_STATE_KEY = "pytxo-preview-review-state-v1";
 const APPLY_OUTCOME_KEY = "pytxo-preview-apply-outcome-v1";
 const AGENT_VERIFICATION_KEY = "pytxo-preview-agent-verification-v1";
 
-async function openFlow(
+async function openMissions(
   page: import("@playwright/test").Page,
   state: string = "ready",
 ) {
   await completeOnboarding(page, { [REVIEW_STATE_KEY]: state });
-  await page.goto("/#/flow");
-  await expect(page.getByRole("heading", { name: "Flow", exact: true })).toBeVisible();
-  await page.getByRole("tab", { name: /History/ }).click();
+  await page.goto("/#/missions");
+  await expect(page.getByRole("heading", { name: "Missions", exact: true })).toBeVisible();
 }
 
 test.describe("mission-centric Flow", () => {
-  test("old Runs and Run Review deep links redirect into Flow history", async ({ page }) => {
+  test("old Runs and Run Review deep links open Missions and Review", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/runs");
-    await expect(page).toHaveURL(/#\/flow/);
     await expect(page.getByRole("heading", { name: "Mission history" })).toBeVisible();
 
     await page.goto("/#/run-review");
-    await expect(page).toHaveURL(/#\/flow/);
     await expect(page.getByRole("heading", { name: "Run Review" })).toBeVisible();
   });
 
   test("completed missions open immutable exact add modify delete review", async ({ page }) => {
-    await openFlow(page);
+    await openMissions(page);
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
 
     await expect(page.getByRole("heading", { name: "Run Review" })).toBeVisible();
@@ -59,7 +56,7 @@ test.describe("mission-centric Flow", () => {
   });
 
   test("loads exact content only for the selected file with bounded side concurrency", async ({ page }) => {
-    await openFlow(page);
+    await openMissions(page);
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
     await expect(page.locator(".diff-side")).toHaveCount(2);
     await expect
@@ -81,7 +78,7 @@ test.describe("mission-centric Flow", () => {
   });
 
   test("caps delayed exact reads globally and cancels queued stale selections", async ({ page }) => {
-    await openFlow(page);
+    await openMissions(page);
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
     await page.evaluate(() => {
       localStorage.setItem("pytxo-preview-review-content-delay-v1", "250");
@@ -124,25 +121,22 @@ test.describe("mission-centric Flow", () => {
     );
   });
 
-  test("mission tabs expose selection and traverse with arrow keys", async ({ page }) => {
+  test("mission panes expose Plan Live and Review", async ({ page }) => {
     await completeOnboarding(page);
-    await page.goto("/#/flow");
-    const compose = page.getByRole("tab", { name: /Compose/ });
-    const active = page.getByRole("tab", { name: /Active/ });
-    const history = page.getByRole("tab", { name: /History/ });
-    await expect(compose).toHaveAttribute("aria-selected", "true");
-    await compose.focus();
-    await page.keyboard.press("ArrowRight");
-    await expect(active).toBeFocused();
-    await expect(active).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("tabpanel", { name: /Active/ })).toBeVisible();
-    await page.keyboard.press("End");
-    await expect(history).toBeFocused();
-    await expect(history).toHaveAttribute("aria-selected", "true");
+    await page.goto("/#/missions");
+    await page.getByRole("button", { name: /Review run-8f2c/ }).click();
+    const plan = page.getByRole("button", { name: "Plan", exact: true });
+    const live = page.getByRole("button", { name: "Live", exact: true });
+    const review = page.getByRole("button", { name: "Review", exact: true });
+    await expect(live).toHaveClass(/active/);
+    await plan.click();
+    await expect(page.getByRole("heading", { name: "Mission", exact: true })).toBeVisible();
+    await review.click();
+    await expect(page.getByRole("heading", { name: "Run Review" })).toBeVisible();
   });
 
   test("stale review refreshes before Apply and discard is confirmation-gated", async ({ page }) => {
-    await openFlow(page, "stale");
+    await openMissions(page, "stale");
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
     await expect(page.getByRole("button", { name: "Refresh review" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Apply/ })).toBeDisabled();
@@ -156,7 +150,7 @@ test.describe("mission-centric Flow", () => {
   });
 
   test("retry prevents double Apply while request is in flight", async ({ page }) => {
-    await openFlow(page, "recovered");
+    await openMissions(page, "recovered");
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
     const retry = page.getByRole("button", { name: "Retry Apply" });
     await retry.dblclick();
@@ -181,7 +175,7 @@ test.describe("mission-centric Flow", () => {
   });
 
   test("renders durable history for multiple Apply attempts", async ({ page }) => {
-    await openFlow(page, "recovered");
+    await openMissions(page, "recovered");
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
 
     await expect(page.getByText("attempt-preview-1", { exact: false })).toBeVisible();
@@ -195,8 +189,8 @@ test.describe("mission-centric Flow", () => {
       [REVIEW_STATE_KEY]: "ready",
       [APPLY_OUTCOME_KEY]: "stale",
     });
-    await page.goto("/#/flow");
-    await page.getByRole("tab", { name: /History/ }).click();
+    await page.goto("/#/missions");
+    await expect(page.getByRole("heading", { name: "Missions", exact: true })).toBeVisible();
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
 
     await page.getByRole("button", { name: "Apply reviewed changes" }).click();
@@ -206,7 +200,7 @@ test.describe("mission-centric Flow", () => {
   });
 
   test("recovery-required refuses Apply and offers guarded reconciliation", async ({ page }) => {
-    await openFlow(page, "recovery_required");
+    await openMissions(page, "recovery_required");
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
     await expect(page.getByRole("button", { name: /Apply/ })).toBeDisabled();
     await expect(page.getByText(/Apply is blocked until recovery is reconciled/).first()).toBeVisible();
@@ -216,7 +210,7 @@ test.describe("mission-centric Flow", () => {
   });
 
   test("mission history and review actions are keyboard operable", async ({ page }) => {
-    await openFlow(page);
+    await openMissions(page);
     const review = page.getByRole("button", { name: /Review run-71ad/ });
     await review.focus();
     await page.keyboard.press("Enter");
@@ -229,8 +223,8 @@ test.describe("mission-centric Flow", () => {
       [REVIEW_STATE_KEY]: "ready",
       [AGENT_VERIFICATION_KEY]: "missing",
     });
-    await page.goto("/#/flow");
-    await page.getByRole("tab", { name: /History/ }).click();
+    await page.goto("/#/missions");
+    await expect(page.getByRole("heading", { name: "Missions", exact: true })).toBeVisible();
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
 
     const apply = page.getByRole("button", { name: "Apply reviewed changes" });
@@ -244,8 +238,8 @@ test.describe("mission-centric Flow", () => {
       [REVIEW_STATE_KEY]: "ready",
       [AGENT_VERIFICATION_KEY]: "failed",
     });
-    await page.goto("/#/flow");
-    await page.getByRole("tab", { name: /History/ }).click();
+    await page.goto("/#/missions");
+    await expect(page.getByRole("heading", { name: "Missions", exact: true })).toBeVisible();
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
 
     await expect(page.getByRole("button", { name: "Apply reviewed changes" })).toBeDisabled();
@@ -253,7 +247,7 @@ test.describe("mission-centric Flow", () => {
   });
 
   test("discard confirmation traps focus, closes on Escape, and restores its trigger", async ({ page }) => {
-    await openFlow(page);
+    await openMissions(page);
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
     const trigger = page.getByRole("button", { name: "Discard review" });
     await trigger.focus();
@@ -273,7 +267,7 @@ test.describe("mission-centric Flow", () => {
 
   test("reduced motion removes review and loading animation", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await openFlow(page, "preparing");
+    await openMissions(page, "preparing");
     await page.getByRole("button", { name: /Review run-71ad/ }).click();
     const busy = page.getByLabel("Preparing immutable review");
     await expect(busy).toBeVisible();
@@ -289,7 +283,7 @@ test.describe("mission-centric Flow", () => {
       page,
     }) => {
       await page.setViewportSize(viewport);
-      await openFlow(page);
+      await openMissions(page);
       await page.getByRole("button", { name: /Review run-71ad/ }).click();
       await expect(page.getByRole("button", { name: "Apply reviewed changes" })).toBeInViewport();
       await expect(page.getByRole("button", { name: "Discard review" })).toBeInViewport();

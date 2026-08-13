@@ -9,9 +9,9 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 # Pytxo v1.1.1 (release preparation)
 
-Pytxo v1.1.1 polishes the Desktop shell, fixes compact-height sidebar access,
-aligns CLI and Desktop version metadata, and replaces competitive shorthand
-with current, balanced comparisons. See
+Quiet-instrument Desktop: Ops, Missions, Approvals, Workspaces, Agents, and
+Settings, recaptured product screenshots, and the existing v1.1 reviewed Apply
+contract. See
 [`distribution/release-notes/v1.1.1.md`](distribution/release-notes/v1.1.1.md).
 
 Previous: [`v1.1.0`](distribution/release-notes/v1.1.0.md).
