@@ -1,39 +1,21 @@
 ---
 title: Compare
-description: When to pick Pytxo versus Claude teams, Copilot app, Cursor Cloud, ADE workrooms, Warp Oz, and managed remote agents.
+description: Choose between Pytxo and other ways to coordinate coding agents.
 ---
 
-Pytxo is a **local agent hypervisor**. It runs the coding agents you already pay for — Claude Code, Codex, Cursor CLI, and friends — under one scheduler with path collision policy, approve-to-flush sandboxes, and structural telemetry. It is not another terminal wall and not a single-vendor team UI.
+These products solve overlapping problems from different starting points. Pytxo is designed for teams that want to coordinate several installed agent CLIs under one local execution, ownership, review, and Apply contract. It is not the best choice for every workflow.
 
-Use these pages when you are choosing a coordination layer.
+| Guide | Strongest fit |
+|-------|---------------|
+| [Claude Agent Teams](/docs/compare/claude-agent-teams) | Claude-native teammates that can share tasks and message one another |
+| [GitHub Copilot app](/docs/compare/github-copilot-app) | GitHub- and Copilot-native parallel work with integrated worktrees and merge workflows |
+| [Cursor Background Agents](/docs/compare/cursor-cloud-agents) | Asynchronous remote work that continues away from your laptop |
+| [ADE / virtual workspaces](/docs/compare/ade-virtual-workspaces) | A visual workroom with terminals, editors, and agent sessions together |
+| [Warp Oz](/docs/compare/warp-oz) | Local and cloud agents, automation, integrations, and fleet operations in one platform |
+| [Devin / Amp](/docs/compare/devin-amp) | Managed or durable remote agents with strong web, mobile, and cloud workflows |
 
-| Guide | Compare against |
-|-------|-----------------|
-| [Claude Agent Teams](/docs/compare/claude-agent-teams) | Multi-Claude sessions with shared tasks |
-| [GitHub Copilot app](/docs/compare/github-copilot-app) | Copilot-native desktop + worktrees |
-| [Cursor Cloud Agents](/docs/compare/cursor-cloud-agents) | Cursor-metered background cloud agents |
-| [ADE / BridgeSpace-style](/docs/compare/ade-virtual-workspaces) | Multi-pane terminal cinema |
-| [Warp Oz](/docs/compare/warp-oz) | Cloud fleet control plane |
-| [Devin / Amp](/docs/compare/devin-amp) | Managed remote engineer vs coordinate what you run |
+## Where Pytxo differs
 
-## When to pick Pytxo
+Pytxo coordinates the coding-agent CLIs you already use. For Orbit and Galaxy runs within one repository root and one execution domain, it can isolate work, prepare an immutable review package, show exact file bytes, detect affected-path drift, and Apply the reviewed package through a crash-recoverable journal.
 
-| You want… | Pick |
-|-----------|------|
-| Mixed CLIs on your machine, BYOK, collision policy | **Pytxo** |
-| Claude-only teammates and accept experimental limits | Claude Agent Teams |
-| GitHub + Copilot seats with worktree-per-session | Copilot app |
-| Agents that keep going when the laptop is closed inside Cursor’s bill | Cursor Cloud Agents |
-| A visual room of agent terminals | ADE / BridgeSpace-style |
-| Fleet ops for cloud agents | Warp Oz |
-| A managed remote “AI engineer” seat | Devin / Amp |
-
-## Short frame
-
-- **Runs the agents you already pay for.**
-- **Local agent hypervisor** — silicon and keys stay yours.
-- **Collisions are a systems problem** — Race Shield path claims.
-- **Approve to flush** — Blast Shield until you say so.
-- **Structural telemetry, not terminal walls.**
-
-Forbidden claims elsewhere on this site: “only multi-agent,” invented worktrees, fake 10×, ADE hero theater.
+That scope is deliberately narrower than a hosted agent platform. Pytxo does not currently provide a managed remote engineer, a collaborative terminal room, or a transaction spanning multiple repository roots. Choose the product whose operating model matches the work.

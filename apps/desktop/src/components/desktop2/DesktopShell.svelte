@@ -10,6 +10,11 @@
   } from "@tabler/icons-svelte";
   import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
   import {
+    consumeDomainChanges,
+    fingerprintDesktopSnapshot,
+    loadConsistentDesktopSnapshot,
+  } from "../../lib/desktop-sync";
+  import {
     addWorkspaceRecent,
     initialResolvedRoute,
     migrateWorkspaceRecents,
@@ -38,9 +43,9 @@
   import UpdateBanner from "../shell/UpdateBanner.svelte";
   import "./desktop2-shared.css";
 
-  const SNAPSHOT_POLL_ACTIVE_MS = 2500;
-  const SNAPSHOT_POLL_IDLE_MS = 5000;
-  const SNAPSHOT_POLL_HIDDEN_MS = 15000;
+  const DOMAIN_DELTA_ACTIVE_MS = 2500;
+  const DOMAIN_DELTA_IDLE_MS = 8000;
+  const INTEGRITY_REFRESH_MS = 60_000;
   const OPEN_BEHAVIOR_KEY = "pytxo-workspace-open-behavior-v1";
   const DEFAULT_PROFILE_KEY = "pytxo-default-permission-profile-v1";
 
@@ -114,6 +119,7 @@
     { route: "settings" as const, label: "Settings", icon: IconSettings },
   ];
   const system: typeof primary = [];
+  const domainCursors = new Map<string, number>();
   const commandItems = [
     ...primary,
     { route: "flow" as const, label: "New mission", icon: IconTarget, aliases: ["flow", "compose"] },
@@ -124,18 +130,6 @@
       ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
     ),
   );
-
-  function fingerprintSnapshot(snap: DesktopSnapshot): string {
-    const domainIds = snap.domains.map((d) => d.domain_id).join(",");
-    const runSig = snap.runs
-      .map((r) => `${r.id}:${r.status}:${r.estimated_cost_usd ?? 0}`)
-      .join(",");
-    const agentSig = snap.agents.map((a) => `${a.id}:${a.status}`).join(",");
-    const approvalSig = snap.approvals.map((a) => a.id).join(",");
-    const fleetSig = snap.fleets.map((f) => `${f.id}:${f.status}`).join(",");
-    const err = snap.error?.message ?? "";
-    return `${domainIds}|${runSig}|${agentSig}|${approvalSig}|${fleetSig}|${err}`;
-  }
 
   function defaultPermissionProfile(): string {
     if (typeof localStorage === "undefined") return "orbit";
@@ -209,27 +203,58 @@
     return snapshot.domains.find((d) => d.repo_root === run.repo_root)?.domain_id ?? null;
   }
 
-  async function refreshSnapshot(opts: { silent?: boolean } = {}) {
+  function pickDefaultDetailRun(runs: DesktopSnapshot["runs"]) {
+    if (missionPane === "review") {
+      return (
+        runs.find((run) => (run.apply_status ?? "").toLowerCase() === "ready") ??
+        runs.find((run) =>
+          ["completed", "failed", "verify_failed", "cancelled"].includes(run.status.toLowerCase()),
+        ) ??
+        runs[0] ??
+        null
+      );
+    }
+    return (
+      runs.find((run) =>
+        ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
+      ) ??
+      runs[0] ??
+      null
+    );
+  }
+
+  async function refreshSnapshot(opts: { silent?: boolean; primeCursors?: boolean } = {}) {
     try {
       const opsHeavy = route === "operations" || (route === "missions" && missionView === "detail");
       const documentHidden =
         typeof document !== "undefined" && document.visibilityState === "hidden";
       const idleChrome = !windowFocused || documentHidden || route === "settings" || route === "agents";
       const includeAgents = opsHeavy && !idleChrome;
-      const next = await backend.loadSnapshot({
+      const load = () => backend.loadSnapshot({
         includeAgents,
         runLimit: idleChrome && !opsHeavy ? 12 : 30,
         fleetLimit: idleChrome && !opsHeavy ? 8 : 20,
       });
-      const nextFp = fingerprintSnapshot(next);
+      const next = opts.primeCursors === false
+        ? await load()
+        : await loadConsistentDesktopSnapshot(
+            load,
+            (domainId, cursor, limit) => backend.domainChanges(domainId, cursor, limit),
+            domainCursors,
+          );
+      const nextFp = fingerprintDesktopSnapshot(next);
       if (nextFp !== snapshotFingerprint) {
         snapshot = next;
         snapshotFingerprint = nextFp;
         void ipc.setTrayNeedsYou(next.approvals.length);
       }
-      if (missionView === "detail" && !focusRunId && next.runs[0]) {
-        focusRunId = next.runs[0].id;
-        focusDomainId = domainIdForRun(next.runs[0].id);
+      if (missionView === "detail" && !focusRunId) {
+        const pick = pickDefaultDetailRun(next.runs);
+        if (pick) {
+          focusRunId = pick.id;
+          focusDomainId =
+            next.domains.find((d) => d.repo_root === pick.repo_root)?.domain_id ?? null;
+        }
       }
       if (next.error && !opts.silent) {
         loadMessage = next.error.message;
@@ -241,14 +266,22 @@
     }
   }
 
-  function pollIntervalMs(): number {
-    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-      return SNAPSHOT_POLL_HIDDEN_MS;
+  async function catchUpDomainChanges() {
+    const result = await consumeDomainChanges(
+      snapshot.domains.map((domain) => domain.domain_id),
+      domainCursors,
+      (domainId, cursor, limit) => backend.domainChanges(domainId, cursor, limit),
+    );
+    if (result.changed || result.needsSnapshot) {
+      await refreshSnapshot({ silent: true, primeCursors: false });
     }
-    if (!windowFocused) return SNAPSHOT_POLL_HIDDEN_MS;
-    if (route === "operations" && hasActiveRuns) return SNAPSHOT_POLL_ACTIVE_MS;
-    if (route === "settings" || route === "agents") return SNAPSHOT_POLL_IDLE_MS;
-    return SNAPSHOT_POLL_IDLE_MS;
+  }
+
+  function deltaIntervalMs(): number {
+    if (!windowFocused || (typeof document !== "undefined" && document.visibilityState === "hidden")) {
+      return DOMAIN_DELTA_IDLE_MS;
+    }
+    return hasActiveRuns ? DOMAIN_DELTA_ACTIVE_MS : DOMAIN_DELTA_IDLE_MS;
   }
 
   async function selectDomain(domainId: string, opts: { route?: CanonicalRoute } = {}) {
@@ -263,6 +296,7 @@
     } catch {
       /* Preview / Storybook backends may lack select_domain. */
     }
+    await refreshSnapshot({ silent: true });
     navigate(opts.route ?? "operations");
   }
 
@@ -316,7 +350,7 @@
 
   function onDomainForgotten(domainId: string) {
     snapshot = { ...snapshot, domains: snapshot.domains.filter((d) => d.domain_id !== domainId) };
-    snapshotFingerprint = fingerprintSnapshot(snapshot);
+    snapshotFingerprint = fingerprintDesktopSnapshot(snapshot);
     recents = removeWorkspaceRecent(domainId);
     if (activeDomainId === domainId) activeDomainId = snapshot.domains[0]?.domain_id ?? null;
     if (editingWorkspaceId === domainId) editingWorkspaceId = null;
@@ -383,7 +417,9 @@
   onMount(() => {
     let disposed = false;
     let deepLinkUnlisten: (() => void) | null = null;
-    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let domainChangedUnlisten: (() => void) | null = null;
+    let deltaTimer: ReturnType<typeof setTimeout> | null = null;
+    let integrityTimer: ReturnType<typeof setInterval> | null = null;
     applyResolved(routeOverride ? resolveRoute(routeOverride) : initialResolvedRoute(), false);
     const onHashChange = () => {
       if (!routeOverride) applyResolved(initialResolvedRoute(), false);
@@ -394,31 +430,37 @@
     };
     const onBrowserDeepLink = (event: Event) => handleDeepLink((event as CustomEvent<string>).detail);
     const onFocus = () => {
+      const resumed = !windowFocused;
       windowFocused = true;
+      if (resumed) void refreshSnapshot({ silent: true });
     };
     const onBlur = () => {
       windowFocused = false;
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshSnapshot({ silent: true });
     };
     window.addEventListener("hashchange", onHashChange);
     window.addEventListener("pytxo-deep-link", onBrowserDeepLink);
     window.addEventListener("keydown", onGlobalKeydown);
     window.addEventListener("focus", onFocus);
     window.addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     recents = migrateWorkspaceRecents();
 
-    const clearPoll = () => {
-      if (pollTimer) clearTimeout(pollTimer);
-      pollTimer = null;
+    const clearDelta = () => {
+      if (deltaTimer) clearTimeout(deltaTimer);
+      deltaTimer = null;
     };
 
-    const schedulePoll = () => {
-      clearPoll();
+    const scheduleDelta = () => {
+      clearDelta();
       if (disposed || previewState !== "default") return;
-      pollTimer = setTimeout(() => {
-        void refreshSnapshot({ silent: true }).finally(() => {
-          if (!disposed) schedulePoll();
+      deltaTimer = setTimeout(() => {
+        void catchUpDomainChanges().finally(() => {
+          if (!disposed) scheduleDelta();
         });
-      }, pollIntervalMs());
+      }, deltaIntervalMs());
     };
 
     const cleanup = () => {
@@ -428,7 +470,10 @@
       window.removeEventListener("keydown", onGlobalKeydown);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("blur", onBlur);
-      clearPoll();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearDelta();
+      if (integrityTimer) clearInterval(integrityTimer);
+      integrityTimer = null;
     };
 
     if (previewState === "loading") return cleanup;
@@ -473,11 +518,27 @@
       } finally {
         loading = false;
       }
-      if (!disposed && previewState === "default") schedulePoll();
+      if (!disposed && previewState === "default") {
+        scheduleDelta();
+        integrityTimer = setInterval(
+          () => void refreshSnapshot({ silent: true }),
+          INTEGRITY_REFRESH_MS,
+        );
+      }
       try {
-        const unlisten = await onPytxoDeepLink(handleDeepLink);
-        if (disposed) unlisten();
-        else deepLinkUnlisten = unlisten;
+        const [deepLinkStop, domainStop] = await Promise.all([
+          onPytxoDeepLink(handleDeepLink),
+          backend.onDomainChanged(() => {
+            void refreshSnapshot({ silent: true, primeCursors: false });
+          }),
+        ]);
+        if (disposed) {
+          deepLinkStop();
+          domainStop();
+        } else {
+          deepLinkUnlisten = deepLinkStop;
+          domainChangedUnlisten = domainStop;
+        }
       } catch {
         /* Browser and Storybook use the preview backend without Tauri events. */
       }
@@ -485,6 +546,7 @@
     return () => {
       cleanup();
       deepLinkUnlisten?.();
+      domainChangedUnlisten?.();
     };
   });
 </script>

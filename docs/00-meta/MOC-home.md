@@ -7,7 +7,7 @@ audience: [human, agent]
 layer: meta
 created: 2026-06-02
 updated: 2026-08-13
-related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[pytxo-v1-1-trustworthy-mission-control]]
+related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[v1-1-architecture]], [[pytxo-v1-1-trustworthy-mission-control]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
 ---
 
 # Pytxo documentation home
@@ -22,7 +22,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 
 **Architecture synthesis:** [[pytxo-architecture-research]] — full primary-source map of vision, tiers, moats, policy, ADRs, crates.
 
-**Improvement program:** [[pytxo-v1-1-trustworthy-mission-control]] — v1.1.0 sequences runtime truth, a mature operator Desktop, and proof/distribution. [[pytxo-improvement-research]] remains the deeper research ledger.
+**Improvement program:** [[pytxo-v1-1-trustworthy-mission-control]]; v1.1 sequences runtime truth, a mature operator Desktop, and proof/distribution. [[pytxo-improvement-research]] remains the deeper research ledger.
 
 ---
 
@@ -53,6 +53,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 ### Architecture
 
 - [[architecture-index]] — [[three-tier-model]], [[context-diagram]], [[c4-container]]
+- [[v1-1-architecture]] — immutable review bytes, execution-domain serialization, journaled Apply, and exact limits
 - [[presentation-passive-telemetry]] · [[desktop-visual-system]] · [[pytxo-desktop-2-flow-voice]]
 - [[mcp-hub-integration]]
 
@@ -70,6 +71,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 ### Policy and hypervisor
 
 - [[permission-profile-engine]] · [[execution-domains]] · [[ADR-0008-local-permission-profile-four-tiers]]
+- [[ADR-0034-immutable-review-package-and-durable-apply]]: immutable reviewed bytes and process-crash reconciliation for one repository root
 
 ### Engineering (bottlenecks)
 
@@ -101,7 +103,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[v0.13-demo-benchmark-readiness]] — Remotion demo, voiceover, real-repo pins, and isolation recursion fix (2026-07-30)
 - [[v1-provider-auth-onboarding-research]] — official vendor auth boundaries, child-environment blocker, and v1 integration acceptance criteria (2026-07-30)
 - [[v1-product-reference-research]] — 18 official product references and the v1 Desktop, website, and demo design decisions (2026-07-30)
-- [[pytxo-v1-1-trustworthy-mission-control]] — v1.1 release thesis and three-phase gate
+- [[pytxo-v1-1-trustworthy-mission-control]]: v1.1 release thesis, implemented trust contract, and remaining priorities
 - [[ADR-0035-desktop-2-quiet-instrument-ia]] — Desktop 2 Ops / Missions / Approvals quiet instrument
 - [[competitive-landscape-2026-07]] — primary-source competitor map + GTM compare priorities (2026-07)
 

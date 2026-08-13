@@ -10,13 +10,15 @@
     IconShieldLock,
   } from "@tabler/icons-svelte";
   import { ipc } from "../../lib/ipc";
+  import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { MissionPane } from "../../lib/navigation.svelte";
-  import type { AgentArbitrageDto, AgentDto, RunDto, StructuralGraphDto } from "../../lib/types";
+  import type { AgentArbitrageDto, AgentDto, RunDto, RunReviewDto, StructuralGraphDto } from "../../lib/types";
 
   let {
     pane,
     run,
     domainId,
+    backend,
     onPane,
     onBack,
     onRunCompleted,
@@ -25,6 +27,7 @@
     pane: MissionPane;
     run: RunDto | null;
     domainId: string | null;
+    backend: DesktopBackend;
     onPane: (pane: MissionPane) => void;
     onBack: () => void;
     onRunCompleted: () => void;
@@ -40,6 +43,7 @@
   let diffLoading = $state(false);
   let completing = $state(false);
   let completeError = $state<string | null>(null);
+  let review = $state<RunReviewDto | null>(null);
   let arbitrage = $state<AgentArbitrageDto[]>([]);
   let stopDialog: HTMLDialogElement | undefined = $state();
   let stopError = $state("");
@@ -57,6 +61,8 @@
   );
   const allExited = $derived(agents.length > 0 && agents.every((a) => a.exit_code === 0));
   const anyFailed = $derived(agents.some((a) => a.exit_code !== null && a.exit_code !== 0));
+  const applyStatus = $derived(review?.apply_status ?? run?.apply_status ?? "unavailable");
+  const canApply = $derived(allExited && applyStatus === "ready");
   const filesTouched = $derived(graph.nodes.filter((n) => n.edited).length ? graph.nodes.filter((n) => n.edited) : graph.nodes);
   const savedTokens = $derived(arbitrage.reduce((n, a) => n + (a.saved_tokens ?? 0), 0));
 
@@ -112,19 +118,45 @@
     }
   }
 
+  async function loadApplyContract() {
+    if (!run) {
+      review = null;
+      return;
+    }
+    try {
+      review = await backend.runReview(run.id, domainId);
+    } catch {
+      review = null;
+    }
+  }
+
   async function applyRun() {
     if (!run) return;
-    if (!allExited) {
-      completeError = "Cannot apply: every agent must exit 0 with verifies passing.";
+    if (!canApply) {
+      completeError = !allExited
+        ? "Cannot apply: every agent must exit 0 with verifies passing."
+        : `Cannot apply: run contract is ${applyStatus}.`;
       return;
     }
     completing = true;
     completeError = null;
     try {
-      for (const agent of agents) {
-        if (agent.exit_code === 0) await ipc.commitWorkspace(run.id, agent.id, domainId);
-      }
+      await backend.applyRunChanges(run.id, domainId);
       onRunCompleted();
+    } catch (e) {
+      completeError = e instanceof Error ? e.message : String(e);
+    } finally {
+      completing = false;
+    }
+  }
+
+  async function discardRun() {
+    if (!run) return;
+    completing = true;
+    completeError = null;
+    try {
+      await backend.discardRunReview(run.id, domainId);
+      onBack();
     } catch (e) {
       completeError = e instanceof Error ? e.message : String(e);
     } finally {
@@ -157,6 +189,7 @@
     void loadTopology();
     void loadReview();
     void loadArbitrage();
+    void loadApplyContract();
   });
 </script>
 
@@ -171,8 +204,8 @@
         <button class="quiet" onclick={requestStop}><IconPlayerStop size={15} /> Stop</button>
       {/if}
       {#if pane === "review" && run}
-        <button class="quiet" onclick={onBack}>Discard</button>
-        <button class="primary" disabled={completing || agentsLoading || !agents.length || !allExited} onclick={applyRun} title={!allExited ? "All agents must exit successfully with verifies passing before apply" : "Apply accepted isolated changes"}>
+        <button class="quiet" disabled={completing} onclick={() => void discardRun()}>Discard</button>
+        <button class="primary" disabled={completing || agentsLoading || !canApply} onclick={() => void applyRun()} title={!allExited ? "All agents must exit successfully with verifies passing before Apply" : applyStatus !== "ready" ? `Run contract is ${applyStatus}` : "Apply all reviewed run changes atomically"}>
           {#if completing}<IconLoader2 size={16} class="spin" />{:else}<IconCheck size={16} />{/if} Apply
         </button>
       {/if}

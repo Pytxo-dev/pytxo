@@ -239,7 +239,7 @@
     font-size: 10px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #6f7784;
+    color: #7d8591;
   }
   h2 {
     margin: 4px 0 0;
@@ -248,7 +248,7 @@
   }
   .path {
     margin: 4px 0 0;
-    color: #6f7784;
+    color: #7d8591;
     font-size: 11px;
   }
   section {
@@ -265,7 +265,7 @@
   .hint,
   .muted {
     margin: 0 0 10px;
-    color: #6f7784;
+    color: #7d8591;
     font-size: 12px;
     line-height: 1.4;
   }
@@ -294,7 +294,7 @@
   .profile-grid small {
     display: block;
     margin-top: 4px;
-    color: #6f7784;
+    color: #7d8591;
     font-size: 11px;
   }
   .row-head {
@@ -319,7 +319,7 @@
   .root-row small {
     display: block;
     margin-top: 3px;
-    color: #6f7784;
+    color: #7d8591;
     font-size: 11px;
   }
   .root-meta {

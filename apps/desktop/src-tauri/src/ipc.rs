@@ -4,22 +4,25 @@ use std::sync::Mutex;
 
 use pytxo_core::PytxoConfig;
 use pytxo_orchestrate::{
-    commit_workspace_for_agent, default_hypervisor, dispatch_run, dry_run_json, fleet_run_status,
+    apply_run_changes as orch_apply_run_changes, default_hypervisor,
+    discard_run_review as orch_discard_run_review, dispatch_run, dry_run_json, fleet_run_status,
     fleet_status, forget_catalog_domain as orch_forget_domain, hitl_respond as orch_hitl_respond,
     is_repo_trusted, list_catalog_domains as orch_list_catalog_domains,
     list_catalog_domains_enriched as orch_list_domains_status, list_domains,
     list_hitl_pending as orch_list_hitl_pending,
     list_hitl_pending_all as orch_list_hitl_pending_all,
     list_project_manifests as orch_list_projects, project_add_root as orch_project_add_root,
-    project_remove_root as orch_project_remove_root, project_roots as orch_project_roots, stop,
-    stop_exact, structural_graph as orch_structural_graph, trust_repo, trusted_permission_for,
+    project_remove_root as orch_project_remove_root, project_roots as orch_project_roots,
+    reconcile_run_recovery as orch_reconcile_run_recovery,
+    refresh_run_review as orch_refresh_run_review, stop, stop_exact,
+    structural_graph as orch_structural_graph, trust_repo, trusted_permission_for,
     workspace_structural_graph as orch_workspace_structural_graph, CatalogEntry,
     CatalogEntryStatus, DomainSummary, RunOptions,
 };
-use pytxo_runner::isolation_backend_label;
-use pytxo_store::{AgentRecord, EventRecord, RunRecord};
-use serde::Serialize;
-use tauri::State;
+use pytxo_runner::{isolation_backend_label, RecoveryOutcome};
+use pytxo_store::{AgentRecord, EventRecord, RunContractRecord, RunRecord};
+use serde::{Deserialize, Serialize};
+use tauri::{Emitter, State};
 
 use crate::ipc_error::{
     map_config_err, map_io_err, map_lock_err, map_orch_err, map_store_err, IpcResult, PytxoIpcError,
@@ -60,6 +63,335 @@ pub struct RunDto {
     pub permission_profile: Option<String>,
     pub isolation_mode: String,
     pub isolation_backend: String,
+    pub apply_status: Option<String>,
+    pub applied_at: Option<String>,
+    pub prepared_digest: Option<String>,
+    pub prepared_at: Option<String>,
+    pub last_apply_error: Option<pytxo_core::RunApplyError>,
+    pub recovery_state: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct RunReviewDto {
+    pub run_id: String,
+    pub base_revision: Option<String>,
+    pub apply_status: String,
+    pub applied_at: Option<String>,
+    pub plan: serde_json::Value,
+    pub enforcement: serde_json::Value,
+    pub apply_manifest: Option<serde_json::Value>,
+    pub prepared_manifest: Option<pytxo_core::PreparedRunManifest>,
+    pub prepared_digest: Option<String>,
+    pub prepared_at: Option<String>,
+    pub last_apply_error: Option<pytxo_core::RunApplyError>,
+    pub recovery_state: Option<String>,
+    pub apply_attempts: Vec<RunApplyAttemptDto>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct PreparedContentChunkDto {
+    pub run_id: String,
+    pub package_digest: String,
+    pub path: String,
+    pub side: String,
+    pub digest: String,
+    pub byte_count: u64,
+    pub binary: bool,
+    pub offset: u64,
+    pub length: u64,
+    pub next_offset: u64,
+    pub complete: bool,
+    pub data_base64: String,
+}
+
+fn load_review_content_chunk(
+    repo: &Path,
+    cfg: &PytxoConfig,
+    run_id: &str,
+    path: &str,
+    side: &str,
+    offset: u64,
+    limit: usize,
+) -> IpcResult<PreparedContentChunkDto> {
+    use base64::Engine;
+
+    const MAX_CHUNK_BYTES: usize = 64 * 1024;
+    if limit == 0 || limit > MAX_CHUNK_BYTES {
+        return Err(PytxoIpcError::new(
+            "run_review_content",
+            format!("content chunk limit must be 1..={MAX_CHUNK_BYTES}"),
+        ));
+    }
+    let data_dir = repo.join(&cfg.data_dir);
+    let store = open_store_for_domain(cfg, &repo.to_string_lossy())?;
+    let contract = store
+        .get_run_contract(run_id)
+        .map_err(map_store_err)?
+        .ok_or_else(|| {
+            PytxoIpcError::new("run_review_content", "run has no persisted review contract")
+        })?;
+    let persisted_manifest = contract.prepared_manifest.as_ref().ok_or_else(|| {
+        PytxoIpcError::new(
+            "run_review_content",
+            "persisted review contract has no prepared manifest",
+        )
+    })?;
+    let persisted_digest = contract.prepared_digest.as_deref().ok_or_else(|| {
+        PytxoIpcError::new(
+            "run_review_content",
+            "persisted review contract has no prepared digest",
+        )
+    })?;
+    let manifest = pytxo_runner::load_review_manifest(&data_dir, run_id)
+        .map_err(|error| PytxoIpcError::new("run_review_content", error.to_string()))?;
+    if persisted_manifest != &manifest
+        || persisted_manifest.run_id != run_id
+        || persisted_manifest.package_digest != persisted_digest
+        || manifest.package_digest != persisted_digest
+    {
+        return Err(PytxoIpcError::new(
+            "run_review_content",
+            "prepared package does not match the persisted review contract",
+        ));
+    }
+    let file = manifest
+        .files
+        .iter()
+        .find(|candidate| candidate.path == path)
+        .ok_or_else(|| {
+            PytxoIpcError::new("run_review_content", "path is not in the prepared package")
+        })?;
+    let (content_side, digest) = match side {
+        "before" => (
+            pytxo_runner::ReviewContentSide::Before,
+            file.before_sha256.as_ref(),
+        ),
+        "after" => (
+            pytxo_runner::ReviewContentSide::After,
+            file.after_sha256.as_ref(),
+        ),
+        _ => {
+            return Err(PytxoIpcError::new(
+                "run_review_content",
+                "content side must be before or after",
+            ))
+        }
+    };
+    let digest = digest.ok_or_else(|| {
+        PytxoIpcError::new(
+            "run_review_content",
+            format!("{side} content does not exist for {path}"),
+        )
+    })?;
+    let chunk = pytxo_runner::read_review_content_chunk(
+        &data_dir,
+        &manifest,
+        path,
+        content_side,
+        offset,
+        limit,
+    )
+    .map_err(|error| PytxoIpcError::new("run_review_content", error.to_string()))?;
+    if chunk.digest != *digest {
+        return Err(PytxoIpcError::new(
+            "run_review_content",
+            "validated content digest does not match the selected manifest side",
+        ));
+    }
+    Ok(PreparedContentChunkDto {
+        run_id: run_id.to_owned(),
+        package_digest: manifest.package_digest,
+        path: path.to_owned(),
+        side: side.to_owned(),
+        digest: chunk.digest,
+        byte_count: chunk.byte_count,
+        binary: chunk.binary,
+        offset: chunk.offset,
+        length: chunk.length,
+        next_offset: chunk.next_offset,
+        complete: chunk.complete,
+        data_base64: base64::engine::general_purpose::STANDARD.encode(chunk.bytes),
+    })
+}
+
+#[derive(Clone, Serialize)]
+pub struct RunApplyAttemptDto {
+    pub attempt_id: String,
+    pub created_at: Option<String>,
+    pub phase: String,
+    pub outcome: String,
+    pub error_code: Option<String>,
+    pub error_message: Option<String>,
+    pub rollback_confirmed: bool,
+}
+
+#[derive(Deserialize)]
+struct ApplyJournalEvidence {
+    attempt_id: String,
+    created_at: String,
+    phase: String,
+}
+
+fn load_run_apply_attempts(
+    repo: &Path,
+    cfg: &PytxoConfig,
+    run_id: &str,
+    contract: &RunContractRecord,
+) -> IpcResult<Vec<RunApplyAttemptDto>> {
+    let root = repo.join(&cfg.data_dir).join("apply").join(run_id);
+    let mut attempts = Vec::new();
+    if root.exists() {
+        let entries = std::fs::read_dir(&root).map_err(map_io_err)?;
+        for entry in entries {
+            let entry = entry.map_err(map_io_err)?;
+            if !entry.path().is_dir() {
+                continue;
+            }
+            let fallback_id = entry.file_name().to_string_lossy().into_owned();
+            let journal_path = entry.path().join("journal.json");
+            let journal = std::fs::read(&journal_path)
+                .map_err(map_io_err)
+                .and_then(|bytes| {
+                    serde_json::from_slice::<ApplyJournalEvidence>(&bytes).map_err(|error| {
+                        PytxoIpcError::new(
+                            "run_review",
+                            format!("invalid Apply journal for {fallback_id}: {error}"),
+                        )
+                    })
+                })?;
+            let matching_error = contract
+                .last_apply_error
+                .as_ref()
+                .filter(|error| error.attempt_id.as_deref() == Some(&journal.attempt_id));
+            let outcome = match journal.phase.as_str() {
+                "committed" => "committed",
+                "rolled_back" => "rolled_back",
+                _ if contract.recovery_state.as_deref() == Some("unprovable") => {
+                    "recovery_required"
+                }
+                _ => "interrupted",
+            };
+            let derived_rollback = journal.phase == "rolled_back";
+            attempts.push(RunApplyAttemptDto {
+                attempt_id: journal.attempt_id,
+                created_at: Some(journal.created_at),
+                phase: journal.phase,
+                outcome: outcome.into(),
+                error_code: matching_error
+                    .map(|error| error.code.clone())
+                    .or_else(|| derived_rollback.then(|| "apply_failed".into())),
+                error_message: matching_error
+                    .map(|error| error.message.clone())
+                    .or_else(|| {
+                        derived_rollback.then(|| {
+                            "Apply attempt rolled back; the exact earlier error is no longer in the current contract.".into()
+                        })
+                    }),
+                rollback_confirmed: matching_error
+                    .map(|error| error.rollback_confirmed)
+                    .unwrap_or(derived_rollback),
+            });
+        }
+    }
+
+    if let Some(error) = contract.last_apply_error.as_ref() {
+        if let Some(attempt_id) = error.attempt_id.as_ref() {
+            if !attempts
+                .iter()
+                .any(|attempt| &attempt.attempt_id == attempt_id)
+            {
+                attempts.push(RunApplyAttemptDto {
+                    attempt_id: attempt_id.clone(),
+                    created_at: Some(error.at.clone()),
+                    phase: if error.rollback_confirmed {
+                        "rolled_back".into()
+                    } else {
+                        "unknown".into()
+                    },
+                    outcome: if error.rollback_confirmed {
+                        "rolled_back".into()
+                    } else {
+                        "recovery_required".into()
+                    },
+                    error_code: Some(error.code.clone()),
+                    error_message: Some(error.message.clone()),
+                    rollback_confirmed: error.rollback_confirmed,
+                });
+            }
+        }
+    }
+
+    if let Some(manifest_json) = contract.apply_manifest_json.as_deref() {
+        let manifest: pytxo_runner::RunApplyManifest = serde_json::from_str(manifest_json)
+            .map_err(|error| {
+                PytxoIpcError::new("run_review", format!("invalid apply manifest: {error}"))
+            })?;
+        if !attempts
+            .iter()
+            .any(|attempt| attempt.attempt_id == manifest.transaction_id)
+        {
+            attempts.push(RunApplyAttemptDto {
+                attempt_id: manifest.transaction_id,
+                created_at: contract.applied_at.clone(),
+                phase: "committed".into(),
+                outcome: "committed".into(),
+                error_code: None,
+                error_message: None,
+                rollback_confirmed: false,
+            });
+        }
+    }
+    attempts.sort_by(|left, right| {
+        right
+            .created_at
+            .cmp(&left.created_at)
+            .then_with(|| right.attempt_id.cmp(&left.attempt_id))
+    });
+    Ok(attempts)
+}
+
+#[derive(Serialize)]
+pub struct DomainChangeDto {
+    pub sequence: i64,
+    pub entity_kind: String,
+    pub entity_id: String,
+    pub changed_at: String,
+}
+
+#[derive(Serialize)]
+pub struct DomainChangesPageDto {
+    pub changes: Vec<DomainChangeDto>,
+    pub next_cursor: i64,
+    pub has_more: bool,
+    pub cursor_gap: bool,
+}
+
+#[derive(Clone, Serialize)]
+pub struct DesktopChangedEvent {
+    pub domain_id: String,
+    pub entity_kind: String,
+    pub entity_id: String,
+}
+
+pub(crate) fn emit_domain_changed(
+    app: &tauri::AppHandle,
+    domain_id: &str,
+    entity_kind: &str,
+    entity_id: &str,
+) {
+    let _ = app.emit(
+        "pytxo://domain-changed",
+        DesktopChangedEvent {
+            domain_id: domain_id.to_owned(),
+            entity_kind: entity_kind.to_owned(),
+            entity_id: entity_id.to_owned(),
+        },
+    );
+}
+
+fn notify_domain_mutation_result<T>(result: IpcResult<T>, notify: impl FnOnce()) -> IpcResult<T> {
+    notify();
+    result
 }
 
 #[derive(Serialize)]
@@ -236,12 +568,105 @@ pub fn list_runs(
     let domain = resolve_domain(&state, domain_id)?;
     let cfg = load_cfg_for_domain(&domain, &state)?;
     let store = open_store_for_domain(&cfg, &domain)?;
-    Ok(store
-        .list_runs(limit)
-        .map_err(map_store_err)?
+    let runs = store.list_runs(limit).map_err(map_store_err)?;
+    Ok(runs
         .into_iter()
-        .map(|r| run_to_dto(r, &cfg))
+        .map(|run| {
+            let contract = store.get_run_contract(&run.id).ok().flatten();
+            run_to_dto(run, &cfg, contract.as_ref())
+        })
         .collect())
+}
+
+#[tauri::command]
+pub fn run_review(
+    state: State<'_, AppState>,
+    run_id: String,
+    domain_id: Option<String>,
+) -> IpcResult<RunReviewDto> {
+    let domain = resolve_domain(&state, domain_id)?;
+    let cfg = load_cfg_for_domain(&domain, &state)?;
+    let store = open_store_for_domain(&cfg, &domain)?;
+    let contract = store
+        .get_run_contract(&run_id)
+        .map_err(map_store_err)?
+        .ok_or_else(|| PytxoIpcError::new("run_review", "run has no review/apply contract"))?;
+    let parse = |field: &str, value: Option<&str>| -> IpcResult<serde_json::Value> {
+        serde_json::from_str(value.unwrap_or("null"))
+            .map_err(|error| PytxoIpcError::new("run_review", format!("invalid {field}: {error}")))
+    };
+    let apply_attempts = load_run_apply_attempts(Path::new(&domain), &cfg, &run_id, &contract)?;
+    Ok(RunReviewDto {
+        run_id: run_id.clone(),
+        base_revision: contract.base_revision,
+        apply_status: contract.apply_status,
+        applied_at: contract.applied_at,
+        plan: parse("execution plan", contract.plan_json.as_deref())?,
+        enforcement: parse("enforcement receipt", contract.enforcement_json.as_deref())?,
+        apply_manifest: contract
+            .apply_manifest_json
+            .as_deref()
+            .map(|json| parse("apply manifest", Some(json)))
+            .transpose()?,
+        prepared_manifest: contract.prepared_manifest,
+        prepared_digest: contract.prepared_digest,
+        prepared_at: contract.prepared_at,
+        last_apply_error: contract.last_apply_error,
+        recovery_state: contract.recovery_state,
+        apply_attempts,
+    })
+}
+
+#[tauri::command]
+pub fn run_review_content(
+    state: State<'_, AppState>,
+    run_id: String,
+    path: String,
+    side: String,
+    offset: u64,
+    limit: usize,
+    domain_id: Option<String>,
+) -> IpcResult<PreparedContentChunkDto> {
+    let domain = resolve_domain(&state, domain_id)?;
+    let cfg = load_cfg_for_domain(&domain, &state)?;
+    load_review_content_chunk(
+        Path::new(&domain),
+        &cfg,
+        &run_id,
+        &path,
+        &side,
+        offset,
+        limit,
+    )
+}
+
+#[tauri::command]
+pub fn domain_changes(
+    state: State<'_, AppState>,
+    domain_id: String,
+    cursor: i64,
+    limit: Option<usize>,
+) -> IpcResult<DomainChangesPageDto> {
+    let cfg = load_cfg_for_domain(&domain_id, &state)?;
+    let store = open_store_for_domain(&cfg, &domain_id)?;
+    let page = store
+        .changes_since(cursor, limit.unwrap_or(200))
+        .map_err(map_store_err)?;
+    Ok(DomainChangesPageDto {
+        changes: page
+            .changes
+            .into_iter()
+            .map(|change| DomainChangeDto {
+                sequence: change.sequence,
+                entity_kind: change.entity_kind,
+                entity_id: change.entity_id,
+                changed_at: change.changed_at,
+            })
+            .collect(),
+        next_cursor: page.next_cursor,
+        has_more: page.has_more,
+        cursor_gap: page.cursor_gap,
+    })
 }
 
 #[tauri::command]
@@ -347,6 +772,7 @@ pub fn dry_run(
 
 #[tauri::command]
 pub async fn dispatch_run_cmd(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     cmd: String,
     agents: usize,
@@ -371,11 +797,13 @@ pub async fn dispatch_run_cmd(
     })
     .map_err(map_orch_err)?;
     *state.selected_domain_id.lock().map_err(map_lock_err)? = Some(domain_id.clone());
+    emit_domain_changed(&app, &domain_id, "run", &run_id);
     Ok(run_id)
 }
 
 #[tauri::command]
 pub async fn stop_run(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     all: bool,
     domain_id: Option<String>,
@@ -390,26 +818,109 @@ pub async fn stop_run(
                 "an exact run stop cannot also target all runs",
             ));
         }
-        return stop_exact(path, Some(PathBuf::from(domain)), &expected_run_id, false)
+        stop_exact(path, Some(PathBuf::from(&domain)), &expected_run_id, false)
             .await
-            .map_err(map_orch_err);
+            .map_err(map_orch_err)?;
+        emit_domain_changed(&app, &domain, "run", &expected_run_id);
+        return Ok(());
     }
-    stop(path, Some(PathBuf::from(domain)), all, false)
+    stop(path, Some(PathBuf::from(&domain)), all, false)
         .await
-        .map_err(map_orch_err)
+        .map_err(map_orch_err)?;
+    emit_domain_changed(&app, &domain, "run", "*");
+    Ok(())
 }
 
 #[tauri::command]
-pub fn commit_workspace(
+pub fn apply_run_changes(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     run_id: String,
-    agent_id: String,
+    domain_id: Option<String>,
+) -> IpcResult<pytxo_runner::RunApplyManifest> {
+    let domain = resolve_domain(&state, domain_id)?;
+    let path = state.config_path.lock().map_err(map_lock_err)?.clone();
+    let result =
+        orch_apply_run_changes(path, Some(PathBuf::from(&domain)), &run_id).map_err(map_orch_err);
+    notify_domain_mutation_result(result, || {
+        emit_domain_changed(&app, &domain, "contract", &run_id);
+    })
+}
+
+#[tauri::command]
+pub fn refresh_run_review(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    run_id: String,
+    domain_id: Option<String>,
+) -> IpcResult<pytxo_core::PreparedRunManifest> {
+    let domain = resolve_domain(&state, domain_id)?;
+    let path = state.config_path.lock().map_err(map_lock_err)?.clone();
+    let manifest = orch_refresh_run_review(path, Some(PathBuf::from(&domain)), &run_id)
+        .map_err(map_orch_err)?;
+    emit_domain_changed(&app, &domain, "contract", &run_id);
+    Ok(manifest)
+}
+
+#[tauri::command]
+pub fn discard_run_review(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    run_id: String,
     domain_id: Option<String>,
 ) -> IpcResult<()> {
     let domain = resolve_domain(&state, domain_id)?;
     let path = state.config_path.lock().map_err(map_lock_err)?.clone();
-    commit_workspace_for_agent(path, Some(PathBuf::from(domain)), &run_id, &agent_id)
-        .map_err(map_orch_err)
+    orch_discard_run_review(path, Some(PathBuf::from(&domain)), &run_id).map_err(map_orch_err)?;
+    emit_domain_changed(&app, &domain, "contract", &run_id);
+    Ok(())
+}
+
+#[derive(Serialize)]
+pub struct RecoveryOutcomeDto {
+    pub outcome: String,
+    pub attempt_id: Option<String>,
+}
+
+fn reconcile_run_recovery_for_domain(
+    config: Option<PathBuf>,
+    repo: &Path,
+    run_id: &str,
+) -> IpcResult<RecoveryOutcomeDto> {
+    let outcome = orch_reconcile_run_recovery(config, Some(repo.to_path_buf()), run_id)
+        .map_err(map_orch_err)?;
+    Ok(match outcome {
+        RecoveryOutcome::NothingToDo => RecoveryOutcomeDto {
+            outcome: "nothing_to_do".into(),
+            attempt_id: None,
+        },
+        RecoveryOutcome::RolledBack { attempt_id } => RecoveryOutcomeDto {
+            outcome: "rolled_back".into(),
+            attempt_id: Some(attempt_id),
+        },
+        RecoveryOutcome::Committed(manifest) => RecoveryOutcomeDto {
+            outcome: "committed".into(),
+            attempt_id: Some(manifest.transaction_id),
+        },
+        RecoveryOutcome::RecoveryRequired { attempt_id } => RecoveryOutcomeDto {
+            outcome: "recovery_required".into(),
+            attempt_id,
+        },
+    })
+}
+
+#[tauri::command]
+pub fn reconcile_run_recovery(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    run_id: String,
+    domain_id: Option<String>,
+) -> IpcResult<RecoveryOutcomeDto> {
+    let domain = resolve_domain(&state, domain_id)?;
+    let config = state.config_path.lock().map_err(map_lock_err)?.clone();
+    let dto = reconcile_run_recovery_for_domain(config, Path::new(&domain), &run_id)?;
+    emit_domain_changed(&app, &domain, "contract", &run_id);
+    Ok(dto)
 }
 
 #[derive(Serialize)]
@@ -458,13 +969,17 @@ pub fn list_hitl_all() -> IpcResult<Vec<HitlDto>> {
 
 #[tauri::command]
 pub fn hitl_respond(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     request_id: String,
     approve: bool,
     domain_id: Option<String>,
 ) -> IpcResult<bool> {
     let domain = resolve_domain(&state, domain_id)?;
-    orch_hitl_respond(Some(PathBuf::from(domain)), &request_id, approve).map_err(map_orch_err)
+    let result = orch_hitl_respond(Some(PathBuf::from(&domain)), &request_id, approve)
+        .map_err(map_orch_err)?;
+    emit_domain_changed(&app, &domain, "approval", &request_id);
+    Ok(result)
 }
 
 #[tauri::command]
@@ -594,7 +1109,8 @@ pub fn load_desktop_snapshot(
                 "running" | "pending" | "dispatching" | "active"
             );
             let run_id = run.id.clone();
-            runs.push(run_to_dto(run, &cfg));
+            let contract = store.get_run_contract(&run_id).ok().flatten();
+            runs.push(run_to_dto(run, &cfg, contract.as_ref()));
             if include_agents && active {
                 if let Ok(rows) = store.list_agents_for_run(&run_id) {
                     agents.extend(rows.into_iter().map(agent_to_dto));
@@ -828,7 +1344,7 @@ fn domain_to_dto(d: DomainSummary) -> DomainDto {
     }
 }
 
-fn run_to_dto(r: RunRecord, cfg: &PytxoConfig) -> RunDto {
+fn run_to_dto(r: RunRecord, cfg: &PytxoConfig, contract: Option<&RunContractRecord>) -> RunDto {
     RunDto {
         id: r.id,
         status: r.status,
@@ -838,6 +1354,12 @@ fn run_to_dto(r: RunRecord, cfg: &PytxoConfig) -> RunDto {
         permission_profile: r.permission_profile,
         isolation_mode: cfg.isolation.as_str().to_string(),
         isolation_backend: isolation_backend_label(cfg.isolation, &cfg.blast.sparse_exclude),
+        apply_status: contract.map(|contract| contract.apply_status.clone()),
+        applied_at: contract.and_then(|contract| contract.applied_at.clone()),
+        prepared_digest: contract.and_then(|contract| contract.prepared_digest.clone()),
+        prepared_at: contract.and_then(|contract| contract.prepared_at.clone()),
+        last_apply_error: contract.and_then(|contract| contract.last_apply_error.clone()),
+        recovery_state: contract.and_then(|contract| contract.recovery_state.clone()),
     }
 }
 
@@ -860,5 +1382,407 @@ fn event_to_dto(e: EventRecord) -> EventDto {
         kind: e.kind,
         payload: e.payload,
         ts: e.ts.to_rfc3339(),
+    }
+}
+
+#[cfg(test)]
+mod mission_control_contract_tests {
+    use super::*;
+    use pytxo_core::{
+        PreparedRunFile, PreparedRunFileKind, PreparedRunManifest, PreparedRunSummary,
+        RunApplyError,
+    };
+    use pytxo_runner::{prepare_review_package, AgentWorkspaceInput, ApplyFaultPoint};
+    use pytxo_store::PytxoStore;
+
+    fn persist_review_contract(
+        repo: &Path,
+        cfg: &PytxoConfig,
+        run_id: &str,
+        manifest: &PreparedRunManifest,
+    ) {
+        let store = PytxoStore::open(&cfg.db_path_at(repo)).unwrap();
+        store
+            .insert_run_with_profile(run_id, &repo.to_string_lossy(), Some("orbit"))
+            .unwrap();
+        store.save_run_contract(run_id, "base", "{}", "{}").unwrap();
+        assert!(store.begin_run_preparation(run_id).unwrap());
+        store.finish_run_preparation(run_id, manifest).unwrap();
+    }
+
+    #[test]
+    fn run_review_dto_serializes_immutable_manifest_and_recovery_fields() {
+        let manifest = PreparedRunManifest {
+            version: 2,
+            run_id: "run-1".into(),
+            base_revision: "base-1".into(),
+            prepared_at: "2026-08-01T00:00:00Z".into(),
+            package_digest: "digest-1".into(),
+            summary: PreparedRunSummary {
+                added: 1,
+                modified: 0,
+                deleted: 0,
+                bytes: 3,
+            },
+            files: vec![PreparedRunFile {
+                path: "src/new.rs".into(),
+                kind: PreparedRunFileKind::Add,
+                before_sha256: None,
+                after_sha256: Some("after".into()),
+                byte_count: 3,
+                task_id: "task".into(),
+                agent_id: "agent".into(),
+                blob_digest: Some("blob".into()),
+                before_mode: None,
+                after_mode: None,
+                before_byte_count: 0,
+                after_byte_count: 3,
+                before_is_binary: None,
+                after_is_binary: Some(false),
+                before_chunks: vec![],
+                after_chunks: vec![],
+            }],
+        };
+        let dto = RunReviewDto {
+            run_id: "run-1".into(),
+            base_revision: Some("base-1".into()),
+            apply_status: "ready".into(),
+            applied_at: None,
+            plan: serde_json::json!({"waves": []}),
+            enforcement: serde_json::json!({}),
+            apply_manifest: None,
+            prepared_manifest: Some(manifest),
+            prepared_digest: Some("digest-1".into()),
+            prepared_at: Some("2026-08-01T00:00:00Z".into()),
+            last_apply_error: None,
+            recovery_state: None,
+            apply_attempts: vec![],
+        };
+
+        let value = serde_json::to_value(dto).unwrap();
+        assert_eq!(value["prepared_manifest"]["files"][0]["kind"], "add");
+        assert_eq!(value["prepared_digest"], "digest-1");
+        assert!(value.get("last_apply_error").is_some());
+        assert!(value.get("recovery_state").is_some());
+    }
+
+    #[test]
+    fn prepared_content_chunks_read_exact_before_and_after_bytes_from_the_package() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::write(repo.join("owned.txt"), b"before\n").unwrap();
+        let workspace = temp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        std::fs::write(workspace.join("owned.txt"), b"after\n").unwrap();
+        let cfg = PytxoConfig::default();
+        let manifest = prepare_review_package(
+            &repo,
+            &repo.join(&cfg.data_dir),
+            "desktop-exact-content",
+            "base",
+            &[AgentWorkspaceInput {
+                agent_id: "agent".into(),
+                task_id: "task".into(),
+                workspace_path: workspace,
+                claims: vec!["owned.txt".into()],
+                depends_on: vec![],
+            }],
+            &[],
+        )
+        .unwrap();
+        persist_review_contract(&repo, &cfg, "desktop-exact-content", &manifest);
+
+        let before = load_review_content_chunk(
+            &repo,
+            &cfg,
+            "desktop-exact-content",
+            "owned.txt",
+            "before",
+            0,
+            64,
+        )
+        .unwrap();
+        let after = load_review_content_chunk(
+            &repo,
+            &cfg,
+            "desktop-exact-content",
+            "owned.txt",
+            "after",
+            0,
+            64,
+        )
+        .unwrap();
+
+        assert_eq!(before.data_base64, "YmVmb3JlCg==");
+        assert_eq!(after.data_base64, "YWZ0ZXIK");
+        assert_eq!(before.run_id, "desktop-exact-content");
+        assert_eq!(before.package_digest, manifest.package_digest);
+        assert_eq!(before.length, 7);
+        assert_eq!(before.next_offset, before.offset + before.length);
+        assert!(before.complete && after.complete);
+        assert!(!before.binary && !after.binary);
+    }
+
+    #[test]
+    fn prepared_content_refuses_a_replacement_package_before_contract_settlement() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let workspace = temp.path().join("workspace");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::create_dir_all(&workspace).unwrap();
+        std::fs::write(workspace.join("owned.txt"), b"first package\n").unwrap();
+        let cfg = PytxoConfig::default();
+        let first = prepare_review_package(
+            &repo,
+            &repo.join(&cfg.data_dir),
+            "desktop-unsettled-replacement",
+            "base",
+            &[AgentWorkspaceInput {
+                agent_id: "agent".into(),
+                task_id: "task".into(),
+                workspace_path: workspace.clone(),
+                claims: vec!["owned.txt".into()],
+                depends_on: vec![],
+            }],
+            &[],
+        )
+        .unwrap();
+        persist_review_contract(&repo, &cfg, "desktop-unsettled-replacement", &first);
+        std::fs::write(
+            workspace.join("owned.txt"),
+            b"replacement before settlement\n",
+        )
+        .unwrap();
+        let replacement = prepare_review_package(
+            &repo,
+            &repo.join(&cfg.data_dir),
+            "desktop-unsettled-replacement",
+            "base",
+            &[AgentWorkspaceInput {
+                agent_id: "agent".into(),
+                task_id: "task".into(),
+                workspace_path: workspace,
+                claims: vec!["owned.txt".into()],
+                depends_on: vec![],
+            }],
+            &[],
+        )
+        .unwrap();
+        assert_ne!(replacement.package_digest, first.package_digest);
+
+        let error = load_review_content_chunk(
+            &repo,
+            &cfg,
+            "desktop-unsettled-replacement",
+            "owned.txt",
+            "after",
+            0,
+            64,
+        )
+        .expect_err("an unsettled package must never be served as the persisted review");
+        assert!(error.message.contains("persisted review contract"));
+    }
+
+    #[test]
+    fn domain_changes_page_preserves_cursor_reset_contract() {
+        let dto = DomainChangesPageDto {
+            changes: vec![],
+            next_cursor: 2,
+            has_more: false,
+            cursor_gap: true,
+        };
+        let value = serde_json::to_value(dto).unwrap();
+        assert_eq!(value["next_cursor"], 2);
+        assert_eq!(value["cursor_gap"], true);
+    }
+
+    #[test]
+    fn failed_mutation_still_notifies_desktop_before_returning_original_error() {
+        let notified = std::cell::Cell::new(false);
+        let original: IpcResult<()> = Err(PytxoIpcError::new("apply", "stale"));
+
+        let returned = notify_domain_mutation_result(original, || notified.set(true));
+
+        assert!(notified.get());
+        let error = returned.unwrap_err();
+        assert_eq!(error.code, "apply");
+        assert_eq!(error.message, "stale");
+    }
+
+    #[test]
+    fn native_recovery_adapter_persists_rolled_back_contract() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::write(repo.join("owned.txt"), "before\n").unwrap();
+        let workspace = temp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        std::fs::write(workspace.join("owned.txt"), "after\n").unwrap();
+        let run_id = "desktop-recovery";
+        let data_dir = repo.join(".pytxo/data");
+        let manifest = prepare_review_package(
+            &repo,
+            &data_dir,
+            run_id,
+            "base",
+            &[AgentWorkspaceInput {
+                agent_id: "agent".into(),
+                task_id: "task".into(),
+                workspace_path: workspace,
+                claims: vec!["owned.txt".into()],
+                depends_on: vec![],
+            }],
+            &[],
+        )
+        .unwrap();
+        let store = PytxoStore::open(&data_dir.join("pytxo.db")).unwrap();
+        store
+            .insert_run_with_profile(run_id, &repo.to_string_lossy(), Some("orbit"))
+            .unwrap();
+        store.save_run_contract(run_id, "base", "{}", "{}").unwrap();
+        assert!(store.begin_run_preparation(run_id).unwrap());
+        store.finish_run_preparation(run_id, &manifest).unwrap();
+        store.finish_run(run_id, "completed").unwrap();
+        assert!(store.claim_run_apply(run_id).unwrap());
+        pytxo_runner::apply_prepared_review_with_fault(
+            &repo,
+            &data_dir,
+            &manifest,
+            Some(ApplyFaultPoint::InterruptAfterRename(1)),
+        )
+        .expect_err("interrupt");
+        store
+            .finish_run_apply_error(
+                run_id,
+                "recovery_required",
+                &RunApplyError {
+                    at: "2026-08-01T00:00:00Z".into(),
+                    code: "apply_recovery_required".into(),
+                    message: "reconciliation required".into(),
+                    attempt_id: None,
+                    rollback_confirmed: false,
+                },
+                Some("unprovable"),
+            )
+            .unwrap();
+        drop(store);
+
+        let dto = reconcile_run_recovery_for_domain(None, &repo, run_id).unwrap();
+
+        assert_eq!(dto.outcome, "rolled_back");
+        let contract = PytxoStore::open(&data_dir.join("pytxo.db"))
+            .unwrap()
+            .get_run_contract(run_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(contract.apply_status, "ready");
+        assert_eq!(contract.recovery_state.as_deref(), Some("rolled_back"));
+
+        let store = PytxoStore::open(&data_dir.join("pytxo.db")).unwrap();
+        assert!(store.claim_run_apply(run_id).unwrap());
+        pytxo_runner::apply_prepared_review_with_fault(
+            &repo,
+            &data_dir,
+            &manifest,
+            Some(ApplyFaultPoint::InterruptAfterJournalPrepared),
+        )
+        .expect_err("second interrupt");
+        store
+            .finish_run_apply_error(
+                run_id,
+                "recovery_required",
+                &RunApplyError {
+                    at: "2026-08-01T00:05:00Z".into(),
+                    code: "apply_recovery_required".into(),
+                    message: "second reconciliation required".into(),
+                    attempt_id: None,
+                    rollback_confirmed: false,
+                },
+                Some("unprovable"),
+            )
+            .unwrap();
+        drop(store);
+        let second = reconcile_run_recovery_for_domain(None, &repo, run_id).unwrap();
+        assert_eq!(second.outcome, "rolled_back");
+        let store = PytxoStore::open(&data_dir.join("pytxo.db")).unwrap();
+        let contract = store.get_run_contract(run_id).unwrap().unwrap();
+        let attempts =
+            load_run_apply_attempts(&repo, &PytxoConfig::default(), run_id, &contract).unwrap();
+        assert_eq!(attempts.len(), 2);
+        assert!(attempts
+            .iter()
+            .all(|attempt| attempt.outcome == "rolled_back" && attempt.rollback_confirmed));
+    }
+
+    #[test]
+    fn native_recovery_adapter_persists_committed_audit() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::write(repo.join("owned.txt"), "before\n").unwrap();
+        let workspace = temp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        std::fs::write(workspace.join("owned.txt"), "after\n").unwrap();
+        let run_id = "desktop-committed-recovery";
+        let data_dir = repo.join(".pytxo/data");
+        let manifest = prepare_review_package(
+            &repo,
+            &data_dir,
+            run_id,
+            "base",
+            &[AgentWorkspaceInput {
+                agent_id: "agent".into(),
+                task_id: "task".into(),
+                workspace_path: workspace,
+                claims: vec!["owned.txt".into()],
+                depends_on: vec![],
+            }],
+            &[],
+        )
+        .unwrap();
+        let store = PytxoStore::open(&data_dir.join("pytxo.db")).unwrap();
+        store
+            .insert_run_with_profile(run_id, &repo.to_string_lossy(), Some("orbit"))
+            .unwrap();
+        store.save_run_contract(run_id, "base", "{}", "{}").unwrap();
+        assert!(store.begin_run_preparation(run_id).unwrap());
+        store.finish_run_preparation(run_id, &manifest).unwrap();
+        store.finish_run(run_id, "completed").unwrap();
+        assert!(store.claim_run_apply(run_id).unwrap());
+        let applied = pytxo_runner::apply_prepared_review(&repo, &data_dir, &manifest).unwrap();
+        store
+            .finish_run_apply_error(
+                run_id,
+                "recovery_required",
+                &RunApplyError {
+                    at: "2026-08-01T00:00:00Z".into(),
+                    code: "apply_recovery_required".into(),
+                    message: "commit outcome was not persisted".into(),
+                    attempt_id: Some(applied.transaction_id.clone()),
+                    rollback_confirmed: false,
+                },
+                Some("unprovable"),
+            )
+            .unwrap();
+        drop(store);
+
+        let dto = reconcile_run_recovery_for_domain(None, &repo, run_id).unwrap();
+
+        assert_eq!(dto.outcome, "committed");
+        assert_eq!(
+            dto.attempt_id.as_deref(),
+            Some(applied.transaction_id.as_str())
+        );
+        let store = PytxoStore::open(&data_dir.join("pytxo.db")).unwrap();
+        let contract = store.get_run_contract(run_id).unwrap().unwrap();
+        assert_eq!(contract.apply_status, "applied");
+        assert!(contract.applied_at.is_some());
+        assert!(contract.last_apply_error.is_none());
+        assert!(contract.recovery_state.is_none());
+        let attempts =
+            load_run_apply_attempts(&repo, &PytxoConfig::default(), run_id, &contract).unwrap();
+        assert_eq!(attempts.len(), 1);
+        assert_eq!(attempts[0].outcome, "committed");
     }
 }

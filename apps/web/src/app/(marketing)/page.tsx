@@ -4,7 +4,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { SupportedAgents } from "@/components/site/supported-agents";
 import { ArchitectureSection } from "@/components/site/architecture-section";
 import { AgentReadiness } from "@/components/site/agent-readiness";
 import { CtaSection } from "@/components/site/cta-section";
@@ -12,14 +11,13 @@ import { DemoSection } from "@/components/site/demo-section";
 import { FeatureGrid } from "@/components/site/feature-grid";
 import { Hero } from "@/components/site/hero";
 import { HowItWorks } from "@/components/site/how-it-works";
-import { ProblemSection } from "@/components/site/problem-section";
 import { ProofBand } from "@/components/site/proof-band";
 import { ScrollReveal } from "@/components/site/scroll-reveal";
 
 const FAQ = [
   {
     q: "Is Pytxo an IDE or a cloud workspace?",
-    a: "Neither. Pytxo is a local agent hypervisor: it runs the tools you already use in the background, schedules their work, shows what changed, and lets you approve merges. Your editor stays your editor.",
+    a: "Pytxo runs the terminal agents you already use, assigns path ownership and dependencies, records what changed, and prepares one result for review. Your editor stays your editor.",
   },
   {
     q: "Which agents are supported?",
@@ -31,23 +29,23 @@ const FAQ = [
   },
   {
     q: "What is Pytxo Desktop?",
-    a: "An optional desktop app for planning missions with Flow, capturing a mission with local Voice, supervising runs, seeing affected code, approving changes, and reviewing diffs. Not a wall of terminals.",
+    a: "An optional native UI for Ops, Missions, Approvals, and applying eligible Orbit or Galaxy runs to one repository root.",
   },
   {
-    q: "What are Pytxo Flow and Voice?",
-    a: "Flow turns a text mission into a reviewable execution plan before anything runs. Voice transcribes speech locally into that same editable Flow workflow; Voice never approves actions or dispatches automatically.",
+    q: "What are Pytxo missions and Voice?",
+    a: "A mission turns an outcome into a reviewable execution plan before anything runs. Voice transcribes speech locally into that same editable mission; Voice never approves actions or dispatches automatically.",
   },
   {
     q: "What are Workspaces and fleet runs?",
-    a: "A Workspace is one coordinated run across multiple folders (for example API + web). Fleet runs chain separate git repos when steps must finish in order.",
+    a: "A Workspace coordinates work across folders. Fleet runs order steps across separate Git roots. Each repository root keeps its own Apply boundary; a fleet is not a cross-root transaction.",
   },
   {
     q: "How does Pytxo reduce cost?",
-    a: "Pytxo sends smaller, smarter context instead of whole files, runs locally without heavy cloud terminal UIs, and uses your own LLM API keys.",
+    a: "Signal Core measured an 82.9% scaffold-byte reduction across 185 tracked production files by sending syntax structure before full source. That figure is not a model-token, cost, or task-success claim. Local runs use your existing agent accounts and keys.",
   },
   {
     q: "What are Signal Core, Blast Shield, and Race Shield?",
-    a: "Plain names for three built-in protections: smarter context (Signal), safe sandboxes until you approve (Blast), and no write collisions across agents (Race). Deep docs keep the product names.",
+    a: "Signal Core starts reads with AST structure. Blast Shield isolates writes, stores the reviewed target blobs, and journals single-root Apply. Race Shield turns path ownership and dependencies into ordered waves.",
   },
   {
     q: "Where are the docs?",
@@ -65,14 +63,8 @@ export default function HomePage() {
       <ScrollReveal>
         <AgentReadiness />
       </ScrollReveal>
-      <ScrollReveal>
-        <ProblemSection />
-      </ScrollReveal>
       <ScrollReveal delayMs={60}>
         <FeatureGrid />
-      </ScrollReveal>
-      <ScrollReveal delayMs={40}>
-        <SupportedAgents />
       </ScrollReveal>
       <ScrollReveal delayMs={60}>
         <ArchitectureSection />

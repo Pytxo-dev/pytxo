@@ -3,6 +3,7 @@ use pytxo_orchestrate::{
 };
 use pytxo_store::{Catalog, FlowDraftRecord};
 
+use crate::ipc::emit_domain_changed;
 use crate::ipc_error::{map_orch_err, map_store_err, IpcResult};
 
 #[tauri::command]
@@ -24,9 +25,17 @@ pub fn flow_save_reviewed_plan(plan: FlowPlan) -> IpcResult<FlowPlan> {
 }
 
 #[tauri::command]
-pub async fn flow_dispatch(draft_id: String) -> IpcResult<String> {
+pub async fn flow_dispatch(app: tauri::AppHandle, draft_id: String) -> IpcResult<String> {
     let catalog = Catalog::open_default().map_err(map_store_err)?;
-    dispatch_flow(&catalog, &draft_id).map_err(map_orch_err)
+    let domain_id = catalog
+        .get_flow_draft(&draft_id)
+        .map_err(map_store_err)?
+        .and_then(|draft| draft.domain_id);
+    let run_id = dispatch_flow(&catalog, &draft_id).map_err(map_orch_err)?;
+    if let Some(domain_id) = domain_id {
+        emit_domain_changed(&app, &domain_id, "run", &run_id);
+    }
+    Ok(run_id)
 }
 
 #[tauri::command]

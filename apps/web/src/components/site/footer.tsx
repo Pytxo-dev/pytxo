@@ -32,7 +32,7 @@ export function SiteFooter() {
               <p className="font-semibold tracking-tight">Pytxo</p>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Local agent coordinator. Open-source Rust core. Optional Desktop for Focus, Ops, and
+              Local agent coordinator. Open-source Rust core. Optional Desktop for Ops, Missions, and
               approvals.
             </p>
           </div>

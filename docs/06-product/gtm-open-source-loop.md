@@ -12,7 +12,7 @@ related: [[tiers-hobbyist-pro-max]], [[competitive-benchmarks]], [[pytxo-improve
 
 # Go-to-market loop
 
-Pytxo wins through **developer-led, high-density value demonstration**, not ADE-style consumer marketing alone. Proof and honesty prerequisites: [[competitive-benchmarks]], [[pytxo-improvement-research]].
+Pytxo grows through **developer-led demonstrations of concrete workflows and evidence**. Proof and honesty prerequisites: [[competitive-benchmarks]], [[pytxo-improvement-research]].
 
 ```text
 Open-source Rust CLI (BYOK, zero bloat) — github.com/Pytxo-dev

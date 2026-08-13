@@ -1,40 +1,32 @@
 ---
-title: vs Claude Agent Teams
-description: Mixed-CLI local hypervisor compared with Claude Code Agent Teams.
+title: Pytxo and Claude Agent Teams
+description: Claude-native collaboration compared with cross-tool local orchestration.
 ---
 
-Claude Code **Agent Teams** coordinate multiple Claude Code instances: a lead, teammates with their own context windows, a shared task list, and inter-agent messaging ([official docs](https://code.claude.com/docs/en/agent-teams)).
+[Claude Agent Teams](https://code.claude.com/docs/en/agent-teams) coordinate a lead and multiple Claude Code teammates through a shared task list and direct inter-agent messaging. They are a strong fit when teammates need to exchange findings, challenge one another, or divide independent parts of a Claude-native task.
 
-They are experimental and opt-in. Anthropic’s own docs warn that teammates **do not** get worktree isolation — same-file edits can overwrite each other — and that teams use significantly more tokens than a single session.
+Agent Teams are currently experimental and disabled by default. Anthropic recommends them for independent work and notes that they use more tokens than one session. Agent Team teammates do not receive worktree isolation automatically, although Claude Code separately supports worktree-isolated sessions and subagents.
 
-Pytxo targets a different layer: **cross-tool orchestration** on your machine. It runs Claude Code as one agent among others, with Race path claims and Blast approve-to-flush.
+## Practical differences
 
-## Comparison
+| | Claude Agent Teams | Pytxo |
+|---|---|---|
+| Agent scope | Claude Code teammates | Several installed headless agent CLIs |
+| Coordination | Lead, shared tasks, direct messaging | Plan, path ownership, dependency waves, run events |
+| Isolation | Partition work, or use Claude's separate worktree features | Isolated workspaces for eligible Orbit and Galaxy runs |
+| Review | Claude and Git workflow | Immutable package with exact add, modify, and delete content |
+| Interface | Claude terminal or split panes | CLI, MCP, and optional Pytxo Desktop |
 
-| Dimension | Claude Agent Teams | Pytxo |
-|-----------|-------------------|--------|
-| Scope | Claude Code sessions only | Headless CLIs you already use (Claude, Codex, Cursor CLI, …) |
-| Status | Experimental, env-flag gated | Local hypervisor + optional Desktop |
-| Coordination | Lead + mailbox + shared tasks | Scheduled waves + event log + MCP hub |
-| Write safety | Docs warn: no worktree isolation | Race Shield path claims + Blast Shield |
-| UI | In-process panel or tmux panes | Optional Desktop (Ops / Focus / Approvals) |
-| Keys | Anthropic plan | BYOK. Your keys. Your silicon. |
+## Choose Claude Agent Teams when
 
-## When Claude teams are enough
+- The work benefits from discussion between Claude teammates.
+- You want the lead to delegate and synthesize inside Claude Code.
+- A Claude-only workflow is an advantage rather than a constraint.
 
-- Single-vendor Claude-only workflow
-- Moderate parallelism on one machine
-- You accept experimental limits and token multiplication
+## Choose Pytxo when
 
-## When Pytxo adds value
+- You need Claude Code, Codex, or other installed CLIs under one repository contract.
+- Path ownership, dependency waves, and a separately reviewed Apply step matter.
+- You want the same run state available through a CLI, MCP, and a local desktop view.
 
-- Mixed agents under one scheduler
-- Same-repo write collisions Claude’s docs already warn about
-- Approvals and secret redaction in logs/MCP
-- Drive from your editor via local MCP while agents stay headless CLIs
-
-## Coexistence
-
-Pytxo can run Claude Code as a headless agent while adding Race, Blast, and Signal policies native teams do not centralize.
-
-See also: [vs GitHub Copilot app](/docs/compare/github-copilot-app) · [vs Cursor Cloud Agents](/docs/compare/cursor-cloud-agents).
+Pytxo's limitation is equally important: it does not reproduce Claude Agent Teams' native teammate conversation model.

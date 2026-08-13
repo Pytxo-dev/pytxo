@@ -71,6 +71,7 @@
     {#if !collapsed}<span>Search or command</span><kbd>{shortcutHint}</kbd>{/if}
   </button>
 
+  <div class="sidebar-scroll">
   <nav aria-label="Primary">
     {#each primary as item (item.route)}
       <a
@@ -111,9 +112,10 @@
     {/each}
   </nav>
   {/if}
+  </div>
 
   <div class="sidebar-footer">
-    <button onclick={onAccountClick} title={collapsed ? `${accountLabel} · ${accountSub}` : undefined}>
+    <button aria-label="Open account and billing" onclick={onAccountClick} title={collapsed ? `${accountLabel} · ${accountSub}` : undefined}>
       <span class="avatar"><IconUserCircle size={18} /></span>
       {#if !collapsed}
         <span class="account-copy"><strong>{accountLabel}</strong><small>{accountSub}</small></span>
@@ -128,6 +130,8 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
+    height: 100%;
     background: var(--pytxo-surface-shell);
     border-right: 1px solid var(--pytxo-line);
     padding: 14px 12px 12px;
@@ -248,6 +252,14 @@
     border: 1px solid #2b2e37;
     border-radius: 4px;
     padding: 2px 4px;
+  }
+  .sidebar-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--pytxo-line) transparent;
   }
   nav,
   .recents {

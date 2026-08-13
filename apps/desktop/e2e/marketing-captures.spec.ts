@@ -7,9 +7,11 @@ import { fileURLToPath } from "node:url";
 import { completeOnboarding } from "./helpers";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+const DESKTOP_ROOT = fileURLToPath(new URL("../", import.meta.url));
+const CAPTURE_DIR = path.join(DESKTOP_ROOT, "captures", "desktop-2");
 const DOCS_CAPTURE_DIR = path.join(REPO_ROOT, "docs", "_attachments", "desktop-2");
 const WEB_CAPTURE_DIR = path.join(REPO_ROOT, "apps", "web", "public", "product");
-const DEMO_CAPTURE_DIR = path.join(REPO_ROOT, "apps", "demo-video", "public", "product");
+const DEMO_CAPTURE_DIR = path.join(DESKTOP_ROOT, "..", "demo-video", "public", "product");
 
 const VIEWPORTS = [
   { slug: "1600x1000", width: 1600, height: 1000 },
@@ -20,13 +22,12 @@ const VIEWPORTS = [
 const ROUTES = [
   { route: "operations", heading: /^Ops/, marketing: true },
   { route: "workspaces", heading: "Workspaces", marketing: false },
-  { route: "runs", heading: "Missions", marketing: false },
   { route: "flow", heading: "New mission", marketing: true },
   { route: "approvals", heading: "Approvals", marketing: true },
   { route: "integrations", heading: "Agents", marketing: true },
   { route: "settings", heading: "Appearance", marketing: false },
   { route: "topology-focus", heading: "Mission", marketing: false },
-  { route: "run-review", heading: "Mission", marketing: false },
+  { route: "run-review", heading: "Run Review", marketing: true },
 ] as const;
 
 const RETRYABLE_WRITE_CODES = new Set(["EACCES", "EBUSY", "EPERM", "UNKNOWN"]);
@@ -54,7 +55,12 @@ async function writeCapture(filePath: string, png: Buffer) {
 }
 
 async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
-  await completeOnboarding(page);
+  await completeOnboarding(
+    page,
+    route.route === "run-review"
+      ? { "pytxo-preview-review-state-v1": "ready" }
+      : undefined,
+  );
   await page.clock.install({ time: new Date("2026-01-15T10:00:00.000Z") });
   await page.goto(`/#/${route.route}`);
   await expect(page.getByRole("heading", { name: route.heading, exact: true })).toBeVisible();
@@ -69,7 +75,7 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
 
   if (route.route === "approvals") {
     await expect(
-      page.getByRole("heading", { name: "Flush Blast Shield workspace" }),
+      page.getByRole("heading", { name: "Apply reviewed workspace changes" }),
     ).toBeVisible();
   }
 
@@ -80,6 +86,7 @@ test.describe("@marketing-capture current Desktop product captures", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
+    await mkdir(CAPTURE_DIR, { recursive: true });
     await mkdir(DOCS_CAPTURE_DIR, { recursive: true });
     await mkdir(WEB_CAPTURE_DIR, { recursive: true });
     await mkdir(DEMO_CAPTURE_DIR, { recursive: true });
@@ -100,10 +107,8 @@ test.describe("@marketing-capture current Desktop product captures", () => {
         });
 
         expect(png.byteLength).toBeGreaterThan(40_000);
-        await writeCapture(
-          path.join(DOCS_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`),
-          png,
-        );
+        await writeCapture(path.join(CAPTURE_DIR, `${route.route}-${viewport.slug}.png`), png);
+        await writeCapture(path.join(DOCS_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`), png);
 
         if (
           route.marketing &&
@@ -120,6 +125,25 @@ test.describe("@marketing-capture current Desktop product captures", () => {
             path.join(DEMO_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`),
             png,
           );
+        }
+
+        if (route.route === "run-review") {
+          await page.getByRole("button", { name: "Apply reviewed changes" }).click();
+          await expect(page.getByText("Applied successfully", { exact: true })).toBeVisible();
+          const appliedPng = await page.screenshot({
+            animations: "disabled",
+            caret: "hide",
+            fullPage: false,
+            scale: "css",
+          });
+          await writeCapture(path.join(CAPTURE_DIR, `run-applied-${viewport.slug}.png`), appliedPng);
+          await writeCapture(path.join(DOCS_CAPTURE_DIR, `run-applied-${viewport.slug}.png`), appliedPng);
+          if (viewport.slug === "1600x1000" || viewport.slug === "960x640") {
+            await writeCapture(
+              path.join(WEB_CAPTURE_DIR, `run-applied-${viewport.slug}.png`),
+              appliedPng,
+            );
+          }
         }
 
       });

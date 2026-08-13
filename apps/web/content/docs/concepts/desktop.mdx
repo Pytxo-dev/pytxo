@@ -2,7 +2,8 @@
 title: Pytxo Desktop
 ---
 
-**Pytxo Desktop** is an optional control UI for planning, supervising, and reviewing agent work. It is not a wall of terminal panes.
+**Pytxo Desktop** is an optional control UI for composing missions, watching
+execution, reviewing prepared changes, and deciding whether to Apply.
 
 Download installers from [pytxo.com/download](https://pytxo.com/download).
 
@@ -12,18 +13,16 @@ Download installers from [pytxo.com/download](https://pytxo.com/download).
 |-------|----------------|
 | Ops | Needs you, Running rows, path locks, spend, and attention state |
 | Missions | Past work, **New mission**, and a selected mission’s Plan / Live / Review |
-| Approvals | Pending Galaxy requests (with domain label), then Apply or Discard |
-| Workspaces | One or more project folders under one coordinated run |
+| Approvals | Pending Galaxy requests (with domain label) |
+| Workspaces | Project folders and execution-domain scope |
 | Agents | Installed CLIs and vendor-owned session readiness; MCP hub is CLI/IDE (`pytxo-mcp`) |
 | Settings | Appearance (Void / Light, teal), Providers, and shortcuts |
-| Project paths | Roots, read-only badges, permission tiers |
-| Fleet runs | Cross-repo fleet status via CLI today; Desktop fleet panel coming later |
 
 Older hashes such as `#/flow`, `#/integrations`, `#/runs`, `#/topology-focus`, and `#/run-review` still open the matching Missions or Agents view.
 
 ## New mission
 
-**New mission** is the mission-to-plan workflow. Enter an outcome, select an execution domain, and
+**New mission** is the mission-to-plan workflow. Enter an outcome, select one execution domain, and
 review the resulting tasks, waves, path claims, agent CLI assignments, permissions, isolation, cost
 estimates, warnings, and blockers before **Run**.
 
@@ -31,7 +30,31 @@ Desktop sends intent; the orchestrator enforces Signal Core, Race Shield, Blast 
 permission ceilings, and execution-domain validation before a plan can run.
 There is no quick-run path: every mission must be previewed first.
 
-Open a running or finished mission to switch **Plan**, **Live**, and **Review**. **Apply** lands accepted isolated changes; it is not a separate Runs or Focus destination.
+Open a running or finished mission to switch **Plan**, **Live**, and **Review**. Mission Review is the
+reviewed-package Apply surface. It is not a separate Runs or Focus destination.
+
+## Run Review
+
+Run Review reads the persisted immutable manifest and exact diff content. It
+shows the full base revision and package digest, ownership DAG, requested and
+effective permission profile, enforcement receipt, verification result, and
+each addition, modification, and deletion.
+
+Orbit and Galaxy expose a guarded **Apply** action only when the package is
+ready. Pytxo validates the current preimage of each affected path and applies
+only the stored package to that repository root. Unrelated dirty files are
+allowed. A changed affected path marks the review stale.
+
+The view also covers preparation failure, retry after confirmed rollback,
+active Apply, recovered state, applied state, discard, and manual recovery.
+Advisory host controls remain visibly advisory.
+
+## Updates and reconnects
+
+Desktop receives immediate events for native mutations and catches up CLI or
+external changes through a monotonic domain cursor. Full snapshots are used
+for initial load, domain changes, reconnect or cursor reset, and an infrequent
+integrity refresh.
 
 ## Pytxo Voice
 

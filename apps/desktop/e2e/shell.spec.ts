@@ -164,12 +164,6 @@ test.describe("Pytxo Desktop shell", () => {
     expect(migration.recents).toContain("demo");
   });
 
-  test("legacy shell remains available for one rollback release", async ({ page }) => {
-    await completeOnboarding(page, { desktop_shell_v1: "true" });
-    await page.goto("/");
-    await expect(page.getByRole("navigation", { name: "Open workspaces" })).toBeVisible();
-  });
-
   test("sidebar collapse state persists across reload", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/");
@@ -427,7 +421,7 @@ test.describe("Pytxo Desktop shell", () => {
   test("approval resolution, focus routes, and restart persistence work", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/approvals");
-    await expect(page.getByRole("heading", { name: "Flush Blast Shield workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
     await expect(page.locator(".decision-meta").getByText("desktop", { exact: true })).toBeVisible();
     await expect(page.locator(".decision-meta").getByText("pytxo", { exact: true })).toBeVisible();
     await expect(page.locator(".decision-meta").getByText("blast.flush", { exact: true })).toBeVisible();
@@ -438,13 +432,13 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByRole("heading", { name: "Allow network access" })).toBeVisible();
     await expect(page.locator(".decision-meta").getByText("net.egress", { exact: true })).toBeVisible();
     await page.keyboard.press("k");
-    await expect(page.getByRole("heading", { name: "Flush Blast Shield workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
 
     await page.getByRole("button", { name: "Review latest run" }).click();
-    await expect(page.getByRole("heading", { name: "Mission" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Run Review" })).toBeVisible();
     await page.goto("/#/approvals");
     await page.keyboard.press("Control+Enter");
-    await expect(page.getByRole("status")).toContainText("Approved Flush Blast Shield workspace.");
+    await expect(page.getByRole("status")).toContainText("Approved Apply reviewed workspace changes.");
     await expect(page.getByRole("heading", { name: "Allow network access" })).toBeVisible();
     await page.keyboard.press("Control+Backspace");
     await expect(page.getByRole("status")).toContainText("Denied Allow network access.");
@@ -458,7 +452,7 @@ test.describe("Pytxo Desktop shell", () => {
     await page.goto("/#/topology-focus");
     await expect(page.getByRole("heading", { name: "Mission" })).toBeVisible();
     await page.goto("/#/run-review");
-    await expect(page.getByRole("heading", { name: "Mission" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Run Review" })).toBeVisible();
     await page.getByRole("link", { name: "Settings" }).click();
     await page.reload();
     await expect(page).toHaveURL(/#\/settings$/);
@@ -552,7 +546,7 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
       test("Approvals keeps evidence and decision controls reachable", async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/#/approvals");
-        await expect(page.getByRole("heading", { name: "Flush Blast Shield workspace" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
 
         const layout = page.locator(".approval-layout");
         const decision = page.locator(".decision-detail");
@@ -574,7 +568,7 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
         expect(decisionOverflow).toBeLessThanOrEqual(1);
         expect(actionsOverflow).toBeLessThanOrEqual(1);
 
-        const approve = page.getByRole("button", { name: "Approve & flush" });
+        const approve = page.getByRole("button", { name: "Approve and apply" });
         await approve.scrollIntoViewIfNeeded();
         await expect(approve).toBeVisible();
         await expect(page.getByRole("button", { name: "Review latest run" })).toBeVisible();

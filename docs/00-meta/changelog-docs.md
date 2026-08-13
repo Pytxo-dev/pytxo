@@ -12,13 +12,28 @@ related: [[MOC-home]]
 
 # Documentation changelog
 
-## 2026-08-13 (v1.0.1 quiet-instrument Desktop)
+## 2026-08-13 (v1.1.1 quiet-instrument Desktop)
 
 - [[ADR-0035-desktop-2-quiet-instrument-ia]] supersedes the Flow/Focus primary-surface claim in [[ADR-0032-desktop-2-focus-flow-primary]] without editing that accepted ADR.
 - Desktop 2 nav is Ops, Missions, Approvals, Workspaces, Agents, Settings. Visual system is Void + Light + teal; no spectrum/Nebula/Terminal.
 - Updated [[desktop-visual-system]] and [[pytxo-desktop-2-flow-voice]].
 - Public Fumadocs and website alts now say Ops / Missions / Agents / Plan-Live-Review instead of Flow / Integrations / Focus / Run Review.
-- Product version metadata is **1.0.1**. `ONBOARDING_VERSION` remains `1.0.0`.
+- Product version metadata is **1.1.1**. `ONBOARDING_VERSION` remains `1.1.0`.
+
+## 2026-07-31 (v1.1 release preparation)
+
+- Preserved [[ADR-0033-reviewed-run-atomic-apply]] and added
+  [[ADR-0034-immutable-review-package-and-durable-apply]] to record the
+  superseding v1.1 Apply contract.
+- Aligned public and canonical docs on immutable prepared bytes,
+  affected-path drift detection, one repository root, and automatic
+  process-crash reconciliation.
+- Updated Flow and Run Review documentation for mission history, exact package
+  evidence, retry, stale refresh, discard, and manual recovery.
+- Replaced product images with the final deterministic Desktop captures.
+- Updated the 52-second demo documentation for no burned subtitles, an external
+  transcript, a provisional SRT that still needs retiming, and the blocked
+  narrated master.
 
 ## 2026-07-31 (v1.0.0 release)
 

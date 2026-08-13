@@ -1,26 +1,66 @@
 # Pytxo product demo
 
-Truthful 73-second Remotion demo built around the real Pytxo v1 product loop:
+Exact 52-second, 1920×1080, 30 fps Remotion demo built from truthful Pytxo Desktop captures:
 
-`agent readiness → mission → plan → conflict-aware waves → isolation → operations → approval → measured proof`
+`mission → Flow ownership plan → reviewed evidence → guarded Apply → Operations → Pytxo`
 
-The composition uses current Desktop Integrations, Flow, Operations, and Approvals captures. The
-benchmark frame is pinned to the reproducible 2026-07-31 local harness: 82.9% structural-byte
-reduction across 185 eligible files, 5/5 isolated echo agents exiting zero, and zero primary
-checkout changes. It does not convert those measurements into model quality, billable-token, or
-competitor outcome claims.
+The master never burns subtitles. Publishing captions and the reviewed transcript live in
+`publishing/`. The checked-in poster and all four product screenshots are 1920×1080. Generated
+video, narration, music, cues, contact sheets, and QA stills are ignored.
 
-## Preview and render
+## System media tools
+
+Install full builds of `ffmpeg` and `ffprobe` and make both available on `PATH`. Rendering and
+release QA use the system binaries for BT.709 finalization and the `loudnorm`, `silencedetect`,
+`blackdetect`, and `freezedetect` filters. Confirm both prerequisites before rendering:
+
+```powershell
+ffmpeg -version
+ffprobe -version
+```
+
+## Silent visual master
 
 ```powershell
 cd apps/demo-video
 npm ci
 npm run typecheck
-npm run studio
-npm run render
+npm run compositions
+npm run test:audio-qa
+npm run validate:publishing
+npm run stills
+npm run poster
+npm run render:silent
+npm run validate:silent
+npm run transition-sheet
 ```
 
-Outputs are written to `out/` and intentionally ignored.
+The silent master is `out/pytxo-demo-silent.mp4`. It is rendered as H.264 at CRF 18 and
+yuv420p, then stream-copied through the finalizer to stamp BT.709 space, transfer, and primaries.
+It contains no audio stream.
 
-To add ElevenLabs narration, follow [`VOICEOVER.md`](VOICEOVER.md). The silent render is the default
-so the project remains reproducible without API credentials.
+## Narrated master
+
+Read `VOICEOVER.md` and `LICENSES.md` first. The narrated pipeline requires one continuous
+ElevenLabs narration track, the licensed Modern Chillout bed and certificate, and all three
+approved interface cues.
+
+```powershell
+npm run voiceover
+npm run render:narrated
+npm run validate:narrated
+```
+
+The narrated master uses H.264 CRF 18, yuv420p, fully stamped BT.709 metadata, and AAC at
+48 kHz / 256 kbps. Missing credentials or media fail with a complete, actionable asset list; no
+provider, voice, music, or cue is substituted.
+
+Narrated validation is a release gate. Integrated loudness must be between -18 and -14 LUFS,
+true peak must not exceed -1 dBTP, leading or trailing silence longer than 1 second is rejected,
+internal silence longer than 2 seconds is rejected, and full-program silence is always rejected.
+The thresholds and parsers have deterministic coverage in `npm run test:audio-qa`.
+
+`publishing/pytxo-demo-en-provisional.srt` is an external, provisional accessibility artifact.
+It is never burned into the master. After the approved continuous narration is generated and
+reviewed, retime every cue against that exact audio before release; the provisional timings are
+not publishable.

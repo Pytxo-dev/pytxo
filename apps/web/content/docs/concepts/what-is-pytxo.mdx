@@ -2,7 +2,9 @@
 title: What is Pytxo?
 ---
 
-Pytxo runs and coordinates the coding agents you already use. It is a local **agent hypervisor**: schedule work, keep agents from colliding, show what changed, and let you approve merges. It is not a browser full of terminal panes, and not a single-vendor agent desktop.
+Pytxo coordinates the coding-agent CLIs you already use. It assigns task paths
+and dependencies, runs agents in isolated workspaces, records the effective
+permission boundary, and prepares exact repository changes for review.
 
 ## The problem
 
@@ -10,7 +12,11 @@ Many agent products put the UI first: grids of terminals, heavy local resource u
 
 ## How Pytxo works
 
-Pytxo schedules headless agents in the background on your machine. Each agent works in an isolated copy of the repo. Pytxo records what changed. Your IDE stays your IDE. You connect through MCP, and optionally **Pytxo Desktop**.
+Pytxo schedules headless agents in the background on your machine. Each agent
+works in an isolated workspace. For an eligible Orbit or Galaxy run, Pytxo
+stores an immutable package for one repository root. Run Review shows that
+package, and Apply reads only its stored target blobs. Your IDE stays your IDE.
+You connect through MCP and, optionally, **Pytxo Desktop**.
 
 | | Typical agent workspace UI | Pytxo |
 |---|-----------|-------|
@@ -23,8 +29,12 @@ Pytxo schedules headless agents in the background on your machine. Each agent wo
 ## Ways to scale up
 
 1. **Many projects at once.** Each repo gets its own logs and permission tier (default **Orbit**). See [Execution domains](/docs/concepts/execution-domains).
-2. **Workspaces.** One workspace can span several folders (API + web + protos) in a single coordinated run. See [Modular projects](/docs/concepts/modular-projects).
-3. **Fleet runs.** Cross-repo plans when barriers must span separate git roots. See [Fleet runs](/docs/concepts/fleet-runs).
+2. **Workspaces.** One workspace can attach several folders for coordinated
+   planning and execution. Each repository root keeps its own Apply boundary.
+   See [Modular projects](/docs/concepts/modular-projects).
+3. **Fleet runs.** Cross-repo plans can order work across separate Git roots;
+   they do not provide a cross-root Apply transaction. See
+   [Fleet runs](/docs/concepts/fleet-runs).
 
 ## What Pytxo does not do
 

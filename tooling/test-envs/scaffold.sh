@@ -39,6 +39,12 @@ git commit -q -m "init"
 cp "$CONFIGS/$CONFIG" pytxo.toml
 "$PYTXO" init
 "$PYTXO" doctor
+# Initialization intentionally creates the local .pytxo state and may update
+# repository ignores. Commit that fixture setup so the smoke run exercises the
+# real clean-checkout trust boundary instead of failing on its own bootstrap.
+git add -A
+git add -f .gitignore pytxo.toml
+git diff --cached --quiet || git commit -q -m "initialize pytxo test fixture"
 
 export PYTXO_TEST_REPO="$REPO"
 echo ""

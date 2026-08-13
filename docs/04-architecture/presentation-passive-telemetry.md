@@ -7,12 +7,12 @@ audience: [human, agent]
 layer: presentation
 created: 2026-06-02
 updated: 2026-08-13
-related: [[three-tier-model]], [[desktop-visual-system]], [[execution-domains]], [[permission-profile-engine]], [[product-vision]], [[pytxo-improvement-research]]
+related: [[three-tier-model]], [[desktop-visual-system]], [[execution-domains]], [[permission-profile-engine]], [[product-vision]], [[pytxo-improvement-research]], [[ADR-0034-immutable-review-package-and-durable-apply]]
 ---
 
 # Presentation layer — passive telemetry
 
-The Pytxo desktop shell is a **passive telemetry skin** built with **Svelte 5** and **Tauri v2** — see [[desktop-visual-system]] for the quiet-instrument aesthetic. Default product surface is **Desktop 2 Ops / Missions / Approvals**, not a 3D canvas.
+The Pytxo desktop shell is a **passive telemetry skin** built with **Svelte 5** and **Tauri v2** — see [[desktop-visual-system]] for the quiet-instrument aesthetic. Default product surface is **Desktop 2 Ops / Missions / Approvals**, not a 3D canvas. Orchestration remains the only layer that enforces policy or mutates repository files.
 
 ## Constraints
 
@@ -22,11 +22,16 @@ The Pytxo desktop shell is a **passive telemetry skin** built with **Svelte 5** 
 
 ## Implementation notes
 
-- **Svelte 5 Runes** (`$state`, `$derived`, `$effect`) for high-frequency streams.
-- Log panel: bounded scrollback, ~60 Hz poll budget (not unbounded raw text as the hero).
-- **xterm.js** for supporting log view; **Monaco** or inline diff for approve-path review.
-- **Primary (shipping):** Desktop 2 structural Focus graph driven by [[signal-core]] parse output (`FocusScreen.svelte`).
-- **Legacy only:** interactive 3D AST (`TopologyScene3D.svelte`) when `desktop_shell_v1=true`.
+- **Svelte 5 Runes** (`$state`, `$derived`, `$effect`) for local view state.
+- Flow contains Compose, Active, History, and contextual Run Review.
+- Run Review renders the persisted immutable manifest and exact diff content;
+  it never computes a change set from an agent workspace.
+- Native mutations emit `pytxo://domain-changed`; a monotonic domain cursor
+  catches up CLI and external changes.
+- Full snapshots are used for initial load, domain switch, reconnect, cursor
+  reset, and an infrequent integrity refresh.
+- The interactive 3D Deck is lazy-loaded only in development with both legacy
+  flags enabled.
 
 ## IPC and permission intents
 
@@ -34,16 +39,21 @@ The UI sends **intents**; orchestration enforces [[permission-profile-engine|per
 
 | Intent (examples) | UI role | Orchestration role |
 |-------------------|---------|---------------------|
-| `list_domains`, `tail_events(domain_id)` | Poll telemetry per project | Route to correct SQLite WAL ([[execution-domains]]) |
+| `list_domains`, `tail_events(domain_id)` | Read telemetry for one project | Route to the correct SQLite WAL ([[execution-domains]]) |
 | `dispatch(repo, task)` | Start swarm on a repo | `HypervisorRegistry::ensure_domain` |
-| `commit_workspace` | Approve Blast flush | Validate **Orbit+** profile; call `IsolationBackend::flush` |
+| `apply_run_changes` | Apply the reviewed package | Claim a ready Orbit/Galaxy review, validate affected paths, and run the journaled single-root Apply |
+| `refresh_run_review`, `discard_run_review` | Replace a stale package or discard staged blobs | Prepare/store a new package or remove staged data while retaining audit history |
+| `reconcile_run_recovery` | Retry automatic recovery | Reconcile the durable Apply journal and persist the proven state |
 | `hitl_respond` | Answer Galaxy prompt | Unblock agent in Race Shield HITL queue |
 
 Never open `pytxo.db` or repo files from Svelte—Tauri commands only ([[phase-2-reality-deck]], ADR-0001).
 
 ## Pytxo Desktop
 
-Live execution visualization for local runs (cloud when a dispatcher is configured — [[hybrid-execution]]). Shipped: Ops (live poll), Flow, Approvals, Focus / Run Review, thin Fleet panel from `snapshot.fleets` (Phase 74 — [[market-ready-polish-research]]). Multi-project: independent poll channels per `domain_id`—no global interleaved log stream.
+Desktop shows local execution and configured cloud runs
+([[hybrid-execution]]). Flow, Operations, Workspaces, Settings, Approvals, and
+Integrations share one backend contract. Each execution domain has its own
+cursor and event stream; Desktop does not interleave raw logs across roots.
 
 Repo path: `apps/desktop` (crate `pytxo-desktop`).
 

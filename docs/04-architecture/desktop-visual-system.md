@@ -7,12 +7,12 @@ audience: [human, agent]
 layer: presentation
 created: 2026-06-02
 updated: 2026-08-13
-related: [[presentation-passive-telemetry]], [[product-vision]], [[signal-core]], [[pytxo-improvement-research]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
+related: [[presentation-passive-telemetry]], [[product-vision]], [[signal-core]], [[pytxo-improvement-research]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
 ---
 
 # Pytxo Desktop visual system
 
-**Pytxo Desktop** is the optional control UI — a quiet operator instrument, not a terminal wall and not an analytics dashboard. (Formerly called Reality Deck.)
+**Pytxo Desktop** is the optional control UI — a quiet operator instrument for composing missions, watching execution, reviewing prepared changes, and deciding whether to Apply. (Formerly called Reality Deck.)
 
 ## Aesthetic
 
@@ -29,16 +29,18 @@ Do **not** ship spectrum hairlines, Terminal/Nebula skins, sparkle CTAs, fake wa
 
 ## Primary surface (shipping)
 
-**Desktop 2** (default): **Ops** (today), **Missions** (composer + Plan/Live/Review), **Approvals**, **Workspaces**, **Agents**, **Settings**. Per [[ADR-0035-desktop-2-quiet-instrument-ia]]. Structural files-touched lists live inside Mission Review, not a destination named Topology Focus.
+**Desktop 2** (default): **Ops** (today), **Missions** (composer + Plan/Live/Review), **Approvals**, **Workspaces**, **Agents**, **Settings**. Per [[ADR-0035-desktop-2-quiet-instrument-ia]]. Structural files-touched lists live inside Mission Review, not a destination named Topology Focus. Per-run Signal scaffold savings appear when `agent_arbitrage` samples exist.
 
-**Legacy shell** (`desktop_shell_v1=true`): optional **3D AST topology** (`TopologyScene3D.svelte`) from [[ADR-0023-reality-deck-3d-renderer]]. Not the default product surface after v0.5.0.
+**Legacy Deck:** optional 3D AST topology (`TopologyScene3D.svelte`) from
+[[ADR-0023-reality-deck-3d-renderer]]. It is lazy-loaded only in development
+when both Deck compatibility flags are enabled.
 
 There is **no** shipped `TopologyPanel.svelte` 2D canvas fallback.
 
 Supporting panels (not primary):
 
 - Collapsed log (honesty: vendor CLI owns the session)
-- Per-agent diff on the apply path ([[blast-shield]])
+- Exact prepared-file diff and Apply history inside Mission Review
 - Mission history table
 
 ## Constraints
@@ -56,7 +58,7 @@ Implementation: `apps/desktop`. Theme tokens as CSS variables; Void and Light on
 | Feature | Status |
 |---------|--------|
 | Ops / Missions / Approvals loop | **default** (quiet instrument IA) |
-| Mission Plan / Live / Review | shipped with existing Flow IPC |
+| Mission Plan / Live / Review | shipped with reviewed Apply |
 | Signal arbitrage as an evidence line | shipped when `agent_arbitrage` samples exist |
 | Void + teal (no spectrum default) | shipped |
 | 2D `TopologyPanel.svelte` | **removed / never present in current tree** |

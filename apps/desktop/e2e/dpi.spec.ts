@@ -22,7 +22,7 @@ for (const deviceScaleFactor of DEVICE_SCALE_FACTORS) {
       test(`keeps ${userScale.label} user zoom independent from simulated DPI`, async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/");
-        await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: /^Ops/ })).toBeVisible();
 
         await openAppearance(page);
         await setBrowserPreviewScale(page, userScale.label);
@@ -59,7 +59,7 @@ for (const deviceScaleFactor of DEVICE_SCALE_FACTORS) {
         await dialog.getByRole("button", { name: "Keep running" }).click();
 
         await page.getByRole("link", { name: "Approvals" }).click();
-        await expect(page.getByRole("heading", { name: "Flush Blast Shield workspace" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
         const evidence = page.locator(".decision-evidence");
         const actions = page.locator(".decision-actions");
         await evidence.scrollIntoViewIfNeeded();
@@ -77,7 +77,7 @@ for (const deviceScaleFactor of DEVICE_SCALE_FACTORS) {
         await reviewLatestRun.scrollIntoViewIfNeeded();
         await expect(reviewLatestRun).toBeVisible();
         await expect(reviewLatestRun).toBeInViewport();
-        const approveAndFlush = page.getByRole("button", { name: "Approve & flush" });
+        const approveAndFlush = page.getByRole("button", { name: "Approve and apply" });
         await approveAndFlush.scrollIntoViewIfNeeded();
         await expect(approveAndFlush).toBeVisible();
         await expect(approveAndFlush).toBeInViewport();

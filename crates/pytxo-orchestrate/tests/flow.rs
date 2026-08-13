@@ -44,6 +44,11 @@ fn input(repo: &std::path::Path) -> FlowDraftInput {
     }
 }
 
+fn seed_mission_path(repo: &std::path::Path) {
+    std::fs::create_dir_all(repo.join("src")).unwrap();
+    std::fs::write(repo.join("src/lib.rs"), "pub fn value() {}\n").unwrap();
+}
+
 #[test]
 fn flow_rejects_empty_mission_and_missing_domain() {
     let dir = tempfile::tempdir().unwrap();
@@ -95,6 +100,7 @@ fn valid_flow_is_persisted_ready_with_execution_metadata() {
 #[test]
 fn staged_overlapping_claims_warn_and_unavailable_requested_ade_blocks_preview() {
     let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
     std::fs::write(
         dir.path().join("pytxo.toml"),
         r#"
@@ -123,6 +129,7 @@ paths = ["src/shared.rs"]
         .any(|warning| warning.code == "path_claim_staged"));
 
     let other = tempfile::tempdir().unwrap();
+    seed_mission_path(other.path());
     let other_catalog = Catalog::open(&other.path().join("catalog.db")).unwrap();
     let mut unavailable = input(other.path());
     unavailable.ade_id = Some("definitely-not-an-installed-ade".into());
@@ -158,6 +165,7 @@ fn dispatch_requires_a_persisted_ready_preview() {
 #[test]
 fn a_claimed_flow_cannot_be_dispatched_twice() {
     let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
     let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
     preview_flow(&catalog, input(dir.path())).unwrap();
     let expected = catalog
@@ -224,6 +232,7 @@ fn reviewed_prompt_edits_replace_the_persisted_dispatch_snapshot() {
 #[test]
 fn reviewed_plan_cannot_change_execution_structure() {
     let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
     let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
     let mut reviewed = preview_flow(&catalog, input(dir.path())).unwrap();
     reviewed.tasks[0].paths = vec!["outside/**".into()];

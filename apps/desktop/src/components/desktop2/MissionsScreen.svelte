@@ -4,6 +4,7 @@
   import type { MissionPane, MissionView } from "../../lib/navigation.svelte";
   import FlowScreen from "./FlowScreen.svelte";
   import MissionDetail from "./MissionDetail.svelte";
+  import RunReviewScreen from "./RunReviewScreen.svelte";
 
   let {
     view,
@@ -47,15 +48,25 @@
   <FlowScreen
     {backend}
     domains={snapshot.domains}
+    runs={snapshot.runs}
     {preferredDomainId}
     {onAddWorkspace}
     onDispatched={(runId) => onOpenMission(runId, "live")}
+  />
+{:else if view === "detail" && pane === "review" && focusedRun}
+  <RunReviewScreen
+    {backend}
+    run={focusedRun}
+    domainId={detailDomainId}
+    onBack={() => onView("list")}
+    onChanged={onRunCompleted}
   />
 {:else if view === "detail"}
   <MissionDetail
     {pane}
     run={focusedRun}
     domainId={detailDomainId}
+    {backend}
     {onPane}
     onBack={() => onView("list")}
     {onRunCompleted}
@@ -70,7 +81,7 @@
       <button class="primary" onclick={() => onView("compose")}>New mission</button>
     </header>
     <article class="panel table-panel">
-      <div class="panel-head"><h2>History</h2><span>{snapshot.runs.length}</span></div>
+      <div class="panel-head"><h2>Mission history</h2><span>{snapshot.runs.length}</span></div>
       <div class="data-table" role="table">
         <div class="table-row table-header" role="row">
           <span role="columnheader">Run</span>
@@ -81,10 +92,13 @@
         </div>
         {#if snapshot.runs.length}
           {#each snapshot.runs as run (run.id)}
+            {@const completed = ["completed", "failed", "verify_failed", "cancelled"].includes(run.status.toLowerCase())}
             <div
-              class="table-row"
-              role="row"
+              class="table-row mission-row"
+              class:completed
+              role="button"
               tabindex="0"
+              aria-label={`Review ${run.id}`}
               onclick={() => onOpenMission(run.id)}
               onkeydown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -96,7 +110,7 @@
               <span class="mono" role="cell">{run.id}</span>
               <span role="cell">{run.repo_root.split(/[\\/]/).pop()}</span>
               <span role="cell"><i class:active={run.status === "running"}></i>{run.status}</span>
-              <span role="cell">{run.permission_profile}</span>
+              <span class={`contract ${run.apply_status ?? "unavailable"}`} role="cell">{run.apply_status ?? "no review"}</span>
               <span role="cell">${(run.estimated_cost_usd ?? 0).toFixed(2)} <IconChevronRight size={15} /></span>
             </div>
           {/each}

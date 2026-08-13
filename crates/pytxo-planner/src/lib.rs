@@ -4,7 +4,7 @@
 //! Use `PYTXO_PLANNER=signal` or `[planner] mode = "signal"]` for Signal Core graph inference.
 
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Component, Path};
 
 use anyhow::{bail, Context};
 use pytxo_core::{PytxoConfig, Task, TaskId};
@@ -155,11 +155,17 @@ impl MissionPlanner for HeuristicPlanner {
         let mut task_prompts = HashMap::new();
         for (i, part) in parts.into_iter().take(n).enumerate() {
             let id = TaskId(format!("mission-{i}"));
+            let paths = infer_paths_from_chunk(part, ctx.repo);
+            if paths.is_empty() {
+                bail!(
+                    "planner could not determine safe ownership paths for task {id}: {part}. Name a repo-relative file or directory"
+                );
+            }
             task_prompts.insert(id.0.clone(), part.to_string());
             tasks.push(Task {
                 id,
                 agent: format!("agent-{i}"),
-                paths: vec![".".into()],
+                paths,
                 depends_on: vec![],
                 root: None,
                 signal_fidelity: None,
@@ -209,15 +215,17 @@ impl LlmPlanner {
         std::env::var("PYTXO_PLANNER_MODEL").unwrap_or_else(|_| "deepseek-chat".into())
     }
 
-    fn call_proxy(mission: &str, config: &PytxoConfig) -> anyhow::Result<LlmPlanResponse> {
-        let system = "Decompose the mission into parallel-safe coding tasks. Return JSON: {\"tasks\":[{\"id\":\"task-a\",\"agent\":\"agent-0\",\"paths\":[\"src/foo.ts\"],\"depends_on\":[],\"prompt\":\"...\",\"verify\":[\"npm test\"]}]}. Max tasks from user config. Use repo-relative paths. Suggest verify commands only when obvious (cargo test, npm test, pytest).";
+    fn call_proxy(mission: &str, ctx: &PlannerContext<'_>) -> anyhow::Result<LlmPlanResponse> {
+        let system = "Decompose the mission into parallel-safe coding tasks. Return JSON: {\"tasks\":[{\"id\":\"task-a\",\"agent\":\"agent-0\",\"paths\":[\"src/foo.ts\"],\"depends_on\":[],\"prompt\":\"...\",\"verify\":[\"npm test\"]}]}. Use explicit repo-relative ownership paths from the supplied repository brief. Never use \".\", absolute paths, parent traversal, or glob patterns. If ownership is unclear, return no tasks. Dependencies must reference unique task ids. Suggest verify commands only when they are supported by the supplied manifests.";
+        let repository = repository_brief(ctx.repo);
+        let user = format!("Mission:\n{mission}\n\n{repository}");
         let body_for = |model: &str| {
             serde_json::json!({
                 "model": model,
                 "response_format": { "type": "json_object" },
                 "messages": [
                     { "role": "system", "content": system },
-                    { "role": "user", "content": mission }
+                    { "role": "user", "content": user }
                 ]
             })
         };
@@ -237,7 +245,10 @@ impl LlmPlanner {
         }
 
         // Ultra managed proxy fallback.
-        let url = format!("{}/deepseek/v1/chat/completions", Self::proxy_base(config));
+        let url = format!(
+            "{}/deepseek/v1/chat/completions",
+            Self::proxy_base(ctx.config)
+        );
         let model = Self::planner_model();
         let mut req = ureq::post(&url).set("Content-Type", "application/json");
         if let Ok(token) = std::env::var("PYTXO_ULTRA_SESSION") {
@@ -275,7 +286,7 @@ impl MissionPlanner for LlmPlanner {
         if text.is_empty() {
             bail!("mission text is empty");
         }
-        let parsed = Self::call_proxy(text, ctx.config)?;
+        let parsed = Self::call_proxy(text, ctx)?;
         let n = ctx.config.max_agents.max(1);
         let mut tasks = Vec::new();
         let mut task_prompts = HashMap::new();
@@ -284,11 +295,7 @@ impl MissionPlanner for LlmPlanner {
             tasks.push(Task {
                 id: TaskId(row.id),
                 agent: row.agent,
-                paths: if row.paths.is_empty() {
-                    vec![".".into()]
-                } else {
-                    row.paths
-                },
+                paths: row.paths,
                 depends_on: row.depends_on,
                 root: None,
                 signal_fidelity: None,
@@ -351,18 +358,16 @@ impl MissionPlanner for SignalBackedPlanner {
 
         for (i, part) in parts.into_iter().take(n).enumerate() {
             let paths = chunk_paths[i].clone();
-            let paths = if paths.is_empty() {
-                vec![".".into()]
-            } else {
-                paths
-            };
-            let mut depends_on = infer_depends_on(i, &paths, &chunk_paths, &graph.edges, &task_ids);
+            if paths.is_empty() {
+                bail!(
+                    "planner could not determine safe ownership paths for task {}: {part}. Name a repo-relative file or directory",
+                    task_ids[i].0
+                );
+            }
+            let depends_on = infer_depends_on(i, &paths, &chunk_paths, &graph.edges, &task_ids);
             // Unknown/broad ownership stays conservative. Explicit, unrelated
             // files remain parallel so Race Shield can build the widest safe
             // wave instead of serializing every natural-language chunk.
-            if depends_on.is_empty() && i > 0 && paths.iter().any(|path| path == ".") {
-                depends_on.push(task_ids[i - 1].0.clone());
-            }
             task_prompts.insert(task_ids[i].0.clone(), part.to_string());
             tasks.push(Task {
                 id: task_ids[i].clone(),
@@ -420,6 +425,7 @@ fn enrich_config_tasks(
         }
         let prompt = mission_chunks
             .get(i)
+            .filter(|prompt| !prompt.trim().is_empty())
             .map(|s| s.to_string())
             .unwrap_or_else(|| format!("Execute task {}", task.id.0));
         task_prompts.insert(task.id.0.clone(), prompt);
@@ -633,6 +639,134 @@ fn attach_verify_suggestions(mut plan: MissionPlan, repo: &Path) -> MissionPlan 
     plan
 }
 
+fn validate_mission_plan(mut plan: MissionPlan, repo: &Path) -> anyhow::Result<MissionPlan> {
+    if plan.tasks.is_empty() {
+        bail!("planner returned no reviewable tasks");
+    }
+    let mut ids = HashSet::new();
+    for task in &mut plan.tasks {
+        let id = task.id.0.trim();
+        if id.is_empty()
+            || !id.chars().all(|character| {
+                character.is_ascii_alphanumeric() || matches!(character, '-' | '_')
+            })
+        {
+            bail!("planner returned unsafe task id: {}", task.id.0);
+        }
+        if !ids.insert(task.id.0.clone()) {
+            bail!("planner returned duplicate task id: {}", task.id.0);
+        }
+        if task.agent.trim().is_empty() {
+            bail!("planner task {} has no agent", task.id.0);
+        }
+        let prompt = plan
+            .task_prompts
+            .get(&task.id.0)
+            .map(|prompt| prompt.trim())
+            .unwrap_or_default();
+        if prompt.is_empty() {
+            bail!("planner task {} has no execution prompt", task.id.0);
+        }
+        if task.paths.is_empty() {
+            bail!("planner task {} has no safe ownership paths", task.id.0);
+        }
+        let mut unique_paths = HashSet::new();
+        for path in &mut task.paths {
+            let normalized = validate_planner_path(repo, path)?;
+            if !unique_paths.insert(normalized.clone()) {
+                bail!(
+                    "planner task {} repeats ownership path {normalized}",
+                    task.id.0
+                );
+            }
+            *path = normalized;
+        }
+    }
+
+    for task in &plan.tasks {
+        let mut dependencies = HashSet::new();
+        for dependency in &task.depends_on {
+            if dependency == &task.id.0 {
+                bail!("planner task {} depends on itself", task.id.0);
+            }
+            if !ids.contains(dependency) {
+                bail!(
+                    "planner task {} depends on unknown task {dependency}",
+                    task.id.0
+                );
+            }
+            if !dependencies.insert(dependency) {
+                bail!("planner task {} repeats dependency {dependency}", task.id.0);
+            }
+        }
+    }
+    validate_acyclic(&plan.tasks)?;
+    Ok(plan)
+}
+
+fn validate_planner_path(repo: &Path, path: &str) -> anyhow::Result<String> {
+    let normalized = path
+        .replace('\\', "/")
+        .trim()
+        .trim_end_matches('/')
+        .to_string();
+    let parsed = Path::new(&normalized);
+    let windows_absolute = normalized.as_bytes().get(1) == Some(&b':');
+    if normalized.is_empty()
+        || normalized == "."
+        || normalized.starts_with('/')
+        || windows_absolute
+        || parsed.is_absolute()
+        || parsed
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+        || normalized
+            .chars()
+            .any(|character| matches!(character, '*' | '?' | '[' | ']' | '{' | '}'))
+    {
+        bail!("planner returned unsafe ownership path: {path}");
+    }
+    let candidate = repo.join(&normalized);
+    if !candidate.exists() && !candidate.parent().is_some_and(|parent| parent.is_dir()) {
+        bail!("planner returned path outside the known repository structure: {normalized}");
+    }
+    Ok(normalized)
+}
+
+fn validate_acyclic(tasks: &[Task]) -> anyhow::Result<()> {
+    let mut remaining: HashMap<&str, usize> = tasks
+        .iter()
+        .map(|task| (task.id.0.as_str(), task.depends_on.len()))
+        .collect();
+    let mut ready: Vec<&str> = remaining
+        .iter()
+        .filter_map(|(id, count)| (*count == 0).then_some(*id))
+        .collect();
+    let mut processed = 0usize;
+    while let Some(completed) = ready.pop() {
+        processed += 1;
+        for task in tasks {
+            if task
+                .depends_on
+                .iter()
+                .any(|dependency| dependency == completed)
+            {
+                let count = remaining
+                    .get_mut(task.id.0.as_str())
+                    .expect("validated task id");
+                *count -= 1;
+                if *count == 0 {
+                    ready.push(task.id.0.as_str());
+                }
+            }
+        }
+    }
+    if processed != tasks.len() {
+        bail!("planner returned a dependency cycle");
+    }
+    Ok(())
+}
+
 /// Decompose a mission for Flow / CLI mission (always uses mission planner).
 pub fn plan_mission(
     mission: &str,
@@ -643,9 +777,11 @@ pub fn plan_mission(
         text: mission.to_string(),
     };
     let ctx = PlannerContext { repo, config };
-    default_mission_planner(config)
+    let plan = default_mission_planner(config)
         .decompose(&spec, &ctx)
-        .with_context(|| format!("planner failed for mission: {}", spec.text))
+        .with_context(|| format!("planner failed for mission: {}", spec.text))?;
+    validate_mission_plan(plan, repo)
+        .with_context(|| format!("planner produced an unsafe plan for mission: {}", spec.text))
 }
 
 /// Legacy shell entry: respects PYTXO_PLANNER / [planner] enabled gate.
@@ -658,9 +794,97 @@ pub fn plan_mission_gated(
         text: mission.to_string(),
     };
     let ctx = PlannerContext { repo, config };
-    default_planner(config)
+    let plan = default_planner(config)
         .decompose(&spec, &ctx)
-        .with_context(|| format!("planner failed for mission: {}", spec.text))
+        .with_context(|| format!("planner failed for mission: {}", spec.text))?;
+    validate_mission_plan(plan, repo)
+        .with_context(|| format!("planner produced an unsafe plan for mission: {}", spec.text))
+}
+
+const BRIEF_MAX_FILES: usize = 160;
+const BRIEF_MAX_CHARS: usize = 16_000;
+const MANIFEST_MAX_CHARS: usize = 3_000;
+
+/// Build the bounded repository context used by cloud planners.
+///
+/// This is an Orbit/Galaxy planning boundary scoped to one execution domain:
+/// every repository-derived byte is sanitized before either BYOK or managed
+/// transport can observe it. Local planners continue to read the repository
+/// directly and do not consume this egress representation.
+fn repository_brief(repo: &Path) -> String {
+    let mut files = Vec::new();
+    collect_inventory(repo, repo, 0, &mut files);
+    files.sort();
+    files.truncate(BRIEF_MAX_FILES);
+
+    let mut brief = String::from("Repository inventory (repo-relative, bounded):\n");
+    for path in &files {
+        brief.push_str("- ");
+        brief.push_str(path);
+        brief.push('\n');
+    }
+
+    for manifest in [
+        "Cargo.toml",
+        "package.json",
+        "pyproject.toml",
+        "go.mod",
+        "pytxo.toml",
+    ] {
+        let path = repo.join(manifest);
+        let Ok(raw) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        brief.push_str("\nManifest excerpt: ");
+        brief.push_str(manifest);
+        brief.push('\n');
+        brief.extend(raw.chars().take(MANIFEST_MAX_CHARS));
+        brief.push('\n');
+    }
+
+    pytxo_sanitize::sanitize_line(&brief)
+        .chars()
+        .take(BRIEF_MAX_CHARS)
+        .collect()
+}
+
+fn collect_inventory(repo: &Path, directory: &Path, depth: usize, files: &mut Vec<String>) {
+    if depth > 4 || files.len() >= BRIEF_MAX_FILES {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return;
+    };
+    let mut entries: Vec<_> = entries.flatten().collect();
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
+        if files.len() >= BRIEF_MAX_FILES {
+            break;
+        }
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if path.is_dir() {
+            if matches!(
+                name.as_ref(),
+                ".git"
+                    | ".pytxo"
+                    | ".next"
+                    | "node_modules"
+                    | "target"
+                    | "dist"
+                    | "build"
+                    | "coverage"
+            ) {
+                continue;
+            }
+            collect_inventory(repo, &path, depth + 1, files);
+        } else if path.is_file() {
+            if let Ok(relative) = path.strip_prefix(repo) {
+                files.push(normalize_rel(&relative.to_string_lossy()));
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -671,9 +895,15 @@ mod tests {
 
     static PLANNER_ENV_LOCK: Mutex<()> = Mutex::new(());
 
+    fn planner_env_guard() -> std::sync::MutexGuard<'static, ()> {
+        PLANNER_ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     #[test]
     fn stub_errors_when_disabled() {
-        let _guard = PLANNER_ENV_LOCK.lock().unwrap();
+        let _guard = planner_env_guard();
         let prev = std::env::var("PYTXO_PLANNER").ok();
         std::env::set_var("PYTXO_PLANNER", "0");
         let cfg = PytxoConfig::default();
@@ -692,13 +922,19 @@ mod tests {
 
     #[test]
     fn mission_planner_works_without_flag() {
-        let _guard = PLANNER_ENV_LOCK.lock().unwrap();
+        let _guard = planner_env_guard();
         let prev = std::env::var("PYTXO_PLANNER").ok();
         std::env::set_var("PYTXO_PLANNER", "0");
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("src")).unwrap();
+        std::fs::create_dir_all(dir.path().join("docs")).unwrap();
+        std::fs::write(dir.path().join("src/auth.rs"), "pub fn auth() {}\n").unwrap();
+        std::fs::write(dir.path().join("docs/README.md"), "# Docs\n").unwrap();
         let mut cfg = PytxoConfig::default();
         cfg.planner.enabled = false;
         cfg.max_agents = 2;
-        let plan = plan_mission("fix auth; update docs", Path::new("."), &cfg).unwrap();
+        let plan =
+            plan_mission("fix src/auth.rs; update docs/README.md", dir.path(), &cfg).unwrap();
         assert!(!plan.tasks.is_empty());
         match prev {
             Some(v) => std::env::set_var("PYTXO_PLANNER", v),
@@ -708,14 +944,22 @@ mod tests {
 
     #[test]
     fn heuristic_splits_sentences_when_enabled() {
-        let _guard = PLANNER_ENV_LOCK.lock().unwrap();
+        let _guard = planner_env_guard();
         let prev = std::env::var("PYTXO_PLANNER").ok();
-        std::env::set_var("PYTXO_PLANNER", "1");
+        std::env::set_var("PYTXO_PLANNER", "heuristic");
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("tests")).unwrap();
+        std::fs::write(dir.path().join("tests/auth.rs"), "#[test] fn auth() {}\n").unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            "{\"scripts\":{\"test\":\"x\"}}\n",
+        )
+        .unwrap();
         let mut cfg = PytxoConfig::default();
         cfg.planner.enabled = true;
         cfg.max_agents = 3;
         let plan =
-            plan_mission("fix auth tests; update package.json", Path::new("."), &cfg).unwrap();
+            plan_mission("fix tests/auth.rs; update package.json", dir.path(), &cfg).unwrap();
         assert_eq!(plan.tasks.len(), 2);
         assert_eq!(plan.tasks[0].id.0, "mission-0");
         assert!(plan.task_prompts.contains_key("mission-0"));
@@ -727,7 +971,7 @@ mod tests {
 
     #[test]
     fn signal_planner_uses_pytxo_toml_tasks() {
-        let _guard = PLANNER_ENV_LOCK.lock().unwrap();
+        let _guard = planner_env_guard();
         let prev = std::env::var("PYTXO_PLANNER").ok();
         std::env::set_var("PYTXO_PLANNER", "signal");
         let dir = tempfile::tempdir().unwrap();
@@ -774,7 +1018,7 @@ paths = ["src/app.ts"]
 
     #[test]
     fn signal_planner_chains_depends_on() {
-        let _guard = PLANNER_ENV_LOCK.lock().unwrap();
+        let _guard = planner_env_guard();
         let prev = std::env::var("PYTXO_PLANNER").ok();
         std::env::set_var("PYTXO_PLANNER", "signal");
         let dir = tempfile::tempdir().unwrap();
@@ -808,7 +1052,7 @@ paths = ["src/app.ts"]
 
     #[test]
     fn signal_planner_keeps_unrelated_explicit_paths_parallel() {
-        let _guard = PLANNER_ENV_LOCK.lock().unwrap();
+        let _guard = planner_env_guard();
         let prev = std::env::var("PYTXO_PLANNER").ok();
         std::env::set_var("PYTXO_PLANNER", "signal");
         let dir = tempfile::tempdir().unwrap();
@@ -831,6 +1075,82 @@ paths = ["src/app.ts"]
 
         match prev {
             Some(v) => std::env::set_var("PYTXO_PLANNER", v),
+            None => std::env::remove_var("PYTXO_PLANNER"),
+        }
+    }
+
+    #[test]
+    fn repository_brief_is_bounded_and_excludes_build_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path();
+        std::fs::create_dir_all(repo.join("src")).unwrap();
+        std::fs::create_dir_all(repo.join("target/debug")).unwrap();
+        std::fs::write(
+            repo.join("Cargo.toml"),
+            "[package]\nname = \"brief-demo\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+        std::fs::write(repo.join("src/lib.rs"), "pub fn demo() {}\n").unwrap();
+        std::fs::write(
+            repo.join("target/debug/generated.rs"),
+            "secret build output",
+        )
+        .unwrap();
+
+        let brief = repository_brief(repo);
+
+        assert!(brief.contains("Cargo.toml"));
+        assert!(brief.contains("src/lib.rs"));
+        assert!(brief.contains("brief-demo"));
+        assert!(!brief.contains("target/debug"));
+        assert!(brief.len() <= 16_000);
+    }
+
+    #[test]
+    fn repository_brief_redacts_manifest_secrets_before_cloud_egress() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path();
+        std::fs::write(
+            repo.join("pytxo.toml"),
+            "provider_api_key = \"sk-abcdefghijklmnopqrstuvwxyz1234567890\"\n\
+             session_token = \"super-secret-session-token\"\n\
+             [planner]\nmode = \"signal\"\n",
+        )
+        .unwrap();
+
+        let brief = repository_brief(repo);
+
+        assert!(
+            brief.contains("[planner]"),
+            "useful manifest structure is retained"
+        );
+        assert!(brief.contains("mode = \"signal\""));
+        assert!(!brief.contains("sk-abcdefghijklmnopqrstuvwxyz1234567890"));
+        assert!(!brief.contains("super-secret-session-token"));
+        assert!(brief.contains("[REDACTED"));
+    }
+
+    #[test]
+    fn signal_planner_rejects_an_unscoped_mission_instead_of_claiming_repo_root() {
+        let _guard = planner_env_guard();
+        let previous = std::env::var("PYTXO_PLANNER").ok();
+        std::env::set_var("PYTXO_PLANNER", "signal");
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("src")).unwrap();
+        std::fs::write(dir.path().join("src/lib.rs"), "pub fn demo() {}\n").unwrap();
+        let mut cfg = PytxoConfig::default();
+        cfg.planner.enabled = true;
+        cfg.planner.mode = "signal".into();
+
+        let error = plan_mission("make it better", dir.path(), &cfg)
+            .expect_err("unknown ownership must require review");
+
+        assert!(
+            format!("{error:#}").contains("safe ownership paths"),
+            "unexpected error: {error:#}"
+        );
+        match previous {
+            Some(value) => std::env::set_var("PYTXO_PLANNER", value),
             None => std::env::remove_var("PYTXO_PLANNER"),
         }
     }

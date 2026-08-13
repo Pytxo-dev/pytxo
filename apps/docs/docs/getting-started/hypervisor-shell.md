@@ -5,7 +5,7 @@ title: Hypervisor Shell
 
 # Hypervisor Shell
 
-**Mission control for agent fleets.** Not another coding chatbot.
+The Hypervisor Shell gives you a local view of runs, approvals, plans, and command output.
 
 Running `pytxo` with no subcommand opens the **Hypervisor Shell**: a three-zone TUI with a **board** (runs, waves, approvals), **scrollback** (command output and plan previews), and an operator **prompt** (slash commands).
 

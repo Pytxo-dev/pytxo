@@ -1,0 +1,57 @@
+1
+00:00:00,000 --> 00:00:04,000
+One mission can involve several coding agents.
+
+2
+00:00:04,000 --> 00:00:08,500
+Pytxo plans who owns each path, maps dependencies,
+
+3
+00:00:08,500 --> 00:00:13,000
+and starts work in isolated workspaces.
+
+4
+00:00:13,000 --> 00:00:18,000
+Before anything reaches your repository,
+Run Review shows the base revision, execution plan,
+
+5
+00:00:18,000 --> 00:00:22,500
+permission profile, enforcement evidence,
+
+6
+00:00:22,500 --> 00:00:27,000
+and every addition, edit, and deletion
+prepared for Apply.
+
+7
+00:00:27,000 --> 00:00:32,000
+Reviewed Apply is limited to Orbit and Galaxy,
+inside one execution domain and one repository root.
+
+8
+00:00:32,000 --> 00:00:36,000
+Approve once, and Pytxo applies
+that reviewed change set
+
+9
+00:00:36,000 --> 00:00:39,000
+as one crash-recoverable operation.
+
+10
+00:00:39,000 --> 00:00:43,000
+If the checkout moves, Pytxo stops
+and asks you to review again.
+
+11
+00:00:43,000 --> 00:00:47,000
+Operations shows the decision,
+ownership, and outcome,
+
+12
+00:00:47,000 --> 00:00:49,500
+not a wall of terminal noise.
+
+13
+00:00:49,500 --> 00:00:52,000
+Keep the agents you already use. Add Pytxo.

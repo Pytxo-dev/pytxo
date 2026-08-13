@@ -25,20 +25,33 @@ permission_profile = "deep_space"
 | Capability | DeepSpace | Orbit | Galaxy | Supernova |
 |------------|-----------|-------|--------|-----------|
 | Read repo | Agent cwd focus | Full repo | Full repo | Full repo |
-| Writes | Ephemeral / denied flush | Worktree or overlay; approve flush | Physical writes; HITL for destructive / flush | Unrestricted cwd = repo |
-| Network at spawn | Denied | Default deny for fetch tools | Local service ports + HITL on egress tools | Allowed |
+| Writes | Ephemeral; Apply denied | Isolated workspace; immutable-package Apply | Isolated workspace; immutable-package Apply + destructive HITL | Unrestricted host-direct writes |
+| Network at spawn | Required deny; fail closed when unavailable | Fetch-tool policy; arbitrary child sockets may be advisory | Local ports + egress-tool HITL; arbitrary child sockets may be advisory | Allowed |
 | Host secrets (`.ssh`, global `.env`) | Stripped | Filtered child env | Partial inherit | Full inherit |
 | Docker / git push / rm -rf | No | Limited / spawn policy | Allowed with HITL | Allowed |
 | Max Signal fidelity | Low | Config default | Config default | Config default |
 
-Shipping enforcement is spawn-time policy, env sanitization, worktree/overlay isolation, and Galaxy HITL queues. It is not a full syscall sandbox on every platform.
+Shipping enforcement is spawn-time policy, environment filtering, isolated
+workspaces, single-root reviewed Apply, and Galaxy HITL queues. Orbit and
+Galaxy Apply only the immutable package prepared for that execution domain.
+This is not a full syscall sandbox on every platform.
+
+Every run persists an enforcement receipt. Each control surface is labelled
+`enforced`, `advisory`, `unavailable`, or `bypassed`, so Desktop never
+turns a best-effort policy into a stronger security claim. DeepSpace fails
+closed if its required network boundary cannot be installed.
+
+For Orbit and Galaxy, Apply validates affected-path preimages and writes a
+durable attempt journal. Unrelated dirty files are allowed. The journal
+supports automatic process-crash recovery; it is not a power-loss ACID or
+cross-filesystem durability guarantee.
 
 ## Galaxy in practice
 
 When you trust a folder as **Galaxy**:
 
 - Risky spawn commands (`rm -rf`, `git push`, `docker`, network tools) pause until you approve
-- Merging agent changes into your real tree requires approval
+- Applying the prepared package to its one repository root requires approval
 - Pending requests persist across restarts (`hitl.json` under `.pytxo/data/`)
 
 ```bash

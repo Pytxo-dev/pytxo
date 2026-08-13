@@ -51,6 +51,9 @@ jobs:
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
 
+      - name: Verify shared release version
+        run: node tooling/scripts/verify-release-version.mjs "${{ env.NPM_VERSION }}"
+
       - name: Install Linux Tauri dependencies
         if: runner.os == 'Linux'
         run: |

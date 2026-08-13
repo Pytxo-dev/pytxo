@@ -1,7 +1,7 @@
 {
   "name": "pytxo-desktop",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,12 +11,15 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "capture:marketing": "playwright test e2e/marketing-captures.spec.ts --reporter=line --workers=1",
     "preview": "vite preview",
+    "preview:e2e": "vite build && vite preview --host 127.0.0.1 --port 5173 --strictPort",
     "icons": "node ../../tooling/scripts/generate-deck-icons.mjs",
-    "e2e": "playwright test --grep-invert @marketing-capture",
+    "e2e": "npm run e2e:release && npm run e2e:dev",
+    "e2e:release": "playwright test --config playwright.config.ts --grep-invert @marketing-capture",
+    "e2e:dev": "playwright test --config playwright.dev.config.ts --reporter=line --workers=1",
     "storybook": "storybook dev -p 6006 --no-open",
     "storybook:build": "storybook build",
-    "storybook:test": "test-storybook",
-    "storybook:test:ci": "concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"http-server storybook-static --port 6006 --silent\" \"wait-on tcp:127.0.0.1:6006 && test-storybook --url http://127.0.0.1:6006 --maxWorkers=1\""
+    "storybook:test": "test-storybook --config-dir .storybook",
+    "storybook:test:ci": "concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"http-server storybook-static --port 6006 --silent\" \"wait-on tcp:127.0.0.1:6006 && test-storybook --config-dir .storybook --url http://127.0.0.1:6006 --maxWorkers=1\""
   },
   "dependencies": {
     "@fontsource/geist": "^5.2.9",

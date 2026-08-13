@@ -6,8 +6,12 @@ Cargo.toml
 Cargo.lock
 rust-toolchain.toml
 
-# Desktop app
-apps/desktop/
+# Desktop source is retained because the web asset-parity gate consumes the
+# checked-in deterministic captures during Vercel builds. Exclude only build
+# products and local dependencies.
+apps/desktop/node_modules/
+apps/desktop/src-tauri/target/
+apps/desktop/dist/
 apps/desktop-export/
 
 # Tooling / benchmarks

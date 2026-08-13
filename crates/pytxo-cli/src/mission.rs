@@ -27,7 +27,7 @@ pub async fn run_mission(opts: MissionOptions) -> anyhow::Result<()> {
     let repo = resolve_repo_root(opts.repo.as_deref())?;
     if !is_repo_trusted(&repo)? {
         eprintln!(
-            "Folder not trusted. Trusting at Orbit for this mission (Orbit = isolated changes + approve to apply)."
+            "Folder not trusted. Trusting at Orbit for this mission (isolated changes with reviewed Apply)."
         );
         trust_repo(&repo, PermissionProfile::Orbit)?;
     }
@@ -107,7 +107,7 @@ pub async fn run_mission(opts: MissionOptions) -> anyhow::Result<()> {
                     bail!("Mission run {run_id} finished with status={state}");
                 }
                 eprintln!(
-                    "Isolated copies still hold the work (Blast). Apply accepted changes via Desktop Approvals / Run Review, or:\n  pytxo hitl list"
+                    "The prepared changes are waiting for review. Open Desktop, then Flow > History > Run Review to inspect and Apply them.\nGalaxy approval queue: pytxo hitl list"
                 );
                 return Ok(());
             }
@@ -121,11 +121,11 @@ fn print_preflight(plan: &FlowPlan) {
     eprintln!("Mission plan");
     eprintln!("------------");
     eprintln!(
-        "Isolated copies until you approve (Blast): {} via {}",
+        "Isolated workspace until reviewed Apply: {} via {}",
         plan.isolation_mode, plan.isolation_backend_intent
     );
     eprintln!(
-        "Overlapping paths wait in later stages (Race): {} stage(s)",
+        "Overlapping paths wait in later stages: {} stage(s)",
         plan.waves.len()
     );
     eprintln!("Tasks: {}", plan.tasks.len());

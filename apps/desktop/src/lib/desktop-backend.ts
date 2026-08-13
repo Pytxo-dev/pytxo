@@ -1,5 +1,5 @@
 import { ipc } from "./ipc";
-import type { AdeCliStatusDto, AgentDto, CatalogEntryStatus, FleetRunDto, HitlDto, ProviderStatusDto, RunDto } from "./types";
+import type { AdeCliStatusDto, AgentArbitrageDto, AgentDto, CatalogEntryStatus, DesktopChangedEvent, DomainChangesPageDto, FleetRunDto, HitlDto, PreparedContentChunkDto, PreparedRunManifest, ProviderStatusDto, RunApplyManifest, RunDto, RunReviewDto, StructuralGraphDto } from "./types";
 import type { FlowDraftInput, FlowDraftRecord, FlowPlan, VoiceProgressEvent, VoiceSessionDto } from "./types";
 import { PreviewDesktopBackend } from "./desktop-backend.preview";
 
@@ -49,6 +49,18 @@ export interface DesktopBackend {
   voiceAvailable(): Promise<boolean>;
   flowHistory(): Promise<FlowDraftRecord[]>;
   deleteFlowDraft(draftId: string): Promise<void>;
+  listAgents(runId: string, domainId: string | null): Promise<AgentDto[]>;
+  runReview(runId: string, domainId: string | null): Promise<RunReviewDto>;
+  runReviewContent(runId: string, path: string, side: "before" | "after", offset: number, limit: number, domainId: string | null): Promise<PreparedContentChunkDto>;
+  refreshRunReview(runId: string, domainId: string | null): Promise<PreparedRunManifest>;
+  discardRunReview(runId: string, domainId: string | null): Promise<void>;
+  reconcileRunRecovery(runId: string, domainId: string | null): Promise<{ outcome: string; attempt_id: string | null }>;
+  domainChanges(domainId: string, cursor: number, limit?: number): Promise<DomainChangesPageDto>;
+  onDomainChanged(callback: (event: DesktopChangedEvent) => void): Promise<() => void>;
+  structuralGraph(runId: string, domainId: string | null): Promise<StructuralGraphDto>;
+  workspaceStructuralGraph(domainId: string): Promise<StructuralGraphDto>;
+  agentArbitrage(runId: string, domainId: string | null): Promise<AgentArbitrageDto[]>;
+  applyRunChanges(runId: string, domainId: string | null): Promise<RunApplyManifest>;
 }
 
 class TauriDesktopBackend implements DesktopBackend {
@@ -124,6 +136,18 @@ class TauriDesktopBackend implements DesktopBackend {
   async voiceAvailable() { return ipc.voiceLocalAvailable(); }
   async flowHistory() { return ipc.flowHistory(); }
   async deleteFlowDraft(draftId: string) { return ipc.flowDelete(draftId); }
+  async listAgents(runId: string, domainId: string | null) { return ipc.listAgents(runId, domainId); }
+  async runReview(runId: string, domainId: string | null) { return ipc.runReview(runId, domainId); }
+  async runReviewContent(runId: string, path: string, side: "before" | "after", offset: number, limit: number, domainId: string | null) { return ipc.runReviewContent(runId, path, side, offset, limit, domainId); }
+  async refreshRunReview(runId: string, domainId: string | null) { return ipc.refreshRunReview(runId, domainId); }
+  async discardRunReview(runId: string, domainId: string | null) { return ipc.discardRunReview(runId, domainId); }
+  async reconcileRunRecovery(runId: string, domainId: string | null) { return ipc.reconcileRunRecovery(runId, domainId); }
+  async domainChanges(domainId: string, cursor: number, limit = 200) { return ipc.domainChanges(domainId, cursor, limit); }
+  async onDomainChanged(callback: (event: DesktopChangedEvent) => void) { return ipc.onDomainChanged(callback); }
+  async structuralGraph(runId: string, domainId: string | null) { return ipc.structuralGraph(runId, domainId); }
+  async workspaceStructuralGraph(domainId: string) { return ipc.workspaceStructuralGraph(domainId); }
+  async agentArbitrage(runId: string, domainId: string | null) { return ipc.agentArbitrage(runId, domainId); }
+  async applyRunChanges(runId: string, domainId: string | null) { return ipc.applyRunChanges(runId, domainId); }
 }
 
 /** True only inside a real packaged/dev Tauri webview, never in browser/Storybook/Playwright. */

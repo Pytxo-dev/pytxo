@@ -1,34 +1,32 @@
 ---
-title: vs Cursor Cloud Agents
-description: Local mixed-CLI hypervisor compared with Cursor-metered background cloud agents.
+title: Pytxo and Cursor Background Agents
+description: Local mixed-agent orchestration compared with asynchronous remote agents in Cursor.
 ---
 
-**Cursor Cloud Agents** (background agents) run inside Cursor’s product and billing: async work that continues when your laptop is elsewhere, metered on Cursor plans ([cursor.com/pricing](https://cursor.com/pricing)).
+[Cursor Background Agents](https://docs.cursor.com/background-agent) run asynchronously in isolated remote machines. You can start work from Cursor, monitor it, follow up, and continue from web or mobile. This is a strong fit when work should continue after your local machine is unavailable.
 
-Pytxo is the opposite locus of control: a **local agent hypervisor** that schedules the CLIs you already run — including Cursor CLI — under Race / Blast / Signal on your silicon.
+Pytxo starts from the opposite operating assumption: agent processes and repository state remain on infrastructure you control, normally your local machine.
 
-## Comparison
+## Practical differences
 
-| Dimension | Cursor Cloud Agents | Pytxo |
-|-----------|---------------------|--------|
-| Where agents run | Cursor cloud / product | Your machine (PTY yard) |
-| What agents | Cursor’s agent stack | Mixed CLIs you already pay for |
-| Billing | Cursor plan + usage | BYOK. Your keys. Your silicon. |
-| Collision policy | Inside Cursor’s product | Race Shield path claims across tools |
-| UI | IDE + cloud agent chrome | Optional Desktop structural Ops / Focus |
+| | Cursor Background Agents | Pytxo |
+|---|---|---|
+| Execution | Remote isolated machine | Local execution yard by default |
+| Agent scope | Cursor's agent workflow | Several installed agent CLIs |
+| Away-from-laptop work | Core capability | Requires your execution host to remain available |
+| Review | Cursor and Git workflow | Immutable package and exact local Run Review |
+| Billing | Cursor plan and usage | Provider subscriptions or keys you configure |
 
-## When Cursor Cloud is enough
+## Choose Cursor when
 
-- You live in Cursor and want laptop-closed async inside one bill
-- You do not need Claude Code / Codex / others under one policy
-- Cloud metering is acceptable
+- Remote, asynchronous work is more important than local execution.
+- Cursor is already the center of your coding workflow.
+- Web and mobile follow-up are valuable.
 
-## When Pytxo adds value
+## Choose Pytxo when
 
-- You run **more than Cursor’s agent** and need one collision / approval plane
-- You want local-first BYOK without Cursor cloud as the execution home
-- Structural telemetry (Focus graph) beats chat walls for seeing the system
+- You need one policy and review surface across multiple CLI agents.
+- Repository bytes should stay on your own execution host.
+- You want path ownership and a prepared Apply package independent of one editor.
 
-Pytxo does not replace Cursor as an editor. It coordinates agents — including Cursor CLI — outside a single vendor’s cloud yard.
-
-See also: [vs Claude Agent Teams](/docs/compare/claude-agent-teams) · [vs Devin / Amp](/docs/compare/devin-amp).
+Pytxo does not replace Cursor as an editor, and local-first execution means it does not provide Cursor's laptop-closed experience by itself.
