@@ -14,14 +14,14 @@ const STORY = [
     description:
       "Turn one outcome into editable tasks, execution waves, path claims, permissions, and agent assignments.",
     image: "/product/flow-1600x1000.png",
-    alt: "Pytxo Flow showing an editable mission and a reviewable three-task execution plan",
+    alt: "Pytxo Desktop New mission showing an editable outcome and a reviewable execution plan",
   },
   {
     title: "Run in isolation",
     description:
       "Supervise active agents, path locks, approval demand, sandbox coverage, and estimated spend from one local control plane.",
     image: "/product/operations-1600x1000.png",
-    alt: "Pytxo Operations showing active work, path locks, pending approvals, and isolated runs",
+    alt: "Pytxo Desktop Ops showing Needs you approvals and Running mission rows",
   },
   {
     title: "Review and approve",

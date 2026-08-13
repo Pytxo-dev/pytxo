@@ -1,7 +1,8 @@
 /*
  * Shared Desktop 2 "screen content" design system: panels, metrics, tables,
  * empty states, and per-screen layouts consumed by OperationsScreen,
- * CollectionScreen, FlowScreen, and FocusScreen. Imported once by
+ * MissionsScreen, WorkspacesScreen, ApprovalsScreen, AgentsScreen,
+ * FlowScreen, and MissionDetail. Imported once by
  * DesktopShell.svelte so it loads before any screen renders.
  *
  * Shell chrome (sidebar, app bar, command palette) lives in its own
@@ -235,3 +236,55 @@ html[data-ui-density="comfortable"] .desktop2 .primary{font-size:var(--text-xs,0
   .desktop2 .ops-shortcuts{justify-content:flex-start}
   .desktop2 .stop-run-dialog dl>div{grid-template-columns:1fr;gap:4px}
 }
+
+/* Quiet instrument: type floor, one radius, no 8px UI. */
+.desktop2 .screen{padding:24px 28px 48px}
+.desktop2 .screen-heading{margin-bottom:18px}
+.desktop2 .screen-heading h1{margin:0;font-size:20px;line-height:1.2;letter-spacing:-.03em;font-weight:620}
+.desktop2 .screen-heading p:not(.eyebrow){display:none}
+.desktop2 .eyebrow{display:none!important}
+.desktop2 .primary,.desktop2 .quiet,.desktop2 .deny,.desktop2 .run-stop,.desktop2 .stop-confirm{border-radius:var(--pytxo-control-radius,4px);font-size:13px}
+.desktop2 .primary,.desktop2 .deny,.desktop2 .stop-confirm{height:34px}
+.desktop2 .quiet{height:32px;font-size:12px}
+.desktop2 .panel,.desktop2 .workspace-card,.desktop2 .metrics article,.desktop2 .ops-truth article{border-radius:var(--pytxo-panel-radius,6px)}
+.desktop2 .panel-head h2,.desktop2 .workspace-title h2,.desktop2 .run-copy strong,.desktop2 .inbox-row strong,.desktop2 .decision-detail h2{font-size:13px}
+.desktop2 .run-copy small,.desktop2 .inbox-row small,.desktop2 .decision-meta dt,.desktop2 .decision-meta dd,.desktop2 .decision-evidence small,.desktop2 .workspace-card>p,.desktop2 .table-header{font-size:12px}
+.desktop2 kbd{min-height:18px;font-size:11px;font-family:"Geist Mono",ui-monospace,monospace}
+.desktop2 .empty strong,.desktop2 .plan-empty strong{font-size:13px}
+.desktop2 .empty span,.desktop2 .plan-empty p,.desktop2 .empty p{font-size:13px;line-height:1.45}
+.desktop2 .run-state,.desktop2 .run-cost,.desktop2 .table-row{font-size:13px}
+.desktop2 .ops-spend{margin:0 0 16px;color:var(--pytxo-text-muted);font:12px/1.4 "Geist Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.desktop2 .mission-tabs{display:flex;gap:4px;margin:0 0 16px}
+.desktop2 .mission-tabs button{height:32px;padding:0 12px;border:1px solid var(--pytxo-line);border-radius:var(--pytxo-control-radius,4px);background:transparent;color:var(--pytxo-text-muted);font-size:13px;cursor:pointer}
+.desktop2 .mission-tabs button.active{border-color:var(--pytxo-accent,var(--pytxo-teal));color:var(--pytxo-text-strong);background:var(--pytxo-surface-active)}
+.desktop2 .mission-meta{display:flex;flex-wrap:wrap;gap:8px 16px;margin:0 0 16px;color:var(--pytxo-text-muted);font-size:12px;font-variant-numeric:tabular-nums}
+.desktop2 .mission-meta .mono{font-family:"Geist Mono",ui-monospace,monospace}
+.desktop2 .workspace-table{width:100%;border:1px solid var(--pytxo-line);border-radius:var(--pytxo-panel-radius,6px);overflow:hidden;background:var(--pytxo-surface-panel)}
+.desktop2 .workspace-table .table-row,
+.desktop2 .data-table .table-row{
+  display:grid;
+  align-items:center;
+  gap:10px;
+  padding:10px 14px;
+}
+.desktop2 .workspace-table .table-row{grid-template-columns:minmax(120px,.9fr) minmax(160px,1.4fr) 80px 72px 88px 120px}
+.desktop2 .agent-row{display:grid;grid-template-columns:minmax(140px,1.1fr) minmax(120px,.9fr) minmax(160px,1.2fr) auto;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--pytxo-line-soft)}
+.desktop2 .agent-row:last-child{border-bottom:0}
+.desktop2 .agent-row strong{font-size:13px}
+.desktop2 .agent-row small{display:block;margin-top:2px;color:var(--pytxo-text-muted);font-size:12px}
+.desktop2 .flow-layout,.desktop2 .flow-layout--solo{grid-template-columns:1fr;max-width:640px}
+.desktop2 .flow-steps,.desktop2 .waveform,.desktop2 .orbit{display:none!important}
+.desktop2 .composer-panel textarea{font-size:14px!important;line-height:1.65!important}
+.desktop2 .plan-wave>span{text-transform:none;letter-spacing:0;font-size:12px;color:var(--pytxo-text-muted)}
+.desktop2 .plan-wave strong,.desktop2 .plan-wave input{font-size:13px}
+.desktop2 .plan-wave small{font-size:12px}
+.desktop2 .plan-footer span,.desktop2 .plan-footer strong{font-size:12px}
+.desktop2 .toolbar input{font-size:13px}
+.desktop2 .honesty{display:flex;align-items:center;gap:8px;margin:0 0 16px;color:var(--pytxo-text-muted);font-size:13px}
+.desktop2 .plan-summary{margin:0 0 14px;color:var(--pytxo-text-muted);font-size:13px}
+.desktop2 .workspace-table .table-row.active{background:var(--pytxo-surface-active)}
+.desktop2 .workspace-table .row-actions{display:flex;gap:6px;justify-content:flex-end}
+.desktop2 .heading-actions{display:flex;gap:8px}
+.desktop2 .stop-run-heading small{font-size:12px;text-transform:none;letter-spacing:0}
+.desktop2 .stop-run-dialog>section>p,.desktop2 .stop-run-dialog dt,.desktop2 .stop-run-dialog dd{font-size:13px}
+.desktop2 .stop-run-dialog dt{font-size:12px}

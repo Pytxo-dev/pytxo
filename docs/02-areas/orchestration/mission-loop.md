@@ -6,8 +6,8 @@ tags: [orchestration, product, mission]
 audience: [human, agent]
 layer: orchestration
 created: 2026-07-27
-updated: 2026-07-27
-related: [[product-vision]], [[ADR-0031-mission-planner-byok-scout]], [[ADR-0032-desktop-2-focus-flow-primary]], [[signal-core]], [[blast-shield]], [[race-shield]], [[dag-flow-engine]], [[pytxo-improvement-research]]
+updated: 2026-08-13
+related: [[product-vision]], [[ADR-0031-mission-planner-byok-scout]], [[ADR-0035-desktop-2-quiet-instrument-ia]], [[signal-core]], [[blast-shield]], [[race-shield]], [[dag-flow-engine]], [[pytxo-improvement-research]]
 ---
 
 # Mission loop
@@ -50,6 +50,6 @@ Optional `verify` shell commands on tasks/mission. Runner executes them in the i
 
 Single execution domain (one repo). Multi-root / fleet missions remain `pytxo project` / `pytxo fleet` until a later phase.
 
-ADRs: [[ADR-0031-mission-planner-byok-scout]], [[ADR-0032-desktop-2-focus-flow-primary]].
+ADRs: [[ADR-0031-mission-planner-byok-scout]], [[ADR-0035-desktop-2-quiet-instrument-ia]] (supersedes the Flow/Focus primary-surface claim in [[ADR-0032-desktop-2-focus-flow-primary]]).
 
 Back: [[MOC-home]] · [[architecture-index]]

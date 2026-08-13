@@ -1,5 +1,5 @@
-export type DeckTheme = "void" | "light" | "terminal" | "nebula";
-export type AccentPreset = "spectrum" | "teal" | "violet" | "gold" | "custom";
+export type DeckTheme = "void" | "light";
+export type AccentPreset = "teal" | "custom";
 
 export const THEME_STORAGE_KEY = "pytxo-deck-theme";
 export const ACCENT_STORAGE_KEY = "pytxo-accent";
@@ -18,40 +18,32 @@ export const SETUP_STORAGE_KEY = "pytxo-deck-setup-v1";
 export const ONBOARDING_VERSION = "1.0.0";
 export const ONBOARDING_VERSION_KEY = "pytxo-desktop-onboarding-version";
 
-/** Void first; Nebula demoted as vivid optional skin. */
 export const DECK_THEMES: { id: DeckTheme; label: string; hint: string }[] = [
   { id: "void", label: "Void", hint: "Canonical dark" },
   { id: "light", label: "Light", hint: "Bright workspace" },
-  { id: "terminal", label: "Terminal", hint: "Green phosphor" },
-  { id: "nebula", label: "Nebula", hint: "Violet night" },
 ];
 
 export const ACCENT_PRESETS: { id: Exclude<AccentPreset, "custom">; label: string }[] = [
-  { id: "spectrum", label: "Spectrum" },
   { id: "teal", label: "Teal" },
-  { id: "violet", label: "Violet" },
-  { id: "gold", label: "Gold" },
 ];
 
 const DEFAULT_CUSTOM_ACCENT = "#2dd4bf";
 
-export function loadTheme(): DeckTheme {
-  if (typeof localStorage === "undefined") return "void";
-  const raw = localStorage.getItem(THEME_STORAGE_KEY);
-  if (raw === "light" || raw === "terminal" || raw === "nebula" || raw === "void") {
-    return raw;
-  }
-  if (raw === "dark") return "void";
+function canonicalizeTheme(raw: string | null): DeckTheme {
+  if (raw === "light") return "light";
   return "void";
 }
 
+export function loadTheme(): DeckTheme {
+  if (typeof localStorage === "undefined") return "void";
+  return canonicalizeTheme(localStorage.getItem(THEME_STORAGE_KEY));
+}
+
 export function loadAccent(): AccentPreset {
-  if (typeof localStorage === "undefined") return "spectrum";
+  if (typeof localStorage === "undefined") return "teal";
   const raw = localStorage.getItem(ACCENT_STORAGE_KEY);
-  if (raw === "spectrum" || raw === "teal" || raw === "violet" || raw === "gold" || raw === "custom") {
-    return raw;
-  }
-  return "spectrum";
+  if (raw === "custom") return "custom";
+  return "teal";
 }
 
 export function loadCustomAccent(): string {
@@ -68,9 +60,10 @@ export function loadMatchSystem(): boolean {
 
 export function applyDeckTheme(theme: DeckTheme) {
   const root = document.documentElement;
-  root.setAttribute("data-chroma-theme", theme);
-  if (typeof localStorage !== "undefined") localStorage.setItem(THEME_STORAGE_KEY, theme);
-  if (theme === "light") {
+  const next = canonicalizeTheme(theme);
+  root.setAttribute("data-chroma-theme", next);
+  if (typeof localStorage !== "undefined") localStorage.setItem(THEME_STORAGE_KEY, next);
+  if (next === "light") {
     root.classList.remove("dark");
     root.style.colorScheme = "light";
   } else {
@@ -81,10 +74,11 @@ export function applyDeckTheme(theme: DeckTheme) {
 
 export function applyAccent(accent: AccentPreset, customHex?: string) {
   const root = document.documentElement;
-  root.setAttribute("data-pytxo-accent", accent);
-  if (typeof localStorage !== "undefined") localStorage.setItem(ACCENT_STORAGE_KEY, accent);
+  const next: AccentPreset = accent === "custom" ? "custom" : "teal";
+  root.setAttribute("data-pytxo-accent", next);
+  if (typeof localStorage !== "undefined") localStorage.setItem(ACCENT_STORAGE_KEY, next);
 
-  if (accent === "custom") {
+  if (next === "custom") {
     const hex = customHex ?? loadCustomAccent();
     root.style.setProperty("--pytxo-accent", hex);
     if (typeof localStorage !== "undefined") localStorage.setItem(CUSTOM_ACCENT_STORAGE_KEY, hex);
@@ -153,13 +147,7 @@ export function terminalThemeFor(deckTheme: DeckTheme) {
   if (deckTheme === "light") {
     return { background: "#f4f6f8", foreground: "#0f1419" };
   }
-  if (deckTheme === "terminal") {
-    return { background: "#001a0a", foreground: "#4ade80" };
-  }
-  if (deckTheme === "nebula") {
-    return { background: "#08051a", foreground: "#f0e6ff" };
-  }
-  return { background: "#020205", foreground: "#e8eaed" };
+  return { background: "#07080b", foreground: "#e8eaed" };
 }
 
 export function isLightDeck(theme: DeckTheme) {

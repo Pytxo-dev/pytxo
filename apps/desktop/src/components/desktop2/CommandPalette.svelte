@@ -2,7 +2,7 @@
   import { IconSearch } from "@tabler/icons-svelte";
   import type { AppRoute } from "../../lib/navigation.svelte";
 
-  type CommandItem = { route: AppRoute; label: string; icon: typeof IconSearch };
+  type CommandItem = { route: AppRoute; label: string; icon: typeof IconSearch; aliases?: string[] };
 
   let {
     open,
@@ -23,7 +23,14 @@
 
   const filtered = $derived(
     query.trim()
-      ? items.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()))
+      ? items.filter((item) => {
+          const q = query.trim().toLowerCase();
+          return (
+            item.label.toLowerCase().includes(q) ||
+            item.route.toLowerCase().includes(q) ||
+            (item.aliases ?? []).some((alias) => alias.toLowerCase().includes(q))
+          );
+        })
       : items,
   );
 
@@ -83,7 +90,7 @@
       </label>
       <p>Navigate</p>
       {#if filtered.length}
-        {#each filtered as item, index (item.route)}
+        {#each filtered as item, index (`${item.route}-${item.label}`)}
           <button class:highlighted={index === highlighted} onmouseenter={() => (highlighted = index)} onclick={() => select(item)}>
             <item.icon size={16} />{item.label}<span>Go to</span>
           </button>
@@ -131,9 +138,7 @@
   .command-menu p {
     margin: 11px 9px 5px;
     color: #5e6571;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-size: 12px;
   }
   .command-menu .no-results {
     margin: 4px 9px 13px;
@@ -152,7 +157,7 @@
     border-radius: 5px;
     background: none;
     color: #aeb4be;
-    font: 11px inherit;
+    font: 13px inherit;
     padding: 0 9px;
     cursor: pointer;
     transition: background-color 120ms ease, color 120ms ease;

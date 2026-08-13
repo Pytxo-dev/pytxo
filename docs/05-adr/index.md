@@ -6,7 +6,7 @@ tags: [adr, moc]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-08-13
 related: [[MOC-home]]
 ---
 
@@ -48,6 +48,7 @@ Architecture Decision Records are **immutable once Accepted**. Supersede by addi
 | ADR-0030 | [[ADR-0030-public-docs-fumadocs-next]] | accepted |
 | ADR-0031 | [[ADR-0031-mission-planner-byok-scout]] | accepted |
 | ADR-0032 | [[ADR-0032-desktop-2-focus-flow-primary]] | accepted |
+| ADR-0035 | [[ADR-0035-desktop-2-quiet-instrument-ia]] | accepted |
 
 ## Template
 

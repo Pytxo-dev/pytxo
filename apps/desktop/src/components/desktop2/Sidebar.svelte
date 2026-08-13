@@ -1,8 +1,8 @@
 <script lang="ts">
   import { IconChevronsLeft, IconChevronsRight, IconSearch, IconSettings, IconUserCircle } from "@tabler/icons-svelte";
-  import type { AppRoute, WorkspaceRecent } from "../../lib/navigation.svelte";
+  import type { CanonicalRoute, WorkspaceRecent } from "../../lib/navigation.svelte";
 
-  type NavItem = { route: AppRoute; label: string; icon: typeof IconSearch };
+  type NavItem = { route: CanonicalRoute; label: string; icon: typeof IconSearch };
 
   let {
     route,
@@ -19,7 +19,7 @@
     onOpenRecent,
     onAccountClick,
   }: {
-    route: AppRoute;
+    route: CanonicalRoute;
     primary: NavItem[];
     system: NavItem[];
     approvalsCount: number;
@@ -27,7 +27,7 @@
     collapsed: boolean;
     tier: string;
     signedIn: boolean;
-    onNavigate: (route: AppRoute) => void;
+    onNavigate: (route: CanonicalRoute) => void;
     onToggleCollapse: () => void;
     onOpenCommand: () => void;
     onOpenRecent: (recent: WorkspaceRecent) => void;
@@ -37,7 +37,7 @@
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPod|iPad/.test(navigator.userAgent);
   const shortcutHint = isMac ? "⌘K" : "Ctrl K";
 
-  function go(next: AppRoute) {
+  function go(next: CanonicalRoute) {
     return (event: MouseEvent) => {
       event.preventDefault();
       onNavigate(next);
@@ -72,7 +72,6 @@
   </button>
 
   <nav aria-label="Primary">
-    {#if !collapsed}<p>Workspace</p>{/if}
     {#each primary as item (item.route)}
       <a
         href={`#/${item.route}`}
@@ -96,8 +95,8 @@
     </div>
   {/if}
 
+  {#if system.length}
   <nav aria-label="System" class="system-nav">
-    {#if !collapsed}<p>System</p>{/if}
     {#each system as item (item.route)}
       <a
         href={`#/${item.route}`}
@@ -111,6 +110,7 @@
       </a>
     {/each}
   </nav>
+  {/if}
 
   <div class="sidebar-footer">
     <button onclick={onAccountClick} title={collapsed ? `${accountLabel} · ${accountSub}` : undefined}>
@@ -254,13 +254,11 @@
     margin-top: 20px;
     width: 100%;
   }
-  nav p,
   .recents p {
     margin: 0 8px 7px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-size: 9px;
-    font-weight: 700;
+    letter-spacing: 0.04em;
+    font-size: 12px;
+    font-weight: 600;
     color: var(--pytxo-text-muted);
   }
   nav a {
@@ -274,8 +272,7 @@
     border-radius: 6px;
     color: #858c98;
     text-decoration: none;
-    font-size: 12px;
-    font-weight: 520;
+    font-size: 13px;
     transition: background-color 140ms ease, color 140ms ease;
   }
   .sidebar.collapsed nav a {
@@ -315,7 +312,7 @@
     border-radius: 9px;
     background: #3b2d17;
     color: #f1bc59;
-    font-size: 9px;
+    font-size: 11px;
   }
   .recents button {
     display: flex;
@@ -350,7 +347,7 @@
     width: 7px;
     height: 7px;
     border-radius: 2px;
-    background: #745ad5;
+    background: var(--pytxo-text-muted);
   }
   .system-nav {
     margin-top: auto;
@@ -422,7 +419,6 @@
     .sidebar:not(.collapsed) .collapse-btn,
     .sidebar:not(.collapsed) .command-trigger span,
     .sidebar:not(.collapsed) .command-trigger kbd,
-    .sidebar:not(.collapsed) nav p,
     .sidebar:not(.collapsed) nav a span,
     .sidebar:not(.collapsed) .recents,
     .sidebar:not(.collapsed) .account-copy {

@@ -107,7 +107,7 @@ test("the product story is complete when reduced motion is requested", async ({ 
   ]);
 });
 
-test("agent readiness uses the current Integrations product capture", async ({ page }) => {
+test("agent readiness uses the current Agents product capture", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 

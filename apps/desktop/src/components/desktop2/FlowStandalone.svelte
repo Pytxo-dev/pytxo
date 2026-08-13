@@ -30,7 +30,7 @@
 </script>
 
 <div class="flow-standalone">
-  <TitleBar title="Pytxo Flow" />
+  <TitleBar title="New mission" />
   <div class="flow-standalone__body desktop2">
     <FlowScreen
       {backend}

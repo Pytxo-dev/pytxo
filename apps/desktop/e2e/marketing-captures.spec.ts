@@ -20,13 +20,13 @@ const VIEWPORTS = [
 const ROUTES = [
   { route: "operations", heading: /^Ops/, marketing: true },
   { route: "workspaces", heading: "Workspaces", marketing: false },
-  { route: "runs", heading: "Runs", marketing: false },
-  { route: "flow", heading: "Flow", marketing: true },
+  { route: "runs", heading: "Missions", marketing: false },
+  { route: "flow", heading: "New mission", marketing: true },
   { route: "approvals", heading: "Approvals", marketing: true },
-  { route: "integrations", heading: "Integrations", marketing: true },
+  { route: "integrations", heading: "Agents", marketing: true },
   { route: "settings", heading: "Appearance", marketing: false },
-  { route: "topology-focus", heading: "Topology Focus", marketing: false },
-  { route: "run-review", heading: "Run Review", marketing: false },
+  { route: "topology-focus", heading: "Mission", marketing: false },
+  { route: "run-review", heading: "Mission", marketing: false },
 ] as const;
 
 const RETRYABLE_WRITE_CODES = new Set(["EACCES", "EBUSY", "EPERM", "UNKNOWN"]);
@@ -61,7 +61,7 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
 
   if (route.route === "flow") {
     await page
-      .getByLabel("Flow outcome")
+      .getByLabel("Mission outcome")
       .fill("Ship the approval workflow with isolated changes and verification");
     await page.getByRole("button", { name: "Build plan", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review plan" })).toBeVisible();

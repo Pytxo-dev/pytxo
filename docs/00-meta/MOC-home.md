@@ -6,8 +6,8 @@ tags: [moc, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-31
-related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]]
+updated: 2026-08-13
+related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[pytxo-v1-1-trustworthy-mission-control]]
 ---
 
 # Pytxo documentation home
@@ -22,7 +22,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 
 **Architecture synthesis:** [[pytxo-architecture-research]] — full primary-source map of vision, tiers, moats, policy, ADRs, crates.
 
-**Improvement program:** [[pytxo-improvement-research]] — Phases **73–74 shipped**; **Phase 77 = Mission Loop Phase 1** (primary). Phases 75–76 honesty/moat items remain secondary.
+**Improvement program:** [[pytxo-v1-1-trustworthy-mission-control]] — v1.1.0 sequences runtime truth, a mature operator Desktop, and proof/distribution. [[pytxo-improvement-research]] remains the deeper research ledger.
 
 ---
 
@@ -101,6 +101,8 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[v0.13-demo-benchmark-readiness]] — Remotion demo, voiceover, real-repo pins, and isolation recursion fix (2026-07-30)
 - [[v1-provider-auth-onboarding-research]] — official vendor auth boundaries, child-environment blocker, and v1 integration acceptance criteria (2026-07-30)
 - [[v1-product-reference-research]] — 18 official product references and the v1 Desktop, website, and demo design decisions (2026-07-30)
+- [[pytxo-v1-1-trustworthy-mission-control]] — v1.1 release thesis and three-phase gate
+- [[ADR-0035-desktop-2-quiet-instrument-ia]] — Desktop 2 Ops / Missions / Approvals quiet instrument
 - [[competitive-landscape-2026-07]] — primary-source competitor map + GTM compare priorities (2026-07)
 
 ### ADRs

@@ -6,11 +6,19 @@ tags: [meta]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-31
+updated: 2026-08-13
 related: [[MOC-home]]
 ---
 
 # Documentation changelog
+
+## 2026-08-13 (v1.0.1 quiet-instrument Desktop)
+
+- [[ADR-0035-desktop-2-quiet-instrument-ia]] supersedes the Flow/Focus primary-surface claim in [[ADR-0032-desktop-2-focus-flow-primary]] without editing that accepted ADR.
+- Desktop 2 nav is Ops, Missions, Approvals, Workspaces, Agents, Settings. Visual system is Void + Light + teal; no spectrum/Nebula/Terminal.
+- Updated [[desktop-visual-system]] and [[pytxo-desktop-2-flow-voice]].
+- Public Fumadocs and website alts now say Ops / Missions / Agents / Plan-Live-Review instead of Flow / Integrations / Focus / Run Review.
+- Product version metadata is **1.0.1**. `ONBOARDING_VERSION` remains `1.0.0`.
 
 ## 2026-07-31 (v1.0.0 release)
 

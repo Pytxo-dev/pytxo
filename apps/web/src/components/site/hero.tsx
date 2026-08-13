@@ -43,7 +43,7 @@ export function Hero() {
           >
             <Image
               src="/product/operations-1600x1000.png"
-              alt="Pytxo Desktop Operations showing active runs, approvals, isolated work, and estimated cost"
+              alt="Pytxo Desktop Ops showing Needs you approvals and Running mission rows"
               width={1600}
               height={1000}
               className="h-auto w-full"

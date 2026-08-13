@@ -7,6 +7,17 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
+# Pytxo v1.0.1
+
+Quiet-instrument Desktop: Ops, Missions, Approvals, Workspaces, Agents, and
+Settings, plus recaptured product screenshots. This is a presentation release;
+it does not include atomic apply or the planner rewrite. See
+[`distribution/release-notes/v1.0.1.md`](distribution/release-notes/v1.0.1.md).
+
+Previous: [`v1.0.0`](distribution/release-notes/v1.0.0.md).
+
+---
+
 # Pytxo v1.0.0
 
 The first dependable Pytxo mission loop — provider readiness, guided example,

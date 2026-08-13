@@ -34,7 +34,7 @@ export function AgentReadiness() {
           <p className="mt-4 leading-relaxed text-muted-foreground">
             Pytxo coordinates agent processes without becoming another credential vault. Connect
             through each official CLI, recheck its redacted status, then choose a ready agent in
-            Flow.
+            a mission.
           </p>
 
           <ul className="mt-8 grid gap-5">
@@ -70,7 +70,7 @@ export function AgentReadiness() {
         >
           <Image
             src="/product/integrations-1600x1000.png"
-            alt="Pytxo Desktop Integrations showing installed coding agents, vendor-owned sessions, and readiness actions"
+            alt="Pytxo Desktop Agents showing installed coding agents, vendor-owned sessions, and readiness actions"
             width={1600}
             height={1000}
             className="h-auto w-full"

@@ -5,6 +5,7 @@
     IconBell,
     IconFolder,
     IconKey,
+    IconKeyboard,
     IconMicrophone,
     IconPalette,
     IconSearch,
@@ -51,6 +52,7 @@
   }[] = [
     { id: "general", label: "General", icon: IconSettings },
     { id: "appearance", label: "Appearance", icon: IconPalette },
+    { id: "keyboard", label: "Keyboard", icon: IconKeyboard },
     { id: "providers", label: "Providers", icon: IconKey },
     { id: "workspaces", label: "Workspaces", icon: IconFolder },
     { id: "agents", label: "Agents & permissions", icon: IconShieldLock },
@@ -345,8 +347,9 @@
       <div>
         <h1>{SECTIONS.find((s) => s.id === section)?.label ?? "Settings"}</h1>
         <p>
-          {#if section === "appearance"}Theme skins and chroma accents for the shell.
-          {:else if section === "providers"}Direct API access for selected runs. Agent subscription sessions live under Integrations.
+          {#if section === "appearance"}Void, Light, scale, and density.
+          {:else if section === "keyboard"}Chords for Ops, Approvals, and the command palette.
+          {:else if section === "providers"}Direct API access for selected runs. Agent subscription sessions live under Agents.
           {:else if section === "workspaces"}Default workspace behavior and the active domain.
           {:else if section === "agents"}Permission ladder defaults for new trusted folders.
           {:else if section === "voice"}Local Whisper capture and optional cloud consent.
@@ -396,7 +399,7 @@
           ><i></i></button>
         </div>
         <div class="setting-row stack">
-          <div><strong>Skin</strong><small>Void is canonical. Terminal and Nebula are optional skins.</small></div>
+          <div><strong>Skin</strong><small>Void is canonical. Light is the other skin.</small></div>
           <div class="theme-previews" role="group" aria-label="Theme skin">
             {#each DECK_THEMES as opt (opt.id)}
               <button
@@ -416,7 +419,7 @@
           </div>
         </div>
         <div class="setting-row">
-          <div><strong>Accent</strong><small>Primary buttons, focus rings, and chroma edges follow this color.</small></div>
+          <div><strong>Accent</strong><small>Teal is the action and live accent. Gold marks needs-you and cost.</small></div>
           <div class="accent-swatches" role="group" aria-label="Accent">
             {#each ACCENT_PRESETS as opt (opt.id)}
               <button
@@ -455,13 +458,28 @@
             {/each}
           </div>
         </div>
+        <div class="setting-row">
+          <div><strong>Density</strong><small>Compact fits more per screen; comfortable adds breathing room.</small></div>
+          <div class="segmented">
+            <button class:active={uiPrefs.density === "compact"} onclick={() => setUiDensity("compact")}>Compact</button>
+            <button class:active={uiPrefs.density === "comfortable"} onclick={() => setUiDensity("comfortable")}>Comfortable</button>
+          </div>
+        </div>
+      </article>
+    {:else if section === "keyboard"}
+      <article class="settings-group">
+        <h2>Shortcuts</h2>
+        <div class="setting-row"><div><strong>Command palette</strong><small>Search destinations and New mission.</small></div><kbd>Ctrl/⌘ K</kbd></div>
+        <div class="setting-row"><div><strong>Focus Ops</strong><small>Jump to today and the first running mission.</small></div><kbd>Ctrl/⌘ Shift O</kbd></div>
+        <div class="setting-row"><div><strong>Approvals</strong><small>J and K move. Modifier Enter approves. Modifier Backspace denies.</small></div><kbd>J K</kbd></div>
+        <div class="setting-row"><div><strong>Stop run</strong><small>From a focused running row. Confirmation is required.</small></div><kbd>Ctrl/⌘ Shift ⌫</kbd></div>
       </article>
     {:else if section === "providers"}
       <article class="settings-group">
         <h2>API providers</h2>
         <p class="providers-lead">
           API billing is separate from agent subscriptions. ChatGPT connects through Codex and
-          Claude subscriptions connect through Claude Code in Integrations. For direct API calls,
+          Claude subscriptions connect through Claude Code in Agents. For direct API calls,
           set one provider variable in your OS environment and restart Desktop.
         </p>
         <div class="setting-row">
@@ -575,7 +593,7 @@
         <h2>Account</h2>
         <div class="setting-row"><div><strong>Status</strong><small>{signedIn ? "Signed in to your Pytxo account." : "Not signed in. Core local runs work without an account."}</small></div><strong>{signedIn ? "Signed in" : "Not signed in"}</strong></div>
         <div class="setting-row">
-          <div><strong>Pytxo account connection</strong><small>{signedIn ? "Clear the existing local session stored in the OS keyring." : "Paused while the browser return moves to one-time authorization codes. Agent accounts are available in Integrations."}</small></div>
+          <div><strong>Pytxo account connection</strong><small>{signedIn ? "Clear the existing local session stored in the OS keyring." : "Paused while the browser return moves to one-time authorization codes. Agent accounts are available in Agents."}</small></div>
           {#if signedIn}
             <button class="quiet" onclick={() => void signOut()}>Sign out</button>
           {:else}
@@ -804,17 +822,8 @@
     cursor: pointer;
     padding: 0;
   }
-  .swatch[data-accent="spectrum"] {
-    background: linear-gradient(135deg, var(--brand-magenta), var(--brand-violet), var(--brand-gold), var(--brand-teal));
-  }
   .swatch[data-accent="teal"] {
     background: var(--brand-teal);
-  }
-  .swatch[data-accent="violet"] {
-    background: var(--brand-violet);
-  }
-  .swatch[data-accent="gold"] {
-    background: var(--brand-gold);
   }
   .swatch.active {
     box-shadow: 0 0 0 2px color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 50%, transparent);
@@ -837,7 +846,7 @@
   }
   .theme-previews {
     display: grid;
-    grid-template-columns: repeat(4, minmax(72px, 1fr));
+    grid-template-columns: repeat(2, minmax(72px, 1fr));
     gap: 8px;
     width: 100%;
     max-width: 420px;
@@ -873,12 +882,6 @@
   }
   .theme-preview[data-skin="light"] .theme-preview-swatch {
     background: linear-gradient(135deg, #f4f6f8, #ffffff 55%, #0d9488);
-  }
-  .theme-preview[data-skin="terminal"] .theme-preview-swatch {
-    background: linear-gradient(135deg, #001a0a, #002212 55%, #4ade80);
-  }
-  .theme-preview[data-skin="nebula"] .theme-preview-swatch {
-    background: linear-gradient(135deg, #08051a, #12082a 55%, #e879f9);
   }
   .theme-preview-label {
     font-size: 11px;

@@ -6,7 +6,7 @@ tags: [product, vision, architecture]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-27
+updated: 2026-08-13
 related: [[agent-os-vs-virtual-workspace]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[desktop-visual-system]], [[competitive-benchmarks]], [[pytxo-improvement-research]], [[beyond-the-ade]], [[pytxo-vs-github-copilot-app]], [[mission-loop]]
 ---
 
@@ -31,7 +31,7 @@ one mission → proposed plan → human edit/approve → isolated execution
 → verification → one reviewable result
 ```
 
-CLI: `pytxo mission "…"`. Desktop: Flow → Approvals / Run Review ([[ADR-0032-desktop-2-focus-flow-primary]]).
+CLI: `pytxo mission "…"`. Desktop: Ops → Missions (plan / live / review) → Approvals ([[ADR-0035-desktop-2-quiet-instrument-ia]]).
 
 ## Plain language at the product boundary
 
@@ -79,7 +79,7 @@ All future orchestration code should route through these layers — not around t
 
 ## Pytxo Desktop
 
-Optional **mission-review and intervention** UI ([[desktop-visual-system]], [[ADR-0032-desktop-2-focus-flow-primary]]). Formerly Reality Deck.
+Optional **mission-review and intervention** UI ([[desktop-visual-system]], [[ADR-0035-desktop-2-quiet-instrument-ia]]). Formerly Reality Deck.
 
 **Desktop 2** (default): Flow, Ops, Focus, Approvals, Run Review. Interactive **3D** topology remains **legacy shell only** (`desktop_shell_v1=true`).
 

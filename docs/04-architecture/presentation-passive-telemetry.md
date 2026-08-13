@@ -6,13 +6,13 @@ tags: [architecture, svelte, tauri]
 audience: [human, agent]
 layer: presentation
 created: 2026-06-02
-updated: 2026-07-23
+updated: 2026-08-13
 related: [[three-tier-model]], [[desktop-visual-system]], [[execution-domains]], [[permission-profile-engine]], [[product-vision]], [[pytxo-improvement-research]]
 ---
 
 # Presentation layer — passive telemetry
 
-The Pytxo desktop shell is a **passive telemetry skin** built with **Svelte 5** and **Tauri v2** — see [[desktop-visual-system]] for the space-console aesthetic. Default product surface is **Desktop 2 structural Focus**, not a 3D canvas.
+The Pytxo desktop shell is a **passive telemetry skin** built with **Svelte 5** and **Tauri v2** — see [[desktop-visual-system]] for the quiet-instrument aesthetic. Default product surface is **Desktop 2 Ops / Missions / Approvals**, not a 3D canvas.
 
 ## Constraints
 

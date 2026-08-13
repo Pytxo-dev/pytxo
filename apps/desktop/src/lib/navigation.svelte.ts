@@ -1,51 +1,82 @@
-export type AppRoute =
+export type CanonicalRoute =
   | "operations"
   | "workspaces"
-  | "runs"
-  | "flow"
+  | "missions"
   | "approvals"
+  | "agents"
+  | "settings";
+
+/** Canonical destinations plus hash aliases kept for deep links and tests. */
+export type AppRoute =
+  | CanonicalRoute
+  | "flow"
+  | "runs"
   | "integrations"
-  | "settings"
   | "topology-focus"
   | "run-review";
 
-export const ROUTE_LABELS: Record<AppRoute, string> = {
-  operations: "Operations",
+export type MissionView = "list" | "compose" | "detail";
+export type MissionPane = "plan" | "live" | "review";
+
+export type ResolvedRoute = {
+  route: CanonicalRoute;
+  missionView: MissionView;
+  missionPane: MissionPane;
+};
+
+export const ROUTE_LABELS: Record<CanonicalRoute, string> = {
+  operations: "Ops",
   workspaces: "Workspaces",
-  runs: "Runs",
-  flow: "Flow",
+  missions: "Missions",
   approvals: "Approvals",
-  integrations: "Integrations",
+  agents: "Agents",
   settings: "Settings",
-  "topology-focus": "Topology Focus",
-  "run-review": "Run Review",
 };
 
 const ROUTE_KEY = "pytxo-desktop-route-v2";
 const RECENTS_KEY = "pytxo-desktop-recents-v2";
 
-function isRoute(value: string | null): value is AppRoute {
-  return value !== null && value in ROUTE_LABELS;
+const ALIAS_TO_CANONICAL: Record<string, ResolvedRoute> = {
+  operations: { route: "operations", missionView: "list", missionPane: "live" },
+  workspaces: { route: "workspaces", missionView: "list", missionPane: "live" },
+  missions: { route: "missions", missionView: "list", missionPane: "live" },
+  approvals: { route: "approvals", missionView: "list", missionPane: "live" },
+  agents: { route: "agents", missionView: "list", missionPane: "live" },
+  settings: { route: "settings", missionView: "list", missionPane: "live" },
+  flow: { route: "missions", missionView: "compose", missionPane: "plan" },
+  runs: { route: "missions", missionView: "list", missionPane: "live" },
+  integrations: { route: "agents", missionView: "list", missionPane: "live" },
+  "topology-focus": { route: "missions", missionView: "detail", missionPane: "plan" },
+  "run-review": { route: "missions", missionView: "detail", missionPane: "review" },
+};
+
+export function resolveRoute(value: string | null | undefined): ResolvedRoute {
+  if (value && value in ALIAS_TO_CANONICAL) return ALIAS_TO_CANONICAL[value];
+  return ALIAS_TO_CANONICAL.operations;
+}
+
+export function isAppRoute(value: string | null): value is AppRoute {
+  return value !== null && value in ALIAS_TO_CANONICAL;
 }
 
 export function routeFromDeepLink(value: string): AppRoute | null {
   try {
     const parsed = new URL(value);
     const target = parsed.hostname || parsed.pathname.replace(/^\//, "");
-    return isRoute(target) ? target : null;
+    return isAppRoute(target) ? target : null;
   } catch {
     return null;
   }
 }
 
-export function initialRoute(): AppRoute {
+export function initialResolvedRoute(): ResolvedRoute {
   const hash = window.location.hash.replace(/^#\/?/, "");
-  if (isRoute(hash)) return hash;
+  if (hash && hash in ALIAS_TO_CANONICAL) return resolveRoute(hash);
   const stored = localStorage.getItem(ROUTE_KEY);
-  return isRoute(stored) ? stored : "operations";
+  return resolveRoute(stored);
 }
 
-export function persistRoute(route: AppRoute) {
+export function persistRoute(route: CanonicalRoute) {
   localStorage.setItem(ROUTE_KEY, route);
   history.replaceState(null, "", `#/${route}`);
 }
@@ -95,6 +126,7 @@ export function removeWorkspaceRecent(domainId: string): WorkspaceRecent[] {
 export type SettingsSectionId =
   | "general"
   | "appearance"
+  | "keyboard"
   | "providers"
   | "workspaces"
   | "agents"
@@ -109,6 +141,7 @@ export function loadSettingsSection(): SettingsSectionId {
   if (
     raw === "general" ||
     raw === "appearance" ||
+    raw === "keyboard" ||
     raw === "providers" ||
     raw === "workspaces" ||
     raw === "agents" ||

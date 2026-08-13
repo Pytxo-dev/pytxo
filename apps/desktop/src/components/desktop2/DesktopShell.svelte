@@ -1,15 +1,26 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { IconActivity, IconChecks, IconFolders, IconPlayerPlay, IconPlugConnected, IconSettings, IconSparkles } from "@tabler/icons-svelte";
+  import {
+    IconActivity,
+    IconChecks,
+    IconFolders,
+    IconSettings,
+    IconTarget,
+    IconTerminal2,
+  } from "@tabler/icons-svelte";
   import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
   import {
     addWorkspaceRecent,
-    initialRoute,
+    initialResolvedRoute,
     migrateWorkspaceRecents,
     persistRoute,
     removeWorkspaceRecent,
+    resolveRoute,
     routeFromDeepLink,
     type AppRoute,
+    type CanonicalRoute,
+    type MissionPane,
+    type MissionView,
     type SettingsSectionId,
     type WorkspaceRecent,
   } from "../../lib/navigation.svelte";
@@ -18,9 +29,10 @@
   import AppBar from "./AppBar.svelte";
   import CommandPalette from "./CommandPalette.svelte";
   import OperationsScreen from "./OperationsScreen.svelte";
-  import FlowScreen from "./FlowScreen.svelte";
-  import CollectionScreen from "./CollectionScreen.svelte";
-  import FocusScreen from "./FocusScreen.svelte";
+  import MissionsScreen from "./MissionsScreen.svelte";
+  import WorkspacesScreen from "./WorkspacesScreen.svelte";
+  import ApprovalsScreen from "./ApprovalsScreen.svelte";
+  import AgentsScreen from "./AgentsScreen.svelte";
   import SettingsScreen from "./SettingsScreen.svelte";
   import WorkspaceSettingsPanel from "./WorkspaceSettingsPanel.svelte";
   import UpdateBanner from "../shell/UpdateBanner.svelte";
@@ -64,7 +76,9 @@
   }
 
   const backend = createDesktopBackend();
-  let route = $state<AppRoute>("operations");
+  let route = $state<CanonicalRoute>("operations");
+  let missionView = $state<MissionView>("list");
+  let missionPane = $state<MissionPane>("live");
   let snapshot = $state<DesktopSnapshot>({ domains: [], runs: [], agents: [], approvals: [], fleets: [], error: null });
   let snapshotFingerprint = $state("");
   let loading = $state(true);
@@ -77,8 +91,6 @@
   let focusRunId = $state<string | null>(null);
   let focusDomainId = $state<string | null>(null);
   let activeDomainId = $state<string | null>(null);
-  let lastPollAt = $state<number | null>(null);
-  let pollLive = $state(false);
   let settingsSection = $state<SettingsSectionId | null>(null);
   let editingWorkspaceId = $state<string | null>(null);
   let voiceModelPath = $state<string | null>(null);
@@ -95,18 +107,18 @@
 
   const primary = [
     { route: "operations" as const, label: "Ops", icon: IconActivity },
-    { route: "workspaces" as const, label: "Spaces", icon: IconFolders },
-    { route: "runs" as const, label: "Runs", icon: IconPlayerPlay },
-    { route: "flow" as const, label: "Flow", icon: IconSparkles },
+    { route: "missions" as const, label: "Missions", icon: IconTarget },
     { route: "approvals" as const, label: "Approvals", icon: IconChecks },
-  ];
-  const system = [
+    { route: "workspaces" as const, label: "Workspaces", icon: IconFolders },
+    { route: "agents" as const, label: "Agents", icon: IconTerminal2 },
     { route: "settings" as const, label: "Settings", icon: IconSettings },
-    { route: "integrations" as const, label: "Integrations", icon: IconPlugConnected },
   ];
-  const commandItems = [...primary, ...system];
+  const system: typeof primary = [];
+  const commandItems = [
+    ...primary,
+    { route: "flow" as const, label: "New mission", icon: IconTarget, aliases: ["flow", "compose"] },
+  ];
 
-  const focusedRun = $derived(snapshot.runs.find((r) => r.id === focusRunId) ?? null);
   const hasActiveRuns = $derived(
     snapshot.runs.some((r) =>
       ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
@@ -115,7 +127,6 @@
 
   function fingerprintSnapshot(snap: DesktopSnapshot): string {
     const domainIds = snap.domains.map((d) => d.domain_id).join(",");
-    // Include status + estimated cost so Ops truth strip / spend refresh when either moves.
     const runSig = snap.runs
       .map((r) => `${r.id}:${r.status}:${r.estimated_cost_usd ?? 0}`)
       .join(",");
@@ -159,25 +170,32 @@
     }
   }
 
-  async function openFlowWindow() {
-    try {
-      await ipc.openFlowWindow();
-    } catch {
-      /* Preview / browser: keep Flow inside the main shell. */
-      route = "flow";
-      persistRoute("flow");
-    }
+  function applyResolved(next: ReturnType<typeof resolveRoute>, persist: boolean) {
+    route = next.route;
+    missionView = next.missionView;
+    missionPane = next.missionPane;
+    if (persist) persistRoute(next.route);
   }
 
   function navigate(next: AppRoute, section?: SettingsSectionId) {
-    if (next === "flow" && !routeOverride) {
-      void openFlowWindow();
-      return;
-    }
-    route = next;
-    persistRoute(next);
-    if (next === "settings" && section) settingsSection = section;
-    else if (next !== "settings") settingsSection = null;
+    applyResolved(resolveRoute(next), true);
+    if (route === "settings" && section) settingsSection = section;
+    else if (route !== "settings") settingsSection = null;
+  }
+
+  function openCompose() {
+    navigate("flow");
+  }
+
+  function openMission(runId: string, pane?: MissionPane) {
+    focusRunId = runId;
+    focusDomainId = domainIdForRun(runId);
+    const found = snapshot.runs.find((r) => r.id === runId);
+    const running = !!found && ["running", "pending", "dispatching", "active"].includes(found.status.toLowerCase());
+    route = "missions";
+    missionView = "detail";
+    missionPane = pane ?? (running ? "live" : "review");
+    persistRoute("missions");
   }
 
   function toggleSidebar() {
@@ -191,26 +209,12 @@
     return snapshot.domains.find((d) => d.repo_root === run.repo_root)?.domain_id ?? null;
   }
 
-  function onFocusRun(runId: string, mode: "topology-focus" | "run-review") {
-    focusRunId = runId;
-    focusDomainId = domainIdForRun(runId);
-    navigate(mode);
-  }
-
-  function onViewTopology(domainId: string) {
-    focusRunId = null;
-    focusDomainId = domainId;
-    navigate("topology-focus");
-  }
-
   async function refreshSnapshot(opts: { silent?: boolean } = {}) {
     try {
-      const opsHeavy =
-        route === "operations" || route === "topology-focus" || route === "run-review";
+      const opsHeavy = route === "operations" || (route === "missions" && missionView === "detail");
       const documentHidden =
         typeof document !== "undefined" && document.visibilityState === "hidden";
-      const idleChrome = !windowFocused || documentHidden || route === "settings" || route === "integrations";
-      // Skip agent enumeration off Ops/Focus or when blurred; cheaper IPC on idle routes.
+      const idleChrome = !windowFocused || documentHidden || route === "settings" || route === "agents";
       const includeAgents = opsHeavy && !idleChrome;
       const next = await backend.loadSnapshot({
         includeAgents,
@@ -221,17 +225,19 @@
       if (nextFp !== snapshotFingerprint) {
         snapshot = next;
         snapshotFingerprint = nextFp;
-        lastPollAt = Date.now();
         void ipc.setTrayNeedsYou(next.approvals.length);
       }
-      pollLive = !next.error;
+      if (missionView === "detail" && !focusRunId && next.runs[0]) {
+        focusRunId = next.runs[0].id;
+        focusDomainId = domainIdForRun(next.runs[0].id);
+      }
       if (next.error && !opts.silent) {
         loadMessage = next.error.message;
       } else if (!next.error && loadMessage && previewState === "default") {
         loadMessage = "";
       }
     } catch {
-      pollLive = false;
+      /* keep last snapshot */
     }
   }
 
@@ -241,11 +247,11 @@
     }
     if (!windowFocused) return SNAPSHOT_POLL_HIDDEN_MS;
     if (route === "operations" && hasActiveRuns) return SNAPSHOT_POLL_ACTIVE_MS;
-    if (route === "settings" || route === "integrations") return SNAPSHOT_POLL_IDLE_MS;
+    if (route === "settings" || route === "agents") return SNAPSHOT_POLL_IDLE_MS;
     return SNAPSHOT_POLL_IDLE_MS;
   }
 
-  async function selectDomain(domainId: string, opts: { route?: AppRoute } = {}) {
+  async function selectDomain(domainId: string, opts: { route?: CanonicalRoute } = {}) {
     const domain = snapshot.domains.find((d) => d.domain_id === domainId);
     if (!domain) return;
     activeDomainId = domainId;
@@ -268,7 +274,8 @@
 
   async function onRunCompleted() {
     await refreshSnapshot();
-    navigate("runs");
+    missionView = "detail";
+    missionPane = "review";
   }
 
   async function stopRunFromOps(runId: string, domainId: string) {
@@ -293,7 +300,6 @@
       await selectDomain(domain.domain_id);
       return;
     }
-    // Catalog row may lag; still trust and select by canonical path.
     try {
       await trustOpenedWorkspace(openedPath);
       await ipc.selectDomain(openedPath);
@@ -378,13 +384,9 @@
     let disposed = false;
     let deepLinkUnlisten: (() => void) | null = null;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
-    route = routeOverride ?? initialRoute();
-    if (!routeOverride && route === "flow") {
-      route = "operations";
-      void openFlowWindow();
-    }
+    applyResolved(routeOverride ? resolveRoute(routeOverride) : initialResolvedRoute(), false);
     const onHashChange = () => {
-      if (!routeOverride) route = initialRoute();
+      if (!routeOverride) applyResolved(initialResolvedRoute(), false);
     };
     const handleDeepLink = (value: string) => {
       const target = routeFromDeepLink(value);
@@ -508,18 +510,10 @@
     <UpdateBanner />
     <AppBar
       {route}
-      approvalsCount={snapshot.approvals.length}
       hypervisorOnline={!snapshot.error}
       activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? activeDomain.domain_id) : null}
       {activeDomainId}
       domains={snapshot.domains}
-      live={pollLive}
-      runningCount={snapshot.runs.filter((r) =>
-        ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
-      ).length}
-      spendUsd={snapshot.runs.reduce((sum, r) => sum + (r.estimated_cost_usd ?? 0), 0)}
-      onOpenHistory={() => navigate("runs")}
-      onOpenNotifications={() => navigate("approvals")}
       onSelectDomain={(id) => void selectDomain(id)}
       onAddWorkspace={() => void addWorkspace()}
       onOpenWorkspaceSettings={(id) => (editingWorkspaceId = id)}
@@ -535,23 +529,52 @@
         <OperationsScreen
           bind:this={operationsScreen}
           {snapshot}
-          live={pollLive}
-          lastPollAt={lastPollAt}
           activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? null) : null}
-          onRoute={navigate}
-          onReviewRun={(runId) => onFocusRun(runId, "run-review")}
+          onNewMission={openCompose}
+          onOpenApprovals={() => navigate("approvals")}
+          onReviewRun={(runId) => openMission(runId)}
           onStopRun={stopRunFromOps}
         />
-      {:else if route === "flow"}
-        <FlowScreen
+      {:else if route === "missions"}
+        <MissionsScreen
+          view={missionView}
+          pane={missionPane}
+          {snapshot}
           {backend}
-          domains={snapshot.domains}
           preferredDomainId={activeDomainId}
+          {focusRunId}
+          {focusDomainId}
+          onView={(next) => {
+            missionView = next;
+            persistRoute("missions");
+          }}
+          onPane={(next) => (missionPane = next)}
+          onOpenMission={openMission}
           onAddWorkspace={addWorkspace}
+          {onRunCompleted}
+          onStopRun={stopRunFromOps}
         />
-      {:else if route === "topology-focus" || route === "run-review"}
-        <FocusScreen mode={route} run={focusedRun} domainId={focusDomainId} onBack={() => navigate("runs")} {onRunCompleted} />
-      {:else if route === "settings"}
+      {:else if route === "workspaces"}
+        <WorkspacesScreen
+          {snapshot}
+          {backend}
+          {activeDomainId}
+          onSelectDomain={selectDomain}
+          onWorkspaceOpened={onWorkspaceOpened}
+          {onDomainForgotten}
+          onEditWorkspace={(id) => (editingWorkspaceId = id)}
+          onNewMission={openCompose}
+        />
+      {:else if route === "approvals"}
+        <ApprovalsScreen
+          {snapshot}
+          {backend}
+          onReviewRun={(runId) => openMission(runId, "review")}
+          onApprovalsChanged={refreshSnapshot}
+        />
+      {:else if route === "agents"}
+        <AgentsScreen {backend} onUseInMission={openCompose} />
+      {:else}
         <SettingsScreen
           initialSection={settingsSection}
           {backend}
@@ -568,21 +591,6 @@
           onInstallVoiceModel={installVoiceModel}
           onEditWorkspace={(id) => (editingWorkspaceId = id)}
           onOpenWorkspaces={() => navigate("workspaces")}
-        />
-      {:else}
-        <CollectionScreen
-          {route}
-          {snapshot}
-          {backend}
-          onRoute={navigate}
-          {activeDomainId}
-          onReviewRun={(runId) => onFocusRun(runId, "run-review")}
-          {onViewTopology}
-          onSelectDomain={selectDomain}
-          onWorkspaceOpened={onWorkspaceOpened}
-          {onDomainForgotten}
-          onApprovalsChanged={refreshSnapshot}
-          onEditWorkspace={(id) => (editingWorkspaceId = id)}
         />
       {/if}
     </div>
@@ -617,12 +625,7 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background: radial-gradient(
-        circle at 80% -10%,
-        color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 8%, transparent),
-        transparent 30%
-      ),
-      var(--pytxo-surface-shell);
+    background: var(--pytxo-surface-shell);
   }
   .content {
     flex: 1;
@@ -637,7 +640,7 @@
   }
   .loading-state div {
     height: 130px;
-    border-radius: 8px;
+    border-radius: 6px;
     background: linear-gradient(90deg, #0f1116, #161920, #0f1116);
     background-size: 200%;
     animation: pulse 1.5s infinite;
@@ -654,7 +657,7 @@
     border-radius: 6px;
     background: #15130e;
     color: #bda26d;
-    font-size: 10px;
+    font-size: 13px;
   }
   .status-banner.error-banner {
     border-color: #452a30;
@@ -679,19 +682,5 @@
     .loading-state div {
       animation: none;
     }
-  }
-
-  :global(html[data-chroma-theme="nebula"]) main {
-    background: radial-gradient(
-        circle at 20% -20%,
-        color-mix(in oklab, var(--brand-magenta) 12%, transparent),
-        transparent 40%
-      ),
-      radial-gradient(
-        circle at 80% -10%,
-        color-mix(in oklab, var(--pytxo-accent, var(--brand-violet)) 10%, transparent),
-        transparent 35%
-      ),
-      var(--pytxo-surface-shell);
   }
 </style>

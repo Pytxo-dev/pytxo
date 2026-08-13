@@ -6,38 +6,40 @@ tags: [presentation, ui, design]
 audience: [human, agent]
 layer: presentation
 created: 2026-06-02
-updated: 2026-07-18
-related: [[presentation-passive-telemetry]], [[product-vision]], [[signal-core]], [[pytxo-improvement-research]]
+updated: 2026-08-13
+related: [[presentation-passive-telemetry]], [[product-vision]], [[signal-core]], [[pytxo-improvement-research]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
 ---
 
 # Pytxo Desktop visual system
 
-**Pytxo Desktop** is the optional control UI — telemetry and structure, not a terminal wall. (Formerly called Reality Deck.)
+**Pytxo Desktop** is the optional control UI — a quiet operator instrument, not a terminal wall and not an analytics dashboard. (Formerly called Reality Deck.)
 
 ## Aesthetic
 
 | Token | Value | Use |
 |-------|-------|-----|
 | **Deep void** | `#020205` | App background, panels |
-| **Teal** | accent | Active runs, healthy agents |
-| **Violet** | accent | Waves, DAG edges |
-| **Solar gold** | accent | Cost, approvals, warnings |
+| **Teal** | only action/live accent | Active runs, primary buttons, healthy live state |
+| **Solar gold** | needs-you / cost | Approvals, spend |
+| **Light** | the other skin | Bright workspace; match-system uses Void or Light |
 
-Typography: crisp system UI or geometric sans; **tabular numbers** for token/cost readouts.
+Typography: Geist + Geist Mono; body/rows **13px**, meta **12px**, kbd **11px**; **tabular numbers** for money and counts. One radius: 4px controls, 6px panels. Motion only for selection, open/close, and status change (140–180ms). Reduced motion already disables animation.
+
+Do **not** ship spectrum hairlines, Terminal/Nebula skins, sparkle CTAs, fake waveforms, orbit rings, or decorative CSS graphs. Desktop overrides live in `apps/desktop` CSS — do not restyle `packages/chroma` in a way that silently restyles the marketing site ([[ADR-0029-chroma-shared-design-tokens]]).
 
 ## Primary surface (shipping)
 
-**Desktop 2** (default): **structural Focus graph** — Signal Core nodes/edges as an interactive list (`FocusScreen.svelte`), plus Ops / Flow / Approvals / Run Review. Per-run **Signal arbitrage** saved-token totals surface via `agent_arbitrage` IPC when samples exist.
+**Desktop 2** (default): **Ops** (today), **Missions** (composer + Plan/Live/Review), **Approvals**, **Workspaces**, **Agents**, **Settings**. Per [[ADR-0035-desktop-2-quiet-instrument-ia]]. Structural files-touched lists live inside Mission Review, not a destination named Topology Focus.
 
 **Legacy shell** (`desktop_shell_v1=true`): optional **3D AST topology** (`TopologyScene3D.svelte`) from [[ADR-0023-reality-deck-3d-renderer]]. Not the default product surface after v0.5.0.
 
-There is **no** shipped `TopologyPanel.svelte` 2D canvas fallback (historical Phase 7 claim; corrected Phase 73).
+There is **no** shipped `TopologyPanel.svelte` 2D canvas fallback.
 
 Supporting panels (not primary):
 
-- Collapsed log stream (legacy shell)
-- Per-agent diff on approve path ([[blast-shield]])
-- Run list and wave timeline
+- Collapsed log (honesty: vendor CLI owns the session)
+- Per-agent diff on the apply path ([[blast-shield]])
+- Mission history table
 
 ## Constraints
 
@@ -47,19 +49,18 @@ Supporting panels (not primary):
 
 ## Repo
 
-Implementation: `apps/desktop`. Theme tokens should live as CSS variables for light/dark void variants later.
+Implementation: `apps/desktop`. Theme tokens as CSS variables; Void and Light only.
 
 ## Status
 
 | Feature | Status |
 |---------|--------|
-| Run / wave / log / diff panels | shipped (legacy + Desktop 2) |
-| Desktop 2 structural Focus | **default** (v0.5.0+) |
-| Signal arbitrage bar on Focus / Review | shipped Phase 73 (`agent_arbitrage`) |
-| Void + neon design system | shipped |
-| 2D `TopologyPanel.svelte` | **removed / never present in current tree** — docs claim retired Phase 73 |
+| Ops / Missions / Approvals loop | **default** (quiet instrument IA) |
+| Mission Plan / Live / Review | shipped with existing Flow IPC |
+| Signal arbitrage as an evidence line | shipped when `agent_arbitrage` samples exist |
+| Void + teal (no spectrum default) | shipped |
+| 2D `TopologyPanel.svelte` | **removed / never present in current tree** |
 | 3D AST topology | legacy shell only (`TopologyScene3D.svelte`) |
 | Closed-loop retry telemetry | shipped — runner emits a `signal-retry` WAL event |
-| Fleet panel in Desktop 2 | **shipped Phase 74** (thin Ops list from `snapshot.fleets`) |
 
 Capture marketing stills under `docs/_attachments/` when needed — not inline base64.
