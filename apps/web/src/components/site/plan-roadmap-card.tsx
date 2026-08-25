@@ -1,14 +1,3 @@
-import { CheckIcon } from "lucide-react";
-
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-
 type PlanRoadmapCardProps = {
   name: string;
   status: string;
@@ -24,25 +13,30 @@ export function PlanRoadmapCard({
   highlights,
   detail,
 }: PlanRoadmapCardProps) {
+  const lamp = statusVariant === "default" ? "live" : "idle";
+
   return (
-    <Card className="h-full border-white/10 bg-card/30">
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <CardTitle className="text-lg">{name}</CardTitle>
-          <Badge variant={statusVariant}>{status}</Badge>
-        </div>
-        <CardDescription className="text-left leading-relaxed">{detail}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
+    <article className="bezel-frame h-full">
+      <div className="bezel-frame__bar">
+        <span className="status-lamp" data-state={lamp} aria-hidden />
+        <span>{status}</span>
+      </div>
+      <div className="flex flex-col gap-3 p-5">
+        <h3 data-slot="card-title" className="text-lg font-semibold tracking-tight">
+          {name}
+        </h3>
+        <p className="text-sm leading-relaxed text-muted-foreground">{detail}</p>
+        <ul className="flex flex-col gap-1.5 font-mono text-[13px] text-foreground">
           {highlights.map((highlight) => (
-            <li key={highlight} className="flex gap-2">
-              <CheckIcon aria-hidden="true" className="size-4 shrink-0 text-primary" />
-              {highlight}
+            <li key={highlight} className="grid grid-cols-[0.75rem_minmax(0,1fr)] gap-2">
+              <span className="text-muted-foreground" aria-hidden>
+                ·
+              </span>
+              <span>{highlight}</span>
             </li>
           ))}
         </ul>
-      </CardContent>
-    </Card>
+      </div>
+    </article>
   );
 }

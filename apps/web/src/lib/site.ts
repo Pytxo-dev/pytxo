@@ -36,7 +36,6 @@ export type NavLink = {
 };
 
 export const NAV_LINKS: NavLink[] = [
-  { href: "/", label: "Home" },
   { href: "/docs", label: "Docs" },
   { href: "/plans", label: "Plans" },
   { href: "/download", label: "Download" },

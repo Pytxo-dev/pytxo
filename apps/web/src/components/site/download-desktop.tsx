@@ -31,22 +31,13 @@ const PLATFORMS = [
     match: (os: DetectedOs) => os === "windows",
   },
   {
-    id: "macos-arm" as const,
+    id: "macos" as const,
     label: "macOS",
     detail: "v1 build not available yet",
     href: DESKTOP_DOWNLOADS.macosArm,
     available: false,
     Icon: AppleIcon,
     match: (os: DetectedOs) => os === "macos",
-  },
-  {
-    id: "macos-intel" as const,
-    label: "macOS",
-    detail: "v1 build not available yet",
-    href: DESKTOP_DOWNLOADS.macosX64,
-    available: false,
-    Icon: AppleIcon,
-    match: () => false,
   },
   {
     id: "linux" as const,

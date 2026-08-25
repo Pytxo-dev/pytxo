@@ -8,6 +8,20 @@
   color: var(--foreground);
 }
 
+/* CTAs are metal. Live and Cue stay lamps / Apply — never the default button. */
+[data-chroma-theme="void"],
+.chassis-shell.dark {
+  --primary: var(--aluminum);
+  --primary-foreground: var(--bezel);
+  --ring: var(--aluminum);
+}
+
+[data-chroma-theme="aluminum"] {
+  --primary: var(--bezel);
+  --primary-foreground: var(--aluminum);
+  --ring: var(--bezel);
+}
+
 .status-lamp {
   display: inline-block;
   width: 6px;

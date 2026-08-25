@@ -138,6 +138,9 @@ test("chassis identity is plex metal, not geist nebula", async ({ page }) => {
   expect(font.toLowerCase()).not.toContain("geist");
   expect(headingColor).toBe("rgb(230, 232, 236)");
   await expect(page.locator(".nebula-bg, .chroma-text, .chroma-glow")).toHaveCount(0);
+  await expect(page.locator('header img[src*="logo"]')).toHaveCount(0);
+  const download = page.locator("header").getByRole("link", { name: "Download", exact: true });
+  await expect(download).toHaveCount(1);
   const cssText = await page.evaluate(() =>
     [...document.styleSheets]
       .flatMap((sheet) => {

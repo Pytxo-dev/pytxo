@@ -6,13 +6,23 @@ Cargo.toml
 Cargo.lock
 rust-toolchain.toml
 
+# Local release and git history
+dist-release/
+dist/
+.git/
+.verification/
+
 # Desktop source is retained because the web asset-parity gate consumes the
 # checked-in deterministic captures during Vercel builds. Exclude only build
-# products and local dependencies.
+# products, local dependencies, and app source that the site does not read.
 apps/desktop/node_modules/
-apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/
+apps/desktop/src/
 apps/desktop/dist/
+apps/desktop/storybook-static/
 apps/desktop-export/
+apps/demo-video/
+apps/docs/
 
 # Tooling / benchmarks
 tooling/
@@ -24,12 +34,14 @@ tests/
 pytxo-cloud-sandbox/
 
 # IDE / local
-.git/
 .pytxo/
 .idea/
 docs/.obsidian/
 
-# Generated web content (rebuilt from docs/ at prebuild)
-apps/web/content/docs/
+# Web install/build products. Keep content/docs — that is the public docs source.
 apps/web/node_modules/
 apps/web/.next/
+apps/web/.docs-vault/
+apps/web/test-results/
+apps/web/.playwright-cli/
+apps/web/output/
