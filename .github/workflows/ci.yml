@@ -184,8 +184,8 @@ jobs:
           npm audit --omit=dev --audit-level=high
           npm run lint
           npx playwright install --with-deps chromium
-          npm run e2e
           npm run build
+          npm run e2e
 
   desktop-frontend:
     runs-on: ubuntu-latest

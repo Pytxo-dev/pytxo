@@ -73,9 +73,9 @@ export default function DownloadPage() {
             <div>
               <h3 className="text-sm font-medium">Install script</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                macOS, Linux, or Windows PowerShell. No Node required.
+                Windows PowerShell is first-class. macOS and Linux scripts are also available. No Node required.
               </p>
-              <InstallSnippet className="mt-3">{`# macOS / Linux\n${INSTALL_SH_CMD}\n\n# Windows PowerShell\n${INSTALL_PS1_CMD}`}</InstallSnippet>
+              <InstallSnippet className="mt-3">{`# Windows PowerShell\n${INSTALL_PS1_CMD}\n\n# macOS / Linux\n${INSTALL_SH_CMD}`}</InstallSnippet>
               <p className="mt-3 text-sm text-muted-foreground">
                 Scripts live in the public{" "}
                 <a

@@ -1,6 +1,5 @@
 import { SiteFooter } from "@/components/site/footer";
 import { SiteHeader } from "@/components/site/header";
-import { NebulaShell } from "@/components/site/nebula-shell";
 
 export default function MarketingLayout({
   children,
@@ -8,12 +7,12 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <NebulaShell className="flex h-dvh flex-col overflow-hidden">
+    <div className="chassis-shell dark min-h-dvh bg-background text-foreground" data-chroma-theme="void">
       <SiteHeader />
-      <main className="marketing-scroll relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <main className="marketing-scroll">
         {children}
         <SiteFooter />
       </main>
-    </NebulaShell>
+    </div>
   );
 }

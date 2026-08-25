@@ -1,25 +1,21 @@
-import { Blocks, Cpu, LayoutDashboard, Plug, Terminal, type LucideIcon } from "lucide-react";
-
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 type Stage = {
   label: string;
   detail: string;
-  icon: LucideIcon;
 };
 
 const PIPELINE: Stage[] = [
-  { label: "Editor or terminal", detail: "Cursor, VS Code, or shell", icon: Terminal },
-  { label: "MCP hub", detail: "Optional local IDE bridge", icon: Plug },
-  { label: "Orchestration", detail: "Rust: projects, permissions, waves", icon: Cpu },
-  { label: "Execution yard", detail: "Claude Code, Codex, and other CLIs", icon: Blocks },
+  { label: "Editor or terminal", detail: "Cursor, VS Code, or shell" },
+  { label: "MCP hub", detail: "Optional local IDE bridge" },
+  { label: "Orchestration", detail: "Rust: projects, permissions, waves" },
+  { label: "Execution yard", detail: "Claude Code, Codex, and other CLIs" },
 ];
 
 const DESKTOP: Stage = {
   label: "Pytxo Desktop",
   detail: "Ops, Missions, Run Review, and recovery",
-  icon: LayoutDashboard,
 };
 
 function PipelineNode({
@@ -31,32 +27,21 @@ function PipelineNode({
   emphasized?: boolean;
   optional?: boolean;
 }) {
-  const Icon = stage.icon;
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-[var(--radius-lg)] border p-4",
-        emphasized ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-background/60",
+        "flex flex-col gap-2 rounded-[4px] border p-4",
+        emphasized ? "border-border bg-card" : "border-border bg-background",
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span
-          className={cn(
-            "flex size-8 items-center justify-center rounded-[var(--radius-md)] border",
-            emphasized
-              ? "border-primary/30 bg-primary/10 text-primary"
-              : "border-border bg-muted/30 text-muted-foreground",
-          )}
-        >
-          <Icon className="size-4" />
-        </span>
+        <p className="text-sm font-medium">{stage.label}</p>
         {optional ? (
           <Badge variant="outline" className="border-border text-[10px] text-muted-foreground">
             Optional
           </Badge>
         ) : null}
       </div>
-      <p className="text-sm font-medium">{stage.label}</p>
       <p className="text-xs text-muted-foreground">{stage.detail}</p>
     </div>
   );
@@ -102,35 +87,24 @@ export function ArchitectureSection() {
 
         <ol className="mt-12 flex flex-col gap-3 lg:hidden">
           {PIPELINE.map((stage) => {
-            const Icon = stage.icon;
             return (
               <li
                 key={stage.label}
-                className="flex items-center gap-4 rounded-[var(--radius-lg)] border border-border bg-background/60 p-4"
+                className="flex flex-col gap-1 rounded-[4px] border border-border bg-background p-4"
               >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-border bg-muted/30 text-muted-foreground">
-                  <Icon className="size-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">{stage.label}</p>
-                  <p className="text-xs text-muted-foreground">{stage.detail}</p>
-                </div>
+                <p className="text-sm font-medium">{stage.label}</p>
+                <p className="text-xs text-muted-foreground">{stage.detail}</p>
               </li>
             );
           })}
-          <li className="ml-4 flex items-center gap-4 rounded-[var(--radius-lg)] border border-primary/30 bg-primary/[0.04] p-4">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-primary/30 bg-primary/10 text-primary">
-              <LayoutDashboard className="size-4" />
-            </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium">{DESKTOP.label}</p>
-                <Badge variant="outline" className="border-border text-[10px] text-muted-foreground">
-                  Optional
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">{DESKTOP.detail}</p>
+          <li className="ml-4 flex flex-col gap-1 rounded-[4px] border border-border bg-card p-4">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium">{DESKTOP.label}</p>
+              <Badge variant="outline" className="border-border text-[10px] text-muted-foreground">
+                Optional
+              </Badge>
             </div>
+            <p className="text-xs text-muted-foreground">{DESKTOP.detail}</p>
           </li>
         </ol>
       </div>

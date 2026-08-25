@@ -119,7 +119,7 @@ export function ProductStory() {
             <article
               key={item.title}
               data-story-card
-              className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-background shadow-[0_24px_70px_-52px_rgba(45,212,191,0.48)]"
+              className="overflow-hidden rounded-[4px] border border-border bg-background"
             >
               <div className="px-5 py-5 sm:px-7 sm:py-6">
                 <h3 className="text-xl font-semibold tracking-tight">{item.title}</h3>

@@ -403,7 +403,7 @@ const End = () => {
           }),
         }}
       >
-        ptyxo.com
+        pytxo.com
       </div>
     </AbsoluteFill>
   );

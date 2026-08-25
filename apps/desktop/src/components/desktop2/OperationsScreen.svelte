@@ -49,6 +49,9 @@
       .filter((run) => ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()))
       .slice(0, 12),
   );
+  const raceWaves = $derived(
+    [...new Set(snapshot.agents.map((agent) => agent.wave))].sort((a, b) => a - b),
+  );
   const contendedAgents = $derived(
     snapshot.agents.filter((agent) => {
       const status = agent.status.toLowerCase();
@@ -224,20 +227,29 @@
       </div>
     </article>
 
-    {#if contendedAgents.length}
-      <article class="panel race-panel">
-        <div class="panel-head">
-          <div><h2>Path locks</h2></div>
-          <span>{contendedAgents.length}</span>
-        </div>
+    <article class="panel race-panel">
+      <div class="panel-head">
+        <div><h2>Path locks</h2></div>
+        <span>{contendedAgents.length}</span>
+      </div>
+      {#if raceWaves.length}
+        <p class="race-waves">Waves {raceWaves.map((wave) => wave + 1).join(" · ")}</p>
+      {/if}
+      {#if contendedAgents.length}
         {#each contendedAgents as agent}
           <div class="race-row">
             <IconLock size={15} />
             <span class="run-copy"><strong>{agent.id}</strong><small>{agent.status} · wave {agent.wave} · {agent.task_id}</small></span>
           </div>
         {/each}
-      </article>
-    {/if}
+      {:else}
+        <div class="empty compact">
+          <IconLock size={18} />
+          <strong>No path locks</strong>
+          <span>Claims and blocked tasks appear here when overlapping paths wait.</span>
+        </div>
+      {/if}
+    </article>
   {/if}
 </section>
 

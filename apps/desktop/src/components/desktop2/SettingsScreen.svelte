@@ -966,7 +966,7 @@
   }
   .provider-env span {
     color: var(--pytxo-success, #52ba9a);
-    font-family: "Geist", sans-serif;
+    font-family: "IBM Plex Sans", sans-serif;
   }
   .provider-badge {
     flex-shrink: 0;
@@ -1048,7 +1048,7 @@
     cursor: pointer;
   }
   .mono {
-    font-family: "Geist Mono", ui-monospace, monospace;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
   }
   select {
     border: 1px solid var(--pytxo-line, #1e2026);

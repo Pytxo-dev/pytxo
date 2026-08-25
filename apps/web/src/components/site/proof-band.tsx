@@ -25,10 +25,9 @@ const MARKS = [
 export function ProofBand() {
   return (
     <section
-      className="relative border-y border-border/80 bg-card/20"
+      className="relative border-y border-border bg-card"
       aria-label="Supported tools and measured proof"
     >
-      <div className="header-chroma-line absolute inset-x-0 top-0" aria-hidden />
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-7 lg:flex-row lg:items-center lg:justify-between lg:px-6 lg:py-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
           <p className="text-sm text-muted-foreground">Works with the tools you already use.</p>
@@ -76,7 +75,7 @@ export function ProofBand() {
         >
           <span
             className="font-mono text-base font-semibold tabular-nums"
-            style={{ color: "var(--brand-teal)" }}
+            style={{ color: "var(--live)" }}
           >
             82.9%
           </span>{" "}

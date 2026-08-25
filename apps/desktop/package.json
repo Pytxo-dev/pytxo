@@ -22,8 +22,8 @@
     "storybook:test:ci": "concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"http-server storybook-static --port 6006 --silent\" \"wait-on tcp:127.0.0.1:6006 && test-storybook --config-dir .storybook --url http://127.0.0.1:6006 --maxWorkers=1\""
   },
   "dependencies": {
-    "@fontsource/geist": "^5.2.9",
-    "@fontsource/geist-mono": "^5.2.8",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
     "@tabler/icons-svelte": "^3.44.0",
     "@tauri-apps/api": "^2.2.0",
     "@tauri-apps/plugin-notification": "^2.2.0",

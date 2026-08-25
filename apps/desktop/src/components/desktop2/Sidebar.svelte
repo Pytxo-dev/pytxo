@@ -50,6 +50,7 @@
 
 <aside class="sidebar" class:collapsed aria-label="Primary sidebar">
   <div class="brand">
+    <img class="brand-mark" src="/logo-mark.png" alt="" width="22" height="22" />
     {#if !collapsed}<div class="brand-copy"><strong>Pytxo</strong><span>Desktop</span></div>{/if}
     <button
       class="collapse-btn"
@@ -168,8 +169,17 @@
     right: 2px;
   }
   .sidebar.collapsed .brand {
+    flex-direction: column;
+    height: auto;
+    gap: 8px;
     justify-content: center;
     padding-inline: 0;
+  }
+  .brand-mark {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 2px;
   }
   .brand-copy {
     display: flex;
@@ -247,7 +257,7 @@
     text-align: left;
   }
   .command-trigger kbd {
-    font: 10px "Geist Mono", monospace;
+    font: 10px "IBM Plex Mono", monospace;
     color: var(--pytxo-text-muted);
     border: 1px solid #2b2e37;
     border-radius: 4px;

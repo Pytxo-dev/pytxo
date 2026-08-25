@@ -63,7 +63,7 @@ export function DownloadDesktop() {
   const os = useSyncExternalStore(subscribeOs, getOsSnapshot, getOsServerSnapshot);
 
   return (
-    <section className="chroma-border rounded-[var(--radius-lg)] border border-border bg-card/20 p-6 sm:p-8">
+    <section className="rounded-[4px] border border-border bg-card p-6 sm:p-8">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">

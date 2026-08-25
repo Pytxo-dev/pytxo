@@ -30,7 +30,7 @@ function NavLabel({ label, badge }: { label: string; badge?: string }) {
       {badge ? (
         <Badge
           variant="outline"
-          className="h-4 border-white/15 bg-card/40 px-1.5 py-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+          className="h-4 border-border bg-card px-1.5 py-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
         >
           {badge}
         </Badge>
@@ -41,8 +41,7 @@ function NavLabel({ label, badge }: { label: string; badge?: string }) {
 
 export function SiteHeader() {
   return (
-    <header className="z-50 shrink-0 border-b border-border bg-background/70 backdrop-blur-xl">
-      <div className="header-chroma-line absolute inset-x-0 top-0 h-px opacity-80" aria-hidden />
+    <header className="sticky top-0 z-50 border-b border-border bg-background">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
           <Image
@@ -64,8 +63,8 @@ export function SiteHeader() {
                   <Link
                     href={link.href}
                     className={cn(
-                      "rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground",
-                      "transition-colors hover:bg-white/5 hover:text-foreground",
+                      "rounded-[2px] px-3 py-1.5 text-sm font-medium text-muted-foreground",
+                      "transition-colors hover:bg-card hover:text-foreground",
                     )}
                   >
                     <NavLabel label={link.label} badge={link.badge} />
@@ -89,7 +88,7 @@ export function SiteHeader() {
                 <span className="sr-only">Open menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="glass-panel border-white/10 w-72">
+            <SheetContent side="right" className="w-72 border-border bg-background">
               <SheetHeader>
                 <SheetTitle>Menu</SheetTitle>
               </SheetHeader>
@@ -98,20 +97,20 @@ export function SiteHeader() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className="rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-white/5"
+                    className="rounded-[2px] px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
                   >
                     <NavLabel label={link.label} badge={link.badge} />
                   </Link>
                 ))}
                 <Link
                   href="/sign-in"
-                  className="rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-white/5"
+                  className="rounded-[2px] px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
                 >
                   Sign in
                 </Link>
                 <Link
                   href="/sign-up"
-                  className="rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-white/5"
+                  className="rounded-[2px] px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
                 >
                   Sign up
                 </Link>

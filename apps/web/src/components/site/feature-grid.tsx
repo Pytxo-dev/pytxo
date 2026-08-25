@@ -1,61 +1,27 @@
 import Link from "next/link";
-import { Braces, GitMerge, ShieldCheck, type LucideIcon } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-
-type Accent = "teal" | "gold" | "violet";
-
-const ACCENT_VAR: Record<Accent, string> = {
-  teal: "var(--brand-teal)",
-  gold: "var(--brand-gold)",
-  violet: "var(--brand-violet)",
-};
-
-type Moat = {
-  title: string;
-  badge: string;
-  description: string;
-  href: string;
-  icon: LucideIcon;
-  accent: Accent;
-  stat?: { value: string; label: string };
-};
-
-const MOATS: Moat[] = [
+const LOOP = [
   {
-    title: "Structure before source",
-    badge: "Signal Core",
-    description:
-      "Starts reads with AST skeletons (signatures, types, and imports) so agents pull full source only when the task needs it.",
-    href: "/docs/concepts/signal-core",
-    icon: Braces,
-    accent: "teal",
-    stat: {
-      value: "82.9%",
-      label:
-        "measured scaffold-byte reduction across 185 tracked production files; model-token and task impact are not measured",
-    },
+    step: "plan",
+    title: "Claim paths",
+    body: "Assign ownership and dependencies before dispatch so overlapping work waits in a later wave.",
   },
   {
-    title: "Prepared changes, one Apply",
-    badge: "Blast Shield",
-    description:
-      "Orbit and Galaxy keep writes isolated. Within one execution domain and one repository root, Pytxo stores target blobs, validates affected paths, and journals Apply.",
-    href: "/docs/concepts/blast-shield",
-    icon: ShieldCheck,
-    accent: "gold",
+    step: "live",
+    title: "Isolate the run",
+    body: "Agents execute in isolated copies. Vendor CLIs keep their own sessions; Pytxo coordinates the yard.",
   },
   {
-    title: "Schedule overlapping paths in order",
-    badge: "Race Shield",
-    description:
-      "Path claims and dependencies become execution waves, so tasks that touch the same area do not run as independent work.",
-    href: "/docs/concepts/race-shield",
-    icon: GitMerge,
-    accent: "violet",
+    step: "review",
+    title: "Inspect one package",
+    body: "Run Review shows the digest, exact file bytes, profile, and path counts for a single repository root.",
   },
-];
+  {
+    step: "apply",
+    title: "Apply or discard",
+    body: "Flush the reviewed package, or throw it away. Nothing lands in the real tree until you say so.",
+  },
+] as const;
 
 const ALSO_INCLUDED = [
   {
@@ -84,87 +50,44 @@ const ALSO_INCLUDED = [
   },
 ] as const;
 
-function MoatCard({ moat, className }: { moat: Moat; className?: string }) {
-  const Icon = moat.icon;
-  const accentVar = ACCENT_VAR[moat.accent];
-
-  return (
-    <div
-      className={cn(
-        "relative flex flex-col gap-4 overflow-hidden rounded-[var(--radius-lg)] border border-border p-6 sm:p-7",
-        className,
-      )}
-      style={{ background: `color-mix(in oklab, ${accentVar} 4%, var(--background))` }}
-    >
-      <div
-        className="absolute inset-x-0 top-0 h-px"
-        style={{ background: `color-mix(in oklab, ${accentVar} 55%, transparent)` }}
-        aria-hidden
-      />
-
-      <div className="flex items-start justify-between gap-3">
-        <span
-          className="flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] border"
-          style={{
-            borderColor: `color-mix(in oklab, ${accentVar} 35%, transparent)`,
-            background: `color-mix(in oklab, ${accentVar} 14%, transparent)`,
-            color: accentVar,
-          }}
-        >
-          <Icon className="size-5" />
-        </span>
-        <Badge variant="secondary" className="shrink-0 bg-white/5">
-          {moat.badge}
-        </Badge>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <h3 className="text-lg font-semibold tracking-tight">{moat.title}</h3>
-        <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-          {moat.description}
-        </p>
-      </div>
-
-      {moat.stat ? (
-        <div className="flex items-baseline gap-2 border-t border-border pt-4">
-          <span
-            className="font-mono text-2xl font-semibold tabular-nums"
-            style={{ color: accentVar }}
-          >
-            {moat.stat.value}
-          </span>
-          <span className="text-xs text-muted-foreground">{moat.stat.label}</span>
-        </div>
-      ) : null}
-
-      <Link
-        href={moat.href}
-        className="mt-auto text-sm font-medium text-primary transition-colors hover:text-foreground"
-      >
-        Learn more
-      </Link>
-    </div>
-  );
-}
-
 export function FeatureGrid() {
-  const [signalCore, blastShield, raceShield] = MOATS;
-
   return (
     <section className="section-pad mx-auto max-w-6xl">
       <div className="flex max-w-2xl flex-col gap-3">
-        <h2 className="text-3xl sm:text-4xl">Controls around repository changes</h2>
+        <h2 className="text-3xl sm:text-4xl">plan | live | review | apply</h2>
         <p className="text-muted-foreground">
-          Pytxo starts reads from syntax structure, isolates agent writes, assigns path
-          ownership, and prepares one package for review.
+          Pytxo coordinates mixed CLIs around one repository root: claim paths, isolate
+          writes, review one package, then Apply or discard.
         </p>
       </div>
 
-      <div className="mt-12 grid gap-4 lg:grid-cols-2">
-        <MoatCard moat={signalCore} className="lg:col-span-2" />
-        <MoatCard moat={blastShield} />
-        <MoatCard moat={raceShield} />
-      </div>
+      <ol className="mt-12 grid gap-px overflow-hidden rounded-[4px] border border-border bg-border sm:grid-cols-4">
+        {LOOP.map((item) => (
+          <li key={item.step} className="flex flex-col gap-3 bg-background p-5 sm:p-6">
+            <p className="font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
+              {item.step}
+            </p>
+            <h3 className="text-base font-semibold tracking-tight">{item.title}</h3>
+            <p className="text-sm leading-relaxed text-muted-foreground">{item.body}</p>
+          </li>
+        ))}
+      </ol>
+
+      <aside className="apply-receipt mt-8 max-w-xl" aria-label="Apply receipt">
+        <p className="apply-receipt__apply">Apply receipt</p>
+        <dl>
+          <dt>Digest</dt>
+          <dd>pkg-71ad-immutable</dd>
+          <dt>Root</dt>
+          <dd>/work/acme</dd>
+          <dt>Profile</dt>
+          <dd>orbit</dd>
+          <dt>Paths</dt>
+          <dd>12 claimed · 3 waiting</dd>
+          <dt>State</dt>
+          <dd>waiting</dd>
+        </dl>
+      </aside>
 
       <div className="mt-16 flex max-w-2xl flex-col gap-3">
         <h3 className="text-2xl font-semibold tracking-tight">
@@ -175,7 +98,7 @@ export function FeatureGrid() {
           around them.
         </p>
       </div>
-      <div className="mt-8 grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-border bg-border sm:grid-cols-2">
+      <div className="mt-8 grid gap-px overflow-hidden rounded-[4px] border border-border bg-border sm:grid-cols-2">
         {ALSO_INCLUDED.map((item) => (
           <div key={item.title} className="flex h-full flex-col gap-3 bg-background p-6">
             <h4 className="font-semibold tracking-tight">{item.title}</h4>

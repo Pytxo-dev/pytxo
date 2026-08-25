@@ -205,7 +205,7 @@
       {/if}
       {#if pane === "review" && run}
         <button class="quiet" disabled={completing} onclick={() => void discardRun()}>Discard</button>
-        <button class="primary" disabled={completing || agentsLoading || !canApply} onclick={() => void applyRun()} title={!allExited ? "All agents must exit successfully with verifies passing before Apply" : applyStatus !== "ready" ? `Run contract is ${applyStatus}` : "Apply all reviewed run changes atomically"}>
+        <button class="primary primary-cue" disabled={completing || agentsLoading || !canApply} onclick={() => void applyRun()} title={!allExited ? "All agents must exit successfully with verifies passing before Apply" : applyStatus !== "ready" ? `Run contract is ${applyStatus}` : "Apply all reviewed run changes atomically"}>
           {#if completing}<IconLoader2 size={16} class="spin" />{:else}<IconCheck size={16} />{/if} Apply
         </button>
       {/if}
@@ -255,35 +255,42 @@
     </article>
   {:else if pane === "live"}
     <article class="panel">
-      <div class="panel-head"><div><h2>Agents</h2></div></div>
+      <div class="panel-head"><div><h2>Live events</h2></div></div>
       {#if agentsLoading}
         <div class="empty"><IconLoader2 size={22} class="spin" /><strong>Loading agents…</strong></div>
       {:else if !agents.length}
-        <div class="empty"><strong>No agents yet</strong><span>Live status appears after dispatch.</span></div>
+        <div class="empty"><strong>No agents yet</strong><span>Scheduler events appear after dispatch. Vendor CLIs keep the PTY.</span></div>
       {:else}
-        {#each agents as agent (agent.id)}
-          <div class="run-row">
-            <span class:running={agent.status === "running"} class="status-dot"></span>
-            <span class="run-copy">
-              <strong>{agent.id}</strong>
-              <small>{agent.status} · stage {agent.wave}{#if agent.exit_code !== null} · exit {agent.exit_code}{/if}</small>
-            </span>
-          </div>
-        {/each}
+        <div class="event-feed" aria-label="Live events">
+          {#each agents as agent (agent.id)}
+            <div class="event-row">
+              <span
+                class="status-lamp"
+                data-state={agent.status === "running" ? "live" : contended.includes(agent) ? "needs-you" : "idle"}
+              ></span>
+              <span class="run-copy">
+                <strong>{agent.id}</strong>
+                <small>{agent.status} · wave {agent.wave} · {agent.task_id}{#if agent.exit_code !== null} · exit {agent.exit_code}{/if}</small>
+              </span>
+            </div>
+          {/each}
+        </div>
       {/if}
+      <div class="panel-head"><div><h2>Path locks</h2></div><span>{contended.length}</span></div>
       {#if contended.length}
-        <div class="panel-head"><div><h2>Path locks</h2></div><span>{contended.length}</span></div>
         {#each contended as agent (agent.id)}
           <div class="race-row">
             <IconShieldLock size={15} />
             <span class="run-copy"><strong>{agent.id}</strong><small>{agent.status} · {agent.task_id}</small></span>
           </div>
         {/each}
+      {:else}
+        <div class="empty compact">
+          <strong>No path locks</strong>
+          <span>Blocked and waiting tasks show here when Race claims overlap.</span>
+        </div>
       {/if}
-      <details class="collapsed-log">
-        <summary>Log</summary>
-        <p>Agent output stays in the vendor CLI session. Pytxo does not mirror a terminal wall here.</p>
-      </details>
+      <p class="honesty">Vendor CLI owns the PTY. This feed is scheduler state, not a terminal wall.</p>
     </article>
   {:else}
     <div class="review-grid">
@@ -301,6 +308,21 @@
           <IconShieldCheck size={19} />
           <p><strong>Sandbox {run.isolation_mode === "copy_on_write" ? "intact" : "not isolated for this run"}</strong><small>Changes stay isolated until you apply.</small></p>
         </div>
+        <aside class="apply-receipt" aria-label="Apply receipt">
+          <p class="apply-receipt__apply">Apply receipt</p>
+          <dl>
+            <dt>Digest</dt>
+            <dd>{review?.prepared_digest ?? run.prepared_digest ?? "—"}</dd>
+            <dt>Root</dt>
+            <dd>{run.repo_root}</dd>
+            <dt>Profile</dt>
+            <dd>{run.permission_profile ?? "orbit"}</dd>
+            <dt>Paths</dt>
+            <dd>{filesTouched.length} files</dd>
+            <dt>State</dt>
+            <dd>{applyStatus}</dd>
+          </dl>
+        </aside>
         {#if savedTokens > 0}
           <p class="honesty">Signal Core saved {savedTokens.toLocaleString()} tokens on this run.</p>
         {/if}
@@ -383,20 +405,12 @@
     gap: 8px;
     align-items: center;
   }
-  .collapsed-log {
-    margin-top: 16px;
-    color: var(--pytxo-text-muted);
-    font-size: 13px;
-  }
-  .collapsed-log summary {
-    cursor: pointer;
-  }
   .diff-raw {
     margin: 12px 0 0;
     padding: 14px;
     max-height: 320px;
     overflow: auto;
-    font: 12px/1.6 "Geist Mono", monospace;
+    font: 12px/1.6 "IBM Plex Mono", monospace;
     color: var(--pytxo-text-body);
     white-space: pre-wrap;
     word-break: break-word;

@@ -31,20 +31,20 @@ export function DemoSection() {
   if (!media) return null;
 
   return (
-    <section className="relative border-t border-white/5 bg-[#020205] px-6 py-20 sm:py-24">
+    <section className="relative border-t border-border bg-background px-6 py-20 sm:py-24">
       <div className="mx-auto max-w-5xl">
         <ScrollReveal>
-          <h2 className="max-w-2xl text-3xl font-semibold tracking-tight text-zinc-50 sm:text-4xl">
+          <h2 className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">
             Watch the reviewed Apply path.
           </h2>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-zinc-400 sm:text-base">
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
             For Orbit and Galaxy in one execution domain and one repository root,
             Run Review shows the prepared package and Apply uses only its stored bytes.
           </p>
         </ScrollReveal>
 
         <ScrollReveal className="mt-10">
-          <div className="relative overflow-hidden rounded-sm border border-white/10 bg-black shadow-[0_0_80px_-20px_rgba(45,212,191,0.25)]">
+          <div className="relative overflow-hidden rounded-[4px] border border-border bg-card">
             {media.kind === "youtube" ? (
               <iframe
                 title="Pytxo demo"

@@ -4,6 +4,7 @@
     IconActivity,
     IconChecks,
     IconFolders,
+    IconPlayerStop,
     IconSettings,
     IconTarget,
     IconTerminal2,
@@ -120,16 +121,74 @@
   ];
   const system: typeof primary = [];
   const domainCursors = new Map<string, number>();
-  const commandItems = [
-    ...primary,
-    { route: "flow" as const, label: "New mission", icon: IconTarget, aliases: ["flow", "compose"] },
-  ];
-
   const hasActiveRuns = $derived(
     snapshot.runs.some((r) =>
       ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
     ),
   );
+  const activeCommandRun = $derived(
+    snapshot.runs.find((r) =>
+      ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+    ) ?? null,
+  );
+  const latestReviewRun = $derived(
+    snapshot.runs.find(
+      (r) =>
+        Boolean(r.prepared_digest) ||
+        r.apply_status === "ready" ||
+        r.apply_status === "waiting" ||
+        r.apply_status === "prepared",
+    ) ??
+      snapshot.runs.find(
+        (r) => !["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+      ) ??
+      null,
+  );
+  const commandItems = $derived([
+    ...primary.map((item) => ({
+      id: item.route,
+      route: item.route,
+      label: item.label,
+      icon: item.icon,
+      group: "Navigate" as const,
+    })),
+    {
+      id: "flow",
+      route: "flow" as const,
+      label: "New mission",
+      icon: IconTarget,
+      aliases: ["flow", "compose"],
+      group: "Navigate" as const,
+    },
+    {
+      id: "stop-run",
+      label: "Stop active run",
+      icon: IconPlayerStop,
+      aliases: ["stop", "kill"],
+      group: "Actions" as const,
+      disabled: !activeCommandRun,
+      hint: activeCommandRun?.id,
+      run: () => {
+        const run = activeCommandRun;
+        if (!run) return;
+        const domainId = domainIdForRun(run.id);
+        if (!domainId) return;
+        void stopRunFromOps(run.id, domainId);
+      },
+    },
+    {
+      id: "open-review",
+      label: "Open latest review",
+      icon: IconChecks,
+      aliases: ["review", "apply"],
+      group: "Actions" as const,
+      disabled: !latestReviewRun,
+      hint: latestReviewRun?.id,
+      run: () => {
+        if (latestReviewRun) openMission(latestReviewRun.id, "review");
+      },
+    },
+  ]);
 
   function defaultPermissionProfile(): string {
     if (typeof localStorage === "undefined") return "orbit";
@@ -677,7 +736,7 @@
     height: 100%;
     background: var(--pytxo-surface-shell);
     color: var(--pytxo-text-strong);
-    font-family: "Geist", Inter, ui-sans-serif, system-ui, sans-serif;
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
     transition: grid-template-columns 150ms ease;
   }
   .desktop2.sidebar-collapsed {

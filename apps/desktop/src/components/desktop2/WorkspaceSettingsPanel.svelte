@@ -374,7 +374,7 @@
     font-size: 12px;
   }
   .mono {
-    font-family: "Geist Mono", ui-monospace, monospace;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
   }
   .danger h3 {
     color: #d98994;

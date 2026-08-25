@@ -7,24 +7,13 @@ import { NPM_INSTALL } from "@/lib/site";
 
 export function Hero() {
   return (
-    <section
-      className="relative overflow-hidden border-b border-border"
-      data-testid="marketing-hero"
-    >
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-[34rem] opacity-60"
-        style={{
-          background:
-            "radial-gradient(circle at 72% 16%, color-mix(in oklab, var(--brand-teal) 16%, transparent), transparent 50%)",
-        }}
-        aria-hidden
-      />
-      <div className="relative mx-auto grid max-w-7xl gap-9 px-4 pb-14 pt-10 sm:px-6 sm:pb-16 sm:pt-14 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] lg:items-center lg:gap-14 lg:pb-20 lg:pt-16">
-        <div className="flex max-w-2xl flex-col gap-5 text-left">
-          <h1 className="max-w-2xl text-[2.5rem] leading-[0.98] tracking-[-0.055em] sm:text-[3.4rem] lg:text-[2.8rem] 2xl:text-[3.2rem]">
-            Coordinate coding agents. <span className="chroma-text">Review one result.</span>
+    <section className="relative border-b border-border" data-testid="marketing-hero">
+      <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-4 pb-10 pt-6 sm:px-6 sm:pb-12 sm:pt-8 lg:grid-cols-[0.86fr_1.14fr] lg:gap-12 lg:pb-12 lg:pt-8">
+        <div className="flex max-w-2xl flex-col gap-4 text-left">
+          <h1 className="max-w-2xl text-[2.15rem] leading-[1.02] tracking-[-0.04em] sm:text-[3.1rem] lg:text-[2.7rem] 2xl:text-[3.1rem]">
+            Coordinate coding agents. Review one result.
           </h1>
-          <p className="max-w-[38rem] text-base leading-relaxed text-muted-foreground sm:text-lg">
+          <p className="max-w-[38rem] text-[0.95rem] leading-relaxed text-muted-foreground sm:text-lg">
             Assign paths and dependencies, run agents in isolated workspaces, then
             approve the exact package prepared for one repository root.
           </p>
@@ -44,19 +33,22 @@ export function Hero() {
           <InstallSnippet className="mt-1 w-full max-w-md">{NPM_INSTALL}</InstallSnippet>
         </div>
 
-        <div
-          className="relative overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card/30 shadow-[0_34px_110px_-54px_rgba(45,212,191,0.5)]"
-          data-testid="hero-product"
-        >
-          <Image
-            src="/product/operations-1600x1000.png"
-            alt="Pytxo Desktop Ops showing Needs you approvals and Running mission rows"
-            width={1600}
-            height={1000}
-            className="h-auto w-full"
-            sizes="(max-width: 1023px) 100vw, 58vw"
-            priority
-          />
+        <div className="bezel-frame">
+          <div className="bezel-frame__bar">
+            <span className="status-lamp" data-state="live" aria-hidden />
+            <span>Ops</span>
+          </div>
+          <div data-testid="hero-product" className="aspect-[16/10] bg-card">
+            <Image
+              src="/product/operations-1600x1000.png"
+              alt="Pytxo Desktop Ops showing Needs you approvals and Running mission rows"
+              width={1600}
+              height={1000}
+              className="h-full w-full object-cover object-top"
+              sizes="(max-width: 1023px) 100vw, 58vw"
+              priority
+            />
+          </div>
         </div>
       </div>
     </section>

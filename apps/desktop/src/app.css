@@ -1,8 +1,9 @@
 @import "tailwindcss";
-@import "@fontsource/geist/400.css";
-@import "@fontsource/geist/500.css";
-@import "@fontsource/geist/600.css";
-@import "@fontsource/geist-mono/400.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
 @import "../../../packages/chroma/tokens.css";
 @import "../../../packages/chroma/utilities.css";
 @import "./deck-scroll.css";
@@ -40,9 +41,9 @@
 :root {
   --text: var(--foreground);
   --void-elevated: var(--card);
-  --accent-teal: var(--brand-teal);
-  --accent-violet: var(--brand-violet);
-  --accent-gold: var(--brand-gold);
+  --accent-teal: var(--live);
+  --accent-violet: var(--cue);
+  --accent-gold: var(--cue);
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -50,16 +51,16 @@
   /* Panel chrome: sharp tabs/titlebar, soft cards/inputs */
   --panel-radius: var(--radius-md);
   --chrome-radius: 0px;
-  --pytxo-obsidian: #07080b;
-  --pytxo-graphite-1: #0d0f13;
-  --pytxo-graphite-2: #15181e;
-  --pytxo-line: #20232a;
-  --pytxo-line-soft: #1c1f25;
-  --pytxo-teal: var(--brand-teal);
-  --pytxo-violet: var(--brand-violet);
-  --pytxo-gold: var(--brand-gold);
-  --pytxo-magenta: var(--brand-magenta);
-  --pytxo-cyan: var(--brand-cyan);
+  --pytxo-obsidian: #14171c;
+  --pytxo-graphite-1: #1e232b;
+  --pytxo-graphite-2: #252b34;
+  --pytxo-line: #3d4450;
+  --pytxo-line-soft: #2a303a;
+  --pytxo-teal: var(--live);
+  --pytxo-violet: var(--cue);
+  --pytxo-gold: var(--cue);
+  --pytxo-magenta: var(--cue);
+  --pytxo-cyan: var(--live);
   --pytxo-red: #df6576;
   /* Semantic shell surfaces (skins remapped below) */
   --pytxo-surface-shell: var(--pytxo-obsidian);
@@ -75,13 +76,13 @@
   --pytxo-success: #52ba9a;
   --pytxo-success-bright: #3cd1a3;
   /* Accent-driven chrome (overridden by data-pytxo-accent) */
-  --pytxo-accent: var(--brand-teal);
-  --pytxo-accent-soft: color-mix(in oklab, var(--brand-teal) 22%, transparent);
+  --pytxo-accent: var(--live);
+  --pytxo-accent-soft: color-mix(in oklab, var(--live) 22%, transparent);
   --pytxo-accent-ink: #06110f;
   --pytxo-hairline: var(--pytxo-line);
   --pytxo-edge: transparent;
-  --pytxo-control-radius: 4px;
-  --pytxo-panel-radius: 6px;
+  --pytxo-control-radius: 2px;
+  --pytxo-panel-radius: 4px;
 }
 
 html[data-chroma-theme="light"] {
@@ -90,11 +91,11 @@ html[data-chroma-theme="light"] {
   --pytxo-graphite-2: #e8ebef;
   --pytxo-line: #d8dde4;
   --pytxo-line-soft: #e2e6ec;
-  --pytxo-teal: var(--brand-teal);
-  --pytxo-violet: var(--brand-violet);
-  --pytxo-gold: var(--brand-gold);
-  --pytxo-magenta: var(--brand-magenta);
-  --pytxo-cyan: var(--brand-cyan);
+  --pytxo-teal: var(--live);
+  --pytxo-violet: var(--cue);
+  --pytxo-gold: var(--cue);
+  --pytxo-magenta: var(--cue);
+  --pytxo-cyan: var(--live);
   --pytxo-red: #c24155;
   --pytxo-surface-shell: #f4f6f8;
   --pytxo-surface-panel: #ffffff;
@@ -121,8 +122,8 @@ html[data-pytxo-accent="custom"] {
 }
 
 html[data-pytxo-accent="teal"] {
-  --pytxo-accent: var(--brand-teal);
-  --pytxo-accent-soft: color-mix(in oklab, var(--brand-teal) 22%, transparent);
+  --pytxo-accent: var(--live);
+  --pytxo-accent-soft: color-mix(in oklab, var(--live) 22%, transparent);
   --pytxo-hairline: var(--pytxo-line);
   --pytxo-edge: transparent;
 }
@@ -164,7 +165,7 @@ body {
 
 body {
   margin: 0;
-  font-family: "Geist", system-ui, -apple-system, sans-serif;
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   background: var(--background);
   color: var(--text);
 }

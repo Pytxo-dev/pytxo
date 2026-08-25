@@ -10,7 +10,7 @@ export default defineConfig({
       $lib: resolve(__dirname, "src/lib"),
     },
   },
-  publicDir: resolve(__dirname, "../web/public"),
+  publicDir: resolve(__dirname, "public"),
   clearScreen: false,
   server: {
     port: 5173,

@@ -41,8 +41,8 @@ export function AgentReadiness() {
             {READY_STATES.map((item) => {
               const Icon = item.icon;
               return (
-                <li key={item.title} className="grid grid-cols-[2rem_1fr] gap-3">
-                  <span className="mt-0.5 flex size-8 items-center justify-center rounded-[var(--radius-md)] border border-primary/25 bg-primary/[0.06] text-primary">
+                <li key={item.title} className="grid grid-cols-[1.25rem_1fr] gap-3">
+                  <span className="mt-1 text-muted-foreground">
                     <Icon className="size-4" aria-hidden />
                   </span>
                   <span>
@@ -65,7 +65,7 @@ export function AgentReadiness() {
         </div>
 
         <div
-          className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card/30 shadow-[0_30px_90px_-58px_rgba(45,212,191,0.52)]"
+          className="overflow-hidden rounded-[4px] border border-border bg-card"
           data-testid="agent-readiness-product"
         >
           <Image

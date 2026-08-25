@@ -1,31 +1,31 @@
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-// Chroma palette — aligned with packages/chroma/tokens.json (source of truth)
-pub const VOID: Color = Color::Rgb(2, 2, 5);
-pub const CARD: Color = Color::Rgb(10, 10, 15);
-pub const TEAL: Color = Color::Rgb(45, 212, 191);
-pub const VIOLET: Color = Color::Rgb(167, 139, 250);
-pub const GOLD: Color = Color::Rgb(251, 191, 36);
-pub const MAGENTA: Color = Color::Rgb(232, 121, 249);
-pub const CYAN: Color = Color::Rgb(34, 211, 238);
-pub const BORDER: Color = Color::Rgb(39, 39, 42);
-pub const MUTED_FG: Color = Color::Rgb(148, 148, 168);
-pub const FOREGROUND: Color = Color::Rgb(232, 234, 237);
-pub const SELECTION_BG: Color = Color::Rgb(30, 20, 46);
+// Chassis palette — aligned with packages/chroma/tokens.json (source of truth)
+pub const VOID: Color = Color::Rgb(20, 23, 28);
+pub const CARD: Color = Color::Rgb(30, 35, 43);
+pub const TEAL: Color = Color::Rgb(63, 143, 122);
+pub const VIOLET: Color = Color::Rgb(224, 106, 58);
+pub const GOLD: Color = Color::Rgb(224, 106, 58);
+pub const MAGENTA: Color = Color::Rgb(224, 106, 58);
+pub const CYAN: Color = Color::Rgb(63, 143, 122);
+pub const BORDER: Color = Color::Rgb(61, 68, 80);
+pub const MUTED_FG: Color = Color::Rgb(154, 163, 176);
+pub const FOREGROUND: Color = Color::Rgb(230, 232, 236);
+pub const SELECTION_BG: Color = Color::Rgb(37, 43, 52);
 
-const CHROMA_CYCLE: [Color; 4] = [MAGENTA, GOLD, CYAN, VIOLET];
+const CHROMA_CYCLE: [Color; 4] = [TEAL, GOLD, TEAL, GOLD];
 
 pub fn border() -> Style {
     Style::default().fg(BORDER)
 }
 
-/// Focused panel border — teal primary accent.
+/// Focused panel border — Live accent.
 pub fn border_focused() -> Style {
     Style::default().fg(TEAL)
 }
 
-/// Splash / welcome chroma cycle only — not for idle shell panels.
+/// Splash / welcome cycle only — Live and Cue, not for idle shell panels.
 pub fn chroma_border(idx: usize) -> Style {
     Style::default().fg(CHROMA_CYCLE[idx % CHROMA_CYCLE.len()])
 }
@@ -63,7 +63,7 @@ pub fn muted() -> Style {
 }
 
 pub fn title() -> Style {
-    Style::default().fg(VIOLET).add_modifier(Modifier::BOLD)
+    Style::default().fg(FOREGROUND).add_modifier(Modifier::BOLD)
 }
 
 pub fn panel_bg() -> Style {
@@ -75,18 +75,18 @@ pub fn header_bg() -> Style {
 }
 
 pub fn ok() -> Style {
-    Style::default().fg(Color::Rgb(74, 222, 128))
+    Style::default().fg(TEAL)
 }
 
 pub fn err() -> Style {
-    Style::default().fg(Color::Rgb(248, 113, 113))
+    Style::default().fg(Color::Rgb(217, 107, 107))
 }
 
 pub fn warn() -> Style {
     chroma_gold()
 }
 
-/// Per-line chroma shift for ASCII banner rows (splash only).
+/// Per-line cycle for ASCII banner rows (splash only).
 #[allow(dead_code)] // Used by richer splash variants; keep for chroma demos.
 pub fn chroma_line(text: &str, line_idx: usize) -> Line<'static> {
     let color = CHROMA_CYCLE[line_idx % CHROMA_CYCLE.len()];
@@ -121,14 +121,14 @@ mod tests {
 
     #[test]
     fn chroma_palette_matches_tokens_json() {
-        assert_eq!(rgb(VOID), (2, 2, 5));
-        assert_eq!(rgb(TEAL), (45, 212, 191));
-        assert_eq!(rgb(VIOLET), (167, 139, 250));
-        assert_eq!(rgb(GOLD), (251, 191, 36));
-        assert_eq!(rgb(MAGENTA), (232, 121, 249));
-        assert_eq!(rgb(CYAN), (34, 211, 238));
-        assert_eq!(rgb(FOREGROUND), (232, 234, 237));
-        assert_eq!(CHROMA_CYCLE[0], MAGENTA);
-        assert_eq!(CHROMA_CYCLE[3], VIOLET);
+        assert_eq!(rgb(VOID), (20, 23, 28));
+        assert_eq!(rgb(TEAL), (63, 143, 122));
+        assert_eq!(rgb(VIOLET), (224, 106, 58));
+        assert_eq!(rgb(GOLD), (224, 106, 58));
+        assert_eq!(rgb(MAGENTA), (224, 106, 58));
+        assert_eq!(rgb(CYAN), (63, 143, 122));
+        assert_eq!(rgb(FOREGROUND), (230, 232, 236));
+        assert_eq!(CHROMA_CYCLE[0], TEAL);
+        assert_eq!(CHROMA_CYCLE[1], GOLD);
     }
 }

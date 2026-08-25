@@ -245,6 +245,6 @@
     background: var(--pytxo-danger, #df6576);
   }
   .mono {
-    font-family: "Geist Mono", ui-monospace, monospace;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
   }
 </style>

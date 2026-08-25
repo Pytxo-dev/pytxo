@@ -6,8 +6,8 @@ tags: [presentation, ui, design]
 audience: [human, agent]
 layer: presentation
 created: 2026-06-02
-updated: 2026-08-13
-related: [[presentation-passive-telemetry]], [[product-vision]], [[signal-core]], [[pytxo-improvement-research]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
+updated: 2026-08-25
+related: [[chassis-identity]], [[presentation-passive-telemetry]], [[product-vision]], [[signal-core]], [[pytxo-improvement-research]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
 ---
 
 # Pytxo Desktop visual system
@@ -16,16 +16,18 @@ related: [[presentation-passive-telemetry]], [[product-vision]], [[signal-core]]
 
 ## Aesthetic
 
+Canonical tokens live in [[chassis-identity]]. Desktop uses the night Chassis:
+
 | Token | Value | Use |
 |-------|-------|-----|
-| **Deep void** | `#020205` | App background, panels |
-| **Teal** | only action/live accent | Active runs, primary buttons, healthy live state |
-| **Solar gold** | needs-you / cost | Approvals, spend |
-| **Light** | the other skin | Bright workspace; match-system uses Void or Light |
+| **Bezel** | `#14171C` | App background |
+| **Plate** | `#1E232B` | Panels |
+| **Live** | `#3F8F7A` | Running, primary actions |
+| **Cue** | `#E06A3A` | Needs-you, Apply |
 
-Typography: Geist + Geist Mono; body/rows **13px**, meta **12px**, kbd **11px**; **tabular numbers** for money and counts. One radius: 4px controls, 6px panels. Motion only for selection, open/close, and status change (140–180ms). Reduced motion already disables animation.
+Typography: IBM Plex Sans + IBM Plex Mono; body/rows **13px**, meta **12px**, kbd **11px**; **tabular numbers** for money and counts. Radius: **2px** controls, **4px** panels. Motion only for selection, open/close, and status change (120–180ms). Reduced motion already disables animation. Signature: 6px status lamp (no glow) and the Apply receipt.
 
-Do **not** ship spectrum hairlines, Terminal/Nebula skins, sparkle CTAs, fake waveforms, orbit rings, or decorative CSS graphs. Desktop overrides live in `apps/desktop` CSS — do not restyle `packages/chroma` in a way that silently restyles the marketing site ([[ADR-0029-chroma-shared-design-tokens]]).
+Do **not** ship spectrum hairlines, Terminal/Nebula skins, sparkle CTAs, fake waveforms, orbit rings, or decorative CSS graphs. Shared tokens are `packages/chroma` ([[ADR-0029-chroma-shared-design-tokens]]).
 
 ## Primary surface (shipping)
 
@@ -60,7 +62,7 @@ Implementation: `apps/desktop`. Theme tokens as CSS variables; Void and Light on
 | Ops / Missions / Approvals loop | **default** (quiet instrument IA) |
 | Mission Plan / Live / Review | shipped with reviewed Apply |
 | Signal arbitrage as an evidence line | shipped when `agent_arbitrage` samples exist |
-| Void + teal (no spectrum default) | shipped |
+| Bezel + Live/Cue (no spectrum default) | shipped |
 | 2D `TopologyPanel.svelte` | **removed / never present in current tree** |
 | 3D AST topology | legacy shell only (`TopologyScene3D.svelte`) |
 | Closed-loop retry telemetry | shipped — runner emits a `signal-retry` WAL event |

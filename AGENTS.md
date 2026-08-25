@@ -4,7 +4,7 @@ Instructions for AI coding agents working in this repository.
 
 ## Project identity
 
-**Pytxo** runs and coordinates the coding agents you already use ([ptyxo.com](https://ptyxo.com)). As a category it is a local **agent hypervisor and telemetry plane**. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) (monorepo: `crates/*` + `apps/desktop`). It schedules headless agents (Claude Code, Codex, Antigravity CLI, …) in background PTYs on local silicon or cloud sandboxes.
+**Pytxo** runs and coordinates the coding agents you already use ([pytxo.com](https://pytxo.com)). As a category it is a local **agent hypervisor and telemetry plane**. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) (monorepo: `crates/*` + `apps/desktop`). It schedules headless agents (Claude Code, Codex, Antigravity CLI, …) in background PTYs on local silicon or cloud sandboxes.
 
 **Stack:** Rust (tokio, portable-pty, tree-sitter) · Svelte 5 (Runes) · Tauri v2
 

@@ -49,7 +49,7 @@ const FAQ = [
   },
   {
     q: "Where are the docs?",
-    a: "Guides live at pytxo.com/docs: install, tutorials, CLI reference, Workspaces, fleet runs, and approval gates.",
+    a: "Guides live at pytxo.com/docs: install, tutorials, CLI reference, Workspaces, fleet runs, and approval gates. ptyxo.com is unrelated.",
   },
 ] as const;
 

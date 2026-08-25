@@ -12,7 +12,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 
 # Pytxo documentation home
 
-**Pytxo** — agent hypervisor & telemetry plane ([ptyxo.com](https://ptyxo.com)).
+**Pytxo** — agent hypervisor & telemetry plane ([pytxo.com](https://pytxo.com)).
 
 **Thesis:** Local inspectable workflow engine for existing agent CLIs — one mission → plan → isolated waves → verify → one reviewable apply ([[mission-loop]]).
 
@@ -54,7 +54,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 
 - [[architecture-index]] — [[three-tier-model]], [[context-diagram]], [[c4-container]]
 - [[v1-1-architecture]] — immutable review bytes, execution-domain serialization, journaled Apply, and exact limits
-- [[presentation-passive-telemetry]] · [[desktop-visual-system]] · [[pytxo-desktop-2-flow-voice]]
+- [[presentation-passive-telemetry]] · [[desktop-visual-system]] · [[chassis-identity]] · [[pytxo-desktop-2-flow-voice]]
 - [[mcp-hub-integration]]
 
 ### Context (agent code materialization)

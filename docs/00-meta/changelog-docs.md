@@ -6,11 +6,17 @@ tags: [meta]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-08-13
+updated: 2026-08-25
 related: [[MOC-home]]
 ---
 
 # Documentation changelog
+
+## 2026-08-25 (Chassis identity)
+
+- Added [[chassis-identity]] as the living visual note for marketing, docs, and Desktop (Bezel / Plate / Aluminum / Live / Cue, IBM Plex). Does not edit [[ADR-0029-chroma-shared-design-tokens]].
+- [[desktop-visual-system]] now defers palette and type to Chassis.
+- Public docs stay curated Fumadocs MDX; `/docs` is a real SSG tree, not the Obsidian vault.
 
 ## 2026-08-13 (v1.1.1 quiet-instrument Desktop)
 

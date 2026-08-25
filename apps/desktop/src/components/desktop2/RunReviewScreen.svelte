@@ -3,7 +3,6 @@
   import {
     IconAlertTriangle,
     IconArrowLeft,
-    IconBinaryTree2,
     IconCheck,
     IconFileMinus,
     IconFilePlus,
@@ -446,7 +445,9 @@
     <div class="review-actions">
       {#if presentation.primaryLabel}
         <button
-          class="primary"
+          class={presentation.primaryAction === "apply" || presentation.primaryAction === "retry"
+            ? "primary primary-cue"
+            : "primary"}
           disabled={actionPending ||
             (presentation.primaryAction !== "refresh" &&
               presentation.primaryAction !== "reconcile" &&
@@ -547,10 +548,13 @@
       <article class="panel evidence-panel">
         <div class="panel-title"><p class="eyebrow">Immutable package</p><h2>Review evidence</h2></div>
         <dl class="evidence-list">
-          <div><dt><IconFingerprint size={14} /> Base revision</dt><dd>{manifest.base_revision}</dd></div>
-          <div><dt><IconShieldCheck size={14} /> Package digest</dt><dd>{review.prepared_digest ?? manifest.package_digest}</dd></div>
-          <div><dt><IconBinaryTree2 size={14} /> Prepared</dt><dd>Prepared {formatPreparedAt(review.prepared_at ?? manifest.prepared_at)}</dd></div>
-          <div><dt>Effective profile</dt><dd>{review.enforcement.run.effective_profile}</dd></div>
+          <div><dt><IconFingerprint size={14} /> Digest</dt><dd>{review.prepared_digest ?? manifest.package_digest}</dd></div>
+          <div><dt><IconShieldCheck size={14} /> Root</dt><dd>{run.repo_root}</dd></div>
+          <div><dt>Profile</dt><dd>{review.enforcement.run.effective_profile}</dd></div>
+          <div><dt>Paths</dt><dd>{manifest.summary.added + manifest.summary.modified + manifest.summary.deleted} · {manifest.summary.added} added · {manifest.summary.modified} modified · {manifest.summary.deleted} deleted</dd></div>
+          <div><dt>State</dt><dd>{presentation.state}</dd></div>
+          <div><dt>Base revision</dt><dd>{manifest.base_revision}</dd></div>
+          <div><dt>Prepared</dt><dd>{formatPreparedAt(review.prepared_at ?? manifest.prepared_at)}</dd></div>
           <div><dt>Execution domain</dt><dd>{review.enforcement.run.execution_domain}</dd></div>
         </dl>
         <div class="receipt-grid">
@@ -799,18 +803,18 @@
     margin: 0;
     overflow: hidden;
     color: #cbd1d7;
-    font: 10px/1.4 "Geist Mono", monospace;
+    font: 10px/1.4 "IBM Plex Mono", monospace;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .receipt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #242a31; }
   .receipt-grid > div { display: grid; grid-template-columns: auto 1fr; gap: 3px 7px; padding: 10px 12px; background: #11151a; }
   .receipt-grid strong { font-size: 11px; }
-  .receipt-grid small { grid-column: 2; color: #8b96a0; font: 9px/1.3 "Geist Mono", monospace; }
+  .receipt-grid small { grid-column: 2; color: #8b96a0; font: 9px/1.3 "IBM Plex Mono", monospace; }
   .receipt-grid p { grid-column: 1 / -1; margin: 4px 0 0; color: #89949f; font-size: 10px; }
-  .receipt-dot { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: #ef6d78; }
-  .receipt-dot.enforced { background: #38d6c1; }
-  .receipt-dot.advisory { background: #e4b65a; }
+  .receipt-dot { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: #616875; }
+  .receipt-dot.enforced { background: var(--live); }
+  .receipt-dot.advisory { background: #8b96a0; }
   .task-list { display: grid; }
   .task-list > div {
     display: grid;
@@ -819,14 +823,14 @@
     padding: 10px 14px;
     border-bottom: 1px solid #20262d;
   }
-  .task-list > div > span { padding: 3px 5px; border-radius: 4px; color: #80cabf; background: #14211f; font: 600 9px/1 "Geist Mono", monospace; }
+  .task-list > div > span { padding: 3px 5px; border-radius: 4px; color: #80cabf; background: #14211f; font: 600 9px/1 "IBM Plex Mono", monospace; }
   .task-list p { display: grid; gap: 2px; margin: 0; min-width: 0; }
   .task-list strong { font-size: 11px; }
-  .task-list small, .task-list em { overflow: hidden; color: #8b96a0; font: 9px/1.35 "Geist Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
+  .task-list small, .task-list em { overflow: hidden; color: #8b96a0; font: 9px/1.35 "IBM Plex Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
   .task-list em { color: #9388ad; }
   .files-title { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
   .summary { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-  .summary span { padding: 4px 6px; border-radius: 4px; background: #151a20; font: 600 9px/1 "Geist Mono", monospace; text-transform: uppercase; }
+  .summary span { padding: 4px 6px; border-radius: 4px; background: #151a20; font: 600 9px/1 "IBM Plex Mono", monospace; text-transform: uppercase; }
   .summary .add { color: #79cdbf; } .summary .modify { color: #d8b66f; } .summary .delete { color: #de8790; }
   .file-list { display: grid; }
   .file-row {
@@ -841,19 +845,19 @@
     align-items: center;
     padding: 10px 14px;
   }
-  .file-row .kind { font: 600 9px/1 "Geist Mono", monospace; text-transform: uppercase; }
+  .file-row .kind { font: 600 9px/1 "IBM Plex Mono", monospace; text-transform: uppercase; }
   .file-row header > div { display: grid; gap: 2px; min-width: 0; }
-  .file-row strong { overflow: hidden; color: #d5dae0; font: 10px/1.4 "Geist Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
+  .file-row strong { overflow: hidden; color: #d5dae0; font: 10px/1.4 "IBM Plex Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
   .file-row small { color: #8b96a0; font-size: 9px; }
-  .inspect-file { padding: 5px 8px; border-color: #34404a; color: #aab4bd; background: #151b20; font: 600 9px/1 "Geist Mono", monospace; text-transform: uppercase; }
+  .inspect-file { padding: 5px 8px; border-color: #34404a; color: #aab4bd; background: #151b20; font: 600 9px/1 "IBM Plex Mono", monospace; text-transform: uppercase; }
   .inspect-file.selected { border-color: #32635b; color: #9ad7cc; background: #14231f; }
   .exact-diff { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #20262d; background: #0d1115; }
   .exact-diff.single { grid-template-columns: 1fr; }
   .diff-side { min-width: 0; border-right: 1px solid #20262d; }
   .diff-side:last-child { border-right: 0; }
   .diff-label { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-bottom: 1px solid #20262d; background: #11161b; }
-  .diff-label span { color: #7f8993; font: 9px/1.4 "Geist Mono", monospace; }
-  .text-content, .binary-content { min-height: 74px; max-height: 320px; margin: 0; padding: 10px; overflow: auto; color: #c8d0d6; background: transparent; font: 10px/1.55 "Geist Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .diff-label span { color: #7f8993; font: 9px/1.4 "IBM Plex Mono", monospace; }
+  .text-content, .binary-content { min-height: 74px; max-height: 320px; margin: 0; padding: 10px; overflow: auto; color: #c8d0d6; background: transparent; font: 10px/1.55 "IBM Plex Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
   .before .text-content { background: rgba(97, 40, 48, .08); }
   .after .text-content { background: rgba(35, 91, 79, .08); }
   .binary-label, .content-loading, .content-error { margin: 0; padding: 9px 10px 0; color: #8c969f; font-size: 10px; }
@@ -864,13 +868,13 @@
   .digest-details dl { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 8px 0 0; }
   .file-row dl div { min-width: 0; }
   .file-row dt { color: #89949f; font-size: 8px; text-transform: uppercase; }
-  .file-row dd { margin: 2px 0 0; overflow: hidden; color: #9da6af; font: 9px/1.2 "Geist Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
-  .bytes { color: #89949f; font: 9px/1 "Geist Mono", monospace; }
+  .file-row dd { margin: 2px 0 0; overflow: hidden; color: #9da6af; font: 9px/1.2 "IBM Plex Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
+  .bytes { color: #89949f; font: 9px/1 "IBM Plex Mono", monospace; }
   .attempt { display: flex; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #20262d; }
   .attempt p { display: grid; gap: 2px; margin: 0; }
   .attempt strong { font-size: 11px; }
   .attempt span { color: #a3acb5; font-size: 10px; }
-  .attempt small { color: #89949f; font: 9px/1.35 "Geist Mono", monospace; }
+  .attempt small { color: #89949f; font: 9px/1.35 "IBM Plex Mono", monospace; }
   .attempt .audit-code { color: #a3acb5; text-transform: uppercase; letter-spacing: .04em; }
   .attempt .audit-code code { color: currentColor; font: inherit; text-transform: none; }
   .attempt.failure { color: #df8992; } .attempt.success { color: #80d1c3; }

@@ -124,6 +124,34 @@ test("agent readiness uses the current Agents product capture", async ({ page })
   await expectNoHorizontalOverflow(page);
 });
 
+test("chassis identity is plex metal, not geist nebula", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const heading = page.getByRole("heading", {
+    level: 1,
+    name: "Coordinate coding agents. Review one result.",
+  });
+  const font = await page.locator("body").evaluate((el) => getComputedStyle(el).fontFamily);
+  const headingColor = await heading.evaluate((el) => getComputedStyle(el).color);
+  expect(font.toLowerCase()).toContain("ibm plex");
+  expect(font.toLowerCase()).not.toContain("geist");
+  expect(headingColor).toBe("rgb(230, 232, 236)");
+  await expect(page.locator(".nebula-bg, .chroma-text, .chroma-glow")).toHaveCount(0);
+  const cssText = await page.evaluate(() =>
+    [...document.styleSheets]
+      .flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      })
+      .join("\n"),
+  );
+  expect(cssText).not.toContain("--brand-violet");
+});
+
 test("desktop storytelling keeps one focused pinned sequence", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");

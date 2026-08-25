@@ -12,7 +12,7 @@ related: [[agent-os-vs-virtual-workspace]], [[signal-core]], [[blast-shield]], [
 
 # Product vision
 
-**Pytxo** ([ptyxo.com](https://ptyxo.com)) coordinates the coding-agent CLIs
+**Pytxo** ([pytxo.com](https://pytxo.com)) coordinates the coding-agent CLIs
 you already use. It assigns task paths and dependencies, runs agents in
 isolated workspaces, and prepares one exact result for review.
 
