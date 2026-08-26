@@ -6,7 +6,8 @@ import { source } from "@/lib/source";
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
-    <div data-chroma-theme="aluminum" className="min-h-dvh bg-background text-foreground">
+    <div data-chroma-theme="void" className="dark min-h-dvh bg-background text-foreground">
+      <span className="chroma-ribbon" aria-hidden />
       <DocsLayout tree={source.getPageTree()} {...baseOptions()}>
         {children}
       </DocsLayout>

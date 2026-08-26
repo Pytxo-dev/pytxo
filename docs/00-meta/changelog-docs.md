@@ -12,6 +12,10 @@ related: [[MOC-home]]
 
 # Documentation changelog
 
+## 2026-08-25 (Chroma ribbon identity)
+
+- Added [[chroma-ribbon-identity]] as the living visual note (Void / Panel / Ink, logo-spectrum ribbon, Sora + Plex Mono). Supersedes [[chassis-identity]]. Does not edit [[ADR-0029-chroma-shared-design-tokens]].
+
 ## 2026-08-25 (Chassis identity)
 
 - Added [[chassis-identity]] as the living visual note for marketing, docs, and Desktop (Bezel / Plate / Aluminum / Live / Cue, IBM Plex). Does not edit [[ADR-0029-chroma-shared-design-tokens]].

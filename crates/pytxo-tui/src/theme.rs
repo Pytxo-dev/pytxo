@@ -1,20 +1,21 @@
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-// Chassis palette — aligned with packages/chroma/tokens.json (source of truth)
-pub const VOID: Color = Color::Rgb(20, 23, 28);
-pub const CARD: Color = Color::Rgb(30, 35, 43);
-pub const TEAL: Color = Color::Rgb(63, 143, 122);
-pub const VIOLET: Color = Color::Rgb(224, 106, 58);
-pub const GOLD: Color = Color::Rgb(224, 106, 58);
-pub const MAGENTA: Color = Color::Rgb(224, 106, 58);
-pub const CYAN: Color = Color::Rgb(63, 143, 122);
-pub const BORDER: Color = Color::Rgb(61, 68, 80);
-pub const MUTED_FG: Color = Color::Rgb(154, 163, 176);
-pub const FOREGROUND: Color = Color::Rgb(230, 232, 236);
-pub const SELECTION_BG: Color = Color::Rgb(37, 43, 52);
+// Chroma ribbon palette — aligned with packages/chroma/tokens.json (source of truth)
+pub const VOID: Color = Color::Rgb(5, 5, 7);
+pub const CARD: Color = Color::Rgb(17, 17, 19);
+pub const TEAL: Color = Color::Rgb(123, 224, 122);
+pub const VIOLET: Color = Color::Rgb(196, 75, 255);
+pub const MAGENTA: Color = Color::Rgb(255, 75, 154);
+pub const ORANGE: Color = Color::Rgb(255, 106, 61);
+pub const GOLD: Color = Color::Rgb(245, 197, 66);
+pub const CYAN: Color = Color::Rgb(62, 224, 208);
+pub const BORDER: Color = Color::Rgb(42, 42, 46);
+pub const MUTED_FG: Color = Color::Rgb(161, 161, 170);
+pub const FOREGROUND: Color = Color::Rgb(237, 237, 239);
+pub const SELECTION_BG: Color = Color::Rgb(24, 24, 27);
 
-const CHROMA_CYCLE: [Color; 4] = [TEAL, GOLD, TEAL, GOLD];
+const CHROMA_CYCLE: [Color; 6] = [VIOLET, MAGENTA, ORANGE, GOLD, TEAL, CYAN];
 
 pub fn border() -> Style {
     Style::default().fg(BORDER)
@@ -25,7 +26,7 @@ pub fn border_focused() -> Style {
     Style::default().fg(TEAL)
 }
 
-/// Splash / welcome cycle only — Live and Cue, not for idle shell panels.
+/// Splash / welcome cycle only — logo spectrum, not for idle shell panels.
 pub fn chroma_border(idx: usize) -> Style {
     Style::default().fg(CHROMA_CYCLE[idx % CHROMA_CYCLE.len()])
 }
@@ -121,14 +122,16 @@ mod tests {
 
     #[test]
     fn chroma_palette_matches_tokens_json() {
-        assert_eq!(rgb(VOID), (20, 23, 28));
-        assert_eq!(rgb(TEAL), (63, 143, 122));
-        assert_eq!(rgb(VIOLET), (224, 106, 58));
-        assert_eq!(rgb(GOLD), (224, 106, 58));
-        assert_eq!(rgb(MAGENTA), (224, 106, 58));
-        assert_eq!(rgb(CYAN), (63, 143, 122));
-        assert_eq!(rgb(FOREGROUND), (230, 232, 236));
-        assert_eq!(CHROMA_CYCLE[0], TEAL);
-        assert_eq!(CHROMA_CYCLE[1], GOLD);
+        assert_eq!(rgb(VOID), (5, 5, 7));
+        assert_eq!(rgb(TEAL), (123, 224, 122));
+        assert_eq!(rgb(VIOLET), (196, 75, 255));
+        assert_eq!(rgb(MAGENTA), (255, 75, 154));
+        assert_eq!(rgb(ORANGE), (255, 106, 61));
+        assert_eq!(rgb(GOLD), (245, 197, 66));
+        assert_eq!(rgb(CYAN), (62, 224, 208));
+        assert_eq!(rgb(FOREGROUND), (237, 237, 239));
+        assert_eq!(CHROMA_CYCLE[0], VIOLET);
+        assert_eq!(CHROMA_CYCLE[1], MAGENTA);
+        assert_eq!(CHROMA_CYCLE.len(), 6);
     }
 }

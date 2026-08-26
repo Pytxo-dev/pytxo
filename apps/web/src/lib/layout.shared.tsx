@@ -1,6 +1,6 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
+import Image from "next/image";
 
-import { ChassisMark } from "@/components/site/chassis-mark";
 import { NAV_LINKS } from "@/lib/site";
 
 export function baseOptions(): BaseLayoutProps {
@@ -8,7 +8,7 @@ export function baseOptions(): BaseLayoutProps {
     nav: {
       title: (
         <>
-          <ChassisMark className="size-[22px] text-foreground" />
+          <Image src="/logo-mark.png" alt="" width={22} height={22} className="size-[22px]" />
           Pytxo
         </>
       ),

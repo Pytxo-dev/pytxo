@@ -7,7 +7,7 @@ audience: [human, agent]
 layer: presentation
 created: 2026-06-02
 updated: 2026-08-25
-related: [[chassis-identity]], [[presentation-passive-telemetry]], [[product-vision]], [[signal-core]], [[pytxo-improvement-research]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
+related: [[chroma-ribbon-identity]], [[chassis-identity]], [[presentation-passive-telemetry]], [[product-vision]], [[signal-core]], [[pytxo-improvement-research]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
 ---
 
 # Pytxo Desktop visual system
@@ -16,18 +16,19 @@ related: [[chassis-identity]], [[presentation-passive-telemetry]], [[product-vis
 
 ## Aesthetic
 
-Canonical tokens live in [[chassis-identity]]. Desktop uses the night Chassis:
+Canonical tokens live in [[chroma-ribbon-identity]]. Desktop night is Void chrome with a 1px spectrum ribbon; Ops surfaces stay monochrome.
 
 | Token | Value | Use |
 |-------|-------|-----|
-| **Bezel** | `#14171C` | App background |
-| **Plate** | `#1E232B` | Panels |
-| **Live** | `#3F8F7A` | Running, primary actions |
-| **Cue** | `#E06A3A` | Needs-you, Apply |
+| **Void** | `#050507` | App background |
+| **Panel** | `#111113` | Panels |
+| **Ink** | `#EDEDEF` | Type and primary buttons |
+| **Live** | `#7BE07A` | Running lamps only |
+| **Cue** | `#FF6A3D` | Needs-you, Apply |
 
-Typography: IBM Plex Sans + IBM Plex Mono; body/rows **13px**, meta **12px**, kbd **11px**; **tabular numbers** for money and counts. Radius: **2px** controls, **4px** panels. Motion only for selection, open/close, and status change (120–180ms). Reduced motion already disables animation. Signature: 6px status lamp (no glow) and the Apply receipt.
+Typography: Sora + IBM Plex Mono; body/rows **13px**, meta **12px**, kbd **11px**; **tabular numbers** for money and counts. Radius: **6px** controls, **8px** panels. Motion only for selection, open/close, and status change (150ms). Ribbon travel 14s, paused when reduced motion. Signature: chroma ribbon on titlebar and active nav; 6px status lamp (no glow) and the Apply receipt.
 
-Do **not** ship spectrum hairlines, Terminal/Nebula skins, sparkle CTAs, fake waveforms, orbit rings, or decorative CSS graphs. Shared tokens are `packages/chroma` ([[ADR-0029-chroma-shared-design-tokens]]).
+Do **not** ship nebula meshes, glow-on-every-heading, Terminal skins, sparkle CTAs, fake waveforms, orbit rings, or decorative CSS graphs. Shared tokens are `packages/chroma` ([[ADR-0029-chroma-shared-design-tokens]]).
 
 ## Primary surface (shipping)
 
@@ -62,7 +63,7 @@ Implementation: `apps/desktop`. Theme tokens as CSS variables; Void and Light on
 | Ops / Missions / Approvals loop | **default** (quiet instrument IA) |
 | Mission Plan / Live / Review | shipped with reviewed Apply |
 | Signal arbitrage as an evidence line | shipped when `agent_arbitrage` samples exist |
-| Bezel + Live/Cue (no spectrum default) | shipped |
+| Void + chroma ribbon on chrome (lamps stay Live/Cue) | shipped |
 | 2D `TopologyPanel.svelte` | **removed / never present in current tree** |
 | 3D AST topology | legacy shell only (`TopologyScene3D.svelte`) |
 | Closed-loop retry telemetry | shipped — runner emits a `signal-retry` WAL event |

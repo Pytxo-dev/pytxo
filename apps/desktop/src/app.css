@@ -1,7 +1,7 @@
 @import "tailwindcss";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/sora/400.css";
+@import "@fontsource/sora/500.css";
+@import "@fontsource/sora/600.css";
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "../../../packages/chroma/tokens.css";
@@ -42,8 +42,8 @@
   --text: var(--foreground);
   --void-elevated: var(--card);
   --accent-teal: var(--live);
-  --accent-violet: var(--cue);
-  --accent-gold: var(--cue);
+  --accent-violet: var(--brand-violet);
+  --accent-gold: var(--brand-gold);
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -51,38 +51,38 @@
   /* Panel chrome: sharp tabs/titlebar, soft cards/inputs */
   --panel-radius: var(--radius-md);
   --chrome-radius: 0px;
-  --pytxo-obsidian: #14171c;
-  --pytxo-graphite-1: #1e232b;
-  --pytxo-graphite-2: #252b34;
-  --pytxo-line: #3d4450;
-  --pytxo-line-soft: #2a303a;
+  --pytxo-obsidian: #050507;
+  --pytxo-graphite-1: #111113;
+  --pytxo-graphite-2: #18181b;
+  --pytxo-line: #2a2a2e;
+  --pytxo-line-soft: #27272a;
   --pytxo-teal: var(--live);
-  --pytxo-violet: var(--cue);
-  --pytxo-gold: var(--cue);
-  --pytxo-magenta: var(--cue);
-  --pytxo-cyan: var(--live);
+  --pytxo-violet: var(--brand-violet);
+  --pytxo-gold: var(--brand-gold);
+  --pytxo-magenta: var(--brand-magenta);
+  --pytxo-cyan: var(--brand-cyan);
   --pytxo-red: #df6576;
   /* Semantic shell surfaces (skins remapped below) */
   --pytxo-surface-shell: var(--pytxo-obsidian);
   --pytxo-surface-panel: var(--pytxo-graphite-1);
   --pytxo-surface-raised: var(--pytxo-graphite-2);
-  --pytxo-surface-hover: #12151a;
-  --pytxo-surface-active: #101816;
-  --pytxo-surface-input: #0e1014;
-  --pytxo-text-body: #cdd1d7;
-  --pytxo-text-muted: #8b929d;
-  --pytxo-text-soft: #767d89;
-  --pytxo-text-strong: #e8eaed;
-  --pytxo-success: #52ba9a;
-  --pytxo-success-bright: #3cd1a3;
+  --pytxo-surface-hover: #0c0c0e;
+  --pytxo-surface-active: #111113;
+  --pytxo-surface-input: #0a0a0c;
+  --pytxo-text-body: #d4d4d8;
+  --pytxo-text-muted: #71717a;
+  --pytxo-text-soft: #a1a1aa;
+  --pytxo-text-strong: #ededef;
+  --pytxo-success: var(--live);
+  --pytxo-success-bright: var(--live);
   /* Accent-driven chrome (overridden by data-pytxo-accent) */
-  --pytxo-accent: var(--live);
-  --pytxo-accent-soft: color-mix(in oklab, var(--live) 22%, transparent);
-  --pytxo-accent-ink: #06110f;
+  --pytxo-accent: var(--ink);
+  --pytxo-accent-soft: color-mix(in oklab, var(--ink) 14%, transparent);
+  --pytxo-accent-ink: var(--void);
   --pytxo-hairline: var(--pytxo-line);
-  --pytxo-edge: transparent;
-  --pytxo-control-radius: 2px;
-  --pytxo-panel-radius: 4px;
+  --pytxo-edge: linear-gradient(90deg, var(--chroma-spectrum));
+  --pytxo-control-radius: 6px;
+  --pytxo-panel-radius: 8px;
 }
 
 html[data-chroma-theme="light"] {
@@ -92,10 +92,10 @@ html[data-chroma-theme="light"] {
   --pytxo-line: #d8dde4;
   --pytxo-line-soft: #e2e6ec;
   --pytxo-teal: var(--live);
-  --pytxo-violet: var(--cue);
-  --pytxo-gold: var(--cue);
-  --pytxo-magenta: var(--cue);
-  --pytxo-cyan: var(--live);
+  --pytxo-violet: var(--brand-violet);
+  --pytxo-gold: var(--brand-gold);
+  --pytxo-magenta: var(--brand-magenta);
+  --pytxo-cyan: var(--brand-cyan);
   --pytxo-red: #c24155;
   --pytxo-surface-shell: #f4f6f8;
   --pytxo-surface-panel: #ffffff;
@@ -112,27 +112,25 @@ html[data-chroma-theme="light"] {
   --pytxo-accent-ink: #ffffff;
 }
 
-/* Accent → shadcn primary/ring so buttons and focus match the shell accent */
+/* Accent drives focus rings and the chrome ribbon, not primary button fills. */
 html[data-pytxo-accent="teal"],
 html[data-pytxo-accent="custom"] {
-  --primary: var(--pytxo-accent);
   --ring: var(--pytxo-accent);
-  --sidebar-primary: var(--pytxo-accent);
   --sidebar-ring: var(--pytxo-accent);
 }
 
 html[data-pytxo-accent="teal"] {
-  --pytxo-accent: var(--live);
-  --pytxo-accent-soft: color-mix(in oklab, var(--live) 22%, transparent);
+  --pytxo-accent: var(--ink);
+  --pytxo-accent-soft: color-mix(in oklab, var(--ink) 14%, transparent);
   --pytxo-hairline: var(--pytxo-line);
-  --pytxo-edge: transparent;
+  --pytxo-edge: linear-gradient(90deg, var(--chroma-spectrum));
 }
 
 html[data-pytxo-accent="custom"] {
   /* --pytxo-accent set inline from Settings color picker */
   --pytxo-accent-soft: color-mix(in oklab, var(--pytxo-accent) 22%, transparent);
   --pytxo-hairline: var(--pytxo-line);
-  --pytxo-edge: transparent;
+  --pytxo-edge: linear-gradient(90deg, var(--chroma-spectrum));
 }
 
 html {
@@ -165,7 +163,7 @@ body {
 
 body {
   margin: 0;
-  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Sora", ui-sans-serif, system-ui, sans-serif;
   background: var(--background);
   color: var(--text);
 }

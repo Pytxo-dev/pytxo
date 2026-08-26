@@ -310,8 +310,8 @@
     outline-offset: 1px;
   }
   nav a.active {
-    background: #17211f;
-    color: #d9fff8;
+    background: var(--pytxo-surface-active, #111113);
+    color: var(--pytxo-text-strong, #ededef);
   }
   nav a.active:before {
     content: "";
@@ -319,8 +319,23 @@
     left: 0;
     width: 2px;
     height: 16px;
-    border-radius: 2px;
-    background: var(--pytxo-accent, var(--pytxo-teal));
+    border-radius: 1px;
+    background-image: linear-gradient(180deg, var(--chroma-spectrum));
+    background-size: 100% 200%;
+    animation: 14s chroma-shift linear infinite;
+  }
+  @keyframes chroma-shift {
+    0% {
+      background-position: 0% 50%;
+    }
+    100% {
+      background-position: 200% 50%;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    nav a.active:before {
+      animation: none;
+    }
   }
   .sidebar.collapsed nav a.active:before {
     display: none;
@@ -463,7 +478,7 @@
 
   :global(html[data-chroma-theme="light"]) nav a.active {
     background: var(--pytxo-surface-active);
-    color: var(--pytxo-accent, var(--pytxo-teal));
+    color: var(--pytxo-text-strong);
   }
   :global(html[data-chroma-theme="light"]) .command-trigger {
     background: var(--pytxo-surface-raised);

@@ -61,7 +61,7 @@ export function FeatureGrid() {
         </p>
       </div>
 
-      <ol className="mt-12 grid gap-px overflow-hidden rounded-[4px] border border-border bg-border sm:grid-cols-4">
+      <ol className="mt-12 grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4">
         {LOOP.map((item) => (
           <li key={item.step} className="flex flex-col gap-3 bg-background p-5 sm:p-6">
             <p className="font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
@@ -98,7 +98,7 @@ export function FeatureGrid() {
           around them.
         </p>
       </div>
-      <div className="mt-8 grid gap-px overflow-hidden rounded-[4px] border border-border bg-border sm:grid-cols-2">
+      <div className="mt-8 grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2">
         {ALSO_INCLUDED.map((item) => (
           <div key={item.title} className="flex h-full flex-col gap-3 bg-background p-6">
             <h4 className="font-semibold tracking-tight">{item.title}</h4>

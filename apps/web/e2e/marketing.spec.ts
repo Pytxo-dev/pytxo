@@ -51,8 +51,8 @@ test("desktop hero leads with the mission and current product evidence", async (
   expect(await renderedLineCount(heading)).toBeLessThanOrEqual(2.2);
 
   const productBox = await product.boundingBox();
-  expect(productBox?.y).toBeLessThan(260);
-  expect(productBox ? productBox.y + productBox.height : 901).toBeLessThan(650);
+  expect(productBox?.y).toBeLessThan(320);
+  expect(productBox ? productBox.y + productBox.height : 901).toBeLessThan(720);
   const proof = page.getByRole("region", {
     name: "Supported tools and measured proof",
   });
@@ -124,7 +124,7 @@ test("agent readiness uses the current Agents product capture", async ({ page })
   await expectNoHorizontalOverflow(page);
 });
 
-test("chassis identity is plex metal, not geist nebula", async ({ page }) => {
+test("chroma identity is sora void, not geist nebula", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
@@ -134,11 +134,13 @@ test("chassis identity is plex metal, not geist nebula", async ({ page }) => {
   });
   const font = await page.locator("body").evaluate((el) => getComputedStyle(el).fontFamily);
   const headingColor = await heading.evaluate((el) => getComputedStyle(el).color);
-  expect(font.toLowerCase()).toContain("ibm plex");
+  expect(font.toLowerCase()).toContain("sora");
   expect(font.toLowerCase()).not.toContain("geist");
-  expect(headingColor).toBe("rgb(230, 232, 236)");
-  await expect(page.locator(".nebula-bg, .chroma-text, .chroma-glow")).toHaveCount(0);
-  await expect(page.locator('header img[src*="logo"]')).toHaveCount(0);
+  expect(headingColor).toBe("rgb(237, 237, 239)");
+  await expect(page.locator(".nebula-bg, .chroma-glow")).toHaveCount(0);
+  await expect(page.locator(".chroma-text")).toHaveCount(1);
+  await expect(page.locator(".chroma-ribbon")).toHaveCount(1);
+  await expect(page.locator('header img[src*="logo"]')).toHaveCount(1);
   const download = page.locator("header").getByRole("link", { name: "Download", exact: true });
   await expect(download).toHaveCount(1);
   const cssText = await page.evaluate(() =>
@@ -152,7 +154,7 @@ test("chassis identity is plex metal, not geist nebula", async ({ page }) => {
       })
       .join("\n"),
   );
-  expect(cssText).not.toContain("--brand-violet");
+  expect(cssText).toContain("--brand-violet");
 });
 
 test("desktop storytelling keeps one focused pinned sequence", async ({ page }) => {

@@ -1,13 +1,13 @@
 # @pytxo/chroma
 
-Shared Pytxo Chassis design tokens and utility classes.
+Shared Pytxo Chroma ribbon tokens and utility classes.
 
-Palette: Bezel / Plate / Aluminum metal, plus Live (running) and Cue (needs-you / Apply).
+Palette: Void / Panel / Ink, plus a logo-spectrum ribbon. Live (running) and Cue (needs-you / Apply) are status only.
 
 ## Files
 
-- `tokens.css` — CSS custom properties (Chassis + semantic dark/aluminum)
-- `utilities.css` — bezel, status lamp, Apply receipt
+- `tokens.css` — CSS custom properties (void night + light)
+- `utilities.css` — ribbon, bezel, status lamp, Apply receipt
 - `tokens.json` — machine-readable palette for Rust TUI sync
 
 ## Usage

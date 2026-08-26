@@ -1,20 +1,22 @@
 ---
 title: Chassis visual identity
 slug: chassis-identity
-status: active
+status: superseded
 tags: [presentation, ui, design]
 audience: [human, agent]
 layer: presentation
 created: 2026-08-25
 updated: 2026-08-25
-related: [[desktop-visual-system]], [[ADR-0029-chroma-shared-design-tokens]], [[product-vision]]
+related: [[chroma-ribbon-identity]], [[desktop-visual-system]], [[ADR-0029-chroma-shared-design-tokens]], [[product-vision]]
 ---
 
 # Chassis visual identity
 
+**Superseded by [[chroma-ribbon-identity]].** Keep this note for history. Do not use Bezel / Aluminum / no-rainbow rules for new UI.
+
 One family for marketing, docs, and Desktop. The metaphor is a **server faceplate**, not a nebula startup and not an ADE cockpit.
 
-This note supersedes the palette, type, and effect rules in [[desktop-visual-system]]. It does not change [[ADR-0029-chroma-shared-design-tokens]] (shared token package); Chassis is the current contents of `packages/chroma`.
+This note is historical. Palette, type, and signature now live in [[chroma-ribbon-identity]]. It does not change [[ADR-0029-chroma-shared-design-tokens]] (shared token package); Chroma ribbon is the current contents of `packages/chroma`.
 
 ## Palette
 

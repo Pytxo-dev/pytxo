@@ -4,10 +4,10 @@
 @import "@clerk/themes/shadcn.css";
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
-@import "@fontsource/ibm-plex-sans/700.css";
+@import "@fontsource/sora/400.css";
+@import "@fontsource/sora/500.css";
+@import "@fontsource/sora/600.css";
+@import "@fontsource/sora/700.css";
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 
@@ -41,10 +41,10 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: 2px;
-  --radius-md: 2px;
-  --radius-lg: 4px;
-  --radius-xl: 4px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -53,12 +53,12 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Sora", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
   --font-heading: var(--font-sans);
-  --radius-2xl: 4px;
-  --radius-3xl: 4px;
-  --radius-4xl: 4px;
+  --radius-2xl: 8px;
+  --radius-3xl: 8px;
+  --radius-4xl: 8px;
 }
 
 @layer base {
@@ -111,7 +111,7 @@
 
   .marketing-scroll {
     scrollbar-width: thin;
-    scrollbar-color: #3d4450 #14171c;
+    scrollbar-color: #2a2a2e #050507;
     scrollbar-gutter: stable;
   }
 
@@ -121,17 +121,17 @@
   }
 
   .marketing-scroll::-webkit-scrollbar-track {
-    background: #14171c;
+    background: #050507;
   }
 
   .marketing-scroll::-webkit-scrollbar-thumb {
-    background: #3d4450;
-    border-radius: 2px;
-    border: 2px solid #14171c;
+    background: #2a2a2e;
+    border-radius: 6px;
+    border: 2px solid #050507;
   }
 
   .marketing-scroll::-webkit-scrollbar-thumb:hover {
-    background: #5c6573;
+    background: #52525b;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -155,5 +155,31 @@
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+[data-chroma-theme="void"] aside a[data-active="true"],
+[data-chroma-theme="void"] [data-sidebar] a[aria-current="page"] {
+  position: relative;
+}
+
+[data-chroma-theme="void"] aside a[data-active="true"]::before,
+[data-chroma-theme="void"] [data-sidebar] a[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 2px;
+  border-radius: 1px;
+  background-image: linear-gradient(180deg, var(--chroma-spectrum));
+  background-size: 100% 200%;
+  animation: chroma-shift 14s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-chroma-theme="void"] aside a[data-active="true"]::before,
+  [data-chroma-theme="void"] [data-sidebar] a[aria-current="page"]::before {
+    animation: none;
   }
 }

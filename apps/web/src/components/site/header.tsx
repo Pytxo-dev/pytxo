@@ -1,9 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { MenuIcon } from "lucide-react";
 
-import { ChassisMark } from "@/components/site/chassis-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,10 +43,17 @@ export function SiteHeader() {
   const desktopLinks = NAV_LINKS.filter((link) => link.href !== "/download");
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background">
+    <header className="sticky top-0 z-50 bg-background">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
-          <ChassisMark className="size-7 text-foreground" />
+          <Image
+            src="/logo-mark.png"
+            alt="Pytxo"
+            width={28}
+            height={28}
+            className="size-7"
+            priority
+          />
           <span className="text-base font-semibold tracking-tight">Pytxo</span>
         </Link>
 
@@ -58,7 +65,7 @@ export function SiteHeader() {
                   <Link
                     href={link.href}
                     className={cn(
-                      "rounded-[2px] px-3 py-1.5 text-sm font-medium text-muted-foreground",
+                      "rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground",
                       "transition-colors hover:bg-card hover:text-foreground",
                     )}
                   >
@@ -92,20 +99,20 @@ export function SiteHeader() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className="rounded-[2px] px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
+                    className="rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
                   >
                     <NavLabel label={link.label} badge={link.badge} />
                   </Link>
                 ))}
                 <Link
                   href="/sign-in"
-                  className="rounded-[2px] px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
+                  className="rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
                 >
                   Sign in
                 </Link>
                 <Link
                   href="/sign-up"
-                  className="rounded-[2px] px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
+                  className="rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
                 >
                   Sign up
                 </Link>
@@ -114,6 +121,7 @@ export function SiteHeader() {
           </Sheet>
         </div>
       </div>
+      <span className="chroma-ribbon" aria-hidden />
     </header>
   );
 }

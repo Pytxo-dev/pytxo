@@ -8,10 +8,11 @@ import { NPM_INSTALL } from "@/lib/site";
 export function Hero() {
   return (
     <section className="relative border-b border-border" data-testid="marketing-hero">
-      <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-4 pb-10 pt-6 sm:px-6 sm:pb-12 sm:pt-8 lg:grid-cols-[0.86fr_1.14fr] lg:gap-12 lg:pb-12 lg:pt-8">
-        <div className="flex max-w-2xl flex-col gap-4 text-left">
-          <h1 className="max-w-2xl text-[2.15rem] leading-[1.02] tracking-[-0.04em] sm:text-[3.1rem] lg:text-[2.7rem] 2xl:text-[3.1rem]">
-            Coordinate coding agents. Review one result.
+      <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 pb-20 pt-14 sm:px-6 sm:pb-24 sm:pt-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-14 lg:pb-28 lg:pt-20">
+        <div className="flex max-w-2xl flex-col gap-5 text-left">
+          <h1 className="max-w-2xl text-pretty text-[2.15rem] leading-[1.05] tracking-[-0.04em] sm:text-[2.85rem] lg:text-[2.55rem] 2xl:text-[2.9rem]">
+            Coordinate coding agents. Review one{" "}
+            <span className="chroma-text">result</span>.
           </h1>
           <p className="max-w-[38rem] text-[0.95rem] leading-relaxed text-muted-foreground sm:text-lg">
             Assign paths and dependencies, run agents in isolated workspaces, then
@@ -33,7 +34,7 @@ export function Hero() {
           <InstallSnippet className="mt-1 w-full max-w-md">{NPM_INSTALL}</InstallSnippet>
         </div>
 
-        <div className="bezel-frame">
+        <div className="bezel-frame bezel-frame--ribbon">
           <div className="bezel-frame__bar">
             <span className="status-lamp" data-state="live" aria-hidden />
             <span>Ops</span>
