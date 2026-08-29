@@ -22,14 +22,14 @@ for (const deviceScaleFactor of DEVICE_SCALE_FACTORS) {
       test(`keeps ${userScale.label} user zoom independent from simulated DPI`, async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/");
-        await expect(page.getByRole("heading", { name: /^Ops/ })).toBeVisible();
+        await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
 
         await openAppearance(page);
         await setBrowserPreviewScale(page, userScale.label);
         await expectRootZoom(page, userScale.value);
         expect(await page.evaluate(() => window.devicePixelRatio)).toBe(deviceScaleFactor);
 
-        await page.getByRole("link", { name: "Ops" }).click();
+        await page.getByRole("link", { name: "Work" }).click();
         const pageOverflow = await rootOverflow(page);
         expect(pageOverflow.horizontal).toBeLessThanOrEqual(1);
         expect(pageOverflow.vertical).toBeLessThanOrEqual(1);
@@ -38,49 +38,50 @@ for (const deviceScaleFactor of DEVICE_SCALE_FACTORS) {
         await expect(page.getByRole("button", { name: "Maximize" })).toBeVisible();
         await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
 
-        const activeRun = page.locator(".run-row").filter({ hasText: "run-8f2c" });
-        await activeRun.scrollIntoViewIfNeeded();
-        await expect(activeRun).toBeVisible();
-        await expect(activeRun).toBeInViewport();
+        // The ledger row is the operator's primary target, so it has to stay in
+        // the viewport at every DPI and zoom combination.
+        const ledgerRow = page.locator(".ledger .row").first();
+        await ledgerRow.scrollIntoViewIfNeeded();
+        await expect(ledgerRow).toBeVisible();
+        await expect(ledgerRow).toBeInViewport();
 
-        const stopReview = page.getByRole("button", { name: "Review stop for run run-8f2c" });
-        await stopReview.scrollIntoViewIfNeeded();
-        await expect(stopReview).toBeVisible();
-        await expect(stopReview).toBeInViewport();
-        await stopReview.click();
+        const stop = page.getByRole("button", { name: "Stop", exact: true });
+        await stop.scrollIntoViewIfNeeded();
+        await expect(stop).toBeInViewport();
+        await stop.click();
 
-        const dialog = page.getByRole("dialog", { name: "Stop active run?" });
-        await expect(dialog).toBeVisible();
-        const footerOverflow = await dialog.locator("footer").evaluate(
+        const stopDialog = page.locator("dialog.confirm-dialog");
+        await expect(stopDialog).toBeVisible();
+        const actionsOverflow = await stopDialog.locator(".dialog-actions").evaluate(
           (element) => element.scrollWidth - element.clientWidth,
         );
-        expect(footerOverflow).toBeLessThanOrEqual(1);
-        await expect(dialog.getByRole("button", { name: "Stop run" })).toBeVisible();
-        await dialog.getByRole("button", { name: "Keep running" }).click();
+        expect(actionsOverflow).toBeLessThanOrEqual(1);
+        await expect(stopDialog.getByRole("button", { name: "Stop run" })).toBeVisible();
+        await stopDialog.getByRole("button", { name: "Keep running" }).click();
 
-        await page.getByRole("link", { name: "Approvals" }).click();
-        await expect(page.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
-        const evidence = page.locator(".decision-evidence");
-        const actions = page.locator(".decision-actions");
-        await evidence.scrollIntoViewIfNeeded();
-        await expect(evidence).toBeVisible();
-        await expect(evidence).toBeInViewport();
-        await actions.scrollIntoViewIfNeeded();
-        await expect(actions).toBeVisible();
-        await expect(actions).toBeInViewport();
-        for (const overflow of await Promise.all(
-          [evidence, actions].map((locator) => locator.evaluate((element) => element.scrollWidth - element.clientWidth)),
-        )) {
-          expect(overflow).toBeLessThanOrEqual(1);
+        // Approvals are an overlay now, reachable from the title bar.
+        await page.getByRole("button", { name: /^Approvals inbox/ }).click();
+        const inbox = page.getByRole("dialog", { name: "Approvals inbox" });
+        await expect(inbox).toBeVisible();
+        await expect(inbox.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
+
+        const evidence = inbox.locator(".evidence");
+        const actions = inbox.locator(".actions");
+        for (const region of [evidence, actions]) {
+          await region.scrollIntoViewIfNeeded();
+          await expect(region).toBeVisible();
+          await expect(region).toBeInViewport();
+          expect(
+            await region.evaluate((element) => element.scrollWidth - element.clientWidth),
+          ).toBeLessThanOrEqual(1);
         }
-        const reviewLatestRun = page.getByRole("button", { name: "Review latest run" });
-        await reviewLatestRun.scrollIntoViewIfNeeded();
-        await expect(reviewLatestRun).toBeVisible();
-        await expect(reviewLatestRun).toBeInViewport();
-        const approveAndFlush = page.getByRole("button", { name: "Approve and apply" });
-        await approveAndFlush.scrollIntoViewIfNeeded();
-        await expect(approveAndFlush).toBeVisible();
-        await expect(approveAndFlush).toBeInViewport();
+
+        const reviewRun = inbox.getByRole("button", { name: "Review run" });
+        await reviewRun.scrollIntoViewIfNeeded();
+        await expect(reviewRun).toBeInViewport();
+        const approveAndApply = inbox.getByRole("button", { name: /Approve and apply/ });
+        await approveAndApply.scrollIntoViewIfNeeded();
+        await expect(approveAndApply).toBeInViewport();
       });
     }
   });

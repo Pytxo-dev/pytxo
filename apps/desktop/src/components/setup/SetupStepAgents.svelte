@@ -168,7 +168,7 @@
   }
   .agent b {
     color: var(--muted-foreground);
-    font-size: 0.68rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;

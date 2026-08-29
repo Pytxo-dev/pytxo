@@ -335,7 +335,7 @@ const Operations = () => {
   return (
     <AbsoluteFill style={{fontFamily: "Geist Variable, Geist, sans-serif"}}>
       <ProductShot
-        src="product/operations-1920x1080.png"
+        src="product/work-1920x1080.png"
         cropAt={2 * FPS}
         cropTo={1.12}
         origin="75% 54%"
@@ -356,7 +356,7 @@ const End = () => {
         opacity: interpolate(frame, [0, CONTEXT_DISSOLVE_FRAMES - 1], [0, 1], clamp),
       }}
     >
-      <ProductShot src="product/operations-1920x1080.png" cropTo={1.04} />
+      <ProductShot src="product/work-1920x1080.png" cropTo={1.04} />
       <AbsoluteFill style={{backgroundColor: "rgba(2,4,6,.84)"}} />
       <div style={{position: "absolute", left: 144, top: 122}}>
         <Logo />

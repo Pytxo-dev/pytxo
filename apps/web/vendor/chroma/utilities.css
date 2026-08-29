@@ -21,40 +21,24 @@
   --ring: var(--void);
 }
 
+/*
+ * The spectrum is brand identity only. It carries no state and does not animate:
+ * a perpetual loop in persistent chrome competes with real signal, and a moving
+ * rainbow reads as system activity when nothing is happening.
+ */
 .chroma-ribbon {
   display: block;
   height: 1px;
   width: 100%;
   border: 0;
   background-image: linear-gradient(90deg, var(--chroma-spectrum));
-  background-size: 200% 100%;
-  animation: chroma-shift 14s linear infinite;
 }
 
 .chroma-text {
   background-image: linear-gradient(90deg, var(--chroma-spectrum));
-  background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: chroma-shift 14s linear infinite;
-}
-
-@keyframes chroma-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-  100% {
-    background-position: 200% 50%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chroma-ribbon,
-  .chroma-text {
-    animation: none;
-    background-position: 0% 50%;
-  }
 }
 
 .status-lamp {
@@ -70,8 +54,10 @@
   background: var(--live);
 }
 
+/* Attention has its own channel. It must never share a hue with `unknown`
+   (absence of evidence) or `refuted` (evidence of failure). */
 .status-lamp[data-state="needs-you"] {
-  background: var(--cue);
+  background: var(--state-attention);
 }
 
 .status-lamp[data-state="idle"] {
@@ -90,15 +76,7 @@
   background:
     linear-gradient(var(--plate, var(--card)), var(--plate, var(--card))) padding-box,
     linear-gradient(90deg, var(--chroma-spectrum)) border-box;
-  background-size: auto, 200% 100%;
   border: 1px solid transparent;
-  animation: chroma-shift 14s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bezel-frame--ribbon {
-    animation: none;
-  }
 }
 
 .bezel-frame__bar {

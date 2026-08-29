@@ -6,8 +6,8 @@ tags: [orchestration, product, mission]
 audience: [human, agent]
 layer: orchestration
 created: 2026-07-27
-updated: 2026-08-13
-related: [[product-vision]], [[ADR-0031-mission-planner-byok-scout]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]], [[signal-core]], [[blast-shield]], [[race-shield]], [[dag-flow-engine]], [[pytxo-improvement-research]]
+updated: 2026-08-27
+related: [[product-vision]], [[commit-layer]], [[ADR-0031-mission-planner-byok-scout]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]], [[ADR-0036-effect-contract-commit-boundary]], [[signal-core]], [[blast-shield]], [[race-shield]], [[dag-flow-engine]], [[pytxo-improvement-research]]
 ---
 
 # Mission loop
@@ -15,6 +15,10 @@ related: [[product-vision]], [[ADR-0031-mission-planner-byok-scout]], [[ADR-0034
 Pytxo’s primary product loop turns one engineering mission into an inspectable
 plan, isolated agent waves, real verification, and one reviewable run-level
 Apply.
+
+This is the shipping repository specialization of the broader [[commit-layer]]
+vision. It controls exact file effects inside one repository root; it does not
+yet authorize, execute, or verify production API effects.
 
 ```text
 one mission → proposed plan → human edit/approve → isolated execution

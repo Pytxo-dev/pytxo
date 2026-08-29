@@ -4,7 +4,14 @@ Instructions for AI coding agents working in this repository.
 
 ## Project identity
 
-**Pytxo** runs and coordinates the coding agents you already use ([pytxo.com](https://pytxo.com)). As a category it is a local **agent hypervisor and telemetry plane**. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) (monorepo: `crates/*` + `apps/desktop`). It schedules headless agents (Claude Code, Codex, Antigravity CLI, …) in background PTYs on local silicon or cloud sandboxes.
+**Pytxo** is becoming the **commit layer for autonomous work**: the boundary
+that authorizes an exact effect, verifies the resulting state, and records an
+honest recovery path ([pytxo.com](https://pytxo.com)). The shipping beachhead is
+a local agent hypervisor for repository changes. It schedules headless agents
+(Claude Code, Codex, Antigravity CLI, …) in background PTYs, isolates their
+work, and prepares exact bytes for reviewed Apply. Source:
+[github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) (monorepo:
+`crates/*` + `apps/desktop`).
 
 **Stack:** Rust (tokio, portable-pty, tree-sitter) · Svelte 5 (Runes) · Tauri v2
 
@@ -12,9 +19,18 @@ Instructions for AI coding agents working in this repository.
 
 **Canonical vision:** [`docs/06-product/vision.md`](docs/06-product/vision.md)
 
-**Not:** BridgeSpace-style multi-terminal web workspaces (ADEs). **Is:** bare-metal control plane + optional **Pytxo Desktop** for Flow, Operations, approvals, review, and structural Focus. The MCP hub remains available to agents and editors.
+**Not:** BridgeSpace-style multi-terminal web workspaces (ADEs), a proprietary
+model router, generic workflow engine, or universal undo layer. **Is today:** a
+bare-metal execution yard plus reviewed repository commit boundary and optional
+**Pytxo Desktop** for Work, History, and Setup, carrying the run ledger,
+enforcement receipts, approvals, and review. **North star:** typed effect
+contracts at the boundary to production
+systems ([commit layer](docs/02-areas/orchestration/commit-layer.md)). The MCP
+hub remains available to agents and editors.
 
-**Three moats** — route new orchestration code through these concepts:
+**Current control primitives** — route new orchestration code through these
+concepts; future differentiation comes from effect semantics, evidence, and
+recovery depth:
 
 | Plain language | Moat | Doc | Responsibility |
 |----------------|------|-----|----------------|
@@ -30,6 +46,7 @@ Instructions for AI coding agents working in this repository.
 |---------|-----|----------------|
 | Permission Profile Engine | [`docs/02-areas/security/permission-profile-engine.md`](docs/02-areas/security/permission-profile-engine.md) | Four-tier local capability ladder (`PermissionProfile`) |
 | Execution domains | [`docs/02-areas/orchestration/execution-domains.md`](docs/02-areas/orchestration/execution-domains.md) | `HypervisorRegistry`, per-repo WAL separation |
+| Commit layer | [`docs/02-areas/orchestration/commit-layer.md`](docs/02-areas/orchestration/commit-layer.md) | Proposed effect contract, prepare/commit, verification, evidence, and recovery boundary |
 
 When changing `pytxo-runner` or `pytxo-orchestrate`, declare which **permission profile** and **execution domain** scope applies. ADR: [`docs/05-adr/ADR-0008-local-permission-profile-four-tiers.md`](docs/05-adr/ADR-0008-local-permission-profile-four-tiers.md).
 
@@ -92,11 +109,15 @@ npm run build:native  # builds the frontend, then the release Desktop artifact
 
 | Term | Meaning |
 |------|---------|
+| **Commit layer** | Boundary that authorizes, commits, verifies, and records consequential agent effects |
+| **Effect contract** | Typed commitment covering identity, state, authority, evidence, and recovery |
 | **Signal Core** | Smarter context via AST skeletons on read |
 | **Blast Shield** | Safe sandbox; flush on user approve |
 | **Race Shield** | Global swarm registry; collision-free writes |
 | **Execution Yard** | Headless CLI agent processes under orchestration |
-| **Pytxo Desktop** | Optional control UI for Flow, Ops, approvals, review, and structural Focus; 3D topology is legacy/secondary (formerly Reality Deck) |
+| **Pytxo Desktop** | Optional control UI with three destinations — Work, History, Setup — plus a title-bar workspace switcher and an approvals overlay; 3D topology is legacy/secondary (formerly Reality Deck) |
+| **Epistemic state** | The four states every rendered state resolves to: verified, claimed, unknown, refuted ([`ADR-0038`](docs/05-adr/ADR-0038-epistemic-state-contract.md)) |
+| **Enforcement receipt** | `PermissionEnforcementReceipt`: four isolation surfaces, each with a status and mechanism, per run and per agent |
 | **Workspace** | One or more project folders under one coordinated run |
 | **BYOK** | Bring your own API keys (including Pytxo Cloud) |
 | **Sovereign Shield** | Sanitization + cryptographic remote actions |
@@ -108,7 +129,12 @@ Full glossary: [`docs/00-meta/glossary.md`](docs/00-meta/glossary.md).
 
 ## Competitive framing
 
-IDE-embedded agent teams solve coordination in-product. Pytxo differentiates on **hypervisor moats** (Signal / Blast / Race), DAG scheduling, and structural telemetry — see [`docs/07-guides/compare/pytxo-vs-claude-agent-teams.md`](docs/07-guides/compare/pytxo-vs-claude-agent-teams.md).
+IDE-embedded agent teams solve coordination in-product. Pytxo's current proof
+is a vendor-neutral, reviewed repository Apply over its Signal / Blast / Race
+controls. Its proposed wider differentiation is effect-bound authority,
+independent post-state verification, causal evidence, and honest recovery — see
+[`docs/06-product/vision.md`](docs/06-product/vision.md) and
+[`docs/01-projects/pytxo-commit-layer-alignment.md`](docs/01-projects/pytxo-commit-layer-alignment.md).
 
 ## Cursor-specific
 

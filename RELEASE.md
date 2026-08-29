@@ -7,6 +7,16 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
+# Pytxo v1.2.0
+
+Desktop destinations are Work, History, and Setup. The website is an
+evidence-ledger narrative with `/evidence`. Reviewed Apply is unchanged.
+See [`distribution/release-notes/v1.2.0.md`](distribution/release-notes/v1.2.0.md).
+
+Previous: [`v1.1.1`](distribution/release-notes/v1.1.1.md).
+
+---
+
 # Pytxo v1.1.1 (release preparation)
 
 Quiet-instrument Desktop: Ops, Missions, Approvals, Workspaces, Agents, and

@@ -1,13 +1,21 @@
 ---
 title: Introduction
-description: Pytxo is a local agent hypervisor for the coding agents you already use.
+description: Pytxo is a reviewed commit layer for the coding agents you already use.
 ---
 
-**Pytxo** is a local **agent hypervisor** for developers who already run multiple coding agents on substantial repos and are hitting collisions, unsafe writes, or vendor fragmentation.
+**Pytxo** is a reviewed commit layer for developers who already run multiple
+coding agents on substantial repos and are hitting collisions, unsafe writes,
+or vendor fragmentation.
 
 It schedules the agents you already use (Claude Code, Codex, Cursor CLI, or any shell command). Overlapping path claims wait for a later wave. Eligible Orbit and Galaxy runs prepare isolated changes for Run Review before Apply.
 
-Pytxo is not an IDE or a managed cloud workspace. Keep your editor. Connect through the local MCP hub, or use **Pytxo Desktop** for Ops, Missions, and Approvals.
+Pytxo is not an IDE or a managed cloud workspace. Keep your editor. Connect through the local MCP hub, or use **Pytxo Desktop** for Work, History, and Setup.
+
+Today the commit boundary is one repository root: Pytxo prepares exact bytes,
+checks affected-path state, and journals Apply. The longer-term direction is to
+extend the same contract to production effects with effect-bound authority,
+independent verification, and explicit recovery. Production API enforcement is
+not currently shipped.
 
 ## The sixty-second story
 
@@ -35,7 +43,7 @@ Pytxo is not an IDE or a managed cloud workspace. Keep your editor. Connect thro
 | Apply a prepared package | [Desktop setup](/docs/getting-started/desktop-setup) → Run Review |
 | Fix doctor / trust / MCP issues | [Troubleshooting](/docs/troubleshooting) |
 | Prove collisions are detected before agents run | [Collision demo](/docs/getting-started/first-three-agent-run) |
-| Review and approve from a desktop UI | [Desktop setup](/docs/getting-started/desktop-setup) → Approvals / mission Review |
+| Review and approve from a desktop UI | [Desktop setup](/docs/getting-started/desktop-setup) → History → Run Review |
 | Drive Pytxo from Cursor later | [MCP from Cursor](/docs/getting-started/mcp-from-cursor) |
 | Look up commands and config | [CLI reference](/docs/reference/cli), [`pytxo.toml`](/docs/reference/pytxo-toml) |
 

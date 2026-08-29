@@ -8,7 +8,6 @@
     route,
     primary,
     system,
-    approvalsCount,
     recents,
     collapsed,
     tier,
@@ -22,7 +21,6 @@
     route: CanonicalRoute;
     primary: NavItem[];
     system: NavItem[];
-    approvalsCount: number;
     recents: WorkspaceRecent[];
     collapsed: boolean;
     tier: string;
@@ -83,7 +81,7 @@
         aria-current={route === item.route ? "page" : undefined}
       >
         <item.icon size={17} stroke={1.7} />
-        {#if !collapsed}<span>{item.label}</span>{#if item.route === "approvals" && approvalsCount}<b>{approvalsCount}</b>{/if}{/if}
+        {#if !collapsed}<span>{item.label}</span>{/if}
       </a>
     {/each}
   </nav>
@@ -135,8 +133,8 @@
     height: 100%;
     background: var(--pytxo-surface-shell);
     border-right: 1px solid var(--pytxo-line);
-    padding: 14px 12px 12px;
-    transition: padding 150ms ease;
+    padding: 12px 10px 10px;
+    transition: padding 140ms ease;
   }
   .sidebar.collapsed {
     padding: 14px 8px 12px;
@@ -144,7 +142,7 @@
   }
   .brand {
     position: relative;
-    height: 38px;
+    height: 42px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -176,8 +174,8 @@
     padding-inline: 0;
   }
   .brand-mark {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     flex-shrink: 0;
     border-radius: 2px;
   }
@@ -228,10 +226,10 @@
     align-items: center;
     width: 100%;
     gap: 8px;
-    height: 34px;
-    border: 1px solid #262932;
+    height: 36px;
+    border: 1px solid var(--pytxo-line);
     border-radius: 6px;
-    background: #111319;
+    background: var(--pytxo-surface-input);
     padding: 0 9px;
     color: #89909d;
     font-size: 11px;
@@ -257,7 +255,7 @@
     text-align: left;
   }
   .command-trigger kbd {
-    font: 10px "IBM Plex Mono", monospace;
+    font: 11px "IBM Plex Mono", monospace;
     color: var(--pytxo-text-muted);
     border: 1px solid #2b2e37;
     border-radius: 4px;
@@ -287,11 +285,11 @@
     position: relative;
     display: flex;
     align-items: center;
-    height: 34px;
+    height: 36px;
     gap: 10px;
     padding: 0 9px;
     margin: 2px 0;
-    border-radius: 6px;
+    border-radius: 4px;
     color: #858c98;
     text-decoration: none;
     font-size: 13px;
@@ -310,9 +308,11 @@
     outline-offset: 1px;
   }
   nav a.active {
-    background: var(--pytxo-surface-active, #111113);
+    background: var(--pytxo-surface-active, #151518);
     color: var(--pytxo-text-strong, #ededef);
   }
+  /* Selection is a static marker. Persistent chrome carries no ornament, so the
+     only moving thing on screen is something the system is actually doing. */
   nav a.active:before {
     content: "";
     position: absolute;
@@ -320,36 +320,10 @@
     width: 2px;
     height: 16px;
     border-radius: 1px;
-    background-image: linear-gradient(180deg, var(--chroma-spectrum));
-    background-size: 100% 200%;
-    animation: 14s chroma-shift linear infinite;
-  }
-  @keyframes chroma-shift {
-    0% {
-      background-position: 0% 50%;
-    }
-    100% {
-      background-position: 200% 50%;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    nav a.active:before {
-      animation: none;
-    }
+    background: var(--pytxo-text-strong);
   }
   .sidebar.collapsed nav a.active:before {
     display: none;
-  }
-  nav a b {
-    margin-left: auto;
-    display: grid;
-    place-items: center;
-    min-width: 17px;
-    height: 17px;
-    border-radius: 9px;
-    background: #3b2d17;
-    color: #f1bc59;
-    font-size: 11px;
   }
   .recents button {
     display: flex;
@@ -436,13 +410,13 @@
     min-width: 0;
   }
   .account-copy strong {
-    font-size: 10px;
+    font-size: 11px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .account-copy small {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--pytxo-text-muted);
     margin-top: 2px;
   }

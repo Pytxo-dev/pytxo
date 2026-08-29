@@ -150,7 +150,7 @@
     background: color-mix(in oklab, var(--primary) 55%, var(--border));
   }
   .setup__label {
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     color: var(--muted-foreground);
     letter-spacing: 0.02em;
   }

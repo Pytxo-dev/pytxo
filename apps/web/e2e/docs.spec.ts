@@ -35,3 +35,14 @@ test("docs compare and changelog are reachable", async ({ page }) => {
   await page.goto("/docs/reference/changelog");
   await expect(page.getByRole("heading", { level: 1, name: "Changelog" })).toBeVisible();
 });
+
+test("Desktop docs describe Work History and Setup, not the retired destinations", async ({ page }) => {
+  await page.goto("/docs/concepts/desktop");
+  await expect(page.getByRole("heading", { level: 1, name: "Pytxo Desktop" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Three destinations" })).toBeVisible();
+  await expect(page.getByText("Work", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("History", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Setup", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Ops", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("New mission", { exact: true })).toHaveCount(0);
+});

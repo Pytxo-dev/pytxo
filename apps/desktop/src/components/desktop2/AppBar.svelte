@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { IconChevronDown, IconFolder, IconPlus, IconSettings } from "@tabler/icons-svelte";
+  import { IconAlertTriangle, IconChevronDown, IconFolder, IconInbox, IconPlus, IconSettings } from "@tabler/icons-svelte";
   import { ROUTE_LABELS, type CanonicalRoute } from "../../lib/navigation.svelte";
   import type { CatalogEntryStatus } from "../../lib/types";
 
@@ -9,18 +9,31 @@
     activeDomainLabel = null,
     activeDomainId = null,
     domains = [],
+    approvalsCount = 0,
+    snapshotAge = null,
+    cursorGap = false,
     onSelectDomain,
     onAddWorkspace,
     onOpenWorkspaceSettings,
+    onOpenApprovals,
+    onDismissGap,
   }: {
     route: CanonicalRoute;
     hypervisorOnline: boolean;
     activeDomainLabel?: string | null;
     activeDomainId?: string | null;
     domains?: CatalogEntryStatus[];
+    /** Approvals live here, not in the rail: a decision follows the operator. */
+    approvalsCount?: number;
+    /** How old the rendered snapshot is, so nothing on screen implies "now". */
+    snapshotAge?: string | null;
+    /** The store dropped changes between polls, so the view may have missed events. */
+    cursorGap?: boolean;
     onSelectDomain: (domainId: string) => void;
     onAddWorkspace: () => void;
     onOpenWorkspaceSettings: (domainId: string) => void;
+    onOpenApprovals: () => void;
+    onDismissGap?: () => void;
   } = $props();
 
   let open = $state(false);
@@ -88,6 +101,23 @@
     <strong class="page-name">{ROUTE_LABELS[route]}</strong>
   </div>
   <div class="app-actions">
+    {#if cursorGap}
+      <button
+        class="gap"
+        onclick={onDismissGap}
+        title="The change log dropped entries between polls. State was reloaded in full, but intermediate events are not recoverable. Click to acknowledge."
+      >
+        <IconAlertTriangle size={13} /> Missed events, reloaded
+      </button>
+    {/if}
+    {#if snapshotAge}
+      <span class="age" role="status" title="Age of the snapshot on screen">{snapshotAge}</span>
+    {/if}
+    <button class="inbox" class:waiting={approvalsCount > 0} onclick={onOpenApprovals} aria-label={`Approvals inbox, ${approvalsCount} open`}>
+      <IconInbox size={14} />
+      <span>Approvals</span>
+      {#if approvalsCount}<b>{approvalsCount}</b>{/if}
+    </button>
     <span class="connection" class:offline={!hypervisorOnline}>
       <i></i> {connectionLabel}
     </span>
@@ -223,7 +253,67 @@
   .app-actions {
     display: flex;
     align-items: center;
+    gap: 12px;
+  }
+  .age {
+    color: var(--pytxo-text-muted);
+    font: 11px "IBM Plex Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .gap {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
+    padding: 0 8px;
+    border: 1px dashed var(--state-unknown);
+    border-radius: var(--pytxo-control-radius, 4px);
+    background: transparent;
+    color: var(--state-unknown);
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .gap:focus-visible {
+    outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
+    outline-offset: 1px;
+  }
+  .inbox {
+    display: inline-flex;
+    align-items: center;
     gap: 6px;
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid var(--pytxo-line);
+    border-radius: var(--pytxo-control-radius, 4px);
+    background: transparent;
+    color: var(--pytxo-text-muted);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .inbox:hover {
+    color: var(--pytxo-text-strong);
+  }
+  .inbox:focus-visible {
+    outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
+    outline-offset: 1px;
+  }
+  /* The count is the only thing in persistent chrome allowed to use the
+     attention hue, because it is the only thing that blocks the operator. */
+  .inbox.waiting {
+    border-color: color-mix(in oklab, var(--state-attention) 50%, var(--pytxo-line));
+    color: var(--state-attention);
+  }
+  .inbox b {
+    display: grid;
+    place-items: center;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background: color-mix(in oklab, var(--state-attention) 26%, transparent);
+    color: var(--state-attention);
+    font-size: 11px;
   }
   .connection {
     display: flex;
@@ -236,13 +326,13 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--pytxo-success);
+    background: var(--state-verified);
   }
   .connection.offline {
-    color: var(--pytxo-danger, #d98994);
+    color: var(--state-refuted);
   }
   .connection.offline i {
-    background: var(--pytxo-danger, #df6576);
+    background: var(--state-refuted);
   }
   .mono {
     font-family: "IBM Plex Mono", ui-monospace, monospace;

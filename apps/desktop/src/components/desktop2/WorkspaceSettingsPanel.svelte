@@ -236,7 +236,7 @@
   }
   .eyebrow {
     margin: 0;
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #7d8591;
@@ -328,7 +328,7 @@
     gap: 6px;
   }
   .badge {
-    font-size: 10px;
+    font-size: 11px;
     padding: 2px 6px;
     border-radius: 999px;
     border: 1px solid var(--pytxo-line, #1e2026);

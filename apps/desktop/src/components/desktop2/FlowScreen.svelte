@@ -263,7 +263,7 @@
 <section class="screen flow-screen">
   <header class="screen-heading">
     <div>
-      <h1>New mission</h1>
+      <h1>New run</h1>
     </div>
   </header>
 

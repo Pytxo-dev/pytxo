@@ -5,7 +5,14 @@
 [![npm](https://img.shields.io/npm/v/pytxo)](https://www.npmjs.com/package/pytxo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
 
-**Agent hypervisor and telemetry plane** for coordinating headless developer agents on local silicon or hosted sandboxes — without cloud-heavy multi-terminal workspaces.
+**Reviewed commit layer for coding agents.** Pytxo coordinates headless agents
+on local silicon or configured hosted sandboxes, then turns isolated proposals
+into exact repository changes you can verify and Apply.
+
+The wider product direction is a commit layer for autonomous work: effect-bound
+authority, independent post-state verification, causal evidence, and honest
+recovery across production systems. That production-effect gateway is a north
+star, not a shipping claim.
 
 - **Site:** [pytxo.com](https://pytxo.com)
 - **Docs:** [pytxo.com/docs](https://pytxo.com/docs)
@@ -27,6 +34,11 @@ Running `pytxo` with no subcommand opens the **terminal dashboard** (doctor, run
 ## What Pytxo is
 
 Pytxo runs **heterogeneous headless agents** (Claude Code, Codex, Antigravity CLI, …) in managed background PTYs. It is not your IDE and not sixteen embedded terminal webviews.
+
+Today, one successful Orbit or Galaxy mission can become an immutable review
+package for one repository root. Apply uses the stored target bytes, validates
+affected-path preimages, and journals recovery. This repository boundary is the
+first concrete version of the broader commit-layer contract.
 
 | Moat | Role |
 |------|------|

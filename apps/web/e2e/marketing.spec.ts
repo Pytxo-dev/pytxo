@@ -35,34 +35,32 @@ test("desktop hero leads with the mission and current product evidence", async (
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
-  const heading = page.getByRole("heading", {
-    level: 1,
-    name: "Coordinate coding agents. Review one result.",
-  });
+  const heading = page.getByRole("heading", { level: 1 });
   const product = page.getByTestId("hero-product");
   const productImage = product.getByRole("img");
 
-  await expect(heading).toBeVisible();
-  await expect(
-    page.getByTestId("marketing-hero").getByRole("link", { name: "Download Desktop" }),
-  ).toBeVisible();
+  await expect(heading).toHaveText("Coordinate coding agents.Review one result.");
+  await expect(page.getByTestId("marketing-hero").getByRole("link", { name: "Download Pytxo" })).toBeVisible();
   await expect(product).toBeInViewport();
   await expect(productImage).toHaveJSProperty("naturalWidth", 1600);
   expect(await renderedLineCount(heading)).toBeLessThanOrEqual(2.2);
 
+  // The headline must stay inside its own grid column, never under the capture.
   const productBox = await product.boundingBox();
-  expect(productBox?.y).toBeLessThan(320);
-  expect(productBox ? productBox.y + productBox.height : 901).toBeLessThan(720);
-  const proof = page.getByRole("region", {
-    name: "Supported tools and measured proof",
-  });
-  await expect(proof.getByText("82.9%", { exact: true })).toBeVisible();
-  await expect(
-    proof.getByRole("link", {
-      name: "82.9% measured scaffold-byte reduction across 185 tracked production files. This is not a model-token or task-success claim.",
-    }),
-  ).toBeVisible();
+  const headingBox = await heading.boundingBox();
+  expect(headingBox && productBox ? headingBox.x + headingBox.width : 0).toBeLessThanOrEqual(productBox?.x ?? 1440);
+  expect(await heading.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   await expectNoHorizontalOverflow(page);
+});
+
+test("hero states one primary action and an honest platform scope", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const hero = page.getByTestId("marketing-hero");
+  const buttons = hero.getByRole("link").filter({ hasText: /Download Pytxo|Read the docs/ });
+  await expect(buttons).toHaveCount(2);
+  await expect(hero.getByText("Desktop ships for Windows today.")).toBeVisible();
 });
 
 test("mobile hero exposes the CTA and beginning of real product evidence", async ({ page }) => {
@@ -71,75 +69,120 @@ test("mobile hero exposes the CTA and beginning of real product evidence", async
 
   const hero = page.getByTestId("marketing-hero");
   const heading = hero.getByRole("heading", { level: 1 });
-  const download = hero.getByRole("link", { name: "Download" });
-  const product = page.getByTestId("hero-product");
+  const download = hero.getByRole("link", { name: "Download Pytxo" });
 
   await expect(heading).toBeVisible();
   await expect(download).toBeInViewport();
-  await expect(product).toBeInViewport();
   expect(await renderedLineCount(heading)).toBeLessThanOrEqual(3.2);
-
-  const productBox = await product.boundingBox();
-  expect(productBox?.y).toBeLessThan(760);
-  expect(productBox?.width).toBeLessThanOrEqual(358);
   await expectNoHorizontalOverflow(page);
 });
 
-test("the product story is complete when reduced motion is requested", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
-
-  const story = page.getByTestId("product-story");
-  await expect(story.getByRole("heading", { name: "Set ownership before dispatch" })).toBeVisible();
-  await expect(story.getByRole("heading", { name: "Review the prepared package" })).toBeVisible();
-  await expect(story.getByRole("heading", { name: "Apply exactly what you reviewed" })).toBeVisible();
-  await expect(page.locator(".pin-spacer")).toHaveCount(0);
-
-  const styles = await story.locator("[data-story-card]").evaluateAll((cards) =>
-    cards.map((card) => {
-      const style = getComputedStyle(card);
-      return { opacity: style.opacity, transform: style.transform };
-    }),
-  );
-  expect(styles).toEqual([
-    { opacity: "1", transform: "none" },
-    { opacity: "1", transform: "none" },
-    { opacity: "1", transform: "none" },
-  ]);
-});
-
-test("agent readiness uses the current Agents product capture", async ({ page }) => {
+test("the homepage tells the seven-section narrative in order", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
-  const section = page.getByRole("region", { name: "Keep the accounts you already trust" });
-  await expect(section).toBeVisible();
-  await expect(section.getByText("Agent sessions stay vendor-owned")).toBeVisible();
-  await expect(section.getByText("API billing stays separate")).toBeVisible();
-  await expect(section.getByText("Readiness checks are non-billable")).toBeVisible();
-  const image = page.getByTestId("agent-readiness-product").getByRole("img");
-  await image.scrollIntoViewIfNeeded();
-  await expect(image).toHaveJSProperty("naturalWidth", 1600);
-  await expectNoHorizontalOverflow(page);
-});
-
-test("chroma identity is sora void, not geist nebula", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-
-  const heading = page.getByRole("heading", {
-    level: 1,
-    name: "Coordinate coding agents. Review one result.",
+  const order = await page.evaluate(() => {
+    const ids = [
+      "marketing-hero",
+      "product-section",
+      "boundary-section",
+      "compatibility-section",
+      "evidence-section",
+      "get-it-section",
+    ];
+    return ids.map((id) => {
+      const node = document.querySelector(`[data-testid="${id}"]`);
+      return node ? Math.round(node.getBoundingClientRect().top + window.scrollY) : -1;
+    });
   });
+
+  expect(order.every((top) => top >= 0)).toBe(true);
+  expect([...order].sort((a, b) => a - b)).toEqual(order);
+  await expect(page.getByRole("heading", { name: "Three agents. One working tree." })).toBeVisible();
+});
+
+test("the product section shows one capture large enough to read", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const section = page.getByTestId("product-section");
+  const captures = section.getByRole("img");
+  await expect(captures).toHaveCount(1);
+
+  const box = await captures.first().boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThan(900);
+  await expect(section.getByRole("heading", { name: "Commit boundary" })).toBeVisible();
+  await expect(section.getByRole("heading", { name: "Enforcement receipt" })).toBeVisible();
+});
+
+test("the boundary section publishes every enforcement state, not just the good ones", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const section = page.getByTestId("boundary-section");
+  await expect(section.getByText("Advisory only", { exact: true })).toBeVisible();
+  await expect(section.getByText("Unavailable", { exact: true })).toBeVisible();
+  await expect(section.getByText("Enforced", { exact: true }).first()).toBeVisible();
+  await expect(section.getByText("Network", { exact: true })).toBeVisible();
+});
+
+test("compatibility names the real registry adapters and their commands", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const section = page.getByTestId("compatibility-section");
+  for (const name of ["Claude Code", "OpenAI Codex", "Cursor Agent", "Antigravity"]) {
+    await expect(section.getByText(name, { exact: true })).toBeVisible();
+  }
+  await expect(section.getByText("cursor-agent -p --trust", { exact: true })).toBeVisible();
+  await expect(page.locator(".aperture-marquee")).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("the published figure carries its non-claims and links to source data", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const section = page.getByTestId("evidence-section");
+  await expect(section.getByTestId("evidence-figure")).toHaveText("82.9%");
+  await expect(section.getByText("Not a model-token saving. Tokenizer output was not measured.")).toBeVisible();
+  await expect(section.getByRole("link", { name: "Read the methodology" })).toBeVisible();
+});
+
+test("the evidence page states the corpus, caveats, and reproduction path", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/evidence");
+
+  await expect(page.getByRole("heading", { level: 1, name: "Evidence and its limits." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What it does not claim" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Caveats that weaken the number" })).toBeVisible();
+  await expect(page.getByText(/worktree was dirty at capture time/)).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "tooling/benchmarks/results/signal-real-repo.json" }).first(),
+  ).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
+test("chroma aperture identity is monochrome with one static spectrum signature", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const heading = page.getByRole("heading", { level: 1 });
   const font = await page.locator("body").evaluate((el) => getComputedStyle(el).fontFamily);
   const headingColor = await heading.evaluate((el) => getComputedStyle(el).color);
-  expect(font.toLowerCase()).toContain("sora");
+  expect(font.toLowerCase()).toMatch(/satoshi|sora/);
   expect(font.toLowerCase()).not.toContain("geist");
-  expect(headingColor).toBe("rgb(237, 237, 239)");
+  expect(headingColor).toBe("rgb(245, 245, 247)");
   await expect(page.locator(".nebula-bg, .chroma-glow")).toHaveCount(0);
-  await expect(page.locator(".chroma-text")).toHaveCount(1);
-  await expect(page.locator(".chroma-ribbon")).toHaveCount(1);
+  await expect(page.locator(".chroma-text")).toHaveCount(0);
+
+  // The spectrum is a brand signature: exactly one instance, and it never animates.
+  await expect(page.locator(".execution-trace")).toHaveCount(1);
+  const animation = await page
+    .locator(".execution-trace")
+    .evaluate((el) => getComputedStyle(el).animationName);
+  expect(animation).toBe("none");
+
   await expect(page.locator('header img[src*="logo"]')).toHaveCount(1);
   const download = page.locator("header").getByRole("link", { name: "Download", exact: true });
   await expect(download).toHaveCount(1);
@@ -154,15 +197,14 @@ test("chroma identity is sora void, not geist nebula", async ({ page }) => {
       })
       .join("\n"),
   );
-  expect(cssText).toContain("--brand-violet");
+  expect(cssText).toContain("--aperture-magenta");
 });
 
-test("desktop storytelling keeps one focused pinned sequence", async ({ page }) => {
+test("the homepage no longer pins a scroll-jacked sequence", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
-  await expect(page.locator(".pin-spacer")).toHaveCount(1);
-  await expect(page.getByTestId("product-story")).toBeVisible();
+  await expect(page.locator(".pin-spacer")).toHaveCount(0);
 });
 
 const PLAN_TIERS = [

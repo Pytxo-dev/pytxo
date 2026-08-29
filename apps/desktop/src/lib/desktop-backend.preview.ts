@@ -176,6 +176,45 @@ const previewReceipt: PermissionEnforcementReceipt = {
   },
 };
 
+/**
+ * Preview-only fixture that exercises every `EnforcementSurface.status` and
+ * `RunApplyAttempt.outcome` value in one screen. Real runs rarely produce all
+ * eight at once, but each has to render a distinct, colour-independent
+ * affordance, so the state matrix is asserted against this fixture rather than
+ * against whatever a live run happens to report.
+ */
+const STATE_MATRIX_KEY = "pytxo-preview-state-matrix-v1";
+
+const previewMatrixReceipt: PermissionEnforcementReceipt = {
+  requested_profile: "galaxy",
+  effective_profile: "orbit",
+  execution_domain: "C:/dev/signal-lab",
+  workspace_isolation: {
+    status: "enforced",
+    mechanism: "git-worktree",
+    detail: "Agent mutations remain outside the primary repository until run-level Apply.",
+  },
+  host_filesystem_boundary: {
+    status: "advisory",
+    mechanism: "child-cwd-and-policy-gates",
+    detail: "Workspace cwd and Pytxo-mediated path gates are active; syscall sandboxing is not.",
+  },
+  network: {
+    status: "unavailable",
+    mechanism: "not-reported-on-this-platform",
+    detail: "No network enforcement evidence was recorded for this run.",
+  },
+  apply_boundary: {
+    status: "bypassed",
+    mechanism: "operator-override",
+    detail: "The reviewed-apply boundary was explicitly disabled for this run.",
+  },
+};
+
+function stateMatrixRequested(): boolean {
+  return typeof localStorage !== "undefined" && localStorage.getItem(STATE_MATRIX_KEY) === "1";
+}
+
 const previewCompletedAgents = [
   { id: "run-71ad:agent-0", run_id: "run-71ad", task_id: "signal-core", wave: 0, status: "completed", exit_code: 0, root_id: null },
   { id: "run-71ad:agent-1", run_id: "run-71ad", task_id: "contract-tests", wave: 1, status: "completed", exit_code: 0, root_id: null },
@@ -614,7 +653,48 @@ export class PreviewDesktopBackend implements DesktopBackend {
             },
           ]
         : []),
+      ...(stateMatrixRequested()
+        ? [
+            {
+              attempt_id: "attempt-matrix-committed",
+              created_at: "2026-08-01T03:00:00Z",
+              phase: "committed",
+              outcome: "committed" as const,
+              error_code: null,
+              error_message: null,
+              rollback_confirmed: false,
+            },
+            {
+              attempt_id: "attempt-matrix-rolled-back",
+              created_at: "2026-08-01T03:05:00Z",
+              phase: "rolled_back",
+              outcome: "rolled_back" as const,
+              error_code: "apply_failed",
+              error_message: "A write failed and the attempt was rolled back.",
+              rollback_confirmed: true,
+            },
+            {
+              attempt_id: "attempt-matrix-recovery",
+              created_at: "2026-08-01T03:10:00Z",
+              phase: "recovery_required",
+              outcome: "recovery_required" as const,
+              error_code: "apply_recovery_required",
+              error_message: "Apply is blocked until recovery is reconciled.",
+              rollback_confirmed: false,
+            },
+            {
+              attempt_id: "attempt-matrix-interrupted",
+              created_at: "2026-08-01T03:15:00Z",
+              phase: "interrupted",
+              outcome: "interrupted" as const,
+              error_code: null,
+              error_message: "The process stopped before reporting an outcome.",
+              rollback_confirmed: false,
+            },
+          ]
+        : []),
     ];
+    const receipt = stateMatrixRequested() ? previewMatrixReceipt : previewReceipt;
     return {
       run_id: runId,
       base_revision: isSignalRun ? "71ad8f2c4d90b6c6" : "8f2cc9814fc10e31",
@@ -622,10 +702,10 @@ export class PreviewDesktopBackend implements DesktopBackend {
       applied_at: run.applied_at,
       plan,
       enforcement: {
-        run: structuredClone(previewReceipt),
+        run: structuredClone(receipt),
         agents: Object.fromEntries(
           (await this.listAgents(runId))
-            .map((agent) => [agent.id, structuredClone(previewReceipt)]),
+            .map((agent) => [agent.id, structuredClone(receipt)]),
         ),
       },
       apply_manifest: appliedManifest,

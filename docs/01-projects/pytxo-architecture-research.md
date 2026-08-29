@@ -6,11 +6,16 @@ tags: [project, research, architecture, synthesis]
 audience: [human, agent]
 layer: meta
 created: 2026-07-27
-updated: 2026-08-01
-related: [[MOC-home]], [[product-vision]], [[architecture-index]], [[three-tier-model]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[adr-index]], [[repository-layout]], [[pytxo-improvement-research]], [[glossary]], [[ADR-0034-immutable-review-package-and-durable-apply]]
+updated: 2026-08-27
+related: [[MOC-home]], [[product-vision]], [[commit-layer]], [[pytxo-commit-layer-alignment]], [[architecture-index]], [[three-tier-model]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[adr-index]], [[repository-layout]], [[pytxo-improvement-research]], [[glossary]], [[ADR-0034-immutable-review-package-and-durable-apply]]
 ---
 
 # Pytxo architecture research synthesis
+
+> [!NOTE]
+> Repository architecture snapshot from July 2026. The crate and shipping
+> capability map remains useful, but its agent-hypervisor category thesis was
+> superseded by [[product-vision]] and [[commit-layer]].
 
 Primary-source map of what Pytxo is, how it is layered, what each crate owns, and where documentation and code currently disagree. Sources are repo-local only: the `docs/` vault, [`AGENTS.md`](../../AGENTS.md), ADRs in `docs/05-adr/`, `Cargo.toml`, and crate/app source trees. Longer than an atomic note by design — see [[style-guide]] for the atomic-note rule this synthesis intentionally sits outside of, alongside [[pytxo-improvement-research]].
 

@@ -17,7 +17,7 @@ const productCaptures = [
   "public/product/flow-plan-1920x1080.png",
   "public/product/run-review-ready-1920x1080.png",
   "public/product/run-review-applied-1920x1080.png",
-  "public/product/operations-1920x1080.png",
+  "public/product/work-1920x1080.png",
 ];
 
 const readPngDimensions = async (relativePath) => {

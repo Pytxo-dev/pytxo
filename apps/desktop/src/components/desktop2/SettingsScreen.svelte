@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, type Snippet } from "svelte";
   import {
-    IconArrowLeft,
     IconBell,
     IconFolder,
     IconKey,
@@ -78,12 +77,12 @@
     subscriptionPortalUrl,
     voiceModelPath = null,
     voiceInstalling = false,
-    onBack,
     onReplayOnboarding,
     onAuthChange = () => {},
     onInstallVoiceModel,
     onEditWorkspace,
-    onOpenWorkspaces,
+    workspacesCatalog = undefined,
+    agentsCatalog = undefined,
   }: {
     initialSection?: SettingsSectionId | null;
     backend: DesktopBackend;
@@ -94,12 +93,17 @@
     subscriptionPortalUrl: string | null;
     voiceModelPath?: string | null;
     voiceInstalling?: boolean;
-    onBack: () => void;
     onReplayOnboarding: () => void;
     onAuthChange?: () => void;
     onInstallVoiceModel: () => void | Promise<void>;
     onEditWorkspace: (domainId: string) => void;
-    onOpenWorkspaces: () => void;
+    /**
+     * Workspaces and agent CLIs used to be separate destinations that also
+     * appeared here. They now live only here, rendered inline so configuration
+     * never sends the operator somewhere else to finish the same job.
+     */
+    workspacesCatalog?: Snippet;
+    agentsCatalog?: Snippet;
   } = $props();
 
   let search = $state("");
@@ -327,7 +331,6 @@
 
 <section class="settings-screen">
   <div class="settings-rail">
-    <button class="back" onclick={onBack}><IconArrowLeft size={15} /> Back</button>
     <label class="search">
       <IconSearch size={14} />
       <input bind:value={search} placeholder="Search settings" aria-label="Search settings" />
@@ -345,13 +348,16 @@
   <div class="settings-main">
     <header class="screen-heading compact">
       <div>
-        <h1>{SECTIONS.find((s) => s.id === section)?.label ?? "Settings"}</h1>
+        <!-- The page title is the destination, so a nav label always equals the
+             title it leads to. The section is a subtitle inside it. -->
+        <h1>Setup</h1>
+        <h2 class="section-title">{SECTIONS.find((s) => s.id === section)?.label ?? "General"}</h2>
         <p>
           {#if section === "appearance"}Void, Light, scale, and density.
-          {:else if section === "keyboard"}Chords for Ops, Approvals, and the command palette.
+          {:else if section === "keyboard"}Chords for Work, Approvals, and the command palette.
           {:else if section === "providers"}Direct API access for selected runs. Agent subscription sessions live under Agents.
-          {:else if section === "workspaces"}Default workspace behavior and the active domain.
-          {:else if section === "agents"}Permission ladder defaults for new trusted folders.
+          {:else if section === "workspaces"}Trusted folders, defaults, and the active workspace.
+          {:else if section === "agents"}Installed agent CLIs and the permission ladder default.
           {:else if section === "voice"}Local Whisper capture and optional cloud consent.
           {:else if section === "privacy"}What Pytxo stores and sanitizes locally.
           {:else if section === "account"}Account, tier, and onboarding.
@@ -419,7 +425,13 @@
           </div>
         </div>
         <div class="setting-row">
-          <div><strong>Accent</strong><small>Teal is the action and live accent. Gold marks needs-you and cost.</small></div>
+          <div>
+            <strong>Accent</strong>
+            <small>
+              Applies to focus rings and selection only. State colour is fixed: green means verified,
+              red means refuted, violet means a decision is waiting.
+            </small>
+          </div>
           <div class="accent-swatches" role="group" aria-label="Accent">
             {#each ACCENT_PRESETS as opt (opt.id)}
               <button
@@ -470,7 +482,7 @@
       <article class="settings-group">
         <h2>Shortcuts</h2>
         <div class="setting-row"><div><strong>Command palette</strong><small>Search destinations and New mission.</small></div><kbd>Ctrl/⌘ K</kbd></div>
-        <div class="setting-row"><div><strong>Focus Ops</strong><small>Jump to today and the first running mission.</small></div><kbd>Ctrl/⌘ Shift O</kbd></div>
+        <div class="setting-row"><div><strong>Focus Operations</strong><small>Jump to today and the first running mission.</small></div><kbd>Ctrl/⌘ Shift O</kbd></div>
         <div class="setting-row"><div><strong>Approvals</strong><small>J and K move. Modifier Enter approves. Modifier Backspace denies.</small></div><kbd>J K</kbd></div>
         <div class="setting-row"><div><strong>Stop run</strong><small>From a focused running row. Confirmation is required.</small></div><kbd>Ctrl/⌘ Shift ⌫</kbd></div>
       </article>
@@ -520,6 +532,7 @@
         </p>
       </article>
     {:else if section === "workspaces"}
+      {#if workspacesCatalog}<div class="embedded-catalog">{@render workspacesCatalog()}</div>{/if}
       <article class="settings-group">
         <h2>Defaults</h2>
         <div class="setting-row">
@@ -542,12 +555,12 @@
           </div>
         {:else}
           <div class="setting-row">
-            <div><strong>No active workspace</strong><small>Open a folder from the Workspaces catalog.</small></div>
-            <button class="quiet" onclick={onOpenWorkspaces}>Open catalog</button>
+            <div><strong>No active workspace</strong><small>Add a folder in the catalog above to start a run.</small></div>
           </div>
         {/if}
       </article>
     {:else if section === "agents"}
+      {#if agentsCatalog}<div class="embedded-catalog">{@render agentsCatalog()}</div>{/if}
       <article class="settings-group">
         <h2>Permission profile</h2>
         <div class="setting-row stack">
@@ -662,22 +675,10 @@
     gap: 12px;
     background: color-mix(in oklab, var(--pytxo-graphite-1, #0d0f13) 80%, transparent);
   }
-  .back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border: 0;
-    background: transparent;
-    color: #8b929c;
-    font-size: 12px;
-    cursor: pointer;
-    padding: 6px 8px;
-    border-radius: 6px;
-    width: fit-content;
-  }
-  .back:hover {
-    background: #14161c;
-    color: #e8eaed;
+  /* Embedded catalogs are the section's real content, so they sit flush with the
+     section body rather than reading as a nested screen. */
+  .embedded-catalog {
+    display: contents;
   }
   .search {
     display: flex;
@@ -737,8 +738,14 @@
     font-weight: 600;
     letter-spacing: -0.02em;
   }
+  .screen-heading.compact .section-title {
+    margin: 4px 0 0;
+    color: var(--pytxo-text-strong, #f4f5f7);
+    font-size: 14px;
+    font-weight: 600;
+  }
   .screen-heading.compact p {
-    margin: 6px 0 0;
+    margin: 4px 0 0;
     color: #7a828e;
     font-size: 13px;
   }
@@ -951,7 +958,7 @@
     border: 0;
     background: transparent;
     color: #7e8792;
-    font-size: 10px;
+    font-size: 11px;
     cursor: pointer;
   }
   .provider-env:hover:not(:disabled) {
@@ -970,7 +977,7 @@
   }
   .provider-badge {
     flex-shrink: 0;
-    font-size: 10px;
+    font-size: 11px;
     padding: 4px 8px;
     border-radius: 999px;
     border: 1px solid transparent;

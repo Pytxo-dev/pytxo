@@ -41,10 +41,10 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 8px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -53,12 +53,28 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "Sora", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Satoshi", "Sora", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
   --font-heading: var(--font-sans);
-  --radius-2xl: 8px;
-  --radius-3xl: 8px;
-  --radius-4xl: 8px;
+  --radius-2xl: 6px;
+  --radius-3xl: 6px;
+  --radius-4xl: 6px;
+}
+
+:root {
+  --aperture-canvas: #050507;
+  --aperture-raised: #09090b;
+  --aperture-panel: #101012;
+  --aperture-line: #27272a;
+  --aperture-ink: #f5f5f7;
+  --aperture-body: #c7c7ce;
+  --aperture-muted: #7d7d87;
+  --aperture-magenta: #f04da3;
+  --aperture-coral: #ff6a4a;
+  --aperture-gold: #f3c64e;
+  --aperture-green: #79e07b;
+  --aperture-cyan: #45dccb;
+  --aperture-spectrum: var(--aperture-magenta), var(--aperture-coral), var(--aperture-gold), var(--aperture-green), var(--aperture-cyan);
 }
 
 @layer base {
@@ -77,7 +93,7 @@
   h1,
   h2,
   h3 {
-    @apply font-semibold tracking-tight text-balance;
+    @apply font-medium tracking-tight text-balance;
   }
 
   h1 {
@@ -88,25 +104,59 @@
 @layer utilities {
   .section-pad {
     @apply px-4 sm:px-6;
-    padding-block: clamp(3.5rem, 6vw, 5.5rem);
+    padding-block: clamp(4.5rem, 7vw, 7.5rem);
   }
 
-  .section-reveal {
-    animation: section-fade-up 0.16s ease both;
+  .aperture-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.032) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.032) 1px, transparent 1px);
+    background-size: 64px 64px;
   }
 
-  .scroll-reveal {
-    opacity: 0;
-    transform: translateY(8px);
-    transition:
-      opacity 0.16s ease,
-      transform 0.16s ease;
-    transition-delay: var(--reveal-delay, 0ms);
+  .aperture-panel {
+    border: 1px solid var(--aperture-line);
+    border-radius: 6px;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.026), transparent 42%), var(--aperture-panel);
   }
 
-  .scroll-reveal[data-revealed="true"] {
-    opacity: 1;
-    transform: translateY(0);
+  /*
+    The spectrum is the brand signature, not a state signal. It appears once on
+    the site and does not animate, because a perpetual loop encodes no change.
+  */
+  .execution-trace {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--aperture-magenta) 16%, var(--aperture-coral) 35%, var(--aperture-gold) 52%, var(--aperture-green) 72%, var(--aperture-cyan) 88%, transparent 100%);
+  }
+
+  .aperture-kicker {
+    color: var(--aperture-muted);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+  }
+
+  .aperture-link {
+    position: relative;
+  }
+
+  .aperture-link::after {
+    position: absolute;
+    right: 0;
+    bottom: -0.35rem;
+    left: 0;
+    height: 1px;
+    content: "";
+    background: linear-gradient(90deg, var(--aperture-magenta), var(--aperture-cyan));
+    transform: scaleX(0);
+    transform-origin: right;
+    transition: transform 260ms ease;
+  }
+
+  .aperture-link:hover::after,
+  .aperture-link:focus-visible::after {
+    transform: scaleX(1);
+    transform-origin: left;
   }
 
   .marketing-scroll {
@@ -133,29 +183,6 @@
   .marketing-scroll::-webkit-scrollbar-thumb:hover {
     background: #52525b;
   }
-
-  @media (prefers-reduced-motion: reduce) {
-    .section-reveal {
-      animation: none;
-    }
-
-    .scroll-reveal {
-      opacity: 1;
-      transform: none;
-      transition: none;
-    }
-  }
-}
-
-@keyframes section-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 [data-chroma-theme="void"] aside a[data-active="true"],
@@ -163,6 +190,8 @@
   position: relative;
 }
 
+/* Selection is a static marker. A perpetually animating rainbow on the active
+   nav item reads as system activity and competes with real signal. */
 [data-chroma-theme="void"] aside a[data-active="true"]::before,
 [data-chroma-theme="void"] [data-sidebar] a[aria-current="page"]::before {
   content: "";
@@ -172,14 +201,5 @@
   bottom: 18%;
   width: 2px;
   border-radius: 1px;
-  background-image: linear-gradient(180deg, var(--chroma-spectrum));
-  background-size: 100% 200%;
-  animation: chroma-shift 14s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-chroma-theme="void"] aside a[data-active="true"]::before,
-  [data-chroma-theme="void"] [data-sidebar] a[aria-current="page"]::before {
-    animation: none;
-  }
+  background: var(--aperture-ink);
 }

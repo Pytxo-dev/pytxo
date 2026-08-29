@@ -167,7 +167,7 @@
     white-space: nowrap;
   }
   :global(.project-tabs__multi) {
-    font-size: 0.6rem !important;
+    font-size: 0.6875rem !important;
     padding: 0 0.3rem !important;
     height: 1.1rem;
   }

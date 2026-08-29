@@ -1,6 +1,6 @@
 /** Public distribution repo (binaries + install scripts). */
 export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
-export const PYTXO_VERSION = "1.1.1";
+export const PYTXO_VERSION = "1.2.0";
 
 export const DESKTOP_RELEASE_BASE =
   `https://github.com/${DISTRIBUTION_REPO}/releases/download/v${PYTXO_VERSION}`;
@@ -37,6 +37,7 @@ export type NavLink = {
 
 export const NAV_LINKS: NavLink[] = [
   { href: "/docs", label: "Docs" },
+  { href: "/evidence", label: "Evidence" },
   { href: "/plans", label: "Plans" },
   { href: "/download", label: "Download" },
 ];

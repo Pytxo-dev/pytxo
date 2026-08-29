@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 
 export default function DownloadPage() {
   return (
-    <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6 sm:py-20">
+    <div className="mx-auto max-w-[76rem] px-4 py-14 sm:px-6 sm:py-20 lg:px-10">
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Download</h1>

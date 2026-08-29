@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { MenuIcon } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   NavigationMenu,
@@ -23,28 +22,15 @@ import { HeaderAuth } from "@/components/header-auth";
 import { NAV_LINKS } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
-function NavLabel({ label, badge }: { label: string; badge?: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      {label}
-      {badge ? (
-        <Badge
-          variant="outline"
-          className="h-4 border-border bg-card px-1.5 py-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
-        >
-          {badge}
-        </Badge>
-      ) : null}
-    </span>
-  );
-}
-
 export function SiteHeader() {
   const desktopLinks = NAV_LINKS.filter((link) => link.href !== "/download");
 
   return (
-    <header className="sticky top-0 z-50 bg-background">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+    <header
+      data-site-header
+      className="sticky top-0 z-50 border-b border-white/[0.04] bg-[#050507]/90 backdrop-blur-xl"
+    >
+      <div className="mx-auto grid h-16 max-w-[92rem] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6 lg:px-10">
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
           <Image
             src="/logo-mark.png"
@@ -54,7 +40,7 @@ export function SiteHeader() {
             className="size-7"
             priority
           />
-          <span className="text-base font-semibold tracking-tight">Pytxo</span>
+          <span className="text-[15px] font-semibold tracking-[-0.02em]">Pytxo</span>
         </Link>
 
         <NavigationMenu className="hidden md:flex">
@@ -64,12 +50,9 @@ export function SiteHeader() {
                 <NavigationMenuLink asChild>
                   <Link
                     href={link.href}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground",
-                      "transition-colors hover:bg-card hover:text-foreground",
-                    )}
+                    className={cn("aperture-link px-3 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground")}
                   >
-                    <NavLabel label={link.label} badge={link.badge} />
+                    {link.label}
                   </Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
@@ -77,9 +60,9 @@ export function SiteHeader() {
           </NavigationMenuList>
         </NavigationMenu>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           <HeaderAuth />
-          <Button size="sm" className="hidden sm:inline-flex" asChild>
+          <Button size="sm" className="hidden h-8 rounded-[4px] bg-white px-3.5 text-black hover:bg-white/85 sm:inline-flex" asChild>
             <Link href="/download">Download</Link>
           </Button>
 
@@ -101,7 +84,7 @@ export function SiteHeader() {
                     href={link.href}
                     className="rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
                   >
-                    <NavLabel label={link.label} badge={link.badge} />
+                    {link.label}
                   </Link>
                 ))}
                 <Link
@@ -121,7 +104,6 @@ export function SiteHeader() {
           </Sheet>
         </div>
       </div>
-      <span className="chroma-ribbon" aria-hidden />
     </header>
   );
 }

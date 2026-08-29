@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+import { SITE_AUTH_BACKEND_ENABLED } from "@/lib/auth-config";
+
 type LinkHeaders = {
   Authorization: string;
   "x-pytxo-user-id": string;
@@ -16,10 +18,7 @@ async function linkFetch(path: string, headers: LinkHeaders) {
 }
 
 export async function GET() {
-  if (
-    !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
-    !process.env.CLERK_SECRET_KEY
-  ) {
+  if (!SITE_AUTH_BACKEND_ENABLED) {
     return NextResponse.json(
       { error: "account_auth_unavailable" },
       { status: 503 },

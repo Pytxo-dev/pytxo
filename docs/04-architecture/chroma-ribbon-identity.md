@@ -1,16 +1,18 @@
 ---
 title: Chroma ribbon identity
 slug: chroma-ribbon-identity
-status: active
+status: archived
 tags: [presentation, ui, design]
 audience: [human, agent]
 layer: presentation
 created: 2026-08-25
-updated: 2026-08-25
-related: [[chassis-identity]], [[desktop-visual-system]], [[ADR-0029-chroma-shared-design-tokens]], [[product-vision]]
+updated: 2026-08-27
+related: [[chroma-aperture-identity]], [[chassis-identity]], [[desktop-visual-system]], [[ADR-0029-chroma-shared-design-tokens]], [[product-vision]]
 ---
 
 # Chroma ribbon identity
+
+> Archived by [[chroma-aperture-identity]] and [[ADR-0037-chroma-aperture-visual-contract]].
 
 One family for marketing, docs, and Desktop. The metaphor is the **folded rainbow lambda** on Vercel-quiet black chrome — not a nebula mesh and not a metal faceplate.
 

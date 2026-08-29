@@ -19,14 +19,20 @@ const VIEWPORTS = [
   { slug: "960x640", width: 960, height: 640 },
 ] as const;
 
+/**
+ * Capture slugs follow the canonical routes so a marketing asset can never show
+ * a destination the product no longer has. Legacy slugs are gone rather than
+ * aliased: a stale filename is the mechanism by which an old screenshot
+ * survives a redesign.
+ */
 const ROUTES = [
-  { route: "operations", heading: /^Ops/, marketing: true },
-  { route: "workspaces", heading: "Workspaces", marketing: false },
-  { route: "flow", heading: "New mission", marketing: true },
+  { route: "work", heading: "Work", marketing: true },
+  { route: "history", heading: "History", marketing: true },
+  { route: "flow", heading: "New run", marketing: true },
   { route: "approvals", heading: "Approvals", marketing: true },
-  { route: "integrations", heading: "Agents", marketing: true },
-  { route: "settings", heading: "Appearance", marketing: false },
-  { route: "topology-focus", heading: "Mission", marketing: false },
+  { route: "setup", heading: "Appearance", marketing: false },
+  { route: "integrations", heading: "Agents & permissions", marketing: true },
+  { route: "workspaces", heading: "Workspaces", marketing: false },
   { route: "run-review", heading: "Run Review", marketing: true },
 ] as const;
 
@@ -149,4 +155,22 @@ test.describe("@marketing-capture current Desktop product captures", () => {
       });
     }
   }
+
+  test("work is truthful at 1920x1080 for the demo still", async ({ page }) => {
+    const route = ROUTES.find((item) => item.route === "work");
+    if (!route) throw new Error("expected a Work capture route");
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await prepareRoute(page, route);
+
+    const png = await page.screenshot({
+      animations: "disabled",
+      caret: "hide",
+      fullPage: false,
+      scale: "css",
+    });
+
+    expect(png.byteLength).toBeGreaterThan(40_000);
+    await writeCapture(path.join(DEMO_CAPTURE_DIR, "work-1920x1080.png"), png);
+  });
 });

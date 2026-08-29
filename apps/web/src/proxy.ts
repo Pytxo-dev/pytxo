@@ -1,10 +1,9 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const middleware =
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY
-  ? clerkMiddleware()
-  : () => NextResponse.next();
+import { SITE_AUTH_BACKEND_ENABLED } from "@/lib/auth-config";
+
+const middleware = SITE_AUTH_BACKEND_ENABLED ? clerkMiddleware() : () => NextResponse.next();
 
 export default middleware;
 

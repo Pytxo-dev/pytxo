@@ -1,16 +1,23 @@
 ---
 title: Pytxo deep-improvement research
 slug: pytxo-improvement-research
-status: active
+status: archived
 tags: [project, research, strategy]
 audience: [human, agent]
 layer: meta
 created: 2026-07-17
-updated: 2026-07-29
-related: [[product-vision]], [[signal-core]], [[blast-shield]], [[race-shield]], [[desktop-ui-improvement-backlog]], [[competitive-benchmarks]], [[mvp-bootstrap]], [[permission-profile-engine]], [[desktop-visual-system]], [[multi-agent-orchestration-landscape]], [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]], [[gtm-open-source-loop]], [[mission-loop]]
+updated: 2026-08-27
+related: [[product-vision]], [[commit-layer]], [[pytxo-commit-layer-alignment]], [[signal-core]], [[blast-shield]], [[race-shield]], [[desktop-ui-improvement-backlog]], [[competitive-benchmarks]], [[mvp-bootstrap]], [[permission-profile-engine]], [[desktop-visual-system]], [[multi-agent-orchestration-landscape]], [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]], [[gtm-open-source-loop]], [[mission-loop]]
 ---
 
 # Pytxo deep-improvement research
+
+> [!NOTE]
+> Archived strategic snapshot. Its local multi-CLI hypervisor wedge was
+> superseded on 2026-08-27 by the [[product-vision|commit-layer vision]] and
+> [[pytxo-commit-layer-alignment]]. Capability and benchmark evidence in this
+> note remains historical input; its category recommendation is no longer
+> canonical.
 
 Primary-source synthesis (vault + crates + 2026 competitor docs). Longer than an atomic note by design — market landscape plus ranked program for the next cycle.
 
