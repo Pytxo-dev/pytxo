@@ -2,36 +2,74 @@
 title: Pytxo Desktop
 ---
 
-**Pytxo Desktop** is an optional control UI for composing missions, watching
-execution, reviewing prepared changes, and deciding whether to Apply.
+**Pytxo Desktop** is an optional control UI for planning a run, watching it
+execute, reading the exact package it prepared, and deciding whether to Apply.
 
 Download installers from [pytxo.com/download](https://pytxo.com/download).
 
-## At a glance
+## Three destinations
 
-| Panel | What you see |
-|-------|----------------|
-| Ops | Needs you, Running rows, path locks, spend, and attention state |
-| Missions | Past work, **New mission**, and a selected mission’s Plan / Live / Review |
-| Approvals | Pending Galaxy requests (with domain label) |
-| Workspaces | Project folders and execution-domain scope |
-| Agents | Installed CLIs and vendor-owned session readiness; MCP hub is CLI/IDE (`pytxo-mcp`) |
-| Settings | Appearance (Void / Light, teal), Providers, and shortcuts |
+| Destination | What you see |
+|-------------|--------------|
+| Work | The focused run: agent tasks grouped by wave, and the commit boundary panel with its enforcement receipt |
+| History | Every run in the workspace with its outcome and Apply state, plus the boundary panel for the selected run |
+| Setup | General, Appearance, Keyboard, Providers, Workspaces, Agents, Voice, Privacy, and Account |
 
-Older hashes such as `#/flow`, `#/integrations`, `#/runs`, `#/topology-focus`, and `#/run-review` still open the matching Missions or Agents view.
+Two things deliberately sit outside that list:
 
-## New mission
+- **Workspace** is global context, not a destination. It lives in the title bar,
+  because every screen is already scoped to one execution domain.
+- **Approvals** is an overlay, reachable from the title bar, the boundary panel,
+  or the `A` key. A short decision queue does not earn a screen, and a decision
+  should be reachable from wherever you already are.
 
-**New mission** is the mission-to-plan workflow. Enter an outcome, select one execution domain, and
-review the resulting tasks, waves, path claims, agent CLI assignments, permissions, isolation, cost
-estimates, warnings, and blockers before **Run**.
+Older hashes still resolve: `#/operations` and `#/approvals` open Work,
+`#/runs` and `#/missions` open History, `#/flow` opens the composer,
+`#/run-review` and `#/topology-focus` open Run Review, and `#/settings`,
+`#/workspaces`, and `#/integrations` open the matching Setup section.
 
-Desktop sends intent; the orchestrator enforces Signal Core, Race Shield, Blast Shield,
-permission ceilings, and execution-domain validation before a plan can run.
-There is no quick-run path: every mission must be previewed first.
+## Work
 
-Open a running or finished mission to switch **Plan**, **Live**, and **Review**. Mission Review is the
-reviewed-package Apply surface. It is not a separate Runs or Focus destination.
+Work answers one question: what is happening, and what am I about to authorise.
+
+The left side is the run ledger. Each row is one agent task under the wave that
+scheduled it, with the state the orchestrator actually reported — Completed,
+Running, Queued, or Failed — its exit code, and the paths it claimed. There is
+no per-agent progress bar, because the orchestrator does not compute per-agent
+progress. Wave completion is shown as a count, which it can.
+
+The right side is the commit boundary. It stays on screen for the whole run and
+carries the candidate outcome, the enforcement receipt, and the Apply decision,
+so approving is never a surprise.
+
+## Enforcement receipt
+
+Every run records how each isolation surface was actually held, per run and per
+agent, across four surfaces: workspace isolation, host filesystem boundary,
+network, and apply boundary. Each surface reports one of four states, and the
+interface never renders one as stronger than its evidence:
+
+| State | Meaning |
+|-------|---------|
+| Enforced | A mechanism held it |
+| Advisory only | Pytxo asked, but the platform did not guarantee it |
+| Unavailable | Nothing was measured. Absence of evidence, not a warning and not a pass |
+| Bypassed | It was deliberately turned off |
+
+Advisory and unavailable are not rendered as a pass. A run whose network
+isolation was never measured says so, on the same screen where you decide
+whether to Apply it.
+
+## New run
+
+**New run** is the outcome-to-plan workflow. Enter an outcome, select one
+execution domain, and review the resulting tasks, waves, path claims, agent CLI
+assignments, permissions, isolation, cost estimates, warnings, and blockers
+before **Run**.
+
+Desktop sends intent; the orchestrator enforces Signal Core, Race Shield, Blast
+Shield, permission ceilings, and execution-domain validation before a plan can
+run. There is no quick-run path: every run must be previewed first.
 
 ## Run Review
 
@@ -47,47 +85,49 @@ allowed. A changed affected path marks the review stale.
 
 The view also covers preparation failure, retry after confirmed rollback,
 active Apply, recovered state, applied state, discard, and manual recovery.
-Advisory host controls remain visibly advisory.
+When a rollback was not confirmed, Desktop states plainly that the working tree
+may be partially modified and offers the concrete recovery step.
+
+## History
+
+History is the run inventory: run ID, workspace, outcome, Apply state, and start
+time, searchable and filterable to unresolved runs. Selecting a run shows its
+boundary panel; opening it goes to Run Review. Receipts are shown as of decision
+time and are not recomputed against current state.
 
 ## Updates and reconnects
 
 Desktop receives immediate events for native mutations and catches up CLI or
 external changes through a monotonic domain cursor. Full snapshots are used
 for initial load, domain changes, reconnect or cursor reset, and an infrequent
-integrity refresh.
+integrity refresh. When the cursor gap flag is set, derived boundary checks
+downgrade to unavailable rather than showing last-known-good values.
 
 ## Pytxo Voice
 
-Voice captures speech and turns the transcript into an editable mission. Transcription runs
-locally with an on-demand model. Raw microphone audio remains in bounded memory and
-is cleared on completion, cancellation, device loss, or shutdown; it is never stored in Pytxo's
-catalog, logs, events, or diagnostics.
+Voice captures speech and turns the transcript into an editable outcome.
+Transcription runs locally with an on-demand model. Raw microphone audio remains
+in bounded memory and is cleared on completion, cancellation, device loss, or
+shutdown; it is never stored in Pytxo's catalog, logs, events, or diagnostics.
 
-Voice can create mission text only. It cannot navigate Desktop, approve actions, stop runs, or
-dispatch work automatically.
+Voice can create run text only. It cannot navigate Desktop, approve actions,
+stop runs, or dispatch work automatically.
 
 ## Design principles
 
-- Void or Light, with a calm teal accent
-- Structural views over raw terminal walls
+- Near-black monochrome, with hue reserved for state
+- Density that serves prolonged reading of machine output
+- No element renders a quantity the orchestrator does not compute
 - No direct filesystem access from the UI; all data comes through local IPC
 - Plan preview before dispatch
 - Keyboard-accessible capture, navigation, and decisions
-
-## Structural topology
-
-During an active run, the mission **Live** pane shows:
-
-- **Nodes:** files and modules from the Signal Core structural graph
-- **Edges:** import relationships between them
-- **Token savings:** per-run saved-token totals when Signal Core samples exist
-
-This is a structural map of how agent edits touch your code, not a wall of terminal text.
 
 ## What it is not
 
 - Not a replacement for your IDE
 - Not the primary place to read agent stdout (logs are supporting panels)
+- Not a 3D topology viewer. The AST topology view is a legacy shell, not a
+  default destination
 
 ## Requirements
 

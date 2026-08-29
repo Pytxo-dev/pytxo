@@ -11,6 +11,10 @@ Presentation  ->  Orchestration  ->  Execution
    passive telemetry   MCP / CLI
 ```
 
+This is the shipping repository architecture. It implements a narrow commit
+boundary through immutable review and journaled Apply. The proposed production
+effect architecture is intentionally not presented here as current behavior.
+
 ## Crates
 
 | Crate | Role |
@@ -56,5 +60,10 @@ run to a hosted sandbox.
 ## Moat routing
 
 All new orchestration features should route through [Signal Core](/docs/concepts/signal-core), [Blast Shield](/docs/concepts/blast-shield), and [Race Shield](/docs/concepts/race-shield). Do not bypass them.
+
+For future effect work, those controls are foundations. The additional product
+contract is effect-bound authorization, independent post-state verification,
+causal evidence, and explicit reversible, compensatable, or irreversible
+recovery behavior.
 
 See [repo layout](/docs/developers/repo-layout) for directory map.

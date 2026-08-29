@@ -31,22 +31,13 @@ const PLATFORMS = [
     match: (os: DetectedOs) => os === "windows",
   },
   {
-    id: "macos-arm" as const,
+    id: "macos" as const,
     label: "macOS",
     detail: "v1 build not available yet",
     href: DESKTOP_DOWNLOADS.macosArm,
     available: false,
     Icon: AppleIcon,
     match: (os: DetectedOs) => os === "macos",
-  },
-  {
-    id: "macos-intel" as const,
-    label: "macOS",
-    detail: "v1 build not available yet",
-    href: DESKTOP_DOWNLOADS.macosX64,
-    available: false,
-    Icon: AppleIcon,
-    match: () => false,
   },
   {
     id: "linux" as const,
@@ -63,7 +54,7 @@ export function DownloadDesktop() {
   const os = useSyncExternalStore(subscribeOs, getOsSnapshot, getOsServerSnapshot);
 
   return (
-    <section className="chroma-border rounded-[var(--radius-lg)] border border-border bg-card/20 p-6 sm:p-8">
+    <section className="rounded-[4px] border border-border bg-card p-6 sm:p-8">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">

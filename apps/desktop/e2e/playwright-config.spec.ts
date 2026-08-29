@@ -23,16 +23,18 @@ test("Flow follows the shell snapshot and native dispatch emits a domain event",
   expect(flowIpc).toContain("emit_domain_changed(&app");
 });
 
-test("mission tabs expose Plan Live Review panes", () => {
-  const missionDetail = readFileSync(
-    new URL("../src/components/desktop2/MissionDetail.svelte", import.meta.url),
+// The combined plan/live/review tab strip is retired: each of those questions
+// now has its own surface, so no component may reintroduce a pane switcher that
+// claims to answer all three at once.
+test("Work has no combined plan-live-review tab strip", () => {
+  const missions = readFileSync(
+    new URL("../src/components/desktop2/MissionsScreen.svelte", import.meta.url),
     "utf8",
   );
 
-  expect(missionDetail).toContain('role="tablist"');
-  expect(missionDetail).toContain("Plan");
-  expect(missionDetail).toContain("Live");
-  expect(missionDetail).toContain("Review");
+  expect(missions).not.toContain('role="tablist"');
+  expect(missions).toContain("FlowScreen");
+  expect(missions).toContain("RunReviewScreen");
 });
 
 test("Desktop and Storybook share a checked-in Chrome channel contract", () => {

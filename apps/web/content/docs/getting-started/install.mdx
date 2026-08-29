@@ -3,14 +3,14 @@ title: Install
 description: Install the Pytxo CLI on Windows, macOS, and Linux.
 ---
 
-Current release: **1.1.1**.
+Current release: **1.2.0**.
 
 ## npm (recommended)
 
 Requires Node.js 18+.
 
 ```bash
-npm i -g pytxo@1.1.1
+npm i -g pytxo@1.2.0
 pytxo doctor
 ```
 
@@ -18,22 +18,22 @@ The npm package downloads the matching prebuilt binary from [Pytxo-dev/pytxo-rel
 
 ## Install scripts
 
+**Windows (PowerShell)** is a first-class path:
+
+```powershell
+irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 | iex
+```
+
 **macOS / Linux:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
 ```
 
-**Windows (PowerShell):**
-
-```powershell
-irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 | iex
-```
-
 Pin a release:
 
 ```bash
-PYTXO_VERSION=v1.1.1 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
+PYTXO_VERSION=v1.2.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
 ```
 
 ## Prebuilt binaries
@@ -46,9 +46,9 @@ PYTXO_VERSION=v1.1.1 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytx
 | macOS Intel | `pytxo-darwin-x64` |
 | Windows x64 | `pytxo-windows-x64.exe` |
 
-Download from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases/tag/v1.1.1). Put the binary on your `PATH`, then run `pytxo doctor`.
+Download from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases/tag/v1.2.0). Put the binary on your `PATH`, then run `pytxo doctor`.
 
-**Windows-first note:** GitHub-hosted runners were account/billing-blocked for earlier v1 cuts. v1.1.1 prefers the Actions Release workflow. If that matrix is still blocked, only a fresh Windows CLI and Desktop are claimed; macOS and Linux assets remain compatibility mirrors that report their original versions.
+**Windows-first note:** GitHub-hosted runners were account/billing-blocked for earlier v1 cuts. v1.2.0 prefers the Actions Release workflow. If the Desktop matrix is still blocked, only a fresh Windows CLI and Desktop are claimed; do not treat older macOS or Linux Desktop artifacts as 1.2.0 builds. CLI assets still target five OS/arch combinations when those jobs succeed.
 
 Community help: [Discord](https://discord.gg/AUFRPFjSYv).
 

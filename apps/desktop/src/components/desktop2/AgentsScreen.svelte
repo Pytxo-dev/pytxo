@@ -18,9 +18,12 @@
   let {
     backend,
     onUseInMission,
+    embedded = false,
   }: {
     backend: DesktopBackend;
     onUseInMission: () => void;
+    /** Rendered inside Setup, so the surrounding screen owns the heading. */
+    embedded?: boolean;
   } = $props();
 
   let adeClis = $state<AdeCliStatusDto[]>([]);
@@ -73,10 +76,10 @@
   });
 </script>
 
-<section class="screen collection-screen">
-  <header class="screen-heading">
+<section class="screen collection-screen" class:embedded>
+  <header class="screen-heading" class:compact={embedded}>
     <div>
-      <h1>Agents</h1>
+      {#if embedded}<h2>Installed agent CLIs</h2>{:else}<h1>Agents</h1>{/if}
     </div>
     <button class="quiet integration-refresh" onclick={() => void refreshAdeClis()} disabled={adeLoading}>
       <IconRefresh size={14} class={adeLoading ? "spin" : undefined} />
@@ -154,3 +157,17 @@
     </div>
   </article>
 </section>
+
+<style>
+  /* Inside Setup the CLI list is section content, not a screen. */
+  .screen.embedded {
+    padding: 0;
+    gap: 12px;
+  }
+  .screen.embedded .screen-heading h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+</style>

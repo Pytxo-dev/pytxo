@@ -6,23 +6,34 @@ tags: [moc, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-08-13
-related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[v1-1-architecture]], [[pytxo-v1-1-trustworthy-mission-control]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
+updated: 2026-08-29
+related: [[MOC-home]], [[architecture-index]], [[product-vision]], [[commit-layer]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[pytxo-commit-layer-alignment]], [[v1-1-architecture]], [[pytxo-v1-1-trustworthy-mission-control]], [[chroma-aperture-identity]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]], [[ADR-0036-effect-contract-commit-boundary]], [[ADR-0037-chroma-aperture-visual-contract]], [[ADR-0038-epistemic-state-contract]], [[ADR-0039-evidence-ledger-visual-contract]]
 ---
 
 # Pytxo documentation home
 
-**Pytxo** — agent hypervisor & telemetry plane ([ptyxo.com](https://ptyxo.com)).
+**Pytxo** — commit layer for autonomous work; shipping first as a reviewed
+repository boundary for coding agents ([pytxo.com](https://pytxo.com)).
 
-**Thesis:** Local inspectable workflow engine for existing agent CLIs — one mission → plan → isolated waves → verify → one reviewable apply ([[mission-loop]]).
+**Thesis:** Let any agent propose; Pytxo controls what may become real, verifies
+the resulting state, and records an honest recovery path ([[product-vision]],
+[[commit-layer]]). The current proof is one mission → plan → isolated waves →
+verify → one reviewable repository Apply ([[mission-loop]]).
 
 **Stack:** Rust (`portable-pty`, `tree-sitter`) · Svelte 5 Runes · Tauri v2
 
-**Vision:** [[product-vision]] — three moats: [[signal-core]], [[blast-shield]], [[race-shield]] · Mission loop: [[mission-loop]]
+**Vision:** [[product-vision]] · Commit boundary: [[commit-layer]] · Current
+controls: [[signal-core]], [[blast-shield]], [[race-shield]] · Repository proof:
+[[mission-loop]]
 
-**Architecture synthesis:** [[pytxo-architecture-research]] — full primary-source map of vision, tiers, moats, policy, ADRs, crates.
+**Architecture snapshot:** [[pytxo-architecture-research]] — July 2026 map of
+tiers, controls, policy, ADRs, and crates. Use [[product-vision]] for the current
+product thesis.
 
-**Improvement program:** [[pytxo-v1-1-trustworthy-mission-control]]; v1.1 sequences runtime truth, a mature operator Desktop, and proof/distribution. [[pytxo-improvement-research]] remains the deeper research ledger.
+**Programs:** [[pytxo-v1-1-trustworthy-mission-control]] documents the shipping
+repository contract. [[pytxo-commit-layer-alignment]] gates the proposed
+production-effect expansion. [[pytxo-improvement-research]] remains the earlier
+research ledger.
 
 ---
 
@@ -53,8 +64,9 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 ### Architecture
 
 - [[architecture-index]] — [[three-tier-model]], [[context-diagram]], [[c4-container]]
+- [[commit-layer]] — effect contracts, prepare/commit, independent verification, evidence, and recovery
 - [[v1-1-architecture]] — immutable review bytes, execution-domain serialization, journaled Apply, and exact limits
-- [[presentation-passive-telemetry]] · [[desktop-visual-system]] · [[pytxo-desktop-2-flow-voice]]
+- [[presentation-passive-telemetry]] · [[desktop-visual-system]] · [[chroma-aperture-identity]] · [[pytxo-desktop-2-flow-voice]]
 - [[mcp-hub-integration]]
 
 ### Context (agent code materialization)
@@ -89,6 +101,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 ### Product
 
 - [[product-vision]]
+- [[pytxo-commit-layer-alignment]] — three-phase falsification, shadow, and gated-production plan
 - [[modular-projects]] — multi-path workspaces (Antigravity-style)
 - [[tiers-hobbyist-pro-max]] · [[token-arbitrage]]
 - [[gtm-open-source-loop]] · [[competitive-benchmarks]]
@@ -105,6 +118,8 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 - [[v1-product-reference-research]] — 18 official product references and the v1 Desktop, website, and demo design decisions (2026-07-30)
 - [[pytxo-v1-1-trustworthy-mission-control]]: v1.1 release thesis, implemented trust contract, and remaining priorities
 - [[ADR-0035-desktop-2-quiet-instrument-ia]] — Desktop 2 Ops / Missions / Approvals quiet instrument
+- [[ADR-0036-effect-contract-commit-boundary]] — proposed effect-contract expansion beyond repository Apply
+- [[ADR-0037-chroma-aperture-visual-contract]] — shared website and Desktop presentation contract
 - [[competitive-landscape-2026-07]] — primary-source competitor map + GTM compare priorities (2026-07)
 
 ### ADRs

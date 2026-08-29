@@ -6,11 +6,69 @@ tags: [meta]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-08-13
+updated: 2026-08-29
 related: [[MOC-home]]
 ---
 
 # Documentation changelog
+
+## 2026-08-29 (v1.2.0)
+
+- Product version metadata is **1.2.0**. `ONBOARDING_VERSION` remains `1.1.0`.
+- Public Fumadocs, `/download`, and release notes name Work / History / Setup
+  and the evidence-ledger website.
+
+## 2026-08-29 (evidence ledger)
+
+- [changed] Superseded the state-semantics items of
+  [[ADR-0037-chroma-aperture-visual-contract]] with
+  [[ADR-0038-epistemic-state-contract]] and
+  [[ADR-0039-evidence-ledger-visual-contract]]. Spectrum is retired from state
+  duty. Every rendered state resolves to verified, claimed, unknown, or refuted.
+- [changed] Collapsed Desktop destinations to Work, History, and Setup. Workspace
+  is title-bar context. Approvals are an overlay. Public docs and [[glossary]]
+  follow that IA.
+- [changed] Rebuilt the marketing homepage into a seven-section narrative with
+  one large annotated Work capture, a real ADE registry grid, `/evidence`, and
+  honest platform availability on `/download`.
+
+## 2026-08-27 (Chroma Aperture)
+
+- [changed] Adopted [[chroma-aperture-identity]] and accepted
+  [[ADR-0037-chroma-aperture-visual-contract]] for the shared website and
+  Desktop presentation system. The six-part Desktop information architecture
+  remains unchanged.
+- [changed] Rebuilt the marketing homepage around an editorial hero, gapless
+  execution bento, pinned plan/live/review/commit story, measured-evidence
+  carousel, and responsive motion with reduced-motion fallbacks.
+- [changed] Recast Desktop Operations as live execution lanes with a persistent
+  commit-boundary inspector, mission inventory, execution snapshot, and honest
+  missing-evidence states.
+- [added] Added approved Imagegen website and Desktop mockups plus implementation
+  specifications and plans under `docs/superpowers/`.
+
+## 2026-08-27 (commit-layer vision)
+
+- [changed] Reframed [[product-vision]] from a general local agent hypervisor
+  category to the commit layer for autonomous work. The shipping repository
+  Apply remains the first narrow implementation, not evidence that production
+  effect enforcement already ships.
+- [added] Added [[commit-layer]], the three-phase
+  [[pytxo-commit-layer-alignment]] evidence plan, and proposed
+  [[ADR-0036-effect-contract-commit-boundary]].
+- [changed] Marked the July hypervisor-wedge research as historical context and
+  aligned the root and public introductions without changing current feature
+  claims.
+
+## 2026-08-25 (Chroma ribbon identity)
+
+- Added [[chroma-ribbon-identity]] as the living visual note (Void / Panel / Ink, logo-spectrum ribbon, Sora + Plex Mono). Supersedes [[chassis-identity]]. Does not edit [[ADR-0029-chroma-shared-design-tokens]].
+
+## 2026-08-25 (Chassis identity)
+
+- Added [[chassis-identity]] as the living visual note for marketing, docs, and Desktop (Bezel / Plate / Aluminum / Live / Cue, IBM Plex). Does not edit [[ADR-0029-chroma-shared-design-tokens]].
+- [[desktop-visual-system]] now defers palette and type to Chassis.
+- Public docs stay curated Fumadocs MDX; `/docs` is a real SSG tree, not the Obsidian vault.
 
 ## 2026-08-13 (v1.1.1 quiet-instrument Desktop)
 

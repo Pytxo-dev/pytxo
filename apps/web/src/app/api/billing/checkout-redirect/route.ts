@@ -1,15 +1,13 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
+import { SITE_AUTH_BACKEND_ENABLED } from "@/lib/auth-config";
 import { createCheckoutSession, type CheckoutPlan } from "@/lib/billing/mbcz-checkout";
 
 const VALID_PLANS: CheckoutPlan[] = ["pro", "max", "ultra"];
 
 export async function GET(req: NextRequest) {
-  if (
-    !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
-    !process.env.CLERK_SECRET_KEY
-  ) {
+  if (!SITE_AUTH_BACKEND_ENABLED) {
     return NextResponse.json(
       { error: "account_auth_unavailable" },
       { status: 503 },

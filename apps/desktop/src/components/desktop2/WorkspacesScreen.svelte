@@ -17,11 +17,14 @@
     onDomainForgotten,
     onEditWorkspace,
     onNewMission,
+    embedded = false,
   }: {
     snapshot: DesktopSnapshot;
     backend: DesktopBackend;
     activeDomainId?: string | null;
-    onSelectDomain: (domainId: string, opts?: { route?: "operations" }) => void;
+    /** Rendered inside Setup, so the surrounding screen owns the heading. */
+    embedded?: boolean;
+    onSelectDomain: (domainId: string, opts?: { route?: "work" }) => void;
     onWorkspaceOpened: (openedPath?: string | null) => void | Promise<void>;
     onDomainForgotten: (domainId: string) => void;
     onEditWorkspace: (domainId: string) => void;
@@ -86,10 +89,10 @@
   }
 </script>
 
-<section class="screen collection-screen">
-  <header class="screen-heading">
+<section class="screen collection-screen" class:embedded>
+  <header class="screen-heading" class:compact={embedded}>
     <div>
-      <h1>Workspaces</h1>
+      {#if embedded}<h2>Trusted folders</h2>{:else}<h1>Workspaces</h1>{/if}
     </div>
     <div class="workspace-heading-actions">
       <button class="quiet" disabled={creatingExample} onclick={() => void createGuidedExample()}>
@@ -130,7 +133,7 @@
           <span data-col="running" role="cell">{domain.active_runs}</span>
           <span data-col="approvals" role="cell">{domain.hitl_pending}</span>
           <span class="row-actions" role="cell">
-            <button class="card-link" onclick={() => onSelectDomain(domain.domain_id, { route: "operations" })}>
+            <button class="card-link" onclick={() => onSelectDomain(domain.domain_id, { route: "work" })}>
               Open <IconChevronRight size={14} />
             </button>
             <button class="card-link" onclick={() => onEditWorkspace(domain.domain_id)}>
@@ -168,3 +171,18 @@
     {/if}
   {/if}
 </section>
+
+<style>
+  /* Inside Setup the catalog is section content, not a screen: no page padding,
+     no page title, and it inherits the section's rhythm. */
+  .screen.embedded {
+    padding: 0;
+    gap: 12px;
+  }
+  .screen.embedded .screen-heading h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+</style>

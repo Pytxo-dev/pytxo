@@ -1,7 +1,14 @@
 import { createHash } from "node:crypto";
-import { access, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import {
+  MARKETING_ROUTES,
+  MARKETING_VIEWPORTS,
+  REFERENCE_ROUTES,
+  VIEWPORTS,
+} from "./product-asset-manifest.mjs";
 
 const WEB_ROOT = fileURLToPath(new URL("../", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -15,31 +22,6 @@ const DESKTOP_CAPTURE_DIR = path.join(
 const DOCS_CAPTURE_DIR = path.join(REPO_ROOT, "docs", "_attachments", "desktop-2");
 const WEB_CAPTURE_DIR = path.join(WEB_ROOT, "public", "product");
 
-const REFERENCE_ROUTES = [
-  "operations",
-  "workspaces",
-  "flow",
-  "approvals",
-  "integrations",
-  "settings",
-  "topology-focus",
-  "run-review",
-  "run-applied",
-];
-const VIEWPORTS = [
-  { slug: "1600x1000", width: 1600, height: 1000 },
-  { slug: "1280x800", width: 1280, height: 800 },
-  { slug: "960x640", width: 960, height: 640 },
-];
-const MARKETING_ROUTES = [
-  "operations",
-  "flow",
-  "approvals",
-  "integrations",
-  "run-review",
-  "run-applied",
-];
-const MARKETING_VIEWPORTS = VIEWPORTS.filter(({ slug }) => slug !== "1280x800");
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
 function entriesFor(directory, routes, viewports) {
@@ -113,10 +95,21 @@ function assertParity(actual, source, label) {
   }
 }
 
-const marketing = await inspectSet(
-  entriesFor(WEB_CAPTURE_DIR, MARKETING_ROUTES, MARKETING_VIEWPORTS),
-  "Marketing product set",
-);
+const marketingEntries = entriesFor(WEB_CAPTURE_DIR, MARKETING_ROUTES, MARKETING_VIEWPORTS);
+
+// A stale capture of a route the app no longer has is a false product claim, so
+// the published directory must contain exactly the manifest and nothing else.
+const published = await readdir(WEB_CAPTURE_DIR);
+const permitted = new Set(marketingEntries.map(({ file }) => path.basename(file)));
+const unexpected = published.filter((name) => !permitted.has(name));
+if (unexpected.length > 0) {
+  throw new Error(
+    `Unmanifested marketing captures in ${WEB_CAPTURE_DIR}: ${unexpected.join(", ")}. ` +
+      "Run npm run sync:product-assets.",
+  );
+}
+
+const marketing = await inspectSet(marketingEntries, "Marketing product set");
 
 await requireDirectory(
   DESKTOP_CAPTURE_DIR,

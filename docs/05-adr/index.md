@@ -6,7 +6,7 @@ tags: [adr, moc]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-08-13
+updated: 2026-08-29
 related: [[MOC-home]]
 ---
 
@@ -51,6 +51,10 @@ Architecture Decision Records are **immutable once Accepted**. Supersede by addi
 | ADR-0033 | [[ADR-0033-reviewed-run-atomic-apply]] | accepted |
 | ADR-0034 | [[ADR-0034-immutable-review-package-and-durable-apply]] | accepted |
 | ADR-0035 | [[ADR-0035-desktop-2-quiet-instrument-ia]] | accepted |
+| ADR-0036 | [[ADR-0036-effect-contract-commit-boundary]] | proposed |
+| ADR-0037 | [[ADR-0037-chroma-aperture-visual-contract]] | superseded in part by ADR-0039 |
+| ADR-0038 | [[ADR-0038-epistemic-state-contract]] | accepted |
+| ADR-0039 | [[ADR-0039-evidence-ledger-visual-contract]] | accepted |
 
 ## Template
 

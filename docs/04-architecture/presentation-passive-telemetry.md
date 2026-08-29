@@ -6,13 +6,13 @@ tags: [architecture, svelte, tauri]
 audience: [human, agent]
 layer: presentation
 created: 2026-06-02
-updated: 2026-08-13
+updated: 2026-08-29
 related: [[three-tier-model]], [[desktop-visual-system]], [[execution-domains]], [[permission-profile-engine]], [[product-vision]], [[pytxo-improvement-research]], [[ADR-0034-immutable-review-package-and-durable-apply]]
 ---
 
 # Presentation layer — passive telemetry
 
-The Pytxo desktop shell is a **passive telemetry skin** built with **Svelte 5** and **Tauri v2** — see [[desktop-visual-system]] for the quiet-instrument aesthetic. Default product surface is **Desktop 2 Ops / Missions / Approvals**, not a 3D canvas. Orchestration remains the only layer that enforces policy or mutates repository files.
+The Pytxo desktop shell is a **passive telemetry skin** built with **Svelte 5** and **Tauri v2** — see [[desktop-visual-system]] for the evidence-ledger aesthetic. Default product surface is **Work / History / Setup**, not a 3D canvas. Orchestration remains the only layer that enforces policy or mutates repository files.
 
 ## Constraints
 

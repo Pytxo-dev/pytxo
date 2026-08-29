@@ -55,6 +55,7 @@
   }
 </script>
 
+<div class="titlebar-wrap">
 <header class="titlebar" data-tauri-drag-region>
   <div class="titlebar__brand" data-tauri-drag-region>
     <img src="/logo-mark.png" alt="" width="16" height="16" class="titlebar__logo" />
@@ -81,8 +82,13 @@
     </button>
   </div>
 </header>
+<span class="chroma-ribbon" aria-hidden="true"></span>
+</div>
 
 <style>
+  .titlebar-wrap {
+    flex-shrink: 0;
+  }
   .titlebar {
     display: flex;
     align-items: center;
@@ -90,7 +96,7 @@
     height: 36px;
     padding: 0 0 0 0.75rem;
     background: var(--sidebar);
-    border-bottom: 1px solid var(--sidebar-border);
+    border-bottom: 0;
     flex-shrink: 0;
     user-select: none;
   }

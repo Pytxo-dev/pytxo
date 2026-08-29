@@ -1,20 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { RootProvider } from "fumadocs-ui/provider/next";
 
 import { Providers } from "@/components/providers";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://pytxo.com"),
@@ -32,10 +21,10 @@ export const metadata: Metadata = {
     siteName: "Pytxo",
     images: [
       {
-        url: "/product/operations-1600x1000.png",
+        url: "/product/work-1600x1000.png",
         width: 1600,
         height: 1000,
-        alt: "Pytxo Desktop Operations",
+        alt: "Pytxo Desktop Work: the run ledger and the commit boundary",
       },
     ],
     locale: "en_US",
@@ -45,7 +34,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Pytxo",
     description: "Local agent hypervisor for the coding agents you already use",
-    images: ["/product/operations-1600x1000.png"],
+    images: ["/product/work-1600x1000.png"],
   },
 };
 
@@ -55,18 +44,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
-      suppressHydrationWarning
-    >
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://api.fontshare.com" />
+        <link
+          rel="stylesheet"
+          href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap"
+        />
+      </head>
       <body className="flex min-h-full flex-col">
         <Providers>
           <RootProvider
             theme={{
               defaultTheme: "dark",
               enableSystem: false,
-              forcedTheme: "dark",
             }}
           >
             <TooltipProvider>{children}</TooltipProvider>

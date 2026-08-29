@@ -1,223 +1,131 @@
 /**
- * Pytxo Chroma utility classes — framework-agnostic (no Tailwind @apply).
- * Logo ribbon cycle: magenta → violet → gold → teal/cyan.
+ * Pytxo Chroma utilities — framework-agnostic (no Tailwind @apply).
+ * Signature: 1px chroma ribbon. Live and Cue stay lamps / Apply only.
  */
 
-.nebula-bg {
-  background-color: var(--void);
-  background-image:
-    radial-gradient(ellipse 75% 50% at 12% -10%, color-mix(in oklab, var(--brand-magenta) 8%, transparent), transparent 58%),
-    radial-gradient(ellipse 60% 45% at 50% -8%, color-mix(in oklab, var(--brand-violet) 7%, transparent), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 88% 4%, color-mix(in oklab, var(--brand-gold) 5%, transparent), transparent 50%),
-    radial-gradient(ellipse 45% 35% at 78% 28%, color-mix(in oklab, var(--brand-teal) 6%, transparent), transparent 48%),
-    radial-gradient(ellipse 35% 30% at 65% 55%, color-mix(in oklab, var(--brand-cyan) 4%, transparent), transparent 45%);
+.chassis-shell {
+  background-color: var(--void, var(--background));
+  color: var(--foreground);
 }
 
-.nebula-noise {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
-  background-size: 128px 128px;
+[data-chroma-theme="void"],
+.chassis-shell.dark {
+  --primary: var(--ink);
+  --primary-foreground: var(--void);
+  --ring: var(--ink);
 }
 
-.glass-panel {
-  border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: color-mix(in oklab, var(--card) 40%, transparent);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+[data-chroma-theme="aluminum"] {
+  --primary: var(--void);
+  --primary-foreground: var(--ink);
+  --ring: var(--void);
 }
 
-.chroma-border,
-.gradient-border {
-  position: relative;
-  border-radius: var(--radius-xl);
-  background: color-mix(in oklab, var(--card) 55%, transparent);
+/*
+ * The spectrum is brand identity only. It carries no state and does not animate:
+ * a perpetual loop in persistent chrome competes with real signal, and a moving
+ * rainbow reads as system activity when nothing is happening.
+ */
+.chroma-ribbon {
+  display: block;
+  height: 1px;
+  width: 100%;
+  border: 0;
+  background-image: linear-gradient(90deg, var(--chroma-spectrum));
 }
 
-.chroma-border::before,
-.gradient-border::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  background: linear-gradient(
-    135deg,
-    color-mix(in oklab, var(--brand-magenta) 60%, transparent),
-    color-mix(in oklab, var(--brand-violet) 55%, transparent),
-    color-mix(in oklab, var(--brand-gold) 45%, transparent),
-    color-mix(in oklab, var(--brand-teal) 55%, transparent),
-    color-mix(in oklab, var(--brand-cyan) 50%, transparent)
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-.chroma-text,
-.text-gradient-brand {
-  background: linear-gradient(
-    105deg,
-    var(--brand-magenta) 0%,
-    var(--brand-violet) 28%,
-    var(--brand-gold) 55%,
-    var(--brand-teal) 78%,
-    var(--brand-cyan) 100%
-  );
-  background-size: 200% 100%;
+.chroma-text {
+  background-image: linear-gradient(90deg, var(--chroma-spectrum));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-.chroma-shift {
-  animation: chroma-shift 14s ease-in-out infinite;
+.status-lamp {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #616875;
+  flex-shrink: 0;
 }
 
-.chroma-text.chroma-shift,
-.text-gradient-brand.chroma-shift {
-  animation: chroma-shift 14s ease-in-out infinite;
+.status-lamp[data-state="live"] {
+  background: var(--live);
 }
 
-.chroma-glow {
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--brand-magenta) 14%, transparent),
-    0 10px 36px -10px color-mix(in oklab, var(--brand-violet) 24%, transparent),
-    0 8px 28px -12px color-mix(in oklab, var(--brand-teal) 18%, transparent);
+/* Attention has its own channel. It must never share a hue with `unknown`
+   (absence of evidence) or `refuted` (evidence of failure). */
+.status-lamp[data-state="needs-you"] {
+  background: var(--state-attention);
 }
 
-.chroma-edge-top {
-  border-top: 1px solid color-mix(in oklab, var(--brand-teal) 35%, transparent);
+.status-lamp[data-state="idle"] {
+  background: #616875;
 }
 
-.header-chroma-line {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in oklab, var(--brand-magenta) 45%, transparent),
-    color-mix(in oklab, var(--brand-violet) 40%, transparent),
-    color-mix(in oklab, var(--brand-gold) 35%, transparent),
-    color-mix(in oklab, var(--brand-teal) 40%, transparent),
-    color-mix(in oklab, var(--brand-cyan) 35%, transparent),
-    transparent
-  );
-  background-size: 200% 100%;
-  height: 1px;
-  animation: chroma-shift 16s ease-in-out infinite;
-}
-
-.hero-logo-panel,
-.hero-chroma-mark {
-  position: relative;
-  isolation: isolate;
+.bezel-frame {
   overflow: hidden;
-  border-radius: var(--radius-xl);
-  border: 1px solid transparent;
-  background: color-mix(in oklab, var(--card) 45%, transparent);
-  min-height: 16rem;
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--brand-magenta) 12%, transparent),
-    0 24px 64px -28px color-mix(in oklab, var(--brand-violet) 26%, transparent);
+  border: 1px solid var(--hairline, var(--border));
+  border-radius: var(--radius-xl, 8px);
+  background: var(--plate, var(--card));
 }
 
-.hero-logo-panel::before,
-.hero-chroma-mark::before {
-  content: "";
-  position: absolute;
-  inset: -20%;
-  z-index: 0;
+.bezel-frame--ribbon {
+  border-color: transparent;
   background:
-    radial-gradient(circle at 30% 35%, color-mix(in oklab, var(--brand-magenta) 22%, transparent), transparent 42%),
-    radial-gradient(circle at 62% 28%, color-mix(in oklab, var(--brand-violet) 20%, transparent), transparent 40%),
-    radial-gradient(circle at 55% 68%, color-mix(in oklab, var(--brand-gold) 14%, transparent), transparent 38%),
-    radial-gradient(circle at 72% 55%, color-mix(in oklab, var(--brand-teal) 18%, transparent), transparent 42%),
-    radial-gradient(circle at 40% 75%, color-mix(in oklab, var(--brand-cyan) 12%, transparent), transparent 36%);
-  animation: hero-wash 16s ease-in-out infinite alternate;
-  pointer-events: none;
+    linear-gradient(var(--plate, var(--card)), var(--plate, var(--card))) padding-box,
+    linear-gradient(90deg, var(--chroma-spectrum)) border-box;
+  border: 1px solid transparent;
 }
 
-.hero-logo-panel::after,
-.hero-chroma-mark::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  padding: 1px;
-  border-radius: inherit;
-  background: linear-gradient(
-    135deg,
-    color-mix(in oklab, var(--brand-magenta) 55%, transparent),
-    color-mix(in oklab, var(--brand-violet) 50%, transparent),
-    color-mix(in oklab, var(--brand-gold) 40%, transparent),
-    color-mix(in oklab, var(--brand-teal) 50%, transparent),
-    color-mix(in oklab, var(--brand-cyan) 45%, transparent)
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
+.bezel-frame__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--hairline, var(--border));
+  color: var(--muted-foreground);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.hero-logo-mark {
-  position: relative;
-  z-index: 1;
-  animation: hero-logo-float 8s ease-in-out infinite;
+.apply-receipt {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline, var(--border));
+  border-radius: var(--radius-xl, 8px);
+  background: var(--plate, var(--card));
+  font-size: 13px;
+}
+
+.apply-receipt dl {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.apply-receipt dt {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.apply-receipt dd {
+  margin: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.apply-receipt__apply {
+  color: var(--cue);
+  font-weight: 600;
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
-}
-
-@keyframes chroma-shift {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-@keyframes hero-wash {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-    opacity: 0.85;
-  }
-  100% {
-    transform: translate3d(2%, -1.5%, 0) scale(1.06);
-    opacity: 1;
-  }
-}
-
-@keyframes hero-logo-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chroma-shift,
-  .chroma-text.chroma-shift,
-  .text-gradient-brand.chroma-shift,
-  .header-chroma-line,
-  .hero-logo-panel::before,
-  .hero-chroma-mark::before,
-  .hero-logo-mark {
-    animation: none;
-  }
 }

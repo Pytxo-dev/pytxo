@@ -12,7 +12,7 @@ related: [[agent-os-vs-virtual-workspace]], [[signal-core]], [[blast-shield]], [
 
 # Product vision
 
-**Pytxo** ([ptyxo.com](https://ptyxo.com)) runs and coordinates the coding agents you already use — Claude Code, Codex, Antigravity CLI, and similar — in the background on your machine. It is a local **agent hypervisor**: schedule work, keep agents from colliding, show what they changed, and let you approve merges. It is **not** another ADE with walls of terminals, and **not** a single-vendor agent desktop (see [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]]).
+**Pytxo** ([pytxo.com](https://pytxo.com)) runs and coordinates the coding agents you already use — Claude Code, Codex, Antigravity CLI, and similar — in the background on your machine. It is a local **agent hypervisor**: schedule work, keep agents from colliding, show what they changed, and let you approve merges. It is **not** another ADE with walls of terminals, and **not** a single-vendor agent desktop (see [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]]).
 
 Maturity and honesty program: [[pytxo-improvement-research]].
 

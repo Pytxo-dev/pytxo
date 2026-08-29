@@ -8,13 +8,7 @@ export function baseOptions(): BaseLayoutProps {
     nav: {
       title: (
         <>
-          <Image
-            src="/logo.png"
-            alt=""
-            width={22}
-            height={22}
-            className="rounded-sm"
-          />
+          <Image src="/logo-mark.png" alt="" width={22} height={22} className="size-[22px]" />
           Pytxo
         </>
       ),

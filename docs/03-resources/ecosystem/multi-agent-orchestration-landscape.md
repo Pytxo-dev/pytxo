@@ -6,11 +6,16 @@ tags: [ecosystem, research]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-26
-related: [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]], [[pytxo-vs-ade-virtual-workspace]], [[pytxo-improvement-research]], [[competitive-landscape-2026-07]]
+updated: 2026-08-27
+related: [[product-vision]], [[commit-layer]], [[pytxo-commit-layer-alignment]], [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[beyond-the-ade]], [[pytxo-vs-ade-virtual-workspace]], [[pytxo-improvement-research]], [[competitive-landscape-2026-07]]
 ---
 
 # Multi-agent orchestration landscape (2026)
+
+> [!NOTE]
+> Category snapshot for the execution-yard market. Pytxo now treats these
+> products mainly as substrates or adjacent controls; the current thesis is the
+> [[commit-layer|commit boundary for autonomous work]].
 
 Informal map of approaches—not a competitive hit piece. Revisit quarterly. Deep synthesis: [[pytxo-improvement-research]]. Full competitor dossiers + GTM compare priorities: [[competitive-landscape-2026-07]].
 

@@ -35,7 +35,7 @@
   /** Chroma: teal / violet / gold; default teal (not sky-blue). */
   const ROOT_COLORS: Record<string, number> = {
     api: 0x2dd4bf,
-    web: 0xa78bfa,
+    web: 0xe06a3a,
     shared: 0xfbbf24,
     default: 0x2dd4bf,
   };
@@ -94,9 +94,9 @@
     if (!graph || graph.nodes.length === 0) return;
 
     const layout = forceLayout3d(graph.nodes, graph.edges);
-    const teal = hexColor("--brand-teal", 0x2dd4bf);
-    const violet = hexColor("--brand-violet", 0xa78bfa);
-    const gold = hexColor("--brand-gold", 0xfbbf24);
+    const teal = hexColor("--live", 0x3f8f7a);
+    const violet = hexColor("--cue", 0xe06a3a);
+    const gold = hexColor("--cue", 0xe06a3a);
 
     for (const node of graph.nodes) {
       const pos = layout.get(node.id);
@@ -119,7 +119,7 @@
     }
 
     const edgeMat = new THREE.LineBasicMaterial({
-      color: hexColor("--brand-violet", 0xa78bfa),
+      color: hexColor("--cue", 0xe06a3a),
       transparent: true,
       opacity: 0.45,
     });
@@ -142,7 +142,7 @@
       );
       const particleGeom = new THREE.BufferGeometry().setFromPoints([mid]);
       const particleMat = new THREE.PointsMaterial({
-        color: hexColor("--brand-violet", 0xa78bfa),
+        color: hexColor("--cue", 0xe06a3a),
         size: 0.12,
         transparent: true,
         opacity: 0.85,
@@ -402,11 +402,11 @@
     background: var(--brand-gold);
   }
   .dot--symbol {
-    background: var(--brand-violet);
+    background: var(--cue);
   }
   .selection {
     font-size: 0.72rem;
-    color: var(--brand-violet);
+    color: var(--cue);
     font-family: ui-monospace, monospace;
     margin-left: auto;
   }

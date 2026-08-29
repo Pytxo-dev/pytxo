@@ -6,8 +6,11 @@ import { source } from "@/lib/source";
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
-    <DocsLayout tree={source.getPageTree()} {...baseOptions()}>
-      {children}
-    </DocsLayout>
+    <div data-chroma-theme="void" className="dark min-h-dvh bg-background text-foreground">
+      <span className="chroma-ribbon" aria-hidden />
+      <DocsLayout tree={source.getPageTree()} {...baseOptions()}>
+        {children}
+      </DocsLayout>
+    </div>
   );
 }

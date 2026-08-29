@@ -2,7 +2,17 @@
   import { IconSearch } from "@tabler/icons-svelte";
   import type { AppRoute } from "../../lib/navigation.svelte";
 
-  type CommandItem = { route: AppRoute; label: string; icon: typeof IconSearch; aliases?: string[] };
+  export type CommandItem = {
+    id: string;
+    label: string;
+    icon: typeof IconSearch;
+    aliases?: string[];
+    route?: AppRoute;
+    run?: () => void;
+    group?: "Navigate" | "Actions";
+    hint?: string;
+    disabled?: boolean;
+  };
 
   let {
     open,
@@ -27,7 +37,7 @@
           const q = query.trim().toLowerCase();
           return (
             item.label.toLowerCase().includes(q) ||
-            item.route.toLowerCase().includes(q) ||
+            (item.route ?? "").toLowerCase().includes(q) ||
             (item.aliases ?? []).some((alias) => alias.toLowerCase().includes(q))
           );
         })
@@ -47,7 +57,9 @@
   });
 
   function select(item: CommandItem) {
-    onNavigate(item.route);
+    if (item.disabled) return;
+    if (item.run) item.run();
+    else if (item.route) onNavigate(item.route);
     onClose();
   }
 
@@ -64,6 +76,12 @@
       if (item) select(item);
     }
   }
+
+  const groups = $derived(
+    [...new Set(filtered.map((item) => item.group ?? "Navigate"))] as Array<
+      "Navigate" | "Actions"
+    >,
+  );
 </script>
 
 <dialog
@@ -88,12 +106,22 @@
           aria-label="Command search"
         />
       </label>
-      <p>Navigate</p>
       {#if filtered.length}
-        {#each filtered as item, index (`${item.route}-${item.label}`)}
-          <button class:highlighted={index === highlighted} onmouseenter={() => (highlighted = index)} onclick={() => select(item)}>
-            <item.icon size={16} />{item.label}<span>Go to</span>
-          </button>
+        {#each groups as group (group)}
+          <p>{group}</p>
+          {#each filtered as item, index (`${item.id}`)}
+            {#if (item.group ?? "Navigate") === group}
+              <button
+                class:highlighted={index === highlighted}
+                class:disabled={item.disabled}
+                disabled={item.disabled}
+                onmouseenter={() => (highlighted = index)}
+                onclick={() => select(item)}
+              >
+                <item.icon size={16} />{item.label}<span>{item.hint ?? (item.run ? "Run" : "Go to")}</span>
+              </button>
+            {/if}
+          {/each}
         {/each}
       {:else}
         <p class="no-results">No matches for "{query}"</p>
@@ -109,22 +137,21 @@
     margin: 0 auto;
     width: min(560px, calc(100vw - 40px));
     padding: 8px;
-    border: 1px solid #2b2e36;
-    border-radius: 9px;
-    background: #111319;
+    border: 1px solid #3d4450;
+    border-radius: 4px;
+    background: #1e232b;
     color: inherit;
     box-shadow: 0 24px 80px #000;
   }
   .command-menu::backdrop {
     background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(3px);
   }
   .command-menu label {
     display: flex;
     align-items: center;
     gap: 9px;
     padding: 9px;
-    border-bottom: 1px solid #262932;
+    border-bottom: 1px solid #3d4450;
     color: #7d8490;
   }
   .command-menu input {
@@ -154,7 +181,7 @@
     width: 100%;
     height: 34px;
     border: 0;
-    border-radius: 5px;
+    border-radius: 2px;
     background: none;
     color: #aeb4be;
     font: 13px inherit;
@@ -164,16 +191,23 @@
   }
   .command-menu button:hover,
   .command-menu button.highlighted {
-    background: #1a1d24;
+    background: #252b34;
     color: #fff;
   }
+  .command-menu button.disabled,
+  .command-menu button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
   .command-menu button:focus-visible {
-    outline: 2px solid var(--pytxo-teal);
+    outline: 2px solid var(--live);
     outline-offset: -2px;
   }
   .command-menu button span {
     margin-left: auto;
     color: #565c68;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
   }
 
   :global(html[data-chroma-theme="light"]) .command-menu {

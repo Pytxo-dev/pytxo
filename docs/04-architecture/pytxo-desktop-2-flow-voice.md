@@ -6,15 +6,15 @@ tags: [desktop, flow, voice, architecture]
 audience: [human, agent]
 layer: presentation
 created: 2026-07-12
-updated: 2026-08-13
-related: [[desktop-visual-system]], [[presentation-passive-telemetry]], [[dag-flow-engine]], [[permission-profile-engine]], [[execution-domains]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]]
+updated: 2026-08-29
+related: [[desktop-visual-system]], [[presentation-passive-telemetry]], [[dag-flow-engine]], [[permission-profile-engine]], [[execution-domains]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]], [[ADR-0038-epistemic-state-contract]], [[ADR-0039-evidence-ledger-visual-contract]]
 ---
 
 # Pytxo Desktop 2, missions, and Voice
 
-Pytxo Desktop 2 is a route-driven supervision shell. **Ops** is today (needs-you, running work, spend). **Missions** is the core object: inventory, New mission composer, and Plan / Live / Review detail. **Approvals** is the decision inbox. Workspaces, Agents, and Settings are catalogs. Agents, logs, diffs, and file lists remain contextual. This keeps Desktop aligned with [[presentation-passive-telemetry]] instead of turning it into an IDE or terminal wall. IA: [[ADR-0035-desktop-2-quiet-instrument-ia]].
+Pytxo Desktop 2 is a route-driven supervision shell. **Work** is the focused run: ledger plus commit boundary. **History** is the run inventory. **Setup** is configuration. Workspace is title-bar context, not a destination. Approvals are an overlay. This keeps Desktop aligned with [[presentation-passive-telemetry]] instead of turning it into an IDE or terminal wall. Visual contract: [[ADR-0039-evidence-ledger-visual-contract]]. The six-item nav in [[ADR-0035-desktop-2-quiet-instrument-ia]] is retired.
 
-The Svelte application depends on a `DesktopBackend` contract. Production uses Tauri IPC; Storybook and browser tests use deterministic preview data. Canonical hashes (`#/missions`, `#/agents`) persist; aliases (`#/flow`, `#/runs`, `#/integrations`, `#/topology-focus`, `#/run-review`) still resolve. The `pytxo-deck-tabs-v1` payload is migrated into recents without deleting the original payload, and the old shell remains available through `desktop_shell_v1` for one rollback release. `pytxo://` is the current deep-link scheme; `pytxo-deck://` remains registered for compatibility. `pytxo://flow` opens New mission in-shell.
+The Svelte application depends on a `DesktopBackend` contract. Production uses Tauri IPC; Storybook and browser tests use deterministic preview data. Canonical hashes are `#/work`, `#/history`, and `#/setup`. Aliases (`#/operations`, `#/missions`, `#/flow`, `#/runs`, `#/integrations`, `#/topology-focus`, `#/run-review`, `#/approvals`) still resolve. The `pytxo-deck-tabs-v1` payload is migrated into recents without deleting the original payload, and the old shell remains available through `desktop_shell_v1` for one rollback release. `pytxo://` is the current deep-link scheme; `pytxo-deck://` remains registered for compatibility. `pytxo://flow` opens New run in-shell.
 
 ## Flow boundary
 

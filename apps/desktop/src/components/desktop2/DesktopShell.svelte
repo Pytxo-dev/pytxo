@@ -3,10 +3,10 @@
   import {
     IconActivity,
     IconChecks,
-    IconFolders,
+    IconHistory,
+    IconPlayerStop,
     IconSettings,
     IconTarget,
-    IconTerminal2,
   } from "@tabler/icons-svelte";
   import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
   import {
@@ -26,17 +26,19 @@
     type CanonicalRoute,
     type MissionPane,
     type MissionView,
-    type SettingsSectionId,
+    type SetupSectionId,
+    type WorkPane,
     type WorkspaceRecent,
   } from "../../lib/navigation.svelte";
   import { ipc, onPytxoDeepLink } from "../../lib/ipc";
   import Sidebar from "./Sidebar.svelte";
   import AppBar from "./AppBar.svelte";
   import CommandPalette from "./CommandPalette.svelte";
-  import OperationsScreen from "./OperationsScreen.svelte";
+  import WorkActive from "./WorkActive.svelte";
+  import HistoryScreen from "./HistoryScreen.svelte";
   import MissionsScreen from "./MissionsScreen.svelte";
   import WorkspacesScreen from "./WorkspacesScreen.svelte";
-  import ApprovalsScreen from "./ApprovalsScreen.svelte";
+  import ApprovalsInbox from "./ApprovalsInbox.svelte";
   import AgentsScreen from "./AgentsScreen.svelte";
   import SettingsScreen from "./SettingsScreen.svelte";
   import WorkspaceSettingsPanel from "./WorkspaceSettingsPanel.svelte";
@@ -81,7 +83,8 @@
   }
 
   const backend = createDesktopBackend();
-  let route = $state<CanonicalRoute>("operations");
+  let route = $state<CanonicalRoute>("work");
+  let workPane = $state<WorkPane>("active");
   let missionView = $state<MissionView>("list");
   let missionPane = $state<MissionPane>("live");
   let snapshot = $state<DesktopSnapshot>({ domains: [], runs: [], agents: [], approvals: [], fleets: [], error: null });
@@ -96,12 +99,16 @@
   let focusRunId = $state<string | null>(null);
   let focusDomainId = $state<string | null>(null);
   let activeDomainId = $state<string | null>(null);
-  let settingsSection = $state<SettingsSectionId | null>(null);
+  let setupSection = $state<SetupSectionId | null>(null);
   let editingWorkspaceId = $state<string | null>(null);
   let voiceModelPath = $state<string | null>(null);
   let voiceInstalling = $state(false);
   let windowFocused = $state(true);
-  let operationsScreen = $state<{ focusActiveRun: () => void } | null>(null);
+  let approvalsOpen = $state(false);
+  let snapshotLoadedAt = $state<number | null>(null);
+  let cursorGap = $state(false);
+  let nowMs = $state(Date.now());
+  let workScreen = $state<{ focusActiveRun: () => void } | null>(null);
 
   const activeDomain = $derived(
     snapshot.domains.find((d) => d.domain_id === activeDomainId) ?? null,
@@ -109,27 +116,104 @@
   const editingDomain = $derived(
     snapshot.domains.find((d) => d.domain_id === editingWorkspaceId) ?? null,
   );
+  const snapshotAge = $derived.by(() => {
+    if (snapshotLoadedAt === null) return null;
+    const seconds = Math.max(0, Math.round((nowMs - snapshotLoadedAt) / 1000));
+    if (seconds < 5) return "Updated just now";
+    if (seconds < 60) return `Updated ${seconds}s ago`;
+    return `Updated ${Math.round(seconds / 60)}m ago`;
+  });
 
+  /**
+   * Three destinations, because there are three modes of attention: run work,
+   * investigate finished work, configure the machine. Workspace is context in
+   * the title bar and approvals are an overlay, so neither takes a rail slot.
+   */
   const primary = [
-    { route: "operations" as const, label: "Ops", icon: IconActivity },
-    { route: "missions" as const, label: "Missions", icon: IconTarget },
-    { route: "approvals" as const, label: "Approvals", icon: IconChecks },
-    { route: "workspaces" as const, label: "Workspaces", icon: IconFolders },
-    { route: "agents" as const, label: "Agents", icon: IconTerminal2 },
-    { route: "settings" as const, label: "Settings", icon: IconSettings },
+    { route: "work" as const, label: "Work", icon: IconActivity },
+    { route: "history" as const, label: "History", icon: IconHistory },
   ];
-  const system: typeof primary = [];
+  const system = [{ route: "setup" as const, label: "Setup", icon: IconSettings }];
   const domainCursors = new Map<string, number>();
-  const commandItems = [
-    ...primary,
-    { route: "flow" as const, label: "New mission", icon: IconTarget, aliases: ["flow", "compose"] },
-  ];
-
   const hasActiveRuns = $derived(
     snapshot.runs.some((r) =>
       ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
     ),
   );
+  const activeCommandRun = $derived(
+    snapshot.runs.find((r) =>
+      ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+    ) ?? null,
+  );
+  const latestReviewRun = $derived(
+    snapshot.runs.find(
+      (r) =>
+        Boolean(r.prepared_digest) ||
+        r.apply_status === "ready" ||
+        r.apply_status === "waiting" ||
+        r.apply_status === "prepared",
+    ) ??
+      snapshot.runs.find(
+        (r) => !["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+      ) ??
+      null,
+  );
+  const commandItems = $derived([
+    ...[...primary, ...system].map((item) => ({
+      id: item.route,
+      route: item.route,
+      label: item.label,
+      icon: item.icon,
+      group: "Navigate" as const,
+    })),
+    {
+      id: "flow",
+      route: "flow" as const,
+      label: "New run",
+      icon: IconTarget,
+      aliases: ["flow", "compose", "mission"],
+      group: "Navigate" as const,
+    },
+    {
+      id: "approvals",
+      label: "Open approvals inbox",
+      icon: IconChecks,
+      aliases: ["approve", "inbox", "decide"],
+      group: "Actions" as const,
+      hint: snapshot.approvals.length ? `${snapshot.approvals.length} open` : undefined,
+      run: () => {
+        approvalsOpen = true;
+      },
+    },
+    {
+      id: "stop-run",
+      label: "Stop active run",
+      icon: IconPlayerStop,
+      aliases: ["stop", "kill"],
+      group: "Actions" as const,
+      disabled: !activeCommandRun,
+      hint: activeCommandRun?.id,
+      run: () => {
+        const run = activeCommandRun;
+        if (!run) return;
+        const domainId = domainIdForRun(run.id);
+        if (!domainId) return;
+        void stopRunFromOps(run.id, domainId);
+      },
+    },
+    {
+      id: "open-review",
+      label: "Open latest review",
+      icon: IconChecks,
+      aliases: ["review", "apply"],
+      group: "Actions" as const,
+      disabled: !latestReviewRun,
+      hint: latestReviewRun?.id,
+      run: () => {
+        if (latestReviewRun) openMission(latestReviewRun.id, "review");
+      },
+    },
+  ]);
 
   function defaultPermissionProfile(): string {
     if (typeof localStorage === "undefined") return "orbit";
@@ -166,30 +250,47 @@
 
   function applyResolved(next: ReturnType<typeof resolveRoute>, persist: boolean) {
     route = next.route;
-    missionView = next.missionView;
-    missionPane = next.missionPane;
+    workPane = next.workPane;
+    if (next.setupSection) setupSection = next.setupSection;
+    // A route change is a deliberate move to a different surface, so the
+    // overlay follows the destination rather than lingering over it.
+    approvalsOpen = next.openApprovals;
+    missionView = next.route === "history" ? "list" : next.workPane === "plan" ? "compose" : "detail";
+    if (next.workPane === "review") missionPane = "review";
+    else if (next.workPane === "plan") missionPane = "plan";
     if (persist) persistRoute(next.route);
   }
 
-  function navigate(next: AppRoute, section?: SettingsSectionId) {
+  function navigate(next: AppRoute, section?: SetupSectionId) {
     applyResolved(resolveRoute(next), true);
-    if (route === "settings" && section) settingsSection = section;
-    else if (route !== "settings") settingsSection = null;
+    if (route === "setup" && section) setupSection = section;
   }
 
   function openCompose() {
     navigate("flow");
   }
 
+  /**
+   * Opening a run keeps the operator inside Work: a live run lands on the
+   * ledger, a finished one lands on the review pane. History is for finding a
+   * run, not for reading one.
+   */
   function openMission(runId: string, pane?: MissionPane) {
     focusRunId = runId;
     focusDomainId = domainIdForRun(runId);
     const found = snapshot.runs.find((r) => r.id === runId);
     const running = !!found && ["running", "pending", "dispatching", "active"].includes(found.status.toLowerCase());
-    route = "missions";
+    const resolvedPane = pane ?? (running ? "live" : "review");
+    route = "work";
     missionView = "detail";
-    missionPane = pane ?? (running ? "live" : "review");
-    persistRoute("missions");
+    missionPane = resolvedPane;
+    workPane = resolvedPane === "live" ? "active" : "review";
+    persistRoute("work");
+  }
+
+  function focusRun(runId: string) {
+    focusRunId = runId;
+    focusDomainId = domainIdForRun(runId);
   }
 
   function toggleSidebar() {
@@ -225,10 +326,10 @@
 
   async function refreshSnapshot(opts: { silent?: boolean; primeCursors?: boolean } = {}) {
     try {
-      const opsHeavy = route === "operations" || (route === "missions" && missionView === "detail");
+      const opsHeavy = route === "work";
       const documentHidden =
         typeof document !== "undefined" && document.visibilityState === "hidden";
-      const idleChrome = !windowFocused || documentHidden || route === "settings" || route === "agents";
+      const idleChrome = !windowFocused || documentHidden || route === "setup";
       const includeAgents = opsHeavy && !idleChrome;
       const load = () => backend.loadSnapshot({
         includeAgents,
@@ -248,6 +349,10 @@
         snapshotFingerprint = nextFp;
         void ipc.setTrayNeedsYou(next.approvals.length);
       }
+      // Every screen renders a snapshot, never "now". The title bar states how
+      // old the rendered state is so nothing implies live truth.
+      snapshotLoadedAt = Date.now();
+      nowMs = snapshotLoadedAt;
       if (missionView === "detail" && !focusRunId) {
         const pick = pickDefaultDetailRun(next.runs);
         if (pick) {
@@ -272,9 +377,14 @@
       domainCursors,
       (domainId, cursor, limit) => backend.domainChanges(domainId, cursor, limit),
     );
+    // A cursor gap means the change log dropped entries between polls, so this
+    // view may have missed events. The operator is told rather than left to
+    // assume continuity.
+    if (result.needsSnapshot) cursorGap = true;
     if (result.changed || result.needsSnapshot) {
       await refreshSnapshot({ silent: true, primeCursors: false });
     }
+    nowMs = Date.now();
   }
 
   function deltaIntervalMs(): number {
@@ -297,17 +407,19 @@
       /* Preview / Storybook backends may lack select_domain. */
     }
     await refreshSnapshot({ silent: true });
-    navigate(opts.route ?? "operations");
+    navigate(opts.route ?? "work");
   }
 
   function openRecent(recent: WorkspaceRecent) {
     const domain = snapshot.domains.find((d) => d.domain_id === recent.domainId);
     if (domain) void selectDomain(domain.domain_id);
-    else navigate("workspaces");
+    else navigate("setup", "workspaces");
   }
 
   async function onRunCompleted() {
     await refreshSnapshot();
+    route = "work";
+    workPane = "review";
     missionView = "detail";
     missionPane = "review";
   }
@@ -340,11 +452,11 @@
       activeDomainId = openedPath;
       const label = openedPath.split(/[\\/]/).pop() ?? openedPath;
       recents = addWorkspaceRecent({ id: openedPath, label, domainId: openedPath });
-      navigate("operations");
+      navigate("work");
     } catch (e) {
       workspaceError = e instanceof Error ? e.message : String(e);
       recents = migrateWorkspaceRecents();
-      navigate("workspaces");
+      navigate("setup", "workspaces");
     }
   }
 
@@ -364,7 +476,7 @@
       if (opened) await onWorkspaceOpened(opened);
     } catch (e) {
       workspaceError = e instanceof Error ? e.message : String(e);
-      navigate("workspaces");
+      navigate("setup", "workspaces");
     }
   }
 
@@ -387,14 +499,16 @@
     );
   }
 
-  async function focusOperations() {
-    navigate("operations");
+  async function focusWork() {
+    navigate("work");
     await tick();
-    operationsScreen?.focusActiveRun();
+    workScreen?.focusActiveRun();
   }
 
   function onGlobalKeydown(event: KeyboardEvent) {
     const modifier = event.metaKey || event.ctrlKey;
+    const plain =
+      !event.defaultPrevented && !event.repeat && !modifier && !event.altKey && !event.shiftKey && !isEditableTarget(event.target);
     if (
       !event.defaultPrevented &&
       !event.repeat &&
@@ -405,10 +519,17 @@
       !isEditableTarget(event.target)
     ) {
       event.preventDefault();
-      void focusOperations();
+      void focusWork();
       return;
     }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+    // `A` opens the decision queue from anywhere. Approvals follow the operator
+    // rather than living at a fixed address they have to walk to.
+    if (plain && event.key.toLowerCase() === "a" && !approvalsOpen) {
+      event.preventDefault();
+      approvalsOpen = true;
+      return;
+    }
+    if (modifier && event.key.toLowerCase() === "k") {
       event.preventDefault();
       commandOpen = true;
     }
@@ -420,6 +541,7 @@
     let domainChangedUnlisten: (() => void) | null = null;
     let deltaTimer: ReturnType<typeof setTimeout> | null = null;
     let integrityTimer: ReturnType<typeof setInterval> | null = null;
+    const ageTimer = setInterval(() => (nowMs = Date.now()), 5000);
     applyResolved(routeOverride ? resolveRoute(routeOverride) : initialResolvedRoute(), false);
     const onHashChange = () => {
       if (!routeOverride) applyResolved(initialResolvedRoute(), false);
@@ -472,6 +594,7 @@
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       clearDelta();
+      clearInterval(ageTimer);
       if (integrityTimer) clearInterval(integrityTimer);
       integrityTimer = null;
     };
@@ -496,7 +619,7 @@
             ? "picker"
             : "last";
         if (openBehavior === "picker") {
-          if (!routeOverride && route === "operations") navigate("workspaces");
+          if (!routeOverride && route === "work") navigate("setup", "workspaces");
         } else if (!activeDomainId) {
           const preferred =
             recents.find((r) => snapshot.domains.some((d) => d.domain_id === r.domainId))
@@ -556,7 +679,6 @@
     {route}
     {primary}
     {system}
-    approvalsCount={snapshot.approvals.length}
     {recents}
     {collapsed}
     {tier}
@@ -565,7 +687,7 @@
     onToggleCollapse={toggleSidebar}
     onOpenCommand={() => (commandOpen = true)}
     onOpenRecent={openRecent}
-    onAccountClick={() => navigate("settings", "account")}
+    onAccountClick={() => navigate("setup", "account")}
   />
 
   <main>
@@ -576,9 +698,14 @@
       activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? activeDomain.domain_id) : null}
       {activeDomainId}
       domains={snapshot.domains}
+      approvalsCount={snapshot.approvals.length}
+      {snapshotAge}
+      {cursorGap}
       onSelectDomain={(id) => void selectDomain(id)}
       onAddWorkspace={() => void addWorkspace()}
       onOpenWorkspaceSettings={(id) => (editingWorkspaceId = id)}
+      onOpenApprovals={() => (approvalsOpen = true)}
+      onDismissGap={() => (cursorGap = false)}
     />
     <div class="content">
       {#if authErrorMessage}<div class="status-banner error-banner">{authErrorMessage}</div>{/if}
@@ -587,20 +714,32 @@
       {#if loadMessage}<div class:error-banner={previewState === "error" || !!snapshot.error} class="status-banner">{loadMessage}</div>{/if}
       {#if loading}
         <div class="loading-state"><div></div><div></div><div></div></div>
-      {:else if route === "operations"}
-        <OperationsScreen
-          bind:this={operationsScreen}
+      {:else if route === "work" && workPane === "active"}
+        <WorkActive
+          bind:this={workScreen}
           {snapshot}
+          {backend}
           activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? null) : null}
-          onNewMission={openCompose}
-          onOpenApprovals={() => navigate("approvals")}
-          onReviewRun={(runId) => openMission(runId)}
+          {activeDomainId}
+          {focusRunId}
+          onNewRun={openCompose}
+          onOpenApprovals={() => (approvalsOpen = true)}
+          onReviewRun={(runId) => openMission(runId, "review")}
           onStopRun={stopRunFromOps}
+          onSelectRun={focusRun}
         />
-      {:else if route === "missions"}
+      {:else if route === "history"}
+        <HistoryScreen
+          {snapshot}
+          {backend}
+          {activeDomainId}
+          {focusRunId}
+          onOpenRun={(runId) => openMission(runId, "review")}
+          onSelectRun={focusRun}
+        />
+      {:else if route === "work"}
         <MissionsScreen
           view={missionView}
-          pane={missionPane}
           {snapshot}
           {backend}
           preferredDomainId={activeDomainId}
@@ -608,37 +747,22 @@
           {focusDomainId}
           onView={(next) => {
             missionView = next;
-            persistRoute("missions");
+            if (next === "list") {
+              route = "history";
+              persistRoute("history");
+            } else {
+              route = "work";
+              workPane = next === "compose" ? "plan" : workPane === "plan" ? "review" : workPane;
+              persistRoute("work");
+            }
           }}
-          onPane={(next) => (missionPane = next)}
           onOpenMission={openMission}
           onAddWorkspace={addWorkspace}
           {onRunCompleted}
-          onStopRun={stopRunFromOps}
         />
-      {:else if route === "workspaces"}
-        <WorkspacesScreen
-          {snapshot}
-          {backend}
-          {activeDomainId}
-          onSelectDomain={selectDomain}
-          onWorkspaceOpened={onWorkspaceOpened}
-          {onDomainForgotten}
-          onEditWorkspace={(id) => (editingWorkspaceId = id)}
-          onNewMission={openCompose}
-        />
-      {:else if route === "approvals"}
-        <ApprovalsScreen
-          {snapshot}
-          {backend}
-          onReviewRun={(runId) => openMission(runId, "review")}
-          onApprovalsChanged={refreshSnapshot}
-        />
-      {:else if route === "agents"}
-        <AgentsScreen {backend} onUseInMission={openCompose} />
       {:else}
         <SettingsScreen
-          initialSection={settingsSection}
+          initialSection={setupSection}
           {backend}
           {activeDomain}
           {tier}
@@ -647,18 +771,42 @@
           {subscriptionPortalUrl}
           {voiceModelPath}
           {voiceInstalling}
-          onBack={() => navigate("operations")}
           {onReplayOnboarding}
           {onAuthChange}
           onInstallVoiceModel={installVoiceModel}
           onEditWorkspace={(id) => (editingWorkspaceId = id)}
-          onOpenWorkspaces={() => navigate("workspaces")}
-        />
+        >
+          {#snippet workspacesCatalog()}
+            <WorkspacesScreen
+              embedded
+              {snapshot}
+              {backend}
+              {activeDomainId}
+              onSelectDomain={selectDomain}
+              onWorkspaceOpened={onWorkspaceOpened}
+              {onDomainForgotten}
+              onEditWorkspace={(id) => (editingWorkspaceId = id)}
+              onNewMission={openCompose}
+            />
+          {/snippet}
+          {#snippet agentsCatalog()}
+            <AgentsScreen embedded {backend} onUseInMission={openCompose} />
+          {/snippet}
+        </SettingsScreen>
       {/if}
     </div>
   </main>
 
   <CommandPalette open={commandOpen} items={commandItems} onNavigate={navigate} onClose={() => (commandOpen = false)} />
+
+  <ApprovalsInbox
+    open={approvalsOpen}
+    {snapshot}
+    {backend}
+    onClose={() => (approvalsOpen = false)}
+    onReviewRun={(runId) => openMission(runId, "review")}
+    onApprovalsChanged={refreshSnapshot}
+  />
 
   {#if editingDomain}
     <WorkspaceSettingsPanel
@@ -673,15 +821,15 @@
 <style>
   .desktop2 {
     display: grid;
-    grid-template-columns: 224px minmax(0, 1fr);
+    grid-template-columns: 208px minmax(0, 1fr);
     height: 100%;
     background: var(--pytxo-surface-shell);
     color: var(--pytxo-text-strong);
-    font-family: "Geist", Inter, ui-sans-serif, system-ui, sans-serif;
-    transition: grid-template-columns 150ms ease;
+    font-family: "Satoshi", "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    transition: grid-template-columns 140ms ease;
   }
   .desktop2.sidebar-collapsed {
-    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-columns: 58px minmax(0, 1fr);
   }
   main {
     min-width: 0;
@@ -729,7 +877,7 @@
 
   @media (max-width: 1050px) {
     .desktop2:not(.sidebar-collapsed) {
-      grid-template-columns: 190px minmax(0, 1fr);
+      grid-template-columns: 188px minmax(0, 1fr);
     }
   }
   @media (max-width: 760px) {

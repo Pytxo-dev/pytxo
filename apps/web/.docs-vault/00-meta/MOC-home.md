@@ -12,7 +12,7 @@ related: [[glossary]], [[architecture-index]], [[product-vision]], [[permission-
 
 # Pytxo documentation home
 
-**Pytxo** — agent hypervisor & telemetry plane ([ptyxo.com](https://ptyxo.com)).
+**Pytxo** — agent hypervisor & telemetry plane ([pytxo.com](https://pytxo.com)).
 
 **Thesis:** Bare-metal coordination of headless PTY agents (Claude Code, Codex, Antigravity CLI, …) with structural telemetry — not cloud-heavy multi-terminal workspaces.
 

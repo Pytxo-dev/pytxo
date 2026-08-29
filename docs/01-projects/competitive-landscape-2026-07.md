@@ -6,11 +6,17 @@ tags: [project, research, competitive, positioning, gtm]
 audience: [human, agent]
 layer: meta
 created: 2026-07-26
-updated: 2026-07-26
-related: [[multi-agent-orchestration-landscape]], [[product-vision]], [[beyond-the-ade]], [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[pytxo-vs-ade-virtual-workspace]], [[market-ready-polish-research]], [[competitive-benchmarks]], [[pytxo-improvement-research]]
+updated: 2026-08-27
+related: [[multi-agent-orchestration-landscape]], [[product-vision]], [[commit-layer]], [[pytxo-commit-layer-alignment]], [[beyond-the-ade]], [[pytxo-vs-claude-agent-teams]], [[pytxo-vs-github-copilot-app]], [[pytxo-vs-ade-virtual-workspace]], [[market-ready-polish-research]], [[competitive-benchmarks]], [[pytxo-improvement-research]]
 ---
 
 # Competitive landscape — July 2026
+
+> [!NOTE]
+> Dated market snapshot. Its comparison data remains useful, but the local
+> hypervisor category recommendation was superseded by the
+> [[product-vision|commit-layer vision]]. Phase 0 of
+> [[pytxo-commit-layer-alignment]] requires a new primary-source audit.
 
 Primary-source map of products consumers confuse with Pytxo or choose instead. Pytxo is a **local agent hypervisor / control plane**: schedules headless coding agents (Claude Code, Codex, Cursor CLI, …) in PTYs with Signal / Blast / Race shields, optional Desktop (structural telemetry, not terminal walls), Flow mission planning, BYOK. It is **not** a multi-terminal browser IDE and **not** a single-vendor agent.
 

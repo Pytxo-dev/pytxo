@@ -6,6 +6,11 @@ Pytxo coordinates the coding-agent CLIs you already use. It assigns task paths
 and dependencies, runs agents in isolated workspaces, records the effective
 permission boundary, and prepares exact repository changes for review.
 
+This is Pytxo's first **commit layer**: a controlled boundary between an agent
+proposal and a real repository mutation. The broader product direction applies
+the same idea to production systems, but external effect gateways and adapters
+are not shipping features.
+
 ## The problem
 
 Many agent products put the UI first: grids of terminals, heavy local resource use, and platform-held credits. Vendor control centers (for example GitHub Copilot's agent app) solve supervision inside one ecosystem. If you care about **mixed CLIs** on your machine, you need coordination, isolation, and clear logs more than another IDE surface.
@@ -41,6 +46,7 @@ You connect through MCP and, optionally, **Pytxo Desktop**.
 - Multi-pane embedded terminal walls in the product UI
 - Store provider API keys in plaintext
 - Become an LLM vendor (Pytxo Cloud is BYOK-only)
+- Claim production API enforcement, cross-system atomicity, or universal rollback
 
 ## Next
 

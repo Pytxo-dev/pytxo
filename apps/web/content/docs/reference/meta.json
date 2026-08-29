@@ -6,6 +6,7 @@
     "mcp-tools",
     "providers-byok",
     "models",
-    "permission-tiers"
+    "permission-tiers",
+    "changelog"
   ]
 }

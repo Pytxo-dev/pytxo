@@ -48,7 +48,7 @@ test.describe("Pytxo Desktop shell", () => {
   test("onboarding can be replayed from Settings without losing the versioned flag afterwards", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/");
-    await page.getByRole("link", { name: "Settings" }).click();
+    await page.getByRole("link", { name: "Setup" }).click();
     await page.getByRole("button", { name: "Account & billing" }).click();
     await page.getByRole("button", { name: "Run onboarding again" }).click();
     await expect(page.getByRole("heading", { name: "Pytxo", exact: true })).toBeVisible();
@@ -61,16 +61,16 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
   });
 
-  test("desktop 2 shell opens in operations and navigates primary routes", async ({ page }) => {
+  test("the shell opens in Work and navigates the three destinations", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/");
     await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
     await expect(page.getByText(/^Updater:/)).toHaveCount(0);
-    await page.getByRole("link", { name: "Missions" }).click();
-    await expect(page.getByRole("heading", { name: "Missions" })).toBeVisible();
-    await page.getByRole("link", { name: "Agents" }).click();
-    await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
+    await page.getByRole("link", { name: "History" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
+    await page.getByRole("link", { name: "Setup" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Setup" })).toBeVisible();
   });
 
   test("Agents reports vendor-owned sessions without exposing account identifiers", async ({ page }) => {
@@ -90,7 +90,7 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByText("ChatGPT connected", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Use in mission" }).first().click();
-    await expect(page.getByRole("heading", { name: "New mission" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New run" })).toBeVisible();
   });
 
   test("Providers distinguishes direct API keys from agent subscription sessions", async ({ page }) => {
@@ -129,11 +129,11 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByRole("heading", { name: "Set your display" })).toBeVisible();
   });
 
-  test("Workspaces creates the guided example and takes it into a new mission", async ({ page }) => {
+  test("Workspaces creates the guided example and takes it into a new run", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/workspaces");
     await page.getByRole("button", { name: "Try guided example" }).click();
-    await expect(page.getByRole("heading", { name: "New mission" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New run" })).toBeVisible();
   });
 
   test("legacy workspace tabs migrate to recents without deletion", async ({ page }) => {
@@ -191,10 +191,10 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByLabel("Command search")).toBeFocused();
 
     await page.keyboard.type("new");
-    await expect(dialog.getByRole("button", { name: /New mission/ })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /New run/ })).toBeVisible();
     await page.keyboard.press("Enter");
     await expect(dialog).toBeHidden();
-    await expect(page.getByRole("heading", { name: "New mission" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New run" })).toBeVisible();
 
     await page.getByRole("button", { name: "Open command palette" }).click();
     await expect(dialog).toBeVisible();
@@ -231,11 +231,11 @@ test.describe("Pytxo Desktop shell", () => {
   test("route persists across a cold reload at the root URL", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/");
-    await page.getByRole("link", { name: "Missions" }).click();
-    await expect(page.getByRole("heading", { name: "Missions" })).toBeVisible();
+    await page.getByRole("link", { name: "History" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
 
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Missions" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
   });
 
   test("workspaces show an honest empty state when a search matches nothing", async ({ page }) => {
@@ -262,7 +262,7 @@ test.describe("Pytxo Desktop shell", () => {
     await page.getByRole("button", { name: /Build plan/ }).click();
     await expect(page.getByRole("heading", { name: "Review plan" })).toBeVisible();
     await page.getByRole("button", { name: "Run", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Mission" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
   });
 
   test("Voice capture produces an editable Flow mission with the preview backend", async ({ page }) => {
@@ -306,8 +306,8 @@ test.describe("Pytxo Desktop shell", () => {
     await completeOnboarding(page);
     await page.goto("/#/flow");
     await page.getByRole("button", { name: "Start Voice" }).click();
-    await page.getByRole("link", { name: "Ops" }).click();
-    await page.getByRole("button", { name: "New mission" }).click();
+    await page.getByRole("link", { name: "Work" }).click();
+    await page.getByRole("button", { name: "New run" }).click();
     await page.getByRole("button", { name: "Start Voice" }).click();
     await expect(page.getByRole("button", { name: "Finish recording" })).toBeVisible();
   });
@@ -342,25 +342,26 @@ test.describe("Pytxo Desktop shell", () => {
     await completeOnboarding(page);
     await page.goto("/");
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("pytxo-deep-link", { detail: "pytxo://flow" })));
-    await expect(page.getByRole("heading", { name: "New mission" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New run" })).toBeVisible();
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("pytxo-deep-link", { detail: "pytxo-deck://settings" })));
-    await expect(page).toHaveURL(/#\/settings$/);
+    await expect(page).toHaveURL(/#\/setup$/);
     await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
   });
 
-  test("Ops focus and exact-run stop are keyboard-first but confirmation-gated", async ({ page }) => {
+  test("Work focus and exact-run stop are keyboard-first but confirmation-gated", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/flow");
-    const mission = page.getByLabel("Mission outcome");
-    await mission.focus();
-    await mission.dispatchEvent("keydown", {
+    const outcome = page.getByLabel("Mission outcome");
+    await outcome.focus();
+    await outcome.dispatchEvent("keydown", {
       key: "o",
       ctrlKey: true,
       shiftKey: true,
       bubbles: true,
       cancelable: true,
     });
-    await expect(page.getByRole("heading", { name: "New mission" })).toBeVisible();
+    // The chord is ignored inside a text field, so the composer stays put.
+    await expect(page.getByRole("heading", { name: "New run" })).toBeVisible();
 
     await page.evaluate(() =>
       window.dispatchEvent(
@@ -374,7 +375,7 @@ test.describe("Pytxo Desktop shell", () => {
         }),
       ),
     );
-    await expect(page.getByRole("heading", { name: "New mission" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New run" })).toBeVisible();
 
     await page.evaluate(() =>
       window.dispatchEvent(
@@ -387,76 +388,85 @@ test.describe("Pytxo Desktop shell", () => {
         }),
       ),
     );
-    await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
 
-    const activeRun = page.locator(".run-row").filter({ hasText: "run-8f2c" });
-    await expect(activeRun).toBeFocused();
-    await activeRun.dispatchEvent("keydown", {
-      key: "Backspace",
-      ctrlKey: true,
-      shiftKey: true,
-      bubbles: true,
-      cancelable: true,
-    });
+    // Focus lands on the focused run's switch, so the operator can act without
+    // reaching for the mouse.
+    const runTab = page.getByRole("tab", { name: /run-8f2c/ });
+    await expect(runTab).toBeFocused();
 
-    const dialog = page.getByRole("dialog", { name: "Stop active run?" });
+    const stop = page.getByRole("button", { name: "Stop", exact: true });
+    await stop.click();
+    const dialog = page.locator("dialog.confirm-dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText("pytxo", { exact: true }).first()).toBeVisible();
-    await expect(dialog.getByText("run-8f2c", { exact: true })).toBeVisible();
-    await expect(dialog.getByText("No changes are flushed and the sandbox is not deleted.")).toBeVisible();
-    await expect(activeRun).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Stop run-8f2c?" })).toBeVisible();
+    await expect(dialog.getByText("pytxo", { exact: true })).toBeVisible();
+    await expect(
+      dialog.getByText(/Work already prepared for\s+review is kept; nothing is applied to the repository\./),
+    ).toBeVisible();
 
     await dialog.getByRole("button", { name: "Keep running" }).click();
     await expect(dialog).toBeHidden();
-    await expect(activeRun).toBeVisible();
 
-    await page.getByRole("button", { name: "Review stop for run run-8f2c" }).click();
+    await stop.click();
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Stop run" }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.getByRole("status")).toContainText("Stop requested for run-8f2c in pytxo.");
-    await expect(page.getByText("Nothing running. Start a mission.")).toBeVisible();
+    await expect(page.locator(".work-feedback")).toHaveText(
+      "Stop requested for run-8f2c in pytxo.",
+    );
   });
 
   test("approval resolution, focus routes, and restart persistence work", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/approvals");
-    await expect(page.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
-    await expect(page.locator(".decision-meta").getByText("desktop", { exact: true })).toBeVisible();
-    await expect(page.locator(".decision-meta").getByText("pytxo", { exact: true })).toBeVisible();
-    await expect(page.locator(".decision-meta").getByText("blast.flush", { exact: true })).toBeVisible();
-    await expect(page.getByText("Approving writes the isolated workspace changes into the repository. Denying discards them.")).toBeVisible();
+    const inbox = page.getByRole("dialog", { name: "Approvals inbox" });
+    await expect(inbox).toBeVisible();
+    await expect(inbox.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
+    await expect(inbox.locator("dl").getByText("desktop", { exact: true })).toBeVisible();
+    await expect(inbox.locator("dl").getByText("pytxo", { exact: true })).toBeVisible();
+    await expect(inbox.locator("dl").getByText("blast.flush", { exact: true })).toBeVisible();
+    await expect(inbox.getByText("Approving writes the isolated workspace changes into the repository. Denying discards them.")).toBeVisible();
     await expect(page.getByText("No secrets or permission escalation detected.")).toHaveCount(0);
 
     await page.keyboard.press("j");
-    await expect(page.getByRole("heading", { name: "Allow network access" })).toBeVisible();
-    await expect(page.locator(".decision-meta").getByText("net.egress", { exact: true })).toBeVisible();
+    await expect(inbox.getByRole("heading", { name: "Allow network access" })).toBeVisible();
+    await expect(inbox.locator("dl").getByText("net.egress", { exact: true })).toBeVisible();
     await page.keyboard.press("k");
-    await expect(page.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
+    await expect(inbox.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Review latest run" }).click();
+    // Opening the run closes the overlay: the decision and the evidence are two
+    // surfaces, and the operator is now on the evidence one.
+    await inbox.getByRole("button", { name: "Review run" }).click();
+    await expect(inbox).toBeHidden();
     await expect(page.getByRole("heading", { name: "Run Review" })).toBeVisible();
+
     await page.goto("/#/approvals");
     await page.keyboard.press("Control+Enter");
-    await expect(page.getByRole("status")).toContainText("Approved Apply reviewed workspace changes.");
-    await expect(page.getByRole("heading", { name: "Allow network access" })).toBeVisible();
+    await expect(inbox.getByRole("status")).toContainText("Approved Apply reviewed workspace changes.");
+    await expect(inbox.getByRole("heading", { name: "Allow network access" })).toBeVisible();
     await page.keyboard.press("Control+Backspace");
-    await expect(page.getByRole("status")).toContainText("Denied Allow network access.");
-    await expect(page.getByRole("heading", { name: "Inbox clear" })).toBeVisible();
-    await page.getByRole("link", { name: "Workspaces" }).click();
+    await expect(inbox.getByRole("status")).toContainText("Denied Allow network access.");
+    await expect(inbox.getByText("Inbox clear").first()).toBeVisible();
+
+    await inbox.getByRole("button", { name: "Close approvals" }).click();
+    await page.goto("/#/workspaces");
     for (const workspace of ["pytxo", "signal-lab"]) {
       const row = page.locator(".workspace-table .table-row").filter({ hasText: workspace });
       await expect(row.locator('[data-col="approvals"]')).toHaveText("0");
     }
 
+    // The legacy 3D topology deep link now lands on Review, the surface that
+    // actually answers what the run is about to do.
     await page.goto("/#/topology-focus");
-    await expect(page.getByRole("heading", { name: "Mission" })).toBeVisible();
-    await page.goto("/#/run-review");
     await expect(page.getByRole("heading", { name: "Run Review" })).toBeVisible();
-    await page.getByRole("link", { name: "Settings" }).click();
+    await page.getByRole("link", { name: "Setup" }).click();
     await page.reload();
-    await expect(page).toHaveURL(/#\/settings$/);
-    await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
+    await expect(page).toHaveURL(/#\/setup/);
+    // Both the destination and the section the operator last read survive the
+    // restart, so a reload does not silently relocate them.
+    await expect(page.getByRole("heading", { level: 1, name: "Setup" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "Workspaces" })).toBeVisible();
   });
 });
 
@@ -473,10 +483,10 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
     test.describe(`at ${viewport.name}`, () => {
       test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-      test("Operations renders without page-level overflow", async ({ page }) => {
+      test("Work renders without page-level overflow", async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/");
-        await expect(page.getByRole("heading", { name: "Ops" })).toBeVisible();
+        await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
         // `#app` is intentionally `overflow: hidden` so inner panes scroll
         // instead of the page (see app.css); scrollHeight ignores `overflow`
         // entirely, so the meaningful check is the actual root scrolling
@@ -488,14 +498,14 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
         expect(overflow.horizontal).toBeLessThanOrEqual(1);
         expect(overflow.vertical).toBeLessThanOrEqual(1);
 
-        const stopButton = page.getByRole("button", { name: "Review stop for run run-8f2c" });
+        const stopButton = page.getByRole("button", { name: "Stop", exact: true });
         await stopButton.scrollIntoViewIfNeeded();
         await expect(stopButton).toBeVisible();
         await stopButton.click();
-        const dialog = page.getByRole("dialog", { name: "Stop active run?" });
+        const dialog = page.locator("dialog.confirm-dialog");
         await expect(dialog).toBeVisible();
         const internalOverflow = await Promise.all(
-          [page.locator(".run-panel"), dialog, dialog.locator("footer")].map(
+          [page.locator(".work-layout"), dialog, dialog.locator(".dialog-actions")].map(
             (locator) => locator.evaluate((element) => element.scrollWidth - element.clientWidth),
           ),
         );
@@ -504,7 +514,7 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
         await dialog.getByRole("button", { name: "Keep running" }).click();
       });
 
-      test("planned mission keeps composer then plan controls reachable", async ({ page }) => {
+      test("a planned run keeps composer then plan controls reachable", async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/#/flow");
         await page.getByLabel("Mission outcome").fill("Verify planned Flow controls at supported widths");
@@ -543,40 +553,37 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
         expect(runBox!.x + runBox!.width).toBeLessThanOrEqual(planBox!.x + planBox!.width + 1);
       });
 
-      test("Approvals keeps evidence and decision controls reachable", async ({ page }) => {
+      test("the approvals overlay keeps evidence and decision controls reachable", async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/#/approvals");
-        await expect(page.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
+        const inbox = page.getByRole("dialog", { name: "Approvals inbox" });
+        await expect(inbox.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
 
-        const layout = page.locator(".approval-layout");
-        const decision = page.locator(".decision-detail");
-        const actions = page.locator(".decision-actions");
         const horizontal = await page.evaluate(
           () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
         );
-        const layoutOverflow = await layout.evaluate(
-          (element) => element.scrollWidth - element.clientWidth,
-        );
-        const decisionOverflow = await decision.evaluate(
-          (element) => element.scrollWidth - element.clientWidth,
-        );
-        const actionsOverflow = await actions.evaluate(
-          (element) => element.scrollWidth - element.clientWidth,
-        );
         expect(horizontal).toBeLessThanOrEqual(1);
-        expect(layoutOverflow).toBeLessThanOrEqual(1);
-        expect(decisionOverflow).toBeLessThanOrEqual(1);
-        expect(actionsOverflow).toBeLessThanOrEqual(1);
 
-        const approve = page.getByRole("button", { name: "Approve and apply" });
+        for (const region of [
+          inbox,
+          inbox.locator(".inbox-layout"),
+          inbox.locator(".detail"),
+          inbox.locator(".actions"),
+        ]) {
+          expect(
+            await region.evaluate((element) => element.scrollWidth - element.clientWidth),
+          ).toBeLessThanOrEqual(1);
+        }
+
+        const approve = inbox.getByRole("button", { name: /Approve and apply/ });
         await approve.scrollIntoViewIfNeeded();
         await expect(approve).toBeVisible();
-        await expect(page.getByRole("button", { name: "Review latest run" })).toBeVisible();
+        await expect(inbox.getByRole("button", { name: "Review run" })).toBeVisible();
       });
 
-      test("Settings bottom content is reachable via internal scroll", async ({ page }) => {
+      test("Setup bottom content is reachable via internal scroll", async ({ page }) => {
         await completeOnboarding(page);
-        await page.goto("/#/settings");
+        await page.goto("/#/setup");
         await page.getByRole("button", { name: "Account & billing" }).click();
         const onboardingRow = page.getByRole("button", { name: "Run onboarding again" });
         await onboardingRow.scrollIntoViewIfNeeded();
