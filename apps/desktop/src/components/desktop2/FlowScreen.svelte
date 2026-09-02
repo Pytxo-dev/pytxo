@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { IconArrowRight, IconFolderPlus, IconLoader2, IconMicrophone, IconPlayerRecord } from "@tabler/icons-svelte";
+  import { IconAlertTriangle, IconArrowRight, IconFolderPlus, IconLoader2, IconMicrophone, IconPlayerRecord } from "@tabler/icons-svelte";
   import { onMount } from "svelte";
   import type { DesktopBackend } from "../../lib/desktop-backend";
-  import type { FlowDraftRecord, FlowPlan, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
+  import type { AdeCliStatusDto, FlowDraftRecord, FlowPlan, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
+
+  const ADE_CHOICE_KEY = "pytxo-flow-ade-v1";
   let {
     backend,
     domains,
@@ -21,7 +23,10 @@
     onDispatched?: ((runId: string) => void) | null;
   } = $props();
   let selectedDomainId = $state("");
-  let selectedAde = $state("cursor");
+  let selectedAde = $state("");
+  let adeClis = $state<AdeCliStatusDto[]>([]);
+  let adeLoading = $state(true);
+  let adeError = $state("");
   let mission = $state("");
   let missionSource = $state<"text" | "voice">("text");
   let voiceState = $state<VoiceState>("idle");
@@ -37,6 +42,8 @@
   let voicePointerAction: Promise<void> | null = null;
   let voiceAvailable = $state(true);
   let plan = $state<FlowPlan | null>(null);
+  let planInputKey = $state<string | null>(null);
+  let planAttempted = $state(false);
   let planning = $state(false);
   let error = $state("");
   let dispatchedRun = $state("");
@@ -45,7 +52,42 @@
   let history = $state<FlowDraftRecord[]>([]);
   let historySyncedRun = "";
 
-  const showPlanPanel = $derived(planning || !!plan);
+  const currentInputKey = $derived(
+    JSON.stringify({
+      mission: mission.trim(),
+      source: missionSource,
+      domain: selectedDomainId,
+      ade: selectedAde,
+    }),
+  );
+  const planMatchesInputs = $derived(!!plan && planInputKey === currentInputKey);
+  const selectedAdeStatus = $derived(adeClis.find((cli) => cli.id === selectedAde) ?? null);
+  const selectedAdeReady = $derived(!!selectedAdeStatus && isAdeReady(selectedAdeStatus));
+  const unavailableAdes = $derived(adeClis.filter((cli) => !isAdeReady(cli)));
+  const verificationCommands = $derived(
+    verificationCommandsFor(plan),
+  );
+  const planHasVerification = $derived(verificationCommands.length > 0);
+  const canDispatchPlan = $derived(
+    !!plan && plan.status === "ready" && planMatchesInputs && planHasVerification && !dispatchedRun && !dispatching,
+  );
+  const buildPlanDisabledReason = $derived.by(() => {
+    if (planning) return "Plan construction is already in progress.";
+    if (!mission.trim()) return "Describe the outcome before building a plan.";
+    if (!selectedDomainId) return "Select a workspace before building a plan.";
+    if (!selectedAdeReady) return "Select an installed, signed-in agent CLI before building a plan.";
+    return null;
+  });
+  const runDisabledReason = $derived.by(() => {
+    if (!plan) return "Build and review a plan before starting the run.";
+    if (plan.status !== "ready") return "Resolve the reported plan blockers before starting the run.";
+    if (!planMatchesInputs) return "The plan no longer matches the outcome, workspace, or agent CLI. Build it again.";
+    if (!planHasVerification) return "This plan is unverified because it reports no verification commands. It cannot run.";
+    if (dispatchedRun) return `This plan already started run ${dispatchedRun}.`;
+    if (dispatching) return "The run is starting.";
+    return null;
+  });
+  const showPlanPanel = $derived(planning || planAttempted || !!plan);
   const dispatchedLabel = $derived(
     dispatchedStatus === "verify_failed"
       ? "Verification failed"
@@ -69,6 +111,52 @@
   });
 
   $effect(() => {
+    const inputKey = currentInputKey;
+    if (planInputKey && planInputKey !== inputKey) planInputKey = null;
+  });
+
+  function isAdeReady(cli: AdeCliStatusDto) {
+    return cli.installed && (cli.auth_state === "signed_in" || cli.auth_state === "not_applicable");
+  }
+
+  function verificationCommandsFor(candidate: FlowPlan | null) {
+    return candidate
+      ? [...new Set(candidate.tasks.flatMap((task) => task.verify ?? []).filter((command) => command.trim()))]
+      : [];
+  }
+
+  function adeUnavailableReason(cli: AdeCliStatusDto) {
+    if (!cli.installed) return "not installed";
+    if (cli.auth_state === "signed_out") return "sign-in required";
+    if (cli.auth_state === "unknown") return "sign-in could not be verified";
+    if (cli.auth_state === "not_installed") return "not installed";
+    return "not ready";
+  }
+
+  async function loadAdeClis() {
+    adeLoading = true;
+    adeError = "";
+    try {
+      adeClis = await backend.listAdeClis();
+      const saved = typeof localStorage === "undefined" ? null : localStorage.getItem(ADE_CHOICE_KEY);
+      const savedReady = saved ? adeClis.find((cli) => cli.id === saved && isAdeReady(cli)) : null;
+      const currentReady = adeClis.find((cli) => cli.id === selectedAde && isAdeReady(cli));
+      selectedAde = savedReady?.id ?? currentReady?.id ?? adeClis.find(isAdeReady)?.id ?? "";
+    } catch (cause) {
+      adeClis = [];
+      selectedAde = "";
+      adeError = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      adeLoading = false;
+    }
+  }
+
+  function chooseAde(value: string) {
+    selectedAde = value;
+    if (typeof localStorage !== "undefined") localStorage.setItem(ADE_CHOICE_KEY, value);
+  }
+
+  $effect(() => {
     const preferred = preferredDomainId;
     const list = domains;
     if (preferred && list.some((d) => d.domain_id === preferred)) {
@@ -79,18 +167,27 @@
   });
 
   async function buildPlan() {
+    if (!mission.trim() || !selectedDomainId || !selectedAdeReady) return;
+    const requestedInputKey = currentInputKey;
     planning = true; error = "";
+    planAttempted = true;
+    // A new preview request revokes the previous dispatch authority immediately.
+    plan = null;
+    planInputKey = null;
     dispatchedRun = "";
     dispatchedStatus = "";
     historySyncedRun = "";
     try {
       plan = await backend.previewFlow({ id: crypto.randomUUID(), title: mission.slice(0, 72), mission_text: mission, source: missionSource, domain_id: selectedDomainId || null, project_id: null, ade_id: selectedAde });
+      planInputKey = requestedInputKey;
       history = await backend.flowHistory();
-    } catch (cause) { error = String(cause); } finally { planning = false; }
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : String(cause);
+    } finally { planning = false; }
   }
 
   async function dispatch() {
-    if (!plan || plan.status !== "ready" || dispatching) return;
+    if (!plan || !canDispatchPlan) return;
     if (!domains.length || !selectedDomainId) {
       error = "Add a workspace first, then pick it below.";
       return;
@@ -98,7 +195,14 @@
     dispatching = true;
     error = "";
     try {
-      plan = await backend.saveReviewedFlow(plan);
+      const reviewedPlan = await backend.saveReviewedFlow(plan);
+      plan = reviewedPlan;
+      if (reviewedPlan.status !== "ready" || verificationCommandsFor(reviewedPlan).length === 0) {
+        error = reviewedPlan.status !== "ready"
+          ? "The reviewed plan is blocked and was not dispatched."
+          : "The reviewed plan reports no verification commands, so it remains unverified and was not dispatched.";
+        return;
+      }
       dispatchedRun = await backend.dispatchFlow(plan.draft_id);
       dispatchedStatus = "running";
       onDispatched?.(dispatchedRun);
@@ -216,6 +320,19 @@
     missionSource = draft.source === "voice" ? "voice" : "text";
   }
 
+  function describeBlocker(reason: unknown) {
+    if (typeof reason === "string") return reason;
+    if (!reason || typeof reason !== "object") return "The planner did not provide a blocker description. Rebuild after checking the workspace and agent CLI.";
+    const value = reason as Record<string, unknown>;
+    for (const key of ["message", "reason", "detail"]) {
+      if (typeof value[key] === "string" && value[key]) return value[key] as string;
+    }
+    if (value.kind === "path_claim_overlap") return "Two tasks claim the same path. Split their ownership or revise the mission, then rebuild.";
+    if (value.kind === "ade_unavailable") return "The selected agent CLI is unavailable. Choose an installed, signed-in CLI, then rebuild.";
+    const kind = typeof value.kind === "string" ? value.kind.replaceAll("_", " ") : "Planner constraint";
+    return `${kind}. Adjust the mission, workspace, or agent CLI, then rebuild.`;
+  }
+
   onMount(() => {
     let disposed = false;
     let unlisten: (() => void) | null = null;
@@ -246,12 +363,14 @@
       mission = voiceSegments[0].text;
       missionSource = "voice";
     }
-    if (["ready", "blocked", "dispatched"].includes(previewState)) {
+    void loadAdeClis().then(() => {
+      if (!["ready", "blocked", "dispatched"].includes(previewState)) return;
       void buildPlan().then(() => {
         if (plan && previewState === "blocked") plan = { ...plan, status: "blocked", blocked_reasons: [{ kind: "path_claim_overlap" }] };
         if (previewState === "dispatched") dispatchedRun = "run-preview";
       });
-    } else if (previewState === "planning") planning = true;
+    });
+    if (previewState === "planning") planning = true;
     return () => {
       disposed = true;
       unlisten?.();
@@ -281,7 +400,6 @@
     </div>
   {:else}
   <div class="flow-layout" class:flow-layout--solo={!showPlanPanel}>
-    {#if !showPlanPanel}
     <article class="panel composer-panel">
       <div class="panel-head">
         <div>
@@ -328,6 +446,7 @@
             onpointercancel={handleVoicePointerCancel}
             aria-pressed={recording}
             disabled={!voiceAvailable || voiceState === "transcribing"}
+            aria-describedby={!voiceAvailable ? "voice-disabled-reason" : undefined}
             title={voiceAvailable ? "Click to record or press and hold" : "Enable the voice-whisper build feature"}
           >
             {#if recording}<IconPlayerRecord size={17} /> Finish recording
@@ -339,6 +458,7 @@
             <button class="quiet" onclick={pauseOrResumeVoice}>{voiceState === "paused" ? "Resume" : "Pause"}</button>
           {/if}
           {#if voiceSessionId}<button class="quiet" onclick={cancelVoice}>Cancel</button>{/if}
+          {#if !voiceAvailable}<small id="voice-disabled-reason" class="action-reason">Voice capture is unavailable until the local voice feature is enabled.</small>{/if}
         </div>
         <div class="dispatch-controls">
           <div class="domain">
@@ -348,32 +468,60 @@
                 <option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}</option>
               {/each}
             </select>
-            <select bind:value={selectedAde} aria-label="Agent CLI">
-              <option value="cursor">Cursor CLI</option>
-              <option value="codex">Codex CLI</option>
-              <option value="claude">Claude Code</option>
-              <option value="opencode">OpenCode</option>
-              <option value="aider">Aider</option>
+            <select value={selectedAde} onchange={(event) => chooseAde(event.currentTarget.value)} aria-label="Agent CLI" disabled={adeLoading || !adeClis.length}>
+              {#if adeLoading}
+                <option value="">Checking detected CLIs…</option>
+              {:else if !adeClis.length}
+                <option value="">No ready CLI detected</option>
+              {:else}
+                {#each adeClis as cli (cli.id)}
+                  <option value={cli.id} disabled={!isAdeReady(cli)}>
+                    {cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}
+                  </option>
+                {/each}
+              {/if}
             </select>
           </div>
-          <button class="primary" disabled={!mission.trim() || planning} onclick={buildPlan}>
+          <button class="primary" disabled={!!buildPlanDisabledReason} aria-describedby={buildPlanDisabledReason ? "build-plan-disabled-reason" : undefined} onclick={buildPlan}>
             {planning ? "Building…" : "Build plan"}
           </button>
         </div>
+        {#if buildPlanDisabledReason}<p id="build-plan-disabled-reason" class="action-reason">{buildPlanDisabledReason}</p>{/if}
+      </div>
+      <div class="ade-readiness" aria-live="polite">
+        {#if adeError}
+          <span class="error">Agent readiness could not be checked: {adeError}</span>
+        {:else if selectedAdeStatus}
+          <span class:ready={selectedAdeReady}>{selectedAdeStatus.display_name}: {selectedAdeReady ? "ready" : adeUnavailableReason(selectedAdeStatus)}</span>
+          {#if unavailableAdes.length}
+            <small>Unavailable: {unavailableAdes.map((cli) => `${cli.display_name} (${adeUnavailableReason(cli)})`).join(" · ")}</small>
+          {/if}
+        {:else if !adeLoading}
+          <span class="error">Install and sign in to an agent CLI before building a plan.</span>
+        {/if}
       </div>
     </article>
-    {/if}
 
     {#if showPlanPanel}
-      <article class="panel plan-panel">
+      <article class="panel plan-panel" aria-busy={planning}>
         <div class="panel-head">
           <div>
-            <h2>{planning ? "Building plan…" : plan ? (plan.status === "ready" ? "Review plan" : "Plan blocked") : "Plan"}</h2>
+            <h2>{planning ? "Building plan…" : plan ? (plan.status === "ready" ? (planHasVerification ? "Review plan" : "Plan needs verification") : "Plan blocked") : "Plan"}</h2>
           </div>
-          {#if plan}<span class="ready">{plan.status === "ready" ? "Ready" : "Blocked"}</span>{/if}
+          {#if plan}
+            <span class:ready={plan.status === "ready" && planHasVerification} class="plan-state" data-tone={plan.status !== "ready" ? "blocked" : planHasVerification ? "ready" : "unknown"} role="status" aria-live="polite" aria-atomic="true">
+              {plan.status !== "ready" ? "Blocked" : planHasVerification ? "Ready" : "Unverified"}
+            </span>
+          {/if}
         </div>
         {#if plan}
           <p class="plan-summary">{planSummary}</p>
+          {#if !planMatchesInputs}
+            <div class="plan-stale" role="status">
+              <IconAlertTriangle size={15} />
+              <span><strong>Plan is stale</strong><small>The outcome, workspace, or agent CLI changed. Build a matching plan before Run is available.</small></span>
+            </div>
+          {/if}
           {#each plan.waves as wave, waveIndex}
             <div class="plan-wave">
               <span>Stage {waveIndex + 1}</span>
@@ -391,24 +539,55 @@
               {/each}
             </div>
           {/each}
+          <section class="plan-contract" aria-label="Plan safety contract">
+            <h3>Safety contract</h3>
+            <dl>
+              <div><dt>Permission</dt><dd>{plan.permission_profile || "Not reported"}</dd></div>
+              <div><dt>Isolation</dt><dd>{plan.isolation_mode || "Not reported"} · {plan.isolation_backend_intent || "backend not reported"}</dd></div>
+              <div><dt>Execution</dt><dd>{plan.execution_backend || "Not reported"}</dd></div>
+              <div><dt>Agent CLI</dt><dd>{plan.ade.requested ?? "Not selected"} · {plan.ade.available ? "ready" : "unavailable"}{plan.ade.command ? ` · ${plan.ade.command}` : ""}</dd></div>
+            </dl>
+            <div class="contract-list">
+              <strong>Verification commands</strong>
+              {#if verificationCommands.length}
+                <ul>{#each verificationCommands as command}<li><code>{command}</code></li>{/each}</ul>
+              {:else}<p class="unverified-copy">No verification commands were reported. This plan is unverified and cannot run; rebuild it after adding verification requirements to the mission or planner input.</p>{/if}
+            </div>
+            <div class="contract-list" data-tone={plan.warnings.length ? "warning" : "quiet"}>
+              <strong>Warnings</strong>
+              {#if plan.warnings.length}
+                <ul>{#each plan.warnings as warning}<li><span>{warning.code}</span>{warning.message}</li>{/each}</ul>
+              {:else}<p>No warnings reported.</p>{/if}
+            </div>
+            <div class="contract-list" data-tone={plan.blocked_reasons.length ? "blocked" : "quiet"}>
+              <strong>Blockers</strong>
+              {#if plan.blocked_reasons.length}
+                <ul>{#each plan.blocked_reasons as reason}<li>{describeBlocker(reason)}</li>{/each}</ul>
+              {:else}<p>No blockers reported.</p>{/if}
+            </div>
+          </section>
           <div class="plan-footer">
             <div><span>Estimate</span><strong>{plan.estimated_cost_usd ? `$${plan.estimated_cost_usd.toFixed(2)}` : "Local"}</strong></div>
             <div><span>Path locks</span><strong>{plan.blocked_reasons.length ? `${plan.blocked_reasons.length} collisions` : "Clear"}</strong></div>
             <button class="quiet" disabled={planning} onclick={buildPlan}>Build plan</button>
-            <button class="primary" disabled={plan.status !== "ready" || !!dispatchedRun || dispatching} onclick={dispatch}>
-              {dispatchedRun ? `${dispatchedLabel} ${dispatchedRun}` : dispatching ? "Starting…" : "Run"} <IconArrowRight size={16} />
-            </button>
+            <div class="run-action">
+              <button class="primary" disabled={!canDispatchPlan} aria-describedby={runDisabledReason ? "run-disabled-reason" : undefined} onclick={dispatch}>
+                {dispatchedRun ? `${dispatchedLabel} ${dispatchedRun}` : dispatching ? "Starting…" : "Run"} <IconArrowRight size={16} />
+              </button>
+              {#if runDisabledReason}<small id="run-disabled-reason" class="action-reason">{runDisabledReason}</small>{/if}
+            </div>
           </div>
-          {#if error}<p class="voice-state-message error" role="alert">{error}</p>{/if}
+          {#if error}<p class="voice-state-message error" role="alert" aria-live="assertive">{error}</p>{/if}
         {:else if planning}
-          <div class="plan-empty"><strong>Building plan</strong><p>Checking paths, permissions, and agent CLI availability.</p></div>
+          <div class="plan-empty" role="status" aria-live="polite" aria-atomic="true"><strong>Building plan</strong><p>Checking paths, permissions, and agent CLI availability.</p></div>
         {:else}
           <div class="plan-empty">
-            <strong>{error || "No plan yet"}</strong>
-            <p>Write an outcome, then Build plan.</p>
-            {#if mission.trim()}
+            <strong role={error ? "alert" : undefined} aria-live={error ? "assertive" : undefined}>{error || "No plan yet"}</strong>
+            <p>{error ? "The previous plan was cleared. Fix the issue, then build a new matching plan." : "Write an outcome, then Build plan."}</p>
+            {#if mission.trim() && selectedAdeReady}
               <button class="primary" onclick={buildPlan} disabled={planning}>Build plan</button>
             {/if}
+            {#if error}<button class="primary" disabled aria-describedby="empty-run-disabled-reason">Run <IconArrowRight size={16} /></button><small id="empty-run-disabled-reason" class="action-reason">Build a new matching plan before starting a run.</small>{/if}
           </div>
         {/if}
       </article>

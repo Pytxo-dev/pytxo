@@ -82,9 +82,24 @@ Max Swarm remote sandbox + Pro context cache ([[cloud-sandbox-service]]).
 | `enabled` | bool | `false` | Enable cloud HTTP clients |
 | `sandbox_url` | string | `https://cloud.pytxo.com/v1` | Cloud sandbox API base |
 | `cache_enabled` | bool | `true` | Read-through / write-through scaffold cache |
-| `fallback_local` | bool | `true` | Fall back to local PTY when cloud unreachable |
+| `upload_consent` | bool | `false` | Explicitly consent to repository-derived sync/cache uploads after reviewing the manifest and deny policy |
+| `fallback_local` | bool | `false` | Permit local PTY fallback after a cloud transport failure; policy denials never fall back |
 
 Set `PYTXO_CLOUD_SESSION` for `Authorization: Bearer`. Use `execution_backend = "cloud"` or `pytxo run --execution cloud`.
+Because `pytxo.toml` is repository-controlled, `upload_consent = true` must be
+paired with the out-of-band host acknowledgement
+`PYTXO_CLOUD_UPLOAD_CONSENT=I_UNDERSTAND_REPOSITORY_CONTENT_WILL_BE_UPLOADED`.
+Desktop or another trusted host may supply the equivalent consent decision
+directly. Entitlement or `enabled = true` does not imply upload consent. Initial sync,
+overlay deltas, and cache puts deny `.env`, `.pytxo`, VCS/credential directories,
+private-key and credential files; a likely token, key, or credential URL aborts
+the outbound batch instead of rewriting executable source.
+
+Local fallback changes the execution boundary and is separately opt-in. Set
+`fallback_local = true` and the trusted-host acknowledgement
+`PYTXO_CLOUD_FALLBACK_LOCAL=I_UNDERSTAND_CLOUD_FAILURE_WILL_RUN_LOCALLY`.
+Consent, protected-path, secret-content, symlink, and special-file denials are
+terminal and never use local fallback.
 
 ## `[mcp_hub]`
 

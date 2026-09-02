@@ -5,6 +5,17 @@ pub struct CloudClients {
     pub cache: std::sync::Arc<dyn pytxo_core::ContextCache>,
 }
 
+#[cfg(feature = "cloud-http")]
+fn out_of_band_upload_consent() -> bool {
+    std::env::var("PYTXO_CLOUD_UPLOAD_CONSENT")
+        .is_ok_and(|value| value == "I_UNDERSTAND_REPOSITORY_CONTENT_WILL_BE_UPLOADED")
+}
+
+pub(crate) fn out_of_band_local_fallback_consent() -> bool {
+    std::env::var("PYTXO_CLOUD_FALLBACK_LOCAL")
+        .is_ok_and(|value| value == "I_UNDERSTAND_CLOUD_FAILURE_WILL_RUN_LOCALLY")
+}
+
 pub fn cloud_clients(cfg: &pytxo_core::PytxoConfig) -> CloudClients {
     use pytxo_core::{ExecutionBackend, HttpContextCache, NoopCloudDispatcher, NoopContextCache};
     let use_cloud = cfg.cloud.enabled || cfg.execution_backend == ExecutionBackend::Cloud;
@@ -16,10 +27,17 @@ pub fn cloud_clients(cfg: &pytxo_core::PytxoConfig) -> CloudClients {
     }
     #[cfg(feature = "cloud-http")]
     {
+        let upload_consent = out_of_band_upload_consent();
         CloudClients {
-            dispatcher: std::sync::Arc::new(HttpCloudDispatcher::from_config(&cfg.cloud)),
+            dispatcher: std::sync::Arc::new(HttpCloudDispatcher::from_config_with_upload_consent(
+                &cfg.cloud,
+                upload_consent,
+            )),
             cache: if cfg.cloud.cache_enabled {
-                std::sync::Arc::new(HttpContextCache::from_config(&cfg.cloud))
+                std::sync::Arc::new(HttpContextCache::from_config_with_upload_consent(
+                    &cfg.cloud,
+                    upload_consent,
+                ))
             } else {
                 std::sync::Arc::new(NoopContextCache)
             },

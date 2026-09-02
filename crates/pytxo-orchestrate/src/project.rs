@@ -180,15 +180,33 @@ fn build_roots_map(
     cfg: &PytxoConfig,
 ) -> anyhow::Result<HashMap<String, RootExec>> {
     let mut roots = HashMap::new();
+    let trust_store = pytxo_core::TrustedDomainStore::open_default()
+        .map_err(|error| anyhow::anyhow!("cannot read folder trust records: {error}"))?;
     for r in &manifest.roots {
         let canon = canonical_repo_root(&r.path).map_err(|e| anyhow::anyhow!(e))?;
-        let profile = r.permission_profile.unwrap_or(cfg.permission_profile);
+        let trust_ceiling = trust_store.permission_for(&canon).ok_or_else(|| {
+            anyhow::anyhow!(
+                "project root '{}' is not trusted; trust {} before running this project",
+                r.effective_label(),
+                canon.display()
+            )
+        })?;
+        let requested = r.permission_profile.unwrap_or(
+            cfg.requested_permission_profile
+                .unwrap_or(cfg.permission_profile),
+        );
+        let mut profile = requested;
+        if let Some(ceiling) = cfg.permission_ceiling {
+            profile = profile.capped_at(ceiling);
+        }
+        profile = profile.capped_at(trust_ceiling);
         roots.insert(
             r.effective_label(),
             RootExec {
                 repo_root: canon.clone(),
                 worktree_base: canon.join(&cfg.worktree_dir),
                 read_only: r.read_only,
+                requested_permission_profile: requested,
                 permission_profile: profile,
             },
         );
@@ -353,4 +371,41 @@ pub fn list_project_manifests() -> anyhow::Result<Vec<(String, PathBuf)>> {
     }
     out.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pytxo_core::{PermissionProfile, TrustedDomainStore};
+
+    #[test]
+    fn project_root_profile_cannot_exceed_folder_trust_ceiling() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("root");
+        std::fs::create_dir(&repo).unwrap();
+        let trust_path = dir.path().join("trusted-domains.json");
+        TrustedDomainStore::open(&trust_path)
+            .unwrap()
+            .trust(&repo, PermissionProfile::Orbit, None)
+            .unwrap();
+        // SAFETY: this test owns the temporary trust store path.
+        unsafe { std::env::set_var("PYTXO_TRUST_STORE", &trust_path) };
+
+        let manifest = ProjectManifest {
+            project: ProjectMeta {
+                id: "ceiling-fixture".into(),
+                name: None,
+            },
+            roots: vec![ProjectRoot {
+                path: repo,
+                label: Some("root".into()),
+                primary: true,
+                read_only: false,
+                permission_profile: Some(PermissionProfile::Supernova),
+            }],
+        };
+
+        let roots = build_roots_map(&manifest, &PytxoConfig::default()).unwrap();
+        assert_eq!(roots["root"].permission_profile, PermissionProfile::Orbit);
+    }
 }

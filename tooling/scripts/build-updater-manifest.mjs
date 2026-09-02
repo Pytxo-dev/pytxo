@@ -50,6 +50,18 @@ const FALLBACK_EXTENSIONS = {
   "windows-x86_64": [".msi", ".exe"],
 };
 
+const expectedPlatformKeys = (process.env.PYTXO_DESKTOP_PLATFORMS
+  ? process.env.PYTXO_DESKTOP_PLATFORMS.split(",")
+  : Object.values(PREFIX_TO_PLATFORM)
+).map((value) => value.trim()).filter(Boolean);
+
+for (const platformKey of expectedPlatformKeys) {
+  if (!Object.values(PREFIX_TO_PLATFORM).includes(platformKey)) {
+    console.error(`unknown PYTXO_DESKTOP_PLATFORMS entry: ${platformKey}`);
+    process.exit(1);
+  }
+}
+
 function walk(dir) {
   const out = [];
   if (!fs.existsSync(dir)) return out;
@@ -80,6 +92,7 @@ function main() {
 
   const platforms = {};
   for (const [prefix, platformKey] of Object.entries(PREFIX_TO_PLATFORM)) {
+    if (!expectedPlatformKeys.includes(platformKey)) continue;
     const files = walk(path.join(sourceDir, prefix));
     const candidates = files
       .filter((f) => f.endsWith(".sig"))
@@ -116,7 +129,7 @@ function main() {
     console.log(`updater: staged ${platformKey} -> ${safeName}`);
   }
 
-  const expected = Object.keys(PREFIX_TO_PLATFORM).length;
+  const expected = expectedPlatformKeys.length;
   const found = Object.keys(platforms).length;
 
   if (found === 0) {

@@ -18,12 +18,20 @@ Minimal HTTP service for Ultra-tier run reconciliation. Matches the monorepo cli
 |----------|---------|---------|
 | `LINK_BIND` | `127.0.0.1:8787` | Listen address (local) |
 | `PORT` | Railway injects | Hosted listen port |
-| `LINK_API_KEY` | unset (dev open) | Bearer token for API routes |
-| `LINK_REQUIRE_AUTH` | `true` when `LINK_API_KEY` set | Reject unsigned requests in prod |
-| `DATABASE_URL` | unset | Postgres for entitlements + org policies |
-| `PADDLE_WEBHOOK_SECRET` | unset | Verify Paddle billing webhooks |
+| `LINK_API_KEY` | unset (loopback dev only) | Bearer token for API routes |
+| `LINK_REQUIRE_AUTH` | `true` when an API key or JWKS validator is configured | Reject unsigned requests; mandatory for any non-loopback or `PORT` bind |
+| `DATABASE_URL` | unset | Postgres for entitlements, org policies, and durable Paddle event IDs |
+| `PADDLE_WEBHOOK_SECRET` | unset | Required to enable the Paddle webhook; missing secrets fail closed |
+| `PADDLE_PRICE_PRO` | unset | Allowlisted Paddle price ID for Pro |
+| `PADDLE_PRICE_MAX` | unset | Allowlisted Paddle price ID for Max |
+| `PADDLE_PRICE_ULTRA` | unset | Allowlisted Paddle price ID for Ultra |
 
 Hosted production URL: `https://link.pytxo.com/v1`
+
+Pytxo Link refuses startup when a public bind is unauthenticated or when
+authentication is required without an API key or complete Clerk JWKS
+configuration. Bind values must use an IP socket address such as
+`127.0.0.1:8787` or `0.0.0.0:8787`.
 
 Client env:
 
@@ -42,6 +50,14 @@ proxy_url = "https://link.pytxo.com"
 ```
 
 The CLI ships with `link-http` enabled via `pytxo-orchestrate` default features.
+
+`POST /v1/webhooks/paddle` is unavailable unless `DATABASE_URL`, a non-empty
+`PADDLE_WEBHOOK_SECRET`, and at least one allowlisted `PADDLE_PRICE_*` value are
+configured. Accepted Paddle signatures must be no more than five minutes old.
+`subscription.created` binds Paddle subscription and customer IDs to the
+signed `custom_data.user_id`; later updates and cancellations must match that
+persisted binding. Event claims, bindings, and entitlement changes share one
+Postgres transaction. Paid tiers are derived only from allowlisted price IDs.
 
 ## Local dev
 

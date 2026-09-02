@@ -45,7 +45,7 @@ and asks you to review again.
 
 11
 00:00:43,000 --> 00:00:47,000
-Operations shows the decision,
+Work shows the decision,
 ownership, and outcome,
 
 12

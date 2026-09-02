@@ -59,6 +59,7 @@ async fn secondary_root_worktree_under_web_repo() {
             repo_root: web.path().to_path_buf(),
             worktree_base: web_wt.clone(),
             read_only: false,
+            requested_permission_profile: PermissionProfile::Orbit,
             permission_profile: PermissionProfile::Orbit,
         },
     );
@@ -132,7 +133,7 @@ async fn secondary_root_worktree_under_web_repo() {
     assert_eq!(results[0].exit_code, Some(0));
     assert_eq!(results[0].root_id.as_deref(), Some("web"));
 
-    let wt_canon = std::fs::canonicalize(&results[0].worktree_path).unwrap();
+    let wt_canon = std::fs::canonicalize(results[0].worktree_path.as_ref().unwrap()).unwrap();
     let web_canon = std::fs::canonicalize(web.path()).unwrap();
     assert!(
         wt_canon.starts_with(&web_canon),

@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 
 use glob::glob;
 use pytxo_core::{
-    content_hash, ArbitrageSample, CacheLookup, CachePut, ContextCache, FidelityTier, ModelId,
-    PytxoError, Result, RunId, TokenEstimator,
+    cloud_path_denied, content_hash, validate_cloud_content, ArbitrageSample, CacheLookup,
+    CachePut, ContextCache, FidelityTier, ModelId, PytxoError, Result, RunId, TokenEstimator,
 };
 use pytxo_signal::{read_scaffolded, scaffold_source};
 
@@ -104,8 +104,12 @@ pub fn prepare_agent_context_for_root(
 
             let raw_bytes = fs::read(&file).map_err(PytxoError::Io)?;
             let hash = content_hash(&raw_bytes);
+            // Cache is an egress boundary. A denied path or likely secret stays
+            // entirely local regardless of the configured cache implementation.
+            let cache_upload_safe = !cloud_path_denied(&rel)
+                && validate_cloud_content(&rel, &String::from_utf8_lossy(&raw_bytes)).is_ok();
 
-            let scaffold = if cache_enabled {
+            let scaffold = if cache_enabled && cache_upload_safe {
                 if let Some(cache_client) = cache {
                     let lookup = CacheLookup {
                         domain_id: domain_id.to_string(),
@@ -313,5 +317,74 @@ fn resolve_pattern(repo_root: &Path, pattern: &str) -> Result<Vec<PathBuf>> {
         Ok(vec![path])
     } else {
         Ok(Vec::new())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use pytxo_core::{ByteHeuristicEstimator, CachedScaffold, ContextCache, PermissionProfile};
+
+    use super::*;
+
+    #[derive(Default)]
+    struct RecordingCache {
+        gets: Mutex<Vec<String>>,
+        puts: Mutex<Vec<String>>,
+    }
+
+    impl ContextCache for RecordingCache {
+        fn get(&self, key: &CacheLookup) -> Result<Option<CachedScaffold>> {
+            self.gets.lock().unwrap().push(key.path.clone());
+            Ok(None)
+        }
+
+        fn put(&self, entry: &CachePut) -> Result<()> {
+            self.puts.lock().unwrap().push(entry.path.clone());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn cache_puts_only_allowed_secret_free_source() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        let data = tmp.path().join("data");
+        fs::create_dir_all(repo.join("src")).unwrap();
+        fs::write(repo.join(".env"), "OPENAI_API_KEY=not-uploaded").unwrap();
+        fs::write(
+            repo.join("src/credential.txt"),
+            "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz123456",
+        )
+        .unwrap();
+        fs::write(repo.join("src/lib.rs"), "pub fn allowed() {}\n").unwrap();
+        let cache = RecordingCache::default();
+        let patterns = vec![
+            ".env".to_string(),
+            "src/credential.txt".to_string(),
+            "src/lib.rs".to_string(),
+        ];
+
+        prepare_agent_context_for_root(
+            &repo,
+            &data,
+            &RunId::new(),
+            "agent",
+            &patterns,
+            true,
+            FidelityTier::Low,
+            &ByteHeuristicEstimator,
+            &ModelId("test-model".into()),
+            None,
+            Some(&cache),
+            "domain",
+            true,
+            PermissionProfile::Supernova,
+        )
+        .unwrap();
+
+        assert_eq!(cache.gets.lock().unwrap().as_slice(), ["src/lib.rs"]);
+        assert_eq!(cache.puts.lock().unwrap().as_slice(), ["src/lib.rs"]);
     }
 }

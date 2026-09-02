@@ -4,9 +4,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{native_pty_system, CommandBuilder, ExitStatus, PtySize};
 use pytxo_core::{ChildLaunchEnv, PytxoError, Result};
 
 use crate::race::SwarmRegistry;
@@ -54,6 +54,7 @@ pub fn doctor_pty_smoke() -> Result<()> {
         .wait()
         .map_err(|e| PytxoError::Runner(format!("doctor pty wait: {e}")))?;
 
+    drop(pair.master);
     let buf = read_rx
         .recv_timeout(Duration::from_secs(10))
         .unwrap_or_default();
@@ -86,6 +87,23 @@ pub fn run_pty_session(
     on_event: Option<&EventCallback>,
     agent_key: &str,
     swarm: &SwarmRegistry,
+) -> Result<SingleResult> {
+    run_pty_session_with_spawn(
+        worktree, cmd, env, rows, cols, on_event, agent_key, swarm, None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_pty_session_with_spawn(
+    worktree: &Path,
+    cmd: &str,
+    env: ChildLaunchEnv,
+    rows: u16,
+    cols: u16,
+    on_event: Option<&EventCallback>,
+    agent_key: &str,
+    swarm: &SwarmRegistry,
+    on_spawn: Option<&dyn Fn(u32) -> Result<()>>,
 ) -> Result<SingleResult> {
     let pty_system = native_pty_system();
     let pair = pty_system
@@ -122,6 +140,17 @@ pub fn run_pty_session(
     drop(pair.slave);
 
     let pid = child.process_id();
+    if let (Some(pid), Some(on_spawn)) = (pid, on_spawn) {
+        if let Err(error) = on_spawn(pid) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
+    }
+    let process_identity = match pid {
+        Some(pid) => crate::kill::process_start_identity(pid)?,
+        None => None,
+    };
 
     let reader = pair
         .master
@@ -168,15 +197,72 @@ pub fn run_pty_session(
         let _ = read_tx.send(acc);
     });
 
-    let status = child
-        .wait()
-        .map_err(|e| PytxoError::Runner(format!("pty wait: {e}")))?;
+    // portable-pty's blocking wait can remain parked behind ConPTY teardown when
+    // Stop terminates the process tree from another thread. Polling the process
+    // handle observes the OS exit without coupling settlement to output EOF.
+    let mut external_stop_started = None;
+    let status = loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|e| PytxoError::Runner(format!("pty wait: {e}")))?
+        {
+            break status;
+        }
+        if swarm.stop_requested(agent_key) {
+            let stopped_at = external_stop_started.get_or_insert_with(|| {
+                let _ = child.kill();
+                Instant::now()
+            });
+            if stopped_at.elapsed() >= Duration::from_secs(2) {
+                if let Some(cb) = on_event {
+                    cb(
+                        agent_key,
+                        "pty-exit-confirm-timeout",
+                        "Stop completed but portable-pty did not report process completion within 2 seconds",
+                    );
+                }
+                break ExitStatus::with_exit_code(1);
+            }
+        }
+        if let (Some(pid), Some(identity)) = (pid, process_identity.as_deref()) {
+            if !crate::kill::process_matches(pid, identity)? {
+                let stopped_at = external_stop_started.get_or_insert_with(|| {
+                    let _ = child.kill();
+                    Instant::now()
+                });
+                if stopped_at.elapsed() >= Duration::from_secs(2) {
+                    if let Some(cb) = on_event {
+                        cb(
+                            agent_key,
+                            "pty-exit-confirm-timeout",
+                            "OS process tree exited but portable-pty did not report completion within 2 seconds",
+                        );
+                    }
+                    break ExitStatus::with_exit_code(1);
+                }
+            }
+        }
+        thread::sleep(Duration::from_millis(15));
+    };
 
     active.store(false, Ordering::Relaxed);
     let _ = pump_handle.join();
-    let stdout_acc = read_rx
-        .recv_timeout(Duration::from_secs(120))
-        .unwrap_or_default();
+    // Once the process and input pump are finished, close the MasterPty owner so
+    // ConPTY signals EOF to the cloned reader instead of delaying settlement.
+    drop(pair.master);
+    let stdout_acc = match read_rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(output) => output,
+        Err(_) => {
+            if let Some(cb) = on_event {
+                cb(
+                    agent_key,
+                    "pty-output-drain-timeout",
+                    "PTY process exited but the output pipe did not close within 2 seconds",
+                );
+            }
+            String::new()
+        }
+    };
 
     Ok(SingleResult {
         worktree_path: worktree.to_path_buf(),

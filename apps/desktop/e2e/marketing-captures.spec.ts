@@ -135,6 +135,7 @@ test.describe("@marketing-capture current Desktop product captures", () => {
 
         if (route.route === "run-review") {
           await page.getByRole("button", { name: "Apply reviewed changes" }).click();
+          await page.getByRole("button", { name: "Apply exact package" }).click();
           await expect(page.getByText("Applied successfully", { exact: true })).toBeVisible();
           const appliedPng = await page.screenshot({
             animations: "disabled",

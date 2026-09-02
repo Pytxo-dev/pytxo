@@ -56,6 +56,12 @@ export function agentState(agent: AgentDto): StateDescriptor {
         label: "Failed",
         detail: exitDetail ?? "Failed without reporting an exit code",
       };
+    case "blocked_by_dependency":
+      return {
+        tone: "refuted",
+        label: "Dependency failed",
+        detail: "Not started because a required earlier task failed",
+      };
     case "stopped":
     case "cancelled":
       return { tone: "unknown", label: "Stopped", detail: "Stopped before reporting a result" };
@@ -136,12 +142,12 @@ export function worstTone<T extends StateTone>(tones: readonly T[], fallback: T)
 }
 
 /**
- * Wave completion is the only progress ratio the orchestrator actually supports:
- * agents carry a wave index and a terminal status, so a wave is complete when
- * every agent in it has stopped. Returns `null` when there is nothing to count,
- * so callers render a state instead of a fabricated quantity.
+ * Wave settlement is the only progress ratio the orchestrator actually supports:
+ * agents carry a wave index and a terminal status, so a wave is settled when
+ * every agent in it has stopped. Successful waves are counted separately so a
+ * failed or stopped wave is never presented as complete.
  */
-export function waveProgress(agents: readonly AgentDto[]): { completed: number; total: number } | null {
+export function waveProgress(agents: readonly AgentDto[]): { settled: number; successful: number; total: number } | null {
   if (!agents.length) return null;
   const waves = new Map<number, AgentDto[]>();
   for (const agent of agents) {
@@ -149,16 +155,19 @@ export function waveProgress(agents: readonly AgentDto[]): { completed: number; 
     if (bucket) bucket.push(agent);
     else waves.set(agent.wave, [agent]);
   }
-  let completed = 0;
+  let settled = 0;
+  let successful = 0;
   for (const bucket of waves.values()) {
-    if (bucket.every((agent) => isTerminalAgent(agent))) completed += 1;
+    if (bucket.every((agent) => isTerminalAgent(agent))) settled += 1;
+    if (bucket.every((agent) => agentState(agent).tone === "verified")) successful += 1;
   }
-  return { completed, total: waves.size };
+  return { settled, successful, total: waves.size };
 }
 
 export function isTerminalAgent(agent: AgentDto): boolean {
-  const tone = agentState(agent).tone;
-  return tone === "verified" || tone === "refuted" || tone === "unknown";
+  return ["completed", "verify_failed", "failed", "blocked_by_dependency", "stopped", "cancelled"].includes(
+    agent.status,
+  );
 }
 
 /** Run-level status values from `pytxo-store::is_terminal_run_status` plus `stopped`. */

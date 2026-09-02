@@ -50,6 +50,24 @@ impl PermissionProfile {
             Self::Supernova => "supernova",
         }
     }
+
+    /// Restrict a requested profile to an out-of-band trust ceiling.
+    pub fn capped_at(self, ceiling: Self) -> Self {
+        if self.rank() > ceiling.rank() {
+            ceiling
+        } else {
+            self
+        }
+    }
+
+    fn rank(self) -> u8 {
+        match self {
+            Self::DeepSpace => 0,
+            Self::Orbit => 1,
+            Self::Galaxy => 2,
+            Self::Supernova => 3,
+        }
+    }
 }
 
 /// Stable execution-domain id from canonical repo root ([[execution-domains]]).

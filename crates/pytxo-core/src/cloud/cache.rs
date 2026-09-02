@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::cloud::CloudConfig;
+use crate::cloud::{validate_cloud_upload, CloudConfig};
 #[cfg(feature = "cloud-http")]
 use crate::PytxoError;
 use crate::Result;
@@ -51,10 +51,17 @@ impl ContextCache for NoopContextCache {
 #[derive(Clone, Debug)]
 pub struct HttpContextCache {
     pub base_url: String,
+    upload_consent: bool,
 }
 
 impl HttpContextCache {
     pub fn from_config(cfg: &CloudConfig) -> Self {
+        Self::from_config_with_upload_consent(cfg, false)
+    }
+
+    /// Construct from repository config plus a consent decision obtained from
+    /// a trusted host surface (CLI environment, Desktop prompt, or equivalent).
+    pub fn from_config_with_upload_consent(cfg: &CloudConfig, out_of_band_consent: bool) -> Self {
         let base = if cfg.cache_url.trim().is_empty() {
             cfg.sandbox_url.as_str()
         } else {
@@ -62,6 +69,7 @@ impl HttpContextCache {
         };
         Self {
             base_url: base.trim_end_matches('/').to_string(),
+            upload_consent: cfg.upload_consent && out_of_band_consent,
         }
     }
 
@@ -79,6 +87,12 @@ impl HttpContextCache {
 
 impl ContextCache for HttpContextCache {
     fn get(&self, key: &CacheLookup) -> Result<Option<CachedScaffold>> {
+        if !self.upload_consent {
+            return Err(crate::PytxoError::CloudPolicy(
+                "cloud cache denied: [cloud].upload_consent and out-of-band consent are required"
+                    .into(),
+            ));
+        }
         #[cfg(feature = "cloud-http")]
         {
             let url = format!(
@@ -117,6 +131,13 @@ impl ContextCache for HttpContextCache {
     }
 
     fn put(&self, entry: &CachePut) -> Result<()> {
+        if !self.upload_consent {
+            return Err(crate::PytxoError::CloudPolicy(
+                "cloud cache upload denied: [cloud].upload_consent and out-of-band consent are required"
+                    .into(),
+            ));
+        }
+        validate_cloud_upload(&entry.path, &entry.content)?;
         #[cfg(feature = "cloud-http")]
         {
             let url = format!("{}/cache/scaffold", self.base_url);
@@ -157,4 +178,51 @@ pub fn content_hash(bytes: &[u8]) -> String {
     use sha2::{Digest, Sha256};
     let digest = Sha256::digest(bytes);
     format!("{:x}", digest)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cache_put(path: &str, content: &str) -> CachePut {
+        CachePut {
+            domain_id: "domain".into(),
+            path: path.into(),
+            fidelity: "low".into(),
+            content_hash: content_hash(content.as_bytes()),
+            content: content.into(),
+            scaffolded_bytes: content.len(),
+            language: None,
+        }
+    }
+
+    #[test]
+    fn cache_put_requires_explicit_consent() {
+        let cache = HttpContextCache::from_config(&CloudConfig {
+            upload_consent: true,
+            ..Default::default()
+        });
+        let error = cache
+            .put(&cache_put("src/lib.rs", "pub fn allowed() {}\n"))
+            .unwrap_err();
+        assert!(error.to_string().contains("upload_consent"));
+    }
+
+    #[test]
+    fn cache_put_rejects_denied_path_and_secret_content_with_consent() {
+        let cache = HttpContextCache::from_config_with_upload_consent(
+            &CloudConfig {
+                upload_consent: true,
+                ..Default::default()
+            },
+            true,
+        );
+        assert!(cache.put(&cache_put(".env", "not even scanned")).is_err());
+        assert!(cache
+            .put(&cache_put(
+                "src/config.txt",
+                "ANTHROPIC_API_KEY=sk-ant-abcdefghijklmnopqrstuvwxyz1234567890",
+            ))
+            .is_err());
+    }
 }

@@ -4,9 +4,10 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use chrono::Utc;
-use pytxo_core::{canonical_repo_root, DomainId, FleetManifest, FleetPlan, RunId};
+use pytxo_core::{canonical_repo_root, DomainId, FleetManifest, FleetNode, FleetPlan, RunId};
 use pytxo_store::{Catalog, FleetNodeRecord, FleetRunRecord, PytxoStore};
 use serde::Serialize;
+use tokio::task::JoinSet;
 use tokio::time::sleep;
 
 use crate::hypervisor::default_hypervisor;
@@ -40,6 +41,118 @@ pub struct FleetNodeResult {
     pub domain_run_id: Option<String>,
     pub wave: u32,
     pub status: String,
+}
+
+struct FleetNodeExecution {
+    result: FleetNodeResult,
+    error: Option<String>,
+}
+
+/// Owns the durable fleet catalog lifecycle. If the future is cancelled or an
+/// unexpected error escapes, dropping the guard still settles every unfinished
+/// node and the fleet run instead of leaving misleading `running` rows behind.
+struct FleetCatalogGuard {
+    catalog: Catalog,
+    fleet_run_id: String,
+    settled: bool,
+}
+
+impl FleetCatalogGuard {
+    fn start(fleet_run_id: &str, fleet_id: &str, plan: &FleetPlan) -> anyhow::Result<Self> {
+        let catalog = Catalog::open_default().map_err(|e| anyhow::anyhow!(e))?;
+        catalog
+            .insert_fleet_run(fleet_run_id, fleet_id, &Utc::now().to_rfc3339())
+            .map_err(|e| anyhow::anyhow!(e))?;
+
+        let guard = Self {
+            catalog,
+            fleet_run_id: fleet_run_id.to_string(),
+            settled: false,
+        };
+        for wave in &plan.waves {
+            for node in &wave.nodes {
+                guard
+                    .catalog
+                    .insert_fleet_node(
+                        fleet_run_id,
+                        &node.id,
+                        "",
+                        None,
+                        wave.wave as i32,
+                        "pending",
+                    )
+                    .map_err(|e| anyhow::anyhow!(e))?;
+            }
+        }
+        Ok(guard)
+    }
+
+    fn record_node(&self, result: &FleetNodeResult) -> anyhow::Result<()> {
+        self.catalog
+            .insert_fleet_node(
+                &self.fleet_run_id,
+                &result.node_id,
+                &result.domain_id,
+                result.domain_run_id.as_deref(),
+                result.wave as i32,
+                &result.status,
+            )
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    fn settle_unfinished_nodes(&self, status: &str) -> anyhow::Result<()> {
+        let nodes = self
+            .catalog
+            .list_fleet_nodes(&self.fleet_run_id)
+            .map_err(|e| anyhow::anyhow!(e))?;
+        let mut first_error = None;
+        for node in nodes {
+            if matches!(
+                node.status.as_str(),
+                "completed" | "failed" | "cancelled" | "skipped"
+            ) {
+                continue;
+            }
+            if let Err(error) = self.catalog.update_fleet_node_status(
+                &self.fleet_run_id,
+                &node.node_id,
+                status,
+                node.domain_run_id.as_deref(),
+            ) {
+                if first_error.is_none() {
+                    first_error = Some(anyhow::anyhow!(error));
+                }
+            }
+        }
+        match first_error {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
+    }
+
+    fn settle(&mut self, fleet_status: &str, unfinished_status: &str) -> anyhow::Result<()> {
+        let node_result = self.settle_unfinished_nodes(unfinished_status);
+        let fleet_result = self
+            .catalog
+            .finish_fleet_run(&self.fleet_run_id, fleet_status, &Utc::now().to_rfc3339())
+            .map_err(|e| anyhow::anyhow!(e));
+        if node_result.is_ok() && fleet_result.is_ok() {
+            self.settled = true;
+        }
+        node_result.and(fleet_result)
+    }
+}
+
+impl Drop for FleetCatalogGuard {
+    fn drop(&mut self) {
+        if self.settled {
+            return;
+        }
+        let _ = self.settle_unfinished_nodes("failed");
+        let _ =
+            self.catalog
+                .finish_fleet_run(&self.fleet_run_id, "failed", &Utc::now().to_rfc3339());
+    }
 }
 
 fn discover_manifest(manifest: Option<&Path>, id: Option<&str>) -> anyhow::Result<FleetManifest> {
@@ -149,109 +262,57 @@ pub async fn fleet_run(opts: FleetRunOptions) -> anyhow::Result<FleetRunResult> 
     }
 
     let fleet_run_id = RunId::new().0;
-    let started_at = Utc::now().to_rfc3339();
-    if let Ok(cat) = Catalog::open_default() {
-        let _ = cat.insert_fleet_run(&fleet_run_id, &fleet_id, &started_at);
-    }
-
-    let hv = default_hypervisor();
+    let mut catalog = FleetCatalogGuard::start(&fleet_run_id, &fleet_id, &plan)?;
     let mut node_results: Vec<FleetNodeResult> = Vec::new();
     let mut fleet_failed = false;
+    let mut failure_details = Vec::new();
 
     for wave in &plan.waves {
-        let mut wave_dispatches: Vec<(String, String, String, u32)> = Vec::new();
-
-        for node in &wave.nodes {
-            let canon = canonical_repo_root(&node.repo)?;
-            ensure_repo_trusted(&canon)?;
-            let domain_id = DomainId::from_repo_root(&canon)?;
-            let _cfg = load_config(node.config.as_deref(), &canon)?;
-
-            if let Ok(cat) = Catalog::open_default() {
-                let _ = cat.insert_fleet_node(
-                    &fleet_run_id,
-                    &node.id,
-                    domain_id.as_str(),
-                    None,
-                    wave.wave as i32,
-                    "dispatching",
-                );
-            }
-
-            let domain_run_id = hv
-                .run_blocking(RunOptions {
-                    agents: node.agents,
-                    cmd: node.cmd.clone(),
-                    config: node.config.clone(),
-                    dry_run: false,
-                    keep_worktrees: false,
-                    repo: Some(node.repo.clone()),
-                    execution: None,
-                    project: None,
-                    tasks: None,
-                    task_cmd_template: None,
-                    task_prompts: None,
-                })
-                .await?;
-
-            if let Ok(cat) = Catalog::open_default() {
-                let _ = cat.update_fleet_node_status(
-                    &fleet_run_id,
-                    &node.id,
-                    "running",
-                    Some(&domain_run_id.0),
-                );
-            }
-
-            wave_dispatches.push((
-                node.id.clone(),
-                domain_id.as_str().to_string(),
-                domain_run_id.0,
-                wave.wave,
-            ));
+        let mut tasks = JoinSet::new();
+        for (index, node) in wave.nodes.iter().cloned().enumerate() {
+            let fleet_run_id = fleet_run_id.clone();
+            let wait_timeout = opts.wait_timeout;
+            let wave_number = wave.wave;
+            tasks.spawn(async move {
+                (
+                    index,
+                    run_fleet_node(fleet_run_id, node, wave_number, wait_timeout).await,
+                )
+            });
         }
 
-        for (node_id, domain_id, domain_run_id, wave_num) in wave_dispatches {
-            let db_path = {
-                let canon = manifest
-                    .node_by_id(&node_id)
-                    .ok_or_else(|| anyhow::anyhow!("node {node_id} missing from manifest"))?;
-                let canon_root = canonical_repo_root(&canon.repo)?;
-                let cfg = load_config(canon.config.as_deref(), &canon_root)?;
-                cfg.db_path_at(&canon_root)
-            };
+        let mut wave_results: Vec<Option<FleetNodeExecution>> =
+            (0..wave.nodes.len()).map(|_| None).collect();
+        while let Some(joined) = tasks.join_next().await {
+            match joined {
+                Ok((index, execution)) => wave_results[index] = Some(execution),
+                Err(error) => {
+                    failure_details.push(format!("fleet node task failed to join: {error}"))
+                }
+            }
+        }
 
-            let status = {
-                let store = PytxoStore::open(&db_path)?;
-                store
-                    .get_run_status(&domain_run_id)?
-                    .map(|(s, _)| s)
-                    .unwrap_or_else(|| "unknown".into())
-            };
-            if status == "failed" {
+        // Join completion order is intentionally discarded. Results and durable
+        // writes follow manifest/plan order so repeated fleet runs are stable.
+        for (index, execution) in wave_results.into_iter().enumerate() {
+            let execution = execution.unwrap_or_else(|| FleetNodeExecution {
+                result: FleetNodeResult {
+                    node_id: wave.nodes[index].id.clone(),
+                    domain_id: String::new(),
+                    domain_run_id: None,
+                    wave: wave.wave,
+                    status: "failed".into(),
+                },
+                error: Some("fleet node task ended without a result".into()),
+            });
+            if execution.result.status != "completed" {
                 fleet_failed = true;
             }
-
-            if let Ok(cat) = Catalog::open_default() {
-                let _ = cat.update_fleet_node_status(
-                    &fleet_run_id,
-                    &node_id,
-                    &status,
-                    Some(&domain_run_id),
-                );
+            if let Some(error) = execution.error {
+                failure_details.push(format!("{}: {error}", execution.result.node_id));
             }
-
-            node_results.push(FleetNodeResult {
-                node_id,
-                domain_id,
-                domain_run_id: Some(domain_run_id),
-                wave: wave_num,
-                status: status.clone(),
-            });
-
-            if status == "failed" && !opts.continue_on_error {
-                break;
-            }
+            catalog.record_node(&execution.result)?;
+            node_results.push(execution.result);
         }
 
         if fleet_failed && !opts.continue_on_error {
@@ -260,13 +321,20 @@ pub async fn fleet_run(opts: FleetRunOptions) -> anyhow::Result<FleetRunResult> 
     }
 
     let fleet_status = if fleet_failed { "failed" } else { "completed" };
-    let finished_at = Utc::now().to_rfc3339();
-    if let Ok(cat) = Catalog::open_default() {
-        let _ = cat.finish_fleet_run(&fleet_run_id, fleet_status, &finished_at);
-    }
+    let unfinished_status = if fleet_failed && !opts.continue_on_error {
+        "skipped"
+    } else {
+        "failed"
+    };
+    catalog.settle(fleet_status, unfinished_status)?;
 
-    if fleet_failed && !opts.continue_on_error {
-        anyhow::bail!("fleet run {fleet_run_id} failed");
+    if fleet_failed {
+        let detail = if failure_details.is_empty() {
+            String::new()
+        } else {
+            format!(": {}", failure_details.join("; "))
+        };
+        anyhow::bail!("fleet run {fleet_run_id} failed after durable settlement{detail}");
     }
 
     Ok(FleetRunResult {
@@ -275,6 +343,83 @@ pub async fn fleet_run(opts: FleetRunOptions) -> anyhow::Result<FleetRunResult> 
         status: fleet_status.to_string(),
         nodes: node_results,
     })
+}
+
+async fn run_fleet_node(
+    fleet_run_id: String,
+    node: FleetNode,
+    wave: u32,
+    wait_timeout: Duration,
+) -> FleetNodeExecution {
+    let mut domain_id = String::new();
+    let mut domain_run_id = None;
+
+    let execution = async {
+        let canon = canonical_repo_root(&node.repo).map_err(|e| anyhow::anyhow!(e))?;
+        ensure_repo_trusted(&canon)?;
+        let id = DomainId::from_repo_root(&canon).map_err(|e| anyhow::anyhow!(e))?;
+        domain_id = id.as_str().to_string();
+        let cfg = load_config(node.config.as_deref(), &canon)?;
+        let db_path = cfg.db_path_at(&canon);
+
+        let (_, run_id) = default_hypervisor().dispatch(RunOptions {
+            agents: node.agents,
+            cmd: node.cmd.clone(),
+            config: node.config.clone(),
+            dry_run: false,
+            keep_worktrees: false,
+            repo: Some(node.repo.clone()),
+            execution: None,
+            project: None,
+            tasks: None,
+            task_cmd_template: None,
+            task_prompts: None,
+        })?;
+        domain_run_id = Some(run_id.0.clone());
+
+        // This is an intermediate observability update only; the owning fleet
+        // task performs the required terminal upsert after every task joins.
+        if let Ok(catalog) = Catalog::open_default() {
+            let _ = catalog.insert_fleet_node(
+                &fleet_run_id,
+                &node.id,
+                &domain_id,
+                domain_run_id.as_deref(),
+                wave as i32,
+                "running",
+            );
+        }
+
+        wait_for_domain_run(&db_path, &run_id.0, wait_timeout).await
+    }
+    .await;
+
+    match execution {
+        Ok(status) => {
+            let error =
+                (status != "completed").then(|| format!("domain run settled with status {status}"));
+            FleetNodeExecution {
+                result: FleetNodeResult {
+                    node_id: node.id,
+                    domain_id,
+                    domain_run_id,
+                    wave,
+                    status,
+                },
+                error,
+            }
+        }
+        Err(error) => FleetNodeExecution {
+            result: FleetNodeResult {
+                node_id: node.id,
+                domain_id,
+                domain_run_id,
+                wave,
+                status: "failed".into(),
+            },
+            error: Some(format!("{error:#}")),
+        },
+    }
 }
 
 pub fn fleet_init(

@@ -27,7 +27,19 @@
     },
     {
       "name": "PADDLE_WEBHOOK_SECRET",
-      "description": "Optional; only if Link verifies Paddle webhooks directly"
+      "description": "Required to enable the Paddle webhook; obtain from Paddle"
+    },
+    {
+      "name": "PADDLE_PRICE_PRO",
+      "description": "Allowlisted Paddle price ID for Pro"
+    },
+    {
+      "name": "PADDLE_PRICE_MAX",
+      "description": "Allowlisted Paddle price ID for Max"
+    },
+    {
+      "name": "PADDLE_PRICE_ULTRA",
+      "description": "Allowlisted Paddle price ID for Ultra"
     }
   ],
   "optionalEnv": [

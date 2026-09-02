@@ -49,7 +49,7 @@ pub struct PytxoConfig {
     pub worktree_dir: PathBuf,
     #[serde(default = "default_data_dir")]
     pub data_dir: PathBuf,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub fail_fast: bool,
     #[serde(default)]
     pub agent: Vec<AgentSpec>,
@@ -90,6 +90,13 @@ pub struct PytxoConfig {
     pub planner: PlannerConfig,
     #[serde(default)]
     pub blast: BlastConfig,
+    /// Out-of-band folder trust ceiling. This is runtime policy metadata and is
+    /// never read from or written to repository-controlled TOML.
+    #[serde(skip)]
+    pub permission_ceiling: Option<PermissionProfile>,
+    /// Repository-requested run profile retained for honest enforcement receipts.
+    #[serde(skip)]
+    pub requested_permission_profile: Option<PermissionProfile>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -193,6 +200,8 @@ impl Default for PytxoConfig {
             tier_max_agents: default_tier_max_agents(),
             planner: PlannerConfig::default(),
             blast: BlastConfig::default(),
+            permission_ceiling: None,
+            requested_permission_profile: None,
         }
     }
 }
@@ -247,20 +256,37 @@ impl PytxoConfig {
     }
 
     pub fn resolve_profile_for_agent(&self, agent_name: &str) -> PermissionProfile {
-        self.agent
+        let requested = self
+            .agent
             .iter()
             .find(|a| a.name == agent_name)
             .and_then(|a| a.permission_profile)
-            .unwrap_or(self.permission_profile)
+            .unwrap_or(self.permission_profile);
+        self.permission_ceiling
+            .map(|ceiling| requested.capped_at(ceiling))
+            .unwrap_or(requested)
     }
 
     pub fn agent_profile_map(&self) -> std::collections::HashMap<String, PermissionProfile> {
         self.agent
             .iter()
-            .map(|a| {
+            .map(|a| (a.name.clone(), self.resolve_profile_for_agent(&a.name)))
+            .collect()
+    }
+
+    /// Profiles requested by repository configuration before folder/org ceilings.
+    pub fn requested_agent_profile_map(
+        &self,
+    ) -> std::collections::HashMap<String, PermissionProfile> {
+        let requested_default = self
+            .requested_permission_profile
+            .unwrap_or(self.permission_profile);
+        self.agent
+            .iter()
+            .map(|agent| {
                 (
-                    a.name.clone(),
-                    a.permission_profile.unwrap_or(self.permission_profile),
+                    agent.name.clone(),
+                    agent.permission_profile.unwrap_or(requested_default),
                 )
             })
             .collect()
@@ -275,6 +301,32 @@ mod tests {
     fn default_max_agents_is_three() {
         let cfg = PytxoConfig::default();
         assert_eq!(cfg.max_agents, 3);
+    }
+
+    #[test]
+    fn omitted_fail_fast_defaults_true_in_minimal_config() {
+        let cfg: PytxoConfig = toml::from_str("").unwrap();
+        assert!(cfg.fail_fast);
+    }
+
+    #[test]
+    fn omitted_fail_fast_defaults_true_in_legacy_agent_config() {
+        let cfg: PytxoConfig = toml::from_str(
+            r#"
+max_agents = 2
+
+[[agent]]
+name = "builder"
+"#,
+        )
+        .unwrap();
+        assert!(cfg.fail_fast);
+    }
+
+    #[test]
+    fn explicit_false_fail_fast_remains_supported() {
+        let cfg: PytxoConfig = toml::from_str("fail_fast = false").unwrap();
+        assert!(!cfg.fail_fast);
     }
 
     #[test]

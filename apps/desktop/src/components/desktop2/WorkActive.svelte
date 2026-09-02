@@ -47,7 +47,11 @@
 
   const ACTIVE_STATUSES = ["running", "pending", "dispatching", "active"];
 
-  const runs = $derived(snapshot.runs);
+  const runs = $derived(
+    activeDomainId
+      ? snapshot.runs.filter((run) => run.domain_id === activeDomainId)
+      : snapshot.runs,
+  );
   const focusRun = $derived(
     runs.find((run) => run.id === focusRunId) ??
       runs.find((run) => ACTIVE_STATUSES.includes(run.status.toLowerCase())) ??
@@ -57,6 +61,8 @@
   const agents = $derived(focusRun ? snapshot.agents.filter((agent) => agent.run_id === focusRun.id) : []);
   const progress = $derived(waveProgress(agents));
   const focusState = $derived(focusRun ? runState(focusRun) : null);
+  const receiptProfile = $derived((review?.enforcement?.run?.effective_profile ?? "").toLowerCase());
+  const canStopFocusRun = $derived(!!focusRun && ACTIVE_STATUSES.includes(focusRun.status.toLowerCase()));
   const runApprovals = $derived(
     snapshot.approvals.filter((approval) => !activeDomainId || approval.domain_id === activeDomainId),
   );
@@ -77,7 +83,7 @@
     reviewLoading = true;
     reviewError = null;
     backend
-      .runReview(runId, activeDomainId)
+      .runReview(runId, focusRun?.domain_id ?? null)
       .then((result) => {
         if (!current) return;
         review = result;
@@ -96,7 +102,7 @@
   });
 
   function domainForRun(run: RunDto) {
-    return snapshot.domains.find((domain) => domain.repo_root === run.repo_root) ?? null;
+    return snapshot.domains.find((domain) => domain.domain_id === run.domain_id) ?? null;
   }
 
   export function focusActiveRun() {
@@ -104,6 +110,7 @@
   }
 
   function requestStop(run: RunDto) {
+    if (!ACTIVE_STATUSES.includes(run.status.toLowerCase())) return;
     const domain = domainForRun(run);
     if (!domain) {
       stopMessage = "";
@@ -157,6 +164,18 @@
       stopError = error instanceof Error ? error.message : String(error);
     }
   }
+
+  function stopConsequence(run: RunDto) {
+    const reportedProfile = (run.permission_profile ?? "").toLowerCase();
+    if (receiptProfile && reportedProfile && receiptProfile !== reportedProfile) {
+      return `The run reports ${reportedProfile}, but its enforcement receipt reports ${receiptProfile}. Stop will be requested, but repository impact is unknown until that mismatch is reviewed.`;
+    }
+    const profile = receiptProfile || reportedProfile;
+    if (profile === "supernova") return "Agents stop where they are. Supernova writes directly, so repository changes already made remain in place.";
+    if (profile === "deepspace") return "Agents stop where they are. DeepSpace is non-flushable, so no prepared package can be applied.";
+    if (profile === "orbit" || profile === "galaxy") return `Agents stop where they are. Work already prepared for review is kept outside the repository until explicit Apply.`;
+    return "Agents stop where they are. Check the run's effective permission profile and enforcement receipt for repository impact.";
+  }
 </script>
 
 <section class="screen work">
@@ -209,7 +228,7 @@
       <dl>
         <div>
           <dt>Waves</dt>
-          <dd>{progress ? `${progress.completed} of ${progress.total} complete` : "Not reported"}</dd>
+          <dd>{progress ? `${progress.settled} of ${progress.total} settled · ${progress.successful} passed` : "Not reported"}</dd>
         </div>
         <div>
           <dt>Isolation</dt>
@@ -217,7 +236,10 @@
         </div>
       </dl>
       {#if focusRun}
-        <button class="stop-run" onclick={() => requestStop(focusRun)}><IconPlayerStop size={14} />Stop</button>
+        <div class="stop-action">
+          <button class="stop-run" disabled={!canStopFocusRun} aria-describedby={!canStopFocusRun ? "stop-disabled-reason" : undefined} onclick={() => requestStop(focusRun)}><IconPlayerStop size={14} />Stop</button>
+          {#if !canStopFocusRun}<small id="stop-disabled-reason">Only an active run can be stopped.</small>{/if}
+        </div>
       {/if}
     </section>
 
@@ -247,8 +269,7 @@
   {#if stopTarget}
     <h2>Stop {stopTarget.run.id}?</h2>
     <p>
-      Agents in <strong>{stopTarget.workspace}</strong> stop where they are. Work already prepared for
-      review is kept; nothing is applied to the repository.
+      <strong>{stopTarget.workspace}</strong>: {stopConsequence(stopTarget.run)}
     </p>
     {#if stopError}<p class="dialog-error" role="alert">{stopError}</p>{/if}
     <div class="dialog-actions">
@@ -278,6 +299,9 @@
   .run-bar dd{margin:2px 0 0;color:var(--pytxo-text-soft);font-size:12px}
   .stop-run{display:flex;height:28px;align-items:center;gap:6px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-soft);font-size:11px;cursor:pointer}
   .stop-run:hover{border-color:var(--state-refuted);color:var(--state-refuted)}
+  .stop-run:disabled{cursor:not-allowed;opacity:.42}
+  .stop-action{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+  .stop-action small{max-width:150px;color:var(--pytxo-text-muted);font-size:10px;text-align:right}
 
   .run-switch{display:flex;min-width:0;flex-wrap:wrap;gap:6px}
   .run-switch button{display:flex;height:26px;align-items:center;gap:6px;padding:0 9px;border:1px solid var(--pytxo-line-soft);border-radius:4px;background:transparent;color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;cursor:pointer}

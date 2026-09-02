@@ -60,13 +60,15 @@
     "next": {
       "postcss": "8.5.24"
     },
-    "nanoid": "3.3.17",
+    "nanoid": "3.3.18",
+    "browserslist": "4.28.7",
     "sharp": "$sharp"
   },
   "pnpm": {
     "overrides": {
       "next>postcss": "8.5.24",
-      "nanoid": "3.3.17",
+      "nanoid": "3.3.18",
+      "browserslist": "4.28.7",
       "sharp": "0.35.3"
     }
   }

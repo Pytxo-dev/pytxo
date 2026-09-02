@@ -1,4 +1,8 @@
-use pytxo_core::{DomainId, IsolationMode, PermissionProfile, PytxoError, Result};
+use std::time::Duration;
+
+use pytxo_core::{
+    DomainId, ExecutionBackend, IsolationMode, PermissionProfile, PytxoError, Result,
+};
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct EnforcementSurfaceReceipt {
@@ -16,6 +20,126 @@ pub struct PermissionEnforcementReceipt {
     pub host_filesystem_boundary: EnforcementSurfaceReceipt,
     pub network: EnforcementSurfaceReceipt,
     pub apply_boundary: EnforcementSurfaceReceipt,
+}
+
+/// Evidence for the post-agent verification actor.
+///
+/// Verification deliberately has its own receipt because it is a second code-execution
+/// boundary. Reusing the run receipt would incorrectly imply that the agent's launch
+/// environment, timeout, and output controls also covered verifier processes.
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub struct VerificationEnforcementReceipt {
+    pub actor: String,
+    pub effective_profile: String,
+    pub execution_domain: String,
+    pub execution_backend: String,
+    pub workspace_isolation: EnforcementSurfaceReceipt,
+    pub host_filesystem_boundary: EnforcementSurfaceReceipt,
+    pub environment: EnforcementSurfaceReceipt,
+    pub network: EnforcementSurfaceReceipt,
+    pub timeout: EnforcementSurfaceReceipt,
+    pub output_capture: EnforcementSurfaceReceipt,
+}
+
+pub fn verification_enforcement_receipt(
+    effective_profile: PermissionProfile,
+    domain_id: &DomainId,
+    execution_backend: ExecutionBackend,
+    workspace_isolated: bool,
+    timeout: Duration,
+    output_limit_bytes: usize,
+) -> Result<VerificationEnforcementReceipt> {
+    let workspace_isolation = if workspace_isolated {
+        surface(
+            "enforced",
+            "agent-workspace",
+            "verification cwd is the same isolated execution-domain workspace as the agent",
+        )
+    } else {
+        surface(
+            "bypassed",
+            "host-direct",
+            "Supernova verification runs in the primary repository by explicit policy",
+        )
+    };
+    let host_filesystem_boundary = if effective_profile == PermissionProfile::Supernova {
+        surface(
+            "bypassed",
+            "host-user",
+            "the verifier intentionally retains host-user filesystem access",
+        )
+    } else {
+        surface(
+            "advisory",
+            "child-cwd-and-policy-gates",
+            "workspace cwd is enforced; syscall-level host filesystem isolation is unavailable",
+        )
+    };
+    let network = match effective_profile {
+        PermissionProfile::DeepSpace => {
+            let mechanism = crate::network_isolation::isolation_mechanism();
+            if !matches!(
+                mechanism,
+                "linux-netns-unshare" | "macos-sandbox-exec" | "windows-wfp-rule-present"
+            ) {
+                return Err(PytxoError::Runner(format!(
+                    "DeepSpace verification refused because network isolation is unavailable: {mechanism}"
+                )));
+            }
+            surface(
+                "enforced",
+                mechanism,
+                "the verifier process uses the same socket-isolation mechanism as the agent",
+            )
+        }
+        PermissionProfile::Orbit => surface(
+            "advisory",
+            "spawn-command-policy",
+            "known network commands are denied; arbitrary child socket syscalls are not intercepted",
+        ),
+        PermissionProfile::Galaxy => surface(
+            "advisory",
+            "hitl-command-gate",
+            "recognized public egress requires approval; arbitrary child socket syscalls are not intercepted",
+        ),
+        PermissionProfile::Supernova => surface(
+            "bypassed",
+            "host-network",
+            "full host-user network access is explicitly enabled",
+        ),
+    };
+    let execution_backend = match execution_backend {
+        ExecutionBackend::Pty => "local-bounded-subprocess",
+        ExecutionBackend::Subprocess => "local-bounded-subprocess",
+        // Remote exec currently has no cancellable timeout contract. The runner records
+        // this boundary and then fails closed instead of silently verifying on the host.
+        ExecutionBackend::Cloud => "remote-unsupported-fail-closed",
+    };
+
+    Ok(VerificationEnforcementReceipt {
+        actor: "verification".into(),
+        effective_profile: effective_profile.as_str().into(),
+        execution_domain: domain_id.0.clone(),
+        execution_backend: execution_backend.into(),
+        workspace_isolation,
+        host_filesystem_boundary,
+        environment: surface(
+            "enforced",
+            "clear-and-minimal-baseline",
+            "the verifier does not inherit unrelated parent credentials or agent provider secrets",
+        ),
+        network,
+        timeout: surface(
+            "enforced",
+            "process-tree-deadline",
+            &format!("deadline_ms={}", timeout.as_millis()),
+        ),
+        output_capture: surface(
+            "enforced",
+            "bounded-pipe-drain",
+            &format!("max_bytes_per_stream={output_limit_bytes}"),
+        ),
+    })
 }
 
 pub fn permission_enforcement_receipt(

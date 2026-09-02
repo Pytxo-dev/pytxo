@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, RwLock};
 
 use pytxo_core::{
@@ -27,6 +27,7 @@ struct PathClaimState {
 pub struct SwarmRegistry {
     paths: Arc<RwLock<PathClaimState>>,
     stdin: Arc<Mutex<StdinBuffer>>,
+    cancelled_runs: Arc<RwLock<HashSet<String>>>,
 }
 
 impl SwarmRegistry {
@@ -36,6 +37,39 @@ impl SwarmRegistry {
 
     pub fn list_live(&self) -> Vec<LiveAgent> {
         RaceShield::list_live(self)
+    }
+
+    pub fn request_stop_run(&self, run_id: &str) {
+        if let Ok(mut cancelled) = self.cancelled_runs.write() {
+            cancelled.insert(run_id.to_string());
+        }
+    }
+
+    pub fn request_stop_all(&self) {
+        let run_ids = self
+            .paths
+            .read()
+            .map(|state| {
+                state
+                    .agents
+                    .keys()
+                    .filter_map(|key| key.split_once(':').map(|(run_id, _)| run_id.to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        if let Ok(mut cancelled) = self.cancelled_runs.write() {
+            cancelled.extend(run_ids);
+        }
+    }
+
+    pub fn stop_requested(&self, agent_key: &str) -> bool {
+        let Some((run_id, _)) = agent_key.split_once(':') else {
+            return false;
+        };
+        self.cancelled_runs
+            .read()
+            .map(|cancelled| cancelled.contains(run_id))
+            .unwrap_or(false)
     }
 }
 

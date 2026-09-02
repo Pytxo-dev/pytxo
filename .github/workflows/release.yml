@@ -40,11 +40,38 @@ env:
   NPM_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
 
 jobs:
+  release-gate:
+    uses: ./.github/workflows/ci.yml
+
+  source-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Require exact version metadata and protected-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${NPM_VERSION#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid release version: ${NPM_VERSION}"
+            exit 1
+          fi
+          node tooling/scripts/verify-release-version.mjs "$VERSION"
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Release commit $GITHUB_SHA is not reachable from protected main"
+            exit 1
+          fi
+
   build:
+    needs: [release-gate, source-guard]
     name: ${{ matrix.asset_name }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - os: ubuntu-latest
@@ -68,9 +95,9 @@ jobs:
             asset_name: pytxo-windows-x64
             ext: .exe
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
 
@@ -80,11 +107,11 @@ jobs:
           VERSION="${NPM_VERSION#v}"
           node tooling/scripts/verify-release-version.mjs "$VERSION"
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
         with:
           targets: ${{ matrix.target }}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: cargo build pytxo-cli
         run: cargo build -p pytxo-cli --release --target ${{ matrix.target }}
@@ -99,35 +126,24 @@ jobs:
           chmod +x "dist/${{ matrix.asset_name }}${{ matrix.ext }}" || true
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.asset_name }}
           path: dist/${{ matrix.asset_name }}${{ matrix.ext }}
 
   release:
     needs: build
-    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ env.TAG_NAME }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist
           merge-multiple: true
-
-      - name: Require at least one platform binary
-        run: |
-          shopt -s nullglob
-          files=(dist/pytxo-*)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No release binaries uploaded from build matrix"
-            exit 1
-          fi
-          ls -la dist/
 
       - name: Flatten artifacts
         run: |
@@ -135,6 +151,24 @@ jobs:
           find . -mindepth 2 -type f -exec mv -n {} . \;
           find . -type d -not -path . -exec rm -rf {} + 2>/dev/null || true
           ls -la
+
+      - name: Require the exact CLI release matrix
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          expected=(
+            pytxo-linux-x64
+            pytxo-linux-arm64
+            pytxo-darwin-arm64
+            pytxo-darwin-x64
+            pytxo-windows-x64.exe
+          )
+          for asset in "${expected[@]}"; do
+            test -s "$asset" || { echo "::error::Missing required release asset: $asset"; exit 1; }
+          done
+          mapfile -t actual < <(find . -maxdepth 1 -type f -name 'pytxo-*' -printf '%f\n' | sort)
+          mapfile -t wanted < <(printf '%s\n' "${expected[@]}" | sort)
+          diff -u <(printf '%s\n' "${wanted[@]}") <(printf '%s\n' "${actual[@]}")
 
       - name: Generate checksums
         working-directory: dist
@@ -151,12 +185,12 @@ jobs:
             cp "$NOTES" RELEASE_BODY.md
             echo "Using $NOTES for release body"
           else
-            cp RELEASE.md RELEASE_BODY.md
-            echo "::warning::Missing $NOTES — falling back to RELEASE.md"
+            echo "::error::Missing versioned release notes: $NOTES"
+            exit 1
           fi
 
       - name: Create private repo release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ env.TAG_NAME }}
           name: ${{ env.TAG_NAME }}
@@ -165,7 +199,7 @@ jobs:
           files: dist/*
 
       - name: Upload artifacts for downstream jobs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-assets
           path: dist/
@@ -179,29 +213,24 @@ jobs:
         || github.event_name == 'push'
       }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Check PYTXO_RELEASES_TOKEN
-        id: token
         env:
           PYTXO_RELEASES_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
         run: |
-          if [ -n "${PYTXO_RELEASES_TOKEN}" ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::PYTXO_RELEASES_TOKEN not set — skipping public mirror"
-            echo "ok=false" >> "$GITHUB_OUTPUT"
+          if [ -z "${PYTXO_RELEASES_TOKEN}" ]; then
+            echo "::error::PYTXO_RELEASES_TOKEN is required before public npm publication"
+            exit 1
           fi
 
       - name: Download release assets
-        if: steps.token.outputs.ok == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: release-assets
           path: dist
 
       - name: Prepare release notes body
-        if: steps.token.outputs.ok == 'true'
         run: |
           TAG="${{ needs.release.outputs.tag }}"
           VERSION="${TAG#v}"
@@ -213,8 +242,7 @@ jobs:
           fi
 
       - name: Mirror to public pytxo-releases
-        if: steps.token.outputs.ok == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           repository: Pytxo-dev/pytxo-releases
           token: ${{ secrets.PYTXO_RELEASES_TOKEN }}
@@ -228,7 +256,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
 
       - name: Sync install scripts to pytxo-releases
-        if: steps.token.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
         run: |
@@ -252,45 +279,27 @@ jobs:
   desktop-release:
     needs: release
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
-          - os: ubuntu-22.04
-            rust_target: x86_64-unknown-linux-gnu
-            asset_prefix: pytxo-desktop-linux-x64
-          - os: macos-latest
-            rust_target: aarch64-apple-darwin
-            asset_prefix: pytxo-desktop-darwin-arm64
-          - os: macos-latest
-            rust_target: x86_64-apple-darwin
-            asset_prefix: pytxo-desktop-darwin-x64
           - os: windows-latest
             rust_target: x86_64-pc-windows-msvc
             asset_prefix: pytxo-desktop-windows-x64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
         with:
           targets: ${{ matrix.rust_target }}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
-
-      - name: Install Linux Tauri dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
-            librsvg2-dev patchelf \
-            cmake clang libclang-dev libasound2-dev
 
       - name: Sync desktop version
         shell: bash
@@ -333,7 +342,7 @@ jobs:
           echo "createUpdaterArtifacts=$HAS_KEY"
 
       - name: Build Tauri bundles
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -361,7 +370,7 @@ jobs:
           args: --target ${{ matrix.rust_target }} --features voice-whisper
 
       - name: Upload desktop artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.asset_prefix }}
           path: |
@@ -373,13 +382,14 @@ jobs:
     if: >-
       ${{
         always() && !cancelled() && needs.release.result == 'success'
+        && needs.desktop-release.result == 'success'
         && ((github.event_name == 'workflow_dispatch' && inputs.mirror_public) || github.event_name == 'push')
       }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
 
@@ -388,16 +398,15 @@ jobs:
         env:
           PYTXO_RELEASES_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
         run: |
-          if [ -n "${PYTXO_RELEASES_TOKEN}" ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::PYTXO_RELEASES_TOKEN not set — skipping desktop mirror"
-            echo "ok=false" >> "$GITHUB_OUTPUT"
+          if [ -z "${PYTXO_RELEASES_TOKEN}" ]; then
+            echo "::error::PYTXO_RELEASES_TOKEN is required when public mirroring is enabled"
+            exit 1
           fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
 
       - name: Download desktop artifacts
         if: steps.token.outputs.ok == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: pytxo-desktop-*
           path: desktop-dist
@@ -419,18 +428,34 @@ jobs:
             cp "$f" "dist/$dest"
             echo "staged $f → dist/$dest"
           done
-          ls -la dist/ || true
+          test -s dist/pytxo-desktop-windows-x64.msi || {
+            echo "::error::Missing required Windows x64 Desktop MSI"
+            exit 1
+          }
+          if find dist -maxdepth 1 -type f \( -name '*darwin*' -o -name '*linux*' \) | grep -q .; then
+            echo "::error::Unexpected non-Windows Desktop artifact in the Windows-first v1.2 release"
+            exit 1
+          fi
+          ls -la dist/
 
       - name: Build updater manifest (latest.json)
         if: steps.token.outputs.ok == 'true'
         env:
           TAG_NAME: ${{ needs.release.outputs.tag }}
           HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          PYTXO_DESKTOP_PLATFORMS: windows-x86_64
         run: node tooling/scripts/build-updater-manifest.mjs desktop-dist dist
+
+      - name: Generate Desktop checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum pytxo-desktop-windows-x64.msi > DESKTOP_SHA256SUMS.txt
+          cat DESKTOP_SHA256SUMS.txt
 
       - name: Mirror desktop to public pytxo-releases
         if: steps.token.outputs.ok == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           repository: Pytxo-dev/pytxo-releases
           token: ${{ secrets.PYTXO_RELEASES_TOKEN }}
@@ -442,7 +467,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
 
   npm:
-    needs: release
+    needs: [release, mirror-public-release]
     runs-on: ubuntu-latest
     if: >-
       ${{
@@ -450,12 +475,13 @@ jobs:
         || github.event_name == 'push'
       }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Sync npm package version
         run: |
           VERSION="${{ env.NPM_VERSION }}"
           VERSION="${VERSION#v}"
+          export VERSION
           node <<'NODE'
           const fs = require("node:fs");
           const version = process.env.VERSION;
@@ -465,10 +491,8 @@ jobs:
           fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
           console.log(`packages/pytxo → ${version}`);
           NODE
-        env:
-          VERSION: ${{ env.NPM_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           registry-url: https://registry.npmjs.org
@@ -477,8 +501,8 @@ jobs:
         working-directory: packages/pytxo
         run: |
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::warning::NPM_TOKEN secret is not set — skipping npm publish"
-            exit 0
+            echo "::error::NPM_TOKEN secret is required when npm publication is enabled"
+            exit 1
           fi
           set +e
           npm publish --access public

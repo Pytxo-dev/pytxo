@@ -2,8 +2,9 @@ services:
   cloud-sandbox:
     build: .
     ports:
-      - "8788:8788"
+      - "127.0.0.1:8788:8788"
     environment:
       CLOUD_BIND: "0.0.0.0:8788"
       CLOUD_API_KEY: ${CLOUD_API_KEY:-dev-cloud-key}
+      CLOUD_REQUIRE_AUTH: ${CLOUD_REQUIRE_AUTH:-1}
       RUST_LOG: info

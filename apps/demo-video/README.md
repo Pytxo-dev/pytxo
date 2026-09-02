@@ -2,10 +2,10 @@
 
 Exact 52-second, 1920×1080, 30 fps Remotion demo built from truthful Pytxo Desktop captures:
 
-`mission → Flow ownership plan → reviewed evidence → guarded Apply → Operations → Pytxo`
+`mission → Work ownership → reviewed evidence → guarded Apply → verified outcome → Pytxo`
 
 The master never burns subtitles. Publishing captions and the reviewed transcript live in
-`publishing/`. The checked-in poster and all four product screenshots are 1920×1080. Generated
+`publishing/`. The checked-in poster and all three product screenshots are 1920×1080. Generated
 video, narration, music, cues, contact sheets, and QA stills are ignored.
 
 ## System media tools

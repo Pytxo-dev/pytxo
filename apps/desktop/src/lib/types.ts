@@ -2,6 +2,8 @@ export type DomainDto = { domain_id: string; repo_root: string };
 
 export type RunDto = {
   id: string;
+  /** Owning execution domain; run-scoped actions must always use this value. */
+  domain_id: string;
   status: string;
   repo_root: string;
   started_at: string;
@@ -19,6 +21,8 @@ export type RunDto = {
 
 export type AgentDto = {
   id: string;
+  /** Owning execution domain, retained even when multiple stores share run IDs. */
+  domain_id: string;
   run_id: string;
   task_id: string;
   wave: number;
@@ -239,7 +243,9 @@ export type HitlDto = {
   action: string;
   reason: string;
   created_at_ms: string;
-  domain_id?: string;
+  domain_id: string;
+  run_id?: string | null;
+  agent_id?: string | null;
 };
 
 export type ProjectRootDto = {

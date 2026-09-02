@@ -11,11 +11,11 @@ await mkdir(stillDir, {recursive: true});
 
 const stills = [
   ["01-mission.png", 60],
-  ["02-flow.png", 300],
+  ["02-work-ownership.png", 300],
   ["03-review.png", 600],
   ["04-apply-click.png", 914],
   ["05-applied.png", 1040],
-  ["06-operations.png", 1300],
+  ["06-outcome.png", 1300],
   ["07-end.png", 1500],
 ];
 

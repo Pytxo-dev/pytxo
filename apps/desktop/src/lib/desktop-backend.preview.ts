@@ -72,6 +72,7 @@ export const previewSnapshot: DesktopSnapshot = {
   runs: [
     {
       id: "run-8f2c",
+      domain_id: "pytxo",
       status: "running",
       repo_root: "C:/dev/pytxo",
       started_at: new Date().toISOString(),
@@ -88,6 +89,7 @@ export const previewSnapshot: DesktopSnapshot = {
     },
     {
       id: "run-71ad",
+      domain_id: "signal-lab",
       status: "completed",
       repo_root: "C:/dev/signal-lab",
       started_at: new Date(Date.now() - 3_600_000).toISOString(),
@@ -104,14 +106,16 @@ export const previewSnapshot: DesktopSnapshot = {
     },
   ],
   agents: [
-    { id: "architect", run_id: "run-8f2c", task_id: "plan", wave: 0, status: "completed", exit_code: 0, root_id: null },
-    { id: "desktop", run_id: "run-8f2c", task_id: "ui", wave: 1, status: "running", exit_code: null, root_id: null },
-    { id: "verification", run_id: "run-8f2c", task_id: "tests", wave: 2, status: "queued", exit_code: null, root_id: null },
+    { id: "architect", domain_id: "pytxo", run_id: "run-8f2c", task_id: "plan", wave: 0, status: "completed", exit_code: 0, root_id: null },
+    { id: "desktop", domain_id: "pytxo", run_id: "run-8f2c", task_id: "ui", wave: 1, status: "running", exit_code: null, root_id: null },
+    { id: "verification", domain_id: "pytxo", run_id: "run-8f2c", task_id: "tests", wave: 2, status: "queued", exit_code: null, root_id: null },
   ],
   approvals: [
     {
       id: "approval-1",
-      agent_key: "desktop",
+      agent_key: "run-8f2c:desktop",
+      run_id: "run-8f2c",
+      agent_id: "desktop",
       action: "blast.flush",
       reason: "commit agent workspace to repo root",
       created_at_ms: String(Date.now()),
@@ -119,7 +123,9 @@ export const previewSnapshot: DesktopSnapshot = {
     },
     {
       id: "approval-2",
-      agent_key: "verification",
+      agent_key: "run-71ad:agent-1",
+      run_id: "run-71ad",
+      agent_id: "agent-1",
       action: "net.egress",
       reason: "network fetch detected in agent command",
       created_at_ms: String(Date.now() - 90_000),
@@ -127,6 +133,7 @@ export const previewSnapshot: DesktopSnapshot = {
     },
   ],
   fleets: [],
+  diagnostics: [],
   error: null,
 };
 
@@ -140,6 +147,17 @@ const previewAdeClis: AdeCliStatusDto[] = [
   { id: "agy", display_name: "Antigravity", default_cmd: "agy", installed: false, auth_state: "not_installed", auth_label: "Not installed", auth_owner: "Vendor CLI", login_supported: false, login_label: null, docs_url: "https://pytxo.com/docs/reference/providers-byok", detail: "Pytxo detects the executable without reading vendor credential stores." },
   { id: "aider", display_name: "Aider", default_cmd: "aider --message", installed: false, auth_state: "not_installed", auth_label: "Not installed", auth_owner: "Pytxo run policy", login_supported: false, login_label: null, docs_url: "https://aider.chat/docs/config/api-keys.html", detail: "Choose one explicit BYOK credential for the run; unrelated keys stay hidden." },
 ];
+
+function previewAdeState(): AdeCliStatusDto[] {
+  const codexOnly = typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-ade-state-v1") === "codex-only";
+  if (!codexOnly) return structuredClone(previewAdeClis);
+  return previewAdeClis.map((cli) => cli.id === "codex" ? { ...cli } : {
+    ...cli,
+    installed: false,
+    auth_state: "not_installed" as const,
+    auth_label: "Not installed",
+  });
+}
 
 const previewProviders: ProviderStatusDto[] = [
   { id: "deepseek", name: "DeepSeek", api_key_env: "DEEPSEEK_API_KEY", key_configured: false, openai_compatible: true, builtin: true },
@@ -216,8 +234,8 @@ function stateMatrixRequested(): boolean {
 }
 
 const previewCompletedAgents = [
-  { id: "run-71ad:agent-0", run_id: "run-71ad", task_id: "signal-core", wave: 0, status: "completed", exit_code: 0, root_id: null },
-  { id: "run-71ad:agent-1", run_id: "run-71ad", task_id: "contract-tests", wave: 1, status: "completed", exit_code: 0, root_id: null },
+  { id: "run-71ad:agent-0", domain_id: "signal-lab", run_id: "run-71ad", task_id: "signal-core", wave: 0, status: "completed", exit_code: 0, root_id: null },
+  { id: "run-71ad:agent-1", domain_id: "signal-lab", run_id: "run-71ad", task_id: "contract-tests", wave: 1, status: "completed", exit_code: 0, root_id: null },
 ];
 
 export class PreviewDesktopBackend implements DesktopBackend {
@@ -304,7 +322,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
     this.snapshot.domains = this.snapshot.domains.filter((domain) => domain.domain_id !== domainId);
   }
   async listAdeClis() {
-    return previewAdeClis;
+    return previewAdeState();
   }
   async startAdeLogin(id: string) {
     const target = previewAdeClis.find((item) => item.id === id);
@@ -315,17 +333,26 @@ export class PreviewDesktopBackend implements DesktopBackend {
     return structuredClone(previewProviders);
   }
   async previewFlow(input: FlowDraftInput): Promise<FlowPlan> {
-    return { draft_id: input.id, domain_id: input.domain_id ?? "pytxo", project_id: input.project_id, status: "ready", tasks: [
-      { id: "desktop-flow", agent: input.ade_id ?? "cursor", prompt: `Implement the Desktop slice of: ${input.mission_text}`, paths: ["apps/desktop/src/components/desktop2/FlowScreen.svelte"], dependencies: [], root: null },
-      { id: "orchestration-flow", agent: "codex", prompt: `Implement the orchestration slice of: ${input.mission_text}`, paths: ["crates/pytxo-orchestrate/src/flow.rs"], dependencies: [], root: null },
-      { id: "contract-tests", agent: "codex", prompt: `Verify the reviewed Flow contract for: ${input.mission_text}`, paths: ["crates/pytxo-orchestrate/tests/flow_mission.rs"], dependencies: ["desktop-flow", "orchestration-flow"], root: null },
-    ], waves: [["desktop-flow", "orchestration-flow"], ["contract-tests"]], permission_profile: "orbit", isolation_mode: "copy_on_write", isolation_backend_intent: "projfs", execution_backend: "pty", ade: { requested: input.ade_id ?? "cursor", available: true, installed: ["cursor", "codex"], command: "cursor-agent -p --trust" }, warnings: [{ code: "preview_fixture", message: "Browser preview uses a contract-valid Pytxo fixture; native preview reads the selected repository." }], blocked_reasons: [], estimated_tokens: 18000, estimated_cost_usd: 0.64, previewed_at: new Date().toISOString() };
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-flow-error-v1") === "1") {
+      throw new Error("Preview failed while checking the selected workspace. Fix the workspace issue, then build a new plan.");
+    }
+    const detected = previewAdeState();
+    const requested = detected.find((cli) => cli.id === input.ade_id) ?? null;
+    const available = !!requested && requested.installed && (requested.auth_state === "signed_in" || requested.auth_state === "not_applicable");
+    const omitVerification = typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-flow-verification-v1") === "none";
+    const tasks = [
+      { id: "desktop-flow", agent: input.ade_id ?? "codex", prompt: `Implement the Desktop slice of: ${input.mission_text}`, paths: ["apps/desktop/src/components/desktop2/FlowScreen.svelte"], dependencies: [], root: null, verify: ["npm run check"] },
+      { id: "orchestration-flow", agent: "codex", prompt: `Implement the orchestration slice of: ${input.mission_text}`, paths: ["crates/pytxo-orchestrate/src/flow.rs"], dependencies: [], root: null, verify: ["cargo test -p pytxo-orchestrate"] },
+      { id: "contract-tests", agent: "codex", prompt: `Verify the reviewed Flow contract for: ${input.mission_text}`, paths: ["crates/pytxo-orchestrate/tests/flow_mission.rs"], dependencies: ["desktop-flow", "orchestration-flow"], root: null, verify: ["cargo test -p pytxo-orchestrate"] },
+    ];
+    return { draft_id: input.id, domain_id: input.domain_id ?? "pytxo", project_id: input.project_id, status: "ready", tasks: tasks.map((task) => omitVerification ? { ...task, verify: [] } : task), waves: [["desktop-flow", "orchestration-flow"], ["contract-tests"]], permission_profile: "orbit", isolation_mode: "copy_on_write", isolation_backend_intent: "projfs", execution_backend: "pty", ade: { requested: input.ade_id ?? null, available, installed: detected.filter((cli) => cli.installed).map((cli) => cli.id), command: requested?.default_cmd ?? null }, warnings: [{ code: "preview_fixture", message: "Browser preview uses a contract-valid Pytxo fixture; native preview reads the selected repository." }], blocked_reasons: [], estimated_tokens: 18000, estimated_cost_usd: 0.64, previewed_at: new Date().toISOString() };
   }
   async dispatchFlow() {
     const domain = this.snapshot.domains[0];
     if (!this.snapshot.runs.some((run) => run.id === "run-preview")) {
       this.snapshot.runs.unshift({
         id: "run-preview",
+        domain_id: domain?.domain_id ?? "pytxo",
         status: "running",
         repo_root: domain?.repo_root ?? "C:/dev/pytxo",
         started_at: new Date().toISOString(),

@@ -9,8 +9,8 @@ use pytxo_runner::{HitlQueue, McpHub, ProcessRegistry, SwarmRegistry};
 use tracing::error;
 
 use crate::{
-    ensure_repo_trusted, execute_run_body, load_config, plan_tasks, resolve_repo_root,
-    resolve_run_tasks, RunOptions,
+    ensure_repo_trusted, execute_run_body, load_config, plan_tasks, reserve_active_run,
+    resolve_repo_root, resolve_run_tasks, settle_reserved_run_after_error, RunOptions,
 };
 
 /// Per-repo execution slice: isolated swarm registry and in-process PID tracking.
@@ -104,17 +104,32 @@ impl HypervisorRegistry {
         let db_path = cfg.db_path_at(repo_root);
         let hitl = {
             let audit_db = db_path.clone();
-            HitlQueue::with_persistence(&data_dir).with_wal_audit(Arc::new(move |id, approved| {
-                if let Ok(store) = pytxo_store::PytxoStore::open(&audit_db) {
-                    let payload = serde_json::json!({
-                        "request_id": id,
-                        "decision": if approved { "approved" } else { "denied" },
-                    })
-                    .to_string();
-                    let _ =
-                        store.append_approval_event("hitl-resolver", id, "hitl-resolve", &payload);
-                }
-            }))
+            HitlQueue::with_persistence(&data_dir).with_wal_audit(Arc::new(
+                move |request, approved| {
+                    if let Ok(store) = pytxo_store::PytxoStore::open(&audit_db) {
+                        let (run_id, agent_id) = request
+                            .agent_key
+                            .split_once(':')
+                            .map(|(run, agent)| (Some(run), Some(agent)))
+                            .unwrap_or((None, None));
+                        let payload = serde_json::json!({
+                            "request_id": request.id,
+                            "agent_key": request.agent_key,
+                            "run_id": run_id,
+                            "agent_id": agent_id,
+                            "action": request.action,
+                            "decision": if approved { "approved" } else { "denied" },
+                        })
+                        .to_string();
+                        let _ = store.append_approval_event(
+                            &request.agent_key,
+                            &request.id,
+                            "hitl-resolve",
+                            &payload,
+                        );
+                    }
+                },
+            ))
         };
         let state = Arc::new(DomainState {
             id: id.clone(),
@@ -200,10 +215,26 @@ impl HypervisorRegistry {
 
         let runtime = tokio::runtime::Handle::try_current()
             .context("dispatch requires an active Tokio runtime")?;
+        reserve_active_run(&domain, &cfg, &run_id)?;
+        let error_domain = Arc::clone(&domain);
+        let error_cfg = cfg.clone();
         runtime.spawn(async move {
-            if let Err(e) = execute_run_body(domain, opts, cfg, Some(run_id_for_task.clone())).await
-            {
-                error!("dispatch run {} failed: {e:#}", run_id_for_task.0);
+            let worker = tokio::spawn(execute_run_body(
+                domain,
+                opts,
+                cfg,
+                Some(run_id_for_task.clone()),
+            ));
+            match worker.await {
+                Ok(Ok(_)) => {}
+                Ok(Err(error)) => {
+                    settle_reserved_run_after_error(&error_domain, &error_cfg, &run_id_for_task);
+                    error!("dispatch run {} failed: {error:#}", run_id_for_task.0);
+                }
+                Err(error) => {
+                    settle_reserved_run_after_error(&error_domain, &error_cfg, &run_id_for_task);
+                    error!("dispatch run {} task aborted: {error}", run_id_for_task.0);
+                }
             }
         });
 

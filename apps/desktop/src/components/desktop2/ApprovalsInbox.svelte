@@ -36,7 +36,9 @@
     selected?.domain_id ? snapshot.domains.find((d) => d.domain_id === selected.domain_id) ?? null : null,
   );
   const selectedRun = $derived(
-    selectedDomain ? snapshot.runs.find((run) => run.repo_root === selectedDomain.repo_root) ?? null : null,
+    selected?.run_id
+      ? snapshot.runs.find((run) => run.domain_id === selected.domain_id && run.id === selected.run_id) ?? null
+      : null,
   );
 
   /**
@@ -150,7 +152,7 @@
           >
             <span class="risk">{shown.category}</span>
             <strong>{shown.title}</strong>
-            <small>{approval.agent_key} · {requestedAt(approval)}</small>
+            <small>{approval.agent_id ?? approval.agent_key} · {requestedAt(approval)}</small>
             <IconChevronRight size={15} />
           </button>
         {/each}
@@ -167,8 +169,9 @@
         </div>
         <p class="reason">{selected.reason}</p>
         <dl>
-          <div><dt>Requested by</dt><dd>{selected.agent_key}</dd></div>
+          <div><dt>Requested by</dt><dd>{selected.agent_id ?? selected.agent_key}</dd></div>
           <div><dt>Workspace</dt><dd>{workspaceLabel()}</dd></div>
+          <div><dt>Run</dt><dd>{selected.run_id ?? "Not recorded"}</dd></div>
           <div><dt>Requested</dt><dd>{requestedAt(selected)}</dd></div>
           <div><dt>Action</dt><dd>{selected.action}</dd></div>
         </dl>
@@ -181,9 +184,11 @@
             <strong>Run evidence</strong>
             {#if selectedRun}
               <small>{selectedRun.id} · {selectedRun.status} · {selectedRun.permission_profile ?? "profile not reported"}</small>
-              <small>This request carries no run ID. Showing the latest run for {workspaceLabel()}.</small>
+              <small>Exact run and agent: {selected.run_id} · {selected.agent_id ?? selected.agent_key}</small>
+            {:else if selected.run_id}
+              <small>Run {selected.run_id} is not present in this partial snapshot. No substitute run is shown.</small>
             {:else}
-              <small>No run available for this workspace. Decide from the action and reason above.</small>
+              <small>This legacy request has no causal run ID. Decide from the action and reason above; no substitute run is shown.</small>
             {/if}
           </div>
           {#if selectedRun}
@@ -226,7 +231,7 @@
   .queue-row:hover{background:color-mix(in oklab,var(--pytxo-surface-raised) 55%,transparent)}
   .queue-row.active{border-left-color:var(--state-attention);background:var(--pytxo-surface-active)}
   .queue-row:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:-2px}
-  .queue-row .risk{grid-column:1/-1;color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.05em}
+  .queue-row .risk{grid-column:1/-1;color:var(--pytxo-gold);font:11px "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.05em}
   .queue-row strong{overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
   .queue-row small{grid-column:1/-1;overflow:hidden;color:var(--pytxo-text-muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
   .queue-row>:global(svg){align-self:center;color:var(--pytxo-text-muted)}
@@ -257,7 +262,7 @@
   .actions .deny:hover:not(:disabled){border-color:var(--state-refuted);color:var(--state-refuted)}
   .actions .primary{border:1px solid transparent;background:var(--pytxo-text-strong);color:var(--pytxo-surface-shell)}
   .actions button:disabled{cursor:not-allowed;opacity:.4}
-  kbd{padding:1px 5px;border:1px solid currentColor;border-radius:3px;font:11px "IBM Plex Mono",monospace;opacity:.6}
+  kbd{padding:1px 5px;border:1px solid currentColor;border-radius:3px;font:11px "IBM Plex Mono",monospace}
   .quiet{height:28px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-soft);font-size:11px;cursor:pointer}
 
   .empty{display:flex;min-height:180px;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:20px;color:var(--pytxo-text-muted);text-align:center}

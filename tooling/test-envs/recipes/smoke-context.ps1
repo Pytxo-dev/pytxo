@@ -12,12 +12,13 @@ $TestEnvRoot = Split-Path $PSScriptRoot -Parent
 $Stub = Join-Path $TestEnvRoot "fixtures\stub-agent\stub-agent.ps1"
 
 Write-Host "=== dry-run ==="
-& $Pytxo run --config pytxo.toml --dry-run
+Invoke-PytxoChecked $Pytxo trust orbit
+Invoke-PytxoChecked $Pytxo run --config pytxo.toml --dry-run
 
 Write-Host "=== execute (stub-agent) ==="
-& $Pytxo run --config pytxo.toml --cmd "powershell -NoProfile -ExecutionPolicy Bypass -File `"$Stub`""
+Invoke-PytxoChecked $Pytxo run --config pytxo.toml --cmd "powershell -NoProfile -ExecutionPolicy Bypass -File `"$Stub`""
 
 Write-Host "=== status ==="
-& $Pytxo status
+Invoke-PytxoChecked $Pytxo status
 
 Write-Host "OK: smoke-context complete (PYTXO_BIN=$Pytxo)"

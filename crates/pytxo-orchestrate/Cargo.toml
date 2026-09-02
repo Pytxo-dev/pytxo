@@ -12,6 +12,7 @@ doctest = false
 anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true
+fs2.workspace = true
 pytxo-core = { workspace = true }
 pytxo-planner.workspace = true
 pytxo-runner.workspace = true

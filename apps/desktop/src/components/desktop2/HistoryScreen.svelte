@@ -76,7 +76,7 @@
   }
 
   function domainIdForRun(run: RunDto) {
-    return snapshot.domains.find((domain) => domain.repo_root === run.repo_root)?.domain_id ?? activeDomainId;
+    return run.domain_id;
   }
 
   /** The receipt for the selected run, so History answers "what was enforced". */

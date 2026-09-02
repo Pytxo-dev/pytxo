@@ -20,8 +20,8 @@ export function Hero() {
           </h1>
           <p className="mt-7 max-w-[38rem] text-base leading-relaxed text-[#a9a9b2] sm:text-lg">
             Pytxo runs the agent CLIs you already have in isolated workspaces, keeps
-            them off each other&apos;s files, and prepares one reviewable package. Nothing
-            reaches your repository until you approve the exact bytes.
+            them off each other&apos;s files, and prepares one reviewable package. In Orbit
+            and Galaxy, prepared changes reach your repository only through explicit Apply.
           </p>
           <div className="mt-9 flex w-full flex-col items-start gap-4 sm:w-auto sm:flex-row sm:items-center sm:gap-6">
             <Button size="lg" className="h-11 w-full rounded-[4px] bg-white px-6 text-black hover:bg-white/85 sm:w-auto sm:min-w-[11rem]" asChild>

@@ -117,6 +117,7 @@ test.describe("Run Review state contracts", () => {
     const snapshot = {
       domains: [],
       runs: [{
+        domain_id: "C:/repo",
         id: "run-1",
         status: "completed",
         repo_root: "C:/repo",
@@ -135,6 +136,7 @@ test.describe("Run Review state contracts", () => {
       agents: [],
       approvals: [],
       fleets: [],
+      diagnostics: [],
       error: null,
     } satisfies DesktopSnapshot;
     const changed = structuredClone(snapshot);

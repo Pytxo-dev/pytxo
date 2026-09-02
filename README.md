@@ -20,16 +20,22 @@ star, not a shipping claim.
 - **Releases:** [github.com/Pytxo-dev/pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases)
 - **Stack:** Rust (`portable-pty`, `tree-sitter`) · ratatui TUI · Svelte 5 · Tauri v2
 
-## Install (v0.3.0)
+## Install
 
 ```bash
-npm i -g pytxo
+npm i -g pytxo@1.2.1
 pytxo doctor
 ```
 
-Install scripts and binaries: [Pytxo-dev/pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases) (public). The main monorepo is private.
+Installers and binaries are published through
+[Pytxo releases](https://github.com/Pytxo-dev/pytxo-releases). Pytxo Desktop is
+Windows-first for v1.2.1. The npm installer must fail if the binary for the
+current platform is not present or cannot be verified; it must not imply that a
+missing platform succeeded.
 
-Running `pytxo` with no subcommand opens the **terminal dashboard** (doctor, runs, domains, HITL).
+Running `pytxo` with no subcommand opens the terminal dashboard. Pytxo Desktop
+is optional and organizes the same local control model around Work, History,
+Setup, workspace switching, approvals, and reviewed Apply.
 
 ## What Pytxo is
 
@@ -43,10 +49,17 @@ first concrete version of the broader commit-layer contract.
 | Moat | Role |
 |------|------|
 | **Signal Core** | `tree-sitter` skeletons on read — context arbitrage, lower token burn |
-| **Blast Shield** | Worktree isolation; explicit merge paths |
+| **Blast Shield** | Isolated workspaces; Orbit/Galaxy changes reach the repository only through reviewed Apply |
 | **Race Shield** | Swarm registry + stdin buffering — no monorepo write races |
 
-**Pytxo Desktop** ([`apps/desktop`](apps/desktop/)) is the optional control UI — structural telemetry, not raw terminal walls.
+**Pytxo Desktop** ([`apps/desktop`](apps/desktop/)) is the optional Work,
+History, and Setup control UI — structural evidence and decisions, not raw
+terminal walls.
+
+Permission profiles matter. DeepSpace is non-flushable, Orbit and Galaxy use
+the reviewed repository boundary, and Supernova is host-direct. The effective
+enforcement receipt is the authority; the UI does not claim every profile is
+sandboxed.
 
 ## Repository layout
 
@@ -62,13 +75,24 @@ first concrete version of the broader commit-layer contract.
 
 ## Quick start (developers)
 
+Building from source requires Rust 1.88 or newer and the current Node.js/npm
+toolchain used by the workspace lockfiles.
+
 ```bash
 cargo build -p pytxo-cli
 cargo run -p pytxo-cli -- doctor
+cargo run -p pytxo-cli -- trust orbit
 cargo run -p pytxo-cli -- run --config pytxo.toml.example --dry-run
-./tooling/scripts/smoke.ps1   # or tooling/scripts/smoke.sh
 ```
+
+Run the repository smoke separately with
+`powershell -File tooling/scripts/smoke.ps1` on Windows or
+`bash tooling/scripts/smoke.sh` on Unix-like hosts.
 
 ## Status
 
-**v0.1.0** — First public release: CLI + TUI dashboard, npm installer, GitHub Release binaries, MCP, git worktree orchestration, SQLite WAL telemetry.
+**Release target: v1.2.1.** The shipping proof is a local, vendor-neutral
+mission that produces isolated work, explicit verification, an immutable
+single-root review package, guarded Apply, and durable evidence/recovery state.
+Optional cloud services and the broader production-effect commit layer are not
+part of the default local release claim.

@@ -21,6 +21,7 @@
   } = $props();
 
   let selected = $state<string | null>(null);
+  let selectedKind = $state<"workspace" | "example" | null>(null);
   let busy = $state(false);
   let creatingExample = $state(false);
   let localError = $state("");
@@ -50,9 +51,11 @@
     try {
       await onWorkspaceSelected(path);
       selected = path;
+      selectedKind = "workspace";
     } catch (e) {
       localError = e instanceof Error ? e.message : String(e);
       selected = null;
+      selectedKind = null;
     } finally {
       busy = false;
     }
@@ -66,9 +69,11 @@
       const path = await backend.createExampleWorkspace();
       await onWorkspaceSelected(path);
       selected = path;
+      selectedKind = "example";
     } catch (e) {
       localError = e instanceof Error ? e.message : String(e);
       selected = null;
+      selectedKind = null;
     } finally {
       creatingExample = false;
       busy = false;
@@ -89,8 +94,7 @@
 <div class="step">
   <h2 class="title">Open a Workspace</h2>
   <p class="lead">
-    Pick a project folder to start. You can open more folders or multi-root Workspaces later from
-    the home screen.
+    Pick a project folder to start. You can manage more folders later in Setup → Workspaces.
   </p>
 
   {#if displayError}
@@ -99,7 +103,11 @@
 
   {#if selected}
     <code class="path" title={selected}>{displayPath(selected)}</code>
-    <small class="selected-note">Local git example ready. No API key required.</small>
+    <small class="selected-note">
+      {selectedKind === "example"
+        ? "Guided local Git example ready. Its baseline tests need no API key."
+        : "Workspace selected. Pytxo will use its existing Git state and configuration."}
+    </small>
     <Button class="wide" onclick={onContinue}>Continue</Button>
   {:else}
     <Button class="wide" disabled={busy} onclick={pickFolder}>

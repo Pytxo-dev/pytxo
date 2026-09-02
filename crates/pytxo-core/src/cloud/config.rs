@@ -10,7 +10,13 @@ pub struct CloudConfig {
     pub cache_url: String,
     #[serde(default = "default_true")]
     pub cache_enabled: bool,
-    #[serde(default = "default_true")]
+    /// Explicit operator acknowledgement that repository-derived content may
+    /// leave the machine. Cloud entitlement alone never grants this consent.
+    #[serde(default)]
+    pub upload_consent: bool,
+    /// Local execution after a cloud outage changes the trust boundary, so it
+    /// requires both repository opt-in and a trusted-host acknowledgement.
+    #[serde(default)]
     pub fallback_local: bool,
 }
 
@@ -33,7 +39,8 @@ impl Default for CloudConfig {
             sandbox_url: default_sandbox_url(),
             cache_url: default_cache_url(),
             cache_enabled: true,
-            fallback_local: true,
+            upload_consent: false,
+            fallback_local: false,
         }
     }
 }
@@ -47,6 +54,18 @@ impl CloudConfig {
             return Err(crate::PytxoError::Other("cloud.sandbox_url empty".into()));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cloud_boundary_acknowledgements_default_off() {
+        let cfg: CloudConfig = toml::from_str("").unwrap();
+        assert!(!cfg.upload_consent);
+        assert!(!cfg.fallback_local);
     }
 }
 

@@ -1,7 +1,9 @@
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use fs2::FileExt;
 use pytxo_core::{
     canonical_repo_root, DomainId, ExecutionPlan, FidelityTier, PermissionEngine,
     PermissionProfile, PytxoConfig, PytxoError, RunApplyError, RunId, SignalCore, Task, TaskId,
@@ -10,8 +12,9 @@ use pytxo_core::{
 use pytxo_runner::{
     apply_attempt_ids, apply_prepared_review_under_lease, execute_plan, load_review_package,
     permission_enforcement_receipt, prepare_review_package, reconcile_apply_journals_under_lease,
-    stop_all, stop_run, AgentWorkspaceInput, ExecutionDomainMutationLease,
-    PermissionEnforcementReceipt, ProcessRegistry, RecoveryOutcome, RunApplyManifest, RunContext,
+    registry_path, stop_all, stop_run, AgentWorkspaceInput, ExecutionDomainMutationLease,
+    PermissionEnforcementReceipt, ProcessRegistryFile, RecoveryOutcome, RunApplyManifest,
+    RunContext,
 };
 use pytxo_scheduler::build_plan;
 use pytxo_signal::TreeSitterSignalCore;
@@ -100,6 +103,10 @@ pub struct ProjectRunContext {
 struct ActiveRunState {
     run_id: String,
     repo_root: String,
+    #[serde(default)]
+    supervisor_pid: u32,
+    #[serde(default)]
+    supervisor_start_identity: Option<String>,
 }
 
 struct RunFinalizer {
@@ -121,7 +128,8 @@ impl RunFinalizer {
 
     fn settle(&mut self, status: &str) -> anyhow::Result<()> {
         let store = PytxoStore::open(&self.db_path)?;
-        let _ = store.finish_run_if_running(&self.run_id, status)?;
+        let _ = store.finish_run_if_status(&self.run_id, "starting", status)?
+            || store.finish_run_if_running(&self.run_id, status)?;
         clear_active_run_if_matches(&self.active_path, &self.run_id)?;
         tracing::info!(run_id = %self.run_id, terminal_status = status, "run settled");
         self.settled = true;
@@ -133,7 +141,12 @@ impl Drop for RunFinalizer {
     fn drop(&mut self) {
         if !self.settled {
             if let Ok(store) = PytxoStore::open(&self.db_path) {
-                let _ = store.finish_run_if_running(&self.run_id, "failed");
+                let startup_failed = store
+                    .finish_run_if_status(&self.run_id, "starting", "failed_startup")
+                    .unwrap_or(false);
+                if !startup_failed {
+                    let _ = store.finish_run_if_running(&self.run_id, "failed");
+                }
             }
             let _ = clear_active_run_if_matches(&self.active_path, &self.run_id);
             tracing::error!(run_id = %self.run_id, terminal_status = "failed", "run settled during error unwind");
@@ -297,21 +310,20 @@ pub fn enqueue_agent_stdin(
     let cfg = load_config(None, &repo_root)?;
     let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
     ensure_agent_live(&domain.swarm, agent_key)?;
-    if cfg.permission_profile == pytxo_core::PermissionProfile::Galaxy {
-        if let Ok(text) = std::str::from_utf8(data) {
-            for line in text.lines() {
-                let trimmed = line.trim();
-                if trimmed.is_empty() {
-                    continue;
-                }
-                pytxo_runner::gate_spawn_command(
-                    Some(&domain.hitl),
-                    cfg.permission_profile,
-                    agent_key,
-                    trimmed,
-                )
-                .map_err(|e| anyhow::anyhow!(e))?;
+    let effective_profile = live_agent_effective_profile(&repo_root, &cfg, agent_key)?;
+    if let Ok(text) = std::str::from_utf8(data) {
+        for line in text.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
             }
+            pytxo_runner::gate_spawn_command(
+                Some(&domain.hitl),
+                effective_profile,
+                agent_key,
+                trimmed,
+            )
+            .map_err(|e| anyhow::anyhow!(e))?;
         }
     }
     domain
@@ -344,6 +356,32 @@ fn ensure_agent_live(swarm: &pytxo_runner::SwarmRegistry, agent_key: &str) -> an
         return Ok(());
     }
     anyhow::bail!("agent {agent_key} is not live (run may have finished)")
+}
+
+fn live_agent_effective_profile(
+    repo_root: &Path,
+    cfg: &PytxoConfig,
+    agent_key: &str,
+) -> anyhow::Result<PermissionProfile> {
+    let (run_id, agent_id) = parse_agent_key(agent_key);
+    if run_id.is_empty() || agent_id.is_empty() {
+        anyhow::bail!("invalid live agent key: {agent_key}");
+    }
+    let store = PytxoStore::open(&cfg.db_path_at(repo_root))?;
+    let contract = store
+        .get_run_contract(&run_id)?
+        .ok_or_else(|| anyhow::anyhow!("live agent run has no enforcement contract: {run_id}"))?;
+    let envelope: RunEnforcementEnvelope =
+        serde_json::from_str(contract.enforcement_json.as_deref().ok_or_else(|| {
+            anyhow::anyhow!("live agent run has no enforcement receipt: {run_id}")
+        })?)
+        .map_err(|error| anyhow::anyhow!("invalid live agent enforcement receipt: {error}"))?;
+
+    let receipt = envelope.agents.get(&agent_id).ok_or_else(|| {
+        anyhow::anyhow!("live agent has no effective enforcement receipt: {agent_id}")
+    })?;
+    PermissionProfile::parse(&receipt.effective_profile)
+        .ok_or_else(|| anyhow::anyhow!("invalid live agent effective permission profile"))
 }
 
 /// List agents currently registered in the domain's Race Shield ([[mcp-router]] v1).
@@ -399,16 +437,15 @@ pub fn mcp_proxy_call(
     let cfg = load_config(None, &repo_root)?;
     let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
     ensure_agent_live(&domain.swarm, agent_key)?;
-    if cfg.permission_profile == pytxo_core::PermissionProfile::Galaxy {
-        pytxo_runner::gate_mcp_proxy(
-            Some(&domain.hitl),
-            cfg.permission_profile,
-            agent_key,
-            method,
-            &params,
-        )
-        .map_err(|e| anyhow::anyhow!(e))?;
-    }
+    let effective_profile = live_agent_effective_profile(&repo_root, &cfg, agent_key)?;
+    pytxo_runner::gate_mcp_proxy(
+        Some(&domain.hitl),
+        effective_profile,
+        agent_key,
+        method,
+        &params,
+    )
+    .map_err(|e| anyhow::anyhow!(e))?;
     let result = domain.mcp_hub.proxy_call(agent_key, method, params)?;
     audit_mcp_tool(
         &repo_root,
@@ -1266,7 +1303,7 @@ fn assert_clean_primary_checkout(repo_root: &Path) -> anyhow::Result<()> {
 
 pub(crate) async fn execute_run_body(
     domain: Arc<hypervisor::DomainState>,
-    opts: RunOptions,
+    mut opts: RunOptions,
     mut cfg: PytxoConfig,
     run_id: Option<RunId>,
 ) -> anyhow::Result<RunId> {
@@ -1278,8 +1315,10 @@ pub(crate) async fn execute_run_body(
     if let Some(exec) = opts.execution {
         cfg.execution_backend = exec;
     }
-    let requested_profile = cfg.permission_profile;
-    let requested_agent_profiles = cfg.agent_profile_map();
+    let requested_profile = cfg
+        .requested_permission_profile
+        .unwrap_or(cfg.permission_profile);
+    let requested_agent_profiles = cfg.requested_agent_profile_map();
     let entitlements =
         entitlements::effective_entitlements(&cfg).map_err(|e| anyhow::anyhow!("{e}"))?;
     if cfg.max_agents > entitlements.max_agents {
@@ -1293,6 +1332,16 @@ pub(crate) async fn execute_run_body(
     cfg.tier_max_agents = entitlements.max_agents;
     let effective_profile = entitlements::effective_permission_profile(&cfg, &entitlements);
     cfg.permission_profile = effective_profile;
+    if let Some(project) = opts.project.as_mut() {
+        for root in project.roots.values_mut() {
+            if let Some(ceiling) = cfg.permission_ceiling {
+                root.permission_profile = root.permission_profile.capped_at(ceiling);
+            }
+            if let Some(ceiling) = entitlements.permission_ceiling {
+                root.permission_profile = root.permission_profile.capped_at(ceiling);
+            }
+        }
+    }
     if entitlements.cloud_enabled {
         cfg.cloud.enabled = true;
         if cfg.execution_backend == pytxo_core::ExecutionBackend::Pty {
@@ -1326,10 +1375,66 @@ pub(crate) async fn execute_run_body(
 
     ensure_repo_trusted(&domain.repo_root)?;
 
+    let was_reserved = run_id.is_some();
     let run_id = run_id.unwrap_or_default();
+    if !was_reserved {
+        reserve_active_run(&domain, &cfg, &run_id)?;
+    }
+    let db_path = domain.data_dir.join("pytxo.db");
+    let mut run_finalizer = RunFinalizer::new(
+        db_path.clone(),
+        domain.data_dir.join("active_run.json"),
+        run_id.0.clone(),
+    );
     let domain_id = DomainId::from_repo_root(&domain.repo_root).map_err(|e| anyhow::anyhow!(e))?;
     let isolation_mode = pytxo_runner::effective_isolation_mode(&cfg);
     let agent_profiles = entitlements::effective_agent_profiles(&cfg, &entitlements);
+    let mut agent_enforcement = agent_profiles
+        .iter()
+        .map(|(name, effective)| {
+            let requested = requested_agent_profiles
+                .get(name)
+                .copied()
+                .unwrap_or(requested_profile);
+            permission_enforcement_receipt(
+                requested,
+                *effective,
+                &domain_id,
+                isolation_mode,
+                &cfg.blast.sparse_exclude,
+            )
+            .map(|receipt| (name.clone(), receipt))
+        })
+        .collect::<pytxo_core::Result<std::collections::BTreeMap<_, _>>>()
+        .map_err(|error| anyhow::anyhow!(error))?;
+    for (index, task) in plan.waves.iter().flatten().enumerate() {
+        let (requested, effective) = task
+            .root
+            .as_deref()
+            .and_then(|label| opts.project.as_ref()?.roots.get(label))
+            .map(|root| (root.requested_permission_profile, root.permission_profile))
+            .unwrap_or_else(|| {
+                (
+                    requested_agent_profiles
+                        .get(&task.agent)
+                        .copied()
+                        .unwrap_or(requested_profile),
+                    agent_profiles
+                        .get(&task.agent)
+                        .copied()
+                        .unwrap_or(cfg.permission_profile),
+                )
+            });
+        let receipt = permission_enforcement_receipt(
+            requested,
+            effective,
+            &domain_id,
+            isolation_mode,
+            &cfg.blast.sparse_exclude,
+        )
+        .map_err(|error| anyhow::anyhow!(error))?;
+        agent_enforcement.insert(format!("agent-{index}"), receipt);
+    }
     let enforcement = RunEnforcementEnvelope {
         run: permission_enforcement_receipt(
             requested_profile,
@@ -1339,33 +1444,18 @@ pub(crate) async fn execute_run_body(
             &cfg.blast.sparse_exclude,
         )
         .map_err(|error| anyhow::anyhow!(error))?,
-        agents: agent_profiles
-            .iter()
-            .map(|(name, effective)| {
-                let requested = requested_agent_profiles
-                    .get(name)
-                    .copied()
-                    .unwrap_or(requested_profile);
-                permission_enforcement_receipt(
-                    requested,
-                    *effective,
-                    &domain_id,
-                    isolation_mode,
-                    &cfg.blast.sparse_exclude,
-                )
-                .map(|receipt| (name.clone(), receipt))
-            })
-            .collect::<pytxo_core::Result<_>>()
-            .map_err(|error| anyhow::anyhow!(error))?,
+        agents: agent_enforcement,
     };
     let task_profiles: Vec<_> = plan
         .waves
         .iter()
         .flatten()
         .map(|task| {
-            agent_profiles
-                .get(&task.agent)
-                .copied()
+            task.root
+                .as_deref()
+                .and_then(|label| opts.project.as_ref()?.roots.get(label))
+                .map(|root| root.permission_profile)
+                .or_else(|| agent_profiles.get(&task.agent).copied())
                 .unwrap_or(cfg.permission_profile)
         })
         .collect();
@@ -1383,7 +1473,6 @@ pub(crate) async fn execute_run_body(
     } else {
         "pending"
     };
-    let db_path = domain.data_dir.join("pytxo.db");
     let store_for_events = Arc::new(SharedStore::open(&db_path)?);
     {
         let store = store_for_events
@@ -1399,20 +1488,13 @@ pub(crate) async fn execute_run_body(
     };
     let plan_json = serde_json::to_string(&plan)?;
     let enforcement_json = serde_json::to_string(&enforcement)?;
-    let mut run_finalizer = RunFinalizer::new(
-        db_path.clone(),
-        domain.data_dir.join("active_run.json"),
-        run_id.0.clone(),
-    );
     {
         let store = store_for_events
             .lock()
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-        store.insert_run_with_profile(
-            &run_id.0,
-            &domain.repo_root.to_string_lossy(),
-            Some(cfg.permission_profile.as_str()),
-        )?;
+        if !store.mark_run_running(&run_id.0)? {
+            anyhow::bail!("run {} is no longer eligible to start", run_id.0);
+        }
         store.save_run_contract_with_status(
             &run_id.0,
             base_revision.as_deref(),
@@ -1510,14 +1592,13 @@ pub(crate) async fn execute_run_body(
         cloud_dispatcher: Some(cloud.dispatcher),
         context_cache: Some(cloud.cache),
         cloud_cache_enabled: cfg.cloud.cache_enabled,
-        cloud_fallback_local: cfg.cloud.fallback_local,
+        cloud_fallback_local: cfg.cloud.fallback_local
+            && cloud::out_of_band_local_fallback_consent(),
         mcp_hub: Some(Arc::new(domain.mcp_hub.clone())),
         mcp_hub_enabled: cfg.mcp_hub.enabled,
         mcp_allowlist: cfg.mcp_hub.allowlist.clone(),
         sparse_exclude: cfg.blast.sparse_exclude.clone(),
     };
-
-    save_active_run(&cfg, &run_id, &domain.repo_root).map_err(|e| anyhow::anyhow!(e))?;
 
     let results = execute_plan(&ctx, &plan, &domain.process_registry, &domain.swarm).await?;
 
@@ -1529,12 +1610,16 @@ pub(crate) async fn execute_run_body(
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     for result in &results {
         let agent_key = format!("{}:{}", run_id, result.agent_id);
+        let worktree_path = result
+            .worktree_path
+            .as_ref()
+            .map(|path| path.to_string_lossy().into_owned());
         store.insert_agent_with_root(
             &agent_key,
             &run_id.0,
             &result.task_id,
             result.wave,
-            Some(&result.worktree_path.to_string_lossy()),
+            worktree_path.as_deref(),
             &opts.cmd,
             result.root_id.as_deref(),
         )?;
@@ -1548,15 +1633,8 @@ pub(crate) async fn execute_run_body(
             store.append_event(&agent_key, "stderr", &payload)?;
             all_lines.extend(result.stderr.lines().map(String::from));
         }
-        let exit = result.exit_code.unwrap_or(-1);
-        let status = if exit == 0 {
-            "completed"
-        } else if result.stderr.contains("verify failed") {
-            "verify_failed"
-        } else {
-            "failed"
-        };
-        if exit != 0 {
+        let status = result.outcome.ledger_status();
+        if !result.outcome.is_success() {
             failed = true;
         }
         store.finish_agent(&agent_key, result.exit_code, status)?;
@@ -1587,7 +1665,9 @@ pub(crate) async fn execute_run_body(
                 Ok(AgentWorkspaceInput {
                     agent_id: result.agent_id.0.clone(),
                     task_id: result.task_id.clone(),
-                    workspace_path: result.worktree_path.clone(),
+                    workspace_path: result.worktree_path.clone().ok_or_else(|| {
+                        anyhow::anyhow!("completed task has no workspace: {}", result.task_id)
+                    })?,
                     claims: task.paths.clone(),
                     depends_on: task.depends_on.clone(),
                 })
@@ -1645,12 +1725,16 @@ pub(crate) async fn execute_run_body(
     };
     run_finalizer.settle(run_status)?;
 
-    if failed && cfg.fail_fast {
-        anyhow::bail!("one or more agents failed (fail_fast=true)");
-    }
-
     if let Some(error) = review_error {
         return Err(error.context("run completed but durable review preparation failed"));
+    }
+
+    if failed {
+        anyhow::bail!(
+            "run {} failed after durable settlement (fail_fast={})",
+            run_id.0,
+            cfg.fail_fast
+        );
     }
 
     Ok(run_id)
@@ -1875,6 +1959,11 @@ async fn stop_impl(
 
     if all {
         stop_all(&data_dir, true).map_err(|e| anyhow::anyhow!(e))?;
+        if let Ok(domain_id) = DomainId::from_repo_root(&repo) {
+            if let Some(domain) = default_hypervisor().domain_state(domain_id.as_str()) {
+                domain.swarm.request_stop_all();
+            }
+        }
         let state_path = repo.join(&cfg.data_dir).join("active_run.json");
         if state_path.exists() {
             fs::remove_file(state_path)?;
@@ -1905,64 +1994,29 @@ async fn stop_impl(
             );
         }
     }
+    let tracked_processes = ProcessRegistryFile::load(&registry_path(&data_dir))?
+        .for_run(&state.run_id)
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>();
     let pids = stop_run(&data_dir, &state.run_id, true).map_err(|e| anyhow::anyhow!(e))?;
+    if let Ok(domain_id) = DomainId::from_repo_root(&repo) {
+        if let Some(domain) = default_hypervisor().domain_state(domain_id.as_str()) {
+            domain.swarm.request_stop_run(&state.run_id);
+        }
+    }
     if cleanup_worktrees {
-        let repo_path = PathBuf::from(&state.repo_root);
-        let metering = billing::metering_for_ctx(&cfg, &repo_path, &None);
-        let ctx = RunContext {
-            run_id: RunId(state.run_id.clone()),
-            repo_root: repo_path.clone(),
-            worktree_base: repo_path.join(&cfg.worktree_dir),
-            data_dir: data_dir.clone(),
-            cmd: String::new(),
-            task_cmd_template: None,
-            task_prompts: std::collections::HashMap::new(),
-            keep_worktrees: false,
-            on_event: None,
-            signal_core: cfg.signal_core,
-            signal_fidelity: cfg.signal_fidelity,
-            isolation_mode: pytxo_runner::effective_isolation_mode(&cfg),
-            permission_profile: cfg.permission_profile,
-            agent_profiles: cfg.agent_profile_map(),
-            route_agents: cfg.agent.clone(),
-            billing_mode: metering.billing_mode,
-            domain_id: metering.domain_id,
-            model_router: metering.model_router,
-            managed_transport: metering.managed_transport,
-            usage_meter: metering.usage_meter,
-            token_estimator: metering.token_estimator,
-            execution_backend: cfg.execution_backend,
-            pty_rows: cfg.pty_rows,
-            pty_cols: cfg.pty_cols,
-            hitl: None,
-            hitl_manual_flush: false,
-            agent_paths: std::collections::HashMap::new(),
-            agent_fidelity: std::collections::HashMap::new(),
-            roots: std::collections::HashMap::new(),
-            readonly_context_roots: Vec::new(),
-            subprocess_stdin: cfg.subprocess_stdin,
-            cloud_dispatcher: None,
-            context_cache: None,
-            cloud_cache_enabled: false,
-            cloud_fallback_local: true,
-            mcp_hub: None,
-            mcp_hub_enabled: false,
-            mcp_allowlist: Vec::new(),
-            sparse_exclude: cfg.blast.sparse_exclude.clone(),
-        };
-        let registry = ProcessRegistry::default();
-        pytxo_runner::cleanup_worktrees(&ctx, &registry).map_err(|e| anyhow::anyhow!(e))?;
+        for process in &tracked_processes {
+            pytxo_runner::remove_worktree(
+                Path::new(&process.repo_root),
+                Path::new(&process.worktree_path),
+                &process.branch,
+                true,
+            )
+            .map_err(|e| anyhow::anyhow!(e))?;
+        }
     }
-    if let Err(error) = PytxoStore::open(&cfg.db_path_at(&repo))
-        .and_then(|store| store.finish_run(&state.run_id, "cancelled"))
-    {
-        tracing::warn!(
-            run_id = %state.run_id,
-            domain = %repo.display(),
-            %error,
-            "stopped processes but could not persist cancelled run status"
-        );
-    }
+    PytxoStore::open(&cfg.db_path_at(&repo))?.finish_run(&state.run_id, "cancelled")?;
     fs::remove_file(&state_path)?;
     println!(
         "Stopped run {} (killed {} process(es))",
@@ -1991,9 +2045,9 @@ pub fn read_file_scaffolded(
 ) -> anyhow::Result<pytxo_core::ScaffoldResult> {
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo_root)?;
-    let tier = fidelity.unwrap_or(cfg.signal_fidelity);
     let path = repo_root.join(rel_path);
     let engine = PermissionEngine::new(cfg.permission_profile);
+    let tier = engine.max_fidelity(fidelity.unwrap_or(cfg.signal_fidelity));
     if !engine.may_read(&repo_root, &path, &repo_root) {
         anyhow::bail!(
             "read denied for {} profile (path outside agent cwd)",
@@ -2023,10 +2077,19 @@ pub fn read_file(
         );
     }
 
-    let scaffold = cfg.signal_core && !force_raw && cfg.signal_fidelity != FidelityTier::High;
+    let raw_allowed = engine.max_fidelity(FidelityTier::High) == FidelityTier::High;
+    if force_raw && !raw_allowed {
+        anyhow::bail!(
+            "raw reads denied for {} profile",
+            cfg.permission_profile.as_str()
+        );
+    }
+    let effective_tier = engine.max_fidelity(cfg.signal_fidelity);
+    let scaffold =
+        !raw_allowed || (cfg.signal_core && !force_raw && effective_tier != FidelityTier::High);
     if scaffold {
         return TreeSitterSignalCore
-            .read_scaffolded(&path, cfg.signal_fidelity)
+            .read_scaffolded(&path, effective_tier)
             .map_err(|e| anyhow::anyhow!(e));
     }
 
@@ -2074,9 +2137,11 @@ pub(crate) fn load_config(path: Option<&Path>, repo: &Path) -> anyhow::Result<Py
     } else {
         PytxoConfig::default()
     };
+    cfg.requested_permission_profile = Some(cfg.permission_profile);
     if let Ok(store) = pytxo_core::TrustedDomainStore::open_default() {
-        if let Some(profile) = store.permission_for(repo) {
-            cfg.permission_profile = profile;
+        if let Some(ceiling) = store.permission_for(repo) {
+            cfg.permission_ceiling = Some(ceiling);
+            cfg.permission_profile = cfg.permission_profile.capped_at(ceiling);
         }
     }
     Ok(cfg)
@@ -2096,19 +2161,151 @@ pub(crate) fn synthetic_tasks(count: usize) -> Vec<Task> {
         .collect()
 }
 
-fn save_active_run(cfg: &PytxoConfig, run_id: &RunId, repo: &Path) -> Result<(), PytxoError> {
-    let state = ActiveRunState {
-        run_id: run_id.0.clone(),
-        repo_root: repo.to_string_lossy().to_string(),
-    };
-    let json =
-        serde_json::to_string_pretty(&state).map_err(|e| PytxoError::Other(e.to_string()))?;
-    let path = repo.join(&cfg.data_dir).join("active_run.json");
-    fs::write(path, json).map_err(PytxoError::Io)?;
+pub(crate) fn reserve_active_run(
+    domain: &hypervisor::DomainState,
+    cfg: &PytxoConfig,
+    run_id: &RunId,
+) -> anyhow::Result<()> {
+    let db_path = cfg.db_path_at(&domain.repo_root);
+    let store = PytxoStore::open(&db_path)?;
+    store.insert_starting_run_with_profile(
+        &run_id.0,
+        &domain.repo_root.to_string_lossy(),
+        Some(cfg.permission_profile.as_str()),
+    )?;
+    if let Err(error) = claim_active_run(cfg, run_id, &domain.repo_root) {
+        let _ = store.finish_run_if_status(&run_id.0, "starting", "failed_startup");
+        return Err(error);
+    }
     Ok(())
 }
 
+pub(crate) fn settle_reserved_run_after_error(
+    domain: &hypervisor::DomainState,
+    cfg: &PytxoConfig,
+    run_id: &RunId,
+) {
+    if let Ok(store) = PytxoStore::open(&cfg.db_path_at(&domain.repo_root)) {
+        let startup_failed = store
+            .finish_run_if_status(&run_id.0, "starting", "failed_startup")
+            .unwrap_or(false);
+        if !startup_failed {
+            let _ = store.finish_run_if_running(&run_id.0, "failed");
+        }
+    }
+    let _ = clear_active_run_if_matches(
+        &domain.repo_root.join(&cfg.data_dir).join("active_run.json"),
+        &run_id.0,
+    );
+}
+
+fn claim_active_run(cfg: &PytxoConfig, run_id: &RunId, repo: &Path) -> anyhow::Result<()> {
+    let path = repo.join(&cfg.data_dir).join("active_run.json");
+    with_active_run_lock(&path, || {
+        if let Some(owner) = reconcile_active_run_unlocked(&path, repo, cfg)? {
+            anyhow::bail!(
+                "execution domain {} already owns active run {owner}",
+                repo.display()
+            );
+        }
+
+        let supervisor_pid = std::process::id();
+        let supervisor_start_identity = pytxo_runner::process_start_identity(supervisor_pid)?
+            .ok_or_else(|| anyhow::anyhow!("current supervisor process has no live identity"))?;
+        let state = ActiveRunState {
+            run_id: run_id.0.clone(),
+            repo_root: repo.to_string_lossy().to_string(),
+            supervisor_pid,
+            supervisor_start_identity: Some(supervisor_start_identity),
+        };
+        let json = serde_json::to_string_pretty(&state)?;
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&path)?;
+        if let Err(error) = file
+            .write_all(json.as_bytes())
+            .and_then(|()| file.sync_all())
+        {
+            drop(file);
+            let _ = fs::remove_file(&path);
+            return Err(error.into());
+        }
+        Ok(())
+    })
+}
+
+fn reconcile_active_run_unlocked(
+    path: &Path,
+    repo: &Path,
+    cfg: &PytxoConfig,
+) -> anyhow::Result<Option<String>> {
+    let raw = match fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let state: ActiveRunState = serde_json::from_str(&raw)?;
+    let store = PytxoStore::open(&cfg.db_path_at(repo))?;
+    let Some((status, _)) = store.get_run_status(&state.run_id)? else {
+        clear_active_run_unlocked(path, &state.run_id)?;
+        return Ok(None);
+    };
+    if PytxoStore::is_terminal_run_status(&status) {
+        clear_active_run_unlocked(path, &state.run_id)?;
+        return Ok(None);
+    }
+    if !matches!(status.as_str(), "starting" | "running") {
+        anyhow::bail!(
+            "active run {} has unreconciled ledger status {status}",
+            state.run_id
+        );
+    }
+
+    if let Some(identity) = state.supervisor_start_identity.as_deref() {
+        if pytxo_runner::process_matches(state.supervisor_pid, identity)? {
+            return Ok(Some(state.run_id));
+        }
+    }
+
+    let registry = ProcessRegistryFile::load(&registry_path(&repo.join(&cfg.data_dir)))?;
+    for process in registry.for_run(&state.run_id) {
+        let Some(identity) = process.start_identity.as_deref() else {
+            anyhow::bail!(
+                "active run {} has a durable process without verifiable identity",
+                state.run_id
+            );
+        };
+        if pytxo_runner::process_matches(process.pid, identity)? {
+            anyhow::bail!(
+                "active run {} lost its supervisor but still owns live process {}",
+                state.run_id,
+                process.pid
+            );
+        }
+    }
+
+    let terminal = if status == "starting" {
+        "failed_startup"
+    } else {
+        "failed"
+    };
+    let _ = store.finish_run_if_status(&state.run_id, &status, terminal)?;
+    clear_active_run_unlocked(path, &state.run_id)?;
+    tracing::warn!(
+        run_id = %state.run_id,
+        previous_status = %status,
+        terminal_status = terminal,
+        "reconciled crashed active-run owner"
+    );
+    Ok(None)
+}
+
 fn clear_active_run_if_matches(path: &Path, run_id: &str) -> anyhow::Result<()> {
+    with_active_run_lock(path, || clear_active_run_unlocked(path, run_id))
+}
+
+fn clear_active_run_unlocked(path: &Path, run_id: &str) -> anyhow::Result<()> {
     let raw = match fs::read_to_string(path) {
         Ok(raw) => raw,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -2119,6 +2316,25 @@ fn clear_active_run_if_matches(path: &Path, run_id: &str) -> anyhow::Result<()> 
         fs::remove_file(path)?;
     }
     Ok(())
+}
+
+fn with_active_run_lock<T>(
+    active_path: &Path,
+    operation: impl FnOnce() -> anyhow::Result<T>,
+) -> anyhow::Result<T> {
+    let file_name = active_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("active_run.json");
+    let lock_path = active_path.with_file_name(format!("{file_name}.lock"));
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(lock_path)?;
+    lock.lock_exclusive()?;
+    operation()
 }
 
 fn ensure_gitignore(repo: &Path) -> anyhow::Result<()> {
@@ -2139,6 +2355,65 @@ fn ensure_gitignore(repo: &Path) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn deep_space_read_fixture(signal_core: bool) -> (tempfile::TempDir, PathBuf, PathBuf) {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        fs::write(
+            repo.join("sample.rs"),
+            "pub fn sample() { let raw_secret = \"must-not-egress\"; println!(\"{raw_secret}\"); }\n",
+        )
+        .unwrap();
+        let config = repo.join("pytxo.toml");
+        fs::write(
+            &config,
+            format!(
+                "permission_profile = \"deep_space\"\nsignal_core = {signal_core}\nsignal_fidelity = \"high\"\n"
+            ),
+        )
+        .unwrap();
+        (temp, repo, config)
+    }
+
+    #[test]
+    fn deepspace_caps_explicit_scaffold_fidelity_to_low() {
+        let (_temp, repo, config) = deep_space_read_fixture(true);
+
+        let result = read_file_scaffolded(
+            Some(config),
+            Some(repo),
+            "sample.rs",
+            Some(FidelityTier::High),
+        )
+        .unwrap();
+
+        assert!(!result.fallback_raw);
+        assert!(result.content.contains("pub fn sample"));
+        assert!(!result.content.contains("must-not-egress"));
+    }
+
+    #[test]
+    fn deepspace_rejects_mcp_raw_override() {
+        let (_temp, repo, config) = deep_space_read_fixture(true);
+
+        let error = read_file(Some(config), Some(repo), "sample.rs", true)
+            .expect_err("DeepSpace must reject raw MCP reads");
+
+        assert!(error
+            .to_string()
+            .contains("raw reads denied for deep_space"));
+    }
+
+    #[test]
+    fn deepspace_enforces_low_fidelity_when_signal_core_is_disabled_in_config() {
+        let (_temp, repo, config) = deep_space_read_fixture(false);
+
+        let result = read_file(Some(config), Some(repo), "sample.rs", false).unwrap();
+
+        assert!(!result.fallback_raw);
+        assert!(!result.content.contains("must-not-egress"));
+    }
 
     #[test]
     fn status_reports_effective_isolation_backend() {
@@ -2161,6 +2436,8 @@ mod tests {
             serde_json::to_vec(&ActiveRunState {
                 run_id: "newer-run".into(),
                 repo_root: temp.path().display().to_string(),
+                supervisor_pid: 0,
+                supervisor_start_identity: None,
             })
             .unwrap(),
         )

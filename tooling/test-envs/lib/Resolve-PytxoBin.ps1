@@ -52,3 +52,17 @@ pytxo not found. Install one of:
 Or set PYTXO_BIN to the full path of pytxo.exe
 "@
 }
+
+function Invoke-PytxoChecked {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Executable,
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$ArgumentList
+    )
+
+    & $Executable @ArgumentList
+    if ($LASTEXITCODE -ne 0) {
+        throw "pytxo command failed with exit code $LASTEXITCODE`: $($ArgumentList -join ' ')"
+    }
+}

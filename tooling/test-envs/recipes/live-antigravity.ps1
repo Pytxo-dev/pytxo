@@ -16,19 +16,20 @@ $env:PYTXO_BIN = $Pytxo
 
 Write-Host "=== pytxo ==="
 Write-Host "PYTXO_BIN=$Pytxo"
-& $Pytxo --version
+Invoke-PytxoChecked $Pytxo --version
 
 Write-Host "=== agy version ==="
 & agy --version 2>&1
 
 Write-Host "=== dry-run ==="
-& $Pytxo run --config pytxo.toml --dry-run
+Invoke-PytxoChecked $Pytxo trust orbit
+Invoke-PytxoChecked $Pytxo run --config pytxo.toml --dry-run
 
 Write-Host "=== execute (agy --help smoke) ==="
-& $Pytxo run --config pytxo.toml --cmd "agy --help"
+Invoke-PytxoChecked $Pytxo run --config pytxo.toml --cmd "agy --help"
 
 Write-Host "=== status ==="
-& $Pytxo status
+Invoke-PytxoChecked $Pytxo status
 
 Write-Host ""
 Write-Host "OK: live-antigravity smoke complete"

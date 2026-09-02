@@ -1,0 +1,11 @@
+max_agents = 1
+permission_profile = "orbit"
+isolation = "worktree"
+execution_backend = "subprocess"
+fail_fast = true
+
+[[task]]
+id = "risk-policy"
+agent = "deterministic-demo-adapter"
+paths = ["src/risk-policy.mjs", "test/risk-policy.test.mjs", "README.md"]
+verify = ["npm test"]

@@ -55,6 +55,7 @@ Architecture Decision Records are **immutable once Accepted**. Supersede by addi
 | ADR-0037 | [[ADR-0037-chroma-aperture-visual-contract]] | superseded in part by ADR-0039 |
 | ADR-0038 | [[ADR-0038-epistemic-state-contract]] | accepted |
 | ADR-0039 | [[ADR-0039-evidence-ledger-visual-contract]] | accepted |
+| ADR-0040 | [[ADR-0040-mbcz-merchant-of-record-boundary]] | proposed |
 
 ## Template
 

@@ -5,6 +5,7 @@ export function fingerprintDesktopSnapshot(snapshot: DesktopSnapshot): string {
   const domains = snapshot.domains.map((domain) => domain.domain_id).join(",");
   const runs = snapshot.runs
     .map((run) => [
+      run.domain_id,
       run.id,
       run.status,
       run.estimated_cost_usd ?? 0,
@@ -19,10 +20,13 @@ export function fingerprintDesktopSnapshot(snapshot: DesktopSnapshot): string {
       run.recovery_state ?? "",
     ].join(":"))
     .join(",");
-  const agents = snapshot.agents.map((agent) => `${agent.id}:${agent.status}`).join(",");
+  const agents = snapshot.agents.map((agent) => `${agent.domain_id}:${agent.id}:${agent.status}`).join(",");
   const approvals = snapshot.approvals.map((approval) => approval.id).join(",");
   const fleets = snapshot.fleets.map((fleet) => `${fleet.id}:${fleet.status}`).join(",");
-  return `${domains}|${runs}|${agents}|${approvals}|${fleets}|${snapshot.error?.message ?? ""}`;
+  const diagnostics = snapshot.diagnostics
+    .map((diagnostic) => `${diagnostic.domain_id}:${diagnostic.stage}:${diagnostic.run_id ?? ""}:${diagnostic.message}`)
+    .join(",");
+  return `${domains}|${runs}|${agents}|${approvals}|${fleets}|${diagnostics}|${snapshot.error?.message ?? ""}`;
 }
 
 export async function consumeDomainChanges(

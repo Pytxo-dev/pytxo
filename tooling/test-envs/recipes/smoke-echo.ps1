@@ -10,12 +10,13 @@ $Pytxo = Resolve-PytxoBin
 $env:PYTXO_BIN = $Pytxo
 
 Write-Host "=== dry-run ==="
-& $Pytxo run --config pytxo.toml --dry-run
+Invoke-PytxoChecked $Pytxo trust orbit
+Invoke-PytxoChecked $Pytxo run --config pytxo.toml --dry-run
 
 Write-Host "=== execute (echo) ==="
-& $Pytxo run --config pytxo.toml --cmd "echo pytxo-agent"
+Invoke-PytxoChecked $Pytxo run --config pytxo.toml --cmd "echo pytxo-agent"
 
 Write-Host "=== status ==="
-& $Pytxo status
+Invoke-PytxoChecked $Pytxo status
 
 Write-Host "OK: smoke-echo complete (PYTXO_BIN=$Pytxo)"

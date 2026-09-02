@@ -2,6 +2,7 @@ mod cache;
 mod config;
 mod delta;
 mod sandbox;
+mod upload;
 
 pub use cache::{
     content_hash, CacheLookup, CachePut, CachedScaffold, ContextCache, HttpContextCache,
@@ -15,4 +16,8 @@ pub use delta::{
 pub use sandbox::{
     CloudDispatcher, ExecRequest, ExecResponse, HttpCloudDispatcher, NoopCloudDispatcher,
     StartSandboxRequest, StartSandboxResponse, SyncFile,
+};
+pub use upload::{
+    cloud_path_denied, cloud_sync_manifest, validate_cloud_content, validate_cloud_upload,
+    CloudSyncManifest, CloudSyncManifestEntry,
 };

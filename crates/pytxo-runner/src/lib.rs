@@ -43,7 +43,8 @@ pub use change_set::{
 pub use context::{prepare_agent_context, prepare_agent_context_for_root, ContextBundle};
 pub use enforcement::{
     permission_enforcement_receipt, permission_enforcement_receipt_for_mechanism,
-    EnforcementSurfaceReceipt, PermissionEnforcementReceipt,
+    verification_enforcement_receipt, EnforcementSurfaceReceipt, PermissionEnforcementReceipt,
+    VerificationEnforcementReceipt,
 };
 pub use failure::implicated_paths;
 pub use git::{branch_name, create_worktree, merge_agent_branch, remove_worktree};
@@ -52,7 +53,7 @@ pub use hitl_gate::{
     classify_mcp_proxy, classify_risky_command, gate_hitl_action, gate_mcp_proxy,
     gate_spawn_command, workspace_writes_outside_root,
 };
-pub use kill::kill_pid;
+pub use kill::{kill_pid, process_matches, process_start_identity};
 pub use mcp_hub::{spawn_test_mcp_child, ChildMcpSession, McpHub};
 pub use network_isolation::{
     isolate_deepspace_network, isolation_mechanism, wrap_deepspace_shell_cmd,
@@ -105,6 +106,6 @@ pub fn doctor_overlay_probe() -> pytxo_core::Result<String> {
 }
 pub use race::SwarmRegistry;
 pub use run::{
-    cleanup_worktrees, commit_workspace, execute_plan, stop_all, stop_run, AgentRunResult,
-    EventCallback, RootExec, RunContext,
+    cleanup_worktrees, commit_workspace, execute_plan, stop_all, stop_run, AgentRunOutcome,
+    AgentRunResult, EventCallback, RootExec, RunContext,
 };

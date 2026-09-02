@@ -107,6 +107,7 @@ export const ipc = {
       agents: AgentDto[];
       approvals: HitlDto[];
       fleets: import("./types").FleetRunDto[];
+      diagnostics: import("./desktop-backend").DesktopSnapshotDiagnostic[];
     }>("load_desktop_snapshot", { runLimit, fleetLimit, includeAgents }).then(unwrap),
   forgetDomain: (domainId: string) =>
     invoke<void>("forget_domain", { domainId }).then(unwrap),

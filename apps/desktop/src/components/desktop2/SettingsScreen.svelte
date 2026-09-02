@@ -763,7 +763,7 @@
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #6f7784;
+    color: #79828f;
   }
   .setting-row {
     display: flex;
@@ -786,7 +786,7 @@
   .setting-row small {
     display: block;
     margin-top: 3px;
-    color: #6f7784;
+    color: #79828f;
     font-size: 11.5px;
     line-height: 1.4;
   }
@@ -1013,7 +1013,7 @@
   }
   .profile-grid small {
     margin-top: 4px;
-    color: #6f7784;
+    color: #79828f;
     font-size: 11px;
   }
   .toggle {

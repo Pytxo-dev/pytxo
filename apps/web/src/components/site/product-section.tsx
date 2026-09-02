@@ -19,7 +19,7 @@ const ANNOTATIONS = [
   {
     n: "03",
     title: "Commit boundary",
-    body: "The panel that owns the only irreversible action in the product. It stays on screen the whole time, so approving is never a surprise.",
+    body: "The panel that shows the prepared package, effective permission profile, and journaled Apply state. It stays visible so repository impact is never a surprise.",
   },
   {
     n: "04",
@@ -60,8 +60,7 @@ export function ProductSection() {
           />
         </div>
         <figcaption className="mt-4 font-mono text-[12px] text-[#6f6f79]">
-          Pytxo Desktop, Work. Unmodified capture at 1600&times;1000, regenerated from the
-          app on every build.
+          Pytxo Desktop, Work. Unmodified 1600&times;1000 capture from the checked-in release source.
         </figcaption>
       </figure>
 

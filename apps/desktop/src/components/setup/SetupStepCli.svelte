@@ -29,7 +29,7 @@
     } else if (phase !== "installing") {
       phase = "ready";
       message =
-        "Install the CLI for terminal parity, MCP tools, and pytxo doctor. Dispatch works without it.";
+        "Desktop can run work without a separate CLI install. Install the CLI for terminal workflows, MCP tools, and pytxo doctor.";
     }
   }
 

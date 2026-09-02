@@ -157,6 +157,15 @@ test.describe("Review depth", () => {
     await page.getByRole("button", { name: "Refresh review" }).click();
     await expect(page.getByText("Ready to Apply")).toBeVisible();
 
+    const apply = page.getByRole("button", { name: "Apply reviewed changes" });
+    await apply.click();
+    const applyDialog = page.getByRole("dialog", { name: "Apply exact reviewed package?" });
+    await expect(applyDialog).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(applyDialog).toBeHidden();
+    await expect(apply).toBeFocused();
+
     await page.getByRole("button", { name: "Discard review" }).click();
     await expect(page.getByRole("dialog", { name: "Discard prepared review?" })).toBeVisible();
     await page.getByRole("button", { name: "Keep review" }).click();
@@ -167,7 +176,8 @@ test.describe("Review depth", () => {
     await openHistory(page, "recovered");
     await openReview(page, "run-71ad");
     const retry = page.getByRole("button", { name: "Retry Apply" });
-    await retry.dblclick();
+    await retry.click();
+    await page.getByRole("button", { name: "Apply exact package" }).dblclick();
     const appliedTitle = page.getByText("Applied successfully", { exact: true });
     const appliedDetail = page.getByText(
       "The reviewed package was applied to the primary checkout.",
@@ -208,6 +218,7 @@ test.describe("Review depth", () => {
     await openReview(page, "run-71ad");
 
     await page.getByRole("button", { name: "Apply reviewed changes" }).click();
+    await page.getByRole("button", { name: "Apply exact package" }).click();
     await expect(page.getByText("Review is stale")).toBeVisible();
     await page.getByRole("button", { name: "Back to runs" }).click();
     // History reports the refreshed apply state without needing a reload.

@@ -118,8 +118,8 @@
       <span>Approvals</span>
       {#if approvalsCount}<b>{approvalsCount}</b>{/if}
     </button>
-    <span class="connection" class:offline={!hypervisorOnline}>
-      <i></i> {connectionLabel}
+    <span class="connection" class:offline={!hypervisorOnline} role="status" aria-label={`Local service ${connectionLabel.toLowerCase()}`}>
+      <i></i> <span class="connection-text">{connectionLabel}</span>
     </span>
   </div>
 </div>
@@ -336,5 +336,45 @@
   }
   .mono {
     font-family: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  @media (max-width: 520px) {
+    .app-bar {
+      padding: 0 8px;
+      gap: 6px;
+    }
+    .left,
+    .app-actions {
+      gap: 6px;
+    }
+    .page-name,
+    .inbox span,
+    .connection-text {
+      display: none;
+    }
+    .switcher {
+      max-width: 104px;
+    }
+    .inbox {
+      min-width: 30px;
+      justify-content: center;
+      padding: 0 5px;
+    }
+    .age {
+      max-width: 54px;
+      overflow: hidden;
+      font-size: 9px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .connection {
+      min-width: 10px;
+      justify-content: center;
+    }
+    .gap {
+      max-width: 92px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 </style>

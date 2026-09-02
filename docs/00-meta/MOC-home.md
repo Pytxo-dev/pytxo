@@ -7,7 +7,7 @@ audience: [human, agent]
 layer: meta
 created: 2026-06-02
 updated: 2026-08-29
-related: [[MOC-home]], [[architecture-index]], [[product-vision]], [[commit-layer]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[pytxo-commit-layer-alignment]], [[v1-1-architecture]], [[pytxo-v1-1-trustworthy-mission-control]], [[chroma-aperture-identity]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]], [[ADR-0036-effect-contract-commit-boundary]], [[ADR-0037-chroma-aperture-visual-contract]], [[ADR-0038-epistemic-state-contract]], [[ADR-0039-evidence-ledger-visual-contract]]
+related: [[MOC-home]], [[architecture-index]], [[product-vision]], [[commit-layer]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[pytxo-commit-layer-alignment]], [[v1-1-architecture]], [[pytxo-v1-1-trustworthy-mission-control]], [[chroma-aperture-identity]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]], [[ADR-0036-effect-contract-commit-boundary]], [[ADR-0037-chroma-aperture-visual-contract]], [[ADR-0038-epistemic-state-contract]], [[ADR-0039-evidence-ledger-visual-contract]], [[ADR-0040-mbcz-merchant-of-record-boundary]], [[dodo-mor-integration]]
 ---
 
 # Pytxo documentation home
@@ -104,6 +104,7 @@ research ledger.
 - [[pytxo-commit-layer-alignment]] — three-phase falsification, shadow, and gated-production plan
 - [[modular-projects]] — multi-path workspaces (Antigravity-style)
 - [[tiers-hobbyist-pro-max]] · [[token-arbitrage]]
+- [[dodo-mor-integration]] — Dodo MoR, MBCZ business account, Pytxo brand, and provider-neutral Link migration
 - [[gtm-open-source-loop]] · [[competitive-benchmarks]]
 - [[desktop-ui-improvement-backlog]] — prioritized Pytxo Desktop UI findings
 - [[desktop-dangerous-ux-2026-07]] — ops-console / anti-slop Desktop UX research (0.11.0 polish)

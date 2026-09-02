@@ -44,8 +44,12 @@
   let actionPending = $state(false);
   let error = $state("");
   let notice = $state("");
+  let confirmApply = $state(false);
   let confirmDiscard = $state(false);
   let backButton = $state<HTMLButtonElement | null>(null);
+  let primaryTrigger = $state<HTMLButtonElement | null>(null);
+  let cancelApplyButton = $state<HTMLButtonElement | null>(null);
+  let applyExactPackageButton = $state<HTMLButtonElement | null>(null);
   let discardTrigger = $state<HTMLButtonElement | null>(null);
   let keepReviewButton = $state<HTMLButtonElement | null>(null);
   let discardPermanentlyButton = $state<HTMLButtonElement | null>(null);
@@ -178,6 +182,47 @@
       await loadReview();
     } finally {
       actionPending = false;
+    }
+  }
+
+  async function requestPrimaryAction() {
+    if (
+      presentation.primaryAction === "apply" ||
+      presentation.primaryAction === "retry"
+    ) {
+      if (!presentation.applyAllowed || !allVerified || actionPending) return;
+      confirmApply = true;
+      await tick();
+      cancelApplyButton?.focus();
+      return;
+    }
+    await runPrimaryAction();
+  }
+
+  async function applyExactPackage() {
+    confirmApply = false;
+    await runPrimaryAction();
+  }
+
+  async function closeApplyDialog() {
+    confirmApply = false;
+    await tick();
+    primaryTrigger?.focus();
+  }
+
+  function handleApplyDialogKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      void closeApplyDialog();
+      return;
+    }
+    if (event.key !== "Tab" || !cancelApplyButton || !applyExactPackageButton) return;
+    if (event.shiftKey && document.activeElement === cancelApplyButton) {
+      event.preventDefault();
+      applyExactPackageButton.focus();
+    } else if (!event.shiftKey && document.activeElement === applyExactPackageButton) {
+      event.preventDefault();
+      cancelApplyButton.focus();
     }
   }
 
@@ -445,6 +490,7 @@
     <div class="review-actions">
       {#if presentation.primaryLabel}
         <button
+          bind:this={primaryTrigger}
           class={presentation.primaryAction === "apply" || presentation.primaryAction === "retry"
             ? "primary primary-cue"
             : "primary"}
@@ -457,7 +503,7 @@
             presentation.primaryAction === "retry") && applyDisabledReason
             ? "apply-disabled-reason"
             : undefined}
-          onclick={runPrimaryAction}
+          onclick={requestPrimaryAction}
         >
           {#if actionPending || presentation.busy}
             <IconLoader2 size={15} class="review-spinner" />
@@ -698,6 +744,34 @@
   {/if}
 </section>
 
+{#if confirmApply}
+  <div class="dialog-backdrop" role="presentation" onkeydown={handleApplyDialogKeydown}>
+    <div class="confirm-dialog apply-dialog" role="dialog" aria-modal="true" aria-labelledby="apply-title">
+      <IconShieldCheck size={22} />
+      <div>
+        <h2 id="apply-title">Apply exact reviewed package?</h2>
+        <p>
+          Pytxo will recheck and write {manifest?.files.length ?? 0} reviewed
+          {manifest?.files.length === 1 ? " path" : " paths"} to the primary checkout.
+          Unrelated paths are left alone.
+        </p>
+        {#if review?.prepared_digest}
+          <code>{review.prepared_digest}</code>
+        {/if}
+      </div>
+      <div class="dialog-actions">
+        <button bind:this={cancelApplyButton} onclick={closeApplyDialog}>Cancel</button>
+        <button
+          bind:this={applyExactPackageButton}
+          class="confirm-apply"
+          onclick={applyExactPackage}
+          disabled={actionPending}
+        >Apply exact package</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if confirmDiscard}
   <div class="dialog-backdrop" role="presentation" onkeydown={handleDiscardDialogKeydown}>
     <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="discard-title">
@@ -886,7 +960,10 @@
   .confirm-dialog { display: grid; grid-template-columns: auto 1fr; gap: 12px; width: min(440px, 100%); padding: 18px; border: 1px solid #3d3334; border-radius: 10px; background: #151719; box-shadow: 0 20px 70px rgba(0,0,0,.45); color: #e1b0b5; }
   .confirm-dialog h2 { margin: 0; color: #e3e7eb; font-size: 16px; }
   .confirm-dialog p { margin: 5px 0 0; color: #8d969f; font-size: 11px; line-height: 1.5; }
+  .confirm-dialog code { display: block; overflow-wrap: anywhere; margin-top: 8px; color: #a4adb6; font: 10px/1.45 "IBM Plex Mono", monospace; }
+  .confirm-dialog.apply-dialog { border-color: #315451; color: #80d1c3; }
   .dialog-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+  .dialog-actions .confirm-apply { border-color: #2f746a; color: #05100e; background: #80d1c3; }
   .dialog-actions .danger { border-color: #713840; color: #fff; background: #813943; }
   @keyframes review-spin { to { transform: rotate(360deg); } }
   @keyframes review-pulse { to { background: #1b2228; } }
