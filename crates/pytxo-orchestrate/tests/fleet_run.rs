@@ -20,6 +20,18 @@ fn shared_trust_store() -> &'static PathBuf {
         path
     })
 }
+
+fn shared_pytxo_home() -> &'static PathBuf {
+    static STORE: OnceLock<PathBuf> = OnceLock::new();
+    STORE.get_or_init(|| {
+        let dir = TempDir::new().expect("pytxo home tempdir");
+        let path = dir.path().to_path_buf();
+        std::mem::forget(dir);
+        unsafe { std::env::set_var("PYTXO_HOME", &path) };
+        path
+    })
+}
+
 fn init_git_repo(path: &std::path::Path) {
     for args in [
         vec!["init"],
@@ -56,9 +68,7 @@ fn trust(path: &std::path::Path) {
 }
 #[tokio::test]
 async fn fleet_dag_orders_cross_repo_waves() {
-    let home = TempDir::new().unwrap();
-    unsafe { std::env::set_var("HOME", home.path()) };
-    unsafe { std::env::set_var("USERPROFILE", home.path()) };
+    let _ = shared_pytxo_home();
     let _ = shared_trust_store();
     let api = TempDir::new().unwrap();
     let web = TempDir::new().unwrap();
@@ -132,4 +142,64 @@ depends_on = ["fix-api"]
     let cat = Catalog::open_default().unwrap();
     let domains = cat.list_domains().unwrap();
     assert!(domains.len() >= 2);
+}
+
+#[tokio::test]
+async fn failed_fleet_settles_later_nodes_and_returns_an_error() {
+    let _ = shared_pytxo_home();
+    let _ = shared_trust_store();
+    let manifest_dir = TempDir::new().unwrap();
+    let missing = manifest_dir.path().join("missing-repository");
+    let manifest_path = manifest_dir.path().join("failed-fleet.toml");
+    std::fs::write(
+        &manifest_path,
+        format!(
+            r#"
+[fleet]
+id = "settlement-failure"
+
+[[node]]
+id = "cannot-start"
+repo = "{missing}"
+cmd = "echo never"
+agents = 1
+
+[[node]]
+id = "must-not-run"
+repo = "{missing}"
+cmd = "echo never"
+agents = 1
+depends_on = ["cannot-start"]
+"#,
+            missing = toml_path(&missing),
+        ),
+    )
+    .unwrap();
+
+    let error = fleet_run(FleetRunOptions {
+        manifest: Some(manifest_path),
+        fleet_id: None,
+        dry_run: false,
+        wait_timeout: Duration::from_secs(5),
+        ..FleetRunOptions::default()
+    })
+    .await
+    .expect_err("a failed node must make the fleet command fail");
+    assert!(error
+        .to_string()
+        .contains("failed after durable settlement"));
+
+    let catalog = Catalog::open_default().unwrap();
+    let fleet = catalog
+        .list_fleet_runs(Some("settlement-failure"), 1)
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap();
+    assert_eq!(fleet.status, "failed");
+    assert!(fleet.finished_at.is_some());
+    let nodes = catalog.list_fleet_nodes(&fleet.id).unwrap();
+    assert_eq!(nodes.len(), 2);
+    assert_eq!(nodes[0].status, "failed");
+    assert_eq!(nodes[1].status, "skipped");
 }

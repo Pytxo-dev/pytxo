@@ -2,9 +2,11 @@ use std::fs;
 use std::process::Command;
 use std::time::Duration;
 
-use pytxo_core::{ExecutionBackend, PermissionProfile, PytxoConfig};
+use pytxo_core::{PermissionProfile, PytxoConfig};
 use pytxo_orchestrate::{dispatch, stop_exact, trust_repo, RunOptions};
-use pytxo_runner::{registry_path, ProcessRegistryFile};
+use pytxo_runner::{
+    process_matches, process_start_identity, registry_path, ProcessEntry, ProcessRegistryFile,
+};
 use pytxo_store::PytxoStore;
 use tempfile::tempdir;
 
@@ -24,6 +26,19 @@ fn init_git_repo(path: &std::path::Path) {
             .success());
     }
     fs::write(path.join("README.md"), "test\n").expect("write repo file");
+    if cfg!(windows) {
+        fs::write(
+            path.join("block.ps1"),
+            "$child = Start-Process powershell -ArgumentList @('-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 120') -PassThru\nSet-Content -Path 'child.pid' -Value $child.Id\nWait-Process -Id $child.Id\n",
+        )
+        .expect("write blocking PowerShell fixture");
+    } else {
+        fs::write(
+            path.join("block.sh"),
+            "#!/bin/sh\nsleep 120 &\necho $! > child.pid\nwait\n",
+        )
+        .expect("write blocking shell fixture");
+    }
     assert!(Command::new("git")
         .args(["add", "."])
         .current_dir(path)
@@ -40,9 +55,9 @@ fn init_git_repo(path: &std::path::Path) {
 
 fn blocking_command() -> &'static str {
     if cfg!(windows) {
-        "powershell -NoProfile -Command \"Start-Sleep -Seconds 2\""
+        "powershell -NoProfile -File block.ps1"
     } else {
-        "sleep 2"
+        "sh block.sh"
     }
 }
 
@@ -160,7 +175,7 @@ async fn run_dispatched_blocking_run_scenario() {
         dry_run: false,
         keep_worktrees: false,
         repo: Some(repo.to_path_buf()),
-        execution: Some(ExecutionBackend::Subprocess),
+        execution: None,
         project: None,
         tasks: None,
         task_cmd_template: None,
@@ -179,17 +194,88 @@ async fn run_dispatched_blocking_run_scenario() {
                 .is_some_and(|(status, _)| status == "running");
             let child_is_persisted = ProcessRegistryFile::load(&registry_path(&data_dir))
                 .ok()
-                .is_some_and(|registry| !registry.for_run(&run_id.0).is_empty());
+                .and_then(|registry| registry.for_run(&run_id.0).first().cloned().cloned())
+                .is_some_and(|entry| {
+                    entry.start_identity.is_some()
+                        && std::path::Path::new(&entry.worktree_path)
+                            .join("child.pid")
+                            .exists()
+                });
             status_is_running && child_is_persisted
         })
         .await;
         if !started {
-            return Err("timed out waiting for the dispatched blocking child".into());
+            let status = PytxoStore::open(&db_path)
+                .ok()
+                .and_then(|store| store.get_run_status(&run_id.0).ok().flatten());
+            let entries = ProcessRegistryFile::load(&registry_path(&data_dir))
+                .map(|registry| registry.for_run(&run_id.0).into_iter().cloned().collect::<Vec<_>>())
+                .map_err(|error| format!("load timeout registry: {error}"))?;
+            let details = entries
+                .iter()
+                .map(|entry| {
+                    format!(
+                        "pid={} identity={} child_pid_file={} worktree={}",
+                        entry.pid,
+                        entry.start_identity.is_some(),
+                        std::path::Path::new(&entry.worktree_path).join("child.pid").exists(),
+                        entry.worktree_path
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            return Err(format!(
+                "timed out waiting for the dispatched blocking child; status={status:?}; registry=[{details}]"
+            ));
         }
+
+        let root_entry: ProcessEntry = ProcessRegistryFile::load(&registry_path(&data_dir))
+            .map_err(|error| format!("load live registry: {error}"))?
+            .for_run(&run_id.0)
+            .first()
+            .cloned()
+            .cloned()
+            .ok_or_else(|| "live PTY process identity was not durable".to_string())?;
+        let root_identity = root_entry
+            .start_identity
+            .clone()
+            .ok_or_else(|| "live PTY entry has no process start identity".to_string())?;
+        if !process_matches(root_entry.pid, &root_identity)
+            .map_err(|error| format!("verify live PTY identity: {error}"))?
+        {
+            return Err("durable PTY identity does not match the live process".into());
+        }
+        let descendant_pid =
+            fs::read_to_string(std::path::Path::new(&root_entry.worktree_path).join("child.pid"))
+                .map_err(|error| format!("read descendant pid: {error}"))?
+                .trim()
+                .parse::<u32>()
+                .map_err(|error| format!("parse descendant pid: {error}"))?;
+        let descendant_identity = process_start_identity(descendant_pid)
+            .map_err(|error| format!("read descendant identity: {error}"))?
+            .ok_or_else(|| "PTY descendant was not live before Stop".to_string())?;
 
         stop_exact(None, Some(repo.to_path_buf()), &run_id.0, false)
             .await
             .map_err(|error| format!("stop the exact active run: {error}"))?;
+
+        if process_matches(root_entry.pid, &root_identity)
+            .map_err(|error| format!("verify PTY root exit: {error}"))?
+        {
+            return Err("Stop returned while the PTY root was still live".into());
+        }
+        if process_matches(descendant_pid, &descendant_identity)
+            .map_err(|error| format!("verify PTY descendant exit: {error}"))?
+        {
+            return Err("Stop returned while a PTY descendant was still live".into());
+        }
+        if !ProcessRegistryFile::load(&registry_path(&data_dir))
+            .map_err(|error| format!("load registry after Stop: {error}"))?
+            .for_run(&run_id.0)
+            .is_empty()
+        {
+            return Err("confirmed process identity remained in the live registry".into());
+        }
 
         let worker_unwound = wait_until(|| {
             PytxoStore::open(&db_path)

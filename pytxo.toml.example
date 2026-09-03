@@ -41,7 +41,8 @@ tier_max_agents = 3
 # sandbox_url = "https://cloud.pytxo.com/v1"
 # cache_url = "https://cloud.pytxo.com/v1"
 # cache_enabled = true
-# fallback_local = true   # PTY fallback when cloud unreachable
+# upload_consent = true  # also requires the out-of-band PYTXO_CLOUD_UPLOAD_CONSENT acknowledgement
+# fallback_local = true   # Also requires PYTXO_CLOUD_FALLBACK_LOCAL=I_UNDERSTAND_CLOUD_FAILURE_WILL_RUN_LOCALLY
 
 # MCP hub v2 — bidirectional proxy to child agent MCP servers
 # [mcp_hub]

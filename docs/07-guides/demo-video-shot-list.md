@@ -15,10 +15,14 @@ related:
 
 # Pytxo v1 live product demo runbook
 
+> This v1-era note is retained for capture technique only. The canonical v1.2
+> sequence, current Work/History/Setup navigation, deterministic fixture, exact
+> commands, and fallback behavior are in the repository-root `DEMO.md`.
+
 Record a real 85–95 second product walkthrough with Screen Studio-style camera movement. The
 viewer should see one continuous product story:
 
-`agent readiness → guided repo → mission → plan → run → evidence → human decision`
+`controlled work → isolation → verification → exact review → human Apply → evidence`
 
 The Remotion cut in `apps/demo-video` is the narrated launch asset. This runbook is for the
 less-produced live recording that proves the application works.

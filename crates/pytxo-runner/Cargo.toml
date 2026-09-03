@@ -37,4 +37,7 @@ overlay-fuse-macos = []
 overlay-projfs = []
 
 [target.'cfg(target_os = "linux")'.dependencies]
-fuser = { version = "0.14", optional = true }
+fuser = { version = "0.16", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }

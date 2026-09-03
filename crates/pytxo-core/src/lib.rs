@@ -34,11 +34,12 @@ pub use billing::{
 };
 pub use child_env::ChildLaunchEnv;
 pub use cloud::{
-    collect_sync_paths, content_hash, delta_from_overlay_upper, is_overlay_upper,
-    overlay_upper_cloud_delta, CacheLookup, CachePut, CachedScaffold, CloudConfig, CloudDispatcher,
-    ContextCache, ExecRequest, ExecResponse, HttpCloudDispatcher, HttpContextCache, McpHubConfig,
-    NoopCloudDispatcher, NoopContextCache, OverlayDelta, StartSandboxRequest, StartSandboxResponse,
-    SyncFile,
+    cloud_path_denied, cloud_sync_manifest, collect_sync_paths, content_hash,
+    delta_from_overlay_upper, is_overlay_upper, overlay_upper_cloud_delta, validate_cloud_content,
+    validate_cloud_upload, CacheLookup, CachePut, CachedScaffold, CloudConfig, CloudDispatcher,
+    CloudSyncManifest, CloudSyncManifestEntry, ContextCache, ExecRequest, ExecResponse,
+    HttpCloudDispatcher, HttpContextCache, McpHubConfig, NoopCloudDispatcher, NoopContextCache,
+    OverlayDelta, StartSandboxRequest, StartSandboxResponse, SyncFile,
 };
 pub use config::{BlastConfig, PytxoConfig};
 pub use error::{PytxoError, Result};

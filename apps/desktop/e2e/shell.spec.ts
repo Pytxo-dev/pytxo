@@ -124,7 +124,7 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByRole("heading", { name: "Open a Workspace" })).toBeVisible();
     await page.getByRole("button", { name: "Try the guided example" }).click();
     await expect(page.getByText("C:/Users/demo/Documents/Pytxo Examples/approval-risk-demo", { exact: true })).toBeVisible();
-    await expect(page.getByText("Local git example ready. No API key required.")).toBeVisible();
+    await expect(page.getByText("Guided local Git example ready. Its baseline tests need no API key.")).toBeVisible();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByRole("heading", { name: "Set your display" })).toBeVisible();
   });
@@ -265,6 +265,71 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
   });
 
+  test("Flow invalidates a ready plan after mission, workspace, or CLI edits", async ({ page }) => {
+    await completeOnboarding(page);
+    await page.goto("/#/flow");
+    const outcome = page.getByLabel("Mission outcome");
+    const composerBuild = page.locator(".composer-panel").getByRole("button", { name: "Build plan", exact: true });
+    const run = page.getByRole("button", { name: "Run", exact: true });
+
+    await outcome.fill("Prepare an exact release-safe patch");
+    await composerBuild.click();
+    await expect(run).toBeEnabled();
+
+    await outcome.fill("Prepare an exact release-safe patch with tests");
+    await expect(page.getByText("Plan is stale")).toBeVisible();
+    await expect(run).toBeDisabled();
+    await composerBuild.click();
+    await expect(run).toBeEnabled();
+
+    await page.getByLabel("Workspace").selectOption("signal-lab");
+    await expect(run).toBeDisabled();
+    await composerBuild.click();
+    await expect(run).toBeEnabled();
+
+    await page.getByLabel("Agent CLI").selectOption("claude");
+    await expect(run).toBeDisabled();
+    await composerBuild.click();
+    await expect(run).toBeEnabled();
+  });
+
+  test("a failed replacement preview clears the old authority and keeps Run disabled", async ({ page }) => {
+    await completeOnboarding(page);
+    await page.goto("/#/flow");
+    const outcome = page.getByLabel("Mission outcome");
+    const composerBuild = page.locator(".composer-panel").getByRole("button", { name: "Build plan", exact: true });
+
+    await outcome.fill("Prepare a valid plan first");
+    await composerBuild.click();
+    await expect(page.getByRole("button", { name: "Run", exact: true })).toBeEnabled();
+
+    await outcome.fill("Now preview the edited mission");
+    await page.evaluate(() => localStorage.setItem("pytxo-preview-flow-error-v1", "1"));
+    await composerBuild.click();
+    await expect(page.getByText("Preview failed while checking the selected workspace.")).toBeVisible();
+    await expect(page.getByText("The previous plan was cleared.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Run", exact: true })).toBeDisabled();
+  });
+
+  test("Flow auto-selects the first ready detected CLI and explains unavailable choices", async ({ page }) => {
+    await completeOnboarding(page, { "pytxo-preview-ade-state-v1": "codex-only" });
+    await page.goto("/#/flow");
+
+    await expect(page.getByLabel("Agent CLI")).toHaveValue("codex");
+    await expect(page.getByText("OpenAI Codex: ready")).toBeVisible();
+    await expect(page.getByText(/Claude Code \(not installed\)/)).toBeVisible();
+    await page.getByLabel("Mission outcome").fill("Use the detected ready CLI");
+    await expect(page.locator(".composer-panel").getByRole("button", { name: "Build plan" })).toBeEnabled();
+  });
+
+  test("Flow persists an explicit ready CLI choice", async ({ page }) => {
+    await completeOnboarding(page);
+    await page.goto("/#/flow");
+    await page.getByLabel("Agent CLI").selectOption("claude");
+    await page.reload();
+    await expect(page.getByLabel("Agent CLI")).toHaveValue("claude");
+  });
+
   test("Voice capture produces an editable Flow mission with the preview backend", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/flow");
@@ -390,10 +455,10 @@ test.describe("Pytxo Desktop shell", () => {
     );
     await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
 
-    // Focus lands on the focused run's switch, so the operator can act without
-    // reaching for the mouse.
-    const runTab = page.getByRole("tab", { name: /run-8f2c/ });
-    await expect(runTab).toBeFocused();
+    // This workspace has one visible run, so there is no redundant run switch.
+    // Focus lands on the scoped Work heading and the exact run remains visible.
+    await expect(page.locator(".work-heading > div")).toBeFocused();
+    await expect(page.getByRole("region", { name: "Focused run" })).toContainText("run-8f2c");
 
     const stop = page.getByRole("button", { name: "Stop", exact: true });
     await stop.click();
@@ -402,7 +467,7 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(dialog.getByRole("heading", { name: "Stop run-8f2c?" })).toBeVisible();
     await expect(dialog.getByText("pytxo", { exact: true })).toBeVisible();
     await expect(
-      dialog.getByText(/Work already prepared for\s+review is kept; nothing is applied to the repository\./),
+      dialog.getByText(/Work already prepared for review is kept outside the repository until explicit Apply\./),
     ).toBeVisible();
 
     await dialog.getByRole("button", { name: "Keep running" }).click();

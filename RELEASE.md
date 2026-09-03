@@ -7,13 +7,14 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
-# Pytxo v1.2.0
+# Pytxo v1.2.1
 
-Desktop destinations are Work, History, and Setup. The website is an
-evidence-ledger narrative with `/evidence`. Reviewed Apply is unchanged.
-See [`distribution/release-notes/v1.2.0.md`](distribution/release-notes/v1.2.0.md).
+Pytxo v1.2.1 hardens failed-run settlement, reviewed Apply, verification,
+permission ceilings, cloud egress, hosted-service authentication, and release
+integrity. It also adds a deterministic commit-boundary demo.
+See [`distribution/release-notes/v1.2.1.md`](distribution/release-notes/v1.2.1.md).
 
-Previous: [`v1.1.1`](distribution/release-notes/v1.1.1.md).
+Previous: [`v1.2.0`](distribution/release-notes/v1.2.0.md).
 
 ---
 

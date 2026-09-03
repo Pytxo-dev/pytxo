@@ -87,7 +87,7 @@
   let workPane = $state<WorkPane>("active");
   let missionView = $state<MissionView>("list");
   let missionPane = $state<MissionPane>("live");
-  let snapshot = $state<DesktopSnapshot>({ domains: [], runs: [], agents: [], approvals: [], fleets: [], error: null });
+  let snapshot = $state<DesktopSnapshot>({ domains: [], runs: [], agents: [], approvals: [], fleets: [], diagnostics: [], error: null });
   let snapshotFingerprint = $state("");
   let loading = $state(true);
   let commandOpen = $state(false);
@@ -300,8 +300,7 @@
 
   function domainIdForRun(runId: string): string | null {
     const run = snapshot.runs.find((r) => r.id === runId);
-    if (!run) return null;
-    return snapshot.domains.find((d) => d.repo_root === run.repo_root)?.domain_id ?? null;
+    return run?.domain_id ?? null;
   }
 
   function pickDefaultDetailRun(runs: DesktopSnapshot["runs"]) {
@@ -357,8 +356,7 @@
         const pick = pickDefaultDetailRun(next.runs);
         if (pick) {
           focusRunId = pick.id;
-          focusDomainId =
-            next.domains.find((d) => d.repo_root === pick.repo_root)?.domain_id ?? null;
+          focusDomainId = pick.domain_id;
         }
       }
       if (next.error && !opts.silent) {
@@ -712,6 +710,19 @@
       {#if workspaceError}<div class="status-banner error-banner">{workspaceError}</div>{/if}
       {#if workspaceMessage}<div class="status-banner">{workspaceMessage}</div>{/if}
       {#if loadMessage}<div class:error-banner={previewState === "error" || !!snapshot.error} class="status-banner">{loadMessage}</div>{/if}
+      {#if snapshot.diagnostics.length}
+        <div class="status-banner error-banner" role="status">
+          Snapshot is partial: {snapshot.diagnostics.length} workspace read {snapshot.diagnostics.length === 1 ? "failed" : "failures"}. Review the missing evidence before approving or applying.
+          <details>
+            <summary>Show partial-snapshot details</summary>
+            <ul>
+              {#each snapshot.diagnostics as diagnostic}
+                <li><strong>{diagnostic.domain_id}</strong> · {diagnostic.stage}{diagnostic.run_id ? ` · ${diagnostic.run_id}` : ""}: {diagnostic.message}</li>
+              {/each}
+            </ul>
+          </details>
+        </div>
+      {/if}
       {#if loading}
         <div class="loading-state"><div></div><div></div><div></div></div>
       {:else if route === "work" && workPane === "active"}

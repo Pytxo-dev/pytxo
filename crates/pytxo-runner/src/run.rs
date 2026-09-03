@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, HashMap};
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::thread;
+use std::time::{Duration, Instant};
 
 use pytxo_core::{
     overlay_upper_cloud_delta, root_scoped_claim, AgentId, BillingMode, ByteHeuristicEstimator,
@@ -29,6 +30,8 @@ pub struct RootExec {
     pub repo_root: PathBuf,
     pub worktree_base: PathBuf,
     pub read_only: bool,
+    /// Manifest-requested profile before folder/org trust ceilings.
+    pub requested_permission_profile: PermissionProfile,
     pub permission_profile: PermissionProfile,
 }
 
@@ -123,12 +126,38 @@ pub struct AgentRunResult {
     pub agent_id: AgentId,
     pub task_id: String,
     pub wave: u32,
-    pub worktree_path: PathBuf,
+    pub worktree_path: Option<PathBuf>,
     pub exit_code: Option<i32>,
     pub stdout: String,
     pub stderr: String,
+    pub outcome: AgentRunOutcome,
     /// Modular project root label this agent ran under ([[ADR-0011-modular-project-manifest]]).
     pub root_id: Option<String>,
+}
+
+/// Terminal task outcome. Process completion alone is not dependency success:
+/// verification must also pass before a workspace can be composed downstream.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AgentRunOutcome {
+    Succeeded,
+    ProcessFailed,
+    VerificationFailed,
+    BlockedByDependency { task_ids: Vec<String> },
+}
+
+impl AgentRunOutcome {
+    pub fn is_success(&self) -> bool {
+        matches!(self, Self::Succeeded)
+    }
+
+    pub fn ledger_status(&self) -> &'static str {
+        match self {
+            Self::Succeeded => "completed",
+            Self::ProcessFailed => "failed",
+            Self::VerificationFailed => "verify_failed",
+            Self::BlockedByDependency { .. } => "blocked_by_dependency",
+        }
+    }
 }
 
 pub struct SingleResult {
@@ -145,6 +174,17 @@ struct DependencyOutput {
     workspace_path: PathBuf,
     paths: Vec<String>,
     root_id: Option<String>,
+}
+
+struct CloudSandboxGuard {
+    dispatcher: Arc<dyn CloudDispatcher>,
+    sandbox_id: String,
+}
+
+impl Drop for CloudSandboxGuard {
+    fn drop(&mut self) {
+        let _ = self.dispatcher.teardown(&self.sandbox_id);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -172,27 +212,89 @@ pub async fn execute_plan(
             let task = task.clone();
             let registry = registry.clone();
             let swarm = swarm.clone();
+            let blocked_by = task
+                .depends_on
+                .iter()
+                .filter(|dependency_id| !completed.contains_key(*dependency_id))
+                .cloned()
+                .collect::<Vec<_>>();
+            if !blocked_by.is_empty() {
+                all_results.push(AgentRunResult {
+                    agent_id,
+                    task_id: task.task_id.0,
+                    wave: task.wave,
+                    worktree_path: None,
+                    exit_code: None,
+                    stdout: String::new(),
+                    stderr: format!(
+                        "blocked by unsuccessful dependency: {}",
+                        blocked_by.join(", ")
+                    ),
+                    outcome: AgentRunOutcome::BlockedByDependency {
+                        task_ids: blocked_by,
+                    },
+                    root_id: task.root,
+                });
+                continue;
+            }
             let dependencies = task
                 .depends_on
                 .iter()
-                .map(|dependency_id| {
-                    completed.get(dependency_id).cloned().ok_or_else(|| {
-                        PytxoError::Runner(format!(
-                            "task {} dependency {} has no completed output",
-                            task.task_id.0, dependency_id
-                        ))
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?;
+                .filter_map(|dependency_id| completed.get(dependency_id).cloned())
+                .collect::<Vec<_>>();
             set.spawn(async move {
-                run_one_agent(&ctx, &task, &agent_id, &registry, &swarm, &dependencies).await
+                let failure_agent_id = agent_id.clone();
+                let failure_task_id = task.task_id.0.clone();
+                let failure_wave = task.wave;
+                let failure_root = task.root.clone();
+                let agent_key = format!("{}:{}", ctx.run_id, agent_id);
+                let cleanup_ctx = ctx.clone();
+                let cleanup_registry = registry.clone();
+                let cleanup_swarm = swarm.clone();
+                let worker = tokio::spawn(async move {
+                    run_one_agent(&ctx, &task, &agent_id, &registry, &swarm, &dependencies).await
+                });
+                match worker.await {
+                    Ok(Ok(result)) => result,
+                    Ok(Err(error)) => failed_agent_result(
+                        &cleanup_ctx,
+                        &cleanup_registry,
+                        &cleanup_swarm,
+                        &agent_key,
+                        failure_agent_id,
+                        failure_task_id,
+                        failure_wave,
+                        failure_root,
+                        format!("agent lifecycle failed: {error}"),
+                    ),
+                    Err(error) => failed_agent_result(
+                        &cleanup_ctx,
+                        &cleanup_registry,
+                        &cleanup_swarm,
+                        &agent_key,
+                        failure_agent_id,
+                        failure_task_id,
+                        failure_wave,
+                        failure_root,
+                        format!("agent lifecycle task aborted: {error}"),
+                    ),
+                }
             });
         }
 
         let mut wave_results = Vec::new();
+        let mut join_errors = Vec::new();
         while let Some(joined) = set.join_next().await {
-            let result = joined.map_err(|e| PytxoError::Runner(format!("join: {e}")))??;
-            wave_results.push(result);
+            match joined {
+                Ok(result) => wave_results.push(result),
+                Err(error) => join_errors.push(error.to_string()),
+            }
+        }
+        if !join_errors.is_empty() {
+            return Err(PytxoError::Runner(format!(
+                "agent supervisor task failed after draining its wave: {}",
+                join_errors.join("; ")
+            )));
         }
         for result in wave_results {
             let task = wave
@@ -204,15 +306,23 @@ pub async fn execute_plan(
                         result.task_id
                     ))
                 })?;
-            completed.insert(
-                result.task_id.clone(),
-                DependencyOutput {
-                    task_id: result.task_id.clone(),
-                    workspace_path: result.worktree_path.clone(),
-                    paths: task.paths.clone(),
-                    root_id: result.root_id.clone(),
-                },
-            );
+            if result.outcome.is_success() {
+                let workspace_path = result.worktree_path.clone().ok_or_else(|| {
+                    PytxoError::Runner(format!(
+                        "successful task {} has no workspace output",
+                        result.task_id
+                    ))
+                })?;
+                completed.insert(
+                    result.task_id.clone(),
+                    DependencyOutput {
+                        task_id: result.task_id.clone(),
+                        workspace_path,
+                        paths: task.paths.clone(),
+                        root_id: result.root_id.clone(),
+                    },
+                );
+            }
             all_results.push(result);
         }
     }
@@ -223,6 +333,43 @@ pub async fn execute_plan(
     })?;
 
     Ok(all_results)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn failed_agent_result(
+    ctx: &RunContext,
+    registry: &ProcessRegistry,
+    swarm: &SwarmRegistry,
+    agent_key: &str,
+    agent_id: AgentId,
+    task_id: String,
+    wave: u32,
+    root_id: Option<String>,
+    message: String,
+) -> AgentRunResult {
+    swarm.release(agent_key);
+    if let Some(hub) = &ctx.mcp_hub {
+        hub.deregister(agent_key);
+    }
+    if let Some(callback) = ctx.on_event.as_ref() {
+        callback(agent_key, "agent-lifecycle-failed", &message);
+    }
+    let worktree_path = registry
+        .list()
+        .into_iter()
+        .find(|record| record.run_id == ctx.run_id && record.agent_id == agent_id)
+        .map(|record| record.worktree_path);
+    AgentRunResult {
+        agent_id,
+        task_id,
+        wave,
+        worktree_path,
+        exit_code: None,
+        stdout: String::new(),
+        stderr: message,
+        outcome: AgentRunOutcome::ProcessFailed,
+        root_id,
+    }
 }
 
 fn compose_dependency_outputs(
@@ -653,25 +800,55 @@ async fn run_one_agent(
 
     let mut effective_backend = ctx.execution_backend;
     let mut sandbox_id: Option<String> = None;
+    let mut sandbox_guard: Option<CloudSandboxGuard> = None;
     if ctx.execution_backend == ExecutionBackend::Cloud {
         if let Some(dispatcher) = ctx.cloud_dispatcher.as_ref() {
             match dispatcher.start_sandbox(&StartSandboxRequest {
                 domain_id: ctx.domain_id.0.clone(),
                 run_id: ctx.run_id.0.clone(),
                 agent_id: agent_id.0.clone(),
-                repo_fingerprint: eff_repo_root.to_string_lossy().into_owned(),
+                repo_fingerprint: pytxo_core::content_hash(
+                    eff_repo_root.to_string_lossy().as_bytes(),
+                ),
             }) {
                 Ok(start) => {
-                    sandbox_id = Some(start.sandbox_id.clone());
-                    if let Ok(files) =
-                        pytxo_core::collect_sync_paths(&eff_repo_root, &ctx.sparse_exclude)
-                    {
-                        if !files.is_empty() {
-                            let _ = dispatcher.sync_delta(&start.sandbox_id, &files);
+                    let sync_result = (|| {
+                        let files =
+                            pytxo_core::collect_sync_paths(&eff_repo_root, &ctx.sparse_exclude)?;
+                        if files.is_empty() {
+                            return Ok(());
+                        }
+                        let manifest = pytxo_core::cloud_sync_manifest(&files)?;
+                        if let Some(cb) = ctx.on_event.as_ref() {
+                            let detail = serde_json::to_string(&manifest).map_err(|e| {
+                                PytxoError::Other(format!("cloud sync manifest: {e}"))
+                            })?;
+                            cb(&agent_key, "cloud-sync-manifest", &detail);
+                        }
+                        dispatcher.sync_delta(&start.sandbox_id, &files)
+                    })();
+                    match sync_result {
+                        Ok(()) => {
+                            sandbox_id = Some(start.sandbox_id.clone());
+                            sandbox_guard = Some(CloudSandboxGuard {
+                                dispatcher: Arc::clone(dispatcher),
+                                sandbox_id: start.sandbox_id,
+                            });
+                        }
+                        Err(e) if cloud_fallback_allowed(ctx.cloud_fallback_local, &e) => {
+                            let _ = dispatcher.teardown(&start.sandbox_id);
+                            if let Some(cb) = ctx.on_event.as_ref() {
+                                cb(&agent_key, "cloud-upload-denied", &format!("{e}"));
+                            }
+                            effective_backend = ExecutionBackend::Pty;
+                        }
+                        Err(e) => {
+                            let _ = dispatcher.teardown(&start.sandbox_id);
+                            return Err(e);
                         }
                     }
                 }
-                Err(e) if ctx.cloud_fallback_local => {
+                Err(e) if cloud_fallback_allowed(ctx.cloud_fallback_local, &e) => {
                     if let Some(cb) = ctx.on_event.as_ref() {
                         cb(&agent_key, "cloud-fallback", &format!("{e}"));
                     }
@@ -692,6 +869,12 @@ async fn run_one_agent(
         if let Some(delta_result) = overlay_upper_cloud_delta(&eff_repo_root, &wt_path) {
             match delta_result {
                 Ok(delta) if !delta.files.is_empty() => {
+                    let manifest = pytxo_core::cloud_sync_manifest(&delta.files)?;
+                    if let Some(cb) = ctx.on_event.as_ref() {
+                        let detail = serde_json::to_string(&manifest)
+                            .map_err(|e| PytxoError::Other(format!("cloud delta manifest: {e}")))?;
+                        cb(&agent_key, "cloud-sync-manifest", &detail);
+                    }
                     match dispatcher.sync_delta(sid, &delta.files) {
                         Ok(()) => {
                             if let Some(cb) = ctx.on_event.as_ref() {
@@ -706,7 +889,7 @@ async fn run_one_agent(
                                 );
                             }
                         }
-                        Err(e) if ctx.cloud_fallback_local => {
+                        Err(e) if cloud_fallback_allowed(ctx.cloud_fallback_local, &e) => {
                             if let Some(cb) = ctx.on_event.as_ref() {
                                 cb(&agent_key, "cloud-fallback", &format!("delta sync: {e}"));
                             }
@@ -715,7 +898,7 @@ async fn run_one_agent(
                         Err(e) => return Err(e),
                     }
                 }
-                Err(e) if ctx.cloud_fallback_local => {
+                Err(e) if cloud_fallback_allowed(ctx.cloud_fallback_local, &e) => {
                     if let Some(cb) = ctx.on_event.as_ref() {
                         cb(&agent_key, "cloud-fallback", &format!("delta: {e}"));
                     }
@@ -953,19 +1136,21 @@ async fn run_one_agent(
         result = retry;
     }
 
-    swarm.release(&agent_key);
-
-    if let Some(hub) = &ctx.mcp_hub {
-        hub.deregister(&agent_key);
-    }
-    if let (Some(sid), Some(dispatcher)) = (sandbox_id.as_ref(), ctx.cloud_dispatcher.as_ref()) {
-        let _ = dispatcher.teardown(sid);
-    }
-
     let mut exit_code = result.exit_code;
     let mut stderr = result.stderr;
+    let mut verification_failed = false;
     if exit_code == Some(0) && !task.verify.is_empty() {
-        match run_verify_commands(&wt_path, &task.verify, ctx.on_event.as_ref(), &agent_key) {
+        match run_verify_commands(
+            &wt_path,
+            &task.verify,
+            ctx.on_event.as_ref(),
+            &agent_key,
+            profile,
+            &ctx.domain_id,
+            effective_backend,
+            used_isolation,
+            ctx.hitl.as_ref(),
+        ) {
             Ok(()) => {
                 if let Some(cb) = ctx.on_event.as_ref() {
                     cb(
@@ -981,9 +1166,18 @@ async fn run_one_agent(
                 }
                 stderr = format!("{stderr}\nverify failed: {err}");
                 exit_code = Some(1);
+                verification_failed = true;
             }
         }
     }
+
+    // Verification is part of the actor lifecycle: retain the Race claim and any
+    // execution sandbox until its bounded result has been recorded.
+    swarm.release(&agent_key);
+    if let Some(hub) = &ctx.mcp_hub {
+        hub.deregister(&agent_key);
+    }
+    drop(sandbox_guard);
 
     if used_isolation && !ctx.keep_worktrees && exit_code == Some(0) {
         let _ = isolation.rollback(&iso_ctx, &workspace);
@@ -993,49 +1187,280 @@ async fn run_one_agent(
         agent_id: agent_id.clone(),
         task_id: task.task_id.0.clone(),
         wave: task.wave,
-        worktree_path: result.worktree_path,
+        worktree_path: Some(result.worktree_path),
         exit_code,
         stdout: result.stdout,
         stderr,
+        outcome: if verification_failed {
+            AgentRunOutcome::VerificationFailed
+        } else if exit_code == Some(0) {
+            AgentRunOutcome::Succeeded
+        } else {
+            AgentRunOutcome::ProcessFailed
+        },
         root_id: task.root.clone(),
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_verify_commands(
     cwd: &Path,
     commands: &[String],
     on_event: Option<&EventCallback>,
     agent_key: &str,
+    profile: PermissionProfile,
+    domain_id: &DomainId,
+    execution_backend: ExecutionBackend,
+    workspace_isolated: bool,
+    hitl: Option<&crate::hitl::HitlQueue>,
 ) -> Result<()> {
+    run_verify_commands_with_limits(
+        cwd,
+        commands,
+        on_event,
+        agent_key,
+        profile,
+        domain_id,
+        execution_backend,
+        workspace_isolated,
+        hitl,
+        VERIFY_TIMEOUT,
+        VERIFY_OUTPUT_LIMIT_BYTES,
+    )
+}
+
+const VERIFY_TIMEOUT: Duration = Duration::from_secs(120);
+const VERIFY_OUTPUT_LIMIT_BYTES: usize = 256 * 1024;
+
+#[allow(clippy::too_many_arguments)]
+fn run_verify_commands_with_limits(
+    cwd: &Path,
+    commands: &[String],
+    on_event: Option<&EventCallback>,
+    agent_key: &str,
+    profile: PermissionProfile,
+    domain_id: &DomainId,
+    execution_backend: ExecutionBackend,
+    workspace_isolated: bool,
+    hitl: Option<&crate::hitl::HitlQueue>,
+    timeout: Duration,
+    output_limit_bytes: usize,
+) -> Result<()> {
+    let receipt = crate::enforcement::verification_enforcement_receipt(
+        profile,
+        domain_id,
+        execution_backend,
+        workspace_isolated,
+        timeout,
+        output_limit_bytes,
+    )?;
+    if let Some(cb) = on_event {
+        let evidence = serde_json::to_string(&receipt)
+            .map_err(|e| PytxoError::Runner(format!("serialize verification receipt: {e}")))?;
+        cb(agent_key, "verify-boundary", &evidence);
+    }
+
+    if execution_backend == ExecutionBackend::Cloud {
+        return Err(PytxoError::Runner(
+            "verification refused: cloud execution has no cancellable verifier contract".into(),
+        ));
+    }
+
+    let engine = PermissionEngine::new(profile);
+    let net = engine.network();
     for cmd in commands {
         let cmd = cmd.trim();
         if cmd.is_empty() {
             continue;
         }
+        if !net.spawn_egress_allowed(cmd) {
+            return Err(PytxoError::Runner(format!(
+                "verification network egress denied for {} profile",
+                profile.as_str()
+            )));
+        }
+        if command_implies_egress(cmd) && !net.egress_allowed("1.1.1.1", 443) {
+            if profile == PermissionProfile::Galaxy {
+                crate::hitl_gate::gate_hitl_action(
+                    hitl,
+                    profile,
+                    agent_key,
+                    "verify.net.egress",
+                    "verification TCP egress to public internet",
+                )?;
+            } else {
+                return Err(PytxoError::Runner(format!(
+                    "verification runtime TCP egress denied for {} profile",
+                    profile.as_str()
+                )));
+            }
+        }
+        crate::hitl_gate::gate_spawn_command(hitl, profile, agent_key, cmd)?;
         if let Some(cb) = on_event {
             cb(agent_key, "verify", cmd);
         }
-        let output = if cfg!(windows) {
-            std::process::Command::new("cmd")
-                .args(["/C", cmd])
-                .current_dir(cwd)
-                .output()
-        } else {
-            std::process::Command::new("sh")
-                .args(["-lc", cmd])
-                .current_dir(cwd)
-                .output()
+        let shell = shell_command();
+        let mut command = std::process::Command::new(&shell.0);
+        command
+            .args(&shell.1)
+            .arg(cmd)
+            .current_dir(cwd)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        let mut env = ChildLaunchEnv::new();
+        env.set("PYTXO_VERIFICATION_ACTOR", "1");
+        env.set("PYTXO_PERMISSION_PROFILE", profile.as_str());
+        env.set("PYTXO_EXECUTION_DOMAIN", &domain_id.0);
+        env.apply_command(&mut command);
+        if profile == PermissionProfile::DeepSpace {
+            crate::network_isolation::isolate_deepspace_network(&mut command)?;
         }
-        .map_err(|e| PytxoError::Runner(format!("verify spawn `{cmd}`: {e}")))?;
-        if !output.status.success() {
-            let code = output.status.code().unwrap_or(-1);
-            let stderr = String::from_utf8_lossy(&output.stderr);
+        configure_verifier_process_group(&mut command);
+
+        let mut child = command
+            .spawn()
+            .map_err(|e| PytxoError::Runner(format!("verify spawn `{cmd}`: {e}")))?;
+        let stdout_handle = child
+            .stdout
+            .take()
+            .map(|pipe| spawn_bounded_reader(pipe, output_limit_bytes));
+        let stderr_handle = child
+            .stderr
+            .take()
+            .map(|pipe| spawn_bounded_reader(pipe, output_limit_bytes));
+        let started = Instant::now();
+        let output_status = loop {
+            if let Some(status) = child
+                .try_wait()
+                .map_err(|e| PytxoError::Runner(format!("verify wait `{cmd}`: {e}")))?
+            {
+                break Ok(status);
+            }
+            if started.elapsed() >= timeout {
+                terminate_verifier_tree(&mut child);
+                let _ = child.wait();
+                break Err(PytxoError::Runner(format!(
+                    "verify `{cmd}` timed out after {} ms",
+                    timeout.as_millis()
+                )));
+            }
+            thread::sleep(Duration::from_millis(10));
+        };
+        let stdout = join_bounded_reader(stdout_handle);
+        let stderr = join_bounded_reader(stderr_handle);
+        let output = output_status?;
+        if !output.success() {
+            let code = output.code().unwrap_or(-1);
             return Err(PytxoError::Runner(format!(
-                "verify `{cmd}` failed (exit {code}): {stderr}"
+                "verify `{cmd}` failed (exit {code}): {}{}",
+                stderr.text,
+                if stderr.truncated {
+                    "\n[verification stderr truncated]"
+                } else {
+                    ""
+                }
             )));
+        }
+        if let Some(cb) = on_event {
+            if !stdout.text.is_empty() {
+                cb(agent_key, "verify-stdout", &stdout.text);
+            }
+            if !stderr.text.is_empty() {
+                cb(agent_key, "verify-stderr", &stderr.text);
+            }
+            if stdout.truncated || stderr.truncated {
+                cb(
+                    agent_key,
+                    "verify-output-truncated",
+                    &format!("max_bytes_per_stream={output_limit_bytes}"),
+                );
+            }
         }
     }
     Ok(())
+}
+
+struct BoundedOutput {
+    text: String,
+    truncated: bool,
+}
+
+fn spawn_bounded_reader(
+    mut pipe: impl Read + Send + 'static,
+    limit: usize,
+) -> thread::JoinHandle<BoundedOutput> {
+    thread::spawn(move || {
+        let mut captured = Vec::with_capacity(limit.min(8192));
+        let mut buffer = [0_u8; 8192];
+        let mut truncated = false;
+        loop {
+            let read = match pipe.read(&mut buffer) {
+                Ok(0) | Err(_) => break,
+                Ok(read) => read,
+            };
+            let remaining = limit.saturating_sub(captured.len());
+            let keep = remaining.min(read);
+            captured.extend_from_slice(&buffer[..keep]);
+            truncated |= keep < read;
+        }
+        BoundedOutput {
+            text: String::from_utf8_lossy(&captured).into_owned(),
+            truncated,
+        }
+    })
+}
+
+fn join_bounded_reader(handle: Option<thread::JoinHandle<BoundedOutput>>) -> BoundedOutput {
+    handle
+        .and_then(|handle| handle.join().ok())
+        .unwrap_or(BoundedOutput {
+            text: String::new(),
+            truncated: false,
+        })
+}
+
+fn configure_verifier_process_group(command: &mut std::process::Command) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        command.creation_flags(CREATE_NEW_PROCESS_GROUP);
+    }
+}
+
+fn terminate_verifier_tree(child: &mut std::process::Child) {
+    let pid = child.id();
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    #[cfg(unix)]
+    {
+        let group = format!("-{pid}");
+        let _ = std::process::Command::new("kill")
+            .args(["-TERM", "--", &group])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        thread::sleep(Duration::from_millis(50));
+        let _ = std::process::Command::new("kill")
+            .args(["-KILL", "--", &group])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    let _ = child.kill();
 }
 
 struct ProcessPersist {
@@ -1116,14 +1541,7 @@ fn run_command_streaming(
 
     if execution_backend == ExecutionBackend::Cloud {
         if let (Some(dispatcher), Some(sid)) = (cloud_dispatcher, cloud_sandbox_id) {
-            match dispatcher.exec(
-                sid,
-                &ExecRequest {
-                    cmd: cmd.to_string(),
-                    cwd: Some(worktree.to_string_lossy().into_owned()),
-                    env: env.vars().clone(),
-                },
-            ) {
+            match dispatcher.exec(sid, &cloud_exec_request(cmd, env.vars().clone())) {
                 Ok(resp) => {
                     if let Some(cb) = on_event {
                         cb(agent_key, "cloud-exec", &format!("exit={}", resp.exit_code));
@@ -1142,7 +1560,7 @@ fn run_command_streaming(
                         pid: None,
                     });
                 }
-                Err(e) if cloud_fallback_local => {
+                Err(e) if cloud_fallback_allowed(cloud_fallback_local, &e) => {
                     if let Some(cb) = on_event {
                         cb(agent_key, "cloud-fallback", &format!("exec: {e}"));
                     }
@@ -1164,7 +1582,13 @@ fn run_command_streaming(
         } else {
             cmd.to_string()
         };
-        let result = crate::pty::run_pty_session(
+        let persist_spawn = |pid| {
+            if let Some(persist) = persist.as_ref() {
+                persist_process(persist, agent_key, worktree, &persist.branch, Some(pid))?;
+            }
+            Ok(())
+        };
+        let result = crate::pty::run_pty_session_with_spawn(
             worktree,
             &effective_cmd,
             env,
@@ -1173,9 +1597,10 @@ fn run_command_streaming(
             on_event,
             agent_key,
             swarm,
+            Some(&persist_spawn),
         )?;
-        if let Some(p) = persist {
-            persist_process(&p, agent_key, worktree, &p.branch, result.pid)?;
+        if let Some(persist) = persist.as_ref() {
+            remove_persisted_process(persist, agent_key)?;
         }
         return Ok(result);
     }
@@ -1211,8 +1636,14 @@ fn run_command_streaming(
     }
 
     let pid = child.id();
-    if let Some(p) = persist {
-        persist_process(&p, agent_key, worktree, &p.branch, Some(pid))?;
+    if let Some(persist) = persist.as_ref() {
+        if let Err(error) =
+            persist_process(persist, agent_key, worktree, &persist.branch, Some(pid))
+        {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
     }
     let mut stdout_acc = String::new();
     let mut stderr_acc = String::new();
@@ -1258,6 +1689,10 @@ fn run_command_streaming(
         .wait()
         .map_err(|e| PytxoError::Runner(format!("wait: {e}")))?;
 
+    if let Some(persist) = persist.as_ref() {
+        remove_persisted_process(persist, agent_key)?;
+    }
+
     if let Some(h) = out_handle {
         if let Ok(acc) = h.join() {
             stdout_acc = acc;
@@ -1278,6 +1713,20 @@ fn run_command_streaming(
     })
 }
 
+fn cloud_exec_request(cmd: &str, env: HashMap<String, String>) -> ExecRequest {
+    ExecRequest {
+        cmd: cmd.to_string(),
+        // The sandbox sync API roots repository content here. A client-local
+        // absolute worktree path does not exist in the remote container.
+        cwd: Some("/workspace".into()),
+        env,
+    }
+}
+
+fn cloud_fallback_allowed(enabled: bool, error: &PytxoError) -> bool {
+    enabled && !error.is_cloud_policy_denial()
+}
+
 fn persist_process(
     p: &ProcessPersist,
     agent_key: &str,
@@ -1286,15 +1735,28 @@ fn persist_process(
     pid: Option<u32>,
 ) -> Result<()> {
     let pid = pid.ok_or_else(|| PytxoError::Runner("missing child pid".into()))?;
+    let start_identity = crate::kill::process_start_identity(pid)?.ok_or_else(|| {
+        PytxoError::Runner(format!(
+            "child pid {pid} exited before identity was durable"
+        ))
+    })?;
     ProcessRegistryFile::update(&registry_path(&p.data_dir), |registry| {
         registry.push(ProcessEntry {
             run_id: p.run_id.clone(),
             repo_root: p.repo_root.clone(),
             agent_key: agent_key.to_string(),
             pid,
+            start_identity: Some(start_identity),
             worktree_path: worktree.to_string_lossy().to_string(),
             branch: branch.to_string(),
         });
+        Ok(())
+    })
+}
+
+fn remove_persisted_process(p: &ProcessPersist, agent_key: &str) -> Result<()> {
+    ProcessRegistryFile::update(&registry_path(&p.data_dir), |registry| {
+        registry.remove_agent(agent_key);
         Ok(())
     })
 }
@@ -1342,35 +1804,55 @@ pub(crate) fn shell_command() -> (String, Vec<String>) {
 }
 
 pub fn stop_run(data_dir: &Path, run_id: &str, kill: bool) -> Result<Vec<u32>> {
-    use crate::kill::kill_pids;
-
     let path = registry_path(data_dir);
     ProcessRegistryFile::update(&path, |registry| {
-        let pids: Vec<u32> = registry
+        let entries: Vec<ProcessEntry> = registry
             .for_run(run_id)
             .iter()
-            .map(|entry| entry.pid)
+            .map(|entry| (*entry).clone())
             .collect();
         if kill {
-            kill_pids(&pids)?;
+            for entry in &entries {
+                stop_registry_entry(entry)?;
+            }
         }
         registry.remove_run(run_id);
-        Ok(pids)
+        Ok(entries.into_iter().map(|entry| entry.pid).collect())
     })
 }
 
 pub fn stop_all(data_dir: &Path, kill: bool) -> Result<()> {
-    use crate::kill::kill_pids;
-
     let path = registry_path(data_dir);
     ProcessRegistryFile::update(&path, |registry| {
-        let pids = registry.all_pids();
+        let entries = registry.entries.clone();
         if kill {
-            kill_pids(&pids)?;
+            for entry in &entries {
+                stop_registry_entry(entry)?;
+            }
         }
         registry.clear();
         Ok(())
     })
+}
+
+fn stop_registry_entry(entry: &ProcessEntry) -> Result<()> {
+    match (
+        entry.start_identity.as_deref(),
+        crate::kill::process_start_identity(entry.pid)?,
+    ) {
+        (_, None) => Ok(()),
+        (Some(expected), Some(actual)) if expected == actual => {
+            crate::kill::kill_process_tree(entry.pid, expected)
+        }
+        (Some(_), Some(_)) => Err(PytxoError::Runner(format!(
+            "refusing to stop pid {}: the PID now belongs to a different process",
+            entry.pid
+        ))),
+        (None, Some(_)) => Err(PytxoError::Runner(format!(
+            "refusing to stop pid {}: legacy registry entry has no process start identity",
+            entry.pid
+        ))),
+    }
 }
 
 pub fn cleanup_worktrees(ctx: &RunContext, registry: &ProcessRegistry) -> Result<()> {
@@ -1519,5 +2001,183 @@ mod dependency_output_tests {
         let error =
             compose_dependency_outputs(temp.path(), temp.path(), &[output], &[]).unwrap_err();
         assert!(error.to_string().contains("unsafe dependency claim"));
+    }
+
+    #[test]
+    fn cloud_exec_is_rooted_in_the_remote_workspace() {
+        let request = cloud_exec_request("pwd", HashMap::new());
+        assert_eq!(request.cwd.as_deref(), Some("/workspace"));
+    }
+
+    #[test]
+    fn cloud_policy_denials_never_fall_back_to_local_execution() {
+        let policy = PytxoError::CloudPolicy("secret detected".into());
+        let transport = PytxoError::Other("connection refused".into());
+        assert!(!cloud_fallback_allowed(true, &policy));
+        assert!(cloud_fallback_allowed(true, &transport));
+        assert!(!cloud_fallback_allowed(false, &transport));
+    }
+}
+
+#[cfg(test)]
+mod verification_boundary_tests {
+    use std::sync::Mutex;
+
+    use super::*;
+
+    fn verify_command_for_absent_secret() -> String {
+        if cfg!(windows) {
+            "if defined PYTXO_VERIFY_SENTINEL_SECRET (exit /b 9) else (exit /b 0)".into()
+        } else {
+            "test -z \"$PYTXO_VERIFY_SENTINEL_SECRET\"".into()
+        }
+    }
+
+    fn blocking_command() -> String {
+        if cfg!(windows) {
+            "ping -n 6 127.0.0.1 >NUL".into()
+        } else {
+            "sleep 5".into()
+        }
+    }
+
+    #[test]
+    fn verification_times_out_and_terminates_the_child() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let started = Instant::now();
+        let error = run_verify_commands_with_limits(
+            temp.path(),
+            &[blocking_command()],
+            None,
+            "run:agent-0",
+            PermissionProfile::Orbit,
+            &DomainId("timeout-domain".into()),
+            ExecutionBackend::Subprocess,
+            true,
+            None,
+            Duration::from_millis(100),
+            4096,
+        )
+        .expect_err("blocking verifier must time out");
+
+        assert!(error.to_string().contains("timed out after 100 ms"));
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "timeout did not bound verifier execution"
+        );
+    }
+
+    #[test]
+    fn verification_strips_parent_secrets_and_emits_boundary_receipt() {
+        const SENTINEL: &str = "PYTXO_VERIFY_SENTINEL_SECRET";
+        std::env::set_var(SENTINEL, "must-not-leak");
+        let events = Arc::new(Mutex::new(Vec::<(String, String)>::new()));
+        let event_sink = Arc::clone(&events);
+        let callback: EventCallback = Arc::new(move |_agent, kind, body| {
+            event_sink
+                .lock()
+                .expect("event lock")
+                .push((kind.into(), body.into()));
+        });
+        let temp = tempfile::tempdir().expect("tempdir");
+        let result = run_verify_commands_with_limits(
+            temp.path(),
+            &[verify_command_for_absent_secret()],
+            Some(&callback),
+            "run:agent-0",
+            PermissionProfile::Orbit,
+            &DomainId("boundary-domain".into()),
+            ExecutionBackend::Subprocess,
+            true,
+            None,
+            Duration::from_secs(2),
+            4096,
+        );
+        std::env::remove_var(SENTINEL);
+        result.expect("filtered verifier should not observe parent secret");
+
+        let events = events.lock().expect("event lock");
+        let receipt_json = events
+            .iter()
+            .find_map(|(kind, body)| (kind == "verify-boundary").then_some(body))
+            .expect("verification boundary receipt event");
+        let receipt: crate::enforcement::VerificationEnforcementReceipt =
+            serde_json::from_str(receipt_json).expect("parse receipt");
+        assert_eq!(receipt.actor, "verification");
+        assert_eq!(receipt.effective_profile, "orbit");
+        assert_eq!(receipt.execution_domain, "boundary-domain");
+        assert_eq!(receipt.environment.status, "enforced");
+        assert_eq!(receipt.network.status, "advisory");
+        assert_eq!(receipt.timeout.status, "enforced");
+        assert_eq!(receipt.output_capture.status, "enforced");
+    }
+
+    #[test]
+    fn cloud_verification_fails_closed_after_recording_boundary() {
+        let events = Arc::new(Mutex::new(Vec::<String>::new()));
+        let event_sink = Arc::clone(&events);
+        let callback: EventCallback = Arc::new(move |_agent, kind, body| {
+            if kind == "verify-boundary" {
+                event_sink.lock().expect("event lock").push(body.into());
+            }
+        });
+        let temp = tempfile::tempdir().expect("tempdir");
+        let marker = temp.path().join("must-not-exist");
+        let command = if cfg!(windows) {
+            format!("echo unsafe>{}", marker.display())
+        } else {
+            format!("touch {}", marker.display())
+        };
+        let error = run_verify_commands_with_limits(
+            temp.path(),
+            &[command],
+            Some(&callback),
+            "run:agent-0",
+            PermissionProfile::Orbit,
+            &DomainId("cloud-domain".into()),
+            ExecutionBackend::Cloud,
+            true,
+            None,
+            Duration::from_secs(2),
+            4096,
+        )
+        .expect_err("cloud verifier must fail closed without a cancellable remote contract");
+
+        assert!(error
+            .to_string()
+            .contains("no cancellable verifier contract"));
+        assert!(!marker.exists(), "verifier escaped to the host");
+        let receipt: crate::enforcement::VerificationEnforcementReceipt = serde_json::from_str(
+            events
+                .lock()
+                .expect("event lock")
+                .first()
+                .expect("boundary receipt"),
+        )
+        .expect("parse receipt");
+        assert_eq!(receipt.execution_backend, "remote-unsupported-fail-closed");
+    }
+
+    #[test]
+    fn orbit_verification_rejects_known_egress_before_spawn() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let error = run_verify_commands_with_limits(
+            temp.path(),
+            &["curl https://example.com".into()],
+            None,
+            "run:agent-0",
+            PermissionProfile::Orbit,
+            &DomainId("network-domain".into()),
+            ExecutionBackend::Subprocess,
+            true,
+            None,
+            Duration::from_secs(2),
+            4096,
+        )
+        .expect_err("Orbit verifier egress must be policy-gated");
+
+        assert!(error
+            .to_string()
+            .contains("verification network egress denied for orbit profile"));
     }
 }

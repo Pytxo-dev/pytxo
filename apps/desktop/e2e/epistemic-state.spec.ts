@@ -119,21 +119,33 @@ test.describe("Epistemic state contract", () => {
   });
 
   // The ledger must never imply a quantity the orchestrator does not compute.
-  // Wave completion is the only ratio with a real numerator and denominator.
-  test("progress is null when there is nothing countable, and counts whole waves otherwise", () => {
+  // Wave settlement is the only ratio with a real numerator and denominator.
+  test("progress separates settled waves from successful waves", () => {
     expect(waveProgress([])).toBeNull();
     expect(
       waveProgress([
         agent({ id: "1", wave: 0, status: "completed", exit_code: 0 }),
         agent({ id: "2", wave: 1, status: "running" }),
       ]),
-    ).toEqual({ completed: 1, total: 2 });
+    ).toEqual({ settled: 1, successful: 1, total: 2 });
     expect(
       waveProgress([
         agent({ id: "1", wave: 0, status: "completed", exit_code: 0 }),
         agent({ id: "2", wave: 0, status: "running" }),
       ]),
-    ).toEqual({ completed: 0, total: 1 });
+    ).toEqual({ settled: 0, successful: 0, total: 1 });
+    expect(
+      waveProgress([
+        agent({ id: "1", wave: 0, status: "failed", exit_code: 1 }),
+        agent({ id: "2", wave: 1, status: "stopped" }),
+      ]),
+    ).toEqual({ settled: 2, successful: 0, total: 2 });
+    expect(
+      waveProgress([
+        agent({ id: "1", wave: 0, status: "future_status", exit_code: null }),
+        agent({ id: "2", wave: 1, status: "blocked_by_dependency", exit_code: null }),
+      ]),
+    ).toEqual({ settled: 1, successful: 0, total: 2 });
   });
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "pytxo",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Pytxo agent hypervisor CLI — local-first PTY orchestration",
   "license": "MIT",
   "repository": {
@@ -28,9 +28,11 @@
     "bin",
     "lib",
     "postinstall.js",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
-    "postinstall": "node postinstall.js"
+    "postinstall": "node postinstall.js",
+    "test": "node --test test/*.test.js"
   }
 }

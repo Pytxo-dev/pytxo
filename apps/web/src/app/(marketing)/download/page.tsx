@@ -34,8 +34,8 @@ export default function DownloadPage() {
           </Badge>
         </div>
         <p className="max-w-2xl text-lg text-muted-foreground">
-          Start with Pytxo Desktop for runs, approvals, and diffs. The CLI powers orchestration
-          underneath - install it once, or let Desktop guide you.
+          Start with Pytxo Desktop for runs, approvals, and diffs. Add the CLI when you also want
+          terminal workflows, MCP tools, or doctor checks.
         </p>
       </div>
 
@@ -45,11 +45,11 @@ export default function DownloadPage() {
         <section className="border-t border-border pt-10">
           <div className="flex flex-wrap items-baseline gap-2">
             <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">CLI</h2>
-            <span className="text-sm text-muted-foreground">Required for runs</span>
+            <span className="text-sm text-muted-foreground">Optional companion to Desktop</span>
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Entry point for multi-agent jobs, doctor checks, and MCP. Desktop downloads the
-            matching CLI at first run if needed.
+            Entry point for terminal-run jobs, doctor checks, and MCP. Desktop runs through its
+            packaged native app and can guide an optional matching CLI install.
           </p>
 
           <div className="mt-6 flex flex-col gap-6">

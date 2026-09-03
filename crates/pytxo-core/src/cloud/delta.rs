@@ -1,10 +1,11 @@
 //! Deterministic overlay-upper delta for cloud hybrid sync ([[delta-sync]]).
 
 use std::collections::BTreeMap;
-use std::fs;
+use std::fs::{self, File, OpenOptions};
+use std::io::Read;
 use std::path::Path;
 
-use crate::cloud::{content_hash, SyncFile};
+use crate::cloud::{cloud_path_denied, content_hash, validate_cloud_content, SyncFile};
 use crate::{PytxoError, Result};
 
 /// Sorted, hash-fingerprinted file delta from an overlay upper layer.
@@ -45,20 +46,33 @@ fn walk_upper(
     {
         let entry = entry.map_err(|e| PytxoError::Other(format!("delta entry: {e}")))?;
         let path = entry.path();
-        if entry
-            .file_type()
-            .map_err(|e| PytxoError::Other(e.to_string()))?
-            .is_dir()
-        {
-            walk_upper(base, upper_root, &path, out)?;
-            continue;
-        }
         let rel = path
             .strip_prefix(upper_root)
             .map_err(|e| PytxoError::Other(format!("delta rel: {e}")))?;
         let rel_key = rel.to_string_lossy().replace('\\', "/");
-        let upper_bytes = fs::read(&path)
-            .map_err(|e| PytxoError::Other(format!("delta read {}: {e}", path.display())))?;
+        if cloud_path_denied(&rel_key) {
+            continue;
+        }
+        let file_type = entry
+            .file_type()
+            .map_err(|e| PytxoError::Other(e.to_string()))?;
+        if file_type.is_dir() {
+            walk_upper(base, upper_root, &path, out)?;
+            continue;
+        }
+        if file_type.is_symlink() {
+            return Err(PytxoError::CloudPolicy(format!(
+                "cloud upload denied for symlink: {rel_key}"
+            )));
+        }
+        if !file_type.is_file() {
+            return Err(PytxoError::CloudPolicy(format!(
+                "cloud upload denied for special file: {rel_key}"
+            )));
+        }
+        let Some(upper_bytes) = read_regular_file_no_follow(&path, &rel_key)? else {
+            continue;
+        };
         let base_path = base.join(rel);
         let changed = match fs::read(&base_path) {
             Ok(base_bytes) => base_bytes != upper_bytes,
@@ -67,6 +81,7 @@ fn walk_upper(
         };
         if changed {
             let content = String::from_utf8_lossy(&upper_bytes).into_owned();
+            validate_cloud_content(&rel_key, &content)?;
             out.insert(
                 rel_key.clone(),
                 SyncFile {
@@ -120,26 +135,34 @@ fn walk_repo_sync(
             .strip_prefix(repo_root)
             .map_err(|e| PytxoError::Other(format!("sync rel: {e}")))?;
         let rel_key = rel.to_string_lossy().replace('\\', "/");
-        if path_excluded(&rel_key, sparse_exclude) {
+        if path_excluded(&rel_key, sparse_exclude) || cloud_path_denied(&rel_key) {
             continue;
         }
-        if entry
+        let file_type = entry
             .file_type()
-            .map_err(|e| PytxoError::Other(e.to_string()))?
-            .is_dir()
-        {
+            .map_err(|e| PytxoError::Other(e.to_string()))?;
+        if file_type.is_dir() {
             walk_repo_sync(repo_root, &path, sparse_exclude, out)?;
             continue;
         }
-        let bytes = fs::read(&path)
-            .map_err(|e| PytxoError::Other(format!("sync read {}: {e}", path.display())))?;
-        if bytes.len() > 512 * 1024 {
-            continue;
+        if file_type.is_symlink() {
+            return Err(PytxoError::CloudPolicy(format!(
+                "cloud upload denied for symlink: {rel_key}"
+            )));
         }
+        if !file_type.is_file() {
+            return Err(PytxoError::CloudPolicy(format!(
+                "cloud upload denied for special file: {rel_key}"
+            )));
+        }
+        let Some(bytes) = read_regular_file_no_follow(&path, &rel_key)? else {
+            continue;
+        };
         if bytes.contains(&0) {
             continue;
         }
         let content = String::from_utf8_lossy(&bytes).into_owned();
+        validate_cloud_content(&rel_key, &content)?;
         out.insert(
             rel_key.clone(),
             SyncFile {
@@ -149,6 +172,47 @@ fn walk_repo_sync(
         );
     }
     Ok(())
+}
+
+const MAX_CLOUD_FILE_BYTES: u64 = 512 * 1024;
+
+fn open_no_follow(path: &Path) -> std::io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        // Open the reparse point itself so the handle metadata check rejects it.
+        options.custom_flags(0x0020_0000);
+    }
+    options.open(path)
+}
+
+/// Read outbound bytes from the validated file handle, never from the path
+/// after validation. This closes the final-component symlink replacement race.
+fn read_regular_file_no_follow(path: &Path, rel_key: &str) -> Result<Option<Vec<u8>>> {
+    let mut file = open_no_follow(path).map_err(|error| {
+        PytxoError::CloudPolicy(format!(
+            "cloud upload denied while opening {rel_key} without following links: {error}"
+        ))
+    })?;
+    let metadata = file.metadata().map_err(PytxoError::Io)?;
+    if !metadata.file_type().is_file() {
+        return Err(PytxoError::CloudPolicy(format!(
+            "cloud upload denied for non-regular file: {rel_key}"
+        )));
+    }
+    if metadata.len() > MAX_CLOUD_FILE_BYTES {
+        return Ok(None);
+    }
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.read_to_end(&mut bytes).map_err(PytxoError::Io)?;
+    Ok(Some(bytes))
 }
 
 /// Returns true when `worktree` looks like an overlay upper directory.
@@ -227,6 +291,111 @@ mod tests {
         assert!(paths.contains(&"README.md"));
         assert!(paths.contains(&"src/lib.rs"));
         assert!(!paths.iter().any(|p| p.starts_with("node_modules")));
+    }
+
+    #[test]
+    fn collect_sync_paths_omits_denied_paths_but_keeps_allowed_source() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        fs::create_dir_all(repo.join(".pytxo/data")).unwrap();
+        fs::create_dir_all(repo.join("nested")).unwrap();
+        fs::create_dir_all(repo.join("src")).unwrap();
+        fs::write(repo.join(".env"), "OPENAI_API_KEY=not-uploaded").unwrap();
+        fs::write(repo.join(".pytxo/data/run.db"), "private control data").unwrap();
+        fs::write(repo.join("nested/private.pem"), "private key bytes").unwrap();
+        fs::write(repo.join("src/lib.rs"), "pub fn allowed() {}\n").unwrap();
+
+        let files = collect_sync_paths(&repo, &[]).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "src/lib.rs");
+        assert_eq!(files[0].content, "pub fn allowed() {}\n");
+    }
+
+    #[test]
+    fn collect_sync_paths_fails_closed_on_secret_content() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        fs::create_dir_all(repo.join("src")).unwrap();
+        fs::write(repo.join("src/lib.rs"), "pub fn allowed() {}\n").unwrap();
+        fs::write(
+            repo.join("src/config.txt"),
+            "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz123456",
+        )
+        .unwrap();
+
+        let error = collect_sync_paths(&repo, &[]).unwrap_err();
+        assert!(error.to_string().contains("likely GitHub token"));
+    }
+
+    #[test]
+    fn overlay_delta_omits_denied_paths_and_fails_closed_on_secret_content() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path().join("base");
+        let upper = tmp.path().join("upper");
+        fs::create_dir_all(&base).unwrap();
+        fs::create_dir_all(upper.join(".pytxo")).unwrap();
+        fs::create_dir_all(upper.join("src")).unwrap();
+        fs::write(upper.join(".pytxo/state.json"), "hidden").unwrap();
+        fs::write(upper.join("src/lib.rs"), "pub fn allowed() {}\n").unwrap();
+
+        let delta = delta_from_overlay_upper(&base, &upper).unwrap();
+        assert_eq!(delta.files.len(), 1);
+        assert_eq!(delta.files[0].path, "src/lib.rs");
+
+        fs::write(
+            upper.join("src/credential.txt"),
+            "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
+        )
+        .unwrap();
+        assert!(delta_from_overlay_upper(&base, &upper).is_err());
+    }
+
+    #[test]
+    fn initial_sync_rejects_a_symlink_instead_of_following_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        fs::create_dir_all(repo.join("src")).unwrap();
+        let target = tmp.path().join("outside-secret.txt");
+        fs::write(&target, "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz123456").unwrap();
+        if !create_file_symlink(&target, &repo.join("src/link.txt")) {
+            return;
+        }
+
+        let error = collect_sync_paths(&repo, &[]).unwrap_err();
+        assert!(matches!(error, PytxoError::CloudPolicy(_)));
+    }
+
+    #[test]
+    fn overlay_delta_rejects_a_symlink_instead_of_following_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path().join("base");
+        let upper = tmp.path().join("upper");
+        fs::create_dir_all(&base).unwrap();
+        fs::create_dir_all(upper.join("src")).unwrap();
+        let target = tmp.path().join("outside-secret.txt");
+        fs::write(&target, "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz123456").unwrap();
+        if !create_file_symlink(&target, &upper.join("src/link.txt")) {
+            return;
+        }
+
+        let error = delta_from_overlay_upper(&base, &upper).unwrap_err();
+        assert!(matches!(error, PytxoError::CloudPolicy(_)));
+    }
+
+    fn create_file_symlink(target: &Path, link: &Path) -> bool {
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(target, link).is_ok()
+        }
+        #[cfg(windows)]
+        {
+            std::os::windows::fs::symlink_file(target, link).is_ok()
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = (target, link);
+            false
+        }
     }
 
     #[test]

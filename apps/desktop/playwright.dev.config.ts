@@ -6,7 +6,7 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: "http://127.0.0.1:5173",
-    channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
+    channel: process.env.PLAYWRIGHT_CHANNEL || "chrome",
   },
   webServer: {
     command: "npx vite --host 127.0.0.1 --port 5173 --strictPort",

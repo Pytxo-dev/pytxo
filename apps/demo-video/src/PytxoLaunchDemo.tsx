@@ -17,10 +17,10 @@ export type PytxoLaunchDemoProps = {
 export const FPS = 30;
 export const TOTAL_FRAMES = 52 * FPS;
 
-const FLOW_START = 4 * FPS;
+const WORK_START = 4 * FPS;
 const REVIEW_START = 13 * FPS;
 const APPLY_START = 27 * FPS;
-const OPERATIONS_START = 39 * FPS;
+const OUTCOME_START = 39 * FPS;
 const END_START = 47 * FPS;
 const CONTEXT_DISSOLVE_FRAMES = 8;
 
@@ -172,13 +172,13 @@ const Intro = () => {
         fontFamily: "Geist Variable, Geist, sans-serif",
         opacity: interpolate(
           frame,
-          [FLOW_START - CONTEXT_DISSOLVE_FRAMES, FLOW_START],
+          [WORK_START - CONTEXT_DISSOLVE_FRAMES, WORK_START],
           [1, 0],
           clamp,
         ),
       }}
     >
-      <ProductShot src="product/flow-plan-1920x1080.png" cropTo={1.04} />
+      <ProductShot src="product/work-1920x1080.png" cropTo={1.04} />
       <AbsoluteFill style={{backgroundColor: "rgba(2,4,6,.82)"}} />
       <div
         style={{
@@ -225,7 +225,7 @@ const Intro = () => {
   );
 };
 
-const Flow = () => {
+const ActiveWork = () => {
   const frame = useCurrentFrame();
   return (
     <AbsoluteFill
@@ -235,12 +235,12 @@ const Flow = () => {
       }}
     >
       <ProductShot
-        src="product/flow-plan-1920x1080.png"
+        src="product/work-1920x1080.png"
         cropAt={3 * FPS}
         cropTo={1.14}
         origin="74% 50%"
       />
-      <SceneCopy>Plan ownership before agents run.</SceneCopy>
+      <SceneCopy>Track ownership while agents run.</SceneCopy>
     </AbsoluteFill>
   );
 };
@@ -331,7 +331,7 @@ const Apply = () => {
   );
 };
 
-const Operations = () => {
+const Outcome = () => {
   return (
     <AbsoluteFill style={{fontFamily: "Geist Variable, Geist, sans-serif"}}>
       <ProductShot
@@ -439,15 +439,15 @@ const GlobalAudio = () => (
 
 export const PytxoLaunchDemo = ({includeAudio}: PytxoLaunchDemoProps) => (
   <AbsoluteFill style={{backgroundColor: colors.canvas}}>
-    <Sequence from={0} durationInFrames={FLOW_START} name="00–04 · Mission">
+    <Sequence from={0} durationInFrames={WORK_START} name="00–04 · Mission">
       <Intro />
     </Sequence>
     <Sequence
-      from={FLOW_START - CONTEXT_DISSOLVE_FRAMES}
-      durationInFrames={REVIEW_START - FLOW_START + CONTEXT_DISSOLVE_FRAMES}
-      name="04–13 · Flow plan"
+      from={WORK_START - CONTEXT_DISSOLVE_FRAMES}
+      durationInFrames={REVIEW_START - WORK_START + CONTEXT_DISSOLVE_FRAMES}
+      name="04–13 · Work ownership"
     >
-      <Flow />
+      <ActiveWork />
     </Sequence>
     <Sequence
       from={REVIEW_START}
@@ -458,17 +458,17 @@ export const PytxoLaunchDemo = ({includeAudio}: PytxoLaunchDemoProps) => (
     </Sequence>
     <Sequence
       from={APPLY_START}
-      durationInFrames={OPERATIONS_START - APPLY_START}
+      durationInFrames={OUTCOME_START - APPLY_START}
       name="27–39 · Apply"
     >
       <Apply />
     </Sequence>
     <Sequence
-      from={OPERATIONS_START}
-      durationInFrames={END_START - OPERATIONS_START}
-      name="39–47 · Operations"
+      from={OUTCOME_START}
+      durationInFrames={END_START - OUTCOME_START}
+      name="39–47 · Outcome"
     >
-      <Operations />
+      <Outcome />
     </Sequence>
     <Sequence
       from={END_START - CONTEXT_DISSOLVE_FRAMES}

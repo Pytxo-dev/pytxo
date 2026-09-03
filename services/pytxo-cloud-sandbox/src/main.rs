@@ -1,6 +1,7 @@
 //! Reference Pytxo Cloud sandbox service for Max tier execution.
 
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -674,6 +675,23 @@ fn listen_addr() -> String {
     std::env::var("CLOUD_BIND").unwrap_or_else(|_| "127.0.0.1:8788".into())
 }
 
+fn validate_startup_security(
+    addr: &str,
+    require_auth: bool,
+    has_api_key: bool,
+) -> Result<(), String> {
+    let socket: SocketAddr = addr
+        .parse()
+        .map_err(|_| format!("CLOUD_BIND must be an IP socket address, got {addr:?}"))?;
+    if !socket.ip().is_loopback() && !require_auth {
+        return Err(format!("public bind {addr} requires CLOUD_REQUIRE_AUTH=1"));
+    }
+    if require_auth && !has_api_key {
+        return Err("CLOUD_REQUIRE_AUTH=1 requires CLOUD_API_KEY".into());
+    }
+    Ok(())
+}
+
 fn max_workers() -> usize {
     std::env::var("CLOUD_MAX_WORKERS")
         .ok()
@@ -735,11 +753,9 @@ async fn main() {
         http: reqwest::Client::new(),
     };
 
-    if require_auth && api_key.is_none() {
-        tracing::warn!(
-            "CLOUD_REQUIRE_AUTH set but CLOUD_API_KEY missing — all requests will be rejected"
-        );
-    }
+    let addr = listen_addr();
+    validate_startup_security(&addr, require_auth, api_key.is_some())
+        .expect("refusing insecure Pytxo Cloud sandbox startup");
 
     let sweeper_state = state.clone();
     tokio::spawn(async move {
@@ -756,7 +772,6 @@ async fn main() {
         .route("/v1/cache/scaffold", get(cache_get).put(cache_put))
         .with_state(state);
 
-    let addr = listen_addr();
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .expect("bind cloud sandbox");
@@ -794,6 +809,15 @@ mod tests {
         assert!(constant_time_eq(b"secret", b"secret"));
         assert!(!constant_time_eq(b"secret", b"secrex"));
         assert!(!constant_time_eq(b"a", b"ab"));
+    }
+
+    #[test]
+    fn startup_security_allows_only_authenticated_public_binds() {
+        assert!(validate_startup_security("127.0.0.1:8788", false, false).is_ok());
+        assert!(validate_startup_security("[::1]:8788", false, false).is_ok());
+        assert!(validate_startup_security("0.0.0.0:8788", true, true).is_ok());
+        assert!(validate_startup_security("0.0.0.0:8788", false, false).is_err());
+        assert!(validate_startup_security("0.0.0.0:8788", true, false).is_err());
     }
 
     #[test]

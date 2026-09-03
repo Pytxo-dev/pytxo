@@ -189,11 +189,58 @@ mod tests {
     #[test]
     fn http_send_hits_mock_server() {
         use std::io::{Read, Write};
-        use std::net::TcpListener;
+        use std::net::{Shutdown, TcpListener, TcpStream};
         use std::sync::atomic::{AtomicBool, Ordering};
         use std::sync::Arc;
         use std::thread;
         use std::time::{Duration, Instant};
+
+        fn read_request(stream: &mut TcpStream) -> String {
+            stream
+                .set_read_timeout(Some(Duration::from_secs(1)))
+                .expect("set mock-server read timeout");
+            let mut request = Vec::new();
+            let mut buffer = [0u8; 1024];
+            let mut expected_len = None;
+            loop {
+                match stream.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(read) => {
+                        request.extend_from_slice(&buffer[..read]);
+                        if expected_len.is_none() {
+                            if let Some(header_end) =
+                                request.windows(4).position(|window| window == b"\r\n\r\n")
+                            {
+                                let headers = String::from_utf8_lossy(&request[..header_end]);
+                                let content_len = headers
+                                    .lines()
+                                    .find_map(|line| {
+                                        let (name, value) = line.split_once(':')?;
+                                        name.eq_ignore_ascii_case("content-length")
+                                            .then(|| value.trim().parse::<usize>().ok())
+                                            .flatten()
+                                    })
+                                    .unwrap_or(0);
+                                expected_len = Some(header_end + 4 + content_len);
+                            }
+                        }
+                        if expected_len.is_some_and(|len| request.len() >= len) {
+                            break;
+                        }
+                    }
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                        ) =>
+                    {
+                        break;
+                    }
+                    Err(error) => panic!("mock-server request read failed: {error}"),
+                }
+            }
+            String::from_utf8_lossy(&request).into_owned()
+        }
 
         let hit = Arc::new(AtomicBool::new(false));
         let hit2 = Arc::clone(&hit);
@@ -206,20 +253,43 @@ mod tests {
             let mut requests = 0u32;
             while Instant::now() < deadline && requests < 2 {
                 if let Ok((mut stream, _)) = listener.accept() {
-                    let mut buf = vec![0u8; 8192];
-                    let n = stream.read(&mut buf).unwrap_or(0);
-                    if n > 0 {
-                        let req = String::from_utf8_lossy(&buf[..n]);
+                    stream
+                        .set_nonblocking(false)
+                        .expect("restore blocking mock-server stream");
+                    let req = read_request(&mut stream);
+                    if !req.is_empty() {
                         requests += 1;
                         if req.contains("v1/runs/start") && req.contains("run-xyz") {
                             hit2.store(true, Ordering::SeqCst);
                         }
                         let resp = if req.contains("/health") {
-                            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"
+                            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
                         } else {
-                            "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+                            "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
                         };
-                        let _ = stream.write_all(resp.as_bytes());
+                        stream
+                            .write_all(resp.as_bytes())
+                            .expect("write complete mock response");
+                        stream.flush().expect("flush complete mock response");
+                        stream
+                            .shutdown(Shutdown::Write)
+                            .expect("finish complete mock response");
+                        loop {
+                            match stream.read(&mut [0u8; 256]) {
+                                Ok(0) => break,
+                                Ok(_) => continue,
+                                Err(error)
+                                    if matches!(
+                                        error.kind(),
+                                        std::io::ErrorKind::WouldBlock
+                                            | std::io::ErrorKind::TimedOut
+                                    ) =>
+                                {
+                                    break;
+                                }
+                                Err(error) => panic!("mock-server close drain failed: {error}"),
+                            }
+                        }
                     }
                 }
                 thread::sleep(Duration::from_millis(10));

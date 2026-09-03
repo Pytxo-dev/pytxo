@@ -53,7 +53,7 @@ railway variables -s Postgres            # list DB vars
 railway variables set LINK_REQUIRE_AUTH=1 -s pytxo-link
 ```
 
-### Vercel — website + billing bridge
+### Vercel — website + billing webhook proxy
 
 Sign-in keys and the webhook → Link admin bridge live on **Vercel**, not Railway.
 
@@ -63,8 +63,7 @@ Sign-in keys and the webhook → Link admin bridge live on **Vercel**, not Railw
 |----------|---------|
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Sign-in / sign-up on pytxo.com |
 | `CLERK_SECRET_KEY` | Server-side Clerk on pytxo.com |
-| `LINK_ADMIN_URL` | `https://link.pytxo.com` |
-| `LINK_ADMIN_KEY` | Must match Railway `LINK_ADMIN_KEY` |
+| `LINK_ADMIN_URL` | `https://link.pytxo.com`; webhook bodies and signatures are forwarded unchanged |
 
 Pull locally: `cd apps/web && vercel env pull`  
 Push from Clerk: `clerk env pull` then add to Vercel (already done if you deployed recently).
@@ -101,7 +100,6 @@ cd C:\pytxo
 Save the three printed keys. Use:
 
 - `LINK_API_KEY` + `LINK_ADMIN_KEY` → Railway **pytxo-link** → Variables
-- `LINK_ADMIN_KEY` → Vercel (same value)
 - `CLOUD_API_KEY` → Railway **pytxo-cloud-sandbox** → Variables (when you add that service)
 
 ---
@@ -131,7 +129,7 @@ Until you deploy, variables and Dockerfile paths are **not** running in producti
 ```
 pytxo.com (Vercel)
   ├── Clerk sign-in / sign-up
-  └── Paddle webhook → PUT /v1/admin/entitlements → link.pytxo.com (Railway)
+  └── Paddle webhook raw proxy → POST /v1/webhooks/paddle → link.pytxo.com (Railway)
 
 pytxo CLI / Deck
   ├── link.pytxo.com  (billing, entitlements, runs)
@@ -221,12 +219,15 @@ Press `N` to skip deploy — copy the three keys somewhere safe.
 | `LINK_ADMIN_KEY` | Raw value | from deploy script (same on Vercel) |
 | `CLERK_ISSUER` | Raw value | from Clerk Dashboard |
 | `CLERK_JWKS_URL` | Raw value | from Clerk Dashboard |
+| `PADDLE_WEBHOOK_SECRET` | Raw value | from Paddle; required to enable Link's webhook route |
+| `PADDLE_PRICE_PRO` | Raw value | Paddle price ID for Pro |
+| `PADDLE_PRICE_MAX` | Raw value | Paddle price ID for Max |
+| `PADDLE_PRICE_ULTRA` | Raw value | Paddle price ID for Ultra |
 
 **Optional:**
 
 | Variable | When |
 |----------|------|
-| `PADDLE_WEBHOOK_SECRET` | Link verifies Paddle directly |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Tracing |
 | `SENTRY_DSN` | Error reporting |
 
@@ -239,6 +240,10 @@ LINK_API_KEY=<paste>
 LINK_ADMIN_KEY=<paste>
 CLERK_ISSUER=https://<your-instance>.clerk.accounts.dev
 CLERK_JWKS_URL=https://<your-instance>.clerk.accounts.dev/.well-known/jwks.json
+PADDLE_WEBHOOK_SECRET=<paste>
+PADDLE_PRICE_PRO=pri_<paste>
+PADDLE_PRICE_MAX=pri_<paste>
+PADDLE_PRICE_ULTRA=pri_<paste>
 ```
 
 ### Step 6: Deploy Link
@@ -356,14 +361,13 @@ your Vercel project → **Settings** → **Environment Variables**
 | Variable | Value |
 |----------|--------|
 | `LINK_ADMIN_URL` | `https://link.pytxo.com` |
-| `LINK_ADMIN_KEY` | **exact same** string as Railway `LINK_ADMIN_KEY` |
 
 Redeploy Vercel after changes (`vercel deploy --prod` from `apps/web`).
 
 **Billing flow test:**
 
 1. Paddle → `https://pytxo.com/api/billing/paddle/webhook`
-2. Vercel → `PUT https://link.pytxo.com/v1/admin/entitlements/{user_id}`
+2. Vercel forwards the unchanged body and `Paddle-Signature` → `POST https://link.pytxo.com/v1/webhooks/paddle`
 3. On failure: `pytxo-link` → **Logs** on Railway.
 
 ---
@@ -381,7 +385,10 @@ Redeploy Vercel after changes (`vercel deploy --prod` from `apps/web`).
 | `CLERK_ISSUER` | yes | Clerk Dashboard |
 | `CLERK_JWKS_URL` | yes | Clerk Dashboard |
 | `PORT` | auto | Railway injects — do not set |
-| `PADDLE_WEBHOOK_SECRET` | optional | Paddle |
+| `PADDLE_WEBHOOK_SECRET` | yes for `/v1/webhooks/paddle` | Paddle |
+| `PADDLE_PRICE_PRO` | yes when Pro is sold | Paddle catalog |
+| `PADDLE_PRICE_MAX` | yes when Max is sold | Paddle catalog |
+| `PADDLE_PRICE_ULTRA` | yes when Ultra is sold | Paddle catalog |
 
 ### Railway `pytxo-cloud-sandbox`
 
@@ -397,8 +404,7 @@ Redeploy Vercel after changes (`vercel deploy --prod` from `apps/web`).
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | yes | `clerk env pull` |
 | `CLERK_SECRET_KEY` | yes | `clerk env pull` |
 | `LINK_ADMIN_URL` | yes | `https://link.pytxo.com` |
-| `LINK_ADMIN_KEY` | yes | same as Railway |
-| `MBCZ_*`, `PADDLE_*` | billing | MBCZ / Paddle setup |
+| `MBCZ_*` | billing | MBCZ setup |
 
 ### Local dev (`apps/web/.env.local`)
 
@@ -443,7 +449,7 @@ Railway (<your-project>)
 
 Vercel
 [ ] Clerk keys on Production
-[ ] LINK_ADMIN_URL + LINK_ADMIN_KEY
+[ ] LINK_ADMIN_URL
 [ ] pytxo.com sign-in works
 
 End-to-end

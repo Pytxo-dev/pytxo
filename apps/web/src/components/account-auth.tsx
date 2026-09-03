@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SignedIn, SignedOut, SignUpButton, UserButton } from "@clerk/nextjs";
@@ -33,11 +32,8 @@ type EntitlementPayload = {
 function ConfiguredAccountAuth() {
   const [entitlements, setEntitlements] = useState<EntitlementPayload | null>(null);
   const [loading, setLoading] = useState(false);
-  const [deckToken, setDeckToken] = useState<string | null>(null);
-  const [deckTokenError, setDeckTokenError] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const deckCallback = searchParams.get("deck_callback");
-  const { isSignedIn, isLoaded, getToken } = useAuth();
   const wantsDesktopReturn = deckCallback === "pytxo-deck";
 
   useEffect(() => {
@@ -63,48 +59,6 @@ function ConfiguredAccountAuth() {
       cancelled = true;
     };
   }, []);
-
-  // Resolve a Clerk JWT for the Desktop deep link. Prefer an explicit user-gesture
-  // <a href="pytxo-deck://..."> because Chromium often blocks programmatic custom-protocol
-  // redirects from an async effect.
-  useEffect(() => {
-    if (!isLoaded || !isSignedIn || !wantsDesktopReturn) {
-      setDeckToken(null);
-      setDeckTokenError(null);
-      return;
-    }
-    let cancelled = false;
-    let attempts = 0;
-    async function resolveToken() {
-      while (!cancelled && attempts < 8) {
-        attempts += 1;
-        try {
-          const token = await getToken();
-          if (token) {
-            if (!cancelled) {
-              setDeckToken(token);
-              setDeckTokenError(null);
-            }
-            return;
-          }
-        } catch {
-          /* retry */
-        }
-        await new Promise((r) => setTimeout(r, 250));
-      }
-      if (!cancelled) {
-        setDeckTokenError("Could not get a session token. Refresh and try again.");
-      }
-    }
-    void resolveToken();
-    return () => {
-      cancelled = true;
-    };
-  }, [isLoaded, isSignedIn, wantsDesktopReturn, getToken]);
-
-  const deckReturnHref = deckToken
-    ? `pytxo-deck://auth?token=${encodeURIComponent(deckToken)}`
-    : null;
 
   const policy = entitlements?.org_policy;
   const seats = entitlements?.org_seats;
@@ -152,20 +106,12 @@ function ConfiguredAccountAuth() {
         </div>
         {wantsDesktopReturn && (
           <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3">
+            <p className="font-medium">Desktop account return is unavailable in v1.2.</p>
             <p className="text-muted-foreground">
-              Click below to return the session to Pytxo Desktop. Your browser may ask to open the
-              app.
+              Pytxo will not place a reusable session token in a custom app link. Close this page
+              and continue in Desktop with local Core features; account return will resume after
+              one-time authorization codes are implemented.
             </p>
-            {deckReturnHref ? (
-              <Button asChild>
-                <a href={deckReturnHref}>Return to Pytxo Desktop</a>
-              </Button>
-            ) : (
-              <Button disabled>{deckTokenError ? "Token unavailable" : "Preparing return link…"}</Button>
-            )}
-            {deckTokenError ? (
-              <p className="text-sm text-muted-foreground">{deckTokenError}</p>
-            ) : null}
           </div>
         )}
         {loading && (
@@ -229,12 +175,10 @@ function ConfiguredAccountAuth() {
             )}
           </div>
         )}
-        <Link
-          href="https://pytxo.com/account#subscription"
-          className="text-sm text-primary hover:underline"
-        >
-          Manage subscription in Paddle portal
-        </Link>
+        <p className="text-sm text-muted-foreground">
+          Subscription self-service is not connected yet. Use the support contact
+          on your payment receipt for plan changes or cancellation.
+        </p>
       </SignedIn>
     </div>
   );

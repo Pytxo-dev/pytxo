@@ -87,6 +87,73 @@ fn trust(path: &std::path::Path) {
 }
 
 #[tokio::test]
+async fn untrusted_secondary_supernova_root_is_rejected_before_execution() {
+    isolate_pytxo_home();
+    let api = TempDir::new().unwrap();
+    let web = TempDir::new().unwrap();
+    init_git_repo(api.path());
+    init_git_repo(web.path());
+    std::fs::write(
+        api.path().join("pytxo.toml"),
+        r#"
+max_agents = 1
+signal_core = false
+
+[[task]]
+id = "unsafe-web"
+agent = "builder"
+paths = ["launched.txt"]
+root = "web"
+"#,
+    )
+    .unwrap();
+    commit_fixture(api.path(), "add unsafe secondary task");
+
+    let manifest_dir = TempDir::new().unwrap();
+    let manifest_path = manifest_dir.path().join("project.toml");
+    std::fs::write(
+        &manifest_path,
+        format!(
+            r#"
+[project]
+id = "untrusted-secondary"
+
+[[roots]]
+path = "{api}"
+label = "api"
+primary = true
+
+[[roots]]
+path = "{web}"
+label = "web"
+permission_profile = "supernova"
+"#,
+            api = toml_path(api.path()),
+            web = toml_path(web.path()),
+        ),
+    )
+    .unwrap();
+    trust(api.path());
+
+    let error = project_run(ProjectRunOptions {
+        manifest: Some(manifest_path),
+        project_id: None,
+        cmd: "echo launched > launched.txt".into(),
+        agents: 1,
+        config: None,
+        dry_run: false,
+    })
+    .await
+    .expect_err("an untrusted secondary root must never enter execution");
+
+    assert!(
+        error.to_string().contains("web") && error.to_string().contains("not trusted"),
+        "unexpected error: {error:#}"
+    );
+    assert!(!web.path().join("launched.txt").exists());
+}
+
+#[tokio::test]
 async fn unified_project_run_includes_writable_roots() {
     isolate_pytxo_home();
     let api = TempDir::new().unwrap();
@@ -126,6 +193,10 @@ read_only = true
         ),
     )
     .unwrap();
+
+    trust(api.path());
+    trust(web.path());
+    trust(protos.path());
 
     let results = project_run(ProjectRunOptions {
         manifest: Some(manifest_path),
@@ -289,6 +360,7 @@ label = "web"
     .unwrap();
 
     trust(api.path());
+    trust(web.path());
 
     let results = project_run(ProjectRunOptions {
         manifest: Some(manifest_path.clone()),
@@ -388,6 +460,7 @@ label = "web"
     .unwrap();
 
     trust(api.path());
+    trust(web.path());
 
     project_run(ProjectRunOptions {
         manifest: Some(manifest_path.clone()),

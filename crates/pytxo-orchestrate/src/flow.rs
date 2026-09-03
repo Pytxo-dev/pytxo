@@ -448,11 +448,7 @@ pub fn dispatch_flow(catalog: &Catalog, draft_id: &str) -> anyhow::Result<String
         bail!("Flow execution policy changed; generate a new preview");
     }
     let tasks = runtime_tasks(&plan);
-    let mut blockers = validate_task_claims(&tasks, plan.project_id.as_deref());
-    blockers.extend(validate_permission_scope(&tasks, &cfg));
-    if !blockers.is_empty() || !pytxo_scheduler::find_conflicts(&tasks).is_empty() {
-        bail!("Flow path claims no longer pass validation; generate a new preview");
-    }
+    validate_dispatch_task_plan(&tasks, &cfg, &plan.waves, plan.project_id.as_deref())?;
     let ade_id = plan
         .ade
         .requested
@@ -591,6 +587,37 @@ fn validate_permission_scope(tasks: &[Task], cfg: &PytxoConfig) -> Vec<FlowBlock
         .collect()
 }
 
+fn validate_dispatch_task_plan(
+    tasks: &[Task],
+    cfg: &PytxoConfig,
+    expected_waves: &[Vec<String>],
+    project_id: Option<&str>,
+) -> anyhow::Result<()> {
+    let mut blockers = validate_task_claims(tasks, project_id);
+    blockers.extend(validate_permission_scope(tasks, cfg));
+    let execution = plan_tasks(tasks, cfg)?;
+    let runtime_waves: Vec<Vec<String>> = execution
+        .waves
+        .iter()
+        .map(|wave| wave.iter().map(|task| task.task_id.0.clone()).collect())
+        .collect();
+    if runtime_waves != expected_waves {
+        bail!("Flow scheduler result changed; generate a new preview");
+    }
+    let wave_of: HashMap<&str, usize> = runtime_waves
+        .iter()
+        .enumerate()
+        .flat_map(|(wave, tasks)| tasks.iter().map(move |task| (task.as_str(), wave)))
+        .collect();
+    let concurrent_overlap = execution.conflicts.iter().any(|conflict| {
+        wave_of.get(conflict.task_a.0.as_str()) == wave_of.get(conflict.task_b.0.as_str())
+    });
+    if !blockers.is_empty() || concurrent_overlap {
+        bail!("Flow path claims no longer pass validation; generate a new preview");
+    }
+    Ok(())
+}
+
 fn apply_flow_permission_ceiling(
     cfg: &PytxoConfig,
     ceiling: Option<PermissionProfile>,
@@ -676,7 +703,9 @@ mod tests {
             let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded)
                 .expect("valid PowerShell base64");
             let units = bytes
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
                 .collect::<Vec<_>>();
             let script = String::from_utf16(&units).expect("valid UTF-16LE PowerShell");
@@ -684,5 +713,42 @@ mod tests {
         } else {
             assert!(command.contains("PYTXO_TASK_PROMPT"));
         }
+    }
+
+    #[test]
+    fn staged_overlaps_pass_dispatch_revalidation_but_wave_drift_does_not() {
+        let cfg = PytxoConfig::default();
+        let tasks = vec![
+            Task {
+                id: TaskId("one".into()),
+                agent: "a".into(),
+                paths: vec!["src/shared.rs".into()],
+                depends_on: vec![],
+                root: None,
+                signal_fidelity: None,
+                verify: vec!["cargo test".into()],
+            },
+            Task {
+                id: TaskId("two".into()),
+                agent: "b".into(),
+                paths: vec!["src/shared.rs".into()],
+                depends_on: vec![],
+                root: None,
+                signal_fidelity: None,
+                verify: vec!["cargo test".into()],
+            },
+        ];
+        let execution = plan_tasks(&tasks, &cfg).unwrap();
+        let waves: Vec<Vec<String>> = execution
+            .waves
+            .iter()
+            .map(|wave| wave.iter().map(|task| task.task_id.0.clone()).collect())
+            .collect();
+        assert_eq!(waves.len(), 2, "overlapping claims must be staged");
+        validate_dispatch_task_plan(&tasks, &cfg, &waves, None).unwrap();
+
+        let stale = vec![vec!["one".into(), "two".into()]];
+        let error = validate_dispatch_task_plan(&tasks, &cfg, &stale, None).unwrap_err();
+        assert!(error.to_string().contains("scheduler result changed"));
     }
 }

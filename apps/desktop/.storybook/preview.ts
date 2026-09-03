@@ -1,6 +1,13 @@
 import "../src/app.css";
 import type { Preview } from "@storybook/svelte-vite";
 
+// Storybook does not run the persisted-theme bootstrap used by Desktop. Keep
+// component stories on the release default so semantic dark-surface tokens,
+// including epistemic states, are tested against their intended background.
+if (typeof document !== "undefined") {
+  document.documentElement.setAttribute("data-chroma-theme", "void");
+}
+
 const preview: Preview = {
   parameters: {
     layout: "fullscreen",

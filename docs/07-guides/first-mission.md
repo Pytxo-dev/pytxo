@@ -50,8 +50,9 @@ pytxo mission "…" --json
 
 ## After the run
 
-Open **Pytxo Desktop -> Flow -> History -> Run Review**. Run Review is the
-reviewed-package Apply surface for Orbit and Galaxy. It shows the exact
+Open **Pytxo Desktop → Work**, select the run, and open **Run Review**. New
+missions begin from **Work → New run**; completed outcomes remain under
+**History**. Run Review is the reviewed-package Apply surface for Orbit and Galaxy. It shows the exact
 prepared additions, modifications, and deletions. Before Apply, Pytxo checks
 the current preimage of every affected path; unrelated dirty files are
 allowed. A changed affected path marks the review stale.

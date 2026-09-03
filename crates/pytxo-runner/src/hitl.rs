@@ -43,7 +43,7 @@ struct HitlState {
     decisions: HashMap<String, HitlDecision>,
 }
 
-type WalAudit = Arc<dyn Fn(&str, bool) + Send + Sync>;
+type WalAudit = Arc<dyn Fn(&HitlRequest, bool) + Send + Sync>;
 
 /// Thread-safe approval queue shared between the runner and orchestration/IPC.
 #[derive(Clone)]
@@ -157,7 +157,7 @@ impl HitlQueue {
             let Ok(mut g) = self.inner.lock() else {
                 return false;
             };
-            if g.pending.remove(id).is_some() {
+            if let Some(request) = g.pending.remove(id) {
                 g.decisions.insert(
                     id.to_string(),
                     if approved {
@@ -166,18 +166,20 @@ impl HitlQueue {
                         HitlDecision::Denied
                     },
                 );
-                true
+                Some(request)
             } else {
-                false
+                None
             }
         };
-        if resolved {
+        if let Some(request) = resolved {
             if let Some(audit) = &self.wal_audit {
-                audit(id, approved);
+                audit(&request, approved);
             }
             self.persist();
+            true
+        } else {
+            false
         }
-        resolved
     }
 
     /// Current decision for a request (Pending if unknown or unresolved).

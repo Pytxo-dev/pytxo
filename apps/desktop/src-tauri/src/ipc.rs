@@ -56,6 +56,7 @@ pub struct DomainDto {
 #[derive(Serialize)]
 pub struct RunDto {
     pub id: String,
+    pub domain_id: String,
     pub status: String,
     pub repo_root: String,
     pub started_at: String,
@@ -397,6 +398,7 @@ fn notify_domain_mutation_result<T>(result: IpcResult<T>, notify: impl FnOnce())
 #[derive(Serialize)]
 pub struct AgentDto {
     pub id: String,
+    pub domain_id: String,
     pub run_id: String,
     pub task_id: String,
     pub wave: i32,
@@ -573,7 +575,7 @@ pub fn list_runs(
         .into_iter()
         .map(|run| {
             let contract = store.get_run_contract(&run.id).ok().flatten();
-            run_to_dto(run, &cfg, contract.as_ref())
+            run_to_dto(run, &domain, &cfg, contract.as_ref())
         })
         .collect())
 }
@@ -682,7 +684,7 @@ pub fn list_agents(
         .list_agents_for_run(&run_id)
         .map_err(map_store_err)?
         .into_iter()
-        .map(agent_to_dto)
+        .map(|agent| agent_to_dto(agent, &domain))
         .collect())
 }
 
@@ -931,6 +933,26 @@ pub struct HitlDto {
     pub reason: String,
     pub created_at_ms: String,
     pub domain_id: String,
+    pub run_id: Option<String>,
+    pub agent_id: Option<String>,
+}
+
+fn hitl_to_dto(request: pytxo_runner::HitlRequest, domain_id: String) -> HitlDto {
+    let (run_id, agent_id) = request
+        .agent_key
+        .split_once(':')
+        .map(|(run, agent)| (Some(run.to_string()), Some(agent.to_string())))
+        .unwrap_or((None, None));
+    HitlDto {
+        id: request.id,
+        agent_key: request.agent_key,
+        action: request.action,
+        reason: request.reason,
+        created_at_ms: request.created_at_ms.to_string(),
+        domain_id,
+        run_id,
+        agent_id,
+    }
 }
 
 #[tauri::command]
@@ -940,14 +962,7 @@ pub fn list_hitl(state: State<'_, AppState>, domain_id: Option<String>) -> IpcRe
     let pending = orch_list_hitl_pending(Some(PathBuf::from(domain))).map_err(map_orch_err)?;
     Ok(pending
         .into_iter()
-        .map(|r| HitlDto {
-            id: r.id,
-            agent_key: r.agent_key,
-            action: r.action,
-            reason: r.reason,
-            created_at_ms: r.created_at_ms.to_string(),
-            domain_id: domain_id.clone(),
-        })
+        .map(|request| hitl_to_dto(request, domain_id.clone()))
         .collect())
 }
 
@@ -956,14 +971,7 @@ pub fn list_hitl_all() -> IpcResult<Vec<HitlDto>> {
     Ok(orch_list_hitl_pending_all()
         .map_err(map_orch_err)?
         .into_iter()
-        .map(|row| HitlDto {
-            id: row.request.id,
-            agent_key: row.request.agent_key,
-            action: row.request.action,
-            reason: row.request.reason,
-            created_at_ms: row.request.created_at_ms.to_string(),
-            domain_id: row.domain_id,
-        })
+        .map(|row| hitl_to_dto(row.request, row.domain_id))
         .collect())
 }
 
@@ -1072,6 +1080,104 @@ pub struct DesktopSnapshotDto {
     pub agents: Vec<AgentDto>,
     pub approvals: Vec<HitlDto>,
     pub fleets: Vec<FleetRunDto>,
+    pub diagnostics: Vec<DesktopSnapshotDiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DesktopSnapshotDiagnosticDto {
+    pub domain_id: String,
+    pub stage: String,
+    pub run_id: Option<String>,
+    pub message: String,
+}
+
+#[derive(Default)]
+struct DomainDesktopSnapshot {
+    runs: Vec<RunDto>,
+    agents: Vec<AgentDto>,
+    diagnostics: Vec<DesktopSnapshotDiagnosticDto>,
+}
+
+fn snapshot_diagnostic(
+    domain_id: &str,
+    stage: &str,
+    run_id: Option<&str>,
+    error: &PytxoIpcError,
+) -> DesktopSnapshotDiagnosticDto {
+    DesktopSnapshotDiagnosticDto {
+        domain_id: domain_id.to_string(),
+        stage: stage.to_string(),
+        run_id: run_id.map(str::to_string),
+        message: error.message.clone(),
+    }
+}
+
+fn load_domain_desktop_snapshot(
+    state: &AppState,
+    domain_id: &str,
+    run_limit: usize,
+    include_agents: bool,
+) -> DomainDesktopSnapshot {
+    let mut loaded = DomainDesktopSnapshot::default();
+    let cfg = match load_cfg_for_domain(domain_id, state) {
+        Ok(cfg) => cfg,
+        Err(error) => {
+            loaded
+                .diagnostics
+                .push(snapshot_diagnostic(domain_id, "config", None, &error));
+            return loaded;
+        }
+    };
+    let store = match open_store_for_domain(&cfg, domain_id) {
+        Ok(store) => store,
+        Err(error) => {
+            loaded
+                .diagnostics
+                .push(snapshot_diagnostic(domain_id, "store", None, &error));
+            return loaded;
+        }
+    };
+    let domain_runs = match store.list_runs(run_limit).map_err(map_store_err) {
+        Ok(rows) => rows,
+        Err(error) => {
+            loaded
+                .diagnostics
+                .push(snapshot_diagnostic(domain_id, "runs", None, &error));
+            return loaded;
+        }
+    };
+    for run in domain_runs {
+        let run_id = run.id.clone();
+        let contract = match store.get_run_contract(&run_id).map_err(map_store_err) {
+            Ok(contract) => contract,
+            Err(error) => {
+                loaded.diagnostics.push(snapshot_diagnostic(
+                    domain_id,
+                    "run_contract",
+                    Some(&run_id),
+                    &error,
+                ));
+                None
+            }
+        };
+        loaded
+            .runs
+            .push(run_to_dto(run, domain_id, &cfg, contract.as_ref()));
+        if include_agents {
+            match store.list_agents_for_run(&run_id).map_err(map_store_err) {
+                Ok(rows) => loaded
+                    .agents
+                    .extend(rows.into_iter().map(|agent| agent_to_dto(agent, domain_id))),
+                Err(error) => loaded.diagnostics.push(snapshot_diagnostic(
+                    domain_id,
+                    "agents",
+                    Some(&run_id),
+                    &error,
+                )),
+            }
+        }
+    }
+    loaded
 }
 
 /// Single-round-trip snapshot for Desktop 2 polling (avoids N+1 list_runs/list_agents IPC).
@@ -1088,47 +1194,18 @@ pub fn load_desktop_snapshot(
     let domains = orch_list_domains_status().map_err(map_orch_err)?;
     let mut runs = Vec::new();
     let mut agents = Vec::new();
+    let mut diagnostics = Vec::new();
     for domain in &domains {
         let domain_id = domain.domain_id.clone();
-        let cfg = match load_cfg_for_domain(&domain_id, &state) {
-            Ok(cfg) => cfg,
-            Err(_) => continue,
-        };
-        let store = match open_store_for_domain(&cfg, &domain_id) {
-            Ok(store) => store,
-            Err(_) => continue,
-        };
-        let domain_runs = match store.list_runs(run_limit) {
-            Ok(rows) => rows,
-            Err(_) => continue,
-        };
-        for run in domain_runs {
-            let status = run.status.to_lowercase();
-            let active = matches!(
-                status.as_str(),
-                "running" | "pending" | "dispatching" | "active"
-            );
-            let run_id = run.id.clone();
-            let contract = store.get_run_contract(&run_id).ok().flatten();
-            runs.push(run_to_dto(run, &cfg, contract.as_ref()));
-            if include_agents && active {
-                if let Ok(rows) = store.list_agents_for_run(&run_id) {
-                    agents.extend(rows.into_iter().map(agent_to_dto));
-                }
-            }
-        }
+        let loaded = load_domain_desktop_snapshot(&state, &domain_id, run_limit, include_agents);
+        runs.extend(loaded.runs);
+        agents.extend(loaded.agents);
+        diagnostics.extend(loaded.diagnostics);
     }
     let approvals = orch_list_hitl_pending_all()
         .map_err(map_orch_err)?
         .into_iter()
-        .map(|row| HitlDto {
-            id: row.request.id,
-            agent_key: row.request.agent_key,
-            action: row.request.action,
-            reason: row.request.reason,
-            created_at_ms: row.request.created_at_ms.to_string(),
-            domain_id: row.domain_id,
-        })
+        .map(|row| hitl_to_dto(row.request, row.domain_id))
         .collect();
     let fleets = fleet_status(None, fleet_limit)
         .map_err(map_orch_err)?
@@ -1147,6 +1224,7 @@ pub fn load_desktop_snapshot(
         agents,
         approvals,
         fleets,
+        diagnostics,
     })
 }
 
@@ -1344,16 +1422,26 @@ fn domain_to_dto(d: DomainSummary) -> DomainDto {
     }
 }
 
-fn run_to_dto(r: RunRecord, cfg: &PytxoConfig, contract: Option<&RunContractRecord>) -> RunDto {
+fn run_to_dto(
+    r: RunRecord,
+    domain_id: &str,
+    cfg: &PytxoConfig,
+    contract: Option<&RunContractRecord>,
+) -> RunDto {
+    let (isolation_mode, isolation_backend) = run_isolation_status(
+        cfg,
+        contract.and_then(|value| value.enforcement_json.as_deref()),
+    );
     RunDto {
         id: r.id,
+        domain_id: domain_id.to_string(),
         status: r.status,
         repo_root: r.repo_root,
         started_at: r.started_at.to_rfc3339(),
         estimated_cost_usd: r.estimated_cost_usd,
         permission_profile: r.permission_profile,
-        isolation_mode: cfg.isolation.as_str().to_string(),
-        isolation_backend: isolation_backend_label(cfg.isolation, &cfg.blast.sparse_exclude),
+        isolation_mode,
+        isolation_backend,
         apply_status: contract.map(|contract| contract.apply_status.clone()),
         applied_at: contract.and_then(|contract| contract.applied_at.clone()),
         prepared_digest: contract.and_then(|contract| contract.prepared_digest.clone()),
@@ -1363,9 +1451,37 @@ fn run_to_dto(r: RunRecord, cfg: &PytxoConfig, contract: Option<&RunContractReco
     }
 }
 
-fn agent_to_dto(a: AgentRecord) -> AgentDto {
+fn run_isolation_status(cfg: &PytxoConfig, enforcement_json: Option<&str>) -> (String, String) {
+    let effective_isolation = pytxo_runner::effective_isolation_mode(cfg);
+    let mut isolation_mode = effective_isolation.as_str().to_string();
+    let mut isolation_backend =
+        isolation_backend_label(effective_isolation, &cfg.blast.sparse_exclude);
+    if let Some(mechanism) = enforcement_json
+        .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
+        .and_then(|value| {
+            value
+                .pointer("/run/workspace_isolation/mechanism")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+        .filter(|mechanism| !mechanism.trim().is_empty())
+    {
+        isolation_mode = if mechanism.contains("worktree") {
+            "worktree".into()
+        } else if mechanism.contains("overlay") || mechanism.starts_with("projfs") {
+            "overlay".into()
+        } else {
+            isolation_mode
+        };
+        isolation_backend = mechanism;
+    }
+    (isolation_mode, isolation_backend)
+}
+
+fn agent_to_dto(a: AgentRecord, domain_id: &str) -> AgentDto {
     AgentDto {
         id: a.id,
+        domain_id: domain_id.to_string(),
         run_id: a.run_id,
         task_id: a.task_id,
         wave: a.wave,
@@ -1394,6 +1510,17 @@ mod mission_control_contract_tests {
     };
     use pytxo_runner::{prepare_review_package, AgentWorkspaceInput, ApplyFaultPoint};
     use pytxo_store::PytxoStore;
+
+    fn test_app_state() -> AppState {
+        AppState {
+            config_path: Mutex::new(None),
+            poll_cursors: Mutex::new(HashMap::new()),
+            selected_domain_id: Mutex::new(None),
+            voice_sessions: std::sync::Arc::new(Mutex::new(HashMap::new())),
+            voice_captures: std::sync::Arc::new(Mutex::new(HashMap::new())),
+            voice_cancellations: Mutex::new(HashMap::new()),
+        }
+    }
 
     fn persist_review_contract(
         repo: &Path,
@@ -1595,6 +1722,91 @@ mod mission_control_contract_tests {
         let value = serde_json::to_value(dto).unwrap();
         assert_eq!(value["next_cursor"], 2);
         assert_eq!(value["cursor_gap"], true);
+    }
+
+    #[test]
+    fn run_isolation_status_prefers_the_persisted_receipt() {
+        let cfg = PytxoConfig::default();
+        let receipt = serde_json::json!({
+            "run": {
+                "workspace_isolation": {
+                    "mechanism": "projfs-sparse-copy-v2"
+                }
+            }
+        });
+        let encoded = serde_json::to_string(&receipt).unwrap();
+
+        let (mode, backend) = run_isolation_status(&cfg, Some(&encoded));
+
+        assert_eq!(mode, "overlay");
+        assert_eq!(backend, "projfs-sparse-copy-v2");
+    }
+
+    #[test]
+    fn two_domain_snapshot_retains_completed_run_agent_ownership() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = test_app_state();
+        let cfg = PytxoConfig::default();
+        let mut loaded = Vec::new();
+
+        for (folder, run_id) in [("alpha", "run-alpha"), ("beta", "run-beta")] {
+            let repo = temp.path().join(folder);
+            std::fs::create_dir_all(&repo).unwrap();
+            let store = PytxoStore::open(&cfg.db_path_at(&repo)).unwrap();
+            store
+                .insert_run_with_profile(run_id, &repo.to_string_lossy(), Some("orbit"))
+                .unwrap();
+            store
+                .insert_agent(
+                    &format!("{run_id}:agent"),
+                    run_id,
+                    "task",
+                    0,
+                    None,
+                    "internal",
+                )
+                .unwrap();
+            store.finish_run(run_id, "completed").unwrap();
+            drop(store);
+
+            let domain_id = repo.to_string_lossy().into_owned();
+            let snapshot = load_domain_desktop_snapshot(&state, &domain_id, 10, true);
+            assert!(snapshot.diagnostics.is_empty());
+            loaded.push((domain_id, snapshot));
+        }
+
+        for (domain_id, snapshot) in loaded {
+            assert_eq!(snapshot.runs.len(), 1);
+            assert_eq!(snapshot.agents.len(), 1);
+            assert_eq!(snapshot.runs[0].domain_id, domain_id);
+            assert_eq!(snapshot.agents[0].domain_id, domain_id);
+        }
+    }
+
+    #[test]
+    fn domain_snapshot_reports_config_and_store_failures_as_partial_diagnostics() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = test_app_state();
+
+        let invalid_config = temp.path().join("invalid-config");
+        std::fs::create_dir_all(&invalid_config).unwrap();
+        std::fs::write(invalid_config.join("pytxo.toml"), "not = [valid").unwrap();
+        let invalid_id = invalid_config.to_string_lossy().into_owned();
+        let config_snapshot = load_domain_desktop_snapshot(&state, &invalid_id, 10, true);
+        assert!(config_snapshot.runs.is_empty());
+        assert_eq!(config_snapshot.diagnostics.len(), 1);
+        assert_eq!(config_snapshot.diagnostics[0].domain_id, invalid_id);
+        assert_eq!(config_snapshot.diagnostics[0].stage, "config");
+
+        let invalid_store = temp.path().join("invalid-store");
+        let db_path = PytxoConfig::default().db_path_at(&invalid_store);
+        std::fs::create_dir_all(&db_path).unwrap();
+        let store_id = invalid_store.to_string_lossy().into_owned();
+        let store_snapshot = load_domain_desktop_snapshot(&state, &store_id, 10, true);
+        assert!(store_snapshot.runs.is_empty());
+        assert_eq!(store_snapshot.diagnostics.len(), 1);
+        assert_eq!(store_snapshot.diagnostics[0].domain_id, store_id);
+        assert_eq!(store_snapshot.diagnostics[0].stage, "store");
     }
 
     #[test]

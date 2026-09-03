@@ -48,7 +48,11 @@ fn sanitize_enabled() -> bool {
 }
 
 fn sanitize_tool_text(text: &str) -> String {
-    if sanitize_enabled() {
+    sanitize_tool_text_with(text, sanitize_enabled())
+}
+
+fn sanitize_tool_text_with(text: &str, enabled: bool) -> String {
+    if enabled {
         pytxo_sanitize::sanitize_line(text)
     } else {
         text.to_string()
@@ -155,27 +159,12 @@ fn main() -> anyhow::Result<()> {
         }
 
         if req.method.as_deref() == Some("tools/call") {
-            let result = handle_tool_call(req.params);
-            match result {
-                Ok(text) => write_response(
-                    &mut stdout,
-                    req.id,
-                    Some(json!({
-                        "content": [{ "type": "text", "text": sanitize_tool_text(&text) }],
-                        "isError": false
-                    })),
-                    None,
-                )?,
-                Err(e) => write_response(
-                    &mut stdout,
-                    req.id,
-                    Some(json!({
-                        "content": [{ "type": "text", "text": e.to_string() }],
-                        "isError": true
-                    })),
-                    None,
-                )?,
-            }
+            write_response(
+                &mut stdout,
+                req.id,
+                Some(tool_call_result(handle_tool_call(req.params))),
+                None,
+            )?;
             continue;
         }
 
@@ -192,6 +181,19 @@ fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn tool_call_result(result: anyhow::Result<String>) -> Value {
+    match result {
+        Ok(text) => json!({
+            "content": [{ "type": "text", "text": sanitize_tool_text(&text) }],
+            "isError": false
+        }),
+        Err(error) => json!({
+            "content": [{ "type": "text", "text": sanitize_tool_text(&error.to_string()) }],
+            "isError": true
+        }),
+    }
 }
 
 /// Resolve a repo path from `repo`, or from `project_id` (+ optional `root` label)
@@ -443,6 +445,10 @@ fn write_response(
     result: Option<Value>,
     error: Option<JsonRpcError>,
 ) -> io::Result<()> {
+    let error = error.map(|mut error| {
+        error.message = sanitize_tool_text(&error.message);
+        error
+    });
     let resp = JsonRpcResponse {
         jsonrpc: "2.0",
         id,
@@ -453,4 +459,27 @@ fn write_response(
     writeln!(stdout, "{line}")?;
     stdout.flush()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_errors_are_sanitized_without_losing_error_propagation() {
+        let secret = "sk-abcdefghijklmnopqrstuvwxyz1234567890";
+        let result = tool_call_result(Err(anyhow::anyhow!("provider rejected {secret}")));
+
+        assert_eq!(result["isError"], true);
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("[REDACTED_API_KEY]"));
+        assert!(!text.contains(secret));
+    }
+
+    #[test]
+    fn sanitization_can_be_explicitly_disabled() {
+        let secret = "sk-abcdefghijklmnopqrstuvwxyz1234567890";
+        assert_eq!(sanitize_tool_text_with(secret, false), secret);
+        assert!(!sanitize_tool_text_with(secret, true).contains(secret));
+    }
 }

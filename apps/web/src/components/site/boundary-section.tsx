@@ -106,7 +106,8 @@ export function BoundarySection() {
           </ul>
           <div className="border-t border-[var(--aperture-line)] bg-[#0d0d0f] px-5 py-4 sm:px-7">
             <p className="text-sm text-[#8d8d96]">
-              Nothing reaches the repository without an explicit Apply.
+              Orbit and Galaxy hold prepared changes for explicit Apply. DeepSpace is
+              non-flushable; Supernova writes directly.
             </p>
           </div>
         </div>

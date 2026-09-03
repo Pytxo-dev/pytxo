@@ -92,20 +92,6 @@ impl EntitlementStore {
             Self::Postgres(pool) => upsert_postgres(pool, &record).await,
         }
     }
-
-    pub async fn set_tier(&self, user_id: &str, tier: Tier) -> Result<(), sqlx::Error> {
-        let max_agents = tier.max_agents();
-        let cloud_enabled = matches!(tier, Tier::Max | Tier::Ultra);
-        self.upsert(EntitlementRecord {
-            user_id: user_id.to_string(),
-            clerk_user_id: None,
-            org_id: None,
-            tier,
-            max_agents,
-            cloud_enabled,
-        })
-        .await
-    }
 }
 
 impl MemoryStore {

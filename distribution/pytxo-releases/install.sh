@@ -42,16 +42,50 @@ resolve_version() {
 }
 
 VERSION="$(resolve_version)"
+if [[ -z "$VERSION" ]]; then
+  echo "could not resolve a Pytxo release version" >&2
+  exit 1
+fi
+if [[ "$VERSION" != v* ]]; then VERSION="v${VERSION}"; fi
+EXPECTED_VERSION="${VERSION#v}"
 ASSET="$(detect_asset)"
-URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
+RELEASE_BASE="${PYTXO_RELEASE_BASE_URL:-https://github.com/${REPO}/releases/download}"
+RELEASE_BASE="${RELEASE_BASE%/}"
+URL="${RELEASE_BASE}/${VERSION}/${ASSET}"
+CHECKSUM_URL="${RELEASE_BASE}/${VERSION}/SHA256SUMS.txt"
 
 mkdir -p "$INSTALL_DIR"
-TMP="$(mktemp)"
-trap 'rm -f "$TMP"' EXIT
+TMP="$(mktemp "${INSTALL_DIR}/.pytxo-download.XXXXXX")"
+SUMS="$(mktemp "${INSTALL_DIR}/.pytxo-checksums.XXXXXX")"
+trap 'rm -f "$TMP" "$SUMS"' EXIT
 
 echo "Installing pytxo ${VERSION} (${ASSET}) → ${INSTALL_DIR}/pytxo"
+curl -fsSL "$CHECKSUM_URL" -o "$SUMS"
 curl -fsSL "$URL" -o "$TMP"
+
+EXPECTED_SHA="$(awk -v asset="$ASSET" '$2 == asset || $2 == "*" asset { print tolower($1); exit }' "$SUMS")"
+if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "SHA256SUMS.txt has no exact entry for ${ASSET}" >&2
+  exit 1
+fi
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTUAL_SHA="$(sha256sum "$TMP" | awk '{print tolower($1)}')"
+elif command -v shasum >/dev/null 2>&1; then
+  ACTUAL_SHA="$(shasum -a 256 "$TMP" | awk '{print tolower($1)}')"
+else
+  echo "sha256sum or shasum is required to verify Pytxo" >&2
+  exit 1
+fi
+if [[ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]]; then
+  echo "SHA-256 mismatch for ${ASSET}" >&2
+  exit 1
+fi
 chmod +x "$TMP"
+VERSION_OUTPUT="$("$TMP" --version)"
+if [[ "$VERSION_OUTPUT" != "pytxo ${EXPECTED_VERSION}" && "$VERSION_OUTPUT" != "pytxo v${EXPECTED_VERSION}" ]]; then
+  echo "downloaded binary reported unexpected version: ${VERSION_OUTPUT}" >&2
+  exit 1
+fi
 mv "$TMP" "${INSTALL_DIR}/pytxo"
 
 if ! echo ":$PATH:" | grep -q ":${INSTALL_DIR}:"; then
@@ -59,5 +93,4 @@ if ! echo ":$PATH:" | grep -q ":${INSTALL_DIR}:"; then
   echo "Add to PATH:  export PATH=\"${INSTALL_DIR}:\$PATH\""
 fi
 
-"${INSTALL_DIR}/pytxo" doctor || true
-echo "Done."
+echo "Installed $(${INSTALL_DIR}/pytxo --version). Run 'pytxo doctor' inside a repository."

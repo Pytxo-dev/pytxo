@@ -46,8 +46,13 @@ test("Desktop and Storybook share a checked-in Chrome channel contract", () => {
     new URL("../.storybook/test-runner-jest.config.cjs", import.meta.url),
     "utf8",
   );
+  const devConfig = readFileSync(
+    new URL("../playwright.dev.config.ts", import.meta.url),
+    "utf8",
+  );
 
   expect(playwrightConfig).toContain('process.env.PLAYWRIGHT_CHANNEL || "chrome"');
+  expect(devConfig).toContain('process.env.PLAYWRIGHT_CHANNEL || "chrome"');
   expect(storybookConfig).toContain('process.env.PLAYWRIGHT_CHANNEL || "chrome"');
   expect(storybookConfig).toContain('rootDir: path.resolve(__dirname, "..")');
   expect(storybookConfig).toContain("launchOptions");

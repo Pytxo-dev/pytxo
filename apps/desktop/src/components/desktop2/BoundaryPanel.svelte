@@ -77,6 +77,27 @@
   const attempts = $derived(review?.apply_attempts ?? []);
   const partial = $derived(attempts.find((attempt) => isPartiallyApplied(attempt)) ?? null);
   const pendingApproval = $derived(approvals[0] ?? null);
+  const effectiveProfile = $derived((receipt?.effective_profile ?? run?.permission_profile ?? "").toLowerCase());
+  const reviewAvailable = $derived(
+    !!run && (
+      !!run.prepared_digest ||
+      !!review?.prepared_digest ||
+      !!review?.prepared_manifest ||
+      ["ready", "stale", "applied", "applying", "recovery_required", "discarded"].includes(
+        (review?.apply_status ?? run.apply_status ?? "").toLowerCase(),
+      )
+    ),
+  );
+
+  const boundaryCopy = $derived(
+    effectiveProfile === "orbit" || effectiveProfile === "galaxy"
+      ? `${effectiveProfile === "orbit" ? "Orbit" : "Galaxy"} keeps prepared changes outside this repository until explicit Apply.`
+      : effectiveProfile === "deepspace"
+        ? "DeepSpace is non-flushable; it cannot Apply prepared changes to this repository."
+        : effectiveProfile === "supernova"
+          ? "Supernova writes directly. The reviewed Apply boundary does not contain repository changes."
+          : "Repository behavior depends on the effective permission profile; check the enforcement receipt.",
+  );
 
   function shortDigest(value: string | null | undefined) {
     if (!value) return "Not prepared";
@@ -168,8 +189,12 @@
   <footer>
     <!-- One stable label. The most consequential control in the product does not
          change identity based on which state the run happens to be in. -->
-    <button disabled={!run} onclick={() => run && onReview(run.id)}>Review package<IconArrowRight size={15} /></button>
-    <p><IconLock size={12} /> Nothing reaches the repository without an explicit Apply.</p>
+    <button
+      disabled={!reviewAvailable}
+      title={reviewAvailable ? "Open the prepared package" : "Review becomes available after a package is prepared."}
+      onclick={() => reviewAvailable && run && onReview(run.id)}
+    >Review package<IconArrowRight size={15} /></button>
+    <p><IconLock size={12} /> {boundaryCopy}</p>
   </footer>
 </aside>
 

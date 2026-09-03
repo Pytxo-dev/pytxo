@@ -17,6 +17,9 @@ pub struct ProcessEntry {
     pub repo_root: String,
     pub agent_key: String,
     pub pid: u32,
+    /// OS process creation identity used to reject stale/reused PIDs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_identity: Option<String>,
     pub worktree_path: String,
     pub branch: String,
 }
@@ -125,6 +128,10 @@ impl ProcessRegistryFile {
         self.entries.retain(|e| e.run_id != run_id);
     }
 
+    pub fn remove_agent(&mut self, agent_key: &str) {
+        self.entries.retain(|entry| entry.agent_key != agent_key);
+    }
+
     pub fn clear(&mut self) {
         self.entries.clear();
     }
@@ -186,6 +193,7 @@ mod tests {
                             repo_root: "repo".into(),
                             agent_key: format!("run:agent-{index}"),
                             pid: index + 1,
+                            start_identity: None,
                             worktree_path: format!("worktree-{index}"),
                             branch: String::new(),
                         });
@@ -213,6 +221,7 @@ mod tests {
             repo_root: "repo".into(),
             agent_key: "run:agent-0".into(),
             pid: 1,
+            start_identity: None,
             worktree_path: "worktree".into(),
             branch: String::new(),
         });

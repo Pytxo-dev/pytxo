@@ -5,12 +5,21 @@ import { PreviewDesktopBackend } from "./desktop-backend.preview";
 
 export type DesktopSnapshotError = { kind: "hypervisor-unavailable"; message: string };
 
+export type DesktopSnapshotDiagnostic = {
+  domain_id: string;
+  stage: "config" | "store" | "runs" | "run_contract" | "agents";
+  run_id: string | null;
+  message: string;
+};
+
 export type DesktopSnapshot = {
   domains: CatalogEntryStatus[];
   runs: RunDto[];
   agents: AgentDto[];
   approvals: HitlDto[];
   fleets: FleetRunDto[];
+  /** Per-domain omissions. A non-empty list means this snapshot is partial. */
+  diagnostics: DesktopSnapshotDiagnostic[];
   /**
    * Set when the primary domains fetch itself failed (hypervisor unreachable),
    * as opposed to succeeding with a genuinely empty catalog. Screens must
@@ -79,6 +88,7 @@ class TauriDesktopBackend implements DesktopBackend {
         agents: snap.agents,
         approvals: snap.approvals,
         fleets: snap.fleets,
+        diagnostics: snap.diagnostics,
         error: null,
       };
     } catch (e) {
@@ -88,6 +98,7 @@ class TauriDesktopBackend implements DesktopBackend {
         agents: [],
         approvals: [],
         fleets: [],
+        diagnostics: [],
         error: { kind: "hypervisor-unavailable", message: e instanceof Error ? e.message : String(e) },
       };
     }

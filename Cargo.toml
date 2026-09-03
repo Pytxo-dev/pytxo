@@ -22,9 +22,9 @@ members = [
 ]
 
 [workspace.package]
-version = "1.2.0"
+version = "1.2.1"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "MIT"
 repository = "https://github.com/Pytxo-dev/pytxo"
 homepage = "https://github.com/Pytxo-dev"
@@ -45,8 +45,8 @@ toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.11", features = ["v4", "serde"] }
-ratatui = "0.29"
-crossterm = "0.28"
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm", "underline-color"] }
+crossterm = "0.29"
 
 pytxo-core = { path = "crates/pytxo-core" }
 pytxo-scheduler = { path = "crates/pytxo-scheduler" }

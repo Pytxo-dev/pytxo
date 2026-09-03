@@ -14,11 +14,21 @@ if (!["silent", "narrated"].includes(mode)) {
 
 const problems = [];
 const productCaptures = [
-  "public/product/flow-plan-1920x1080.png",
+  "public/product/work-1920x1080.png",
   "public/product/run-review-ready-1920x1080.png",
   "public/product/run-review-applied-1920x1080.png",
-  "public/product/work-1920x1080.png",
 ];
+
+const retiredSurfacePattern = /\b(?:Flow|Operations|Workspaces|Integrations)\b/;
+const compositionSource = await readFile(
+  path.join(appRoot, "src", "PytxoLaunchDemo.tsx"),
+  "utf8",
+);
+if (retiredSurfacePattern.test(compositionSource)) {
+  problems.push(
+    "src/PytxoLaunchDemo.tsx: retired Desktop destination appears in the release composition",
+  );
+}
 
 const readPngDimensions = async (relativePath) => {
   const buffer = await readFile(path.join(appRoot, relativePath));

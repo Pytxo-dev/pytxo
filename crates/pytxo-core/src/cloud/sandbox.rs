@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::cloud::CloudConfig;
+use crate::cloud::{cloud_sync_manifest, CloudConfig};
 use crate::{PytxoError, Result};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -66,17 +66,35 @@ impl CloudDispatcher for NoopCloudDispatcher {
 #[derive(Clone, Debug)]
 pub struct HttpCloudDispatcher {
     pub base_url: String,
+    upload_consent: bool,
 }
 
 impl HttpCloudDispatcher {
     pub fn from_config(cfg: &CloudConfig) -> Self {
+        Self::from_config_with_upload_consent(cfg, false)
+    }
+
+    /// Construct from repository config plus a consent decision obtained from
+    /// a trusted host surface (CLI environment, Desktop prompt, or equivalent).
+    pub fn from_config_with_upload_consent(cfg: &CloudConfig, out_of_band_consent: bool) -> Self {
         Self {
             base_url: cfg.sandbox_url.trim_end_matches('/').to_string(),
+            upload_consent: cfg.upload_consent && out_of_band_consent,
         }
     }
 
     fn endpoint(&self, path: &str) -> String {
         format!("{}/{}", self.base_url, path.trim_start_matches('/'))
+    }
+
+    fn require_upload_consent(&self) -> Result<()> {
+        if !self.upload_consent {
+            return Err(PytxoError::CloudPolicy(
+                "cloud upload denied: [cloud].upload_consent and out-of-band consent are required"
+                    .into(),
+            ));
+        }
+        Ok(())
     }
 
     #[cfg(feature = "cloud-http")]
@@ -167,14 +185,21 @@ impl HttpCloudDispatcher {
 
 impl CloudDispatcher for HttpCloudDispatcher {
     fn start_sandbox(&self, req: &StartSandboxRequest) -> Result<StartSandboxResponse> {
+        self.require_upload_consent()?;
         let url = self.endpoint("sandboxes/start");
         let text = self.send_json("POST", &url, Some(req))?;
         serde_json::from_str(&text).map_err(|e| PytxoError::Other(format!("cloud parse: {e}")))
     }
 
     fn sync_delta(&self, sandbox_id: &str, files: &[SyncFile]) -> Result<()> {
+        self.require_upload_consent()?;
+        let manifest = cloud_sync_manifest(files)?;
         let url = self.endpoint(&format!("sandboxes/{sandbox_id}/sync"));
-        self.send_json("POST", &url, Some(&serde_json::json!({ "files": files })))?;
+        self.send_json(
+            "POST",
+            &url,
+            Some(&serde_json::json!({ "manifest": manifest, "files": files })),
+        )?;
         Ok(())
     }
 
@@ -206,6 +231,53 @@ mod tests {
                     cwd: None,
                     env: std::collections::HashMap::new(),
                 }
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn sync_requires_explicit_consent() {
+        let dispatcher = HttpCloudDispatcher::from_config(&CloudConfig {
+            upload_consent: true,
+            ..Default::default()
+        });
+        let error = dispatcher
+            .sync_delta(
+                "sandbox",
+                &[SyncFile {
+                    path: "src/lib.rs".into(),
+                    content: "pub fn allowed() {}\n".into(),
+                }],
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("upload_consent"));
+    }
+
+    #[test]
+    fn sync_revalidates_denied_paths_and_secret_content() {
+        let dispatcher = HttpCloudDispatcher::from_config_with_upload_consent(
+            &CloudConfig {
+                upload_consent: true,
+                ..Default::default()
+            },
+            true,
+        );
+        assert!(dispatcher
+            .sync_delta(
+                "sandbox",
+                &[SyncFile {
+                    path: ".pytxo/run.db".into(),
+                    content: "control".into(),
+                }],
+            )
+            .is_err());
+        assert!(dispatcher
+            .sync_delta(
+                "sandbox",
+                &[SyncFile {
+                    path: "src/config.txt".into(),
+                    content: "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz123456".into(),
+                }],
             )
             .is_err());
     }

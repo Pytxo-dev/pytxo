@@ -38,7 +38,7 @@
   const focusedRun = $derived(snapshot.runs.find((r) => r.id === focusRunId) ?? snapshot.runs[0] ?? null);
   const detailDomainId = $derived(
     focusDomainId ??
-      snapshot.domains.find((d) => d.repo_root === focusedRun?.repo_root)?.domain_id ??
+      focusedRun?.domain_id ??
       null,
   );
 </script>

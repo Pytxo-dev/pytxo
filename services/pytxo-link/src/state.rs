@@ -5,6 +5,7 @@ use sqlx::PgPool;
 
 use crate::entitlements::EntitlementStore;
 use crate::jwt::JwksValidator;
+use crate::paddle::{PaddleEventStore, PaddlePriceCatalog};
 use crate::runs::{MemoryRunStore, RunStore};
 
 #[derive(Clone)]
@@ -32,6 +33,9 @@ pub struct AppState {
     pub entitlements: EntitlementStore,
     pub db: Option<PgPool>,
     pub runs: RunLedger,
+    pub paddle_webhook_secret: Option<String>,
+    pub paddle_events: Option<PaddleEventStore>,
+    pub paddle_prices: Option<PaddlePriceCatalog>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

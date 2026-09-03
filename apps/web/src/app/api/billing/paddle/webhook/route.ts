@@ -1,58 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { provisionLinkEntitlement } from "@/lib/billing/link-admin";
-import {
-  extractOrgId,
-  extractTier,
-  extractUserId,
-  verifyPaddleSignature,
-  type PaddleEvent,
-} from "@/lib/billing/paddle";
-
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.PADDLE_WEBHOOK_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: "Webhook not configured" }, { status: 500 });
+  const linkBase = process.env.LINK_ADMIN_URL?.trim();
+  if (!linkBase) {
+    return NextResponse.json({ error: "Webhook proxy not configured" }, { status: 503 });
   }
 
-  const rawBody = await req.text();
+  let target: URL;
+  try {
+    target = new URL("/v1/webhooks/paddle", linkBase);
+  } catch {
+    return NextResponse.json({ error: "Webhook proxy not configured" }, { status: 503 });
+  }
+
+  const headers = new Headers();
   const signature = req.headers.get("paddle-signature");
-  if (!verifyPaddleSignature(rawBody, signature, secret)) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  const contentType = req.headers.get("content-type");
+  if (signature) headers.set("paddle-signature", signature);
+  if (contentType) headers.set("content-type", contentType);
+
+  try {
+    const upstream = await fetch(target, {
+      method: "POST",
+      headers,
+      body: await req.arrayBuffer(),
+      cache: "no-store",
+      redirect: "manual",
+    });
+    const responseHeaders = new Headers();
+    const upstreamContentType = upstream.headers.get("content-type");
+    if (upstreamContentType) responseHeaders.set("content-type", upstreamContentType);
+    return new Response(await upstream.arrayBuffer(), {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: responseHeaders,
+    });
+  } catch {
+    return NextResponse.json({ error: "Webhook proxy unavailable" }, { status: 502 });
   }
-
-  const event = JSON.parse(rawBody) as PaddleEvent;
-  const eventType = event.event_type ?? "";
-
-  if (
-    eventType !== "subscription.created" &&
-    eventType !== "subscription.updated" &&
-    eventType !== "subscription.canceled"
-  ) {
-    return NextResponse.json({ ok: true, skipped: true });
-  }
-
-  const userId = extractUserId(event);
-  if (!userId) {
-    console.warn("[billing-webhook] skip provisioning — missing custom_data user_id");
-    return NextResponse.json({ ok: true, skipped: true });
-  }
-
-  const orgId = extractOrgId(event) ?? undefined;
-
-  if (eventType === "subscription.canceled") {
-    await provisionLinkEntitlement({ userId, tier: "core", orgId });
-    return NextResponse.json({ ok: true });
-  }
-
-  const tier = extractTier(event);
-  if (!tier) {
-    console.warn("[billing-webhook] skip provisioning — unknown tier");
-    return NextResponse.json({ ok: true, skipped: true });
-  }
-
-  await provisionLinkEntitlement({ userId, tier, orgId });
-  return NextResponse.json({ ok: true });
 }

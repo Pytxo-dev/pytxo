@@ -111,12 +111,31 @@ impl PytxoStore {
         repo_root: &str,
         permission_profile: Option<&str>,
     ) -> Result<()> {
+        self.insert_run_with_profile_and_status(id, repo_root, permission_profile, "running")
+    }
+
+    pub fn insert_starting_run_with_profile(
+        &self,
+        id: &str,
+        repo_root: &str,
+        permission_profile: Option<&str>,
+    ) -> Result<()> {
+        self.insert_run_with_profile_and_status(id, repo_root, permission_profile, "starting")
+    }
+
+    fn insert_run_with_profile_and_status(
+        &self,
+        id: &str,
+        repo_root: &str,
+        permission_profile: Option<&str>,
+        status: &str,
+    ) -> Result<()> {
         let now = Utc::now().to_rfc3339();
         let tx = self.conn.unchecked_transaction().map_err(store_error)?;
         tx
             .execute(
-                "INSERT INTO runs (id, started_at, status, repo_root, permission_profile) VALUES (?1, ?2, 'running', ?3, ?4)",
-                params![id, now, repo_root, permission_profile],
+                "INSERT INTO runs (id, started_at, status, repo_root, permission_profile) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![id, now, status, repo_root, permission_profile],
             )
             .map_err(store_error)?;
         append_domain_change(&tx, "run", id)?;
@@ -177,12 +196,36 @@ impl PytxoStore {
     /// transition a running run to `cancelled`; this guarded transition keeps a
     /// worker that unwinds afterward from overwriting that terminal state.
     pub fn finish_run_if_running(&self, id: &str, status: &str) -> Result<bool> {
+        self.finish_run_if_status(id, "running", status)
+    }
+
+    pub fn finish_run_if_status(
+        &self,
+        id: &str,
+        expected_status: &str,
+        status: &str,
+    ) -> Result<bool> {
         let now = Utc::now().to_rfc3339();
         let tx = self.conn.unchecked_transaction().map_err(store_error)?;
         let changed = tx
             .execute(
-                "UPDATE runs SET finished_at = ?1, status = ?2 WHERE id = ?3 AND status = 'running'",
-                params![now, status, id],
+                "UPDATE runs SET finished_at = ?1, status = ?2 WHERE id = ?3 AND status = ?4",
+                params![now, status, id, expected_status],
+            )
+            .map_err(store_error)?;
+        if changed > 0 {
+            append_domain_change(&tx, "run", id)?;
+        }
+        tx.commit().map_err(store_error)?;
+        Ok(changed > 0)
+    }
+
+    pub fn mark_run_running(&self, id: &str) -> Result<bool> {
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let changed = tx
+            .execute(
+                "UPDATE runs SET status = 'running' WHERE id = ?1 AND status = 'starting'",
+                params![id],
             )
             .map_err(store_error)?;
         if changed > 0 {
@@ -941,7 +984,10 @@ impl PytxoStore {
 
     /// Terminal statuses for domain runs.
     pub fn is_terminal_run_status(status: &str) -> bool {
-        matches!(status, "completed" | "failed" | "cancelled")
+        matches!(
+            status,
+            "completed" | "failed" | "failed_startup" | "cancelled"
+        )
     }
 
     pub fn get_run_status(&self, run_id: &str) -> Result<Option<(String, Option<String>)>> {
@@ -964,7 +1010,7 @@ impl PytxoStore {
         let active: i64 = self
             .conn
             .query_row(
-                "SELECT COUNT(*) FROM runs WHERE status = 'running'",
+                "SELECT COUNT(*) FROM runs WHERE status IN ('starting', 'running')",
                 [],
                 |row| row.get(0),
             )

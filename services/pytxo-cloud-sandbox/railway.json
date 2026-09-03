@@ -4,6 +4,10 @@
     {
       "name": "CLOUD_API_KEY",
       "description": "Bearer token for Max-tier cloud sandbox API"
+    },
+    {
+      "name": "CLOUD_REQUIRE_AUTH",
+      "description": "Must be 1 for hosted/public binds"
     }
   ],
   "optionalEnv": [

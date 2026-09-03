@@ -31,7 +31,8 @@
 <div class="step">
   <h2 class="title">You're ready</h2>
   <p class="lead">
-    Agents write in a sandbox until you approve a flush. Approvals show when something needs a decision.
+    Orbit keeps prepared repository changes outside the project until explicit Apply. Other permission
+    profiles state their boundaries in each run's enforcement receipt.
   </p>
   {#if workspacePath}
     <code class="path" title={workspacePath}>{displayPath(workspacePath)}</code>

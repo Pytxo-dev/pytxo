@@ -382,26 +382,35 @@ async fn paddle_webhook(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> StatusCode {
-    if let Ok(secret) = std::env::var("PADDLE_WEBHOOK_SECRET") {
-        if !secret.is_empty() {
-            let sig = headers
-                .get("paddle-signature")
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("");
-            let raw = std::str::from_utf8(&body).unwrap_or("");
-            if !paddle::verify_paddle_signature(raw, sig, &secret) {
-                return StatusCode::UNAUTHORIZED;
-            }
-        }
+    let Some(secret) = state.paddle_webhook_secret.as_deref() else {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    };
+    let sig = headers
+        .get("paddle-signature")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let raw = std::str::from_utf8(&body).unwrap_or("");
+    if !paddle::verify_paddle_signature(raw, sig, secret) {
+        return StatusCode::UNAUTHORIZED;
     }
     let parsed: paddle::PaddleWebhook = match serde_json::from_slice(&body) {
         Ok(v) => v,
         Err(_) => return StatusCode::BAD_REQUEST,
     };
-    if paddle::handle_paddle_webhook(&state.entitlements, &parsed).await {
-        StatusCode::OK
-    } else {
-        StatusCode::BAD_REQUEST
+    let (Some(events), Some(prices)) = (state.paddle_events.as_ref(), state.paddle_prices.as_ref())
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    };
+    match paddle::handle_paddle_webhook(events, &state.entitlements, prices, &parsed).await {
+        Ok(paddle::PaddleWebhookOutcome::Applied) => StatusCode::OK,
+        // Paddle retries deliveries. A durable duplicate is an idempotent
+        // success, not a signal to retry the already-applied side effect.
+        Ok(paddle::PaddleWebhookOutcome::Duplicate) => StatusCode::OK,
+        Ok(paddle::PaddleWebhookOutcome::Rejected) => StatusCode::BAD_REQUEST,
+        Err(error) => {
+            tracing::error!(error = %error, event_id = %parsed.event_id, "paddle webhook transaction failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
     }
 }
 
@@ -451,24 +460,35 @@ async fn openapi() -> Json<Value> {
 async fn main() {
     telemetry::init();
 
-    let require_auth = std::env::var("LINK_REQUIRE_AUTH")
+    let require_auth_override = std::env::var("LINK_REQUIRE_AUTH")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
+        .ok();
 
-    let (entitlements, db, runs) = if let Ok(url) = std::env::var("DATABASE_URL") {
+    let (entitlements, db, runs, paddle_events) = if let Ok(url) = std::env::var("DATABASE_URL") {
         if !url.is_empty() {
             let pool = db::connect(&url).await.expect("postgres connect");
             let pool_clone = pool.clone();
             (
                 EntitlementStore::postgres(pool.clone()),
                 Some(pool_clone),
-                state::RunLedger::postgres(pool),
+                state::RunLedger::postgres(pool.clone()),
+                Some(paddle::PaddleEventStore::postgres(pool)),
             )
         } else {
-            (EntitlementStore::memory(), None, state::RunLedger::memory())
+            (
+                EntitlementStore::memory(),
+                None,
+                state::RunLedger::memory(),
+                None,
+            )
         }
     } else {
-        (EntitlementStore::memory(), None, state::RunLedger::memory())
+        (
+            EntitlementStore::memory(),
+            None,
+            state::RunLedger::memory(),
+            None,
+        )
     };
 
     let jwks = match (
@@ -482,8 +502,11 @@ async fn main() {
         _ => None,
     };
 
+    let api_key = std::env::var("LINK_API_KEY").ok().filter(|s| !s.is_empty());
+    let require_auth = require_auth_override.unwrap_or(api_key.is_some() || jwks.is_some());
+
     let state = AppState {
-        api_key: std::env::var("LINK_API_KEY").ok().filter(|s| !s.is_empty()),
+        api_key,
 
         admin_key: std::env::var("LINK_ADMIN_KEY")
             .ok()
@@ -498,15 +521,26 @@ async fn main() {
         db,
 
         runs,
+
+        paddle_webhook_secret: std::env::var("PADDLE_WEBHOOK_SECRET")
+            .ok()
+            .filter(|value| !value.is_empty()),
+
+        paddle_events,
+
+        paddle_prices: paddle::PaddlePriceCatalog::from_env(),
     };
 
-    if require_auth && state.api_key.is_none() && state.jwks.is_none() {
-        tracing::warn!("LINK_REQUIRE_AUTH=1 but neither LINK_API_KEY nor CLERK_JWKS_URL is set");
-    }
+    let addr = listen_addr();
+    validate_startup_security(
+        &addr,
+        require_auth,
+        state.api_key.is_some() || state.jwks.is_some(),
+    )
+    .expect("refusing insecure Pytxo Link startup");
 
     let app = apply_service_layers(build_router(state));
 
-    let addr = listen_addr();
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .expect("bind link service");
@@ -527,6 +561,26 @@ fn listen_addr() -> String {
         }
     }
     std::env::var("LINK_BIND").unwrap_or_else(|_| "127.0.0.1:8787".into())
+}
+
+fn validate_startup_security(
+    addr: &str,
+    require_auth: bool,
+    has_authenticator: bool,
+) -> Result<(), String> {
+    let socket: SocketAddr = addr
+        .parse()
+        .map_err(|_| format!("LINK_BIND must be an IP socket address, got {addr:?}"))?;
+    if !socket.ip().is_loopback() && !require_auth {
+        return Err(format!("public bind {addr} requires LINK_REQUIRE_AUTH=1"));
+    }
+    if require_auth && !has_authenticator {
+        return Err(
+            "LINK_REQUIRE_AUTH=1 requires LINK_API_KEY or both CLERK_JWKS_URL and CLERK_ISSUER"
+                .into(),
+        );
+    }
+    Ok(())
 }
 
 fn build_router(state: AppState) -> Router {
@@ -568,9 +622,23 @@ mod contract_tests {
     use super::*;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
+    use hmac::{Hmac, Mac};
     use http_body_util::BodyExt;
     use serde_json::Value;
+    use sha2::Sha256;
+    use std::time::{SystemTime, UNIX_EPOCH};
     use tower::ServiceExt;
+
+    const TEST_PADDLE_SECRET: &str = "test-paddle-secret";
+
+    #[test]
+    fn startup_security_allows_only_authenticated_public_binds() {
+        assert!(validate_startup_security("127.0.0.1:8787", false, false).is_ok());
+        assert!(validate_startup_security("[::1]:8787", false, false).is_ok());
+        assert!(validate_startup_security("0.0.0.0:8787", true, true).is_ok());
+        assert!(validate_startup_security("0.0.0.0:8787", false, false).is_err());
+        assert!(validate_startup_security("0.0.0.0:8787", true, false).is_err());
+    }
 
     fn test_state() -> AppState {
         AppState {
@@ -581,7 +649,38 @@ mod contract_tests {
             entitlements: EntitlementStore::memory(),
             db: None,
             runs: state::RunLedger::memory(),
+            paddle_webhook_secret: None,
+            paddle_events: Some(paddle::PaddleEventStore::memory()),
+            paddle_prices: Some(paddle::PaddlePriceCatalog::test()),
         }
+    }
+
+    fn paddle_state() -> AppState {
+        AppState {
+            paddle_webhook_secret: Some(TEST_PADDLE_SECRET.into()),
+            ..test_state()
+        }
+    }
+
+    fn signed_paddle_request(body: &'static str) -> Request<Body> {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let payload = format!("{timestamp}:{body}");
+        let mut mac = Hmac::<Sha256>::new_from_slice(TEST_PADDLE_SECRET.as_bytes()).unwrap();
+        mac.update(payload.as_bytes());
+        let signature = format!(
+            "ts={timestamp};h1={}",
+            hex::encode(mac.finalize().into_bytes())
+        );
+        Request::builder()
+            .method("POST")
+            .uri("/v1/webhooks/paddle")
+            .header("content-type", "application/json")
+            .header("paddle-signature", signature)
+            .body(Body::from(body))
+            .unwrap()
     }
 
     #[tokio::test]
@@ -741,5 +840,172 @@ mod contract_tests {
             .await
             .unwrap();
         assert_eq!(end.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn paddle_webhook_rejects_requests_when_secret_is_missing() {
+        let app = build_router(test_state());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/webhooks/paddle")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"event_id":"evt-missing-secret","event_type":"subscription.updated","data":{"custom_data":{"user_id":"user-1","tier":"ultra"}}}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn paddle_webhook_rejects_unsupported_event_type() {
+        let body = r#"{"event_id":"evt-unsupported","event_type":"transaction.completed","data":{"custom_data":{"user_id":"user-1","tier":"ultra"}}}"#;
+        let response = build_router(paddle_state())
+            .oneshot(signed_paddle_request(body))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn paddle_webhook_rejects_duplicate_event_id() {
+        let app = build_router(paddle_state());
+        let body = r#"{"event_id":"evt-duplicate","event_type":"subscription.created","data":{"id":"sub-duplicate","customer_id":"ctm-duplicate","items":[{"price":{"id":"pri-pro"}}],"custom_data":{"user_id":"user-1"}}}"#;
+
+        let first = app
+            .clone()
+            .oneshot(signed_paddle_request(body))
+            .await
+            .unwrap();
+        let replay = app.oneshot(signed_paddle_request(body)).await.unwrap();
+
+        assert_eq!(first.status(), StatusCode::OK);
+        assert_eq!(replay.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn paddle_created_rejects_missing_subscription_identifiers() {
+        let body = r#"{"event_id":"evt-missing-identifiers","event_type":"subscription.created","data":{"custom_data":{"user_id":"user-1","tier":"ultra"}}}"#;
+        let response = build_router(paddle_state())
+            .oneshot(signed_paddle_request(body))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn paddle_created_rejects_unknown_price_even_when_custom_tier_is_ultra() {
+        let body = r#"{"event_id":"evt-unknown-price","event_type":"subscription.created","data":{"id":"sub-1","customer_id":"ctm-1","items":[{"price":{"id":"pri-attacker"}}],"custom_data":{"user_id":"user-1","tier":"ultra"}}}"#;
+        let response = build_router(paddle_state())
+            .oneshot(signed_paddle_request(body))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn paddle_updated_rejects_conflicting_custom_user() {
+        let state = paddle_state();
+        let entitlements = state.entitlements.clone();
+        let app = build_router(state);
+        let created = r#"{"event_id":"evt-created-binding","event_type":"subscription.created","data":{"id":"sub-bound","customer_id":"ctm-bound","items":[{"price":{"id":"pri-pro"}}],"custom_data":{"user_id":"user-1"}}}"#;
+        let updated = r#"{"event_id":"evt-updated-conflict","event_type":"subscription.updated","data":{"id":"sub-bound","customer_id":"ctm-bound","items":[{"price":{"id":"pri-ultra"}}],"custom_data":{"user_id":"attacker"}}}"#;
+
+        let first = app
+            .clone()
+            .oneshot(signed_paddle_request(created))
+            .await
+            .unwrap();
+        let conflict = app.oneshot(signed_paddle_request(updated)).await.unwrap();
+
+        assert_eq!(first.status(), StatusCode::OK);
+        assert_eq!(conflict.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(entitlements.get("user-1").await.tier, Tier::Pro);
+        assert_eq!(entitlements.get("attacker").await.tier, Tier::Core);
+    }
+
+    #[tokio::test]
+    async fn paddle_created_requires_user_binding() {
+        let body = r#"{"event_id":"evt-missing-user","event_type":"subscription.created","data":{"id":"sub-missing-user","customer_id":"ctm-missing-user","items":[{"price":{"id":"pri-pro"}}],"custom_data":{}}}"#;
+        let response = build_router(paddle_state())
+            .oneshot(signed_paddle_request(body))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn paddle_updated_uses_persisted_binding_and_catalog_price() {
+        let state = paddle_state();
+        let entitlements = state.entitlements.clone();
+        let app = build_router(state);
+        let created = r#"{"event_id":"evt-created-upgrade","event_type":"subscription.created","data":{"id":"sub-upgrade","customer_id":"ctm-upgrade","items":[{"price":{"id":"pri-pro"}}],"custom_data":{"user_id":"user-upgrade"}}}"#;
+        let updated = r#"{"event_id":"evt-updated-upgrade","event_type":"subscription.updated","data":{"id":"sub-upgrade","customer_id":"ctm-upgrade","items":[{"price":{"id":"pri-ultra"}}]}}"#;
+
+        let created_response = app
+            .clone()
+            .oneshot(signed_paddle_request(created))
+            .await
+            .unwrap();
+        let updated_response = app.oneshot(signed_paddle_request(updated)).await.unwrap();
+
+        assert_eq!(created_response.status(), StatusCode::OK);
+        assert_eq!(updated_response.status(), StatusCode::OK);
+        assert_eq!(entitlements.get("user-upgrade").await.tier, Tier::Ultra);
+    }
+
+    #[tokio::test]
+    async fn paddle_updated_rejects_unbound_or_conflicting_customer() {
+        let app = build_router(paddle_state());
+        let unbound = r#"{"event_id":"evt-unbound","event_type":"subscription.updated","data":{"id":"sub-unbound","customer_id":"ctm-unbound","items":[{"price":{"id":"pri-ultra"}}]}}"#;
+        let created = r#"{"event_id":"evt-created-customer","event_type":"subscription.created","data":{"id":"sub-customer","customer_id":"ctm-correct","items":[{"price":{"id":"pri-pro"}}],"custom_data":{"user_id":"user-customer"}}}"#;
+        let conflicting = r#"{"event_id":"evt-conflicting-customer","event_type":"subscription.updated","data":{"id":"sub-customer","customer_id":"ctm-attacker","items":[{"price":{"id":"pri-ultra"}}]}}"#;
+
+        let unbound_response = app
+            .clone()
+            .oneshot(signed_paddle_request(unbound))
+            .await
+            .unwrap();
+        let created_response = app
+            .clone()
+            .oneshot(signed_paddle_request(created))
+            .await
+            .unwrap();
+        let conflict_response = app
+            .oneshot(signed_paddle_request(conflicting))
+            .await
+            .unwrap();
+
+        assert_eq!(unbound_response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(created_response.status(), StatusCode::OK);
+        assert_eq!(conflict_response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn paddle_canceled_downgrades_only_the_persisted_user() {
+        let state = paddle_state();
+        let entitlements = state.entitlements.clone();
+        let app = build_router(state);
+        let created = r#"{"event_id":"evt-created-cancel","event_type":"subscription.created","data":{"id":"sub-cancel","customer_id":"ctm-cancel","items":[{"price":{"id":"pri-ultra"}}],"custom_data":{"user_id":"user-cancel"}}}"#;
+        let canceled = r#"{"event_id":"evt-canceled","event_type":"subscription.canceled","data":{"id":"sub-cancel","customer_id":"ctm-cancel","custom_data":{"user_id":"user-cancel","tier":"ultra"}}}"#;
+
+        let created_response = app
+            .clone()
+            .oneshot(signed_paddle_request(created))
+            .await
+            .unwrap();
+        let canceled_response = app.oneshot(signed_paddle_request(canceled)).await.unwrap();
+
+        assert_eq!(created_response.status(), StatusCode::OK);
+        assert_eq!(canceled_response.status(), StatusCode::OK);
+        assert_eq!(entitlements.get("user-cancel").await.tier, Tier::Core);
     }
 }

@@ -82,9 +82,15 @@ pub fn effective_entitlements(cfg: &PytxoConfig) -> Result<EntitlementStatus, Py
                 }
                 return Ok(remote);
             }
-            Err(e) if ultra_session_present() && !cfg.billing.link_reconcile_enabled() => {
-                // Signed-in BYOK: fall through to local defaults if Link is unreachable.
-                eprintln!("link entitlements (session present): {e}");
+            Err(e)
+                if ultra_session_present()
+                    && !cfg.billing.link_reconcile_enabled()
+                    && !requests_profile_above_orbit(cfg) =>
+            {
+                // A disconnected signed-in BYOK session may continue only at the
+                // bounded local Orbit tier. Anything more privileged needs fresh
+                // organization policy evidence.
+                eprintln!("link entitlements unavailable; continuing at Orbit ceiling: {e}");
             }
             Err(e) => return Err(e),
         }
@@ -100,7 +106,7 @@ pub fn effective_entitlements(cfg: &PytxoConfig) -> Result<EntitlementStatus, Py
     let max_agents = cfg.tier_max_agents;
     let cloud_enabled = false;
     let org_id = None;
-    let mut permission_ceiling = None;
+    let mut permission_ceiling = ultra_session_present().then_some(PermissionProfile::Orbit);
 
     if ultra_session_present() {
         if let Ok(ceiling) = fetch_org_policy_ceiling(cfg) {
@@ -170,6 +176,17 @@ fn ultra_session_present() -> bool {
     runtime_session_token().is_some()
 }
 
+fn requests_profile_above_orbit(cfg: &PytxoConfig) -> bool {
+    let requested_default = cfg
+        .requested_permission_profile
+        .unwrap_or(cfg.permission_profile);
+    profile_rank(requested_default) > profile_rank(PermissionProfile::Orbit)
+        || cfg
+            .requested_agent_profile_map()
+            .values()
+            .any(|profile| profile_rank(*profile) > profile_rank(PermissionProfile::Orbit))
+}
+
 #[derive(Deserialize)]
 struct LinkEntitlementResponse {
     tier: String,
@@ -213,7 +230,7 @@ fn fetch_link_entitlements(base_url: &str) -> Result<EntitlementStatus, PytxoErr
         let mut permission_ceiling = None;
         if ultra_session_present() {
             if let Some(ref org_id) = body.org_id {
-                permission_ceiling = fetch_org_policy_ceiling_for(base_url, org_id).ok();
+                permission_ceiling = Some(fetch_org_policy_ceiling_for(base_url, org_id)?);
             }
         }
 
@@ -331,8 +348,31 @@ pub fn fetch_link_wallet_balance(base_url: &str) -> Result<i64, PytxoError> {
 mod tests {
     use super::*;
 
+    static TEST_STATE: Mutex<()> = Mutex::new(());
+
+    struct TestStateGuard {
+        _guard: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl Drop for TestStateGuard {
+        fn drop(&mut self) {
+            set_runtime_session_token(None);
+            invalidate_entitlements_cache();
+        }
+    }
+
+    fn isolate_test_state() -> TestStateGuard {
+        let guard = TEST_STATE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        set_runtime_session_token(None);
+        invalidate_entitlements_cache();
+        TestStateGuard { _guard: guard }
+    }
+
     #[test]
     fn core_defaults_without_link() {
+        let _guard = isolate_test_state();
         let cfg = PytxoConfig::default();
         let ent = effective_entitlements(&cfg).unwrap();
         assert_eq!(ent.tier, "core");
@@ -342,6 +382,7 @@ mod tests {
 
     #[test]
     fn ceiling_caps_supernova_to_galaxy() {
+        let _guard = isolate_test_state();
         assert_eq!(
             apply_permission_ceiling(PermissionProfile::Supernova, PermissionProfile::Galaxy),
             PermissionProfile::Galaxy
@@ -350,6 +391,7 @@ mod tests {
 
     #[test]
     fn ceiling_leaves_lower_profiles() {
+        let _guard = isolate_test_state();
         assert_eq!(
             apply_permission_ceiling(PermissionProfile::Orbit, PermissionProfile::Galaxy),
             PermissionProfile::Orbit
@@ -358,6 +400,7 @@ mod tests {
 
     #[test]
     fn ultra_config_enables_link_reconcile_by_default() {
+        let _guard = isolate_test_state();
         let mut cfg = PytxoConfig::default();
         cfg.billing.mode = pytxo_core::BillingMode::Ultra;
         assert!(cfg.billing.link_reconcile_enabled());
@@ -365,6 +408,7 @@ mod tests {
 
     #[test]
     fn link_reconcile_with_unreachable_url_fails_loud() {
+        let _guard = isolate_test_state();
         let mut cfg = PytxoConfig::default();
         cfg.billing.mode = pytxo_core::BillingMode::Ultra;
         cfg.billing.proxy_url = "http://127.0.0.1:1".into();
@@ -376,5 +420,62 @@ mod tests {
         {
             let _ = cfg;
         }
+    }
+
+    #[test]
+    fn signed_in_byok_offline_rejects_supernova_without_fresh_policy() {
+        let _guard = isolate_test_state();
+        set_runtime_session_token(Some("signed-in-fixture".into()));
+        let mut cfg = PytxoConfig {
+            permission_profile: PermissionProfile::Supernova,
+            ..Default::default()
+        };
+        cfg.billing.proxy_url = "http://127.0.0.1:1".into();
+        cfg.billing.link_reconcile = Some(false);
+
+        effective_entitlements(&cfg)
+            .expect_err("Supernova must not launch without fresh organization policy");
+    }
+
+    #[test]
+    fn expired_verified_ceiling_rejects_supernova_offline() {
+        let _guard = isolate_test_state();
+        set_runtime_session_token(Some("signed-in-fixture".into()));
+        *ENTITLEMENTS_CACHE.lock().unwrap() = Some(CachedEntitlements {
+            value: EntitlementStatus {
+                tier: "pro".into(),
+                max_agents: 10,
+                cloud_enabled: false,
+                org_id: Some("org-fixture".into()),
+                permission_ceiling: Some(PermissionProfile::Galaxy),
+            },
+            fetched_at: Instant::now() - ENTITLEMENTS_CACHE_TTL - Duration::from_secs(1),
+        });
+        let mut cfg = PytxoConfig {
+            permission_profile: PermissionProfile::Supernova,
+            ..Default::default()
+        };
+        cfg.billing.proxy_url = "http://127.0.0.1:1".into();
+        cfg.billing.link_reconcile = Some(false);
+
+        assert!(effective_entitlements(&cfg).is_err());
+    }
+
+    #[test]
+    fn signed_in_byok_offline_caps_orbit_agents_at_orbit() {
+        let _guard = isolate_test_state();
+        set_runtime_session_token(Some("signed-in-fixture".into()));
+        let mut cfg = PytxoConfig {
+            permission_profile: PermissionProfile::Orbit,
+            ..Default::default()
+        };
+        cfg.billing.proxy_url = "http://127.0.0.1:1".into();
+        cfg.billing.link_reconcile = Some(false);
+
+        let entitlements = effective_entitlements(&cfg).unwrap();
+        assert_eq!(
+            entitlements.permission_ceiling,
+            Some(PermissionProfile::Orbit)
+        );
     }
 }
