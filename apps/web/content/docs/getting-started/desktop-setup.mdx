@@ -11,22 +11,21 @@ overlay. It is not a multi-terminal IDE.
 
 Get installers from [pytxo.com/download](https://pytxo.com/download) or
 [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases)
-(current release: **v1.2.1**):
+(current release: **v1.2.2**):
 
 | Platform | Installer |
 |----------|-----------|
-| Windows x64 | `pytxo-desktop-windows-x64.msi` (also a setup.exe on the releases page) |
-| macOS / Linux | No v1 binary yet; the GitHub Actions multi-OS Desktop matrix is currently account/billing-blocked |
+| Windows x64 | `pytxo-desktop-windows-x64.msi` |
+| macOS / Linux | No v1 Desktop binary |
 
-The v1.2.1 Desktop release is deliberately Windows-first until the GitHub-hosted
-multi-OS matrix completes. If those jobs fail, only the Windows MSI is claimed
-as v1.2.1. Do not treat older macOS or Linux Desktop artifacts as v1.2.1 builds.
+The v1.2.2 Desktop release is deliberately Windows-first. Only the Windows MSI
+is claimed as v1.2.2. Do not treat older macOS or Linux Desktop artifacts as
+v1.2.2 builds.
 
 ## Prerequisites
 
 1. Install the [CLI](/docs/getting-started/install) and confirm `pytxo doctor` passes.
-2. Install the Desktop package for your OS.
-3. On Linux AppImage: mark executable (`chmod +x ...AppImage`) before launch.
+2. On Windows x64, install the Desktop MSI. On other platforms, use the CLI.
 
 ## First session
 

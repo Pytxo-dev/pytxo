@@ -7,14 +7,16 @@ Maintainer guide: [`docs/07-guides/release-workflow.md`](docs/07-guides/release-
 
 ---
 
-# Pytxo v1.2.1
+# Pytxo v1.2.2
 
-Pytxo v1.2.1 hardens failed-run settlement, reviewed Apply, verification,
-permission ceilings, cloud egress, hosted-service authentication, and release
-integrity. It also adds a deterministic commit-boundary demo.
-See [`distribution/release-notes/v1.2.1.md`](distribution/release-notes/v1.2.1.md).
+Pytxo v1.2.2 preserves the v1.2.1 reliability hardening and fixes the public
+release staging boundary so stale repository artifacts cannot overwrite built
+CLI or checksum assets. It retains strict permission ceilings, cloud egress,
+hosted-service authentication, release integrity, and the deterministic
+commit-boundary demo.
+See [`distribution/release-notes/v1.2.2.md`](distribution/release-notes/v1.2.2.md).
 
-Previous: [`v1.2.0`](distribution/release-notes/v1.2.0.md).
+Previous: [`v1.2.1`](distribution/release-notes/v1.2.1.md).
 
 ---
 

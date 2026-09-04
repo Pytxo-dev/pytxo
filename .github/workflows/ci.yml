@@ -149,7 +149,9 @@ jobs:
         with:
           node-version: "22"
       - name: Verify shared release version
-        run: node tooling/scripts/verify-release-version.mjs
+        run: |
+          node tooling/scripts/verify-release-version.mjs
+          node --test tooling/scripts/encode-png-ico.test.mjs tooling/scripts/verify-release-version.test.mjs tooling/scripts/verify-release-inventory.test.mjs
       - name: Smoke npm wrapper with local binary
         run: |
           mkdir -p packages/pytxo/vendor

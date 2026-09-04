@@ -1,9 +1,9 @@
-# Pytxo v1.2.1 release control plan
+# Pytxo v1.2.2 release control plan
 
 **Owner:** lead release engineer
 **Started:** 2026-08-30
-**Target:** credible public v1.2.1 release
-**Current recommendation:** **READY WITH KNOWN RISKS — locally verified candidate; publication in progress**
+**Target:** credible public v1.2.2 release
+**Current recommendation:** **NOT READY — corrective release candidate under verification**
 
 This file is the source of truth for the release effort. A checkbox is not
 enough to establish completion; every release claim must carry one of the
@@ -58,30 +58,40 @@ accepted ADRs are not edited.
 
 ## 3. Current state
 
-- **VERIFIED:** repository metadata, npm wrapper, Desktop, and demo source
-  identify v1.2.1 (`Cargo.toml`, `packages/pytxo/package.json`,
-  `apps/desktop/src-tauri/tauri.conf.json`, `apps/demo-video/package.json`).
+- **VERIFIED:** v1.2.1 merged through PR #29; its required CI run
+  `33731373527` passed 12/12 jobs and release run `33781868097` passed every
+  required build, publication, Desktop, mirror, and npm job.
 - **VERIFIED:** the canonical docs and exercised runtime implement an immutable reviewed-byte Apply
   contract and explicit recovery states (ADR-0034).
 - **VERIFIED:** Desktop v1.2 information architecture is Work, History, and
   Setup with workspace switching in the title bar and approvals as an overlay.
-- **VERIFIED:** release notes exist at
-  `distribution/release-notes/v1.2.1.md`.
+- **IMPLEMENTED / PARTIALLY VERIFIED:** repository metadata, lockfiles, npm
+  wrapper, Desktop, demo, web downloads, installers, public docs, and release
+  notes identify v1.2.2. The expanded parity test passes; the hosted release
+  matrix has not yet run on this corrective candidate.
 - **VERIFIED:** public v1.2.0 already points to the earlier main merge, so this
   audited candidate was retargeted to v1.2.1 instead of rewriting a published
   tag or package.
-- **BLOCKED:** GitHub-hosted Actions last refused all jobs because of account
-  billing or spending-limit state. The v1.2.1 platform release must not publish
-  until a fresh run starts and completes the exact matrix.
-- **VERIFIED:** final Rust, Desktop, web, demo, package, audit, formatting, and
-  version gates pass on the candidate; exact commands are recorded in
-  `RELEASE_READINESS.md`.
+- **VERIFIED:** v1.2.1 was published to the private and public GitHub release,
+  npm, Vercel, and all three Railway services. Production health endpoints and
+  the final hosted workflow were checked.
+- **REOPENED / FIX IN PROGRESS:** an adversarial post-publication audit found
+  obsolete tracked root `dist/` files that the Desktop mirror uploaded over the
+  public Windows CLI and checksum manifest. v1.2.1 was repaired and verified,
+  but its public artifact provenance became mutable. v1.2.2 is the fresh-tag
+  recovery release and must not publish until clean staging and exact inventory
+  gates pass locally and in hosted CI.
+- **VERIFIED (local):** the complete v1.2.2 patch-scope Rust, Desktop native,
+  web, demo, npm wrapper, workflow, formatting, and version gates pass. The
+  unchanged packaged product workflows remain supported by the v1.2.1 runtime
+  evidence recorded in `RELEASE_READINESS.md`.
 - **VERIFIED:** a packaged Windows Desktop completed a real deterministic Orbit
   mission, exact review, explicit Apply, post-state test, and History flow; a
   separate packaged run refused affected-path drift without partial mutation or
   a false success receipt.
-- **VERIFIED:** the exact final npm tarball installed into a fresh prefix through
-  its checksum/version-bound production postinstall path and passed quick doctor.
+- **PARTIALLY VERIFIED:** the v1.2.2 npm wrapper exercised its production
+  checksum/version-bound postinstall path against the rebuilt local v1.2.2 CLI;
+  installation from the published npm tarball remains part of the final audit.
 - **WORKTREE NOTE:** pre-existing untracked `apps/web/captures/`,
   `apps/web/scripts/.verify/`, `desktop-e2e.log`, and `docs/superpowers/` are
   user-owned until explicitly classified; they must not be overwritten or
@@ -91,9 +101,10 @@ accepted ADRs are not edited.
 
 | Priority | Blocker | State | Exit evidence |
 |---|---|---|---|
+| P0 | Public release staging could publish stale tracked files over freshly built assets and checksums. | **IMPLEMENTED / PARTIALLY VERIFIED** | Obsolete root `dist/` files are removed and `/dist/` is ignored. CLI/private/public and Desktop stages start empty and require exact non-empty inventories; signed and unsigned Desktop cases have regression tests. Local tests and `actionlint` pass; hosted release evidence remains required. |
 | P0 | Current v1.2 critical workflow has no fresh end-to-end evidence. | **VERIFIED** | Packaged run `54924278-5e91-40d0-a7de-6f8e99cde4a3` completed isolation -> verification -> exact three-file review -> confirmation -> path-specific Apply -> post-state tests (3/3) -> committed History. Packaged run `47da6a06-a3f3-4b66-8425-838efd8a7809` refused affected-path drift, left only the operator edit, kept baseline tests 2/2, and recorded Apply failed with no success receipt. |
-| P0 | Full Rust, Desktop, web, demo, packaging, and repository gates have not run on the current tree. | **VERIFIED** | Full workspace tests/clippy/builds, Desktop check/native/browser/Storybook gates, web gates, silent-demo gates, package install/tests, dependency audits, version parity, tracked-secret scan, and whitespace checks pass; see `RELEASE_READINESS.md`. |
-| P0 | Fresh install/package behavior and embedded version parity are unproven. | **VERIFIED** | The exact final six-file `pytxo-1.2.0.tgz` installed into fresh prefix `target/final-package-install-20260902-155602-514` from rebuilt checksum-bound CLI bytes; installed `pytxo --version` returned 1.2.0 and all five quick-doctor checks passed. Packaged Desktop launch and Apply were exercised separately. |
+| P0 | Full Rust, Desktop, web, demo, packaging, and repository gates have not run on the current tree. | **VERIFIED (patch scope)** | Full workspace tests/clippy/builds, Desktop check/native build, web gates/build, demo static gates, npm tests/dry-pack, version/inventory regressions, workflow lint, and whitespace checks pass on v1.2.2. Browser/Storybook/runtime flows are inherited from v1.2.1 because product source is unchanged; hosted CI remains a separate publication gate. |
+| P0 | Fresh install/package behavior and embedded version parity are unproven. | **PARTIALLY VERIFIED** | v1.2.2 wrapper tests pass against the rebuilt release CLI, including checksum mismatch and embedded-version rejection; the package still dry-packs exactly six files. A clean install from the actually published `pytxo@1.2.2` is required before this closes. |
 | P0 | Repository-controlled per-agent profiles could exceed out-of-band trust ceilings. | **VERIFIED** | Every project root requires readable explicit trust; trusted-primary/untrusted-secondary Supernova is rejected before execution; signed-in offline Supernova/elevated-agent requests fail instead of dropping the org ceiling; focused fixtures and the final workspace regression pass. |
 | P0 | Cloud sync and context-cache uploads could transmit raw secrets or reinterpret a policy denial as local execution. | **PARTIALLY VERIFIED (fix)** | Dual consent, manifest, content/path denial, no-follow handle reads, policy-vs-transport classification, separate host consent for local fallback, and remote `/workspace` request tests pass. A live sandbox sync→exec test is still required before this row is fully verified. |
 | P0 | Paddle entitlement webhook accepted unsigned/unbounded tier changes and had no durable identity/replay binding. | **VERIFIED (targeted fix)** | 21 Link tests prove fail-closed secret/signature freshness, event allowlist, configured price mapping, durable subscription/customer/user binding, conflict rejection, transactional replay, cancellation ownership, and idempotent duplicate success; the duplicate web provisioner was replaced by a fail-closed Link proxy. Production Postgres migration remains part of deployment verification. |
@@ -449,13 +460,20 @@ otherwise the limitation must be explicit.
 | 2026-09-02 | Completed final adversarial release audit. | **VERIFIED** | Dependency reachability, ignored advisories, tracked secrets/paths, generated artifacts, runtime truth, stale refusal, installer integrity, and flaky gates were challenged; important findings were fixed and affected gates rerun. Recommendation is READY WITH KNOWN RISKS. |
 | 2026-09-03 | Retargeted the candidate from the already-published v1.2.0 tag/package to v1.2.1 and reran the complete local release gates. | **VERIFIED** | Version parity, formatting, full Rust tests, warnings-denied clippy, optimized CLI/MCP builds, live CLI version/status, Desktop checks/native build, web lint/links/assets/build, npm tests/dry-pack, demo typecheck/render validation, and repository whitespace checks passed. |
 | 2026-09-03 | Recorded the Dodo MoR / MBCZ account / Pytxo brand model and a fail-closed provider migration design. | **IMPLEMENTED (design only) / UNVERIFIED (runtime)** | Proposed `ADR-0040` and `docs/01-projects/dodo-mor-integration.md`; no provider cutover, credentials, or entitlement mutation path changed in v1.2.1. |
+| 2026-09-04 | Merged and published v1.2.1 through protected main, then deployed the website and Link/cloud/proxy services. | **VERIFIED** | PR #29; CI run `33731373527` passed 12/12 jobs; release run `33781868097` passed; npm `pytxo@1.2.1`, GitHub private/public releases, Vercel production, and all three Railway health endpoints were verified. |
+| 2026-09-04 | Detected and repaired a v1.2.1 public asset collision during a fresh post-publication audit. | **VERIFIED (repair) / ACCEPTED AS MUTABLE HISTORY** | Public Windows CLI and five-entry `SHA256SUMS.txt` were restored byte-for-byte from the private release and independently downloaded/rehashed. Because v1.2.1 assets changed after publication, v1.2.2 is required for immutable provenance. |
+| 2026-09-04 | Implemented v1.2.2 clean-staging and exact-inventory publication controls. | **IMPLEMENTED / PARTIALLY VERIFIED** | Stale tracked `dist/` files removed; root staging ignored; signed, unsigned, stale-file, empty-file, and missing-updater regression cases pass; expanded 27-surface version parity passes; hosted CI/release pending. |
+| 2026-09-04 | Ran the complete local v1.2.2 corrective release gate. | **VERIFIED (local)** | `cargo fmt`, full workspace tests, warnings-denied clippy, optimized CLI/MCP builds, live v1.2.2 status/version, Desktop check/native build, web lint/links/assets/build, npm tests/dry-pack, demo static checks, workflow lint, release regressions, and whitespace checks exited 0. |
+| 2026-09-04 | Removed the release icon pipeline's abandoned `to-ico` dependency and vulnerable legacy transitive graph. | **VERIFIED** | A local PNG-in-ICO encoder has deterministic header/offset/input tests; Desktop and web generators completed; generated assets passed quality checks; clean tooling install and audit reported 0 vulnerabilities. |
 
 ## 16. Remaining work
 
-1. Run the hosted five-platform CLI matrix and Windows MSI/updater-signing workflow on
-   the release commit; do not publish partial artifacts if any required job fails.
-2. Rehearse production PostgreSQL migration and live authenticated cloud sandbox
-   only if those optional services are included in the release operation.
+1. Finish the v1.2.2 local release gate, merge only after protected-hosted CI is
+   green, and run the corrected five-platform CLI plus Windows MSI/updater
+   release workflow from the merge commit.
+2. Independently download and verify the exact v1.2.2 private/public assets,
+   checksums, embedded versions, updater manifest/signature, npm package,
+   website deployment, and all hosted-service health responses.
 3. Add approved/licensed narration and rerun narrated validation only if a
    narrated master is to be published; otherwise ship the verified silent master.
 4. Implement the proposed MBCZ/Dodo adapter only after approved Dodo test
@@ -495,21 +513,28 @@ accepted only if public copy and receipts state them accurately:
   advisories, but that parser receives only Pytxo-generated notification XML,
   not remote/untrusted XML. The ignored `rsa` advisory is absent from the
   Windows target graph and Pytxo does not use it for key handling.
+- GitHub Dependabot still reports alerts from development and legacy manifests;
+  current shipped web production dependencies and the release icon tooling audit
+  clean. Remaining alerts are tracked honestly and are not represented as a
+  zero-alert repository state.
 
 ## 18. Release operation status
 
-- **VERIFIED:** v1.2.1 parity covers Rust, Desktop, Tauri, demo, and npm.
-- **VERIFIED:** the retargeted workspace passes formatting, the full Rust test
-  workspace, warnings-denied clippy, and optimized CLI/MCP builds.
+- **VERIFIED:** v1.2.1 passed hosted CI/release and was deployed. Its public
+  Windows CLI/checksum collision was repaired, but immutable provenance is not
+  claimed for that tag.
+- **VERIFIED (local) / PENDING (hosted):** v1.2.2 parity covers 27
+  release-facing source, lockfile, installer, web, docs, and notes surfaces.
+  Exact-inventory and icon regressions, full Rust tests/clippy/builds, Desktop
+  native build, web build, npm package tests, demo checks, workflow lint, and
+  whitespace checks pass locally.
 - **VERIFIED:** npm, public-release mirror, and Tauri updater-signing secrets
   exist in the private repository. No secret value was read or logged.
 - **BLOCKED:** Windows Authenticode and local Git signing keys are not
   configured. Do not describe the MSI, commit, or tag as code-signed.
-- **BLOCKED:** the most recent GitHub-hosted CI and release jobs were refused by
-  the provider before startup because of account billing or spending-limit
-  state. A fresh run will determine whether that external block still applies.
-- **IN PROGRESS:** source merge, production web/services deployment, hosted
-  release matrix, updater signature, public mirror, and npm publication.
+- **IN PROGRESS:** v1.2.2 full local gate, protected source merge, hosted release
+  matrix, fresh-tag publication, independent artifact audit, and production
+  website/services redeployment.
 
 ## Do not touch without explicit authority
 

@@ -1,20 +1,21 @@
-# Pytxo v1.2.1 release readiness
+# Pytxo v1.2.2 release readiness
 
-**Assessment date:** 2026-09-03
-**Branch:** `codex/release-1.2.1`
-**Baseline HEAD:** `f31a75aca7232c9fa63eeccdba42b47e4132d122`
-**Recommendation:** **READY WITH KNOWN RISKS**
-**Publication state:** authorized and in progress; hosted runners last reported an account billing block
+**Assessment date:** 2026-09-04
+**Branch:** `codex/release-1.2.2-integrity`
+**Baseline HEAD:** `9139a908e05cf796578c094d485ee45baf50ba0d` (`origin/main`)
+**Recommendation:** **NOT READY — hosted corrective release and artifact audit pending**
+**Publication state:** v1.2.2 passes the complete local gate; protected CI, fresh-tag publication, and post-publication verification remain required
 
 ## Executive assessment
 
-Pytxo v1.2.1 is credible for its stated release scope: a Windows-first local
-commit layer around repository-changing agents. The candidate has exercised the
-actual boundary, not only preview UI: a deterministic worker ran in a persisted
-ProjFS-backed overlay, independent verification passed, Desktop displayed the
-exact stored package and receipt, an explicit human confirmation gated Apply,
-unrelated operator drift survived, the primary checkout passed post-state tests,
-and History recorded the committed attempt.
+Pytxo v1.2.2 is a corrective release-integrity patch over the fully tested
+v1.2.1 product. v1.2.1 exercised the actual Windows-first commit boundary, not
+only preview UI: a deterministic worker ran in a persisted ProjFS-backed
+overlay, independent verification passed, Desktop displayed the exact stored
+package and receipt, an explicit human confirmation gated Apply, unrelated
+operator drift survived, the primary checkout passed post-state tests, and
+History recorded the committed attempt. v1.2.2 changes version and publication
+surfaces, not that runtime behavior.
 
 A separate packaged rehearsal changed an affected checkout path after review.
 Pytxo refused Apply, did not partially apply the other reviewed files, did not
@@ -22,12 +23,11 @@ show success, and recorded a failed attempt. This is the most important
 adversarial proof for the product thesis: an agent's claim and a prepared package
 do not become a commit when the preconditions are no longer true.
 
-The release is not marked unconditionally READY because the hosted matrix must
-still complete. The repository has a Tauri updater-signing key, but no Windows
-Authenticode certificate or local Git signing key is configured. Narrated media
-also remains conditional on licensed audio. Those limits do not undermine the
-verified local product claim, but they constrain what can be published and what
-may be described as signed.
+The fresh patch is not ready to claim until protected CI completes, the corrected
+workflow publishes a new v1.2.2 tag, and independently downloaded public assets
+match the private build and checksum manifests. The repository has a Tauri
+updater-signing key, but no Windows Authenticode certificate or local Git signing
+key is configured. Narrated media also remains conditional on licensed audio.
 
 ## What changed
 
@@ -102,6 +102,26 @@ may be described as signed.
 - CLI/npm installers require exact asset identity, SHA-256, embedded version,
   and atomic replacement. Release Actions are pinned to immutable revisions.
 
+### Release publication integrity
+
+- The v1.2.1 hosted workflow passed, but a later Desktop mirror stage inherited
+  obsolete tracked root `dist/` files and replaced the public Windows CLI and
+  five-platform checksum manifest. Those assets were restored and independently
+  rehashed, but that tag's artifact history is now mutable.
+- v1.2.2 removes and ignores repository-root release staging, empties every
+  staging directory after checkout, and requires exact non-empty inventories
+  immediately before private, public CLI, and public Desktop publication.
+- Signed Desktop releases require one updater asset plus `latest.json`;
+  unsigned releases require neither. Unit tests cover both valid cases, the
+  original stale-file collision, empty assets, nested directories, and missing
+  signed updater evidence.
+- Version parity covers all 15 versioned Rust lock entries plus Desktop/demo
+  lockfiles, Tauri, npm, web download metadata, installer copy, README, public
+  changelog, and versioned release notes. These tests run in reusable CI.
+- The release icon pipeline no longer uses abandoned `to-ico` or its legacy
+  request/image dependency chain. A bounded PNG-in-ICO encoder is unit-tested;
+  both generators pass and a clean tooling audit reports zero vulnerabilities.
+
 ## Runtime evidence
 
 ### Successful commit boundary
@@ -156,41 +176,33 @@ All commands exited 0 on the final code candidate. The workspace test includes
 all unit, integration, process, and doc-test targets: 69 core, 50 runner, 32
 change-set, 9 Apply, 4 dispatch-lifecycle, 3 dependency-outcome, 3 Stop, 22
 Desktop-native, 22 Link, and 6 cloud-sandbox tests among the passing targets.
-The retargeted CLI reports `pytxo 1.2.1`; status returned valid JSON with the persisted
-domain isolation mechanism.
+The rebuilt CLI reports `pytxo 1.2.2`; status returned valid JSON with the
+persisted domain isolation mechanism.
 
-The v1.2.1 retarget was reverified on 2026-09-02 with formatting, the complete
-workspace test suite, warnings-denied clippy, optimized CLI and MCP builds, and
-the shared five-surface version-parity check. All exited 0.
+The v1.2.2 corrective tree was verified on 2026-09-04 with formatting, the
+complete workspace test suite, warnings-denied clippy, optimized CLI and MCP
+builds, and the expanded release-version and inventory contracts. All exited 0.
 
 The repaired 69-test core suite additionally passed 10 consecutive parallel
 runs. The exact Windows descendant Stop test and PTY environment isolation test
 passed after rejecting a regressing `portable-pty 0.9` upgrade.
 
-### Desktop — VERIFIED
+### Desktop — VERIFIED (patch scope)
 
 ```powershell
 cd apps/desktop
 npm run check
-npm run e2e
-npm run storybook:build
-npm run storybook:test:ci
 npm run build:native
-npm audit --omit=dev --audit-level=high
 cargo test -p pytxo-desktop
 ```
 
-- Svelte: 0 errors, 0 warnings; CSS lint passed.
-- Production-preview browser suite: 104/104 passed.
-- Development-only legacy-deck suite: 1/1 passed.
-- Storybook interaction/accessibility suite: 41/41 passed against the final
-  static build.
-- Final frontend build transformed 6,366 modules; final optimized Windows native
-  build passed.
-- Production npm audit: 0 vulnerabilities.
-- Desktop-native tests: 22/22 passed in the final workspace run.
-- Packaged runtime behavior is recorded above and is not inferred from preview
-  browser data.
+- On v1.2.2, Svelte reported 0 errors/warnings, CSS lint passed, the frontend
+  transformed 6,366 modules, the optimized Windows native build passed, and all
+  22 Desktop-native tests passed in the workspace run.
+- Product UI source is unchanged from v1.2.1. Its production-preview browser
+  suite (104/104), development-only legacy-deck suite (1/1), Storybook
+  interaction/accessibility suite (41/41), and packaged runtime proofs remain
+  the relevant behavior evidence.
 
 ### Website and public docs — VERIFIED
 
@@ -205,22 +217,24 @@ pnpm run e2e -- e2e/marketing.spec.ts --workers=1 --reporter=line
 pnpm audit --prod --audit-level=high
 ```
 
-Frozen install, lint, 27 product-asset references, 153 internal links, the
-58-page production build, and all 17 browser tests passed. Production audit
-reports no known vulnerabilities. No web source changed after this gate.
+On v1.2.2, lint, 27 product-asset references, 153 internal links, and the
+58-page production build passed after updating public version and Windows-only
+Desktop copy. The unchanged product pages retain the v1.2.1 17-test browser and
+zero-production-vulnerability evidence.
 
 ### Demo — VERIFIED SILENT / BLOCKED NARRATED
 
-The demo clean install, production audit, typecheck, composition list, asset
-validator, audio parser tests, publishing validator, still/poster generation,
-silent render, silent validation, and transition sheet passed. The master is
+The v1.2.2 typecheck, composition list, asset validator, audio parser tests, and
+publishing validator passed. The unchanged v1.2.1 demo clean install, production
+audit, still/poster generation, silent render, silent validation, and transition
+sheet remain valid. The master is
 52.000 seconds, 1920×1080, 30 fps, BT.709, H.264. The transition sheet was
 visually reviewed and uses one coherent current Work/Run Review shell.
 
 Narrated publication is **BLOCKED** until approved/licensed audio is supplied
 and `validate:narrated` passes. The release may claim only the silent master.
 
-### npm package and staged install — VERIFIED
+### npm package and staged install — PARTIALLY VERIFIED
 
 ```powershell
 cd packages/pytxo
@@ -228,8 +242,9 @@ npm test
 npm pack
 ```
 
-- Installer/platform/checksum/atomic tests: 4/4 passed.
-- Tarball: exactly six intended files; zero runtime dependencies.
+- v1.2.2 installer/platform/checksum/atomic tests: 4/4 passed against the rebuilt
+  release CLI, including embedded-version and checksum refusal.
+- v1.2.2 dry-pack: exactly six intended files; zero runtime dependencies.
 - The exact final tarball installed into fresh prefix
   `target/final-package-install-20260902-155602-514` through the production
   postinstall path.
@@ -238,8 +253,8 @@ npm pack
 - The original exact-package rehearsal reported `pytxo 1.2.0`; after discovering
   that tag was already public, the retargeted v1.2.1 wrapper tests, dry-pack,
   source parity, optimized binary build, and live `pytxo 1.2.1` check passed.
-- The generated tarball was removed after verification; the clean-prefix
-  evidence remains under ignored `target/`.
+- A clean install from the public `pytxo@1.2.2` package remains required before
+  this section can become fully verified.
 
 ### Security and artifact audit — VERIFIED WITH ACCEPTED WARNINGS
 
@@ -256,8 +271,9 @@ npm pack
   fixtures in test-bearing source files. No tracked absolute developer path was
   found. User-owned untracked captures/logs/notes are not part of a clean release
   checkout and were preserved.
-- Version parity verified Rust, Desktop, Tauri, demo, web metadata, and npm at
-  v1.2.1 after the published-tag collision was discovered.
+- Version parity verifies 15 first-party Cargo lock entries plus Rust, Desktop
+  and demo package/lock metadata, Tauri, npm, web downloads, the PowerShell
+  installer, README, public changelog, and release notes at v1.2.2.
 
 ## Demo readiness
 
@@ -282,9 +298,9 @@ workspaces and recents cannot leak into a take.
   embedded-version mismatch and replace atomically.
 - Updater metadata requires exactly the declared Windows platform. The repository
   has a Tauri updater-signing secret; Windows Authenticode credentials are absent.
-- Publication is authorized. GitHub Actions last refused every job because of
-  account billing or spending-limit state, so the five-platform CLI release must
-  remain unpublished until a fresh required matrix completes.
+- v1.2.1 subsequently passed protected CI (12/12 jobs) and the complete release
+  workflow. v1.2.2 must repeat those hosted gates through the corrected workflow
+  before it replaces the repaired-but-mutable v1.2.1 artifact history.
 
 ## Merchant-of-record architecture
 
@@ -294,7 +310,7 @@ workspaces and recents cannot leak into a take.
 - Proposed `ADR-0040` and `docs/01-projects/dodo-mor-integration.md` define a
   provider-neutral Dodo-to-Link adapter behind a raw Pytxo-domain proxy, with
   replay, ordering, grant aggregation, allowlist, and migration requirements.
-- This is **IMPLEMENTED as documentation** and **UNVERIFIED as runtime**. v1.2.1
+- This is **IMPLEMENTED as documentation** and **UNVERIFIED as runtime**. v1.2.2
   does not claim a Dodo checkout or webhook cutover; the existing Paddle adapter
   remains authoritative until test-mode and dual-run evidence exist.
 
@@ -310,9 +326,10 @@ workspaces and recents cannot leak into a take.
   Desktop artifacts; older installers must not be relabeled as v1.2.
 - Regex sanitization is defense in depth, not an authorization boundary or proof
   that arbitrary output is secret-free.
-- Optional Link/cloud/Ultra deployment was not exercised against production
-  PostgreSQL or a live hosted sandbox. Those capabilities are outside the
-  default local v1 claim.
+- Link, cloud, and proxy production health endpoints passed after the v1.2.1
+  deployment. A live production PostgreSQL migration and authenticated sandbox
+  sync-to-exec transaction remain unverified and outside the default local v1
+  claim.
 - `portable-pty 0.8.1` retains an unmaintained `serial` dependency. Its maintained
   0.9 upgrade caused a reproducible PTY lifecycle hang and was rejected. There is
   no RustSec vulnerability advisory for `serial`.
@@ -326,12 +343,14 @@ workspaces and recents cannot leak into a take.
 
 ## Final recommendation
 
-**READY WITH KNOWN RISKS.**
+**NOT READY.**
 
 The local Windows-first product claim, main success path, critical stale-path
-failure, package integrity, UI behavior, tests, builds, dependency posture, and
-silent demo are supported by current evidence. Remaining work requires
-functioning hosted runners, optional Authenticode credentials, or licensed
-media. Publication is approved, but the binary and npm release must wait for
-the hosted workflow's required gates rather than repeat v1.2.0's incomplete
-platform publication.
+failure, UI behavior, tests, builds, dependency posture, and silent demo are
+supported by current evidence. The v1.2.2 corrective source also passes its full
+local patch-scope gate. It remains not ready until protected CI passes, the fresh
+tag publishes through the corrected workflow, and independent downloads prove
+the exact private/public inventories, checksums, embedded versions, updater
+signature, and npm install. If those checks pass, the appropriate final rating
+is **READY WITH KNOWN RISKS**, limited by absent Authenticode/Git signing,
+licensed narration, and the documented runtime boundaries above.

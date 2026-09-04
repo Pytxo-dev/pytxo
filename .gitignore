@@ -30,6 +30,7 @@ apps/desktop/output/
 apps/desktop-export/dist/
 
 # Local release staging and gate output
+/dist/
 dist-release/
 .gate-*.txt
 .gate-*.log
