@@ -465,11 +465,13 @@ otherwise the limitation must be explicit.
 | 2026-09-04 | Implemented v1.2.2 clean-staging and exact-inventory publication controls. | **IMPLEMENTED / PARTIALLY VERIFIED** | Stale tracked `dist/` files removed; root staging ignored; signed, unsigned, stale-file, empty-file, and missing-updater regression cases pass; expanded 27-surface version parity passes; hosted CI/release pending. |
 | 2026-09-04 | Ran the complete local v1.2.2 corrective release gate. | **VERIFIED (local)** | `cargo fmt`, full workspace tests, warnings-denied clippy, optimized CLI/MCP builds, live v1.2.2 status/version, Desktop check/native build, web lint/links/assets/build, npm tests/dry-pack, demo static checks, workflow lint, release regressions, and whitespace checks exited 0. |
 | 2026-09-04 | Removed the release icon pipeline's abandoned `to-ico` dependency and vulnerable legacy transitive graph. | **VERIFIED** | A local PNG-in-ICO encoder has deterministic header/offset/input tests; Desktop and web generators completed; generated assets passed quality checks; clean tooling install and audit reported 0 vulnerabilities. |
+| 2026-09-04 | Ran protected CI for the v1.2.2 release candidate. | **PARTIALLY VERIFIED / BLOCKED EXTERNALLY** | Run `33827029442` passed Rust on Windows/macOS/Linux, Desktop frontend/Playwright/Storybook, npm wrapper, Link/cloud builds, smoke tests, and benchmarks. The web job reached a registry audit request and failed on npm's `503 Service Unavailable`; its retry and the downstream native Desktop job were then refused before runner allocation because the GitHub organization has a failed payment or exhausted Actions spending limit. |
 
 ## 16. Remaining work
 
-1. Finish the v1.2.2 local release gate, merge only after protected-hosted CI is
-   green, and run the corrected five-platform CLI plus Windows MSI/updater
+1. Restore GitHub Actions runner allocation in the `Pytxo-dev` organization,
+   rerun the failed v1.2.2 web/Desktop jobs, merge only after protected-hosted CI
+   is green, and run the corrected five-platform CLI plus Windows MSI/updater
    release workflow from the merge commit.
 2. Independently download and verify the exact v1.2.2 private/public assets,
    checksums, embedded versions, updater manifest/signature, npm package,
@@ -523,18 +525,21 @@ accepted only if public copy and receipts state them accurately:
 - **VERIFIED:** v1.2.1 passed hosted CI/release and was deployed. Its public
   Windows CLI/checksum collision was repaired, but immutable provenance is not
   claimed for that tag.
-- **VERIFIED (local) / PENDING (hosted):** v1.2.2 parity covers 27
+- **VERIFIED (local) / PARTIALLY VERIFIED (hosted) / BLOCKED:** v1.2.2 parity covers 27
   release-facing source, lockfile, installer, web, docs, and notes surfaces.
   Exact-inventory and icon regressions, full Rust tests/clippy/builds, Desktop
   native build, web build, npm package tests, demo checks, workflow lint, and
-  whitespace checks pass locally.
+  whitespace checks pass locally. Protected run `33827029442` passed every
+  allocated non-web job; npm's audit endpoint returned 503 in the web job, and
+  GitHub then refused retry runners because the organization billing/spend gate
+  is closed. The same gate prevents the release workflow from running.
 - **VERIFIED:** npm, public-release mirror, and Tauri updater-signing secrets
   exist in the private repository. No secret value was read or logged.
 - **BLOCKED:** Windows Authenticode and local Git signing keys are not
   configured. Do not describe the MSI, commit, or tag as code-signed.
-- **IN PROGRESS:** v1.2.2 full local gate, protected source merge, hosted release
-  matrix, fresh-tag publication, independent artifact audit, and production
-  website/services redeployment.
+- **BLOCKED EXTERNALLY:** protected source merge, hosted release matrix,
+  fresh-tag publication, independent artifact audit, and production
+  website/services redeployment await restored GitHub Actions runner allocation.
 
 ## Do not touch without explicit authority
 

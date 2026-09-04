@@ -3,8 +3,8 @@
 **Assessment date:** 2026-09-04
 **Branch:** `codex/release-1.2.2-integrity`
 **Baseline HEAD:** `9139a908e05cf796578c094d485ee45baf50ba0d` (`origin/main`)
-**Recommendation:** **NOT READY — hosted corrective release and artifact audit pending**
-**Publication state:** v1.2.2 passes the complete local gate; protected CI, fresh-tag publication, and post-publication verification remain required
+**Recommendation:** **NOT READY — GitHub Actions billing/spend gate blocks publication**
+**Publication state:** v1.2.2 passes the complete local gate and most protected CI jobs; runner allocation, fresh-tag publication, and post-publication verification remain required
 
 ## Executive assessment
 
@@ -25,7 +25,12 @@ do not become a commit when the preconditions are no longer true.
 
 The fresh patch is not ready to claim until protected CI completes, the corrected
 workflow publishes a new v1.2.2 tag, and independently downloaded public assets
-match the private build and checksum manifests. The repository has a Tauri
+match the private build and checksum manifests. Protected run `33827029442`
+passed its Rust, Desktop frontend, npm wrapper, service, smoke, and benchmark
+jobs. Its web audit request received `503 Service Unavailable` from npm; GitHub
+then refused the retry and native Desktop runner because the organization has a
+failed payment or exhausted Actions spending limit. This external gate also
+prevents the release workflow from starting. The repository has a Tauri
 updater-signing key, but no Windows Authenticode certificate or local Git signing
 key is configured. Narrated media also remains conditional on licensed audio.
 
@@ -348,8 +353,10 @@ workspaces and recents cannot leak into a take.
 The local Windows-first product claim, main success path, critical stale-path
 failure, UI behavior, tests, builds, dependency posture, and silent demo are
 supported by current evidence. The v1.2.2 corrective source also passes its full
-local patch-scope gate. It remains not ready until protected CI passes, the fresh
-tag publishes through the corrected workflow, and independent downloads prove
+local patch-scope gate, while the allocated protected CI jobs passed. It remains
+not ready until GitHub Actions runner allocation is restored, the web/native
+Desktop jobs pass, the fresh tag publishes through the corrected workflow, and
+independent downloads prove
 the exact private/public inventories, checksums, embedded versions, updater
 signature, and npm install. If those checks pass, the appropriate final rating
 is **READY WITH KNOWN RISKS**, limited by absent Authenticode/Git signing,
