@@ -25,16 +25,31 @@ Set-Location C:\pytxo
 cargo build -p pytxo-cli --release
 Push-Location apps\desktop
 npm ci
-npm run build:native
+cargo tauri build --target x86_64-pc-windows-msvc --bundles msi --features voice-whisper
 Pop-Location
+$demoMsi = (Resolve-Path `
+  '.\target\x86_64-pc-windows-msvc\release\bundle\msi\Pytxo Desktop_1.2.2_x64_en-US.msi').Path
+$demoMsiRoot = Join-Path (Resolve-Path '.\target').Path `
+  ("demo-msi-payload-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+$extract = Start-Process msiexec.exe -Wait -PassThru -ArgumentList @(
+  '/a', "`"$demoMsi`"", '/qn', "TARGETDIR=`"$demoMsiRoot`""
+)
+if ($extract.ExitCode -ne 0) {
+  throw "MSI administrative-image extraction failed with exit $($extract.ExitCode)"
+}
+$demoDesktop = Get-ChildItem -LiteralPath $demoMsiRoot -Recurse `
+  -Filter 'pytxo-desktop.exe' | Select-Object -First 1
+if (-not $demoDesktop) { throw 'MSI payload does not contain pytxo-desktop.exe' }
 $env:PYTXO_DEMO_WORKSPACE = & .\tooling\demos\commit-boundary\prepare.ps1 | Select-Object -Last 1
 Set-Location $env:PYTXO_DEMO_WORKSPACE
 & C:\pytxo\target\release\pytxo.exe trust orbit
-Start-Process C:\pytxo\target\release\pytxo-desktop.exe
+Start-Process -FilePath $demoDesktop.FullName `
+  -WorkingDirectory $env:PYTXO_DEMO_WORKSPACE
 ```
 
-Expected result: baseline `npm test` passes, the final preparation line is a
-new path under `C:\pytxo\target\release-demo\`, `PYTXO_HOME` points to a fresh
+Expected result: baseline `npm test` passes, the launched executable comes from
+the MSI administrative image rather than the raw build tree, the final preparation
+line is a new path under `C:\pytxo\target\release-demo\`, `PYTXO_HOME` points to a fresh
 adjacent demo-only catalog, `WEBVIEW2_USER_DATA_FOLDER` points inside that same
 demo home, and `trust orbit` confirms the folder boundary. The Desktop process
 inherits both isolated stores, so no personal workspace, run, approval, or
@@ -167,24 +182,26 @@ ledger state on the exact release candidate.
 
 ### Verified rehearsal evidence
 
-The main sequence passed through packaged Windows Desktop run
-`54924278-5e91-40d0-a7de-6f8e99cde4a3` with package
-`072f954fcaa27bc0c9d36e561139614223cac176e3871857ea1f423a4165f3b0`.
+The main sequence passed through the v1.2.2 Windows Desktop run
+`6b2bd73d-cb87-409b-b874-8023dd7f210b` with package
+`2230d886bd2c5faf55cd95f6180ce4c7a43e2939b27351e7c70e4096a3523915`.
 The three reviewed paths applied, unrelated `operator-note.txt` survived, the
 primary checkout passed 3/3 tests, and History recorded one committed attempt.
 
-The controlled failure passed through packaged run
-`47da6a06-a3f3-4b66-8425-838efd8a7809` with package
-`30b29840dc68225b7a521ce0b78ca144d7a65c8555bc71af39f781f784e086a9`.
+The controlled failure passed through the same v1.2.2 Desktop build as run
+`75bbb2f3-6c64-4051-8eeb-6c9ae953667a` with package
+`13612346e51e834e9a244ab2c56af1be735283ac12fcf0a96378053911031767`.
 Affected-path drift caused stale-review refusal; no other reviewed path applied,
 baseline tests remained 2/2, and History recorded Apply failed without a success
 receipt. The optional failure insert is therefore approved for this candidate.
 
-Runtime captures are retained under `target/release-demo/` as
-`final-native-work.png`, `final-native-review.png`,
+Runtime captures are retained under `docs/_attachments/release-v1.2.2/` as
+`final-native-onboarding.png`, `final-native-work.png`, `final-native-review.png`,
 `final-native-apply-confirm.png`, `final-native-applied.png`,
 `final-native-history.png`, `final-native-stale-refusal.png`, and
-`final-native-stale-history.png`.
+`final-native-stale-history.png`. Each is a tracked 1600×1000 capture from the
+actual native WebView, not the browser preview backend. `SHA256SUMS.txt` binds
+the checked-in evidence set.
 
 ## Fallback behavior
 
@@ -202,7 +219,7 @@ Runtime captures are retained under `target/release-demo/` as
 
 ## Recording checklist
 
-- [ ] Exact release CLI and packaged Desktop are used.
+- [ ] Exact release CLI and the Desktop payload extracted from the current MSI are used.
 - [ ] A new committed fixture session is prepared; baseline tests pass.
 - [ ] Orbit trust is visible and no provider key or account token is shown.
 - [ ] The deterministic adapter is disclosed in narration and on-screen notes.

@@ -149,6 +149,22 @@ test.describe("Epistemic state contract", () => {
   });
 });
 
+test.describe("Epistemic summary rendering", () => {
+  test.beforeEach(async ({ page }) => {
+    await completeOnboarding(page);
+  });
+
+  test("reported advisory evidence is not downgraded to unknown", async ({ page }) => {
+    await page.goto("/#/history");
+    const run = page.getByRole("button").filter({ hasText: "run-71ad" });
+
+    await expect(run).toHaveAttribute("data-tone", "claimed");
+    await run.click();
+    await expect(page.getByText("Partly advisory only", { exact: true })).toBeVisible();
+    await expect(page.getByText("Enforcement not fully reported", { exact: true })).toHaveCount(0);
+  });
+});
+
 test.describe("Epistemic state rendering", () => {
   test.beforeEach(async ({ page }) => {
     await completeOnboarding(page, { "pytxo-preview-state-matrix-v1": "1" });

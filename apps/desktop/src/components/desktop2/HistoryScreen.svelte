@@ -156,7 +156,7 @@
           {#each filtered as run, index (run.id)}
             {@const state = runState(run)}
             {@const apply = applyLabel(run)}
-            {@const tone = worstTone([state.tone, apply.tone], "unknown" as EpistemicTone)}
+            {@const tone = worstTone([state.tone, apply.tone], "verified" as EpistemicTone)}
             <button
               bind:this={rows[index]}
               class="row"

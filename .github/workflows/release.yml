@@ -131,11 +131,9 @@ jobs:
           name: ${{ matrix.asset_name }}
           path: dist/${{ matrix.asset_name }}${{ matrix.ext }}
 
-  release:
+  prepare-cli-release:
     needs: build
     runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ env.TAG_NAME }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -183,37 +181,14 @@ jobs:
       - name: Require the exact CLI publish inventory
         run: node tooling/scripts/verify-release-inventory.mjs cli dist
 
-      - name: Prepare release notes body
-        run: |
-          VERSION="${{ env.NPM_VERSION }}"
-          VERSION="${VERSION#v}"
-          NOTES="distribution/release-notes/v${VERSION}.md"
-          if [ -f "$NOTES" ]; then
-            cp "$NOTES" RELEASE_BODY.md
-            echo "Using $NOTES for release body"
-          else
-            echo "::error::Missing versioned release notes: $NOTES"
-            exit 1
-          fi
-
-      - name: Create private repo release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          tag_name: ${{ env.TAG_NAME }}
-          name: ${{ env.TAG_NAME }}
-          generate_release_notes: false
-          body_path: RELEASE_BODY.md
-          files: dist/*
-          fail_on_unmatched_files: true
-
       - name: Upload artifacts for downstream jobs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: release-assets
+          name: release-cli-assets
           path: dist/
 
   mirror-public-release:
-    needs: release
+    needs: [prepare-cli-release, prepare-desktop-release, publish-private-release]
     runs-on: ubuntu-latest
     if: >-
       ${{
@@ -223,30 +198,40 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Prepare clean CLI mirror staging
-        run: rm -rf dist
+      - name: Prepare clean public mirror staging
+        run: rm -rf cli-dist desktop-dist
 
       - name: Check PYTXO_RELEASES_TOKEN
         env:
           PYTXO_RELEASES_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
         run: |
           if [ -z "${PYTXO_RELEASES_TOKEN}" ]; then
-            echo "::error::PYTXO_RELEASES_TOKEN is required before public npm publication"
+            echo "::error::PYTXO_RELEASES_TOKEN is required when public mirroring is enabled"
             exit 1
           fi
 
-      - name: Download release assets
+      - name: Download exact CLI release assets
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: release-assets
-          path: dist
+          name: release-cli-assets
+          path: cli-dist
 
-      - name: Require the exact CLI mirror inventory
-        run: node tooling/scripts/verify-release-inventory.mjs cli dist
+      - name: Download exact Desktop release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-desktop-assets
+          path: desktop-dist
+
+      - name: Require the exact public mirror inventories
+        env:
+          HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          node tooling/scripts/verify-release-inventory.mjs cli cli-dist
+          node tooling/scripts/verify-release-inventory.mjs desktop desktop-dist
 
       - name: Prepare release notes body
         run: |
-          TAG="${{ needs.release.outputs.tag }}"
+          TAG="${{ env.TAG_NAME }}"
           VERSION="${TAG#v}"
           NOTES="distribution/release-notes/v${VERSION}.md"
           if [ -f "$NOTES" ]; then
@@ -260,12 +245,13 @@ jobs:
         with:
           repository: Pytxo-dev/pytxo-releases
           token: ${{ secrets.PYTXO_RELEASES_TOKEN }}
-          tag_name: ${{ needs.release.outputs.tag }}
-          name: ${{ needs.release.outputs.tag }}
+          tag_name: ${{ env.TAG_NAME }}
+          name: ${{ env.TAG_NAME }}
           generate_release_notes: false
           body_path: RELEASE_BODY.md
           files: |
-            dist/*
+            cli-dist/*
+            desktop-dist/*
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
@@ -287,12 +273,12 @@ jobs:
           if git diff --staged --quiet; then
             echo "Install scripts unchanged"
           else
-            git commit -m "Sync install scripts from pytxo ${{ needs.release.outputs.tag }}"
+            git commit -m "Sync install scripts from pytxo ${{ env.TAG_NAME }}"
             git push origin HEAD:main
           fi
 
   desktop-release:
-    needs: release
+    needs: prepare-cli-release
     strategy:
       fail-fast: true
       matrix:
@@ -375,13 +361,6 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: "10.15"
         with:
           projectPath: apps/desktop
-          tagName: ${{ env.TAG_NAME }}
-          releaseName: ${{ env.TAG_NAME }}
-          releaseBody: "Pytxo Desktop installers"
-          releaseDraft: false
-          prerelease: false
-          includeRelease: true
-          includeUpdaterJson: false
           args: --target ${{ matrix.rust_target }} --features voice-whisper
 
       - name: Upload desktop artifact
@@ -392,14 +371,8 @@ jobs:
             target/${{ matrix.rust_target }}/release/bundle/**/*
           if-no-files-found: error
 
-  mirror-desktop-release:
-    needs: [release, desktop-release]
-    if: >-
-      ${{
-        always() && !cancelled() && needs.release.result == 'success'
-        && needs.desktop-release.result == 'success'
-        && ((github.event_name == 'workflow_dispatch' && inputs.mirror_public) || github.event_name == 'push')
-      }}
+  prepare-desktop-release:
+    needs: desktop-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -408,31 +381,20 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Check PYTXO_RELEASES_TOKEN
-        id: token
-        env:
-          PYTXO_RELEASES_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
-        run: |
-          if [ -z "${PYTXO_RELEASES_TOKEN}" ]; then
-            echo "::error::PYTXO_RELEASES_TOKEN is required when public mirroring is enabled"
-            exit 1
-          fi
-          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - name: Prepare clean Desktop staging
+        run: rm -rf desktop-build desktop-dist
 
-      - name: Download desktop artifacts
-        if: steps.token.outputs.ok == 'true'
+      - name: Download desktop build artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: pytxo-desktop-*
-          path: desktop-dist
+          path: desktop-build
 
-      - name: Stage desktop installers for pytxo-releases
-        if: steps.token.outputs.ok == 'true'
+      - name: Stage desktop installers for publication
         run: |
           set -euo pipefail
-          rm -rf dist
-          mkdir -p dist
-          find desktop-dist -type f \( -name '*.msi' -o -name '*.dmg' -o -name '*.AppImage' \) | while read -r f; do
+          mkdir -p desktop-dist
+          find desktop-build -type f \( -name '*.msi' -o -name '*.dmg' -o -name '*.AppImage' \) | while read -r f; do
             base="$(basename "$f")"
             case "$base" in
               *.msi) dest="pytxo-desktop-windows-x64.msi" ;;
@@ -441,55 +403,99 @@ jobs:
               *.AppImage) dest="pytxo-desktop-linux-x64.AppImage" ;;
               *) continue ;;
             esac
-            cp "$f" "dist/$dest"
-            echo "staged $f → dist/$dest"
+            cp "$f" "desktop-dist/$dest"
+            echo "staged $f → desktop-dist/$dest"
           done
-          test -s dist/pytxo-desktop-windows-x64.msi || {
+          test -s desktop-dist/pytxo-desktop-windows-x64.msi || {
             echo "::error::Missing required Windows x64 Desktop MSI"
             exit 1
           }
-          if find dist -maxdepth 1 -type f \( -name '*darwin*' -o -name '*linux*' \) | grep -q .; then
+          if find desktop-dist -maxdepth 1 -type f \( -name '*darwin*' -o -name '*linux*' \) | grep -q .; then
             echo "::error::Unexpected non-Windows Desktop artifact in the Windows-first v1.2 release"
             exit 1
           fi
-          ls -la dist/
+          ls -la desktop-dist/
 
       - name: Build updater manifest (latest.json)
-        if: steps.token.outputs.ok == 'true'
         env:
-          TAG_NAME: ${{ needs.release.outputs.tag }}
+          TAG_NAME: ${{ env.TAG_NAME }}
           HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
           PYTXO_DESKTOP_PLATFORMS: windows-x86_64
-        run: node tooling/scripts/build-updater-manifest.mjs desktop-dist dist
+        run: node tooling/scripts/build-updater-manifest.mjs desktop-build desktop-dist
 
       - name: Generate Desktop checksums
-        working-directory: dist
+        working-directory: desktop-dist
         run: |
           set -euo pipefail
           sha256sum pytxo-desktop-windows-x64.msi > DESKTOP_SHA256SUMS.txt
           cat DESKTOP_SHA256SUMS.txt
 
-      - name: Require the exact Desktop mirror inventory
+      - name: Require the exact Desktop publish inventory
         env:
           HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
-        run: node tooling/scripts/verify-release-inventory.mjs desktop dist
+        run: node tooling/scripts/verify-release-inventory.mjs desktop desktop-dist
 
-      - name: Mirror desktop to public pytxo-releases
-        if: steps.token.outputs.ok == 'true'
+      - name: Upload exact Desktop release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-desktop-assets
+          path: desktop-dist/
+
+  publish-private-release:
+    needs: [prepare-cli-release, prepare-desktop-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Prepare clean private release staging
+        run: rm -rf cli-dist desktop-dist
+
+      - name: Download exact CLI release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-cli-assets
+          path: cli-dist
+
+      - name: Download exact Desktop release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-desktop-assets
+          path: desktop-dist
+
+      - name: Require the exact private release inventories
+        env:
+          HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          node tooling/scripts/verify-release-inventory.mjs cli cli-dist
+          node tooling/scripts/verify-release-inventory.mjs desktop desktop-dist
+
+      - name: Prepare release notes body
+        run: |
+          VERSION="${{ env.NPM_VERSION }}"
+          VERSION="${VERSION#v}"
+          NOTES="distribution/release-notes/v${VERSION}.md"
+          if [ -f "$NOTES" ]; then
+            cp "$NOTES" RELEASE_BODY.md
+            echo "Using $NOTES for release body"
+          else
+            echo "::error::Missing versioned release notes: $NOTES"
+            exit 1
+          fi
+
+      - name: Create private repo release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          repository: Pytxo-dev/pytxo-releases
-          token: ${{ secrets.PYTXO_RELEASES_TOKEN }}
-          tag_name: ${{ needs.release.outputs.tag }}
-          name: ${{ needs.release.outputs.tag }}
-          generate_release_notes: true
-          files: dist/*
+          tag_name: ${{ env.TAG_NAME }}
+          name: ${{ env.TAG_NAME }}
+          generate_release_notes: false
+          body_path: RELEASE_BODY.md
+          files: |
+            cli-dist/*
+            desktop-dist/*
           fail_on_unmatched_files: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
 
   npm:
-    needs: [release, mirror-public-release]
+    needs: [prepare-cli-release, prepare-desktop-release, publish-private-release, mirror-public-release]
     runs-on: ubuntu-latest
     if: >-
       ${{

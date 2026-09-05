@@ -3,7 +3,7 @@
 **Owner:** lead release engineer
 **Started:** 2026-08-30
 **Target:** credible public v1.2.2 release
-**Current recommendation:** **NOT READY — corrective release candidate under verification**
+**Current recommendation:** **NOT READY — local code/runtime candidate verified; clean/elevated MSI install and hosted publication remain blocked**
 
 This file is the source of truth for the release effort. A checkbox is not
 enough to establish completion; every release claim must carry one of the
@@ -82,13 +82,12 @@ accepted ADRs are not edited.
   recovery release and must not publish until clean staging and exact inventory
   gates pass locally and in hosted CI.
 - **VERIFIED (local):** the complete v1.2.2 patch-scope Rust, Desktop native,
-  web, demo, npm wrapper, workflow, formatting, and version gates pass. The
-  unchanged packaged product workflows remain supported by the v1.2.1 runtime
-  evidence recorded in `RELEASE_READINESS.md`.
-- **VERIFIED:** a packaged Windows Desktop completed a real deterministic Orbit
+  MSI, web, demo, npm wrapper, workflow, formatting, and version gates pass.
+- **VERIFIED:** the v1.2.2 Windows Desktop completed a real deterministic Orbit
   mission, exact review, explicit Apply, post-state test, and History flow; a
-  separate packaged run refused affected-path drift without partial mutation or
-  a false success receipt.
+  separate run on the same build refused affected-path drift without partial
+  mutation or a false success receipt. Eight current 1600×1000 native WebView
+  captures are tracked under `docs/_attachments/release-v1.2.2/`.
 - **PARTIALLY VERIFIED:** the v1.2.2 npm wrapper exercised its production
   checksum/version-bound postinstall path against the rebuilt local v1.2.2 CLI;
   installation from the published npm tarball remains part of the final audit.
@@ -101,19 +100,21 @@ accepted ADRs are not edited.
 
 | Priority | Blocker | State | Exit evidence |
 |---|---|---|---|
-| P0 | Public release staging could publish stale tracked files over freshly built assets and checksums. | **IMPLEMENTED / PARTIALLY VERIFIED** | Obsolete root `dist/` files are removed and `/dist/` is ignored. CLI/private/public and Desktop stages start empty and require exact non-empty inventories; signed and unsigned Desktop cases have regression tests. Local tests and `actionlint` pass; hosted release evidence remains required. |
-| P0 | Current v1.2 critical workflow has no fresh end-to-end evidence. | **VERIFIED** | Packaged run `54924278-5e91-40d0-a7de-6f8e99cde4a3` completed isolation -> verification -> exact three-file review -> confirmation -> path-specific Apply -> post-state tests (3/3) -> committed History. Packaged run `47da6a06-a3f3-4b66-8425-838efd8a7809` refused affected-path drift, left only the operator edit, kept baseline tests 2/2, and recorded Apply failed with no success receipt. |
-| P0 | Full Rust, Desktop, web, demo, packaging, and repository gates have not run on the current tree. | **VERIFIED (patch scope)** | Full workspace tests/clippy/builds, Desktop check/native build, web gates/build, demo static gates, npm tests/dry-pack, version/inventory regressions, workflow lint, and whitespace checks pass on v1.2.2. Browser/Storybook/runtime flows are inherited from v1.2.1 because product source is unchanged; hosted CI remains a separate publication gate. |
+| P0 | Public release staging could publish stale or partial assets before the complete candidate exists. | **IMPLEMENTED / PARTIALLY VERIFIED** | Obsolete root `dist/` files are removed and `/dist/` is ignored. CLI and Desktop preparation start clean and require exact non-empty inventories. Private/public GitHub release jobs cannot begin until both prepared inventories pass, and npm waits for the combined public mirror. Local structure/inventory tests and `actionlint` pass; hosted release evidence remains required. |
+| P0 | Current v1.2 critical workflow has no fresh end-to-end evidence. | **VERIFIED** | v1.2.2 MSI-payload run `6b2bd73d-cb87-409b-b874-8023dd7f210b` completed isolation -> exact three-file review -> confirmation -> path-specific Apply -> post-state tests (3/3) -> committed History. Run `75bbb2f3-6c64-4051-8eeb-6c9ae953667a` refused affected-path drift, left only the operator edit, kept baseline tests 2/2, and recorded stale/Apply failed with no success receipt. |
+| P0 | Full Rust, Desktop, web, demo, packaging, and repository gates have not run on the current tree. | **VERIFIED (patch scope)** | Full workspace tests/clippy/builds, Desktop check/native build, web gates/build, demo static gates, npm tests/dry-pack, version/inventory regressions, workflow lint, and whitespace checks pass on v1.2.2. The post-fix browser suite passed 105/105, the Storybook build and all 41 tests passed, and the exact MSI payload completed both native rehearsals; hosted CI remains a separate publication gate. |
 | P0 | Fresh install/package behavior and embedded version parity are unproven. | **PARTIALLY VERIFIED** | v1.2.2 wrapper tests pass against the rebuilt release CLI, including checksum mismatch and embedded-version rejection; the package still dry-packs exactly six files. A clean install from the actually published `pytxo@1.2.2` is required before this closes. |
 | P0 | Repository-controlled per-agent profiles could exceed out-of-band trust ceilings. | **VERIFIED** | Every project root requires readable explicit trust; trusted-primary/untrusted-secondary Supernova is rejected before execution; signed-in offline Supernova/elevated-agent requests fail instead of dropping the org ceiling; focused fixtures and the final workspace regression pass. |
 | P0 | Cloud sync and context-cache uploads could transmit raw secrets or reinterpret a policy denial as local execution. | **PARTIALLY VERIFIED (fix)** | Dual consent, manifest, content/path denial, no-follow handle reads, policy-vs-transport classification, separate host consent for local fallback, and remote `/workspace` request tests pass. A live sandbox sync→exec test is still required before this row is fully verified. |
 | P0 | Paddle entitlement webhook accepted unsigned/unbounded tier changes and had no durable identity/replay binding. | **VERIFIED (targeted fix)** | 21 Link tests prove fail-closed secret/signature freshness, event allowlist, configured price mapping, durable subscription/customer/user binding, conflict rejection, transactional replay, cancellation ownership, and idempotent duplicate success; the duplicate web provisioner was replaced by a fail-closed Link proxy. Production Postgres migration remains part of deployment verification. |
 | P0 | The documented Windows echo smoke previously printed `OK` after the real run failed folder-trust enforcement, so prior smoke evidence could be false-positive. | **VERIFIED** | Checked native invocation helper, explicit trust, and current-tree binary smoke exit zero; deliberate native failure is rejected and cannot reach the success marker. |
 | P1 | README install/status language was materially stale and undermined onboarding. | **VERIFIED** | README reconciled to v1.2.0; the packed npm artifact installed from a staged checksum-bound release in a clean prefix; its CLI version and quick doctor passed. |
-| P1 | The release lacked a reproducible 2–4 minute commit-boundary walkthrough and full CLI -> Desktop -> Apply evidence. | **VERIFIED** | `DEMO.md`, isolated fixture/catalog/WebView state, and the exact packaged candidate completed mission -> review -> confirmation -> Apply -> checkout verification -> History; a separate stale-path run proved refusal. |
+| P1 | The release lacked a reproducible 2–4 minute commit-boundary walkthrough and full CLI -> Desktop -> Apply evidence. | **VERIFIED** | `DEMO.md`, isolated fixture/catalog/WebView state, and the exact MSI-extracted candidate completed mission -> review -> confirmation -> Apply -> checkout verification -> History; a separate stale-path run proved refusal. |
 | P1 | Completed native runs omitted their agents/waves and recomputed isolation from configured intent, so Work could hide real tasks and report `worktree · worktree` for a persisted ProjFS overlay receipt. | **VERIFIED (runtime fix)** | Snapshots now include agents for every returned run and prefer the persisted receipt mechanism; targeted native tests pass and the packaged Desktop shows `1 of 1 settled · 1 passed`, the exact agent, and `overlay · projfs-sparse-copy-v2`. |
 | P1 | Demo-only `PYTXO_HOME` isolation did not isolate WebView local storage, allowing unrelated recent workspaces into a recording. | **VERIFIED (demo fix)** | Demo preparation now assigns a fresh `WEBVIEW2_USER_DATA_FOLDER` inside the demo home; packaged onboarding exposed exactly one current demo recent. |
 | P1 | Reviewed Apply executed from one click while `DEMO.md` promised consequence confirmation. | **VERIFIED (runtime fix)** | Run Review now uses a focus-contained, Escape-cancellable confirmation naming the exact path count and package digest; 18 focused browser tests pass and the packaged Desktop required `Apply exact package` before mutation. |
+| P1 | Enforcement summaries initialized severity as unknown, so fully reported advisory/enforced receipts were mislabeled “Enforcement not fully reported.” | **VERIFIED** | A rendered regression reproduced the wrong History row tone, both aggregation call sites now start at verified for non-empty evidence, all 13 epistemic-state tests pass, and the final MSI payload visibly renders “Partly advisory only.” |
+| P1 | A normal v1.2.2 MSI install/upgrade and Program Files launch are unproven. | **PARTIALLY VERIFIED / BLOCKED LOCALLY** | MSI administrative-image installation exited 0 and the extracted payload completed fresh onboarding plus success/refusal rehearsals. A quiet upgrade from machine-managed 0.9.0 rolled back with Windows error 1730 because this session is not elevated; verify on a clean/elevated Windows host before publication. |
 | P1 | Narrated demo publishing remains dependent on approved/licensed local audio assets. | **BLOCKED** | Approved media, retimed captions, and `validate:narrated` pass; otherwise ship an explicitly silent demo only |
 | P0 | The 52-second launch video mixed the current Work/History/Setup shell with retired six-destination Flow/Operations captures; the old validator passed the contradiction. | **VERIFIED (silent master)** | Composition, narration, captions, and shot names now use current Work/Run Review; seven unused retired captures were removed; validation rejects retired destinations; the fresh 52-second 1920×1080/30fps BT.709 silent master and transition sheet passed automated and visual review. Narrated publishing remains separately blocked on approved media. |
 | P1 | Storybook rendered light semantic state tokens on a dark shell and its catalog advertised retired destinations; current screens also contained near-threshold contrast failures. | **VERIFIED (automated accessibility)** | Story catalog now exposes Work/History/Setup and their states, Storybook fixes the release dark theme, muted/component colors meet AA targets, and all 41 Storybook interaction/accessibility tests pass against the final static build. |
@@ -204,10 +205,10 @@ performed without user approval.
 
 | Risk | Current assessment | Required evidence |
 |---|---|---|
-| Review package differs from reviewed bytes | **VERIFIED:** stored manifest/blobs, exact chunks, digest, and three applied paths matched the packaged runtime review | Preserve manifest/blob and packaged-runtime regression |
+| Review package differs from reviewed bytes | **VERIFIED:** stored manifest/blobs, exact chunks, digest, and three applied paths matched the MSI-payload runtime review | Preserve manifest/blob and native-runtime regression |
 | Duplicate Apply or double-submit | **VERIFIED (integration):** one contract claim/attempt wins; retries follow durable state | Retain concurrent claim and UI loading guards |
 | Interrupted Apply produces false success | **VERIFIED (integration):** journal reconciliation yields committed, rolled back, or recovery required | Retain interruption-boundary and restart tests |
-| Affected-path drift is missed | **VERIFIED (packaged runtime):** unrelated drift allowed; affected drift refused with no partial Apply | Preserve both demo rehearsals |
+| Affected-path drift is missed | **VERIFIED (MSI payload runtime):** unrelated drift allowed; affected drift refused with no partial Apply | Preserve both demo rehearsals |
 | Scheduler/path ownership collision | **VERIFIED:** Race contention, staged overlaps, exact-wave revalidation, and fleet/domain tests pass | Retain load and multi-root coverage |
 | Failed upstream output reaches dependents | **VERIFIED:** dependents receive `blocked_by_dependency`; independent later work may continue | Retain partial-write/nonzero/verifier fixtures |
 | Stop does not stop a live default PTY | **VERIFIED (Windows runtime):** durable identity, descendant kill, exit confirmation, and `cancelled` state | Keep exact process-tree test |
@@ -215,7 +216,7 @@ performed without user approval.
 | Resource leak on early error | **PARTIALLY VERIFIED:** futures are supervised, siblings drained, explicit cleanup and RAII teardown pass acquisition-error coverage | Additional panic/process fault injection is accepted P2 work |
 | Failed migration claims schema success | **VERIFIED:** transactional upgrade matrix and malformed/partial/falsely-advanced fixtures pass | Retain 24 store tests |
 | PTY/subprocess/platform behavior diverges | **VERIFIED for Windows primary scope:** both backends and PTY/Stop paths pass; Unix CLI builds remain hosted | Keep claims platform-bounded |
-| Durable state/cursor becomes stale | **VERIFIED:** restart, cursor reset, active-owner, persisted History, and packaged runtime evidence pass | Retain reconnect tests |
+| Durable state/cursor becomes stale | **VERIFIED:** restart, cursor reset, active-owner, persisted History, and native runtime evidence pass | Retain reconnect tests |
 | Cleanup removes evidence too early | **PARTIALLY VERIFIED:** review packages survive workspace removal and runtime History retained evidence | Broader retention/cleanup policy remains P2 documentation work |
 
 ## 8. Security risks
@@ -223,7 +224,7 @@ performed without user approval.
 | Risk | Current assessment | Required evidence |
 |---|---|---|
 | Secret leakage into logs/MCP/receipts | **VERIFIED WITH LIMIT:** sanitizer/MCP/error/child-env tests pass; regex sanitization remains best effort | Retain representative secret fixtures and bounded claims |
-| Permission receipt overstates enforcement | **VERIFIED:** persisted four-surface receipt and UI mapping expose enforced/advisory/unavailable/bypassed; packaged ProjFS mechanism matched | Retain platform-specific assertions |
+| Permission receipt overstates enforcement | **VERIFIED:** persisted four-surface receipt and UI mapping expose enforced/advisory/unavailable/bypassed; the MSI payload rendered the exact ProjFS mechanism and advisory summary | Retain platform-specific assertions |
 | Unsafe path/symlink/special-file Apply | **VERIFIED (integration):** traversal, control paths, ancestors, symlinks, blob mutation, and drift fail closed | Retain Apply/change-set suite |
 | Trust/config/profile escalation | **VERIFIED:** every root and agent is capped by explicit folder trust and fresh entitlement ceiling | Retain project-root/offline tests |
 | Per-agent trust-ceiling bypass | **VERIFIED:** repository Supernova overrides cannot exceed Orbit trust, including untrusted secondary roots | Retain absolute ceiling tests |
@@ -241,7 +242,7 @@ performed without user approval.
   Work/History/Setup navigation, and Windows-first Desktop scope.
 - **VERIFIED:** desktop and compact browser suites cover loading, empty, error,
   stale, success, approval, Stop, review, and epistemic-state behavior; the
-  packaged app exercised first-run, workspace switching, Work, Run Review,
+  MSI-extracted app exercised first-run, workspace switching, Work, Run Review,
   explicit Apply confirmation, stale refusal, and History.
 - **VERIFIED:** verified/claimed/unknown/refuted styling and persisted receipt
   mechanisms are tested; advisory enforcement is not rendered as mechanical
@@ -257,11 +258,11 @@ performed without user approval.
   PostgreSQL migration, and live external cloud-sandbox execution remain
   unverified because they require external infrastructure or credentials.
 - Browser/Storybook suites use `PreviewDesktopBackend`; native commit behavior
-  is supported separately by the two packaged Desktop rehearsals and repository
+  is supported separately by the two MSI-payload Desktop rehearsals and repository
   assertions, not inferred from those preview tests.
 - Apply interruption, rollback, recovery-required, duplicate claim, and
   affected-path drift have integration coverage; only stale-path refusal was
-  exercised through the packaged UI in this release rehearsal.
+  exercised through the MSI-payload UI in this release rehearsal.
 - Panic/process fault injection after every possible acquired resource and
   exhaustive MCP tool-schema/domain routing remain P2 hardening opportunities.
 
@@ -294,6 +295,7 @@ npm run e2e
 npm run storybook:build
 npm run storybook:test:ci
 npm run build:native
+cargo tauri build --target x86_64-pc-windows-msvc --bundles msi --features voice-whisper
 Pop-Location
 cargo test -p pytxo-desktop
 ```
@@ -466,19 +468,30 @@ otherwise the limitation must be explicit.
 | 2026-09-04 | Ran the complete local v1.2.2 corrective release gate. | **VERIFIED (local)** | `cargo fmt`, full workspace tests, warnings-denied clippy, optimized CLI/MCP builds, live v1.2.2 status/version, Desktop check/native build, web lint/links/assets/build, npm tests/dry-pack, demo static checks, workflow lint, release regressions, and whitespace checks exited 0. |
 | 2026-09-04 | Removed the release icon pipeline's abandoned `to-ico` dependency and vulnerable legacy transitive graph. | **VERIFIED** | A local PNG-in-ICO encoder has deterministic header/offset/input tests; Desktop and web generators completed; generated assets passed quality checks; clean tooling install and audit reported 0 vulnerabilities. |
 | 2026-09-04 | Ran protected CI for the v1.2.2 release candidate. | **PARTIALLY VERIFIED / BLOCKED EXTERNALLY** | Run `33827029442` passed Rust on Windows/macOS/Linux, Desktop frontend/Playwright/Storybook, npm wrapper, Link/cloud builds, smoke tests, and benchmarks. The web job reached a registry audit request and failed on npm's `503 Service Unavailable`; its retry and the downstream native Desktop job were then refused before runner allocation because the GitHub organization has a failed payment or exhausted Actions spending limit. |
+| 2026-09-04 | Re-ran the web install, build, and production security audit locally. | **VERIFIED** | Frozen pnpm install accepted the lockfile; lint, 27 product-asset references, 153 links, and the 58-page Next build passed; `pnpm audit --prod --audit-level high` examined 483 production dependencies and reported zero vulnerabilities. |
+| 2026-09-05 | Rebuilt and inspected the post-audit v1.2.2 Windows MSI. | **VERIFIED (local artifact)** | `cargo tauri build --target x86_64-pc-windows-msvc --bundles msi --features voice-whisper` produced a 10,428,416-byte MSI with product/version 1.2.2 and SHA-256 `F22C2CCA7FFABE43332C31AE90EE20A2EC5B12ABA465E89E2C05DF92B11512E9`; its 35,608,064-byte patched payload has SHA-256 `1AFCAEC51F827B666C558F7B80B60E43C6AF96531C032746349A71243082A384`. Windows Installer administrative-image installation exited 0; both files are correctly recorded as not Authenticode-signed. |
+| 2026-09-05 | Fixed the final audit's epistemic receipt-summary defect. | **VERIFIED** | The new browser regression failed with History tone `unknown` instead of `claimed`; both summary reducers now use the correct verified identity, the targeted test and all 13 epistemic-state tests pass, Desktop check reports 0 errors/warnings, and the final MSI payload renders “Partly advisory only.” |
+| 2026-09-05 | Rehearsed the complete post-fix v1.2.2 commit boundary through the MSI payload. | **VERIFIED** | Run `6b2bd73d-cb87-409b-b874-8023dd7f210b`, package `2230d886bd2c5faf55cd95f6180ce4c7a43e2939b27351e7c70e4096a3523915`; the extracted payload showed fresh onboarding, Work, exact review, confirmation, Applied, and History. Applied hashes matched stored blobs, unrelated drift survived, and checkout tests passed 3/3. |
+| 2026-09-05 | Rehearsed post-fix affected-path drift refusal through the same MSI payload. | **VERIFIED** | Run `75bbb2f3-6c64-4051-8eeb-6c9ae953667a`, package `13612346e51e834e9a244ab2c56af1be735283ac12fcf0a96378053911031767`; Apply stored `stale` / `source_drift` with no `applied_at`, left only the operator edit, kept baseline tests 2/2, and rendered Apply failed in History. Eight 1600×1000 captures plus their SHA-256 manifest are tracked under `docs/_attachments/release-v1.2.2/`. |
+| 2026-09-05 | Re-ran the final post-fix Desktop and release-metadata gates. | **VERIFIED** | Desktop check reported 0 errors/warnings; the production-preview browser suite passed 105/105; the Storybook production build passed and all 41 interaction/accessibility checks passed; 13 release version/inventory regressions, 27-surface version parity, screenshot checksums, and whitespace validation passed. |
+| 2026-09-05 | Corrected the canonical demo recipe to use the actual MSI payload. | **VERIFIED** | `DEMO.md` now administratively extracts the current MSI and launches the discovered payload instead of the different raw build-tree executable. A fresh extraction exited 0, returned version 1.2.2, and matched payload SHA-256 `1AFCAEC51F827B666C558F7B80B60E43C6AF96531C032746349A71243082A384`. |
+| 2026-09-05 | Closed the partial-publication ordering gap in the release workflow. | **IMPLEMENTED / VERIFIED LOCALLY** | CLI and Desktop preparation/validation now complete before either GitHub release job starts; the public mirror uploads both exact inventories, and npm waits for that mirror. `actionlint` and deterministic workflow/inventory regressions pass. Cross-service publication cannot be transactional and remains an explicit accepted risk. |
+| 2026-09-05 | Materialized the final audited local release candidate. | **VERIFIED (local only)** | The scoped release fixes, documentation, and eight checksum-bound native captures are committed together and annotated tag `local-v1.2.2-rc1` points to that commit. The commit/tag are unsigned and not pushed; the non-`v*` tag cannot trigger the hosted release workflow. |
 
 ## 16. Remaining work
 
-1. Restore GitHub Actions runner allocation in the `Pytxo-dev` organization,
+1. Install the current MSI normally on a clean or elevated Windows host, launch
+   the Program Files payload, and repeat the basic first-run/uninstall checks.
+2. Restore GitHub Actions runner allocation in the `Pytxo-dev` organization,
    rerun the failed v1.2.2 web/Desktop jobs, merge only after protected-hosted CI
    is green, and run the corrected five-platform CLI plus Windows MSI/updater
    release workflow from the merge commit.
-2. Independently download and verify the exact v1.2.2 private/public assets,
+3. Independently download and verify the exact v1.2.2 private/public assets,
    checksums, embedded versions, updater manifest/signature, npm package,
    website deployment, and all hosted-service health responses.
-3. Add approved/licensed narration and rerun narrated validation only if a
+4. Add approved/licensed narration and rerun narrated validation only if a
    narrated master is to be published; otherwise ship the verified silent master.
-4. Implement the proposed MBCZ/Dodo adapter only after approved Dodo test
+5. Implement the proposed MBCZ/Dodo adapter only after approved Dodo test
    credentials, brand/product IDs, gateway ownership, and a migration window exist.
 
 ## 17. Known risks intentionally accepted for v1
@@ -528,7 +541,8 @@ accepted only if public copy and receipts state them accurately:
 - **VERIFIED (local) / PARTIALLY VERIFIED (hosted) / BLOCKED:** v1.2.2 parity covers 27
   release-facing source, lockfile, installer, web, docs, and notes surfaces.
   Exact-inventory and icon regressions, full Rust tests/clippy/builds, Desktop
-  native build, web build, npm package tests, demo checks, workflow lint, and
+  native build, real MSI inspection, fresh native success/refusal rehearsals,
+  web build/security audit, npm package tests, demo checks, workflow lint, and
   whitespace checks pass locally. Protected run `33827029442` passed every
   allocated non-web job; npm's audit endpoint returned 503 in the web job, and
   GitHub then refused retry runners because the organization billing/spend gate
@@ -537,6 +551,11 @@ accepted only if public copy and receipts state them accurately:
   exist in the private repository. No secret value was read or logged.
 - **BLOCKED:** Windows Authenticode and local Git signing keys are not
   configured. Do not describe the MSI, commit, or tag as code-signed.
+- **ACCEPTED:** GitHub Releases and npm do not provide one cross-service
+  transaction. The workflow validates the complete CLI/Desktop candidate before
+  publication and sequences npm after the public mirror, but a later external
+  upload can still fail after an earlier publication succeeds. Independent
+  post-publication verification and repair remain mandatory.
 - **BLOCKED EXTERNALLY:** protected source merge, hosted release matrix,
   fresh-tag publication, independent artifact audit, and production
   website/services redeployment await restored GitHub Actions runner allocation.

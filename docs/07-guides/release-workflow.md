@@ -56,8 +56,10 @@ failure is not a reason to bypass CI.
 1. Run the complete local gate from `AGENTS.md`, including Desktop browser
    tests, native build, web lint/build/E2E, demo typecheck/render, and secret
    scan.
-2. Build the fresh host CLI and Desktop installers. Do not rename a prior binary
-   and claim it is current.
+2. Build the fresh host CLI and Desktop installer. `npm run build:native` builds
+   the release executable only. From `apps/desktop`, build the Windows MSI with
+   `cargo tauri build --target x86_64-pc-windows-msvc --bundles msi --features voice-whisper`.
+   Do not rename a prior binary and claim it is current.
 3. If other operating systems cannot be built, either omit them or mirror the
    last complete matrix with an explicit compatibility label in release notes
    and public install docs. A mirrored binary keeps its embedded old version.

@@ -1,23 +1,25 @@
 # Pytxo v1.2.2 release readiness
 
-**Assessment date:** 2026-09-04
+**Assessment date:** 2026-09-05
 **Branch:** `codex/release-1.2.2-integrity`
 **Baseline HEAD:** `9139a908e05cf796578c094d485ee45baf50ba0d` (`origin/main`)
-**Recommendation:** **NOT READY — GitHub Actions billing/spend gate blocks publication**
-**Publication state:** v1.2.2 passes the complete local gate and most protected CI jobs; runner allocation, fresh-tag publication, and post-publication verification remain required
+**Local candidate tag:** `local-v1.2.2-rc1` (annotated, unsigned, not pushed)
+**Recommendation:** **NOT READY — clean/elevated MSI installation and hosted publication remain blocked**
+**Publication state:** v1.2.2 passes the complete local code/runtime gate and most protected CI jobs; a normal Program Files install, runner allocation, fresh-tag publication, and post-publication verification remain required
 
 ## Executive assessment
 
 Pytxo v1.2.2 is a corrective release-integrity patch over the fully tested
-v1.2.1 product. v1.2.1 exercised the actual Windows-first commit boundary, not
-only preview UI: a deterministic worker ran in a persisted ProjFS-backed
+v1.2.1 product. The v1.2.2 Windows executable exercised the actual commit
+boundary, not only preview UI: a deterministic worker ran in a persisted ProjFS-backed
 overlay, independent verification passed, Desktop displayed the exact stored
 package and receipt, an explicit human confirmation gated Apply, unrelated
 operator drift survived, the primary checkout passed post-state tests, and
-History recorded the committed attempt. v1.2.2 changes version and publication
-surfaces, not that runtime behavior.
+History recorded the committed attempt. The corrective patch primarily changes
+version and publication surfaces and includes one small UI truthfulness fix;
+the runtime claim was re-exercised on the exact v1.2.2 native build.
 
-A separate packaged rehearsal changed an affected checkout path after review.
+A separate rehearsal through the current MSI payload changed an affected checkout path after review.
 Pytxo refused Apply, did not partially apply the other reviewed files, did not
 show success, and recorded a failed attempt. This is the most important
 adversarial proof for the product thesis: an agent's claim and a prepared package
@@ -131,10 +133,10 @@ key is configured. Narrated media also remains conditional on licensed audio.
 
 ### Successful commit boundary
 
-- Workspace: `target/release-demo/commit-boundary-20260902-122738-212`
-- Run: `54924278-5e91-40d0-a7de-6f8e99cde4a3`
-- Base commit: `74c284d50f9b99b5ceb636c61bd3a1cf82bfc78a`
-- Package: `072f954fcaa27bc0c9d36e561139614223cac176e3871857ea1f423a4165f3b0`
+- Workspace: `target/release-demo/commit-boundary-20260905-154715-929`
+- Run: `6b2bd73d-cb87-409b-b874-8023dd7f210b`
+- Base commit: `61133324a2933e0a4cd15ca2d0ff9f481686a5b8`
+- Package: `2230d886bd2c5faf55cd95f6180ce4c7a43e2939b27351e7c70e4096a3523915`
 - Work showed `1 of 1 settled · 1 passed`, the exact agent, Orbit, and
   `overlay · projfs-sparse-copy-v2` from the persisted receipt.
 - Review contained exactly `README.md`, `src/risk-policy.mjs`, and
@@ -144,22 +146,23 @@ key is configured. Narrated media also remains conditional on licensed audio.
 - Unrelated `operator-note.txt` remained untracked after Apply.
 - The three reviewed paths were applied; primary-checkout tests passed 3/3.
 - History showed Completed / Applied with one committed Apply attempt.
-- Captures: `target/release-demo/final-native-work.png`,
+- Captures: `docs/_attachments/release-v1.2.2/final-native-work.png`,
   `final-native-review.png`, `final-native-apply-confirm.png`,
   `final-native-applied.png`, and `final-native-history.png`.
 
 ### Stale affected-path refusal
 
-- Workspace: `target/release-demo/commit-boundary-20260902-123144-595`
-- Run: `47da6a06-a3f3-4b66-8425-838efd8a7809`
-- Base commit: `ca15aa66dbf2b25fe00aeeaac9b6ebdb8f28a480`
-- Package: `30b29840dc68225b7a521ce0b78ca144d7a65c8555bc71af39f781f784e086a9`
+- Workspace: `target/release-demo/commit-boundary-20260905-154945-856`
+- Run: `75bbb2f3-6c64-4051-8eeb-6c9ae953667a`
+- Base commit: `5d732ace774324870271f4796e07de718524b6e1`
+- Package: `13612346e51e834e9a244ab2c56af1be735283ac12fcf0a96378053911031767`
 - After review, the operator changed affected path `src/risk-policy.mjs`.
 - Confirmed Apply returned “Review is stale”; README and the test file were not
   applied, and only the operator edit remained.
 - Baseline tests still passed 2/2.
-- History showed Completed / Apply failed and no success receipt.
-- Captures: `target/release-demo/final-native-stale-refusal.png` and
+- The contract stored `apply_status = stale`, `recovery_state = source_drift`,
+  no `applied_at`, and no success receipt. History showed Completed / Apply failed.
+- Captures: `docs/_attachments/release-v1.2.2/final-native-stale-refusal.png` and
   `final-native-stale-history.png`.
 
 ## Verification commands and results
@@ -198,16 +201,35 @@ passed after rejecting a regressing `portable-pty 0.9` upgrade.
 cd apps/desktop
 npm run check
 npm run build:native
+npm run e2e:release
+npm run storybook:build
+npm run storybook:test:ci
+cargo tauri build --target x86_64-pc-windows-msvc --bundles msi --features voice-whisper
 cargo test -p pytxo-desktop
 ```
 
 - On v1.2.2, Svelte reported 0 errors/warnings, CSS lint passed, the frontend
   transformed 6,366 modules, the optimized Windows native build passed, and all
   22 Desktop-native tests passed in the workspace run.
-- Product UI source is unchanged from v1.2.1. Its production-preview browser
-  suite (104/104), development-only legacy-deck suite (1/1), Storybook
-  interaction/accessibility suite (41/41), and packaged runtime proofs remain
-  the relevant behavior evidence.
+- The MSI is 10,428,416 bytes, reports product/version `Pytxo Desktop 1.2.2`,
+  and has SHA-256 `F22C2CCA7FFABE43332C31AE90EE20A2EC5B12ABA465E89E2C05DF92B11512E9`.
+  WiX extraction found the embedded 35,608,064-byte `pytxo-desktop.exe`, version
+  1.2.2, with SHA-256
+  `1AFCAEC51F827B666C558F7B80B60E43C6AF96531C032746349A71243082A384`.
+  Both correctly report `NotSigned`; Authenticode is not claimed.
+- Windows Installer administrative-image installation exited 0, and the exact
+  extracted payload launched and completed the fresh success/refusal rehearsals.
+  A normal quiet upgrade from the existing machine-managed 0.9.0 install was
+  rolled back with Windows Installer error 1730 because this session was not
+  elevated; a clean/elevated Program Files install remains unverified.
+- The final receipt aggregation bug found during adversarial review is fixed:
+  two enforced plus two advisory surfaces now render “Partly advisory only,”
+  not “Enforcement not fully reported.” The new rendered regression failed
+  before the fix and the complete 13-test epistemic-state suite then passed.
+- The release-audit UI correction is covered by the production-preview browser
+  suite (105/105), development-only legacy-deck suite (1/1), Storybook
+  production build and interaction/accessibility suite (41/41), and the fresh
+  v1.2.2 native success and stale-refusal captures.
 
 ### Website and public docs — VERIFIED
 
@@ -222,10 +244,11 @@ pnpm run e2e -- e2e/marketing.spec.ts --workers=1 --reporter=line
 pnpm audit --prod --audit-level=high
 ```
 
-On v1.2.2, lint, 27 product-asset references, 153 internal links, and the
-58-page production build passed after updating public version and Windows-only
-Desktop copy. The unchanged product pages retain the v1.2.1 17-test browser and
-zero-production-vulnerability evidence.
+On v1.2.2, the frozen pnpm install, lint, 27 product-asset references, 153
+internal links, and the 58-page production build passed after updating public
+version and Windows-only Desktop copy. A fresh production dependency audit
+examined 483 dependencies and reported zero vulnerabilities at every severity.
+The unchanged product pages retain the v1.2.1 17-test browser evidence.
 
 ### Demo — VERIFIED SILENT / BLOCKED NARRATED
 
@@ -235,6 +258,10 @@ audit, still/poster generation, silent render, silent validation, and transition
 sheet remain valid. The master is
 52.000 seconds, 1920×1080, 30 fps, BT.709, H.264. The transition sheet was
 visually reviewed and uses one coherent current Work/Run Review shell.
+The canonical recording recipe now administratively extracts the current MSI
+and launches that payload, not the raw build-tree executable; a fresh recipe
+test exited 0 and resolved the expected 1.2.2 payload digest
+`1AFCAEC51F827B666C558F7B80B60E43C6AF96531C032746349A71243082A384`.
 
 Narrated publication is **BLOCKED** until approved/licensed audio is supplied
 and `validate:narrated` passes. The release may claim only the silent master.
@@ -297,6 +324,9 @@ workspaces and recents cannot leak into a take.
 - The canonical workflow gates publication on full CI, version parity,
   protected-main ancestry, exact five-platform CLI artifacts, exact one-platform
   Windows Desktop artifacts, checksums, and required mirror credentials.
+- CLI and Desktop artifacts are prepared and independently inventory-checked
+  before either GitHub release job can begin. The public mirror contains both
+  inventories, and npm waits for that combined mirror.
 - The bypass Desktop publisher was removed; every referenced third-party Action
   is pinned to an immutable revision.
 - npm postinstall and direct installers fail hard on missing asset, checksum, or
@@ -345,16 +375,20 @@ workspaces and recents cannot leak into a take.
   untrusted remote XML. The ignored RSA timing advisory is absent from the
   Windows graph and is not used for Pytxo key handling.
 - A narrated master is unavailable until approved/licensed audio is provided.
+- GitHub Releases and npm cannot participate in one transaction. Publication is
+  sequenced only after the complete candidate is validated, but a later service
+  can still fail after an earlier upload; the independent post-publication audit
+  remains mandatory.
 
 ## Final recommendation
 
 **NOT READY.**
 
 The local Windows-first product claim, main success path, critical stale-path
-failure, UI behavior, tests, builds, dependency posture, and silent demo are
-supported by current evidence. The v1.2.2 corrective source also passes its full
-local patch-scope gate, while the allocated protected CI jobs passed. It remains
-not ready until GitHub Actions runner allocation is restored, the web/native
+failure, UI behavior, MSI administrative image/payload, tests, builds, dependency posture, and
+silent demo are supported by current v1.2.2 evidence. The corrective source also
+passes its full local patch-scope gate, while the allocated protected CI jobs passed. It remains
+not ready until a clean/elevated MSI install passes, GitHub Actions runner allocation is restored, the web/native
 Desktop jobs pass, the fresh tag publishes through the corrected workflow, and
 independent downloads prove
 the exact private/public inventories, checksums, embedded versions, updater

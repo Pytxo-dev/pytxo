@@ -63,7 +63,7 @@
   );
 
   /** A summary can never read stronger than its weakest surface. */
-  const summaryTone = $derived(worstTone(rows.map((row) => row.tone), "unknown" as EpistemicTone));
+  const summaryTone = $derived(worstTone(rows.map((row) => row.tone), "verified" as EpistemicTone));
   const summaryLabel = $derived(
     summaryTone === "verified"
       ? "All four surfaces enforced"

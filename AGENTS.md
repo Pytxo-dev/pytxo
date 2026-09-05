@@ -86,7 +86,8 @@ Pytxo Desktop (`apps/desktop`):
 cd apps/desktop
 npm ci
 npm run check
-npm run build:native  # builds the frontend, then the release Desktop artifact
+npm run build:native  # builds the frontend and release executable, not an installer
+cargo tauri build --target x86_64-pc-windows-msvc --bundles msi --features voice-whisper
 ```
 
 ## Documentation rules
