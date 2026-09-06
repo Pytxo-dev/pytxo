@@ -98,8 +98,9 @@ new residual .playwright-cli/output folders contain only this task's captures.
 ## Continue
 
 Current branch codex/beta-candidate-verification; pushed commits f21acfb, 2fc0f31,
-fecebc0. PR31 is draft and depends on PR30/e1807cc. Final review follow-up is ready
-for a new commit; inspect Git before acting, because this note is part of it.
+fecebc0 and a4f5828. PR31 is draft and depends on PR30/e1807cc. Final review fixes
+and binary/native evidence are committed and pushed; only this documentation
+follow-up remains to commit. Inspect Git before acting.
 
 Final independent CLI review completed: target/beta-final-cli-review.log.
 It found blocking Desktop refresh IPC, refresh clearing event_persistence_failed,
@@ -143,10 +144,11 @@ checks and visual inspection passed (beta-demo-film-2026-09-06.json). No need to
 rerender for Rust-only fixes; film identifies the original real v3 run and hashes.
 No new audio was generated; approved voice/music evidence remains unavailable.
 
-Fresh PR31 CI34035381114 on fecebc0 failed before steps; annotation101492363399
-states failed account payments or spending-limit increase required. Do not rerun
-unchanged jobs or change billing. After pushing the final fixes, inspect only the
-new automatic run and record its result. Do not publish/merge/tag/deploy.
+Fresh PR31 CI34038130415 on final code a4f5828 failed before steps, just as the
+earlier fecebc0 run did. Do not rerun unchanged jobs or change billing. The
+account payment/spending-limit condition prevents hosted execution. Do not
+publish/merge/tag/deploy. Record later docs-only CI in the PR body to avoid an
+endless commit/checkpoint/rebuild loop.
 
 Remaining public Beta gates: hosted CI, clean elevated Windows installation,
 publication and independent download/install verification. Public latest v1.2.1;

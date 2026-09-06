@@ -31,7 +31,7 @@ verification outputs, desktop log, and `docs/superpowers/`.
 
 ## Phase 3: Verify and decide
 
-- [ ] Independent adversarial review of changed boundaries; reproduce negative cases.
+- [x] Independent adversarial review of changed boundaries; reproduce negative cases.
 - [x] Run required Rust, Desktop and affected web/demo gates; inspect desktop/mobile UI for visual changes.
 - [x] Record raw evidence and a bounded Beta verdict, distinguishing source readiness from installer/publication and external-user validation.
 
@@ -50,9 +50,11 @@ No comparative Bench win is established.
 
 Draft PR31 contains the core work and dependency follow-up. Fresh CI jobs were
 rejected before starting because of the account payment/spending-limit condition.
-Clean elevated installation, public asset verification and a final independent
-review remain outstanding. The reviewer hit quota; earlier independent findings
-were reproduced and fixed, but the final retry is not a pass. The public Beta
+Clean elevated installation and public asset verification remain outstanding.
+Final independent review completed through the read-only CLI after the in-app
+quota failure. Its three production defects and follow-up test-isolation finding
+are fixed; full Rust gates, rebuilt native/installer artifacts and a delayed
+native refresh responsiveness check passed. The public Beta
 verdict is **not ready**. Dependency evidence is [[beta-dependency-audit-2026-09-06]].
 
 Stop must not report a cancelled run while its verifier remains alive. A worker
