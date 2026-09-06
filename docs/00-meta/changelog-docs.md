@@ -14,6 +14,9 @@ related: [[MOC-home]]
 
 ## 2026-09-06 (unreleased Beta source candidate)
 
+- [fixed] Updated web/Desktop development dependencies and the demo's URI parser;
+  [[beta-dependency-audit-2026-09-06]] records both web lockfiles, remaining
+  Storybook development findings and existing Rust exceptions.
 - [added] [[beta-readiness-plan-2026-09-05]] and independent competitor, core,
   UX and combined-candidate audit notes, with real one-worker Codex and native
   Review/Apply evidence under `tooling/benchmarks/results/` and `docs/_attachments/`.

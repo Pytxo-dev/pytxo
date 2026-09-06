@@ -1,5 +1,11 @@
 # Pytxo product demo
 
+The edited film below predates the Sep 6 combined-candidate verification changes.
+For current Beta proof, use the real one-worker Codex mission, native exact-diff
+Review/Apply captures and recorded post-state checks in [DEMO.md](../../DEMO.md).
+This older film is not evidence for the v3 candidate receipt. Recut and review it
+against the current product before presenting it as the Beta launch master.
+
 Exact 52-second, 1920×1080, 30 fps Remotion demo built from truthful Pytxo Desktop captures:
 
 `mission → Work ownership → reviewed evidence → guarded Apply → verified outcome → Pytxo`

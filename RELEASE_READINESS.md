@@ -2,7 +2,8 @@
 
 ## Sep 6 Beta source candidate amendment
 
-The uncommitted Beta changes on baseline `e1807cc` supersede the older
+The Beta changes in draft [PR31](https://github.com/Pytxo-dev/pytxo/pull/31),
+starting with `f21acfb` on baseline `e1807cc`, supersede the older
 task-check-only evidence below. The full Rust workspace suite, clippy with
 warnings denied, CLI/MCP builds, Desktop check/native build, 20 targeted browser
 checks and web link/lint/build gates passed. Six refined workflow tests also
@@ -36,10 +37,12 @@ Evidence: `tooling/benchmarks/results/beta-single-codex-2026-09-06.json` and
 `docs/_attachments/beta-2026-09-06/`. This is a raw native executable rehearsal,
 not a fresh MSI-install proof or an external-user reliability measurement.
 
-**Beta goal remains active.** Final changed-code review, remaining onboarding
-validation and reconciliation of the historical release/distribution gates are
-still required. The following Sep 5 assessment is historical; it does not certify
-the uncommitted source candidate or an installer built from it.
+**Not ready for public Beta.** Fresh hosted CI run `34033572511` was rejected
+before its jobs started: GitHub explicitly reports failed account payments or
+an insufficient spending limit. Clean elevated MSI installation and independent
+public download/install verification remain unproved. Final independent review
+was attempted but hit reviewer quota; it is not counted as a completed review.
+The following Sep 5 assessment is historical and does not certify this candidate.
 
 Fresh v3 MSI packaging also succeeded before the final event correction. Its
 administrative image extracted with exit 0, reported 1.2.2, reopened the completed
@@ -55,6 +58,20 @@ and success events persisted and no evidence gaps. A separate direct-Codex
 baseline completed the same three-file application change as the real Pytxo
 mission, with four independently rerun tests passing. The two-run case study in
 `tooling/benchmarks/README.md` does not establish a speed or quality advantage.
+
+The dependency follow-up patches both web lockfiles, Desktop development tools
+and the demo's `fast-uri` override. Full web (npm and pnpm), demo and tooling
+audits report zero findings. Desktop production is clear; five moderate findings
+remain in development tools through a UUID advisory whose affected methods are
+not used by the inspected callers. Cargo's existing exceptions and warnings are
+unchanged. See `docs/01-projects/beta-dependency-audit-2026-09-06.md` and the
+hashed summary in `tooling/benchmarks/results/beta-dependencies-2026-09-06.json`.
+Desktop check/native build, Storybook build and all 41 Storybook browser tests
+pass after these updates. All 37 rebuilt Desktop frontend files are byte-for-byte
+identical to the prior verified assets. Web frozen install/lint/build and demo
+typecheck/composition bundling also pass, along with all 17 web production browser
+tests and the web link check. The earlier edited film is explicitly
+historical; current Beta proof is the native real-agent take in `DEMO.md`.
 
 **Assessment date:** 2026-09-05
 **Branch:** `codex/release-1.2.2-integrity`

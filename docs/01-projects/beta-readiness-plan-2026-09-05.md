@@ -33,7 +33,7 @@ verification outputs, desktop log, and `docs/superpowers/`.
 
 - [ ] Independent adversarial review of changed boundaries; reproduce negative cases.
 - [x] Run required Rust, Desktop and affected web/demo gates; inspect desktop/mobile UI for visual changes.
-- [ ] Record raw evidence and a bounded Beta verdict, distinguishing source readiness from installer/publication and external-user validation.
+- [x] Record raw evidence and a bounded Beta verdict, distinguishing source readiness from installer/publication and external-user validation.
 
 ## Acceptance criteria
 
@@ -41,12 +41,19 @@ Sep 6 checkpoint: the v3 candidate boundary, failed-check refresh recovery and
 Git ancestor-discovery regressions pass focused tests. Twenty Desktop browser
 checks pass at desktop/mobile widths. The first full v3 workspace run exposed
 an old recovery fixture without candidate proof; the fixture now uses a real
-content check and its recovery regression passes. A full rerun is pending.
+content check and its recovery regression passes. The full rerun passed.
 The subsequent actual Codex mission and native Apply passed on v3, with matched
 primary hashes and four passing post-Apply tests. Evidence lives in
 `tooling/benchmarks/results/beta-single-codex-2026-09-06.json`. Full workspace,
-clippy, Desktop/native and web gates now pass; fresh MSI packaging is underway.
+clippy, Desktop/native and web gates now pass; fresh MSI build/extraction passed.
 No comparative Bench win is established.
+
+Draft PR31 contains the core work and dependency follow-up. Fresh CI jobs were
+rejected before starting because of the account payment/spending-limit condition.
+Clean elevated installation, public asset verification and a final independent
+review remain outstanding. The reviewer hit quota; earlier independent findings
+were reproduced and fixed, but the final retry is not a pass. The public Beta
+verdict is **not ready**. Dependency evidence is [[beta-dependency-audit-2026-09-06]].
 
 Stop must not report a cancelled run while its verifier remains alive. A worker
 claim or per-task check must not appear as proof of the integrated candidate.

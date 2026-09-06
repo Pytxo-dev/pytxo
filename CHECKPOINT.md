@@ -2,10 +2,13 @@
 
 ## Branch / baseline
 
-Beta work is being isolated on `codex/beta-candidate-verification`, based on local
+Beta work is on `codex/beta-candidate-verification`, based on local
 `e1807cce5aaa3e02ba36fe4f3cc7ea0370f83f72`. Existing release PR30 uses
 `codex/release-1.2.2-integrity`; its remote is one commit behind that local baseline.
 The active Beta goal is NOT complete. No release, installer publication or site deploy occurred.
+Core commit `f21acfb` is pushed in draft PR31, https://github.com/Pytxo-dev/pytxo/pull/31,
+targeting main so protected CI runs. It includes the unpublished release follow-up
+e1807cc; review its relationship to PR30 before any merge.
 
 ## Completed
 
@@ -55,15 +58,25 @@ The active Beta goal is NOT complete. No release, installer publication or site 
 - Focused event failure/normal persistence, candidate, dispatch and Stop checks PASS
   target/beta-event-lifecycle-tests.log. Cursor parser five tests PASS.
 - cargo fmt --all -- --check and git diff --check PASS.
+- Dependency follow-up: both web lockfiles, demo and tooling full audits clear;
+  Desktop production clear, five moderate development UUID findings retained
+  with inspected-call-site reasoning. Existing Rust warnings/exceptions unchanged.
+  Details: docs/01-projects/beta-dependency-audit-2026-09-06.md and hashed JSON evidence.
+- Updated Desktop check/native build PASS; 37 frontend asset hashes unchanged.
+  Storybook build PASS and subsequent browser suite 41/41 PASS. An earlier
+  premature test invocation hit missing iframe while the build was unfinished;
+  it is superseded by the successful test after build completion.
+- Web patched pnpm frozen install/lint/build PASS; demo typecheck/compositions PASS.
+- Web links PASS and all 17 production browser tests PASS after dependency updates.
 
 ## Remaining external gates and scope limits
 
 Clean elevated Windows installation is unverified: this process is not elevated.
 The earlier MSI payload started and showed corrected Cursor status; final MSI
-comparison includes the later event fix. Hosted CI run33827029442 is terminal
-failure, with web/native jobs rejected before steps in its last attempt. A fresh
-PR check should establish current runner availability; do not infer it from old
-failure alone. Original independent review found real bugs now fixed; final
+comparison includes the later event fix. Fresh PR31 CI run34033572511 failed
+before jobs started; annotation101487472432 explicitly says account payments
+failed or Actions spending limit must increase. Do not rerun unchanged jobs or
+change billing. Original independent review found real bugs now fixed; final
 independent retry hit quota and is not counted as completed review.
 
 No public v1.2.2 release exists; publication and independent download/install
@@ -78,10 +91,13 @@ new residual .playwright-cli/output folders contain only this task's captures.
 
 ## Continue
 
+Dependency follow-up validation is complete; inspect current Git/PR31 state for
+its commit. All build/test runs are terminal; web browser evidence is
+target/beta-deps-web-e2e.log.
+No Rust implementation changed since the full passing gates.
 Inspect current Git/PR state and finish the full goal audit. Do not repeat passed
 local runs without a new change/failure. Real v3 fixture path is in
  target/beta-v3-live-mission-path.txt; final deterministic path is in
  target/beta-final-demo-path.txt; final MSI path is in
- target/beta-final-msi-payload-path.txt. No tool runs were pending when this
-checkpoint was written. Keep goal active unless complete, or genuinely blocked
+ target/beta-final-msi-payload-path.txt. Keep goal active unless complete, or genuinely blocked
 for three consecutive goal turns with no meaningful local work remaining.

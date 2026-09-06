@@ -125,6 +125,7 @@ research ledger.
 - [[beta-competitor-research-2026-09-05]] — fresh competitor evidence, single-harness value, and testable Beta differentiation
 - [[beta-ux-audit-2026-09-05]] — single-harness onboarding, task evidence, and remaining Beta proof gaps
 - [[beta-core-audit-2026-09-05]] — verifier Stop ownership, durable cancellation, and remaining core proof gaps
+- [[beta-dependency-audit-2026-09-06]] — current lockfile fixes and retained dependency warnings
 
 ### ADRs
 
