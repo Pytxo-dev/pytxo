@@ -24,13 +24,10 @@ The Pixabay license permits use and adaptation subject to its prohibited uses; i
 redistributing the track on a standalone basis. A Content ID claim is not a copyright strike, but
 the download certificate is the evidence used to dispute a claim.
 
-## Narration and interface cues
+## Narration
 
 - Narration is generated only through the approved ElevenLabs credentials and voice ID. It is
   written to `public/audio/narration/pytxo-demo-narration.mp3` and is not committed.
-- Three restrained, project-approved interface cues are required:
-  `plan-ready.wav`, `apply-click.wav`, and `applied-confirmation.wav` under
-  `public/audio/sfx/`. Their source and redistribution approval must be retained with release
-  evidence. No whoosh cue is used.
-- The narrated render gate fails if narration, music, the music certificate, or any cue is
+- The Sep 6 evidence film uses no interface cues or simulated click sounds.
+- The narrated render gate fails if narration, music, or the music certificate is
   absent or structurally invalid.

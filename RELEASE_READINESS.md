@@ -70,8 +70,16 @@ Desktop check/native build, Storybook build and all 41 Storybook browser tests
 pass after these updates. All 37 rebuilt Desktop frontend files are byte-for-byte
 identical to the prior verified assets. Web frozen install/lint/build and demo
 typecheck/composition bundling also pass, along with all 17 web production browser
-tests and the web link check. The earlier edited film is explicitly
-historical; current Beta proof is the native real-agent take in `DEMO.md`.
+tests and the web link check.
+
+The edited film has now been recut around the real single-worker v3 evidence.
+Its 52-second silent 1080p/30fps master passed format, duration, source-capture
+hash and publishing-text checks; final scene and transition frames were visually
+inspected. It explicitly identifies the edit and automation-operated native UI
+rehearsal. There is no simulated click, human-user study or elapsed-time claim.
+Evidence: `tooling/benchmarks/results/beta-demo-film-2026-09-06.json` and
+`docs/_attachments/beta-2026-09-06/beta-demo-film-contact-sheet.png`. Narrated
+output remains unavailable pending new approved audio and its music certificate.
 
 **Assessment date:** 2026-09-05
 **Branch:** `codex/release-1.2.2-integrity`

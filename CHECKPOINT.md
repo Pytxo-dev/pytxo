@@ -68,6 +68,12 @@ e1807cc; review its relationship to PR30 before any merge.
   it is superseded by the successful test after build completion.
 - Web patched pnpm frozen install/lint/build PASS; demo typecheck/compositions PASS.
 - Web links PASS and all 17 production browser tests PASS after dependency updates.
+- Current demo film: recut from real v3 native evidence with automation-operated
+  UI disclosure; no simulated click. Silent 52s/1080p/30fps render and validation
+  PASS, source image hashes PASS, transcript/caption check PASS; final contact
+  sheet and transition frames inspected. Record: beta-demo-film-2026-09-06.json.
+  Local master: apps/demo-video/out/pytxo-demo-silent.mp4. Narrated master still
+  requires approved new audio/music certificate; no audio was generated.
 
 ## Remaining external gates and scope limits
 
@@ -94,6 +100,10 @@ new residual .playwright-cli/output folders contain only this task's captures.
 Dependency follow-up validation is complete; inspect current Git/PR31 state for
 its commit. All build/test runs are terminal; web browser evidence is
 target/beta-deps-web-e2e.log.
+Dependency commit is 2fc0f31. CI34034581142 on that exact head failed before
+steps with the same payment/spending-limit annotation. Demo follow-up rendering
+is also terminal; evidence logs are target/beta-demo-v3-*.log. No need to rerun
+passed core/frontend suites for this media-only change.
 No Rust implementation changed since the full passing gates.
 Inspect current Git/PR state and finish the full goal audit. Do not repeat passed
 local runs without a new change/failure. Real v3 fixture path is in

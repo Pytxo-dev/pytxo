@@ -1,17 +1,22 @@
 # Pytxo product demo
 
-The edited film below predates the Sep 6 combined-candidate verification changes.
-For current Beta proof, use the real one-worker Codex mission, native exact-diff
-Review/Apply captures and recorded post-state checks in [DEMO.md](../../DEMO.md).
-This older film is not evidence for the v3 candidate receipt. Recut and review it
-against the current product before presenting it as the Beta launch master.
+Exact 52-second, 1920×1080, 30 fps Remotion evidence film of the Sep 6 real
+single-worker Codex mission:
 
-Exact 52-second, 1920×1080, 30 fps Remotion demo built from truthful Pytxo Desktop captures:
+`mission → combined candidate receipt → explicit confirmation → committed Apply → post-state`
 
-`mission → Work ownership → reviewed evidence → guarded Apply → verified outcome → Pytxo`
+This is an edited presentation of unmodified native element captures, not a live
+screen recording or an elapsed-time comparison. The source run, exact reviewed
+package and post-Apply checks are recorded in [DEMO.md](../../DEMO.md) and
+`tooling/benchmarks/results/beta-single-codex-2026-09-06.json`. The film does not
+claim an OS-wide sandbox, comparative win, installer proof or Beta availability.
+The worker was the real Codex CLI. Test automation operated the native review
+and explicit confirmation; this is not an external human-user usability study.
+The asset gate compares each image's hash with its original in `docs/_attachments/`.
 
 The master never burns subtitles. Publishing captions and the reviewed transcript live in
-`publishing/`. The checked-in poster and all three product screenshots are 1920×1080. Generated
+`publishing/`. The poster is 1920×1080; native evidence crops retain their original
+dimensions and are placed inside the full-HD composition. Generated
 video, narration, music, cues, contact sheets, and QA stills are ignored.
 
 ## System media tools
@@ -45,11 +50,17 @@ The silent master is `out/pytxo-demo-silent.mp4`. It is rendered as H.264 at CRF
 yuv420p, then stream-copied through the finalizer to stamp BT.709 space, transfer, and primaries.
 It contains no audio stream.
 
+The silent edit intentionally holds each evidence state for reading. After a
+12-frame entrance, scenes hold until seconds 4, 13, 27, 39, 47 and 52; Apply
+changes from the captured confirmation to the applied receipt at second 33.
+The freeze scan reports these holds for inspection; they are not playback stalls.
+
 ## Narrated master
 
 Read `VOICEOVER.md` and `LICENSES.md` first. The narrated pipeline requires one continuous
-ElevenLabs narration track, the licensed Modern Chillout bed and certificate, and all three
-approved interface cues.
+ElevenLabs narration track and the licensed Modern Chillout bed and certificate.
+Regenerate narration from the current `VOICEOVER.md`; older audio does not match
+this recut. No simulated click or interface sound is added to the captured states.
 
 ```powershell
 npm run voiceover

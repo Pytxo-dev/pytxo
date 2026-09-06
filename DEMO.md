@@ -12,6 +12,14 @@ committed Apply journal. Applied file hashes matched the frozen targets and all
 four tests passed in the primary tree. Native captures are in
 `docs/_attachments/beta-2026-09-06/`. This is not installer proof.
 
+The 52-second evidence film in `apps/demo-video/` now uses these original native
+captures: one worker, the combined receipt, explicit confirmation, the applied
+receipt and the committed journal. It is an edited presentation, not a live
+screen recording. Test automation operated the native review and confirmation.
+The source images are checked against the recorded originals; the silent master
+is `apps/demo-video/out/pytxo-demo-silent.mp4`. Narration remains conditional on
+new audio generated from the revised script and the required music certificate.
+
 For a real-agent take, prepare a fresh fixture below, remove the `[[task]]`
 section from its demo `pytxo.toml` while keeping `max_agents = 1`, then run:
 

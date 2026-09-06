@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import {spawnSync} from "node:child_process";
 import {fileURLToPath} from "node:url";
+import {createHash} from "node:crypto";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(here, "..");
@@ -14,9 +15,10 @@ if (!["silent", "narrated"].includes(mode)) {
 
 const problems = [];
 const productCaptures = [
-  "public/product/work-1920x1080.png",
-  "public/product/run-review-ready-1920x1080.png",
-  "public/product/run-review-applied-1920x1080.png",
+  ["beta-v3-native-receipt.png", 405, 791],
+  ["beta-v3-native-applied.png", 405, 791],
+  ["beta-v3-native-apply-confirm.png", 440, 182],
+  ["beta-v3-native-journal.png", 1024, 181],
 ];
 
 const retiredSurfacePattern = /\b(?:Flow|Operations|Workspaces|Integrations)\b/;
@@ -30,7 +32,7 @@ if (retiredSurfacePattern.test(compositionSource)) {
   );
 }
 
-const readPngDimensions = async (relativePath) => {
+const readPngDimensions = async (relativePath, expectedWidth, expectedHeight) => {
   const buffer = await readFile(path.join(appRoot, relativePath));
   if (buffer.toString("ascii", 1, 4) !== "PNG") {
     problems.push(`${relativePath}: expected a PNG file`);
@@ -38,16 +40,21 @@ const readPngDimensions = async (relativePath) => {
   }
   const width = buffer.readUInt32BE(16);
   const height = buffer.readUInt32BE(20);
-  if (width !== 1920 || height !== 1080) {
-    problems.push(`${relativePath}: expected 1920x1080, received ${width}x${height}`);
+  if (width !== expectedWidth || height !== expectedHeight) {
+    problems.push(`${relativePath}: expected original ${expectedWidth}x${expectedHeight}, received ${width}x${height}`);
   }
 };
 
-for (const capture of productCaptures) {
+for (const [filename, width, height] of productCaptures) {
+  const capture = `public/product/${filename}`;
   try {
-    await readPngDimensions(capture);
+    await readPngDimensions(capture, width, height);
+    const original = await readFile(path.resolve(appRoot, "../../docs/_attachments/beta-2026-09-06", filename));
+    const copy = await readFile(path.join(appRoot, capture));
+    const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+    if (hash(original) !== hash(copy)) problems.push(`${capture}: differs from the recorded native capture`);
   } catch {
-    problems.push(`${capture}: missing truthful 1920x1080 product capture`);
+    problems.push(`${capture}: missing original or copied native capture`);
   }
 }
 
@@ -86,9 +93,6 @@ if (mode === "narrated") {
   const requiredAudio = [
     "public/audio/narration/pytxo-demo-narration.mp3",
     "public/audio/music/modern-chillout-future-calm.mp3",
-    "public/audio/sfx/plan-ready.wav",
-    "public/audio/sfx/apply-click.wav",
-    "public/audio/sfx/applied-confirmation.wav",
   ];
   const available = new Set();
 
@@ -130,9 +134,6 @@ if (mode === "narrated") {
     }
     if (relativePath.includes("/music/") && duration < 52) {
       problems.push(`${relativePath}: music bed must cover the full 52-second master`);
-    }
-    if (relativePath.includes("/sfx/") && duration > 3) {
-      problems.push(`${relativePath}: restrained cue must be no longer than 3 seconds`);
     }
   }
 }
