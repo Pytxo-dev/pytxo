@@ -84,6 +84,8 @@
     }),
   );
   const manifest = $derived(review?.prepared_manifest ?? null);
+  const candidateEvidence = $derived(manifest?.candidate_verification);
+  const candidatePassed = $derived(manifest?.version === 3 && candidateEvidence?.version === 1 && candidateEvidence.checks.length > 0 && candidateEvidence.checks.every((check) => check.passed));
   const tasks = $derived(review?.plan.waves.flat() ?? []);
   const receiptRows = $derived.by((): Array<[string, EnforcementSurface]> => {
     const receipt = review?.enforcement.run;
@@ -599,6 +601,17 @@
           <div><dt>Profile</dt><dd>{review.enforcement.run.effective_profile}</dd></div>
           <div><dt>Paths</dt><dd>{manifest.summary.added + manifest.summary.modified + manifest.summary.deleted} · {manifest.summary.added} added · {manifest.summary.modified} modified · {manifest.summary.deleted} deleted</dd></div>
           <div><dt>State</dt><dd>{presentation.state}</dd></div>
+          <div><dt>Combined candidate checks</dt><dd class="candidate-checks">
+            {#if candidatePassed && candidateEvidence}
+              Passed · {candidateEvidence.checks.length} command{candidateEvidence.checks.length === 1 ? "" : "s"} on this combined candidate. Verified {formatPreparedAt(candidateEvidence.verified_at)}.
+              <ul>{#each candidateEvidence.checks as check}<li><code>{check.command}</code> · {check.task_id}</li>{/each}</ul>
+              {#if candidateEvidence.exclusions.length}<span>Excluded from inventory: {candidateEvidence.exclusions.join(", ")}.</span>{/if}
+            {:else if candidateEvidence}
+              Not verified. The combined candidate receipt is incomplete, unsupported, or includes a failed check.
+            {:else}
+              Not verified. Task checks ran in separate workspaces; this package binds the reviewed bytes, not a passing combined check.
+            {/if}
+          </dd></div>
           <div><dt>Base revision</dt><dd>{manifest.base_revision}</dd></div>
           <div><dt>Prepared</dt><dd>{formatPreparedAt(review.prepared_at ?? manifest.prepared_at)}</dd></div>
           <div><dt>Execution domain</dt><dd>{review.enforcement.run.execution_domain}</dd></div>
@@ -882,6 +895,8 @@
     white-space: nowrap;
   }
   .receipt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #242a31; }
+  .evidence-list dd.candidate-checks { white-space: normal; overflow-wrap: anywhere; }
+  .candidate-checks ul { margin: 6px 0; padding-left: 16px; }
   .receipt-grid > div { display: grid; grid-template-columns: auto 1fr; gap: 3px 7px; padding: 10px 12px; background: #11151a; }
   .receipt-grid strong { font-size: 11px; }
   .receipt-grid small { grid-column: 2; color: #8b96a0; font: 11px/1.3 "IBM Plex Mono", monospace; }

@@ -8,7 +8,8 @@ use pytxo_core::{
 use pytxo_orchestrate::{apply_run_changes, discard_run_review, refresh_run_review};
 use pytxo_runner::{
     apply_prepared_review, permission_enforcement_receipt, prepare_review_package,
-    AgentWorkspaceInput, RunApplyManifest,
+    run_candidate_check, AgentWorkspaceInput, CandidateCheckContext, CandidateVerification,
+    RunApplyManifest, SwarmRegistry,
 };
 use pytxo_store::PytxoStore;
 
@@ -30,6 +31,51 @@ fn git(repo: &Path, args: &[&str]) -> String {
 fn write(path: &Path, contents: &str) {
     std::fs::create_dir_all(path.parent().expect("parent")).expect("create parent");
     std::fs::write(path, contents).expect("write fixture");
+}
+
+fn check_contents(path: &str, expected: &str) -> String {
+    if cfg!(windows) {
+        format!("powershell -NoProfile -NonInteractive -Command \"if ((Get-Content -Raw '{path}').Trim() -ne '{expected}') {{ exit 1 }}\"")
+    } else {
+        format!("grep -qx '{expected}' '{path}'")
+    }
+}
+
+fn attest(
+    repo: &Path,
+    data: &Path,
+    manifest: PreparedRunManifest,
+    command: &str,
+) -> PreparedRunManifest {
+    let candidate = CandidateVerification::prepare(repo, data, &manifest, &[]).unwrap();
+    let receipt = run_candidate_check(
+        &CandidateCheckContext {
+            cwd: candidate.workspace_root().into(),
+            run_id: manifest.run_id.clone(),
+            agent_key: format!("{}:candidate", manifest.run_id),
+            repo_root: repo.into(),
+            data_dir: data.into(),
+            profile: PermissionProfile::Orbit,
+            domain_id: DomainId::from_repo_root(repo).unwrap(),
+            execution_backend: pytxo_core::ExecutionBackend::Subprocess,
+            workspace_isolated: true,
+            hitl: None,
+            swarm: SwarmRegistry::new(),
+            on_event: None,
+        },
+        command,
+    )
+    .unwrap();
+    candidate.check_unchanged().unwrap();
+    candidate
+        .finish(vec![pytxo_core::CandidateCheckEvidence {
+            task_id: "implement".into(),
+            command: command.into(),
+            effective_profile: "orbit".into(),
+            passed: true,
+            enforcement: serde_json::to_value(receipt).unwrap(),
+        }])
+        .unwrap()
 }
 
 struct PreparedFixture {
@@ -64,7 +110,7 @@ fn prepared_fixture(run_id: &str) -> PreparedFixture {
             wave: 0,
             root: None,
             signal_fidelity: None,
-            verify: vec![],
+            verify: vec![check_contents("value.txt", "after")],
         }]],
         conflicts: vec![],
         max_agents: 1,
@@ -125,6 +171,7 @@ fn prepared_fixture(run_id: &str) -> PreparedFixture {
         &[],
     )
     .unwrap();
+    let prepared = attest(&repo, &data_dir, prepared, &plan.waves[0][0].verify[0]);
     store.finish_run_preparation(run_id, &prepared).unwrap();
     store.finish_run(run_id, "completed").unwrap();
     drop(store);
@@ -270,9 +317,9 @@ fn version_one_review_package_becomes_visible_refreshable_upgrade_state() {
 
     let refreshed = refresh_run_review(None, Some(fixture.repo.clone()), &fixture.run_id)
         .expect("review_failed v1 package exposes a working refresh path");
-    assert_eq!(refreshed.version, 2);
+    assert_eq!(refreshed.version, 3);
     apply_run_changes(None, Some(fixture.repo.clone()), &fixture.run_id)
-        .expect("refreshed v2 package remains applicable");
+        .expect("refreshed v3 package has passing candidate evidence");
 }
 
 #[test]
@@ -391,7 +438,7 @@ fn applies_a_completed_single_domain_run_once() {
             wave: 0,
             root: None,
             signal_fidelity: None,
-            verify: vec![],
+            verify: vec![check_contents("src/value.txt", "after")],
         }]],
         conflicts: vec![],
         max_agents: 1,
@@ -453,6 +500,12 @@ fn applies_a_completed_single_domain_run_once() {
         &[],
     )
     .unwrap();
+    let prepared = attest(
+        &repo,
+        &repo.join(".pytxo/data"),
+        prepared,
+        &plan.waves[0][0].verify[0],
+    );
     store.finish_run_preparation(run_id, &prepared).unwrap();
     store.finish_run(run_id, "completed").expect("finish run");
     drop(store);
@@ -461,6 +514,11 @@ fn applies_a_completed_single_domain_run_once() {
         &repo.join("unrelated-local-note.txt"),
         "must not block apply\n",
     );
+
+    apply_run_changes(None, Some(repo.clone()), run_id)
+        .expect_err("new source must invalidate candidate evidence");
+    refresh_run_review(None, Some(repo.clone()), run_id)
+        .expect("recheck includes and preserves the operator note");
 
     let manifest =
         apply_run_changes(None, Some(repo.clone()), run_id).expect("apply completed run");
@@ -514,7 +572,7 @@ fn rejects_affected_primary_edits_made_after_review() {
             wave: 0,
             root: None,
             signal_fidelity: None,
-            verify: vec![],
+            verify: vec![check_contents("src/value.txt", "agent-result")],
         }]],
         conflicts: vec![],
         max_agents: 1,
@@ -574,6 +632,12 @@ fn rejects_affected_primary_edits_made_after_review() {
         &[],
     )
     .unwrap();
+    let prepared = attest(
+        &repo,
+        &repo.join(".pytxo/data"),
+        prepared,
+        &plan.waves[0][0].verify[0],
+    );
     store.finish_run_preparation(run_id, &prepared).unwrap();
     store.finish_run(run_id, "completed").expect("finish run");
     drop(store);

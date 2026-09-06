@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-09-06T17:38:57.4354476+07:00",
+  "scenario": "Single Codex worker: require approval for secrets paths, add regression, update README",
+  "fixture": "examples/pytxo-first-mission with deterministic adapter unused and taskless one-worker config",
+  "source_baseline": "e1807cce5aaa3e02ba36fe4f3cc7ea0370f83f72",
+  "source_has_uncommitted_beta_changes": true,
+  "cli_sha256": "f79845db21150016a2034bee999d60edfcf61969a471f46d600d7dfa5134fe9b",
+  "runtime": "OpenAI Codex 0.153.4 (isolated local installation)",
+  "run_id": "cb21abee-360a-42a8-8f3d-9166828bd66c",
+  "run_status": "completed",
+  "started_at": "2026-09-06T10:34:16.073937400+00:00",
+  "candidate_verified_at": "2026-09-06T10:37:13.400864600+00:00",
+  "seconds_start_to_candidate_verification": 177.327,
+  "planned_tasks": 1,
+  "worker_outcomes": [
+    {
+      "task_id": "mission-0",
+      "wave": 0,
+      "status": "completed",
+      "exit_code": 0
+    }
+  ],
+  "package_version": 3,
+  "package_digest": "746baa5a72f984d0907d73b51ec63c19966552f4a7a20994ab16c24a137785f5",
+  "changed_files": [
+    {
+      "path": "README.md",
+      "kind": "modify",
+      "after_sha256": "bb9e36070d81c5ca1ad17785a57e914c5cf13e7429938b84b5dd2a8e8a7c90f8"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "kind": "modify",
+      "after_sha256": "8fa4f3d2d98daa4ddb3879fba5d3839d12dab56a061eb97898b13c6e768d2a33"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "kind": "modify",
+      "after_sha256": "f321c184d0f37cd71a030a5dc86b4cf640a8167b14afa1f5a91872e660b678f6"
+    }
+  ],
+  "candidate_checks": [
+    {
+      "task_id": "mission-0",
+      "command": "npm test",
+      "effective_profile": "orbit",
+      "passed": true
+    }
+  ],
+  "inventory_exclusions": [
+    ".git",
+    ".pytxo",
+    "build",
+    "dist",
+    "node_modules",
+    "target"
+  ],
+  "included_input_files": 8,
+  "primary_git_status_porcelain": [],
+  "apply_observed": true,
+  "token_cost": null,
+  "estimated_cost_usd": null,
+  "non_claims": [
+    "No comparative speed, cost, or quality result",
+    "No OS-level host filesystem or network sandbox proof",
+    "No autonomous skills-router or UI/UX evaluation proof",
+    "Single run; no reliability-rate estimate",
+    "No installer proof"
+  ],
+  "native_apply": {
+    "desktop_sha256": "0271b965cae1873cad40c37a6ad7f09365a2564c622fde0beedf9ac67c8ee8b9",
+    "attempt_id": "f286acee-0b33-4d33-8844-261e4605aadf",
+    "phase": "committed",
+    "applied_files_match_frozen_digests": true,
+    "post_apply_tests_passed": 4,
+    "interaction": "Real Tauri webview: inspected all three exact diffs and confirmed Apply exact package",
+    "captures": [
+      "beta-v3-native-receipt.png",
+      "beta-v3-native-apply-confirm.png",
+      "beta-v3-native-applied.png",
+      "beta-v3-native-journal.png"
+    ]
+  }
+}

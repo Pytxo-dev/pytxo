@@ -127,6 +127,8 @@
   }
   .setup__progress {
     display: flex;
+    flex-wrap: wrap;
+    max-width: 100%;
     gap: 0.5rem;
     align-items: flex-end;
   }

@@ -40,9 +40,9 @@ export function agentState(agent: AgentDto): StateDescriptor {
       return { tone: "queued", label: "Blocked", detail: "Waiting for an earlier wave to finish" };
     case "completed":
       return {
-        tone: "verified",
+        tone: exit === 0 ? "verified" : exit === null ? "unknown" : "refuted",
         label: "Completed",
-        detail: exitDetail ? `Verify passed, ${exitDetail}` : "Reported complete without an exit code",
+        detail: exitDetail ? `Process ${exitDetail}; task checks are separate evidence` : "Reported complete without an exit code",
       };
     case "verify_failed":
       return {

@@ -56,6 +56,7 @@ pub use path_util::{canonical_repo_root, strip_extended_path};
 pub use plan::{AgentAssignment, ConflictPair, ExecutionPlan, ScheduledTask};
 pub use project::{ProjectManifest, ProjectMeta, ProjectRoot};
 pub use review::{
+    CandidateCheckEvidence, CandidateInventoryFile, CandidateVerificationEvidence,
     PreparedBlobChunk, PreparedRunFile, PreparedRunFileKind, PreparedRunManifest,
     PreparedRunSummary, RunApplyError,
 };

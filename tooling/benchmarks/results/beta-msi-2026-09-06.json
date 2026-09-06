@@ -1,0 +1,11 @@
+{
+  "msi_sha256": "477827e043fbe5666c59919a97aca670034cf162cc5349a7fb333674baa9ab72",
+  "payload_sha256": "e0845f511da7f73a46994953f70e6af5b8c357f8e5071dd6542200bdbaa0f7f8",
+  "built_exe_sha256": "029bb649be04a864d94da90c5581c0e573a348cd004a989557dd43d4d1f53171",
+  "payload_diff": "Exactly the three-byte Tauri bundle marker UNK -> MSI; all other bytes match",
+  "extraction_exit": 0,
+  "elevated_install_verified": false,
+  "product_version": "1.2.2",
+  "payload_startup_verified": true,
+  "cursor_inconclusive_status_verified": true
+}

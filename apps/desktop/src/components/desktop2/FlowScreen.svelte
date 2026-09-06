@@ -548,10 +548,11 @@
               <div><dt>Agent CLI</dt><dd>{plan.ade.requested ?? "Not selected"} · {plan.ade.available ? "ready" : "unavailable"}{plan.ade.command ? ` · ${plan.ade.command}` : ""}</dd></div>
             </dl>
             <div class="contract-list">
-              <strong>Verification commands</strong>
+              <strong>Per-task verification commands</strong>
               {#if verificationCommands.length}
                 <ul>{#each verificationCommands as command}<li><code>{command}</code></li>{/each}</ul>
-              {:else}<p class="unverified-copy">No verification commands were reported. This plan is unverified and cannot run; rebuild it after adding verification requirements to the mission or planner input.</p>{/if}
+                <p>These checks run in each task's workspace. Passing task checks does not prove the combined candidate passes.</p>
+              {:else}<p class="unverified-copy">No verification commands were reported. Add a verify command to each task in pytxo.toml, then build the plan again. This plan cannot run without checks.</p>{/if}
             </div>
             <div class="contract-list" data-tone={plan.warnings.length ? "warning" : "quiet"}>
               <strong>Warnings</strong>
@@ -567,7 +568,7 @@
             </div>
           </section>
           <div class="plan-footer">
-            <div><span>Estimate</span><strong>{plan.estimated_cost_usd ? `$${plan.estimated_cost_usd.toFixed(2)}` : "Local"}</strong></div>
+            <div><span>Estimate</span><strong>{plan.estimated_cost_usd !== null ? `$${plan.estimated_cost_usd.toFixed(2)}` : "Not estimated"}</strong></div>
             <div><span>Path locks</span><strong>{plan.blocked_reasons.length ? `${plan.blocked_reasons.length} collisions` : "Clear"}</strong></div>
             <button class="quiet" disabled={planning} onclick={buildPlan}>Build plan</button>
             <div class="run-action">

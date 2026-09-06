@@ -14,13 +14,15 @@
   .setup-shell {
     flex: 1;
     display: flex;
-    align-items: center;
+    align-items: safe center;
     justify-content: center;
     padding: 2rem 1rem;
     min-height: 0;
+    overflow-y: auto;
     background: var(--background);
   }
   .setup-shell__card {
+    flex-shrink: 0;
     width: min(520px, 100%);
     padding: 1.5rem;
     border-radius: var(--radius-xl);

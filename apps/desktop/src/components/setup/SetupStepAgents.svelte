@@ -31,10 +31,16 @@
       .slice(0, 5),
   );
   const installedCount = $derived(agents.filter((agent) => agent.installed).length);
+  const readyCount = $derived(agents.filter(isReady).length);
+
+  function isReady(agent: AdeCliStatusDto) {
+    return agent.installed && (agent.auth_state === "signed_in" || agent.auth_state === "not_applicable");
+  }
 
   async function refresh() {
     loading = true;
     error = "";
+    message = "";
     try {
       agents = await backend.listAdeClis();
     } catch (reason) {
@@ -67,7 +73,7 @@
 <div class="step">
   <h2 class="title">Connect your coding agents</h2>
   <p class="lead">
-    Keep the CLIs you already use. Pytxo checks non-secret session status and opens each vendor's
+    One coding agent CLI is enough. Pytxo checks non-secret session status and opens each vendor's
     official sign-in; credentials never move into Pytxo.
   </p>
 
@@ -86,20 +92,23 @@
               {openingId === agent.id ? "Opening…" : agent.login_label}
             </Button>
           {:else}
-            <b class:ready={agent.auth_state === "signed_in"}>
-              {agent.auth_state === "signed_in" ? "Ready" : agent.installed ? "Installed" : "Later"}
+            <b class:ready={isReady(agent)}>
+              {isReady(agent) ? "Ready" : agent.installed ? "Installed" : "Later"}
             </b>
           {/if}
         </div>
       {/each}
     </div>
-    <p class="summary">{installedCount} agent CLI{installedCount === 1 ? "" : "s"} detected. You can recheck and add more from Agents.</p>
+    <p class="summary" role="status">{installedCount} installed · {readyCount} ready. After signing in, check again to confirm the session.</p>
   {/if}
 
   {#if message}<p class="message" role="status">{message}</p>{/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 
   <div class="actions">
+    <Button variant="outline" disabled={loading || openingId !== null} onclick={() => void refresh()}>
+      {loading ? "Checking…" : "Check again"}
+    </Button>
     <Button onclick={onContinue}>Continue</Button>
     <Button variant="ghost" onclick={onSkip}>Skip for now</Button>
   </div>

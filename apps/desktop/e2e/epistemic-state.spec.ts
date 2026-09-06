@@ -147,6 +147,13 @@ test.describe("Epistemic state contract", () => {
       ]),
     ).toEqual({ settled: 1, successful: 0, total: 2 });
   });
+
+  test("process completion never implies verification passed", () => {
+    const completed = agentState(agent({ status: "completed", exit_code: 0 }));
+    expect(completed.detail).toBe("Process exited 0; task checks are separate evidence");
+    expect(agentState(agent({ status: "completed", exit_code: null })).tone).toBe("unknown");
+    expect(agentState(agent({ status: "completed", exit_code: 1 })).tone).toBe("refuted");
+  });
 });
 
 test.describe("Epistemic summary rendering", () => {

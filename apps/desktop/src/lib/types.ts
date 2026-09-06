@@ -116,6 +116,14 @@ export type PreparedRunManifest = {
   package_digest: string;
   summary: PreparedRunSummary;
   files: PreparedRunFile[];
+  candidate_verification?: {
+    version: number;
+    verified_at: string;
+    exclusions: string[];
+    base_inventory: { path: string; sha256: string; mode: number | null }[];
+    candidate_inventory: { path: string; sha256: string; mode: number | null }[];
+    checks: { task_id: string; command: string; effective_profile: string; passed: boolean; enforcement: unknown }[];
+  } | null;
 };
 
 export type DomainChangeDto = {

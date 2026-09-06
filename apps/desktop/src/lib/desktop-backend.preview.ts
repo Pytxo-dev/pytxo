@@ -619,6 +619,24 @@ export class PreviewDesktopBackend implements DesktopBackend {
       typeof localStorage === "undefined"
         ? null
         : localStorage.getItem("pytxo-preview-review-state-v1");
+    const candidateCheck = typeof localStorage === "undefined" ? null : localStorage.getItem("pytxo-preview-candidate-check-v1");
+    if (candidateCheck) {
+      preparedManifest.version = 3;
+      preparedManifest.candidate_verification = {
+        version: 1,
+        verified_at: "2026-09-06T02:30:00Z",
+        base_inventory: [],
+        candidate_inventory: [],
+        exclusions: [".git", "node_modules"],
+        checks: candidateCheck === "empty" ? [] : [{
+          task_id: "ui",
+          command: "npm run check",
+          effective_profile: "orbit",
+          passed: candidateCheck === "passed",
+          enforcement: {},
+        }],
+      };
+    }
     const recovered = requested === "recovered" || this.recoveredRuns.has(runId);
     const lastError: RunApplyError | null =
       recovered

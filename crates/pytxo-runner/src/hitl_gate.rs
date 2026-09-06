@@ -113,6 +113,17 @@ pub fn gate_hitl_action(
     action: &str,
     reason: &str,
 ) -> Result<()> {
+    gate_hitl_action_cancellable(hitl, profile, agent_key, action, reason, || Ok(()))
+}
+
+pub(crate) fn gate_hitl_action_cancellable(
+    hitl: Option<&HitlQueue>,
+    profile: PermissionProfile,
+    agent_key: &str,
+    action: &str,
+    reason: &str,
+    ensure_active: impl Fn() -> Result<()>,
+) -> Result<()> {
     if profile != PermissionProfile::Galaxy {
         return Ok(());
     }
@@ -122,7 +133,19 @@ pub fn gate_hitl_action(
         )));
     };
     let id = hitl.submit(agent_key, action, reason);
-    match hitl.wait_blocking(&id, HITL_GATE_TIMEOUT) {
+    let started = std::time::Instant::now();
+    let decision = loop {
+        if let Err(error) = ensure_active() {
+            hitl.resolve(&id, false);
+            return Err(error);
+        }
+        let decision = hitl.decision(&id);
+        if decision != HitlDecision::Pending || started.elapsed() >= HITL_GATE_TIMEOUT {
+            break decision;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    match decision {
         HitlDecision::Approved => Ok(()),
         HitlDecision::Denied => Err(PytxoError::Runner(format!(
             "action denied by human reviewer ({action})"

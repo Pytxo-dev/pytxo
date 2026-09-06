@@ -469,7 +469,9 @@ pub fn dispatch_flow(catalog: &Catalog, draft_id: &str) -> anyhow::Result<String
     }
     let dispatch = dispatch_run_with_config_snapshot(
         RunOptions {
-            agents: tasks.len(),
+            // Keep the reviewed concurrency limit. Task count is mission scope,
+            // not permission to widen the execution waves at dispatch.
+            agents: cfg.max_agents,
             cmd: ade.default_cmd.into(),
             config: None,
             dry_run: false,

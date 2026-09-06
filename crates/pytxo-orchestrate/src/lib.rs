@@ -12,9 +12,10 @@ use pytxo_core::{
 use pytxo_runner::{
     apply_attempt_ids, apply_prepared_review_under_lease, execute_plan, load_review_package,
     permission_enforcement_receipt, prepare_review_package, reconcile_apply_journals_under_lease,
-    registry_path, stop_all, stop_run, AgentWorkspaceInput, ExecutionDomainMutationLease,
-    PermissionEnforcementReceipt, ProcessRegistryFile, RecoveryOutcome, RunApplyManifest,
-    RunContext,
+    registry_path, require_candidate_verification, run_candidate_check, stop_run,
+    AgentWorkspaceInput, CandidateCheckContext, CandidateVerification,
+    ExecutionDomainMutationLease, PermissionEnforcementReceipt, ProcessRegistryFile,
+    RecoveryOutcome, RunApplyManifest, RunContext,
 };
 use pytxo_scheduler::build_plan;
 use pytxo_signal::TreeSitterSignalCore;
@@ -921,6 +922,27 @@ fn apply_run_changes_with(
         )?;
         return Err(anyhow::anyhow!(error));
     }
+    if !prepared.files.is_empty() {
+        if let Err(error) = validate_candidate_recipe(
+            &prepared,
+            &plan,
+            &enforcement,
+            &DomainId::from_repo_root(&repo_root)?,
+        ) {
+            store.finish_run_apply_error(
+                run_id,
+                "review_failed",
+                &run_apply_error(
+                    "candidate_verification_required",
+                    &error.to_string(),
+                    false,
+                    None,
+                ),
+                None,
+            )?;
+            return Err(anyhow::anyhow!(error));
+        }
+    }
     let previous_attempts = apply_attempt_ids(&data_dir, run_id)?;
     let result = apply(&repo_root, &data_dir, &prepared, &mutation_lease);
     match result {
@@ -933,7 +955,10 @@ fn apply_run_changes_with(
             Ok(manifest)
         }
         Err(error) => {
-            let stale = error.to_string().contains("changed since review");
+            let stale = error.to_string().contains("changed since review")
+                || error
+                    .to_string()
+                    .contains("candidate base inventory drifted");
             let current_attempts = apply_attempt_ids(&data_dir, run_id)?;
             let new_attempts = current_attempts
                 .difference(&previous_attempts)
@@ -1007,6 +1032,7 @@ pub fn refresh_run_review(
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo_root)?;
     let data_dir = repo_root.join(&cfg.data_dir);
+    let _mutation_lease = ExecutionDomainMutationLease::try_acquire(&data_dir)?;
     let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
     let contract = store
         .get_run_contract(run_id)?
@@ -1017,6 +1043,18 @@ pub fn refresh_run_review(
             contract.apply_status
         );
     }
+    let run = store
+        .get_run(run_id)?
+        .ok_or_else(|| anyhow::anyhow!("unknown run: {run_id}"))?;
+    if !matches!(run.status.as_str(), "completed" | "failed") {
+        anyhow::bail!(
+            "run review cannot be refreshed from run status {}",
+            run.status
+        );
+    }
+    if canonical_repo_root(Path::new(&run.repo_root))? != canonical_repo_root(&repo_root)? {
+        anyhow::bail!("run belongs to a different execution domain");
+    }
     let plan: ExecutionPlan = serde_json::from_str(
         contract
             .plan_json
@@ -1024,20 +1062,47 @@ pub fn refresh_run_review(
             .ok_or_else(|| anyhow::anyhow!("run contract has no execution plan"))?,
     )?;
     let workspaces = review_workspaces(&store, run_id, &plan)?;
+    let enforcement: RunEnforcementEnvelope = serde_json::from_str(
+        contract
+            .enforcement_json
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("run has no enforcement receipt"))?,
+    )?;
+    let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
     if !store.begin_run_preparation(run_id)? {
         anyhow::bail!("run review could not enter preparing state");
     }
     let base_revision = current_head_revision(&repo_root)?;
-    match prepare_review_package(
-        &repo_root,
-        &data_dir,
-        run_id,
-        &base_revision,
-        &workspaces,
-        &cfg.blast.sparse_exclude,
-    ) {
+    let preparation = match load_review_package(&data_dir, run_id) {
+        Ok(frozen) => pytxo_runner::refresh_frozen_review_package(
+            &repo_root,
+            &data_dir,
+            &frozen,
+            &base_revision,
+            &cfg.blast.sparse_exclude,
+        ),
+        Err(_) => prepare_review_package(
+            &repo_root,
+            &data_dir,
+            run_id,
+            &base_revision,
+            &workspaces,
+            &cfg.blast.sparse_exclude,
+        ),
+    }
+    .map_err(anyhow::Error::from)
+    .and_then(|manifest| verify_combined_candidate(&domain, &cfg, &plan, &enforcement, manifest));
+    match preparation {
         Ok(manifest) => {
             persist_finished_run_review(&store, run_id, &manifest)?;
+            // review_workspaces has required every planned task to have completed
+            // successfully. A failed review can now recover after explicit fresh
+            // verification, without ever reviving a cancelled or stopped run.
+            if run.status == "failed"
+                && !store.finish_run_if_status(run_id, "failed", "completed")?
+            {
+                anyhow::bail!("run changed status while refreshing its review");
+            }
             Ok(manifest)
         }
         Err(error) => {
@@ -1047,6 +1112,119 @@ pub fn refresh_run_review(
             Err(anyhow::anyhow!(error))
         }
     }
+}
+
+/// Blocking repository verification boundary. Scope: original Orbit/Galaxy
+/// task authority, capped by current folder trust, in one execution domain.
+fn verify_combined_candidate(
+    domain: &hypervisor::DomainState,
+    cfg: &PytxoConfig,
+    plan: &ExecutionPlan,
+    enforcement: &RunEnforcementEnvelope,
+    manifest: pytxo_core::PreparedRunManifest,
+) -> anyhow::Result<pytxo_core::PreparedRunManifest> {
+    if manifest.files.is_empty() {
+        return Ok(manifest);
+    }
+    let candidate = CandidateVerification::prepare(
+        &domain.repo_root,
+        &domain.data_dir,
+        &manifest,
+        &cfg.blast.sparse_exclude,
+    )?;
+    let mut checks = Vec::new();
+    for task in plan.waves.iter().flatten() {
+        if task.root.as_deref().is_some_and(|root| !root.is_empty()) {
+            anyhow::bail!("combined candidate verification supports one repository root");
+        }
+        if task.verify.is_empty() || task.verify.iter().any(|command| command.trim().is_empty()) {
+            anyhow::bail!("task {} has no complete verification recipe; configure checks and rerun the mission", task.task_id.0);
+        }
+        let original = enforcement
+            .agents
+            .get(&task.agent)
+            .unwrap_or(&enforcement.run);
+        let original_profile = PermissionProfile::parse(&original.effective_profile)
+            .ok_or_else(|| anyhow::anyhow!("invalid original verification profile"))?;
+        let profile = original_profile.capped_at(cfg.resolve_profile_for_agent(&task.agent));
+        if !matches!(
+            profile,
+            PermissionProfile::Orbit | PermissionProfile::Galaxy
+        ) {
+            anyhow::bail!(
+                "candidate verification cannot run under {}",
+                profile.as_str()
+            );
+        }
+        let context = CandidateCheckContext {
+            cwd: candidate.workspace_root().to_path_buf(),
+            run_id: manifest.run_id.clone(),
+            agent_key: format!("{}:candidate:{}", manifest.run_id, task.task_id.0),
+            repo_root: domain.repo_root.clone(),
+            data_dir: domain.data_dir.clone(),
+            profile,
+            domain_id: domain.id.clone(),
+            execution_backend: cfg.execution_backend,
+            workspace_isolated: true,
+            hitl: Some(domain.hitl.clone()),
+            swarm: domain.swarm.clone(),
+            on_event: None,
+        };
+        for command in &task.verify {
+            let result = run_candidate_check(&context, command);
+            candidate.check_unchanged()?;
+            let receipt = result?;
+            checks.push(pytxo_core::CandidateCheckEvidence {
+                task_id: task.task_id.0.clone(),
+                command: command.clone(),
+                effective_profile: profile.as_str().into(),
+                passed: true,
+                enforcement: serde_json::to_value(receipt)?,
+            });
+        }
+    }
+    Ok(candidate.finish(checks)?)
+}
+
+fn validate_candidate_recipe(
+    manifest: &pytxo_core::PreparedRunManifest,
+    plan: &ExecutionPlan,
+    enforcement: &RunEnforcementEnvelope,
+    domain_id: &DomainId,
+) -> anyhow::Result<()> {
+    let evidence = require_candidate_verification(manifest)?;
+    let expected: Vec<_> = plan
+        .waves
+        .iter()
+        .flatten()
+        .flat_map(|task| task.verify.iter().map(move |command| (task, command)))
+        .collect();
+    if expected.len() != evidence.checks.len() {
+        anyhow::bail!("candidate verification recipe differs from the approved plan");
+    }
+    for ((task, command), check) in expected.into_iter().zip(&evidence.checks) {
+        let original = enforcement
+            .agents
+            .get(&task.agent)
+            .unwrap_or(&enforcement.run);
+        let original_profile = PermissionProfile::parse(&original.effective_profile)
+            .ok_or_else(|| anyhow::anyhow!("invalid original task profile"))?;
+        let check_profile = PermissionProfile::parse(&check.effective_profile)
+            .ok_or_else(|| anyhow::anyhow!("invalid candidate check profile"))?;
+        if check.task_id != task.task_id.0
+            || check.command != *command
+            || check_profile.capped_at(original_profile) != check_profile
+            || check.enforcement["effective_profile"].as_str()
+                != Some(check.effective_profile.as_str())
+            || check.enforcement["execution_domain"].as_str() != Some(domain_id.as_str())
+        {
+            anyhow::bail!(
+                "candidate verification identity or authority differs from the approved task {}",
+                task.task_id.0
+            );
+        }
+    }
+    Ok(())
 }
 
 pub fn discard_run_review(
@@ -1519,6 +1697,22 @@ pub(crate) async fn execute_run_body(
 
     let sanitize = cfg.sanitize;
     let store_for_on_event = Arc::clone(&store_for_events);
+    let lost_events = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let lost_events_for_callback = Arc::clone(&lost_events);
+    let event_tasks: std::collections::BTreeMap<_, _> = plan
+        .waves
+        .iter()
+        .flatten()
+        .enumerate()
+        .map(|(index, task)| {
+            (
+                format!("{}:{}", run_id, pytxo_core::AgentId::new(index)),
+                task.clone(),
+            )
+        })
+        .collect();
+    let event_run_id = run_id.0.clone();
+    let event_command = opts.cmd.clone();
     let on_event = Arc::new(move |agent_key: &str, kind: &str, line: &str| {
         let payload = if sanitize {
             #[cfg(feature = "sanitize")]
@@ -1532,8 +1726,31 @@ pub(crate) async fn execute_run_body(
         } else {
             line.to_string()
         };
-        if let Ok(guard) = store_for_on_event.lock() {
-            let _ = guard.append_event(agent_key, kind, &payload);
+        let persisted = store_for_on_event.lock().is_ok_and(|guard| {
+            let write = || -> pytxo_core::Result<()> {
+                let task = event_tasks.get(agent_key).ok_or_else(|| {
+                    PytxoError::Store("event actor is absent from the execution plan".into())
+                })?;
+                // Events reference agents in SQLite. Create the actual actor on
+                // its first event, before writing evidence, rather than waiting
+                // until the entire plan has finished. Unstarted tasks stay absent.
+                if guard.get_agent(agent_key)?.is_none() {
+                    guard.insert_agent_with_root(
+                        agent_key,
+                        &event_run_id,
+                        &task.task_id.0,
+                        task.wave,
+                        None,
+                        &event_command,
+                        task.root.as_deref(),
+                    )?;
+                }
+                guard.append_event(agent_key, kind, &payload)
+            };
+            write().is_ok()
+        });
+        if !persisted {
+            lost_events_for_callback.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
     });
 
@@ -1602,111 +1819,154 @@ pub(crate) async fn execute_run_body(
 
     let results = execute_plan(&ctx, &plan, &domain.process_registry, &domain.swarm).await?;
 
-    let mut failed = false;
-    let mut review_error: Option<anyhow::Error> = None;
-    let mut all_lines: Vec<String> = Vec::new();
-    let store = store_for_events
-        .lock()
-        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-    for result in &results {
-        let agent_key = format!("{}:{}", run_id, result.agent_id);
-        let worktree_path = result
-            .worktree_path
-            .as_ref()
-            .map(|path| path.to_string_lossy().into_owned());
-        store.insert_agent_with_root(
-            &agent_key,
-            &run_id.0,
-            &result.task_id,
-            result.wave,
-            worktree_path.as_deref(),
-            &opts.cmd,
-            result.root_id.as_deref(),
-        )?;
-        if !result.stdout.is_empty() {
-            let payload = maybe_sanitize(&result.stdout, sanitize);
-            store.append_event(&agent_key, "stdout", &payload)?;
-            all_lines.extend(result.stdout.lines().map(String::from));
+    // Candidate checks may wait for processes or operator approvals. Keep that
+    // entire preparation/ledger section off the async supervisor thread.
+    let review_cfg = cfg.clone();
+    let review_run_id = run_id.clone();
+    let (failed, review_error, cost) = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
+        let cfg = review_cfg;
+        let run_id = review_run_id;
+        let mut failed = false;
+        let mut review_error: Option<anyhow::Error> = None;
+        let mut all_lines: Vec<String> = Vec::new();
+        let store = store_for_events
+            .lock()
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        for result in &results {
+            let agent_key = format!("{}:{}", run_id, result.agent_id);
+            let worktree_path = result
+                .worktree_path
+                .as_ref()
+                .map(|path| path.to_string_lossy().into_owned());
+            if store.get_agent(&agent_key)?.is_none() {
+                store.insert_agent_with_root(
+                    &agent_key,
+                    &run_id.0,
+                    &result.task_id,
+                    result.wave,
+                    worktree_path.as_deref(),
+                    &opts.cmd,
+                    result.root_id.as_deref(),
+                )?;
+            } else {
+                store.set_agent_workspace(&agent_key, worktree_path.as_deref())?;
+            }
+            if !result.stdout.is_empty() {
+                let payload = maybe_sanitize(&result.stdout, sanitize);
+                store.append_event(&agent_key, "stdout", &payload)?;
+                all_lines.extend(result.stdout.lines().map(String::from));
+            }
+            if !result.stderr.is_empty() {
+                let payload = maybe_sanitize(&result.stderr, sanitize);
+                store.append_event(&agent_key, "stderr", &payload)?;
+                all_lines.extend(result.stderr.lines().map(String::from));
+            }
+            let status = result.outcome.ledger_status();
+            if !result.outcome.is_success() {
+                failed = true;
+            }
+            store.finish_agent(&agent_key, result.exit_code, status)?;
         }
-        if !result.stderr.is_empty() {
-            let payload = maybe_sanitize(&result.stderr, sanitize);
-            store.append_event(&agent_key, "stderr", &payload)?;
-            all_lines.extend(result.stderr.lines().map(String::from));
-        }
-        let status = result.outcome.ledger_status();
-        if !result.outcome.is_success() {
-            failed = true;
-        }
-        store.finish_agent(&agent_key, result.exit_code, status)?;
-    }
 
-    let line_refs: Vec<&str> = all_lines.iter().map(String::as_str).collect();
-    let cost = parse_cost_from_lines(&line_refs);
-    if cost.tokens_in > 0 || cost.tokens_out > 0 || cost.cost_usd > 0.0 {
-        store.update_run_cost(&run_id.0, cost.tokens_in, cost.tokens_out, cost.cost_usd)?;
-    }
+        let line_refs: Vec<&str> = all_lines.iter().map(String::as_str).collect();
+        let cost = parse_cost_from_lines(&line_refs);
+        if cost.tokens_in > 0 || cost.tokens_out > 0 || cost.cost_usd > 0.0 {
+            store.update_run_cost(&run_id.0, cost.tokens_in, cost.tokens_out, cost.cost_usd)?;
+        }
 
-    if !failed && apply_status == "pending" {
-        let tasks_by_id: std::collections::BTreeMap<_, _> = plan
-            .waves
-            .iter()
-            .flatten()
-            .map(|task| (task.task_id.0.as_str(), task))
-            .collect();
-        let workspaces = results
-            .iter()
-            .map(|result| {
-                let task = tasks_by_id.get(result.task_id.as_str()).ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "completed task missing from review plan: {}",
-                        result.task_id
-                    )
-                })?;
-                Ok(AgentWorkspaceInput {
-                    agent_id: result.agent_id.0.clone(),
-                    task_id: result.task_id.clone(),
-                    workspace_path: result.worktree_path.clone().ok_or_else(|| {
-                        anyhow::anyhow!("completed task has no workspace: {}", result.task_id)
-                    })?,
-                    claims: task.paths.clone(),
-                    depends_on: task.depends_on.clone(),
+        let missing_events = lost_events.load(std::sync::atomic::Ordering::Relaxed);
+        if missing_events > 0 {
+            let message = format!(
+                "{missing_events} live event(s) could not be persisted; run evidence is incomplete"
+            );
+            if let Some(result) = results.first() {
+                store.append_event(
+                    &format!("{}:{}", run_id, result.agent_id),
+                    "evidence-gap",
+                    &message,
+                )?;
+            }
+            if apply_status == "pending" && store.begin_run_preparation(&run_id.0)? {
+                store.fail_run_preparation(
+                    &run_id.0,
+                    &run_apply_error("event_persistence_failed", &message, false, None),
+                )?;
+            }
+            review_error = Some(anyhow::anyhow!(message));
+        }
+
+        if !failed && review_error.is_none() && apply_status == "pending" {
+            let tasks_by_id: std::collections::BTreeMap<_, _> = plan
+                .waves
+                .iter()
+                .flatten()
+                .map(|task| (task.task_id.0.as_str(), task))
+                .collect();
+            let workspaces = results
+                .iter()
+                .map(|result| {
+                    let task = tasks_by_id.get(result.task_id.as_str()).ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "completed task missing from review plan: {}",
+                            result.task_id
+                        )
+                    })?;
+                    Ok(AgentWorkspaceInput {
+                        agent_id: result.agent_id.0.clone(),
+                        task_id: result.task_id.clone(),
+                        workspace_path: result.worktree_path.clone().ok_or_else(|| {
+                            anyhow::anyhow!("completed task has no workspace: {}", result.task_id)
+                        })?,
+                        claims: task.paths.clone(),
+                        depends_on: task.depends_on.clone(),
+                    })
                 })
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
-        if !store.begin_run_preparation(&run_id.0)? {
-            review_error = Some(anyhow::anyhow!(
-                "run review contract could not enter preparing state"
-            ));
-        } else {
-            let expected_revision = base_revision.as_deref().unwrap_or_default();
-            match prepare_review_package(
-                &domain.repo_root,
-                &domain.data_dir,
-                &run_id.0,
-                expected_revision,
-                &workspaces,
-                &cfg.blast.sparse_exclude,
-            ) {
-                Ok(manifest) => {
-                    if let Err(error) = persist_finished_run_review(&store, &run_id.0, &manifest) {
-                        review_error = Some(error);
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            if !store.begin_run_preparation(&run_id.0)? {
+                review_error = Some(anyhow::anyhow!(
+                    "run review contract could not enter preparing state"
+                ));
+            } else {
+                let expected_revision = base_revision.as_deref().unwrap_or_default();
+                let preparation = prepare_review_package(
+                    &domain.repo_root,
+                    &domain.data_dir,
+                    &run_id.0,
+                    expected_revision,
+                    &workspaces,
+                    &cfg.blast.sparse_exclude,
+                )
+                .map_err(anyhow::Error::from)
+                .and_then(|manifest| {
+                    verify_combined_candidate(&domain, &cfg, &plan, &enforcement, manifest)
+                });
+                match preparation {
+                    Ok(manifest) => {
+                        if let Err(error) =
+                            persist_finished_run_review(&store, &run_id.0, &manifest)
+                        {
+                            review_error = Some(error);
+                        }
                     }
-                }
-                Err(error) => {
-                    let apply_error = run_apply_error(
-                        "review_preparation_failed",
-                        &error.to_string(),
-                        false,
-                        None,
-                    );
-                    let _ = store.fail_run_preparation(&run_id.0, &apply_error);
-                    review_error = Some(anyhow::anyhow!(error));
+                    Err(error) => {
+                        let apply_error = run_apply_error(
+                            "review_preparation_failed",
+                            &error.to_string(),
+                            false,
+                            None,
+                        );
+                        let _ = store.fail_run_preparation(&run_id.0, &apply_error);
+                        review_error = Some(anyhow::anyhow!(error));
+                    }
                 }
             }
         }
-    }
 
-    drop(store);
+        drop(store);
+        Ok((failed, review_error, cost))
+    })
+    .await
+    .map_err(|error| anyhow::anyhow!("candidate preparation worker failed: {error}"))??;
 
     if let Some(ref mut u) = ultra {
         let totals = u.meter.run_totals(&run_id)?;
@@ -1958,17 +2218,53 @@ async fn stop_impl(
     let data_dir = repo.join(&cfg.data_dir);
 
     if all {
-        stop_all(&data_dir, true).map_err(|e| anyhow::anyhow!(e))?;
-        if let Ok(domain_id) = DomainId::from_repo_root(&repo) {
-            if let Some(domain) = default_hypervisor().domain_state(domain_id.as_str()) {
-                domain.swarm.request_stop_all();
+        fs::create_dir_all(&data_dir)?;
+        let state_path = data_dir.join("active_run.json");
+        // Serialize the snapshot and settlement against a new domain dispatch.
+        // Even between children, the active run must receive durable cancellation.
+        with_active_run_lock(&state_path, || {
+            let tracked = ProcessRegistryFile::load(&registry_path(&data_dir))?;
+            let mut run_ids: std::collections::BTreeSet<String> = tracked
+                .entries
+                .iter()
+                .map(|entry| entry.run_id.clone())
+                .collect();
+            let active = match fs::read_to_string(&state_path) {
+                Ok(raw) => Some(serde_json::from_str::<ActiveRunState>(&raw)?),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Err(error) => return Err(error.into()),
+            };
+            if let Some(state) = &active {
+                run_ids.insert(state.run_id.clone());
             }
-        }
-        let state_path = repo.join(&cfg.data_dir).join("active_run.json");
-        if state_path.exists() {
-            fs::remove_file(state_path)?;
-        }
-        println!("Stopped all tracked processes.");
+            if let Ok(domain_id) = DomainId::from_repo_root(&repo) {
+                if let Some(domain) = default_hypervisor().domain_state(domain_id.as_str()) {
+                    domain.swarm.request_stop_all();
+                }
+            }
+            let store = PytxoStore::open(&cfg.db_path_at(&repo))?;
+            for run_id in &run_ids {
+                stop_run(&data_dir, run_id, true)?;
+                // Do not overwrite a completed/failed outcome racing with Stop.
+                let _ = store.finish_run_if_status(run_id, "starting", "cancelled")?
+                    || store.finish_run_if_running(run_id, "cancelled")?;
+            }
+            if cleanup_worktrees {
+                for process in &tracked.entries {
+                    pytxo_runner::remove_worktree(
+                        Path::new(&process.repo_root),
+                        Path::new(&process.worktree_path),
+                        &process.branch,
+                        true,
+                    )?;
+                }
+            }
+            if let Some(state) = active {
+                clear_active_run_unlocked(&state_path, &state.run_id)?;
+            }
+            Ok(())
+        })?;
+        println!("Stopped all tracked runs and processes in this execution domain.");
         return Ok(());
     }
 
@@ -2692,6 +2988,7 @@ mod tests {
             .unwrap();
         store.save_run_contract(run_id, "base", "{}", "{}").unwrap();
         let manifest = pytxo_core::PreparedRunManifest {
+            candidate_verification: None,
             version: 1,
             run_id: run_id.into(),
             base_revision: "base".into(),
@@ -2753,6 +3050,11 @@ mod tests {
         let run_id = "run-future-prior-attempt";
         let data_dir = repo.join(".pytxo/data");
         let db_path = data_dir.join("pytxo.db");
+        let command = if cfg!(windows) {
+            "powershell -NoProfile -NonInteractive -Command \"if ((Get-Content -Raw 'owned.txt').Trim() -ne 'after') { exit 1 }\""
+        } else {
+            "grep -qx 'after' owned.txt"
+        };
         let plan = ExecutionPlan {
             waves: vec![vec![pytxo_core::ScheduledTask {
                 task_id: TaskId("task".into()),
@@ -2762,7 +3064,7 @@ mod tests {
                 wave: 0,
                 root: None,
                 signal_fidelity: None,
-                verify: vec![],
+                verify: vec![command.into()],
             }]],
             conflicts: vec![],
             max_agents: 1,
@@ -2795,6 +3097,34 @@ mod tests {
             &[],
         )
         .unwrap();
+        let candidate = CandidateVerification::prepare(&repo, &data_dir, &manifest, &[]).unwrap();
+        let check = pytxo_runner::run_candidate_check(
+            &pytxo_runner::CandidateCheckContext {
+                cwd: candidate.workspace_root().into(),
+                run_id: run_id.into(),
+                agent_key: format!("{run_id}:candidate"),
+                repo_root: repo.clone(),
+                data_dir: data_dir.clone(),
+                profile: PermissionProfile::Orbit,
+                domain_id: DomainId::from_repo_root(&repo).unwrap(),
+                execution_backend: pytxo_core::ExecutionBackend::Subprocess,
+                workspace_isolated: true,
+                hitl: None,
+                swarm: pytxo_runner::SwarmRegistry::new(),
+                on_event: None,
+            },
+            command,
+        )
+        .unwrap();
+        let manifest = candidate
+            .finish(vec![pytxo_core::CandidateCheckEvidence {
+                task_id: "task".into(),
+                command: command.into(),
+                effective_profile: "orbit".into(),
+                passed: true,
+                enforcement: serde_json::to_value(check).unwrap(),
+            }])
+            .unwrap();
         let store = PytxoStore::open(&db_path).unwrap();
         store
             .insert_run_with_profile(run_id, &repo.to_string_lossy(), Some("orbit"))

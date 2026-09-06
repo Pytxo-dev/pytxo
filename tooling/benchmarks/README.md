@@ -1,5 +1,49 @@
 # Pytxo benchmarks (Phase 1)
 
+## Current Beta evidence
+
+[`beta-single-codex-2026-09-06.json`](results/beta-single-codex-2026-09-06.json)
+records one actual natural-language mission using Codex 0.153.4 and the current
+uncommitted Beta candidate-verification changes. One worker changed three owned
+files, passed task checks, and produced a version 3 package with a separate
+passing `npm test` on the frozen combined source. The primary tree remained
+unchanged pending reviewed Apply. Start to candidate verification was 177.327
+seconds on this host; this includes model execution and is not a benchmark of
+Pytxo overhead. A subsequent real Tauri Review/Apply recorded a committed journal;
+the three resulting hashes matched the package and four primary-tree tests passed.
+
+The JSON binds the observed CLI binary hash, run ID and package digest. It does
+not contain raw prompts, process logs, credentials or absolute repository paths.
+Token cost was unavailable and remains null. The `mission-loop/` solo/manual/
+Pytxo comparison sheets are unmeasured scaffolds, not comparative results.
+Do not use this single observation to claim faster work or a reliability rate.
+
+The [direct-Codex observation](results/beta-solo-codex-2026-09-06.json) completed
+the same application change with only the three requested files modified and
+four independently rerun tests passing. Its observed process duration was
+127.634 seconds. These runs occurred at different times with background builds;
+the Pytxo timing ends at candidate verification while the direct timing ends at
+CLI exit. Their difference is **not** a measurement of orchestration overhead.
+
+| Observed outcome | Direct Codex | Codex through Pytxo |
+|---|---|---|
+| Requested three-file change | Completed | Completed |
+| Independent primary tests after work/Apply | 4 passed | 4 passed |
+| Primary changed by worker before Pytxo review | Yes | No |
+| Frozen v3 package with combined-check receipt | Not part of this path | Recorded |
+| Native explicit Apply and committed journal | Not part of this path | Recorded |
+
+This is a two-run case study. It supports neither automatic quality improvement
+nor a speed win. The additional Pytxo evidence is an inspectable, verified commit
+boundary. The final bookkeeping correction was separately exercised by the
+deterministic run recorded in `target/beta-final-demo-status.json`, including
+persisted verification events and no evidence gaps.
+
+Beta telemetry currently means the local run ledger, process outcomes and
+verification/Apply receipts. There is no external-user analytics dataset behind
+these results. Any shared diagnostic excerpt should be selected and reviewed
+by its owner; this benchmark does not upload telemetry.
+
 ## Metrics (target)
 
 | Metric | Description |

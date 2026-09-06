@@ -1,5 +1,61 @@
 # Pytxo v1.2.2 release readiness
 
+## Sep 6 Beta source candidate amendment
+
+The uncommitted Beta changes on baseline `e1807cc` supersede the older
+task-check-only evidence below. The full Rust workspace suite, clippy with
+warnings denied, CLI/MCP builds, Desktop check/native build, 20 targeted browser
+checks and web link/lint/build gates passed. Six refined workflow tests also
+passed using History to select the actual completed preview run at both widths.
+The subsequent Cursor inconclusive-probe fix passed five focused tests,
+Desktop clippy and a fresh native build.
+
+The last audit found and fixed silent live-event loss: SQLite's agent row now
+exists before its first event, and event write failures produce an explicit
+evidence-gap failure instead of an Apply-ready run. A fault-injected database
+regression and normal-event persistence checks pass, as do dispatch/Stop tests.
+Final workspace and clippy gates now pass after this correction. The final MSI
+also built and extracted successfully; its hashes are recorded in
+`tooling/benchmarks/results/beta-final-msi-2026-09-06.json`. The native rehearsal
+hashes below identify the earlier v3 candidate, not this final rebuild.
+
+Combined verification now binds a version 3 package to the included base and
+candidate inventories and the executed recipe. Individually passing tasks with
+a failing combined result are rejected. Stale input drift requires fresh checks;
+refresh preserves frozen effects and current operator files. Failed checks can
+recover through explicit successful refresh. Git discovery cannot ascend from
+the source-only candidate into the primary repository. Git-history-dependent
+checks currently fail in that snapshot, and excluded dependencies are not attested.
+
+The real Codex 0.153.4 mission `cb21abee-360a-42a8-8f3d-9166828bd66c` passed the
+one-worker natural-language path and produced a verified three-file package.
+The built Tauri app displayed its exact contents and accepted explicit Apply
+confirmation. Journal `f286acee-0b33-4d33-8844-261e4605aadf` committed; all three
+primary hashes matched frozen targets and four post-Apply tests passed.
+Evidence: `tooling/benchmarks/results/beta-single-codex-2026-09-06.json` and
+`docs/_attachments/beta-2026-09-06/`. This is a raw native executable rehearsal,
+not a fresh MSI-install proof or an external-user reliability measurement.
+
+**Beta goal remains active.** Final changed-code review, remaining onboarding
+validation and reconciliation of the historical release/distribution gates are
+still required. The following Sep 5 assessment is historical; it does not certify
+the uncommitted source candidate or an installer built from it.
+
+Fresh v3 MSI packaging also succeeded before the final event correction. Its
+administrative image extracted with exit 0, reported 1.2.2, reopened the completed
+run and displayed the corrected Cursor status. All executable bytes matched the
+built payload except Tauri's three-byte `UNK` → `MSI` bundle marker. Evidence is
+`tooling/benchmarks/results/beta-msi-2026-09-06.json`. Clean elevated installation
+is still unverified (the current process is not elevated). GitHub currently lists
+v1.2.1 as latest public; v1.2.2 has not been published.
+
+The rebuilt CLI completed deterministic run
+`044cdc97-7bae-48ba-8ced-51fdd2f69b2e` with verification-boundary, command, output
+and success events persisted and no evidence gaps. A separate direct-Codex
+baseline completed the same three-file application change as the real Pytxo
+mission, with four independently rerun tests passing. The two-run case study in
+`tooling/benchmarks/README.md` does not establish a speed or quality advantage.
+
 **Assessment date:** 2026-09-05
 **Branch:** `codex/release-1.2.2-integrity`
 **Baseline HEAD:** `9139a908e05cf796578c094d485ee45baf50ba0d` (`origin/main`)

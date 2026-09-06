@@ -2,6 +2,7 @@
 
 mod arbitrage;
 mod blast;
+mod candidate_verification;
 mod change_set;
 mod context;
 mod enforcement;
@@ -28,6 +29,9 @@ pub use arbitrage::ArbitrageProfiler;
 pub use blast::{
     effective_isolation_mode, isolation_backend_label, isolation_for_mode, OverlayIsolation,
     WorktreeIsolation,
+};
+pub use candidate_verification::{
+    refresh_frozen_review_package, require_candidate_verification, CandidateVerification,
 };
 pub use change_set::{
     apply_attempt_ids, apply_prepared_review, apply_prepared_review_under_lease,
@@ -106,6 +110,6 @@ pub fn doctor_overlay_probe() -> pytxo_core::Result<String> {
 }
 pub use race::SwarmRegistry;
 pub use run::{
-    cleanup_worktrees, commit_workspace, execute_plan, stop_all, stop_run, AgentRunOutcome,
-    AgentRunResult, EventCallback, RootExec, RunContext,
+    cleanup_worktrees, commit_workspace, execute_plan, run_candidate_check, stop_all, stop_run,
+    AgentRunOutcome, AgentRunResult, CandidateCheckContext, EventCallback, RootExec, RunContext,
 };

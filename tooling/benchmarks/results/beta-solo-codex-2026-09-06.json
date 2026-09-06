@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "runtime": "OpenAI Codex 0.153.4",
+  "scenario": "Same secrets-path approval task as beta-single-codex-2026-09-06.json",
+  "mode": "Direct Codex exec with workspace-write, no Pytxo run",
+  "observation": {
+    "started_at": "2026-09-06T19:24:53.6688249+07:00",
+    "finished_at": "2026-09-06T19:27:01.2999309+07:00",
+    "exit_code": 0,
+    "seconds": 127.6339306
+  },
+  "changed_paths": [
+    "README.md",
+    "src/risk-policy.mjs",
+    "test/risk-policy.test.mjs"
+  ],
+  "independent_postcheck": "npm test: four passed",
+  "primary_mutated_by_worker": true,
+  "reviewed_pytxo_package": false,
+  "cost_usd": null,
+  "non_claims": [
+    "One observation, not a controlled performance comparison",
+    "Different execution times and background build load",
+    "Timing difference is not measured Pytxo overhead",
+    "Vendor CLI reports success; source checked independently afterward"
+  ]
+}

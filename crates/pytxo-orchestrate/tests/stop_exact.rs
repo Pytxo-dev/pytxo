@@ -3,7 +3,7 @@ use std::process::Command;
 use std::time::Duration;
 
 use pytxo_core::{PermissionProfile, PytxoConfig};
-use pytxo_orchestrate::{dispatch, stop_exact, trust_repo, RunOptions};
+use pytxo_orchestrate::{dispatch, stop, stop_exact, trust_repo, RunOptions};
 use pytxo_runner::{
     process_matches, process_start_identity, registry_path, ProcessEntry, ProcessRegistryFile,
 };
@@ -160,6 +160,29 @@ fn dispatched_blocking_run_stays_cancelled_after_exact_stop() {
         .status()
         .expect("run isolated dispatched scenario");
     assert!(status.success(), "isolated dispatched scenario failed");
+}
+
+#[tokio::test]
+async fn stop_all_cancels_active_run_between_child_processes() {
+    let temp = tempdir().unwrap();
+    let config = PytxoConfig::default();
+    let store = PytxoStore::open(&config.db_path_at(temp.path())).unwrap();
+    store
+        .insert_run("between-checks", &temp.path().to_string_lossy())
+        .unwrap();
+    let marker = write_active_run(temp.path(), "between-checks");
+    stop(None, Some(temp.path().to_path_buf()), true, false)
+        .await
+        .unwrap();
+    assert_eq!(
+        store.get_run_status("between-checks").unwrap().unwrap().0,
+        "cancelled"
+    );
+    assert!(!marker.exists());
+    let registry =
+        ProcessRegistryFile::load(&registry_path(&temp.path().join(&config.data_dir))).unwrap();
+    assert!(registry.cancelled_runs.contains(&"between-checks".into()));
+    assert!(registry.entries.is_empty());
 }
 
 async fn run_dispatched_blocking_run_scenario() {

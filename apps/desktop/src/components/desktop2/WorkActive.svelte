@@ -228,7 +228,7 @@
       <dl>
         <div>
           <dt>Waves</dt>
-          <dd>{progress ? `${progress.settled} of ${progress.total} settled · ${progress.successful} passed` : "Not reported"}</dd>
+          <dd>{progress ? `${progress.settled} of ${progress.total} settled · ${progress.successful} completed` : "Not reported"}</dd>
         </div>
         <div>
           <dt>Isolation</dt>

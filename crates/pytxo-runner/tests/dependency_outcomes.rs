@@ -138,6 +138,71 @@ fn failing_verify_command() -> String {
     }
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn verification_remains_stoppable_on_a_single_thread_runtime() {
+    use pytxo_runner::{registry_path, stop_run, ProcessRegistryFile};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    let temp = TempDir::new().unwrap();
+    init_git_repo(temp.path());
+    let mut ctx = context(temp.path(), successful_write_command());
+    let verifying = Arc::new(AtomicBool::new(false));
+    let signal = Arc::clone(&verifying);
+    ctx.on_event = Some(Arc::new(move |_, kind, _| {
+        if kind == "verify" {
+            signal.store(true, Ordering::SeqCst);
+        }
+    }));
+    let data_dir = ctx.data_dir.clone();
+    let run_id = ctx.run_id.0.clone();
+    let verify = if cfg!(windows) {
+        "ping -n 31 127.0.0.1 >NUL"
+    } else {
+        "sleep 30"
+    };
+    let plan = ExecutionPlan {
+        waves: vec![vec![task("upstream", 0, &[], vec![verify.into()])]],
+        conflicts: vec![],
+        max_agents: 1,
+        warnings: vec![],
+    };
+    let worker = tokio::spawn(async move {
+        execute_plan(
+            &ctx,
+            &plan,
+            &ProcessRegistry::default(),
+            &SwarmRegistry::new(),
+        )
+        .await
+    });
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        if verifying.load(Ordering::SeqCst)
+            && !ProcessRegistryFile::load(&registry_path(&data_dir))
+                .unwrap()
+                .entries
+                .is_empty()
+        {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "verifier blocked the async runtime or never registered"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    stop_run(&data_dir, &run_id, true).expect("stop tracked verifier");
+    let results = tokio::time::timeout(Duration::from_secs(5), worker)
+        .await
+        .expect("cancelled verification settled promptly")
+        .unwrap()
+        .unwrap();
+    assert_eq!(results[0].outcome, AgentRunOutcome::VerificationFailed);
+    assert!(results[0].stderr.contains("cancelled by Stop"));
+}
+
 fn assert_dependency_is_blocked_and_independent_completes(
     results: &[pytxo_runner::AgentRunResult],
 ) {

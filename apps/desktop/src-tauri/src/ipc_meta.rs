@@ -253,6 +253,11 @@ fn apply_probe_result(id: &str, probe: &ProbeResult, meta: &mut AuthMeta) {
                 meta.label = "Claude Code is not signed in".into();
             }
         }
+        "cursor" if lower.contains("unable to fetch") => {
+            meta.state = "unknown";
+            meta.label =
+                "Cursor session could not be confirmed; check Cursor authentication".into();
+        }
         "cursor" if probe.success && lower.contains("logged in") => {
             meta.state = "signed_in";
             meta.label = "Cursor account connected".into();
@@ -474,6 +479,21 @@ mod tests {
         assert_eq!(meta.state, "signed_in");
         assert_eq!(meta.label, "Cursor account connected");
         assert!(!meta.label.contains('@'));
+    }
+
+    #[test]
+    fn cursor_inconclusive_account_probe_is_not_ready() {
+        let mut meta = auth_meta("cursor", false);
+        apply_probe_result(
+            "cursor",
+            &ProbeResult {
+                success: true,
+                output: "Logged in (unable to fetch user details)".into(),
+            },
+            &mut meta,
+        );
+        assert_eq!(meta.state, "unknown");
+        assert!(meta.label.contains("could not be confirmed"));
     }
 
     #[test]

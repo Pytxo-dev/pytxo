@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ProcessRegistryFile {
     pub entries: Vec<ProcessEntry>,
+    /// Durable cancellation prevents later wave/retry/verifier spawns after Stop.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cancelled_runs: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

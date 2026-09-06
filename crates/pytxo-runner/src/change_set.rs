@@ -138,9 +138,9 @@ pub struct PreparedRunChangeSet {
 }
 
 #[derive(Default)]
-struct FileInventory {
-    files: BTreeMap<String, PathBuf>,
-    symlinks: BTreeMap<String, PathBuf>,
+pub(crate) struct FileInventory {
+    pub(crate) files: BTreeMap<String, PathBuf>,
+    pub(crate) symlinks: BTreeMap<String, PathBuf>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -362,6 +362,7 @@ pub fn prepare_review_package(
         }
         let mut manifest = PreparedRunManifest {
             version: 2,
+            candidate_verification: None,
             run_id: run_id.to_owned(),
             base_revision: base_revision.to_owned(),
             prepared_at: chrono::Utc::now().to_rfc3339(),
@@ -415,7 +416,7 @@ pub fn load_review_manifest(data_dir: &Path, run_id: &str) -> Result<PreparedRun
             "prepared review package version 1 requires an explicit refresh for Pytxo v1.1".into(),
         ));
     }
-    if manifest.version != 2 {
+    if !matches!(manifest.version, 2 | 3) {
         return Err(PytxoError::Runner(format!(
             "unsupported prepared review package version {}; refresh the review",
             manifest.version
@@ -584,7 +585,7 @@ fn read_review_content_chunk_internal(
         )));
     }
     validate_run_id(&manifest.run_id)?;
-    if manifest.version != 2 || manifest_digest(manifest)? != manifest.package_digest {
+    if !matches!(manifest.version, 2 | 3) || manifest_digest(manifest)? != manifest.package_digest {
         return Err(PytxoError::Runner(
             "prepared manifest changed before exact-content read".into(),
         ));
@@ -745,6 +746,7 @@ pub fn apply_prepared_review_with_fault_under_lease(
         ));
     }
     verify_manifest_preimages(repo_root, manifest)?;
+    crate::candidate_verification::verify_candidate_base(repo_root, manifest)?;
     let attempt_id = uuid::Uuid::new_v4().to_string();
     let attempt_root = data_dir
         .join("apply")
@@ -892,6 +894,17 @@ pub fn apply_prepared_review_with_fault_under_lease(
             rollback_journal(repo_root, &attempt_root, &mut journal)?;
             return Err(injected);
         }
+    }
+    if let Err(error) =
+        crate::candidate_verification::verify_candidate_poststate(repo_root, manifest)
+    {
+        let rollback = rollback_journal(repo_root, &attempt_root, &mut journal);
+        return match rollback {
+            Ok(()) => Err(error),
+            Err(rollback_error) => Err(PytxoError::Runner(format!(
+                "{error}; rollback failed: {rollback_error}"
+            ))),
+        };
     }
     journal.phase = "committed".into();
     persist_journal(&attempt_root, &journal)?;
@@ -1139,7 +1152,7 @@ fn validate_run_id(run_id: &str) -> Result<()> {
     Ok(())
 }
 
-fn manifest_digest(manifest: &PreparedRunManifest) -> Result<String> {
+pub(crate) fn manifest_digest(manifest: &PreparedRunManifest) -> Result<String> {
     let mut unsigned = manifest.clone();
     unsigned.package_digest.clear();
     let bytes =
@@ -1147,7 +1160,7 @@ fn manifest_digest(manifest: &PreparedRunManifest) -> Result<String> {
     Ok(sha256_bytes(&bytes))
 }
 
-fn sha256_bytes(bytes: &[u8]) -> String {
+pub(crate) fn sha256_bytes(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
@@ -1234,7 +1247,7 @@ fn write_synced(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn replace_synced(path: &Path, bytes: &[u8]) -> Result<()> {
+pub(crate) fn replace_synced(path: &Path, bytes: &[u8]) -> Result<()> {
     let temporary = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4()));
     write_synced(&temporary, bytes)?;
     std::fs::rename(&temporary, path).map_err(PytxoError::Io)?;
@@ -1324,7 +1337,7 @@ fn current_path_mode(path: &Path) -> Result<Option<u32>> {
     }
 }
 
-fn file_mode(path: &Path) -> Result<Option<u32>> {
+pub(crate) fn file_mode(path: &Path) -> Result<Option<u32>> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -1338,7 +1351,7 @@ fn file_mode(path: &Path) -> Result<Option<u32>> {
     }
 }
 
-fn set_file_mode(path: &Path, mode: Option<u32>) -> Result<()> {
+pub(crate) fn set_file_mode(path: &Path, mode: Option<u32>) -> Result<()> {
     #[cfg(unix)]
     if let Some(mode) = mode {
         use std::os::unix::fs::PermissionsExt;
@@ -1352,7 +1365,10 @@ fn set_file_mode(path: &Path, mode: Option<u32>) -> Result<()> {
     Ok(())
 }
 
-fn verify_manifest_preimages(repo_root: &Path, manifest: &PreparedRunManifest) -> Result<()> {
+pub(crate) fn verify_manifest_preimages(
+    repo_root: &Path,
+    manifest: &PreparedRunManifest,
+) -> Result<()> {
     for file in &manifest.files {
         let relative = validated_change_path(&file.path)?;
         validate_target_ancestry(repo_root, &relative)?;
@@ -1735,7 +1751,7 @@ fn file_digest(path: &Path) -> Result<String> {
     Ok(format!("{digest:x}"))
 }
 
-fn validated_change_path(path: &str) -> Result<PathBuf> {
+pub(crate) fn validated_change_path(path: &str) -> Result<PathBuf> {
     let path = PathBuf::from(path);
     if path.as_os_str().is_empty()
         || path.is_absolute()
@@ -1807,7 +1823,7 @@ fn changes_are_equivalent(left: &RunChange, right: &RunChange) -> Result<bool> {
         && left.result_mode == right.result_mode)
 }
 
-fn collect_inventory(root: &Path, sparse_exclude: &[String]) -> Result<FileInventory> {
+pub(crate) fn collect_inventory(root: &Path, sparse_exclude: &[String]) -> Result<FileInventory> {
     let mut inventory = FileInventory::default();
     collect_files_inner(root, root, sparse_exclude, &mut inventory)?;
     Ok(inventory)
@@ -1898,7 +1914,7 @@ fn path_matches_claim(path: &str, claim: &str) -> bool {
     path == claim || path.starts_with(&format!("{claim}/"))
 }
 
-fn path_is_ignored(relative: &Path, sparse_exclude: &[String]) -> bool {
+pub(crate) fn path_is_ignored(relative: &Path, sparse_exclude: &[String]) -> bool {
     let normalized = normalize_relative(relative);
     if is_protected_path(&normalized) {
         return true;

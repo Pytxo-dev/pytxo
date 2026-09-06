@@ -8,7 +8,10 @@ an owned task plan, isolated agent work, and an immutable package for review.
 
 ## Who this is for
 
-You already run **more than one** coding agent on a real repo and care about write collisions, unsafe merges, or scattered logs. If you only ever use a single agent session, start with [Install](/docs/getting-started/install) and skip ahead only when that pain appears.
+You use a coding agent and want to review its exact changes before they reach
+your working repository. **One installed agent CLI is enough.** Pytxo adds
+isolated work, recorded task checks, an immutable review package, and guarded
+Apply. You can use several instances of the same CLI or add another vendor later.
 
 ## Prerequisites
 
@@ -24,9 +27,18 @@ pytxo agents
 
 ## Run a mission
 
+In **Pytxo Desktop → Work → New run**, choose your repository and installed,
+signed-in CLI. Pytxo selects a ready CLI automatically. Name the existing
+files or directories the agent should change; for example, adapt these paths
+to your repository:
+
 ```bash
-pytxo mission "Add input validation to the public API and update unit tests"
+pytxo mission "Add input validation in src/api.ts and regression tests in test/api.test.ts"
 ```
+
+The default local planner uses explicit paths and repository structure. If it
+cannot determine ownership, it asks for a path instead of granting the whole
+repository. It does not automatically select skills or inspect screenshots.
 
 Pytxo will:
 
@@ -36,7 +48,7 @@ Pytxo will:
 4. Ask `Approve mission? [Y/n]` (use `--yes` to skip)
 5. Run agents in **isolated copies** of the repo (Blast)
 6. Keep overlapping path claims in **separate waves** (Race)
-7. Run any suggested verify commands
+7. Run the planned verification commands in each task's isolated workspace
 8. Persist the run contract and prepare an immutable review package
 
 Preview only (no dispatch):
@@ -45,13 +57,46 @@ Preview only (no dispatch):
 pytxo mission "…" --json
 ```
 
+## Check the plan
+
+Review task prompts, owned paths, dependencies, the selected CLI, and exact
+verification commands before starting. A passing task check applies to that
+task's workspace; it is not proof that a combined multi-task candidate passes.
+Run Review shows combined candidate checks separately. A version 3 package
+records the commands run against its combined candidate and the verification
+time. Older packages without that receipt show **Not verified**.
+The combined snapshot excludes the paths listed in its receipt, including Git
+metadata. Checks requiring Git history fail rather than inspect the primary
+repository. Excluded dependencies and build outputs are not attested; use
+verification commands that work from the included source.
+An unavailable cost estimate does not mean the vendor CLI is free.
+
+Desktop refuses plans with no verification commands. If your repository has
+no detected checks, define explicit tasks in `pytxo.toml` and rebuild. For
+example, a Windows Gradle plugin task can use:
+
+```toml
+[[task]]
+id = "plugin-change"
+agent = "agent-0"
+paths = ["src"]
+verify = [".\\gradlew.bat test", ".\\gradlew.bat build"]
+```
+
+Use commands that already work in your repository. Inspect the rebuilt task
+prompt as well: manifest tasks determine ownership, and your mission supplies
+the requested change. A built plugin jar still needs a server load check before
+you claim the plugin works in-game.
+
 ## After the run
 
 Open **Pytxo Desktop → History**, select the run, and **Review package**. Run
 Review is the reviewed-package Apply surface for Orbit and Galaxy. It shows the
 exact prepared additions, modifications, and deletions. Before Apply, Pytxo
-checks the current preimage of every affected path; unrelated dirty files are
-allowed. A changed affected path marks the review stale.
+checks the current preimage of every affected path and the included source
+inventory bound to verification. Changes to any included file make the review
+stale, including new operator files. Explicitly refresh to preserve those files
+and rerun checks against the updated base before reviewing and applying again.
 
 The `hitl` command manages Galaxy approval requests only:
 

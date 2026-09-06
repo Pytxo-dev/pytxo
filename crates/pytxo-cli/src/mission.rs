@@ -101,13 +101,16 @@ pub async fn run_mission(opts: MissionOptions) -> anyhow::Result<()> {
         let snap = status_json(None, Some(repo.clone()), 20)?;
         if let Some(run) = snap.runs.iter().find(|r| r.id == run_id) {
             let state = run.status.as_str();
-            if state == "completed" || state == "failed" || state == "stopped" {
+            if matches!(
+                state,
+                "completed" | "failed" | "failed_startup" | "stopped" | "cancelled"
+            ) {
                 print_mission_report(&run_id, run, &plan);
-                if state == "failed" {
+                if state != "completed" {
                     bail!("Mission run {run_id} finished with status={state}");
                 }
                 eprintln!(
-                    "The prepared changes are waiting for review. Open Desktop, then Flow > History > Run Review to inspect and Apply them.\nGalaxy approval queue: pytxo hitl list"
+                    "Open Desktop > History > Run Review to inspect the run, its task checks, and any prepared changes before Apply.\nGalaxy approval queue: pytxo hitl list"
                 );
                 return Ok(());
             }

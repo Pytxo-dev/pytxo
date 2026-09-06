@@ -68,6 +68,9 @@ pub struct PreparedRunManifest {
     pub package_digest: String,
     pub summary: PreparedRunSummary,
     pub files: Vec<PreparedRunFile>,
+    /// Absent on legacy packages; task checks never imply candidate verification.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub candidate_verification: Option<CandidateVerificationEvidence>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -77,4 +80,31 @@ pub struct RunApplyError {
     pub message: String,
     pub attempt_id: Option<String>,
     pub rollback_confirmed: bool,
+}
+
+/// Exact included repository source. Excluded outputs and external dependencies are not attested.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CandidateInventoryFile {
+    pub path: String,
+    pub sha256: String,
+    pub mode: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CandidateCheckEvidence {
+    pub task_id: String,
+    pub command: String,
+    pub effective_profile: String,
+    pub passed: bool,
+    pub enforcement: serde_json::Value,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CandidateVerificationEvidence {
+    pub version: u32,
+    pub base_inventory: Vec<CandidateInventoryFile>,
+    pub candidate_inventory: Vec<CandidateInventoryFile>,
+    pub exclusions: Vec<String>,
+    pub checks: Vec<CandidateCheckEvidence>,
+    pub verified_at: String,
 }

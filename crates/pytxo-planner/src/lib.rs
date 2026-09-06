@@ -150,10 +150,10 @@ impl MissionPlanner for HeuristicPlanner {
             bail!("mission text is empty");
         }
         let parts = split_mission_chunks(text);
-        let n = parts.len().min(ctx.config.max_agents.max(1));
+        let n = parts.len();
         let mut tasks = Vec::with_capacity(n);
         let mut task_prompts = HashMap::new();
-        for (i, part) in parts.into_iter().take(n).enumerate() {
+        for (i, part) in parts.into_iter().enumerate() {
             let id = TaskId(format!("mission-{i}"));
             let paths = infer_paths_from_chunk(part, ctx.repo);
             if paths.is_empty() {
@@ -287,10 +287,9 @@ impl MissionPlanner for LlmPlanner {
             bail!("mission text is empty");
         }
         let parsed = Self::call_proxy(text, ctx)?;
-        let n = ctx.config.max_agents.max(1);
         let mut tasks = Vec::new();
         let mut task_prompts = HashMap::new();
-        for row in parsed.tasks.into_iter().take(n) {
+        for row in parsed.tasks {
             task_prompts.insert(row.id.clone(), row.prompt);
             tasks.push(Task {
                 id: TaskId(row.id),
@@ -334,10 +333,10 @@ impl MissionPlanner for SignalBackedPlanner {
             bail!("mission text is empty and pytxo.toml has no [[task]] entries");
         }
         let parts = split_mission_chunks(text);
-        let n = parts.len().min(ctx.config.max_agents.max(1));
+        // max_agents limits concurrent workers in the scheduler, not mission scope.
+        let n = parts.len();
         let chunk_paths: Vec<Vec<String>> = parts
             .iter()
-            .take(n)
             .map(|part| infer_paths_from_chunk(part, ctx.repo))
             .collect();
 
@@ -356,7 +355,7 @@ impl MissionPlanner for SignalBackedPlanner {
         let mut task_prompts = HashMap::new();
         let task_ids: Vec<TaskId> = (0..n).map(|i| TaskId(format!("mission-{i}"))).collect();
 
-        for (i, part) in parts.into_iter().take(n).enumerate() {
+        for (i, part) in parts.into_iter().enumerate() {
             let paths = chunk_paths[i].clone();
             if paths.is_empty() {
                 bail!(
@@ -397,9 +396,6 @@ fn enrich_config_tasks(
     mission: &MissionSpec,
     ctx: &PlannerContext<'_>,
 ) -> anyhow::Result<MissionPlan> {
-    let n = config_tasks.len().min(ctx.config.max_agents.max(1));
-    let config_tasks: Vec<Task> = config_tasks.into_iter().take(n).collect();
-
     let edited: Vec<(String, String, Option<String>)> = config_tasks
         .iter()
         .flat_map(|t| {
@@ -423,11 +419,21 @@ fn enrich_config_tasks(
                 task.depends_on = inferred;
             }
         }
-        let prompt = mission_chunks
-            .get(i)
-            .filter(|prompt| !prompt.trim().is_empty())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("Execute task {}", task.id.0));
+        let prompt = if mission_chunks.len() == task_ids.len() {
+            mission_chunks[i].to_string()
+        } else {
+            format!(
+                "Mission: {}\nYour task: {}. Work only within these ownership paths: {}.",
+                mission.text.trim(),
+                task.id.0,
+                task.paths.join(", ")
+            )
+        };
+        let prompt = if prompt.trim().is_empty() {
+            format!("Execute task {}", task.id.0)
+        } else {
+            prompt
+        };
         task_prompts.insert(task.id.0.clone(), prompt);
         tasks.push(task);
     }
@@ -612,7 +618,17 @@ fn suggest_verify_commands(repo: &Path) -> Vec<String> {
     if repo.join("package.json").is_file() {
         // Prefer npm test when present; do not invent scripts.
         if let Ok(raw) = std::fs::read_to_string(repo.join("package.json")) {
-            if raw.contains("\"test\"") {
+            if serde_json::from_str::<serde_json::Value>(&raw)
+                .ok()
+                .and_then(|value| {
+                    value
+                        .get("scripts")?
+                        .get("test")?
+                        .as_str()
+                        .map(str::to_owned)
+                })
+                .is_some_and(|script| !script.trim().is_empty())
+            {
                 cmds.push("npm test".into());
             }
         }
@@ -622,6 +638,16 @@ fn suggest_verify_commands(repo: &Path) -> Vec<String> {
     }
     if repo.join("go.mod").is_file() {
         cmds.push("go test ./...".into());
+    }
+    if repo.join("build.gradle").is_file() || repo.join("build.gradle.kts").is_file() {
+        #[cfg(windows)]
+        if repo.join("gradlew.bat").is_file() {
+            cmds.push(".\\gradlew.bat test build".into());
+        }
+        #[cfg(not(windows))]
+        if repo.join("gradlew").is_file() {
+            cmds.push("./gradlew test build".into());
+        }
     }
     cmds
 }
@@ -899,6 +925,69 @@ mod tests {
         PLANNER_ENV_LOCK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    #[test]
+    fn one_worker_preserves_every_requested_task() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["one.rs", "two.rs", "three.rs"] {
+            std::fs::write(dir.path().join(name), "pub fn example() {}\n").unwrap();
+        }
+        let config = PytxoConfig {
+            max_agents: 1,
+            ..PytxoConfig::default()
+        };
+        let context = PlannerContext {
+            repo: dir.path(),
+            config: &config,
+        };
+        let mission = MissionSpec {
+            text: "fix one.rs; fix two.rs; fix three.rs".into(),
+        };
+        for planner in [
+            &SignalBackedPlanner as &dyn MissionPlanner,
+            &HeuristicPlanner,
+        ] {
+            let plan = planner.decompose(&mission, &context).unwrap();
+            assert_eq!(
+                plan.tasks.len(),
+                3,
+                "concurrency must not truncate mission scope"
+            );
+            assert_eq!(plan.task_prompts["mission-2"], "fix three.rs");
+        }
+    }
+
+    #[test]
+    fn npm_verification_requires_an_actual_nonempty_script() {
+        let dir = tempfile::tempdir().unwrap();
+        for manifest in [
+            r#"{"name":"test"}"#,
+            r#"{"scripts":{"test":""}}"#,
+            r#"{"scripts":{"test":true}}"#,
+        ] {
+            std::fs::write(dir.path().join("package.json"), manifest).unwrap();
+            assert!(suggest_verify_commands(dir.path()).is_empty());
+        }
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"scripts":{"test":"node --test"}}"#,
+        )
+        .unwrap();
+        assert_eq!(suggest_verify_commands(dir.path()), vec!["npm test"]);
+    }
+
+    #[test]
+    fn gradle_verification_uses_the_repository_wrapper() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("build.gradle.kts"), "plugins {}\n").unwrap();
+        assert!(suggest_verify_commands(dir.path()).is_empty());
+        #[cfg(windows)]
+        let (wrapper, command) = ("gradlew.bat", ".\\gradlew.bat test build");
+        #[cfg(not(windows))]
+        let (wrapper, command) = ("gradlew", "./gradlew test build");
+        std::fs::write(dir.path().join(wrapper), "").unwrap();
+        assert_eq!(suggest_verify_commands(dir.path()), vec![command]);
     }
 
     #[test]

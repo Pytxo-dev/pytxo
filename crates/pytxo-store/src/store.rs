@@ -690,6 +690,18 @@ impl PytxoStore {
         Ok(())
     }
 
+    pub fn set_agent_workspace(&self, id: &str, workspace: Option<&str>) -> Result<()> {
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        tx.execute(
+            "UPDATE agents SET worktree_path = ?1 WHERE id = ?2",
+            params![workspace, id],
+        )
+        .map_err(store_error)?;
+        append_domain_change(&tx, "agent", id)?;
+        tx.commit().map_err(store_error)?;
+        Ok(())
+    }
+
     pub fn append_event(&self, agent_id: &str, kind: &str, payload: &str) -> Result<()> {
         self.append_event_with_change(agent_id, kind, payload, None)
     }
@@ -1127,6 +1139,7 @@ mod tests {
             .finish_run_preparation(
                 "run-1",
                 &PreparedRunManifest {
+                    candidate_verification: None,
                     version: 1,
                     run_id: "run-1".into(),
                     base_revision: "abc123".into(),
@@ -1180,6 +1193,7 @@ mod tests {
             .unwrap();
 
         let manifest = pytxo_core::PreparedRunManifest {
+            candidate_verification: None,
             version: 1,
             run_id: "run-delta".into(),
             base_revision: "abc123".into(),
@@ -1223,6 +1237,7 @@ mod tests {
             .finish_run_preparation(
                 "run-race",
                 &PreparedRunManifest {
+                    candidate_verification: None,
                     version: 1,
                     run_id: "run-race".into(),
                     base_revision: "base".into(),
@@ -1292,6 +1307,7 @@ mod tests {
             .finish_run_preparation(
                 run_id,
                 &PreparedRunManifest {
+                    candidate_verification: None,
                     version: 1,
                     run_id: run_id.into(),
                     base_revision: "base".into(),

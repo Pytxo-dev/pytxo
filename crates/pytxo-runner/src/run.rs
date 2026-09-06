@@ -24,6 +24,65 @@ use crate::race::SwarmRegistry;
 
 pub type EventCallback = Arc<dyn Fn(&str, &str, &str) + Send + Sync>;
 
+/// Execution-domain context for checking an assembled candidate with the same
+/// permission gates, cancellation registry, and process supervision as task checks.
+#[derive(Clone)]
+pub struct CandidateCheckContext {
+    pub cwd: PathBuf,
+    pub run_id: String,
+    pub agent_key: String,
+    pub repo_root: PathBuf,
+    pub data_dir: PathBuf,
+    pub profile: PermissionProfile,
+    pub domain_id: DomainId,
+    pub execution_backend: ExecutionBackend,
+    pub workspace_isolated: bool,
+    pub hitl: Option<crate::hitl::HitlQueue>,
+    pub swarm: SwarmRegistry,
+    pub on_event: Option<EventCallback>,
+}
+
+/// Blocking check; async callers must use `spawn_blocking`.
+pub fn run_candidate_check(
+    ctx: &CandidateCheckContext,
+    command: &str,
+) -> Result<crate::VerificationEnforcementReceipt> {
+    let ctx = ctx.clone();
+    let command = command.to_owned();
+    {
+        let receipt = crate::enforcement::verification_enforcement_receipt(
+            ctx.profile,
+            &ctx.domain_id,
+            ctx.execution_backend,
+            ctx.workspace_isolated,
+            VERIFY_TIMEOUT,
+            VERIFY_OUTPUT_LIMIT_BYTES,
+        )?;
+        let lifecycle = VerificationLifecycle {
+            persist: ProcessPersist {
+                run_id: ctx.run_id,
+                repo_root: ctx.repo_root.to_string_lossy().into_owned(),
+                data_dir: ctx.data_dir,
+                branch: String::new(),
+            },
+            swarm: ctx.swarm,
+        };
+        run_verify_commands(
+            &ctx.cwd,
+            &[command],
+            ctx.on_event.as_ref(),
+            &ctx.agent_key,
+            ctx.profile,
+            &ctx.domain_id,
+            ctx.execution_backend,
+            ctx.workspace_isolated,
+            ctx.hitl.as_ref(),
+            Some(&lifecycle),
+        )?;
+        Ok(receipt)
+    }
+}
+
 /// One modular-project root's execution surface ([[ADR-0011-modular-project-manifest]]).
 #[derive(Clone, Debug)]
 pub struct RootExec {
@@ -1140,17 +1199,36 @@ async fn run_one_agent(
     let mut stderr = result.stderr;
     let mut verification_failed = false;
     if exit_code == Some(0) && !task.verify.is_empty() {
-        match run_verify_commands(
-            &wt_path,
-            &task.verify,
-            ctx.on_event.as_ref(),
-            &agent_key,
-            profile,
-            &ctx.domain_id,
-            effective_backend,
-            used_isolation,
-            ctx.hitl.as_ref(),
-        ) {
+        let verify_ctx = ctx.clone();
+        let verify_cwd = wt_path.clone();
+        let verify_commands = task.verify.clone();
+        let verify_agent_key = agent_key.clone();
+        let verify_lifecycle = VerificationLifecycle {
+            persist: ProcessPersist {
+                run_id: ctx.run_id.0.clone(),
+                repo_root: eff_repo_root.to_string_lossy().into_owned(),
+                data_dir: ctx.data_dir.clone(),
+                branch: branch.clone(),
+            },
+            swarm: swarm.clone(),
+        };
+        let verification = tokio::task::spawn_blocking(move || {
+            run_verify_commands(
+                &verify_cwd,
+                &verify_commands,
+                verify_ctx.on_event.as_ref(),
+                &verify_agent_key,
+                profile,
+                &verify_ctx.domain_id,
+                effective_backend,
+                used_isolation,
+                verify_ctx.hitl.as_ref(),
+                Some(&verify_lifecycle),
+            )
+        })
+        .await
+        .map_err(|error| PytxoError::Runner(format!("verification join: {error}")))?;
+        match verification {
             Ok(()) => {
                 if let Some(cb) = ctx.on_event.as_ref() {
                     cb(
@@ -1213,6 +1291,7 @@ fn run_verify_commands(
     execution_backend: ExecutionBackend,
     workspace_isolated: bool,
     hitl: Option<&crate::hitl::HitlQueue>,
+    lifecycle: Option<&VerificationLifecycle>,
 ) -> Result<()> {
     run_verify_commands_with_limits(
         cwd,
@@ -1226,6 +1305,7 @@ fn run_verify_commands(
         hitl,
         VERIFY_TIMEOUT,
         VERIFY_OUTPUT_LIMIT_BYTES,
+        lifecycle,
     )
 }
 
@@ -1245,6 +1325,7 @@ fn run_verify_commands_with_limits(
     hitl: Option<&crate::hitl::HitlQueue>,
     timeout: Duration,
     output_limit_bytes: usize,
+    lifecycle: Option<&VerificationLifecycle>,
 ) -> Result<()> {
     let receipt = crate::enforcement::verification_enforcement_receipt(
         profile,
@@ -1269,6 +1350,9 @@ fn run_verify_commands_with_limits(
     let engine = PermissionEngine::new(profile);
     let net = engine.network();
     for cmd in commands {
+        if let Some(lifecycle) = lifecycle {
+            lifecycle.ensure_not_cancelled(agent_key)?;
+        }
         let cmd = cmd.trim();
         if cmd.is_empty() {
             continue;
@@ -1281,12 +1365,16 @@ fn run_verify_commands_with_limits(
         }
         if command_implies_egress(cmd) && !net.egress_allowed("1.1.1.1", 443) {
             if profile == PermissionProfile::Galaxy {
-                crate::hitl_gate::gate_hitl_action(
+                crate::hitl_gate::gate_hitl_action_cancellable(
                     hitl,
                     profile,
                     agent_key,
                     "verify.net.egress",
                     "verification TCP egress to public internet",
+                    || match lifecycle {
+                        Some(lifecycle) => lifecycle.ensure_not_cancelled(agent_key),
+                        None => Ok(()),
+                    },
                 )?;
             } else {
                 return Err(PytxoError::Runner(format!(
@@ -1295,7 +1383,22 @@ fn run_verify_commands_with_limits(
                 )));
             }
         }
-        crate::hitl_gate::gate_spawn_command(hitl, profile, agent_key, cmd)?;
+        if let Some((action, reason)) = crate::hitl_gate::classify_risky_command(cmd) {
+            crate::hitl_gate::gate_hitl_action_cancellable(
+                hitl,
+                profile,
+                agent_key,
+                action,
+                reason,
+                || match lifecycle {
+                    Some(lifecycle) => lifecycle.ensure_not_cancelled(agent_key),
+                    None => Ok(()),
+                },
+            )?;
+        }
+        if let Some(lifecycle) = lifecycle {
+            lifecycle.ensure_not_cancelled(agent_key)?;
+        }
         if let Some(cb) = on_event {
             cb(agent_key, "verify", cmd);
         }
@@ -1322,6 +1425,14 @@ fn run_verify_commands_with_limits(
         let mut child = command
             .spawn()
             .map_err(|e| PytxoError::Runner(format!("verify spawn `{cmd}`: {e}")))?;
+        if let Some(lifecycle) = lifecycle {
+            if let Err(error) = lifecycle.persist_child(&mut child, agent_key, cwd) {
+                terminate_verifier_tree(&mut child);
+                let _ = child.wait();
+                return Err(error);
+            }
+            lifecycle.swarm.register_pid(agent_key, child.id());
+        }
         let stdout_handle = child
             .stdout
             .take()
@@ -1332,11 +1443,21 @@ fn run_verify_commands_with_limits(
             .map(|pipe| spawn_bounded_reader(pipe, output_limit_bytes));
         let started = Instant::now();
         let output_status = loop {
-            if let Some(status) = child
-                .try_wait()
-                .map_err(|e| PytxoError::Runner(format!("verify wait `{cmd}`: {e}")))?
-            {
-                break Ok(status);
+            if let Some(lifecycle) = lifecycle {
+                if let Err(error) = lifecycle.ensure_not_cancelled(agent_key) {
+                    terminate_verifier_tree(&mut child);
+                    let _ = child.wait();
+                    break Err(error);
+                }
+            }
+            match child.try_wait() {
+                Ok(Some(status)) => break Ok(status),
+                Ok(None) => {}
+                Err(error) => {
+                    terminate_verifier_tree(&mut child);
+                    let _ = child.wait();
+                    break Err(PytxoError::Runner(format!("verify wait `{cmd}`: {error}")));
+                }
             }
             if started.elapsed() >= timeout {
                 terminate_verifier_tree(&mut child);
@@ -1348,9 +1469,21 @@ fn run_verify_commands_with_limits(
             }
             thread::sleep(Duration::from_millis(10));
         };
-        let stdout = join_bounded_reader(stdout_handle);
-        let stderr = join_bounded_reader(stderr_handle);
+        let output_deadline = started + timeout;
+        let captured = (|| {
+            let stdout = join_bounded_reader(stdout_handle, output_deadline, lifecycle, agent_key)?;
+            let stderr = join_bounded_reader(stderr_handle, output_deadline, lifecycle, agent_key)?;
+            Ok::<_, PytxoError>((stdout, stderr))
+        })();
+        if captured.is_err() {
+            terminate_verifier_tree(&mut child);
+        }
+        if let Some(lifecycle) = lifecycle {
+            remove_persisted_process(&lifecycle.persist, agent_key)?;
+            lifecycle.ensure_not_cancelled(agent_key)?;
+        }
         let output = output_status?;
+        let (stdout, stderr) = captured?;
         if !output.success() {
             let code = output.code().unwrap_or(-1);
             return Err(PytxoError::Runner(format!(
@@ -1390,14 +1523,19 @@ struct BoundedOutput {
 fn spawn_bounded_reader(
     mut pipe: impl Read + Send + 'static,
     limit: usize,
-) -> thread::JoinHandle<BoundedOutput> {
+) -> std::sync::mpsc::Receiver<Result<BoundedOutput>> {
+    let (sender, receiver) = std::sync::mpsc::channel();
     thread::spawn(move || {
         let mut captured = Vec::with_capacity(limit.min(8192));
         let mut buffer = [0_u8; 8192];
         let mut truncated = false;
         loop {
             let read = match pipe.read(&mut buffer) {
-                Ok(0) | Err(_) => break,
+                Ok(0) => break,
+                Err(error) => {
+                    let _ = sender.send(Err(PytxoError::Io(error)));
+                    return;
+                }
                 Ok(read) => read,
             };
             let remaining = limit.saturating_sub(captured.len());
@@ -1405,20 +1543,46 @@ fn spawn_bounded_reader(
             captured.extend_from_slice(&buffer[..keep]);
             truncated |= keep < read;
         }
-        BoundedOutput {
+        let _ = sender.send(Ok(BoundedOutput {
             text: String::from_utf8_lossy(&captured).into_owned(),
             truncated,
-        }
-    })
+        }));
+    });
+    receiver
 }
 
-fn join_bounded_reader(handle: Option<thread::JoinHandle<BoundedOutput>>) -> BoundedOutput {
-    handle
-        .and_then(|handle| handle.join().ok())
-        .unwrap_or(BoundedOutput {
+fn join_bounded_reader(
+    receiver: Option<std::sync::mpsc::Receiver<Result<BoundedOutput>>>,
+    deadline: Instant,
+    lifecycle: Option<&VerificationLifecycle>,
+    agent_key: &str,
+) -> Result<BoundedOutput> {
+    let Some(receiver) = receiver else {
+        return Ok(BoundedOutput {
             text: String::new(),
             truncated: false,
-        })
+        });
+    };
+    loop {
+        if let Some(lifecycle) = lifecycle {
+            lifecycle.ensure_not_cancelled(agent_key)?;
+        }
+        match receiver.recv_timeout(Duration::from_millis(10)) {
+            Ok(output) => return output,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(PytxoError::Runner(
+                    "verification output capture failed".into(),
+                ));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) if Instant::now() >= deadline => {
+                return Err(PytxoError::Runner(
+                    "verification output capture timed out; a descendant may still hold its pipe"
+                        .into(),
+                ));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+        }
+    }
 }
 
 fn configure_verifier_process_group(command: &mut std::process::Command) {
@@ -1468,6 +1632,58 @@ struct ProcessPersist {
     repo_root: String,
     data_dir: PathBuf,
     branch: String,
+}
+
+struct VerificationLifecycle {
+    persist: ProcessPersist,
+    swarm: SwarmRegistry,
+}
+
+impl VerificationLifecycle {
+    fn persist_child(
+        &self,
+        child: &mut std::process::Child,
+        agent_key: &str,
+        cwd: &Path,
+    ) -> Result<()> {
+        let pid = child.id();
+        let identity = crate::kill::process_start_identity(pid)?;
+        // A trivial verifier may exit before registration. An observed exit is
+        // sufficient evidence; never turn a fast successful check into a failure.
+        if identity.is_none() {
+            if child.try_wait().map_err(PytxoError::Io)?.is_some() {
+                return self.ensure_not_cancelled(agent_key);
+            }
+            return Err(PytxoError::Runner(
+                "live verifier has no process identity".into(),
+            ));
+        }
+        ProcessRegistryFile::update(&registry_path(&self.persist.data_dir), |registry| {
+            if registry.cancelled_runs.contains(&self.persist.run_id) {
+                return Err(PytxoError::Runner("verification cancelled by Stop".into()));
+            }
+            registry.push(ProcessEntry {
+                run_id: self.persist.run_id.clone(),
+                repo_root: self.persist.repo_root.clone(),
+                agent_key: agent_key.to_string(),
+                pid,
+                start_identity: identity,
+                worktree_path: cwd.to_string_lossy().into_owned(),
+                branch: self.persist.branch.clone(),
+            });
+            Ok(())
+        })
+    }
+
+    fn ensure_not_cancelled(&self, agent_key: &str) -> Result<()> {
+        let registry = ProcessRegistryFile::load(&registry_path(&self.persist.data_dir))?;
+        if self.swarm.stop_requested(agent_key)
+            || registry.cancelled_runs.contains(&self.persist.run_id)
+        {
+            return Err(PytxoError::Runner("verification cancelled by Stop".into()));
+        }
+        Ok(())
+    }
 }
 
 fn resolve_task_root(task: &ScheduledTask, ctx: &RunContext) -> Result<(PathBuf, PathBuf)> {
@@ -1741,6 +1957,12 @@ fn persist_process(
         ))
     })?;
     ProcessRegistryFile::update(&registry_path(&p.data_dir), |registry| {
+        if registry.cancelled_runs.contains(&p.run_id) {
+            return Err(PytxoError::Runner(format!(
+                "run {} cancelled by Stop",
+                p.run_id
+            )));
+        }
         registry.push(ProcessEntry {
             run_id: p.run_id.clone(),
             repo_root: p.repo_root.clone(),
@@ -1806,6 +2028,14 @@ pub(crate) fn shell_command() -> (String, Vec<String>) {
 pub fn stop_run(data_dir: &Path, run_id: &str, kill: bool) -> Result<Vec<u32>> {
     let path = registry_path(data_dir);
     ProcessRegistryFile::update(&path, |registry| {
+        if kill
+            && !registry
+                .cancelled_runs
+                .iter()
+                .any(|cancelled| cancelled == run_id)
+        {
+            registry.cancelled_runs.push(run_id.to_string());
+        }
         let entries: Vec<ProcessEntry> = registry
             .for_run(run_id)
             .iter()
@@ -1813,26 +2043,39 @@ pub fn stop_run(data_dir: &Path, run_id: &str, kill: bool) -> Result<Vec<u32>> {
             .collect();
         if kill {
             for entry in &entries {
-                stop_registry_entry(entry)?;
+                if let Err(error) = stop_registry_entry(entry) {
+                    // Persist cancellation even when termination cannot be confirmed.
+                    // Keep every process entry so a later Stop can reconcile it.
+                    return Ok(Err(error));
+                }
             }
         }
         registry.remove_run(run_id);
-        Ok(entries.into_iter().map(|entry| entry.pid).collect())
-    })
+        Ok(Ok(entries.into_iter().map(|entry| entry.pid).collect()))
+    })?
 }
 
 pub fn stop_all(data_dir: &Path, kill: bool) -> Result<()> {
     let path = registry_path(data_dir);
     ProcessRegistryFile::update(&path, |registry| {
+        if kill {
+            for entry in &registry.entries {
+                if !registry.cancelled_runs.contains(&entry.run_id) {
+                    registry.cancelled_runs.push(entry.run_id.clone());
+                }
+            }
+        }
         let entries = registry.entries.clone();
         if kill {
             for entry in &entries {
-                stop_registry_entry(entry)?;
+                if let Err(error) = stop_registry_entry(entry) {
+                    return Ok(Err(error));
+                }
             }
         }
         registry.clear();
-        Ok(())
-    })
+        Ok(Ok(()))
+    })?
 }
 
 fn stop_registry_entry(entry: &ProcessEntry) -> Result<()> {
@@ -2041,6 +2284,269 @@ mod verification_boundary_tests {
         }
     }
 
+    fn lifecycle(data_dir: &Path) -> VerificationLifecycle {
+        VerificationLifecycle {
+            persist: ProcessPersist {
+                run_id: "run".into(),
+                repo_root: data_dir.to_string_lossy().into_owned(),
+                data_dir: data_dir.to_path_buf(),
+                branch: String::new(),
+            },
+            swarm: SwarmRegistry::new(),
+        }
+    }
+
+    #[test]
+    fn output_capture_deadline_includes_a_pipe_that_never_closes() {
+        struct DelayedPipe;
+        impl Read for DelayedPipe {
+            fn read(&mut self, _buffer: &mut [u8]) -> std::io::Result<usize> {
+                thread::sleep(Duration::from_millis(500));
+                Ok(0)
+            }
+        }
+        let started = Instant::now();
+        let reader = spawn_bounded_reader(DelayedPipe, 1024);
+        let result = join_bounded_reader(
+            Some(reader),
+            started + Duration::from_millis(50),
+            None,
+            "run:agent-0",
+        );
+        assert!(result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("output capture timed out"));
+        assert!(started.elapsed() < Duration::from_millis(400));
+    }
+
+    #[test]
+    fn failed_stop_preserves_cancellation_and_process_evidence() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = registry_path(temp.path());
+        ProcessRegistryFile::update(&path, |registry| {
+            registry.push(ProcessEntry {
+                run_id: "run".into(),
+                repo_root: String::new(),
+                agent_key: "run:agent-0".into(),
+                pid: std::process::id(),
+                start_identity: Some("intentionally-stale-identity".into()),
+                worktree_path: String::new(),
+                branch: String::new(),
+            });
+            Ok(())
+        })
+        .unwrap();
+        stop_run(temp.path(), "run", true).expect_err("stale identity must refuse termination");
+        let registry = ProcessRegistryFile::load(&path).unwrap();
+        assert_eq!(registry.cancelled_runs, vec!["run"]);
+        assert_eq!(
+            registry.entries.len(),
+            1,
+            "retain failed termination evidence"
+        );
+        ProcessRegistryFile::update(&path, |registry| {
+            registry.cancelled_runs.clear();
+            Ok(())
+        })
+        .unwrap();
+        stop_all(temp.path(), true).expect_err("Stop all must also refuse stale identities");
+        let registry = ProcessRegistryFile::load(&path).unwrap();
+        assert_eq!(registry.cancelled_runs, vec!["run"]);
+        assert_eq!(registry.entries.len(), 1);
+    }
+
+    #[test]
+    fn candidate_adapter_returns_boundary_and_obeys_durable_stop() {
+        let temp = tempfile::tempdir().unwrap();
+        let ctx = CandidateCheckContext {
+            cwd: temp.path().to_path_buf(),
+            run_id: "candidate-run".into(),
+            agent_key: "candidate-run:verify".into(),
+            repo_root: temp.path().to_path_buf(),
+            data_dir: temp.path().to_path_buf(),
+            profile: PermissionProfile::Orbit,
+            domain_id: DomainId("candidate-domain".into()),
+            execution_backend: ExecutionBackend::Subprocess,
+            workspace_isolated: true,
+            hitl: None,
+            swarm: SwarmRegistry::new(),
+            on_event: None,
+        };
+        let observed = run_candidate_check(&ctx, "echo candidate verified").unwrap();
+        let expected = crate::verification_enforcement_receipt(
+            ctx.profile,
+            &ctx.domain_id,
+            ctx.execution_backend,
+            true,
+            VERIFY_TIMEOUT,
+            VERIFY_OUTPUT_LIMIT_BYTES,
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(observed).unwrap(),
+            serde_json::to_value(expected).unwrap()
+        );
+        stop_run(temp.path(), &ctx.run_id, true).unwrap();
+        assert!(run_candidate_check(&ctx, "echo escaped > after-stop.txt")
+            .unwrap_err()
+            .to_string()
+            .contains("cancelled by Stop"));
+        assert!(!temp.path().join("after-stop.txt").exists());
+    }
+
+    #[test]
+    fn durable_stop_cancels_verification_waiting_for_galaxy_approval() {
+        let temp = tempfile::tempdir().unwrap();
+        let data_dir = temp.path().to_path_buf();
+        let worker_dir = data_dir.clone();
+        let hitl = crate::HitlQueue::new();
+        let worker_hitl = hitl.clone();
+        let worker = thread::spawn(move || {
+            run_verify_commands_with_limits(
+                &worker_dir,
+                &["echo chmod > after-stop.txt".into()],
+                None,
+                "run:agent-0",
+                PermissionProfile::Galaxy,
+                &DomainId("approval-domain".into()),
+                ExecutionBackend::Subprocess,
+                true,
+                Some(&worker_hitl),
+                Duration::from_secs(2),
+                4096,
+                Some(&lifecycle(&worker_dir)),
+            )
+        });
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while hitl.pending().is_empty() {
+            assert!(Instant::now() < deadline, "approval was never requested");
+            thread::sleep(Duration::from_millis(10));
+        }
+        stop_run(&data_dir, "run", true).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !worker.is_finished() {
+            assert!(
+                Instant::now() < deadline,
+                "Stop did not interrupt approval wait"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(worker
+            .join()
+            .unwrap()
+            .unwrap_err()
+            .to_string()
+            .contains("cancelled by Stop"));
+        assert!(hitl.pending().is_empty());
+        assert!(!data_dir.join("after-stop.txt").exists());
+    }
+
+    #[test]
+    fn successful_fast_verification_retains_its_observed_exit() {
+        let temp = tempfile::tempdir().unwrap();
+        let lifecycle = lifecycle(temp.path());
+        for _ in 0..20 {
+            run_verify_commands_with_limits(
+                temp.path(),
+                &["echo verified".into()],
+                None,
+                "run:agent-0",
+                PermissionProfile::Orbit,
+                &DomainId("fast-domain".into()),
+                ExecutionBackend::Subprocess,
+                true,
+                None,
+                Duration::from_secs(2),
+                4096,
+                Some(&lifecycle),
+            )
+            .expect("short lived verifiers remain successful");
+        }
+        assert!(ProcessRegistryFile::load(&registry_path(temp.path()))
+            .unwrap()
+            .entries
+            .is_empty());
+    }
+
+    #[test]
+    fn durable_stop_terminates_verification_and_prevents_later_commands() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let data_dir = temp.path().to_path_buf();
+        let worker_dir = data_dir.clone();
+        let worker = thread::spawn(move || {
+            let lifecycle = lifecycle(&worker_dir);
+            run_verify_commands_with_limits(
+                &worker_dir,
+                &[
+                    blocking_command(),
+                    "echo must-not-run > after-stop.txt".into(),
+                ],
+                None,
+                "run:agent-0",
+                PermissionProfile::Orbit,
+                &DomainId("stop-domain".into()),
+                ExecutionBackend::Subprocess,
+                true,
+                None,
+                Duration::from_secs(10),
+                4096,
+                Some(&lifecycle),
+            )
+        });
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let entry = loop {
+            let registry = ProcessRegistryFile::load(&registry_path(&data_dir)).unwrap();
+            if let Some(entry) = registry.entries.first() {
+                break entry.clone();
+            }
+            assert!(
+                Instant::now() < deadline,
+                "verifier PID was never persisted"
+            );
+            thread::sleep(Duration::from_millis(10));
+        };
+        let identity = entry.start_identity.as_deref().expect("durable identity");
+        assert!(crate::kill::process_matches(entry.pid, identity).unwrap());
+        stop_run(&data_dir, "run", true).expect("stop verifier using durable registry");
+        let error = worker
+            .join()
+            .unwrap()
+            .expect_err("stopped verifier cannot succeed");
+        assert!(error.to_string().contains("cancelled by Stop"));
+        assert!(!crate::kill::process_matches(entry.pid, identity).unwrap());
+        assert!(!data_dir.join("after-stop.txt").exists());
+        assert!(ProcessRegistryFile::load(&registry_path(&data_dir))
+            .unwrap()
+            .entries
+            .is_empty());
+    }
+
+    #[test]
+    fn durable_stop_before_verification_prevents_spawn() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        stop_run(temp.path(), "run", true).unwrap();
+        let lifecycle = lifecycle(temp.path());
+        let error = run_verify_commands_with_limits(
+            temp.path(),
+            &["echo must-not-run > after-stop.txt".into()],
+            None,
+            "run:agent-0",
+            PermissionProfile::Orbit,
+            &DomainId("stop-domain".into()),
+            ExecutionBackend::Subprocess,
+            true,
+            None,
+            Duration::from_secs(2),
+            4096,
+            Some(&lifecycle),
+        )
+        .expect_err("prior durable Stop prevents verifier spawn");
+        assert!(error.to_string().contains("cancelled by Stop"));
+        assert!(!temp.path().join("after-stop.txt").exists());
+    }
+
     #[test]
     fn verification_times_out_and_terminates_the_child() {
         let temp = tempfile::tempdir().expect("tempdir");
@@ -2057,6 +2563,7 @@ mod verification_boundary_tests {
             None,
             Duration::from_millis(100),
             4096,
+            None,
         )
         .expect_err("blocking verifier must time out");
 
@@ -2092,6 +2599,7 @@ mod verification_boundary_tests {
             None,
             Duration::from_secs(2),
             4096,
+            None,
         );
         std::env::remove_var(SENTINEL);
         result.expect("filtered verifier should not observe parent secret");
@@ -2140,6 +2648,7 @@ mod verification_boundary_tests {
             None,
             Duration::from_secs(2),
             4096,
+            None,
         )
         .expect_err("cloud verifier must fail closed without a cancellable remote contract");
 
@@ -2173,6 +2682,7 @@ mod verification_boundary_tests {
             None,
             Duration::from_secs(2),
             4096,
+            None,
         )
         .expect_err("Orbit verifier egress must be policy-gated");
 

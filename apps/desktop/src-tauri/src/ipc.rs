@@ -1540,6 +1540,7 @@ mod mission_control_contract_tests {
     #[test]
     fn run_review_dto_serializes_immutable_manifest_and_recovery_fields() {
         let manifest = PreparedRunManifest {
+            candidate_verification: None,
             version: 2,
             run_id: "run-1".into(),
             base_revision: "base-1".into(),

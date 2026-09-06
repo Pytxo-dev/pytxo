@@ -1,5 +1,32 @@
 # Pytxo v1.2 commit-boundary demo
 
+## Current Beta proof and real-agent take
+
+The Sep 6 source candidate adds a separate combined-candidate check before
+reviewed Apply. The actual one-worker Codex rehearsal is recorded in
+[`beta-single-codex-2026-09-06.json`](tooling/benchmarks/results/beta-single-codex-2026-09-06.json):
+one natural-language mission, three frozen changed files, a passing `npm test`
+receipt, and an unchanged primary tree before Apply. The built Tauri app then
+displayed all three exact diffs, accepted explicit confirmation, and recorded a
+committed Apply journal. Applied file hashes matched the frozen targets and all
+four tests passed in the primary tree. Native captures are in
+`docs/_attachments/beta-2026-09-06/`. This is not installer proof.
+
+For a real-agent take, prepare a fresh fixture below, remove the `[[task]]`
+section from its demo `pytxo.toml` while keeping `max_agents = 1`, then run:
+
+```powershell
+pytxo mission "In src/risk-policy.mjs treat secrets/ paths as requiring approval. Add a regression test to test/risk-policy.test.mjs and document the behavior in README.md. Preserve current behavior. Run npm test. Modify only these three files." --ade codex
+```
+
+Inspect the one-task plan, then open the completed run from History and record
+its combined-check receipt, exact diff and reviewed Apply. Use a signed-in CLI
+version compatible with the selected model. The successful rehearsal used
+Codex 0.153.4; Cursor authentication was unavailable on this host. The scripted
+adapter sequence below remains a deterministic boundary regression, clearly
+disclosed as such. Neither take proves autonomous skill routing or general
+design quality.
+
 For the 75-second launch-film treatment, generated bridge prompts, narration,
 gallery frames, and recording rules, see [`GROK_DEMO_BRIEF.md`](GROK_DEMO_BRIEF.md).
 
@@ -126,8 +153,8 @@ is styled as verified without mechanical evidence.
 
 ### 01:30–02:15 — Human authorization and exact Apply
 
-Before clicking Apply, create unrelated checkout drift to show that the guard is
-path-specific:
+Before clicking Apply, create a new operator file to demonstrate that included
+verification inputs are bound to the package:
 
 ```powershell
 Set-Content -LiteralPath (Join-Path $env:PYTXO_DEMO_WORKSPACE "operator-note.txt") -Value "unrelated operator note"
@@ -137,8 +164,12 @@ Set-Content -LiteralPath (Join-Path $env:PYTXO_DEMO_WORKSPACE "operator-note.txt
 
 1. In Run Review, select the prepared package and click **Apply** once.
 2. Confirm the consequence in the dialog.
-3. Wait for the committed result; do not cut from a loading state to success.
-4. Return to the terminal and run:
+3. Show the stale refusal: the included inventory changed after verification.
+4. Refresh the review. Wait for the combined checks to rerun and inspect the new
+   digest. The operator note must remain outside the three-file change set.
+5. Review and confirm Apply again. Wait for the committed result; do not cut
+   from a loading state to success.
+6. Return to the terminal and run:
 
 ```powershell
 Set-Location $env:PYTXO_DEMO_WORKSPACE
@@ -146,14 +177,17 @@ git status --short
 npm test
 ```
 
-**Expected visible result:** Apply commits the three reviewed files despite the
-unrelated `operator-note.txt`; the note remains untracked; all three tests pass
-in the primary checkout. The receipt must distinguish committed from verified.
+**Expected visible result:** the first Apply is stale. After refresh and fresh
+verification, Apply commits the three reviewed files; `operator-note.txt` remains
+untracked and the primary tests pass. The receipt distinguishes committed from
+verified. The deterministic adapter has three tests; the recorded real Codex
+take has four.
 
 **Narration:**
 
-> Apply rechecks every affected preimage and commits only the reviewed package.
-> Unrelated operator work is left alone. Then we observe the post-state again:
+> Apply rechecks the affected paths and the inputs used by verification. New
+> operator work stays intact, but requires fresh checks. After reviewing again,
+> we apply the frozen changes. Then we observe the post-state:
 > the exact files are present and the tests pass in the real checkout.
 
 ### 02:15–02:45 — Durable outcome
@@ -180,7 +214,12 @@ then stop the take. Do not repair or overwrite the operator change on camera.
 This insert is valid only after a rehearsal proves the refusal and corresponding
 ledger state on the exact release candidate.
 
-### Verified rehearsal evidence
+### Historical v2 rehearsal evidence
+
+The runs below predate combined-candidate inventory binding. They do not prove
+the updated stale-then-refresh sequence. The current v3 success take is linked
+at the top; stale/refresh/operator-file preservation currently has integration
+test evidence in `crates/pytxo-orchestrate/tests/candidate_run.rs`.
 
 The main sequence passed through the v1.2.2 Windows Desktop run
 `6b2bd73d-cb87-409b-b874-8023dd7f210b` with package

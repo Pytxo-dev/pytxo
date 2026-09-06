@@ -122,6 +122,9 @@ research ledger.
 - [[ADR-0036-effect-contract-commit-boundary]] — proposed effect-contract expansion beyond repository Apply
 - [[ADR-0037-chroma-aperture-visual-contract]] — shared website and Desktop presentation contract
 - [[competitive-landscape-2026-07]] — primary-source competitor map + GTM compare priorities (2026-07)
+- [[beta-competitor-research-2026-09-05]] — fresh competitor evidence, single-harness value, and testable Beta differentiation
+- [[beta-ux-audit-2026-09-05]] — single-harness onboarding, task evidence, and remaining Beta proof gaps
+- [[beta-core-audit-2026-09-05]] — verifier Stop ownership, durable cancellation, and remaining core proof gaps
 
 ### ADRs
 
