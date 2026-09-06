@@ -41,7 +41,28 @@ not a fresh MSI-install proof or an external-user reliability measurement.
 before its jobs started: GitHub explicitly reports failed account payments or
 an insufficient spending limit. Clean elevated MSI installation and independent
 public download/install verification remain unproved. Final independent review
-was attempted but hit reviewer quota; it is not counted as a completed review.
+subsequently completed through the read-only Codex CLI after the in-app reviewer
+hit quota. Its three production findings are fixed: native refresh no longer
+blocks the event thread, refresh cannot clear missing-event evidence, and
+approval decisions require a successful audit write for the originating actor.
+Follow-up review found no additional production defects; its test-isolation
+finding is fixed. A forced audit-write failure regression confirms approval
+stays pending, then succeeds with a recorded decision after the write recovers.
+
+After these corrections, the full workspace suite, clippy with warnings denied,
+debug/release CLI and MCP builds, status JSON and native Desktop build passed.
+The workspace run also exposed a Windows socket race in the Link HTTP mock;
+the fixture now restores blocking reads and consumes complete requests before
+responding. Focused and full-suite checks passed afterward. The rebuilt MSI
+extracted with exit 0 and matches the built executable except its three-byte
+Tauri bundle marker; hashes are in
+`tooling/benchmarks/results/beta-review-msi-2026-09-06.json`.
+The rebuilt Desktop also completed an Orbit refresh with a deliberately delayed
+20-second check. Its native window handled Maximize and returned the new size
+1.437 seconds after refresh started, while verification was still pending;
+refresh then produced a newly verified package. The three candidate effects
+remained outside the primary checkout. This is test automation evidence, not a
+human usability study; see `beta-review-native-2026-09-06.json` in the same folder.
 The following Sep 5 assessment is historical and does not certify this candidate.
 
 Fresh v3 MSI packaging also succeeded before the final event correction. Its

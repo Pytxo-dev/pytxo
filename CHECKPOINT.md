@@ -82,8 +82,8 @@ The earlier MSI payload started and showed corrected Cursor status; final MSI
 comparison includes the later event fix. Fresh PR31 CI run34033572511 failed
 before jobs started; annotation101487472432 explicitly says account payments
 failed or Actions spending limit must increase. Do not rerun unchanged jobs or
-change billing. Original independent review found real bugs now fixed; final
-independent retry hit quota and is not counted as completed review.
+change billing. Final independent CLI review completed after the in-app quota
+failure; its production findings and follow-up test-isolation finding are fixed.
 
 No public v1.2.2 release exists; publication and independent download/install
 verification remain required for public Beta readiness. No comparative Bench win,
@@ -97,17 +97,60 @@ new residual .playwright-cli/output folders contain only this task's captures.
 
 ## Continue
 
-Dependency follow-up validation is complete; inspect current Git/PR31 state for
-its commit. All build/test runs are terminal; web browser evidence is
-target/beta-deps-web-e2e.log.
-Dependency commit is 2fc0f31. CI34034581142 on that exact head failed before
-steps with the same payment/spending-limit annotation. Demo follow-up rendering
-is also terminal; evidence logs are target/beta-demo-v3-*.log. No need to rerun
-passed core/frontend suites for this media-only change.
-No Rust implementation changed since the full passing gates.
-Inspect current Git/PR state and finish the full goal audit. Do not repeat passed
-local runs without a new change/failure. Real v3 fixture path is in
- target/beta-v3-live-mission-path.txt; final deterministic path is in
- target/beta-final-demo-path.txt; final MSI path is in
- target/beta-final-msi-payload-path.txt. Keep goal active unless complete, or genuinely blocked
-for three consecutive goal turns with no meaningful local work remaining.
+Current branch codex/beta-candidate-verification; pushed commits f21acfb, 2fc0f31,
+fecebc0. PR31 is draft and depends on PR30/e1807cc. Final review follow-up is ready
+for a new commit; inspect Git before acting, because this note is part of it.
+
+Final independent CLI review completed: target/beta-final-cli-review.log.
+It found blocking Desktop refresh IPC, refresh clearing event_persistence_failed,
+and candidate approvals using a missing actor while audit errors were swallowed.
+Fixed: async/spawn_blocking refresh, reject missing-event runs, use completed
+origin actor, persist approval before publishing decision, emit actor-start before
+policy gates. Scope: originating Orbit/Galaxy ceiling and one execution domain.
+
+Follow-up review target/beta-review-followup.log found no additional production
+bugs; its test-home isolation omission is fixed using the existing shared helper.
+Exactly one confirmed test catalog row was removed and archived locally in
+ target/beta-review-catalog-cleanup.json. Other catalog rows were untouched.
+
+ALL current build/test/review/native sessions are terminal; no live job to resume.
+Final gates after all Rust corrections:
+- full workspace PASS target/beta-review-final-workspace-2.log
+- full clippy PASS target/beta-review-final-clippy-2.log
+- debug CLI/MCP + status JSON PASS target/beta-review-final-{debug,status}.log
+- release CLI/MCP PASS target/beta-review-final-cli-mcp.log
+- native build PASS target/beta-review-final-native.log
+- MSI build/extraction PASS target/beta-review-final-msi.log and beta-review-msi-extract.log
+- format and diff checks PASS
+The earlier workspace attempt hit Unexpected EOF in billing_link's Windows HTTP
+mock. Restore blocking socket reads / consume complete requests; focused and
+full reruns passed. The compile error in the first edit is superseded.
+
+Galaxy audit-write failure regression and evidence-gap refresh regression PASS.
+Native Orbit run 374bf178-942b-4afd-b589-d22bf2837544 completed; changing only the
+fixture package.json caused stale refusal. Refresh ran a deliberate 20s check;
+native Maximize returned at 1437ms while verification remained pending, then
+refresh produced a new verified v3 package. Candidate effects remain unapplied.
+Evidence: tooling/benchmarks/results/beta-review-{native,msi}-2026-09-06.json.
+Native captures inspected; test automation operated the UI. Fixture pointer:
+target/beta-review-native-fixture-path.txt. Own native process31784 stopped after
+verification; snapshots moved to target/beta-review-playwright-residual.
+Final MSI extracted to target/beta-review-msi-extracted; only Tauri UNK->MSI
+marker differs. This does not establish a clean elevated installation.
+
+Silent recut film is apps/demo-video/out/pytxo-demo-silent.mp4; full render/media
+checks and visual inspection passed (beta-demo-film-2026-09-06.json). No need to
+rerender for Rust-only fixes; film identifies the original real v3 run and hashes.
+No new audio was generated; approved voice/music evidence remains unavailable.
+
+Fresh PR31 CI34035381114 on fecebc0 failed before steps; annotation101492363399
+states failed account payments or spending-limit increase required. Do not rerun
+unchanged jobs or change billing. After pushing the final fixes, inspect only the
+new automatic run and record its result. Do not publish/merge/tag/deploy.
+
+Remaining public Beta gates: hosted CI, clean elevated Windows installation,
+publication and independent download/install verification. Public latest v1.2.1;
+no v1.2.2 release. Current code/runtime evidence supports a reviewable local
+candidate, not public Beta readiness. Keep goal active until achieved, or mark
+blocked only after a real impasse recurs for three consecutive goal turns with
+no meaningful work remaining. This turn made material implementation progress.

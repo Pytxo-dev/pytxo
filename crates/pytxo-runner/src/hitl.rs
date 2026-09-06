@@ -43,7 +43,7 @@ struct HitlState {
     decisions: HashMap<String, HitlDecision>,
 }
 
-type WalAudit = Arc<dyn Fn(&HitlRequest, bool) + Send + Sync>;
+type WalAudit = Arc<dyn Fn(&HitlRequest, bool) -> anyhow::Result<()> + Send + Sync>;
 
 /// Thread-safe approval queue shared between the runner and orchestration/IPC.
 #[derive(Clone)]
@@ -151,35 +151,39 @@ impl HitlQueue {
             .unwrap_or_default()
     }
 
-    /// Resolve a request. Returns `true` if the id was pending.
+    /// Compatibility helper; failed audit persistence never authorizes a request.
     pub fn resolve(&self, id: &str, approved: bool) -> bool {
-        let resolved = {
-            let Ok(mut g) = self.inner.lock() else {
-                return false;
+        self.try_resolve(id, approved).unwrap_or(false)
+    }
+
+    /// Persist the audit before publishing a decision to a waiting worker.
+    /// On failure the request stays pending and callers receive the error.
+    pub fn try_resolve(&self, id: &str, approved: bool) -> anyhow::Result<bool> {
+        {
+            let mut g = self
+                .inner
+                .lock()
+                .map_err(|_| anyhow::anyhow!("HITL lock poisoned"))?;
+            let Some(request) = g.pending.get(id) else {
+                return Ok(false);
             };
-            if let Some(request) = g.pending.remove(id) {
-                g.decisions.insert(
-                    id.to_string(),
-                    if approved {
-                        HitlDecision::Approved
-                    } else {
-                        HitlDecision::Denied
-                    },
-                );
-                Some(request)
-            } else {
-                None
-            }
-        };
-        if let Some(request) = resolved {
             if let Some(audit) = &self.wal_audit {
-                audit(&request, approved);
+                audit(request, approved).map_err(|error| {
+                    anyhow::anyhow!("approval audit could not be persisted: {error}")
+                })?;
             }
-            self.persist();
-            true
-        } else {
-            false
+            g.pending.remove(id);
+            g.decisions.insert(
+                id.to_owned(),
+                if approved {
+                    HitlDecision::Approved
+                } else {
+                    HitlDecision::Denied
+                },
+            );
         }
+        self.persist();
+        Ok(true)
     }
 
     /// Current decision for a request (Pending if unknown or unresolved).

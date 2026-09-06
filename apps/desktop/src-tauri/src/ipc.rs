@@ -850,7 +850,7 @@ pub fn apply_run_changes(
 }
 
 #[tauri::command]
-pub fn refresh_run_review(
+pub async fn refresh_run_review(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     run_id: String,
@@ -858,8 +858,14 @@ pub fn refresh_run_review(
 ) -> IpcResult<pytxo_core::PreparedRunManifest> {
     let domain = resolve_domain(&state, domain_id)?;
     let path = state.config_path.lock().map_err(map_lock_err)?.clone();
-    let manifest = orch_refresh_run_review(path, Some(PathBuf::from(&domain)), &run_id)
-        .map_err(map_orch_err)?;
+    let refresh_domain = PathBuf::from(&domain);
+    let refresh_run_id = run_id.clone();
+    let manifest = tauri::async_runtime::spawn_blocking(move || {
+        orch_refresh_run_review(path, Some(refresh_domain), &refresh_run_id)
+    })
+    .await
+    .map_err(map_orch_err)?
+    .map_err(map_orch_err)?;
     emit_domain_changed(&app, &domain, "contract", &run_id);
     Ok(manifest)
 }

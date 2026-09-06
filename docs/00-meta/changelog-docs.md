@@ -14,6 +14,9 @@ related: [[MOC-home]]
 
 ## 2026-09-06 (unreleased Beta source candidate)
 
+- [fixed] Candidate refresh preserves missing-event failures and runs outside
+  Desktop's event thread; approvals require a saved audit for the originating
+  actor. [[beta-candidate-audit-2026-09-05]] records the independent review.
 - [changed] Recut the 52-second demo around real single-worker v3 native evidence;
   source capture hashes, silent-master checks and inspected final frames are recorded.
 - [fixed] Updated web/Desktop development dependencies and the demo's URI parser;

@@ -701,6 +701,10 @@ async fn run_one_agent(
             }
         })?;
 
+    // Establish the live audit actor before any command can request approval.
+    if let Some(callback) = ctx.on_event.as_ref() {
+        callback(&agent_key, "agent-start", &task.task_id.0);
+    }
     let profile = match task.root.as_deref() {
         Some(label) if !label.is_empty() => ctx
             .roots

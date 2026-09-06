@@ -114,6 +114,17 @@ async fn real_candidate_checks_gate_apply_and_refresh_frozen_bytes() {
         .iter()
         .any(|event| event.kind == "evidence-gap"));
     assert!(apply_run_changes(None, Some(event_repo.clone()), &event_run.id).is_err());
+    assert!(refresh_run_review(None, Some(event_repo.clone()), &event_run.id).is_err());
+    assert_eq!(
+        event_store
+            .get_run_contract(&event_run.id)
+            .unwrap()
+            .unwrap()
+            .last_apply_error
+            .unwrap()
+            .code,
+        "event_persistence_failed"
+    );
     assert_eq!(
         fs::read_to_string(event_repo.join("a.txt")).unwrap().trim(),
         "0"

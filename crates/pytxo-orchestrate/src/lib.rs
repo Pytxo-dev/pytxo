@@ -564,7 +564,7 @@ pub fn hitl_respond(
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(None, &repo_root)?;
     let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
-    Ok(domain.hitl.resolve(request_id, approve))
+    domain.hitl.try_resolve(request_id, approve)
 }
 
 pub fn commit_workspace_for_agent(
@@ -1043,6 +1043,15 @@ pub fn refresh_run_review(
             contract.apply_status
         );
     }
+    if contract
+        .last_apply_error
+        .as_ref()
+        .is_some_and(|error| error.code == "event_persistence_failed")
+    {
+        anyhow::bail!(
+            "run evidence is incomplete; refresh cannot restore lost events; rerun the mission"
+        );
+    }
     let run = store
         .get_run(run_id)?
         .ok_or_else(|| anyhow::anyhow!("unknown run: {run_id}"))?;
@@ -1133,6 +1142,8 @@ fn verify_combined_candidate(
         &cfg.blast.sparse_exclude,
     )?;
     let mut checks = Vec::new();
+    let actors = PytxoStore::open(&cfg.db_path_at(&domain.repo_root))?
+        .list_agents_for_run(&manifest.run_id)?;
     for task in plan.waves.iter().flatten() {
         if task.root.as_deref().is_some_and(|root| !root.is_empty()) {
             anyhow::bail!("combined candidate verification supports one repository root");
@@ -1156,10 +1167,23 @@ fn verify_combined_candidate(
                 profile.as_str()
             );
         }
+        let actor = actors
+            .iter()
+            .find(|actor| {
+                actor.task_id == task.task_id.0
+                    && actor.status == "completed"
+                    && actor.exit_code == Some(0)
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "candidate task has no completed audit actor: {}",
+                    task.task_id.0
+                )
+            })?;
         let context = CandidateCheckContext {
             cwd: candidate.workspace_root().to_path_buf(),
             run_id: manifest.run_id.clone(),
-            agent_key: format!("{}:candidate:{}", manifest.run_id, task.task_id.0),
+            agent_key: actor.id.clone(),
             repo_root: domain.repo_root.clone(),
             data_dir: domain.data_dir.clone(),
             profile,
@@ -2651,6 +2675,128 @@ fn ensure_gitignore(repo: &Path) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn candidate_approval_requires_a_persisted_origin_actor_and_audit() {
+        hypervisor::tests::isolate_pytxo_home();
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(repo.join("owned.txt"), "before\n").unwrap();
+        fs::write(workspace.join("owned.txt"), "after\n").unwrap();
+        let cfg = PytxoConfig {
+            permission_profile: PermissionProfile::Galaxy,
+            execution_backend: pytxo_core::ExecutionBackend::Subprocess,
+            ..Default::default()
+        };
+        let domain = hypervisor::HypervisorRegistry::new()
+            .ensure_domain(&repo, &cfg)
+            .unwrap();
+        let run_id = "candidate-approval";
+        let actor = format!("{run_id}:agent-0");
+        let store = PytxoStore::open(&cfg.db_path_at(&repo)).unwrap();
+        store.insert_run(run_id, &repo.to_string_lossy()).unwrap();
+        store
+            .insert_agent(
+                &actor,
+                run_id,
+                "task",
+                0,
+                Some(&workspace.to_string_lossy()),
+                "fixture",
+            )
+            .unwrap();
+        store.finish_agent(&actor, Some(0), "completed").unwrap();
+        let manifest = prepare_review_package(
+            &repo,
+            &domain.data_dir,
+            run_id,
+            "base",
+            &[AgentWorkspaceInput {
+                agent_id: "agent-0".into(),
+                task_id: "task".into(),
+                workspace_path: workspace,
+                claims: vec!["owned.txt".into()],
+                depends_on: vec![],
+            }],
+            &cfg.blast.sparse_exclude,
+        )
+        .unwrap();
+        // The classifier requests approval, but echo performs no installation.
+        let plan = ExecutionPlan {
+            waves: vec![vec![pytxo_core::ScheduledTask {
+                task_id: TaskId("task".into()),
+                agent: "codex".into(),
+                paths: vec!["owned.txt".into()],
+                depends_on: vec![],
+                wave: 0,
+                root: None,
+                signal_fidelity: None,
+                verify: vec!["echo npm install".into()],
+            }]],
+            conflicts: vec![],
+            max_agents: 1,
+            warnings: vec![],
+        };
+        let receipt = permission_enforcement_receipt(
+            PermissionProfile::Galaxy,
+            PermissionProfile::Galaxy,
+            &domain.id,
+            pytxo_core::IsolationMode::Worktree,
+            &[],
+        )
+        .unwrap();
+        let enforcement = RunEnforcementEnvelope {
+            run: receipt,
+            agents: Default::default(),
+        };
+        let db = rusqlite::Connection::open(cfg.db_path_at(&repo)).unwrap();
+        db.execute_batch("CREATE TRIGGER reject_approval BEFORE INSERT ON events WHEN NEW.kind = 'hitl-resolve' BEGIN SELECT RAISE(ABORT, 'injected approval write failure'); END;").unwrap();
+        let worker_domain = domain.clone();
+        let worker = std::thread::spawn(move || {
+            verify_combined_candidate(&worker_domain, &cfg, &plan, &enforcement, manifest)
+        });
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let mut exercised_failure = false;
+        let mut approvals = 0;
+        while !worker.is_finished() && std::time::Instant::now() < deadline {
+            for request in domain.hitl.pending() {
+                assert_eq!(request.agent_key, actor);
+                if !exercised_failure {
+                    assert!(domain.hitl.try_resolve(&request.id, true).is_err());
+                    assert_eq!(
+                        domain.hitl.decision(&request.id),
+                        pytxo_runner::HitlDecision::Pending
+                    );
+                    assert!(store.list_events(&actor, 100).unwrap().is_empty());
+                    db.execute_batch("DROP TRIGGER reject_approval;").unwrap();
+                    exercised_failure = true;
+                }
+                assert!(domain.hitl.try_resolve(&request.id, true).unwrap());
+                approvals += 1;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        if !worker.is_finished() {
+            domain.swarm.request_stop_run(run_id);
+        }
+        let checked = worker.join().unwrap().unwrap();
+        assert!(exercised_failure);
+        assert!(approvals > 0);
+        assert_eq!(checked.candidate_verification.unwrap().checks.len(), 1);
+        assert_eq!(store.list_agents_for_run(run_id).unwrap().len(), 1);
+        assert_eq!(
+            store
+                .list_events(&actor, 100)
+                .unwrap()
+                .iter()
+                .filter(|event| event.kind == "hitl-resolve")
+                .count(),
+            approvals
+        );
+    }
 
     fn deep_space_read_fixture(signal_core: bool) -> (tempfile::TempDir, PathBuf, PathBuf) {
         let temp = tempfile::tempdir().unwrap();

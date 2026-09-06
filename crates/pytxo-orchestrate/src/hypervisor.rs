@@ -106,28 +106,28 @@ impl HypervisorRegistry {
             let audit_db = db_path.clone();
             HitlQueue::with_persistence(&data_dir).with_wal_audit(Arc::new(
                 move |request, approved| {
-                    if let Ok(store) = pytxo_store::PytxoStore::open(&audit_db) {
-                        let (run_id, agent_id) = request
-                            .agent_key
-                            .split_once(':')
-                            .map(|(run, agent)| (Some(run), Some(agent)))
-                            .unwrap_or((None, None));
-                        let payload = serde_json::json!({
-                            "request_id": request.id,
-                            "agent_key": request.agent_key,
-                            "run_id": run_id,
-                            "agent_id": agent_id,
-                            "action": request.action,
-                            "decision": if approved { "approved" } else { "denied" },
-                        })
-                        .to_string();
-                        let _ = store.append_approval_event(
-                            &request.agent_key,
-                            &request.id,
-                            "hitl-resolve",
-                            &payload,
-                        );
-                    }
+                    let store = pytxo_store::PytxoStore::open(&audit_db)?;
+                    let (run_id, agent_id) = request
+                        .agent_key
+                        .split_once(':')
+                        .map(|(run, agent)| (Some(run), Some(agent)))
+                        .unwrap_or((None, None));
+                    let payload = serde_json::json!({
+                        "request_id": request.id,
+                        "agent_key": request.agent_key,
+                        "run_id": run_id,
+                        "agent_id": agent_id,
+                        "action": request.action,
+                        "decision": if approved { "approved" } else { "denied" },
+                    })
+                    .to_string();
+                    store.append_approval_event(
+                        &request.agent_key,
+                        &request.id,
+                        "hitl-resolve",
+                        &payload,
+                    )?;
+                    Ok(())
                 },
             ))
         };
@@ -403,7 +403,7 @@ pub fn default_hypervisor() -> &'static HypervisorRegistry {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::sync::OnceLock;
 
@@ -411,7 +411,7 @@ mod tests {
     /// real `~/.pytxo/hypervisor.db` catalog via `register_in_catalog`. Point
     /// `PYTXO_HOME` at a throwaway directory once per test process so this
     /// tempdir repo never pollutes the developer's actual catalog.
-    fn isolate_pytxo_home() {
+    pub(crate) fn isolate_pytxo_home() {
         static HOME: OnceLock<()> = OnceLock::new();
         HOME.get_or_init(|| {
             let dir = tempfile::tempdir().expect("pytxo home tempdir");

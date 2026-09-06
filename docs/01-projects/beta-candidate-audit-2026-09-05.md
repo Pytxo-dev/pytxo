@@ -19,7 +19,7 @@ recipe-bound candidate verification. Eight runner scope tests and the actual
 orchestration negative control pass. The full workspace suite passes. Explicit
 refresh reruns the recipe while preserving frozen effects and current operator
 files; successful refresh can recover a failed review only after all tasks
-succeeded. Git-dependent checks fail within the snapshot rather than discovering
+succeeded and the run has no event-persistence evidence gap. Git-dependent checks fail within the snapshot rather than discovering
 the primary repository. This is not an OS sandbox or dependency attestation.
 
 One real Codex mission produced v3 evidence and then passed native Tauri
@@ -28,6 +28,19 @@ post-Apply tests passed. The record is
 `tooling/benchmarks/results/beta-single-codex-2026-09-06.json`.
 The original two tests below document why the boundary was necessary; they are
 not the current implementation verdict.
+
+The final independent CLI review found three additional boundary defects:
+Desktop refresh could block native approval handling, refresh could clear a
+live-event evidence gap, and candidate approvals used an actor key with no
+persisted agent row while audit errors were ignored. Refresh now runs off the
+native event thread, rejects evidence-gap runs, and uses the originating
+completed actor for candidate checks. Approval decisions are published only
+after their audit write succeeds; failed writes leave the request pending.
+A Galaxy regression injects an audit-write failure, confirms no authorization
+escapes, and then confirms the same request succeeds with a persisted audit.
+Follow-up static review found no additional production defects, but identified
+a test-home isolation omission that was corrected. These changes preserve the
+originating permission ceiling and single execution-domain scope.
 
 **Finding:** independently passing task checks do not establish that the exact
 combined review package passes. This is a behavioral verification gap, separate
