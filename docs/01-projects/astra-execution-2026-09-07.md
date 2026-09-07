@@ -25,8 +25,10 @@ each returned source ownership after its focused tests and adversarial review.
 Builds run sequentially with one Cargo job because host memory is constrained.
 
 Preserve the private master brief, existing untracked captures, `.verify`,
-`desktop-e2e.log`, and `docs/superpowers`. No public writes, billing changes,
-new dependencies, system features, or major redesign are authorized here.
+`desktop-e2e.log`, and `docs/superpowers`. The later Team-upgrade instruction
+authorizes ordinary org-profile edits and continued PR31 CI pushes within the
+included allowance. Releases, deployment-triggering merges, paid budget/security
+changes, new system features and major redesign retain separate approval gates.
 
 ## Phase 1: Inspect and decide
 
@@ -66,7 +68,7 @@ new dependencies, system features, or major redesign are authorized here.
 | Runtime/context | REPRODUCED traversal/link/fidelity, stale context and Windows PTY cwd failures | IMPLEMENTED with 26 boundary and 37 launch/verification checks; final MSI native run, exact Apply and eight independent tests passed; no profile expansion |
 | Competitive position | Fresh primary docs show coordination, worktrees, checks and review overlap | Choose recurring bug/regression job; DEFER acquisition claims pending second-use trial; no exclusive verification or speed claim |
 | Context/skills/protocols | Existing native instructions and Signal | DEFER new platform; improve current context correctness |
-| CI | GitHub Team upgrade verified; 1,000 included minutes remain and paid overages stay blocked | RESUMING with the user's instruction; one consolidated candidate push, bounded job timeouts and all checks preserved |
+| CI | First executed run `34100785788`: eight passed, four failed from three causes | Corrections locally verified with 468 workspace and 21 tooling tests; consolidated corrected-head CI pending; all checks and paid-overage stop preserved |
 | Clean install | Windows11 Home; no clean environment verified | HUMAN-BLOCKED; stage exact artifact and isolated manual protocol |
 | Publication/download | Public latest v1.2.1; v1.2.2 absent | HUMAN-BLOCKED; prepare source/artifacts before requesting specific publication |
 | Demo/Bench | Final 52-second film, successful three-task native run, competent direct baseline and retained unsuccessful attempts | COMPLETE LOCALLY; exact MSI, source, captures and film identities recorded; no controlled comparative result |
@@ -94,9 +96,14 @@ from the full affected orchestration suite and combined lint/build checks after
 it. Desktop production browser coverage is 128 checks. The final native run,
 three-hash Apply, eight independent tests, 52-second silent film, 23 website
 browser checks and portable Windows packet are complete and recorded there.
-The September 7 Team-upgrade resumption authorizes the consolidated PR31
-candidate update using included Actions. Final hosted results must identify the
-actual new commit; no release, merge or deployment is authorized by that step.
+The September 7 Team-upgrade resumption produced commit `2964d5ad…` and exposed
+three CI failure causes. The corrections pass all 468 local workspace tests and
+21 tooling tests. A rebuilt MSI completed a separate credentials-path follow-up:
+three reviewed/applied hashes, 11 fixture tests, 26 independent checks and native
+restart persistence. The preceding observation and direct baseline are retained.
+The consolidated correction push is authorized using included Actions. Final
+hosted results must identify its actual commit; no release, merge or deployment
+is authorized by that step.
 
 The completion audit closed stale native-status prose and final website metadata
 coverage. All 45 sitemap routes now have verified crawlable page identities;

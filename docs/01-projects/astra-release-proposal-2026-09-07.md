@@ -14,18 +14,21 @@ related: [[astra-execution-2026-09-07]], [[release-workflow]]
 
 This is a sequence for approval, not authorization or a release announcement.
 Version 1.2.2 remains a local candidate descended from draft PR31 at
-`ff0b88fb71224d579267e697261ae4d831f0cd76`. Uncommitted improvements must be
-reviewed and included in the final source identity; that old HEAD alone does
-not identify the new build. Public GitHub, npm and deployed downloads were
+`2964d5ad2ad677dec014d32ae227635de8dfea5b` plus reviewed CI corrections. Their
+352-input source digest is `d54be69068c39cf8b14ce58bbad84a77a274ae878a7874d796c9da2644db8e4a`;
+build-time HEAD alone does not identify the rebuilt MSI. Public GitHub, npm and deployed downloads were
 observed at 1.2.1 on September 7.
 
 ## CI and source
 
 The September 7 resumption verified the owner's GitHub Team upgrade in Brave:
-2,000 of 3,000 included Actions minutes used, $0 billable Actions usage, and the
+2,000 of 3,000 included Actions minutes used at 08:25 UTC, before the run, $0 billable Actions usage, and the
 existing $0 Actions budget with stopping still enabled. The user instructed the
 lead to continue and conserve Actions. Use the remaining included allowance for
-one consolidated PR31 candidate push; no paid budget increase is needed now.
+the necessary consolidated PR31 correction; no paid budget increase is authorized.
+The first push completed CI run `34100785788`: eight passed and four failed,
+from three causes now repaired and locally verified. Do not retry unrelated jobs
+or run duplicate workflows merely to check billing.
 The earlier proposed $10 overage allowance was not applied. Historical job times
 at documented rates imply about $1.396 for CI and $2.482 for the release workflow,
 excluding storage and duration changes. These are estimates. The failed run
@@ -45,10 +48,12 @@ deployment workflow, so merge/publication approval remains necessary.
 
 ## Candidate and clean machine
 
-Use the local `target/astra-windows-validation-packet/` after its inventory and
+Use the local `target/astra-ci-windows-validation-packet/` after its inventory and
 hash checks pass. Its manifest identifies the exact MSI, packaged executable,
 source-input snapshot and toolchains. Development-host extraction and native
-automation establish narrower evidence than installation.
+automation establish narrower evidence than installation. The earlier packet
+remains historical; it contains the preceding MSI. The current candidate MSI
+hash is `614d44e2d47eeeea2e62c0689b3146183daea30816f4d4341be0333d7b8948b3`.
 
 The owner provides an approved clean Windows x64 machine or disposable VM on a
 separate adequately resourced host, with permission for installer/admin actions,

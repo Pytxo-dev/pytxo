@@ -12,15 +12,79 @@ related: [[astra-execution-2026-09-07]], [[astra-release-proposal-2026-09-07]]
 
 # Verification and artifact ledger
 
-The native builds and local checks below were produced with uncommitted changes
-on PR31's `ff0b88fb71224d579267e697261ae4d831f0cd76`; that commit alone does not
-identify the built source. Their source-input identities remain authoritative
-after committing the candidate. CI, clean-machine installation and public
+The preceding native builds and checks were produced with uncommitted changes
+on PR31's `ff0b88fb71224d579267e697261ae4d831f0cd76`. The CI correction below was
+built from `2964d5ad2ad677dec014d32ae227635de8dfea5b` plus uncommitted repairs.
+Build-time HEAD alone does not identify either artifact; source-input identities
+remain authoritative after committing. CI, clean-machine installation and public
 delivery remain separate gates. The owner subsequently upgraded to GitHub Team
 and authorized continuation; the organization description/website were updated.
 No paid budget, security setting, release or deployment was changed by the lead.
 
-## Completed source checks
+## CI correction and current native proof
+
+First executed CI run `34100785788` completed: eight jobs passed and four failed.
+Both Unix Rust jobs exposed a registry lock held while Stop waited for child
+reaping; Windows Rust 1.98.1 exposed a new Clippy lint in a UTF-16 test helper;
+the npm version check still parsed superseded public-binary wording. All three
+causes were repaired. Cancellation is persisted before process termination;
+only captured process identities are removed after it. Identity guards and
+failure evidence remain. Cheap npm metadata checks now precede Rust compilation.
+
+Fresh local checks on the correction: **468 workspace tests, 21 release tooling
+tests, workspace Clippy and formatting pass**. The real repository version check
+passes at 1.2.2. `cargo audit` passes with the existing 19 allowed warnings;
+no exception or check was removed. Logs: `target/astra-ci-{workspace,clippy,audit}.log`
+(workspace/Clippy have `-green` suffix), `astra-ci-release-tests-green.log` and
+`astra-ci-version-green.log`. Independent runtime and workflow reviews passed.
+
+The rebuilt MSI is `614d44e2d47eeeea2e62c0689b3146183daea30816f4d4341be0333d7b8948b3`,
+payload `2d0124917fad349f340cc210780de8dfee5162d2694eeabb15e7b54a71d30b5f`;
+both are Authenticode unsigned. Its 352-input source digest is
+`d54be69068c39cf8b14ce58bbad84a77a274ae878a7874d796c9da2644db8e4a`.
+MSI build log: `target/astra-ci-msi-build.log`.
+
+The separate [current-build record](../../tooling/benchmarks/results/astra-ci-native-2026-09-07.json)
+binds run `53728815-a282-44f8-8be7-05f224e91223` and package
+`c01b2215f9f083565e56043c8147e483cfcffc12666bfdd893c83ef468bb3756`.
+It adds `credentials/` to the previously applied synthetic baseline, with an
+explicit documentation-task override observed in worker input. Three workers
+and three combined checks pass. Native exact-diff review and explicit Apply
+produced three matching hashes and preserved the other three source files.
+Eleven fixture tests and 26 separately authored acceptance tests pass; five
+acceptance cases failed before the change. The committed receipt survived restart.
+Computer Use prepared and ran the mission; inconsistent native-helper state led
+to a same-payload restart and normal WebView review/Apply clicks. The actual
+worker headers report Astra/xhigh. This is a different task and baseline from
+the direct comparison; no timing or cost advantage is inferred.
+
+`target/astra-ci-native/acceptance-review.md` independently checks the MSI,
+payload, package, journal, baseline/post-state and tests. Development-host
+extraction remains narrower than clean installation. The earlier records and
+captures below remain unchanged. The current film is 52.000 seconds, 1080p/30fps,
+H.264/yuv420p/BT.709 with no audio; SHA256
+`761b377c71a15eed5a59ec29592f36919d711736e08122cfc6a24c11a044a2ee`.
+Seven composition stills and 13 encoded transition frames were inspected.
+[Current film provenance](../../tooling/benchmarks/results/astra-ci-demo-2026-09-07.json)
+binds the new captures and record. Full continuous playback was not watched.
+
+Current packet: `target/astra-ci-windows-validation-packet.zip`, 16 files, SHA256
+`42845a33b2e7044787843b7a63c51cf77b1e5132c1a38f95311ff3d292e10503`.
+Every ZIP entry matches its allowlisted name, size and hash; all six baseline
+files match the earlier applied commit. Eight baseline tests pass; the portable
+acceptance verifier reproduces 21 pass/five fail. Its source hash differs only
+because the import is portable. The template remains `not_executed`.
+Corrected-head hosted CI is pending at this checkpoint; the first run's partial
+success does not close CI.
+
+The current website rebuild and lint pass; 162 internal links across 108 files
+were checked. All three affected production browser tests pass. The current
+candidate section and its JSON were additionally exercised at 1440/390px;
+displayed hashes/counts match, with no page errors or root horizontal overflow.
+Screens: `target/astra-ci-native/site-evidence-{1440,390}.png`. Broader 23-test
+coverage from the first hosted run remains separate until corrected-head CI.
+
+## Preceding source checks
 
 | Check | Actual result and local log |
 | --- | --- |
@@ -115,7 +179,7 @@ The portable packet is `target/astra-windows-validation-packet.zip`, SHA256
 It contains 15 checked files, including the tested MSI and fixture-local setup
 instructions. Its clean-machine result template remains `not_executed`.
 
-The current silent film is `apps/demo-video/out/pytxo-demo-silent.mp4`, SHA256
+The preceding silent film is preserved in `apps/demo-video/out/archive-2026-09-07-pre-ci/`, SHA256
 `45aab4c6dee117d4792ac637fc181ad1445b65841359086e88d048751339317c`.
 Its [provenance record](../../tooling/benchmarks/results/astra-demo-2026-09-07.json)
 binds the composition, native record, poster, contact sheet and transition sheet.
@@ -151,9 +215,9 @@ production/mobile performance, field Core Web Vitals, INP, a Lighthouse score,
 or a performance improvement. Further bundle/font work is deferred until target
 device or production measurements justify it.
 
-The final native source's 352-file set and every hash still match its freeze;
-the MSI, film and Windows ZIP identities also match. The separate website/docs
-repairs did not change those artifacts. Recheck:
+Before the CI repair, the preceding native source's 352-file set and every hash
+matched its freeze; MSI, film and Windows ZIP identities also matched. The later
+Stop repair changed native source and required the new build above. Historical recheck:
 `target/astra-artifact-recheck-final.json`. The proposed commit inventory is
 `target/astra-commit-inventory-final.json`; it excludes the private master brief,
 preserved user captures/logs and the unused generated demo Flow copy. Nothing is
@@ -162,9 +226,10 @@ staged or published by that inventory.
 ## External acceptance
 
 Earlier hosted CI was rejected before checks by the organization's Actions
-allowance condition. The Team upgrade now provides 1,000 remaining included
-minutes; paid overages remain blocked. The consolidated candidate CI run will
-establish hosted acceptance only after all required jobs actually pass.
+allowance condition. The Team upgrade showed 1,000 remaining included minutes
+at 08:25 UTC, before the first executed run; paid overages remain blocked.
+Run `34100785788` completed eight passing/four failing jobs. The consolidated
+correction establishes hosted acceptance only after all required jobs pass.
 The clean Windows environment is unavailable on this development host. Public
 version 1.2.2 is absent. The concrete owner sequence is in
 [[astra-release-proposal-2026-09-07]]. Prepared protocols, null result templates,

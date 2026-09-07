@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "verified_at_utc": "2026-09-07T09:37:05.812Z",
+  "mode": "silent",
+  "duration_seconds": 52,
+  "format": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video",
+        "width": 1920,
+        "height": 1080,
+        "pix_fmt": "yuv420p",
+        "color_space": "bt709",
+        "color_transfer": "bt709",
+        "color_primaries": "bt709",
+        "r_frame_rate": "30/1"
+      }
+    ],
+    "format": {
+      "duration": "52.000000",
+      "size": "2802623"
+    }
+  },
+  "source_run_id": "53728815-a282-44f8-8be7-05f224e91223",
+  "msi_sha256": "614d44e2d47eeeea2e62c0689b3146183daea30816f4d4341be0333d7b8948b3",
+  "package_digest": "c01b2215f9f083565e56043c8147e483cfcffc12666bfdd893c83ef468bb3756",
+  "assets": [
+    {
+      "path": "apps/demo-video/out/pytxo-demo-silent.mp4",
+      "bytes": 2802623,
+      "sha256": "761b377c71a15eed5a59ec29592f36919d711736e08122cfc6a24c11a044a2ee"
+    },
+    {
+      "path": "apps/demo-video/public/poster.png",
+      "bytes": 347830,
+      "sha256": "17f3cf666f32b03e576128ec7f27c532ac89dadb68251da9652fe7e13d67cc00"
+    },
+    {
+      "path": "apps/demo-video/out/pytxo-demo-contact-sheet.png",
+      "bytes": 578530,
+      "sha256": "a5a9ef04b06899561aed384f49a810fc2c5b5e75a09dacc5f2a36b9a20ec8e76"
+    },
+    {
+      "path": "apps/demo-video/out/pytxo-demo-transition-sheet.png",
+      "bytes": 498824,
+      "sha256": "25cebff10290a6f13bfd415577ddf42dfc80e8dfd3fd97d9d3384042dc55b873"
+    },
+    {
+      "path": "apps/demo-video/src/PytxoLaunchDemo.tsx",
+      "bytes": 7787,
+      "sha256": "f31645b3a93b044f82fb25e7820a126dabe0f2ebc3aa5c773f355446640604f8"
+    },
+    {
+      "path": "tooling/benchmarks/results/astra-ci-native-2026-09-07.json",
+      "bytes": 10009,
+      "sha256": "e8f743e83f8fff018f16043341d7b537b6a18ee1b462ec79f943902759484d4e"
+    }
+  ],
+  "validation": {
+    "typecheck": "passed",
+    "original_native_assets": "passed",
+    "transcript_and_provisional_cues": "passed",
+    "master_format_and_black_scan": "passed",
+    "deterministic_holds": 7,
+    "visual_inspection": "Seven composition stills and 13 encoded transition frames inspected; native source images checked for privacy, readability and clipping",
+    "continuous_playback_watched": false
+  },
+  "preceding_film": {
+    "record": "astra-demo-2026-09-07.json",
+    "local_archive": "apps/demo-video/out/archive-2026-09-07-pre-ci/",
+    "sha256": "45aab4c6dee117d4792ac637fc181ad1445b65841359086e88d048751339317c"
+  },
+  "limitations": [
+    "Edited unmodified native element captures, not a live recording or elapsed-time reproduction",
+    "Native UI operated by test automation; final-state documentation guidance explicitly edited before the run",
+    "Different credentials-path follow-up from the earlier direct baseline; no speed, cost or quality comparison",
+    "No narrated master generated for this script; provisional captions require final audio timing before publication",
+    "No public publishing or clean-install certification"
+  ]
+}

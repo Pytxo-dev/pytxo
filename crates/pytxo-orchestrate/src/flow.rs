@@ -780,8 +780,10 @@ if (args.at(-1) === '-') {
         let bytes =
             base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded).unwrap();
         let units = bytes
-            .chunks_exact(2)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u16::from_le_bytes(*pair))
             .collect::<Vec<_>>();
         let script = String::from_utf16(&units).unwrap();
         // Restrict executable discovery to the local shim, without changing parent PATH.

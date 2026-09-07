@@ -2199,56 +2199,69 @@ pub(crate) fn shell_command() -> (String, Vec<String>) {
 }
 
 pub fn stop_run(data_dir: &Path, run_id: &str, kill: bool) -> Result<Vec<u32>> {
-    let path = registry_path(data_dir);
-    ProcessRegistryFile::update(&path, |registry| {
-        if kill
-            && !registry
-                .cancelled_runs
-                .iter()
-                .any(|cancelled| cancelled == run_id)
-        {
-            registry.cancelled_runs.push(run_id.to_string());
-        }
-        let entries: Vec<ProcessEntry> = registry
-            .for_run(run_id)
-            .iter()
-            .map(|entry| (*entry).clone())
-            .collect();
-        if kill {
-            for entry in &entries {
-                if let Err(error) = stop_registry_entry(entry) {
-                    // Persist cancellation even when termination cannot be confirmed.
-                    // Keep every process entry so a later Stop can reconcile it.
-                    return Ok(Err(error));
-                }
-            }
-        }
-        registry.remove_run(run_id);
-        Ok(Ok(entries.into_iter().map(|entry| entry.pid).collect()))
-    })?
+    stop_registered_processes(data_dir, Some(run_id), kill, stop_registry_entry)
 }
 
 pub fn stop_all(data_dir: &Path, kill: bool) -> Result<()> {
+    stop_registered_processes(data_dir, None, kill, stop_registry_entry).map(|_| ())
+}
+
+fn stop_registered_processes(
+    data_dir: &Path,
+    run_id: Option<&str>,
+    kill: bool,
+    mut stop_entry: impl FnMut(&ProcessEntry) -> Result<()>,
+) -> Result<Vec<u32>> {
     let path = registry_path(data_dir);
-    ProcessRegistryFile::update(&path, |registry| {
+    let entries = ProcessRegistryFile::update(&path, |registry| {
+        let entries: Vec<ProcessEntry> = registry
+            .entries
+            .iter()
+            .filter(|entry| run_id.is_none_or(|id| entry.run_id == id))
+            .cloned()
+            .collect();
         if kill {
-            for entry in &registry.entries {
-                if !registry.cancelled_runs.contains(&entry.run_id) {
-                    registry.cancelled_runs.push(entry.run_id.clone());
+            let run_ids = match run_id {
+                Some(id) => vec![id],
+                None => entries.iter().map(|entry| entry.run_id.as_str()).collect(),
+            };
+            for id in run_ids {
+                if !registry
+                    .cancelled_runs
+                    .iter()
+                    .any(|cancelled| cancelled == id)
+                {
+                    registry.cancelled_runs.push(id.to_string());
                 }
             }
+        } else {
+            registry
+                .entries
+                .retain(|entry| run_id.is_some_and(|id| entry.run_id != id));
         }
-        let entries = registry.entries.clone();
-        if kill {
-            for entry in &entries {
-                if let Err(error) = stop_registry_entry(entry) {
-                    return Ok(Err(error));
-                }
-            }
+        Ok(entries)
+    })?;
+    if kill {
+        // Cancellation must be durable and the registry unlocked before waiting:
+        // verifier owners read it before reaping their children. Holding the lock
+        // here prevents Unix exit confirmation and hides cancellation from them.
+        for entry in &entries {
+            // Keep captured evidence on failure so a later Stop can reconcile it.
+            stop_entry(entry)?;
         }
-        registry.clear();
-        Ok(Ok(()))
-    })?
+        ProcessRegistryFile::update(&path, |registry| {
+            registry.entries.retain(|current| {
+                !entries.iter().any(|stopped| {
+                    current.run_id == stopped.run_id
+                        && current.agent_key == stopped.agent_key
+                        && current.pid == stopped.pid
+                        && current.start_identity == stopped.start_identity
+                })
+            });
+            Ok(())
+        })?;
+    }
+    Ok(entries.into_iter().map(|entry| entry.pid).collect())
 }
 
 fn stop_registry_entry(entry: &ProcessEntry) -> Result<()> {
@@ -2686,6 +2699,63 @@ mod verification_boundary_tests {
     }
 
     #[test]
+    fn stop_publishes_cancellation_without_locking_out_process_reconciliation() {
+        for run_id in [Some("run"), None] {
+            let temp = tempfile::tempdir().unwrap();
+            let path = registry_path(temp.path());
+            let original = ProcessEntry {
+                run_id: "run".into(),
+                repo_root: String::new(),
+                agent_key: "run:agent-0".into(),
+                pid: 1,
+                start_identity: Some("original".into()),
+                worktree_path: String::new(),
+                branch: String::new(),
+            };
+            ProcessRegistryFile::update(&path, |registry| {
+                registry.push(original.clone());
+                Ok(())
+            })
+            .unwrap();
+            let mut reader = None;
+            let result = stop_registered_processes(temp.path(), run_id, true, |_| {
+                let path = path.clone();
+                let original = original.clone();
+                let (send, receive) = std::sync::mpsc::channel();
+                reader = Some(thread::spawn(move || {
+                    let result = ProcessRegistryFile::update(&path, |registry| {
+                        assert_eq!(registry.cancelled_runs, vec!["run"]);
+                        let mut replacement = original.clone();
+                        replacement.start_identity = Some("replacement".into());
+                        registry.push(replacement);
+                        let mut unrelated = original;
+                        unrelated.run_id = "new-run".into();
+                        unrelated.agent_key = "new-run:agent-0".into();
+                        registry.push(unrelated);
+                        Ok(())
+                    });
+                    let _ = send.send(result);
+                }));
+                receive.recv_timeout(Duration::from_secs(2)).map_err(|_| {
+                    PytxoError::Runner("registry remained locked during termination".into())
+                })?
+            });
+            reader.unwrap().join().unwrap();
+            assert_eq!(
+                result.expect("Stop must release the registry before termination"),
+                vec![1]
+            );
+            let registry = ProcessRegistryFile::load(&path).unwrap();
+            assert_eq!(registry.entries.len(), 2, "preserve both newer identities");
+            assert_eq!(
+                registry.entries[0].start_identity.as_deref(),
+                Some("replacement")
+            );
+            assert_eq!(registry.entries[1].run_id, "new-run");
+        }
+    }
+
+    #[test]
     fn candidate_adapter_returns_boundary_and_obeys_durable_stop() {
         let temp = tempfile::tempdir().unwrap();
         let ctx = CandidateCheckContext {
@@ -2800,6 +2870,15 @@ mod verification_boundary_tests {
 
     #[test]
     fn durable_stop_terminates_verification_and_prevents_later_commands() {
+        assert_durable_stop_terminates_verification(false);
+    }
+
+    #[test]
+    fn durable_stop_all_terminates_verification_and_prevents_later_commands() {
+        assert_durable_stop_terminates_verification(true);
+    }
+
+    fn assert_durable_stop_terminates_verification(stop_every_run: bool) {
         let temp = tempfile::tempdir().expect("tempdir");
         let data_dir = temp.path().to_path_buf();
         let worker_dir = data_dir.clone();
@@ -2837,7 +2916,11 @@ mod verification_boundary_tests {
         };
         let identity = entry.start_identity.as_deref().expect("durable identity");
         assert!(crate::kill::process_matches(entry.pid, identity).unwrap());
-        stop_run(&data_dir, "run", true).expect("stop verifier using durable registry");
+        if stop_every_run {
+            stop_all(&data_dir, true).expect("stop every verifier using durable registry");
+        } else {
+            stop_run(&data_dir, "run", true).expect("stop verifier using durable registry");
+        }
         let error = worker
             .join()
             .unwrap()

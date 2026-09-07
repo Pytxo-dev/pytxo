@@ -14,8 +14,8 @@ if (!["silent", "narrated"].includes(mode)) {
 }
 
 const problems = [];
-const evidence = JSON.parse(await readFile(path.resolve(appRoot, "../../tooling/benchmarks/results/astra-native-codex-2026-09-07.json"), "utf8"));
-const requiredCaptures = ["astra-native-plan.png", "astra-native-checks.png", "astra-native-boundaries.png", "astra-native-apply-confirm.png", "astra-native-applied.png", "astra-native-journal.png"].sort();
+const evidence = JSON.parse(await readFile(path.resolve(appRoot, "../../tooling/benchmarks/results/astra-ci-native-2026-09-07.json"), "utf8"));
+const requiredCaptures = ["astra-ci-native-plan.png", "astra-ci-native-checks.png", "astra-ci-native-boundaries.png", "astra-ci-native-apply-confirm.png", "astra-ci-native-applied.png", "astra-ci-native-journal.png"].sort();
 const productCaptures = evidence.native_apply.captures;
 if (JSON.stringify(productCaptures.map((capture) => capture.file).sort()) !== JSON.stringify(requiredCaptures)) {
   throw new Error("Native evidence must identify all six original captures exactly once.");
@@ -26,6 +26,10 @@ if (postCheck?.command !== "npm test" || postCheck.exit_code !== 0 || postCheck.
 }
 if (evidence.run_status !== "completed" || !evidence.native_apply.applied_files_match_frozen_digests || evidence.changed_files.length !== 3 || evidence.planned_tasks !== 3 || evidence.waves !== 2 || evidence.max_concurrent_workers !== 2) {
   throw new Error("The film's outcome does not match the recorded native run.");
+}
+const independent = evidence.native_apply.independent_acceptance;
+if (!evidence.native_apply.persisted_after_native_restart || !independent?.authored_before_apply || independent.baseline_failed !== 5 || independent.post_apply_passed !== 26 || independent.post_apply_failed !== 0 || independent.post_apply_skipped !== 0) {
+  throw new Error("The film requires the separate red/green acceptance check and persisted native receipt.");
 }
 
 const retiredSurfacePattern = /\b(?:Flow|Operations|Workspaces|Integrations)\b/;

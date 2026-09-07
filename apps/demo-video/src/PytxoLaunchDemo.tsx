@@ -1,7 +1,7 @@
 import type {ReactNode} from "react";
 import {Audio} from "@remotion/media";
 import {AbsoluteFill, Img, Sequence, interpolate, staticFile, useCurrentFrame} from "remotion";
-import evidence from "../../../tooling/benchmarks/results/astra-native-codex-2026-09-07.json";
+import evidence from "../../../tooling/benchmarks/results/astra-ci-native-2026-09-07.json";
 
 export type PytxoLaunchDemoProps = {includeAudio: boolean};
 export const FPS = 30;
@@ -34,8 +34,8 @@ const Copy = ({title, children}: {title: ReactNode; children?: ReactNode}) => (
 // Unmodified element captures from the native rehearsal, not UI mockups.
 const Receipt = () => (
   <div style={{position: "absolute", right: 100, top: 185, width: 600, display: "grid", gap: 28}}>
-    <Img src={staticFile("product/astra-native-checks.png")} style={{width: "100%"}} />
-    <Img src={staticFile("product/astra-native-boundaries.png")} style={{width: "100%"}} />
+    <Img src={staticFile("product/astra-ci-native-checks.png")} style={{width: "100%"}} />
+    <Img src={staticFile("product/astra-ci-native-boundaries.png")} style={{width: "100%"}} />
   </div>
 );
 const Intro = () => (
@@ -48,11 +48,11 @@ const Intro = () => (
 const Mission = () => (
   <Frame label="The recorded task">
     <Copy title={<>Code. Tests. Docs.<br />One plan.</>}>
-      Require review for secrets paths.<br />Two tasks first. The dependent test task follows.
+      Require review for credentials paths.<br />Two tasks first. The dependent test task follows.
       <div style={{marginTop: 50, paddingTop: 30, borderTop: "1px solid #293139", color: colors.text}}>{evidence.planned_tasks} tasks · {evidence.waves} waves · up to {evidence.max_concurrent_workers} workers</div>
       <div style={{fontSize: 25, marginTop: 15}}>The primary checkout stayed unchanged before Apply.</div>
     </Copy>
-    <Img src={staticFile("product/astra-native-plan.png")} style={{position: "absolute", right: 80, top: 345, width: 750, height: "auto"}} />
+    <Img src={staticFile("product/astra-ci-native-plan.png")} style={{position: "absolute", right: 80, top: 345, width: 750, height: "auto"}} />
   </Frame>
 );
 const Review = () => (
@@ -74,7 +74,7 @@ const Apply = () => {
         {applied ? "The receipt now records the package as applied." : "All three exact diffs were inspected in the native UI rehearsal."}
         <div style={{marginTop: 40, fontSize: 25}}>The native UI was operated by test automation.<br />The edit does not reproduce its elapsed time.</div>
       </Copy>
-      {applied ? <Img src={staticFile("product/astra-native-applied.png")} style={{position: "absolute", right: 80, top: 380, width: 670, height: "auto"}} /> : <Img src={staticFile("product/astra-native-apply-confirm.png")}
+      {applied ? <Img src={staticFile("product/astra-ci-native-applied.png")} style={{position: "absolute", right: 80, top: 380, width: 670, height: "auto"}} /> : <Img src={staticFile("product/astra-ci-native-apply-confirm.png")}
         style={{position: "absolute", right: 80, top: 365, width: 670, height: "auto"}} />}
     </Frame>
   );
@@ -82,10 +82,10 @@ const Apply = () => {
 const Outcome = () => (
   <Frame label="Observed post-state">
     <div style={{position: "absolute", left: 90, top: 245}}>
-      <h1 style={{fontSize: 87, fontWeight: 640, letterSpacing: "-0.045em", margin: 0}}>Three matching file hashes.<br /><span style={{color: colors.mint}}>{evidence.native_apply.post_apply_tests_passed} passing tests.</span></h1>
-      <p style={{fontSize: 29, lineHeight: 1.45, color: colors.muted, marginTop: 30}}>Applied bytes matched the frozen package. The journal recorded a committed attempt.</p>
+      <h1 style={{fontSize: 87, fontWeight: 640, letterSpacing: "-0.045em", margin: 0}}>Three matching file hashes.<br /><span style={{color: colors.mint}}>{evidence.native_apply.independent_acceptance.post_apply_passed} independent checks.</span></h1>
+      <p style={{fontSize: 29, lineHeight: 1.45, color: colors.muted, marginTop: 30}}>{evidence.native_apply.post_apply_tests_passed} repository tests also passed. Applied bytes matched the package; the receipt survived restart.</p>
     </div>
-    <Img src={staticFile("product/astra-native-journal.png")} style={{position: "absolute", left: 90, top: 610, width: 1500, height: "auto"}} />
+    <Img src={staticFile("product/astra-ci-native-journal.png")} style={{position: "absolute", left: 90, top: 610, width: 1500, height: "auto"}} />
     <div style={{position: "absolute", left: 90, bottom: 105, fontSize: 25, color: colors.muted}}>One run. No comparative speed claim. No OS-wide sandbox guarantee.</div>
   </Frame>
 );

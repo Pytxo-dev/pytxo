@@ -87,8 +87,8 @@ export async function verifyReleaseVersion(root, expected) {
     ),
     changelog: await capturedVersion(
       path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"),
-      /Current public binary: \*\*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)\*\*/,
-      "public changelog",
+      /This source candidate targets \*\*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)\*\*/,
+      "changelog source candidate",
     ),
     releaseNotes: await capturedVersion(
       path.join(root, "distribution", "release-notes", `v${expected ?? rust}.md`),

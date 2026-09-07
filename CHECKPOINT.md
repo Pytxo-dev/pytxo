@@ -1,16 +1,64 @@
 # CHECKPOINT — ASTRA product improvement — 2026-09-07
 
-## Current state — Team upgrade verified; final CI resuming
+## Current state — hosted failures reproduced and repaired; candidate revalidation
+
+The reviewed 116-file candidate was committed as
+`2964d5ad2ad677dec014d32ae227635de8dfea5b` and pushed once to draft PR31.
+CI run `34100785788` executed after the Team upgrade: eight jobs passed, four
+failed. Both Unix Rust jobs exposed the same Stop registry-lock/reaping cycle;
+Windows Rust 1.98.1 rejected a test helper's constant `chunks_exact`; npm's
+version validator still expected the old public-binary wording. Completed logs
+are retained under `target/astra-ci-34100785788-*`.
+
+The correction persists cancellation and releases the registry before waiting
+for process termination, then removes only captured identities. Both Stop paths
+retain PID checks, failed-termination evidence and unrelated new registrations.
+A controlled lock regression failed before repair. All 468 Windows workspace
+tests now pass with zero ignored; workspace Clippy and formatting pass.
+The actual repository version check and 21 release tooling tests pass. Independent
+runtime and workflow reviews report no findings. The cheap npm metadata checks
+now precede Rust compilation without removing any check.
+
+The runtime repair supersedes the earlier native source freeze for the new
+candidate. Keep the preceding MSI, native observation, film and Windows packet
+as historical evidence; do not relabel them as tests of changed bytes. The new
+352-input freeze is `d54be69068c39cf8b14ce58bbad84a77a274ae878a7874d796c9da2644db8e4a`;
+its rebuilt MSI is `614d44e2d47eeeea2e62c0689b3146183daea30816f4d4341be0333d7b8948b3`.
+Run `53728815-a282-44f8-8be7-05f224e91223` completed three tasks and three combined
+checks. All exact diffs were inspected in the native MSI WebView, Apply was
+explicitly confirmed, all three changed hashes matched and the other three
+source files were preserved. Eleven fixture tests and 26 separately authored
+acceptance tests pass; five acceptance tests failed on the baseline. The committed
+receipt survived a native process restart. Independent review reports no findings.
+The new allowlisted record is `tooling/benchmarks/results/astra-ci-native-2026-09-07.json`.
+Workers reported Astra/xhigh; do not relabel this as the earlier Astra/ultra take.
+The same payload/profile used Computer Use for preparation and execution, then
+WebView inputs for review after inconsistent native-helper state. Clean install
+remains unexecuted. The refreshed 52-second silent film hashes to
+`761b377c71a15eed5a59ec29592f36919d711736e08122cfc6a24c11a044a2ee`;
+seven stills and 13 encoded transition frames were inspected. Current packet:
+`target/astra-ci-windows-validation-packet.zip`, 16 entries, SHA256
+`42845a33b2e7044787843b7a63c51cf77b1e5132c1a38f95311ff3d292e10503`.
+Every archive hash and baseline file was checked. Both preceding artifacts are
+preserved. One consolidated correction push follows final source/site checks.
+The site rebuild/lint and 162-link check pass, as do all three affected browser
+tests. Current evidence and its JSON were inspected at 1440/390px with matching
+hashes/counts and no root overflow or page errors.
+Consult the latest generated CI record and
+PR31 checks for hosted acceptance; local tests do not establish it.
+
+## Team upgrade and authorization
 
 Matt upgraded Pytxo-dev to GitHub Team and explicitly instructed continuation,
 organization editing through Brave, and careful Actions use. Brave verifies
-2,000 of 3,000 included minutes used, $0 billable Actions usage, and the existing
+2,000 of 3,000 included minutes used at 08:25 UTC, before this run, $0 billable Actions usage, and the existing
 $0 Actions budget with Stop usage Yes. The prior proposed $10 overage allowance
 was not applied. The org's blank description and URL were updated to the current
 agent-hypervisor description and `https://pytxo.com`, with a saved confirmation.
+The public `pytxo-releases` repository was pinned to the organization's public profile.
 
-Proceed with one consolidated commit/push of the reviewed PR31 candidate using
-the included allowance. All 116 proposed file hashes matched before this
+The first consolidated commit/push completed; the necessary correction push is
+within the same authorization and included allowance. All 116 proposed file hashes matched before this
 resumption's CI/docs edits. Preserve the private brief, unrelated untracked work
 and unused demo Flow copy. The only new workflow behavior is 60-minute limits
 for Rust/native jobs and 30-minute limits for the remaining CI jobs; PR-only
@@ -18,8 +66,9 @@ supersession cancellation was already prepared. Keep every existing check.
 No active run was present, and existing caches already total about 10 GB; do not
 create redundant runs or extra large caches merely to test availability.
 
-The 352 native build inputs and final MSI/demo/Windows packet remain the frozen
-local proof described below. CI must identify the actual new commit. A PR push
+The preceding MSI/demo/Windows packet remain historical proof described below.
+The current native freeze and observation are identified above. CI must identify
+the actual correction commit. A PR push
 does not trigger the main-only website deployment; merging does and therefore
 still needs separate approval. Releases, paid overages, security changes and a
 new VM/clean-machine installation scope also remain separate boundaries. Matt

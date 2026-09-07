@@ -30,7 +30,7 @@ async function fixture(versions) {
   await writeFile(path.join(root, "apps", "web", "src", "lib", "site.ts"), `export const PYTXO_VERSION = "${versions.web ?? versions.rust}";\n`);
   await writeFile(path.join(root, "distribution", "pytxo-releases", "install.ps1"), `throw "(v${versions.installer ?? versions.rust} provides Windows x64)"\n`);
   await writeFile(path.join(root, "README.md"), `npm i -g pytxo@${versions.readme ?? versions.rust}\n`);
-  await writeFile(path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"), `Current public binary: **${versions.changelog ?? versions.rust}**.\n`);
+  await writeFile(path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"), `This source candidate targets **${versions.changelog ?? versions.rust}**.\nThe latest public release is **${versions.publicRelease ?? versions.rust}**.\n`);
   await writeFile(path.join(root, "distribution", "release-notes", `v${versions.rust}.md`), `# Pytxo v${versions.releaseNotes ?? versions.rust}\n`);
   return root;
 }
@@ -77,4 +77,21 @@ test("accepts the prerelease grammar allowed by the release workflow", async () 
   const root = await fixture({ rust: version, desktop: version, tauri: version, demo: version, npm: version });
   const actual = await verifyReleaseVersion(root, version);
   assert.ok(Object.values(actual).every((value) => value === version));
+});
+
+test("validates the candidate independently of the older published release", async () => {
+  const root = await fixture({ rust: "1.2.2", desktop: "1.2.2", tauri: "1.2.2", demo: "1.2.2", npm: "1.2.2", publicRelease: "1.2.1" });
+  const actual = await verifyReleaseVersion(root);
+  assert.equal(actual.changelog, "1.2.2");
+});
+
+test("rejects a stale candidate even when the published version matches", async () => {
+  const root = await fixture({ rust: "1.2.2", desktop: "1.2.2", tauri: "1.2.2", demo: "1.2.2", npm: "1.2.2", changelog: "1.2.1", publicRelease: "1.2.2" });
+  await assert.rejects(() => verifyReleaseVersion(root), /changelog=1\.2\.1/);
+});
+
+test("does not substitute a public version for a missing candidate declaration", async () => {
+  const root = await fixture({ rust: "1.2.2", desktop: "1.2.2", tauri: "1.2.2", demo: "1.2.2", npm: "1.2.2" });
+  await writeFile(path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"), "Current public binary: **1.2.2**.\n");
+  await assert.rejects(() => verifyReleaseVersion(root), /Missing changelog source candidate version/);
 });

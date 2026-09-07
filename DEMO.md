@@ -2,19 +2,22 @@
 
 ## Current September 7 native proof
 
-The final local Windows 1.2.2 candidate completed a real Codex mission with three
+The rebuilt local Windows 1.2.2 candidate completed a real Codex follow-up with three
 scoped tasks in two waves: implementation and documentation first, then tests
 depending on implementation. Native Review displayed every exact diff. After
 explicit confirmation, Apply committed all three reviewed file hashes; the
-other three source files stayed unchanged and eight independent tests passed.
+other three source files stayed unchanged. Eleven repository tests and 26
+separately authored acceptance checks passed; five acceptance checks had failed
+on the baseline. The mission added `credentials/` review classification to the
+previously applied synthetic fixture. Worker headers reported Astra/xhigh.
 The committed receipt also survived a full app-process restart.
 
-The [native record](tooling/benchmarks/results/astra-native-codex-2026-09-07.json)
-binds run `d743c0dc-76d3-4ff8-b6a3-7d88e743eb22` to package
-`0c04ae8106a37dca0993addf572f16c0ba802ba101b0ccd453d2ff5515a0a6bf` and MSI
-`dfacd548f58ea149d84271de50c038288f6b19894f1496dde65916a4a67d20d3`.
+The [native record](tooling/benchmarks/results/astra-ci-native-2026-09-07.json)
+binds run `53728815-a282-44f8-8be7-05f224e91223` to package
+`c01b2215f9f083565e56043c8147e483cfcffc12666bfdd893c83ef468bb3756` and MSI
+`614d44e2d47eeeea2e62c0689b3146183daea30816f4d4341be0333d7b8948b3`.
 The executable was extracted from that MSI. It was built with uncommitted
-changes on PR31's `ff0b88f`; the full 352-file source-input identity is in the record.
+CI corrections on PR31's `2964d5ad`; the full 352-file source-input identity is in the record.
 This was development-host execution, not clean installation or public delivery.
 
 The refreshed 52-second film uses six unmodified native element captures from
@@ -23,20 +26,34 @@ not a live recording or an elapsed-time comparison. Agent test automation
 operated native review and confirmation. The validated silent master is
 `apps/demo-video/out/pytxo-demo-silent.mp4`: exactly 52 seconds, 1920×1080 at 30fps,
 H.264/yuv420p with BT.709 metadata and no audio stream. Its SHA256 is
-`45aab4c6dee117d4792ac637fc181ad1445b65841359086e88d048751339317c`.
+`761b377c71a15eed5a59ec29592f36919d711736e08122cfc6a24c11a044a2ee`.
 Seven scene stills and 13 encoded transition frames were visually inspected;
 the seven long holds match the intentional reading states. Format and black-frame
-checks pass. Full [film provenance](tooling/benchmarks/results/astra-demo-2026-09-07.json)
+checks pass. Full [film provenance](tooling/benchmarks/results/astra-ci-demo-2026-09-07.json)
 is recorded separately. Older narrated audio is ineligible for this script;
 no new narration service was purchased or called.
 
-Reproduce the source and reviewed plan with
-[the first-mission fixture](tooling/benchmarks/fixtures/astra-first-mission/README.md).
+The current portable reproduction is `target/astra-ci-windows-validation-packet.zip`:
+16 allowlisted files, with the exact MSI, six baseline files, mission, task override
+and independent verifier. Its SHA256 is
+`42845a33b2e7044787843b7a63c51cf77b1e5132c1a38f95311ff3d292e10503`.
+All archive hashes were verified; baseline tests pass eight and independent
+acceptance is red at 21 passed/five failed. Clean installation remains unexecuted.
 The successful take used the existing prompt editor to clarify the documentation
 task's final-state requirement; its exact override is included. This is additional
-guidance compared with the [direct Codex worktree baseline](tooling/benchmarks/results/astra-direct-codex-2026-09-07.json).
+guidance compared with the [earlier direct Codex worktree baseline](tooling/benchmarks/results/astra-direct-codex-2026-09-07.json).
 Both paths preserved their primary source while workers ran. No comparative
-speed, quality, cost, demand or reliability-rate result is established.
+speed, quality, cost, demand or reliability-rate result is established. The current
+follow-up also has a different task and baseline, so it cannot be compared with
+that direct observation. Computer Use prepared and ran it; a same-payload restart
+and normal WebView input completed review after inconsistent native-helper state.
+
+The [preceding native observation](tooling/benchmarks/results/astra-native-codex-2026-09-07.json)
+and its [film provenance](tooling/benchmarks/results/astra-demo-2026-09-07.json)
+remain unchanged. The earlier film, poster and QA sheets are preserved in
+`apps/demo-video/out/archive-2026-09-07-pre-ci/`; the old Windows packet is retained.
+The original secrets-path mission remains reproducible from
+[the first-mission fixture](tooling/benchmarks/fixtures/astra-first-mission/README.md).
 
 Keep the unsuccessful observations alongside the film:
 

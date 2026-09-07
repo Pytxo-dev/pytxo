@@ -25,7 +25,7 @@ Keep the unsuccessful Pytxo attempts alongside later results:
   automatically detect the prose error. A fresh run uses explicit final-state
   documentation guidance through the existing task-prompt editor.
 
-The [final native run](results/astra-native-codex-2026-09-07.json) completed three
+The [preceding native run](results/astra-native-codex-2026-09-07.json) completed three
 tasks in two waves, passed all three combined-candidate commands, and reached
 native reviewed Apply. All three applied hashes match the frozen package and
 eight independent primary tests pass. Six baseline source hashes were unchanged
@@ -38,6 +38,17 @@ load differ, so these observations do not establish orchestration overhead, a
 speed win, better quality or a reliability rate. The direct run did not receive
 the later documentation-task override. A competent direct Git worktree
 also preserves the primary checkout. Customer repeat use remains unmeasured.
+
+The [current-build follow-up](results/astra-ci-native-2026-09-07.json) uses the
+MSI rebuilt after the CI Stop repair. From the previously applied baseline, it
+adds `credentials/` review classification through three tasks and two waves.
+All three combined checks passed before exact native Review/Apply. Applied
+hashes match; three unrelated files remain unchanged. Eleven repository tests
+and 26 separately authored acceptance checks pass; five acceptance checks failed
+on the baseline. The committed receipt survived restart. Worker headers report
+Astra/xhigh, and the documentation task's explicit guidance is disclosed. This
+is different work from the direct comparison above; no comparative inference
+is valid. MSI extraction on the development host is not a clean install.
 
 ## Historical September 6 Beta evidence
 
