@@ -41,11 +41,11 @@
   let stopping = $state(false);
   let selectedAgentId = $state<string | null>(null);
 
-  let review = $state<RunReviewDto | null>(null);
+  let loadedReview = $state<RunReviewDto | null>(null);
   let reviewError = $state<string | null>(null);
   let reviewLoading = $state(false);
 
-  const ACTIVE_STATUSES = ["running", "pending", "dispatching", "active"];
+  const ACTIVE_STATUSES = ["starting", "running", "pending", "dispatching", "active"];
 
   const runs = $derived(
     activeDomainId
@@ -61,6 +61,7 @@
   const agents = $derived(focusRun ? snapshot.agents.filter((agent) => agent.run_id === focusRun.id) : []);
   const progress = $derived(waveProgress(agents));
   const focusState = $derived(focusRun ? runState(focusRun) : null);
+  const review = $derived(loadedReview?.run_id === focusRun?.id ? loadedReview : null);
   const receiptProfile = $derived((review?.enforcement?.run?.effective_profile ?? "").toLowerCase());
   const canStopFocusRun = $derived(!!focusRun && ACTIVE_STATUSES.includes(focusRun.status.toLowerCase()));
   const runApprovals = $derived(
@@ -75,7 +76,7 @@
   $effect(() => {
     const runId = focusRun?.id ?? null;
     if (!runId) {
-      review = null;
+      loadedReview = null;
       reviewError = null;
       return;
     }
@@ -86,11 +87,11 @@
       .runReview(runId, focusRun?.domain_id ?? null)
       .then((result) => {
         if (!current) return;
-        review = result;
+        loadedReview = result;
       })
       .catch((error: unknown) => {
         if (!current) return;
-        review = null;
+        loadedReview = null;
         reviewError = error instanceof Error ? error.message : String(error);
       })
       .finally(() => {
@@ -158,7 +159,7 @@
   async function recover(runId: string) {
     try {
       await backend.reconcileRunRecovery(runId, activeDomainId);
-      review = await backend.runReview(runId, activeDomainId);
+      loadedReview = await backend.runReview(runId, activeDomainId);
       stopMessage = `Recovery reconciled for ${runId}.`;
     } catch (error) {
       stopError = error instanceof Error ? error.message : String(error);

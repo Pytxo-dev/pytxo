@@ -1,18 +1,23 @@
 # Pytxo product demo
 
-Exact 52-second, 1920×1080, 30 fps Remotion evidence film of the Sep 6 real
-single-worker Codex mission:
+Exact 52-second, 1920×1080, 30 fps Remotion evidence film of the September 7 real
+Codex mission: three scoped tasks, two waves, and at most two concurrent workers.
 
 `mission → combined candidate receipt → explicit confirmation → committed Apply → post-state`
 
 This is an edited presentation of unmodified native element captures, not a live
 screen recording or an elapsed-time comparison. The source run, exact reviewed
 package and post-Apply checks are recorded in [DEMO.md](../../DEMO.md) and
-`tooling/benchmarks/results/beta-single-codex-2026-09-06.json`. The film does not
+`tooling/benchmarks/results/astra-native-codex-2026-09-07.json`. The film does not
 claim an OS-wide sandbox, comparative win, installer proof or Beta availability.
 The worker was the real Codex CLI. Test automation operated the native review
 and explicit confirmation; this is not an external human-user usability study.
 The asset gate compares each image's hash with its original in `docs/_attachments/`.
+It also requires a passing independent post-Apply test process. The successful
+rehearsal used explicit final-state guidance in the documentation task editor;
+the exact override and prior failures are retained in the reproduction fixture
+and records. A ready earlier package was withheld after semantic review even
+though its tests passed. The product did not detect that prose contradiction.
 
 The master never burns subtitles. Publishing captions and the reviewed transcript live in
 `publishing/`. The poster is 1920×1080; native evidence crops retain their original

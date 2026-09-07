@@ -10,6 +10,7 @@ import { notFound } from "next/navigation";
 
 import { getMDXComponents } from "@/components/mdx";
 import { source } from "@/lib/source";
+import { pageMetadata } from "@/lib/page-metadata";
 
 export async function renderDocsPage(slug: string[]) {
   const page = source.getPage(slug);
@@ -35,8 +36,9 @@ export async function renderDocsPage(slug: string[]) {
 export function docsMetadata(slug: string[]): Metadata {
   const page = source.getPage(slug);
   if (!page) notFound();
-  return {
-    title: page.data.title,
-    description: page.data.description,
-  };
+  return pageMetadata(
+    page.url,
+    `${page.data.title} · Pytxo`,
+    page.data.description ?? `Pytxo documentation: ${page.data.title}.`,
+  );
 }

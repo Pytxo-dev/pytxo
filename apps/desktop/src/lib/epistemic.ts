@@ -173,6 +173,8 @@ export function isTerminalAgent(agent: AgentDto): boolean {
 /** Run-level status values from `pytxo-store::is_terminal_run_status` plus `stopped`. */
 export function runState(run: RunDto): StateDescriptor {
   switch (run.status) {
+    case "starting":
+      return { tone: "active", label: "Starting", detail: "Preparing the run before agent execution" };
     case "running":
       return { tone: "active", label: "Running", detail: "Agents are executing" };
     case "completed":

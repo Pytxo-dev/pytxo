@@ -14,7 +14,7 @@
 
   let {
     run,
-    review = null,
+    review: providedReview = null,
     reviewError = null,
     loading = false,
     approvals = [],
@@ -31,6 +31,10 @@
     onReview: (runId: string) => void;
     onRecover?: ((runId: string) => void) | null;
   } = $props();
+
+  const review = $derived(providedReview?.run_id === run?.id ? providedReview : null);
+  const preparationFailed = $derived((review?.apply_status ?? run?.apply_status) === "review_failed");
+  const preparationError = $derived(review?.last_apply_error ?? run?.last_apply_error ?? null);
 
   type SurfaceKey = "workspace_isolation" | "host_filesystem_boundary" | "network" | "apply_boundary";
 
@@ -131,6 +135,14 @@
     {/if}
   </section>
 
+  {#if preparationFailed}
+    <div class="preparation-error" role="alert">
+      <strong>Package preparation failed</strong>
+      <p>{preparationError?.message ?? "The run did not produce a reviewable package. No failure detail was recorded."}</p>
+      <small>Use New run to correct the scope or checks and review a fresh plan. This run remains in History.</small>
+    </div>
+  {/if}
+
   <section class="enforcement" aria-label="Permission enforcement receipt">
     <div class="enforcement-head" data-tone={summaryTone}>
       <p>Enforcement receipt</p>
@@ -200,6 +212,10 @@
 
 <style>
   .boundary{display:flex;min-width:0;flex-direction:column;overflow:hidden auto;border:1px solid var(--pytxo-line);border-radius:var(--pytxo-panel-radius,6px);background:var(--pytxo-surface-panel)}
+  .preparation-error{display:grid;gap:8px;padding:14px;border-bottom:1px solid var(--pytxo-line-soft);border-left:2px solid var(--state-refuted);overflow-wrap:anywhere}
+  .preparation-error strong{color:var(--state-refuted);font-size:13px}
+  .preparation-error p{margin:0;color:var(--pytxo-text-soft);font-size:12px;line-height:1.5}
+  .preparation-error small{color:var(--pytxo-text-muted);font-size:11px;line-height:1.5}
   header{display:flex;align-items:center;gap:10px;min-height:40px;padding:8px 14px;border-bottom:1px solid var(--pytxo-line-soft)}
   .candidate>p,.attempts>p,.enforcement-head p{margin:0 0 4px;color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.06em}
   header h2{margin:0;font-size:14px;font-weight:600;letter-spacing:-.02em}

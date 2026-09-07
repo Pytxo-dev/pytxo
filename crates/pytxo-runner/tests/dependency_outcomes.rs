@@ -340,3 +340,197 @@ async fn one_agent_startup_error_is_recorded_without_aborting_its_wave_sibling()
         .join("independent.txt")
         .exists());
 }
+
+#[tokio::test]
+async fn context_snapshot_matches_successful_dependency_output() {
+    for absolute_extra_path in [false, true] {
+        let repo = TempDir::new().unwrap();
+        init_git_repo(repo.path());
+        let command = if cfg!(windows) {
+            "if {task_id}==upstream (echo updated>README.md) else (echo dependent>dependent.txt)"
+        } else {
+            "if [ {task_id} = upstream ]; then printf 'updated\n' > README.md; else printf dependent > dependent.txt; fi"
+        };
+        let mut ctx = context(repo.path(), command.into());
+        ctx.signal_core = true;
+        ctx.signal_fidelity = FidelityTier::High;
+        ctx.agent_paths.insert(
+            "default".into(),
+            vec![if absolute_extra_path {
+                repo.path().join("README.md").to_string_lossy().into_owned()
+            } else {
+                "README.md".into()
+            }],
+        );
+        let mut upstream = task("upstream", 0, &[], vec![]);
+        upstream.paths = vec!["README.md".into()];
+        let plan = ExecutionPlan {
+            waves: vec![
+                vec![upstream],
+                vec![task("dependent", 1, &["upstream"], vec![])],
+            ],
+            conflicts: vec![],
+            max_agents: 1,
+            warnings: vec![],
+        };
+        let results = execute_plan(
+            &ctx,
+            &plan,
+            &ProcessRegistry::default(),
+            &SwarmRegistry::new(),
+        )
+        .await
+        .unwrap();
+        let dependent = results.iter().find(|r| r.task_id == "dependent").unwrap();
+        assert_eq!(
+            dependent.outcome,
+            AgentRunOutcome::Succeeded,
+            "dependency fixture failed (absolute={absolute_extra_path}): {} {}",
+            dependent.stdout,
+            dependent.stderr
+        );
+        let scaffold = ctx
+            .data_dir
+            .join("context")
+            .join(&ctx.run_id.0)
+            .join(&dependent.agent_id.0)
+            .join("README.md");
+        assert_eq!(
+            std::fs::read_to_string(scaffold).unwrap(),
+            std::fs::read_to_string(dependent.worktree_path.as_ref().unwrap().join("README.md"))
+                .unwrap(),
+            "context differed from dependency-composed workspace (absolute={absolute_extra_path})"
+        );
+        assert_eq!(
+            std::fs::read_to_string(repo.path().join("README.md")).unwrap(),
+            "dependency outcome test\n"
+        );
+    }
+}
+
+#[tokio::test]
+async fn context_snapshot_retry_uses_the_first_attempts_edits() {
+    let repo = TempDir::new().unwrap();
+    init_git_repo(repo.path());
+    let command = if cfg!(windows) {
+        "if exist attempt.txt (echo %PYTXO_CONTEXT_DIR% & exit /b 0) else (echo updated>README.md & echo attempted>attempt.txt & echo error at README.md:1:1 & exit /b 7)"
+    } else {
+        "if [ -f attempt.txt ]; then printf '%s\n' \"$PYTXO_CONTEXT_DIR\"; exit 0; else printf 'updated\n' > README.md; touch attempt.txt; echo 'error at README.md:1:1'; exit 7; fi"
+    };
+    let mut ctx = context(repo.path(), command.into());
+    ctx.signal_core = true;
+    let mut worker = task("retry", 0, &[], vec![]);
+    worker.paths = vec!["README.md".into()];
+    let plan = ExecutionPlan {
+        waves: vec![vec![worker]],
+        conflicts: vec![],
+        max_agents: 1,
+        warnings: vec![],
+    };
+    let results = execute_plan(
+        &ctx,
+        &plan,
+        &ProcessRegistry::default(),
+        &SwarmRegistry::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        results[0].outcome,
+        AgentRunOutcome::Succeeded,
+        "retry context differed from the first attempt's edits: {} {}",
+        results[0].stdout,
+        results[0].stderr
+    );
+    let scaffold = std::path::Path::new(results[0].stdout.trim()).join("README.md");
+    assert_eq!(
+        std::fs::read_to_string(scaffold).unwrap(),
+        std::fs::read_to_string(results[0].worktree_path.as_ref().unwrap().join("README.md"))
+            .unwrap(),
+        "retry context differed from the first attempt's edits"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.path().join("README.md")).unwrap(),
+        "dependency outcome test\n"
+    );
+}
+
+#[tokio::test]
+async fn context_snapshot_still_denies_absolute_paths_outside_the_repository() {
+    let tmp = TempDir::new().unwrap();
+    let repo = tmp.path().join("repo");
+    std::fs::create_dir_all(&repo).unwrap();
+    init_git_repo(&repo);
+    let outside = tmp.path().join("outside.md");
+    std::fs::write(&outside, "outside source\n").unwrap();
+    let mut ctx = context(&repo, successful_write_command());
+    ctx.signal_core = true;
+    ctx.agent_paths.insert(
+        "default".into(),
+        vec![outside.to_string_lossy().into_owned()],
+    );
+    let plan = ExecutionPlan {
+        waves: vec![vec![task("denied", 0, &[], vec![])]],
+        conflicts: vec![],
+        max_agents: 1,
+        warnings: vec![],
+    };
+    let results = execute_plan(
+        &ctx,
+        &plan,
+        &ProcessRegistry::default(),
+        &SwarmRegistry::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(results[0].outcome, AgentRunOutcome::ProcessFailed);
+    assert!(results[0].stderr.contains("read denied"));
+    assert!(!results[0]
+        .worktree_path
+        .as_ref()
+        .is_some_and(|workspace| workspace.join("denied.txt").exists()));
+    assert_eq!(
+        std::fs::read_to_string(outside).unwrap(),
+        "outside source\n"
+    );
+}
+
+#[tokio::test]
+async fn context_snapshot_retry_does_not_expose_deleted_source() {
+    let repo = TempDir::new().unwrap();
+    init_git_repo(repo.path());
+    let command = if cfg!(windows) {
+        "if exist attempt.txt (echo %PYTXO_CONTEXT_DIR% & exit /b 0) else (del README.md & echo attempted>attempt.txt & echo error at README.md:1:1 & exit /b 7)"
+    } else {
+        "if [ -f attempt.txt ]; then printf '%s\n' \"$PYTXO_CONTEXT_DIR\"; exit 0; else rm README.md; touch attempt.txt; echo 'error at README.md:1:1'; exit 7; fi"
+    };
+    let mut ctx = context(repo.path(), command.into());
+    ctx.signal_core = true;
+    let mut worker = task("retry", 0, &[], vec![]);
+    worker.paths = vec!["README.md".into()];
+    let plan = ExecutionPlan {
+        waves: vec![vec![worker]],
+        conflicts: vec![],
+        max_agents: 1,
+        warnings: vec![],
+    };
+    let results = execute_plan(
+        &ctx,
+        &plan,
+        &ProcessRegistry::default(),
+        &SwarmRegistry::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(results[0].outcome, AgentRunOutcome::Succeeded);
+    let retry_context = std::path::Path::new(results[0].stdout.trim());
+    assert!(retry_context.join("manifest.json").is_file());
+    assert!(
+        !retry_context.join("README.md").exists(),
+        "retry exposed context for source deleted by its first attempt"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.path().join("README.md")).unwrap(),
+        "dependency outcome test\n"
+    );
+}

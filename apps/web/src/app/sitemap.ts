@@ -14,6 +14,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: ORIGIN, changeFrequency: "weekly", priority: 1 },
     { url: `${ORIGIN}/download`, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${ORIGIN}/evidence`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${ORIGIN}/plans`, changeFrequency: "monthly", priority: 0.6 },
     ...docs,
   ];

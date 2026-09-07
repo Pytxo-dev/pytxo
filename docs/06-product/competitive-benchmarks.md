@@ -6,7 +6,7 @@ tags: [product, positioning]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-30
+updated: 2026-09-07
 related: [[beyond-the-ade]], [[gtm-open-source-loop]], [[pytxo-improvement-research]], [[mvp-bootstrap]], [[pytxo-vs-github-copilot-app]], [[pytxo-vs-claude-agent-teams]]
 ---
 
@@ -114,14 +114,16 @@ monorepo at `3acdc77`.
 
 Raw evidence:
 
-- [`2026-07-30-pytxo-signal.json`](../../../tooling/benchmarks/results/2026-07-30-pytxo-signal.json)
+- [`signal-real-repo.json`](../../../tooling/benchmarks/results/signal-real-repo.json)
+  (the dirty working-state capture used by the table below; the separately dated
+  clean Signal record is a different corpus)
 - [`2026-07-30-pytxo-control-plane.json`](../../../tooling/benchmarks/results/2026-07-30-pytxo-control-plane.json)
 
 | Measurement | Result | Boundary |
 |-------------|--------|----------|
 | Signal corpus | 185 tracked production files; 1,253,675 input bytes | Rust, TypeScript, and JavaScript files ≥1 KiB; tests, fixtures, vendor, generated output, and dependencies excluded |
 | Signal scaffold output | 213,847 bytes; **82.9% weighted reduction** | Structural-byte reduction, not tokenizer output or billable-token savings |
-| Signal median file reduction | **86.25%** | Median across eligible files; file shape and language mix matter |
+| Signal median file reduction | **86.3%** | 86.2898% before rounding; median across eligible files; file shape and language mix matter |
 | Race preflight | 5 real-path tasks; 1 declared overlap; 2 waves; **0 same-wave path collisions** | Deterministic scheduler workload, not agent coding quality |
 | Isolated echo run | **17,578 ms**, 5/5 agents exit 0, primary checkout changes **0** | Local control-plane/workspace overhead; zero model calls |
 

@@ -11,6 +11,13 @@ import { Hero } from "@/components/site/hero";
 import { MeasuredEvidence } from "@/components/site/measured-evidence";
 import { ProductSection } from "@/components/site/product-section";
 import { SituationSection } from "@/components/site/situation-section";
+import { pageMetadata } from "@/lib/page-metadata";
+
+export const metadata = pageMetadata(
+  "/",
+  "Pytxo: Local agent hypervisor",
+  "Run scoped work with the coding agent CLI you already use. Pytxo isolates changes, records combined checks, and prepares exact bytes for your reviewed Apply.",
+);
 
 const FAQ = [
   {

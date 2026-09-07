@@ -20,22 +20,23 @@ export function SituationSection() {
             id="situation-title"
             className="max-w-[22ch] text-[clamp(2rem,3.4vw,3.25rem)] leading-[1.06] tracking-[-0.04em]"
           >
-            Three agents. One working tree.
+            One agent first. More when it helps.
           </h2>
           <div className="mt-8 max-w-[42rem] space-y-5 text-base leading-relaxed text-[#a9a9b2]">
             <p>
-              Running two coding agents against one checkout is not parallelism. They
-              overwrite each other, one reverts the other&apos;s edits mid-run, and the
-              diff you end up reviewing belongs to neither of them.
+              Start with a bug you can reproduce and a regression test you can run.
+              Name the affected files, inspect the plan, and let your existing CLI
+              work in its own workspace. Review the prepared result before Apply.
             </p>
             <p>
-              So people serialise: one agent, wait, read the diff, next agent. The
-              machine is idle and you are the scheduler.
+              When a job has independent parts, the same plan can use several
+              instances of the selected CLI. Ownership and dependencies
+              stay visible; adding workers does not automatically make a job faster.
             </p>
             <p className="text-[#c7c7ce]">
-              Pytxo makes the claim explicit before anything runs. Tasks declare the
-              paths they own. Overlapping claims are ordered into waves instead of
-              racing, and each agent writes into its own isolated copy.
+              In Orbit and Galaxy, Pytxo prepares repository changes for explicit
+              Apply. Host filesystem and network controls can still be advisory;
+              the enforcement receipt tells you which boundaries were enforced.
             </p>
           </div>
         </div>
@@ -43,7 +44,7 @@ export function SituationSection() {
         <div className="aperture-panel h-fit overflow-hidden">
           <div className="flex items-center justify-between border-b border-[var(--aperture-line)] px-5 py-3">
             <span className="font-mono text-[12px] uppercase tracking-[0.05em] text-[#7d7d87]">
-              Path claims
+              Illustrative path claims
             </span>
             <span className="font-mono text-[12px] text-[#7d7d87]">2 waves</span>
           </div>

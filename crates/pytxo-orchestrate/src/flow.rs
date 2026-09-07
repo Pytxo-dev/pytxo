@@ -521,8 +521,9 @@ fn summarize_ade(requested: Option<&str>) -> FlowAdeSummary {
     }
 }
 
-/// Build a static ADE adapter command. Mission text is supplied separately through the child
-/// environment, so reviewed prompts are never parsed as shell syntax.
+/// Build a static ADE adapter command. Mission text is supplied through the child
+/// environment. Windows Codex uses its stdin contract; other Windows adapters retain
+/// their existing native-argument behavior, whose quoting depends on the installed CLI.
 fn ade_prompt_command(default_cmd: &str) -> String {
     if cfg!(windows) {
         let invocation = default_cmd
@@ -530,7 +531,34 @@ fn ade_prompt_command(default_cmd: &str) -> String {
             .map(|part| format!("'{}'", part.replace('\'', "''")))
             .collect::<Vec<_>>()
             .join(" ");
-        let script = format!("& {invocation} $env:PYTXO_TASK_PROMPT");
+        let script = if let Some(arguments) = default_cmd.strip_prefix("codex exec") {
+            // Codex documents `exec -` as full-prompt stdin. Passing prompt text
+            // through PowerShell -> npm's .cmd shim reparses quotes/newlines.
+            let arguments = format!("/d /s /c \"\"%PYTXO_ADE_EXECUTABLE%\" exec{arguments} -\"")
+                .replace('\'', "''");
+            format!(
+                r#"$ErrorActionPreference='Stop'
+$ade=(Get-Command 'codex' -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+$start=New-Object System.Diagnostics.ProcessStartInfo
+$start.FileName=$env:ComSpec
+$start.Arguments='{arguments}'
+$start.WorkingDirectory=(Get-Location).ProviderPath
+$start.UseShellExecute=$false
+$start.RedirectStandardInput=$true
+$start.EnvironmentVariables['PYTXO_ADE_EXECUTABLE']=$ade
+[Console]::InputEncoding=[System.Text.UTF8Encoding]::new($false)
+$child=[System.Diagnostics.Process]::Start($start)
+try {{
+  $bytes=[System.Text.Encoding]::UTF8.GetBytes([string]$env:PYTXO_TASK_PROMPT)
+  $child.StandardInput.BaseStream.Write($bytes,0,$bytes.Length)
+  $child.StandardInput.Close()
+  $child.WaitForExit()
+  exit $child.ExitCode
+}} finally {{ $child.Dispose() }}"#
+            )
+        } else {
+            format!("& {invocation} $env:PYTXO_TASK_PROMPT")
+        };
         let utf16le = script
             .encode_utf16()
             .flat_map(u16::to_le_bytes)
@@ -670,6 +698,294 @@ fn runtime_tasks(plan: &FlowPlan) -> Vec<Task> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    async fn codex_transport_fixture(
+        backend: pytxo_core::ExecutionBackend,
+        exit_code: i32,
+        stop: bool,
+        legacy: bool,
+    ) -> (serde_json::Value, Vec<pytxo_runner::AgentRunResult>) {
+        use pytxo_core::{
+            BillingMode, ExecutionPlan, FidelityTier, IsolationMode, RunId, ScheduledTask,
+        };
+        use pytxo_runner::{execute_plan, ProcessRegistry, RunContext, SwarmRegistry};
+        use std::process::Command;
+        use std::time::Duration;
+
+        let fixture = tempfile::tempdir().unwrap();
+        let repo = fixture.path().join("repo");
+        let tools = fixture.path().join("fake tools");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::create_dir_all(&tools).unwrap();
+        std::fs::write(
+            tools.join("codex.cmd"),
+            "@echo off\r\n@node \"%~dp0probe.cjs\" %*\r\n",
+        )
+        .unwrap();
+        std::fs::write(
+            tools.join("opencode.cmd"),
+            "@echo off\r\n@node \"%~dp0probe.cjs\" %*\r\n",
+        )
+        .unwrap();
+        std::fs::write(
+            tools.join("probe.cjs"),
+            r#"
+const fs = require('fs');
+const args = process.argv.slice(2);
+function record(bytes) {
+  fs.writeFileSync('observed.json', JSON.stringify({args, received: bytes.toString('utf8'),
+    expected: process.env.PYTXO_TASK_PROMPT, bytes: Array.from(bytes), pid: process.pid}));
+  if (process.env.PROBE_STOP === '1') setTimeout(() => process.exit(0), 30000);
+  else process.exit(Number(process.env.PROBE_EXIT));
+}
+if (args.at(-1) === '-') {
+  const chunks = [];
+  process.stdin.on('data', chunk => chunks.push(chunk));
+  process.stdin.on('end', () => record(Buffer.concat(chunks)));
+} else record(Buffer.from(args.at(-1) || '', 'utf8'));
+"#,
+        )
+        .unwrap();
+        for args in [
+            vec!["init"],
+            vec!["config", "user.email", "pytxo@test.local"],
+            vec!["config", "user.name", "Pytxo Test"],
+        ] {
+            assert!(Command::new("git")
+                .args(args)
+                .current_dir(&repo)
+                .output()
+                .unwrap()
+                .status
+                .success());
+        }
+        std::fs::write(repo.join("README.md"), "fixture\n").unwrap();
+        for args in [vec!["add", "."], vec!["commit", "-m", "fixture"]] {
+            assert!(Command::new("git")
+                .args(args)
+                .current_dir(&repo)
+                .output()
+                .unwrap()
+                .status
+                .success());
+        }
+        let default_cmd = if legacy {
+            "opencode run"
+        } else {
+            "codex exec --sandbox workspace-write"
+        };
+        let command = ade_prompt_command(default_cmd);
+        let encoded = command.split_whitespace().last().unwrap();
+        let bytes =
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded).unwrap();
+        let units = bytes
+            .chunks_exact(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .collect::<Vec<_>>();
+        let script = String::from_utf16(&units).unwrap();
+        // Restrict executable discovery to the local shim, without changing parent PATH.
+        let script = format!("$env:PATH='{};' + $env:PATH; $env:PROBE_EXIT='{exit_code}'; $env:PROBE_STOP='{}'; {script}",
+            tools.to_string_lossy().replace('\'', "''"), if stop { "1" } else { "0" });
+        let bytes = script
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>();
+        let command = format!(
+            "powershell -NoProfile -NonInteractive -EncodedCommand {}",
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, bytes)
+        );
+        let original = if legacy {
+            "Update the owned file."
+        } else {
+            "Update \"quoted risk\".\n\nKeep CRLF:\r\nUnicode: 日本語. Literal %PATH% !NAME! & | < > ^ ` $() and trailing slash \\"
+        };
+        let run_id = RunId::new();
+        let data_dir = repo.join(".pytxo/data");
+        let expected_workspace = repo
+            .join(".pytxo/worktrees")
+            .join(&run_id.0)
+            .join("agent-0");
+        let (domain_id, model_router, managed_transport, token_estimator) =
+            RunContext::default_metering(&repo);
+        let ctx = RunContext {
+            run_id: run_id.clone(),
+            repo_root: repo.clone(),
+            worktree_base: repo.join(".pytxo/worktrees"),
+            data_dir: data_dir.clone(),
+            cmd: default_cmd.into(),
+            task_cmd_template: Some(command),
+            task_prompts: HashMap::from([("task".into(), original.into())]),
+            keep_worktrees: true,
+            on_event: None,
+            signal_core: false,
+            signal_fidelity: FidelityTier::Low,
+            isolation_mode: IsolationMode::Worktree,
+            permission_profile: PermissionProfile::Orbit,
+            agent_profiles: HashMap::new(),
+            route_agents: vec![],
+            billing_mode: BillingMode::Byok,
+            domain_id,
+            model_router,
+            managed_transport,
+            usage_meter: None,
+            token_estimator,
+            execution_backend: backend,
+            pty_rows: 24,
+            pty_cols: 120,
+            hitl: None,
+            hitl_manual_flush: false,
+            agent_paths: HashMap::new(),
+            agent_fidelity: HashMap::new(),
+            roots: HashMap::new(),
+            readonly_context_roots: vec![],
+            subprocess_stdin: false,
+            cloud_dispatcher: None,
+            context_cache: None,
+            cloud_cache_enabled: false,
+            cloud_fallback_local: false,
+            mcp_hub: None,
+            mcp_hub_enabled: false,
+            mcp_allowlist: vec![],
+            sparse_exclude: vec![],
+        };
+        let plan = ExecutionPlan {
+            waves: vec![vec![ScheduledTask {
+                task_id: TaskId("task".into()),
+                agent: "fixture".into(),
+                paths: vec!["observed.json".into()],
+                depends_on: vec![],
+                wave: 0,
+                root: None,
+                signal_fidelity: None,
+                verify: vec!["echo verification-ok".into()],
+            }]],
+            conflicts: vec![],
+            max_agents: 1,
+            warnings: vec![],
+        };
+        let running = tokio::spawn(async move {
+            execute_plan(
+                &ctx,
+                &plan,
+                &ProcessRegistry::default(),
+                &SwarmRegistry::new(),
+            )
+            .await
+        });
+        let mut child_identity = None;
+        if stop {
+            let record = tokio::time::timeout(Duration::from_secs(10), async {
+                loop {
+                    if let Ok(bytes) = std::fs::read(expected_workspace.join("observed.json")) {
+                        if let Ok(record) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                            break record;
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await;
+            let record = match record {
+                Ok(record) => record,
+                Err(error) => {
+                    let _ = pytxo_runner::stop_run(&data_dir, &run_id.0, true);
+                    let results = running.await;
+                    panic!("local shim did not start: {error}; {results:?}");
+                }
+            };
+            let pid = record["pid"].as_u64().unwrap() as u32;
+            child_identity = Some((
+                pid,
+                pytxo_runner::process_start_identity(pid).unwrap().unwrap(),
+            ));
+            pytxo_runner::stop_run(&data_dir, &run_id.0, true).unwrap();
+        }
+        let results = tokio::time::timeout(Duration::from_secs(10), running)
+            .await
+            .expect("local adapter settles")
+            .unwrap()
+            .unwrap();
+        if let Some((pid, identity)) = child_identity {
+            assert!(
+                !pytxo_runner::process_matches(pid, &identity).unwrap(),
+                "owned Node child survived Stop"
+            );
+        }
+        let observed = serde_json::from_slice(
+            &std::fs::read(expected_workspace.join("observed.json"))
+                .unwrap_or_else(|error| panic!("missing shim output: {error}; {results:?}")),
+        )
+        .unwrap();
+        (observed, results)
+    }
+
+    #[cfg(windows)]
+    async fn assert_codex_prompt_transport(backend: pytxo_core::ExecutionBackend) {
+        let (observed, results) = codex_transport_fixture(backend, 0, false, false).await;
+        assert!(results[0].outcome.is_success(), "{results:?}");
+        assert_eq!(
+            observed["received"], observed["expected"],
+            "actual shim argv/stdin lost prompt bytes: {observed}"
+        );
+        assert_eq!(
+            observed["args"],
+            serde_json::json!(["exec", "--sandbox", "workspace-write", "-"])
+        );
+        let expected = observed["expected"].as_str().unwrap().as_bytes();
+        assert_eq!(observed["bytes"], serde_json::json!(expected));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn codex_prompt_transport_preserves_pty_bytes() {
+        assert_codex_prompt_transport(pytxo_core::ExecutionBackend::Pty).await;
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn codex_prompt_transport_preserves_subprocess_bytes() {
+        assert_codex_prompt_transport(pytxo_core::ExecutionBackend::Subprocess).await;
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn codex_prompt_transport_preserves_native_failure() {
+        let (_, results) =
+            codex_transport_fixture(pytxo_core::ExecutionBackend::Pty, 23, false, false).await;
+        assert_eq!(results[0].exit_code, Some(23));
+        assert!(!results[0].outcome.is_success());
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn codex_prompt_transport_stop_reaps_owned_child() {
+        for backend in [
+            pytxo_core::ExecutionBackend::Pty,
+            pytxo_core::ExecutionBackend::Subprocess,
+        ] {
+            let (_, results) = codex_transport_fixture(backend, 0, true, false).await;
+            assert!(!results[0].outcome.is_success(), "{results:?}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn codex_prompt_transport_legacy_adapter_receives_generated_guidance() {
+        for backend in [
+            pytxo_core::ExecutionBackend::Pty,
+            pytxo_core::ExecutionBackend::Subprocess,
+        ] {
+            let (observed, results) = codex_transport_fixture(backend, 0, false, true).await;
+            assert!(results[0].outcome.is_success(), "{results:?}");
+            assert_eq!(
+                observed["received"], observed["expected"],
+                "generated guidance broke existing adapter: {observed}"
+            );
+            assert_eq!(observed["args"].as_array().unwrap().len(), 2);
+            assert_eq!(observed["args"][0], "run");
+        }
+    }
 
     #[test]
     fn organization_ceiling_blocks_flow_escalation() {

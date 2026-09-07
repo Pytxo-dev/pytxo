@@ -41,7 +41,7 @@
     <div><dt>Task</dt><dd>{agent.task_id}</dd></div>
     <div><dt>Wave</dt><dd>{agent.wave + 1}</dd></div>
     <div><dt>Exit code</dt><dd>{agent.exit_code ?? "Not reported"}</dd></div>
-    <div><dt>Isolation root</dt><dd>{agent.root_id ?? "Shared working tree"}</dd></div>
+    <div><dt>Project root</dt><dd>{agent.root_id ?? "Default project root"}</dd></div>
     <div class="wide"><dt>Claimed paths</dt><dd>{task ? (task.paths.length ? task.paths.join(", ") : "None declared") : "Plan not loaded"}</dd></div>
     <div class="wide"><dt>Verify</dt><dd>{task ? (task.verify.length ? task.verify.join(" && ") : "No verify command") : "Plan not loaded"}</dd></div>
   </dl>

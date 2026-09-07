@@ -137,12 +137,12 @@
   const domainCursors = new Map<string, number>();
   const hasActiveRuns = $derived(
     snapshot.runs.some((r) =>
-      ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+      ["starting", "running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
     ),
   );
   const activeCommandRun = $derived(
     snapshot.runs.find((r) =>
-      ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+      ["starting", "running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
     ) ?? null,
   );
   const latestReviewRun = $derived(
@@ -154,7 +154,7 @@
         r.apply_status === "prepared",
     ) ??
       snapshot.runs.find(
-        (r) => !["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+        (r) => !["starting", "running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
       ) ??
       null,
   );
@@ -279,7 +279,7 @@
     focusRunId = runId;
     focusDomainId = domainIdForRun(runId);
     const found = snapshot.runs.find((r) => r.id === runId);
-    const running = !!found && ["running", "pending", "dispatching", "active"].includes(found.status.toLowerCase());
+    const running = !!found && ["starting", "running", "pending", "dispatching", "active"].includes(found.status.toLowerCase());
     const resolvedPane = pane ?? (running ? "live" : "review");
     route = "work";
     missionView = "detail";
@@ -316,7 +316,7 @@
     }
     return (
       runs.find((run) =>
-        ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
+        ["starting", "running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
       ) ??
       runs[0] ??
       null

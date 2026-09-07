@@ -87,6 +87,7 @@
           {@const index = ordered.findIndex((candidate) => candidate.id === agent.id)}
           {@const task = tasksById.get(agent.task_id)}
           {@const paths = task?.paths}
+          {@const receiptId = agent.id.startsWith(`${agent.run_id}:`) ? agent.id.slice(agent.run_id.length + 1) : agent.id}
           <button
             bind:this={rowButtons[index]}
             class="row"
@@ -107,7 +108,7 @@
             <span class="exit">{agent.exit_code ?? "—"}</span>
           </button>
           {#if selectedAgentId === agent.id}
-            <AgentInspector {agent} task={task ?? null} receipt={agentReceipts?.[agent.id] ?? null} />
+            <AgentInspector {agent} task={task ?? null} receipt={agentReceipts?.[agent.id] ?? agentReceipts?.[receiptId] ?? null} />
           {/if}
         {/each}
       {/each}

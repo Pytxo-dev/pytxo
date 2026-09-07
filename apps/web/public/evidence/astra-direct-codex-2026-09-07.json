@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-09-07T01:30:07.565Z",
+  "scenario": "Require review for secrets paths; preserve API and normalization; add requested regressions and two README examples",
+  "mode": "Direct Codex exec in a detached Git worktree; no Pytxo execution",
+  "runtime": "OpenAI Codex 0.153.4",
+  "reported_settings": {
+    "model": "gpt-6-astra",
+    "reasoning effort": "ultra",
+    "sandbox": "workspace-write [workdir, /tmp, $TMPDIR]"
+  },
+  "settings_origin": "Existing vendor settings inherited; no account, model, effort, permission, or plugin changes",
+  "mission_sha256": "72b71997a748884d306b4760cc184b745b719cccd4c4fbb7d2606f60c11e97ab",
+  "baseline_files": [
+    {
+      "path": ".gitignore",
+      "sha256": "437aa5d95044ff0309464d6e7e70ecd691e26c8027eb8da71128935a50797587"
+    },
+    {
+      "path": "README.md",
+      "sha256": "adb51340f3e459072cc348481ea0000d645ba792c62c7d6edfbc3350fa7add33"
+    },
+    {
+      "path": "package.json",
+      "sha256": "a7cf37fbfe5020a3efc8b12964713d62d8d9a61c80ee8ce36f51f6255d74a3dd"
+    },
+    {
+      "path": "pytxo.toml",
+      "sha256": "885af7a41a2083a37db7fe21cb3e5c805e60b0dc375706c8a2323d9499365353"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "sha256": "836b60237482a56e3db4fcc676fb0aa557bd19046376d8331c401b312c12f8e7"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "sha256": "1d59c81a61299fb8a9798d2d365ba3d05122332b72c95c80bc07fd8f850abcf1"
+    }
+  ],
+  "observation": {
+    "started_at": "2026-09-07T01:22:39.385Z",
+    "finished_at": "2026-09-07T01:26:51.557Z",
+    "seconds": 252.172,
+    "exit_code": 0,
+    "changed_paths": [
+      "README.md",
+      "src/risk-policy.mjs",
+      "test/risk-policy.test.mjs"
+    ],
+    "primary_status": "",
+    "primary_hashes_unchanged": true
+  },
+  "changed_files": [
+    {
+      "path": "README.md",
+      "after_sha256": "ff3e15ead4729d036fc6f10081a08327554db2d371b41b2d67258b93ef7e432f"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "after_sha256": "7b76f1140397e916dc1abbe7b2fe79ea7842d3ddc718cb76c38e9504415b712c"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "after_sha256": "a3dd888df5854d87f07259e130bdb1c81cf652403a635fad76e30eba2158e152"
+    }
+  ],
+  "independent_postcheck": {
+    "command": "npm test",
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0
+  },
+  "source_review": "All three diffs read; original API and tests preserved; requested cases and README examples match implementation",
+  "primary_preserved_by_worktree": true,
+  "reviewed_pytxo_package": false,
+  "cli_reported_tokens_used": 30811,
+  "cost_usd": null,
+  "setup_time_seconds": null,
+  "review_time_seconds": null,
+  "non_claims": [
+    "One exploratory outcome, not a controlled speed or quality comparison",
+    "Process duration excludes setup, lead review, and independent postcheck",
+    "Existing vendor MCP and hook startup affected wall time; unrelated background tasks were present",
+    "CLI-reported token total has no input/output split or reconciled invoice cost",
+    "No OS-wide host or network sandbox guarantee",
+    "No customer-value or second-use study"
+  ]
+}

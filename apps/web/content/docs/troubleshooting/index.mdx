@@ -3,7 +3,11 @@ title: Troubleshooting
 description: Fix common Pytxo install, trust, doctor, and MCP failures.
 ---
 
-Start with `pytxo doctor` in the repo you care about. It checks git, writable data dirs, terminal support, approvals persistence, and (when enabled) cloud or billing connectivity.
+In Desktop, note the failed stage in **Work** or **Run Review**, then check
+**Setup → Agents** for your selected CLI's current session status. If you also
+installed the optional Pytxo CLI, run `pytxo doctor` in the affected repository.
+It probes Git, writable data directories, terminal support, approval persistence,
+and configured cloud or billing connectivity.
 
 | Symptom | Where to look |
 |---------|----------------|
@@ -17,10 +21,38 @@ Start with `pytxo doctor` in the repo you care about. It checks git, writable da
 ```bash
 pytxo doctor
 pytxo doctor --json
-pytxo trust orbit
 ```
 
 If the Hypervisor Shell will not open in CI or pipes, set `PYTXO_NO_TUI=1` and use explicit subcommands.
+
+Change a folder's trust profile only after reviewing the permissions described
+in [Folder trust](/docs/getting-started/folder-trust). A diagnostic failure does
+not by itself require a more permissive profile.
+
+## A useful support report
+
+For a non-sensitive bug, copy this small template into a local note, fill in what
+you know, and review it before sharing through
+[public issues](https://github.com/Pytxo-dev/pytxo-releases/issues):
+
+```text
+Pytxo version:
+Windows edition and build:
+Agent CLI name and version:
+Failed stage: installation / agent readiness / planning / running / review / Apply
+Permission profile and execution backend (if known):
+Expected result:
+Observed result:
+Check outcome: passed / failed / not run / unknown
+Can it be reproduced in a small example without private source?
+```
+
+Use “unknown” for unavailable fields. Share the relevant error category first.
+Raw doctor JSON, terminal logs, configurations and databases can contain local
+paths, repository content, account information or configured URLs; they are not
+a redacted support bundle. Do not attach them by default. Check screenshots for
+the same information before sharing. Security-sensitive reports need a private
+route from a maintainer; do not put details in a public issue.
 
 ## Still stuck?
 

@@ -69,8 +69,8 @@ export function DownloadDesktop() {
             </Badge>
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Control surface for runs, structure, approvals, and diffs. Requires the CLI for
-            orchestration.
+            Work, History, and Setup with the local orchestration core built in.
+            Install a supported agent CLI separately; the Pytxo CLI is optional for Desktop.
           </p>
         </div>
         {os !== "unknown" ? (

@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-09-07T02:08:06.143Z",
+  "scenario": "Three-task Codex retry with explicit task handoff",
+  "run_id": "98a3ac95-c3a7-47fa-9818-456fb88daa04",
+  "run_status": "failed",
+  "started_at": "2026-09-07T02:04:45.319980700+00:00",
+  "msi_sha256": "3e48087850e1d3043387424d854463ba16b789c210ec3f7cb7dd75a9b20a9e95",
+  "packaged_executable_sha256": "6c65e5163e9fca75601030494324b218601b5dc1f07c75c3f390e16446902e4d",
+  "source_inputs_sha256": "f328165c4ee31edaab485931f2b345cf1e20bc157d0708f11e81a13c99638c8a",
+  "app_version": "1.2.2",
+  "worker_outcomes": [
+    {
+      "task_id": "mission-0",
+      "wave": 0,
+      "status": "failed",
+      "exit_code": 1
+    },
+    {
+      "task_id": "mission-2",
+      "wave": 0,
+      "status": "failed",
+      "exit_code": 1
+    },
+    {
+      "task_id": "mission-1",
+      "wave": 1,
+      "status": "blocked_by_dependency",
+      "exit_code": null
+    }
+  ],
+  "observed_error": "Codex rejected an unexpected argument beginning test] followed by the handoff remainder",
+  "boundary": "Windows PowerShell-to-npm-CMD-shim prompt argument quoting; failed before model execution",
+  "primary_baseline_files": [
+    {
+      "path": ".gitignore",
+      "sha256": "437aa5d95044ff0309464d6e7e70ecd691e26c8027eb8da71128935a50797587"
+    },
+    {
+      "path": "README.md",
+      "sha256": "adb51340f3e459072cc348481ea0000d645ba792c62c7d6edfbc3350fa7add33"
+    },
+    {
+      "path": "package.json",
+      "sha256": "a7cf37fbfe5020a3efc8b12964713d62d8d9a61c80ee8ce36f51f6255d74a3dd"
+    },
+    {
+      "path": "pytxo.toml",
+      "sha256": "885af7a41a2083a37db7fe21cb3e5c805e60b0dc375706c8a2323d9499365353"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "sha256": "836b60237482a56e3db4fcc676fb0aa557bd19046376d8331c401b312c12f8e7"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "sha256": "1d59c81a61299fb8a9798d2d365ba3d05122332b72c95c80bc07fd8f850abcf1"
+    }
+  ],
+  "primary_baseline_hashes_unchanged": true,
+  "review_package_prepared": false,
+  "apply_attempted": false,
+  "cost_usd": null,
+  "disposition": "Repair prompt transport and test actual CMD shim argv path before another native build",
+  "non_claims": [
+    "No successful native mission or model output in this run",
+    "A source test passing env text did not establish the adapter argv boundary",
+    "Development-host payload execution, not clean installation",
+    "No public publication performed"
+  ]
+}

@@ -1,6 +1,60 @@
-# Pytxo v1.2 commit-boundary demo
+# Pytxo agent-hypervisor demo
 
-## Current Beta proof and real-agent take
+## Current September 7 native proof
+
+The final local Windows 1.2.2 candidate completed a real Codex mission with three
+scoped tasks in two waves: implementation and documentation first, then tests
+depending on implementation. Native Review displayed every exact diff. After
+explicit confirmation, Apply committed all three reviewed file hashes; the
+other three source files stayed unchanged and eight independent tests passed.
+The committed receipt also survived a full app-process restart.
+
+The [native record](tooling/benchmarks/results/astra-native-codex-2026-09-07.json)
+binds run `d743c0dc-76d3-4ff8-b6a3-7d88e743eb22` to package
+`0c04ae8106a37dca0993addf572f16c0ba802ba101b0ccd453d2ff5515a0a6bf` and MSI
+`dfacd548f58ea149d84271de50c038288f6b19894f1496dde65916a4a67d20d3`.
+The executable was extracted from that MSI. It was built with uncommitted
+changes on PR31's `ff0b88f`; the full 352-file source-input identity is in the record.
+This was development-host execution, not clean installation or public delivery.
+
+The refreshed 52-second film uses six unmodified native element captures from
+`docs/_attachments/astra-2026-09-07/`. It is an edited evidence presentation,
+not a live recording or an elapsed-time comparison. Agent test automation
+operated native review and confirmation. The validated silent master is
+`apps/demo-video/out/pytxo-demo-silent.mp4`: exactly 52 seconds, 1920×1080 at 30fps,
+H.264/yuv420p with BT.709 metadata and no audio stream. Its SHA256 is
+`45aab4c6dee117d4792ac637fc181ad1445b65841359086e88d048751339317c`.
+Seven scene stills and 13 encoded transition frames were visually inspected;
+the seven long holds match the intentional reading states. Format and black-frame
+checks pass. Full [film provenance](tooling/benchmarks/results/astra-demo-2026-09-07.json)
+is recorded separately. Older narrated audio is ineligible for this script;
+no new narration service was purchased or called.
+
+Reproduce the source and reviewed plan with
+[the first-mission fixture](tooling/benchmarks/fixtures/astra-first-mission/README.md).
+The successful take used the existing prompt editor to clarify the documentation
+task's final-state requirement; its exact override is included. This is additional
+guidance compared with the [direct Codex worktree baseline](tooling/benchmarks/results/astra-direct-codex-2026-09-07.json).
+Both paths preserved their primary source while workers ran. No comparative
+speed, quality, cost, demand or reliability-rate result is established.
+
+Keep the unsuccessful observations alongside the film:
+
+- [Ownership refusal](tooling/benchmarks/results/astra-refused-run-2026-09-07.json):
+  Pytxo refused an outside-scope edit despite passing worker checks.
+- [Windows prompt-launch failure](tooling/benchmarks/results/astra-transport-failure-2026-09-07.json):
+  workers failed before model work, leading to the stdin transport repair.
+- [Review withheld](tooling/benchmarks/results/astra-review-withheld-2026-09-07.json):
+  a ready package passed combined tests, but its README contradicted the changed
+  code. Review withheld Apply; Pytxo did not automatically detect that prose error.
+
+An earlier MSI working-directory launch failure and the intermediate builds are
+also retained in the [artifact ledger](docs/01-projects/astra-evidence-2026-09-07.md).
+The actual receipt labels host filesystem and network controls advisory. These
+captures do not establish an OS-wide sandbox or close the hosted CI, clean
+Windows and public-download gates.
+
+## Historical September 6 proof and single-worker reproduction
 
 The Sep 6 source candidate adds a separate combined-candidate check before
 reviewed Apply. The actual one-worker Codex rehearsal is recorded in
@@ -12,13 +66,10 @@ committed Apply journal. Applied file hashes matched the frozen targets and all
 four tests passed in the primary tree. Native captures are in
 `docs/_attachments/beta-2026-09-06/`. This is not installer proof.
 
-The 52-second evidence film in `apps/demo-video/` now uses these original native
-captures: one worker, the combined receipt, explicit confirmation, the applied
-receipt and the committed journal. It is an edited presentation, not a live
-screen recording. Test automation operated the native review and confirmation.
-The source images are checked against the recorded originals; the silent master
-is `apps/demo-video/out/pytxo-demo-silent.mp4`. Narration remains conditional on
-new audio generated from the revised script and the required music certificate.
+The September 6 film used those one-worker native captures and is retained in
+`apps/demo-video/out/archive-2026-09-06/`. It was an edited presentation operated
+by test automation, not a live screen recording. The current silent master uses
+the September 7 three-task captures and provenance described above.
 
 For a real-agent take, prepare a fresh fixture below, remove the `[[task]]`
 section from its demo `pytxo.toml` while keeping `max_agents = 1`, then run:

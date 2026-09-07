@@ -9,7 +9,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await clearOnboarding(page);
       await page.goto("/");
       await page.getByRole("button", { name: "Get started" }).click();
-      await page.getByRole("button", { name: "Skip for now" }).click();
+      await page.getByRole("button", { name: "Continue with Desktop" }).click();
       await expect(page.getByText("One coding agent CLI is enough.", { exact: false })).toBeVisible();
       await expect(page.getByRole("status")).toContainText("5 installed · 3 ready");
       await page.getByRole("button", { name: "Connect an OpenCode provider" }).click();

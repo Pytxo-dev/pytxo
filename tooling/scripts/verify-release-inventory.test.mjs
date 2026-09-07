@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -20,6 +21,14 @@ const DESKTOP_FILES = ["DESKTOP_SHA256SUMS.txt", "pytxo-desktop-windows-x64.msi"
 async function fixture(files) {
   const root = await mkdtemp(path.join(tmpdir(), "pytxo-release-inventory-"));
   await Promise.all(files.map((name) => writeFile(path.join(root, name), "release-asset")));
+  const checksum = files.includes("SHA256SUMS.txt") ? "SHA256SUMS.txt" : "DESKTOP_SHA256SUMS.txt";
+  const assets = checksum === "SHA256SUMS.txt"
+    ? CLI_FILES.filter((name) => name !== checksum)
+    : ["pytxo-desktop-windows-x64.msi"];
+  if (files.includes(checksum)) {
+    const digest = createHash("sha256").update("release-asset").digest("hex");
+    await writeFile(path.join(root, checksum), assets.map((name) => `${digest}  ${name}\n`).join(""));
+  }
   return root;
 }
 
@@ -84,6 +93,34 @@ test("rejects directories and empty assets", async () => {
   const withEmptyAsset = await fixture(CLI_FILES.filter((name) => name !== "SHA256SUMS.txt"));
   await writeFile(path.join(withEmptyAsset, "SHA256SUMS.txt"), "");
   await assert.rejects(() => verifyReleaseInventory(withEmptyAsset, "cli"), /asset is empty/);
+});
+
+test("rejects an installer changed after checksums were prepared", async () => {
+  const root = await fixture(DESKTOP_FILES);
+  await writeFile(path.join(root, "pytxo-desktop-windows-x64.msi"), "different-bytes");
+  await assert.rejects(() => verifyReleaseInventory(root, "desktop"), /checksum mismatch/i);
+});
+
+test("requires exactly one checksum for each published CLI binary", async () => {
+  for (const corruption of ["missing", "duplicate", "unexpected", "malformed"]) {
+    const root = await fixture(CLI_FILES);
+    const checksumPath = path.join(root, "SHA256SUMS.txt");
+    const rows = (await readFile(checksumPath, "utf8")).trimEnd().split("\n");
+    if (corruption === "missing") rows.pop();
+    if (corruption === "duplicate") rows.push(rows[0]);
+    if (corruption === "unexpected") rows.push(rows[0].replace("pytxo-darwin-arm64", "../outside"));
+    if (corruption === "malformed") rows[0] = "not-a-checksum";
+    await writeFile(checksumPath, rows.join("\n"));
+    await assert.rejects(() => verifyReleaseInventory(root, "cli"), /checksum/i, corruption);
+  }
+});
+
+test("accepts CRLF checksums with the standard binary marker", async () => {
+  const root = await fixture(DESKTOP_FILES);
+  const checksumPath = path.join(root, "DESKTOP_SHA256SUMS.txt");
+  const text = await readFile(checksumPath, "utf8");
+  await writeFile(checksumPath, text.replace("  ", " *").replaceAll("\n", "\r\n"));
+  assert.deepEqual(await verifyReleaseInventory(root, "desktop"), [...DESKTOP_FILES].sort());
 });
 
 test("release publication waits for exact CLI and Desktop preparation", async () => {

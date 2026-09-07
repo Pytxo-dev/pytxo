@@ -1,15 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { PlanRoadmapCard } from "@/components/site/plan-roadmap-card";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
-  title: "Plans",
-  description:
-    "Pytxo Core is available now. Paid entitlements are capability-gated while Link, cloud dispatch, and managed metering mature.",
-};
+export const metadata = pageMetadata(
+  "/plans",
+  "Plans · Pytxo",
+  "Pytxo Core is available now. Paid entitlements are capability-gated while Link, cloud dispatch, and managed metering mature.",
+);
 
 const ROADMAP = [
   {
@@ -17,12 +17,12 @@ const ROADMAP = [
     status: "Available now",
     statusVariant: "default" as const,
     highlights: [
-      "Open-source Rust CLI + desktop shell",
+      "Local Rust core + native Desktop",
       "Tree-sitter scaffolding",
-      "Local agent swarms (BYOK)",
+      "One or more existing agent CLIs",
     ],
     detail:
-      "The full local agent hypervisor ships open source. Install the CLI and run agents today.",
+      "Run and review local repository work without a Pytxo account. Agent subscriptions or API usage are billed by your chosen provider. Public downloads are available from the releases repository.",
     plan: null as null,
     ctaLabel: null as null,
   },

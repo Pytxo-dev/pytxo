@@ -650,6 +650,35 @@ struct RunEnforcementEnvelope {
     agents: std::collections::BTreeMap<String, PermissionEnforcementReceipt>,
 }
 
+/// Original task authority is keyed by runtime actor ordinal, matching the
+/// runner's flattened plan order. Configured agent names may collide with those
+/// keys and must never be used as a fallback at the candidate/Apply boundary.
+fn original_task_profile(
+    enforcement: &RunEnforcementEnvelope,
+    actor_index: usize,
+) -> anyhow::Result<PermissionProfile> {
+    let actor_id = pytxo_core::AgentId::new(actor_index).0;
+    let receipt = enforcement.agents.get(&actor_id).ok_or_else(|| {
+        anyhow::anyhow!("original task has no runtime enforcement receipt: {actor_id}")
+    })?;
+    // Both identities came from the saved envelope; preserve its path spelling.
+    if enforcement.run.execution_domain.is_empty()
+        || receipt.execution_domain != enforcement.run.execution_domain
+    {
+        anyhow::bail!(
+            "original task enforcement receipt belongs to another execution domain: {actor_id}"
+        );
+    }
+    let requested = PermissionProfile::parse(&receipt.requested_profile)
+        .ok_or_else(|| anyhow::anyhow!("invalid original requested profile: {actor_id}"))?;
+    let effective = PermissionProfile::parse(&receipt.effective_profile)
+        .ok_or_else(|| anyhow::anyhow!("invalid original effective profile: {actor_id}"))?;
+    if effective.capped_at(requested) != effective {
+        anyhow::bail!("original effective profile exceeds its requested authority: {actor_id}");
+    }
+    Ok(effective)
+}
+
 /// Apply one completed run as one reviewed filesystem transaction.
 ///
 /// Scope for v1.1: one execution domain under Orbit or Galaxy. DeepSpace is
@@ -866,13 +895,8 @@ fn apply_run_changes_with(
             .ok_or_else(|| anyhow::anyhow!("run contract has no enforcement receipt"))?,
     )
     .map_err(|error| anyhow::anyhow!("invalid run enforcement receipt: {error}"))?;
-    for task in &tasks {
-        let receipt = enforcement
-            .agents
-            .get(&task.agent)
-            .unwrap_or(&enforcement.run);
-        let task_profile = PermissionProfile::parse(&receipt.effective_profile)
-            .ok_or_else(|| anyhow::anyhow!("invalid task enforcement profile"))?;
+    for (actor_index, task) in tasks.iter().enumerate() {
+        let task_profile = original_task_profile(&enforcement, actor_index)?;
         if !matches!(
             task_profile,
             PermissionProfile::Orbit | PermissionProfile::Galaxy
@@ -880,7 +904,7 @@ fn apply_run_changes_with(
             anyhow::bail!(
                 "task {} uses {} and cannot enter reviewed run Apply",
                 task.task_id.0,
-                receipt.effective_profile
+                task_profile.as_str()
             );
         }
     }
@@ -1144,19 +1168,14 @@ fn verify_combined_candidate(
     let mut checks = Vec::new();
     let actors = PytxoStore::open(&cfg.db_path_at(&domain.repo_root))?
         .list_agents_for_run(&manifest.run_id)?;
-    for task in plan.waves.iter().flatten() {
+    for (actor_index, task) in plan.waves.iter().flatten().enumerate() {
         if task.root.as_deref().is_some_and(|root| !root.is_empty()) {
             anyhow::bail!("combined candidate verification supports one repository root");
         }
         if task.verify.is_empty() || task.verify.iter().any(|command| command.trim().is_empty()) {
             anyhow::bail!("task {} has no complete verification recipe; configure checks and rerun the mission", task.task_id.0);
         }
-        let original = enforcement
-            .agents
-            .get(&task.agent)
-            .unwrap_or(&enforcement.run);
-        let original_profile = PermissionProfile::parse(&original.effective_profile)
-            .ok_or_else(|| anyhow::anyhow!("invalid original verification profile"))?;
+        let original_profile = original_task_profile(enforcement, actor_index)?;
         let profile = original_profile.capped_at(cfg.resolve_profile_for_agent(&task.agent));
         if !matches!(
             profile,
@@ -1221,18 +1240,18 @@ fn validate_candidate_recipe(
         .waves
         .iter()
         .flatten()
-        .flat_map(|task| task.verify.iter().map(move |command| (task, command)))
+        .enumerate()
+        .flat_map(|(actor_index, task)| {
+            task.verify
+                .iter()
+                .map(move |command| (actor_index, task, command))
+        })
         .collect();
     if expected.len() != evidence.checks.len() {
         anyhow::bail!("candidate verification recipe differs from the approved plan");
     }
-    for ((task, command), check) in expected.into_iter().zip(&evidence.checks) {
-        let original = enforcement
-            .agents
-            .get(&task.agent)
-            .unwrap_or(&enforcement.run);
-        let original_profile = PermissionProfile::parse(&original.effective_profile)
-            .ok_or_else(|| anyhow::anyhow!("invalid original task profile"))?;
+    for ((actor_index, task, command), check) in expected.into_iter().zip(&evidence.checks) {
+        let original_profile = original_task_profile(enforcement, actor_index)?;
         let check_profile = PermissionProfile::parse(&check.effective_profile)
             .ok_or_else(|| anyhow::anyhow!("invalid candidate check profile"))?;
         if check.task_id != task.task_id.0
@@ -2676,6 +2695,248 @@ fn ensure_gitignore(repo: &Path) -> anyhow::Result<()> {
 mod tests {
     use super::*;
 
+    struct OriginalCapFixture {
+        _temp: tempfile::TempDir,
+        domain: Arc<hypervisor::DomainState>,
+        cfg: PytxoConfig,
+        plan: ExecutionPlan,
+        enforcement: RunEnforcementEnvelope,
+        manifest: pytxo_core::PreparedRunManifest,
+    }
+
+    fn original_cap_fixture() -> OriginalCapFixture {
+        hypervisor::tests::isolate_pytxo_home();
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        for path in ["a.txt", "b.txt"] {
+            fs::write(repo.join(path), "before\n").unwrap();
+        }
+        // The current grant is Galaxy. A's saved original receipt is still Orbit.
+        let cfg = PytxoConfig {
+            permission_profile: PermissionProfile::Galaxy,
+            execution_backend: pytxo_core::ExecutionBackend::Subprocess,
+            ..Default::default()
+        };
+        let domain = hypervisor::HypervisorRegistry::new()
+            .ensure_domain(&repo, &cfg)
+            .unwrap();
+        let run_id = "original-cap-collision";
+        let store = PytxoStore::open(&cfg.db_path_at(&repo)).unwrap();
+        store.insert_run(run_id, &repo.to_string_lossy()).unwrap();
+        let mut tasks = Vec::new();
+        let mut inputs = Vec::new();
+        for (index, (task_id, name, claim)) in
+            [("B", "agent-1", "b.txt"), ("A", "agent-0", "a.txt")]
+                .into_iter()
+                .enumerate()
+        {
+            let workspace = temp.path().join(format!("workspace-{index}"));
+            fs::create_dir_all(&workspace).unwrap();
+            for path in ["a.txt", "b.txt"] {
+                fs::copy(repo.join(path), workspace.join(path)).unwrap();
+            }
+            fs::write(workspace.join(claim), "after\n").unwrap();
+            let actor_id = format!("agent-{index}");
+            let actor_key = format!("{run_id}:{actor_id}");
+            store
+                .insert_agent(
+                    &actor_key,
+                    run_id,
+                    task_id,
+                    0,
+                    Some(&workspace.to_string_lossy()),
+                    "fixture",
+                )
+                .unwrap();
+            store
+                .finish_agent(&actor_key, Some(0), "completed")
+                .unwrap();
+            tasks.push(pytxo_core::ScheduledTask {
+                task_id: TaskId(task_id.into()),
+                agent: name.into(),
+                paths: vec![claim.into()],
+                depends_on: vec![],
+                wave: 0,
+                root: None,
+                signal_fidelity: None,
+                verify: vec!["echo verification-ok".into()],
+            });
+            inputs.push(AgentWorkspaceInput {
+                agent_id: actor_id,
+                task_id: task_id.into(),
+                workspace_path: workspace,
+                claims: vec![claim.into()],
+                depends_on: vec![],
+            });
+        }
+        let plan = ExecutionPlan {
+            waves: vec![tasks],
+            conflicts: vec![],
+            max_agents: 2,
+            warnings: vec![],
+        };
+        let receipt = |profile| {
+            permission_enforcement_receipt(
+                profile,
+                profile,
+                &domain.id,
+                pytxo_core::IsolationMode::Worktree,
+                &[],
+            )
+            .unwrap()
+        };
+        let enforcement = RunEnforcementEnvelope {
+            run: receipt(PermissionProfile::Galaxy),
+            agents: std::collections::BTreeMap::from([
+                ("agent-0".into(), receipt(PermissionProfile::Galaxy)), // B
+                ("agent-1".into(), receipt(PermissionProfile::Orbit)),  // A
+            ]),
+        };
+        let manifest =
+            prepare_review_package(&repo, &domain.data_dir, run_id, "base", &inputs, &[]).unwrap();
+        OriginalCapFixture {
+            _temp: temp,
+            domain,
+            cfg,
+            plan,
+            enforcement,
+            manifest,
+        }
+    }
+
+    #[test]
+    fn candidate_runtime_receipt_retains_original_cap_after_current_grant() {
+        let fixture = original_cap_fixture();
+        let checked = verify_combined_candidate(
+            &fixture.domain,
+            &fixture.cfg,
+            &fixture.plan,
+            &fixture.enforcement,
+            fixture.manifest,
+        )
+        .unwrap();
+        let checks = &checked.candidate_verification.as_ref().unwrap().checks;
+        let a = checks.iter().find(|check| check.task_id == "A").unwrap();
+        assert_eq!(
+            a.effective_profile, "orbit",
+            "later grants must not widen original A authority"
+        );
+        assert_eq!(a.enforcement["effective_profile"], "orbit");
+        assert_eq!(
+            checks
+                .iter()
+                .find(|check| check.task_id == "B")
+                .unwrap()
+                .effective_profile,
+            "galaxy"
+        );
+        validate_candidate_recipe(
+            &checked,
+            &fixture.plan,
+            &fixture.enforcement,
+            &fixture.domain.id,
+        )
+        .unwrap();
+    }
+
+    fn assert_candidate_runtime_receipt_rejected(change: impl Fn(&mut RunEnforcementEnvelope)) {
+        let fixture = original_cap_fixture();
+        let mut invalid = fixture.enforcement.clone();
+        change(&mut invalid);
+        let error = verify_combined_candidate(
+            &fixture.domain,
+            &fixture.cfg,
+            &fixture.plan,
+            &invalid,
+            fixture.manifest,
+        )
+        .expect_err("verifier accepted an invalid runtime receipt");
+        assert!(
+            error.to_string().contains("original"),
+            "unexpected refusal: {error}"
+        );
+
+        let fixture = original_cap_fixture();
+        let checked = verify_combined_candidate(
+            &fixture.domain,
+            &fixture.cfg,
+            &fixture.plan,
+            &fixture.enforcement,
+            fixture.manifest,
+        )
+        .unwrap();
+        let mut invalid = fixture.enforcement.clone();
+        change(&mut invalid);
+        assert!(
+            validate_candidate_recipe(&checked, &fixture.plan, &invalid, &fixture.domain.id)
+                .is_err(),
+            "recipe accepted an invalid runtime receipt"
+        );
+    }
+
+    #[test]
+    fn candidate_runtime_receipt_missing_actor_fails_closed() {
+        assert_candidate_runtime_receipt_rejected(|enforcement| {
+            enforcement.agents.remove("agent-1");
+        });
+    }
+
+    #[test]
+    fn candidate_runtime_receipt_wrong_domain_fails_closed() {
+        assert_candidate_runtime_receipt_rejected(|enforcement| {
+            enforcement
+                .agents
+                .get_mut("agent-1")
+                .unwrap()
+                .execution_domain = "another-domain".into();
+        });
+    }
+
+    #[test]
+    fn candidate_runtime_receipt_effective_above_requested_fails_closed() {
+        assert_candidate_runtime_receipt_rejected(|enforcement| {
+            enforcement
+                .agents
+                .get_mut("agent-1")
+                .unwrap()
+                .effective_profile = "galaxy".into();
+        });
+    }
+
+    #[test]
+    fn candidate_runtime_receipt_rejects_check_above_original_task_cap() {
+        let fixture = original_cap_fixture();
+        let mut checked = verify_combined_candidate(
+            &fixture.domain,
+            &fixture.cfg,
+            &fixture.plan,
+            &fixture.enforcement,
+            fixture.manifest,
+        )
+        .unwrap();
+        let a = checked
+            .candidate_verification
+            .as_mut()
+            .unwrap()
+            .checks
+            .iter_mut()
+            .find(|check| check.task_id == "A")
+            .unwrap();
+        a.effective_profile = "galaxy".into();
+        a.enforcement["effective_profile"] = "galaxy".into();
+        assert!(
+            validate_candidate_recipe(
+                &checked,
+                &fixture.plan,
+                &fixture.enforcement,
+                &fixture.domain.id
+            )
+            .is_err(),
+            "saved evidence widened A's original Orbit authority"
+        );
+    }
+
     #[test]
     fn candidate_approval_requires_a_persisted_origin_actor_and_audit() {
         hypervisor::tests::isolate_pytxo_home();
@@ -2749,8 +3010,8 @@ mod tests {
         )
         .unwrap();
         let enforcement = RunEnforcementEnvelope {
-            run: receipt,
-            agents: Default::default(),
+            run: receipt.clone(),
+            agents: std::collections::BTreeMap::from([("agent-0".into(), receipt)]),
         };
         let db = rusqlite::Connection::open(cfg.db_path_at(&repo)).unwrap();
         db.execute_batch("CREATE TRIGGER reject_approval BEFORE INSERT ON events WHEN NEW.kind = 'hitl-resolve' BEGIN SELECT RAISE(ABORT, 'injected approval write failure'); END;").unwrap();
@@ -3226,7 +3487,7 @@ mod tests {
         .unwrap();
         let enforcement = serde_json::json!({
             "run": receipt,
-            "agents": { "codex": receipt }
+            "agents": { "codex": receipt, "agent-0": receipt }
         });
         let manifest = prepare_review_package(
             &repo,

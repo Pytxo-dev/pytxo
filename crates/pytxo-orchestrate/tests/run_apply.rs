@@ -126,7 +126,7 @@ fn prepared_fixture(run_id: &str) -> PreparedFixture {
     .unwrap();
     let enforcement = serde_json::json!({
         "run": receipt,
-        "agents": { "codex": receipt }
+        "agents": { "codex": receipt, "agent-0": receipt }
     });
     let data_dir = repo.join(".pytxo/data");
     let db_path = data_dir.join("pytxo.db");
@@ -184,6 +184,64 @@ fn prepared_fixture(run_id: &str) -> PreparedFixture {
         run_id: run_id.into(),
         prepared,
     }
+}
+
+fn assert_apply_runtime_receipt_rejected(missing: bool) {
+    let fixture = prepared_fixture(if missing {
+        "missing-runtime-receipt"
+    } else {
+        "wrong-runtime-domain"
+    });
+    let store = PytxoStore::open(&fixture.db_path).unwrap();
+    let contract = store.get_run_contract(&fixture.run_id).unwrap().unwrap();
+    let mut enforcement: serde_json::Value =
+        serde_json::from_str(contract.enforcement_json.as_deref().unwrap()).unwrap();
+    if missing {
+        enforcement["agents"]
+            .as_object_mut()
+            .unwrap()
+            .remove("agent-0");
+    } else {
+        let mut receipt = enforcement["agents"]["codex"].clone();
+        receipt["execution_domain"] = "another-domain".into();
+        enforcement["agents"]["agent-0"] = receipt;
+    }
+    store
+        .save_run_contract(
+            &fixture.run_id,
+            contract.base_revision.as_deref().unwrap(),
+            contract.plan_json.as_deref().unwrap(),
+            &enforcement.to_string(),
+        )
+        .unwrap();
+    assert!(store.begin_run_preparation(&fixture.run_id).unwrap());
+    store
+        .finish_run_preparation(&fixture.run_id, &fixture.prepared)
+        .unwrap();
+    let error = apply_run_changes(None, Some(fixture.repo.clone()), &fixture.run_id)
+        .expect_err("Apply accepted an invalid runtime receipt");
+    assert!(
+        error.to_string().contains(if missing {
+            "no runtime enforcement receipt"
+        } else {
+            "another execution domain"
+        }),
+        "unexpected refusal: {error}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(fixture.repo.join("value.txt")).unwrap(),
+        "before\n"
+    );
+}
+
+#[test]
+fn apply_runtime_receipt_missing_actor_fails_closed() {
+    assert_apply_runtime_receipt_rejected(true);
+}
+
+#[test]
+fn apply_runtime_receipt_wrong_domain_fails_closed() {
+    assert_apply_runtime_receipt_rejected(false);
 }
 
 #[test]
@@ -458,6 +516,7 @@ fn applies_a_completed_single_domain_run_once() {
         "run": receipt,
         "agents": {
             "codex": receipt,
+            "agent-0": receipt,
         }
     });
     store
@@ -588,7 +647,7 @@ fn rejects_affected_primary_edits_made_after_review() {
     .expect("enforcement receipt");
     let enforcement = serde_json::json!({
         "run": receipt,
-        "agents": { "codex": receipt }
+        "agents": { "codex": receipt, "agent-0": receipt }
     });
     let db_path = repo.join(".pytxo/data/pytxo.db");
     let store = PytxoStore::open(&db_path).expect("open store");
@@ -704,7 +763,7 @@ fn recovered_commit_persists_the_normal_apply_audit_schema_and_attempt_id() {
     .unwrap();
     let enforcement = serde_json::json!({
         "run": receipt,
-        "agents": { "codex": receipt }
+        "agents": { "codex": receipt, "agent-0": receipt }
     });
     let data_dir = repo.join(".pytxo/data");
     let db_path = data_dir.join("pytxo.db");

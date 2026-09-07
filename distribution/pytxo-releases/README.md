@@ -5,7 +5,9 @@
 The main `Pytxo-dev/pytxo` monorepo is private. This repository is **public** and hosts:
 
 - Prebuilt CLI binaries (`pytxo-linux-x64`, `pytxo-darwin-arm64`, …)
-- Pytxo Desktop installers (`pytxo-desktop-*.msi` / `.dmg` / `.AppImage`) and signed updater artifacts (`*.sig`, `latest.json`) when release signing is configured
+- Pytxo Desktop installers for the platforms listed in each release, plus a
+  Windows updater artifact and `latest.json` containing its signature when
+  updater signing is configured
 - Install scripts (`install.sh`, `install.ps1`) for the CLI
 - Checksums (`SHA256SUMS.txt`)
 
@@ -16,16 +18,15 @@ The main `Pytxo-dev/pytxo` monorepo is private. This repository is **public** an
 | Platform | Asset |
 |----------|--------|
 | Windows x64 | `pytxo-desktop-windows-x64.msi` |
-| macOS Apple Silicon | `pytxo-desktop-darwin-arm64.dmg` |
-| macOS Intel | `pytxo-desktop-darwin-x64.dmg` |
-| Linux x64 | `pytxo-desktop-linux-x64.AppImage` |
+| macOS / Linux | No current Desktop installer |
 
 Releases before v0.5.0 used the legacy `pytxo-reality-deck-*` asset prefix.
 
-For **v1.0.0**, Windows x64 has fresh CLI, MSI, and NSIS builds. The macOS and
-Linux CLI asset names are compatibility mirrors of the verified v0.13.0
-binaries while hosted multi-OS builds are unavailable. No v1 macOS or Linux
-Desktop installer is published.
+Desktop is Windows-first and includes its local core; installing the separate
+Pytxo CLI is optional. One supported agent CLI and its vendor session are needed
+to dispatch work. Read the selected release's platform and signing notes before
+installing. Compatibility mirrors retain their original embedded version and
+are not evidence of a fresh platform build.
 
 **CLI via npm:**
 
@@ -46,10 +47,10 @@ curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/insta
 irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 | iex
 ```
 
-Pin a CLI version:
+Pin an available CLI version (example):
 
 ```bash
-PYTXO_VERSION=v1.0.0 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | PYTXO_VERSION=v1.2.1 bash
 ```
 
 ## Maintainer setup

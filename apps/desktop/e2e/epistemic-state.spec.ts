@@ -170,7 +170,67 @@ test.describe("Epistemic summary rendering", () => {
     await expect(page.getByText("Partly advisory only", { exact: true })).toBeVisible();
     await expect(page.getByText("Enforcement not fully reported", { exact: true })).toHaveCount(0);
   });
+
+  test("native run-scoped agent IDs resolve their own stored receipt", async ({ page }) => {
+    await completeOnboarding(page, { "pytxo-preview-native-agent-ids-v1": "1" });
+    await page.goto("/#/work");
+    await page.locator(".ledger .row").filter({ hasText: "run-8f2c:architect" }).click();
+    const inspector = page.locator(".inspector");
+    await expect(inspector.getByText("Enforced", { exact: true })).toHaveCount(2);
+    await expect(inspector.getByText("No agent receipt", { exact: true })).toHaveCount(0);
+    await expect(inspector.getByText("Project root", { exact: true })).toBeVisible();
+    await expect(inspector.getByText("Default project root", { exact: true })).toBeVisible();
+    await expect(inspector.getByText("Shared working tree", { exact: true })).toHaveCount(0);
+  });
+
+  test("a native starting run remains visible and can be stopped", async ({ page }) => {
+    await completeOnboarding(page, { "pytxo-preview-run-state-v1": "starting" });
+    await page.goto("/#/work");
+    await expect(page.getByText("Starting", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Stop", exact: true }).click();
+    await page.locator("dialog.confirm-dialog").getByRole("button", { name: "Stop run", exact: true }).click();
+    await expect(page.locator(".work-feedback")).toHaveText("Stop requested for run-8f2c in pytxo.");
+    await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeDisabled();
+  });
+
+  test("switching runs cannot borrow another agent's enforcement receipt", async ({ page }) => {
+    await completeOnboarding(page, { "pytxo-preview-native-agent-ids-v1": "switch" });
+    await page.goto("/#/work");
+    await page.locator(".ledger .row").filter({ hasText: "run-8f2c:architect" }).click();
+    await expect(page.locator(".inspector").getByText("Enforced", { exact: true })).toHaveCount(2);
+    await page.getByRole("tab", { name: "run-other", exact: true }).click();
+    await page.locator(".ledger .row").filter({ hasText: "run-other:architect" }).click();
+    const inspector = page.locator(".inspector");
+    await expect(inspector.getByText("No agent receipt", { exact: true })).toBeVisible();
+    await expect(inspector.getByText("Enforced", { exact: true })).toHaveCount(1);
+    await expect(inspector.getByText("Bypassed", { exact: true })).toBeVisible();
+  });
 });
+
+test("History does not borrow another run's rollback footer while loading", async ({ page }) => {
+  await completeOnboarding(page, { "pytxo-preview-native-agent-ids-v1": "switch", "pytxo-preview-state-matrix-v1": "1" });
+  await page.goto("/#/history");
+  await expect(page.locator(".history > .unresolved")).toBeVisible();
+  await page.locator(".history .row").filter({ hasText: "run-other" }).click();
+  await expect(page.locator(".history > .unresolved")).toHaveCount(0, { timeout: 1000 });
+  await expect(page.locator(".history > .unresolved")).toBeVisible();
+});
+
+for (const route of ["work", "history"]) {
+  test(`a refused package exposes its reason without claiming an Apply in ${route}`, async ({ page }) => {
+    await completeOnboarding(page, { "pytxo-preview-run-state-v1": "review_failed" });
+    await page.goto(`/#/${route}`);
+    const boundary = page.locator(".boundary");
+    await expect(boundary.getByRole("alert")).toContainText("Package preparation failed");
+    await expect(boundary.getByRole("alert")).toContainText("edited test/risk-policy.test.mjs outside declared claims");
+    await expect(boundary.getByRole("button", { name: "Review package" })).toBeDisabled();
+    if (route === "history") {
+      const failedRow = page.locator(".history .row").filter({ hasText: "run-8f2c" });
+      await expect(failedRow).toContainText("Preparation failed");
+      await expect(failedRow).not.toContainText("Apply failed");
+    }
+  });
+}
 
 test.describe("Epistemic state rendering", () => {
   test.beforeEach(async ({ page }) => {

@@ -285,6 +285,27 @@ html[data-chroma-theme="light"] .desktop2 .primary{background:#050507;color:#ede
 .desktop2 .ade-readiness span.ready{color:var(--state-verified)}
 .desktop2 .ade-readiness span.error{color:var(--state-refuted)}
 .desktop2 .ade-readiness small{overflow-wrap:anywhere;color:var(--pytxo-text-muted)}
+.desktop2 .screen-heading p.mission-intro{display:block;margin:8px 0 0;color:var(--pytxo-text-muted)}
+.desktop2 .mission-guidance{margin:14px 17px 0;max-width:65ch;color:var(--pytxo-text-soft);font-size:13px;line-height:1.6}
+.desktop2 .flow-layout{align-items:start}
+.desktop2 .composer-panel>textarea{min-height:145px;padding:12px;border:1px solid var(--pytxo-line);border-radius:4px;background:var(--pytxo-surface-input);resize:vertical}
+.desktop2 .composer-panel>textarea::placeholder{color:var(--pytxo-text-muted)}
+.desktop2 .draft-notice{margin:12px 17px;padding:10px 12px;border-left:2px solid var(--state-attention);background:var(--pytxo-surface-input);color:var(--pytxo-text-soft);font-size:13px;line-height:1.6}
+.desktop2 .readiness-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:32px;font-size:13px}
+.desktop2 .ade-readiness>p{margin:4px 0 8px;font-size:12px;line-height:1.6}
+.desktop2 .ade-readiness details{font-size:12px;line-height:1.6}
+.desktop2 .ade-readiness summary{cursor:pointer;width:fit-content;padding:4px 0}
+.desktop2 .ade-readiness ul{margin:8px 0;padding-left:18px}
+.desktop2 .plan-explainer{margin:0 0 18px;color:var(--pytxo-text-muted);font-size:12px;line-height:1.6;max-width:68ch}
+.desktop2 .plan-wave .plan-task{display:flex;flex:1;min-width:0;flex-direction:column;gap:8px}
+.desktop2 .plan-task label{display:flex;flex-direction:column;gap:8px;min-width:0}
+.desktop2 .plan-task label>span{font-size:12px;color:var(--pytxo-text-muted)}
+.desktop2 .plan-task textarea{display:block;box-sizing:border-box;field-sizing:content;width:100%;min-height:64px;max-height:280px;padding:8px;border:1px solid var(--pytxo-line);border-radius:3px;resize:vertical;background:var(--pytxo-surface-input);color:var(--pytxo-text-strong);font:inherit;font-size:13px;line-height:1.6}
+.desktop2 .plan-task textarea:focus-visible{outline:2px solid var(--pytxo-accent,var(--pytxo-teal));outline-offset:2px}
+.desktop2 .plan-task .task-paths{white-space:normal;overflow-wrap:anywhere;font:12px/1.6 "IBM Plex Mono",monospace;color:var(--pytxo-text-soft)}
+.desktop2 .plan-task .task-dependencies{font-size:12px;color:var(--pytxo-text-muted)}
+.desktop2 .flow-history>div:not(.panel-head)>button:first-child{min-width:0}
+.desktop2 .flow-history small{white-space:normal;overflow-wrap:anywhere}
 .desktop2 .plan-stale{display:flex;align-items:flex-start;gap:8px;margin:0 15px 14px;padding:10px 11px;border:1px solid color-mix(in oklab,var(--state-unknown) 45%,var(--pytxo-line));border-radius:4px;background:color-mix(in oklab,var(--state-unknown) 7%,transparent);color:var(--state-unknown)}
 .desktop2 .plan-stale span{display:flex;flex-direction:column;gap:2px}
 .desktop2 .plan-stale strong{font-size:12px}
@@ -295,7 +316,7 @@ html[data-chroma-theme="light"] .desktop2 .primary{background:#050507;color:#ede
 .desktop2 .plan-contract dl div{min-width:0;padding:9px 11px;border-right:1px solid var(--pytxo-line-soft);border-bottom:1px solid var(--pytxo-line-soft)}
 .desktop2 .plan-contract dl div:nth-child(2n){border-right:0}
 .desktop2 .plan-contract dt{color:var(--pytxo-text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
-.desktop2 .plan-contract dd{overflow:hidden;margin:4px 0 0;color:var(--pytxo-text-soft);font:11px/1.4 "IBM Plex Mono",monospace;text-overflow:ellipsis;white-space:nowrap}
+.desktop2 .plan-contract dd{margin:4px 0 0;color:var(--pytxo-text-soft);font:12px/1.6 "IBM Plex Mono",monospace;overflow-wrap:anywhere}
 .desktop2 .contract-list{padding:9px 11px;border-bottom:1px solid var(--pytxo-line-soft)}
 .desktop2 .contract-list:last-child{border-bottom:0}
 .desktop2 .contract-list>strong{font-size:11px}

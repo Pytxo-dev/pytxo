@@ -100,7 +100,8 @@
 </script>
 
 <div class="step">
-  <h2 class="title">Pytxo CLI</h2>
+  <h2 class="title">Terminal tools are optional</h2>
+  <p class="hint">Desktop includes the local Pytxo core.</p>
   <p class="lead">{message}</p>
   {#if pathPending && phase === "done"}
     <p class="hint">
@@ -113,8 +114,11 @@
   {/if}
 
   <div class="actions">
+    {#if phase !== "installing" && phase !== "done"}
+      <Button onclick={onSkip}>Continue with Desktop</Button>
+    {/if}
     {#if phase === "ready" || phase === "error"}
-      <Button onclick={install}>Install Pytxo CLI</Button>
+      <Button variant="outline" onclick={install}>Install Pytxo CLI</Button>
       <a
         class="link"
         href="https://pytxo.com/download"
@@ -126,9 +130,6 @@
     {/if}
     {#if phase === "done"}
       <Button onclick={onContinue}>Continue</Button>
-    {/if}
-    {#if phase !== "installing"}
-      <Button variant="ghost" onclick={onSkip}>Skip for now</Button>
     {/if}
   </div>
 </div>

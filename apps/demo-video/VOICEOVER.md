@@ -5,7 +5,7 @@ paragraph as one continuous track. Do not split it into scene clips, paraphrase 
 spoken calls to action. Pronounce **Pytxo** as “PIT-so”.
 
 <!-- NARRATION_START -->
-One mission. One Codex worker. In this recorded run, Pytxo kept three changed files away from the primary checkout until Apply. It checked the combined candidate before Review. The receipt shows one passing test command, and both enforced and advisory boundaries. The exact changes were reviewed in the native app, and Apply was explicitly confirmed. Pytxo recorded a committed attempt. The applied file hashes matched the reviewed package, and four tests passed in the repository. If included inputs change, the candidate needs fresh checks. This is one observed run, not a speed comparison or a sandbox guarantee. Keep your agent. Add Pytxo.
+One harness. Three scoped tasks. This recorded Codex job changed code, tests, and documentation in two waves. Pytxo kept the primary checkout unchanged while workers ran. It reran the checks on the exact combined candidate. The receipt distinguishes enforced boundaries from advisory controls. Every diff was inspected in the native app, and Apply was explicitly confirmed. The journal recorded a committed attempt. All three applied file hashes matched the reviewed package, and the repository tests passed. These are edited captures from the packaged Windows app. The Bench record also retains an earlier refused run and a direct worktree comparison. No speed win or OS-wide sandbox is claimed. Keep your agent. Add Pytxo.
 <!-- NARRATION_END -->
 
 The generation script reads the exact text between the markers and writes one ignored file:

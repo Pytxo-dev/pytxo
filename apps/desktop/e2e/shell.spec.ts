@@ -22,7 +22,7 @@ test.describe("Pytxo Desktop shell", () => {
     await clearOnboarding(page);
     await page.goto("/");
     await page.getByRole("button", { name: "Get started" }).click();
-    await page.getByRole("button", { name: "Skip for now" }).click();
+    await page.getByRole("button", { name: "Continue with Desktop" }).click();
     await page.getByRole("button", { name: "Skip for now" }).click();
     await page.getByRole("button", { name: "Skip for now" }).click();
     await expect(page.getByRole("heading", { name: "Set your display" })).toBeVisible();
@@ -53,7 +53,7 @@ test.describe("Pytxo Desktop shell", () => {
     await page.getByRole("button", { name: "Run onboarding again" }).click();
     await expect(page.getByRole("heading", { name: "Pytxo", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Get started" }).click();
-    await page.getByRole("button", { name: "Skip for now" }).click();
+    await page.getByRole("button", { name: "Continue with Desktop" }).click();
     await page.getByRole("button", { name: "Skip for now" }).click();
     await page.getByRole("button", { name: "Skip for now" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
@@ -114,7 +114,7 @@ test.describe("Pytxo Desktop shell", () => {
     await clearOnboarding(page);
     await page.goto("/");
     await page.getByRole("button", { name: "Get started" }).click();
-    await page.getByRole("button", { name: "Skip for now" }).click();
+    await page.getByRole("button", { name: "Continue with Desktop" }).click();
 
     await expect(page.getByRole("heading", { name: "Connect your coding agents" })).toBeVisible();
     await expect(page.getByText("ChatGPT connected", { exact: true })).toBeVisible();
@@ -317,7 +317,9 @@ test.describe("Pytxo Desktop shell", () => {
 
     await expect(page.getByLabel("Agent CLI")).toHaveValue("codex");
     await expect(page.getByText("OpenAI Codex: ready")).toBeVisible();
-    await expect(page.getByText(/Claude Code \(not installed\)/)).toBeVisible();
+    await expect(page.getByText("Claude Code · not installed", { exact: true })).not.toBeVisible();
+    await page.getByText("7 other CLIs unavailable", { exact: true }).click();
+    await expect(page.getByText("Claude Code · not installed", { exact: true })).toBeVisible();
     await page.getByLabel("Mission outcome").fill("Use the detected ready CLI");
     await expect(page.locator(".composer-panel").getByRole("button", { name: "Build plan" })).toBeEnabled();
   });

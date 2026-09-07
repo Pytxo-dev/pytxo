@@ -12,8 +12,8 @@ related: [[MOC-home]], [[architecture-index]], [[product-vision]], [[commit-laye
 
 # Pytxo documentation home
 
-**Pytxo** — commit layer for autonomous work; shipping first as a reviewed
-repository boundary for coding agents ([pytxo.com](https://pytxo.com)).
+**Pytxo** — agent hypervisor for delegated work, with a reviewed repository
+Apply boundary shipping first ([pytxo.com](https://pytxo.com)).
 
 **Thesis:** Let any agent propose; Pytxo controls what may become real, verifies
 the resulting state, and records an honest recovery path ([[product-vision]],
@@ -34,6 +34,12 @@ product thesis.
 repository contract. [[pytxo-commit-layer-alignment]] gates the proposed
 production-effect expansion. [[pytxo-improvement-research]] remains the earlier
 research ledger.
+
+**Current improvement cycle:** [[astra-execution-2026-09-07]] records scoped
+research decisions, implementation ownership, acceptance evidence, and release gates.
+[[astra-evidence-2026-09-07]] retains actual checks and unsuccessful native attempts.
+[[astra-release-proposal-2026-09-07]] prepares the owner actions and publication
+sequence without authorizing external writes.
 
 ---
 

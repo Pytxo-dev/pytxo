@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { pageMetadata } from "@/lib/page-metadata";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,10 +15,11 @@ import {
   RELEASES_URL,
 } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "Download",
-  description: "Install Pytxo Desktop and the CLI for local multi-agent orchestration.",
-};
+export const metadata = pageMetadata(
+  "/download",
+  "Download · Pytxo",
+  "Install Pytxo Desktop and the CLI for local multi-agent orchestration.",
+);
 
 export default function DownloadPage() {
   return (

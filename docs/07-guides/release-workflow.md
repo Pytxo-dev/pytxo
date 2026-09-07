@@ -12,7 +12,9 @@ The **pytxo** monorepo is **private**. Public installs use [Pytxo-dev/pytxo-rele
 
 1. Open **Actions → Release → Run workflow** on the private `pytxo` repo.
 2. Enter **version** without a `v` prefix (e.g. `1.0.1`).
-3. Leave **Publish npm** and **Mirror public** enabled unless you only want a private draft.
+3. Leave **Publish npm** and **Mirror public** enabled for an approved public release.
+   Disabling both publishes only to the private source repository; it does not
+   create a draft.
 4. Leave **Sign Desktop installers** disabled unless the Apple and Windows signing
    secrets have been validated for this run. Unsigned installers are supported;
    the updater channel still requires `TAURI_SIGNING_PRIVATE_KEY`.
@@ -71,9 +73,12 @@ failure is not a reason to bypass CI.
 7. Verify downloaded checksums, `pytxo --version`, `npm i -g`, the Windows
    installer, website `/download`, and current-version documentation.
 
-Without a Tauri signing key, publish manual installers only. Do not replace
-`latest.json`; the updater channel must continue pointing to the last signed
-manifest.
+Without a Tauri signing key, only manual installers can be published. The current
+updater endpoint uses GitHub's `releases/latest/download/latest.json`: making an
+unsigned release Latest without that asset makes the endpoint return 404. It does
+not preserve the previous signed manifest automatically. Before publication,
+explicitly decide the Latest designation and verify the existing updater URL.
+Do not advertise working auto-update without that signed artifact check.
 
 ## After release
 

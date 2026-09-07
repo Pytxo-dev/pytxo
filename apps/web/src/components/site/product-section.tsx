@@ -60,7 +60,7 @@ export function ProductSection() {
           />
         </div>
         <figcaption className="mt-4 font-mono text-[12px] text-[#6f6f79]">
-          Pytxo Desktop, Work. Unmodified 1600&times;1000 capture from the checked-in release source.
+          Pytxo Desktop, Work. 1600&times;1000 browser capture with preview fixtures; this screen illustrates the interface, not a live mission result.
         </figcaption>
       </figure>
 

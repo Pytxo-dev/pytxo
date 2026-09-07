@@ -1,45 +1,59 @@
 1
 00:00:00,000 --> 00:00:04,000
-One mission. One Codex worker.
+One harness. Three
+scoped tasks.
 
 2
 00:00:04,000 --> 00:00:09,000
-In this recorded run, Pytxo kept three changed files
-away from the primary checkout until Apply.
+This recorded Codex job changed code,
+tests, and documentation in two waves.
 
 3
 00:00:09,000 --> 00:00:13,000
-It checked the combined candidate before Review.
+Pytxo kept the primary checkout
+unchanged while workers ran.
 
 4
 00:00:13,000 --> 00:00:18,000
-The receipt shows one passing test command,
-and both enforced and advisory boundaries.
+It reran the checks on the
+exact combined candidate.
 
 5
-00:00:18,000 --> 00:00:25,000
-The exact changes were reviewed in the native app,
-and Apply was explicitly confirmed.
+00:00:18,000 --> 00:00:23,000
+The receipt distinguishes enforced
+boundaries from advisory controls.
 
 6
-00:00:25,000 --> 00:00:30,000
-Pytxo recorded a committed attempt.
+00:00:23,000 --> 00:00:28,000
+Every diff was inspected in the native
+app, and Apply was explicitly confirmed.
 
 7
-00:00:30,000 --> 00:00:36,000
-The applied file hashes matched the reviewed package,
-and four tests passed in the repository.
+00:00:28,000 --> 00:00:31,000
+The journal recorded
+a committed attempt.
 
 8
-00:00:36,000 --> 00:00:41,000
-If included inputs change,
-the candidate needs fresh checks.
+00:00:31,000 --> 00:00:36,000
+All three applied file hashes matched the
+reviewed package, and the repository tests passed.
 
 9
-00:00:41,000 --> 00:00:47,000
-This is one observed run, not a speed comparison
-or a sandbox guarantee.
+00:00:36,000 --> 00:00:40,000
+These are edited captures
+from the packaged Windows app.
 
 10
-00:00:47,000 --> 00:00:52,000
-Keep your agent. Add Pytxo.
+00:00:40,000 --> 00:00:46,000
+The Bench record also retains an earlier
+refused run and a direct worktree comparison.
+
+11
+00:00:46,000 --> 00:00:49,000
+No speed win or OS-wide
+sandbox is claimed.
+
+12
+00:00:49,000 --> 00:00:52,000
+Keep your agent.
+Add Pytxo.

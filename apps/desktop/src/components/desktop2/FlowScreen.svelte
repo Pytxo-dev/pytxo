@@ -1,6 +1,6 @@
 <script lang="ts">
   import { IconAlertTriangle, IconArrowRight, IconFolderPlus, IconLoader2, IconMicrophone, IconPlayerRecord } from "@tabler/icons-svelte";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { AdeCliStatusDto, FlowDraftRecord, FlowPlan, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
 
@@ -51,6 +51,11 @@
   let dispatching = $state(false);
   let history = $state<FlowDraftRecord[]>([]);
   let historySyncedRun = "";
+  let missionInput: HTMLTextAreaElement | undefined = $state();
+  let draftNotice = $state("");
+  let domainSelectionInitialized = false;
+  let lastPreferredDomainId: string | null = null;
+  let adeSelectionInitialized = false;
 
   const currentInputKey = $derived(
     JSON.stringify({
@@ -69,12 +74,14 @@
   );
   const planHasVerification = $derived(verificationCommands.length > 0);
   const canDispatchPlan = $derived(
-    !!plan && plan.status === "ready" && planMatchesInputs && planHasVerification && !dispatchedRun && !dispatching,
+    !!plan && plan.status === "ready" && planMatchesInputs && planHasVerification && selectedAdeReady && !adeLoading && !dispatchedRun && !dispatching,
   );
   const buildPlanDisabledReason = $derived.by(() => {
     if (planning) return "Plan construction is already in progress.";
     if (!mission.trim()) return "Describe the outcome before building a plan.";
+    if (/\[(?:existing file path|expected behavior|test file path)\]/i.test(mission)) return "Replace the bracketed guidance with your repository's paths and expected behavior.";
     if (!selectedDomainId) return "Select a workspace before building a plan.";
+    if (adeLoading) return "Checking the selected agent CLI.";
     if (!selectedAdeReady) return "Select an installed, signed-in agent CLI before building a plan.";
     return null;
   });
@@ -82,6 +89,7 @@
     if (!plan) return "Build and review a plan before starting the run.";
     if (plan.status !== "ready") return "Resolve the reported plan blockers before starting the run.";
     if (!planMatchesInputs) return "The plan no longer matches the outcome, workspace, or agent CLI. Build it again.";
+    if (adeLoading || !selectedAdeReady) return "Recheck the selected agent CLI before starting the run.";
     if (!planHasVerification) return "This plan is unverified because it reports no verification commands. It cannot run.";
     if (dispatchedRun) return `This plan already started run ${dispatchedRun}.`;
     if (dispatching) return "The run is starting.";
@@ -141,7 +149,8 @@
       const saved = typeof localStorage === "undefined" ? null : localStorage.getItem(ADE_CHOICE_KEY);
       const savedReady = saved ? adeClis.find((cli) => cli.id === saved && isAdeReady(cli)) : null;
       const currentReady = adeClis.find((cli) => cli.id === selectedAde && isAdeReady(cli));
-      selectedAde = savedReady?.id ?? currentReady?.id ?? adeClis.find(isAdeReady)?.id ?? "";
+      selectedAde = adeSelectionInitialized ? currentReady?.id ?? "" : savedReady?.id ?? currentReady?.id ?? adeClis.find(isAdeReady)?.id ?? "";
+      adeSelectionInitialized = true;
     } catch (cause) {
       adeClis = [];
       selectedAde = "";
@@ -159,15 +168,19 @@
   $effect(() => {
     const preferred = preferredDomainId;
     const list = domains;
-    if (preferred && list.some((d) => d.domain_id === preferred)) {
-      selectedDomainId = preferred;
-    } else if (!selectedDomainId || !list.some((d) => d.domain_id === selectedDomainId)) {
-      selectedDomainId = list[0]?.domain_id ?? "";
+    const selected = untrack(() => selectedDomainId);
+    if (!domainSelectionInitialized || preferred !== lastPreferredDomainId) {
+      selectedDomainId = list.find((domain) => domain.domain_id === preferred)?.domain_id ?? list[0]?.domain_id ?? "";
+      domainSelectionInitialized = true;
+      lastPreferredDomainId = preferred;
+    } else if (selected && !list.some((domain) => domain.domain_id === selected)) {
+      selectedDomainId = "";
+      draftNotice = "The selected workspace is no longer available. Select a workspace explicitly and build a fresh plan.";
     }
   });
 
   async function buildPlan() {
-    if (!mission.trim() || !selectedDomainId || !selectedAdeReady) return;
+    if (buildPlanDisabledReason) return;
     const requestedInputKey = currentInputKey;
     planning = true; error = "";
     planAttempted = true;
@@ -313,11 +326,46 @@
   function useTemplate(value: string) {
     mission = value;
     missionSource = "text";
+    queueMicrotask(() => {
+      missionInput?.focus();
+      const start = value.indexOf("[");
+      if (start >= 0) missionInput?.setSelectionRange(start, value.indexOf("]", start) + 1);
+    });
   }
 
   function restoreDraft(draft: FlowDraftRecord) {
+    if (planning || dispatching) return;
     mission = draft.mission_text;
     missionSource = draft.source === "voice" ? "voice" : "text";
+    selectedDomainId = !draft.project_id && domains.some((domain) => domain.domain_id === draft.domain_id) ? draft.domain_id! : "";
+    // Reuse guidance only. A saved plan is never restored as dispatch authority.
+    plan = null;
+    planInputKey = null;
+    planAttempted = false;
+    dispatchedRun = "";
+    dispatchedStatus = "";
+    historySyncedRun = "";
+    error = "";
+    let originalAde: string | null = null;
+    try {
+      const saved: unknown = JSON.parse(draft.plan_json ?? "null");
+      if (saved && typeof saved === "object" && "ade" in saved) {
+        const ade = saved.ade;
+        if (ade && typeof ade === "object" && "requested" in ade && typeof ade.requested === "string") originalAde = ade.requested;
+      }
+    } catch { /* Older drafts may have no readable plan. Ask for a fresh one. */ }
+    if (originalAde) {
+      adeSelectionInitialized = true;
+      const available = adeClis.find((cli) => cli.id === originalAde && isAdeReady(cli));
+      if (available) chooseAde(available.id);
+      else selectedAde = "";
+    }
+    draftNotice = [
+      selectedDomainId ? "Original workspace selected." : "Original workspace is unavailable in this form. Select a workspace explicitly.",
+      originalAde && !selectedAde ? "The original agent CLI is unavailable. Select a ready CLI." : "Confirm the selected agent CLI.",
+      "Build a fresh plan before running; previous checks and approvals do not carry over.",
+    ].join(" ");
+    queueMicrotask(() => missionInput?.focus());
   }
 
   function describeBlocker(reason: unknown) {
@@ -383,6 +431,7 @@
   <header class="screen-heading">
     <div>
       <h1>New run</h1>
+      <p class="mission-intro">Give your agent a bounded job. Review the plan before it starts.</p>
     </div>
   </header>
 
@@ -390,7 +439,7 @@
     <div class="panel">
       <div class="empty flow-empty">
         <strong>Add a workspace</strong>
-        <p>Pick a folder Pytxo can trust before planning.</p>
+        <p>Select a repository folder, then choose the agent CLI you already use.</p>
         {#if onAddWorkspace}
           <button class="primary" onclick={() => void onAddWorkspace()}>
             <IconFolderPlus size={16} /> Add workspace
@@ -403,16 +452,18 @@
     <article class="panel composer-panel">
       <div class="panel-head">
         <div>
-          <h2>Outcome</h2>
+          <h2>Describe the job</h2>
         </div>
       </div>
-      <textarea bind:value={mission} aria-label="Mission outcome" placeholder="Describe the outcome and any constraints…"></textarea>
+      <p id="mission-guidance" class="mission-guidance">Name existing files or folders, the behavior you want, and what must stay unchanged. The planner uses those paths to define scope.</p>
+      <textarea bind:this={missionInput} bind:value={mission} aria-label="Mission outcome" aria-describedby="mission-guidance" placeholder="Fix the parser in src/parser.rs so empty input returns an error. Add a regression test. Keep the public API unchanged."></textarea>
       <div class="flow-templates">
-        <span>Ideas</span>
-        <button type="button" onclick={() => useTemplate("Diagnose the failing checks, implement the smallest safe fix, and verify it")}>Fix a failure</button>
-        <button type="button" onclick={() => useTemplate("Map the affected architecture, implement the feature, and prepare review")}>Build a feature</button>
-        <button type="button" onclick={() => useTemplate("Review security, permissions, and path claims without changing files")}>Audit safely</button>
+        <span>Start with</span>
+        <button type="button" onclick={() => useTemplate("Fix [existing file path] so [expected behavior]. Reproduce the failure, make the smallest repair, and add a regression test in [test file path]. Preserve unrelated changes.")}>Fix a failure</button>
+        <button type="button" onclick={() => useTemplate("Implement [expected behavior] in [existing file path]. Keep the public API unchanged and add coverage in [test file path]. Preserve unrelated changes.")}>Build a feature</button>
+        <button type="button" onclick={() => useTemplate("Add regression coverage in [test file path] for [expected behavior] in [existing file path]. Keep production behavior unchanged.")}>Add coverage</button>
       </div>
+      {#if draftNotice}<p class="draft-notice" role="status">{draftNotice}</p>{/if}
       {#if voiceState === "cancelled" || voiceState === "failed"}
         <p class:error={voiceState === "failed"} class="voice-state-message">
           {voiceState === "cancelled" ? "Voice capture cancelled · no audio retained" : "Voice capture failed · choose another input device"}
@@ -464,6 +515,7 @@
           <div class="domain">
             <span>Workspace &amp; agent CLI</span>
             <select bind:value={selectedDomainId} aria-label="Workspace">
+              {#if !selectedDomainId}<option value="" disabled>Select a workspace</option>{/if}
               {#each domains as domain}
                 <option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}</option>
               {/each}
@@ -474,6 +526,7 @@
               {:else if !adeClis.length}
                 <option value="">No ready CLI detected</option>
               {:else}
+                {#if !selectedAde}<option value="" disabled>Select a ready CLI</option>{/if}
                 {#each adeClis as cli (cli.id)}
                   <option value={cli.id} disabled={!isAdeReady(cli)}>
                     {cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}
@@ -488,16 +541,20 @@
         </div>
         {#if buildPlanDisabledReason}<p id="build-plan-disabled-reason" class="action-reason">{buildPlanDisabledReason}</p>{/if}
       </div>
-      <div class="ade-readiness" aria-live="polite">
+      <div class="ade-readiness">
+        <div class="readiness-summary" aria-live="polite">
         {#if adeError}
           <span class="error">Agent readiness could not be checked: {adeError}</span>
         {:else if selectedAdeStatus}
-          <span class:ready={selectedAdeReady}>{selectedAdeStatus.display_name}: {selectedAdeReady ? "ready" : adeUnavailableReason(selectedAdeStatus)}</span>
-          {#if unavailableAdes.length}
-            <small>Unavailable: {unavailableAdes.map((cli) => `${cli.display_name} (${adeUnavailableReason(cli)})`).join(" · ")}</small>
-          {/if}
+          <span class:ready={selectedAdeReady}>{selectedAdeStatus.display_name}: {adeLoading ? "checking…" : selectedAdeReady ? "ready" : adeUnavailableReason(selectedAdeStatus)}</span>
         {:else if !adeLoading}
           <span class="error">Install and sign in to an agent CLI before building a plan.</span>
+        {/if}
+        <button class="quiet" onclick={loadAdeClis} disabled={adeLoading || planning || dispatching}>{adeLoading ? "Checking…" : "Check again"}</button>
+        </div>
+        <p>One ready CLI is enough. More instances are used only when the reviewed plan calls for them.</p>
+        {#if unavailableAdes.length}
+          <details><summary>{unavailableAdes.length} other CLI{unavailableAdes.length === 1 ? "" : "s"} unavailable</summary><ul>{#each unavailableAdes as cli}<li>{cli.display_name} · {adeUnavailableReason(cli)}</li>{/each}</ul></details>
         {/if}
       </div>
     </article>
@@ -516,6 +573,7 @@
         </div>
         {#if plan}
           <p class="plan-summary">{planSummary}</p>
+          <p class="plan-explainer">Stages run in order. Path ownership and dependencies below define each task; the configured concurrency limits how many can run at once.</p>
           {#if !planMatchesInputs}
             <div class="plan-stale" role="status">
               <IconAlertTriangle size={15} />
@@ -530,10 +588,11 @@
                 {#if task}
                   <div>
                     <b>{String(taskIndex + 1).padStart(2, "0")}</b>
-                    <p>
-                      <input aria-label={`Task ${task.id} prompt`} value={task.prompt || task.id} oninput={(event) => editTask(task.id, event.currentTarget.value)} />
-                      <small>{task.agent} · {task.paths.join(", ") || "read-only"}</small>
-                    </p>
+                    <div class="plan-task">
+                      <label><span>{task.id} · {task.agent}</span><textarea aria-label={`Task ${task.id} prompt`} rows="2" value={task.prompt || task.id} oninput={(event) => editTask(task.id, event.currentTarget.value)}></textarea></label>
+                      <small class="task-paths">{task.paths.join(", ") || "No ownership paths reported"}</small>
+                      <small class="task-dependencies">{task.dependencies.length ? `After ${task.dependencies.join(", ")}` : "No task dependencies"}</small>
+                    </div>
                   </div>
                 {/if}
               {/each}
@@ -602,9 +661,9 @@
       </div>
       {#each history.slice(0, 6) as draft}
         <div>
-          <button onclick={() => restoreDraft(draft)}>
+          <button aria-label={`Use as new mission: ${draft.title}`} disabled={planning || dispatching} onclick={() => restoreDraft(draft)}>
             <strong>{draft.title}</strong>
-            <small>{draft.source} · {draft.status} · {draft.updated_at}</small>
+            <small>{draft.domain_id ?? "Workspace not recorded"} · {draft.status} · Use as new mission</small>
           </button>
           <button aria-label={`Delete ${draft.title}`} onclick={() => deleteDraft(draft.id)}>×</button>
         </div>

@@ -24,7 +24,7 @@
 
   let query = $state("");
   let onlyUnresolved = $state(false);
-  let review = $state<RunReviewDto | null>(null);
+  let loadedReview = $state<RunReviewDto | null>(null);
   let reviewError = $state<string | null>(null);
   let reviewLoading = $state(false);
   let rows: HTMLButtonElement[] = $state([]);
@@ -44,6 +44,7 @@
   );
 
   const selected = $derived(ordered.find((run) => run.id === focusRunId) ?? filtered[0] ?? null);
+  const review = $derived(loadedReview?.run_id === selected?.id ? loadedReview : null);
 
   /**
    * A run needs attention when its own record says an apply did not finish
@@ -57,6 +58,7 @@
 
   function applyLabel(run: RunDto): { tone: EpistemicTone; label: string } {
     if (run.applied_at) return { tone: "verified", label: "Applied" };
+    if (run.apply_status === "review_failed") return { tone: "refuted", label: "Preparation failed" };
     if (run.last_apply_error) return { tone: "refuted", label: "Apply failed" };
     const status = (run.apply_status ?? "").toLowerCase();
     if (!status || status === "none") return { tone: "unknown", label: "Not attempted" };
@@ -83,7 +85,7 @@
   $effect(() => {
     const run = selected;
     if (!run) {
-      review = null;
+      loadedReview = null;
       reviewError = null;
       return;
     }
@@ -93,11 +95,11 @@
     backend
       .runReview(run.id, domainIdForRun(run))
       .then((result) => {
-        if (current) review = result;
+        if (current) loadedReview = result;
       })
       .catch((error: unknown) => {
         if (!current) return;
-        review = null;
+        loadedReview = null;
         reviewError = error instanceof Error ? error.message : String(error);
       })
       .finally(() => {

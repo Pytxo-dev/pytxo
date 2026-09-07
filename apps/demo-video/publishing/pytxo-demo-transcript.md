@@ -1,11 +1,5 @@
 # Pytxo demo transcript
 
-One mission. One Codex worker. In this recorded run, Pytxo kept three changed files away from the primary checkout until Apply. It checked the combined candidate before Review. The receipt shows one passing test command, and both enforced and advisory boundaries. The exact changes were reviewed in the native app, and Apply was explicitly confirmed. Pytxo recorded a committed attempt. The applied file hashes matched the reviewed package, and four tests passed in the repository. If included inputs change, the candidate needs fresh checks. This is one observed run, not a speed comparison or a sandbox guarantee. Keep your agent. Add Pytxo.
+One harness. Three scoped tasks. This recorded Codex job changed code, tests, and documentation in two waves. Pytxo kept the primary checkout unchanged while workers ran. It reran the checks on the exact combined candidate. The receipt distinguishes enforced boundaries from advisory controls. Every diff was inspected in the native app, and Apply was explicitly confirmed. The journal recorded a committed attempt. All three applied file hashes matched the reviewed package, and the repository tests passed. These are edited captures from the packaged Windows app. The Bench record also retains an earlier refused run and a direct worktree comparison. No speed win or OS-wide sandbox is claimed. Keep your agent. Add Pytxo.
 
-On-screen end card: **pytxo.com**
-
-This reviewed transcript matches the canonical paragraph in `VOICEOVER.md`. The companion SRT
-is `pytxo-demo-en-provisional.srt`. It is an external accessibility artifact and is not imported
-into or burned into the Remotion composition. Its text is canonical, but its cue timings are
-provisional and must be retimed against the approved generated continuous narration before
-release.
+On-screen: 7 September 2026 native evidence from the exact packaged Windows app. Native interactions were operated by test automation. This edit compresses elapsed time; development-host extraction and execution are not clean installation proof. The earlier refused run and direct worktree observation remain separate Bench records. Narration is a script only until fresh audio is generated and reviewed.

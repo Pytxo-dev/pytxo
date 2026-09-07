@@ -7,8 +7,16 @@ on:
   pull_request:
     branches: [main]
 
+# Superseded PR checks may stop. Main and reusable release checks keep a
+# run-specific group, so a newer push cannot cancel publication prerequisites.
+concurrency:
+  group: pytxo-ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   rust:
+    # The last successful Windows job took 36 minutes; retain cold-build margin.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -92,6 +100,7 @@ jobs:
           cargo test -p pytxo-orchestrate --test mcp_proxy
 
   benchmarks:
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -138,6 +147,7 @@ jobs:
         run: bash tooling/benchmarks/multi-agent-ram.sh
 
   npm-cli:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -160,6 +170,7 @@ jobs:
           PYTXO_SKIP_DOWNLOAD=1 node packages/pytxo/bin/pytxo.js --version
 
   test-env-smoke:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -174,6 +185,7 @@ jobs:
         run: bash tooling/test-envs/shell-smoke.sh
 
   web:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -198,6 +210,7 @@ jobs:
           npm run e2e
 
   desktop-frontend:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -226,6 +239,7 @@ jobs:
           npm run storybook:test:ci
 
   desktop-tauri:
+    timeout-minutes: 60
     needs: desktop-frontend
     runs-on: ubuntu-latest
     steps:
@@ -266,6 +280,7 @@ jobs:
         run: cargo test -p pytxo-desktop
 
   pytxo-link:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -277,6 +292,7 @@ jobs:
         run: cargo build -p pytxo-link --release
 
   pytxo-cloud-sandbox:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

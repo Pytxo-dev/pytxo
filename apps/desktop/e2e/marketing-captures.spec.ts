@@ -5,6 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 import { completeOnboarding } from "./helpers";
+import { MARKETING_ROUTES, MARKETING_VIEWPORTS } from "../../web/scripts/product-asset-manifest.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const DESKTOP_ROOT = fileURLToPath(new URL("../", import.meta.url));
@@ -31,7 +32,7 @@ const ROUTES = [
   { route: "flow", heading: "New run", marketing: true },
   { route: "approvals", heading: "Approvals", marketing: true },
   { route: "setup", heading: "Appearance", marketing: false },
-  { route: "integrations", heading: "Agents & permissions", marketing: true },
+  { route: "integrations", heading: "Agents", marketing: true },
   { route: "workspaces", heading: "Workspaces", marketing: false },
   { route: "run-review", heading: "Run Review", marketing: true },
 ] as const;
@@ -74,7 +75,7 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
   if (route.route === "flow") {
     await page
       .getByLabel("Mission outcome")
-      .fill("Ship the approval workflow with isolated changes and verification");
+      .fill("Improve reviewed mission handling in apps/desktop/src/components/desktop2/FlowScreen.svelte and crates/pytxo-orchestrate/src/flow.rs, with regression coverage in crates/pytxo-orchestrate/tests/flow_mission.rs.");
     await page.getByRole("button", { name: "Build plan", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review plan" })).toBeVisible();
   }
@@ -117,8 +118,8 @@ test.describe("@marketing-capture current Desktop product captures", () => {
         await writeCapture(path.join(DOCS_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`), png);
 
         if (
-          route.marketing &&
-          (viewport.slug === "1600x1000" || viewport.slug === "960x640")
+          MARKETING_ROUTES.includes(route.route) &&
+          MARKETING_VIEWPORTS.some((size: { slug: string }) => size.slug === viewport.slug)
         ) {
           await writeCapture(
             path.join(WEB_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`),

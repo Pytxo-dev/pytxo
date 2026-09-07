@@ -787,6 +787,9 @@ async fn run_one_agent(
             }
         }
     }
+    if ctx.signal_core {
+        context_paths = context_paths_for_workspace(&eff_repo_root, &context_paths, &engine)?;
+    }
 
     // Resolve fidelity: per-task override > per-agent override > global, then cap.
     let requested_fidelity = task
@@ -799,7 +802,7 @@ async fn run_one_agent(
         .route(&task.agent, &minimal_config_for_route(ctx));
     let cache_ref = ctx.context_cache.as_deref();
     let mut bundle = prepare_agent_context_for_root(
-        &eff_repo_root,
+        &wt_path,
         &ctx.data_dir,
         &ctx.run_id,
         &agent_id.0,
@@ -986,7 +989,10 @@ async fn run_one_agent(
     }
 
     let cmd = resolve_cmd_for_task(ctx, task)?;
-    let task_prompt = ctx.task_prompts.get(&task.task_id.0).cloned();
+    let task_prompt = ctx
+        .task_prompts
+        .get(&task.task_id.0)
+        .map(|prompt| task_launch_prompt(task, prompt));
     let net = engine.network();
     if !net.spawn_egress_allowed(&cmd) {
         return Err(PytxoError::Runner(format!(
@@ -1089,9 +1095,10 @@ async fn run_one_agent(
     .map_err(|e| PytxoError::Runner(format!("join: {e}")))??;
 
     let mut result = result;
+    let retry_fidelity = engine.max_fidelity(FidelityTier::High);
     if result.exit_code != Some(0)
         && ctx.signal_core
-        && fidelity != FidelityTier::High
+        && fidelity != retry_fidelity
         && !context_paths.is_empty()
     {
         // Closed-loop v2: escalate only the paths the failure implicates; fall
@@ -1105,18 +1112,22 @@ async fn run_one_agent(
                 .iter()
                 .map(|p| (p.clone(), agent_key.clone(), task.root.clone()))
                 .collect();
-            pytxo_signal::graph_neighbor_paths(&eff_repo_root, &edited, &implicated)
+            pytxo_signal::graph_neighbor_paths(&wt_path, &edited, &implicated)
         };
         let retry_paths: &[String] = &retry_paths_vec;
 
+        // A retry receives a fresh directory so deleted or unselected source
+        // cannot survive there as stale context from the previous attempt.
+        // Retain the old context for evidence; never clean through its manifest.
+        let retry_context_id = format!("{}/retry-{}", agent_id.0, uuid::Uuid::new_v4());
         let high_bundle = prepare_agent_context_for_root(
-            &eff_repo_root,
+            &wt_path,
             &ctx.data_dir,
             &ctx.run_id,
-            &agent_id.0,
+            &retry_context_id,
             retry_paths,
             true,
-            FidelityTier::High,
+            retry_fidelity,
             ctx.token_estimator.as_ref(),
             &route.model,
             task.root.as_deref(),
@@ -1139,7 +1150,8 @@ async fn run_one_agent(
                 &agent_key,
                 "signal-retry",
                 &format!(
-                    "closed-loop retry at high fidelity over {} of {} path(s)",
+                    "closed-loop retry at {} fidelity over {} of {} path(s)",
+                    retry_fidelity.as_str(),
                     retry_paths.len(),
                     context_paths.len()
                 ),
@@ -1411,7 +1423,7 @@ fn run_verify_commands_with_limits(
         command
             .args(&shell.1)
             .arg(cmd)
-            .current_dir(cwd)
+            .current_dir(shell_working_directory(cwd)?)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -1830,7 +1842,7 @@ fn run_command_streaming(
     command
         .args(&shell.1)
         .arg(cmd)
-        .current_dir(worktree)
+        .current_dir(shell_working_directory(worktree)?)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     if subprocess_stdin {
@@ -1987,6 +1999,86 @@ fn remove_persisted_process(p: &ProcessPersist, agent_key: &str) -> Result<()> {
     })
 }
 
+/// Add reviewed task guidance before the prompt is passed through the child environment.
+fn task_launch_prompt(task: &ScheduledTask, prompt: &str) -> String {
+    if prompt.is_empty() {
+        return String::new();
+    }
+    // npm .cmd shims truncate multiline native arguments. Keep generated Windows
+    // guidance on one line; the original task text is still preserved verbatim.
+    #[cfg(windows)]
+    {
+        let list = |values: &[String]| {
+            values
+                .iter()
+                .map(|value| task_handoff_metadata(value))
+                .collect::<Vec<_>>()
+                .join("; ")
+        };
+        format!(
+            "{prompt}  Pytxo task handoff (guidance). \
+             Metadata lists separate entries with semicolons and use UTF-16 \\uXXXX escapes for special characters. \
+             Task ID: [{}]. Owned paths: [{}]. Dependency task IDs: [{}]. Recorded verification commands: [{}]. \
+             Paths are relative to your current task workspace. Edit only the owned paths listed above, including when generic habits or skills suggest adding tests, documentation, or other files. If completing the task requires an edit elsewhere, report the required path and reason instead of widening the scope. \
+             Successful dependency outputs are already composed into this workspace. Read additional files only under the existing permissions; dependency outputs and any PYTXO_CONTEXT_DIR context do not expand write ownership. \
+             This handoff is guidance, not a sandbox or approval. The run's enforcement receipt describes the controls actually available. Your own test results do not replace Pytxo's recorded verification.",
+            task_handoff_metadata(&task.task_id.0),
+            list(&task.paths),
+            list(&task.depends_on),
+            list(&task.verify),
+        )
+    }
+    #[cfg(not(windows))]
+    format!(
+        "{prompt}\n\n\
+         Pytxo task handoff (guidance)\n\
+         Task ID (JSON): {}\n\
+         Owned paths (JSON): {}\n\
+         Dependency task IDs (JSON): {}\n\
+         Recorded verification commands (JSON): {}\n\
+         Paths are relative to your current task workspace. Edit only the owned paths listed above, including when generic habits or skills suggest adding tests, documentation, or other files. If completing the task requires an edit elsewhere, report the required path and reason instead of widening the scope.\n\
+         Successful dependency outputs are already composed into this workspace. Read additional files only under the existing permissions; dependency outputs and any PYTXO_CONTEXT_DIR context do not expand write ownership.\n\
+         This handoff is guidance, not a sandbox or approval. The run's enforcement receipt describes the controls actually available. Your own test results do not replace Pytxo's recorded verification.\n",
+        serde_json::json!(task.task_id.0),
+        serde_json::json!(task.paths),
+        serde_json::json!(task.depends_on),
+        serde_json::json!(task.verify),
+    )
+}
+
+#[cfg(windows)]
+fn task_handoff_metadata(value: &str) -> String {
+    let mut encoded = String::new();
+    for unit in value.encode_utf16() {
+        if matches!(unit, 0x20 | 0x2D..=0x3A | 0x41..=0x5A | 0x5F | 0x61..=0x7A) {
+            encoded.push(char::from_u32(u32::from(unit)).unwrap());
+        } else {
+            use std::fmt::Write;
+            write!(encoded, "\\u{unit:04X}").unwrap();
+        }
+    }
+    encoded
+}
+
+#[cfg(all(test, windows))]
+#[test]
+fn windows_task_handoff_metadata_preserves_unusual_values_without_shell_syntax() {
+    for value in [
+        "src/a file.rs",
+        "src/quoted\"file;[part].rs",
+        "C:\\nested\\日本語😀.rs",
+        "npm test -- --name=\"quoted\"\r\nnext\tcommand",
+        "%PATH% !EXPAND! & | < > ^ ` $()",
+    ] {
+        let encoded = task_handoff_metadata(value);
+        assert!(!encoded
+            .chars()
+            .any(|c| c.is_control() || "\"'%;[]!&|<>^`$()".contains(c)));
+        let decoded: String = serde_json::from_str(&format!("\"{encoded}\"")).unwrap();
+        assert_eq!(decoded, value);
+    }
+}
+
 /// Resolve the shell command for one scheduled task (Hypervisor Shell templates).
 pub fn resolve_cmd_for_task(ctx: &RunContext, task: &pytxo_core::ScheduledTask) -> Result<String> {
     if let Some(template) = &ctx.task_cmd_template {
@@ -2019,6 +2111,83 @@ fn mcp_cmd_allowed(cmd: &str, allowlist: &[String]) -> bool {
         return true;
     }
     allowlist.iter().any(|prefix| cmd.contains(prefix))
+}
+
+/// Rebase explicitly allowed primary-repository paths into the worker snapshot.
+/// Keep the original read gate before rebasing, then materialization applies the
+/// same profile to the actual workspace path (including symlink containment).
+fn context_paths_for_workspace(
+    repo_root: &Path,
+    patterns: &[String],
+    engine: &PermissionEngine,
+) -> Result<Vec<String>> {
+    let canonical_root = pytxo_core::canonical_repo_root(repo_root).map_err(PytxoError::Io)?;
+    patterns
+        .iter()
+        .map(|pattern| {
+            let path = Path::new(pattern);
+            if !path.is_absolute() {
+                return Ok(pattern.clone());
+            }
+            if !engine.may_read(repo_root, path, repo_root) {
+                return Err(PytxoError::Runner(format!(
+                    "read denied for {} profile: {}",
+                    engine.profile().as_str(),
+                    path.display()
+                )));
+            }
+            let absolute = pytxo_core::strip_extended_path(path.to_path_buf());
+            let relative = absolute
+                .strip_prefix(repo_root)
+                .or_else(|_| absolute.strip_prefix(&canonical_root))
+                .map(Path::to_path_buf)
+                .or_else(|_| {
+                    let canonical = pytxo_core::canonical_repo_root(path)?;
+                    canonical
+                        .strip_prefix(&canonical_root)
+                        .map(Path::to_path_buf)
+                        .map_err(std::io::Error::other)
+                })
+                .map_err(PytxoError::Io)?;
+            Ok(relative.to_string_lossy().replace('\\', "/"))
+        })
+        .collect()
+}
+
+/// Adapt a resolved workspace path only at the external shell boundary.
+pub(crate) fn shell_working_directory(path: &Path) -> Result<PathBuf> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+
+        if path.components().any(|component| {
+            matches!(component, Component::Normal(name) if matches!(name.encode_wide().last(), Some(0x20 | 0x2e)))
+        }) {
+            return Err(PytxoError::Runner(
+                "Windows CMD cannot use working directory components ending in a dot or space"
+                    .into(),
+            ));
+        }
+    }
+    let cwd = pytxo_core::strip_extended_path(path.to_path_buf());
+    #[cfg(windows)]
+    if let Some(Component::Prefix(prefix)) = cwd.components().next() {
+        use std::path::Prefix;
+        if matches!(
+            prefix.kind(),
+            Prefix::UNC(_, _)
+                | Prefix::VerbatimUNC(_, _)
+                | Prefix::Verbatim(_)
+                | Prefix::DeviceNS(_)
+        ) {
+            // CMD silently falls back to the Windows directory for these paths.
+            return Err(PytxoError::Runner(
+                "Windows CMD cannot use a UNC or device working directory; use a local workspace"
+                    .into(),
+            ));
+        }
+    }
+    Ok(cwd)
 }
 
 pub(crate) fn shell_command() -> (String, Vec<String>) {
@@ -2182,6 +2351,161 @@ pub fn commit_workspace(
         sparse_exclude: ctx.sparse_exclude.clone(),
     };
     isolation.flush(&iso_ctx, workspace)
+}
+
+#[cfg(all(test, windows))]
+mod shell_cwd_tests {
+    use super::*;
+
+    const MARKER: &str = "pytxo-shell-cwd-expected-marker.txt";
+    const CONTENT: &str = "PYTXO_EXPECTED_WORKSPACE";
+
+    #[test]
+    fn shell_cwd_rejects_unc_and_device_paths_without_accessing_them() {
+        for cwd in [
+            r"\\server\share\workspace",
+            r"\\?\UNC\server\share\workspace",
+            r"\\.\C:\workspace",
+            r"\\?\Volume{00000000-0000-0000-0000-000000000000}\workspace",
+        ] {
+            let error = shell_working_directory(Path::new(cwd)).unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("UNC or device working directory"));
+        }
+    }
+
+    fn canonical_fixture() -> (tempfile::TempDir, PathBuf) {
+        let fixture = tempfile::Builder::new()
+            .prefix("pytxo shell cwd ")
+            .tempdir()
+            .unwrap();
+        std::fs::write(fixture.path().join(MARKER), CONTENT).unwrap();
+        let cwd = std::fs::canonicalize(fixture.path()).unwrap();
+        assert!(cwd.as_os_str().to_string_lossy().starts_with(r"\\?\"));
+        (fixture, cwd)
+    }
+
+    #[test]
+    fn shell_cwd_rejects_verbatim_only_directory_components() {
+        let (_fixture, root) = canonical_fixture();
+        for suffix in [".", " "] {
+            for nested in [false, true] {
+                let mut sibling = root.join("directory");
+                let mut intended = root.join(format!("directory{suffix}"));
+                if nested {
+                    sibling.push("child");
+                    intended.push("child");
+                }
+                std::fs::create_dir_all(&sibling).unwrap();
+                std::fs::create_dir_all(&intended).unwrap();
+                std::fs::write(sibling.join(MARKER), "ORDINARY_SIBLING").unwrap();
+                std::fs::write(intended.join(MARKER), CONTENT).unwrap();
+                assert_eq!(
+                    std::fs::read_to_string(sibling.join(MARKER)).unwrap(),
+                    "ORDINARY_SIBLING"
+                );
+                assert_eq!(
+                    std::fs::read_to_string(intended.join(MARKER)).unwrap(),
+                    CONTENT
+                );
+                let cwd = std::fs::canonicalize(intended).unwrap();
+                let result = crate::pty::run_pty_session(
+                    &cwd,
+                    &format!("type {MARKER}"),
+                    ChildLaunchEnv::new(),
+                    12,
+                    120,
+                    None,
+                    "cwd-run:agent-0",
+                    &SwarmRegistry::new(),
+                );
+                let error = match result {
+                    Err(error) => error,
+                    Ok(output) => panic!(
+                        "verbatim-only cwd must not launch: stdout={}, stderr={}",
+                        output.stdout, output.stderr
+                    ),
+                };
+                assert!(error
+                    .to_string()
+                    .contains("working directory components ending in a dot or space"));
+            }
+        }
+    }
+
+    fn assert_worker_cwd(backend: ExecutionBackend) {
+        let (_fixture, cwd) = canonical_fixture();
+        let route = ConfigModelRouter.route("fixture", &pytxo_core::PytxoConfig::default());
+        let output = run_command_streaming(
+            &cwd,
+            &format!("type {MARKER}"),
+            None,
+            "cwd-run:agent-0",
+            None,
+            PermissionProfile::Orbit,
+            &ManagedTransport::default(),
+            &route,
+            backend,
+            12,
+            120,
+            &SwarmRegistry::new(),
+            false,
+            None,
+            None,
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            output.exit_code,
+            Some(0),
+            "worker lost its workspace: stdout={}, stderr={}",
+            output.stdout,
+            output.stderr
+        );
+        assert!(output.stdout.contains(CONTENT), "{}", output.stdout);
+        assert!(!output.stdout.contains("Defaulting to Windows directory"));
+    }
+
+    #[test]
+    fn shell_cwd_pty_keeps_the_canonical_workspace() {
+        assert_worker_cwd(ExecutionBackend::Pty);
+    }
+
+    #[test]
+    fn shell_cwd_subprocess_keeps_the_canonical_workspace() {
+        assert_worker_cwd(ExecutionBackend::Subprocess);
+    }
+
+    #[test]
+    fn shell_cwd_verifier_keeps_the_canonical_workspace() {
+        let (_fixture, cwd) = canonical_fixture();
+        let stdout = Arc::new(std::sync::Mutex::new(String::new()));
+        let captured = Arc::clone(&stdout);
+        let on_event: EventCallback = Arc::new(move |_, kind, payload| {
+            if kind == "verify-stdout" {
+                captured.lock().unwrap().push_str(payload);
+            }
+        });
+        run_verify_commands_with_limits(
+            &cwd,
+            &[format!("type {MARKER}")],
+            Some(&on_event),
+            "cwd-run:verify",
+            PermissionProfile::Orbit,
+            &DomainId("cwd-domain".into()),
+            ExecutionBackend::Subprocess,
+            true,
+            None,
+            Duration::from_secs(5),
+            4096,
+            None,
+        )
+        .expect("verifier reads its own workspace marker");
+        assert_eq!(stdout.lock().unwrap().trim(), CONTENT);
+    }
 }
 
 #[cfg(test)]

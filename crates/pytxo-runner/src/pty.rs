@@ -105,6 +105,7 @@ pub(crate) fn run_pty_session_with_spawn(
     swarm: &SwarmRegistry,
     on_spawn: Option<&dyn Fn(u32) -> Result<()>>,
 ) -> Result<SingleResult> {
+    let shell_cwd = crate::run::shell_working_directory(worktree)?;
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -121,7 +122,7 @@ pub(crate) fn run_pty_session_with_spawn(
         builder.arg(arg);
     }
     builder.arg(cmd);
-    builder.cwd(worktree);
+    builder.cwd(shell_cwd);
     builder.env_clear();
     for (key, value) in ChildLaunchEnv::inherited_baseline() {
         builder.env(key, value);

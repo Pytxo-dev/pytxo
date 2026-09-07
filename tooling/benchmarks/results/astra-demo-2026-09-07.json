@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "verified_at_utc": "2026-09-07T04:03:13.507Z",
+  "mode": "silent",
+  "duration_seconds": 52,
+  "format": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video",
+        "width": 1920,
+        "height": 1080,
+        "pix_fmt": "yuv420p",
+        "color_space": "bt709",
+        "color_transfer": "bt709",
+        "color_primaries": "bt709",
+        "r_frame_rate": "30/1"
+      }
+    ],
+    "format": {
+      "duration": "52.000000",
+      "size": "2779710"
+    }
+  },
+  "source_run_id": "d743c0dc-76d3-4ff8-b6a3-7d88e743eb22",
+  "msi_sha256": "dfacd548f58ea149d84271de50c038288f6b19894f1496dde65916a4a67d20d3",
+  "package_digest": "0c04ae8106a37dca0993addf572f16c0ba802ba101b0ccd453d2ff5515a0a6bf",
+  "assets": [
+    {
+      "path": "apps/demo-video/out/pytxo-demo-silent.mp4",
+      "bytes": 2779710,
+      "sha256": "45aab4c6dee117d4792ac637fc181ad1445b65841359086e88d048751339317c"
+    },
+    {
+      "path": "apps/demo-video/public/poster.png",
+      "bytes": 347912,
+      "sha256": "fa3614aacd38689b4f3dd9d59b1abd3cc711d39b428b35e242a12bed7e2a3be0"
+    },
+    {
+      "path": "apps/demo-video/out/pytxo-demo-contact-sheet.png",
+      "bytes": 571996,
+      "sha256": "b6680be2c8073293e1e3c0ab3d1505880b9209daf2f534752ced8a1ac75b31a5"
+    },
+    {
+      "path": "apps/demo-video/out/pytxo-demo-transition-sheet.png",
+      "bytes": 491587,
+      "sha256": "f9534a71a712246228be377e943d340e038c0101c740979a4cc4a26067ac927a"
+    },
+    {
+      "path": "apps/demo-video/src/PytxoLaunchDemo.tsx",
+      "bytes": 7687,
+      "sha256": "86d651416d7aba5988d99d07350a6cde6ce1415c15a6896464e139c5bff710da"
+    },
+    {
+      "path": "tooling/benchmarks/results/astra-native-codex-2026-09-07.json",
+      "bytes": 9170,
+      "sha256": "af15ec2f8c89db95eeb22c2e8d97e1a3b739d5d6fd5039e16146b25601a098e2"
+    }
+  ],
+  "validation": {
+    "typecheck": "passed",
+    "original_native_assets": "passed",
+    "transcript_and_provisional_cues": "passed",
+    "master_format_and_black_scan": "passed",
+    "deterministic_holds": 7,
+    "visual_inspection": "Seven composition stills and 13 encoded transition frames inspected; native source images checked for privacy, readability and clipping",
+    "continuous_playback_watched": false
+  },
+  "limitations": [
+    "Edited unmodified native element captures, not a live recording or elapsed-time reproduction",
+    "Native UI operated by test automation; final-state README guidance explicitly edited before the successful run",
+    "Prior failed and review-withheld attempts retained with direct worktree baseline",
+    "No narrated master generated for this script; provisional captions require final audio timing before publication",
+    "No public publishing, clean-install certification or speed/cost/reliability comparison"
+  ]
+}

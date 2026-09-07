@@ -39,7 +39,7 @@ test("desktop hero leads with the mission and current product evidence", async (
   const product = page.getByTestId("hero-product");
   const productImage = product.getByRole("img");
 
-  await expect(heading).toHaveText("Coordinate coding agents.Review one result.");
+  await expect(heading).toHaveText("Agents do the work.You decide what lands.");
   await expect(page.getByTestId("marketing-hero").getByRole("link", { name: "Download Pytxo" })).toBeVisible();
   await expect(product).toBeInViewport();
   await expect(productImage).toHaveJSProperty("naturalWidth", 1600);
@@ -58,8 +58,10 @@ test("hero states one primary action and an honest platform scope", async ({ pag
   await page.goto("/");
 
   const hero = page.getByTestId("marketing-hero");
-  const buttons = hero.getByRole("link").filter({ hasText: /Download Pytxo|Read the docs/ });
+  const buttons = hero.getByRole("link").filter({ hasText: /Download Pytxo|Run your first mission/ });
   await expect(buttons).toHaveCount(2);
+  await expect(hero.getByRole("link", { name: "Run your first mission" })).toHaveAttribute("href", "/docs/getting-started/first-mission");
+  await expect(hero.getByText("Local Core needs no Pytxo account.", { exact: false })).toBeVisible();
   await expect(hero.getByText("Desktop ships for Windows today.")).toBeVisible();
 });
 
@@ -98,7 +100,7 @@ test("the homepage tells the seven-section narrative in order", async ({ page })
 
   expect(order.every((top) => top >= 0)).toBe(true);
   expect([...order].sort((a, b) => a - b)).toEqual(order);
-  await expect(page.getByRole("heading", { name: "Three agents. One working tree." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "One agent first. More when it helps." })).toBeVisible();
 });
 
 test("the product section shows one capture large enough to read", async ({ page }) => {
@@ -149,7 +151,7 @@ test("the published figure carries its non-claims and links to source data", asy
   await expect(section.getByRole("link", { name: "Read the methodology" })).toBeVisible();
 });
 
-test("the evidence page states the corpus, caveats, and reproduction path", async ({ page }) => {
+test("the evidence page states the corpus, caveats, and source access limit", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/evidence");
 
@@ -157,11 +159,37 @@ test("the evidence page states the corpus, caveats, and reproduction path", asyn
   await expect(page.getByRole("heading", { name: "What it does not claim" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Caveats that weaken the number" })).toBeVisible();
   await expect(page.getByText(/worktree was dirty at capture time/)).toBeVisible();
+  await expect(page.getByText(/The source link requires repository access/)).toBeVisible();
   await expect(
     page.getByRole("link", { name: "tooling/benchmarks/results/signal-real-repo.json" }).first(),
   ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
+
+for (const width of [1440, 390]) {
+  test(`native evidence links resolve to the displayed artifact at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/evidence");
+    const nativeLink = page.getByRole("link", { name: "Native run record", exact: true });
+    const href = await nativeLink.getAttribute("href");
+    expect(href).toBeTruthy();
+    const response = await page.request.get(href!);
+    expect(response.ok()).toBe(true);
+    expect(response.headers()["content-type"]).toContain("application/json");
+    const record = await response.json();
+    expect(record.run_status).toBe("completed");
+    expect(record.native_apply.applied_files_match_frozen_digests).toBe(true);
+    expect(record.msi_sha256).toMatch(/^[a-f0-9]{64}$/);
+    await expect(page.getByText(`Recorded MSI SHA256: ${record.msi_sha256}`, { exact: true })).toBeVisible();
+    for (const name of ["Direct worktree record", "Earlier refusal record", "Launch failure record", "Review withheld record"]) {
+      const url = await page.getByRole("link", { name, exact: true }).getAttribute("href");
+      expect(url).toBeTruthy();
+      expect((await page.request.get(url!)).ok()).toBe(true);
+    }
+    await expect(page.getByText(/Host filesystem and network controls remained advisory/)).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  });
+}
 
 test("chroma aperture identity is monochrome with one static spectrum signature", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });

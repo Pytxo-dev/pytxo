@@ -1,6 +1,45 @@
-# Pytxo benchmarks (Phase 1)
+# Pytxo benchmarks
 
-## Current Beta evidence
+## September 7: three-task observations
+
+The [direct Codex worktree observation](results/astra-direct-codex-2026-09-07.json)
+completed the exact mission in [the reproduction fixture](fixtures/astra-first-mission/README.md):
+three requested files, eight independently rerun tests, and an unchanged primary
+checkout. Its 252.172-second duration ends at CLI exit. The CLI reported 30,811
+tokens, without an input/output breakdown or reconciled invoice cost.
+
+Keep the unsuccessful Pytxo attempts alongside later results:
+
+- [Scope refusal](results/astra-refused-run-2026-09-07.json): three workers finished
+  and passed task checks, but an implementation worker edited the separately owned
+  test file. Package preparation refused it; six primary baseline hashes stayed
+  unchanged. This exposed a missing explicit ownership handoff to workers.
+- [Windows launch failure](results/astra-transport-failure-2026-09-07.json): the
+  revised handoff hit a PowerShell-to-CMD prompt parsing defect. Two workers failed
+  before model execution and the dependent task was blocked. No package or Apply
+  occurred; six primary baseline hashes stayed unchanged.
+- [Review withheld](results/astra-review-withheld-2026-09-07.json): all three
+  workers and combined checks passed, but native diff review found a README
+  statement contradicted by the correctly changed code. The package remained
+  ready and was never applied. This was an agent review decision; Pytxo did not
+  automatically detect the prose error. A fresh run uses explicit final-state
+  documentation guidance through the existing task-prompt editor.
+
+The [final native run](results/astra-native-codex-2026-09-07.json) completed three
+tasks in two waves, passed all three combined-candidate commands, and reached
+native reviewed Apply. All three applied hashes match the frozen package and
+eight independent primary tests pass. Six baseline source hashes were unchanged
+before Apply; the source inventory gained or lost no files. The CLI reported
+80,975 tokens across the three workers; invoice cost remains unknown.
+
+The unsuccessful attempts above remain separate. Timing endpoints, task-prompt
+guidance, instance counts, startup hooks and machine
+load differ, so these observations do not establish orchestration overhead, a
+speed win, better quality or a reliability rate. The direct run did not receive
+the later documentation-task override. A competent direct Git worktree
+also preserves the primary checkout. Customer repeat use remains unmeasured.
+
+## Historical September 6 Beta evidence
 
 [`beta-single-codex-2026-09-06.json`](results/beta-single-codex-2026-09-06.json)
 records one actual natural-language mission using Codex 0.153.4 and the current

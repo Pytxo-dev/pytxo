@@ -249,6 +249,24 @@ export class PreviewDesktopBackend implements DesktopBackend {
   private sequence = 0;
 
   constructor() {
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-run-state-v1") === "review_failed") {
+      Object.assign(this.snapshot.runs[0], {
+        status: "failed", apply_status: "review_failed", prepared_digest: null, prepared_at: null,
+        last_apply_error: { at: "2026-09-07T01:15:56Z", code: "review_preparation_failed", message: "runner: agent agent-0 edited test/risk-policy.test.mjs outside declared claims", attempt_id: null, rollback_confirmed: false },
+      });
+      this.snapshot.agents = this.snapshot.agents.map((agent) => ({ ...agent, status: "completed", exit_code: 0 }));
+    }
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-run-state-v1") === "starting") {
+      this.snapshot.runs[0].status = "starting";
+    }
+    const nativeAgentFixture = typeof localStorage === "undefined" ? null : localStorage.getItem("pytxo-preview-native-agent-ids-v1");
+    if (nativeAgentFixture === "switch") {
+      this.snapshot.runs.push({ ...this.snapshot.runs[0], id: "run-other", status: "completed" });
+      this.snapshot.agents.push(...this.snapshot.agents.map((agent) => ({ ...agent, run_id: "run-other" })));
+    }
+    if (nativeAgentFixture === "1" || nativeAgentFixture === "switch") {
+      this.snapshot.agents = this.snapshot.agents.map((agent) => ({ ...agent, id: `${agent.run_id}:${agent.id}` }));
+    }
     const requested =
       typeof localStorage === "undefined"
         ? null
@@ -301,7 +319,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
     const active = this.snapshot.runs.find(
       (run) =>
         run.repo_root === domain.repo_root &&
-        ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
+        ["starting", "running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
     );
     if (!active || active.id !== runId) {
       throw new Error(
@@ -313,7 +331,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
     domain.active_runs = this.snapshot.runs.filter(
       (run) =>
         run.repo_root === domain.repo_root &&
-        ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
+        ["starting", "running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
     ).length;
     domain.latest_run_status = active.status;
     this.emitChange(domainId, "run", runId);
@@ -424,7 +442,12 @@ export class PreviewDesktopBackend implements DesktopBackend {
     return path;
   }
   async voiceAvailable() { return true; }
-  async flowHistory() { return [] as FlowDraftRecord[]; }
+  async flowHistory(): Promise<FlowDraftRecord[]> {
+    const fixture = typeof localStorage === "undefined" ? null : localStorage.getItem("pytxo-preview-flow-history-v1");
+    if (!fixture) return [];
+    const domainId = fixture === "long-path" ? `C:/workspaces/${"a-very-long-project-folder/".repeat(8)}repository` : fixture === "missing" ? "unavailable-workspace" : "signal-lab";
+    return [{ id: "draft-reuse", title: "Fix the parser regression", mission_text: "Fix src/parser.rs and add a regression test", source: "text", domain_id: domainId, project_id: null, status: "completed", plan_json: JSON.stringify({ ade: { requested: fixture === "unavailable-cli" ? "claude" : "codex" } }), dispatched_run_id: "run-71ad", created_at: "2026-09-06T12:00:00Z", updated_at: "2026-09-06T12:00:00Z" }];
+  }
   async deleteFlowDraft() {}
   async listAgents(runId: string) {
     const verification = localStorage.getItem("pytxo-preview-agent-verification-v1");
@@ -443,6 +466,8 @@ export class PreviewDesktopBackend implements DesktopBackend {
     return agents;
   }
   async runReview(runId: string): Promise<RunReviewDto> {
+    const delayedOtherRun = runId === "run-other";
+    if (delayedOtherRun) await new Promise((resolve) => setTimeout(resolve, 1500));
     const run = this.snapshot.runs.find((item) => item.id === runId);
     if (!run) throw new Error(`Run not found: ${runId}`);
     const isSignalRun = runId === "run-71ad";
@@ -739,7 +764,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
           ]
         : []),
     ];
-    const receipt = stateMatrixRequested() ? previewMatrixReceipt : previewReceipt;
+    const receipt = stateMatrixRequested() || delayedOtherRun ? previewMatrixReceipt : previewReceipt;
     return {
       run_id: runId,
       base_revision: isSignalRun ? "71ad8f2c4d90b6c6" : "8f2cc9814fc10e31",
@@ -750,14 +775,14 @@ export class PreviewDesktopBackend implements DesktopBackend {
         run: structuredClone(receipt),
         agents: Object.fromEntries(
           (await this.listAgents(runId))
-            .map((agent) => [agent.id, structuredClone(receipt)]),
+            .map((agent) => [agent.id.startsWith(`${runId}:`) ? agent.id.slice(runId.length + 1) : agent.id, structuredClone(receipt)]),
         ),
       },
       apply_manifest: appliedManifest,
-      prepared_manifest: preparedManifest,
-      prepared_digest: preparedManifest.package_digest,
-      prepared_at: preparedManifest.prepared_at,
-      last_apply_error: lastError,
+      prepared_manifest: run.apply_status === "review_failed" ? null : preparedManifest,
+      prepared_digest: run.apply_status === "review_failed" ? null : preparedManifest.package_digest,
+      prepared_at: run.apply_status === "review_failed" ? null : preparedManifest.prepared_at,
+      last_apply_error: run.last_apply_error ?? lastError,
       recovery_state: recovered
         ? "rolled_back"
         : run.apply_status === "stale"

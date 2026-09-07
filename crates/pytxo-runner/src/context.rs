@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use glob::glob;
 use pytxo_core::{
@@ -75,14 +75,15 @@ pub fn prepare_agent_context_for_root(
         });
     }
 
-    let context_root = data_dir.join("context").join(&run_id.0).join(agent_id);
-    fs::create_dir_all(&context_root).map_err(PytxoError::Io)?;
+    let context_root = prepare_context_root(data_dir, run_id, agent_id)?;
 
     let profiler = ArbitrageProfiler::new(estimator);
     let mut manifest: Vec<ContextEntry> = Vec::new();
     let mut arbitrage = Vec::new();
 
     let engine = pytxo_core::PermissionEngine::new(permission_profile);
+    // The materialization boundary owns this ceiling, including retry callers.
+    let tier = engine.max_fidelity(tier);
 
     for pattern in path_patterns {
         for file in resolve_pattern(repo_root, pattern)? {
@@ -101,6 +102,7 @@ pub fn prepare_agent_context_for_root(
                 .unwrap_or(&file)
                 .to_string_lossy()
                 .replace('\\', "/");
+            let out_path = context_output_path(&context_root, &rel)?;
 
             let raw_bytes = fs::read(&file).map_err(PytxoError::Io)?;
             let hash = content_hash(&raw_bytes);
@@ -152,11 +154,10 @@ pub fn prepare_agent_context_for_root(
             let sample = profiler.profile_file(&file, &scaffold, model);
             arbitrage.push(sample);
 
-            let out_path = context_root.join(&rel);
             if let Some(parent) = out_path.parent() {
                 fs::create_dir_all(parent).map_err(PytxoError::Io)?;
             }
-            fs::write(&out_path, &scaffold.content).map_err(PytxoError::Io)?;
+            crate::change_set::replace_synced(&out_path, scaffold.content.as_bytes())?;
 
             manifest.push(ContextEntry {
                 source: rel.clone(),
@@ -170,10 +171,10 @@ pub fn prepare_agent_context_for_root(
         }
     }
 
-    let manifest_path = context_root.join("manifest.json");
+    let manifest_path = context_output_path(&context_root, "manifest.json")?;
     let json = serde_json::to_string_pretty(&manifest)
         .map_err(|e| PytxoError::Other(format!("context manifest: {e}")))?;
-    fs::write(&manifest_path, json).map_err(PytxoError::Io)?;
+    crate::change_set::replace_synced(&manifest_path, json.as_bytes())?;
 
     Ok(ContextBundle {
         context_dir: Some(context_root),
@@ -202,13 +203,18 @@ pub fn extend_context_with_readonly_roots(
         return Ok(bundle);
     }
 
-    let context_root = match bundle.context_dir {
-        Some(ref p) => p.clone(),
-        None => data_dir.join("context").join(&run_id.0).join(agent_id),
-    };
-    fs::create_dir_all(&context_root).map_err(PytxoError::Io)?;
+    let context_root = prepare_context_root(data_dir, run_id, agent_id)?;
+    if let Some(existing) = bundle.context_dir.as_ref() {
+        if fs::canonicalize(existing).map_err(PytxoError::Io)?
+            != fs::canonicalize(&context_root).map_err(PytxoError::Io)?
+        {
+            return Err(PytxoError::Runner(
+                "context bundle does not belong to this run and agent".into(),
+            ));
+        }
+    }
 
-    let manifest_path = context_root.join("manifest.json");
+    let manifest_path = context_output_path(&context_root, "manifest.json")?;
     let mut manifest: Vec<ContextEntry> = if manifest_path.exists() {
         let raw = fs::read_to_string(&manifest_path).map_err(PytxoError::Io)?;
         serde_json::from_str(&raw).unwrap_or_default()
@@ -223,10 +229,21 @@ pub fn extend_context_with_readonly_roots(
         .collect();
 
     for (label, repo_root) in readonly_roots {
+        context_output_path(&context_root, label)?;
+        let canonical_root = fs::canonicalize(repo_root).map_err(PytxoError::Io)?;
         for pattern in &patterns {
             for file in resolve_pattern(repo_root, pattern)? {
                 if !file.is_file() {
                     continue;
+                }
+                if !fs::canonicalize(&file)
+                    .map_err(PytxoError::Io)?
+                    .starts_with(&canonical_root)
+                {
+                    return Err(PytxoError::Runner(format!(
+                        "read-only context source escaped its declared root: {}",
+                        file.display()
+                    )));
                 }
                 let rel = file
                     .strip_prefix(repo_root)
@@ -234,6 +251,7 @@ pub fn extend_context_with_readonly_roots(
                     .to_string_lossy()
                     .replace('\\', "/");
                 let scaffolded = format!("{label}/{rel}");
+                let out_path = context_output_path(&context_root, &scaffolded)?;
                 if manifest.iter().any(|e| e.scaffolded == scaffolded) {
                     continue;
                 }
@@ -243,11 +261,10 @@ pub fn extend_context_with_readonly_roots(
                 })?;
                 let sample = profiler.profile_file(&file, &scaffold, model);
                 bundle.arbitrage.push(sample);
-                let out_path = context_root.join(&scaffolded);
                 if let Some(parent) = out_path.parent() {
                     fs::create_dir_all(parent).map_err(PytxoError::Io)?;
                 }
-                fs::write(&out_path, &scaffold.content).map_err(PytxoError::Io)?;
+                crate::change_set::replace_synced(&out_path, scaffold.content.as_bytes())?;
                 manifest.push(ContextEntry {
                     source: format!("{label}:{rel}"),
                     scaffolded,
@@ -261,13 +278,65 @@ pub fn extend_context_with_readonly_roots(
         }
     }
 
-    let manifest_path = context_root.join("manifest.json");
+    let manifest_path = context_output_path(&context_root, "manifest.json")?;
     let json = serde_json::to_string_pretty(&manifest)
         .map_err(|e| PytxoError::Other(format!("context manifest: {e}")))?;
-    fs::write(&manifest_path, json).map_err(PytxoError::Io)?;
+    crate::change_set::replace_synced(&manifest_path, json.as_bytes())?;
     bundle.context_dir = Some(context_root);
     bundle.fallback_count = manifest.iter().filter(|e| e.fallback_raw).count();
     Ok(bundle)
+}
+
+fn prepare_context_root(data_dir: &Path, run_id: &RunId, agent_id: &str) -> Result<PathBuf> {
+    // The configured data directory is the trust anchor; links below it must not
+    // redirect a generated run/agent directory. A configured data-dir link itself
+    // still resolves to the operator's chosen storage location.
+    fs::create_dir_all(data_dir).map_err(PytxoError::Io)?;
+    let relative = format!("context/{}/{agent_id}", run_id.0);
+    let context_root = context_output_path(data_dir, &relative)?;
+    fs::create_dir_all(&context_root).map_err(PytxoError::Io)?;
+    Ok(pytxo_core::strip_extended_path(context_root))
+}
+
+/// Keep materialized files and existing link targets under this context root.
+/// Source-read authorization alone does not constrain a destination containing `..`.
+fn context_output_path(context_root: &Path, relative: &str) -> Result<PathBuf> {
+    let normalized = relative.replace('\\', "/");
+    let relative_path = Path::new(&normalized);
+    if normalized.contains(':')
+        || normalized
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+        || relative_path
+            .components()
+            .any(|part| !matches!(part, Component::Normal(_)))
+    {
+        return Err(PytxoError::Runner(format!(
+            "unsafe context output path: {relative}"
+        )));
+    }
+    let canonical_root = fs::canonicalize(context_root).map_err(PytxoError::Io)?;
+    let mut output = canonical_root.clone();
+    for part in relative_path.components() {
+        output.push(part);
+        match fs::symlink_metadata(&output) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink()
+                    || !fs::canonicalize(&output)
+                        .map_err(PytxoError::Io)?
+                        .starts_with(&canonical_root)
+                {
+                    return Err(PytxoError::Runner(format!(
+                        "context output link escaped its context root: {}",
+                        output.display()
+                    )));
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(PytxoError::Io(error)),
+        }
+    }
+    Ok(output)
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -386,5 +455,343 @@ mod tests {
 
         assert_eq!(cache.gets.lock().unwrap().as_slice(), ["src/lib.rs"]);
         assert_eq!(cache.puts.lock().unwrap().as_slice(), ["src/lib.rs"]);
+    }
+
+    #[test]
+    fn context_boundary_rejects_readonly_label_destination_escape() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        let data = tmp.path().join("data");
+        fs::create_dir_all(&repo).unwrap();
+        fs::write(repo.join("README.md"), "source contents\n").unwrap();
+        let run_id = RunId::new();
+        let outside = data.join("context").join(&run_id.0).join("escape");
+        let absolute_outside = tmp.path().join("absolute-escape");
+        for (label, destination) in [
+            ("../escape".to_string(), outside),
+            (
+                absolute_outside.to_string_lossy().into_owned(),
+                absolute_outside,
+            ),
+        ] {
+            fs::create_dir_all(&destination).unwrap();
+            let sentinel = destination.join("README.md");
+            fs::write(&sentinel, "operator contents\n").unwrap();
+            let result = extend_context_with_readonly_roots(
+                ContextBundle {
+                    context_dir: None,
+                    arbitrage: vec![],
+                    fallback_count: 0,
+                },
+                &data,
+                &run_id,
+                "agent",
+                &[(label.clone(), repo.clone())],
+                FidelityTier::Low,
+                &ByteHeuristicEstimator,
+                &ModelId("test-model".into()),
+            );
+            assert_eq!(
+                fs::read_to_string(&sentinel).unwrap(),
+                "operator contents\n",
+                "context label {label} overwrote a file outside its context directory"
+            );
+            assert!(result.is_err(), "escaping label was accepted: {label}");
+        }
+    }
+
+    #[test]
+    fn context_boundary_rejects_traversal_in_source_relative_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        let data = tmp.path().join("data");
+        fs::create_dir_all(&repo).unwrap();
+        fs::write(repo.join("README.md"), "source contents\n").unwrap();
+        let run_id = RunId::new();
+        let result = prepare_agent_context(
+            &repo,
+            &data,
+            &run_id,
+            "agent",
+            &["../repo/README.md".into()],
+            true,
+            FidelityTier::Low,
+            &ByteHeuristicEstimator,
+            &ModelId("test-model".into()),
+        );
+        assert!(
+            result.is_err(),
+            "source traversal escaped the context directory"
+        );
+        assert!(!data
+            .join("context")
+            .join(&run_id.0)
+            .join("repo/README.md")
+            .exists());
+    }
+
+    #[test]
+    fn context_boundary_caps_deepspace_fidelity_at_materialization() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        fs::write(
+            repo.join("lib.rs"),
+            "pub fn value() -> &'static str { \"implementation-only-marker\" }\n",
+        )
+        .unwrap();
+        let bundle = prepare_agent_context_for_root(
+            &repo,
+            &tmp.path().join("data"),
+            &RunId::new(),
+            "agent",
+            &["lib.rs".into()],
+            true,
+            FidelityTier::High,
+            &ByteHeuristicEstimator,
+            &ModelId("test-model".into()),
+            None,
+            None,
+            "domain",
+            false,
+            PermissionProfile::DeepSpace,
+        )
+        .unwrap();
+        let context = bundle.context_dir.unwrap();
+        let manifest: Vec<ContextEntry> =
+            serde_json::from_str(&fs::read_to_string(context.join("manifest.json")).unwrap())
+                .unwrap();
+        assert_eq!(manifest[0].fidelity, "low");
+        assert!(!fs::read_to_string(context.join("lib.rs"))
+            .unwrap()
+            .contains("implementation-only-marker"));
+    }
+
+    #[test]
+    fn context_boundary_preserves_safe_nested_readonly_context() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        fs::write(repo.join("README.md"), "source contents\n").unwrap();
+        let bundle = extend_context_with_readonly_roots(
+            ContextBundle {
+                context_dir: None,
+                arbitrage: vec![],
+                fallback_count: 0,
+            },
+            &tmp.path().join("data"),
+            &RunId::new(),
+            "agent",
+            &[("shared/protos".into(), repo)],
+            FidelityTier::Low,
+            &ByteHeuristicEstimator,
+            &ModelId("test-model".into()),
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(bundle.context_dir.unwrap().join("shared/protos/README.md"))
+                .unwrap(),
+            "source contents\n"
+        );
+    }
+
+    #[cfg(unix)]
+    fn link_directory(link: &Path, target: &Path) {
+        std::os::unix::fs::symlink(target, link).unwrap();
+    }
+
+    #[cfg(windows)]
+    fn link_directory(link: &Path, target: &Path) {
+        let output = std::process::Command::new("cmd")
+            .args(["/D", "/C", "mklink", "/J"])
+            .arg(link)
+            .arg(target)
+            .output()
+            .expect("create fixture junction");
+        assert!(output.status.success(), "{output:?}");
+    }
+
+    #[test]
+    fn context_boundary_rejects_existing_destination_link() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        let outside = tmp.path().join("outside");
+        let data = tmp.path().join("data");
+        let run_id = RunId::new();
+        let context = data.join("context").join(&run_id.0).join("agent");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::create_dir_all(&context).unwrap();
+        fs::write(repo.join("README.md"), "source contents\n").unwrap();
+        fs::write(outside.join("README.md"), "operator contents\n").unwrap();
+        link_directory(&context.join("shared"), &outside);
+        let result = extend_context_with_readonly_roots(
+            ContextBundle {
+                context_dir: Some(context),
+                arbitrage: vec![],
+                fallback_count: 0,
+            },
+            &data,
+            &run_id,
+            "agent",
+            &[("shared".into(), repo)],
+            FidelityTier::Low,
+            &ByteHeuristicEstimator,
+            &ModelId("test-model".into()),
+        );
+        assert_eq!(
+            fs::read_to_string(outside.join("README.md")).unwrap(),
+            "operator contents\n"
+        );
+        assert!(
+            result.is_err(),
+            "destination link escaped context confinement"
+        );
+    }
+
+    #[test]
+    fn context_boundary_rejects_readonly_source_link_escape() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        let outside = tmp.path().join("outside");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("README.md"), "outside source\n").unwrap();
+        link_directory(&repo.join("linked"), &outside);
+        let result = extend_context_with_readonly_roots(
+            ContextBundle {
+                context_dir: None,
+                arbitrage: vec![],
+                fallback_count: 0,
+            },
+            &tmp.path().join("data"),
+            &RunId::new(),
+            "agent",
+            &[("shared".into(), repo)],
+            FidelityTier::Low,
+            &ByteHeuristicEstimator,
+            &ModelId("test-model".into()),
+        );
+        assert!(
+            result.is_err(),
+            "read-only context followed an outside source link"
+        );
+    }
+
+    #[test]
+    fn context_boundary_rejects_context_root_and_ancestor_links() {
+        for link_run_directory in [false, true] {
+            let tmp = tempfile::tempdir().unwrap();
+            let repo = tmp.path().join("repo");
+            let outside = tmp.path().join("outside");
+            let data = tmp.path().join("data");
+            let run_id = RunId::new();
+            let runs = data.join("context");
+            let run = runs.join(&run_id.0);
+            fs::create_dir_all(&repo).unwrap();
+            fs::create_dir_all(&outside).unwrap();
+            fs::create_dir_all(&runs).unwrap();
+            let escaped_context = if link_run_directory {
+                link_directory(&run, &outside);
+                outside.join("agent")
+            } else {
+                fs::create_dir_all(&run).unwrap();
+                link_directory(&run.join("agent"), &outside);
+                outside.clone()
+            };
+            fs::create_dir_all(&escaped_context).unwrap();
+            fs::write(repo.join("README.md"), "source contents\n").unwrap();
+            fs::write(escaped_context.join("README.md"), "operator contents\n").unwrap();
+            let result = prepare_agent_context(
+                &repo,
+                &data,
+                &run_id,
+                "agent",
+                &["README.md".into()],
+                true,
+                FidelityTier::Low,
+                &ByteHeuristicEstimator,
+                &ModelId("test-model".into()),
+            );
+            assert_eq!(
+                fs::read_to_string(escaped_context.join("README.md")).unwrap(),
+                "operator contents\n",
+                "a context root or ancestor link redirected materialization"
+            );
+            assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    fn context_boundary_replaces_output_hardlinks_without_modifying_their_targets() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        let outside = tmp.path().join("outside");
+        let data = tmp.path().join("data");
+        let run_id = RunId::new();
+        let context = data.join("context").join(&run_id.0).join("agent");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::create_dir_all(&context).unwrap();
+        fs::write(repo.join("README.md"), "source contents\n").unwrap();
+        for file in ["README.md", "manifest.json"] {
+            fs::write(outside.join(file), "operator contents\n").unwrap();
+            fs::hard_link(outside.join(file), context.join(file)).unwrap();
+        }
+        let bundle = prepare_agent_context(
+            &repo,
+            &data,
+            &run_id,
+            "agent",
+            &["README.md".into()],
+            true,
+            FidelityTier::Low,
+            &ByteHeuristicEstimator,
+            &ModelId("test-model".into()),
+        )
+        .unwrap();
+        for file in ["README.md", "manifest.json"] {
+            assert_eq!(
+                fs::read_to_string(outside.join(file)).unwrap(),
+                "operator contents\n",
+                "materialization modified an outside hardlink target"
+            );
+        }
+        assert_eq!(
+            fs::read_to_string(bundle.context_dir.unwrap().join("README.md")).unwrap(),
+            "source contents\n"
+        );
+    }
+
+    #[test]
+    fn context_boundary_preserves_explicitly_configured_data_directory_link() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        let storage = tmp.path().join("storage");
+        let configured_data = tmp.path().join("configured-data");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&storage).unwrap();
+        fs::write(repo.join("README.md"), "source contents\n").unwrap();
+        link_directory(&configured_data, &storage);
+        let bundle = prepare_agent_context(
+            &repo,
+            &configured_data,
+            &RunId::new(),
+            "agent",
+            &["README.md".into()],
+            true,
+            FidelityTier::Low,
+            &ByteHeuristicEstimator,
+            &ModelId("test-model".into()),
+        )
+        .unwrap();
+        let context = bundle.context_dir.unwrap();
+        assert!(fs::canonicalize(&context)
+            .unwrap()
+            .starts_with(fs::canonicalize(storage).unwrap()));
+        assert_eq!(
+            fs::read_to_string(context.join("README.md")).unwrap(),
+            "source contents\n"
+        );
     }
 }

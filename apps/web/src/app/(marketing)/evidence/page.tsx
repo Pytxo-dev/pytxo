@@ -1,14 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import nativeObservation from "../../../../public/evidence/astra-native-codex-2026-09-07.json";
 
 import { StateChip } from "@/components/site/state-chip";
 import { SIGNAL_BENCHMARK, SIGNAL_LANGUAGE_BREAKDOWN } from "@/lib/evidence";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
-  title: "Evidence",
-  description:
-    "How Pytxo's published Signal Core figure was measured, what it covers, and what it does not claim.",
-};
+export const metadata = pageMetadata(
+  "/evidence",
+  "Evidence · Pytxo",
+  "Recorded native workflow evidence, a direct worktree baseline, and the scope and limits of Pytxo's Signal Core measurement.",
+);
 
 export default function EvidencePage() {
   return (
@@ -17,10 +18,78 @@ export default function EvidencePage() {
         Evidence and its limits.
       </h1>
       <p className="mt-7 max-w-[46rem] text-base leading-relaxed text-[#a9a9b2] sm:text-lg">
-        Pytxo publishes one performance figure. This page states how it was produced, what
-        the corpus was, and which conclusions it does not support, so you can decide
-        whether it transfers to your repository.
+        A recorded agent workflow and a structural byte measurement answer different
+        questions. Here are the observed outcomes, their source records, and the
+        limits of what they establish.
       </p>
+
+      <section className="mt-16 border-t border-[var(--aperture-line)] pt-10" aria-labelledby="workflow-title">
+        <div className="flex flex-wrap items-center gap-4">
+          <h2 id="workflow-title" className="text-2xl tracking-[-0.025em]">One harness. Three scoped tasks.</h2>
+          <StateChip tone="verified" label="Observed locally" />
+        </div>
+        <p className="mt-6 max-w-[52rem] text-sm leading-relaxed text-[#a9a9b2]">
+          On 7 September 2026, the packaged Windows 1.2.2 candidate ran a synthetic
+          code, tests and documentation mission through Codex 0.153.4. Two independent
+          tasks ran first; the test task followed its implementation dependency.
+          Pytxo checked the combined candidate before explicit Review and Apply.
+          Test automation operated the native app on a development host.
+        </p>
+        <dl className="mt-8 grid grid-cols-2 gap-8 lg:grid-cols-4">
+          {[
+            ["Planned tasks", nativeObservation.planned_tasks],
+            ["Ordered waves", nativeObservation.waves],
+            ["Matching applied hashes", nativeObservation.changed_files.length],
+            ["Post-Apply tests passed", nativeObservation.native_apply.post_apply_tests_passed],
+          ].map(([label, value]) => <div key={label}>
+            <dt className="font-mono text-xs text-[#8d8d96]">{label}</dt>
+            <dd className="mt-3 text-3xl tabular-nums text-[#f5f5f7]">{value}</dd>
+          </div>)}
+        </dl>
+        <div className="mt-10 overflow-x-auto">
+          <table className="w-full min-w-[35rem] border-collapse text-left text-sm">
+            <caption className="mb-4 text-left text-[#8d8d96]">Successful exploratory outcomes, with failed attempts retained below.</caption>
+            <thead className="text-[#f5f5f7]"><tr className="border-b border-[var(--aperture-line)]">
+              <th className="py-3 pr-6 font-medium">Observed outcome</th><th className="py-3 pr-6 font-medium">Direct Codex + worktree</th><th className="py-3 font-medium">Codex through Pytxo</th>
+            </tr></thead>
+            <tbody className="text-[#a9a9b2]">
+              {[
+                ["Requested three-file change", "Completed", "Completed"],
+                ["Primary source preserved while workers ran", "Yes", "Yes"],
+                ["Independent checks after work or Apply", "Passed", "Passed"],
+                ["Frozen package and combined-check receipt", "Not part of this path", "Recorded"],
+                ["Explicit native Apply and committed journal", "Not part of this path", "Recorded"],
+              ].map(([outcome, direct, pytxo]) => <tr key={outcome} className="border-b border-[var(--aperture-line)]">
+                <th scope="row" className="py-4 pr-6 font-normal text-[#c7c7ce]">{outcome}</th><td className="py-4 pr-6">{direct}</td><td className="py-4">{pytxo}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-8 max-w-[52rem] text-sm leading-relaxed text-[#a9a9b2]">
+          An earlier native attempt was refused because a worker edited a file outside
+          its ownership, despite passing task checks. Another stopped before model
+          work because Windows split a prompt argument. A third passed checks, but
+          review withheld Apply because its README contradicted the changed code.
+          These outcomes are retained. The successful run followed the task-handoff
+          and prompt-transport repairs and explicit final-state guidance added to
+          the documentation task in the native plan editor.
+          Different instance counts, startup overhead and background load prevent a
+          controlled speed comparison; the direct run also received no task-prompt
+          override. Cost and customer repeat use were not measured.
+          Host filesystem and network controls remained advisory; extraction and
+          execution on this host do not prove a clean Windows installation.
+        </p>
+        <p className="mt-5 max-w-[52rem] break-all font-mono text-xs leading-relaxed text-[#8d8d96]">
+          Recorded MSI SHA256: {nativeObservation.msi_sha256}
+        </p>
+        <div className="mt-7 flex flex-wrap gap-x-7 gap-y-3 text-sm text-[#f5f5f7]">
+          <a className="aperture-link" href="/evidence/astra-native-codex-2026-09-07.json">Native run record</a>
+          <a className="aperture-link" href="/evidence/astra-direct-codex-2026-09-07.json">Direct worktree record</a>
+          <a className="aperture-link" href="/evidence/astra-refused-run-2026-09-07.json">Earlier refusal record</a>
+          <a className="aperture-link" href="/evidence/astra-transport-failure-2026-09-07.json">Launch failure record</a>
+          <a className="aperture-link" href="/evidence/astra-review-withheld-2026-09-07.json">Review withheld record</a>
+        </div>
+      </section>
 
       <section className="mt-16 border-t border-[var(--aperture-line)] pt-10" aria-labelledby="figure-title">
         <h2 id="figure-title" className="text-2xl tracking-[-0.025em]">
@@ -124,11 +193,13 @@ export default function EvidencePage() {
 
       <section className="mt-16 border-t border-[var(--aperture-line)] pt-10" aria-labelledby="reproduce-title">
         <h2 id="reproduce-title" className="text-2xl tracking-[-0.025em]">
-          Reproduce it
+          Measurement record
         </h2>
         <p className="mt-6 max-w-[52rem] text-sm leading-relaxed text-[#a9a9b2]">
           The raw result, including the per-file table for every one of the{" "}
-          {SIGNAL_BENCHMARK.files} files, is committed in the repository.
+          {SIGNAL_BENCHMARK.files} files, is committed in the private source repository.
+          The source link requires repository access. This public summary is not an
+          independent reproduction of that private corpus.
         </p>
         <div className="mt-8 flex flex-col gap-4">
           <Link

@@ -4,10 +4,10 @@ Instructions for AI coding agents working in this repository.
 
 ## Project identity
 
-**Pytxo** is becoming the **commit layer for autonomous work**: the boundary
-that authorizes an exact effect, verifies the resulting state, and records an
-honest recovery path ([pytxo.com](https://pytxo.com)). The shipping beachhead is
-a local agent hypervisor for repository changes. It schedules headless agents
+**Pytxo is an agent hypervisor** ([pytxo.com](https://pytxo.com)): a vendor-neutral
+control plane for preparing, running, observing, verifying, and integrating
+delegated work. Its reviewed repository Apply boundary is a shipping primitive;
+generalized effect contracts remain a proposed expansion. It schedules headless agents
 (Claude Code, Codex, Antigravity CLI, …) in background PTYs, isolates their
 work, and prepares exact bytes for reviewed Apply. Source:
 [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) (monorepo:

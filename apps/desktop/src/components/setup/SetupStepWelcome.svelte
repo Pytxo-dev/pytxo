@@ -8,8 +8,8 @@
   <img class="logo" src="/logo-mark.png" alt="Pytxo" width="72" height="72" />
   <h1 class="title">Pytxo</h1>
   <p class="lead">
-    Run and supervise coding agents locally — structure, spend, and approvals — without a wall of
-    terminals.
+    Give your coding agent a concrete job. Inspect the result and its checks, then
+    decide what lands in your repository. One agent CLI is enough to start.
   </p>
   <Button class="continue" onclick={onContinue}>Get started</Button>
 </div>

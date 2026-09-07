@@ -59,6 +59,9 @@ pub fn planner_enabled(config: &PytxoConfig) -> bool {
 }
 
 fn planner_mode(config: &PytxoConfig) -> PlannerMode {
+    if let Some(mode) = explicit_local_planner_mode() {
+        return mode;
+    }
     if llm_planner_enabled(config) {
         return PlannerMode::Llm;
     }
@@ -74,31 +77,25 @@ fn planner_mode(config: &PytxoConfig) -> PlannerMode {
     }
 }
 
-/// LLM planner: Ultra managed proxy **or** BYOK OpenAI-compatible providers.
+/// Cloud planning requires explicit process opt-in. A provider credential is
+/// transport configuration, never consent to disclose mission/repository context.
 pub fn llm_planner_enabled(config: &PytxoConfig) -> bool {
-    if !planner_enabled(config) && !mission_planner_unlocked() {
-        // Mission path unlocks BYOK even when [planner] is off.
-        if byok_scout_endpoint().is_some() {
-            return true;
-        }
-        return false;
-    }
-    if byok_scout_endpoint().is_some() {
-        return true;
-    }
-    if !ultra_billing_active(config) {
-        return false;
-    }
-    std::env::var("PYTXO_PLANNER_LLM")
-        .ok()
-        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    explicit_local_planner_mode().is_none()
+        && llm_planner_flag()
+        && (byok_scout_endpoint().is_some() || ultra_billing_active(config))
 }
 
-/// Mission CLI/Flow always plan (ADR-0031); shell slash-run still respects planner flag.
-fn mission_planner_unlocked() -> bool {
-    std::env::var("PYTXO_MISSION_PLAN")
-        .ok()
-        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+fn explicit_local_planner_mode() -> Option<PlannerMode> {
+    match std::env::var("PYTXO_PLANNER")
+        .ok()?
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "heuristic" => Some(PlannerMode::Heuristic),
+        // Flow always supports local planning; 0/false still disable legacy shell planning.
+        "signal" | "0" | "false" => Some(PlannerMode::Signal),
+        _ => None,
+    }
 }
 
 fn ultra_billing_active(config: &PytxoConfig) -> bool {
@@ -216,6 +213,9 @@ impl LlmPlanner {
     }
 
     fn call_proxy(mission: &str, ctx: &PlannerContext<'_>) -> anyhow::Result<LlmPlanResponse> {
+        if !llm_planner_enabled(ctx.config) {
+            bail!("cloud planning is not enabled: explicitly set PYTXO_PLANNER_LLM=1 and configure a BYOK or managed transport; local planner selections take precedence");
+        }
         let system = "Decompose the mission into parallel-safe coding tasks. Return JSON: {\"tasks\":[{\"id\":\"task-a\",\"agent\":\"agent-0\",\"paths\":[\"src/foo.ts\"],\"depends_on\":[],\"prompt\":\"...\",\"verify\":[\"npm test\"]}]}. Use explicit repo-relative ownership paths from the supplied repository brief. Never use \".\", absolute paths, parent traversal, or glob patterns. If ownership is unclear, return no tasks. Dependencies must reference unique task ids. Suggest verify commands only when they are supported by the supplied manifests.";
         let repository = repository_brief(ctx.repo);
         let user = format!("Mission:\n{mission}\n\n{repository}");
@@ -554,19 +554,23 @@ pub fn default_planner(config: &PytxoConfig) -> Box<dyn MissionPlanner> {
     }
 }
 
-/// Planner for Flow / `pytxo mission` — always on (ADR-0031). Prefer BYOK scout LLM,
-/// then Signal-backed, then heuristic when explicitly requested.
+/// Planner for Flow / `pytxo mission` — always on (ADR-0031), local by default.
 pub fn default_mission_planner(config: &PytxoConfig) -> Box<dyn MissionPlanner> {
-    if byok_scout_endpoint().is_some() || (ultra_billing_active(config) && llm_planner_flag()) {
-        return Box::new(LlmPlanner);
+    match mission_planner_mode(config) {
+        PlannerMode::Llm => Box::new(LlmPlanner),
+        PlannerMode::Heuristic => Box::new(HeuristicPlanner),
+        PlannerMode::Signal => Box::new(SignalBackedPlanner),
     }
-    if std::env::var("PYTXO_PLANNER")
-        .ok()
-        .is_some_and(|v| v.eq_ignore_ascii_case("heuristic"))
-    {
-        return Box::new(HeuristicPlanner);
-    }
-    Box::new(SignalBackedPlanner)
+}
+
+fn mission_planner_mode(config: &PytxoConfig) -> PlannerMode {
+    explicit_local_planner_mode().unwrap_or_else(|| {
+        if llm_planner_enabled(config) {
+            PlannerMode::Llm
+        } else {
+            PlannerMode::Signal
+        }
+    })
 }
 
 fn llm_planner_flag() -> bool {
@@ -925,6 +929,121 @@ mod tests {
         PLANNER_ENV_LOCK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    #[test]
+    fn ambient_provider_key_does_not_authorize_cloud_planning() {
+        let _guard = planner_env_guard();
+        let _env = PlannerTestEnv::new();
+        std::env::set_var("OPENAI_API_KEY", "test-only-not-a-real-key");
+        let config = PytxoConfig::default();
+        assert!(
+            !llm_planner_enabled(&config),
+            "an inherited key is not planner consent"
+        );
+        assert_ne!(planner_mode(&config), PlannerMode::Llm);
+        assert_eq!(mission_planner_mode(&config), PlannerMode::Signal);
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("lib.rs"), "pub fn example() {}\n").unwrap();
+        let context = PlannerContext {
+            repo: dir.path(),
+            config: &config,
+        };
+        let mission = MissionSpec {
+            text: "Improve lib.rs".into(),
+        };
+        let plan = default_mission_planner(&config)
+            .decompose(&mission, &context)
+            .unwrap();
+        assert_eq!(plan.tasks.len(), 1);
+        assert!(LlmPlanner
+            .decompose(&mission, &context)
+            .unwrap_err()
+            .to_string()
+            .contains("cloud planning is not enabled"));
+    }
+
+    #[test]
+    fn explicit_local_planner_wins_over_cloud_flag_and_key() {
+        let _guard = planner_env_guard();
+        let _env = PlannerTestEnv::new();
+        std::env::set_var("OPENAI_API_KEY", "test-only-not-a-real-key");
+        std::env::set_var("PYTXO_PLANNER_LLM", "1");
+        for mode in ["heuristic", "signal", "0", "false"] {
+            std::env::set_var("PYTXO_PLANNER", mode);
+            assert!(
+                !llm_planner_enabled(&PytxoConfig::default()),
+                "explicit {mode} must remain local"
+            );
+            let expected = if mode == "heuristic" {
+                PlannerMode::Heuristic
+            } else {
+                PlannerMode::Signal
+            };
+            assert_eq!(mission_planner_mode(&PytxoConfig::default()), expected);
+            assert_eq!(planner_mode(&PytxoConfig::default()), expected);
+        }
+    }
+
+    #[test]
+    fn cloud_planner_requires_explicit_flag_and_available_transport() {
+        let _guard = planner_env_guard();
+        let _env = PlannerTestEnv::new();
+        std::env::set_var("PYTXO_PLANNER_LLM", "1");
+        assert!(!llm_planner_enabled(&PytxoConfig::default()));
+        std::env::set_var("OPENAI_API_KEY", "test-only-not-a-real-key");
+        assert!(llm_planner_enabled(&PytxoConfig::default()));
+        assert_eq!(
+            mission_planner_mode(&PytxoConfig::default()),
+            PlannerMode::Llm
+        );
+        std::env::remove_var("OPENAI_API_KEY");
+        std::env::set_var("PYTXO_LINK_TIER", "ultra");
+        assert!(llm_planner_enabled(&PytxoConfig::default()));
+        assert_eq!(
+            mission_planner_mode(&PytxoConfig::default()),
+            PlannerMode::Llm
+        );
+        std::env::remove_var("PYTXO_PLANNER_LLM");
+        assert!(!llm_planner_enabled(&PytxoConfig::default()));
+    }
+
+    // Restore even after an assertion fails; never send a request with these keys.
+    struct PlannerTestEnv(Vec<(&'static str, Option<std::ffi::OsString>)>);
+
+    impl PlannerTestEnv {
+        fn new() -> Self {
+            Self(
+                [
+                    "PYTXO_PLANNER",
+                    "PYTXO_PLANNER_LLM",
+                    "PYTXO_MISSION_PLAN",
+                    "PYTXO_LINK_TIER",
+                    "DEEPSEEK_API_KEY",
+                    "OPENAI_API_KEY",
+                    "OPENROUTER_API_KEY",
+                    "MISTRAL_API_KEY",
+                ]
+                .into_iter()
+                .map(|name| {
+                    let previous = std::env::var_os(name);
+                    std::env::remove_var(name);
+                    (name, previous)
+                })
+                .collect(),
+            )
+        }
+    }
+
+    impl Drop for PlannerTestEnv {
+        fn drop(&mut self) {
+            for (name, previous) in &self.0 {
+                match previous {
+                    Some(value) => std::env::set_var(name, value),
+                    None => std::env::remove_var(name),
+                }
+            }
+        }
     }
 
     #[test]
