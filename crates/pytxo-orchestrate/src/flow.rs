@@ -700,6 +700,34 @@ mod tests {
     use super::*;
 
     #[cfg(windows)]
+    async fn fail_codex_transport_fixture(
+        phase: &str,
+        diagnostics: String,
+        data_dir: &Path,
+        run_id: &str,
+        running: &mut tokio::task::JoinHandle<
+            pytxo_core::Result<Vec<pytxo_runner::AgentRunResult>>,
+        >,
+    ) -> ! {
+        use std::time::Duration;
+
+        // Report the stalled phase before cleanup can change its evidence.
+        eprintln!("{phase}: {diagnostics}");
+        let data_dir = data_dir.to_path_buf();
+        let run_id = run_id.to_owned();
+        let cleanup = tokio::time::timeout(
+            Duration::from_secs(15),
+            tokio::task::spawn_blocking(move || pytxo_runner::stop_run(&data_dir, &run_id, true)),
+        )
+        .await;
+        let settlement = tokio::time::timeout(Duration::from_secs(10), &mut *running).await;
+        if settlement.is_err() {
+            running.abort();
+        }
+        panic!("{phase}: {diagnostics}; owned cleanup: {cleanup:?}; settlement: {settlement:?}");
+    }
+
+    #[cfg(windows)]
     async fn codex_transport_fixture(
         backend: pytxo_core::ExecutionBackend,
         exit_code: i32,
@@ -711,7 +739,14 @@ mod tests {
         };
         use pytxo_runner::{execute_plan, ProcessRegistry, RunContext, SwarmRegistry};
         use std::process::Command;
-        use std::time::Duration;
+        use std::sync::{Arc, Mutex};
+        use std::time::{Duration, Instant};
+
+        // Hosted Windows must start Git worktrees, PowerShell, Node and ConPTY.
+        // This is a transport contract test, not a startup latency benchmark.
+        const LIFECYCLE_DEADLINE: Duration = Duration::from_secs(60);
+        // The Stop probe exits naturally after 30s: settlement must beat that.
+        const STOP_SETTLEMENT_DEADLINE: Duration = Duration::from_secs(10);
 
         let fixture = tempfile::tempdir().unwrap();
         let repo = fixture.path().join("repo");
@@ -810,6 +845,9 @@ if (args.at(-1) === '-') {
             .join("agent-0");
         let (domain_id, model_router, managed_transport, token_estimator) =
             RunContext::default_metering(&repo);
+        let started = Instant::now();
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let captured_events = Arc::clone(&events);
         let ctx = RunContext {
             run_id: run_id.clone(),
             repo_root: repo.clone(),
@@ -819,7 +857,13 @@ if (args.at(-1) === '-') {
             task_cmd_template: Some(command),
             task_prompts: HashMap::from([("task".into(), original.into())]),
             keep_worktrees: true,
-            on_event: None,
+            on_event: Some(Arc::new(move |_, kind, payload| {
+                captured_events.lock().unwrap().push((
+                    started.elapsed(),
+                    kind.to_owned(),
+                    payload.to_owned(),
+                ));
+            })),
             signal_core: false,
             signal_fidelity: FidelityTier::Low,
             isolation_mode: IsolationMode::Worktree,
@@ -866,7 +910,15 @@ if (args.at(-1) === '-') {
             max_agents: 1,
             warnings: vec![],
         };
-        let running = tokio::spawn(async move {
+        let diagnostics = || {
+            format!(
+                "backend={backend:?}, legacy={legacy}, exit_code={exit_code}, stop={stop}, elapsed={:?}, observed={:?}, events={:?}",
+                started.elapsed(),
+                std::fs::read_to_string(expected_workspace.join("observed.json")),
+                events.lock().unwrap(),
+            )
+        };
+        let mut running = tokio::spawn(async move {
             execute_plan(
                 &ctx,
                 &plan,
@@ -877,7 +929,7 @@ if (args.at(-1) === '-') {
         });
         let mut child_identity = None;
         if stop {
-            let record = tokio::time::timeout(Duration::from_secs(10), async {
+            let record = tokio::time::timeout(LIFECYCLE_DEADLINE, async {
                 loop {
                     if let Ok(bytes) = std::fs::read(expected_workspace.join("observed.json")) {
                         if let Ok(record) = serde_json::from_slice::<serde_json::Value>(&bytes) {
@@ -890,10 +942,15 @@ if (args.at(-1) === '-') {
             .await;
             let record = match record {
                 Ok(record) => record,
-                Err(error) => {
-                    let _ = pytxo_runner::stop_run(&data_dir, &run_id.0, true);
-                    let results = running.await;
-                    panic!("local shim did not start: {error}; {results:?}");
+                Err(_) => {
+                    fail_codex_transport_fixture(
+                        "local shim readiness deadline exceeded",
+                        diagnostics(),
+                        &data_dir,
+                        &run_id.0,
+                        &mut running,
+                    )
+                    .await
                 }
             };
             let pid = record["pid"].as_u64().unwrap() as u32;
@@ -903,11 +960,28 @@ if (args.at(-1) === '-') {
             ));
             pytxo_runner::stop_run(&data_dir, &run_id.0, true).unwrap();
         }
-        let results = tokio::time::timeout(Duration::from_secs(10), running)
-            .await
-            .expect("local adapter settles")
-            .unwrap()
-            .unwrap();
+        let deadline = if stop {
+            STOP_SETTLEMENT_DEADLINE
+        } else {
+            LIFECYCLE_DEADLINE
+        };
+        let results = match tokio::time::timeout(deadline, &mut running).await {
+            Ok(results) => results.unwrap().unwrap(),
+            Err(_) => {
+                fail_codex_transport_fixture(
+                    if stop {
+                        "local adapter post-Stop settlement deadline exceeded"
+                    } else {
+                        "local adapter lifecycle deadline exceeded"
+                    },
+                    diagnostics(),
+                    &data_dir,
+                    &run_id.0,
+                    &mut running,
+                )
+                .await
+            }
+        };
         if let Some((pid, identity)) = child_identity {
             assert!(
                 !pytxo_runner::process_matches(pid, &identity).unwrap(),
@@ -919,6 +993,10 @@ if (args.at(-1) === '-') {
                 .unwrap_or_else(|error| panic!("missing shim output: {error}; {results:?}")),
         )
         .unwrap();
+        eprintln!(
+            "transport fixture completed: backend={backend:?}, legacy={legacy}, exit_code={exit_code}, stop={stop}, elapsed={:?}",
+            started.elapsed(),
+        );
         (observed, results)
     }
 

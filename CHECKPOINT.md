@@ -1,6 +1,38 @@
 # CHECKPOINT — ASTRA product improvement — 2026-09-07
 
-## Current state — hosted failures reproduced and repaired; candidate revalidation
+## Current state — Windows test fixture correction; hosted acceptance pending
+
+CI run `34107810014` on `402c5991cb064341bf240d2d28e3c46c424b9e13`
+finished with eleven passing jobs. Linux/macOS Rust, website, Desktop, native
+Linux, npm and benchmark checks passed. Windows alone failed: two transport
+fixtures exceeded their ten-second whole-lifecycle deadline. The log does not
+identify a startup delay versus a hang. All five transport tests passed unchanged
+locally; do not call the hosted failure a proven harmless flake.
+
+The follow-up changes only the Windows fixture inside `flow.rs`'s existing
+`#[cfg(test)]` module: 60-second startup/non-Stop allowance, elapsed event and
+observed-file diagnostics, and bounded async waits for owned-run cleanup on
+failure. Post-Stop settlement remains ten seconds, below the probe's natural
+30-second exit. Every timeout still fails; assertions and production code are
+unchanged. Cleanup waits are not a hard process-level watchdog. All 95 affected
+orchestration tests and affected Clippy pass; independent review has no findings.
+Logs: `target/astra-ci-windows-{fixture-green,orchestrate-green,orchestrate-clippy}.log`.
+
+Retain the MSI, native observation, film and Windows packet below with their
+original source identities. All 351 other frozen native inputs still match;
+the entire non-test `flow.rs` prefix matches after explicit newline normalization.
+The full 352-file snapshot differs only in test source, so these artifacts were
+not rebuilt or relabeled as builds of the later correction commit. Separate
+verification: `target/astra-ci-test-only-provenance.json` and independent review
+`target/astra-ci-test-only-provenance-review.md`. Hosted CI must still identify
+the actual new commit. Clean Windows and public-download gates remain open.
+
+GitHub billing refreshed through Brave after the second run: 2,291.3/3,000
+included minutes used (708.7 remaining), $0 billable Actions usage. Keep the
+existing paid-overage stop and run one consolidated correction, without blind
+retries or unrelated rebuilds.
+
+## Preceding production correction and retained native build
 
 The reviewed 116-file candidate was committed as
 `2964d5ad2ad677dec014d32ae227635de8dfea5b` and pushed once to draft PR31.

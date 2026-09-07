@@ -68,7 +68,7 @@ changes, new system features and major redesign retain separate approval gates.
 | Runtime/context | REPRODUCED traversal/link/fidelity, stale context and Windows PTY cwd failures | IMPLEMENTED with 26 boundary and 37 launch/verification checks; final MSI native run, exact Apply and eight independent tests passed; no profile expansion |
 | Competitive position | Fresh primary docs show coordination, worktrees, checks and review overlap | Choose recurring bug/regression job; DEFER acquisition claims pending second-use trial; no exclusive verification or speed claim |
 | Context/skills/protocols | Existing native instructions and Signal | DEFER new platform; improve current context correctness |
-| CI | First executed run `34100785788`: eight passed, four failed from three causes | Corrections locally verified with 468 workspace and 21 tooling tests; consolidated corrected-head CI pending; all checks and paid-overage stop preserved |
+| CI | Run `34107810014` on `402c599`: eleven passed; Windows alone hit two fixture deadlines | Windows test-only diagnostics/cleanup and separate startup allowance added; strict post-Stop deadline/assertions preserved; 95 affected tests and Clippy pass; final-head CI pending |
 | Clean install | Windows11 Home; no clean environment verified | HUMAN-BLOCKED; stage exact artifact and isolated manual protocol |
 | Publication/download | Public latest v1.2.1; v1.2.2 absent | HUMAN-BLOCKED; prepare source/artifacts before requesting specific publication |
 | Demo/Bench | Final 52-second film, successful three-task native run, competent direct baseline and retained unsuccessful attempts | COMPLETE LOCALLY; exact MSI, source, captures and film identities recorded; no controlled comparative result |

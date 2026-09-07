@@ -74,15 +74,33 @@ Every ZIP entry matches its allowlisted name, size and hash; all six baseline
 files match the earlier applied commit. Eight baseline tests pass; the portable
 acceptance verifier reproduces 21 pass/five fail. Its source hash differs only
 because the import is portable. The template remains `not_executed`.
-Corrected-head hosted CI is pending at this checkpoint; the first run's partial
-success does not close CI.
+Run `34107810014` on `402c5991cb064341bf240d2d28e3c46c424b9e13` subsequently
+finished with eleven passing jobs. Windows Rust failed only two ten-second
+transport fixture deadlines; the log cannot distinguish startup delay from a
+hang. All five transport tests passed unchanged locally. The narrow correction
+adds Windows-only elapsed diagnostics and owned-run cleanup, with a 60-second
+startup/non-Stop allowance. Post-Stop settlement remains ten seconds, below the
+probe's natural 30-second exit. Timeouts still fail and all assertions remain.
+Fresh affected checks: **95 orchestration tests and Clippy pass**; independent
+review found no actionable issue. Logs: `target/astra-ci-windows-orchestrate-green.log`
+and `target/astra-ci-windows-orchestrate-clippy.log`. Final-head CI remains pending.
+
+This later correction changes only the existing `#[cfg(test)]` module in
+`flow.rs`. The complete non-test prefix matches after explicit newline
+normalization; all 351 other frozen native input hashes match. Retained MSI,
+film and packet hashes remain unchanged. Their original 352-input snapshot and
+native observation remain authoritative: these artifacts were **not rebuilt
+from the later test-only commit**, and no binary reproducibility claim is made.
+The separate local provenance record is `target/astra-ci-test-only-provenance.json`.
+Clean installation remains unexecuted and must identify the exact intended
+publication artifact if an authorized release build produces different bytes.
 
 The current website rebuild and lint pass; 162 internal links across 108 files
 were checked. All three affected production browser tests pass. The current
 candidate section and its JSON were additionally exercised at 1440/390px;
 displayed hashes/counts match, with no page errors or root horizontal overflow.
-Screens: `target/astra-ci-native/site-evidence-{1440,390}.png`. Broader 23-test
-coverage from the first hosted run remains separate until corrected-head CI.
+Screens: `target/astra-ci-native/site-evidence-{1440,390}.png`. All 23 website
+browser checks passed again on `402c599` in the second hosted run.
 
 ## Preceding source checks
 
