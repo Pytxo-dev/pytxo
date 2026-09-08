@@ -46,6 +46,35 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await page.screenshot({ path: testInfo.outputPath("review-candidate-checks.png"), fullPage: true });
     });
 
+    test("a missing Git error keeps onboarding retry and skip available", async ({ page }, testInfo) => {
+      await clearOnboarding(page);
+      await page.goto("/");
+      await page.getByRole("button", { name: "Get started" }).click();
+      await page.getByRole("button", { name: "Continue with Desktop" }).click();
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(page.getByText("Requires Git. Includes tests that use Node.js; no API key required.")).toBeVisible();
+      // Exercise UI error recovery with a preview backend response. The native
+      // Rust regression separately checks a genuinely absent Git executable.
+      await page.evaluate(() => localStorage.setItem("pytxo-preview-example-error-v1", "missing-git"));
+      await page.getByRole("button", { name: "Try the guided example" }).click();
+      await expect(page.getByRole("alert")).toContainText("Git was not found. Install Git, restart Pytxo Desktop");
+      await expect(page.getByRole("button", { name: "Try the guided example" })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "Skip for now" })).toBeEnabled();
+      await page.getByRole("alert").scrollIntoViewIfNeeded();
+      await page.screenshot({ path: testInfo.outputPath("missing-git.png"), fullPage: true });
+      await page.getByRole("button", { name: "Skip for now" }).click();
+      await expect(page.getByRole("heading", { name: "Set your display" })).toBeVisible();
+      await page.getByRole("button", { name: "Back", exact: true }).click();
+      await page.getByRole("button", { name: "Try the guided example" }).click();
+      await expect(page.getByRole("alert")).toContainText("Git was not found");
+      await page.evaluate(() => localStorage.removeItem("pytxo-preview-example-error-v1"));
+      await page.getByRole("button", { name: "Try the guided example" }).click();
+      await expect(page.getByRole("alert")).toHaveCount(0);
+      await expect(page.getByText("Guided local Git example ready. Its baseline tests need no API key.")).toBeVisible();
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Set your display" })).toBeVisible();
+    });
+
     test("Review reports the combined receipt without promoting failed or empty checks", async ({ page }, testInfo) => {
       await completeOnboarding(page);
       await page.goto("/");

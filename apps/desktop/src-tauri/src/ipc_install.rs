@@ -374,6 +374,13 @@ pub fn create_example_workspace() -> IpcResult<String> {
 }
 
 fn create_example_workspace_in(parent: &Path) -> IpcResult<PathBuf> {
+    create_example_workspace_with_git(parent, Path::new("git"))
+}
+
+fn create_example_workspace_with_git(parent: &Path, git: &Path) -> IpcResult<PathBuf> {
+    // Fail before writing files so a missing prerequisite does not leave an
+    // incomplete numbered example on every retry. Do not mutate global PATH.
+    run_example_git(git, None, &["--version"])?;
     std::fs::create_dir_all(parent).map_err(map_io_err)?;
     let destination = (1..=99)
         .map(|index| {
@@ -405,11 +412,12 @@ fn create_example_workspace_in(parent: &Path) -> IpcResult<PathBuf> {
         std::fs::write(destination.join(relative), contents).map_err(map_io_err)?;
     }
 
-    run_git(&destination, &["init", "-q"])?;
-    run_git(&destination, &["branch", "-M", "main"])?;
-    run_git(&destination, &["add", "."])?;
-    run_git(
-        &destination,
+    run_example_git(git, Some(&destination), &["init", "-q"])?;
+    run_example_git(git, Some(&destination), &["branch", "-M", "main"])?;
+    run_example_git(git, Some(&destination), &["add", "."])?;
+    run_example_git(
+        git,
+        Some(&destination),
         &[
             "-c",
             "user.name=Pytxo Example",
@@ -424,11 +432,23 @@ fn create_example_workspace_in(parent: &Path) -> IpcResult<PathBuf> {
     Ok(destination.canonicalize().unwrap_or(destination))
 }
 
-fn run_git(repo: &Path, args: &[&str]) -> IpcResult<()> {
-    let mut command = Command::new("git");
-    command.arg("-C").arg(repo).args(args);
+fn run_example_git(git: &Path, repo: Option<&Path>, args: &[&str]) -> IpcResult<()> {
+    let mut command = Command::new(git);
+    if let Some(repo) = repo {
+        command.arg("-C").arg(repo);
+    }
+    command.args(args);
     hide_window(&mut command);
-    let output = command.output().map_err(map_io_err)?;
+    let output = command.output().map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            PytxoIpcError::new(
+                "example",
+                "Git was not found. Install Git, restart Pytxo Desktop, then try again. You can skip this step for now.",
+            )
+        } else {
+            PytxoIpcError::new("example", format!("Could not start Git: {error}"))
+        }
+    })?;
     if output.status.success() {
         return Ok(());
     }
@@ -436,7 +456,7 @@ fn run_git(repo: &Path, args: &[&str]) -> IpcResult<()> {
     Err(PytxoIpcError::new(
         "example",
         format!(
-            "Could not initialize the example repository: {}",
+            "Git could not prepare the guided example: {}",
             detail.trim()
         ),
     ))
@@ -455,6 +475,19 @@ mod tests {
     #[test]
     fn binary_on_path_does_not_panic() {
         let _ = binary_on_path("pytxo");
+    }
+
+    #[test]
+    fn missing_git_does_not_create_an_incomplete_example() {
+        let root = tempfile::tempdir().expect("temp examples root");
+        let parent = root.path().join("examples");
+        let absent_git = root.path().join("missing-git.exe");
+        let error = create_example_workspace_with_git(&parent, &absent_git)
+            .expect_err("missing Git must reject creation");
+        assert_eq!(error.code, "example");
+        assert!(error.message.contains("Git was not found"));
+        assert!(error.message.contains("restart Pytxo Desktop"));
+        assert!(!parent.exists(), "missing Git must leave no partial files");
     }
 
     #[test]

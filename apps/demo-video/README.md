@@ -1,6 +1,6 @@
 # Pytxo product demo
 
-Exact 52-second, 1920×1080, 30 fps Remotion evidence film of the September 7 real
+Exact 52-second, 1920×1080, 30 fps Remotion evidence film of the September 8 real
 Codex mission: three scoped tasks, two waves, and at most two concurrent workers.
 
 `mission → combined candidate receipt → explicit confirmation → committed Apply → post-state`
@@ -8,7 +8,7 @@ Codex mission: three scoped tasks, two waves, and at most two concurrent workers
 This is an edited presentation of unmodified native element captures, not a live
 screen recording or an elapsed-time comparison. The source run, exact reviewed
 package and post-Apply checks are recorded in [DEMO.md](../../DEMO.md) and
-`tooling/benchmarks/results/astra-ci-native-2026-09-07.json`. The film does not
+`tooling/benchmarks/results/astra-final-native-2026-09-08.json`. The film does not
 claim an OS-wide sandbox, comparative win, installer proof or Beta availability.
 The worker was the real Codex CLI. Test automation operated the native review
 and explicit confirmation; this is not an external human-user usability study.

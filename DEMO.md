@@ -1,6 +1,46 @@
 # Pytxo agent-hypervisor demo
 
-## Current September 7 native proof
+## Current September 8 native proof
+
+The final MSI with the Windows runtime and guided-example prerequisite fixes
+completed a fresh host rehearsal. Three Codex tasks ran in two waves with at most
+two workers. All three combined checks passed; the primary's six files remained
+unchanged before explicit Apply. Every exact diff was inspected. Cancel preserved
+the baseline and recorded no Apply attempt; confirmation committed all three
+reviewed hashes. Eleven repository tests and 26 independent checks then passed,
+with no failures or skips. The committed receipt survived a native process restart.
+Worker headers reported Codex 0.153.4, Astra/high.
+
+The [current native record](tooling/benchmarks/results/astra-final-native-2026-09-08.json)
+identifies run `267ba929-200f-48af-b5bc-6735e5810ae4`, package
+`349ff5f7a504516497aa60f04887bf969dd4215d92f84701d54f8ca40f5bc93c`, MSI
+`cf8db2e0b41ceaaf678d3c74226b62dc62589f2a68880ec8ba49d42088dbd911`, and payload
+`d75be6b767164e681b278c717551b84f62baf6987467751f2e98a39538c72db5`.
+All 354 source inputs still matched their frozen manifest after build. This is
+development-host evidence, not clean-install or public-download acceptance.
+The disposable folder was staged through native IPC; mission, Orbit permission,
+draft reuse, review, Cancel and Apply used native UI controls. No OS folder-picker
+signoff is claimed. The first verifier import adapter failed; its corrected file
+URL produced the expected 21-pass/five-fail baseline before work began.
+
+Six unmodified captures are retained in `docs/_attachments/astra-2026-09-08/`.
+The [new film record](tooling/benchmarks/results/astra-final-demo-2026-09-08.json)
+binds those images to the silent master: exactly 52 seconds, 1920×1080 at 30fps,
+H.264/yuv420p/BT.709, SHA256
+`9c427fc2ae0ab8acd6303b5b0379c432b5dc4b136dcec1a968c47ca59a0015e4`.
+Typecheck, original asset hashes, transcript/cues, format and black-frame checks
+passed. Seven scene stills and 13 encoded transition frames were inspected, plus
+full-resolution receipt and confirmation frames. Full continuous playback was
+not watched. No new narration was generated. The previous film, poster, QA sheets,
+composition and records were copied and hash-verified into
+`apps/demo-video/out/archive-2026-09-08-pre-final/` before replacement.
+The current 16-file Windows packet is
+`target/astra-final-windows-validation-packet.zip`, SHA256
+`47517631b8602ad671ec3cade5ff3530de2615648f7a0b2d1b008c79627bac46`.
+Its clean-guest acceptance remains pending. Historical observations below retain
+their original identities and limitations.
+
+## Historical September 7 native proof
 
 The rebuilt local Windows 1.2.2 candidate completed a real Codex follow-up with three
 scoped tasks in two waves: implementation and documentation first, then tests
@@ -20,11 +60,12 @@ The executable was extracted from that MSI. It was built with uncommitted
 CI corrections on PR31's `2964d5ad`; the full 352-file source-input identity is in the record.
 This was development-host execution, not clean installation or public delivery.
 
-The refreshed 52-second film uses six unmodified native element captures from
+The historical 52-second film uses six unmodified native element captures from
 `docs/_attachments/astra-2026-09-07/`. It is an edited evidence presentation,
 not a live recording or an elapsed-time comparison. Agent test automation
 operated native review and confirmation. The validated silent master is
-`apps/demo-video/out/pytxo-demo-silent.mp4`: exactly 52 seconds, 1920×1080 at 30fps,
+`apps/demo-video/out/archive-2026-09-08-pre-final/silent.mp4`:
+exactly 52 seconds, 1920×1080 at 30fps,
 H.264/yuv420p with BT.709 metadata and no audio stream. Its SHA256 is
 `761b377c71a15eed5a59ec29592f36919d711736e08122cfc6a24c11a044a2ee`.
 Seven scene stills and 13 encoded transition frames were visually inspected;
@@ -33,7 +74,7 @@ checks pass. Full [film provenance](tooling/benchmarks/results/astra-ci-demo-202
 is recorded separately. Older narrated audio is ineligible for this script;
 no new narration service was purchased or called.
 
-The current portable reproduction is `target/astra-ci-windows-validation-packet.zip`:
+The historical portable reproduction is `target/astra-ci-windows-validation-packet.zip`:
 16 allowlisted files, with the exact MSI, six baseline files, mission, task override
 and independent verifier. Its SHA256 is
 `42845a33b2e7044787843b7a63c51cf77b1e5132c1a38f95311ff3d292e10503`.

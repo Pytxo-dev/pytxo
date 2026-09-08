@@ -118,7 +118,7 @@
       <Button variant="outline" class="wide" disabled={busy} onclick={() => void createExample()}>
         {creatingExample ? "Creating example…" : "Try the guided example"}
       </Button>
-      <small>Creates a small local git repo with passing tests. No API key required.</small>
+      <small>Requires Git. Includes tests that use Node.js; no API key required.</small>
     </div>
   {/if}
 

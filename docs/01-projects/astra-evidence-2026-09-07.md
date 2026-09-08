@@ -6,11 +6,125 @@ tags: [verification, desktop, release, benchmarks]
 audience: [human, agent]
 layer: orchestration
 created: 2026-09-07
-updated: 2026-09-07
+updated: 2026-09-08
 related: [[astra-execution-2026-09-07]], [[astra-release-proposal-2026-09-07]]
 ---
 
 # Verification and artifact ledger
+
+## Current candidate — September 8, 02:55 UTC
+
+MSI `cf8db2e0b41ceaaf678d3c74226b62dc62589f2a68880ec8ba49d42088dbd911`
+contains the static-runtime repair and actionable guided-example Git preflight.
+Packaged EXE: `d75be6b767164e681b278c717551b84f62baf6987467751f2e98a39538c72db5`.
+All 354 build inputs match manifest digest
+`c721a49414e348dc93d7801c9d36fefdd445a75d44dd3ecaa6487824265e38f0`.
+MSI and EXE remain Authenticode unsigned. Actual MSI extraction/import guard
+passed for its one EXE, with no forbidden runtime imports.
+
+`npm run check` passed with zero Svelte errors/warnings and CSS lint clean.
+Four `ipc_install` native tests passed with static CRT and distribution/voice
+features, including missing Git without partial files and actual Git success.
+Four Playwright journeys passed: missing-Git retry/Skip at 1440 and 390, plus
+existing guided-example journeys. Both error-state screenshots were inspected.
+Desktop all-target Clippy passed with warnings denied. `npm run build:msi`
+completed successfully (native 4m33s; frontend 38.03s).
+
+Logs, frozen inputs, extracted executable and reports are under
+`target/astra-onboarding-prereqs-20260908/`. Its final 16-file packet ZIP hash is
+`47517631b8602ad671ec3cade5ff3530de2615648f7a0b2d1b008c79627bac46`;
+all archive entries and both read-only transfer discs were compared byte for
+byte. This candidate's guest installation and guest mission remain pending.
+The preceding 1f47 MSI's successful guest welcome below remains narrower,
+historical evidence. No additional Actions run or publication occurred here.
+
+The final MSI's separate host rehearsal completed at 02:27:47 UTC. Run
+`267ba929-200f-48af-b5bc-6735e5810ae4` used Codex 0.153.4/Astra/high, three tasks,
+two waves and at most two workers. Three combined checks passed. All six primary
+hashes stayed unchanged before Apply and after Cancel. Three exact diffs were
+reviewed; confirmation committed package
+`349ff5f7a504516497aa60f04887bf969dd4215d92f84701d54f8ca40f5bc93c` with attempt
+`43939199-b4d3-4a3b-bf67-d58b7201e194` at 02:29:55. Three changed hashes matched
+the frozen manifest; the other three stayed unchanged. Actual post-Apply
+processes passed 11 repository and 26 independent tests, zero failed or skipped, and
+the receipt survived native restart. The independent checks had five expected
+baseline failures. Bounded evidence review found no material discrepancy.
+
+Sanitized result: `tooling/benchmarks/results/astra-final-native-2026-09-08.json`;
+raw private evidence: `target/astra-final-native/`. Six native element captures
+are in `docs/_attachments/astra-2026-09-08/`. Workspace catalog setup used native
+IPC; the OS folder picker was not tested. Permission, draft reuse, mission,
+review, Cancel and Apply used actual native UI controls.
+
+The rebuilt silent master is 52.000 seconds, 1920×1080 at 30fps,
+H.264/yuv420p/BT.709, SHA256
+`9c427fc2ae0ab8acd6303b5b0379c432b5dc4b136dcec1a968c47ca59a0015e4`.
+Typecheck, original asset hashes, transcript/cues, format and black-frame checks
+passed. Seven scene stills and 13 encoded transition frames were inspected;
+continuous playback was not watched. No narration service was used.
+`tooling/benchmarks/results/astra-final-demo-2026-09-08.json` binds the source,
+captures and QA artifacts. The old master was hash-archived before replacement.
+
+The website's current-candidate link resolves to this final native record.
+Production build, lint and 163 internal links across 108 source files passed.
+All three affected production browser tests passed in 17.7 seconds, including
+artifact identity at 1440 and 390 pixels. Both full-page screenshots were
+inspected; the current follow-up text and hash are readable at both widths.
+Logs and captures: `target/astra-final-native/web-*`.
+
+## Clean Windows finding — September 7, 23:53 UTC
+
+**REPRODUCED:** MSI `614d44e2d47e…` installed with exit 0, but its Start-menu
+launch failed because `MSVCP140.dll` was missing. The fresh guest had no Visual
+C++ redistributable added. WebView2 was present after installation. The frozen
+payload directly imports 95 symbols from that DLL. Screenshot:
+`target/astra-clean-vm-20260907/screens/guest-pytxo-first-start.png`.
+Guest installation logs remain on its preserved disk; before/after inventory
+JSON and inspected installer-result screenshot are retained on the host.
+
+The preceding static-runtime replacement uses opt-in `.cargo/windows-msvc.toml` with an explicit
+target through `npm run build:msi`. Its 354-input manifest digest is
+`3e57d96e802b903bfab4ae73a6ce822c15b52159b1602b38351f3a733f6039ae`.
+MSI SHA256: `1f47f34d673b552ae8ddebab222ad49989ef8d94f6032b94027e970ab980219f`;
+payload SHA256: `44106e772f38ef4a1ba8123ec97128c091691b4592f6e0e6eb5bfc942d80d430`.
+Both are Authenticode unsigned. Build and actual MSI import checks passed;
+four native libraries use static CRTs, 41 release-tooling tests and 12 native
+voice contract tests passed. This does not establish speech transcription.
+Logs, source manifest and extracted-payload report are retained in
+`target/astra-crt-native/scoped-policy/`. An intermediate 353-input build is
+historical; the final policy preserves ordinary Cargo host defaults.
+
+The failed candidate was removed normally. Exported guest inventory confirms
+its executable and registry entry absent and all six checked VC++ runtime DLLs
+still absent. The replacement installed with exit 0 on September 8 at
+00:56:41 UTC. Start-menu launch produced a native white window at 00:57:35;
+rendered UI was not yet verified. At 01:06 UTC the host-resource guard stopped
+only the owned guest after two low-memory samples. Its disk and installer logs
+are preserved for continuation. This is not yet clean-machine acceptance.
+Original MSI, native mission, film and Bench records below remain evidence of
+their named earlier bytes. Hosted CI remains green for `f64a0b0`, not this repair.
+
+Continuation at 01:09:52 UTC retained the installed replacement. Start-menu
+launch at 01:12:36 rendered the welcome screen at 01:13:13. Continue with Desktop
+proceeded without the separate Pytxo CLI; all five absent agent CLIs reported
+not installed. Exported post-launch inventory confirms installed EXE `44106e…`,
+all six checked VC++ runtime DLLs absent, and no developer commands present.
+Inventory SHA256 `ced16382b5c00a579a1e8f0d5d6faffac1813eec567daf9a091affee2b446c30`.
+Actual MSI log and result were exported and verified; log SHA256
+`e5be4579ffb259e1d85cbd35bf153aa3175e847f34a482f13536a5c35052d87d`.
+`target/astra-crt-native/scoped-policy/guest-install-and-launch.json` records
+the narrow verified scope. This establishes the missing-runtime repair.
+
+Before Git installation, Try the guided example produced `[io] program not found`.
+A subsequent source correction probes Git before creating files and names the
+missing prerequisite with recovery guidance. Its native no-partial-files and
+two-viewport UI retry/skip regressions passed in the current candidate section.
+Do not relabel the `1f47…` bytes as containing those later changes.
+Verified official Git/Node installers completed with observed exit 0. Fresh
+terminal versions: Git2.55.0.windows.5, Node24.20.0, npm11.19.0. Codex0.153.4 was
+installed to match the earlier rehearsal. Its official device-login page reports
+device-code authorization disabled. Approval for temporarily enabling it and
+restoring the setting is pending; no security setting or host credential changed.
 
 The preceding native builds and checks were produced with uncommitted changes
 on PR31's `ff0b88fb71224d579267e697261ae4d831f0cd76`. The CI correction below was
@@ -83,7 +197,15 @@ startup/non-Stop allowance. Post-Stop settlement remains ten seconds, below the
 probe's natural 30-second exit. Timeouts still fail and all assertions remain.
 Fresh affected checks: **95 orchestration tests and Clippy pass**; independent
 review found no actionable issue. Logs: `target/astra-ci-windows-orchestrate-green.log`
-and `target/astra-ci-windows-orchestrate-clippy.log`. Final-head CI remains pending.
+and `target/astra-ci-windows-orchestrate-clippy.log`.
+
+Final hosted run `34112393479` passed **all twelve jobs** on
+`f64a0b092b02af917fea52180a4e76458e2f1934`, completed at 11:13:50 UTC on
+September 7. This includes the Windows workspace, all five transport lifecycle
+tests, audit and feature checks. Records: `target/astra-ci-34112393479-final-run.json`,
+`target/astra-ci-34112393479-final-jobs.json` and the retained Windows log.
+This closes hosted CI for that source; it does not establish clean installation
+or publication.
 
 This later correction changes only the existing `#[cfg(test)]` module in
 `flow.rs`. The complete non-test prefix matches after explicit newline
@@ -94,6 +216,20 @@ from the later test-only commit**, and no binary reproducibility claim is made.
 The separate local provenance record is `target/astra-ci-test-only-provenance.json`.
 Clean installation remains unexecuted and must identify the exact intended
 publication artifact if an authorized release build produces different bytes.
+The user subsequently authorized assistant-owned VM setup. The disposable
+Windows 10 LTSC guest is being prepared locally: WHPX firmware execution, private
+QMP control, the 16-file packet ISO roundtrip and the complete Windows media
+SHA256 are verified. The monitored resource gate passed and Windows setup began
+at 22:39:41 UTC, with actual setup screenshots retained. A continuation reached
+the fresh desktop. The offline inventory verifies Windows 10 LTSC 19044.1288,
+no Pytxo/WebView2/Git/Node/agent CLI, enabled Defender protection, and the exact
+candidate MSI hash. Its retained JSON SHA256 is
+`e2351f1ebbf0b33740f7bbb4ae2b1aa47487ee5430a3196dc8f5d699ba69498a`.
+Evaluation activation is not verified: the offline inventory reports status 5
+and zero remaining grace. Normal online activation, servicing and complete
+installer/native acceptance remain pending. Current
+provisioning evidence is in `target/astra-clean-vm-20260907/PROVISIONING.md`.
+Keep creation-time gate states inside the unchanged packet/media records intact.
 
 The current website rebuild and lint pass; 162 internal links across 108 files
 were checked. All three affected production browser tests pass. The current
@@ -248,7 +384,8 @@ allowance condition. The Team upgrade showed 1,000 remaining included minutes
 at 08:25 UTC, before the first executed run; paid overages remain blocked.
 Run `34100785788` completed eight passing/four failing jobs. The consolidated
 correction establishes hosted acceptance only after all required jobs pass.
-The clean Windows environment is unavailable on this development host. Public
-version 1.2.2 is absent. The concrete owner sequence is in
+A disposable Windows guest is now provisioned locally; its activation, servicing
+and Pytxo acceptance are incomplete as recorded above. Public version 1.2.2 is
+absent. The concrete owner sequence is in
 [[astra-release-proposal-2026-09-07]]. Prepared protocols, null result templates,
 local extraction and HTTP success never count as closure of those gates.

@@ -1,18 +1,21 @@
 # Pytxo Desktop
 
-Passive telemetry UI for Pytxo: run list, wave agents, xterm log stream, and per-agent git diff.
+Pytxo's optional control UI for preparing delegated work, observing runs,
+reviewing combined candidates and applying approved repository changes.
+Its three destinations are Work, History and Setup.
 
 **Location:** `apps/desktop` in the [pytxo](https://github.com/Pytxo-dev/pytxo) monorepo.
 
-**Requires:** in-tree `pytxo` crates (`pytxo-core`, `pytxo-store`, `pytxo-orchestrate` v0.1.x) via path dependencies.
+**Requires:** the in-tree Pytxo workspace crates via path dependencies.
 
 ## Prerequisites
 
 - Node.js 22+
-- Rust 1.85+ (repo root workspace)
+- Rust 1.88+ (repo root workspace)
 - Tauri system deps on Linux (see root CI workflow)
 
-Run the UI from the **same git repository** where you execute `pytxo run`.
+Choose project folders inside Desktop. The separately installed Pytxo CLI is
+optional for Desktop use.
 
 ## Build
 
@@ -25,12 +28,17 @@ npm run check
 npm run build:native
 ```
 
-The self-contained executable is written to the root workspace's
-`target/release` directory.
+The native development executable is written to the root workspace's
+`target/release` directory. For the Windows distribution MSI, use
+`npm run build:msi` from this directory. It builds voice support and passes the
+shared `.cargo/windows-msvc.toml` policy explicitly to Cargo, so the packaged
+app does not depend on separately installed Visual C++ runtime DLLs. Verify
+the actual package with `tooling/scripts/verify-windows-msi.ps1` and complete
+the clean-machine acceptance in the [release guide](../../docs/07-guides/release-workflow.md).
 
 ## Architecture
 
-- Tauri IPC calls `pytxo-orchestrate` and `pytxo-store` only.
+- Tauri IPC connects the UI to the local Pytxo orchestration and evidence services.
 - Presentation layer has no direct filesystem access (ADR-0001).
 
 Export artifacts and release staging: see [`../desktop-export/README.md`](../desktop-export/README.md).

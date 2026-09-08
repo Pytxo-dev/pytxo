@@ -167,7 +167,7 @@ test("the evidence page states the corpus, caveats, and source access limit", as
 });
 
 for (const width of [1440, 390]) {
-  test(`native evidence links resolve to the displayed artifact at ${width}px`, async ({ page }) => {
+  test(`native evidence links resolve to the displayed artifact at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/evidence");
     const nativeLink = page.getByRole("link", { name: "Native run record", exact: true });
@@ -181,7 +181,18 @@ for (const width of [1440, 390]) {
     expect(record.native_apply.applied_files_match_frozen_digests).toBe(true);
     expect(record.msi_sha256).toMatch(/^[a-f0-9]{64}$/);
     await expect(page.getByText(`Recorded MSI SHA256: ${record.msi_sha256}`, { exact: true })).toBeVisible();
-    for (const name of ["Direct worktree record", "Earlier refusal record", "Launch failure record", "Review withheld record"]) {
+    const currentHref = await page.getByRole("link", { name: "Current candidate record", exact: true }).getAttribute("href");
+    expect(currentHref).toBeTruthy();
+    const currentResponse = await page.request.get(currentHref!);
+    expect(currentResponse.ok()).toBe(true);
+    const current = await currentResponse.json();
+    expect(current.run_id).not.toBe(record.run_id);
+    expect(current.native_apply.persisted_after_native_restart).toBe(true);
+    expect(current.native_apply.independent_acceptance.post_apply_passed).toBe(26);
+    await expect(page.getByText(`Follow-up MSI SHA256: ${current.msi_sha256}`, { exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Current candidate record", exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath(`current-candidate-${width}.png`), fullPage: true });
+    for (const name of ["Direct worktree record", "Earlier refusal record", "Launch failure record", "Review withheld record", "Previous candidate record"]) {
       const url = await page.getByRole("link", { name, exact: true }).getAttribute("href");
       expect(url).toBeTruthy();
       expect((await page.request.get(url!)).ok()).toBe(true);

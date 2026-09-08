@@ -422,6 +422,9 @@ export class PreviewDesktopBackend implements DesktopBackend {
   async installVoiceModel() { return "~/.pytxo/models/voice/base.en.bin"; }
   async openWorkspace() { return "C:/dev/new-workspace"; }
   async createExampleWorkspace() {
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-example-error-v1") === "missing-git") {
+      throw new Error("Git was not found. Install Git, restart Pytxo Desktop, then try again. You can skip this step for now.");
+    }
     const path = "C:/Users/demo/Documents/Pytxo Examples/approval-risk-demo";
     if (!this.snapshot.domains.some((domain) => domain.repo_root === path)) {
       this.snapshot.domains.push({

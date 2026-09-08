@@ -1,6 +1,6 @@
 import Link from "next/link";
 import nativeObservation from "../../../../public/evidence/astra-native-codex-2026-09-07.json";
-import currentObservation from "../../../../public/evidence/astra-ci-native-2026-09-07.json";
+import currentObservation from "../../../../public/evidence/astra-final-native-2026-09-08.json";
 
 import { StateChip } from "@/components/site/state-chip";
 import { SIGNAL_BENCHMARK, SIGNAL_LANGUAGE_BREAKDOWN } from "@/lib/evidence";
@@ -93,20 +93,24 @@ export default function EvidencePage() {
         <div className="mt-12 border-t border-[var(--aperture-line)] pt-8">
           <h3 className="text-xl tracking-[-0.025em]">Current candidate follow-up</h3>
           <p className="mt-5 max-w-[52rem] text-sm leading-relaxed text-[#a9a9b2]">
-            After the CI-driven Stop repair, a rebuilt MSI completed a separate
-            credentials-path mission from the previously applied baseline. Three
+            On 8 September 2026, the MSI with the Windows runtime and setup fixes
+            completed a fresh credentials-path rehearsal. Three
             tasks passed combined checks and explicit native Apply. All three file
             hashes matched, {currentObservation.native_apply.post_apply_tests_passed} repository
             tests passed, and {currentObservation.native_apply.independent_acceptance.post_apply_passed} separately
             authored acceptance checks passed. Five of those acceptance checks had
             failed on the baseline. The committed receipt survived a native restart.
-            This follow-up used different work and is not a direct-run comparison
-            or clean-install result.
+            Cancel left the primary files unchanged, and restoring a draft required
+            a fresh plan. This host rehearsal is not a direct-run comparison or
+            clean-install result.
           </p>
           <p className="mt-5 max-w-[52rem] break-all font-mono text-xs leading-relaxed text-[#8d8d96]">
             Follow-up MSI SHA256: {currentObservation.msi_sha256}
           </p>
-          <a className="aperture-link mt-5 inline-block text-sm text-[#f5f5f7]" href="/evidence/astra-ci-native-2026-09-07.json">Current candidate record</a>
+          <div className="mt-5 flex flex-wrap gap-x-7 gap-y-3 text-sm text-[#f5f5f7]">
+            <a className="aperture-link" href="/evidence/astra-final-native-2026-09-08.json">Current candidate record</a>
+            <a className="aperture-link" href="/evidence/astra-ci-native-2026-09-07.json">Previous candidate record</a>
+          </div>
         </div>
       </section>
 

@@ -1,0 +1,273 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-09-08T02:35:21.024Z",
+  "scenario": "Final MSI host rehearsal: credentials-path classification, tests and documentation",
+  "runtime": "OpenAI Codex 0.153.4",
+  "reported_model": "gpt-6-astra",
+  "reported_reasoning_effort": "high",
+  "mission_sha256": "139ff38b44d6d88d1c744d095487bb0e595a8e7cbe8cf0b20bc8663040a50f31",
+  "fixture_baseline_revision": "e9e6eb9ba11106a75b70bbdabf4dd9206963cf5b",
+  "source_head": "f64a0b092b02af917fea52180a4e76458e2f1934",
+  "source_has_uncommitted_changes": true,
+  "source_inputs_sha256": "c721a49414e348dc93d7801c9d36fefdd445a75d44dd3ecaa6487824265e38f0",
+  "msi_sha256": "cf8db2e0b41ceaaf678d3c74226b62dc62589f2a68880ec8ba49d42088dbd911",
+  "msi_bytes": 10850304,
+  "packaged_executable_sha256": "d75be6b767164e681b278c717551b84f62baf6987467751f2e98a39538c72db5",
+  "app_version": "1.2.2",
+  "build_features": [
+    "custom-protocol",
+    "voice-whisper"
+  ],
+  "run_id": "267ba929-200f-48af-b5bc-6735e5810ae4",
+  "run_status": "completed",
+  "started_at": "2026-09-08T02:24:46.913720800+00:00",
+  "candidate_verified_at": "2026-09-08T02:27:54.306347700+00:00",
+  "seconds_start_to_candidate_verification": 187.393,
+  "planned_tasks": 3,
+  "waves": 2,
+  "max_concurrent_workers": 2,
+  "worker_outcomes": [
+    {
+      "task_id": "mission-0",
+      "wave": 0,
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-2",
+      "wave": 0,
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-1",
+      "wave": 1,
+      "status": "completed",
+      "exit_code": 0
+    }
+  ],
+  "package_version": 3,
+  "package_digest": "349ff5f7a504516497aa60f04887bf969dd4215d92f84701d54f8ca40f5bc93c",
+  "changed_files": [
+    {
+      "path": "README.md",
+      "kind": "modify",
+      "before_sha256": "ba5554e0f4ea3d941289626c7cacd23ddc0b4be0119c803eb3206ed8865efda7",
+      "after_sha256": "b78ad8b5a2fbf7ed4f94da908699a79c899f5ca58d05d3184a345072cdc5deba"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "kind": "modify",
+      "before_sha256": "8fa4f3d2d98daa4ddb3879fba5d3839d12dab56a061eb97898b13c6e768d2a33",
+      "after_sha256": "bd65285021be23d6809e81a4b0806e68dc66e5ae3e4baa18300a5224a5d2e8e1"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "kind": "modify",
+      "before_sha256": "c97734269272bdb5f1d4203f6b87891d8de2c903a4072e137b3ab52419f8af7b",
+      "after_sha256": "c0f3e1e74328e09156ca10a1410b80e14f193c51cd506f3232e931cc1ca33793"
+    }
+  ],
+  "candidate_checks": [
+    {
+      "task_id": "mission-0",
+      "command": "npm test",
+      "effective_profile": "orbit",
+      "passed": true
+    },
+    {
+      "task_id": "mission-2",
+      "command": "npm test",
+      "effective_profile": "orbit",
+      "passed": true
+    },
+    {
+      "task_id": "mission-1",
+      "command": "npm test",
+      "effective_profile": "orbit",
+      "passed": true
+    }
+  ],
+  "included_input_files": 6,
+  "inventory_exclusions": [
+    ".git",
+    ".pytxo",
+    "build",
+    "dist",
+    "node_modules",
+    "target"
+  ],
+  "enforcement": {
+    "workspace_isolation": {
+      "status": "enforced",
+      "mechanism": "projfs-sparse-copy-v2"
+    },
+    "host_filesystem_boundary": {
+      "status": "advisory",
+      "mechanism": "child-cwd-and-policy-gates"
+    },
+    "network": {
+      "status": "advisory",
+      "mechanism": "spawn-command-policy"
+    },
+    "apply_boundary": {
+      "status": "enforced",
+      "mechanism": "reviewed-run-atomic-apply"
+    }
+  },
+  "primary_baseline_files": [
+    {
+      "path": ".gitignore",
+      "sha256": "437aa5d95044ff0309464d6e7e70ecd691e26c8027eb8da71128935a50797587"
+    },
+    {
+      "path": "README.md",
+      "sha256": "ba5554e0f4ea3d941289626c7cacd23ddc0b4be0119c803eb3206ed8865efda7"
+    },
+    {
+      "path": "package.json",
+      "sha256": "a7cf37fbfe5020a3efc8b12964713d62d8d9a61c80ee8ce36f51f6255d74a3dd"
+    },
+    {
+      "path": "pytxo.toml",
+      "sha256": "885af7a41a2083a37db7fe21cb3e5c805e60b0dc375706c8a2323d9499365353"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "sha256": "8fa4f3d2d98daa4ddb3879fba5d3839d12dab56a061eb97898b13c6e768d2a33"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "sha256": "c97734269272bdb5f1d4203f6b87891d8de2c903a4072e137b3ab52419f8af7b"
+    }
+  ],
+  "primary_inventory_exclusions": [
+    ".git/**",
+    ".pytxo/**"
+  ],
+  "primary_files_unchanged_before_apply": true,
+  "native_apply": {
+    "attempt_id": "43939199-b4d3-4a3b-bf67-d58b7201e194",
+    "phase": "committed",
+    "applied_files_match_frozen_digests": true,
+    "unrelated_files_unchanged": true,
+    "persisted_after_native_restart": true,
+    "post_apply_tests_passed": 11,
+    "interaction": "Actual packaged native WebView operated through Playwright. Disposable workspace catalog was staged through native IPC; the OS folder picker was not tested. Orbit was selected through Setup. Mission, draft reuse, plan edit, all three exact diffs, Cancel and explicit Apply used UI controls. Normal Close hides to tray; only the settled test process was stopped for restart.",
+    "captures": [
+      {
+        "file": "astra-final-native-plan.png",
+        "width": 608,
+        "height": 431,
+        "sha256": "792bf9a0962f43c06ce2f22dee18a50c6ea32ea5f517e5b58cdbe4539d239f03",
+        "selector": ".plan-panel",
+        "scale": "css",
+        "captured_at_utc": "2026-09-08T02:29:29.076Z",
+        "state": "ready before Apply"
+      },
+      {
+        "file": "astra-final-native-checks.png",
+        "width": 380,
+        "height": 168,
+        "sha256": "e323a2bd88797aec493afe557880b999ecaa6a0f0516bf8588e942a6ead703fe",
+        "selector": ".candidate-checks parent",
+        "scale": "css",
+        "captured_at_utc": "2026-09-08T02:29:29.146Z",
+        "state": "ready before Apply"
+      },
+      {
+        "file": "astra-final-native-boundaries.png",
+        "width": 380,
+        "height": 284,
+        "sha256": "f1e68a2a0391ea2c1369a1c165a410bf99afe75c179c5d944013a60b8f4e1dd8",
+        "selector": ".receipt-grid",
+        "scale": "css",
+        "captured_at_utc": "2026-09-08T02:29:29.228Z",
+        "state": "ready before Apply"
+      },
+      {
+        "file": "astra-final-native-apply-confirm.png",
+        "width": 440,
+        "height": 182,
+        "sha256": "370a05cb3b2f1240ad476f555b4ad42d126f55669a6c6ad1337215897053a4a0",
+        "selector": "dialog",
+        "scale": "css",
+        "captured_at_utc": "2026-09-08T02:29:41.890Z",
+        "state": "before explicit Apply; first dialog cancelled"
+      },
+      {
+        "file": "astra-final-native-applied.png",
+        "width": 385,
+        "height": 87,
+        "sha256": "7421837ac1c070fa3181c3e2ee22e8eb8468dd92171254b2dc3c426e843b5b88",
+        "selector": ".boundary .attempts",
+        "scale": "css",
+        "captured_at_utc": "2026-09-08T02:32:46.013Z",
+        "state": "committed receipt after native restart"
+      },
+      {
+        "file": "astra-final-native-journal.png",
+        "width": 1024,
+        "height": 182,
+        "sha256": "8426b321ddb62f5d7ad003b4bd2b9c30e97ec6db25c0c32fb36902f3893d55f6",
+        "selector": ".attempts-panel",
+        "scale": "css",
+        "captured_at_utc": "2026-09-08T02:32:46.278Z",
+        "state": "committed journal after native restart"
+      }
+    ],
+    "post_apply_check": {
+      "command": "npm test",
+      "exit_code": 0,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "log_sha256": "4aed1c731e8ab36863016ba0dea5208f90b8663dd4cf48c12dcade7fee0c6c4c"
+    },
+    "independent_acceptance": {
+      "command": "node --test independent-policy.test.mjs",
+      "authored_before_apply": true,
+      "baseline_passed": 21,
+      "baseline_failed": 5,
+      "post_apply_passed": 26,
+      "post_apply_failed": 0,
+      "post_apply_skipped": 0,
+      "test_source_sha256": "3f4175579d90542b36e515a19342c2dcd2f7bdd7525f7a77b9d43e8365e5f2e0",
+      "baseline_log_sha256": "fda18dd962b6cb4e19c497a3c3ac4dcd2a7ac3d14fa2b87823b6b901e50638f5",
+      "post_apply_log_sha256": "54eac9d09a780ba5e383e659d593fd4be9e8cad7b971eaee56e06fac506d6fdc"
+    }
+  },
+  "recovery_observations": {
+    "untrusted_dispatch": "refused before any workers launched",
+    "cancel_confirmation": "primary remained unchanged and no Apply attempt recorded",
+    "draft_reuse": "workspace and Codex restored; prior plan/check authority cleared"
+  },
+  "cost_usd": null,
+  "cli_reported_tokens_used": null,
+  "setup_time_seconds": null,
+  "review_time_seconds": null,
+  "reviewed_task_prompt_overrides": [
+    {
+      "task_id": "mission-2",
+      "reviewed_prompt": "In README.md, document the final requested combined behavior: deploy/, billing/, .github/workflows/, secrets/ and credentials/ are all review-required prefixes. A separate implementation task in this same run adds credentials/ support. Describe that target behavior, not the temporary baseline or an implementation gap. Include two exact classifyChange input/output examples, one routine and one requiring review. Preserve case-insensitive matching and Windows separator normalization in the description. Modify only README.md.",
+      "reviewed_prompt_sha256": "b49e1456d2a7b584e5be6c8edfd944ce59b18a7eeed3eab66cb677b8ab809ce2",
+      "observed_in_worker_input": true,
+      "reason": "Documents the requested combined behavior while implementation runs in parallel"
+    }
+  ],
+  "related_observations": [
+    "astra-ci-native-2026-09-07.json",
+    "astra-direct-codex-2026-09-07.json"
+  ],
+  "non_claims": [
+    "One successful synthetic host rehearsal; not a reliability rate or customer study",
+    "No controlled comparative speed, cost or quality result",
+    "MSI extraction and host execution do not establish clean Windows installation or public-download proof",
+    "No OS-wide host filesystem or network sandbox guarantee",
+    "Edited native captures are not a continuous recording or elapsed-time reproduction",
+    "Source identity excludes toolchains and dependency installation state",
+    "Worker model and effort are runtime reports, not inferred from the coordinator",
+    "First independent verifier adapter failed because its Windows import lacked file URL syntax; import corrected before the valid red baseline, with assertions unchanged",
+    "No public publication performed"
+  ]
+}

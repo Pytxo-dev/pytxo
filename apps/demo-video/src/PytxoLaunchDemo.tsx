@@ -1,7 +1,7 @@
 import type {ReactNode} from "react";
 import {Audio} from "@remotion/media";
 import {AbsoluteFill, Img, Sequence, interpolate, staticFile, useCurrentFrame} from "remotion";
-import evidence from "../../../tooling/benchmarks/results/astra-ci-native-2026-09-07.json";
+import evidence from "../../../tooling/benchmarks/results/astra-final-native-2026-09-08.json";
 
 export type PytxoLaunchDemoProps = {includeAudio: boolean};
 export const FPS = 30;
@@ -18,7 +18,7 @@ const Frame = ({children, label}: {children: ReactNode; label: string}) => {
   return (
     <AbsoluteFill style={{backgroundColor: colors.canvas, color: colors.text, fontFamily: "Geist Variable, Geist, sans-serif"}}>
       <div style={{position: "absolute", left: 90, top: 65}}><Logo /></div>
-      <div style={{position: "absolute", right: 90, top: 78, fontSize: 22, color: colors.muted}}>Edited native captures · 7 September 2026</div>
+      <div style={{position: "absolute", right: 90, top: 78, fontSize: 22, color: colors.muted}}>Edited native captures · 8 September 2026</div>
       <div style={{position: "absolute", left: 90, top: 165, fontSize: 22, color: colors.mint, letterSpacing: "0.08em", textTransform: "uppercase"}}>{label}</div>
       <AbsoluteFill style={{opacity: interpolate(frame, [0, 12], [0, 1], clamp), translate: `0 ${interpolate(frame, [0, 16], [12, 0], clamp)}px`}}>{children}</AbsoluteFill>
       <div style={{position: "absolute", left: 90, bottom: 35, color: colors.muted, fontSize: 19}}>Run {evidence.run_id.slice(0, 8)} · MSI {evidence.msi_sha256.slice(0, 12)} · Codex 0.153.4</div>
@@ -34,8 +34,8 @@ const Copy = ({title, children}: {title: ReactNode; children?: ReactNode}) => (
 // Unmodified element captures from the native rehearsal, not UI mockups.
 const Receipt = () => (
   <div style={{position: "absolute", right: 100, top: 185, width: 600, display: "grid", gap: 28}}>
-    <Img src={staticFile("product/astra-ci-native-checks.png")} style={{width: "100%"}} />
-    <Img src={staticFile("product/astra-ci-native-boundaries.png")} style={{width: "100%"}} />
+    <Img src={staticFile("product/astra-final-native-checks.png")} style={{width: "100%"}} />
+    <Img src={staticFile("product/astra-final-native-boundaries.png")} style={{width: "100%"}} />
   </div>
 );
 const Intro = () => (
@@ -52,7 +52,7 @@ const Mission = () => (
       <div style={{marginTop: 50, paddingTop: 30, borderTop: "1px solid #293139", color: colors.text}}>{evidence.planned_tasks} tasks · {evidence.waves} waves · up to {evidence.max_concurrent_workers} workers</div>
       <div style={{fontSize: 25, marginTop: 15}}>The primary checkout stayed unchanged before Apply.</div>
     </Copy>
-    <Img src={staticFile("product/astra-ci-native-plan.png")} style={{position: "absolute", right: 80, top: 345, width: 750, height: "auto"}} />
+    <Img src={staticFile("product/astra-final-native-plan.png")} style={{position: "absolute", right: 80, top: 345, width: 750, height: "auto"}} />
   </Frame>
 );
 const Review = () => (
@@ -74,7 +74,7 @@ const Apply = () => {
         {applied ? "The receipt now records the package as applied." : "All three exact diffs were inspected in the native UI rehearsal."}
         <div style={{marginTop: 40, fontSize: 25}}>The native UI was operated by test automation.<br />The edit does not reproduce its elapsed time.</div>
       </Copy>
-      {applied ? <Img src={staticFile("product/astra-ci-native-applied.png")} style={{position: "absolute", right: 80, top: 380, width: 670, height: "auto"}} /> : <Img src={staticFile("product/astra-ci-native-apply-confirm.png")}
+      {applied ? <Img src={staticFile("product/astra-final-native-applied.png")} style={{position: "absolute", right: 80, top: 380, width: 670, height: "auto"}} /> : <Img src={staticFile("product/astra-final-native-apply-confirm.png")}
         style={{position: "absolute", right: 80, top: 365, width: 670, height: "auto"}} />}
     </Frame>
   );
@@ -85,7 +85,7 @@ const Outcome = () => (
       <h1 style={{fontSize: 87, fontWeight: 640, letterSpacing: "-0.045em", margin: 0}}>Three matching file hashes.<br /><span style={{color: colors.mint}}>{evidence.native_apply.independent_acceptance.post_apply_passed} independent checks.</span></h1>
       <p style={{fontSize: 29, lineHeight: 1.45, color: colors.muted, marginTop: 30}}>{evidence.native_apply.post_apply_tests_passed} repository tests also passed. Applied bytes matched the package; the receipt survived restart.</p>
     </div>
-    <Img src={staticFile("product/astra-ci-native-journal.png")} style={{position: "absolute", left: 90, top: 610, width: 1500, height: "auto"}} />
+    <Img src={staticFile("product/astra-final-native-journal.png")} style={{position: "absolute", left: 90, top: 610, width: 1500, height: "auto"}} />
     <div style={{position: "absolute", left: 90, bottom: 105, fontSize: 25, color: colors.muted}}>One run. No comparative speed claim. No OS-wide sandbox guarantee.</div>
   </Frame>
 );

@@ -6,11 +6,43 @@ tags: [project, desktop, verification, research]
 audience: [human, agent]
 layer: orchestration
 created: 2026-09-07
-updated: 2026-09-07
+updated: 2026-09-08
 related: [[beta-readiness-plan-2026-09-05]], [[beta-competitor-research-2026-09-05]]
 ---
 
 # ASTRA execution
+
+## Current implementation — clean Windows runtime dependency
+
+The actual clean guest installed the frozen MSI with exit 0, then failed its
+first Start-menu launch with missing `MSVCP140.dll`. This reopens packaging;
+it does not invalidate the earlier development-host mission within its scope.
+The replacement now builds with a consistent Windows x64 static CRT using an
+opt-in Cargo configuration and explicit target; ordinary developer builds retain
+their defaults. The release check of every executable/DLL extracted from the
+actual MSI passes, alongside 41 tooling and 12 native voice contract tests.
+Replacement MSI `1f47f34d673b…` installed in the preserved guest with exit 0 and
+rendered its Start-menu welcome screen on continuation. The guided example then
+exposed an unhelpful missing-Git error. The corrected preflight now passes four
+native tests and four browser journeys; Desktop check and distribution-feature
+Clippy also pass. Final MSI `cf8db2e0b41c…` is built and packaged-import verified,
+with all 354 frozen source inputs unchanged. Its separate host rehearsal passed
+three-task review/Apply, 11 repository tests, 26 independent checks, Cancel and
+receipt persistence after native restart. The final 52-second silent film and
+website evidence checks passed. Continue guest acceptance from its existing
+disk using the final packet. No extra Actions run or publication has occurred
+for these repairs.
+
+Chosen over manually adding a guest prerequisite or copying one runtime DLL:
+the current MSI should start without a separately installed VC++ runtime.
+Rust's static CRT feature is communicated to native build scripts; Microsoft's
+compiler guidance requires consistent linked-module runtime selection.
+Sources: [Rust linkage](https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes),
+[Microsoft runtime options](https://learn.microsoft.com/en-us/cpp/build/reference/md-mt-ld-use-run-time-library?view=msvc-170).
+Static linkage requires rebuilding to service embedded runtime fixes. Generated
+native flags, final PE imports, clean launch and actual app behavior must be
+checked. Permission profiles, execution domains and reviewed Apply logic are
+unchanged. Publication still requires approval.
 
 ## Contract and source
 
@@ -53,8 +85,12 @@ changes, new system features and major redesign retain separate approval gates.
 
 - [x] Fresh meaningful regression tests; final combined checks after review.
 - [x] Desktop/mobile screenshots and keyboard/state journeys; native workflow.
-- [x] Actual final native build/MSI provenance, demo and Bench evidence.
-- [ ] Hosted CI, clean Windows and public download gates, or exact human actions.
+- [x] Earlier MSI provenance, native demo and Bench evidence, retained by identity.
+- [x] Replacement MSI native workflow, demo and Bench evidence; host scope only.
+- [x] Hosted CI at `f64a0b0`: twelve jobs passed in run `34112393479`.
+- [ ] Hosted CI for the subsequent static-runtime and onboarding repairs.
+- [ ] Clean Windows installation and public download gates; VM preparation is
+  authorized and in progress, while publication still requires approval.
 
 ## Coverage and choices
 
@@ -65,13 +101,13 @@ changes, new system features and major redesign retain separate approval gates.
 | Chroma Aperture | REPRODUCED existing Work/History/Setup and two-column composer | IMPROVE NOW within existing structure; compare same states at 1440/390px |
 | Visual alternatives | Keep current styling only; improve hierarchy within structure; rebuild navigation | Choose hierarchy and workflow clarity; styling alone misses friction, navigation rewrite lacks evidence and approval |
 | Planner economics | Source chooses cloud from unrelated inherited provider keys | IMPROVE NOW after regression; explicit opt-in, local choice wins, existing explicit provider configuration remains supported |
-| Runtime/context | REPRODUCED traversal/link/fidelity, stale context and Windows PTY cwd failures | IMPLEMENTED with 26 boundary and 37 launch/verification checks; final MSI native run, exact Apply and eight independent tests passed; no profile expansion |
+| Runtime/context | REPRODUCED traversal/link/fidelity, stale context and Windows PTY cwd failures | IMPLEMENTED with 26 boundary and 37 launch/verification checks; the CI-corrected MSI's native run and exact Apply passed 11 fixture tests and 26 independent acceptance checks; no profile expansion |
 | Competitive position | Fresh primary docs show coordination, worktrees, checks and review overlap | Choose recurring bug/regression job; DEFER acquisition claims pending second-use trial; no exclusive verification or speed claim |
 | Context/skills/protocols | Existing native instructions and Signal | DEFER new platform; improve current context correctness |
-| CI | Run `34107810014` on `402c599`: eleven passed; Windows alone hit two fixture deadlines | Windows test-only diagnostics/cleanup and separate startup allowance added; strict post-Stop deadline/assertions preserved; 95 affected tests and Clippy pass; final-head CI pending |
-| Clean install | Windows11 Home; no clean environment verified | HUMAN-BLOCKED; stage exact artifact and isolated manual protocol |
+| CI | All twelve jobs in `34112393479` passed on `f64a0b092b02af917fea52180a4e76458e2f1934` | CLOSED for that source; Windows workspace/transport, audit and feature checks passed after the test-only correction; earlier failures remain historical |
+| Clean install | Initial MSI failed with missing MSVCP140.dll; static-runtime replacement installed and rendered welcome with checked VC++ runtime DLLs absent | IN PROGRESS; final onboarding candidate and complete workflow pending; Windows evaluation/servicing limitations recorded separately |
 | Publication/download | Public latest v1.2.1; v1.2.2 absent | HUMAN-BLOCKED; prepare source/artifacts before requesting specific publication |
-| Demo/Bench | Final 52-second film, successful three-task native run, competent direct baseline and retained unsuccessful attempts | COMPLETE LOCALLY; exact MSI, source, captures and film identities recorded; no controlled comparative result |
+| Demo/Bench | Final MSI's three-task native run, 11 repository and 26 independent post-checks, restart receipt and 52-second film | VERIFIED on the development host for the named bytes; direct baseline and unsuccessful attempts retained separately; no controlled comparative result |
 
 ## Acceptance commands and evidence index
 

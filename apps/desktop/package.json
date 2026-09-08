@@ -8,6 +8,7 @@
     "build": "vite build",
     "prebuild:native": "npm run build",
     "build:native": "cargo build -p pytxo-desktop --release --features custom-protocol",
+    "build:msi": "node ../../tooling/scripts/build-windows-desktop.mjs",
     "check": "svelte-check --tsconfig ./tsconfig.json && npm run lint:css",
     "lint:css": "stylelint \"src/**/*.svelte\" \"src/**/*.css\"",
     "capture:marketing": "playwright test e2e/marketing-captures.spec.ts --reporter=line --workers=1",

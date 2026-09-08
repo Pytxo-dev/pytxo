@@ -1,6 +1,210 @@
-# CHECKPOINT — ASTRA product improvement — 2026-09-07
+# CHECKPOINT — ASTRA product improvement — 2026-09-08
 
-## Current state — Windows test fixture correction; hosted acceptance pending
+## Current state — final MSI host rehearsal, film and website passed; guest stopped
+
+Memory wait session 27039 was cancelled before guest launch at 02:16 UTC after
+available RAM remained below 4 GiB; no host app was closed. Root launched the
+exact extracted final MSI executable in a fresh isolated host Pytxo profile:
+`target/astra-final-native/launch.json`, PID 38072 started 09:18:59.884+07.
+Playwright CDP 9327 exercised the actual native WebView; this is host evidence.
+Fresh fixture: `%TEMP%/PytxoAstraFinal20260908/fixture`, baseline `e9e6eb9…`.
+Initial fixture 8 pass and independent 21 pass/5 expected fail are verified. The first
+independent adapter failed from a Windows import URL; only the URL was corrected,
+and both logs are retained. Original fixture assertions remain unchanged.
+
+Run `267ba929-200f-48af-b5bc-6735e5810ae4` began 02:24:46 UTC and passed all three
+combined checks at 02:27:47: Codex 0.153.4/Astra/high, three tasks, two waves, at
+most two workers, Orbit/projfs-sparse-copy-v2. Primary baseline stayed unchanged
+before Apply and after Cancel. Native UI first refused untrusted dispatch;
+Orbit was then selected through Setup → Workspaces → Edit folders & permissions.
+Saved draft restored workspace/Codex and cleared its old plan before rebuild.
+The documentation task was explicitly clarified before Run. Every exact diff
+was reviewed. Apply `43939199-b4d3-4a3b-bf67-d58b7201e194` committed package
+`349ff5f7a504516497aa60f04887bf969dd4215d92f84701d54f8ca40f5bc93c` at 02:29:55.
+All 3 changed hashes matched, other 3 unchanged; actual post-checks 11+26 passed.
+Receipt survived native process restart. Independent evidence review found no
+material issues and rechecked all 354 source inputs. Native test processes are
+stopped; fixture/profile preserved. Six unmodified captures and sanitized result:
+`tooling/benchmarks/results/astra-final-native-2026-09-08.json`.
+
+The film source and website's current-candidate record now identify that run.
+Old film/poster/sheets/source were hash-archived before replacement. The new
+silent master passed format/black-frame checks: 52 seconds, 1080p/30fps,
+H.264/yuv420p/BT.709, SHA256
+`9c427fc2ae0ab8acd6303b5b0379c432b5dc4b136dcec1a968c47ca59a0015e4`.
+Seven scene stills and 13 encoded transition frames were visually inspected;
+full continuous playback was not watched. Typecheck, asset hashes, transcript
+and provisional cues passed. No paid narration was generated. Record:
+`tooling/benchmarks/results/astra-final-demo-2026-09-08.json`.
+
+Website production build, lint and 163 internal links across 108 source files
+passed. Three affected production browser tests passed (17.7 seconds), including
+current-candidate identity at 1440/390. Both full-page screenshots were inspected.
+Independent final film/web evidence review found no material issues. Logs and
+captures: `target/astra-final-native/web-*`. Test server is stopped.
+Consolidated CI, final guest and publication remain pending. No new Actions run,
+account change or publication occurred. At 02:55 UTC, host free RAM was 2,321 MiB;
+the guest's 4 GiB launch gate is retained. Current Actions API shows $0 net usage,
+with minute quantities unchanged since the preceding read.
+
+New MSI `cf8db2e0b41ceaaf678d3c74226b62dc62589f2a68880ec8ba49d42088dbd911`
+built successfully at 02:04 UTC. Its actual packaged EXE is
+`d75be6b767164e681b278c717551b84f62baf6987467751f2e98a39538c72db5`.
+All 354 frozen inputs still match digest
+`c721a49414e348dc93d7801c9d36fefdd445a75d44dd3ecaa6487824265e38f0`.
+Both artifacts remain Authenticode unsigned. The actual MSI import guard passes.
+Focused native tests (4), browser journeys (4), Desktop check and distribution
+all-target Clippy passed. This includes failed-example retry and Skip at 1440/390.
+Evidence: `target/astra-onboarding-prereqs-20260908/`.
+
+The 16-file `final-packet/`, ZIP and packet-final ISO are frozen and roundtrip
+verified; guest-tools-v4 also passed byte checks and bounded review. The final
+ZIP hash is `47517631b8602ad671ec3cade5ff3530de2615648f7a0b2d1b008c79627bac46`.
+VM launcher session 27039 was cancelled before launch, as recorded above.
+No host app or setting was changed. On resume,
+continue the existing disk with the final packet and V4 tools; record actual
+installer behavior for these bytes. Prior 1f47 installation/launch is historical.
+
+Latest: guest `80717a46…` stopped at 01:43:45 UTC. ACPI shutdown was requested
+at 01:43:03; the resource guard also recorded low memory (475 MiB) at 01:43:42
+before QEMU exited 0 / manager1. Its disk is preserved. Post-prerequisite inventory
+was exported: SHA256 `4d94bf568b0cf40dd4f8652cca09b53c9c77c041cef5194aeded882350753c15`.
+Device-code login is disabled on the existing ChatGPT account; the assistant
+asked asynchronously for temporary enable/login/restore approval and cancelled
+the unused guest login attempt. **No approval response yet; do not toggle it.**
+Brave tab160932148 (`guestSignIn` in CUA) retains the official consent screen,
+marked for handoff. No authentication succeeded or host credentials were copied.
+
+The guest stayed stopped during the completed build and test commands.
+
+The guest also reproduced a guided-example onboarding defect: without Git,
+Try the guided example displayed `[io] program not found`. Root has corrected
+`ipc_install.rs` to probe Git before file creation and retain executable context
+in errors, plus accurate Git/Node helper text. A native missing-executable/no-files
+regression and two-viewport UI retry/skip regressions passed.
+Independent read-only review found no material issues; its Skip coverage note
+was addressed. The new MSI above contains this correction; preserve `1f47…`
+installation evidence as a separate observation.
+
+Git and Node installers completed in the guest with observed exit 0. A fresh
+non-admin PowerShell verifies Git 2.55.0.windows.5, Node24.20.0 and npm11.19.0
+at 01:29:43 UTC (`crt-prerequisite-versions-result.png`). Codex0.153.4 is installed
+to match the earlier rehearsal. Vendor authentication and
+the complete mission remain pending; no host credentials have been copied.
+
+Continuation `80717a46-e16c-4e58-afda-b395069f0cc7` started at 01:09:52 UTC
+(launcher 90518). The installed replacement launched through Start and rendered
+the actual welcome screen at 01:13:13; screenshot `crt-resume-app-20s.png`.
+Maximized welcome and optional-CLI screen were inspected; the latter correctly
+offers Continue with Desktop without a separate Pytxo CLI. This verifies the
+missing-runtime repair in the guest. Full mission/recovery acceptance is pending.
+
+The failed candidate was removed through Programs and Features. Guest inventory
+confirms its EXE/registry entry absent and all six checked VC++ runtime DLLs
+absent. The new MSI installed with exit 0 at September 8, 00:56:41 UTC. Start-menu
+launch opened a native white window at 00:57:35; rendered UI is not yet verified.
+At 01:06:00 the host-resource guard stopped only the disposable guest after two
+low-memory samples (441 MiB available in the final sample); QEMU exited 0.
+The existing disk and installer logs remain intact. The successful continuation
+above supersedes this interrupted first observation; no reinstall was needed.
+
+The final Windows distribution policy is opt-in: `.cargo/windows-msvc.toml`,
+used by `npm run build:msi` and the Release workflow with an explicit target.
+The first global policy caused Windows to deny a host build helper; removing
+its automatic loading restored the ordinary Cargo core check (passed, 9.34 s).
+No host security exception or setting changed. The Desktop build script disables
+Tauri's linker shim only when the actual target already uses the static CRT.
+
+Final replacement MSI: `1f47f34d673b552ae8ddebab222ad49989ef8d94f6032b94027e970ab980219f`;
+packaged EXE: `44106e772f38ef4a1ba8123ec97128c091691b4592f6e0e6eb5bfc942d80d430`.
+Both remain Authenticode unsigned. The 354-input digest is
+`3e57d96e802b903bfab4ae73a6ce822c15b52159b1602b38351f3a733f6039ae`;
+all inputs still match after testing. Actual MSI extraction/import check passes,
+all four native libraries use static C/C++ runtimes, 41 release-tooling tests
+and 12 voice contract tests pass, and formatting/version/diff checks pass.
+Independent review closed its extensionless-DLL finding. Logs and identities:
+`target/astra-crt-native/scoped-policy/`. These checks are not speech-transcription
+or clean-guest mission acceptance. No additional Actions run has occurred.
+
+The replacement packet's 16 files and helper media's 8 files passed full ISO
+roundtrip checks. Git/Node installers match official checksums and have valid
+Authenticode signatures; they are staged, not installed in the guest. Online
+guest `f31c0cb9-197f-4aa2-82fb-12a5c9ab77f3` started September 8 at 00:40:36 UTC,
+launcher 85048, after the normal memory/hash checks. That session recorded
+pre-replacement and post-removal inventories, removed the failed candidate and
+installed the replacement as described above. WebView2 remains from the first
+installation; no VC++ redistributable was manually added.
+CI is green only at `f64a0b0`; merge/publication approvals remain outstanding.
+
+The following is preceding failed-candidate evidence and repair history.
+
+The clean guest installed the frozen MSI `614d44e2d47e…` successfully (exit 0
+at September 7, 23:49 UTC), then Start-menu launch failed with Windows reporting
+missing `MSVCP140.dll`. This is a reproduced packaging defect, not a clean-install
+pass. `target/astra-clean-vm-20260907/screens/guest-pytxo-first-start.png` captures
+the actual loader error. Before/after guest inventories verify no developer
+prerequisites and show WebView2 afterward. No VC++ redistributable was manually
+added; the inventory's application filter did not explicitly enumerate it.
+The guest shut down normally at 23:57:46 UTC, QEMU exit 0, preserving its disk.
+
+The frozen executable imports 95 symbols from `MSVCP140.dll`. Current Whisper
+and GGML C++ objects use `/MD`; their exact contribution to that older executable
+is not independently attested. A consistent Windows x64 static CRT build and
+actual executable dependency check are being implemented. No VC++ runtime will
+be added to the guest to conceal this failure. Replacement installer, native
+acceptance and final-build provenance must be verified before claiming closure.
+The earlier MSI, film and native evidence retain their original identities.
+
+The paragraphs below retain the preceding provisioning observations as history;
+the successful installation and failed first launch above supersede their pending
+installation status. No Actions run or publication was triggered by this test.
+
+All twelve jobs in CI run `34112393479` passed on
+`f64a0b092b02af917fea52180a4e76458e2f1934`, completed September 7 at 11:13:50 UTC.
+The Windows workspace, transport lifecycle, audit and feature checks passed.
+Final run/jobs records and Windows log are retained under
+`target/astra-ci-34112393479-*`; `target/astra-ci-handoff-f64a0b0.md` records
+the source/artifact relationship. Keep the earlier failures below as history.
+
+The user's subsequent “do it for me” authorizes assistant-owned disposable
+Windows VM setup and validation. Portable QEMU was checksum-verified and
+extracted; WHPX executed firmware and accepted screenshots/input over private
+QMP stdio without changing host features. The complete Windows 10 LTSC evaluation
+ISO passed Microsoft's full SHA256 on September 7 at 15:20:26 UTC. The one-shot
+launcher requires an untouched guest disk and stable available RAM/commit
+headroom, with monitoring during setup; no host paging settings or apps change. The exact
+16-file installer packet passed a read-only ISO roundtrip. See
+`target/astra-clean-vm-20260907/PROVISIONING.md` and live process observations.
+Windows setup began at 22:39:41 UTC after the memory checks passed; its captured
+screen shows installation in progress. The installed Desktop workflow remains
+unexecuted, and no clean-install pass is claimed.
+The VM subsequently paused on WHPX errors after guest resets. Both occurrences
+and preserved disk copies are recorded in the provisioning log. A documented
+exit-on-reboot continuation reached the actual Windows desktop at 23:06 UTC
+(`screens/windows-oobe-2306.png`). Before inventory or Pytxo installation, host
+available RAM fell to 60 MiB; the monitored guard stopped only the owned guest.
+Continuation now requires 4 GiB available host RAM, retaining the 2 GiB guest
+and live pressure stop. The subsequent offline inventory verifies build
+19044.1288, no Pytxo/WebView2/developer prerequisites, enabled Defender and the
+exact frozen MSI hash. It then shut down normally. Online activation failed
+once with `0x87E10BC6`; `/xpr` reports notification mode. Normal Windows Update
+downloaded part of the offered August 2026 cumulative/.NET and Defender updates.
+The guest then shut down normally to replace unreliable timed QMP keyboard input
+with reviewed explicit key-down/up events. The guarded continuation is waiting
+for 4 GiB available host RAM; its input probe and new short copy/install scripts
+still require guest execution. Servicing and installed-app acceptance remain
+incomplete. Activation is a recorded environment limitation, not a new blanket
+Pytxo prerequisite. Live continuation details are in the ignored provisioning
+record. No host apps or settings were changed.
+
+After the green CI run, GitHub billing showed 2,520 of 3,000 included minutes
+used, 480 remaining, and $0 billable Actions usage; that is a point-in-time
+observation, not a reserved allowance. No additional Actions run, paid budget
+change or publication was made for VM provisioning. Preserve the private brief
+and unrelated untracked files. Merge, release, npm and site publication retain
+their explicit approval gates.
+
+## Preceding Windows test fixture correction
 
 CI run `34107810014` on `402c5991cb064341bf240d2d28e3c46c424b9e13`
 finished with eleven passing jobs. Linux/macOS Rust, website, Desktop, native

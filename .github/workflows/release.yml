@@ -361,7 +361,15 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: "10.15"
         with:
           projectPath: apps/desktop
-          args: --target ${{ matrix.rust_target }} --features voice-whisper
+          args: --target ${{ matrix.rust_target }} --features voice-whisper -- --locked --config "${{ github.workspace }}/.cargo/windows-msvc.toml"
+
+      - name: Verify packaged Windows runtime dependencies
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem "target/${{ matrix.rust_target }}/release/bundle" -Recurse -File -Filter '*.msi')
+          if ($installers.Count -ne 1) { throw "Expected one Windows MSI; found $($installers.Count)" }
+          ./tooling/scripts/verify-windows-msi.ps1 -InstallerPath $installers[0].FullName -EvidenceDirectory "${{ runner.temp }}/pytxo-msi-evidence"
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

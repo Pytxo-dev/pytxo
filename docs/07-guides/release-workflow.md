@@ -60,7 +60,13 @@ failure is not a reason to bypass CI.
    scan.
 2. Build the fresh host CLI and Desktop installer. `npm run build:native` builds
    the release executable only. From `apps/desktop`, build the Windows MSI with
-   `cargo tauri build --target x86_64-pc-windows-msvc --bundles msi --features voice-whisper`.
+   `npm run build:msi`. This passes the explicit Windows
+   target and `.cargo/windows-msvc.toml` to Cargo, including Whisper/GGML in
+   the static CRT policy. The Release workflow uses the same policy. After
+   local bundling, run `tooling/scripts/verify-windows-msi.ps1 -InstallerPath`
+   with the new MSI's path from the repository root. This extracts and checks
+   the actual MSI's executables/DLLs for unprovided MSVC runtime imports;
+   `build:msi` itself only builds. Hosted Release runs this check before upload.
    Do not rename a prior binary and claim it is current.
 3. If other operating systems cannot be built, either omit them or mirror the
    last complete matrix with an explicit compatibility label in release notes

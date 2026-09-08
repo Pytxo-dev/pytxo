@@ -14,8 +14,8 @@ if (!["silent", "narrated"].includes(mode)) {
 }
 
 const problems = [];
-const evidence = JSON.parse(await readFile(path.resolve(appRoot, "../../tooling/benchmarks/results/astra-ci-native-2026-09-07.json"), "utf8"));
-const requiredCaptures = ["astra-ci-native-plan.png", "astra-ci-native-checks.png", "astra-ci-native-boundaries.png", "astra-ci-native-apply-confirm.png", "astra-ci-native-applied.png", "astra-ci-native-journal.png"].sort();
+const evidence = JSON.parse(await readFile(path.resolve(appRoot, "../../tooling/benchmarks/results/astra-final-native-2026-09-08.json"), "utf8"));
+const requiredCaptures = ["astra-final-native-plan.png", "astra-final-native-checks.png", "astra-final-native-boundaries.png", "astra-final-native-apply-confirm.png", "astra-final-native-applied.png", "astra-final-native-journal.png"].sort();
 const productCaptures = evidence.native_apply.captures;
 if (JSON.stringify(productCaptures.map((capture) => capture.file).sort()) !== JSON.stringify(requiredCaptures)) {
   throw new Error("Native evidence must identify all six original captures exactly once.");
@@ -60,7 +60,7 @@ for (const {file: filename, width, height, sha256} of productCaptures) {
   const capture = `public/product/${filename}`;
   try {
     await readPngDimensions(capture, width, height);
-    const original = await readFile(path.resolve(appRoot, "../../docs/_attachments/astra-2026-09-07", filename));
+    const original = await readFile(path.resolve(appRoot, "../../docs/_attachments/astra-2026-09-08", filename));
     const copy = await readFile(path.join(appRoot, capture));
     const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
     if (hash(original) !== hash(copy) || hash(original) !== sha256) problems.push(`${capture}: differs from the recorded native capture`);

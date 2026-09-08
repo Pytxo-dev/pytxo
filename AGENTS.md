@@ -87,7 +87,7 @@ cd apps/desktop
 npm ci
 npm run check
 npm run build:native  # builds the frontend and release executable, not an installer
-cargo tauri build --target x86_64-pc-windows-msvc --bundles msi --features voice-whisper
+npm run build:msi     # Windows MSI with voice support and the distribution CRT policy
 ```
 
 ## Documentation rules
