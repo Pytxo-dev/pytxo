@@ -1,7 +1,6 @@
 //! Structural telemetry graph IPC (Phase 27).
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use pytxo_signal::StructuralGraph;
 
@@ -44,7 +43,7 @@ pub fn workspace_structural_graph(repo: Option<PathBuf>) -> anyhow::Result<Struc
 }
 
 fn collect_workspace_source_files(repo_root: &Path) -> anyhow::Result<Vec<String>> {
-    if let Ok(out) = Command::new("git")
+    if let Ok(out) = pytxo_core::background_command("git")
         .args(["ls-files", "*.rs", "*.ts", "*.tsx", "*.js", "*.jsx"])
         .current_dir(repo_root)
         .output()

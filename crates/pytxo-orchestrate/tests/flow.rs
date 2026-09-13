@@ -33,6 +33,28 @@ fn ensure_test_ade() {
 
 fn input(repo: &std::path::Path) -> FlowDraftInput {
     ensure_test_ade();
+    // Ready plans now check the same repository prerequisites as dispatch.
+    // Keep the catalog outside the product-file cleanliness check.
+    if !repo.join(".git").exists() {
+        git(repo, &["init", "-q"]);
+        std::fs::write(repo.join(".git/info/exclude"), "catalog.db*\n").unwrap();
+        git(repo, &["add", "."]);
+        git(
+            repo,
+            &[
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@pytxo.local",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--allow-empty",
+                "-qm",
+                "fixture",
+            ],
+        );
+    }
     FlowDraftInput {
         id: "flow-1".into(),
         title: "Ship it".into(),
@@ -42,6 +64,50 @@ fn input(repo: &std::path::Path) -> FlowDraftInput {
         project_id: None,
         ade_id: Some("codex".into()),
     }
+}
+
+fn git(repo: &std::path::Path, args: &[&str]) {
+    let result = std::process::Command::new("git")
+        .args(args)
+        .current_dir(repo)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[test]
+fn dirty_checkout_blocks_preview_and_late_edits_block_dispatch_without_claiming() {
+    let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
+    let request = input(dir.path());
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let ready = preview_flow(&catalog, request.clone()).unwrap();
+    assert_eq!(ready.status, FlowStatus::Ready);
+    let edited = "pub fn user_work() {}\n";
+    std::fs::write(dir.path().join("src/lib.rs"), edited).unwrap();
+    let error = dispatch_flow(&catalog, "flow-1").unwrap_err();
+    assert!(
+        error.to_string().contains("uncommitted changes"),
+        "{error:#}"
+    );
+    assert_eq!(
+        catalog.get_flow_draft("flow-1").unwrap().unwrap().status,
+        "ready"
+    );
+    assert!(!dir.path().join(".pytxo/data/active_run.json").exists());
+    let blocked = preview_flow(&catalog, request).unwrap();
+    assert_eq!(blocked.status, FlowStatus::Blocked);
+    assert!(serde_json::to_string(&blocked.blocked_reasons)
+        .unwrap()
+        .contains("src/lib.rs"));
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("src/lib.rs")).unwrap(),
+        edited
+    );
 }
 
 fn seed_mission_path(repo: &std::path::Path) {

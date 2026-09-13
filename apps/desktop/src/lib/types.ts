@@ -29,6 +29,10 @@ export type AgentDto = {
   status: string;
   exit_code: number | null;
   root_id: string | null;
+  /** Exact saved registry command match; never inferred from a task alias. */
+  launcher?: { id: string; display_name: string } | null;
+  /** Persisted agent worktree/review source; not a live cwd or existence check. */
+  workspace_path?: string | null;
 };
 
 export type RunApplyManifest = {

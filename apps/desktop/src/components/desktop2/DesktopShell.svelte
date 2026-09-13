@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import {
-    IconActivity,
-    IconChecks,
-    IconHistory,
-    IconPlayerStop,
-    IconSettings,
-    IconTarget,
-  } from "@tabler/icons-svelte";
+  import IconActivity from "@tabler/icons-svelte/icons/activity";
+  import IconChecks from "@tabler/icons-svelte/icons/checks";
+  import IconHistory from "@tabler/icons-svelte/icons/history";
+  import IconPlayerStop from "@tabler/icons-svelte/icons/player-stop";
+  import IconSettings from "@tabler/icons-svelte/icons/settings";
+  import IconTarget from "@tabler/icons-svelte/icons/target";
   import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
+  import type { ComposerDraft } from "../../lib/composer-draft";
+  import { SETTINGS_SECTIONS } from "../../lib/settings-catalog";
   import {
     consumeDomainChanges,
     fingerprintDesktopSnapshot,
@@ -35,6 +35,9 @@
   import AppBar from "./AppBar.svelte";
   import CommandPalette from "./CommandPalette.svelte";
   import WorkActive from "./WorkActive.svelte";
+  import MissionDock from "./MissionDock.svelte";
+  import { selectMissionRun, restoreSelectedWork, SELECTED_WORK_KEY } from "../../lib/mission-selection";
+  import type { DockReference } from "../../lib/dock-layout";
   import HistoryScreen from "./HistoryScreen.svelte";
   import MissionsScreen from "./MissionsScreen.svelte";
   import WorkspacesScreen from "./WorkspacesScreen.svelte";
@@ -96,6 +99,9 @@
   let workspaceError = $state("");
   let recents = $state<WorkspaceRecent[]>([]);
   let collapsed = $state(readSidebarCollapsed());
+  let shellElement: HTMLDivElement | undefined = $state();
+  let autoCollapsed = $state(false);
+  const sidebarCollapsed = $derived(collapsed || autoCollapsed);
   let focusRunId = $state<string | null>(null);
   let focusDomainId = $state<string | null>(null);
   let activeDomainId = $state<string | null>(null);
@@ -108,7 +114,12 @@
   let snapshotLoadedAt = $state<number | null>(null);
   let cursorGap = $state(false);
   let nowMs = $state(Date.now());
-  let workScreen = $state<{ focusActiveRun: () => void } | null>(null);
+  let workScreen = $state<{ focusActiveRun: () => void; requestStopRun: (id: string) => void } | null>(null);
+  let composerDraft = $state<ComposerDraft | null>(null);
+  let preferredAdeId = $state<string | null>(null);
+  let contentElement = $state<HTMLDivElement | null>(null);
+  let missionDock = $state<{ open: (ref: DockReference) => void; leaveFocus: () => void } | null>(null);
+  const dockRun = $derived(selectMissionRun(snapshot.runs, activeDomainId, focusRunId));
 
   const activeDomain = $derived(
     snapshot.domains.find((d) => d.domain_id === activeDomainId) ?? null,
@@ -140,25 +151,34 @@
       ["starting", "running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
     ),
   );
-  const activeCommandRun = $derived(
-    snapshot.runs.find((r) =>
+  const commandRuns = $derived(snapshot.runs.filter((r) => r.domain_id === activeDomainId));
+  const activeCommandRuns = $derived(commandRuns.filter((r) =>
       ["starting", "running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
-    ) ?? null,
-  );
+  ));
+  const activeCommandRun = $derived(activeCommandRuns.find((r) => r.id === focusRunId) ?? activeCommandRuns[0] ?? null);
   const latestReviewRun = $derived(
-    snapshot.runs.find(
+    commandRuns.find(
       (r) =>
         Boolean(r.prepared_digest) ||
         r.apply_status === "ready" ||
         r.apply_status === "waiting" ||
         r.apply_status === "prepared",
     ) ??
-      snapshot.runs.find(
+      commandRuns.find(
         (r) => !["starting", "running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
       ) ??
       null,
   );
   const commandItems = $derived([
+    ...SETTINGS_SECTIONS.map((section) => ({
+      id: `settings-${section.id}`,
+      label: section.label,
+      icon: IconSettings,
+      group: "Settings" as const,
+      aliases: [...section.keywords, "settings", "setup"],
+      hint: section.description,
+      run: () => navigate("setup", section.id),
+    })),
     ...[...primary, ...system].map((item) => ({
       id: item.route,
       route: item.route,
@@ -168,11 +188,11 @@
     })),
     {
       id: "flow",
-      route: "flow" as const,
       label: "New run",
       icon: IconTarget,
       aliases: ["flow", "compose", "mission"],
-      group: "Navigate" as const,
+      group: "Actions" as const,
+      run: () => openCompose(),
     },
     {
       id: "approvals",
@@ -192,13 +212,11 @@
       aliases: ["stop", "kill"],
       group: "Actions" as const,
       disabled: !activeCommandRun,
-      hint: activeCommandRun?.id,
+      hint: activeCommandRun?.id ?? "No active run in this workspace",
       run: () => {
         const run = activeCommandRun;
         if (!run) return;
-        const domainId = domainIdForRun(run.id);
-        if (!domainId) return;
-        void stopRunFromOps(run.id, domainId);
+        void requestCommandStop(run.id, run.domain_id);
       },
     },
     {
@@ -267,7 +285,25 @@
   }
 
   function openCompose() {
+    missionDock?.leaveFocus();
+    const draftDomain = composerDraft?.domainId;
+    if (draftDomain && snapshot.domains.some((d) => d.domain_id === draftDomain)) {
+      activeDomainId = draftDomain;
+    }
     navigate("flow");
+  }
+
+  function composeWithAgent(adeId: string) {
+    preferredAdeId = adeId;
+    openCompose();
+  }
+
+  async function requestCommandStop(runId: string, domainId: string) {
+    if (domainId !== activeDomainId) return;
+    focusRun(runId);
+    navigate("work");
+    await tick();
+    if (domainId === activeDomainId) workScreen?.requestStopRun(runId);
   }
 
   /**
@@ -275,10 +311,12 @@
    * ledger, a finished one lands on the review pane. History is for finding a
    * run, not for reading one.
    */
-  function openMission(runId: string, pane?: MissionPane) {
+  function openMission(runId: string, pane?: MissionPane, requestedDomainId?: string) {
     focusRunId = runId;
-    focusDomainId = domainIdForRun(runId);
-    const found = snapshot.runs.find((r) => r.id === runId);
+    focusDomainId = requestedDomainId ?? domainIdForRun(runId);
+    const found = snapshot.runs.find((r) => r.id === runId && r.domain_id === focusDomainId);
+    if (found) activeDomainId = found.domain_id;
+    if (found) rememberSelectedWork(found.id, found.domain_id);
     const running = !!found && ["starting", "running", "pending", "dispatching", "active"].includes(found.status.toLowerCase());
     const resolvedPane = pane ?? (running ? "live" : "review");
     route = "work";
@@ -286,11 +324,22 @@
     missionPane = resolvedPane;
     workPane = resolvedPane === "live" ? "active" : "review";
     persistRoute("work");
+    void tick().then(() => {
+      if (route === "work" && focusRunId === runId) {
+        contentElement?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      }
+    });
   }
 
   function focusRun(runId: string) {
     focusRunId = runId;
-    focusDomainId = domainIdForRun(runId);
+    focusDomainId = snapshot.runs.find(run => run.id === runId && run.domain_id === activeDomainId)?.domain_id ?? null;
+    if (focusDomainId) rememberSelectedWork(runId, focusDomainId);
+  }
+
+  function rememberSelectedWork(runId: string | null, domainId: string) {
+    try { localStorage.setItem(SELECTED_WORK_KEY, JSON.stringify({ runId, domainId })); }
+    catch { /* Storage is optional; navigation still works. */ }
   }
 
   function toggleSidebar() {
@@ -397,6 +446,8 @@
     if (!domain) return;
     activeDomainId = domainId;
     focusDomainId = domainId;
+    focusRunId = selectMissionRun(snapshot.runs, domainId, null)?.id ?? null;
+    rememberSelectedWork(focusRunId, domainId);
     const label = domain.repo_root.split(/[\\/]/).pop() ?? domain.domain_id;
     recents = addWorkspaceRecent({ id: domain.domain_id, label, domainId: domain.domain_id });
     try {
@@ -504,6 +555,8 @@
   }
 
   function onGlobalKeydown(event: KeyboardEvent) {
+    if (event.target instanceof Element && event.target.closest("[data-workspace-terminal]")) return;
+    if (document.querySelector('dialog[open], .workspace-switcher [role="dialog"]')) return;
     const modifier = event.metaKey || event.ctrlKey;
     const plain =
       !event.defaultPrevented && !event.repeat && !modifier && !event.altKey && !event.shiftKey && !isEditableTarget(event.target);
@@ -535,6 +588,9 @@
 
   onMount(() => {
     let disposed = false;
+    // Content width accounts for text zoom; viewport media queries alone do not.
+    const shellSize = new ResizeObserver(entries => autoCollapsed = entries[0].contentRect.width < 1280);
+    if (shellElement) shellSize.observe(shellElement);
     let deepLinkUnlisten: (() => void) | null = null;
     let domainChangedUnlisten: (() => void) | null = null;
     let deltaTimer: ReturnType<typeof setTimeout> | null = null;
@@ -585,6 +641,7 @@
 
     const cleanup = () => {
       disposed = true;
+      shellSize.disconnect();
       window.removeEventListener("hashchange", onHashChange);
       window.removeEventListener("pytxo-deep-link", onBrowserDeepLink);
       window.removeEventListener("keydown", onGlobalKeydown);
@@ -619,7 +676,17 @@
         if (openBehavior === "picker") {
           if (!routeOverride && route === "work") navigate("setup", "workspaces");
         } else if (!activeDomainId) {
+          // Restore only a reference validated against the new snapshot. Never
+          // restore processes, input permission, a plan, or freshness authority.
+          let remembered = null;
+          try { remembered = !routeOverride ? restoreSelectedWork(localStorage.getItem(SELECTED_WORK_KEY), snapshot.runs) : null; }
+          catch { /* Storage may be unavailable. */ }
+          if (remembered) {
+            focusRunId = remembered.id;
+            focusDomainId = remembered.domain_id;
+          }
           const preferred =
+            (remembered && snapshot.domains.some(d => d.domain_id === remembered.domain_id) ? remembered.domain_id : null) ??
             recents.find((r) => snapshot.domains.some((d) => d.domain_id === r.domainId))
               ?.domainId ?? snapshot.domains[0]?.domain_id;
           if (preferred) {
@@ -672,13 +739,14 @@
   });
 </script>
 
-<div class="desktop2" class:sidebar-collapsed={collapsed}>
+<div class="desktop2 deck-scroll" bind:this={shellElement} class:sidebar-collapsed={sidebarCollapsed}>
   <Sidebar
     {route}
     {primary}
     {system}
     {recents}
-    {collapsed}
+    collapsed={sidebarCollapsed}
+    {autoCollapsed}
     {tier}
     {signedIn}
     onNavigate={(next) => navigate(next)}
@@ -686,6 +754,11 @@
     onOpenCommand={() => (commandOpen = true)}
     onOpenRecent={openRecent}
     onAccountClick={() => navigate("setup", "account")}
+    onNewRun={openCompose}
+    hasDraft={!!composerDraft?.mission.trim()}
+    activeRunsCount={activeCommandRuns.length}
+    workspaceLabel={activeDomain?.repo_root.split(/[\\/]/).pop() ?? "Workspace"}
+    onOpenWorkspace={() => navigate("setup", "workspaces")}
   />
 
   <main>
@@ -705,10 +778,14 @@
       onOpenApprovals={() => (approvalsOpen = true)}
       onDismissGap={() => (cursorGap = false)}
     />
-    <div class="content">
+    <MissionDock bind:this={missionDock} {backend} {snapshot} {activeDomainId} run={dockRun}
+      surface={route === "work" && workPane === "active" ? "run" : route === "work" && workPane === "review" ? "review" : "other"}
+      previewAllowed={route === "work" && !approvalsOpen && !editingWorkspaceId}
+      onReview={(runId, domainId) => openMission(runId, "review", domainId)} onOpenApprovals={() => approvalsOpen = true}>
+    <div class="content" class:history-content={route === "history"} bind:this={contentElement}>
       {#if authErrorMessage}<div class="status-banner error-banner">{authErrorMessage}</div>{/if}
       {#if workspaceError}<div class="status-banner error-banner">{workspaceError}</div>{/if}
-      {#if workspaceMessage}<div class="status-banner">{workspaceMessage}</div>{/if}
+      {#if workspaceMessage}<div class="status-banner" role="status"><span>{workspaceMessage}</span><button aria-label="Dismiss workspace message" onclick={() => workspaceMessage = ""}>×</button></div>{/if}
       {#if loadMessage}<div class:error-banner={previewState === "error" || !!snapshot.error} class="status-banner">{loadMessage}</div>{/if}
       {#if snapshot.diagnostics.length}
         <div class="status-banner error-banner" role="status">
@@ -724,7 +801,12 @@
         </div>
       {/if}
       {#if loading}
-        <div class="loading-state"><div></div><div></div><div></div></div>
+        <div class="loading-state" role="status" aria-label="Loading workspace">
+          <span>Loading workspace…</span>
+          <div class="loading-summary" aria-hidden="true"></div>
+          <div class="loading-tasks" aria-hidden="true"></div>
+          <div class="loading-boundary" aria-hidden="true"></div>
+        </div>
       {:else if route === "work" && workPane === "active"}
         <WorkActive
           bind:this={workScreen}
@@ -738,6 +820,7 @@
           onReviewRun={(runId) => openMission(runId, "review")}
           onStopRun={stopRunFromOps}
           onSelectRun={focusRun}
+          onInspect={(ref) => missionDock?.open(ref)}
         />
       {:else if route === "history"}
         <HistoryScreen
@@ -770,6 +853,9 @@
           onOpenMission={openMission}
           onAddWorkspace={addWorkspace}
           {onRunCompleted}
+          {composerDraft}
+          {preferredAdeId}
+          onDraftChange={(draft) => { composerDraft = draft; preferredAdeId = null; }}
         />
       {:else}
         <SettingsScreen
@@ -801,11 +887,12 @@
             />
           {/snippet}
           {#snippet agentsCatalog()}
-            <AgentsScreen embedded {backend} onUseInMission={openCompose} />
+            <AgentsScreen embedded {backend} onUseInMission={composeWithAgent} />
           {/snippet}
         </SettingsScreen>
       {/if}
     </div>
+    </MissionDock>
   </main>
 
   <CommandPalette open={commandOpen} items={commandItems} onNavigate={navigate} onClose={() => (commandOpen = false)} />
@@ -837,13 +924,13 @@
     background: var(--pytxo-surface-shell);
     color: var(--pytxo-text-strong);
     font-family: "Satoshi", "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-    transition: grid-template-columns 140ms ease;
   }
   .desktop2.sidebar-collapsed {
     grid-template-columns: 58px minmax(0, 1fr);
   }
   main {
     min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     background: var(--pytxo-surface-shell);
@@ -852,23 +939,29 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
+    scrollbar-gutter: stable;
+    scroll-padding-block: 20px;
   }
+  .history-content { display: flex; flex-direction: column; container: history-viewport / inline-size; }
+  .history-content > .status-banner { flex-shrink: 0; }
   .loading-state {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
     gap: 12px;
-    padding: 80px 32px;
+    padding: 30px 32px;
   }
+  .loading-state > span { grid-column: 1 / -1; color: var(--pytxo-text-muted); font-size: 13px; }
   .loading-state div {
-    height: 130px;
-    border-radius: 6px;
-    background: linear-gradient(90deg, #0f1116, #161920, #0f1116);
-    background-size: 200%;
-    animation: pulse 1.5s infinite;
+    height: 240px;
+    border: 1px solid var(--pytxo-line-soft);
+    border-radius: var(--pytxo-panel-radius);
+    background: var(--pytxo-surface-panel);
+    animation: pulse 1.5s ease-in-out infinite alternate;
   }
+  .loading-state .loading-summary { grid-column: 1 / -1; height: 80px; }
   @keyframes pulse {
     to {
-      background-position: -200% 0;
+      opacity: .45;
     }
   }
   .status-banner {
@@ -886,15 +979,16 @@
     color: #d98a96;
   }
 
-  @media (max-width: 1050px) {
+  @media (max-width: 1279px) {
     .desktop2:not(.sidebar-collapsed) {
-      grid-template-columns: 188px minmax(0, 1fr);
+      grid-template-columns: 60px minmax(0, 1fr);
     }
   }
   @media (max-width: 760px) {
     .desktop2:not(.sidebar-collapsed) {
       grid-template-columns: 60px minmax(0, 1fr);
     }
+    .loading-state { grid-template-columns: 1fr; padding: 24px 16px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .desktop2 {

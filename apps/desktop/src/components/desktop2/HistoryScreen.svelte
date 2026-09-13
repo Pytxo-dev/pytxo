@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { IconAlertTriangle, IconSearch } from "@tabler/icons-svelte";
+  import IconAlertTriangle from "@tabler/icons-svelte/icons/alert-triangle";
+  import IconSearch from "@tabler/icons-svelte/icons/search";
   import type { DesktopBackend, DesktopSnapshot } from "../../lib/desktop-backend";
   import { attemptTone, isPartiallyApplied, runState, worstTone, type EpistemicTone } from "../../lib/epistemic";
   import type { RunDto, RunReviewDto } from "../../lib/types";
@@ -43,7 +44,7 @@
       .filter((run) => !onlyUnresolved || needsAttention(run)),
   );
 
-  const selected = $derived(ordered.find((run) => run.id === focusRunId) ?? filtered[0] ?? null);
+  const selected = $derived(filtered.find((run) => run.id === focusRunId) ?? filtered[0] ?? null);
   const review = $derived(loadedReview?.run_id === selected?.id ? loadedReview : null);
 
   /**
@@ -130,7 +131,7 @@
         <IconSearch size={14} />
         <input bind:value={query} placeholder="Search run or workspace" aria-label="Search runs" />
       </label>
-      <button class:active={onlyUnresolved} onclick={() => (onlyUnresolved = !onlyUnresolved)}>
+      <button class:active={onlyUnresolved} aria-pressed={onlyUnresolved} onclick={() => (onlyUnresolved = !onlyUnresolved)}>
         {onlyUnresolved ? "Unresolved only" : "All runs"}
       </button>
     </div>
@@ -170,11 +171,11 @@
               onkeydown={(event) => onKeydown(event, index)}
             >
               <span class="edge" aria-hidden="true"></span>
-              <span class="run-id">{run.id}</span>
-              <span class="workspace">{workspaceLabel(run)}</span>
+              <span class="run-id" title={run.id}>{run.id}</span>
+              <span class="workspace" title={workspaceLabel(run)}>{workspaceLabel(run)}</span>
               <StateChip tone={state.tone} label={state.label} />
               <StateChip tone={apply.tone} label={apply.label} />
-              <span class="started">{startedAt(run)}</span>
+              <span class="started" title={startedAt(run)}>{startedAt(run)}</span>
             </button>
           {:else}
             <div class="empty">
@@ -185,6 +186,7 @@
         </div>
       </article>
 
+      {#if selected}
       <BoundaryPanel
         run={selected}
         {review}
@@ -194,6 +196,12 @@
         onOpenApprovals={() => {}}
         onReview={onOpenRun}
       />
+      {:else}
+        <aside class="empty detail-empty" aria-label="Run details">
+          <strong>No run selected</strong>
+          <span>Choose a matching run to inspect its evidence and review package.</span>
+        </aside>
+      {/if}
     </div>
 
     {#if review?.apply_attempts.some((attempt) => isPartiallyApplied(attempt))}
@@ -212,7 +220,8 @@
 </section>
 
 <style>
-  .history{display:flex;flex-direction:column;gap:14px}
+  .screen.history{display:flex;flex:1;min-height:0;width:100%;box-sizing:border-box;flex-direction:column;gap:14px;padding:20px 24px}
+  .history-heading,.unresolved,.resolved{flex-shrink:0}
   .history-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
   .history-heading h1{margin:0;font-size:22px;font-weight:640;letter-spacing:-.025em}
   .filters{display:flex;align-items:center;gap:8px}
@@ -221,19 +230,24 @@
   .filters button{height:30px;padding:0 11px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-muted);font-family:inherit;font-size:12px;cursor:pointer}
   .filters button.active{border-color:color-mix(in oklab,var(--state-attention) 50%,var(--pytxo-line));color:var(--state-attention)}
 
-  .history-layout{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(330px,1fr);gap:14px;align-items:start}
-  .table{display:flex;min-width:0;flex-direction:column;overflow:hidden;border:1px solid var(--pytxo-line);border-radius:var(--pytxo-panel-radius,6px);background:var(--pytxo-surface-panel)}
+  .history-layout{display:grid;flex:1;min-height:0;grid-template-columns:minmax(0,1.62fr) minmax(300px,1fr);gap:14px;align-items:start}
+  .history-layout :global(.boundary){max-height:100%;box-sizing:border-box}
+  .history-layout :global(.boundary > *){flex-shrink:0}
+  .table{display:flex;min-width:0;min-height:0;max-height:100%;flex-direction:column;overflow:hidden;border:1px solid var(--pytxo-line);border-radius:var(--pytxo-panel-radius,6px);background:var(--pytxo-surface-panel)}
+  .table-head,.columns{flex-shrink:0}
   .table-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:40px;padding:0 14px;border-bottom:1px solid var(--pytxo-line-soft)}
   .table-head h2{margin:0;font-size:14px;font-weight:600;letter-spacing:-.02em}
   .table-head .count{color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
 
-  .columns,.row{display:grid;grid-template-columns:minmax(90px,.9fr) minmax(90px,.9fr) 122px 152px minmax(120px,1fr);align-items:center;gap:12px;padding:0 14px;text-align:left}
+  .columns,.row{display:grid;grid-template-columns:minmax(66px,.75fr) minmax(66px,.75fr) minmax(90px,1fr) minmax(105px,1.1fr) minmax(80px,.9fr);align-items:center;gap:8px;padding:0 14px;text-align:left}
   .columns{min-height:28px;border-bottom:1px solid var(--pytxo-line-soft);color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.04em}
-  .rows{display:flex;flex-direction:column;overflow:auto;max-height:min(60vh,560px)}
+  .rows{display:flex;min-height:0;flex-direction:column;overflow:auto;overscroll-behavior:contain}
+  .rows > *{flex-shrink:0}
 
-  /* 32px rows: a history table is for scanning many runs at once, so the row
-     height is set by the text, not by decoration. */
-  .row{position:relative;min-height:32px;border:0;border-bottom:1px solid var(--pytxo-line-soft);background:transparent;color:inherit;cursor:pointer;font-family:inherit}
+  .row{position:relative;min-height:44px;padding-block:8px;border:0;border-bottom:1px solid var(--pytxo-line-soft);background:transparent;color:inherit;cursor:pointer;font-family:inherit;transition:background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease)}
+  .row :global(.chip strong){white-space:normal;line-height:1.4;overflow:visible;overflow-wrap:anywhere}
+  .filters label:focus-within{outline:2px solid var(--pytxo-accent);outline-offset:2px}
+  .filters button:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:2px}
   .row:last-child{border-bottom:0}
   .row:hover{background:color-mix(in oklab,var(--pytxo-surface-raised) 55%,transparent)}
   .row.selected{background:var(--pytxo-surface-active)}
@@ -245,10 +259,23 @@
 
   .empty{display:flex;min-height:160px;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--pytxo-text-muted);text-align:center}
   .empty strong{color:var(--pytxo-text-soft);font-size:13px}
+  .detail-empty{border:1px solid var(--pytxo-line-soft);border-radius:var(--pytxo-panel-radius,6px);padding:24px;background:var(--pytxo-surface-panel)}
   .empty span{max-width:320px;font-size:12px;line-height:1.5}
 
   .unresolved,.resolved{display:flex;align-items:center;gap:8px;margin:0;padding:10px 12px;border:1px solid var(--pytxo-line-soft);border-radius:4px;font-size:12px;line-height:1.45}
   .unresolved{border-left:2px solid var(--state-refuted);color:var(--state-refuted)}
   .resolved{color:var(--pytxo-text-muted)}
-  @media(max-width:1180px){.history-layout{grid-template-columns:minmax(0,1fr)}.table{overflow-x:auto}}
+  @container history-viewport (max-width: 940px){
+    .history-layout{display:flex;flex-direction:column;overflow:auto;overscroll-behavior:contain}
+    .table{width:100%;max-height:none;flex-shrink:0}
+    .rows{overflow:visible}
+    .history-layout :global(.boundary){width:100%;max-height:none;flex-shrink:0;overflow:visible}
+  }
+  @container history-viewport (max-width: 560px){
+    .screen.history{padding:16px}
+    .columns{display:none}
+    .row{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}
+    .started{grid-column:1/-1}
+    .filters{flex-wrap:wrap}.filters input{width:min(190px,40vw)}
+  }
 </style>

@@ -99,6 +99,9 @@ pub struct FlowWarning {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FlowBlockedReason {
+    CheckoutUnavailable {
+        message: String,
+    },
     InvalidRoot {
         message: String,
     },
@@ -215,6 +218,11 @@ pub fn preview_flow(catalog: &Catalog, input: FlowDraftInput) -> anyhow::Result<
     let mut blocked_reasons = validate_task_claims(&planned.tasks, input.project_id.as_deref());
     blocked_reasons.extend(ceiling_blocker);
     blocked_reasons.extend(validate_permission_scope(&planned.tasks, &cfg));
+    if let Err(error) = validate_flow_checkout(&repo, &planned.tasks, &cfg) {
+        blocked_reasons.push(FlowBlockedReason::CheckoutUnavailable {
+            message: error.to_string(),
+        });
+    }
     // Path overlaps that the scheduler already placed in different waves are warnings only —
     // they will not run concurrently. Same-wave overlaps remain hard blocks.
     let wave_of: HashMap<String, usize> = execution
@@ -449,6 +457,9 @@ pub fn dispatch_flow(catalog: &Catalog, draft_id: &str) -> anyhow::Result<String
     }
     let tasks = runtime_tasks(&plan);
     validate_dispatch_task_plan(&tasks, &cfg, &plan.waves, plan.project_id.as_deref())?;
+    // Recheck after preview, before claiming the draft or reserving a run. The
+    // executor still checks again, including edits racing this read-only check.
+    validate_flow_checkout(&repo, &tasks, &cfg)?;
     let ade_id = plan
         .ade
         .requested
@@ -596,6 +607,23 @@ fn validate_task_claims(tasks: &[Task], _project_id: Option<&str>) -> Vec<FlowBl
         }
     }
     blocked
+}
+
+fn validate_flow_checkout(repo: &Path, tasks: &[Task], cfg: &PytxoConfig) -> anyhow::Result<()> {
+    crate::assert_git_ready(repo)?;
+    // Match the executor's reviewed repository Apply boundary. Read-only and
+    // direct-write runs do not acquire a new clean-checkout requirement here.
+    let profiles: Vec<_> = tasks
+        .iter()
+        .map(|task| cfg.resolve_profile_for_agent(&task.agent))
+        .collect();
+    if !tasks.iter().any(|task| task.root.is_some())
+        && !profiles.contains(&PermissionProfile::DeepSpace)
+        && !profiles.contains(&PermissionProfile::Supernova)
+    {
+        crate::assert_clean_primary_checkout(repo)?;
+    }
+    Ok(())
 }
 
 fn validate_permission_scope(tasks: &[Task], cfg: &PytxoConfig) -> Vec<FlowBlockedReason> {

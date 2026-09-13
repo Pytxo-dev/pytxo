@@ -1,5 +1,9 @@
 <script lang="ts">
-  import { IconCheck, IconChevronRight, IconShieldLock, IconX } from "@tabler/icons-svelte";
+  import { withPreviewsHidden } from "../../lib/preview-overlay";
+  import IconCheck from "@tabler/icons-svelte/icons/check";
+  import IconChevronRight from "@tabler/icons-svelte/icons/chevron-right";
+  import IconShieldLock from "@tabler/icons-svelte/icons/shield-lock";
+  import IconX from "@tabler/icons-svelte/icons/x";
   import { approvalPresentation } from "../../lib/approval-presentation";
   import type { DesktopBackend, DesktopSnapshot } from "../../lib/desktop-backend";
   import type { HitlDto } from "../../lib/types";
@@ -48,7 +52,7 @@
    */
   $effect(() => {
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) void withPreviewsHidden(() => { if (open && dialog?.isConnected && !dialog.open) dialog.showModal(); });
     if (!open && dialog.open) dialog.close();
   });
 
@@ -124,7 +128,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<dialog bind:this={dialog} class="inbox-dialog" aria-label="Approvals inbox" onclose={onClose}>
+<dialog bind:this={dialog} class="inbox-dialog" class:clear={!openApprovals.length} aria-label="Approvals inbox" onclose={onClose}>
   <header>
     <div><p>Waiting on you</p><h2>Approvals</h2></div>
     <span class="count">{openApprovals.length} open</span>
@@ -139,7 +143,7 @@
     >{decisionMessage}</p>
   {/if}
 
-  <div class="inbox-layout">
+  <div class="inbox-layout" class:clear={!openApprovals.length}>
     <div class="queue">
       {#if openApprovals.length}
         {#each openApprovals as approval (approval.id)}
@@ -156,13 +160,12 @@
             <IconChevronRight size={15} />
           </button>
         {/each}
-      {:else}
-        <div class="empty"><strong>Inbox clear</strong><span>Requests appear here when an agent waits on you.</span></div>
       {/if}
     </div>
 
     <div class="detail">
       {#if selected && presentation}
+        <div class="detail-body">
         <div class="detail-title">
           <div><span>{presentation.category}</span><h3>{presentation.title}</h3></div>
           <span class="position" aria-live="polite">{selectedIndex + 1} of {openApprovals.length}</span>
@@ -197,6 +200,7 @@
             </button>
           {/if}
         </div>
+        </div>
         <div class="actions">
           <button class="deny" disabled={deciding} onclick={() => resolve(false)}>
             {presentation.denyLabel}<kbd aria-hidden="true">Ctrl/⌘ ⌫</kbd>
@@ -206,7 +210,7 @@
           </button>
         </div>
       {:else}
-        <div class="empty"><strong>Inbox clear</strong><span>All decisions have been resolved.</span></div>
+        <div class="empty"><strong>Inbox clear</strong><span>No agents are waiting for a decision. Requests will appear here.</span></div>
       {/if}
     </div>
   </div>
@@ -214,18 +218,23 @@
 
 <style>
   .inbox-dialog{position:fixed;inset:0;width:min(940px,92vw);max-width:none;max-height:82dvh;margin:auto;padding:0;border:1px solid var(--pytxo-line);border-radius:8px;background:var(--pytxo-surface-panel);color:var(--pytxo-text-strong);box-shadow:0 24px 80px color-mix(in oklab,var(--pytxo-surface-shell) 82%,transparent);overflow:hidden}
+  .inbox-dialog[open]{display:flex;flex-direction:column;height:min(680px,calc(100dvh - 48px));max-height:calc(100dvh - 48px)}
+  .inbox-dialog[open].clear{height:min(300px,calc(100dvh - 48px));width:min(560px,92vw)}
+  .inbox-layout.clear{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+  .inbox-layout.clear .queue{display:none}
+  .clear .detail .empty{flex:1;min-height:0}
   .inbox-dialog::backdrop{background:color-mix(in oklab,black 62%,transparent)}
-  header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--pytxo-line-soft)}
+  header{flex:none;display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--pytxo-line-soft)}
   header p{margin:0 0 4px;color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.07em}
   header h2{margin:0;font-size:16px;font-weight:640;letter-spacing:-.02em}
   .count{margin-left:auto;padding:3px 8px;border:1px solid var(--state-attention);border-radius:3px;color:var(--state-attention);font:11px "IBM Plex Mono",monospace}
-  .close{display:grid;width:28px;height:28px;place-items:center;border:1px solid var(--pytxo-line-soft);border-radius:4px;background:transparent;color:var(--pytxo-text-muted);cursor:pointer}
+  .close{display:grid;width:40px;height:40px;place-items:center;border:1px solid var(--pytxo-line-soft);border-radius:4px;background:transparent;color:var(--pytxo-text-muted);cursor:pointer}
   .close:hover{color:var(--pytxo-text-strong)}
 
-  .decision-message{margin:0;padding:9px 16px;border-bottom:1px solid var(--pytxo-line-soft);color:var(--state-verified);font-size:12px}
+  .decision-message{flex:none;max-height:90px;overflow:auto;margin:0;padding:9px 16px;border-bottom:1px solid var(--pytxo-line-soft);color:var(--state-verified);font-size:12px}
   .decision-message.error{color:var(--state-refuted)}
 
-  .inbox-layout{display:grid;grid-template-columns:minmax(230px,300px) minmax(0,1fr);min-height:0;max-height:calc(82dvh - 62px)}
+  .inbox-layout{display:grid;grid-template-columns:minmax(230px,300px) minmax(0,1fr);min-height:0;flex:1;overflow:hidden}
   .queue{display:flex;flex-direction:column;overflow:auto;border-right:1px solid var(--pytxo-line-soft)}
   .queue-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;padding:10px 14px;border:0;border-bottom:1px solid var(--pytxo-line-soft);border-left:2px solid transparent;background:transparent;color:inherit;cursor:pointer;font-family:inherit;text-align:left}
   .queue-row:hover{background:color-mix(in oklab,var(--pytxo-surface-raised) 55%,transparent)}
@@ -236,16 +245,18 @@
   .queue-row small{grid-column:1/-1;overflow:hidden;color:var(--pytxo-text-muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
   .queue-row>:global(svg){align-self:center;color:var(--pytxo-text-muted)}
 
-  .detail{display:flex;flex-direction:column;gap:13px;overflow:auto;padding:16px}
+  .detail{display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+  .detail-body{display:flex;flex-direction:column;gap:16px;overflow:auto;overscroll-behavior:contain;min-height:0;padding:20px;scrollbar-gutter:stable}
+  .detail-body > * { flex-shrink: 0; }
   .detail-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
   .detail-title span{color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.05em}
   .detail-title h3{margin:5px 0 0;font-size:16px;font-weight:620;letter-spacing:-.02em}
   .position{flex:none;color:var(--pytxo-text-muted);font-size:11px}
-  .reason{margin:0;color:var(--pytxo-text-soft);font-size:12px;line-height:1.55}
+  .reason{margin:0;color:var(--pytxo-text-soft);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
   dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:0;border:1px solid var(--pytxo-line-soft);border-radius:4px;background:var(--pytxo-line-soft);overflow:hidden}
   dl>div{padding:8px 10px;background:var(--pytxo-surface-input)}
   dt{color:var(--pytxo-text-muted);font-size:11px}
-  dd{overflow:hidden;margin:3px 0 0;font:11px "IBM Plex Mono",monospace;text-overflow:ellipsis;white-space:nowrap}
+  dd{margin:4px 0 0;font:12px "IBM Plex Mono",monospace;overflow-wrap:anywhere}
 
   .consequence{display:flex;flex-direction:column;gap:5px;padding:11px;border:1px solid var(--pytxo-line-soft);border-left:2px solid var(--state-attention);border-radius:4px}
   .consequence span{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600}
@@ -256,17 +267,19 @@
   .evidence div{display:flex;min-width:0;flex-direction:column;gap:3px}
   .evidence strong{font-size:12px}
 
-  .actions{display:flex;gap:9px;margin-top:auto;padding-top:4px}
-  .actions button{display:flex;height:38px;flex:1;align-items:center;justify-content:center;gap:8px;border-radius:4px;font-size:12px;font-weight:620;cursor:pointer}
+  .actions{display:flex;flex:none;flex-wrap:wrap;gap:8px;margin-top:auto;padding:12px 20px;border-top:1px solid var(--pytxo-line-soft);background:var(--pytxo-surface-panel)}
+  .actions button{display:flex;min-height:40px;padding:8px 10px;flex:1;align-items:center;justify-content:center;gap:8px;border-radius:4px;font-size:12px;font-weight:620;cursor:pointer}
   .actions .deny{border:1px solid var(--pytxo-line);background:transparent;color:var(--pytxo-text-soft)}
   .actions .deny:hover:not(:disabled){border-color:var(--state-refuted);color:var(--state-refuted)}
   .actions .primary{border:1px solid transparent;background:var(--pytxo-text-strong);color:var(--pytxo-surface-shell)}
   .actions button:disabled{cursor:not-allowed;opacity:.4}
   kbd{padding:1px 5px;border:1px solid currentColor;border-radius:3px;font:11px "IBM Plex Mono",monospace}
-  .quiet{height:28px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-soft);font-size:11px;cursor:pointer}
+  .quiet{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:40px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-soft);font-size:11px;cursor:pointer}
 
   .empty{display:flex;min-height:180px;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:20px;color:var(--pytxo-text-muted);text-align:center}
   .empty strong{color:var(--pytxo-text-soft);font-size:13px}
   .empty span{max-width:280px;font-size:12px;line-height:1.5}
-  @media(max-width:820px){.inbox-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}.queue{max-height:180px;border-right:0;border-bottom:1px solid var(--pytxo-line-soft)}}
+  @media(max-width:680px){.inbox-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}.queue{max-height:110px;border-right:0;border-bottom:1px solid var(--pytxo-line-soft)}}
+  @media(max-width:900px){.actions kbd{display:none}.inbox-layout{grid-template-columns:minmax(180px,220px) minmax(0,1fr)}}
+  @media(max-width:680px){.inbox-layout{grid-template-columns:minmax(0,1fr)}.detail-body{padding:16px}.actions{padding:12px 16px}.evidence{flex-wrap:wrap}}
 </style>

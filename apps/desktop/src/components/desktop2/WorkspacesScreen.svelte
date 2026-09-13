@@ -1,11 +1,9 @@
 <script lang="ts">
-  import {
-    IconChevronRight,
-    IconFolder,
-    IconLoader2,
-    IconPlus,
-    IconSettings,
-  } from "@tabler/icons-svelte";
+  import IconChevronRight from "@tabler/icons-svelte/icons/chevron-right";
+  import IconFolder from "@tabler/icons-svelte/icons/folder";
+  import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+  import IconPlus from "@tabler/icons-svelte/icons/plus";
+  import IconSettings from "@tabler/icons-svelte/icons/settings";
   import type { DesktopBackend, DesktopSnapshot } from "../../lib/desktop-backend";
 
   let {
@@ -120,18 +118,18 @@
         <span role="columnheader">Policy</span>
         <span role="columnheader">Running</span>
         <span role="columnheader">Approvals</span>
-        <span role="columnheader"> </span>
+        <span role="columnheader">Actions</span>
       </div>
       {#each filteredDomains as domain (domain.domain_id)}
         <div class="table-row" class:active={domain.domain_id === activeDomainId} role="row">
-          <span role="cell">
+          <span class="workspace-name" role="cell">
             <strong>{domain.repo_root.split(/[\\/]/).pop()}</strong>
             {#if domain.domain_id === activeDomainId}<small>Current</small>{/if}
           </span>
-          <span class="mono" role="cell">{domain.repo_root}</span>
-          <span role="cell">{profileHint(domain.repo_root)}</span>
-          <span data-col="running" role="cell">{domain.active_runs}</span>
-          <span data-col="approvals" role="cell">{domain.hitl_pending}</span>
+          <span class="workspace-path mono" role="cell" title={domain.repo_root}>{domain.repo_root}</span>
+          <span class="workspace-policy" role="cell"><small class="compact-label">Policy</small>{profileHint(domain.repo_root)}</span>
+          <span data-col="running" role="cell"><small class="compact-label">Running</small>{domain.active_runs}</span>
+          <span data-col="approvals" role="cell"><small class="compact-label">Approvals</small>{domain.hitl_pending}</span>
           <span class="row-actions" role="cell">
             <button class="card-link" onclick={() => onSelectDomain(domain.domain_id, { route: "work" })}>
               Open <IconChevronRight size={14} />
@@ -173,6 +171,24 @@
 </section>
 
 <style>
+  .collection-screen { container: workspace-catalog / inline-size; min-width: 0; }
+  .collection-screen .workspace-table .table-row { min-width: 0; }
+  .collection-screen .workspace-table .workspace-path { overflow-wrap: anywhere; }
+  .workspace-name { overflow-wrap: anywhere; }
+  .collection-screen .workspace-table .compact-label { display: none; }
+  @container workspace-catalog (max-width: 760px) {
+    .collection-screen .workspace-table .table-header { display: none; }
+    .collection-screen .workspace-table .table-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; padding: 14px; }
+    .workspace-name, .workspace-path, .row-actions { grid-column: 1 / -1; }
+    .workspace-name { color: var(--pytxo-text-strong); }
+    .workspace-path { font-size: 11px; line-height: 1.6; }
+    .collection-screen .workspace-table .compact-label { display: block; margin: 0 0 3px; }
+    .collection-screen .workspace-table .row-actions { justify-content: flex-start; gap: 20px; }
+    .screen-heading { flex-wrap: wrap; gap: 12px; }
+    .workspace-heading-actions { flex-wrap: wrap; }
+    .toolbar label { min-width: 0; width: min(270px, 100%); }
+    .toolbar input { width: 100%; }
+  }
   /* Inside Setup the catalog is section content, not a screen: no page padding,
      no page title, and it inherits the section's rhythm. */
   .screen.embedded {

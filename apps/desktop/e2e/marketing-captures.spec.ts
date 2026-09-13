@@ -65,7 +65,10 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
   await completeOnboarding(
     page,
     route.route === "run-review"
-      ? { "pytxo-preview-review-state-v1": "ready" }
+      ? {
+          "pytxo-preview-review-state-v1": "ready",
+          "pytxo-preview-candidate-check-v1": "passed",
+        }
       : undefined,
   );
   await page.clock.install({ time: new Date("2026-01-15T10:00:00.000Z") });
@@ -74,7 +77,7 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
 
   if (route.route === "flow") {
     await page
-      .getByLabel("Mission outcome")
+      .getByLabel("What should Pytxo do?")
       .fill("Improve reviewed mission handling in apps/desktop/src/components/desktop2/FlowScreen.svelte and crates/pytxo-orchestrate/src/flow.rs, with regression coverage in crates/pytxo-orchestrate/tests/flow_mission.rs.");
     await page.getByRole("button", { name: "Build plan", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review plan" })).toBeVisible();

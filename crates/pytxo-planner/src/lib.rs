@@ -363,7 +363,21 @@ impl MissionPlanner for SignalBackedPlanner {
                     task_ids[i].0
                 );
             }
-            let depends_on = infer_depends_on(i, &paths, &chunk_paths, &graph.edges, &task_ids);
+            let mut depends_on = infer_depends_on(i, &paths, &chunk_paths, &graph.edges, &task_ids);
+            // Documentation of the result consumes earlier implementation/test
+            // outcomes even though Markdown has no structural import edges.
+            // Only infer backward edges; explicit manifest plans are untouched.
+            if describes_result(part, &paths) {
+                depends_on.extend(
+                    chunk_paths[..i]
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, paths)| !documentation_paths(paths))
+                        .map(|(index, _)| task_ids[index].0.clone()),
+                );
+                depends_on.sort();
+                depends_on.dedup();
+            }
             // Unknown/broad ownership stays conservative. Explicit, unrelated
             // files remain parallel so Race Shield can build the widest safe
             // wave instead of serializing every natural-language chunk.
@@ -513,6 +527,30 @@ fn walk_repo_for_filename(repo: &Path, dir: &Path, name: &str, out: &mut Vec<Str
 
 fn normalize_rel(path: &str) -> String {
     path.replace('\\', "/").trim_start_matches("./").to_string()
+}
+
+fn documentation_paths(paths: &[String]) -> bool {
+    !paths.is_empty()
+        && paths.iter().all(|path| {
+            Path::new(path)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| {
+                    matches!(ext.to_ascii_lowercase().as_str(), "md" | "mdx" | "rst")
+                })
+        })
+}
+
+fn describes_result(chunk: &str, paths: &[String]) -> bool {
+    documentation_paths(paths)
+        && chunk.split_whitespace().any(|word| {
+            // Trim sentence punctuation without splitting paths such as docs/explain.md.
+            let word = word.trim_matches(|c: char| !c.is_alphabetic());
+            matches!(
+                word.to_ascii_lowercase().as_str(),
+                "document" | "describe" | "explain" | "summarize"
+            )
+        })
 }
 
 fn infer_depends_on(
@@ -1274,7 +1312,7 @@ paths = ["src/app.ts"]
         cfg.planner.mode = "signal".into();
         cfg.max_agents = 3;
 
-        let plan = plan_mission("update src/a.ts; document it in README.md.", repo, &cfg).unwrap();
+        let plan = plan_mission("update src/a.ts; fix a typo in README.md.", repo, &cfg).unwrap();
         assert_eq!(plan.tasks[1].paths, vec!["README.md"]);
         assert!(
             plan.tasks.iter().all(|task| task.depends_on.is_empty()),
@@ -1285,6 +1323,41 @@ paths = ["src/app.ts"]
             Some(v) => std::env::set_var("PYTXO_PLANNER", v),
             None => std::env::remove_var("PYTXO_PLANNER"),
         }
+    }
+
+    #[test]
+    fn documentation_of_combined_results_waits_for_earlier_code_and_tests() {
+        let dir = tempfile::tempdir().unwrap();
+        for file in ["src/a.mjs", "test/a.test.mjs", "README.md"] {
+            let path = dir.path().join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "// fixture\n").unwrap();
+        }
+        let cfg = PytxoConfig::default();
+        let plan = SignalBackedPlanner.decompose(&MissionSpec { text:
+            "update src/a.mjs; add regressions in test/a.test.mjs; in README.md, document the final combined behavior".into()
+        }, &PlannerContext { repo: dir.path(), config: &cfg }).unwrap();
+        assert_eq!(plan.tasks[2].depends_on, vec!["mission-0", "mission-1"]);
+        assert!(plan.tasks[0].depends_on.is_empty());
+        assert!(plan.tasks[1].depends_on.is_empty());
+        let doc = dir.path().join("docs/explain.md");
+        std::fs::create_dir_all(doc.parent().unwrap()).unwrap();
+        std::fs::write(doc, "typo\n").unwrap();
+        let independent = SignalBackedPlanner
+            .decompose(
+                &MissionSpec {
+                    text: "update src/a.mjs; fix a typo in docs/explain.md".into(),
+                },
+                &PlannerContext {
+                    repo: dir.path(),
+                    config: &cfg,
+                },
+            )
+            .unwrap();
+        assert!(independent
+            .tasks
+            .iter()
+            .all(|task| task.depends_on.is_empty()));
     }
 
     #[test]

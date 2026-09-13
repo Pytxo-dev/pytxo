@@ -1475,7 +1475,7 @@ fn cleanup_preserved_workspaces(
 }
 
 fn current_head_revision(repo_root: &Path) -> anyhow::Result<String> {
-    let output = std::process::Command::new("git")
+    let output = pytxo_core::background_command("git")
         .args(["rev-parse", "HEAD"])
         .current_dir(repo_root)
         .output()?;
@@ -1489,7 +1489,7 @@ fn current_head_revision(repo_root: &Path) -> anyhow::Result<String> {
 }
 
 fn assert_clean_primary_checkout(repo_root: &Path) -> anyhow::Result<()> {
-    let output = std::process::Command::new("git")
+    let output = pytxo_core::background_command("git")
         .args([
             "status",
             "--porcelain=v1",

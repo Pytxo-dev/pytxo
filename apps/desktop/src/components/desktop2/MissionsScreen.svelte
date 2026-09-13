@@ -5,10 +5,11 @@
    * and no combined plan/live/review tab strip — History owns the inventory and
    * `WorkActive` owns the live view, so each surface answers one question.
    */
-  import { IconArrowLeft } from "@tabler/icons-svelte";
+  import IconArrowLeft from "@tabler/icons-svelte/icons/arrow-left";
   import type { DesktopBackend, DesktopSnapshot } from "../../lib/desktop-backend";
   import type { MissionPane, MissionView } from "../../lib/navigation.svelte";
   import FlowScreen from "./FlowScreen.svelte";
+  import type { ComposerDraft } from "../../lib/composer-draft";
   import RunReviewScreen from "./RunReviewScreen.svelte";
 
   let {
@@ -22,6 +23,9 @@
     onOpenMission,
     onAddWorkspace,
     onRunCompleted,
+    composerDraft = null,
+    preferredAdeId = null,
+    onDraftChange = () => {},
   }: {
     view: MissionView;
     snapshot: DesktopSnapshot;
@@ -33,9 +37,14 @@
     onOpenMission: (runId: string, pane?: MissionPane) => void;
     onAddWorkspace: () => void | Promise<void>;
     onRunCompleted: () => void;
+    composerDraft?: ComposerDraft | null;
+    preferredAdeId?: string | null;
+    onDraftChange?: (draft: ComposerDraft | null) => void;
   } = $props();
 
-  const focusedRun = $derived(snapshot.runs.find((r) => r.id === focusRunId) ?? snapshot.runs[0] ?? null);
+  const focusedRun = $derived(focusRunId
+    ? snapshot.runs.find((r) => r.id === focusRunId && (!focusDomainId || r.domain_id === focusDomainId)) ?? null
+    : snapshot.runs.find(r => !preferredDomainId || r.domain_id === preferredDomainId) ?? null);
   const detailDomainId = $derived(
     focusDomainId ??
       focusedRun?.domain_id ??
@@ -49,17 +58,22 @@
     domains={snapshot.domains}
     runs={snapshot.runs}
     {preferredDomainId}
+    {preferredAdeId}
+    draft={composerDraft}
+    {onDraftChange}
     {onAddWorkspace}
     onDispatched={(runId) => onOpenMission(runId, "live")}
   />
 {:else if focusedRun}
-  <RunReviewScreen
-    {backend}
-    run={focusedRun}
-    domainId={detailDomainId}
-    onBack={() => onView("list")}
-    onChanged={onRunCompleted}
-  />
+  {#key JSON.stringify([detailDomainId, focusedRun.id])}
+    <RunReviewScreen
+      {backend}
+      run={focusedRun}
+      domainId={detailDomainId}
+      onBack={() => onView("list")}
+      onChanged={onRunCompleted}
+    />
+  {/key}
 {:else}
   <section class="screen">
     <header class="screen-heading">

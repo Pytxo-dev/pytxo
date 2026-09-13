@@ -25,7 +25,23 @@ export const Setup960 = screen("setup", "compact960");
 export const Approvals1600 = screen("approvals", "desktop1600");
 export const Approvals1280 = screen("approvals", "desktop1280");
 export const Approvals960 = screen("approvals", "compact960");
-export const WorkLoading: Story = { args: { routeOverride: "work", previewState: "loading" } };
+export const WorkLoading: Story = {
+  args: { routeOverride: "work", previewState: "loading" },
+  play: async ({ canvasElement }) => {
+    const root = canvasElement.ownerDocument.documentElement;
+    const prior = root.hasAttribute("data-force-reduced-motion");
+    const loader = canvasElement.querySelector(".loading-state div");
+    if (!loader) throw new Error("Work loading indicator is missing");
+    try {
+      root.setAttribute("data-force-reduced-motion", "");
+      if (getComputedStyle(loader).animationName !== "none" || loader.getAnimations().length !== 0) {
+        throw new Error("Reduced motion must stop the loading animation, not accelerate it");
+      }
+    } finally {
+      root.toggleAttribute("data-force-reduced-motion", prior);
+    }
+  },
+};
 export const WorkEmpty: Story = { args: { routeOverride: "work", previewState: "empty" } };
 export const WorkOffline: Story = { args: { routeOverride: "work", previewState: "offline" } };
 export const WorkError: Story = { args: { routeOverride: "work", previewState: "error" } };

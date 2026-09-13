@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { IconAlertTriangle, IconArrowRight, IconLock } from "@tabler/icons-svelte";
+  import IconAlertTriangle from "@tabler/icons-svelte/icons/alert-triangle";
+  import IconArrowRight from "@tabler/icons-svelte/icons/arrow-right";
+  import IconLock from "@tabler/icons-svelte/icons/lock";
   import {
     ATTEMPT_LABELS,
     SURFACE_LABELS,
@@ -10,6 +12,7 @@
     type EpistemicTone,
   } from "../../lib/epistemic";
   import type { HitlDto, PermissionEnforcementReceipt, RunDto, RunReviewDto } from "../../lib/types";
+  import { canOpenRunReview } from "../../lib/review-state";
   import StateChip from "./StateChip.svelte";
 
   let {
@@ -18,6 +21,7 @@
     reviewError = null,
     loading = false,
     approvals = [],
+    showReviewAction = true,
     onOpenApprovals,
     onReview,
     onRecover = null,
@@ -27,6 +31,7 @@
     reviewError?: string | null;
     loading?: boolean;
     approvals?: HitlDto[];
+    showReviewAction?: boolean;
     onOpenApprovals: () => void;
     onReview: (runId: string) => void;
     onRecover?: ((runId: string) => void) | null;
@@ -82,16 +87,11 @@
   const partial = $derived(attempts.find((attempt) => isPartiallyApplied(attempt)) ?? null);
   const pendingApproval = $derived(approvals[0] ?? null);
   const effectiveProfile = $derived((receipt?.effective_profile ?? run?.permission_profile ?? "").toLowerCase());
-  const reviewAvailable = $derived(
-    !!run && (
-      !!run.prepared_digest ||
-      !!review?.prepared_digest ||
-      !!review?.prepared_manifest ||
-      ["ready", "stale", "applied", "applying", "recovery_required", "discarded"].includes(
-        (review?.apply_status ?? run.apply_status ?? "").toLowerCase(),
-      )
-    ),
-  );
+  const reviewAvailable = $derived(canOpenRunReview(run, review));
+  // The exact review may have advanced beyond the fleet snapshot. Explicit
+  // nulls also win: a failed preparation must not resurrect an older package.
+  const preparedDigest = $derived(review ? review.prepared_digest : run?.prepared_digest);
+  const preparedAt = $derived(review ? review.prepared_at : run?.prepared_at);
 
   const boundaryCopy = $derived(
     effectiveProfile === "orbit" || effectiveProfile === "galaxy"
@@ -120,43 +120,6 @@
     <h2 id="boundary-title">Commit boundary</h2>
   </header>
 
-  <section class="candidate">
-    <p>Candidate outcome</p>
-    {#if run}
-      <dl>
-        <div><dt>Run</dt><dd>{run.id}</dd></div>
-        <div><dt>Base</dt><dd>{review?.base_revision ?? "Not reported"}</dd></div>
-        <div><dt>Package</dt><dd>{shortDigest(run.prepared_digest)}</dd></div>
-        <div><dt>Prepared</dt><dd>{shortTime(run.prepared_at)}</dd></div>
-        <div><dt>Profile</dt><dd>{receipt?.effective_profile ?? run.permission_profile ?? "Not reported"}</dd></div>
-      </dl>
-    {:else}
-      <div class="empty">No run is selected.</div>
-    {/if}
-  </section>
-
-  {#if preparationFailed}
-    <div class="preparation-error" role="alert">
-      <strong>Package preparation failed</strong>
-      <p>{preparationError?.message ?? "The run did not produce a reviewable package. No failure detail was recorded."}</p>
-      <small>Use New run to correct the scope or checks and review a fresh plan. This run remains in History.</small>
-    </div>
-  {/if}
-
-  <section class="enforcement" aria-label="Permission enforcement receipt">
-    <div class="enforcement-head" data-tone={summaryTone}>
-      <p>Enforcement receipt</p>
-      <StateChip tone={summaryTone} label={summaryLabel} />
-    </div>
-    {#each rows as row (row.key)}
-      <div class="surface" data-tone={row.tone}>
-        <span class="surface-label">{row.label}</span>
-        <StateChip tone={row.tone} label={row.status} />
-        <span class="surface-detail" title={row.detail}>{row.mechanism ?? row.detail}</span>
-      </div>
-    {/each}
-  </section>
-
   {#if pendingApproval}
     <button class="attention-row" data-tone="attention" onclick={onOpenApprovals}>
       <IconLock size={15} />
@@ -184,6 +147,45 @@
     </div>
   {/if}
 
+  {#if preparationFailed}
+    <div class="preparation-error" role="alert">
+      <strong>Package preparation failed</strong>
+      <p>{preparationError?.message ?? "The run did not produce a reviewable package. No failure detail was recorded."}</p>
+      <small>Use New run to correct the scope or checks and review a fresh plan. This run remains in History.</small>
+    </div>
+  {/if}
+
+  <section class="candidate">
+    <p>Candidate outcome</p>
+    {#if run}
+      <dl>
+        <div><dt>Run</dt><dd>{run.id}</dd></div>
+        <div><dt>Base</dt><dd>{review?.base_revision ?? "Not reported"}</dd></div>
+        <div><dt>Package</dt><dd>{shortDigest(preparedDigest)}</dd></div>
+        <div><dt>Prepared</dt><dd>{shortTime(preparedAt)}</dd></div>
+        <div><dt>Profile</dt><dd>{receipt?.effective_profile ?? run.permission_profile ?? "Not reported"}</dd></div>
+      </dl>
+    {:else}
+      <div class="empty">Select a run to inspect its prepared changes and enforcement receipt.</div>
+    {/if}
+  </section>
+
+  {#if run}
+  <section class="enforcement" aria-label="Permission enforcement receipt">
+    <div class="enforcement-head" data-tone={summaryTone}>
+      <p>Enforcement receipt</p>
+      <StateChip tone={summaryTone} label={summaryLabel} />
+    </div>
+    {#each rows as row (row.key)}
+      <div class="surface" data-tone={row.tone}>
+        <span class="surface-label">{row.label}</span>
+        <StateChip tone={row.tone} label={row.status} />
+        <span class="surface-detail" title={row.detail}>{row.mechanism ?? row.detail}</span>
+      </div>
+    {/each}
+  </section>
+  {/if}
+
   {#if attempts.length}
     <section class="attempts" aria-label="Apply attempts">
       <p>Apply attempts</p>
@@ -201,12 +203,14 @@
   <footer>
     <!-- One stable label. The most consequential control in the product does not
          change identity based on which state the run happens to be in. -->
+    {#if showReviewAction}
     <button
       disabled={!reviewAvailable}
       title={reviewAvailable ? "Open the prepared package" : "Review becomes available after a package is prepared."}
       onclick={() => reviewAvailable && run && onReview(run.id)}
-    >Review package<IconArrowRight size={15} /></button>
-    <p><IconLock size={12} /> {boundaryCopy}</p>
+    >Review changes<IconArrowRight size={15} /></button>
+    {/if}
+    {#if run}<p><IconLock size={12} /> {boundaryCopy}</p>{/if}
   </footer>
 </aside>
 

@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { IconAlertTriangle, IconChevronDown, IconFolder, IconInbox, IconPlus, IconSettings } from "@tabler/icons-svelte";
+  import { withPreviewsHidden } from "../../lib/preview-overlay";
+  import IconAlertTriangle from "@tabler/icons-svelte/icons/alert-triangle";
+  import IconCheck from "@tabler/icons-svelte/icons/check";
+  import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
+  import IconFolder from "@tabler/icons-svelte/icons/folder";
+  import IconInbox from "@tabler/icons-svelte/icons/inbox";
+  import IconPlus from "@tabler/icons-svelte/icons/plus";
+  import IconSearch from "@tabler/icons-svelte/icons/search";
+  import IconSettings from "@tabler/icons-svelte/icons/settings";
+  import { tick } from "svelte";
   import { ROUTE_LABELS, type CanonicalRoute } from "../../lib/navigation.svelte";
   import type { CatalogEntryStatus } from "../../lib/types";
 
@@ -37,12 +46,40 @@
   } = $props();
 
   let open = $state(false);
+  let query = $state("");
+  let trigger: HTMLButtonElement | undefined = $state();
+  let searchInput: HTMLInputElement | undefined = $state();
+  let menuEl: HTMLDivElement | undefined = $state();
+  let wrapper: HTMLDivElement | undefined = $state();
+  const menuId = $props.id();
 
   const available = $derived(domains.filter((d) => d.is_available && !d.is_temporary));
+  const filtered = $derived(available.filter(domain => domain.repo_root.toLowerCase().includes(query.trim().toLowerCase())));
   const connectionLabel = $derived(!hypervisorOnline ? "Offline" : "Local");
 
-  function close() {
+  function close(restoreFocus = true) {
     open = false;
+    if (restoreFocus) trigger?.focus();
+  }
+
+  async function toggle() {
+    if (open) { close(); return; }
+    query = "";
+    await withPreviewsHidden(() => { open = true; });
+    await tick();
+    searchInput?.focus();
+  }
+
+  function onMenuKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); return; }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const choices = [...(menuEl?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])];
+    if (!choices.length) return;
+    event.preventDefault();
+    const index = choices.indexOf(document.activeElement as HTMLButtonElement);
+    const next = index < 0 ? (event.key === "ArrowDown" ? 0 : choices.length - 1)
+      : (index + (event.key === "ArrowDown" ? 1 : -1) + choices.length) % choices.length;
+    choices[next]?.focus();
   }
 
   function pick(domainId: string) {
@@ -53,12 +90,15 @@
 
 <div class="app-bar">
   <div class="left">
-    <div class="workspace-switcher">
+    <div class="workspace-switcher" bind:this={wrapper} onfocusout={(event) => { if (open && event.relatedTarget && !wrapper?.contains(event.relatedTarget as Node)) close(false); }}>
       <button
+        bind:this={trigger}
         class="switcher"
-        aria-haspopup="listbox"
+        aria-haspopup="dialog"
+        aria-controls={menuId}
         aria-expanded={open}
-        onclick={() => (open = !open)}
+        onclick={() => void toggle()}
+        onkeydown={(event) => { if (event.key === "ArrowDown" && !open) { event.preventDefault(); void toggle(); } }}
         title="Switch workspace"
       >
         <IconFolder size={14} />
@@ -70,23 +110,27 @@
           type="button"
           class="backdrop"
           aria-label="Close workspace switcher"
-          onclick={close}
+          tabindex="-1"
+          onclick={() => close()}
         ></button>
-        <div class="menu" role="listbox" aria-label="Workspaces">
-          {#each available as domain (domain.domain_id)}
+        <div class="menu" bind:this={menuEl} id={menuId} role="dialog" tabindex="-1" aria-label="Switch workspace" onkeydown={onMenuKeydown}>
+          <label class="workspace-search"><IconSearch size={15} /><input bind:this={searchInput} bind:value={query} aria-label="Find workspace" placeholder="Find a workspace…" /></label>
+          <div class="workspace-list" role="listbox" aria-label="Workspaces">
+          {#each filtered as domain (domain.domain_id)}
             <button
               role="option"
               aria-selected={domain.domain_id === activeDomainId}
               class:active={domain.domain_id === activeDomainId}
               onclick={() => pick(domain.domain_id)}
             >
-              <strong>{domain.repo_root.split(/[\\/]/).pop()}</strong>
+              <strong><IconFolder size={15} />{domain.repo_root.split(/[\\/]/).pop()}{#if domain.domain_id === activeDomainId}<IconCheck size={14} />{/if}</strong>
               <small class="mono">{domain.repo_root}</small>
             </button>
           {/each}
-          {#if !available.length}
-            <p class="empty">No workspaces yet</p>
+          {#if !filtered.length}
+            <p class="empty" role="status">{available.length ? "No matching workspaces. Try a folder name or path." : "No workspaces yet. Add a folder to begin."}</p>
           {/if}
+          </div>
           <div class="menu-actions">
             <button onclick={() => { close(); onAddWorkspace(); }}><IconPlus size={14} /> Add workspace</button>
             {#if activeDomainId}
@@ -127,7 +171,7 @@
 <style>
   .app-bar {
     position: relative;
-    height: 44px;
+    height: 52px;
     flex: none;
     display: flex;
     align-items: center;
@@ -146,10 +190,11 @@
     font-size: 13px;
     font-weight: 600;
     letter-spacing: -0.02em;
-    color: var(--pytxo-text-strong);
+    color: var(--pytxo-text-soft);
   }
   .workspace-switcher {
     position: relative;
+    min-width: 0;
   }
   .switcher {
     display: inline-flex;
@@ -160,9 +205,11 @@
     background: var(--pytxo-surface-input, #0c0e13);
     color: var(--pytxo-text-body);
     border-radius: var(--pytxo-control-radius, 4px);
-    padding: 5px 8px;
+    min-height: var(--pytxo-control-height);
+    padding: 0 10px;
     font-size: 13px;
     cursor: pointer;
+    transition: background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease), border-color var(--pytxo-motion-fast) var(--pytxo-motion-ease);
   }
   .switcher span {
     overflow: hidden;
@@ -171,7 +218,10 @@
   }
   .switcher:hover {
     border-color: color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 35%, var(--pytxo-line));
+    background: var(--pytxo-surface-hover);
   }
+  .switcher:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }
+  .switcher :global(svg) { flex: none; }
   .backdrop {
     position: fixed;
     inset: 0;
@@ -186,16 +236,22 @@
     left: 0;
     z-index: 16;
     width: min(340px, 70vw);
+    max-height: min(520px, calc(100dvh - 120px));
+    overflow: hidden;
     border: 1px solid var(--pytxo-line, #1e2026);
-    border-radius: var(--pytxo-panel-radius, 6px);
+    border-radius: 10px;
     background: var(--pytxo-surface-panel, #0c0e13);
     box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.7);
     padding: 6px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
   }
-  .menu > button {
+  .workspace-search { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 8px 10px; border-bottom: 1px solid var(--pytxo-line); color: var(--pytxo-text-muted); }
+  .workspace-search input { min-width: 0; width: 100%; min-height: 32px; border: 0; background: transparent; color: var(--pytxo-text-strong); font: inherit; font-size: 13px; }
+  .workspace-search input:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; border-radius: 3px; }
+  .workspace-list { min-height: 0; overflow-y: auto; max-height: 280px; overscroll-behavior: contain; scroll-padding: 4px; }
+  .workspace-list > button {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -204,21 +260,26 @@
     background: transparent;
     color: var(--pytxo-text-body);
     padding: 8px 10px;
+    min-height: 44px;
     border-radius: var(--pytxo-control-radius, 4px);
     cursor: pointer;
     text-align: left;
+    width: 100%;
   }
-  .menu > button:hover,
-  .menu > button.active {
+  .workspace-list > button:hover,
+  .workspace-list > button.active {
     background: color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 12%, var(--pytxo-surface-hover));
   }
   .menu strong {
+    display: flex; align-items: center; gap: 8px; width: 100%;
     font-size: 13px;
     font-weight: 550;
   }
   .menu small {
     color: var(--pytxo-text-muted);
     font-size: 12px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
   .menu .empty {
     margin: 0;
@@ -227,6 +288,7 @@
     font-size: 13px;
   }
   .menu-actions {
+    flex: none;
     border-top: 1px solid var(--pytxo-line, #1e2026);
     margin-top: 4px;
     padding-top: 4px;
@@ -245,6 +307,7 @@
     border-radius: var(--pytxo-control-radius, 4px);
     cursor: pointer;
     font-size: 13px;
+    min-height: 40px;
   }
   .menu-actions button:hover {
     background: var(--pytxo-surface-hover);
@@ -254,6 +317,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    flex: none;
   }
   .age {
     color: var(--pytxo-text-muted);
@@ -264,7 +328,7 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    height: 26px;
+    min-height: 40px;
     padding: 0 8px;
     border: 1px dashed var(--state-unknown);
     border-radius: var(--pytxo-control-radius, 4px);
@@ -282,7 +346,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 26px;
+    min-height: 40px;
     padding: 0 8px;
     border: 1px solid var(--pytxo-line);
     border-radius: var(--pytxo-control-radius, 4px);
@@ -294,6 +358,7 @@
   }
   .inbox:hover {
     color: var(--pytxo-text-strong);
+    background: var(--pytxo-surface-hover);
   }
   .inbox:focus-visible {
     outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
@@ -337,6 +402,8 @@
   .mono {
     font-family: "IBM Plex Mono", ui-monospace, monospace;
   }
+  .menu strong :global(svg:last-child:not(:first-child)) { margin-left: auto; }
+  .menu button:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: -2px; }
   @media (max-width: 520px) {
     .app-bar {
       padding: 0 8px;

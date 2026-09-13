@@ -38,10 +38,12 @@
   </div>
 
   <dl class="facts">
+    <div><dt>Recorded launcher</dt><dd>{agent.launcher?.display_name ?? "Not identified"}</dd></div>
     <div><dt>Task</dt><dd>{agent.task_id}</dd></div>
     <div><dt>Wave</dt><dd>{agent.wave + 1}</dd></div>
     <div><dt>Exit code</dt><dd>{agent.exit_code ?? "Not reported"}</dd></div>
-    <div><dt>Project root</dt><dd>{agent.root_id ?? "Default project root"}</dd></div>
+    <div class="wide"><dt>Project root</dt><dd>{agent.root_id ?? "Default project root"}</dd></div>
+    <div class="wide"><dt>Recorded workspace</dt><dd>{agent.workspace_path ?? "Not recorded"}</dd></div>
     <div class="wide"><dt>Claimed paths</dt><dd>{task ? (task.paths.length ? task.paths.join(", ") : "None declared") : "Plan not loaded"}</dd></div>
     <div class="wide"><dt>Verify</dt><dd>{task ? (task.verify.length ? task.verify.join(" && ") : "No verify command") : "Plan not loaded"}</dd></div>
   </dl>
@@ -79,7 +81,7 @@
   .facts>div{padding:7px 9px;background:var(--pytxo-surface-input)}
   .facts .wide{grid-column:1/-1}
   dt{color:var(--pytxo-text-muted);font-size:11px}
-  dd{overflow:hidden;margin:3px 0 0;color:var(--pytxo-text-soft);font:11px "IBM Plex Mono",monospace;text-overflow:ellipsis;white-space:nowrap}
+  dd{min-width:0;margin:3px 0 0;color:var(--pytxo-text-soft);font:11px/1.5 "IBM Plex Mono",monospace;overflow-wrap:anywhere;white-space:normal}
 
   .receipt{padding:12px 14px 14px}
   .receipt p{margin:0 0 8px;color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.06em}

@@ -1,6 +1,12 @@
 <script lang="ts">
-  import { IconAlertTriangle, IconArrowRight, IconFolderPlus, IconLoader2, IconMicrophone, IconPlayerRecord } from "@tabler/icons-svelte";
-  import { onMount, untrack } from "svelte";
+  import IconAlertTriangle from "@tabler/icons-svelte/icons/alert-triangle";
+  import IconArrowRight from "@tabler/icons-svelte/icons/arrow-right";
+  import IconFolderPlus from "@tabler/icons-svelte/icons/folder-plus";
+  import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+  import IconMicrophone from "@tabler/icons-svelte/icons/microphone";
+  import IconPlayerRecord from "@tabler/icons-svelte/icons/player-record";
+  import { onDestroy, onMount, untrack } from "svelte";
+  import type { ComposerDraft } from "../../lib/composer-draft";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { AdeCliStatusDto, FlowDraftRecord, FlowPlan, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
 
@@ -13,22 +19,28 @@
     previewState = "draft",
     onAddWorkspace = null,
     onDispatched = null,
+    draft = null,
+    preferredAdeId = null,
+    onDraftChange = () => {},
   }: {
     backend: DesktopBackend;
-    domains: { domain_id: string; repo_root: string }[];
+    domains: { domain_id: string; repo_root: string; project_id?: string | null }[];
     runs?: RunDto[];
     preferredDomainId?: string | null;
     previewState?: "draft" | "recording" | "paused" | "transcribing" | "cancelled" | "failed" | "uncertain" | "planning" | "ready" | "blocked" | "dispatched";
     onAddWorkspace?: (() => void | Promise<void>) | null;
     onDispatched?: ((runId: string) => void) | null;
+    draft?: ComposerDraft | null;
+    preferredAdeId?: string | null;
+    onDraftChange?: (draft: ComposerDraft | null) => void;
   } = $props();
   let selectedDomainId = $state("");
-  let selectedAde = $state("");
+  let selectedAde = $state(untrack(() => preferredAdeId ?? draft?.adeId ?? ""));
   let adeClis = $state<AdeCliStatusDto[]>([]);
   let adeLoading = $state(true);
   let adeError = $state("");
-  let mission = $state("");
-  let missionSource = $state<"text" | "voice">("text");
+  let mission = $state(untrack(() => draft?.mission ?? ""));
+  let missionSource = $state<"text" | "voice">(untrack(() => draft?.source ?? "text"));
   let voiceState = $state<VoiceState>("idle");
   let recording = $derived(voiceState === "recording");
   let voiceSessionId = $state<string | null>(null);
@@ -40,13 +52,21 @@
   let voicePointerHadSession = false;
   let suppressVoiceClick = false;
   let voicePointerAction: Promise<void> | null = null;
-  let voiceAvailable = $state(true);
+  let keyboardVoiceHeld = false;
+  let voiceDisposed = false;
+  let voiceAvailable = $state(false);
+  let voiceCapture = $state<"both" | "hold" | "click">("both");
+  const voiceHint = $derived(voiceCapture === "hold" ? "Press and hold to record. Hold Space or Enter with the keyboard."
+    : voiceCapture === "click" ? "Click to start, then click again to finish recording." : "Click to record or press and hold");
   let plan = $state<FlowPlan | null>(null);
   let planInputKey = $state<string | null>(null);
   let planAttempted = $state(false);
   let planning = $state(false);
   let error = $state("");
   let dispatchedRun = $state("");
+  // Teardown can read a reactive value from before the navigation batch.
+  // Draft consumption is an instance lifecycle fact, not rendered state.
+  let draftConsumed = false;
   let dispatchedStatus = $state("");
   let dispatching = $state(false);
   let history = $state<FlowDraftRecord[]>([]);
@@ -54,7 +74,6 @@
   let missionInput: HTMLTextAreaElement | undefined = $state();
   let draftNotice = $state("");
   let domainSelectionInitialized = false;
-  let lastPreferredDomainId: string | null = null;
   let adeSelectionInitialized = false;
 
   const currentInputKey = $derived(
@@ -149,7 +168,12 @@
       const saved = typeof localStorage === "undefined" ? null : localStorage.getItem(ADE_CHOICE_KEY);
       const savedReady = saved ? adeClis.find((cli) => cli.id === saved && isAdeReady(cli)) : null;
       const currentReady = adeClis.find((cli) => cli.id === selectedAde && isAdeReady(cli));
-      selectedAde = adeSelectionInitialized ? currentReady?.id ?? "" : savedReady?.id ?? currentReady?.id ?? adeClis.find(isAdeReady)?.id ?? "";
+      // An explicit agent choice must never silently become a different agent.
+      const requested = preferredAdeId ?? draft?.adeId;
+      selectedAde = adeSelectionInitialized || requested
+        ? currentReady?.id ?? ""
+        : savedReady?.id ?? currentReady?.id ?? adeClis.find(isAdeReady)?.id ?? "";
+      if (requested && !selectedAde) adeError = "The chosen agent is no longer ready. Recheck it or choose another agent explicitly.";
       adeSelectionInitialized = true;
     } catch (cause) {
       adeClis = [];
@@ -169,10 +193,14 @@
     const preferred = preferredDomainId;
     const list = domains;
     const selected = untrack(() => selectedDomainId);
-    if (!domainSelectionInitialized || preferred !== lastPreferredDomainId) {
-      selectedDomainId = list.find((domain) => domain.domain_id === preferred)?.domain_id ?? list[0]?.domain_id ?? "";
+    if (!domainSelectionInitialized && list.length) {
+      const retained = untrack(() => draft);
+      // A mounted composer owns its scope; shell navigation must not retarget it.
+      selectedDomainId = retained
+        ? list.find((domain) => domain.domain_id === retained.domainId)?.domain_id ?? ""
+        : list.find((domain) => domain.domain_id === preferred)?.domain_id ?? list[0]?.domain_id ?? "";
       domainSelectionInitialized = true;
-      lastPreferredDomainId = preferred;
+      if (retained && !selectedDomainId) draftNotice = "The draft's workspace is no longer available. Select a workspace explicitly and build a fresh plan.";
     } else if (selected && !list.some((domain) => domain.domain_id === selected)) {
       selectedDomainId = "";
       draftNotice = "The selected workspace is no longer available. Select a workspace explicitly and build a fresh plan.";
@@ -187,6 +215,7 @@
     // A new preview request revokes the previous dispatch authority immediately.
     plan = null;
     planInputKey = null;
+    draftConsumed = false;
     dispatchedRun = "";
     dispatchedStatus = "";
     historySyncedRun = "";
@@ -218,6 +247,10 @@
       }
       dispatchedRun = await backend.dispatchFlow(plan.draft_id);
       dispatchedStatus = "running";
+      draftConsumed = true;
+      // Consume the draft while this component is still live. Destruction
+      // happens during parent navigation and must not own successful cleanup.
+      onDraftChange(null);
       onDispatched?.(dispatchedRun);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
@@ -231,6 +264,7 @@
     try {
       if (!voiceSessionId) {
         const session = await backend.startVoice(selectedVoiceDevice, "en");
+        if (voiceDisposed) { await backend.cancelVoice(session.session_id); return; }
         voiceSessionId = session.session_id;
         voiceState = session.state;
       } else {
@@ -249,6 +283,7 @@
   }
 
   function handleVoicePointerDown(event: PointerEvent) {
+    if (voiceCapture === "click") return;
     if (event.button !== 0 || voiceState === "transcribing") return;
     try { (event.currentTarget as HTMLButtonElement | null)?.setPointerCapture(event.pointerId); } catch { /* Synthetic and unsupported pointer sources fall back to the button handler. */ }
     voicePointerStartedAt = performance.now();
@@ -267,7 +302,7 @@
 
   async function handleVoicePointerUp() {
     if (!voicePointerStartedAt) return;
-    const held = performance.now() - voicePointerStartedAt >= 350;
+    const held = voiceCapture === "hold" || performance.now() - voicePointerStartedAt >= 350;
     if (held && !voicePointerHadSession) {
       suppressVoiceClick = true;
       await voicePointerAction;
@@ -276,7 +311,7 @@
   }
 
   function handleVoiceClick(event: MouseEvent) {
-    if (event.detail === 0) {
+    if (voiceCapture === "click" || event.detail === 0) {
       void toggleVoice();
     } else if (suppressVoiceClick) {
       suppressVoiceClick = false;
@@ -319,7 +354,7 @@
 
   const planSummary = $derived(
     plan
-      ? `${plan.tasks.length} task${plan.tasks.length === 1 ? "" : "s"} · ${plan.waves.length} wave${plan.waves.length === 1 ? "" : "s"} · ${[...new Set(plan.tasks.map((t) => t.agent))].join(" + ") || "no agent assigned"}`
+      ? `${plan.tasks.length} task${plan.tasks.length === 1 ? "" : "s"} · ${plan.waves.length} step${plan.waves.length === 1 ? "" : "s"} · ${[...new Set(plan.tasks.map((t) => t.agent))].join(" + ") || "no agent assigned"}`
       : "",
   );
 
@@ -333,6 +368,34 @@
     });
   }
 
+  function handleVoiceKeyDown(event: KeyboardEvent) {
+    if (voiceCapture !== "hold" || ![" ", "Enter"].includes(event.key)) return;
+    event.preventDefault();
+    if (!event.repeat && !voiceSessionId && !voicePointerAction) {
+      keyboardVoiceHeld = true;
+      voicePointerAction = toggleVoice();
+    }
+  }
+  async function handleVoiceKeyUp(event: KeyboardEvent) {
+    if (voiceCapture !== "hold" || ![" ", "Enter"].includes(event.key)) return;
+    event.preventDefault();
+    if (!keyboardVoiceHeld) return;
+    keyboardVoiceHeld = false;
+    const action = voicePointerAction;
+    await action;
+    voicePointerAction = null;
+    if (!voiceDisposed && voiceSessionId) await toggleVoice();
+  }
+
+  async function cancelKeyboardVoice() {
+    if (!keyboardVoiceHeld) return;
+    keyboardVoiceHeld = false;
+    const action = voicePointerAction;
+    await action;
+    voicePointerAction = null;
+    if (!voiceDisposed && voiceSessionId) await cancelVoice();
+  }
+
   function restoreDraft(draft: FlowDraftRecord) {
     if (planning || dispatching) return;
     mission = draft.mission_text;
@@ -342,6 +405,7 @@
     plan = null;
     planInputKey = null;
     planAttempted = false;
+    draftConsumed = false;
     dispatchedRun = "";
     dispatchedStatus = "";
     historySyncedRun = "";
@@ -382,6 +446,8 @@
   }
 
   onMount(() => {
+    const capture = localStorage.getItem("pytxo-desktop-voice-capture-v1");
+    if (capture === "hold" || capture === "click") voiceCapture = capture;
     let disposed = false;
     let unlisten: (() => void) | null = null;
     void backend.onVoiceProgress((event) => {
@@ -400,7 +466,8 @@
       selectedVoiceDevice = voiceDevices[0];
     }).catch(() => (voiceDevices = ["default"]));
     void backend.flowHistory().then((drafts) => (history = drafts));
-    mission = previewState === "draft" ? "" : "Make the desktop shell production ready";
+    if (previewState !== "draft") mission = "Make the desktop shell production ready";
+    else if (draft?.mission && !draftNotice) draftNotice = "Draft restored in this window. Build a fresh plan before running.";
     if (["recording", "paused", "transcribing", "cancelled", "failed"].includes(previewState)) voiceState = previewState as VoiceState;
     if (previewState === "recording" || previewState === "paused") voiceSessionId = "preview-session";
     if (previewState === "cancelled") error = "Voice capture cancelled. No audio was retained.";
@@ -421,28 +488,41 @@
     if (previewState === "planning") planning = true;
     return () => {
       disposed = true;
+      voiceDisposed = true;
       unlisten?.();
       if (voiceSessionId) void backend.cancelVoice(voiceSessionId);
     };
   });
+
+  onDestroy(() => {
+    if (draftConsumed) return;
+    onDraftChange(dispatchedRun || !mission.trim() ? null : {
+      mission,
+      source: missionSource,
+      domainId: selectedDomainId,
+      adeId: selectedAde,
+    });
+  });
 </script>
+
+<svelte:window onblur={() => void cancelKeyboardVoice()} />
 
 <section class="screen flow-screen">
   <header class="screen-heading">
     <div>
       <h1>New run</h1>
-      <p class="mission-intro">Give your agent a bounded job. Review the plan before it starts.</p>
+      <p class="mission-intro">Tell Pytxo what to build or fix. You’ll see the plan before any agent starts.</p>
     </div>
   </header>
 
   {#if !domains.length}
     <div class="panel">
       <div class="empty flow-empty">
-        <strong>Add a workspace</strong>
+        <strong>Add a project</strong>
         <p>Select a repository folder, then choose the agent CLI you already use.</p>
         {#if onAddWorkspace}
           <button class="primary" onclick={() => void onAddWorkspace()}>
-            <IconFolderPlus size={16} /> Add workspace
+            <IconFolderPlus size={16} /> Add project
           </button>
         {/if}
       </div>
@@ -455,8 +535,8 @@
           <h2>Describe the job</h2>
         </div>
       </div>
-      <p id="mission-guidance" class="mission-guidance">Name existing files or folders, the behavior you want, and what must stay unchanged. The planner uses those paths to define scope.</p>
-      <textarea bind:this={missionInput} bind:value={mission} aria-label="Mission outcome" aria-describedby="mission-guidance" placeholder="Fix the parser in src/parser.rs so empty input returns an error. Add a regression test. Keep the public API unchanged."></textarea>
+      <p id="mission-guidance" class="mission-guidance">Describe the change you want. Include a file or folder if you know it, and anything that must stay unchanged.</p>
+      <textarea bind:this={missionInput} bind:value={mission} aria-label="What should Pytxo do?" aria-describedby="mission-guidance" placeholder="Fix the parser in src/parser.rs so empty input returns an error. Add a regression test. Keep the public API unchanged."></textarea>
       <div class="flow-templates">
         <span>Start with</span>
         <button type="button" onclick={() => useTemplate("Fix [existing file path] so [expected behavior]. Reproduce the failure, make the smallest repair, and add a regression test in [test file path]. Preserve unrelated changes.")}>Fix a failure</button>
@@ -483,7 +563,7 @@
         </div>
       {/if}
       <div class="composer-actions">
-        <div class="voice-controls">
+        {#if voiceAvailable}<div class="voice-controls">
           <select class="voice-device" bind:value={selectedVoiceDevice} aria-label="Voice input device" disabled={!!voiceSessionId}>
             {#each voiceDevices as device}<option value={device}>{device}</option>{/each}
           </select>
@@ -495,29 +575,30 @@
             onpointerdown={handleVoicePointerDown}
             onpointerup={handleVoicePointerUp}
             onpointercancel={handleVoicePointerCancel}
+            onkeydown={handleVoiceKeyDown}
+            onkeyup={handleVoiceKeyUp}
+            onblur={() => void cancelKeyboardVoice()}
             aria-pressed={recording}
-            disabled={!voiceAvailable || voiceState === "transcribing"}
-            aria-describedby={!voiceAvailable ? "voice-disabled-reason" : undefined}
-            title={voiceAvailable ? "Click to record or press and hold" : "Enable the voice-whisper build feature"}
+            disabled={voiceState === "transcribing"}
+            title={voiceHint}
           >
             {#if recording}<IconPlayerRecord size={17} /> Finish recording
             {:else if voiceState === "paused"}<IconMicrophone size={17} /> Finish paused recording
             {:else if voiceState === "transcribing"}<IconLoader2 size={17} class="spin" /> Transcribing…
-            {:else}<IconMicrophone size={17} /> {voiceAvailable ? "Start Voice" : "Voice unavailable"}{/if}
+            {:else}<IconMicrophone size={17} /> {voiceCapture === "hold" ? "Hold to record" : "Start Voice"}{/if}
           </button>
           {#if voiceSessionId && (voiceState === "recording" || voiceState === "paused")}
             <button class="quiet" onclick={pauseOrResumeVoice}>{voiceState === "paused" ? "Resume" : "Pause"}</button>
           {/if}
           {#if voiceSessionId}<button class="quiet" onclick={cancelVoice}>Cancel</button>{/if}
-          {#if !voiceAvailable}<small id="voice-disabled-reason" class="action-reason">Voice capture is unavailable until the local voice feature is enabled.</small>{/if}
-        </div>
+        </div>{/if}
         <div class="dispatch-controls">
           <div class="domain">
-            <span>Workspace &amp; agent CLI</span>
-            <select bind:value={selectedDomainId} aria-label="Workspace">
-              {#if !selectedDomainId}<option value="" disabled>Select a workspace</option>{/if}
+            <span>Project &amp; coding agent</span>
+            <select bind:value={selectedDomainId} aria-label="Project">
+              {#if !selectedDomainId}<option value="" disabled>Select a project</option>{/if}
               {#each domains as domain}
-                <option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}</option>
+                <option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}{domain.project_id ? " · primary folder" : ""}</option>
               {/each}
             </select>
             <select value={selectedAde} onchange={(event) => chooseAde(event.currentTarget.value)} aria-label="Agent CLI" disabled={adeLoading || !adeClis.length}>
@@ -552,7 +633,7 @@
         {/if}
         <button class="quiet" onclick={loadAdeClis} disabled={adeLoading || planning || dispatching}>{adeLoading ? "Checking…" : "Check again"}</button>
         </div>
-        <p>One ready CLI is enough. More instances are used only when the reviewed plan calls for them.</p>
+        <p>One coding agent is enough. Pytxo can split the work between several agents when the plan needs it.</p>
         {#if unavailableAdes.length}
           <details><summary>{unavailableAdes.length} other CLI{unavailableAdes.length === 1 ? "" : "s"} unavailable</summary><ul>{#each unavailableAdes as cli}<li>{cli.display_name} · {adeUnavailableReason(cli)}</li>{/each}</ul></details>
         {/if}
@@ -573,7 +654,7 @@
         </div>
         {#if plan}
           <p class="plan-summary">{planSummary}</p>
-          <p class="plan-explainer">Stages run in order. Path ownership and dependencies below define each task; the configured concurrency limits how many can run at once.</p>
+          <p class="plan-explainer">This is the work your agents will do. Review the steps before starting.</p>
           {#if !planMatchesInputs}
             <div class="plan-stale" role="status">
               <IconAlertTriangle size={15} />
@@ -582,7 +663,7 @@
           {/if}
           {#each plan.waves as wave, waveIndex}
             <div class="plan-wave">
-              <span>Stage {waveIndex + 1}</span>
+              <span>Step {waveIndex + 1}</span>
               {#each wave as taskId, taskIndex}
                 {@const task = plan.tasks.find((item) => item.id === taskId)}
                 {#if task}
@@ -599,7 +680,7 @@
             </div>
           {/each}
           <section class="plan-contract" aria-label="Plan safety contract">
-            <h3>Safety contract</h3>
+            <details class="plan-technical"><summary>Permissions and technical details</summary>
             <dl>
               <div><dt>Permission</dt><dd>{plan.permission_profile || "Not reported"}</dd></div>
               <div><dt>Isolation</dt><dd>{plan.isolation_mode || "Not reported"} · {plan.isolation_backend_intent || "backend not reported"}</dd></div>
@@ -613,10 +694,11 @@
                 <p>These checks run in each task's workspace. Passing task checks does not prove the combined candidate passes.</p>
               {:else}<p class="unverified-copy">No verification commands were reported. Add a verify command to each task in pytxo.toml, then build the plan again. This plan cannot run without checks.</p>{/if}
             </div>
+            </details>
             <div class="contract-list" data-tone={plan.warnings.length ? "warning" : "quiet"}>
               <strong>Warnings</strong>
               {#if plan.warnings.length}
-                <ul>{#each plan.warnings as warning}<li><span>{warning.code}</span>{warning.message}</li>{/each}</ul>
+                <ul>{#each plan.warnings as warning}<li>{warning.message}<details><summary>Technical code</summary><code>{warning.code}</code></details></li>{/each}</ul>
               {:else}<p>No warnings reported.</p>{/if}
             </div>
             <div class="contract-list" data-tone={plan.blocked_reasons.length ? "blocked" : "quiet"}>
@@ -628,7 +710,7 @@
           </section>
           <div class="plan-footer">
             <div><span>Estimate</span><strong>{plan.estimated_cost_usd !== null ? `$${plan.estimated_cost_usd.toFixed(2)}` : "Not estimated"}</strong></div>
-            <div><span>Path locks</span><strong>{plan.blocked_reasons.length ? `${plan.blocked_reasons.length} collisions` : "Clear"}</strong></div>
+            <div><span>Readiness</span><strong>{plan.blocked_reasons.length ? `${plan.blocked_reasons.length} ${plan.blocked_reasons.length === 1 ? "blocker" : "blockers"}` : "Ready"}</strong></div>
             <button class="quiet" disabled={planning} onclick={buildPlan}>Build plan</button>
             <div class="run-action">
               <button class="primary" disabled={!canDispatchPlan} aria-describedby={runDisabledReason ? "run-disabled-reason" : undefined} onclick={dispatch}>
@@ -661,9 +743,9 @@
       </div>
       {#each history.slice(0, 6) as draft}
         <div>
-          <button aria-label={`Use as new mission: ${draft.title}`} disabled={planning || dispatching} onclick={() => restoreDraft(draft)}>
+          <button aria-label={`Use as new request: ${draft.title}`} disabled={planning || dispatching} onclick={() => restoreDraft(draft)}>
             <strong>{draft.title}</strong>
-            <small>{draft.domain_id ?? "Workspace not recorded"} · {draft.status} · Use as new mission</small>
+            <small>{draft.domain_id ?? "Workspace not recorded"} · {draft.status} · Use as new request</small>
           </button>
           <button aria-label={`Delete ${draft.title}`} onclick={() => deleteDraft(draft.id)}>×</button>
         </div>
@@ -672,3 +754,8 @@
   {/if}
   {/if}
 </section>
+
+<style>
+  .plan-technical > summary { padding: 12px; color: var(--pytxo-text-soft); font-size: 12px; cursor: pointer; }
+  .plan-technical > summary:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: -2px; }
+</style>

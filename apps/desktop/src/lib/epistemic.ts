@@ -32,7 +32,7 @@ export function agentState(agent: AgentDto): StateDescriptor {
 
   switch (agent.status) {
     case "running":
-      return { tone: "active", label: "Running", detail: "Process active, no result reported yet" };
+      return { tone: "active", label: "Awaiting result", detail: "Task started; its final result has not been recorded yet" };
     case "queued":
     case "pending":
       return { tone: "queued", label: "Queued", detail: "Not started yet" };
@@ -181,6 +181,8 @@ export function runState(run: RunDto): StateDescriptor {
       return { tone: "verified", label: "Completed", detail: "All agents reported a result" };
     case "failed":
       return { tone: "refuted", label: "Failed", detail: "At least one agent or the review step failed" };
+    case "failed_startup":
+      return { tone: "refuted", label: "Could not start", detail: "The run failed before agent execution. Build a fresh plan to check workspace prerequisites." };
     case "cancelled":
     case "stopped":
       return { tone: "unknown", label: "Stopped", detail: "Stopped before every agent reported" };

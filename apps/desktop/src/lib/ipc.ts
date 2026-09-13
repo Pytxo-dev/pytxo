@@ -160,6 +160,8 @@ export const ipc = {
     invoke<AgentDto[]>("list_agents", { runId, domainId }).then(unwrap),
   tailEvents: (agentId: string, tail: number, domainId: string | null) =>
     invoke<EventDto[]>("tail_events", { agentId, tail, domainId }).then(unwrap),
+  readAgentEvents: (runId: string, agentId: string, domainId: string, after: number, limit: number) =>
+    invoke<EventDto[]>("read_agent_events", { runId, agentId, domainId, after, limit }).then(unwrap),
   pollLogLines: (agentId: string, limit: number, domainId: string | null) =>
     invoke<EventDto[]>("poll_log_lines", { agentId, limit, domainId }).then(unwrap),
   dryRun: (agents: number, domainId: string | null) =>
@@ -178,8 +180,9 @@ export const ipc = {
     invoke<HitlDto[]>("list_hitl_all").then(unwrap).catch(() => [] as HitlDto[]),
   projectRoots: (projectId: string) =>
     invoke<import("./types").ProjectRootDto[]>("project_roots_cmd", { projectId })
-      .then(unwrap)
-      .catch(() => []),
+      .then(unwrap),
+  projectCreate: (domainId: string, path: string) =>
+    invoke<{ id: string; manifest_path: string }>("project_create_cmd", { domainId, path }).then(unwrap),
   projectAddRoot: (projectId: string, path: string, readOnly: boolean) =>
     invoke<import("./types").ProjectRootDto[]>("project_add_root_cmd", {
       projectId,

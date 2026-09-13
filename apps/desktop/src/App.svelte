@@ -38,8 +38,11 @@
     (window.location.hash.includes("flow-standalone") ||
       window.location.hash === "#/flow-standalone");
 
+  // Resolve persisted/system appearance before children read it. A default
+  // theme effect must never overwrite the user's choice during startup.
+  initThemeChrome();
   let showSetup = $state(!isSetupComplete());
-  let deckTheme = $state<DeckTheme>("void");
+  let deckTheme = $state<DeckTheme>(loadTheme());
   let showHome = $state(false);
 
   let tabs = $state<WorkspaceTab[]>([]);
@@ -102,6 +105,7 @@
   );
 
   $effect(() => {
+    if (!useLegacyShell) return;
     applyDeckTheme(deckTheme);
     applyTerminalTheme();
   });
@@ -508,10 +512,6 @@
   }
 
   onMount(async () => {
-    deckTheme = loadTheme();
-    initThemeChrome();
-    applyDeckTheme(deckTheme);
-
     authUnlisten = await onAuthChanged(() => {
       authErrorMessage = null;
       loadEntitlements();

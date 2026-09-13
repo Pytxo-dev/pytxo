@@ -196,7 +196,17 @@ struct ProbeResult {
 }
 
 fn run_auth_probe(executable: &str, args: &[&str]) -> Option<ProbeResult> {
-    let mut command = host_command(executable, args);
+    run_probe_command(host_command(executable, args))
+}
+
+fn run_probe_command(mut command: Command) -> Option<ProbeResult> {
+    // Readiness checks run in the background; only an explicit sign-in opens a terminal.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
     let mut child = command
         .current_dir(host_auth_dir())
         .stdin(Stdio::null())
@@ -459,6 +469,61 @@ pub fn entitlement_status(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn background_probe_has_no_console_and_preserves_output_and_status() {
+        let executable = std::env::current_exe().unwrap();
+        let inherited_path = std::env::var_os("PATH").unwrap_or_default();
+        let probe_path = std::env::join_paths(
+            std::iter::once(executable.parent().unwrap().to_path_buf())
+                .chain(std::env::split_paths(&inherited_path)),
+        )
+        .unwrap();
+        for expected_success in [true, false] {
+            let mut command = host_command(
+                executable.file_name().unwrap().to_str().unwrap(),
+                &[
+                    "--exact",
+                    "ipc_meta::tests::background_probe_child",
+                    "--nocapture",
+                ],
+            );
+            command.env("PATH", &probe_path);
+            command.env(
+                "PYTXO_PROBE_TEST_CHILD",
+                if expected_success {
+                    "success"
+                } else {
+                    "failure"
+                },
+            );
+            let probe = run_probe_command(command).expect("controlled child probe must finish");
+            assert_eq!(probe.success, expected_success, "{}", probe.output);
+            assert!(probe.output.contains("probe-console=0"), "{}", probe.output);
+            assert!(probe.output.contains("probe-stdout"), "{}", probe.output);
+            assert!(probe.output.contains("probe-stderr"), "{}", probe.output);
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn background_probe_child() {
+        let Ok(mode) = std::env::var("PYTXO_PROBE_TEST_CHILD") else {
+            return;
+        };
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn GetConsoleWindow() -> isize;
+        }
+        // Query only: the test neither opens nor manipulates a console window.
+        println!("probe-console={}", unsafe { GetConsoleWindow() });
+        println!("probe-stdout");
+        eprintln!("probe-stderr");
+        if mode == "failure" {
+            std::process::exit(7);
+        }
+    }
 
     #[test]
     fn ipc_version_matches_crate() {

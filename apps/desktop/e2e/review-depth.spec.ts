@@ -4,6 +4,7 @@ import { completeOnboarding, rootOverflow } from "./helpers";
 const REVIEW_STATE_KEY = "pytxo-preview-review-state-v1";
 const APPLY_OUTCOME_KEY = "pytxo-preview-apply-outcome-v1";
 const AGENT_VERIFICATION_KEY = "pytxo-preview-agent-verification-v1";
+const CANDIDATE_CHECK_KEY = "pytxo-preview-candidate-check-v1";
 
 /**
  * Review is reached from History by selecting a run and opening its package.
@@ -14,18 +15,44 @@ async function openHistory(
   page: import("@playwright/test").Page,
   state: string = "ready",
 ) {
-  await completeOnboarding(page, { [REVIEW_STATE_KEY]: state });
+  await completeOnboarding(page, {
+    [REVIEW_STATE_KEY]: state,
+    [CANDIDATE_CHECK_KEY]: "passed",
+  });
   await page.goto("/#/history");
   await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
 }
 
 async function openReview(page: import("@playwright/test").Page, runId: string) {
   await page.locator(".history .row", { hasText: runId }).first().click();
-  await page.getByRole("button", { name: /Review package/ }).click();
+  await page.getByRole("button", { name: /Review changes/ }).click();
   await expect(page.getByRole("heading", { name: "Run Review" })).toBeVisible();
 }
 
 test.describe("Review depth", () => {
+  test("opening a pinned run replaces the current review package and evidence", async ({ page }, testInfo) => {
+    await completeOnboarding(page, { [REVIEW_STATE_KEY]: "ready" });
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.goto("/#/work");
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+    await page.getByRole("button", { name: "Pin view", exact: true }).click();
+    const dock = page.getByRole("region", { name: "Files inspection", exact: true });
+    await expect(dock.getByRole("button", { name: "Open prepared review" })).toBeVisible();
+
+    await page.getByRole("link", { name: "History", exact: true }).click();
+    await openReview(page, "run-71ad");
+    await expect(page.locator(".review-identity")).toContainText("run-71ad");
+    await expect(page.locator(".package-identity")).toContainText("pkg-71ad-immutable");
+    await expect(page.locator(".plan-panel .task-list strong")).toHaveText(["signal-core", "contract-tests"]);
+
+    await dock.getByRole("button", { name: "Open prepared review" }).click();
+    await expect(page.locator(".review-identity")).toContainText("run-8f2c");
+    await expect(page.locator(".package-identity")).toContainText("pkg-8f2c-immutable");
+    await expect(page.locator(".package-identity")).not.toContainText("pkg-71ad-immutable");
+    await expect(page.locator(".plan-panel .task-list strong")).toHaveText(["plan", "ui", "tests"]);
+    await page.screenshot({ path: testInfo.outputPath("switched-review.png") });
+  });
+
   test("retired Runs and Run Review deep links resolve to History and Review", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/runs");
@@ -139,10 +166,10 @@ test.describe("Review depth", () => {
   test("a dispatched run lands on Work and its package is reached from History", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/flow");
-    await page.getByLabel("Mission outcome").fill("Exercise the dispatch path");
+    await page.getByLabel("What should Pytxo do?").fill("Exercise the dispatch path");
     await page.getByRole("button", { name: "Build plan", exact: true }).click();
     await page.getByRole("button", { name: "Run", exact: true }).click();
-    await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Work", exact: true })).toBeVisible();
     await expect(page.getByRole("tablist", { name: "Run panes" })).toHaveCount(0);
 
     await page.getByRole("link", { name: "History" }).click();
@@ -212,6 +239,7 @@ test.describe("Review depth", () => {
     await completeOnboarding(page, {
       [REVIEW_STATE_KEY]: "ready",
       [APPLY_OUTCOME_KEY]: "stale",
+      [CANDIDATE_CHECK_KEY]: "passed",
     });
     await page.goto("/#/history");
     await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
@@ -240,7 +268,7 @@ test.describe("Review depth", () => {
   test("history and review actions are keyboard operable", async ({ page }) => {
     await openHistory(page);
     await page.locator(".history .row", { hasText: "run-71ad" }).first().click();
-    const review = page.getByRole("button", { name: /Review package/ });
+    const review = page.getByRole("button", { name: /Review changes/ });
     await review.focus();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("heading", { name: "Run Review" })).toBeVisible();
@@ -251,6 +279,7 @@ test.describe("Review depth", () => {
     await completeOnboarding(page, {
       [REVIEW_STATE_KEY]: "ready",
       [AGENT_VERIFICATION_KEY]: "missing",
+      [CANDIDATE_CHECK_KEY]: "passed",
     });
     await page.goto("/#/history");
     await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
@@ -266,6 +295,7 @@ test.describe("Review depth", () => {
     await completeOnboarding(page, {
       [REVIEW_STATE_KEY]: "ready",
       [AGENT_VERIFICATION_KEY]: "failed",
+      [CANDIDATE_CHECK_KEY]: "passed",
     });
     await page.goto("/#/history");
     await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();

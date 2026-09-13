@@ -405,6 +405,15 @@ pub struct AgentDto {
     pub status: String,
     pub exit_code: Option<i32>,
     pub root_id: Option<String>,
+    /// Registry identity from the exact saved launch command, not a live session probe.
+    pub launcher: Option<AgentLauncherDto>,
+    pub workspace_path: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct AgentLauncherDto {
+    pub id: &'static str,
+    pub display_name: &'static str,
 }
 
 #[derive(Serialize)]
@@ -761,6 +770,46 @@ pub fn poll_log_lines(
     Ok(events.into_iter().map(event_to_dto).collect())
 }
 
+/// Read-only observer API. The caller owns its cursor; another view cannot
+/// consume it. Require exact run/agent membership inside the requested domain.
+#[tauri::command]
+pub fn read_agent_events(
+    state: State<'_, AppState>,
+    run_id: String,
+    agent_id: String,
+    domain_id: String,
+    after: i64,
+    limit: usize,
+) -> IpcResult<Vec<EventDto>> {
+    let domain = resolve_domain(&state, Some(domain_id))?;
+    let cfg = load_cfg_for_domain(&domain, &state)?;
+    let store = open_store_for_domain(&cfg, &domain)?;
+    read_scoped_agent_events(&store, &run_id, &agent_id, after, limit)
+}
+
+fn read_scoped_agent_events(
+    store: &pytxo_store::PytxoStore,
+    run_id: &str,
+    agent_id: &str,
+    after: i64,
+    limit: usize,
+) -> IpcResult<Vec<EventDto>> {
+    let agent = store
+        .get_agent(agent_id)
+        .map_err(map_store_err)?
+        .ok_or_else(|| PytxoIpcError::new("missing_agent", "No recorded agent in this domain"))?;
+    if agent.run_id != run_id {
+        return Err(PytxoIpcError::new(
+            "scope_mismatch",
+            "Agent does not belong to the requested run",
+        ));
+    }
+    store
+        .tail_events_after(agent_id, after.max(0), limit.clamp(1, 200))
+        .map_err(map_store_err)
+        .map(|events| events.into_iter().map(event_to_dto).collect())
+}
+
 #[tauri::command]
 pub fn dry_run(
     state: State<'_, AppState>,
@@ -1013,7 +1062,7 @@ pub fn git_diff(
         .worktree_path
         .filter(|p| !p.is_empty())
         .ok_or_else(|| PytxoIpcError::new("git", "no worktree path for agent"))?;
-    let output = std::process::Command::new("git")
+    let output = pytxo_core::background_command("git")
         .args(["-C", &worktree, "diff", "--no-color", "HEAD"])
         .output()
         .map_err(map_io_err)?;
@@ -1235,18 +1284,66 @@ pub fn load_desktop_snapshot(
 }
 
 #[tauri::command]
+pub fn project_create_cmd(
+    state: State<'_, AppState>,
+    domain_id: String,
+    path: String,
+) -> IpcResult<ProjectDto> {
+    // Metadata grouping only: preserve the primary execution domain and all trust profiles.
+    let catalog = pytxo_store::Catalog::open_default().map_err(map_store_err)?;
+    if orch_list_catalog_domains()
+        .map_err(map_orch_err)?
+        .iter()
+        .any(|entry| entry.domain_id == domain_id && entry.project_id.is_some())
+    {
+        return Err(PytxoIpcError::new("project_exists", "This workspace already has a project. Reopen workspace settings to refresh its folders."));
+    }
+    let manifest = crate::workspace_project::new_manifest(
+        format!("workspace-{}", uuid::Uuid::new_v4()),
+        Path::new(&domain_id),
+        Path::new(&path),
+    )?;
+    let manifest_path = pytxo_core::ProjectManifest::user_manifest_path(&manifest.project.id)
+        .ok_or_else(|| {
+            PytxoIpcError::new("project_home", "Cannot resolve the project storage folder.")
+        })?;
+    let cfg = load_cfg_for_domain(&domain_id, &state)?;
+    let primary = &manifest.roots[0].path;
+    let domain = default_hypervisor()
+        .ensure_domain(primary, &cfg)
+        .map_err(map_orch_err)?;
+    crate::workspace_project::write_new(&manifest_path, &manifest)?;
+    catalog
+        .upsert_domain(
+            domain.id.as_str(),
+            &primary.to_string_lossy(),
+            &cfg.db_path_at(primary).to_string_lossy(),
+            Some(&manifest.project.id),
+        )
+        .map_err(map_store_err)?;
+    Ok(ProjectDto {
+        id: manifest.project.id,
+        manifest_path: manifest_path.to_string_lossy().into_owned(),
+    })
+}
+
+#[tauri::command]
 pub fn project_add_root_cmd(
     project_id: String,
     path: String,
     read_only: bool,
 ) -> IpcResult<Vec<ProjectRootDto>> {
-    orch_project_add_root(
-        None,
-        Some(project_id.clone()),
-        PathBuf::from(path),
-        read_only,
-    )
-    .map_err(map_orch_err)?;
+    let existing = orch_project_roots(None, Some(project_id.clone())).map_err(map_orch_err)?;
+    let paths: Vec<PathBuf> = existing.iter().map(|root| PathBuf::from(&root.1)).collect();
+    let path = crate::workspace_project::checked_folder(Path::new(&path), &paths)?;
+    crate::workspace_project::check_label(
+        &path,
+        &existing
+            .iter()
+            .map(|root| root.0.clone())
+            .collect::<Vec<_>>(),
+    )?;
+    orch_project_add_root(None, Some(project_id.clone()), path, read_only).map_err(map_orch_err)?;
     Ok(orch_project_roots(None, Some(project_id))
         .map_err(map_orch_err)?
         .into_iter()
@@ -1485,6 +1582,15 @@ fn run_isolation_status(cfg: &PytxoConfig, enforcement_json: Option<&str>) -> (S
 }
 
 fn agent_to_dto(a: AgentRecord, domain_id: &str) -> AgentDto {
+    // Do not serialize argv: custom commands may contain prompts or credentials.
+    // Aliases, wrappers and modified commands remain unknown rather than guessed.
+    let launcher = pytxo_core::all_ade_clis()
+        .iter()
+        .find(|spec| spec.default_cmd == a.cmd.trim())
+        .map(|spec| AgentLauncherDto {
+            id: spec.id,
+            display_name: spec.display_name,
+        });
     AgentDto {
         id: a.id,
         domain_id: domain_id.to_string(),
@@ -1494,6 +1600,8 @@ fn agent_to_dto(a: AgentRecord, domain_id: &str) -> AgentDto {
         status: a.status,
         exit_code: a.exit_code,
         root_id: a.root_id,
+        launcher,
+        workspace_path: a.worktree_path,
     }
 }
 
@@ -1510,6 +1618,60 @@ fn event_to_dto(e: EventRecord) -> EventDto {
 #[cfg(test)]
 mod mission_control_contract_tests {
     use super::*;
+    #[test]
+    fn agent_identity_uses_saved_launcher_without_exposing_arguments() {
+        let record = AgentRecord {
+            id: "run:worker".into(),
+            run_id: "run".into(),
+            task_id: "task".into(),
+            wave: 0,
+            worktree_path: Some("C:/isolated/worker".into()),
+            cmd: "codex exec --sandbox workspace-write".into(),
+            exit_code: None,
+            status: "running".into(),
+            root_id: Some("api".into()),
+        };
+        let dto = agent_to_dto(record.clone(), "domain-a");
+        assert_eq!(dto.launcher.unwrap().id, "codex");
+        assert_eq!(dto.workspace_path.as_deref(), Some("C:/isolated/worker"));
+        assert_eq!(dto.domain_id, "domain-a");
+        for command in [
+            "",
+            "echo codex",
+            "codex exec --token PRIVATE_SENTINEL",
+            "wrapper codex exec --sandbox workspace-write",
+        ] {
+            let mut custom = record.clone();
+            custom.cmd = command.into();
+            let dto = agent_to_dto(custom, "domain-b");
+            assert!(dto.launcher.is_none());
+            let serialized = serde_json::to_string(&dto).unwrap();
+            assert!(!serialized.contains("PRIVATE_SENTINEL"));
+            assert!(!serialized.contains("\"cmd\""));
+        }
+    }
+    #[test]
+    fn dock_observers_have_independent_cursors_and_enforce_run_membership() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = pytxo_store::PytxoStore::open(&dir.path().join("dock.db")).unwrap();
+        store.insert_run("run-a", "/repo").unwrap();
+        store.insert_run("run-b", "/repo").unwrap();
+        store
+            .insert_agent("agent-a", "run-a", "task", 0, None, "echo hi")
+            .unwrap();
+        store.append_event("agent-a", "stdout", "first").unwrap();
+        store.append_event("agent-a", "stdout", "second").unwrap();
+        let first = read_scoped_agent_events(&store, "run-a", "agent-a", 0, 1).unwrap();
+        let other = read_scoped_agent_events(&store, "run-a", "agent-a", 0, 200).unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(other.len(), 2);
+        assert_eq!(first[0].id, other[0].id);
+        let next = read_scoped_agent_events(&store, "run-a", "agent-a", first[0].id, 200).unwrap();
+        assert_eq!(next.len(), 1);
+        assert_eq!(next[0].payload, "second");
+        assert!(read_scoped_agent_events(&store, "run-b", "agent-a", 0, 200).is_err());
+        assert!(read_scoped_agent_events(&store, "run-a", "missing", 0, 200).is_err());
+    }
     use pytxo_core::{
         PreparedRunFile, PreparedRunFileKind, PreparedRunManifest, PreparedRunSummary,
         RunApplyError,

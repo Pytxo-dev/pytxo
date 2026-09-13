@@ -6,16 +6,16 @@
   import SetupStepWorkspace from "./SetupStepWorkspace.svelte";
   import SetupStepDisplay from "./SetupStepDisplay.svelte";
   import SetupStepDone from "./SetupStepDone.svelte";
-  import { Button } from "$lib/components/ui/button";
+  import { setContext } from "svelte";
 
   type Step = "welcome" | "cli" | "agents" | "workspace" | "display" | "done";
 
-  const STEPS: Step[] = ["welcome", "cli", "agents", "workspace", "display", "done"];
+  const STEPS: Step[] = ["welcome", "agents", "workspace", "done"];
   const STEP_LABELS: Record<Step, string> = {
     welcome: "Welcome",
     cli: "CLI",
-    agents: "Agents",
-    workspace: "Workspace",
+    agents: "Agent",
+    workspace: "Project",
     display: "Display",
     done: "Ready",
   };
@@ -37,6 +37,8 @@
   }
 
   function back() {
+    if (step === "cli") { step = "agents"; return; }
+    if (step === "display") { step = "done"; return; }
     const i = STEPS.indexOf(step);
     if (i > 0) step = STEPS[i - 1]!;
   }
@@ -52,39 +54,34 @@
     }
   }
 
-  const stepIndex = $derived(STEPS.indexOf(step));
+  setContext("setup-navigation", { get canGoBack() { return step !== "welcome"; }, back });
+
+  const activeStage = $derived(step === "cli" ? "agents" : step === "display" ? "done" : step);
 </script>
 
-<SetupShell>
-  <header class="setup__header">
-    <img src="/logo-mark.png" alt="" width="28" height="28" class="setup__logo" />
-    <span class="setup__brand">Pytxo Desktop</span>
+<SetupShell height={step === "agents" || step === "workspace" ? 640 : step === "welcome" ? 570 : 500}>
+  <aside class="setup__navigation">
     <nav class="setup__progress" aria-label="Setup progress">
       {#each STEPS as s, i}
-        <span
-          class="setup__step"
-          class:setup__step--active={step === s}
-          class:setup__step--done={stepIndex > i}
-          title={STEP_LABELS[s]}
-        >
-          <span class="setup__segment"></span>
-          <span class="setup__label">{STEP_LABELS[s]}</span>
+        <span class="setup__step" class:active={activeStage === s} aria-current={activeStage === s ? "step" : undefined}>
+          <span class="setup__number">{i + 1}</span>{STEP_LABELS[s]}
         </span>
       {/each}
     </nav>
-  </header>
+  </aside>
 
   <div class="setup__body">
     {#if step === "welcome"}
-      <SetupStepWelcome onContinue={() => next("cli")} />
+      <SetupStepWelcome onContinue={() => next("agents")} />
     {:else if step === "cli"}
       <SetupStepCli onContinue={() => next("agents")} onSkip={() => next("agents")} />
     {:else if step === "agents"}
-      <SetupStepAgents onContinue={() => next("workspace")} onSkip={() => next("workspace")} />
+      <SetupStepAgents onRuntimeTools={() => next("cli")} onContinue={() => next("workspace")} onSkip={() => next("workspace")} />
     {:else if step === "workspace"}
       <SetupStepWorkspace
-        onContinue={() => next("display")}
-        onSkip={() => next("display")}
+        bind:selected={workspacePath}
+        onContinue={() => next("done")}
+        onSkip={() => next("done")}
         onWorkspaceSelected={handleWorkspaceSelected}
         error={workspaceError}
       />
@@ -92,81 +89,26 @@
       <SetupStepDisplay onContinue={() => next("done")} />
     {:else}
       <SetupStepDone
+        onDisplay={() => next("display")}
         workspacePath={workspacePath}
         onFinish={() => onComplete(workspacePath !== null)}
       />
     {/if}
   </div>
 
-  {#if step !== "welcome"}
-    <footer class="setup__footer">
-      <Button variant="ghost" size="sm" onclick={back}>Back</Button>
-    </footer>
-  {/if}
 </SetupShell>
 
 <style>
-  .setup__header {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    margin-bottom: 1.75rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
-  }
-  .setup__logo {
-    border-radius: var(--panel-radius);
-  }
-  .setup__brand {
-    font-weight: 600;
-    font-size: 0.95rem;
-    flex: 1;
-    color: var(--foreground);
-    min-width: 6rem;
-  }
-  .setup__progress {
-    display: flex;
-    flex-wrap: wrap;
-    max-width: 100%;
-    gap: 0.5rem;
-    align-items: flex-end;
-  }
-  .setup__step {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    align-items: center;
-    min-width: 3.25rem;
-  }
-  .setup__segment {
-    width: 100%;
-    height: 3px;
-    border-radius: 2px;
-    background: var(--border);
-  }
-  .setup__step--active .setup__segment {
-    background: var(--primary);
-  }
-  .setup__step--done .setup__segment {
-    background: color-mix(in oklab, var(--primary) 55%, var(--border));
-  }
-  .setup__label {
-    font-size: 0.6875rem;
-    color: var(--muted-foreground);
-    letter-spacing: 0.02em;
-  }
-  .setup__step--active .setup__label {
-    color: var(--foreground);
-  }
-  .setup__body {
-    min-height: 280px;
-    display: flex;
-    align-items: center;
-  }
-  .setup__footer {
-    margin-top: 1rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border);
+  .setup__navigation { padding: 16px 28px 0; border-bottom: 1px solid var(--border); }
+  .setup__progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .setup__step { display: flex; align-items: center; gap: 8px; min-height: 44px; padding-bottom: 12px; font-size: 13px; color: var(--muted-foreground); border-bottom: 2px solid transparent; }
+  .setup__step.active { border-bottom-color: var(--foreground); color: var(--foreground); font-weight: 600; }
+  .setup__number { font-size: 11px; font-variant-numeric: tabular-nums; opacity: .7; }
+  .setup__body { min-width: 0; min-height: 0; padding: 24px 28px; }
+  @media (max-width: 700px), (max-height: 650px) {
+    .setup__navigation { padding: 8px 16px 0; }
+    .setup__body { padding: 16px; }
+    .setup__progress { gap: 8px; }
+    .setup__step { gap: 6px; font-size: 12px; }
   }
 </style>

@@ -1,12 +1,15 @@
 <script lang="ts">
+  import SetupStepFrame from "./SetupStepFrame.svelte";
   import { markSetupComplete } from "../../lib/theme";
   import { displayPath } from "../../lib/path-display";
   import { Button } from "$lib/components/ui/button";
 
   let {
+    onDisplay,
     onFinish,
     workspacePath = null as string | null,
   }: {
+    onDisplay?: () => void;
     onFinish: () => void;
     workspacePath?: string | null;
   } = $props();
@@ -28,31 +31,19 @@
   }
 </script>
 
-<div class="step">
-  <h2 class="title">You're ready</h2>
-  <p class="lead">
-    Orbit keeps prepared repository changes outside the project until explicit Apply. Other permission
-    profiles state their boundaries in each run's enforcement receipt.
-  </p>
+<SetupStepFrame>
+  <h2 class="title">Desktop setup complete</h2>
+  <p class="lead">Describe what you want to build or fix. Pytxo will help you plan the work, follow your agents, and review their changes.</p>
+  <p class="lead">Choose a project and a ready coding agent to start. You can finish those steps in Setup.</p>
   {#if workspacePath}
     <code class="path" title={workspacePath}>{displayPath(workspacePath)}</code>
   {/if}
-  <Button size="lg" onclick={enter}>Enter Pytxo Desktop</Button>
-  <Button variant="ghost" size="sm" onclick={() => void requestNotify()}>
-    Allow approval notifications
-  </Button>
-</div>
+  {#if onDisplay}<Button variant="outline" onclick={onDisplay}>Adjust display</Button>{/if}
+  <Button variant="ghost" size="sm" onclick={() => void requestNotify()}>Allow approval notifications</Button>
+  {#snippet actions()}<Button onclick={enter}>Enter Pytxo Desktop</Button>{/snippet}
+</SetupStepFrame>
 
 <style>
-  .step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 1rem;
-    max-width: 420px;
-    margin: 0 auto;
-  }
   .title {
     margin: 0;
     font-size: 1.35rem;

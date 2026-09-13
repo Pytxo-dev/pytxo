@@ -1,7 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { IconCopy, IconWindowMaximize, IconWindowMinimize, IconX } from "@tabler/icons-svelte";
+  import IconCopy from "@tabler/icons-svelte/icons/copy";
+  import IconWindowMaximize from "@tabler/icons-svelte/icons/window-maximize";
+  import IconWindowMinimize from "@tabler/icons-svelte/icons/window-minimize";
+  import IconX from "@tabler/icons-svelte/icons/x";
 
   let {
     title = "Pytxo Desktop",

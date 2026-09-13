@@ -4614,6 +4614,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "keyring",
+ "portable-pty",
  "pytxo-core",
  "pytxo-orchestrate",
  "pytxo-runner",
@@ -4634,9 +4635,13 @@ dependencies = [
  "tauri-plugin-updater",
  "tempfile",
  "tokio",
+ "toml 0.8.2",
  "ureq",
  "uuid",
+ "webview2-com",
+ "windows-core 0.61.2",
  "winreg 0.52.0",
+ "wry",
 ]
 
 [[package]]

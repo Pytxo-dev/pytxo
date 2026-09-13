@@ -83,6 +83,13 @@
     align-items: flex-start;
     gap: 2px;
   }
+  .chip.stacked strong,
+  .chip.stacked small {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
 
   strong {
     overflow: hidden;

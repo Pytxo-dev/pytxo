@@ -9,10 +9,10 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await completeOnboarding(page, { "pytxo-preview-ade-state-v1": "codex-only" });
       await page.goto("/#/flow");
       await page.getByRole("button", { name: "Fix a failure", exact: true }).click();
-      await expect(page.getByLabel("Mission outcome")).toHaveValue(/\[existing file path\]/);
+      await expect(page.getByLabel("What should Pytxo do?")).toHaveValue(/\[existing file path\]/);
       await expect(page.getByRole("button", { name: "Build plan", exact: true })).toBeDisabled();
-      await expect(page.getByLabel("Mission outcome")).toBeFocused();
-      await page.getByLabel("Mission outcome").fill("Fix src/parser.rs and add a regression test");
+      await expect(page.getByLabel("What should Pytxo do?")).toBeFocused();
+      await page.getByLabel("What should Pytxo do?").fill("Fix src/parser.rs and add a regression test");
       await expect(page.getByRole("button", { name: "Build plan", exact: true })).toBeEnabled();
       await page.getByRole("button", { name: "Check again", exact: true }).click();
       await expect(page.getByLabel("Agent CLI")).toHaveValue("codex");
@@ -28,12 +28,12 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     test("using a draft restores its workspace and revokes the previous plan", async ({ page }) => {
       await completeOnboarding(page, { "pytxo-preview-ade-state-v1": "codex-only", "pytxo-preview-flow-history-v1": "workspace" });
       await page.goto("/#/flow");
-      await expect(page.getByLabel("Workspace", { exact: true })).toHaveValue("pytxo");
-      await page.getByLabel("Mission outcome").fill("Improve src/api.ts and its tests");
+      await expect(page.getByLabel("Project", { exact: true })).toHaveValue("pytxo");
+      await page.getByLabel("What should Pytxo do?").fill("Improve src/api.ts and its tests");
       await page.getByRole("button", { name: "Build plan", exact: true }).click();
       await expect(page.getByRole("button", { name: "Run", exact: true })).toBeEnabled();
-      await page.getByRole("button", { name: /Use as new mission: Fix the parser regression/ }).click();
-      await expect(page.getByLabel("Workspace", { exact: true })).toHaveValue("signal-lab");
+      await page.getByRole("button", { name: /Use as new request: Fix the parser regression/ }).click();
+      await expect(page.getByLabel("Project", { exact: true })).toHaveValue("signal-lab");
       await expect(page.getByRole("button", { name: "Run", exact: true })).not.toBeVisible();
       await expect(page.getByText(/Build a fresh plan before running/)).toBeVisible();
     });
@@ -41,18 +41,18 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     test("an unavailable draft workspace requires an explicit new selection", async ({ page }) => {
       await completeOnboarding(page, { "pytxo-preview-ade-state-v1": "codex-only", "pytxo-preview-flow-history-v1": "missing" });
       await page.goto("/#/flow");
-      await page.getByRole("button", { name: /Use as new mission: Fix the parser regression/ }).click();
-      await expect(page.getByLabel("Workspace", { exact: true })).toHaveValue("");
+      await page.getByRole("button", { name: /Use as new request: Fix the parser regression/ }).click();
+      await expect(page.getByLabel("Project", { exact: true })).toHaveValue("");
       await expect(page.getByRole("button", { name: "Build plan", exact: true })).toBeDisabled();
       await expect(page.getByText(/Original workspace is unavailable/)).toBeVisible();
-      await page.getByLabel("Workspace", { exact: true }).selectOption("pytxo");
+      await page.getByLabel("Project", { exact: true }).selectOption("pytxo");
       await expect(page.getByRole("button", { name: "Build plan", exact: true })).toBeEnabled();
     });
 
     test("rechecking does not replace an unavailable original harness", async ({ page }) => {
       await completeOnboarding(page, { "pytxo-preview-ade-state-v1": "codex-only", "pytxo-preview-flow-history-v1": "unavailable-cli", "pytxo-flow-ade-v1": "codex" });
       await page.goto("/#/flow");
-      await page.getByRole("button", { name: /Use as new mission: Fix the parser regression/ }).click();
+      await page.getByRole("button", { name: /Use as new request: Fix the parser regression/ }).click();
       await expect(page.getByLabel("Agent CLI")).toHaveValue("");
       await page.getByRole("button", { name: "Check again", exact: true }).click();
       await expect(page.getByLabel("Agent CLI")).toHaveValue("");

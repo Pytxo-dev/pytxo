@@ -13,7 +13,7 @@ test.describe("Pytxo Desktop shell", () => {
   test("setup wizard renders on fresh profile", async ({ page }) => {
     await clearOnboarding(page);
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Pytxo", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your coding agents. One clear place to work.", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Get started" })).toBeVisible();
     await expect(page.getByLabel("Setup progress")).toBeVisible();
   });
@@ -22,12 +22,9 @@ test.describe("Pytxo Desktop shell", () => {
     await clearOnboarding(page);
     await page.goto("/");
     await page.getByRole("button", { name: "Get started" }).click();
-    await page.getByRole("button", { name: "Continue with Desktop" }).click();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByRole("button", { name: "Skip for now" }).click();
-    await page.getByRole("button", { name: "Skip for now" }).click();
-    await expect(page.getByRole("heading", { name: "Set your display" })).toBeVisible();
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByRole("heading", { name: "You're ready" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Desktop setup complete" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Enter Pytxo Desktop" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
   });
@@ -42,7 +39,7 @@ test.describe("Pytxo Desktop shell", () => {
       { setupKey: SETUP_STORAGE_KEY },
     );
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Pytxo", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your coding agents. One clear place to work.", exact: true })).toBeVisible();
   });
 
   test("onboarding can be replayed from Settings without losing the versioned flag afterwards", async ({ page }) => {
@@ -51,12 +48,10 @@ test.describe("Pytxo Desktop shell", () => {
     await page.getByRole("link", { name: "Setup" }).click();
     await page.getByRole("button", { name: "Account & billing" }).click();
     await page.getByRole("button", { name: "Run onboarding again" }).click();
-    await expect(page.getByRole("heading", { name: "Pytxo", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your coding agents. One clear place to work.", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Get started" }).click();
-    await page.getByRole("button", { name: "Continue with Desktop" }).click();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByRole("button", { name: "Skip for now" }).click();
-    await page.getByRole("button", { name: "Skip for now" }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: "Enter Pytxo Desktop" }).click();
     await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
   });
@@ -65,7 +60,7 @@ test.describe("Pytxo Desktop shell", () => {
     await completeOnboarding(page);
     await page.goto("/");
     await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Work", exact: true })).toBeVisible();
     await expect(page.getByText(/^Updater:/)).toHaveCount(0);
     await page.getByRole("link", { name: "History" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
@@ -114,19 +109,18 @@ test.describe("Pytxo Desktop shell", () => {
     await clearOnboarding(page);
     await page.goto("/");
     await page.getByRole("button", { name: "Get started" }).click();
-    await page.getByRole("button", { name: "Continue with Desktop" }).click();
 
     await expect(page.getByRole("heading", { name: "Connect your coding agents" })).toBeVisible();
     await expect(page.getByText("ChatGPT connected", { exact: true })).toBeVisible();
-    await expect(page.getByText("credentials never move into Pytxo.")).toBeVisible();
+    await expect(page.getByText("Use its existing account; Pytxo can open the tool's own sign-in if needed.")).toBeVisible();
     await page.getByRole("button", { name: "Continue" }).click();
 
-    await expect(page.getByRole("heading", { name: "Open a Workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Choose your project" })).toBeVisible();
     await page.getByRole("button", { name: "Try the guided example" }).click();
     await expect(page.getByText("C:/Users/demo/Documents/Pytxo Examples/approval-risk-demo", { exact: true })).toBeVisible();
     await expect(page.getByText("Guided local Git example ready. Its baseline tests need no API key.")).toBeVisible();
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByRole("heading", { name: "Set your display" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Desktop setup complete" })).toBeVisible();
   });
 
   test("Workspaces creates the guided example and takes it into a new run", async ({ page }) => {
@@ -191,7 +185,7 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByLabel("Command search")).toBeFocused();
 
     await page.keyboard.type("new");
-    await expect(dialog.getByRole("button", { name: /New run/ })).toBeVisible();
+    await expect(dialog.getByRole("option", { name: /New run/ })).toBeVisible();
     await page.keyboard.press("Enter");
     await expect(dialog).toBeHidden();
     await expect(page.getByRole("heading", { name: "New run" })).toBeVisible();
@@ -249,26 +243,28 @@ test.describe("Pytxo Desktop shell", () => {
   test("sidebar reflects real account state instead of a fabricated identity", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/");
-    await expect(page.getByText("Not signed in", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open account and billing" })).toContainText("Local Core");
     await expect(page.getByText("Matt Bacon")).toHaveCount(0);
     await expect(page.getByText("MB", { exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Open account and billing" }).click();
+    await expect(page.getByText("Not signed in", { exact: true })).toBeVisible();
   });
 
   test("text Flow requires preview before mock dispatch", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/flow");
-    await page.getByLabel("Mission outcome").fill("Make the desktop shell production ready");
+    await page.getByLabel("What should Pytxo do?").fill("Make the desktop shell production ready");
     await expect(page.getByRole("button", { name: "Build plan", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: /Build plan/ }).click();
     await expect(page.getByRole("heading", { name: "Review plan" })).toBeVisible();
     await page.getByRole("button", { name: "Run", exact: true }).click();
-    await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Work", exact: true })).toBeVisible();
   });
 
   test("Flow invalidates a ready plan after mission, workspace, or CLI edits", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/flow");
-    const outcome = page.getByLabel("Mission outcome");
+    const outcome = page.getByLabel("What should Pytxo do?");
     const composerBuild = page.locator(".composer-panel").getByRole("button", { name: "Build plan", exact: true });
     const run = page.getByRole("button", { name: "Run", exact: true });
 
@@ -282,7 +278,7 @@ test.describe("Pytxo Desktop shell", () => {
     await composerBuild.click();
     await expect(run).toBeEnabled();
 
-    await page.getByLabel("Workspace").selectOption("signal-lab");
+    await page.getByLabel("Project", { exact: true }).selectOption("signal-lab");
     await expect(run).toBeDisabled();
     await composerBuild.click();
     await expect(run).toBeEnabled();
@@ -296,7 +292,7 @@ test.describe("Pytxo Desktop shell", () => {
   test("a failed replacement preview clears the old authority and keeps Run disabled", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/flow");
-    const outcome = page.getByLabel("Mission outcome");
+    const outcome = page.getByLabel("What should Pytxo do?");
     const composerBuild = page.locator(".composer-panel").getByRole("button", { name: "Build plan", exact: true });
 
     await outcome.fill("Prepare a valid plan first");
@@ -320,7 +316,7 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(page.getByText("Claude Code · not installed", { exact: true })).not.toBeVisible();
     await page.getByText("7 other CLIs unavailable", { exact: true }).click();
     await expect(page.getByText("Claude Code · not installed", { exact: true })).toBeVisible();
-    await page.getByLabel("Mission outcome").fill("Use the detected ready CLI");
+    await page.getByLabel("What should Pytxo do?").fill("Use the detected ready CLI");
     await expect(page.locator(".composer-panel").getByRole("button", { name: "Build plan" })).toBeEnabled();
   });
 
@@ -343,7 +339,7 @@ test.describe("Pytxo Desktop shell", () => {
     await page.getByRole("button", { name: "Resume" }).click();
     await page.getByRole("button", { name: "Finish recording" }).click();
     await expect(page.getByRole("button", { name: "Transcribing…" })).toBeVisible();
-    await expect(page.getByLabel("Mission outcome")).toHaveValue("Create a production-ready Flow mission");
+    await expect(page.getByLabel("What should Pytxo do?")).toHaveValue("Create a production-ready Flow mission");
   });
 
   test("Voice supports press-and-hold capture", async ({ page }) => {
@@ -357,7 +353,7 @@ test.describe("Pytxo Desktop shell", () => {
     await page.waitForTimeout(400);
     await page.mouse.move(20, 20);
     await page.mouse.up();
-    await expect(page.getByLabel("Mission outcome")).toHaveValue("Create a production-ready Flow mission");
+    await expect(page.getByLabel("What should Pytxo do?")).toHaveValue("Create a production-ready Flow mission");
   });
 
   test("Voice pointer cancellation releases capture without retaining audio", async ({ page }) => {
@@ -374,7 +370,7 @@ test.describe("Pytxo Desktop shell", () => {
     await page.goto("/#/flow");
     await page.getByRole("button", { name: "Start Voice" }).click();
     await page.getByRole("link", { name: "Work" }).click();
-    await page.getByRole("button", { name: "New run" }).click();
+    await page.getByRole("button", { name: "New run from sidebar", exact: true }).click();
     await page.getByRole("button", { name: "Start Voice" }).click();
     await expect(page.getByRole("button", { name: "Finish recording" })).toBeVisible();
   });
@@ -402,7 +398,7 @@ test.describe("Pytxo Desktop shell", () => {
     const correction = page.getByLabel("Correct uncertain segment 1");
     await expect(correction).toBeVisible();
     await correction.fill("Update the desktop approval flow");
-    await expect(page.getByLabel("Mission outcome")).toHaveValue("Update the desktop approval flow");
+    await expect(page.getByLabel("What should Pytxo do?")).toHaveValue("Update the desktop approval flow");
   });
 
   test("current and legacy deep links route through the same shell", async ({ page }) => {
@@ -418,7 +414,7 @@ test.describe("Pytxo Desktop shell", () => {
   test("Work focus and exact-run stop are keyboard-first but confirmation-gated", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/#/flow");
-    const outcome = page.getByLabel("Mission outcome");
+    const outcome = page.getByLabel("What should Pytxo do?");
     await outcome.focus();
     await outcome.dispatchEvent("keydown", {
       key: "o",
@@ -455,7 +451,7 @@ test.describe("Pytxo Desktop shell", () => {
         }),
       ),
     );
-    await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Work", exact: true })).toBeVisible();
 
     // This workspace has one visible run, so there is no redundant run switch.
     // Focus lands on the scoped Work heading and the exact run remains visible.
@@ -479,7 +475,7 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Stop run" }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.locator(".work-feedback")).toHaveText(
+    await expect(page.locator('.work-feedback[role="status"]')).toHaveText(
       "Stop requested for run-8f2c in pytxo.",
     );
   });
@@ -520,7 +516,8 @@ test.describe("Pytxo Desktop shell", () => {
     await page.goto("/#/workspaces");
     for (const workspace of ["pytxo", "signal-lab"]) {
       const row = page.locator(".workspace-table .table-row").filter({ hasText: workspace });
-      await expect(row.locator('[data-col="approvals"]')).toHaveText("0");
+      // Compact rows include their column label; the count must still be zero.
+      await expect(row.locator('[data-col="approvals"]')).toHaveText("Approvals0");
     }
 
     // The legacy 3D topology deep link now lands on Review, the surface that
@@ -553,7 +550,7 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
       test("Work renders without page-level overflow", async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/");
-        await expect(page.getByRole("heading", { level: 1, name: "Work" })).toBeVisible();
+        await expect(page.getByRole("region", { name: "Work", exact: true })).toBeVisible();
         // `#app` is intentionally `overflow: hidden` so inner panes scroll
         // instead of the page (see app.css); scrollHeight ignores `overflow`
         // entirely, so the meaningful check is the actual root scrolling
@@ -584,11 +581,11 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
       test("a planned run keeps composer then plan controls reachable", async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/#/flow");
-        await page.getByLabel("Mission outcome").fill("Verify planned Flow controls at supported widths");
+        await page.getByLabel("What should Pytxo do?").fill("Verify planned Flow controls at supported widths");
 
         const composer = page.locator(".composer-panel");
         const actions = page.locator(".composer-actions");
-        const workspaceSelect = page.getByLabel("Workspace");
+        const workspaceSelect = page.getByLabel("Project", { exact: true });
         const agentSelect = page.getByLabel("Agent CLI");
         const overflow = await actions.evaluate(
           (element) => element.scrollWidth - element.clientWidth,

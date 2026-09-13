@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SetupStepFrame from "./SetupStepFrame.svelte";
   import { onDestroy, onMount } from "svelte";
   import { ipc } from "../../lib/ipc";
   import { Button } from "$lib/components/ui/button";
@@ -87,7 +88,11 @@
 
   onMount(() => {
     disposed = false;
-    void refresh();
+    void refresh().catch((error) => {
+      if (disposed) return;
+      phase = "error";
+      message = `Could not check terminal tools: ${String(error)}`;
+    });
     return () => {
       disposed = true;
       stopPoll();
@@ -99,7 +104,7 @@
   });
 </script>
 
-<div class="step">
+<SetupStepFrame>
   <h2 class="title">Terminal tools are optional</h2>
   <p class="hint">Desktop includes the local Pytxo core.</p>
   <p class="lead">{message}</p>
@@ -113,7 +118,7 @@
     <div class="spinner" aria-hidden="true"></div>
   {/if}
 
-  <div class="actions">
+  {#snippet actions()}
     {#if phase !== "installing" && phase !== "done"}
       <Button onclick={onSkip}>Continue with Desktop</Button>
     {/if}
@@ -131,19 +136,10 @@
     {#if phase === "done"}
       <Button onclick={onContinue}>Continue</Button>
     {/if}
-  </div>
-</div>
+  {/snippet}
+</SetupStepFrame>
 
 <style>
-  .step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 1rem;
-    max-width: 440px;
-    margin: 0 auto;
-  }
   .title {
     margin: 0;
     font-size: 1.35rem;
@@ -173,16 +169,6 @@
     to {
       transform: rotate(360deg);
     }
-  }
-  .actions {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    width: 100%;
-    max-width: 280px;
-  }
-  .actions :global(button) {
-    width: 100%;
   }
   .link {
     font-size: 0.85rem;

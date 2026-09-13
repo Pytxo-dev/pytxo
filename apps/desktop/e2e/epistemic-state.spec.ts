@@ -3,13 +3,14 @@ import {
   ATTEMPT_LABELS,
   SURFACE_LABELS,
   agentState,
+  runState,
   attemptTone,
   isPartiallyApplied,
   surfaceTone,
   waveProgress,
   worstTone,
 } from "../src/lib/epistemic";
-import type { AgentDto, EnforcementSurface, RunApplyAttempt } from "../src/lib/types";
+import type { AgentDto, EnforcementSurface, RunApplyAttempt, RunDto } from "../src/lib/types";
 import { completeOnboarding } from "./helpers";
 
 const SURFACE_STATUSES: EnforcementSurface["status"][] = [
@@ -65,6 +66,19 @@ function agent(overrides: Partial<AgentDto>): AgentDto {
 }
 
 test.describe("Epistemic state contract", () => {
+  test("startup failure is a known failure without claiming agent execution", () => {
+    const state = runState({ status: "failed_startup" } as RunDto);
+    expect(state.tone).toBe("refuted");
+    expect(state.label).toBe("Could not start");
+    expect(state.detail).toContain("before agent execution");
+  });
+  test("an unsettled task does not claim its process is still running", () => {
+    const unsettled = agentState(agent({ status: "running", exit_code: null }));
+    expect(unsettled.label).toBe("Awaiting result");
+    expect(unsettled.detail).toBe("Task started; its final result has not been recorded yet");
+    expect(unsettled.tone).toBe("active");
+  });
+
   test("every enforcement status maps to exactly one epistemic tone", () => {
     expect(SURFACE_STATUSES.map(surfaceTone)).toEqual([
       "verified",
@@ -174,7 +188,8 @@ test.describe("Epistemic summary rendering", () => {
   test("native run-scoped agent IDs resolve their own stored receipt", async ({ page }) => {
     await completeOnboarding(page, { "pytxo-preview-native-agent-ids-v1": "1" });
     await page.goto("/#/work");
-    await page.locator(".ledger .row").filter({ hasText: "run-8f2c:architect" }).click();
+    await page.locator(".ledger").getByRole("button", { name: /run-8f2c:architect/ }).click();
+    await page.getByRole("button", { name: "Task & receipt", exact: true }).click();
     const inspector = page.locator(".inspector");
     await expect(inspector.getByText("Enforced", { exact: true })).toHaveCount(2);
     await expect(inspector.getByText("No agent receipt", { exact: true })).toHaveCount(0);
@@ -186,20 +201,23 @@ test.describe("Epistemic summary rendering", () => {
   test("a native starting run remains visible and can be stopped", async ({ page }) => {
     await completeOnboarding(page, { "pytxo-preview-run-state-v1": "starting" });
     await page.goto("/#/work");
-    await expect(page.getByText("Starting", { exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Focused run" }).getByText("Starting", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Stop", exact: true }).click();
     await page.locator("dialog.confirm-dialog").getByRole("button", { name: "Stop run", exact: true }).click();
-    await expect(page.locator(".work-feedback")).toHaveText("Stop requested for run-8f2c in pytxo.");
+    await expect(page.locator('.work-feedback[role="status"]')).toHaveText("Stop requested for run-8f2c in pytxo.");
     await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeDisabled();
   });
 
   test("switching runs cannot borrow another agent's enforcement receipt", async ({ page }) => {
     await completeOnboarding(page, { "pytxo-preview-native-agent-ids-v1": "switch" });
     await page.goto("/#/work");
-    await page.locator(".ledger .row").filter({ hasText: "run-8f2c:architect" }).click();
+    await page.locator(".ledger").getByRole("button", { name: /run-8f2c:architect/ }).click();
+    await page.getByRole("button", { name: "Task & receipt", exact: true }).click();
     await expect(page.locator(".inspector").getByText("Enforced", { exact: true })).toHaveCount(2);
+    await page.locator(".run-reference summary").click();
     await page.getByRole("tab", { name: "run-other", exact: true }).click();
-    await page.locator(".ledger .row").filter({ hasText: "run-other:architect" }).click();
+    await page.locator(".ledger").getByRole("button", { name: /run-other:architect/ }).click();
+    await page.getByRole("button", { name: "Task & receipt", exact: true }).click();
     const inspector = page.locator(".inspector");
     await expect(inspector.getByText("No agent receipt", { exact: true })).toBeVisible();
     await expect(inspector.getByText("Enforced", { exact: true })).toHaveCount(1);
@@ -220,10 +238,11 @@ for (const route of ["work", "history"]) {
   test(`a refused package exposes its reason without claiming an Apply in ${route}`, async ({ page }) => {
     await completeOnboarding(page, { "pytxo-preview-run-state-v1": "review_failed" });
     await page.goto(`/#/${route}`);
-    const boundary = page.locator(".boundary");
+    const boundary = page.locator(route === "work" ? ".work" : ".boundary");
     await expect(boundary.getByRole("alert")).toContainText("Package preparation failed");
     await expect(boundary.getByRole("alert")).toContainText("edited test/risk-policy.test.mjs outside declared claims");
-    await expect(boundary.getByRole("button", { name: "Review package" })).toBeDisabled();
+    // Work promotes the same guarded entry to its run action area; History keeps it in the boundary.
+    await expect(page.getByRole("button", { name: "Review changes", exact: true })).toBeDisabled();
     if (route === "history") {
       const failedRow = page.locator(".history .row").filter({ hasText: "run-8f2c" });
       await expect(failedRow).toContainText("Preparation failed");
@@ -239,6 +258,7 @@ test.describe("Epistemic state rendering", () => {
 
   test("all four enforcement statuses render distinct non-colour affordances", async ({ page }) => {
     await page.goto("/#/work");
+    await page.getByRole("button", { name: "Checks & details", exact: true }).click();
     const receipt = page.getByLabel("Permission enforcement receipt");
     await expect(receipt).toBeVisible();
 
@@ -275,6 +295,7 @@ test.describe("Epistemic state rendering", () => {
 
   test("all four apply outcomes render distinct non-colour affordances", async ({ page }) => {
     await page.goto("/#/work");
+    await page.getByRole("button", { name: "Checks & details", exact: true }).click();
     await expect(page.getByLabel("Apply attempts")).toBeVisible();
 
     const expected: Record<RunApplyAttempt["outcome"], string> = {
@@ -302,6 +323,7 @@ test.describe("Epistemic state rendering", () => {
 
   test("operator-read state labels sit at or above the 11px floor", async ({ page }) => {
     await page.goto("/#/work");
+    await page.getByRole("button", { name: "Checks & details", exact: true }).click();
     for (const region of ["Permission enforcement receipt", "Apply attempts"]) {
       for (const chip of await readChips(page, region)) {
         expect(chip.fontSize, `${region} / ${chip.label}`).toBeGreaterThanOrEqual(11);

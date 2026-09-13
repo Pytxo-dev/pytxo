@@ -11,20 +11,23 @@ test.describe("Navigation labels", () => {
 
   // Trunk test: a nav item that reads "Ops" while its screen says "Operations"
   // teaches an operator that labels are approximate.
-  test("the nav label equals the page title for every destination", async ({ page }) => {
+  test("destinations retain their accessible labels and Work names its mission", async ({ page }) => {
     for (const route of ROUTES) {
       await page.goto(`/#/${route}`);
       const label = ROUTE_LABELS[route];
 
       await expect(
-        page.locator(`aside a[href="#/${route}"]`),
+        page.locator(`aside a[href="#/${route}"] > span:not([aria-hidden])`),
         `nav item for ${route}`,
       ).toHaveText(label);
+      await expect(page.locator(`aside a[href="#/${route}"]`)).toHaveAccessibleName(label);
 
-      await expect(
-        page.getByRole("heading", { level: 1, name: label, exact: true }),
-        `page title for ${route}`,
-      ).toBeVisible();
+      if (route === "work") {
+        await expect(page.getByRole("region", { name: "Work", exact: true })).toBeVisible();
+        await expect(page.getByRole("heading", { level: 1, name: "Your coding task", exact: true })).toBeVisible();
+      } else {
+        await expect(page.getByRole("heading", { level: 1, name: label, exact: true })).toBeVisible();
+      }
     }
   });
 

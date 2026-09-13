@@ -6,11 +6,20 @@ tags: [moc, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-08-29
+updated: 2026-09-10
 related: [[MOC-home]], [[architecture-index]], [[product-vision]], [[commit-layer]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[pytxo-commit-layer-alignment]], [[v1-1-architecture]], [[pytxo-v1-1-trustworthy-mission-control]], [[chroma-aperture-identity]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]], [[ADR-0036-effect-contract-commit-boundary]], [[ADR-0037-chroma-aperture-visual-contract]], [[ADR-0038-epistemic-state-contract]], [[ADR-0039-evidence-ledger-visual-contract]], [[ADR-0040-mbcz-merchant-of-record-boundary]], [[dodo-mor-integration]]
 ---
 
 # Pytxo documentation home
+
+Approved Desktop implementation: [[astra-flat-desktop-02]] — flat identities,
+four-stage onboarding and the remaining mission/workflow verification sequence.
+
+Current Desktop feedback: [[astra-ui-feedback-2026-09-13]] — dock dragging,
+folder grouping, compact review/setup controls and evidence boundaries.
+Current reassessment: [[desktop-interaction-audit-2026-09-13]] defines the
+truthful core-loop repair; [[modular-project-safety-contract-2026-09-13]]
+separates folder grouping and execution primitives from safe multi-root Apply.
 
 **Pytxo** — agent hypervisor for delegated work, with a reviewed repository
 Apply boundary shipping first ([pytxo.com](https://pytxo.com)).
@@ -37,7 +46,12 @@ research ledger.
 
 **Current improvement cycle:** [[astra-execution-2026-09-07]] records scoped
 research decisions, implementation ownership, acceptance evidence, and release gates.
+[[astra-local-preview-boundary-2026-09-13]] prepares the isolated local-preview renderer decision; it is not enabled.
 [[astra-evidence-2026-09-07]] retains actual checks and unsuccessful native attempts.
+[[astra-desktop-polish-2026-09-08]] records the current layout details and appearance-persistence repair.
+[[astra-desktop-menus-2026-09-09]] records the subsequent menu, sidebar, draft and keyboard workflow improvements.
+[[reference-led-review-2026-09-10]] records public workflow references and the verified Work → Review → Apply hierarchy pilot.
+[[astra-native-finish-2026-09-10]] records its real native mission, ownership/Git repairs, current package and remaining acceptance gates.
 [[astra-release-proposal-2026-09-07]] prepares the owner actions and publication
 sequence without authorizing external writes.
 

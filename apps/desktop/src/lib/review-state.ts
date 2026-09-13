@@ -1,8 +1,25 @@
-import type { RunApplyError } from "./types";
+import type { AgentDto, RunApplyError, RunDto, RunReviewDto } from "./types";
+
+/** Planned agent labels are not runtime identities: dispatch may reorder tasks. */
+export function recordedWorkerLabel(
+  agents: AgentDto[],
+  run: Pick<RunDto, "id" | "domain_id">,
+  taskId: string,
+): string {
+  const recorded = agents.filter((agent) =>
+    agent.domain_id === run.domain_id && agent.run_id === run.id && agent.task_id === taskId,
+  );
+  if (recorded.length !== 1 || !recorded[0].id) return "Worker not recorded";
+  const { id } = recorded[0];
+  const prefix = `${run.id}:`;
+  return (id.startsWith(prefix) ? id.slice(prefix.length) : id) || "Worker not recorded";
+}
 
 export type ReviewSurfaceState =
   | "preparing"
   | "ready"
+  | "verification_required"
+  | "nothing_to_apply"
   | "stale"
   | "retryable_failure"
   | "applying"
@@ -27,6 +44,8 @@ export type ReviewContractState = {
   apply_status: string;
   recovery_state: string | null;
   last_apply_error: RunApplyError | null;
+  candidate_verified: boolean;
+  prepared_file_count: number | null;
 };
 
 export type ReviewPresentation = {
@@ -75,6 +94,30 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
         busy: true,
       };
     case "ready":
+      if (contract.prepared_file_count === 0) {
+        return {
+          state: "nothing_to_apply",
+          title: "Nothing to Apply",
+          detail: "The prepared package contains no file changes.",
+          primaryAction: null,
+          primaryLabel: null,
+          applyAllowed: false,
+          discardAllowed: true,
+          busy: false,
+        };
+      }
+      if (!contract.candidate_verified) {
+        return {
+          state: "verification_required",
+          title: "Verify before Apply",
+          detail: "Run the approved checks against the exact combined candidate before Apply.",
+          primaryAction: "refresh",
+          primaryLabel: "Verify candidate",
+          applyAllowed: false,
+          discardAllowed: true,
+          busy: false,
+        };
+      }
       return {
         state: "ready",
         title: "Ready to Apply",
@@ -227,4 +270,14 @@ export function advanceDomainCursor(
     needsSnapshot: page.cursor_gap,
     continueCatchUp: page.has_more,
   };
+}
+
+/** Presentation availability only; opening a review never authorizes Apply. */
+export function canOpenRunReview(run: RunDto | null, providedReview: RunReviewDto | null = null): boolean {
+  if (!run) return false;
+  const review = providedReview?.run_id === run.id ? providedReview : null;
+  return !!run.prepared_digest || !!review?.prepared_digest || !!review?.prepared_manifest ||
+    ["ready", "stale", "applied", "applying", "recovery_required", "discarded"].includes(
+      (review?.apply_status ?? run.apply_status ?? "").toLowerCase(),
+    );
 }

@@ -16,3 +16,17 @@ export const Planning: Story = { args: { previewState: "planning" } };
 export const Ready: Story = { args: { previewState: "ready" } };
 export const Blocked: Story = { args: { previewState: "blocked" } };
 export const Dispatched: Story = { args: { previewState: "dispatched" } };
+
+export const RetainedDraftMissingWorkspace: Story = {
+  args: {
+    draft: { mission: "Fix src/parser.rs in the original repository.", source: "text", domainId: "removed-workspace", adeId: "codex" },
+    preferredDomainId: "dom-pytxo",
+  },
+  play: async ({ canvasElement }) => {
+    const workspace = canvasElement.querySelector<HTMLSelectElement>('select[aria-label="Workspace"]');
+    const build = Array.from(canvasElement.querySelectorAll("button")).find(button => button.textContent?.trim() === "Build plan");
+    if (!workspace || workspace.value !== "" || !build?.disabled || !canvasElement.textContent?.includes("The draft's workspace is no longer available")) {
+      throw new Error("An unavailable draft workspace must require explicit selection, without falling back to the current folder.");
+    }
+  },
+};

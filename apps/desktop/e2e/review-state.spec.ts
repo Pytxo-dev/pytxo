@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   advanceDomainCursor,
+  recordedWorkerLabel,
   reviewPresentation,
   type DomainCursorPage,
 } from "../src/lib/review-state";
@@ -10,6 +11,43 @@ import {
   loadConsistentDesktopSnapshot,
 } from "../src/lib/desktop-sync";
 import type { DesktopSnapshot } from "../src/lib/desktop-backend";
+import type { AgentDto } from "../src/lib/types";
+
+test.describe("Recorded review ownership", () => {
+  const run = { id: "run-native", domain_id: "fixture-b" };
+  const worker = (task_id: string, index: number): AgentDto => ({
+    id: `${run.id}:agent-${index}`, domain_id: run.domain_id, run_id: run.id,
+    task_id, wave: index === 2 ? 1 : 0, status: "completed", exit_code: 0, root_id: null,
+  });
+
+  test("resolves actors by task identity across reordered waves and records", () => {
+    // Plan order is implementation, tests, docs; runtime launches docs before tests.
+    const agents = [worker("mission-1", 2), worker("mission-0", 0), worker("mission-2", 1)];
+    expect(["mission-0", "mission-2", "mission-1"].map(task => recordedWorkerLabel(agents, run, task)))
+      .toEqual(["agent-0", "agent-1", "agent-2"]);
+  });
+
+  test("does not borrow ownership from another run or execution domain", () => {
+    const wrongRun = { ...worker("mission-2", 8), run_id: "another-run" };
+    const wrongDomain = { ...worker("mission-2", 9), domain_id: "another-repo" };
+    expect(recordedWorkerLabel([wrongRun, wrongDomain], run, "mission-2")).toBe("Worker not recorded");
+    expect(recordedWorkerLabel([wrongRun, worker("mission-2", 1), wrongDomain], run, "mission-2"))
+      .toBe("agent-1");
+  });
+
+  test("does not guess when a task has missing or ambiguous worker records", () => {
+    expect(recordedWorkerLabel([], run, "mission-2")).toBe("Worker not recorded");
+    expect(recordedWorkerLabel([worker("mission-2", 1), worker("mission-2", 2)], run, "mission-2"))
+      .toBe("Worker not recorded");
+    expect(recordedWorkerLabel([{ ...worker("mission-2", 1), id: `${run.id}:` }], run, "mission-2"))
+      .toBe("Worker not recorded");
+  });
+
+  test("retains recorded identities without a run prefix", () => {
+    expect(recordedWorkerLabel([{ ...worker("mission-2", 1), id: "documentation-worker" }], run, "mission-2"))
+      .toBe("documentation-worker");
+  });
+});
 
 test.describe("Run Review state contracts", () => {
   test("maps retryable rollback to recovered with one guarded retry", () => {
@@ -24,6 +62,8 @@ test.describe("Run Review state contracts", () => {
           attempt_id: "attempt-1",
           rollback_confirmed: true,
         },
+        candidate_verified: true,
+        prepared_file_count: 1,
       }),
     ).toMatchObject({
       state: "recovered",
@@ -40,6 +80,8 @@ test.describe("Run Review state contracts", () => {
         apply_status: "stale",
         recovery_state: "source_drift",
         last_apply_error: null,
+        candidate_verified: false,
+        prepared_file_count: 1,
       }),
     ).toMatchObject({
       state: "stale",
@@ -52,6 +94,8 @@ test.describe("Run Review state contracts", () => {
         apply_status: "recovery_required",
         recovery_state: "unprovable",
         last_apply_error: null,
+        candidate_verified: false,
+        prepared_file_count: 1,
       }),
     ).toMatchObject({
       state: "recovery_required",
@@ -73,6 +117,8 @@ test.describe("Run Review state contracts", () => {
           attempt_id: null,
           rollback_confirmed: false,
         },
+        candidate_verified: false,
+        prepared_file_count: null,
       }),
     ).toMatchObject({
       state: "review_failed",
@@ -81,6 +127,38 @@ test.describe("Run Review state contracts", () => {
       primaryLabel: "Retry preparation",
       applyAllowed: false,
       discardAllowed: true,
+    });
+  });
+
+  test("requires combined-candidate evidence and refuses empty Apply", () => {
+    expect(
+      reviewPresentation({
+        apply_status: "ready",
+        recovery_state: null,
+        last_apply_error: null,
+        candidate_verified: false,
+        prepared_file_count: 2,
+      }),
+    ).toMatchObject({
+      state: "verification_required",
+      title: "Verify before Apply",
+      primaryAction: "refresh",
+      primaryLabel: "Verify candidate",
+      applyAllowed: false,
+    });
+    expect(
+      reviewPresentation({
+        apply_status: "ready",
+        recovery_state: null,
+        last_apply_error: null,
+        candidate_verified: false,
+        prepared_file_count: 0,
+      }),
+    ).toMatchObject({
+      state: "nothing_to_apply",
+      title: "Nothing to Apply",
+      primaryAction: null,
+      applyAllowed: false,
     });
   });
 

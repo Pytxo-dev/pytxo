@@ -1,20 +1,19 @@
 <script lang="ts">
+  import { withPreviewsHidden } from "../../lib/preview-overlay";
   import { onMount, tick } from "svelte";
-  import {
-    IconAlertTriangle,
-    IconArrowLeft,
-    IconCheck,
-    IconFileMinus,
-    IconFilePlus,
-    IconFileText,
-    IconFingerprint,
-    IconLoader2,
-    IconRefresh,
-    IconShieldCheck,
-    IconTrash,
-  } from "@tabler/icons-svelte";
+  import IconAlertTriangle from "@tabler/icons-svelte/icons/alert-triangle";
+  import IconArrowLeft from "@tabler/icons-svelte/icons/arrow-left";
+  import IconCheck from "@tabler/icons-svelte/icons/check";
+  import IconFileMinus from "@tabler/icons-svelte/icons/file-minus";
+  import IconFilePlus from "@tabler/icons-svelte/icons/file-plus";
+  import IconFileText from "@tabler/icons-svelte/icons/file-text";
+  import IconFingerprint from "@tabler/icons-svelte/icons/fingerprint";
+  import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+  import IconRefresh from "@tabler/icons-svelte/icons/refresh";
+  import IconShieldCheck from "@tabler/icons-svelte/icons/shield-check";
+  import IconTrash from "@tabler/icons-svelte/icons/trash";
   import type { DesktopBackend } from "../../lib/desktop-backend";
-  import { reviewPresentation } from "../../lib/review-state";
+  import { recordedWorkerLabel, reviewPresentation } from "../../lib/review-state";
   import type {
     AgentDto,
     EnforcementSurface,
@@ -76,16 +75,18 @@
   let activeContentReads = 0;
   let queuedContentReads: QueuedContentRead[] = [];
 
+  const manifest = $derived(review?.prepared_manifest ?? null);
+  const candidateEvidence = $derived(manifest?.candidate_verification);
+  const candidatePassed = $derived(manifest?.version === 3 && candidateEvidence?.version === 1 && candidateEvidence.checks.length > 0 && candidateEvidence.checks.every((check) => check.passed));
   const presentation = $derived(
     reviewPresentation({
       apply_status: review?.apply_status ?? run.apply_status ?? "unavailable",
       recovery_state: review?.recovery_state ?? null,
       last_apply_error: review?.last_apply_error ?? null,
+      candidate_verified: candidatePassed,
+      prepared_file_count: manifest?.files.length ?? null,
     }),
   );
-  const manifest = $derived(review?.prepared_manifest ?? null);
-  const candidateEvidence = $derived(manifest?.candidate_verification);
-  const candidatePassed = $derived(manifest?.version === 3 && candidateEvidence?.version === 1 && candidateEvidence.checks.length > 0 && candidateEvidence.checks.every((check) => check.passed));
   const tasks = $derived(review?.plan.waves.flat() ?? []);
   const receiptRows = $derived.by((): Array<[string, EnforcementSurface]> => {
     const receipt = review?.enforcement.run;
@@ -97,7 +98,7 @@
       ["Apply", receipt.apply_boundary],
     ];
   });
-  const allVerified = $derived(
+  const allAgentsSucceeded = $derived(
     agents.length > 0 && agents.every((agent) => agent.exit_code === 0),
   );
   const terminalWithoutAction = $derived(
@@ -117,7 +118,7 @@
         ? presentation.state === "recovery_required"
           ? "Apply is blocked until recovery is reconciled."
           : presentation.detail
-        : !allVerified
+        : !allAgentsSucceeded
           ? "Every agent must exit successfully before Apply."
           : "",
   );
@@ -163,7 +164,7 @@
         presentation.primaryAction === "apply" ||
         presentation.primaryAction === "retry"
       ) {
-        if (!presentation.applyAllowed || !allVerified) return;
+        if (!presentation.applyAllowed || !allAgentsSucceeded) return;
         await backend.applyRunChanges(run.id, domainId);
       } else if (presentation.primaryAction === "reconcile") {
         const outcome = await backend.reconcileRunRecovery(run.id, domainId);
@@ -192,8 +193,8 @@
       presentation.primaryAction === "apply" ||
       presentation.primaryAction === "retry"
     ) {
-      if (!presentation.applyAllowed || !allVerified || actionPending) return;
-      confirmApply = true;
+      if (!presentation.applyAllowed || !allAgentsSucceeded || actionPending) return;
+      await withPreviewsHidden(() => { confirmApply = true; });
       await tick();
       cancelApplyButton?.focus();
       return;
@@ -246,7 +247,7 @@
   }
 
   async function openDiscardDialog() {
-    confirmDiscard = true;
+    await withPreviewsHidden(() => { confirmDiscard = true; });
     await tick();
     keepReviewButton?.focus();
   }
@@ -480,14 +481,14 @@
 </script>
 
 <section class="screen review-screen" aria-labelledby="run-review-title">
+  <section class="review-decision" aria-label="Review decision">
   <header class="review-header">
     <div>
       <button class="back" bind:this={backButton} onclick={onBack}>
         <IconArrowLeft size={15} /> Back to runs
       </button>
-      <p class="eyebrow">{run.id} · {run.repo_root.split(/[\\/]/).pop()}</p>
       <h1 id="run-review-title">Run Review</h1>
-      <p>Exact prepared changes, ownership, and enforcement evidence for one guarded Apply.</p>
+      <p class="review-identity">{run.id} · {run.repo_root.split(/[\\/]/).pop()}</p>
     </div>
     <div class="review-actions">
       {#if presentation.primaryLabel}
@@ -499,7 +500,7 @@
           disabled={actionPending ||
             (presentation.primaryAction !== "refresh" &&
               presentation.primaryAction !== "reconcile" &&
-              (!presentation.applyAllowed || !allVerified))}
+              (!presentation.applyAllowed || !allAgentsSucceeded))}
           title={applyDisabledReason || presentation.detail}
           aria-describedby={(presentation.primaryAction === "apply" ||
             presentation.primaryAction === "retry") && applyDisabledReason
@@ -570,7 +571,7 @@
           ? "Preparing immutable review"
           : "Applying reviewed changes"}
       />
-    {:else if presentation.state === "stale" || presentation.state === "review_failed" || presentation.state === "recovery_required"}
+    {:else if presentation.state === "verification_required" || presentation.state === "stale" || presentation.state === "review_failed" || presentation.state === "recovery_required"}
       <IconAlertTriangle size={17} />
     {:else}
       <IconShieldCheck size={17} />
@@ -581,11 +582,23 @@
     </div>
   </div>
 
+  {#if review && manifest}
+    <div class="decision-evidence">
+      <p class="package-identity"><IconFingerprint size={14} /><span>Package</span><code>{review.prepared_digest ?? manifest.package_digest}</code></p>
+      <p class="check-summary" class:verified={candidatePassed}>
+        <strong>{candidatePassed ? "Combined checks: passed" : "Combined checks: not verified"}</strong>
+        <span>{candidatePassed ? `${candidateEvidence?.checks.length} command(s) on this candidate` : "Task success alone does not verify the combined changes."}</span>
+      </p>
+    </div>
+  {/if}
+
   {#if applyDisabledReason}
     <p class="action-explanation" id="apply-disabled-reason">{applyDisabledReason}</p>
   {/if}
   {#if notice}<p class="action-notice" aria-live="polite">{notice}</p>{/if}
   {#if error}<p class="action-error" role="alert">{error}</p>{/if}
+
+  </section>
 
   {#if loading}
     <div class="review-loading" aria-label="Loading Run Review">
@@ -593,54 +606,6 @@
     </div>
   {:else if review && manifest}
     <div class="review-grid">
-      <article class="panel evidence-panel">
-        <div class="panel-title"><p class="eyebrow">Immutable package</p><h2>Review evidence</h2></div>
-        <dl class="evidence-list">
-          <div><dt><IconFingerprint size={14} /> Digest</dt><dd>{review.prepared_digest ?? manifest.package_digest}</dd></div>
-          <div><dt><IconShieldCheck size={14} /> Root</dt><dd>{run.repo_root}</dd></div>
-          <div><dt>Profile</dt><dd>{review.enforcement.run.effective_profile}</dd></div>
-          <div><dt>Paths</dt><dd>{manifest.summary.added + manifest.summary.modified + manifest.summary.deleted} · {manifest.summary.added} added · {manifest.summary.modified} modified · {manifest.summary.deleted} deleted</dd></div>
-          <div><dt>State</dt><dd>{presentation.state}</dd></div>
-          <div><dt>Combined candidate checks</dt><dd class="candidate-checks">
-            {#if candidatePassed && candidateEvidence}
-              Passed · {candidateEvidence.checks.length} command{candidateEvidence.checks.length === 1 ? "" : "s"} on this combined candidate. Verified {formatPreparedAt(candidateEvidence.verified_at)}.
-              <ul>{#each candidateEvidence.checks as check}<li><code>{check.command}</code> · {check.task_id}</li>{/each}</ul>
-              {#if candidateEvidence.exclusions.length}<span>Excluded from inventory: {candidateEvidence.exclusions.join(", ")}.</span>{/if}
-            {:else if candidateEvidence}
-              Not verified. The combined candidate receipt is incomplete, unsupported, or includes a failed check.
-            {:else}
-              Not verified. Task checks ran in separate workspaces; this package binds the reviewed bytes, not a passing combined check.
-            {/if}
-          </dd></div>
-          <div><dt>Base revision</dt><dd>{manifest.base_revision}</dd></div>
-          <div><dt>Prepared</dt><dd>{formatPreparedAt(review.prepared_at ?? manifest.prepared_at)}</dd></div>
-          <div><dt>Execution domain</dt><dd>{review.enforcement.run.execution_domain}</dd></div>
-        </dl>
-        <div class="receipt-grid">
-          {#each receiptRows as [label, receipt]}
-            <div>
-              <span class={`receipt-dot ${receipt.status}`}></span>
-              <strong>{label}</strong>
-              <small>{receipt.status} · {receipt.mechanism}</small>
-              <p>{receipt.detail}</p>
-            </div>
-          {/each}
-        </div>
-      </article>
-
-      <article class="panel plan-panel">
-        <div class="panel-title"><p class="eyebrow">Plan / DAG</p><h2>Ownership path</h2></div>
-        <div class="task-list">
-          {#each tasks as task (task.task_id)}
-            <div>
-              <span>W{task.wave + 1}</span>
-              <p><strong>{task.task_id}</strong><small>{task.agent} · {task.paths.join(", ")}</small></p>
-              <em>{task.depends_on.length ? `after ${task.depends_on.join(", ")}` : "root task"}</em>
-            </div>
-          {/each}
-        </div>
-      </article>
-
       <article class="panel files-panel">
         <div class="panel-title files-title">
           <div><p class="eyebrow">Exact package contents</p><h2>Prepared changes</h2></div>
@@ -722,6 +687,59 @@
         </div>
       </article>
 
+      <aside class="review-support" aria-label="Review evidence and ownership">
+      <article class="panel evidence-panel">
+        <div class="panel-title"><p class="eyebrow">Immutable package</p><h2>Review evidence</h2></div>
+        <dl class="evidence-list">
+          <div><dt><IconShieldCheck size={14} /> Root</dt><dd>{run.repo_root}</dd></div>
+          <div><dt>Profile</dt><dd>{review.enforcement.run.effective_profile}</dd></div>
+          <div><dt>Paths</dt><dd>{manifest.summary.added + manifest.summary.modified + manifest.summary.deleted} · {manifest.summary.added} added · {manifest.summary.modified} modified · {manifest.summary.deleted} deleted</dd></div>
+          <div><dt>State</dt><dd>{presentation.state}</dd></div>
+          <div><dt>Combined candidate checks</dt><dd class="candidate-checks">
+            {#if candidatePassed && candidateEvidence}
+              Passed · {candidateEvidence.checks.length} command{candidateEvidence.checks.length === 1 ? "" : "s"} on this combined candidate. Verified {formatPreparedAt(candidateEvidence.verified_at)}.
+              <ul>{#each candidateEvidence.checks as check}<li><code>{check.command}</code> · {check.task_id}</li>{/each}</ul>
+              {#if candidateEvidence.exclusions.length}<span>Excluded from inventory: {candidateEvidence.exclusions.join(", ")}.</span>{/if}
+            {:else if candidateEvidence}
+              Not verified. The combined candidate receipt is incomplete, unsupported, or includes a failed check.
+            {:else}
+              Not verified. Task checks ran in separate workspaces; this package binds the reviewed bytes, not a passing combined check.
+            {/if}
+          </dd></div>
+          <div><dt>Base revision</dt><dd>{manifest.base_revision}</dd></div>
+          <div><dt>Prepared</dt><dd>{formatPreparedAt(review.prepared_at ?? manifest.prepared_at)}</dd></div>
+          <div><dt>Execution domain</dt><dd>{review.enforcement.run.execution_domain}</dd></div>
+        </dl>
+        <div class="receipt-grid">
+          {#each receiptRows as [label, receipt]}
+            <div>
+              <span class={`receipt-dot ${receipt.status}`}></span>
+              <strong>{label}</strong>
+              <small>{receipt.status} · {receipt.mechanism}</small>
+            </div>
+          {/each}
+        </div>
+        <details class="enforcement-details">
+          <summary>How enforcement works</summary>
+          {#each receiptRows as [label, receipt]}<p><strong>{label}</strong> · {receipt.detail}</p>{/each}
+        </details>
+      </article>
+
+      <article class="panel plan-panel">
+        <div class="panel-title"><p class="eyebrow">Plan / DAG</p><h2>Ownership path</h2></div>
+        <div class="task-list">
+          {#each tasks as task (task.task_id)}
+            <div>
+              <span>W{task.wave + 1}</span>
+              <p><strong>{task.task_id}</strong><small>{recordedWorkerLabel(agents, run, task.task_id)} · {task.paths.join(", ")}</small></p>
+              <em>{task.depends_on.length ? `after ${task.depends_on.join(", ")}` : "root task"}</em>
+            </div>
+          {/each}
+        </div>
+      </article>
+
+      </aside>
+
       <article class="panel attempts-panel">
         <div class="panel-title"><p class="eyebrow">Apply audit</p><h2>Attempt history</h2></div>
         {#each review.apply_attempts as attempt (attempt.attempt_id)}
@@ -776,7 +794,7 @@
         <button bind:this={cancelApplyButton} onclick={closeApplyDialog}>Cancel</button>
         <button
           bind:this={applyExactPackageButton}
-          class="confirm-apply"
+          class="confirm-apply primary-cue"
           onclick={applyExactPackage}
           disabled={actionPending}
         >Apply exact package</button>
@@ -807,7 +825,45 @@
 {/if}
 
 <style>
-  .review-screen { padding-bottom: 32px; }
+  .review-screen button,
+  .confirm-dialog button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: var(--pytxo-control-height);
+    padding: 0 12px;
+    border: 1px solid var(--pytxo-line);
+    border-radius: var(--pytxo-control-radius);
+    background: var(--pytxo-surface-raised);
+    color: var(--pytxo-text-strong);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease), border-color var(--pytxo-motion-fast) var(--pytxo-motion-ease), color var(--pytxo-motion-fast) var(--pytxo-motion-ease);
+  }
+  .review-screen button:hover:not(:disabled),
+  .confirm-dialog button:hover:not(:disabled) { background: var(--pytxo-surface-hover); border-color: var(--pytxo-text-muted); }
+  .review-screen button:disabled,
+  .confirm-dialog button:disabled { cursor: not-allowed; opacity: .45; }
+  .review-screen .primary { background: var(--pytxo-text-strong); color: var(--pytxo-surface-shell); }
+  .review-screen .primary:hover:not(:disabled) { background: var(--pytxo-text-body); }
+  .review-screen { padding-bottom: 32px; container-type: inline-size; container-name: run-review; }
+  .review-decision { padding: 0 0 12px; border-bottom: 1px solid var(--pytxo-line); }
+  .decision-evidence { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px 20px; padding-top: 10px; }
+  .package-identity { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; margin: 0; color: var(--pytxo-text-muted); font-size: 12px; }
+  .package-identity code { color: var(--pytxo-text-body); overflow-wrap: anywhere; font: 12px "IBM Plex Mono", monospace; }
+  .check-summary { display: grid; gap: 2px; margin: 0; font-size: 12px; color: var(--state-unknown); }
+  .check-summary.verified { color: var(--state-verified); }
+  .check-summary span { color: var(--pytxo-text-muted); }
+  .enforcement-details { padding: 10px 12px; border-top: 1px solid var(--pytxo-line-soft); color: var(--pytxo-text-muted); font-size: 12px; }
+  .enforcement-details summary { cursor: pointer; color: var(--pytxo-text-body); }
+  .enforcement-details summary:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 3px; }
+  .review-support .evidence-list > div { grid-template-columns: 110px minmax(0, 1fr); gap: 8px; }
+  .review-support .evidence-list dd { white-space: normal; overflow-wrap: anywhere; }
+  .review-support .receipt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .review-header {
     display: flex;
     align-items: flex-start;
@@ -816,12 +872,13 @@
     margin-bottom: 12px;
   }
   .review-header h1 { margin: 5px 0 4px; font-size: 22px; }
+  .review-header .review-identity { font-family: "IBM Plex Mono", monospace; overflow-wrap: anywhere; }
   .review-header p { margin: 0; color: var(--pytxo-text-muted); font-size: 12px; }
-  .back {
+  .review-screen .back {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    margin: 0 0 14px;
+    margin: 0 0 4px;
     padding: 0;
     border: 0;
     color: var(--pytxo-text-muted);
@@ -832,160 +889,166 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    min-height: 34px;
     white-space: nowrap;
   }
-  .danger-quiet { color: #dc8a93; border-color: #4b2b31; background: #181114; }
+  .review-screen .danger-quiet { color: var(--state-refuted); border-color: var(--pytxo-line); background: var(--pytxo-surface-panel); }
   .review-status {
     display: flex;
     gap: 10px;
     align-items: center;
     min-height: 48px;
     padding: 10px 13px;
-    border: 1px solid #273139;
+    border: 1px solid var(--pytxo-line);
     border-radius: 8px;
-    background: #101719;
-    color: #8bd6ca;
+    background: var(--pytxo-surface-panel);
+    color: var(--state-verified);
   }
   .review-status > div { display: grid; gap: 2px; }
   .review-status strong { font-size: 12px; }
-  .review-status span { color: #87939d; font-size: 11px; }
+  .review-status span { color: var(--pytxo-text-soft); font-size: 12px; }
   .review-status.state-stale,
+  .review-status.state-verification_required,
   .review-status.state-review_failed,
-  .review-status.state-recovery_required { color: #e4b65a; border-color: #493c25; background: #17140e; }
-  .review-status.state-applied { color: #99dfd4; }
+  .review-status.state-recovery_required { color: var(--state-attention); border-color: var(--pytxo-line); background: var(--pytxo-surface-panel); }
+  .review-status.state-applied { color: var(--state-verified); }
   .action-explanation, .action-notice, .action-error {
     margin: 8px 0 0;
-    font-size: 11px;
+    font-size: 12px;
   }
-  .action-explanation { color: #a58b63; }
-  .action-notice { color: #8bd6ca; }
-  .action-error { color: #e18b94; }
-  .review-grid {
+  .action-explanation { color: var(--state-attention); }
+  .action-notice { color: var(--state-verified); }
+  .action-error { color: var(--state-refuted); }
+  .review-screen .review-grid {
     display: grid;
-    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     margin-top: 12px;
     align-items: start;
   }
-  .review-grid > .panel { min-width: 0; padding: 0; overflow: hidden; }
-  .files-panel { grid-column: 1 / -1; }
+  .review-screen .review-grid > .panel { min-width: 0; padding: 0; overflow: hidden; }
+  .files-panel { grid-column: 1; }
+  .review-support { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; gap: 12px; align-items: start; }
+  .review-support > .panel { padding: 0; min-height: 0; }
   .attempts-panel { grid-column: 1 / -1; }
+  @container run-review (max-width: 800px) {
+    .review-support { grid-template-columns: minmax(0, 1fr); }
+  }
   .panel-title {
     padding: 13px 15px 11px;
-    border-bottom: 1px solid #232a31;
+    border-bottom: 1px solid var(--pytxo-line-soft);
   }
   .panel-title .eyebrow, .panel-title h2 { margin: 0; }
-  .panel-title h2 { margin-top: 4px; font-size: 14px; }
+  .review-screen .panel-title h2 { margin: 4px 0 0; font-size: 14px; color: var(--pytxo-text-strong); }
   .evidence-list { display: grid; margin: 0; }
   .evidence-list > div {
     display: grid;
     grid-template-columns: minmax(130px, .75fr) minmax(0, 1.25fr);
     gap: 10px;
     padding: 8px 15px;
-    border-bottom: 1px solid #20262d;
+    border-bottom: 1px solid var(--pytxo-line-soft);
   }
-  .evidence-list dt { display: flex; gap: 6px; align-items: center; color: #7f8993; font-size: 11px; }
+  .evidence-list dt { display: flex; gap: 6px; align-items: center; color: var(--pytxo-text-muted); font-size: 12px; }
   .evidence-list dd {
     margin: 0;
     overflow: hidden;
-    color: #cbd1d7;
-    font: 11px/1.4 "IBM Plex Mono", monospace;
+    color: var(--pytxo-text-body);
+    font: 12px/1.4 "IBM Plex Mono", monospace;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .receipt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #242a31; }
+  .receipt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--pytxo-line-soft); }
   .evidence-list dd.candidate-checks { white-space: normal; overflow-wrap: anywhere; }
   .candidate-checks ul { margin: 6px 0; padding-left: 16px; }
-  .receipt-grid > div { display: grid; grid-template-columns: auto 1fr; gap: 3px 7px; padding: 10px 12px; background: #11151a; }
-  .receipt-grid strong { font-size: 11px; }
-  .receipt-grid small { grid-column: 2; color: #8b96a0; font: 11px/1.3 "IBM Plex Mono", monospace; }
-  .receipt-grid p { grid-column: 1 / -1; margin: 4px 0 0; color: #89949f; font-size: 11px; }
-  .receipt-dot { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: #616875; }
+  .receipt-grid > div { display: grid; grid-template-columns: auto 1fr; gap: 3px 7px; padding: 10px 12px; background: var(--pytxo-surface-panel); }
+  .receipt-grid strong { font-size: 12px; }
+  .receipt-grid small { grid-column: 2; color: var(--pytxo-text-muted); font: 12px/1.3 "IBM Plex Mono", monospace; }
+  .receipt-dot { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: var(--state-unknown); }
   .receipt-dot.enforced { background: var(--live); }
-  .receipt-dot.advisory { background: #8b96a0; }
+  .receipt-dot.advisory { background: var(--pytxo-text-muted); }
   .task-list { display: grid; }
   .task-list > div {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: 9px;
     padding: 10px 14px;
-    border-bottom: 1px solid #20262d;
+    border-bottom: 1px solid var(--pytxo-line-soft);
   }
-  .task-list > div > span { padding: 3px 5px; border-radius: 4px; color: #80cabf; background: #14211f; font: 600 9px/1 "IBM Plex Mono", monospace; }
+  .task-list > div > span { align-self: start; padding: 3px 5px; border-radius: 4px; color: var(--pytxo-text-soft); background: var(--pytxo-surface-raised); font: 600 9px/1 "IBM Plex Mono", monospace; }
   .task-list p { display: grid; gap: 2px; margin: 0; min-width: 0; }
-  .task-list strong { font-size: 11px; }
-  .task-list small, .task-list em { overflow: hidden; color: #8b96a0; font: 11px/1.35 "IBM Plex Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
-  .task-list em { color: #9388ad; }
+  .task-list strong { font-size: 12px; overflow-wrap: anywhere; }
+  .task-list small, .task-list em { color: var(--pytxo-text-muted); font: 12px/1.35 "IBM Plex Mono", monospace; overflow-wrap: anywhere; }
+  .task-list em { grid-column: 2; }
   .files-title { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
   .summary { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-  .summary span { padding: 4px 6px; border-radius: 4px; background: #151a20; font: 600 9px/1 "IBM Plex Mono", monospace; text-transform: uppercase; }
-  .summary .add { color: #79cdbf; } .summary .modify { color: #d8b66f; } .summary .delete { color: #de8790; }
+  .summary span { padding: 4px 6px; border-radius: 4px; background: var(--pytxo-surface-raised); font: 600 9px/1 "IBM Plex Mono", monospace; text-transform: uppercase; }
+  .summary .add { color: var(--state-verified); } .summary .modify { color: var(--state-attention); } .summary .delete { color: var(--state-refuted); }
   .file-list { display: grid; }
   .file-row {
-    border-bottom: 1px solid #20262d;
+    border-bottom: 1px solid var(--pytxo-line-soft);
   }
   .file-row:last-child { border-bottom: 0; }
-  .file-row.add { color: #78cbbd; } .file-row.modify { color: #d6b46f; } .file-row.delete { color: #dc858e; }
+  .file-row.add { color: var(--state-verified); } .file-row.modify { color: var(--state-attention); } .file-row.delete { color: var(--state-refuted); }
   .file-row > header {
     display: grid;
-    grid-template-columns: auto 62px minmax(190px, 1fr) auto auto;
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
     gap: 10px;
     align-items: center;
     padding: 10px 14px;
   }
-  .file-row .kind { font: 600 9px/1 "IBM Plex Mono", monospace; text-transform: uppercase; }
+  .file-row .kind { font: 600 11px/1 "IBM Plex Mono", monospace; text-transform: uppercase; }
   .file-row header > div { display: grid; gap: 2px; min-width: 0; }
-  .file-row strong { overflow: hidden; color: #d5dae0; font: 11px/1.4 "IBM Plex Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
-  .file-row small { color: #8b96a0; font-size: 11px; }
-  .inspect-file { padding: 5px 8px; border-color: #34404a; color: #aab4bd; background: #151b20; font: 600 9px/1 "IBM Plex Mono", monospace; text-transform: uppercase; }
-  .inspect-file.selected { border-color: #32635b; color: #9ad7cc; background: #14231f; }
-  .exact-diff { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #20262d; background: #0d1115; }
+  .file-row strong { color: var(--pytxo-text-strong); font: 12px/1.4 "IBM Plex Mono", monospace; overflow-wrap: anywhere; white-space: normal; }
+  .file-row small { color: var(--pytxo-text-muted); font-size: 12px; overflow-wrap: anywhere; }
+  .inspect-file { padding: 5px 8px; border-color: var(--pytxo-line); color: var(--pytxo-text-soft); background: var(--pytxo-surface-raised); font: 600 9px/1 "IBM Plex Mono", monospace; text-transform: uppercase; }
+  .inspect-file.selected { border-color: var(--pytxo-text-muted); color: var(--pytxo-text-strong); background: var(--pytxo-surface-active); }
+  .exact-diff { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--pytxo-line-soft); background: var(--pytxo-surface-input); }
   .exact-diff.single { grid-template-columns: 1fr; }
-  .diff-side { min-width: 0; border-right: 1px solid #20262d; }
+  .diff-side { min-width: 0; border-right: 1px solid var(--pytxo-line-soft); }
   .diff-side:last-child { border-right: 0; }
-  .diff-label { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-bottom: 1px solid #20262d; background: #11161b; }
-  .diff-label span { color: #7f8993; font: 11px/1.4 "IBM Plex Mono", monospace; }
-  .text-content, .binary-content { min-height: 74px; max-height: 320px; margin: 0; padding: 10px; overflow: auto; color: #c8d0d6; background: transparent; font: 11px/1.55 "IBM Plex Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .before .text-content { background: rgba(97, 40, 48, .08); }
-  .after .text-content { background: rgba(35, 91, 79, .08); }
-  .binary-label, .content-loading, .content-error { margin: 0; padding: 9px 10px 0; color: #8c969f; font-size: 11px; }
-  .content-error { color: #e18b94; }
-  .expand-content { margin: 0 10px 10px; color: #9acfc6; border-color: #2b4943; background: #111b19; }
-  .digest-details { padding: 8px 14px 10px; border-top: 1px solid #20262d; color: #89949f; }
-  .digest-details summary { cursor: pointer; font-size: 11px; text-transform: uppercase; }
+  .diff-label { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-bottom: 1px solid var(--pytxo-line-soft); background: var(--pytxo-surface-raised); }
+  .diff-label span { color: var(--pytxo-text-muted); font: 12px/1.4 "IBM Plex Mono", monospace; }
+  .text-content, .binary-content { min-height: 74px; max-height: 320px; margin: 0; padding: 10px; overflow: auto; color: var(--pytxo-text-body); background: transparent; font: 12px/1.55 "IBM Plex Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .before .text-content { background: color-mix(in oklab, var(--state-refuted) 7%, transparent); }
+  .after .text-content { background: color-mix(in oklab, var(--state-verified) 7%, transparent); }
+  .binary-label, .content-loading, .content-error { margin: 0; padding: 9px 10px 0; color: var(--pytxo-text-muted); font-size: 12px; }
+  .content-error { color: var(--state-refuted); }
+  .expand-content { margin: 0 10px 10px; color: var(--pytxo-text-strong); border-color: var(--pytxo-line); background: var(--pytxo-surface-raised); }
+  .digest-details { padding: 8px 14px 10px; border-top: 1px solid var(--pytxo-line-soft); color: var(--pytxo-text-muted); }
+  .digest-details summary { cursor: pointer; font-size: 12px; text-transform: uppercase; }
   .digest-details dl { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 8px 0 0; }
   .file-row dl div { min-width: 0; }
-  .file-row dt { color: #89949f; font-size: 11px; text-transform: uppercase; }
-  .file-row dd { margin: 2px 0 0; overflow: hidden; color: #9da6af; font: 11px/1.2 "IBM Plex Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
-  .bytes { color: #89949f; font: 11px/1 "IBM Plex Mono", monospace; }
-  .attempt { display: flex; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #20262d; }
-  .attempt p { display: grid; gap: 2px; margin: 0; }
-  .attempt strong { font-size: 11px; }
-  .attempt span { color: #a3acb5; font-size: 11px; }
-  .attempt small { color: #89949f; font: 11px/1.35 "IBM Plex Mono", monospace; }
-  .attempt .audit-code { color: #a3acb5; text-transform: uppercase; letter-spacing: .04em; }
+  .file-row dt { color: var(--pytxo-text-muted); font-size: 12px; text-transform: uppercase; }
+  .file-row dd { margin: 2px 0 0; color: var(--pytxo-text-soft); font: 12px/1.4 "IBM Plex Mono", monospace; overflow-wrap: anywhere; }
+  .bytes { color: var(--pytxo-text-muted); font: 12px/1 "IBM Plex Mono", monospace; }
+  .attempt { display: flex; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--pytxo-line-soft); }
+  .attempt p { display: grid; min-width: 0; gap: 2px; margin: 0; overflow-wrap: anywhere; }
+  .attempt strong { font-size: 12px; }
+  .attempt span { color: var(--pytxo-text-soft); font-size: 12px; }
+  .attempt small { color: var(--pytxo-text-muted); font: 12px/1.35 "IBM Plex Mono", monospace; }
+  .attempt .audit-code { color: var(--pytxo-text-soft); text-transform: uppercase; letter-spacing: .04em; }
   .attempt .audit-code code { color: currentColor; font: inherit; text-transform: none; }
-  .attempt.failure { color: #df8992; } .attempt.success { color: #80d1c3; }
+  .attempt.failure { color: var(--state-refuted); } .attempt.success { color: var(--state-verified); }
   .review-loading { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
-  .review-loading span { height: 180px; border-radius: 8px; background: #13181d; animation: review-pulse 1.2s ease-in-out infinite alternate; }
+  .review-loading span { height: 180px; border-radius: 8px; background: var(--pytxo-surface-panel); animation: review-pulse 1.2s ease-in-out infinite alternate; }
   .unavailable { display: flex; gap: 10px; margin-top: 12px; }
   .unavailable h2, .unavailable p { margin: 0; }
   .dialog-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px; background: rgba(4, 6, 8, .72); }
-  .confirm-dialog { display: grid; grid-template-columns: auto 1fr; gap: 12px; width: min(440px, 100%); padding: 18px; border: 1px solid #3d3334; border-radius: 10px; background: #151719; box-shadow: 0 20px 70px rgba(0,0,0,.45); color: #e1b0b5; }
-  .confirm-dialog h2 { margin: 0; color: #e3e7eb; font-size: 16px; }
-  .confirm-dialog p { margin: 5px 0 0; color: #8d969f; font-size: 11px; line-height: 1.5; }
-  .confirm-dialog code { display: block; overflow-wrap: anywhere; margin-top: 8px; color: #a4adb6; font: 10px/1.45 "IBM Plex Mono", monospace; }
-  .confirm-dialog.apply-dialog { border-color: #315451; color: #80d1c3; }
+  .confirm-dialog { display: grid; grid-template-columns: auto 1fr; gap: 12px; width: min(440px, 100%); padding: 18px; border: 1px solid var(--pytxo-line); border-radius: 10px; background: var(--pytxo-surface-panel); box-shadow: 0 20px 70px rgba(0,0,0,.45); color: var(--state-refuted); }
+  .confirm-dialog h2 { margin: 0; color: var(--pytxo-text-strong); font-size: 16px; }
+  .confirm-dialog p { margin: 5px 0 0; color: var(--pytxo-text-soft); font-size: 12px; line-height: 1.5; }
+  .confirm-dialog code { display: block; overflow-wrap: anywhere; margin-top: 8px; color: var(--pytxo-text-soft); font: 10px/1.45 "IBM Plex Mono", monospace; }
+  .confirm-dialog.apply-dialog { border-color: var(--pytxo-line); color: var(--state-verified); }
   .dialog-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-  .dialog-actions .confirm-apply { border-color: #2f746a; color: #05100e; background: #80d1c3; }
-  .dialog-actions .danger { border-color: #713840; color: #fff; background: #813943; }
+  .dialog-actions .confirm-apply { border-color: var(--pytxo-text-strong); color: var(--pytxo-surface-shell); background: var(--pytxo-text-strong); }
+  .dialog-actions .confirm-apply:hover:not(:disabled) { background: var(--pytxo-text-body); }
+  .dialog-actions .danger { border-color: var(--state-refuted); color: var(--state-refuted); background: color-mix(in oklab, var(--state-refuted) 7%, var(--pytxo-surface-panel)); }
+  .dialog-actions .danger:hover:not(:disabled) { border-color: var(--state-refuted); background: color-mix(in oklab, var(--state-refuted) 12%, var(--pytxo-surface-panel)); }
   @keyframes review-spin { to { transform: rotate(360deg); } }
-  @keyframes review-pulse { to { background: #1b2228; } }
+  @keyframes review-pulse { to { background: var(--pytxo-surface-raised); } }
   .review-spinner { animation: review-spin .9s linear infinite; }
-  :global(.review-screen button:focus-visible), .confirm-dialog button:focus-visible { outline: 2px solid #66d8c7; outline-offset: 2px; }
-  @media (max-width: 1050px) {
-    .review-grid { grid-template-columns: 1fr; }
+  :global(.review-screen button:focus-visible), .confirm-dialog button:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }
+  @media (max-width: 1180px) {
+    .review-screen .review-grid { grid-template-columns: 1fr; }
     .files-panel, .attempts-panel { grid-column: auto; }
     .evidence-list > div { grid-template-columns: 1fr; gap: 3px; }
     .evidence-list dd {
@@ -1000,14 +1063,29 @@
     .review-actions { flex-wrap: wrap; }
     .review-actions button { flex: 1 1 auto; }
     .receipt-grid { grid-template-columns: 1fr; }
-    .file-row > header { grid-template-columns: auto 52px minmax(0, 1fr) auto; }
+    .file-row > header { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .file-row header > div { grid-column: 1 / -1; grid-row: 2; }
     .file-row .bytes { display: none; }
     .exact-diff { grid-template-columns: 1fr; }
-    .diff-side { border-right: 0; border-bottom: 1px solid #20262d; }
+    .diff-side { border-right: 0; border-bottom: 1px solid var(--pytxo-line-soft); }
     .diff-side:last-child { border-bottom: 0; }
     .digest-details dl { grid-template-columns: 1fr; }
     .task-list > div { grid-template-columns: auto minmax(0, 1fr); }
     .task-list em { grid-column: 2; }
+  }
+  @container run-review (max-width: 960px) {
+    .review-screen .review-grid { grid-template-columns: 1fr; }
+    .files-panel, .attempts-panel { grid-column: auto; }
+  }
+  @container run-review (max-width: 680px) {
+    .review-header { display: grid; }
+    .review-actions { flex-wrap: wrap; }
+    .review-actions button { flex: 1 1 auto; }
+    .file-row > header { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .file-row header > div { grid-column: 1 / -1; grid-row: 2; }
+    .file-row .bytes { display: none; }
+    .exact-diff { grid-template-columns: 1fr; }
+    .digest-details dl { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) {
     .review-spinner, .review-loading span { animation: none; }

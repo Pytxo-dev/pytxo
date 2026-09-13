@@ -1,13 +1,16 @@
 <script lang="ts">
+  import SetupStepFrame from "./SetupStepFrame.svelte";
   import { onMount } from "svelte";
   import { createDesktopBackend } from "../../lib/desktop-backend";
   import type { AdeCliStatusDto } from "../../lib/types";
   import { Button } from "$lib/components/ui/button";
 
   let {
+    onRuntimeTools,
     onContinue,
     onSkip,
   }: {
+    onRuntimeTools?: () => void;
     onContinue: () => void;
     onSkip: () => void;
   } = $props();
@@ -70,15 +73,14 @@
   });
 </script>
 
-<div class="step">
+<SetupStepFrame>
   <h2 class="title">Connect your coding agents</h2>
   <p class="lead">
-    One coding agent CLI is enough. Pytxo checks non-secret session status and opens each vendor's
-    official sign-in; credentials never move into Pytxo.
+    One coding agent is enough to start. Use its existing account; Pytxo can open the tool's own sign-in if needed.
   </p>
 
   {#if loading}
-    <p class="status">Checking installed agent CLIs…</p>
+    <p class="status">Finding your coding agents…</p>
   {:else}
     <div class="agents" aria-label="Detected agent CLIs">
       {#each usefulAgents as agent (agent.id)}
@@ -91,6 +93,8 @@
             <Button size="sm" variant="outline" disabled={openingId !== null} onclick={() => void openLogin(agent)}>
               {openingId === agent.id ? "Opening…" : agent.login_label}
             </Button>
+          {:else if !agent.installed}
+            <a class="install-guide" href={agent.docs_url} target="_blank" rel="noopener noreferrer">Install guide</a>
           {:else}
             <b class:ready={isReady(agent)}>
               {isReady(agent) ? "Ready" : agent.installed ? "Installed" : "Later"}
@@ -105,26 +109,20 @@
   {#if message}<p class="message" role="status">{message}</p>{/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 
-  <div class="actions">
+  {#snippet actions()}
+    {#if onRuntimeTools}<Button variant="ghost" onclick={onRuntimeTools}>Terminal tools</Button>{/if}
     <Button variant="outline" disabled={loading || openingId !== null} onclick={() => void refresh()}>
       {loading ? "Checking…" : "Check again"}
     </Button>
-    <Button onclick={onContinue}>Continue</Button>
-    <Button variant="ghost" onclick={onSkip}>Skip for now</Button>
-  </div>
-</div>
+    {#if readyCount > 0}<Button onclick={onContinue}>Continue</Button>
+    {:else}<Button onclick={onSkip}>Continue to Desktop</Button>{/if}
+  {/snippet}
+</SetupStepFrame>
 
 <style>
-  .step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
-    max-width: 560px;
-    margin: 0 auto;
-    gap: 0.85rem;
-    text-align: center;
-  }
+  .install-guide { display: inline-flex; align-items: center; min-height: 40px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); text-decoration: none; font-size: 13px; }
+  .install-guide:hover { background: var(--accent); }
+  .install-guide:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   .title {
     margin: 0;
     font-size: 1.35rem;
@@ -194,10 +192,5 @@
   }
   .error {
     color: var(--destructive, #f87171);
-  }
-  .actions {
-    display: grid;
-    gap: 0.45rem;
-    width: 220px;
   }
 </style>

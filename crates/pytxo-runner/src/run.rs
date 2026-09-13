@@ -1611,7 +1611,10 @@ fn configure_verifier_process_group(command: &mut std::process::Command) {
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-        command.creation_flags(CREATE_NEW_PROCESS_GROUP);
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        // Verification output belongs in the run ledger, including when the
+        // caller is the windowed Desktop executable. Keep tree cancellation.
+        command.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
     }
 }
 
@@ -1619,8 +1622,11 @@ fn terminate_verifier_tree(child: &mut std::process::Child) {
     let pid = child.id();
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         let _ = std::process::Command::new("taskkill")
             .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();
@@ -2518,6 +2524,71 @@ mod shell_cwd_tests {
         )
         .expect("verifier reads its own workspace marker");
         assert_eq!(stdout.lock().unwrap().trim(), CONTENT);
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_verifier_console_tests {
+    use super::*;
+
+    #[test]
+    fn console_child() {
+        if std::env::var("PYTXO_VERIFICATION_ACTOR").as_deref() != Ok("1") {
+            return;
+        }
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn GetConsoleWindow() -> *mut std::ffi::c_void;
+        }
+        // Query the real descendant. This checks console attachment and output;
+        // the packaged GUI caller still needs native visual acceptance.
+        assert!(
+            unsafe { GetConsoleWindow() }.is_null(),
+            "verifier opened a console"
+        );
+        println!("verifier-console-stdout");
+        eprintln!("verifier-console-stderr");
+    }
+
+    #[test]
+    fn verifier_keeps_console_hidden_and_captures_both_streams() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        std::fs::copy(
+            std::env::current_exe().unwrap(),
+            temp.path().join("verifier-fixture.exe"),
+        )
+        .expect("copy controlled child");
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let observed = Arc::clone(&events);
+        let callback: EventCallback = Arc::new(move |_, kind, payload| {
+            observed
+                .lock()
+                .unwrap()
+                .push((kind.to_owned(), payload.to_owned()));
+        });
+        run_verify_commands_with_limits(
+            temp.path(),
+            &["verifier-fixture.exe --exact run::windows_verifier_console_tests::console_child --nocapture --test-threads=1".into()],
+            Some(&callback),
+            "console-run:verify",
+            PermissionProfile::Orbit,
+            &DomainId("console-test-domain".into()),
+            ExecutionBackend::Subprocess,
+            true,
+            None,
+            Duration::from_secs(10),
+            4096,
+            None,
+        ).expect("background verification succeeds without a console");
+        let events = events.lock().unwrap();
+        assert!(events
+            .iter()
+            .any(|(kind, value)| kind == "verify-stdout"
+                && value.contains("verifier-console-stdout")));
+        assert!(events
+            .iter()
+            .any(|(kind, value)| kind == "verify-stderr"
+                && value.contains("verifier-console-stderr")));
     }
 }
 

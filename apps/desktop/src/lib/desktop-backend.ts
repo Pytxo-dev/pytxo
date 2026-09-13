@@ -59,6 +59,7 @@ export interface DesktopBackend {
   flowHistory(): Promise<FlowDraftRecord[]>;
   deleteFlowDraft(draftId: string): Promise<void>;
   listAgents(runId: string, domainId: string | null): Promise<AgentDto[]>;
+  readAgentEvents(runId: string, agentId: string, domainId: string, after: number, limit: number): Promise<import("./types").EventDto[]>;
   runReview(runId: string, domainId: string | null): Promise<RunReviewDto>;
   runReviewContent(runId: string, path: string, side: "before" | "after", offset: number, limit: number, domainId: string | null): Promise<PreparedContentChunkDto>;
   refreshRunReview(runId: string, domainId: string | null): Promise<PreparedRunManifest>;
@@ -148,6 +149,7 @@ class TauriDesktopBackend implements DesktopBackend {
   async flowHistory() { return ipc.flowHistory(); }
   async deleteFlowDraft(draftId: string) { return ipc.flowDelete(draftId); }
   async listAgents(runId: string, domainId: string | null) { return ipc.listAgents(runId, domainId); }
+  async readAgentEvents(runId: string, agentId: string, domainId: string, after: number, limit: number) { return ipc.readAgentEvents(runId, agentId, domainId, after, limit); }
   async runReview(runId: string, domainId: string | null) { return ipc.runReview(runId, domainId); }
   async runReviewContent(runId: string, path: string, side: "before" | "after", offset: number, limit: number, domainId: string | null) { return ipc.runReviewContent(runId, path, side, offset, limit, domainId); }
   async refreshRunReview(runId: string, domainId: string | null) { return ipc.refreshRunReview(runId, domainId); }

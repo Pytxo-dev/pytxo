@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use pytxo_core::{strip_extended_path, PytxoError, Result};
 
@@ -75,7 +74,7 @@ pub fn merge_agent_branch(repo_root: &Path, branch: &str) -> Result<()> {
 }
 
 fn git(repo_root: &Path, args: &[&str]) -> Result<String> {
-    let output = Command::new("git")
+    let output = pytxo_core::background_command("git")
         .args(args)
         .current_dir(repo_root)
         .output()

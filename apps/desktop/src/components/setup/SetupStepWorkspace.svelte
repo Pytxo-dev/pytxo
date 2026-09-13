@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SetupStepFrame from "./SetupStepFrame.svelte";
   import { onMount } from "svelte";
   import { createDesktopBackend } from "../../lib/desktop-backend";
   import {
@@ -12,15 +13,16 @@
     onContinue,
     onSkip,
     onWorkspaceSelected,
+    selected = $bindable<string | null>(null),
     error = "",
   }: {
     onContinue: () => void;
     onSkip: () => void;
     onWorkspaceSelected: (path: string) => Promise<void> | void;
+    selected?: string | null;
     error?: string;
   } = $props();
 
-  let selected = $state<string | null>(null);
   let selectedKind = $state<"workspace" | "example" | null>(null);
   let busy = $state(false);
   let creatingExample = $state(false);
@@ -91,10 +93,10 @@
   });
 </script>
 
-<div class="step">
-  <h2 class="title">Open a Workspace</h2>
+<SetupStepFrame>
+  <h2 class="title">Choose your project</h2>
   <p class="lead">
-    Pick a project folder to start. You can manage more folders later in Setup → Workspaces.
+    Pick the folder containing your project, or try a small example. You can add more folders later.
   </p>
 
   {#if displayError}
@@ -108,17 +110,18 @@
         ? "Guided local Git example ready. Its baseline tests need no API key."
         : "Workspace selected. Pytxo will use its existing Git state and configuration."}
     </small>
-    <Button class="wide" onclick={onContinue}>Continue</Button>
+
   {:else}
-    <Button class="wide" disabled={busy} onclick={pickFolder}>
+    <div class="folder-choices">
+    <Button disabled={busy} onclick={pickFolder}>
       {busy ? "Opening…" : "Select folder"}
     </Button>
     <div class="example-choice">
-      <span>or</span>
       <Button variant="outline" class="wide" disabled={busy} onclick={() => void createExample()}>
         {creatingExample ? "Creating example…" : "Try the guided example"}
       </Button>
       <small>Requires Git. Includes tests that use Node.js; no API key required.</small>
+    </div>
     </div>
   {/if}
 
@@ -143,20 +146,13 @@
     </div>
   {/if}
 
-  <Button variant="ghost" class="wide" onclick={onSkip}>Skip for now</Button>
-</div>
+  {#snippet actions()}
+    <Button variant="ghost" disabled={busy} onclick={onSkip}>Skip for now</Button>
+    {#if selected}<Button disabled={busy} onclick={onContinue}>Continue</Button>{/if}
+  {/snippet}
+</SetupStepFrame>
 
 <style>
-  .step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 1rem;
-    max-width: 480px;
-    margin: 0 auto;
-    width: 100%;
-  }
   .title {
     margin: 0;
     font-size: 1.35rem;
@@ -190,6 +186,10 @@
   .recent {
     width: 100%;
     text-align: left;
+    min-height: 72px;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
   }
   .recent__label {
     margin: 0 0 0.35rem;
@@ -207,6 +207,9 @@
     flex-direction: column;
     gap: 0;
     border-top: 1px solid var(--border);
+    overflow: auto;
+    min-height: 0;
+    max-height: 250px;
   }
   .recent__item {
     display: flex;
@@ -242,10 +245,8 @@
     gap: 0.55rem;
     width: 100%;
   }
-  .example-choice > span {
-    color: var(--muted-foreground);
-    font-size: 0.72rem;
-  }
+  .folder-choices { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 12px; }
+  .folder-choices :global(button) { min-height: 40px; width: 100%; }
   .example-choice > small {
     max-width: 320px;
     color: var(--muted-foreground);
@@ -256,7 +257,5 @@
     color: var(--muted-foreground);
     font-size: 0.72rem;
   }
-  :global(.wide) {
-    min-width: 220px;
-  }
+  @media (max-width: 700px) { .folder-choices { grid-template-columns: 1fr; } }
 </style>

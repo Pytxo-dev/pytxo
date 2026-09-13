@@ -267,6 +267,9 @@ export class PreviewDesktopBackend implements DesktopBackend {
     if (nativeAgentFixture === "1" || nativeAgentFixture === "switch") {
       this.snapshot.agents = this.snapshot.agents.map((agent) => ({ ...agent, id: `${agent.run_id}:${agent.id}` }));
     }
+    if (localStorage.getItem("pytxo-preview-agent-identity-v1") === "1") {
+      this.snapshot.agents[0] = { ...this.snapshot.agents[0], launcher: { id: "codex", display_name: "OpenAI Codex" }, workspace_path: "C:/browser-fixture/isolated/worker" };
+    }
     const requested =
       typeof localStorage === "undefined"
         ? null
@@ -303,7 +306,14 @@ export class PreviewDesktopBackend implements DesktopBackend {
   }
 
   async loadSnapshot(_opts: { includeAgents?: boolean } = {}) {
-    return structuredClone(this.snapshot);
+    const snapshot = structuredClone(this.snapshot);
+    // Deliberately awkward browser-only data for responsive acceptance.
+    const layoutFixture = localStorage.getItem("pytxo-preview-layout-fixture-v1");
+    if (layoutFixture === "long") {
+      snapshot.domains[0].repo_root = `C:/workspaces/${"a-long-folder/".repeat(8)}commit-boundary-20260901-160000-936`;
+      snapshot.runs.push(...Array.from({ length: 40 }, (_, index) => ({ ...snapshot.runs[1], id: `history-fixture-${index}` })));
+    }
+    return snapshot;
   }
   async approve(requestId: string) {
     this.resolveApproval(requestId);
@@ -448,10 +458,26 @@ export class PreviewDesktopBackend implements DesktopBackend {
   async flowHistory(): Promise<FlowDraftRecord[]> {
     const fixture = typeof localStorage === "undefined" ? null : localStorage.getItem("pytxo-preview-flow-history-v1");
     if (!fixture) return [];
+    if (fixture === "long-mission") {
+      const mission = "Update the parser while preserving its public API; add regression tests for Windows paths and mixed-case input; document the final behavior and exact examples. ".repeat(6);
+      return [{ id: "draft-density", title: mission.slice(0, 70), mission_text: mission, source: "text", domain_id: "pytxo", project_id: null, status: "completed", plan_json: "{}", dispatched_run_id: "run-8f2c", created_at: "2026-09-06T12:00:00Z", updated_at: "2026-09-06T12:00:00Z" }];
+    }
     const domainId = fixture === "long-path" ? `C:/workspaces/${"a-very-long-project-folder/".repeat(8)}repository` : fixture === "missing" ? "unavailable-workspace" : "signal-lab";
     return [{ id: "draft-reuse", title: "Fix the parser regression", mission_text: "Fix src/parser.rs and add a regression test", source: "text", domain_id: domainId, project_id: null, status: "completed", plan_json: JSON.stringify({ ade: { requested: fixture === "unavailable-cli" ? "claude" : "codex" } }), dispatched_run_id: "run-71ad", created_at: "2026-09-06T12:00:00Z", updated_at: "2026-09-06T12:00:00Z" }];
   }
   async deleteFlowDraft() {}
+  async readAgentEvents(runId: string, agentId: string, domainId: string, after: number, limit: number): Promise<import("./types").EventDto[]> {
+    const agent = this.snapshot.agents.find(a => a.id === agentId && a.run_id === runId && a.domain_id === domainId);
+    if (!agent) throw new Error("Agent not present in this preview scope.");
+    if (localStorage.getItem("pytxo-preview-layout-fixture-v1") === "long") {
+      return Array.from({ length: 80 }, (_, index) => ({ id: index + 1, agent_id: agentId,
+        kind: index === 0 ? "agent-start" : index === 79 ? "verify-ok" : "stdout",
+        payload: index === 0 ? "Browser fixture: runner started the selected task." : index === 79 ? "Browser fixture: verification command completed." : `Browser fixture: worker prose ${index}; this is not control evidence.`,
+        ts: "2026-09-13T08:00:00Z",
+      })).filter(e => e.id > after).slice(0, limit);
+    }
+    return ["\x1b[", "32mBrowser fixture: recorded output example. Native Desktop reads actual stored events.", "\x1b[0m"].map((payload, index) => ({ id: index + 1, agent_id: agentId, kind: "stdout", payload, ts: "2026-09-12T00:00:00Z" })).filter(e => e.id > after).slice(0, limit);
+  }
   async listAgents(runId: string) {
     const verification = localStorage.getItem("pytxo-preview-agent-verification-v1");
     if (runId === "run-71ad" && verification === "missing") {
@@ -850,6 +876,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
     const run = this.snapshot.runs.find((item) => item.id === runId);
     if (!run) throw new Error(`Run not found: ${runId}`);
     run.apply_status = "ready";
+    localStorage.setItem("pytxo-preview-candidate-check-v1", "passed");
     this.emitChange("signal-lab", "contract", runId);
     return (await this.runReview(runId)).prepared_manifest!;
   }
