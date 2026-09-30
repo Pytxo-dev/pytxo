@@ -5,13 +5,30 @@ use pytxo_core::{
     DomainId, ExecutionPlan, IsolationMode, PermissionProfile, PreparedRunManifest, ScheduledTask,
     TaskId,
 };
-use pytxo_orchestrate::{apply_run_changes, discard_run_review, refresh_run_review};
+use pytxo_orchestrate::{
+    apply_run_changes as apply_reviewed_run_changes, discard_run_review, refresh_run_review,
+};
 use pytxo_runner::{
     apply_prepared_review, permission_enforcement_receipt, prepare_review_package,
     run_candidate_check, AgentWorkspaceInput, CandidateCheckContext, CandidateVerification,
     RunApplyManifest, SwarmRegistry,
 };
 use pytxo_store::PytxoStore;
+
+// Existing integrity/recovery tests explicitly review the current persisted
+// snapshot. Stale-client tests below retain their original digest instead.
+fn apply_run_changes(
+    config: Option<std::path::PathBuf>,
+    repo: Option<std::path::PathBuf>,
+    run_id: &str,
+) -> anyhow::Result<RunApplyManifest> {
+    let store = PytxoStore::open(&repo.as_ref().unwrap().join(".pytxo/data/pytxo.db"))?;
+    let digest = store
+        .get_run_contract(run_id)?
+        .and_then(|contract| contract.prepared_digest)
+        .unwrap_or_default();
+    apply_reviewed_run_changes(config, repo, run_id, &digest)
+}
 
 fn git(repo: &Path, args: &[&str]) -> String {
     let output = Command::new("git")
@@ -184,6 +201,148 @@ fn prepared_fixture(run_id: &str) -> PreparedFixture {
         run_id: run_id.into(),
         prepared,
     }
+}
+
+#[test]
+fn stale_client_cannot_authorize_a_refreshed_candidate_for_the_same_run() {
+    assert_stale_client_rejected(false);
+}
+
+#[test]
+fn fresh_check_evidence_alone_invalidates_the_previous_authorization() {
+    assert_stale_client_rejected(true);
+}
+
+fn assert_stale_client_rejected(evidence_only: bool) {
+    let fixture = prepared_fixture("two-client-review");
+    let reviewed_a = fixture.prepared.package_digest.clone();
+    // Client one keeps A open. An operator edits the primary; client two's
+    // Apply detects drift and explicitly refreshes the same run against it.
+    write(&fixture.repo.join("value.txt"), "operator-edit\n");
+    assert!(apply_run_changes(None, Some(fixture.repo.clone()), &fixture.run_id).is_err());
+    if evidence_only {
+        write(&fixture.repo.join("value.txt"), "before\n");
+    }
+    let reviewed_b = refresh_run_review(None, Some(fixture.repo.clone()), &fixture.run_id)
+        .expect("legitimate refresh after drift");
+    assert_ne!(reviewed_a, reviewed_b.package_digest);
+    assert_eq!(
+        fixture.prepared.files[0].after_sha256,
+        reviewed_b.files[0].after_sha256
+    );
+    if evidence_only {
+        assert_eq!(fixture.prepared.files, reviewed_b.files);
+    }
+
+    let stale = apply_reviewed_run_changes(
+        None,
+        Some(fixture.repo.clone()),
+        &fixture.run_id,
+        &reviewed_a,
+    );
+    assert!(
+        stale.is_err(),
+        "client one's review of A must not authorize B"
+    );
+    assert!(matches!(
+        stale.unwrap_err().downcast_ref::<pytxo_core::PytxoError>(),
+        Some(pytxo_core::PytxoError::StaleReview)
+    ));
+    assert_eq!(
+        std::fs::read_to_string(fixture.repo.join("value.txt")).unwrap(),
+        if evidence_only {
+            "before\n"
+        } else {
+            "operator-edit\n"
+        }
+    );
+    let store = PytxoStore::open(&fixture.db_path).unwrap();
+    assert_eq!(
+        store
+            .get_run_contract(&fixture.run_id)
+            .unwrap()
+            .unwrap()
+            .apply_status,
+        "ready"
+    );
+    assert!(store
+        .list_events(&format!("{}:agent-0", fixture.run_id), 100)
+        .unwrap()
+        .iter()
+        .any(|event| event.kind == "review-authorization-refused"));
+    drop(store);
+    apply_reviewed_run_changes(
+        None,
+        Some(fixture.repo.clone()),
+        &fixture.run_id,
+        &reviewed_b.package_digest,
+    )
+    .expect("freshly reviewed B applies");
+    assert_eq!(
+        std::fs::read_to_string(fixture.repo.join("value.txt")).unwrap(),
+        "after\n"
+    );
+}
+
+#[test]
+fn missing_or_wrong_review_identity_refuses_without_claiming_apply() {
+    let fixture = prepared_fixture("missing-review-identity");
+    for digest in ["", "another-runs-digest"] {
+        let error =
+            apply_reviewed_run_changes(None, Some(fixture.repo.clone()), &fixture.run_id, digest)
+                .unwrap_err();
+        assert!(matches!(
+            error.downcast_ref::<pytxo_core::PytxoError>(),
+            Some(pytxo_core::PytxoError::StaleReview)
+        ));
+    }
+    assert!(
+        pytxo_runner::apply_attempt_ids(&fixture.data_dir, &fixture.run_id)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        std::fs::read_to_string(fixture.repo.join("value.txt")).unwrap(),
+        "before\n"
+    );
+    assert_eq!(
+        PytxoStore::open(&fixture.db_path)
+            .unwrap()
+            .get_run_contract(&fixture.run_id)
+            .unwrap()
+            .unwrap()
+            .apply_status,
+        "ready"
+    );
+}
+
+#[test]
+fn concurrent_clients_cannot_apply_the_review_twice() {
+    let fixture = prepared_fixture("concurrent-reviewed-apply");
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let clients: Vec<_> = (0..2)
+        .map(|_| {
+            let repo = fixture.repo.clone();
+            let run_id = fixture.run_id.clone();
+            let digest = fixture.prepared.package_digest.clone();
+            let barrier = barrier.clone();
+            std::thread::spawn(move || {
+                barrier.wait();
+                apply_reviewed_run_changes(None, Some(repo), &run_id, &digest)
+            })
+        })
+        .collect();
+    let successes = clients
+        .into_iter()
+        .filter_map(|client| client.join().unwrap().ok())
+        .count();
+    assert_eq!(successes, 1);
+    assert_eq!(
+        pytxo_runner::apply_attempt_ids(&fixture.data_dir, &fixture.run_id)
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 fn assert_apply_runtime_receipt_rejected(missing: bool) {

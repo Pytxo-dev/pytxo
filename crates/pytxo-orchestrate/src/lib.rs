@@ -1,24 +1,30 @@
+#[cfg(all(feature = "routed-test-faults", not(debug_assertions)))]
+compile_error!("routed-test-faults is for debug fixture verification and must not be packaged");
+
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use anyhow::Context;
 use fs2::FileExt;
 use pytxo_core::{
     canonical_repo_root, DomainId, ExecutionPlan, FidelityTier, PermissionEngine,
     PermissionProfile, PytxoConfig, PytxoError, RunApplyError, RunId, SignalCore, Task, TaskId,
     TokenWallet, UsageMeter,
 };
+use pytxo_runner::owned_launch::{terminate_owned_job, OwnedJobStopResult, OwnedProcess};
 use pytxo_runner::{
     apply_attempt_ids, apply_prepared_review_under_lease, execute_plan, load_review_package,
-    permission_enforcement_receipt, prepare_review_package, reconcile_apply_journals_under_lease,
-    registry_path, require_candidate_verification, run_candidate_check, stop_run,
-    AgentWorkspaceInput, CandidateCheckContext, CandidateVerification,
-    ExecutionDomainMutationLease, PermissionEnforcementReceipt, ProcessRegistryFile,
-    RecoveryOutcome, RunApplyManifest, RunContext,
+    permission_enforcement_receipt, prepare_review_package, publish_run_cancellation,
+    reconcile_apply_journals_under_lease, registry_path, require_candidate_verification,
+    run_candidate_check, terminate_published_run, AgentWorkspaceInput, CandidateCheckContext,
+    CandidateVerification, ExecutionDomainMutationLease, PermissionEnforcementReceipt,
+    ProcessRegistryFile, RecoveryOutcome, RunApplyManifest, RunContext,
 };
 use pytxo_scheduler::build_plan;
 use pytxo_signal::TreeSitterSignalCore;
+use pytxo_store::routing_launch::{OwnedJobStopPhase, OwnedJobStopTarget};
 use pytxo_store::{PytxoStore, SharedStore};
 use serde::{Deserialize, Serialize};
 
@@ -33,6 +39,22 @@ pub mod flow;
 mod hypervisor;
 mod preflight;
 mod project;
+mod routed_advisor;
+mod routed_checker;
+pub mod routed_claude;
+mod routed_claude_review;
+pub mod routed_codex;
+mod routed_fixture;
+#[allow(
+    dead_code,
+    reason = "hosted Shadow controller is staged behind review-only dispatch"
+)]
+mod routed_hosted_shadow;
+#[doc(hidden)]
+pub use routed_hosted_shadow::{HostedClientFuture, HostedEvaluationRequest, HostedShadowClient};
+pub mod routed_prompt;
+mod routed_supervisor;
+mod routed_worker;
 mod structural;
 
 pub use dashboard::{dashboard_snapshot, dashboard_snapshot_light, DashboardSnapshot};
@@ -50,9 +72,22 @@ pub use fleet::{
     fleet_status, fleet_status_nodes, wait_for_domain_run, FleetRunOptions, FleetRunResult,
     FleetRunStatus,
 };
+#[cfg(feature = "routed-test-faults")]
+#[doc(hidden)]
+pub use flow::dispatch_experimental_hosted_shadow_with_client;
 pub use flow::{
-    dispatch_flow, preview_flow, save_flow_draft, save_reviewed_flow_plan, FlowAdeSummary,
-    FlowBlockedReason, FlowDraftInput, FlowPlan, FlowPlanTask, FlowSource, FlowStatus, FlowWarning,
+    dispatch_desktop_beta_flow, dispatch_experimental_routed_flow, dispatch_flow,
+    enable_experimental_hosted_advisor_local_consent, enable_experimental_routed_advisor_consent,
+    list_flow_drafts_with_routed_recovery, preview_desktop_beta_flow,
+    preview_experimental_routed_advisor_packet, preview_experimental_routed_flow, preview_flow,
+    preview_proposed_hosted_advisor_packet, preview_reviewed_hosted_advisor_packet,
+    read_experimental_hosted_advisor_local_consent, read_experimental_routed_advisor_consent,
+    reconcile_routed_flow_startup, request_stop_experimental_routed_flow,
+    revoke_experimental_hosted_advisor_local_consent, revoke_experimental_routed_advisor_consent,
+    save_flow_draft, save_reviewed_flow_plan, FlowAdeSummary, FlowBlockedReason, FlowDraftInput,
+    FlowPlan, FlowPlanTask, FlowSource, FlowStatus, FlowWarning,
+    ProposedHostedAdvisorPacketPreview, ReviewedHostedAdvisorPacketPreview,
+    RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RoutedFlowReview, RoutedStopTarget,
 };
 pub use hypervisor::{
     default_hypervisor, forget_catalog_domain, list_catalog_domains, list_catalog_domains_enriched,
@@ -66,6 +101,12 @@ pub use project::{
 };
 pub use pytxo_core::ExecutionBackend;
 pub use pytxo_store::CatalogEntry;
+pub use routed_claude_review::{
+    preview_experimental_claude_hosted_shadow_flow,
+    preview_experimental_claude_hosted_shadow_flow_with_facts,
+    preview_experimental_claude_proposal_flow,
+    preview_experimental_claude_proposal_flow_with_facts, ReviewedDemandFacts,
+};
 pub use structural::{structural_graph, workspace_structural_graph};
 
 #[cfg(feature = "sanitize")]
@@ -573,6 +614,7 @@ pub fn commit_workspace_for_agent(
     run_id: &str,
     agent_id: &str,
 ) -> anyhow::Result<()> {
+    let _upgrade_guard = pytxo_core::UpgradeGuard::work()?;
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo_root)?;
     let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
@@ -688,8 +730,16 @@ pub fn apply_run_changes(
     config: Option<PathBuf>,
     repo: Option<PathBuf>,
     run_id: &str,
+    expected_package_digest: &str,
 ) -> anyhow::Result<RunApplyManifest> {
-    apply_run_changes_with(config, repo, run_id, apply_prepared_review_under_lease)
+    let _upgrade_guard = pytxo_core::UpgradeGuard::work()?;
+    apply_run_changes_with(
+        config,
+        repo,
+        run_id,
+        expected_package_digest,
+        apply_prepared_review_under_lease,
+    )
 }
 
 /// Reconcile one reviewed Apply journal and persist its authoritative run-contract state.
@@ -702,6 +752,7 @@ pub fn reconcile_run_recovery(
     repo: Option<PathBuf>,
     run_id: &str,
 ) -> anyhow::Result<RecoveryOutcome> {
+    let _upgrade_guard = pytxo_core::UpgradeGuard::work()?;
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo_root)?;
     let data_dir = repo_root.join(&cfg.data_dir);
@@ -779,6 +830,7 @@ fn apply_run_changes_with(
     config: Option<PathBuf>,
     repo: Option<PathBuf>,
     run_id: &str,
+    expected_package_digest: &str,
     apply: impl FnOnce(
         &Path,
         &Path,
@@ -915,6 +967,31 @@ fn apply_run_changes_with(
         anyhow::bail!("multi-root run apply is not atomic in v1.1 and was rejected");
     }
 
+    // Scope: one Orbit/Galaxy execution domain. Refresh holds this same lease.
+    // Authorization belongs to the caller's displayed snapshot, never "latest".
+    // Refusal is an event, not a mutation of the replacement candidate's status.
+    if expected_package_digest.is_empty()
+        || contract.prepared_digest.as_deref() != Some(expected_package_digest)
+    {
+        let actors = store.list_agents_for_run(run_id)?;
+        let actor = actors
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("review refusal has no audit actor"))?;
+        store.append_event(
+            &actor.id,
+            "review-authorization-refused",
+            &serde_json::json!({
+                "run_id": run_id,
+                "code": "stale_review",
+                "expected_package_digest": expected_package_digest,
+                "current_package_digest": contract.prepared_digest,
+            })
+            .to_string(),
+        )?;
+        return Err(PytxoError::StaleReview.into());
+    }
+
+    let routed = has_routed_history(&store, &repo_root, run_id)?;
     if !store.claim_run_apply(run_id)? {
         anyhow::bail!("run apply is not ready or is already being applied: {run_id}");
     }
@@ -973,9 +1050,12 @@ fn apply_run_changes_with(
         Ok(manifest) => {
             let manifest_json = serde_json::to_string(&manifest)?;
             store.finish_run_apply(run_id, "applied", Some(&manifest_json))?;
-            if let Ok(workspaces) = review_workspaces(&store, run_id, &plan) {
-                cleanup_preserved_workspaces(&repo_root, run_id, &workspaces);
+            if !routed {
+                if let Ok(workspaces) = review_workspaces(&store, run_id, &plan) {
+                    cleanup_preserved_workspaces(&repo_root, run_id, &workspaces);
+                }
             }
+            cleanup_routed_preserved_workspaces(&repo_root, &cfg, &store, run_id);
             Ok(manifest)
         }
         Err(error) => {
@@ -1053,6 +1133,7 @@ pub fn refresh_run_review(
     repo: Option<PathBuf>,
     run_id: &str,
 ) -> anyhow::Result<pytxo_core::PreparedRunManifest> {
+    let _upgrade_guard = pytxo_core::UpgradeGuard::work()?;
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo_root)?;
     let data_dir = repo_root.join(&cfg.data_dir);
@@ -1094,7 +1175,6 @@ pub fn refresh_run_review(
             .as_deref()
             .ok_or_else(|| anyhow::anyhow!("run contract has no execution plan"))?,
     )?;
-    let workspaces = review_workspaces(&store, run_id, &plan)?;
     let enforcement: RunEnforcementEnvelope = serde_json::from_str(
         contract
             .enforcement_json
@@ -1102,39 +1182,77 @@ pub fn refresh_run_review(
             .ok_or_else(|| anyhow::anyhow!("run has no enforcement receipt"))?,
     )?;
     let domain = default_hypervisor().ensure_domain(&repo_root, &cfg)?;
+    let routed_scope = pytxo_store::routing::RoutingScope {
+        domain_id: DomainId::from_repo_root(&repo_root)?,
+        run_id: RunId(run_id.to_owned()),
+    };
+    let routed_history = store.routing_history(&routed_scope)?;
+    let routed = routed_history.is_some();
+    if let Some(history) = routed_history.as_ref() {
+        if history.mission.profiles.is_empty()
+            || history
+                .mission
+                .profiles
+                .iter()
+                .any(|registered| registered.profile.backend != cfg.execution_backend)
+        {
+            anyhow::bail!("routed Review execution backend changed; restore the reviewed backend");
+        }
+    }
+    let workspaces = if routed {
+        None
+    } else {
+        Some(review_workspaces(&store, run_id, &plan)?)
+    };
     if !store.begin_run_preparation(run_id)? {
         anyhow::bail!("run review could not enter preparing state");
     }
-    let base_revision = current_head_revision(&repo_root)?;
-    let preparation = match load_review_package(&data_dir, run_id) {
-        Ok(frozen) => pytxo_runner::refresh_frozen_review_package(
+    let preparation = if routed {
+        routed_supervisor::refresh_routed_winner_review(
+            &store,
+            &routed_scope,
+            &cfg,
             &repo_root,
             &data_dir,
-            &frozen,
-            &base_revision,
-            &cfg.blast.sparse_exclude,
-        ),
-        Err(_) => prepare_review_package(
-            &repo_root,
-            &data_dir,
-            run_id,
-            &base_revision,
-            &workspaces,
-            &cfg.blast.sparse_exclude,
-        ),
-    }
-    .map_err(anyhow::Error::from)
-    .and_then(|manifest| verify_combined_candidate(&domain, &cfg, &plan, &enforcement, manifest));
+            &plan,
+            &enforcement,
+        )
+    } else {
+        let base_revision = current_head_revision(&repo_root)?;
+        match load_review_package(&data_dir, run_id) {
+            Ok(frozen) => pytxo_runner::refresh_frozen_review_package(
+                &repo_root,
+                &data_dir,
+                &frozen,
+                &base_revision,
+                &cfg.blast.sparse_exclude,
+            ),
+            Err(_) => prepare_review_package(
+                &repo_root,
+                &data_dir,
+                run_id,
+                &base_revision,
+                workspaces.as_ref().expect("legacy review workspaces"),
+                &cfg.blast.sparse_exclude,
+            ),
+        }
+        .map_err(anyhow::Error::from)
+        .and_then(|manifest| {
+            verify_combined_candidate(&domain, &cfg, &plan, &enforcement, manifest)
+        })
+    };
     match preparation {
         Ok(manifest) => {
-            persist_finished_run_review(&store, run_id, &manifest)?;
-            // review_workspaces has required every planned task to have completed
-            // successfully. A failed review can now recover after explicit fresh
-            // verification, without ever reviving a cancelled or stopped run.
-            if run.status == "failed"
-                && !store.finish_run_if_status(run_id, "failed", "completed")?
-            {
-                anyhow::bail!("run changed status while refreshing its review");
+            if routed {
+                store.finish_routed_review_and_run(run_id, &manifest, &run.status)?;
+            } else {
+                persist_finished_run_review(&store, run_id, &manifest)?;
+                // Legacy review keeps its existing status transition semantics.
+                if run.status == "failed"
+                    && !store.finish_run_if_status(run_id, "failed", "completed")?
+                {
+                    anyhow::bail!("run changed status while refreshing its review");
+                }
             }
             Ok(manifest)
         }
@@ -1275,17 +1393,23 @@ pub fn discard_run_review(
     repo: Option<PathBuf>,
     run_id: &str,
 ) -> anyhow::Result<()> {
+    let _upgrade_guard = pytxo_core::UpgradeGuard::work()?;
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo_root)?;
     let store = PytxoStore::open(&cfg.db_path_at(&repo_root))?;
     let contract = store
         .get_run_contract(run_id)?
         .ok_or_else(|| anyhow::anyhow!("run has no persisted review contract: {run_id}"))?;
-    let workspaces = contract
-        .plan_json
-        .as_deref()
-        .and_then(|json| serde_json::from_str::<ExecutionPlan>(json).ok())
-        .and_then(|plan| review_workspaces(&store, run_id, &plan).ok());
+    let routed = has_routed_history(&store, &repo_root, run_id)?;
+    let workspaces = if routed {
+        None
+    } else {
+        contract
+            .plan_json
+            .as_deref()
+            .and_then(|json| serde_json::from_str::<ExecutionPlan>(json).ok())
+            .and_then(|plan| review_workspaces(&store, run_id, &plan).ok())
+    };
     if !store.discard_run_review(run_id)? {
         anyhow::bail!("run review cannot be discarded from its current state: {run_id}");
     }
@@ -1296,6 +1420,7 @@ pub fn discard_run_review(
     if let Some(workspaces) = workspaces {
         cleanup_preserved_workspaces(&repo_root, run_id, &workspaces);
     }
+    cleanup_routed_preserved_workspaces(&repo_root, &cfg, &store, run_id);
     Ok(())
 }
 
@@ -1472,6 +1597,123 @@ fn cleanup_preserved_workspaces(
             );
         }
     }
+}
+
+fn cleanup_routed_preserved_workspaces(
+    repo_root: &Path,
+    cfg: &PytxoConfig,
+    store: &PytxoStore,
+    run_id: &str,
+) {
+    let history = (|| -> anyhow::Result<_> {
+        let scope = pytxo_store::routing::RoutingScope {
+            domain_id: DomainId::from_repo_root(repo_root)?,
+            run_id: RunId(run_id.to_owned()),
+        };
+        store.routing_history(&scope).map_err(Into::into)
+    })();
+    let history = match history {
+        Ok(Some(history)) => history,
+        Ok(None) => return,
+        Err(error) => {
+            tracing::warn!(run_id, %error, "routed cleanup history could not be read");
+            return;
+        }
+    };
+    for attempt in &history.attempts {
+        let Some(task) = history
+            .tasks
+            .iter()
+            .find(|task| task.registration.contract.task_id == attempt.task_id)
+        else {
+            tracing::warn!(run_id, attempt_id = %attempt.attempt_id.0, "routed cleanup task disappeared");
+            continue;
+        };
+        let path = match store.routed_original_worktree(&attempt.agent_id, run_id) {
+            Ok(Some(original)) => PathBuf::from(original),
+            Ok(None) => match store.get_agent(&attempt.agent_id) {
+                Ok(Some(actor))
+                    if actor.run_id == run_id
+                        && actor.task_id == attempt.task_id.0
+                        && actor.worktree_path.is_some() =>
+                {
+                    PathBuf::from(actor.worktree_path.unwrap())
+                }
+                Ok(_) => {
+                    tracing::warn!(run_id, attempt_id = %attempt.attempt_id.0, "routed original workspace has no durable owner path");
+                    continue;
+                }
+                Err(error) => {
+                    tracing::warn!(run_id, attempt_id = %attempt.attempt_id.0, %error, "routed cleanup actor could not be read");
+                    continue;
+                }
+            },
+            Err(error) => {
+                tracing::warn!(run_id, attempt_id = %attempt.attempt_id.0, %error, "routed original workspace provenance changed");
+                continue;
+            }
+        };
+        if path.file_name().and_then(|name| name.to_str()) != Some(attempt.attempt_id.0.as_str())
+            || path
+                .parent()
+                .and_then(|parent| parent.file_name())
+                .and_then(|name| name.to_str())
+                != Some(run_id)
+        {
+            tracing::warn!(run_id, workspace = %path.display(), "routed original workspace path is not run-scoped");
+            continue;
+        }
+        let instance = match store.routed_worktree_instance(
+            &attempt.agent_id,
+            run_id,
+            &attempt.task_id.0,
+        ) {
+            Ok(Some(instance)) => instance,
+            Ok(None) => {
+                tracing::warn!(run_id, workspace = %path.display(), "routed worktree has no durable instance identity");
+                continue;
+            }
+            Err(error) => {
+                tracing::warn!(run_id, workspace = %path.display(), %error, "routed worktree instance provenance changed");
+                continue;
+            }
+        };
+        if Path::new(&instance.path) != path {
+            tracing::warn!(run_id, workspace = %path.display(), "routed worktree instance path changed");
+            continue;
+        }
+        match pytxo_runner::file_identity(&path.join(".git")) {
+            Ok(identity) if identity == instance.git_file_identity => {}
+            Ok(_) => {
+                tracing::warn!(run_id, workspace = %path.display(), "routed worktree instance was replaced");
+                continue;
+            }
+            Err(error) => {
+                tracing::warn!(run_id, workspace = %path.display(), %error, "routed worktree instance cannot be confirmed");
+                continue;
+            }
+        }
+        if let Err(error) = pytxo_runner::remove_reviewed_worktree_if_owned(
+            repo_root,
+            &path,
+            &task.registration.contract.base,
+        ) {
+            tracing::warn!(run_id, workspace = %path.display(), %error, "owned routed worktree cleanup failed");
+        }
+    }
+    if let Err(error) =
+        pytxo_runner::remove_routed_verification_views(&repo_root.join(&cfg.data_dir), run_id)
+    {
+        tracing::warn!(run_id, %error, "routed verification view cleanup failed");
+    }
+}
+
+fn has_routed_history(store: &PytxoStore, repo_root: &Path, run_id: &str) -> anyhow::Result<bool> {
+    let scope = pytxo_store::routing::RoutingScope {
+        domain_id: DomainId::from_repo_root(repo_root)?,
+        run_id: RunId(run_id.to_owned()),
+    };
+    Ok(store.routing_history(&scope)?.is_some())
 }
 
 fn current_head_revision(repo_root: &Path) -> anyhow::Result<String> {
@@ -2249,6 +2491,90 @@ pub async fn stop_exact(
     .await
 }
 
+/// Stop a routed run at the Store and active marker captured by its immutable
+/// dispatch claim. Current pytxo.toml may point at a different data directory.
+pub async fn stop_exact_routed(
+    target: RoutedStopTarget,
+    expected_run_id: &str,
+) -> anyhow::Result<()> {
+    let store_guard = pytxo_runner::FileIdentityGuard::acquire(&target.store_path)
+        .context("routed Stop cannot pin the original Store")?;
+    if store_guard.identity() != target.store_file_identity {
+        anyhow::bail!("routed Stop original Store identity changed; recovery required");
+    }
+    stop_impl_in_domain(
+        target.repo,
+        target.data_dir,
+        false,
+        false,
+        Some(expected_run_id),
+    )
+    .await
+}
+
+/// Stop only the exact native Jobs whose immutable Store owners were captured
+/// under ActiveRunGate. Native termination never settles Store ownership.
+fn terminate_owned_stop_targets(targets: &[OwnedJobStopTarget]) -> Vec<String> {
+    terminate_owned_stop_targets_with(targets, terminate_owned_job)
+}
+
+fn terminate_owned_stop_targets_with(
+    targets: &[OwnedJobStopTarget],
+    mut stop: impl FnMut(
+        &OwnedProcess,
+        &str,
+        std::time::Duration,
+    ) -> pytxo_core::Result<OwnedJobStopResult>,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    for target in targets {
+        if target.phase != OwnedJobStopPhase::Registered {
+            continue;
+        }
+        let (Some(pid), Some(start), Some(job_name), Some(nonce)) = (
+            target.pid,
+            target.start_identity.as_ref(),
+            target.job_name.as_ref(),
+            target.launch_nonce.as_ref(),
+        ) else {
+            errors.push(format!(
+                "owned Job {} has incomplete registered identity; recovery required",
+                target.attempt_id.0
+            ));
+            continue;
+        };
+        let process = OwnedProcess {
+            pid,
+            start_identity: Some(start.clone()),
+            job_name: job_name.clone(),
+        };
+        match stop(&process, nonce, std::time::Duration::from_secs(5)) {
+            Ok(OwnedJobStopResult::VerifiedZero) => {}
+            Ok(OwnedJobStopResult::NamedJobTerminatedUnverified) => errors.push(format!(
+                "owned Job {} was terminated without verified zero; recovery required",
+                target.attempt_id.0
+            )),
+            Ok(OwnedJobStopResult::Unknown) => errors.push(format!(
+                "owned Job {} termination is unknown; recovery required",
+                target.attempt_id.0
+            )),
+            Err(error) => errors.push(format!(
+                "terminate owned Job {}: {error}",
+                target.attempt_id.0
+            )),
+        }
+    }
+    errors
+}
+
+fn combine_stop_recovery_error(first: Option<String>, second: Option<String>) -> Option<String> {
+    match (first, second) {
+        (None, None) => None,
+        (Some(error), None) | (None, Some(error)) => Some(error),
+        (Some(first), Some(second)) => Some(format!("{first}; {second}")),
+    }
+}
+
 async fn stop_impl(
     config: Option<PathBuf>,
     repo: Option<PathBuf>,
@@ -2259,93 +2585,612 @@ async fn stop_impl(
     let repo = resolve_repo_root(repo.as_deref())?;
     let cfg = load_config(config.as_deref(), &repo)?;
     let data_dir = repo.join(&cfg.data_dir);
+    stop_impl_in_domain(repo, data_dir, all, cleanup_worktrees, expected_run_id).await
+}
+
+async fn stop_impl_in_domain(
+    repo: PathBuf,
+    data_dir: PathBuf,
+    all: bool,
+    cleanup_worktrees: bool,
+    expected_run_id: Option<&str>,
+) -> anyhow::Result<()> {
+    fs::create_dir_all(&data_dir)?;
+    let state_path = data_dir.join("active_run.json");
+    let domain_id = DomainId::from_repo_root(&repo)?;
 
     if all {
-        fs::create_dir_all(&data_dir)?;
-        let state_path = data_dir.join("active_run.json");
-        // Serialize the snapshot and settlement against a new domain dispatch.
-        // Even between children, the active run must receive durable cancellation.
-        with_active_run_lock(&state_path, || {
-            let tracked = ProcessRegistryFile::load(&registry_path(&data_dir))?;
+        let store = match PytxoStore::open(&data_dir.join("pytxo.db")) {
+            Ok(store) => store,
+            Err(store_error) => {
+                // Even a damaged Store cannot prevent termination of known
+                // registry children. Its routed ownership remains unresolved.
+                let published = with_active_run_lock(&state_path, || {
+                    let tracked = ProcessRegistryFile::load(&registry_path(&data_dir))?;
+                    let mut run_ids: std::collections::BTreeSet<String> = tracked
+                        .entries
+                        .iter()
+                        .map(|entry| entry.run_id.clone())
+                        .collect();
+                    if let Some(active) = read_active_run_state(&state_path)? {
+                        run_ids.insert(active.run_id);
+                    }
+                    let mut published = std::collections::BTreeMap::new();
+                    for run_id in run_ids {
+                        published.insert(
+                            run_id.clone(),
+                            publish_run_cancellation(&data_dir, &run_id)?,
+                        );
+                    }
+                    if let Some(domain) = default_hypervisor().domain_state(domain_id.as_str()) {
+                        domain.swarm.request_stop_all();
+                    }
+                    Ok(published)
+                })?;
+                let mut terminated = 0usize;
+                let mut failures = Vec::new();
+                for (run_id, entries) in &published {
+                    match terminate_published_run(&data_dir, entries) {
+                        Ok(pids) => terminated += pids.len(),
+                        Err(error) => failures.push(format!("run {run_id}: {error}")),
+                    }
+                }
+                anyhow::bail!(
+                    "Stop-all partially failed: Store unavailable ({store_error}); {terminated} known registry process(es) terminated; routed ownership and cancellation require recovery{}",
+                    if failures.is_empty() {
+                        String::new()
+                    } else {
+                        format!("; registry termination failures: {}", failures.join("; "))
+                    }
+                );
+            }
+        };
+        // Publish *every* selected registry marker before a process can be
+        // terminated. The gate is short and shared with claim/future launch.
+        let (
+            active,
+            tracked,
+            published,
+            epoch_errors,
+            attempt_scan_error,
+            registration_scan_error,
+            capacity_scan_error,
+            owned_targets,
+            owned_scan_error,
+            registry_scan_error,
+            publication_errors,
+        ) = with_active_run_lock(&state_path, || {
+            let (tracked, registry_scan_error) =
+                match ProcessRegistryFile::load(&registry_path(&data_dir)) {
+                    Ok(tracked) => (tracked, None),
+                    Err(error) => (ProcessRegistryFile::default(), Some(error.to_string())),
+                };
             let mut run_ids: std::collections::BTreeSet<String> = tracked
                 .entries
                 .iter()
                 .map(|entry| entry.run_id.clone())
                 .collect();
-            let active = match fs::read_to_string(&state_path) {
-                Ok(raw) => Some(serde_json::from_str::<ActiveRunState>(&raw)?),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-                Err(error) => return Err(error.into()),
-            };
+            let active = read_active_run_state(&state_path)?;
             if let Some(state) = &active {
                 run_ids.insert(state.run_id.clone());
             }
-            if let Ok(domain_id) = DomainId::from_repo_root(&repo) {
-                if let Some(domain) = default_hypervisor().domain_state(domain_id.as_str()) {
-                    domain.swarm.request_stop_all();
+            let attempt_scan_error = match store.unresolved_routing_attempts() {
+                Ok(attempts) => {
+                    for attempt in attempts {
+                        if attempt.scope.domain_id == domain_id {
+                            run_ids.insert(attempt.scope.run_id.0);
+                        }
+                    }
+                    None
+                }
+                Err(error) => Some(error.to_string()),
+            };
+            let mut registered_recovery_ids = std::collections::BTreeSet::new();
+            let registration_scan_error = match store.unreconciled_registered_routing_scopes() {
+                Ok(scopes) => {
+                    for scope in scopes {
+                        if scope.domain_id == domain_id {
+                            run_ids.insert(scope.run_id.0.clone());
+                            registered_recovery_ids.insert(scope.run_id.0);
+                        }
+                    }
+                    None
+                }
+                Err(error) => Some(error.to_string()),
+            };
+            let capacity_scan_error = match store.unresolved_capacity_intent_scopes() {
+                Ok(scopes) => {
+                    for scope in scopes {
+                        if scope.domain_id == domain_id {
+                            run_ids.insert(scope.run_id.0);
+                        }
+                    }
+                    None
+                }
+                Err(error) => Some(error.to_string()),
+            };
+            let (owned_targets, owned_scan_error) =
+                match store.owned_job_stop_snapshot(&domain_id, None) {
+                    Ok(targets) => {
+                        for target in &targets {
+                            run_ids.insert(target.scope.run_id.0.clone());
+                        }
+                        (targets, None)
+                    }
+                    Err(error) => (Vec::new(), Some(error.to_string())),
+                };
+            let mut published = std::collections::BTreeMap::new();
+            let mut publication_errors = std::collections::BTreeMap::new();
+            for run_id in &run_ids {
+                match publish_run_cancellation(&data_dir, run_id) {
+                    Ok(receipt) => {
+                        published.insert(run_id.clone(), receipt);
+                    }
+                    Err(error) => {
+                        publication_errors.insert(run_id.clone(), error.to_string());
+                    }
                 }
             }
-            let store = PytxoStore::open(&cfg.db_path_at(&repo))?;
+            let mut epoch_errors = std::collections::BTreeMap::new();
             for run_id in &run_ids {
-                stop_run(&data_dir, run_id, true)?;
-                // Do not overwrite a completed/failed outcome racing with Stop.
+                match store.get_run_status(run_id) {
+                    Ok(Some((status, _)))
+                        if status == "completed"
+                            && attempt_scan_error.is_none()
+                            && registration_scan_error.is_none()
+                            && capacity_scan_error.is_none()
+                            && owned_scan_error.is_none()
+                            && !registered_recovery_ids.contains(run_id) =>
+                    {
+                        continue;
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        let fence_error =
+                            cancel_registered_routing_mission(&store, &domain_id, run_id)
+                                .err()
+                                .map(|error| error.to_string());
+                        epoch_errors.insert(
+                            run_id.clone(),
+                            combine_stop_recovery_error(
+                                Some(format!("run status unavailable: {error}")),
+                                fence_error,
+                            )
+                            .expect("status error is present"),
+                        );
+                        continue;
+                    }
+                }
+                if let Err(error) = cancel_registered_routing_mission(&store, &domain_id, run_id) {
+                    epoch_errors.insert(run_id.clone(), error.to_string());
+                }
+            }
+            // Publish to the in-memory supervisor before a newer run can claim
+            // this domain after the cross-process gate drops.
+            if let Some(domain) = default_hypervisor().domain_state(domain_id.as_str()) {
+                domain.swarm.request_stop_all();
+            }
+            Ok((
+                active,
+                tracked,
+                published,
+                epoch_errors,
+                attempt_scan_error,
+                registration_scan_error,
+                capacity_scan_error,
+                owned_targets,
+                owned_scan_error,
+                registry_scan_error,
+                publication_errors,
+            ))
+        })?;
+        #[cfg(test)]
+        pause_before_stop_termination(&repo);
+        let mut errors = epoch_errors
+            .iter()
+            .map(|(run_id, error)| format!("cancel routing mission {run_id}: {error}"))
+            .collect::<Vec<_>>();
+        if let Some(error) = &attempt_scan_error {
+            errors.push(format!(
+                "unresolved routed attempt enumeration failed; ownership unconfirmed: {error}"
+            ));
+        }
+        if let Some(error) = &registration_scan_error {
+            errors.push(format!(
+                "routing registration recovery enumeration failed; ownership unconfirmed: {error}"
+            ));
+        }
+        if let Some(error) = &capacity_scan_error {
+            errors.push(format!(
+                "capacity intent recovery enumeration failed; ownership unconfirmed: {error}"
+            ));
+        }
+        if let Some(error) = &owned_scan_error {
+            errors.push(format!(
+                "owned Job enumeration failed; native ownership unconfirmed: {error}"
+            ));
+        }
+        if let Some(error) = &registry_scan_error {
+            errors.push(format!(
+                "process registry enumeration failed; legacy ownership unconfirmed: {error}"
+            ));
+        }
+        for (run_id, error) in &publication_errors {
+            errors.push(format!("publish cancellation for run {run_id}: {error}"));
+        }
+        errors.extend(terminate_owned_stop_targets(&owned_targets));
+        let mut terminated = std::collections::BTreeSet::new();
+        for (run_id, entries) in &published {
+            if let Err(error) = terminate_published_run(&data_dir, entries) {
+                errors.push(format!("terminate run {run_id}: {error}"));
+                continue;
+            }
+            terminated.insert(run_id.clone());
+            if epoch_errors.contains_key(run_id) {
+                continue;
+            }
+            if let Err(error) = (|| -> anyhow::Result<()> {
+                // A completion that won the race remains completed.
                 let _ = store.finish_run_if_status(run_id, "starting", "cancelled")?
                     || store.finish_run_if_running(run_id, "cancelled")?;
+                Ok(())
+            })() {
+                errors.push(format!("settle run {run_id}: {error}"));
             }
-            if cleanup_worktrees {
+        }
+        let unresolved = if attempt_scan_error.is_none() {
+            match store.unresolved_routing_attempts() {
+                Ok(attempts) => Some(attempts),
+                Err(error) => {
+                    errors.push(format!(
+                        "post-termination routed ownership enumeration failed: {error}"
+                    ));
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        let registered_recovery = if registration_scan_error.is_none() {
+            match store.unreconciled_registered_routing_scopes() {
+                Ok(scopes) => Some(scopes),
+                Err(error) => {
+                    errors.push(format!(
+                        "post-termination routing registration recovery enumeration failed: {error}"
+                    ));
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        let pending_capacity = if capacity_scan_error.is_none() {
+            match store.unresolved_capacity_intent_scopes() {
+                Ok(scopes) => Some(scopes),
+                Err(error) => {
+                    errors.push(format!(
+                        "post-termination capacity intent enumeration failed: {error}"
+                    ));
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        if cleanup_worktrees {
+            if let (Some(unresolved), Some(registered_recovery), Some(pending_capacity)) =
+                (&unresolved, &registered_recovery, &pending_capacity)
+            {
                 for process in &tracked.entries {
-                    pytxo_runner::remove_worktree(
+                    if epoch_errors.contains_key(&process.run_id)
+                        || !terminated.contains(&process.run_id)
+                        || unresolved
+                            .iter()
+                            .any(|attempt| attempt.scope.run_id.0 == process.run_id)
+                        || registered_recovery
+                            .iter()
+                            .any(|scope| scope.run_id.0 == process.run_id)
+                        || pending_capacity
+                            .iter()
+                            .any(|scope| scope.run_id.0 == process.run_id)
+                    {
+                        continue;
+                    }
+                    match has_routed_history(&store, &repo, &process.run_id) {
+                        Ok(true) => continue,
+                        Ok(false) => {}
+                        Err(error) => {
+                            errors.push(format!(
+                                "cleanup run {}: routed history unavailable: {error}",
+                                process.run_id
+                            ));
+                            continue;
+                        }
+                    }
+                    if let Err(error) = pytxo_runner::remove_worktree(
                         Path::new(&process.repo_root),
                         Path::new(&process.worktree_path),
                         &process.branch,
                         true,
-                    )?;
+                    ) {
+                        errors.push(format!("cleanup run {}: {error}", process.run_id));
+                    }
                 }
             }
+        }
+        if errors.is_empty() {
             if let Some(state) = active {
-                clear_active_run_unlocked(&state_path, &state.run_id)?;
+                if !clear_stopped_active_run_if_safe(&state_path, &data_dir, &store, &state.run_id)?
+                {
+                    errors.push(format!(
+                        "run {} retains process or routed attempt ownership",
+                        state.run_id
+                    ));
+                }
             }
-            Ok(())
-        })?;
+        }
+        if unresolved.is_some_and(|attempts| !attempts.is_empty()) {
+            errors.push("unresolved routed attempt ownership requires recovery".into());
+        }
+        if registered_recovery
+            .is_some_and(|scopes| scopes.iter().any(|scope| scope.domain_id == domain_id))
+        {
+            errors.push("uncancelled registered routing ownership requires recovery".into());
+        }
+        if pending_capacity
+            .is_some_and(|scopes| scopes.iter().any(|scope| scope.domain_id == domain_id))
+        {
+            errors.push("unreleased capacity intent ownership requires recovery".into());
+        }
+        if !errors.is_empty() {
+            anyhow::bail!("Stop-all partially failed: {}", errors.join("; "));
+        }
         println!("Stopped all tracked runs and processes in this execution domain.");
         return Ok(());
     }
 
-    let state_path = repo.join(&cfg.data_dir).join("active_run.json");
-    if !state_path.exists() {
+    let store = match PytxoStore::open(&data_dir.join("pytxo.db")) {
+        Ok(store) => store,
+        Err(store_error) => {
+            // A broken Store must not strand an ordinary Stop's known child.
+            // Publish under the same identity gate, then terminate the exact
+            // captured process snapshot without claiming a routed epoch fence.
+            let (state, tracked_processes) = with_active_run_lock(&state_path, || {
+                let Some(state) = read_active_run_state(&state_path)? else {
+                    if let Some(expected) = expected_run_id {
+                        anyhow::bail!(
+                            "refusing to stop run {expected}: no run is active in execution domain {}",
+                            repo.display()
+                        );
+                    }
+                    anyhow::bail!(
+                        "Store unavailable and no active marker; routed ownership requires recovery: {store_error}"
+                    );
+                };
+                if let Some(expected) = expected_run_id {
+                    if state.run_id != expected {
+                        anyhow::bail!(
+                            "refusing to stop run {expected}: active run in execution domain {} is {}",
+                            repo.display(),
+                            state.run_id
+                        );
+                    }
+                }
+                let tracked_processes = publish_run_cancellation(&data_dir, &state.run_id)?;
+                Ok((state, tracked_processes))
+            })?;
+            let terminated = terminate_published_run(&data_dir, &tracked_processes);
+            if let Some(domain) = default_hypervisor().domain_state(domain_id.as_str()) {
+                domain.swarm.request_stop_run(&state.run_id);
+            }
+            match terminated {
+                Ok(pids) => anyhow::bail!(
+                    "Stop partially failed: Store unavailable ({store_error}); registry cancellation was published and {} known process(es) terminated, but routed cancellation is unconfirmed; active ownership requires recovery",
+                    pids.len()
+                ),
+                Err(termination_error) => anyhow::bail!(
+                    "Stop partially failed: Store unavailable ({store_error}) and known-process termination failed ({termination_error}); active ownership requires recovery"
+                ),
+            }
+        }
+    };
+
+    let published = with_active_run_lock(&state_path, || {
+        let Some(state) = read_active_run_state(&state_path)? else {
+            if let Some(expected) = expected_run_id {
+                anyhow::bail!(
+                    "refusing to stop run {expected}: no run is active in execution domain {}",
+                    repo.display()
+                );
+            }
+            if !store.unresolved_routing_attempts()?.is_empty() {
+                anyhow::bail!("no active marker, but routed attempt recovery is required");
+            }
+            if let Some(scope) = store
+                .unreconciled_registered_routing_scopes()?
+                .into_iter()
+                .find(|scope| scope.domain_id == domain_id)
+            {
+                anyhow::bail!(
+                    "no active marker, but registered routed recovery is required for run {}",
+                    scope.run_id.0
+                );
+            }
+            if let Some(scope) = store
+                .unresolved_capacity_intent_scopes()?
+                .into_iter()
+                .find(|scope| scope.domain_id == domain_id)
+            {
+                anyhow::bail!(
+                    "no active marker, but capacity intent recovery is required for run {}",
+                    scope.run_id.0
+                );
+            }
+            return Ok(None);
+        };
         if let Some(expected) = expected_run_id {
-            anyhow::bail!(
-                "refusing to stop run {expected}: no run is active in execution domain {}",
-                repo.display()
+            if state.run_id != expected {
+                anyhow::bail!(
+                    "refusing to stop run {expected}: active run in execution domain {} is {}",
+                    repo.display(),
+                    state.run_id
+                );
+            }
+        }
+        // A damaged legacy registry cannot block the independent Store fence
+        // or exact owned-Job termination. Legacy ownership stays unconfirmed.
+        let (tracked_processes, registry_error) =
+            match publish_run_cancellation(&data_dir, &state.run_id) {
+                Ok(published) => (Some(published), None),
+                Err(error) => (
+                    None,
+                    Some(format!("registry cancellation publication failed: {error}")),
+                ),
+            };
+        let (owned_targets, owner_scan_error) =
+            match store.owned_job_stop_snapshot(&domain_id, Some(&RunId(state.run_id.clone()))) {
+                Ok(targets) => (targets, None),
+                Err(error) => (
+                    Vec::new(),
+                    Some(format!("owned Job recovery scan unavailable: {error}")),
+                ),
+            };
+        let mut recovery_error = combine_stop_recovery_error(registry_error, owner_scan_error);
+        let status = match store.get_run_status(&state.run_id) {
+            Ok(status) => status,
+            Err(error) => {
+                recovery_error = combine_stop_recovery_error(
+                    recovery_error,
+                    Some(format!("run status unavailable: {error}")),
+                );
+                None
+            }
+        };
+        let scope = pytxo_store::routing::RoutingScope {
+            domain_id: domain_id.clone(),
+            run_id: RunId(state.run_id.clone()),
+        };
+        let registered_recovery = match store.unreconciled_registered_routing_scopes() {
+            Ok(scopes) => Some(scopes.contains(&scope)),
+            Err(error) => {
+                recovery_error = combine_stop_recovery_error(
+                    recovery_error,
+                    Some(format!(
+                        "registered routing recovery scan unavailable: {error}"
+                    )),
+                );
+                None
+            }
+        };
+        let terminal = status
+            .as_ref()
+            .is_some_and(|(status, _)| PytxoStore::is_terminal_run_status(status));
+        // Only a known healthy terminal registration is exempt. On any status
+        // or registration uncertainty, attempt the exact Store fence now,
+        // while launch and Stop still share ActiveRunGate.
+        if !terminal
+            || registered_recovery != Some(false)
+            || status
+                .as_ref()
+                .is_some_and(|(status, _)| status == "failed_startup")
+        {
+            recovery_error = combine_stop_recovery_error(
+                recovery_error,
+                cancel_registered_routing_mission(&store, &domain_id, &state.run_id)
+                    .err()
+                    .map(|error| format!("routing fence failed: {error}")),
             );
         }
+        if let Err(error) = store.unresolved_capacity_intent_scopes() {
+            recovery_error = combine_stop_recovery_error(
+                recovery_error,
+                Some(format!(
+                    "capacity intent recovery scan unavailable: {error}"
+                )),
+            );
+        }
+        if terminal {
+            let has_process = tracked_processes
+                .as_ref()
+                .is_some_and(|published| !published.entries().is_empty())
+                || !owned_targets.is_empty();
+            if has_process || recovery_error.is_some() {
+                return Ok(Some((
+                    state,
+                    tracked_processes,
+                    owned_targets,
+                    recovery_error,
+                )));
+            }
+            if !clear_stopped_active_run_unlocked_if_safe(
+                &state_path,
+                &data_dir,
+                &store,
+                &state.run_id,
+            )? {
+                anyhow::bail!(
+                    "run {} retains process or routed attempt ownership; recovery required",
+                    state.run_id
+                );
+            }
+            return Ok(None);
+        }
+        Ok(Some((
+            state,
+            tracked_processes,
+            owned_targets,
+            recovery_error,
+        )))
+    })?;
+    let Some((state, tracked_processes, owned_targets, epoch_error)) = published else {
         println!("No active run.");
         return Ok(());
+    };
+    #[cfg(test)]
+    pause_before_stop_termination(&repo);
+    let owned_errors = terminate_owned_stop_targets(&owned_targets);
+    let terminated = tracked_processes
+        .as_ref()
+        .map(|published| terminate_published_run(&data_dir, published));
+    if let Some(domain) = default_hypervisor().domain_state(domain_id.as_str()) {
+        domain.swarm.request_stop_run(&state.run_id);
     }
-    let raw = fs::read_to_string(&state_path)?;
-    let state: ActiveRunState = serde_json::from_str(&raw)?;
-    if let Some(expected) = expected_run_id {
-        if state.run_id != expected {
-            anyhow::bail!(
-                "refusing to stop run {expected}: active run in execution domain {} is {}",
-                repo.display(),
-                state.run_id
-            );
+    let mut errors = owned_errors;
+    let pids = match terminated {
+        Some(Ok(pids)) => pids,
+        Some(Err(error)) => {
+            errors.push(format!("legacy registry termination failed: {error}"));
+            Vec::new()
         }
+        None => Vec::new(),
+    };
+    if let Some(error) = epoch_error {
+        errors.push(error);
     }
-    let tracked_processes = ProcessRegistryFile::load(&registry_path(&data_dir))?
-        .for_run(&state.run_id)
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    let pids = stop_run(&data_dir, &state.run_id, true).map_err(|e| anyhow::anyhow!(e))?;
-    if let Ok(domain_id) = DomainId::from_repo_root(&repo) {
-        if let Some(domain) = default_hypervisor().domain_state(domain_id.as_str()) {
-            domain.swarm.request_stop_run(&state.run_id);
-        }
+    if !errors.is_empty() {
+        anyhow::bail!(
+            "Stop remains partial; process termination, registry publication, or Store routing state is unconfirmed and recovery is required: {}",
+            errors.join("; ")
+        );
     }
-    if cleanup_worktrees {
-        for process in &tracked_processes {
+    let routed_ownership_unresolved = store
+        .unresolved_routing_attempts()?
+        .iter()
+        .any(|attempt| attempt.scope.run_id.0 == state.run_id)
+        || store
+            .unreconciled_registered_routing_scopes()?
+            .iter()
+            .any(|scope| scope.run_id.0 == state.run_id)
+        || store
+            .unresolved_capacity_intent_scopes()?
+            .iter()
+            .any(|scope| scope.run_id.0 == state.run_id);
+    let routed = has_routed_history(&store, &repo, &state.run_id)?;
+    if cleanup_worktrees && !routed_ownership_unresolved && !routed {
+        for process in tracked_processes
+            .iter()
+            .flat_map(|published| published.entries())
+        {
             pytxo_runner::remove_worktree(
                 Path::new(&process.repo_root),
                 Path::new(&process.worktree_path),
@@ -2355,14 +3200,141 @@ async fn stop_impl(
             .map_err(|e| anyhow::anyhow!(e))?;
         }
     }
-    PytxoStore::open(&cfg.db_path_at(&repo))?.finish_run(&state.run_id, "cancelled")?;
-    fs::remove_file(&state_path)?;
+    let _ = store.finish_run_if_status(&state.run_id, "starting", "cancelled")?
+        || store.finish_run_if_running(&state.run_id, "cancelled")?;
+    if !clear_stopped_active_run_if_safe(&state_path, &data_dir, &store, &state.run_id)? {
+        anyhow::bail!(
+            "run {} retains process or routed attempt ownership; recovery required",
+            state.run_id
+        );
+    }
     println!(
         "Stopped run {} (killed {} process(es))",
         state.run_id,
         pids.len()
     );
     Ok(())
+}
+
+#[cfg(test)]
+struct StopTerminationPause {
+    repo: PathBuf,
+    published: std::sync::mpsc::Sender<()>,
+    resume: std::sync::mpsc::Receiver<()>,
+}
+
+#[cfg(test)]
+fn stop_termination_pause_slot() -> &'static std::sync::Mutex<Option<StopTerminationPause>> {
+    static SLOT: std::sync::OnceLock<std::sync::Mutex<Option<StopTerminationPause>>> =
+        std::sync::OnceLock::new();
+    SLOT.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+#[cfg(test)]
+fn pause_before_stop_termination(repo: &Path) {
+    let pause = {
+        let mut slot = stop_termination_pause_slot().lock().unwrap();
+        if slot.as_ref().is_some_and(|pause| pause.repo == repo) {
+            slot.take()
+        } else {
+            None
+        }
+    };
+    if let Some(pause) = pause {
+        pause.published.send(()).unwrap();
+        pause
+            .resume
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("test Stop termination pause timed out");
+    }
+}
+
+fn read_active_run_state(path: &Path) -> anyhow::Result<Option<ActiveRunState>> {
+    match fs::read_to_string(path) {
+        Ok(raw) => Ok(Some(serde_json::from_str(&raw)?)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn cancel_registered_routing_mission(
+    store: &PytxoStore,
+    domain_id: &DomainId,
+    run_id: &str,
+) -> anyhow::Result<()> {
+    let scope = pytxo_store::routing::RoutingScope {
+        domain_id: domain_id.clone(),
+        run_id: RunId(run_id.to_string()),
+    };
+    if let Some(history) = store.routing_history(&scope)? {
+        if !history.cancelled {
+            let now_ms = u64::try_from(chrono::Utc::now().timestamp_millis())?;
+            if let Err(error) = store.cancel_routing_mission(
+                &scope,
+                "controller.stop.cancel.v1",
+                history.cancel_epoch,
+                now_ms,
+            ) {
+                // A parallel routed settlement can commit the same exact Stop
+                // after our read. Accept only a validated cancelled mission.
+                if !store
+                    .routing_history(&scope)?
+                    .is_some_and(|observed| observed.cancelled)
+                {
+                    return Err(error.into());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn clear_stopped_active_run_if_safe(
+    state_path: &Path,
+    data_dir: &Path,
+    store: &PytxoStore,
+    run_id: &str,
+) -> anyhow::Result<bool> {
+    with_active_run_lock(state_path, || {
+        clear_stopped_active_run_unlocked_if_safe(state_path, data_dir, store, run_id)
+    })
+}
+
+fn clear_stopped_active_run_unlocked_if_safe(
+    state_path: &Path,
+    data_dir: &Path,
+    store: &PytxoStore,
+    run_id: &str,
+) -> anyhow::Result<bool> {
+    if store
+        .unresolved_routing_attempts()?
+        .iter()
+        .any(|attempt| attempt.scope.run_id.0 == run_id)
+    {
+        return Ok(false);
+    }
+    if store
+        .unreconciled_registered_routing_scopes()?
+        .iter()
+        .any(|scope| scope.run_id.0 == run_id)
+    {
+        return Ok(false);
+    }
+    if store
+        .unresolved_capacity_intent_scopes()?
+        .iter()
+        .any(|scope| scope.run_id.0 == run_id)
+    {
+        return Ok(false);
+    }
+    if !ProcessRegistryFile::load(&registry_path(data_dir))?
+        .for_run(run_id)
+        .is_empty()
+    {
+        return Ok(false);
+    }
+    clear_active_run_unlocked(state_path, run_id)?;
+    Ok(true)
 }
 
 pub fn open_store(
@@ -2524,18 +3496,69 @@ pub(crate) fn settle_reserved_run_after_error(
     cfg: &PytxoConfig,
     run_id: &RunId,
 ) {
-    if let Ok(store) = PytxoStore::open(&cfg.db_path_at(&domain.repo_root)) {
-        let startup_failed = store
-            .finish_run_if_status(&run_id.0, "starting", "failed_startup")
-            .unwrap_or(false);
-        if !startup_failed {
-            let _ = store.finish_run_if_running(&run_id.0, "failed");
-        }
+    if let Err(error) =
+        settle_reserved_run_with_status(domain, cfg, run_id, "failed_startup", "failed")
+    {
+        tracing::error!(run_id = %run_id.0, %error, "reserved run needs startup reconciliation");
     }
-    let _ = clear_active_run_if_matches(
-        &domain.repo_root.join(&cfg.data_dir).join("active_run.json"),
-        &run_id.0,
-    );
+}
+
+pub(crate) fn settle_reserved_run_after_stop(
+    domain: &hypervisor::DomainState,
+    cfg: &PytxoConfig,
+    run_id: &RunId,
+) -> anyhow::Result<()> {
+    settle_reserved_run_with_status(domain, cfg, run_id, "cancelled", "cancelled")
+}
+
+fn settle_reserved_run_with_status(
+    domain: &hypervisor::DomainState,
+    cfg: &PytxoConfig,
+    run_id: &RunId,
+    starting_status: &str,
+    running_status: &str,
+) -> anyhow::Result<()> {
+    let data_dir = domain.repo_root.join(&cfg.data_dir);
+    let active_path = data_dir.join("active_run.json");
+    with_active_run_lock(&active_path, || {
+        let store = PytxoStore::open(&cfg.db_path_at(&domain.repo_root))?;
+        let matches =
+            read_active_run_state(&active_path)?.is_some_and(|state| state.run_id == run_id.0);
+        if matches {
+            let scope = pytxo_store::routing::RoutingScope {
+                domain_id: domain.id.clone(),
+                run_id: run_id.clone(),
+            };
+            if store.routing_history(&scope)?.is_some() {
+                publish_run_cancellation(&data_dir, &run_id.0)?;
+                cancel_registered_routing_mission(&store, &domain.id, &run_id.0)?;
+            }
+        }
+        let settled = store.finish_run_if_status(&run_id.0, "starting", starting_status)?;
+        if !settled {
+            let _ = store.finish_run_if_running(&run_id.0, running_status)?;
+        }
+        if starting_status == "cancelled"
+            && store
+                .get_run_status(&run_id.0)?
+                .as_ref()
+                .map(|(status, _)| status.as_str())
+                != Some("cancelled")
+        {
+            anyhow::bail!("reserved run Stop did not reach a cancelled Store state");
+        }
+        if matches
+            && !clear_stopped_active_run_unlocked_if_safe(
+                &active_path,
+                &data_dir,
+                &store,
+                &run_id.0,
+            )?
+        {
+            anyhow::bail!("reserved run retains process or routed attempt ownership");
+        }
+        Ok(())
+    })
 }
 
 fn claim_active_run(cfg: &PytxoConfig, run_id: &RunId, repo: &Path) -> anyhow::Result<()> {
@@ -2545,6 +3568,30 @@ fn claim_active_run(cfg: &PytxoConfig, run_id: &RunId, repo: &Path) -> anyhow::R
             anyhow::bail!(
                 "execution domain {} already owns active run {owner}",
                 repo.display()
+            );
+        }
+        let store = PytxoStore::open(&cfg.db_path_at(repo))?;
+        let domain_id = DomainId::from_repo_root(repo)?;
+        if let Some(scope) = store
+            .unreconciled_registered_routing_scopes()?
+            .into_iter()
+            .find(|scope| scope.domain_id == domain_id)
+        {
+            anyhow::bail!(
+                "execution domain {} retains registered routed recovery ownership for run {}",
+                repo.display(),
+                scope.run_id.0
+            );
+        }
+        if let Some(scope) = store
+            .unresolved_capacity_intent_scopes()?
+            .into_iter()
+            .find(|scope| scope.domain_id == domain_id)
+        {
+            anyhow::bail!(
+                "execution domain {} retains capacity intent recovery ownership for run {}",
+                repo.display(),
+                scope.run_id.0
             );
         }
 
@@ -2579,19 +3626,62 @@ fn reconcile_active_run_unlocked(
     repo: &Path,
     cfg: &PytxoConfig,
 ) -> anyhow::Result<Option<String>> {
+    let store = PytxoStore::open(&cfg.db_path_at(repo))?;
+    if let Some(attempt) = store.unresolved_routing_attempts()?.first() {
+        anyhow::bail!(
+            "execution domain still owns unresolved routed attempt {} for run {}",
+            attempt.attempt_id.0,
+            attempt.scope.run_id.0
+        );
+    }
+    if let Some(scope) = store.unresolved_capacity_intent_scopes()?.first() {
+        anyhow::bail!(
+            "execution domain still owns unreleased capacity intent for run {}",
+            scope.run_id.0
+        );
+    }
+    if let Some(scope) = store.unreconciled_registered_routing_scopes()?.first() {
+        anyhow::bail!(
+            "execution domain still owns routed Flow recovery for run {}",
+            scope.run_id.0
+        );
+    }
     let raw = match fs::read_to_string(path) {
         Ok(raw) => raw,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.into()),
     };
     let state: ActiveRunState = serde_json::from_str(&raw)?;
-    let store = PytxoStore::open(&cfg.db_path_at(repo))?;
+    let domain_id = DomainId::from_repo_root(repo)?;
+    let scope = pytxo_store::routing::RoutingScope {
+        domain_id: domain_id.clone(),
+        run_id: RunId(state.run_id.clone()),
+    };
+    let registered = store.routing_history(&scope)?.is_some();
+    if registered {
+        anyhow::bail!(
+            "active routed run {} requires exact Flow recovery before a new claim",
+            state.run_id
+        );
+    }
+    let data_dir = repo.join(&cfg.data_dir);
     let Some((status, _)) = store.get_run_status(&state.run_id)? else {
-        clear_active_run_unlocked(path, &state.run_id)?;
+        if registered {
+            publish_run_cancellation(&data_dir, &state.run_id)?;
+            cancel_registered_routing_mission(&store, &domain_id, &state.run_id)?;
+        }
+        clear_reconciled_active_run_unlocked(path, &data_dir, &store, &state.run_id, registered)?;
         return Ok(None);
     };
     if PytxoStore::is_terminal_run_status(&status) {
-        clear_active_run_unlocked(path, &state.run_id)?;
+        let needs_routing_fence = store
+            .unreconciled_registered_routing_scopes()?
+            .contains(&scope);
+        if registered && needs_routing_fence {
+            publish_run_cancellation(&data_dir, &state.run_id)?;
+            cancel_registered_routing_mission(&store, &domain_id, &state.run_id)?;
+        }
+        clear_reconciled_active_run_unlocked(path, &data_dir, &store, &state.run_id, registered)?;
         return Ok(None);
     }
     if !matches!(status.as_str(), "starting" | "running") {
@@ -2607,7 +3697,7 @@ fn reconcile_active_run_unlocked(
         }
     }
 
-    let registry = ProcessRegistryFile::load(&registry_path(&repo.join(&cfg.data_dir)))?;
+    let registry = ProcessRegistryFile::load(&registry_path(&data_dir))?;
     for process in registry.for_run(&state.run_id) {
         let Some(identity) = process.start_identity.as_deref() else {
             anyhow::bail!(
@@ -2629,8 +3719,12 @@ fn reconcile_active_run_unlocked(
     } else {
         "failed"
     };
+    if registered {
+        publish_run_cancellation(&data_dir, &state.run_id)?;
+        cancel_registered_routing_mission(&store, &domain_id, &state.run_id)?;
+    }
     let _ = store.finish_run_if_status(&state.run_id, &status, terminal)?;
-    clear_active_run_unlocked(path, &state.run_id)?;
+    clear_reconciled_active_run_unlocked(path, &data_dir, &store, &state.run_id, registered)?;
     tracing::warn!(
         run_id = %state.run_id,
         previous_status = %status,
@@ -2638,6 +3732,25 @@ fn reconcile_active_run_unlocked(
         "reconciled crashed active-run owner"
     );
     Ok(None)
+}
+
+fn clear_reconciled_active_run_unlocked(
+    path: &Path,
+    data_dir: &Path,
+    store: &PytxoStore,
+    run_id: &str,
+    registered_routing_mission: bool,
+) -> anyhow::Result<()> {
+    if registered_routing_mission {
+        if !clear_stopped_active_run_unlocked_if_safe(path, data_dir, store, run_id)? {
+            anyhow::bail!(
+                "run {run_id} retains process or routed attempt ownership; recovery required"
+            );
+        }
+    } else {
+        clear_active_run_unlocked(path, run_id)?;
+    }
+    Ok(())
 }
 
 fn clear_active_run_if_matches(path: &Path, run_id: &str) -> anyhow::Result<()> {
@@ -2661,19 +3774,34 @@ fn with_active_run_lock<T>(
     active_path: &Path,
     operation: impl FnOnce() -> anyhow::Result<T>,
 ) -> anyhow::Result<T> {
-    let file_name = active_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("active_run.json");
-    let lock_path = active_path.with_file_name(format!("{file_name}.lock"));
-    let lock = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(lock_path)?;
-    lock.lock_exclusive()?;
+    let _gate = ActiveRunGate::acquire(active_path)?;
     operation()
+}
+
+/// The cross-process file gate shared by claim and every Stop path. Routed
+/// LaunchCallbacks can retain this guard through inert-helper registration
+/// and barrier release, then drop it before work.
+#[must_use]
+pub(crate) struct ActiveRunGate {
+    _lock: fs::File,
+}
+
+impl ActiveRunGate {
+    pub(crate) fn acquire(active_path: &Path) -> anyhow::Result<Self> {
+        let file_name = active_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("active_run.json");
+        let lock_path = active_path.with_file_name(format!("{file_name}.lock"));
+        let lock = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(lock_path)?;
+        lock.lock_exclusive()?;
+        Ok(Self { _lock: lock })
+    }
 }
 
 fn ensure_gitignore(repo: &Path) -> anyhow::Result<()> {
@@ -2694,6 +3822,198 @@ fn ensure_gitignore(repo: &Path) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generic_active_run_recovery_defers_registered_routed_mission() {
+        let repo = tempfile::tempdir().unwrap();
+        let cfg = PytxoConfig::default();
+        let data_dir = repo.path().join(&cfg.data_dir);
+        fs::create_dir_all(&data_dir).unwrap();
+        let store = PytxoStore::open(&cfg.db_path_at(repo.path())).unwrap();
+        let mut mission: pytxo_store::routing::RoutingMission = serde_json::from_str(include_str!(
+            "../../pytxo-store/tests/fixtures/routing_pre_check_recipes_v8_registration.json"
+        ))
+        .unwrap();
+        mission.authorization.domain_id = DomainId::from_repo_root(repo.path()).unwrap();
+        let run_id = mission.authorization.run_id.0.clone();
+        store
+            .insert_starting_run_with_profile(
+                &run_id,
+                &repo.path().to_string_lossy(),
+                Some("orbit"),
+            )
+            .unwrap();
+        store.register_routing_mission(&mission).unwrap();
+        let active_path = data_dir.join("active_run.json");
+        let error = reconcile_active_run_unlocked(&active_path, repo.path(), &cfg).unwrap_err();
+        assert!(error.to_string().contains("routed Flow recovery"));
+        assert_eq!(
+            store.get_run_status(&run_id).unwrap().unwrap().0,
+            "starting"
+        );
+        assert!(
+            !store
+                .routing_history(&pytxo_store::routing::RoutingScope {
+                    domain_id: mission.authorization.domain_id,
+                    run_id: RunId(run_id),
+                })
+                .unwrap()
+                .unwrap()
+                .cancelled
+        );
+    }
+
+    #[test]
+    fn owned_stop_attempts_each_registered_owner_and_skips_ambiguous_create() {
+        use pytxo_core::routing::{AttemptId, CheckId};
+        use pytxo_store::routing::RoutingScope;
+        use pytxo_store::routing_launch::OwnedJobStopKind;
+
+        let worker = OwnedJobStopTarget {
+            scope: RoutingScope {
+                domain_id: DomainId("fixture-domain".into()),
+                run_id: RunId("fixture-run".into()),
+            },
+            task_id: TaskId("fixture-task".into()),
+            attempt_id: AttemptId("fixture-attempt".into()),
+            kind: OwnedJobStopKind::Worker,
+            phase: OwnedJobStopPhase::Registered,
+            revision: 3,
+            job_name: Some("worker-job".into()),
+            launch_nonce: Some("private-worker-nonce".into()),
+            pid: Some(111),
+            start_identity: Some("worker-start".into()),
+        };
+        let mut checker = worker.clone();
+        checker.kind = OwnedJobStopKind::Checker {
+            check_id: CheckId("fixture-check".into()),
+            ordinal: 1,
+        };
+        checker.job_name = Some("checker-job".into());
+        checker.launch_nonce = Some("private-checker-nonce".into());
+        checker.pid = Some(222);
+        checker.start_identity = Some("checker-start".into());
+        let mut ambiguous = checker.clone();
+        ambiguous.phase = OwnedJobStopPhase::CreateMayHaveStarted;
+        ambiguous.pid = None;
+        ambiguous.start_identity = None;
+        let mut called = Vec::new();
+        let errors = terminate_owned_stop_targets_with(
+            &[worker, checker, ambiguous],
+            |process, nonce, timeout| {
+                called.push((process.pid, process.job_name.clone(), nonce.to_string()));
+                assert_eq!(timeout, std::time::Duration::from_secs(5));
+                if process.pid == 111 {
+                    Err(PytxoError::Runner("first termination failed".into()))
+                } else {
+                    Ok(OwnedJobStopResult::VerifiedZero)
+                }
+            },
+        );
+        assert_eq!(called.len(), 2, "one failed owner cannot skip the next");
+        assert_eq!(called[0].0, 111);
+        assert_eq!(called[1].0, 222);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("first termination failed"));
+        assert!(!errors[0].contains("private-worker-nonce"));
+    }
+
+    #[test]
+    fn active_run_gate_serializes_stop_all_between_threads_until_drop() {
+        let temp = tempfile::tempdir().unwrap();
+        let data_dir = temp.path().join(".pytxo/data");
+        fs::create_dir_all(&data_dir).unwrap();
+        let gate = ActiveRunGate::acquire(&data_dir.join("active_run.json")).unwrap();
+        let repo = temp.path().to_path_buf();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (finished_tx, finished_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            started_tx.send(()).unwrap();
+            let result = runtime.block_on(stop_impl(None, Some(repo), true, false, None));
+            finished_tx.send(result).unwrap();
+        });
+        started_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        assert!(finished_rx
+            .recv_timeout(std::time::Duration::from_millis(150))
+            .is_err());
+        drop(gate);
+        finished_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap()
+            .unwrap();
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn stop_all_releases_domain_gate_before_termination_starts() {
+        struct ResetPause;
+        impl Drop for ResetPause {
+            fn drop(&mut self) {
+                *stop_termination_pause_slot().lock().unwrap() = None;
+            }
+        }
+        let _reset = ResetPause;
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().to_path_buf();
+        let canonical_repo = resolve_repo_root(Some(&repo)).unwrap();
+        let cfg = PytxoConfig::default();
+        let data_dir = repo.join(&cfg.data_dir);
+        fs::create_dir_all(&data_dir).unwrap();
+        let store = PytxoStore::open(&cfg.db_path_at(&repo)).unwrap();
+        store
+            .insert_run("stop-pause", &repo.to_string_lossy())
+            .unwrap();
+        let state_path = data_dir.join("active_run.json");
+        fs::write(
+            &state_path,
+            serde_json::to_vec(&ActiveRunState {
+                run_id: "stop-pause".into(),
+                repo_root: repo.to_string_lossy().into_owned(),
+                supervisor_pid: 0,
+                supervisor_start_identity: None,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let (published_tx, published_rx) = std::sync::mpsc::channel();
+        let (resume_tx, resume_rx) = std::sync::mpsc::channel();
+        *stop_termination_pause_slot().lock().unwrap() = Some(StopTerminationPause {
+            repo: canonical_repo,
+            published: published_tx,
+            resume: resume_rx,
+        });
+        let worker = std::thread::spawn({
+            let repo = repo.clone();
+            move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(stop_impl(None, Some(repo), true, false, None))
+            }
+        });
+        published_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("Stop published before termination");
+        let registry = ProcessRegistryFile::load(&registry_path(&data_dir)).unwrap();
+        assert!(registry.cancelled_runs.contains(&"stop-pause".to_string()));
+        let (acquired_tx, acquired_rx) = std::sync::mpsc::channel();
+        let competitor = std::thread::spawn(move || {
+            let _gate = ActiveRunGate::acquire(&state_path).unwrap();
+            acquired_tx.send(()).unwrap();
+        });
+        let acquired = acquired_rx.recv_timeout(std::time::Duration::from_secs(2));
+        resume_tx.send(()).unwrap();
+        worker.join().unwrap().unwrap();
+        competitor.join().unwrap();
+        acquired.expect("competitor could not acquire the gate during paused termination");
+    }
 
     struct OriginalCapFixture {
         _temp: tempfile::TempDir,
@@ -3579,6 +4899,7 @@ mod tests {
             None,
             Some(repo.clone()),
             run_id,
+            &manifest.package_digest,
             |repo_root, data_dir, prepared, lease| {
                 pytxo_runner::apply_prepared_review_with_fault_under_lease(
                     repo_root,

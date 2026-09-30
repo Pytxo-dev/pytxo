@@ -99,70 +99,88 @@ struct AuthMeta {
 }
 
 fn auth_meta(id: &str, installed: bool) -> AuthMeta {
+    let spec = pytxo_core::resolve_ade(id).expect("auth metadata requires a registered agent CLI");
     let mut meta = match id {
         "codex" => AuthMeta {
             state: "unknown",
             label: "Checking Codex session".into(),
-            owner: "Codex",
+            owner: spec.auth_owner,
             login_label: Some("Connect with ChatGPT"),
-            docs_url: "https://developers.openai.com/codex/auth",
-            detail: "Codex owns the browser session, token storage, and refresh.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "claude" => AuthMeta {
             state: "unknown",
             label: "Checking Claude Code session".into(),
-            owner: "Claude Code",
+            owner: spec.auth_owner,
             login_label: Some("Open Claude Code sign-in"),
-            docs_url: "https://code.claude.com/docs/en/authentication",
-            detail: "Pytxo opens Claude Code's official sign-in and never receives its token.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "cursor" => AuthMeta {
             state: "unknown",
             label: "Checking Cursor session".into(),
-            owner: "Cursor Agent",
+            owner: spec.auth_owner,
             login_label: Some("Open Cursor sign-in"),
-            docs_url: "https://docs.cursor.com/en/cli/reference/authentication",
-            detail: "Cursor Agent keeps its account credential outside Pytxo.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "opencode" => AuthMeta {
             state: "unknown",
             label: "Checking OpenCode providers".into(),
-            owner: "OpenCode",
+            owner: spec.auth_owner,
             login_label: Some("Connect an OpenCode provider"),
-            docs_url: "https://opencode.ai/docs/providers/",
-            detail: "Provider-specific credentials remain owned by OpenCode.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "gemini" => AuthMeta {
-            state: "unknown",
-            label: "Check authentication in Gemini CLI".into(),
-            owner: "Gemini CLI",
+            state: "vendor_managed",
+            label: "Authentication managed by Gemini CLI".into(),
+            owner: spec.auth_owner,
             login_label: Some("Open Gemini authentication"),
-            docs_url: "https://geminicli.com/docs/get-started/authentication/",
-            detail: "Gemini CLI owns Google OAuth; Pytxo does not reuse its cached token.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "copilot" => AuthMeta {
-            state: "unknown",
-            label: "Check authentication in Copilot CLI".into(),
-            owner: "Copilot CLI",
+            state: "vendor_managed",
+            label: "Authentication managed by Copilot CLI".into(),
+            owner: spec.auth_owner,
             login_label: Some("Open GitHub sign-in"),
-            docs_url: "https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli",
-            detail: "Copilot CLI owns the GitHub device flow and stores its token in the OS keychain.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "aider" => AuthMeta {
             state: "not_applicable",
             label: "Uses the selected API provider".into(),
-            owner: "Pytxo run policy",
+            owner: spec.auth_owner,
             login_label: None,
-            docs_url: "https://aider.chat/docs/config/api-keys.html",
-            detail: "Choose one explicit BYOK credential for the run; unrelated keys stay hidden.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         _ => AuthMeta {
-            state: "unknown",
-            label: "Authentication managed by this CLI".into(),
-            owner: "Vendor CLI",
+            state: if !pytxo_core::ade_can_dispatch(spec) {
+                "detected_only"
+            } else {
+                match spec.auth_policy {
+                    pytxo_core::AdeAuthPolicy::ProviderManaged => "not_applicable",
+                    pytxo_core::AdeAuthPolicy::VendorManaged => "vendor_managed",
+                    pytxo_core::AdeAuthPolicy::VerifiedSession => "unknown",
+                }
+            },
+            label: if !pytxo_core::ade_can_dispatch(spec) {
+                "Detected; write mode not mapped yet".into()
+            } else {
+                match spec.auth_policy {
+                    pytxo_core::AdeAuthPolicy::ProviderManaged => {
+                        "Uses the selected API provider".into()
+                    }
+                    _ => format!("Authentication managed by {}", spec.display_name),
+                }
+            },
+            owner: spec.auth_owner,
             login_label: None,
-            docs_url: "https://pytxo.com/docs/reference/providers-byok",
-            detail: "Pytxo detects the executable without reading vendor credential stores.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
     };
 

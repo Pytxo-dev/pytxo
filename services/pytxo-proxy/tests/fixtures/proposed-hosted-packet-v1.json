@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "goal": "Classify reviewed repository task using coarse facts",
+  "features": [
+    "task_kind_local_transformation",
+    "reviewed_checks",
+    "single_component_claimed",
+    "context_claimed_complete",
+    "role_unrestricted",
+    "no_required_egress",
+    "repeatable_symptom_unknown",
+    "specific_cause_hypothesis_unknown"
+  ],
+  "everyday_role": "everyday execution role",
+  "strong_role": "strong execution role"
+}

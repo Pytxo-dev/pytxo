@@ -299,62 +299,9 @@ pub fn refresh_frozen_review_package(
 pub fn require_candidate_verification(
     manifest: &PreparedRunManifest,
 ) -> Result<&CandidateVerificationEvidence> {
-    let evidence = manifest
-        .candidate_verification
-        .as_ref()
-        .filter(|e| {
-            manifest.version == 3
-                && e.version == 1
-                && !e.checks.is_empty()
-                && e.checks.iter().all(|c| {
-                    c.passed
-                        && !c.command.trim().is_empty()
-                        && !c.task_id.is_empty()
-                        && matches!(
-                            c.effective_profile.to_ascii_lowercase().as_str(),
-                            "orbit" | "galaxy"
-                        )
-                        && c.enforcement.is_object()
-                })
-        })
-        .ok_or_else(|| {
-            reject("exact candidate is not verified; configure required checks and refresh review")
-        })?;
-    // Reconstruct the attested composition, ensuring excluded changed files cannot disappear
-    // from the receipt while still reaching Apply.
-    let mut expected = std::collections::BTreeMap::new();
+    let evidence = pytxo_core::require_candidate_verification_contract(manifest)?;
     for entry in &evidence.base_inventory {
         validated_change_path(&entry.path)?;
-        if expected.insert(entry.path.clone(), entry.clone()).is_some() {
-            return Err(reject("candidate base inventory contains duplicate paths"));
-        }
-    }
-    for file in &manifest.files {
-        let before = expected.get(&file.path);
-        if before.map(|f| &f.sha256) != file.before_sha256.as_ref()
-            || before.and_then(|f| f.mode) != file.before_mode
-        {
-            return Err(reject(
-                "candidate base inventory disagrees with prepared preimages",
-            ));
-        }
-        if let Some(digest) = &file.after_sha256 {
-            expected.insert(
-                file.path.clone(),
-                CandidateInventoryFile {
-                    path: file.path.clone(),
-                    sha256: digest.clone(),
-                    mode: file.after_mode,
-                },
-            );
-        } else {
-            expected.remove(&file.path);
-        }
-    }
-    if expected.into_values().collect::<Vec<_>>() != evidence.candidate_inventory {
-        return Err(reject(
-            "candidate inventory does not match exact prepared composition",
-        ));
     }
     Ok(evidence)
 }

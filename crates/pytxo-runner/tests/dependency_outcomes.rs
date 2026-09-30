@@ -138,6 +138,97 @@ fn failing_verify_command() -> String {
     }
 }
 
+#[tokio::test]
+async fn stop_during_execution_is_cancelled_for_both_local_backends() {
+    use pytxo_runner::{registry_path, stop_run, ProcessRegistryFile};
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
+    use std::time::Duration;
+
+    for backend in [ExecutionBackend::Subprocess, ExecutionBackend::Pty] {
+        let repo = TempDir::new().unwrap();
+        init_git_repo(repo.path());
+        let command = if cfg!(windows) {
+            "echo execution-ready & ping -n 31 127.0.0.1 >NUL"
+        } else {
+            "echo execution-ready; sleep 30"
+        };
+        let mut ctx = context(repo.path(), command.into());
+        ctx.execution_backend = backend;
+        ctx.signal_core = true;
+        ctx.agent_paths
+            .insert("default".into(), vec!["README.md".into()]);
+        let ready = Arc::new(AtomicBool::new(false));
+        let observed = ready.clone();
+        let continued = Arc::new(AtomicBool::new(false));
+        let unexpected = continued.clone();
+        ctx.on_event = Some(Arc::new(move |_, kind, text| {
+            if kind == "verify" || kind == "signal-retry" {
+                unexpected.store(true, Ordering::SeqCst);
+            }
+            if kind == "stdout" && text.contains("execution-ready") {
+                observed.store(true, Ordering::SeqCst);
+            }
+        }));
+        let data_dir = ctx.data_dir.clone();
+        let run_id = ctx.run_id.0.clone();
+        let plan = ExecutionPlan {
+            waves: vec![vec![task(
+                "worker",
+                0,
+                &[],
+                vec!["echo must-not-verify".into()],
+            )]],
+            conflicts: vec![],
+            max_agents: 1,
+            warnings: vec![],
+        };
+        let worker = tokio::spawn(async move {
+            execute_plan(
+                &ctx,
+                &plan,
+                &ProcessRegistry::default(),
+                &SwarmRegistry::new(),
+            )
+            .await
+        });
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        while !ready.load(Ordering::SeqCst)
+            || ProcessRegistryFile::load(&registry_path(&data_dir))
+                .unwrap()
+                .entries
+                .is_empty()
+        {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "worker did not become ready: {backend:?}"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        stop_run(&data_dir, &run_id, true).unwrap();
+        let results = tokio::time::timeout(Duration::from_secs(10), worker)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            results[0].outcome,
+            AgentRunOutcome::Cancelled,
+            "{backend:?}"
+        );
+        assert!(ProcessRegistryFile::load(&registry_path(&data_dir))
+            .unwrap()
+            .entries
+            .is_empty());
+        assert!(
+            !continued.load(Ordering::SeqCst),
+            "stopped worker entered retry or verification"
+        );
+    }
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn verification_remains_stoppable_on_a_single_thread_runtime() {
     use pytxo_runner::{registry_path, stop_run, ProcessRegistryFile};
@@ -147,7 +238,8 @@ async fn verification_remains_stoppable_on_a_single_thread_runtime() {
 
     let temp = TempDir::new().unwrap();
     init_git_repo(temp.path());
-    let mut ctx = context(temp.path(), successful_write_command());
+    let mut ctx = context(temp.path(), "echo retained-worker-output".into());
+    ctx.keep_worktrees = false;
     let verifying = Arc::new(AtomicBool::new(false));
     let signal = Arc::clone(&verifying);
     ctx.on_event = Some(Arc::new(move |_, kind, _| {
@@ -199,8 +291,17 @@ async fn verification_remains_stoppable_on_a_single_thread_runtime() {
         .expect("cancelled verification settled promptly")
         .unwrap()
         .unwrap();
-    assert_eq!(results[0].outcome, AgentRunOutcome::VerificationFailed);
+    assert_eq!(results[0].outcome, AgentRunOutcome::Cancelled);
+    assert_eq!(results[0].outcome.ledger_status(), "cancelled");
+    assert!(!results[0].outcome.is_success());
+    assert_eq!(
+        results[0].exit_code,
+        Some(0),
+        "Preserve the completed worker exit; Stop is not a fabricated check failure"
+    );
     assert!(results[0].stderr.contains("cancelled by Stop"));
+    assert!(results[0].stdout.contains("retained-worker-output"));
+    assert!(results[0].worktree_path.as_ref().unwrap().is_dir());
 }
 
 fn assert_dependency_is_blocked_and_independent_completes(
@@ -242,6 +343,49 @@ fn assert_dependency_is_blocked_and_independent_completes(
         .unwrap()
         .join("independent.txt")
         .exists());
+}
+
+#[tokio::test]
+async fn durable_stop_at_agent_start_is_cancelled_not_process_failed() {
+    use pytxo_runner::stop_run;
+    use std::sync::{Arc, Mutex};
+
+    let repo = TempDir::new().unwrap();
+    init_git_repo(repo.path());
+    let mut ctx = context(repo.path(), successful_write_command());
+    let data_dir = ctx.data_dir.clone();
+    let run_id = ctx.run_id.0.clone();
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let recorded = events.clone();
+    ctx.on_event = Some(Arc::new(move |_, kind, _| {
+        recorded.lock().unwrap().push(kind.to_string());
+        if kind == "agent-start" {
+            stop_run(&data_dir, &run_id, true).unwrap();
+        }
+    }));
+    let plan = ExecutionPlan {
+        waves: vec![vec![task("stopped", 0, &[], vec![])]],
+        conflicts: vec![],
+        max_agents: 1,
+        warnings: vec![],
+    };
+    let results = execute_plan(
+        &ctx,
+        &plan,
+        &ProcessRegistry::default(),
+        &SwarmRegistry::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(results[0].outcome, AgentRunOutcome::Cancelled);
+    assert_eq!(results[0].outcome.ledger_status(), "cancelled");
+    let events = events.lock().unwrap();
+    assert!(events.iter().any(|kind| kind == "agent-cancelled"));
+    assert!(!events.iter().any(|kind| kind == "agent-lifecycle-failed"));
+    assert_eq!(
+        std::fs::read_to_string(repo.path().join("README.md")).unwrap(),
+        "dependency outcome test\n"
+    );
 }
 
 #[tokio::test]

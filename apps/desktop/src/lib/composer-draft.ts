@@ -4,4 +4,5 @@ export type ComposerDraft = {
   source: "text" | "voice";
   domainId: string;
   adeId: string;
+  verificationCommands?: string;
 };

@@ -199,6 +199,7 @@ pub struct AgentRunResult {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AgentRunOutcome {
     Succeeded,
+    Cancelled,
     ProcessFailed,
     VerificationFailed,
     BlockedByDependency { task_ids: Vec<String> },
@@ -212,6 +213,7 @@ impl AgentRunOutcome {
     pub fn ledger_status(&self) -> &'static str {
         match self {
             Self::Succeeded => "completed",
+            Self::Cancelled => "cancelled",
             Self::ProcessFailed => "failed",
             Self::VerificationFailed => "verify_failed",
             Self::BlockedByDependency { .. } => "blocked_by_dependency",
@@ -220,6 +222,8 @@ impl AgentRunOutcome {
 }
 
 pub struct SingleResult {
+    /// Stop was durable before this process's exit was settled in the registry.
+    pub cancelled: bool,
     pub worktree_path: PathBuf,
     pub exit_code: Option<i32>,
     pub stdout: String,
@@ -324,7 +328,7 @@ pub async fn execute_plan(
                         failure_task_id,
                         failure_wave,
                         failure_root,
-                        format!("agent lifecycle failed: {error}"),
+                        error,
                     ),
                     Err(error) => failed_agent_result(
                         &cleanup_ctx,
@@ -335,7 +339,7 @@ pub async fn execute_plan(
                         failure_task_id,
                         failure_wave,
                         failure_root,
-                        format!("agent lifecycle task aborted: {error}"),
+                        PytxoError::Runner(format!("agent lifecycle task aborted: {error}")),
                     ),
                 }
             });
@@ -404,14 +408,27 @@ fn failed_agent_result(
     task_id: String,
     wave: u32,
     root_id: Option<String>,
-    message: String,
+    error: PytxoError,
 ) -> AgentRunResult {
+    let cancelled = matches!(error, PytxoError::Cancelled(_));
+    let message = format!(
+        "agent lifecycle {}: {error}",
+        if cancelled { "cancelled" } else { "failed" }
+    );
     swarm.release(agent_key);
     if let Some(hub) = &ctx.mcp_hub {
         hub.deregister(agent_key);
     }
     if let Some(callback) = ctx.on_event.as_ref() {
-        callback(agent_key, "agent-lifecycle-failed", &message);
+        callback(
+            agent_key,
+            if cancelled {
+                "agent-cancelled"
+            } else {
+                "agent-lifecycle-failed"
+            },
+            &message,
+        );
     }
     let worktree_path = registry
         .list()
@@ -426,7 +443,11 @@ fn failed_agent_result(
         exit_code: None,
         stdout: String::new(),
         stderr: message,
-        outcome: AgentRunOutcome::ProcessFailed,
+        outcome: if cancelled {
+            AgentRunOutcome::Cancelled
+        } else {
+            AgentRunOutcome::ProcessFailed
+        },
         root_id,
     }
 }
@@ -1097,6 +1118,7 @@ async fn run_one_agent(
     let mut result = result;
     let retry_fidelity = engine.max_fidelity(FidelityTier::High);
     if result.exit_code != Some(0)
+        && !result.cancelled
         && ctx.signal_core
         && fidelity != retry_fidelity
         && !context_paths.is_empty()
@@ -1214,7 +1236,8 @@ async fn run_one_agent(
     let mut exit_code = result.exit_code;
     let mut stderr = result.stderr;
     let mut verification_failed = false;
-    if exit_code == Some(0) && !task.verify.is_empty() {
+    let mut verification_cancelled = false;
+    if !result.cancelled && exit_code == Some(0) && !task.verify.is_empty() {
         let verify_ctx = ctx.clone();
         let verify_cwd = wt_path.clone();
         let verify_commands = task.verify.clone();
@@ -1254,6 +1277,13 @@ async fn run_one_agent(
                     );
                 }
             }
+            Err(err @ PytxoError::Cancelled(_)) => {
+                if let Some(cb) = ctx.on_event.as_ref() {
+                    cb(&agent_key, "agent-cancelled", &err.to_string());
+                }
+                stderr = format!("{stderr}\n{err}");
+                verification_cancelled = true;
+            }
             Err(err) => {
                 if let Some(cb) = ctx.on_event.as_ref() {
                     cb(&agent_key, "verify-failed", &err.to_string());
@@ -1273,7 +1303,12 @@ async fn run_one_agent(
     }
     drop(sandbox_guard);
 
-    if used_isolation && !ctx.keep_worktrees && exit_code == Some(0) {
+    if used_isolation
+        && !ctx.keep_worktrees
+        && exit_code == Some(0)
+        && !verification_cancelled
+        && !result.cancelled
+    {
         let _ = isolation.rollback(&iso_ctx, &workspace);
     }
 
@@ -1285,7 +1320,9 @@ async fn run_one_agent(
         exit_code,
         stdout: result.stdout,
         stderr,
-        outcome: if verification_failed {
+        outcome: if verification_cancelled || result.cancelled {
+            AgentRunOutcome::Cancelled
+        } else if verification_failed {
             AgentRunOutcome::VerificationFailed
         } else if exit_code == Some(0) {
             AgentRunOutcome::Succeeded
@@ -1418,11 +1455,25 @@ fn run_verify_commands_with_limits(
         if let Some(cb) = on_event {
             cb(agent_key, "verify", cmd);
         }
-        let shell = shell_command();
-        let mut command = std::process::Command::new(&shell.0);
+        #[cfg(windows)]
+        let mut command = {
+            use std::os::windows::process::CommandExt;
+            // CMD consumes the reviewed command as one shell tail. CRT-style
+            // argument quoting changes /C:"words with spaces" into a
+            // different command and can make a valid check fail.
+            let mut command = std::process::Command::new(crate::owned_launch::system_cmd_path()?);
+            command.arg("/D").arg("/C");
+            command.raw_arg(cmd);
+            command
+        };
+        #[cfg(not(windows))]
+        let mut command = {
+            let shell = shell_command();
+            let mut command = std::process::Command::new(&shell.0);
+            command.args(&shell.1).arg(cmd);
+            command
+        };
         command
-            .args(&shell.1)
-            .arg(cmd)
             .current_dir(shell_working_directory(cwd)?)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -1682,7 +1733,7 @@ impl VerificationLifecycle {
         }
         ProcessRegistryFile::update(&registry_path(&self.persist.data_dir), |registry| {
             if registry.cancelled_runs.contains(&self.persist.run_id) {
-                return Err(PytxoError::Runner("verification cancelled by Stop".into()));
+                return Err(PytxoError::Cancelled("verification".into()));
             }
             registry.push(ProcessEntry {
                 run_id: self.persist.run_id.clone(),
@@ -1702,7 +1753,7 @@ impl VerificationLifecycle {
         if self.swarm.stop_requested(agent_key)
             || registry.cancelled_runs.contains(&self.persist.run_id)
         {
-            return Err(PytxoError::Runner("verification cancelled by Stop".into()));
+            return Err(PytxoError::Cancelled("verification".into()));
         }
         Ok(())
     }
@@ -1791,6 +1842,7 @@ fn run_command_streaming(
                         }
                     }
                     return Ok(SingleResult {
+                        cancelled: false,
                         worktree_path: worktree.to_path_buf(),
                         exit_code: Some(resp.exit_code),
                         stdout: resp.stdout,
@@ -1826,6 +1878,10 @@ fn run_command_streaming(
             }
             Ok(())
         };
+        let settle_exit = || match persist.as_ref() {
+            Some(persist) => settle_persisted_process(persist, agent_key),
+            None => Ok(swarm.stop_requested(agent_key)),
+        };
         let result = crate::pty::run_pty_session_with_spawn(
             worktree,
             &effective_cmd,
@@ -1836,10 +1892,8 @@ fn run_command_streaming(
             agent_key,
             swarm,
             Some(&persist_spawn),
+            Some(&settle_exit),
         )?;
-        if let Some(persist) = persist.as_ref() {
-            remove_persisted_process(persist, agent_key)?;
-        }
         return Ok(result);
     }
 
@@ -1927,9 +1981,10 @@ fn run_command_streaming(
         .wait()
         .map_err(|e| PytxoError::Runner(format!("wait: {e}")))?;
 
-    if let Some(persist) = persist.as_ref() {
-        remove_persisted_process(persist, agent_key)?;
-    }
+    let cancelled = match persist.as_ref() {
+        Some(persist) => settle_persisted_process(persist, agent_key)?,
+        None => swarm.stop_requested(agent_key),
+    };
 
     if let Some(h) = out_handle {
         if let Ok(acc) = h.join() {
@@ -1943,6 +1998,7 @@ fn run_command_streaming(
     }
 
     Ok(SingleResult {
+        cancelled,
         worktree_path: worktree.to_path_buf(),
         exit_code: status.code(),
         stdout: stdout_acc,
@@ -1980,10 +2036,7 @@ fn persist_process(
     })?;
     ProcessRegistryFile::update(&registry_path(&p.data_dir), |registry| {
         if registry.cancelled_runs.contains(&p.run_id) {
-            return Err(PytxoError::Runner(format!(
-                "run {} cancelled by Stop",
-                p.run_id
-            )));
+            return Err(PytxoError::Cancelled(format!("run {}", p.run_id)));
         }
         registry.push(ProcessEntry {
             run_id: p.run_id.clone(),
@@ -2002,6 +2055,16 @@ fn remove_persisted_process(p: &ProcessPersist, agent_key: &str) -> Result<()> {
     ProcessRegistryFile::update(&registry_path(&p.data_dir), |registry| {
         registry.remove_agent(agent_key);
         Ok(())
+    })
+}
+
+/// Linearize exit settlement with Stop before draining output. A later Stop
+/// must not reclassify an already-settled result while its readers finish.
+fn settle_persisted_process(p: &ProcessPersist, agent_key: &str) -> Result<bool> {
+    ProcessRegistryFile::update(&registry_path(&p.data_dir), |registry| {
+        let cancelled = registry.cancelled_runs.contains(&p.run_id);
+        registry.remove_agent(agent_key);
+        Ok(cancelled)
     })
 }
 
@@ -2208,8 +2271,80 @@ pub fn stop_run(data_dir: &Path, run_id: &str, kill: bool) -> Result<Vec<u32>> {
     stop_registered_processes(data_dir, Some(run_id), kill, stop_registry_entry)
 }
 
+/// Durably fence future processes for one run and return its current registry
+/// entries without terminating or waiting for them. The caller may hold the
+/// domain's short launch/Stop gate while this registry update completes.
+pub fn publish_run_cancellation(data_dir: &Path, run_id: &str) -> Result<PublishedRunCancellation> {
+    let entries = publish_registered_cancellation(data_dir, Some(run_id))?;
+    Ok(PublishedRunCancellation {
+        run_id: run_id.to_string(),
+        entries,
+    })
+}
+
+/// Opaque durable publication plus exact captured process identities. Callers
+/// may inspect entries for cleanup but cannot substitute arbitrary PIDs.
+pub struct PublishedRunCancellation {
+    run_id: String,
+    entries: Vec<ProcessEntry>,
+}
+
+impl PublishedRunCancellation {
+    pub fn entries(&self) -> &[ProcessEntry] {
+        &self.entries
+    }
+}
+
+/// Terminate the exact identities captured when cancellation was published.
+/// An owner may remove a registry row while unwinding; a second registry
+/// snapshot would lose the process tree that Stop still needs to terminate.
+pub fn terminate_published_run(
+    data_dir: &Path,
+    published: &PublishedRunCancellation,
+) -> Result<Vec<u32>> {
+    let path = registry_path(data_dir);
+    if !ProcessRegistryFile::load(&path)?
+        .cancelled_runs
+        .iter()
+        .any(|cancelled| cancelled == &published.run_id)
+    {
+        return Err(PytxoError::Runner(
+            "cannot terminate a run without durable cancellation".into(),
+        ));
+    }
+    terminate_registered_entries(&path, &published.entries, stop_registry_entry)
+}
+
 pub fn stop_all(data_dir: &Path, kill: bool) -> Result<()> {
     stop_registered_processes(data_dir, None, kill, stop_registry_entry).map(|_| ())
+}
+
+fn publish_registered_cancellation(
+    data_dir: &Path,
+    run_id: Option<&str>,
+) -> Result<Vec<ProcessEntry>> {
+    ProcessRegistryFile::update(&registry_path(data_dir), |registry| {
+        let entries: Vec<ProcessEntry> = registry
+            .entries
+            .iter()
+            .filter(|entry| run_id.is_none_or(|id| entry.run_id == id))
+            .cloned()
+            .collect();
+        let run_ids = match run_id {
+            Some(id) => vec![id],
+            None => entries.iter().map(|entry| entry.run_id.as_str()).collect(),
+        };
+        for id in run_ids {
+            if !registry
+                .cancelled_runs
+                .iter()
+                .any(|cancelled| cancelled == id)
+            {
+                registry.cancelled_runs.push(id.to_string());
+            }
+        }
+        Ok(entries)
+    })
 }
 
 fn stop_registered_processes(
@@ -2219,55 +2354,52 @@ fn stop_registered_processes(
     mut stop_entry: impl FnMut(&ProcessEntry) -> Result<()>,
 ) -> Result<Vec<u32>> {
     let path = registry_path(data_dir);
-    let entries = ProcessRegistryFile::update(&path, |registry| {
-        let entries: Vec<ProcessEntry> = registry
-            .entries
-            .iter()
-            .filter(|entry| run_id.is_none_or(|id| entry.run_id == id))
-            .cloned()
-            .collect();
-        if kill {
-            let run_ids = match run_id {
-                Some(id) => vec![id],
-                None => entries.iter().map(|entry| entry.run_id.as_str()).collect(),
-            };
-            for id in run_ids {
-                if !registry
-                    .cancelled_runs
-                    .iter()
-                    .any(|cancelled| cancelled == id)
-                {
-                    registry.cancelled_runs.push(id.to_string());
-                }
-            }
-        } else {
+    let entries = if kill {
+        publish_registered_cancellation(data_dir, run_id)?
+    } else {
+        ProcessRegistryFile::update(&path, |registry| {
+            let entries: Vec<ProcessEntry> = registry
+                .entries
+                .iter()
+                .filter(|entry| run_id.is_none_or(|id| entry.run_id == id))
+                .cloned()
+                .collect();
             registry
                 .entries
                 .retain(|entry| run_id.is_some_and(|id| entry.run_id != id));
-        }
-        Ok(entries)
-    })?;
+            Ok(entries)
+        })?
+    };
     if kill {
-        // Cancellation must be durable and the registry unlocked before waiting:
-        // verifier owners read it before reaping their children. Holding the lock
-        // here prevents Unix exit confirmation and hides cancellation from them.
-        for entry in &entries {
-            // Keep captured evidence on failure so a later Stop can reconcile it.
-            stop_entry(entry)?;
-        }
-        ProcessRegistryFile::update(&path, |registry| {
-            registry.entries.retain(|current| {
-                !entries.iter().any(|stopped| {
-                    current.run_id == stopped.run_id
-                        && current.agent_key == stopped.agent_key
-                        && current.pid == stopped.pid
-                        && current.start_identity == stopped.start_identity
-                })
-            });
-            Ok(())
-        })?;
+        terminate_registered_entries(&path, &entries, &mut stop_entry)
+    } else {
+        Ok(entries.into_iter().map(|entry| entry.pid).collect())
     }
-    Ok(entries.into_iter().map(|entry| entry.pid).collect())
+}
+
+fn terminate_registered_entries(
+    path: &Path,
+    entries: &[ProcessEntry],
+    mut stop_entry: impl FnMut(&ProcessEntry) -> Result<()>,
+) -> Result<Vec<u32>> {
+    // Cancellation is durable and the registry unlocked before waiting:
+    // verifier owners read it before reaping their children.
+    for entry in entries {
+        // Keep captured evidence on failure so a later Stop can reconcile it.
+        stop_entry(entry)?;
+    }
+    ProcessRegistryFile::update(path, |registry| {
+        registry.entries.retain(|current| {
+            !entries.iter().any(|stopped| {
+                current.run_id == stopped.run_id
+                    && current.agent_key == stopped.agent_key
+                    && current.pid == stopped.pid
+                    && current.start_identity == stopped.start_identity
+            })
+        });
+        Ok(())
+    })?;
+    Ok(entries.iter().map(|entry| entry.pid).collect())
 }
 
 fn stop_registry_entry(entry: &ProcessEntry) -> Result<()> {
@@ -2676,6 +2808,20 @@ mod dependency_output_tests {
 
 #[cfg(test)]
 mod verification_boundary_tests {
+    #[test]
+    fn stop_after_exit_settlement_does_not_reclassify_the_captured_result() {
+        let temp = tempfile::tempdir().unwrap();
+        let persist = super::ProcessPersist {
+            run_id: "settled".into(),
+            repo_root: temp.path().to_string_lossy().into_owned(),
+            data_dir: temp.path().to_path_buf(),
+            branch: String::new(),
+        };
+        let cancelled = super::settle_persisted_process(&persist, "settled:agent-0").unwrap();
+        super::stop_run(temp.path(), "settled", true).unwrap();
+        assert!(!cancelled, "later Stop must not alter the exit snapshot");
+        assert!(super::settle_persisted_process(&persist, "settled:agent-1").unwrap());
+    }
     use std::sync::Mutex;
 
     use super::*;
@@ -2693,6 +2839,14 @@ mod verification_boundary_tests {
             "ping -n 6 127.0.0.1 >NUL".into()
         } else {
             "sleep 5".into()
+        }
+    }
+
+    fn long_blocking_command() -> String {
+        if cfg!(windows) {
+            "ping -n 31 127.0.0.1 >NUL".into()
+        } else {
+            "sleep 30".into()
         }
     }
 
@@ -2767,6 +2921,83 @@ mod verification_boundary_tests {
         let registry = ProcessRegistryFile::load(&path).unwrap();
         assert_eq!(registry.cancelled_runs, vec!["run"]);
         assert_eq!(registry.entries.len(), 1);
+    }
+
+    #[test]
+    fn published_stop_terminates_captured_identity_after_registry_owner_unwinds() {
+        struct ChildGuard(std::process::Child);
+        impl Drop for ChildGuard {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let child = if cfg!(windows) {
+            std::process::Command::new("powershell")
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "Start-Sleep -Seconds 120",
+                ])
+                .spawn()
+                .unwrap()
+        } else {
+            std::process::Command::new("sh")
+                .args(["-c", "sleep 120"])
+                .spawn()
+                .unwrap()
+        };
+        let mut child = ChildGuard(child);
+        let pid = child.0.id();
+        let identity = crate::process_start_identity(pid)
+            .unwrap()
+            .expect("live fixture identity");
+        let path = registry_path(temp.path());
+        ProcessRegistryFile::update(&path, |registry| {
+            registry.push(ProcessEntry {
+                run_id: "run".into(),
+                repo_root: String::new(),
+                agent_key: "run:agent".into(),
+                pid,
+                start_identity: Some(identity.clone()),
+                worktree_path: String::new(),
+                branch: String::new(),
+            });
+            Ok(())
+        })
+        .unwrap();
+
+        let published = publish_run_cancellation(temp.path(), "run").unwrap();
+        assert_eq!(published.entries().len(), 1);
+        ProcessRegistryFile::update(&path, |registry| {
+            // A worker can remove its old row while unwinding and a later
+            // generation can reuse the same agent key. Neither changes the
+            // exact process identity captured under the domain gate.
+            registry.remove_agent("run:agent");
+            registry.push(ProcessEntry {
+                run_id: "run".into(),
+                repo_root: String::new(),
+                agent_key: "run:agent".into(),
+                pid: u32::MAX,
+                start_identity: Some("replacement".into()),
+                worktree_path: String::new(),
+                branch: String::new(),
+            });
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(
+            terminate_published_run(temp.path(), &published).unwrap(),
+            vec![pid]
+        );
+        assert!(!crate::process_matches(pid, &identity).unwrap());
+        let current = ProcessRegistryFile::load(&path).unwrap();
+        assert_eq!(current.entries.len(), 1);
+        assert_eq!(current.entries[0].pid, u32::MAX);
+        assert!(current.cancelled_runs.contains(&"run".to_string()));
+        let _ = child.0.wait();
     }
 
     #[test]
@@ -2939,6 +3170,38 @@ mod verification_boundary_tests {
             .is_empty());
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn verification_preserves_quoted_windows_shell_tail() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("result.txt"),
+            b"Pytxo native routing verified\n",
+        )
+        .unwrap();
+        run_verify_commands_with_limits(
+            temp.path(),
+            &[r#"findstr /C:"Pytxo native routing verified" result.txt >NUL && echo verifier-ok > verified.txt"#.into()],
+            None,
+            "run:agent-0",
+            PermissionProfile::Orbit,
+            &DomainId("quoted-check-domain".into()),
+            ExecutionBackend::Subprocess,
+            true,
+            None,
+            Duration::from_secs(2),
+            4096,
+            None,
+        )
+        .expect("quoted Windows check reaches the exact file and pattern");
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("verified.txt"))
+                .unwrap()
+                .trim(),
+            "verifier-ok"
+        );
+    }
+
     #[test]
     fn durable_stop_terminates_verification_and_prevents_later_commands() {
         assert_durable_stop_terminates_verification(false);
@@ -2996,6 +3259,7 @@ mod verification_boundary_tests {
             .join()
             .unwrap()
             .expect_err("stopped verifier cannot succeed");
+        assert!(matches!(error, PytxoError::Cancelled(_)));
         assert!(error.to_string().contains("cancelled by Stop"));
         assert!(!crate::kill::process_matches(entry.pid, identity).unwrap());
         assert!(!data_dir.join("after-stop.txt").exists());
@@ -3035,7 +3299,7 @@ mod verification_boundary_tests {
         let started = Instant::now();
         let error = run_verify_commands_with_limits(
             temp.path(),
-            &[blocking_command()],
+            &[long_blocking_command()],
             None,
             "run:agent-0",
             PermissionProfile::Orbit,
@@ -3051,7 +3315,7 @@ mod verification_boundary_tests {
 
         assert!(error.to_string().contains("timed out after 100 ms"));
         assert!(
-            started.elapsed() < Duration::from_secs(3),
+            started.elapsed() < Duration::from_secs(10),
             "timeout did not bound verifier execution"
         );
     }

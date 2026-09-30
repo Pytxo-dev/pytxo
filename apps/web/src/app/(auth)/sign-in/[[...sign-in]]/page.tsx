@@ -6,18 +6,12 @@ import { useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
-
-function accountRedirect(deckCallback: string | null): string {
-  if (deckCallback === "pytxo-deck") {
-    return "/account?deck_callback=pytxo-deck";
-  }
-  return "/account";
-}
+import { desktopAccountUrl, desktopBridgeParams, desktopSignUpUrl } from "@/lib/desktop-bridge";
 
 export default function SignInPage() {
   const searchParams = useSearchParams();
-  const deckCallback = searchParams.get("deck_callback");
-  const redirectUrl = accountRedirect(deckCallback);
+  const bridge = desktopBridgeParams(searchParams);
+  const redirectUrl = desktopAccountUrl(bridge);
 
   if (!SITE_AUTH_ENABLED) {
     return (
@@ -38,11 +32,7 @@ export default function SignInPage() {
     <SignIn
       routing="path"
       path="/sign-in"
-      signUpUrl={
-        deckCallback === "pytxo-deck"
-          ? "/sign-up?deck_callback=pytxo-deck"
-          : "/sign-up"
-      }
+      signUpUrl={desktopSignUpUrl(bridge)}
       forceRedirectUrl={redirectUrl}
       fallbackRedirectUrl={redirectUrl}
     />

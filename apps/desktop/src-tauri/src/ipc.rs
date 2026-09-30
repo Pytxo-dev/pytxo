@@ -1,6 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::fs::Metadata;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::SystemTime;
 
 use pytxo_core::PytxoConfig;
 use pytxo_orchestrate::{
@@ -22,7 +24,7 @@ use pytxo_orchestrate::{
 use pytxo_runner::{isolation_backend_label, RecoveryOutcome};
 use pytxo_store::{AgentRecord, EventRecord, RunContractRecord, RunRecord};
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
 
 use crate::ipc_error::{
     map_config_err, map_io_err, map_lock_err, map_orch_err, map_store_err, IpcResult, PytxoIpcError,
@@ -32,11 +34,85 @@ pub struct AppState {
     pub config_path: Mutex<Option<PathBuf>>,
     /// Per (domain_id, agent_id) cursor for incremental log polling.
     pub poll_cursors: Mutex<HashMap<(String, String), i64>>,
+    /// Last fully consumed change-log boundary for each observed store.
+    ///
+    /// This cache holds file identity only, never SQLite handles. That keeps
+    /// Windows recovery free to replace a store while avoiding a read-only
+    /// open for every unchanged domain on each Desktop poll.
+    pub(crate) domain_change_observations: Mutex<HashMap<PathBuf, DomainChangeObservation>>,
+    /// Resolved store paths from the latest successful snapshot.
+    ///
+    /// Domain polling uses these paths directly instead of re-reading up to one
+    /// repository config per domain on every idle tick. The snapshot remains
+    /// the authority and refreshes this cache when configuration changes.
+    pub(crate) domain_store_paths: Mutex<HashMap<String, PathBuf>>,
     pub selected_domain_id: Mutex<Option<String>>,
     pub voice_sessions: std::sync::Arc<Mutex<HashMap<uuid::Uuid, pytxo_voice::VoiceSession>>>,
     pub voice_captures: std::sync::Arc<Mutex<HashMap<uuid::Uuid, pytxo_voice::CpalCapture>>>,
     pub voice_cancellations:
         Mutex<HashMap<uuid::Uuid, std::sync::Arc<std::sync::atomic::AtomicBool>>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct DomainChangeObservation {
+    fingerprint: StoreFingerprint,
+    settled_cursor: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct StoreFingerprint {
+    database: Option<FileFingerprint>,
+    wal: Option<FileFingerprint>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FileFingerprint {
+    len: u64,
+    modified: Option<SystemTime>,
+    created: Option<SystemTime>,
+    #[cfg(windows)]
+    windows_creation_time: u64,
+    #[cfg(windows)]
+    windows_last_write_time: u64,
+    #[cfg(unix)]
+    device: u64,
+    #[cfg(unix)]
+    inode: u64,
+}
+
+impl FileFingerprint {
+    fn from_metadata(metadata: &Metadata) -> Self {
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::MetadataExt;
+            Self {
+                len: metadata.len(),
+                modified: metadata.modified().ok(),
+                created: metadata.created().ok(),
+                windows_creation_time: metadata.creation_time(),
+                windows_last_write_time: metadata.last_write_time(),
+            }
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            Self {
+                len: metadata.len(),
+                modified: metadata.modified().ok(),
+                created: metadata.created().ok(),
+                device: metadata.dev(),
+                inode: metadata.ino(),
+            }
+        }
+        #[cfg(not(any(windows, unix)))]
+        {
+            Self {
+                len: metadata.len(),
+                modified: metadata.modified().ok(),
+                created: metadata.created().ok(),
+            }
+        }
+    }
 }
 
 pub(crate) fn open_store_for_domain(
@@ -70,6 +146,8 @@ pub struct RunDto {
     pub prepared_at: Option<String>,
     pub last_apply_error: Option<pytxo_core::RunApplyError>,
     pub recovery_state: Option<String>,
+    /// String preserves the SQLite u64 revision across JavaScript's number limit.
+    pub routing_revision: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -475,6 +553,67 @@ pub fn list_all_domains() -> IpcResult<Vec<CatalogEntry>> {
     orch_list_catalog_domains().map_err(map_orch_err)
 }
 
+fn remember_domain_store_path(state: &AppState, domain_id: &str, path: PathBuf) -> IpcResult<()> {
+    let previous = state
+        .domain_store_paths
+        .lock()
+        .map_err(map_lock_err)?
+        .insert(domain_id.to_string(), path.clone());
+    if let Some(previous) = previous.filter(|previous| previous != &path) {
+        state
+            .domain_change_observations
+            .lock()
+            .map_err(map_lock_err)?
+            .remove(&previous);
+    }
+    Ok(())
+}
+
+fn forget_domain_store_path(state: &AppState, domain_id: &str) -> IpcResult<()> {
+    let previous = state
+        .domain_store_paths
+        .lock()
+        .map_err(map_lock_err)?
+        .remove(domain_id);
+    if let Some(path) = previous {
+        state
+            .domain_change_observations
+            .lock()
+            .map_err(map_lock_err)?
+            .remove(&path);
+    }
+    Ok(())
+}
+
+fn resolved_domain_store_path(state: &AppState, domain_id: &str) -> IpcResult<PathBuf> {
+    if let Some(path) = state
+        .domain_store_paths
+        .lock()
+        .map_err(map_lock_err)?
+        .get(domain_id)
+        .cloned()
+    {
+        return Ok(path);
+    }
+    let cfg = load_cfg_for_domain(domain_id, state)?;
+    let path = cfg.db_path_at(Path::new(domain_id));
+    remember_domain_store_path(state, domain_id, path.clone())?;
+    Ok(path)
+}
+
+/// Lightweight catalog identity used by Desktop to discover externally added
+/// or removed workspaces without reopening every domain store on a timer.
+#[tauri::command]
+pub async fn catalog_fingerprint() -> IpcResult<String> {
+    let path = pytxo_store::default_catalog_path()
+        .ok_or_else(|| PytxoIpcError::new("catalog", "Pytxo home directory is unavailable"))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        store_fingerprint(&path).map(|fingerprint| format!("{fingerprint:?}"))
+    })
+    .await
+    .map_err(map_orch_err)?
+}
+
 /// Enriched catalog with per-domain run health ([[execution-domains]] Phase 3).
 #[tauri::command]
 pub fn list_domains_status() -> IpcResult<Vec<CatalogEntryStatus>> {
@@ -556,8 +695,7 @@ pub fn domain_is_trusted(repo_root: String) -> IpcResult<bool> {
 #[tauri::command]
 pub fn ensure_workspace(state: State<'_, AppState>, domain_id: String) -> IpcResult<String> {
     let repo = PathBuf::from(&domain_id);
-    let canonical = repo
-        .canonicalize()
+    let canonical = pytxo_core::canonical_repo_root(&repo)
         .map_err(map_io_err)?
         .to_string_lossy()
         .into_owned();
@@ -580,13 +718,13 @@ pub fn list_runs(
     let cfg = load_cfg_for_domain(&domain, &state)?;
     let store = open_store_for_domain(&cfg, &domain)?;
     let runs = store.list_runs(limit).map_err(map_store_err)?;
-    Ok(runs
-        .into_iter()
+    runs.into_iter()
         .map(|run| {
             let contract = store.get_run_contract(&run.id).ok().flatten();
-            run_to_dto(run, &domain, &cfg, contract.as_ref())
+            let revision = routing_revision_for_run(&store, &domain, &run.id)?;
+            Ok(run_to_dto(run, &domain, &cfg, contract.as_ref(), revision))
         })
-        .collect())
+        .collect::<IpcResult<Vec<_>>>()
 }
 
 #[tauri::command]
@@ -652,18 +790,28 @@ pub fn run_review_content(
 }
 
 #[tauri::command]
-pub fn domain_changes(
+pub async fn domain_changes(
     state: State<'_, AppState>,
     domain_id: String,
     cursor: i64,
     limit: Option<usize>,
 ) -> IpcResult<DomainChangesPageDto> {
-    let cfg = load_cfg_for_domain(&domain_id, &state)?;
-    let store = open_store_for_domain(&cfg, &domain_id)?;
-    let page = store
-        .changes_since(cursor, limit.unwrap_or(200))
-        .map_err(map_store_err)?;
-    Ok(DomainChangesPageDto {
+    // Observation must neither initialize/migrate a store on every poll nor
+    // block the native event loop on filesystem/SQLite work. A missing or
+    // incompatible store remains an error; only explicit write paths create it.
+    let path = resolved_domain_store_path(&state, &domain_id)?;
+    let page = tauri::async_runtime::spawn_blocking(move || {
+        let store = pytxo_store::PytxoStore::open_existing_read_only(&path)?;
+        store.changes_since(cursor, limit.unwrap_or(200))
+    })
+    .await
+    .map_err(map_orch_err)?
+    .map_err(map_store_err)?;
+    Ok(domain_changes_dto(page))
+}
+
+fn domain_changes_dto(page: pytxo_store::DomainChangesPage) -> DomainChangesPageDto {
+    DomainChangesPageDto {
         changes: page
             .changes
             .into_iter()
@@ -677,7 +825,159 @@ pub fn domain_changes(
         next_cursor: page.next_cursor,
         has_more: page.has_more,
         cursor_gap: page.cursor_gap,
+    }
+}
+
+#[derive(Deserialize)]
+pub struct DomainChangesRequest {
+    pub domain_id: String,
+    pub cursor: i64,
+}
+
+#[tauri::command]
+pub async fn routing_run_summary(
+    state: State<'_, AppState>,
+    run_id: String,
+    domain_id: String,
+) -> IpcResult<Option<pytxo_store::routing::RoutingDisplaySummary>> {
+    let path = resolved_domain_store_path(&state, &domain_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let store =
+            pytxo_store::PytxoStore::open_existing_read_only(&path).map_err(map_store_err)?;
+        if store.get_run(&run_id).map_err(map_store_err)?.is_none() {
+            return Err(PytxoIpcError::new(
+                "routing_run_summary",
+                "run unavailable in execution domain",
+            ));
+        }
+        let scope = pytxo_store::routing::RoutingScope {
+            domain_id: pytxo_core::DomainId(domain_id),
+            run_id: pytxo_core::RunId(run_id),
+        };
+        store.routing_display_summary(&scope).map_err(map_store_err)
     })
+    .await
+    .map_err(map_orch_err)?
+}
+
+fn sqlite_sidecar_path(path: &Path, suffix: &str) -> PathBuf {
+    let mut value = path.as_os_str().to_os_string();
+    value.push(suffix);
+    PathBuf::from(value)
+}
+
+fn optional_file_fingerprint(path: &Path) -> IpcResult<Option<FileFingerprint>> {
+    match std::fs::metadata(path) {
+        Ok(metadata) => Ok(Some(FileFingerprint::from_metadata(&metadata))),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(map_io_err(error)),
+    }
+}
+
+fn store_fingerprint(path: &Path) -> IpcResult<StoreFingerprint> {
+    Ok(StoreFingerprint {
+        database: optional_file_fingerprint(path)?,
+        wal: optional_file_fingerprint(&sqlite_sidecar_path(path, "-wal"))?,
+    })
+}
+
+fn unchanged_domain_changes(cursor: i64) -> DomainChangesPageDto {
+    DomainChangesPageDto {
+        changes: Vec::new(),
+        next_cursor: cursor,
+        has_more: false,
+        cursor_gap: false,
+    }
+}
+
+fn observed_domain_changes(
+    state: &AppState,
+    path: &Path,
+    cursor: i64,
+    limit: usize,
+) -> IpcResult<DomainChangesPageDto> {
+    // Capture the identity before reading. If a writer commits during the
+    // query, the next poll sees a different fingerprint and catches up.
+    let fingerprint = store_fingerprint(path)?;
+    let unchanged = state
+        .domain_change_observations
+        .lock()
+        .map_err(map_lock_err)?
+        .get(path)
+        .is_some_and(|observation| {
+            observation.fingerprint == fingerprint && observation.settled_cursor == cursor
+        });
+    if unchanged {
+        return Ok(unchanged_domain_changes(cursor));
+    }
+
+    let page = {
+        // Keep the handle inside this scope. Windows recovery must be able to
+        // rename or replace the database immediately after observation.
+        let store =
+            pytxo_store::PytxoStore::open_existing_read_only(path).map_err(map_store_err)?;
+        store.changes_since(cursor, limit).map_err(map_store_err)?
+    };
+    let dto = domain_changes_dto(page);
+    let mut observations = state
+        .domain_change_observations
+        .lock()
+        .map_err(map_lock_err)?;
+    if dto.has_more {
+        observations.remove(path);
+    } else {
+        observations.insert(
+            path.to_path_buf(),
+            DomainChangeObservation {
+                fingerprint,
+                settled_cursor: dto.next_cursor,
+            },
+        );
+    }
+    Ok(dto)
+}
+
+fn domain_changes_batch_blocking(
+    state: &AppState,
+    requests: Vec<DomainChangesRequest>,
+    limit: usize,
+) -> IpcResult<Vec<DomainChangesPageDto>> {
+    if requests.len() > 128 {
+        return Err(PytxoIpcError::new(
+            "input",
+            "At most 128 domains per change batch",
+        ));
+    }
+    requests
+        .into_iter()
+        .map(|request| {
+            let path = resolved_domain_store_path(state, &request.domain_id)?;
+            let result = observed_domain_changes(state, &path, request.cursor, limit);
+            if result.is_err() {
+                // Errors are never remembered as settled observations. A repaired,
+                // restored, or newly created store must be retried on the next poll.
+                state
+                    .domain_change_observations
+                    .lock()
+                    .map_err(map_lock_err)?
+                    .remove(&path);
+            }
+            result
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn domain_changes_batch(
+    app: tauri::AppHandle,
+    requests: Vec<DomainChangesRequest>,
+    limit: Option<usize>,
+) -> IpcResult<Vec<DomainChangesPageDto>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        domain_changes_batch_blocking(&app.state::<AppState>(), requests, limit.unwrap_or(200))
+    })
+    .await
+    .map_err(map_orch_err)?
 }
 
 #[tauri::command]
@@ -829,6 +1129,14 @@ pub async fn dispatch_run_cmd(
     agents: usize,
     repo_root: Option<String>,
 ) -> IpcResult<String> {
+    // The old Deck is a development-only rollback surface. Its arbitrary-command
+    // entry point must not bypass reviewed Flow admission in packaged Desktop.
+    if !cfg!(debug_assertions) {
+        return Err(PytxoIpcError::new(
+            "unsupported",
+            "Direct command runs are unavailable in this Desktop build. Use Work → New work to build and review a beta plan.",
+        ));
+    }
     let path = state.config_path.lock().map_err(map_lock_err)?.clone();
     let repo = repo_root
         .map(PathBuf::from)
@@ -888,14 +1196,33 @@ pub fn apply_run_changes(
     state: State<'_, AppState>,
     run_id: String,
     domain_id: Option<String>,
+    expected_package_digest: String,
 ) -> IpcResult<pytxo_runner::RunApplyManifest> {
     let domain = resolve_domain(&state, domain_id)?;
     let path = state.config_path.lock().map_err(map_lock_err)?.clone();
-    let result =
-        orch_apply_run_changes(path, Some(PathBuf::from(&domain)), &run_id).map_err(map_orch_err);
+    let result = orch_apply_run_changes(
+        path,
+        Some(PathBuf::from(&domain)),
+        &run_id,
+        &expected_package_digest,
+    )
+    .map_err(|error| {
+        map_review_apply_error(&error, error.downcast_ref::<pytxo_core::PytxoError>())
+    });
     notify_domain_mutation_result(result, || {
         emit_domain_changed(&app, &domain, "contract", &run_id);
     })
+}
+
+fn map_review_apply_error(
+    error: impl ToString,
+    cause: Option<&pytxo_core::PytxoError>,
+) -> PytxoIpcError {
+    if matches!(cause, Some(pytxo_core::PytxoError::StaleReview)) {
+        PytxoIpcError::new("stale_review", error.to_string())
+    } else {
+        map_orch_err(error)
+    }
 }
 
 #[tauri::command]
@@ -1177,13 +1504,21 @@ fn load_domain_desktop_snapshot(
     let cfg = match load_cfg_for_domain(domain_id, state) {
         Ok(cfg) => cfg,
         Err(error) => {
+            let _ = forget_domain_store_path(state, domain_id);
             loaded
                 .diagnostics
                 .push(snapshot_diagnostic(domain_id, "config", None, &error));
             return loaded;
         }
     };
-    let store = match open_store_for_domain(&cfg, domain_id) {
+    let store_path = cfg.db_path_at(Path::new(domain_id));
+    if let Err(error) = remember_domain_store_path(state, domain_id, store_path.clone()) {
+        loaded
+            .diagnostics
+            .push(snapshot_diagnostic(domain_id, "store_path", None, &error));
+        return loaded;
+    }
+    let store = match pytxo_store::PytxoStore::open(&store_path).map_err(map_store_err) {
         Ok(store) => store,
         Err(error) => {
             loaded
@@ -1215,9 +1550,25 @@ fn load_domain_desktop_snapshot(
                 None
             }
         };
-        loaded
-            .runs
-            .push(run_to_dto(run, domain_id, &cfg, contract.as_ref()));
+        let routing_revision = match routing_revision_for_run(&store, domain_id, &run_id) {
+            Ok(revision) => revision,
+            Err(error) => {
+                loaded.diagnostics.push(snapshot_diagnostic(
+                    domain_id,
+                    "routing_revision",
+                    Some(&run_id),
+                    &error,
+                ));
+                None
+            }
+        };
+        loaded.runs.push(run_to_dto(
+            run,
+            domain_id,
+            &cfg,
+            contract.as_ref(),
+            routing_revision,
+        ));
         if include_agents {
             match store.list_agents_for_run(&run_id).map_err(map_store_err) {
                 Ok(rows) => loaded
@@ -1237,8 +1588,26 @@ fn load_domain_desktop_snapshot(
 
 /// Single-round-trip snapshot for Desktop 2 polling (avoids N+1 list_runs/list_agents IPC).
 #[tauri::command]
-pub fn load_desktop_snapshot(
-    state: State<'_, AppState>,
+pub async fn load_desktop_snapshot(
+    app: tauri::AppHandle,
+    run_limit: Option<usize>,
+    fleet_limit: Option<usize>,
+    include_agents: Option<bool>,
+) -> IpcResult<DesktopSnapshotDto> {
+    tauri::async_runtime::spawn_blocking(move || {
+        load_desktop_snapshot_blocking(
+            &app.state::<AppState>(),
+            run_limit,
+            fleet_limit,
+            include_agents,
+        )
+    })
+    .await
+    .map_err(map_orch_err)?
+}
+
+fn load_desktop_snapshot_blocking(
+    state: &AppState,
     run_limit: Option<usize>,
     fleet_limit: Option<usize>,
     include_agents: Option<bool>,
@@ -1247,16 +1616,37 @@ pub fn load_desktop_snapshot(
     let fleet_limit = fleet_limit.unwrap_or(20);
     let include_agents = include_agents.unwrap_or(true);
     let domains = orch_list_domains_status().map_err(map_orch_err)?;
+    let domain_ids = domains
+        .iter()
+        .map(|domain| domain.domain_id.as_str())
+        .collect::<HashSet<_>>();
+    state
+        .domain_store_paths
+        .lock()
+        .map_err(map_lock_err)?
+        .retain(|domain_id, _| domain_ids.contains(domain_id.as_str()));
     let mut runs = Vec::new();
     let mut agents = Vec::new();
     let mut diagnostics = Vec::new();
     for domain in &domains {
         let domain_id = domain.domain_id.clone();
-        let loaded = load_domain_desktop_snapshot(&state, &domain_id, run_limit, include_agents);
+        let loaded = load_domain_desktop_snapshot(state, &domain_id, run_limit, include_agents);
         runs.extend(loaded.runs);
         agents.extend(loaded.agents);
         diagnostics.extend(loaded.diagnostics);
     }
+    let active_store_paths = state
+        .domain_store_paths
+        .lock()
+        .map_err(map_lock_err)?
+        .values()
+        .cloned()
+        .collect::<HashSet<_>>();
+    state
+        .domain_change_observations
+        .lock()
+        .map_err(map_lock_err)?
+        .retain(|path, _| active_store_paths.contains(path));
     let approvals = orch_list_hitl_pending_all()
         .map_err(map_orch_err)?
         .into_iter()
@@ -1530,6 +1920,7 @@ fn run_to_dto(
     domain_id: &str,
     cfg: &PytxoConfig,
     contract: Option<&RunContractRecord>,
+    routing_revision: Option<String>,
 ) -> RunDto {
     let (isolation_mode, isolation_backend) = run_isolation_status(
         cfg,
@@ -1551,7 +1942,23 @@ fn run_to_dto(
         prepared_at: contract.and_then(|contract| contract.prepared_at.clone()),
         last_apply_error: contract.and_then(|contract| contract.last_apply_error.clone()),
         recovery_state: contract.and_then(|contract| contract.recovery_state.clone()),
+        routing_revision,
     }
+}
+
+fn routing_revision_for_run(
+    store: &pytxo_store::PytxoStore,
+    domain_id: &str,
+    run_id: &str,
+) -> IpcResult<Option<String>> {
+    let scope = pytxo_store::routing::RoutingScope {
+        domain_id: pytxo_core::DomainId(domain_id.to_string()),
+        run_id: pytxo_core::RunId(run_id.to_string()),
+    };
+    store
+        .routing_revision(&scope)
+        .map(|revision| revision.map(|value| value.to_string()))
+        .map_err(map_store_err)
 }
 
 fn run_isolation_status(cfg: &PytxoConfig, enforcement_json: Option<&str>) -> (String, String) {
@@ -1617,6 +2024,21 @@ fn event_to_dto(e: EventRecord) -> EventDto {
 
 #[cfg(test)]
 mod mission_control_contract_tests {
+    #[test]
+    fn stale_review_is_a_structured_ipc_refusal() {
+        let cause = pytxo_core::PytxoError::StaleReview;
+        let error = super::map_review_apply_error(&cause, Some(&cause));
+        let json = serde_json::to_value(error).unwrap();
+        assert_eq!(json["code"], "stale_review");
+        assert!(json["message"]
+            .as_str()
+            .unwrap()
+            .contains("Reload and review"));
+        assert_eq!(
+            super::map_review_apply_error("disk unavailable", None).code,
+            "orchestrate"
+        );
+    }
     use super::*;
     #[test]
     fn agent_identity_uses_saved_launcher_without_exposing_arguments() {
@@ -1683,11 +2105,130 @@ mod mission_control_contract_tests {
         AppState {
             config_path: Mutex::new(None),
             poll_cursors: Mutex::new(HashMap::new()),
+            domain_change_observations: Mutex::new(HashMap::new()),
+            domain_store_paths: Mutex::new(HashMap::new()),
             selected_domain_id: Mutex::new(None),
             voice_sessions: std::sync::Arc::new(Mutex::new(HashMap::new())),
             voice_captures: std::sync::Arc::new(Mutex::new(HashMap::new())),
             voice_cancellations: Mutex::new(HashMap::new()),
         }
+    }
+
+    #[test]
+    fn change_batches_preserve_errors_and_release_database_handles() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path();
+        let db_path = PytxoConfig::default().db_path_at(repo);
+        let writer = PytxoStore::open(&db_path).unwrap();
+        writer.insert_run("first", "repo").unwrap();
+        drop(writer);
+        let state = test_app_state();
+        let request = |cursor| DomainChangesRequest {
+            domain_id: repo.to_string_lossy().into_owned(),
+            cursor,
+        };
+        let first = domain_changes_batch_blocking(&state, vec![request(0)], 200).unwrap();
+        assert!(!first[0].changes.is_empty());
+        let cursor = first[0].next_cursor;
+        let settled = domain_changes_batch_blocking(&state, vec![request(cursor)], 200).unwrap();
+        assert!(settled[0].changes.is_empty());
+        assert_eq!(settled[0].next_cursor, cursor);
+        assert_eq!(
+            state
+                .domain_change_observations
+                .lock()
+                .unwrap()
+                .get(&db_path)
+                .unwrap()
+                .settled_cursor,
+            cursor,
+        );
+
+        let writer = PytxoStore::open(&db_path).unwrap();
+        writer.insert_run("second", "repo").unwrap();
+        let changed = domain_changes_batch_blocking(&state, vec![request(cursor)], 200).unwrap();
+        assert!(changed[0]
+            .changes
+            .iter()
+            .any(|change| change.entity_id == "second"));
+        let cursor = changed[0].next_cursor;
+        drop(writer);
+
+        // This rename fails on Windows if observation retains an SQLite handle.
+        std::fs::rename(&db_path, db_path.with_extension("previous")).unwrap();
+        assert!(domain_changes_batch_blocking(&state, vec![request(cursor)], 200).is_err());
+        assert!(!db_path.exists());
+        let replacement = PytxoStore::open(&db_path).unwrap();
+        drop(replacement);
+        let reset = domain_changes_batch_blocking(&state, vec![request(cursor)], 200).unwrap();
+        assert!(reset[0].cursor_gap);
+        assert_eq!(reset[0].next_cursor, 0);
+        std::fs::rename(&db_path, db_path.with_extension("reset")).unwrap();
+        std::fs::write(&db_path, []).unwrap();
+        assert!(domain_changes_batch_blocking(&state, vec![request(0)], 200).is_err());
+        assert!(
+            domain_changes_batch_blocking(&state, (0..129).map(|_| request(0)).collect(), 200)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn snapshot_refreshes_the_cached_store_path_used_by_change_batches() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path();
+        let state = test_app_state();
+        let domain_id = repo.to_string_lossy().into_owned();
+        let request = || DomainChangesRequest {
+            domain_id: domain_id.clone(),
+            cursor: 0,
+        };
+
+        let default_path = PytxoConfig::default().db_path_at(repo);
+        let default_store = PytxoStore::open(&default_path).unwrap();
+        default_store.insert_run("default-run", &domain_id).unwrap();
+        drop(default_store);
+        let first = domain_changes_batch_blocking(&state, vec![request()], 200).unwrap();
+        assert!(first[0]
+            .changes
+            .iter()
+            .any(|change| change.entity_id == "default-run"));
+        assert_eq!(
+            state.domain_store_paths.lock().unwrap().get(&domain_id),
+            Some(&default_path),
+        );
+
+        std::fs::write(repo.join("pytxo.toml"), "data_dir = '.pytxo/alternate'\n").unwrap();
+        let alternate_config = PytxoConfig {
+            data_dir: PathBuf::from(".pytxo/alternate"),
+            ..PytxoConfig::default()
+        };
+        let alternate_path = alternate_config.db_path_at(repo);
+        let alternate_store = PytxoStore::open(&alternate_path).unwrap();
+        alternate_store
+            .insert_run("alternate-run", &domain_id)
+            .unwrap();
+        drop(alternate_store);
+
+        let snapshot = load_domain_desktop_snapshot(&state, &domain_id, 10, true);
+        assert!(snapshot.diagnostics.is_empty());
+        let refreshed = domain_changes_batch_blocking(&state, vec![request()], 200).unwrap();
+        assert!(refreshed[0]
+            .changes
+            .iter()
+            .any(|change| change.entity_id == "alternate-run"));
+        assert!(!refreshed[0]
+            .changes
+            .iter()
+            .any(|change| change.entity_id == "default-run"));
+        assert_eq!(
+            state.domain_store_paths.lock().unwrap().get(&domain_id),
+            Some(&alternate_path),
+        );
+        assert!(!state
+            .domain_change_observations
+            .lock()
+            .unwrap()
+            .contains_key(&default_path));
     }
 
     fn persist_review_contract(

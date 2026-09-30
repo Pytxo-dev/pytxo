@@ -1,5 +1,8 @@
 # Pytxo benchmarks
 
+The offline [Jev routing analysis scaffold](routing/README.md) has synthetic
+contract tests only; it is not a completed R0-versus-Jev comparison.
+
 ## September 7: three-task observations
 
 The [direct Codex worktree observation](results/astra-direct-codex-2026-09-07.json)

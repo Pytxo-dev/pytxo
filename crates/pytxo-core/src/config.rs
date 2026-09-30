@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use crate::billing::{BillingConfig, BillingMode};
 use crate::cloud::{CloudConfig, McpHubConfig};
+use crate::coordinator::CoordinatorConfig;
 use crate::execution::ExecutionBackend;
 use crate::moat::{FidelityTier, IsolationMode, PermissionProfile};
 
@@ -88,6 +89,9 @@ pub struct PytxoConfig {
     /// Optional NL mission planner ([[ADR-0012-hypervisor-shell-default-ux]]).
     #[serde(default)]
     pub planner: PlannerConfig,
+    /// Advisory model used for planning, route proposals, and diagnosis.
+    #[serde(default)]
+    pub coordinator: CoordinatorConfig,
     #[serde(default)]
     pub blast: BlastConfig,
     /// Out-of-band folder trust ceiling. This is runtime policy metadata and is
@@ -199,6 +203,7 @@ impl Default for PytxoConfig {
             subprocess_stdin: false,
             tier_max_agents: default_tier_max_agents(),
             planner: PlannerConfig::default(),
+            coordinator: CoordinatorConfig::default(),
             blast: BlastConfig::default(),
             permission_ceiling: None,
             requested_permission_profile: None,
@@ -327,6 +332,33 @@ name = "builder"
     fn explicit_false_fail_fast_remains_supported() {
         let cfg: PytxoConfig = toml::from_str("fail_fast = false").unwrap();
         assert!(!cfg.fail_fast);
+    }
+
+    #[test]
+    fn coordinator_profile_parses_independently_from_worker_agents() {
+        let cfg: PytxoConfig = toml::from_str(
+            r#"
+[coordinator]
+provider = "ollama"
+model = "qwen3:8b"
+transport = "direct"
+
+[[agent]]
+name = "builder"
+provider = "deepseek"
+model = "deepseek-chat"
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(cfg.coordinator.provider, "ollama");
+        assert_eq!(cfg.coordinator.model, "qwen3:8b");
+        assert_eq!(
+            cfg.coordinator.transport,
+            crate::CoordinatorTransport::Direct
+        );
+        assert_eq!(cfg.agent[0].provider.as_deref(), Some("deepseek"));
+        assert_eq!(cfg.agent[0].model.as_deref(), Some("deepseek-chat"));
     }
 
     #[test]

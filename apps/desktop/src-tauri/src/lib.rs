@@ -5,6 +5,12 @@ mod ipc_error;
 mod ipc_flow;
 mod ipc_install;
 mod ipc_meta;
+mod ipc_routing_account;
+#[allow(
+    dead_code,
+    reason = "hosted HTTP client is staged without a dispatch caller"
+)]
+mod ipc_routing_hosted_http;
 mod ipc_voice;
 mod local_preview;
 pub mod local_preview_policy;
@@ -15,25 +21,36 @@ mod workspace_project;
 mod workspace_terminal;
 
 use ipc::{
-    agent_arbitrage, apply_run_changes, discard_run_review, dispatch_run_cmd, domain_changes,
-    domain_is_trusted, dry_run, ensure_workspace, fleet_run_status_cmd, forget_domain,
-    get_domain_permission, git_diff, hitl_respond, list_agents, list_all_domains, list_domains_cmd,
-    list_domains_status, list_fleet_runs, list_hitl, list_hitl_all, list_projects, list_providers,
-    list_runs, list_trusted_domains, load_desktop_snapshot, poll_log_lines, project_add_root_cmd,
-    project_create_cmd, project_remove_root_cmd, project_roots_cmd, read_agent_events,
-    reconcile_run_recovery, refresh_run_review, run_review, run_review_content, select_domain,
+    agent_arbitrage, apply_run_changes, catalog_fingerprint, discard_run_review, dispatch_run_cmd,
+    domain_changes, domain_changes_batch, domain_is_trusted, dry_run, ensure_workspace,
+    fleet_run_status_cmd, forget_domain, get_domain_permission, git_diff, hitl_respond,
+    list_agents, list_all_domains, list_domains_cmd, list_domains_status, list_fleet_runs,
+    list_hitl, list_hitl_all, list_projects, list_providers, list_runs, list_trusted_domains,
+    load_desktop_snapshot, poll_log_lines, project_add_root_cmd, project_create_cmd,
+    project_remove_root_cmd, project_roots_cmd, read_agent_events, reconcile_run_recovery,
+    refresh_run_review, routing_run_summary, run_review, run_review_content, select_domain,
     set_domain_permission, stop_run, structural_graph, tail_events, workspace_structural_graph,
     AppState,
 };
 use ipc_auth::{auth_clear_session, auth_open_sign_in, auth_status};
 use ipc_flow::{
-    flow_delete, flow_dispatch, flow_history, flow_preview, flow_save_draft,
-    flow_save_reviewed_plan,
+    flow_advisor_consent, flow_advisor_consent_domains, flow_advisor_consent_enable,
+    flow_advisor_consent_revoke, flow_advisor_packet_preview, flow_delete, flow_dispatch,
+    flow_experimental_claude_available, flow_experimental_hosted_review_available, flow_history,
+    flow_hosted_consent_enable, flow_hosted_consent_revoke, flow_hosted_consent_status,
+    flow_preview, flow_preview_experimental_claude, flow_preview_experimental_claude_hosted,
+    flow_proposed_hosted_packet_preview, flow_reviewed_hosted_packet_preview, flow_save_draft,
+    flow_save_reviewed_plan, flow_stop_routed,
 };
 use ipc_install::{
     create_example_workspace, install_pytxo_cli, install_pytxo_cli_status, pick_workspace_folder,
 };
 use ipc_meta::{check_pytxo_cli, entitlement_status, ipc_version, list_ade_clis, start_ade_login};
+use ipc_routing_account::{
+    routing_account_connect, routing_account_disconnect, routing_account_reconnect_for_revocation,
+    routing_account_status, routing_hosted_grant_enable, routing_hosted_grant_revoke,
+    routing_hosted_grant_status, routing_hosted_grants,
+};
 use ipc_voice::{
     voice_cancel_session, voice_default_model, voice_finish_session, voice_get_session,
     voice_install_default_model, voice_list_devices, voice_local_available, voice_model_status,
@@ -103,6 +120,8 @@ pub fn run() {
         .manage(AppState {
             config_path: Mutex::new(None),
             poll_cursors: Mutex::new(std::collections::HashMap::new()),
+            domain_change_observations: Mutex::new(std::collections::HashMap::new()),
+            domain_store_paths: Mutex::new(std::collections::HashMap::new()),
             selected_domain_id: Mutex::new(None),
             voice_sessions: std::sync::Arc::new(Mutex::new(std::collections::HashMap::new())),
             voice_captures: std::sync::Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -134,6 +153,7 @@ pub fn run() {
             workspace_terminal::workspace_terminal_end,
             list_domains_cmd,
             list_all_domains,
+            catalog_fingerprint,
             list_domains_status,
             forget_domain,
             ensure_workspace,
@@ -144,11 +164,13 @@ pub fn run() {
             domain_is_trusted,
             list_runs,
             run_review,
+            routing_run_summary,
             run_review_content,
             refresh_run_review,
             discard_run_review,
             reconcile_run_recovery,
             domain_changes,
+            domain_changes_batch,
             list_agents,
             tail_events,
             read_agent_events,
@@ -185,11 +207,34 @@ pub fn run() {
             auth_status,
             auth_clear_session,
             auth_open_sign_in,
+            routing_account_status,
+            routing_account_connect,
+            routing_account_disconnect,
+            routing_account_reconnect_for_revocation,
+            routing_hosted_grant_status,
+            routing_hosted_grants,
+            routing_hosted_grant_enable,
+            routing_hosted_grant_revoke,
             flow_save_draft,
             flow_preview,
+            flow_experimental_claude_available,
+            flow_experimental_hosted_review_available,
+            flow_preview_experimental_claude,
+            flow_preview_experimental_claude_hosted,
             flow_save_reviewed_plan,
             flow_dispatch,
+            flow_stop_routed,
             flow_history,
+            flow_advisor_packet_preview,
+            flow_proposed_hosted_packet_preview,
+            flow_reviewed_hosted_packet_preview,
+            flow_hosted_consent_status,
+            flow_hosted_consent_enable,
+            flow_hosted_consent_revoke,
+            flow_advisor_consent,
+            flow_advisor_consent_domains,
+            flow_advisor_consent_enable,
+            flow_advisor_consent_revoke,
             flow_delete,
             flow_window::open_flow_window,
             voice_list_devices,

@@ -8,6 +8,9 @@ mod inference;
 mod jwt;
 mod limits;
 mod paddle;
+mod routing;
+mod routing_admission;
+mod routing_desktop;
 mod runs;
 mod seats;
 mod state;
@@ -442,6 +445,11 @@ async fn openapi() -> Json<Value> {
 
             "/v1/runs/end": { "post": { "summary": "Reconcile run end with usage" } },
 
+            "/v1/routing/tokens": {
+                "post": { "summary": "Experimental signed-session routing token; disabled by default" },
+                "delete": { "summary": "Revoke experimental routing token" }
+            },
+
             "/v1/inference/usage": { "post": { "summary": "Proxy-reported provider token usage" } },
 
             "/v1/wallet/balance": { "get": { "summary": "Ultra wallet balance (microcredits)" } },
@@ -504,6 +512,18 @@ async fn main() {
 
     let api_key = std::env::var("LINK_API_KEY").ok().filter(|s| !s.is_empty());
     let require_auth = require_auth_override.unwrap_or(api_key.is_some() || jwks.is_some());
+    let routing_token_experiment =
+        std::env::var("LINK_ROUTING_TOKEN_EXPERIMENT").is_ok_and(|value| value == "1");
+    let routing_grant_experiment =
+        std::env::var("LINK_ROUTING_GRANT_EXPERIMENT").is_ok_and(|value| value == "1");
+    let routing_admission_experiment =
+        std::env::var("LINK_ROUTING_ADMISSION_EXPERIMENT").is_ok_and(|value| value == "1");
+    if routing_admission_experiment && !routing_token_experiment {
+        panic!("routing admission requires LINK_ROUTING_TOKEN_EXPERIMENT=1");
+    }
+    if routing_grant_experiment && !routing_token_experiment {
+        panic!("routing grants require LINK_ROUTING_TOKEN_EXPERIMENT=1");
+    }
 
     let state = AppState {
         api_key,
@@ -515,6 +535,20 @@ async fn main() {
         require_auth,
 
         jwks,
+
+        routing_token_audience: if routing_token_experiment {
+            std::env::var("ROUTING_CLERK_AUDIENCE")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        } else {
+            None
+        },
+        routing_grant_experiment,
+
+        routing_admission: routing_admission::RoutingAdmissionConfig::from_env(
+            routing_admission_experiment,
+        )
+        .expect("refusing incomplete experimental routing admission configuration"),
 
         entitlements,
 
@@ -538,6 +572,25 @@ async fn main() {
         state.api_key.is_some() || state.jwks.is_some(),
     )
     .expect("refusing insecure Pytxo Link startup");
+    validate_routing_token_startup(routing_token_experiment, &state)
+        .expect("refusing incomplete experimental routing token configuration");
+
+    // Liabilities from an earlier enabled pilot still need reconciliation if
+    // new admission is switched off during an incident or after a restart.
+    if let Some(pool) = state.db.clone() {
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(30));
+            loop {
+                tick.tick().await;
+                if routing_admission::reconcile_stale(&pool).await.is_err() {
+                    tracing::warn!("routing admission reconciliation unavailable");
+                }
+                if routing_desktop::prune_expired(&pool).await.is_err() {
+                    tracing::warn!("routing Desktop credential retention unavailable");
+                }
+            }
+        });
+    }
 
     let app = apply_service_layers(build_router(state));
 
@@ -583,6 +636,22 @@ fn validate_startup_security(
     Ok(())
 }
 
+fn validate_routing_token_startup(enabled: bool, state: &AppState) -> Result<(), &'static str> {
+    if enabled
+        && (state.db.is_none()
+            || !state
+                .jwks
+                .as_ref()
+                .is_some_and(|jwks| jwks.routing_source_secure())
+            || state.routing_token_audience.is_none())
+    {
+        return Err(
+            "routing tokens require DATABASE_URL, HTTPS Clerk JWKS/issuer and routing audience",
+        );
+    }
+    Ok(())
+}
+
 fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
@@ -603,6 +672,50 @@ fn build_router(state: AppState) -> Router {
         .route("/v1/wallet/balance", get(wallet_balance))
         .route("/v1/runs/start", post(runs_start))
         .route("/v1/runs/end", post(runs_end))
+        .route(
+            "/v1/routing/tokens",
+            post(routing::issue_token).delete(routing::revoke_token),
+        )
+        .route(
+            "/v1/routing/workspace-grants",
+            post(routing::enable_workspace_grant).delete(routing::revoke_workspace_grant),
+        )
+        .route(
+            "/v1/routing/workspace-grants/{workspace_id}",
+            get(routing::workspace_grant_status),
+        )
+        .route(
+            "/v1/routing/desktop-authorizations",
+            post(routing_desktop::authorize),
+        )
+        .route(
+            "/v1/routing/desktop-exchange",
+            post(routing_desktop::exchange),
+        )
+        .route(
+            "/v1/routing/desktop-session",
+            get(routing_desktop::session_status).delete(routing_desktop::revoke_session),
+        )
+        .route(
+            "/v1/routing/desktop-sessions",
+            axum::routing::delete(routing_desktop::revoke_all),
+        )
+        .route(
+            "/internal/routing/reserve",
+            post(routing_admission::reserve_route),
+        )
+        .route(
+            "/internal/routing/claim",
+            post(routing_admission::claim_route),
+        )
+        .route(
+            "/internal/routing/uncertain",
+            post(routing_admission::uncertain_route),
+        )
+        .route(
+            "/internal/routing/settle",
+            post(routing_admission::settle_route),
+        )
         .route("/v1/webhooks/paddle", post(paddle_webhook))
         .with_state(state)
 }
@@ -640,12 +753,24 @@ mod contract_tests {
         assert!(validate_startup_security("0.0.0.0:8787", true, false).is_err());
     }
 
-    fn test_state() -> AppState {
+    #[test]
+    fn routing_token_experiment_requires_separate_complete_configuration() {
+        let mut state = test_state();
+        assert!(validate_routing_token_startup(false, &state).is_ok());
+        assert!(validate_routing_token_startup(true, &state).is_err());
+        state.routing_token_audience = Some("pytxo-routing".into());
+        assert!(validate_routing_token_startup(true, &state).is_err());
+    }
+
+    pub(crate) fn test_state() -> AppState {
         AppState {
             api_key: None,
             admin_key: Some("test-admin".into()),
             require_auth: false,
             jwks: None,
+            routing_token_audience: None,
+            routing_grant_experiment: false,
+            routing_admission: None,
             entitlements: EntitlementStore::memory(),
             db: None,
             runs: state::RunLedger::memory(),
@@ -729,6 +854,7 @@ mod contract_tests {
             "/v1/orgs/{org_id}/audit",
             "/v1/runs/start",
             "/v1/runs/end",
+            "/v1/routing/tokens",
             "/v1/wallet/balance",
             "/v1/webhooks/paddle",
         ] {

@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::process::Command;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -5,6 +6,113 @@ use std::time::{Duration, Instant};
 use pytxo_core::{PytxoError, Result};
 
 const EXIT_CONFIRM_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Physical identity of an existing Store file. A canonical path alone can
+/// name a replacement database after a controller crash.
+pub fn file_identity(path: &Path) -> Result<String> {
+    #[cfg(windows)]
+    {
+        use std::fs::File;
+        let file = File::open(path)?;
+        windows_file_identity(&file)
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let metadata = std::fs::metadata(path)?;
+        if metadata.ino() == 0 {
+            return Err(PytxoError::Runner(
+                "Store file identity is unavailable".into(),
+            ));
+        }
+        Ok(format!(
+            "unix-dev-inode:{}:{}",
+            metadata.dev(),
+            metadata.ino()
+        ))
+    }
+
+    #[cfg(not(any(windows, unix)))]
+    {
+        let _ = path;
+        Err(PytxoError::Runner(
+            "Store file identity is unsupported on this platform".into(),
+        ))
+    }
+}
+
+#[cfg(windows)]
+fn windows_file_identity(file: &std::fs::File) -> Result<String> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Storage::FileSystem::{
+        GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+    };
+
+    let mut info = BY_HANDLE_FILE_INFORMATION::default();
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle(), &mut info) } == 0 {
+        return Err(PytxoError::Runner(format!(
+            "query Store file identity failed: {}",
+            std::io::Error::last_os_error()
+        )));
+    }
+    let index = (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow);
+    if index == 0 {
+        return Err(PytxoError::Runner(
+            "Store file identity is unavailable".into(),
+        ));
+    }
+    Ok(format!(
+        "windows-file-id:{}:{index}",
+        info.dwVolumeSerialNumber
+    ))
+}
+
+/// Pin the existing Store file against pathname replacement while a recovery
+/// decision opens SQLite and checks ownership. Without this exclusion a
+/// pathname can briefly point at a second database during the SQLite open.
+/// On platforms without a proven replacement exclusion this fails closed.
+pub struct FileIdentityGuard {
+    #[cfg(windows)]
+    _file: std::fs::File,
+    identity: String,
+}
+
+impl FileIdentityGuard {
+    pub fn acquire(path: &Path) -> Result<Self> {
+        #[cfg(windows)]
+        {
+            use std::fs::OpenOptions;
+            use std::os::windows::fs::OpenOptionsExt;
+            use windows_sys::Win32::Storage::FileSystem::{FILE_SHARE_READ, FILE_SHARE_WRITE};
+
+            // Excluding FILE_SHARE_DELETE prevents rename/unlink while SQLite
+            // opens the path. Reads and writes remain available to SQLite.
+            let file = OpenOptions::new()
+                .read(true)
+                .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+                .open(path)?;
+            let identity = windows_file_identity(&file)?;
+            Ok(Self {
+                _file: file,
+                identity,
+            })
+        }
+
+        #[cfg(not(windows))]
+        {
+            let _ = path;
+            Err(PytxoError::Runner(
+                "automatic Store recovery cannot exclude pathname replacement on this platform"
+                    .into(),
+            ))
+        }
+    }
+
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+}
 
 /// Return an OS creation token for `pid`, or `None` when that process is absent.
 /// The token is persisted with the PID so a crashed supervisor cannot later
@@ -23,7 +131,16 @@ pub fn process_start_identity(pid: u32) -> Result<Option<String>> {
 
         let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
         if handle.is_null() {
-            return Ok(None);
+            // OpenProcess also fails for access denied. Treat only Windows'
+            // invalid-PID result as confirmed absence; uncertainty must not
+            // authorize recovery or process-tree replacement.
+            let error = std::io::Error::last_os_error();
+            if windows_pid_is_confirmed_missing(&error) {
+                return Ok(None);
+            }
+            return Err(PytxoError::Runner(format!(
+                "query process identity failed for pid {pid}: {error}"
+            )));
         }
         let mut exit_code = 0_u32;
         let exit_queried = unsafe { GetExitCodeProcess(handle, &mut exit_code) };
@@ -86,12 +203,30 @@ pub fn process_start_identity(pid: u32) -> Result<Option<String>> {
             .args(["-o", "lstart=", "-p", &pid.to_string()])
             .output()
             .map_err(|error| PytxoError::Runner(format!("query process identity: {error}")))?;
+        if !output.status.success() {
+            return Err(PytxoError::Runner(format!(
+                "query process identity failed for pid {pid}: ps exited {}",
+                output.status
+            )));
+        }
         let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        return Ok((!token.is_empty()).then(|| format!("unix-lstart:{token}")));
+        if token.is_empty() {
+            return Err(PytxoError::Runner(format!(
+                "query process identity returned no start time for pid {pid}"
+            )));
+        }
+        return Ok(Some(format!("unix-lstart:{token}")));
     }
 
     #[allow(unreachable_code)]
     Ok(None)
+}
+
+#[cfg(windows)]
+fn windows_pid_is_confirmed_missing(error: &std::io::Error) -> bool {
+    // ERROR_INVALID_PARAMETER: OpenProcess reports an absent PID. Access
+    // denied (5) and other failures are uncertainty, not evidence of death.
+    error.raw_os_error() == Some(87)
 }
 
 pub fn process_matches(pid: u32, expected_start_identity: &str) -> Result<bool> {
@@ -192,5 +327,61 @@ pub fn kill_pid(pid: u32) -> Result<()> {
     match process_start_identity(pid)? {
         Some(identity) => kill_process_tree(pid, &identity),
         None => Ok(()),
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_identity_tests {
+    use super::windows_pid_is_confirmed_missing;
+
+    #[test]
+    fn access_denied_is_not_absence() {
+        assert!(windows_pid_is_confirmed_missing(
+            &std::io::Error::from_raw_os_error(87)
+        ));
+        assert!(!windows_pid_is_confirmed_missing(
+            &std::io::Error::from_raw_os_error(5)
+        ));
+    }
+}
+
+#[cfg(test)]
+mod file_identity_tests {
+    use super::{file_identity, FileIdentityGuard};
+
+    #[test]
+    fn rename_preserves_identity_and_replacement_changes_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = dir.path().join("store.db");
+        let moved = dir.path().join("old-store.db");
+        std::fs::write(&original, b"original").unwrap();
+        let first = file_identity(&original).unwrap();
+        std::fs::rename(&original, &moved).unwrap();
+        assert_eq!(file_identity(&moved).unwrap(), first);
+        std::fs::write(&original, b"replacement").unwrap();
+        assert_ne!(file_identity(&original).unwrap(), first);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn recovery_guard_pins_the_file_while_sqlite_opens_its_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = dir.path().join("store.db");
+        let moved = dir.path().join("moved.db");
+        std::fs::write(&original, b"original").unwrap();
+        let guard = FileIdentityGuard::acquire(&original).unwrap();
+        assert_eq!(guard.identity(), file_identity(&original).unwrap());
+        assert!(std::fs::rename(&original, &moved).is_err());
+        drop(guard);
+        std::fs::rename(&original, &moved).unwrap();
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn recovery_guard_fails_closed_without_replacement_exclusion() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = dir.path().join("store.db");
+        std::fs::write(&original, b"original").unwrap();
+        assert!(FileIdentityGuard::acquire(&original).is_err());
     }
 }

@@ -36,7 +36,7 @@
   } from "../../lib/navigation.svelte";
   import { SETTINGS_GROUPS, SETTINGS_SECTIONS, settingsSectionMatches } from "../../lib/settings-catalog";
   import { setReducedMotion, setUiDensity, setUiScale, UI_SCALES, uiPrefs } from "../../lib/ui-prefs.svelte";
-  import { ipc } from "../../lib/ipc";
+  import { ipc, onAuthChanged } from "../../lib/ipc";
   import { check, type Update } from "@tauri-apps/plugin-updater";
   import { relaunch } from "@tauri-apps/plugin-process";
 
@@ -138,6 +138,13 @@
   let showAllProviders = $state(false);
   let copiedProviderEnv = $state("");
 
+  let routingCredentialPresent = $state(false);
+  let routingBridgeAvailable = $state(false);
+  let routingAccountId = $state<string | null>(null);
+  let routingRemoteStatus = $state<"absent" | "verified" | "unverified" | "revoked">("absent");
+  let routingRecoveryOnly = $state(false);
+  let routingAccountMessage = $state("");
+
   const searchQuery = $derived(search.trim());
   const filteredSections = $derived(SECTIONS.filter((item) => settingsSectionMatches(item, search)));
   const sectionGroups = $derived(
@@ -169,6 +176,17 @@
   });
 
   onMount(() => {
+    let active = true;
+    let unlisten: (() => void) | null = null;
+    const verifyTimer = setInterval(() => void refreshRoutingAccount(), 30_000);
+    void refreshRoutingAccount();
+    void onAuthChanged(() => void refreshRoutingAccount()).then((stop) => {
+      if (active) unlisten = stop;
+      else stop();
+    });
+    return () => { active = false; unlisten?.(); clearInterval(verifyTimer); };
+  });
+  onMount(() => {
     if (typeof localStorage === "undefined") return;
     const capture = localStorage.getItem(VOICE_CAPTURE_KEY);
     if (capture === "both" || capture === "hold" || capture === "click") voiceCapture = capture;
@@ -182,6 +200,40 @@
     });
     void refreshProviders();
   });
+
+  async function refreshRoutingAccount() {
+    const status = await ipc.routingAccountStatus().catch(() => null);
+    routingCredentialPresent = status?.credential_present ?? false;
+    routingBridgeAvailable = status?.bridge_available ?? false;
+    routingAccountId = status?.account_id ?? null;
+    routingRemoteStatus = status?.remote_status ?? "absent";
+    routingRecoveryOnly = status?.recovery_only ?? false;
+  }
+
+  async function connectRoutingAccount() {
+    routingAccountMessage = "";
+    try {
+      await ipc.routingAccountConnect();
+    } catch {
+      routingAccountMessage = "Could not open the account connection. Try again.";
+    }
+  }
+
+  async function disconnectRoutingAccount() {
+    if (!window.confirm("Revoke all Routing access for this account? This disconnects every Desktop and disables all hosted workspace grants and evaluation tokens.")) return;
+    routingAccountMessage = "";
+    try {
+      const result = await ipc.routingAccountDisconnect();
+      await refreshRoutingAccount();
+      routingAccountMessage = result.remote_revoked
+        ? "Routing access revoked for this account."
+        : "Local credential cleared. Remote revocation could not be confirmed; use your web account to revoke all routing access.";
+    } catch (cause) {
+      routingAccountMessage = cause && typeof cause === "object" && "message" in cause
+        ? String(cause.message)
+        : "Could not revoke this account's Routing access.";
+    }
+  }
 
   async function refreshProviders() {
     providersLoading = true;
@@ -637,6 +689,11 @@
             <strong>Local Core</strong>
           {/if}
         </div>
+        <div class="setting-row">
+          <div><strong>Experimental Routing account</strong><small>{routingRecoveryOnly ? "Recovery connection: inspect and revoke existing hosted grants in Work. New grants are unavailable through this connection." : !routingBridgeAvailable ? routingCredentialPresent ? "New account connections are off. Revoking here affects every Desktop and hosted workspace grant on this account." : "The account bridge is off in this build. Local Core remains available." : routingRemoteStatus === "verified" ? `Routing-only connection verified for ${routingAccountId ?? "this account"}. Hosted packets still require a separate workspace opt-in.` : routingRemoteStatus === "revoked" ? "This Routing credential was revoked. Revoke any saved hosted grants in Work before reconnecting." : routingCredentialPresent ? "A Routing credential is stored locally, but Link could not verify it. Hosted Routing is unavailable until verification succeeds." : "Connect your Pytxo account in the browser for a routing-only credential. Agent and Ultra billing remain separate."}</small></div>
+          <button class="quiet" disabled={!routingBridgeAvailable && !routingCredentialPresent} onclick={() => void (routingRecoveryOnly && routingBridgeAvailable ? connectRoutingAccount() : routingCredentialPresent ? disconnectRoutingAccount() : connectRoutingAccount())}>{routingRecoveryOnly && routingBridgeAvailable ? "Reconnect full Routing access" : routingCredentialPresent ? "Revoke all Routing access" : "Connect"}</button>
+        </div>
+        {#if routingAccountMessage}<p role="status">{routingAccountMessage}</p>{/if}
         <div class="setting-row"><div><strong>Tier</strong><small>Controls concurrent agent limits and cloud features.</small></div><strong class="mono">{tier}</strong></div>
         {#if signedIn && subscriptionPortalUrl}
           <div class="setting-row"><div><strong>Billing portal</strong><small>Manage plan, payment method, and invoices.</small></div><a class="quiet" href={subscriptionPortalUrl} target="_blank" rel="noopener noreferrer">Open portal</a></div>

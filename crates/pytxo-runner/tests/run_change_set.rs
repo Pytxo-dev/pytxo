@@ -871,6 +871,114 @@ fn lease_child_process_holder() {
 }
 
 #[test]
+fn interrupted_journal_recovers_after_real_child_process_termination() {
+    let temp = tempfile::tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let data_dir = temp.path().join("data");
+    let workspace = temp.path().join("workspace");
+    let ready = temp.path().join("ready");
+    write(&repo.join("existing.txt"), "before\n");
+    write(&workspace.join("existing.txt"), "after\n");
+    write(&workspace.join("new/deep/added.txt"), "added\n");
+    prepare_review_package(
+        &repo,
+        &data_dir,
+        "run-process-recovery",
+        "base",
+        &[AgentWorkspaceInput {
+            agent_id: "worker".into(),
+            task_id: "task".into(),
+            workspace_path: workspace,
+            claims: vec!["existing.txt".into(), "new".into()],
+            depends_on: vec![],
+        }],
+        &[],
+    )
+    .unwrap();
+
+    // Reap the exact test-owned child even if a pre-termination assertion fails.
+    struct ChildGuard(std::process::Child);
+    impl Drop for ChildGuard {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    let mut child = ChildGuard(
+        std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "interrupted_journal_child_holder", "--nocapture"])
+            .env("PYTXO_RECOVERY_CHILD_ROOT", temp.path())
+            .spawn()
+            .unwrap(),
+    );
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while !ready.exists() && std::time::Instant::now() < deadline {
+        assert!(
+            child.0.try_wait().unwrap().is_none(),
+            "child exited before journal checkpoint"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(ready.exists(), "child did not reach journal checkpoint");
+    assert_eq!(
+        std::fs::read(repo.join("existing.txt")).unwrap(),
+        b"after\n"
+    );
+    assert_eq!(
+        std::fs::read(repo.join("new/deep/added.txt")).unwrap(),
+        b"added\n"
+    );
+    assert!(
+        reconcile_apply_journals(&repo, &data_dir, "run-process-recovery")
+            .expect_err("recovery must not race the live lease holder")
+            .to_string()
+            .contains("busy")
+    );
+
+    child.0.kill().unwrap();
+    assert!(!child.0.wait().unwrap().success());
+    assert!(matches!(
+        reconcile_apply_journals(&repo, &data_dir, "run-process-recovery").unwrap(),
+        RecoveryOutcome::RolledBack { .. }
+    ));
+    assert_eq!(
+        std::fs::read(repo.join("existing.txt")).unwrap(),
+        b"before\n"
+    );
+    assert!(!repo.join("new").exists());
+    assert_eq!(
+        reconcile_apply_journals(&repo, &data_dir, "run-process-recovery").unwrap(),
+        RecoveryOutcome::NothingToDo
+    );
+}
+
+#[test]
+fn interrupted_journal_child_holder() {
+    let Some(root) = std::env::var_os("PYTXO_RECOVERY_CHILD_ROOT") else {
+        return;
+    };
+    let root = PathBuf::from(root);
+    let repo = root.join("repo");
+    let data_dir = root.join("data");
+    let manifest = load_review_manifest(&data_dir, "run-process-recovery").unwrap();
+    let lease = ExecutionDomainMutationLease::try_acquire(&data_dir).unwrap();
+    // The existing fault checkpoint leaves durable mutation evidence intact.
+    // Retain the lease until the parent terminates this process without unwinding.
+    pytxo_runner::apply_prepared_review_with_fault_under_lease(
+        &repo,
+        &data_dir,
+        &manifest,
+        &lease,
+        Some(ApplyFaultPoint::InterruptAfterRename(2)),
+    )
+    .expect_err("checkpoint must interrupt before commit");
+    std::fs::write(root.join("ready"), b"journal-ready").unwrap();
+    loop {
+        std::thread::park_timeout(std::time::Duration::from_secs(1));
+    }
+}
+
+#[test]
 fn execution_domain_lease_serializes_two_reviewed_runs_touching_the_same_path() {
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path().join("repo");

@@ -75,12 +75,43 @@ async fn dispatch_preserves_reviewed_single_worker_waves() {
             domain_id: Some(repo.to_string_lossy().into_owned()),
             project_id: None,
             ade_id: Some("codex".into()),
+            max_workers: Some(1),
+            verification_commands: vec![],
         },
     )
     .unwrap();
     assert_eq!(plan.tasks.len(), 3);
     assert_eq!(plan.waves.len(), 3);
     save_reviewed_flow_plan(&catalog, plan).unwrap();
+    // A configuration edit after review may expand future missions, never this one.
+    fs::write(
+        repo.join("pytxo.toml"),
+        "max_agents = 2\npermission_profile = \"orbit\"\nexecution_backend = \"subprocess\"\n",
+    )
+    .unwrap();
+    // A legitimate committed config change avoids the independent dirty-input guard.
+    assert!(Command::new("git")
+        .args(["add", "pytxo.toml"])
+        .current_dir(&repo)
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new("git")
+        .args([
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@pytxo.local",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "raise future worker limit"
+        ])
+        .current_dir(&repo)
+        .status()
+        .unwrap()
+        .success());
     let run_id = dispatch_flow(&catalog, "single-worker").unwrap();
     let store = PytxoStore::open(&PytxoConfig::default().db_path_at(&repo)).unwrap();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(30);

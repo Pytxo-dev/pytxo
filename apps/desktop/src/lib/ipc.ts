@@ -93,6 +93,7 @@ export const ipc = {
   listDomains: () => invoke<DomainDto[]>("list_domains_cmd").then(unwrap),
   listAllDomains: () =>
     invoke<CatalogEntry[]>("list_all_domains").then(unwrap).catch(() => [] as CatalogEntry[]),
+  catalogFingerprint: () => invoke<string>("catalog_fingerprint").then(unwrap),
   /**
    * Deliberately non-catching: this is the primary "is the hypervisor
    * reachable" signal for the Desktop 2 shell. Swallowing failures here would
@@ -133,6 +134,8 @@ export const ipc = {
     invoke<RunDto[]>("list_runs", { limit, domainId }).then(unwrap),
   runReview: (runId: string, domainId: string | null) =>
     invoke<import("./types").RunReviewDto>("run_review", { runId, domainId }).then(unwrap),
+  routingRunSummary: (runId: string, domainId: string) =>
+    invoke<import("./types").RoutingDisplaySummary | null>("routing_run_summary", { runId, domainId }).then(unwrap),
   runReviewContent: (
     runId: string,
     path: string,
@@ -154,6 +157,8 @@ export const ipc = {
     invoke<void>("discard_run_review", { runId, domainId }).then(unwrap),
   reconcileRunRecovery: (runId: string, domainId: string | null) =>
     invoke<{ outcome: string; attempt_id: string | null }>("reconcile_run_recovery", { runId, domainId }).then(unwrap),
+  domainChangesBatch: (requests: Array<{ domain_id: string; cursor: number }>, limit = 200) =>
+    invoke<import("./types").DomainChangesPageDto[]>("domain_changes_batch", { requests, limit }).then(unwrap),
   domainChanges: (domainId: string, cursor: number, limit = 200) =>
     invoke<import("./types").DomainChangesPageDto>("domain_changes", { domainId, cursor, limit }).then(unwrap),
   listAgents: (runId: string, domainId: string | null) =>
@@ -172,8 +177,8 @@ export const ipc = {
     invoke<void>("stop_run", { all, domainId, runId }).then(unwrap),
   gitDiff: (agentId: string, domainId: string | null) =>
     invoke<string>("git_diff", { agentId, domainId }).then(unwrap),
-  applyRunChanges: (runId: string, domainId: string | null) =>
-    invoke<import("./types").RunApplyManifest>("apply_run_changes", { runId, domainId }).then(unwrap),
+  applyRunChanges: (runId: string, domainId: string | null, expectedPackageDigest: string) =>
+    invoke<import("./types").RunApplyManifest>("apply_run_changes", { runId, domainId, expectedPackageDigest }).then(unwrap),
   listHitl: (domainId: string | null) =>
     invoke<HitlDto[]>("list_hitl", { domainId }).then(unwrap).catch(() => [] as HitlDto[]),
   listHitlAll: () =>
@@ -262,10 +267,33 @@ export const ipc = {
       .catch(() => ({ signed_in: false, session_present: false })),
   authOpenSignIn: () => invoke<void>("auth_open_sign_in").then(unwrap),
   authClearSession: () => invoke<void>("auth_clear_session").then(unwrap),
+  routingAccountStatus: () => invoke<{ bridge_available: boolean; credential_present: boolean; account_id: string | null; expires_at: string | null; remote_status: "absent" | "verified" | "unverified" | "revoked"; recovery_only: boolean }>("routing_account_status").then(unwrap),
+  routingAccountConnect: () => invoke<void>("routing_account_connect").then(unwrap),
+  routingAccountDisconnect: () => invoke<{ locally_cleared: boolean; remote_revoked: boolean }>("routing_account_disconnect").then(unwrap),
+  routingAccountReconnectForRevocation: () => invoke<void>("routing_account_reconnect_for_revocation").then(unwrap),
   flowPreview: (input: import("./types").FlowDraftInput) => invoke<import("./types").FlowPlan>("flow_preview", { input }).then(unwrap),
+  flowExperimentalClaudeAvailable: () => invoke<boolean>("flow_experimental_claude_available").then(unwrap),
+  flowExperimentalHostedReviewAvailable: () => invoke<boolean>("flow_experimental_hosted_review_available").then(unwrap),
+  flowPreviewExperimentalClaude: (input: import("./types").FlowDraftInput, facts: import("./types").ReviewedDemandFacts) => invoke<import("./types").FlowPlan>("flow_preview_experimental_claude", { input, facts }).then(unwrap),
+  flowPreviewExperimentalClaudeHosted: (input: import("./types").FlowDraftInput, facts: import("./types").ReviewedDemandFacts) => invoke<import("./types").FlowPlan>("flow_preview_experimental_claude_hosted", { input, facts }).then(unwrap),
   flowSaveReviewedPlan: (plan: import("./types").FlowPlan) => invoke<import("./types").FlowPlan>("flow_save_reviewed_plan", { plan }).then(unwrap),
   flowDispatch: (draftId: string) => invoke<string>("flow_dispatch", { draftId }).then(unwrap),
+  flowStopRouted: (draftId: string, runId: string) => invoke<void>("flow_stop_routed", { draftId, runId }).then(unwrap),
   flowHistory: () => invoke<import("./types").FlowDraftRecord[]>("flow_history").then(unwrap),
+  flowAdvisorPacketPreview: (draftId: string) => invoke<import("./types").RoutedAdvisorPacketPreview>("flow_advisor_packet_preview", { draftId }).then(unwrap),
+  flowProposedHostedPacketPreview: (draftId: string) => invoke<import("./types").ProposedHostedAdvisorPacketPreview>("flow_proposed_hosted_packet_preview", { draftId }).then(unwrap),
+  flowReviewedHostedPacketPreview: (draftId: string) => invoke<import("./types").ReviewedHostedAdvisorPacketPreview>("flow_reviewed_hosted_packet_preview", { draftId }).then(unwrap),
+  flowHostedConsentStatus: (domainId: string) => invoke<import("./types").RoutedAdvisorConsentStatus>("flow_hosted_consent_status", { domainId }).then(unwrap),
+  flowHostedConsentEnable: (draftId: string, domainId: string, requestDigest: string, scopeDigest: string, expectedRevision: number) => invoke<import("./types").RoutedAdvisorConsentStatus>("flow_hosted_consent_enable", { draftId, domainId, requestDigest, scopeDigest, expectedRevision }).then(unwrap),
+  flowHostedConsentRevoke: (domainId: string, expectedRevision: number) => invoke<import("./types").RoutedAdvisorConsentStatus>("flow_hosted_consent_revoke", { domainId, expectedRevision }).then(unwrap),
+  routingHostedGrantStatus: (domainId: string) => invoke<import("./types").RoutingHostedGrantStatus | null>("routing_hosted_grant_status", { domainId }).then(unwrap),
+  routingHostedGrants: () => invoke<import("./types").RoutingHostedGrantStatus[]>("routing_hosted_grants").then(unwrap),
+  routingHostedGrantEnable: (domainId: string) => invoke<import("./types").RoutingHostedGrantStatus>("routing_hosted_grant_enable", { domainId }).then(unwrap),
+  routingHostedGrantRevoke: (domainId: string, expectedRevision: number) => invoke<import("./types").RoutingHostedGrantStatus>("routing_hosted_grant_revoke", { domainId, expectedRevision }).then(unwrap),
+  flowAdvisorConsent: (domainId: string) => invoke<import("./types").RoutedAdvisorConsentStatus>("flow_advisor_consent", { domainId }).then(unwrap),
+  flowAdvisorConsentDomains: () => invoke<string[]>("flow_advisor_consent_domains").then(unwrap),
+  flowAdvisorConsentEnable: (draftId: string, domainId: string, requestDigest: string, recipientIdentity: string, expectedRevision: number) => invoke<import("./types").RoutedAdvisorConsentStatus>("flow_advisor_consent_enable", { draftId, domainId, requestDigest, recipientIdentity, expectedRevision }).then(unwrap),
+  flowAdvisorConsentRevoke: (domainId: string, expectedRevision: number) => invoke<import("./types").RoutedAdvisorConsentStatus>("flow_advisor_consent_revoke", { domainId, expectedRevision }).then(unwrap),
   flowDelete: (draftId: string) => invoke<void>("flow_delete", { draftId }).then(unwrap),
   voiceListDevices: () => invoke<string[]>("voice_list_devices").then(unwrap),
   voiceDefaultModel: () => invoke<import("./types").VoiceModel>("voice_default_model").then(unwrap),

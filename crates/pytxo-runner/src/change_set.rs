@@ -1153,11 +1153,7 @@ fn validate_run_id(run_id: &str) -> Result<()> {
 }
 
 pub(crate) fn manifest_digest(manifest: &PreparedRunManifest) -> Result<String> {
-    let mut unsigned = manifest.clone();
-    unsigned.package_digest.clear();
-    let bytes =
-        serde_json::to_vec(&unsigned).map_err(|error| PytxoError::Runner(error.to_string()))?;
-    Ok(sha256_bytes(&bytes))
+    pytxo_core::prepared_manifest_digest(manifest)
 }
 
 pub(crate) fn sha256_bytes(bytes: &[u8]) -> String {
@@ -1852,7 +1848,7 @@ fn collect_files_inner(
             continue;
         }
         let metadata = std::fs::symlink_metadata(&path).map_err(PytxoError::Io)?;
-        if metadata.file_type().is_symlink() {
+        if crate::git::is_reparse(&metadata) {
             inventory
                 .symlinks
                 .insert(normalize_relative(relative), path);

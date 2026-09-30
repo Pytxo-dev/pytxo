@@ -1,8 +1,24 @@
 use pytxo_core::{ExecutionBackend, PermissionProfile, Task, TaskId};
-use pytxo_orchestrate::{apply_run_changes, refresh_run_review, run, trust_repo, RunOptions};
+use pytxo_orchestrate::{
+    apply_run_changes as apply_reviewed_run_changes, refresh_run_review, run, trust_repo,
+    RunOptions,
+};
 use pytxo_runner::load_review_package;
 use pytxo_store::PytxoStore;
 use std::{fs, path::Path, process::Command};
+
+fn apply_run_changes(
+    config: Option<std::path::PathBuf>,
+    repo: Option<std::path::PathBuf>,
+    run_id: &str,
+) -> anyhow::Result<pytxo_runner::RunApplyManifest> {
+    let store = PytxoStore::open(&repo.as_ref().unwrap().join(".pytxo/data/pytxo.db"))?;
+    let digest = store
+        .get_run_contract(run_id)?
+        .and_then(|contract| contract.prepared_digest)
+        .unwrap_or_default();
+    apply_reviewed_run_changes(config, repo, run_id, &digest)
+}
 
 fn fixture(repo: &Path) -> String {
     fs::create_dir_all(repo).unwrap();

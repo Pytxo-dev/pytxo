@@ -83,6 +83,11 @@ sequence without authorizing external writes.
 
 ### Architecture
 
+- [[2026-09-22-jev-routing-design]] — revised Jev proposal with exact profiles, attempt state machine, handoff/service contracts and rollout; design only
+- [[2026-09-22-jev-routing-stress-review]] — source-backed integration findings and required versus preserved changes
+- [[2026-09-22-jev-routing-benchmark]] — frozen rules-versus-Jev comparison, quality/cost gates and power limits; not yet run
+- [[jev-routing-git-handoff-2026-09-30]] — implemented experimental slice, verification and activation gates
+- [[experimental-claude-proposal-route]] — gated local Desktop route for one reviewed Claude subscription proposal; no Jev send
 - [[architecture-index]] — [[three-tier-model]], [[context-diagram]], [[c4-container]]
 - [[commit-layer]] — effect contracts, prepare/commit, independent verification, evidence, and recovery
 - [[v1-1-architecture]] — immutable review bytes, execution-domain serialization, journaled Apply, and exact limits

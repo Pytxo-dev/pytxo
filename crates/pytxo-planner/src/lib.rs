@@ -3,11 +3,16 @@
 //! Disabled by default. Enable with `PYTXO_PLANNER=1` or `[planner] enabled = true` in `pytxo.toml`.
 //! Use `PYTXO_PLANNER=signal` or `[planner] mode = "signal"]` for Signal Core graph inference.
 
+pub mod advisor;
+
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path};
 
 use anyhow::{bail, Context};
-use pytxo_core::{PytxoConfig, Task, TaskId};
+use pytxo_core::{
+    find_custom_provider, get_provider, resolve_openai_base_url, CoordinatorTransport, ProviderId,
+    PytxoConfig, Task, TaskId,
+};
 use pytxo_signal::build_structural_graph;
 use serde::Deserialize;
 
@@ -82,7 +87,7 @@ fn planner_mode(config: &PytxoConfig) -> PlannerMode {
 pub fn llm_planner_enabled(config: &PytxoConfig) -> bool {
     explicit_local_planner_mode().is_none()
         && llm_planner_flag()
-        && (byok_scout_endpoint().is_some() || ultra_billing_active(config))
+        && coordinator_endpoint(config).is_ok()
 }
 
 fn explicit_local_planner_mode() -> Option<PlannerMode> {
@@ -179,7 +184,8 @@ impl MissionPlanner for HeuristicPlanner {
     }
 }
 
-/// Ultra LLM planner: decompose mission via managed inference proxy DeepSeek route.
+/// Advisory model coordinator used for mission decomposition. The returned
+/// tasks still pass through Pytxo's deterministic plan validation.
 pub struct LlmPlanner;
 
 #[derive(Debug, Deserialize)]
@@ -200,67 +206,32 @@ struct LlmPlanResponse {
 }
 
 impl LlmPlanner {
-    fn proxy_base(config: &PytxoConfig) -> String {
-        config
-            .billing
-            .inference_proxy_url
-            .trim_end_matches('/')
-            .to_string()
-    }
-
-    fn planner_model() -> String {
-        std::env::var("PYTXO_PLANNER_MODEL").unwrap_or_else(|_| "deepseek-chat".into())
-    }
-
     fn call_proxy(mission: &str, ctx: &PlannerContext<'_>) -> anyhow::Result<LlmPlanResponse> {
         if !llm_planner_enabled(ctx.config) {
-            bail!("cloud planning is not enabled: explicitly set PYTXO_PLANNER_LLM=1 and configure a BYOK or managed transport; local planner selections take precedence");
+            bail!("model coordinator is not enabled: explicitly set PYTXO_PLANNER_LLM=1 and configure its direct, local, or managed transport; local planner selections take precedence");
         }
+        let endpoint = coordinator_endpoint(ctx.config)?;
         let system = "Decompose the mission into parallel-safe coding tasks. Return JSON: {\"tasks\":[{\"id\":\"task-a\",\"agent\":\"agent-0\",\"paths\":[\"src/foo.ts\"],\"depends_on\":[],\"prompt\":\"...\",\"verify\":[\"npm test\"]}]}. Use explicit repo-relative ownership paths from the supplied repository brief. Never use \".\", absolute paths, parent traversal, or glob patterns. If ownership is unclear, return no tasks. Dependencies must reference unique task ids. Suggest verify commands only when they are supported by the supplied manifests.";
         let repository = repository_brief(ctx.repo);
         let user = format!("Mission:\n{mission}\n\n{repository}");
-        let body_for = |model: &str| {
-            serde_json::json!({
-                "model": model,
-                "response_format": { "type": "json_object" },
-                "messages": [
-                    { "role": "system", "content": system },
-                    { "role": "user", "content": user }
-                ]
-            })
-        };
+        let body = serde_json::json!({
+            "model": endpoint.model,
+            "response_format": { "type": "json_object" },
+            "messages": [
+                { "role": "system", "content": system },
+                { "role": "user", "content": user }
+            ]
+        });
 
-        // Prefer BYOK OpenAI-compatible scout (ADR-0031).
-        if let Some((base, key, model)) = byok_scout_endpoint() {
-            let url = format!("{}/chat/completions", base.trim_end_matches('/'));
-            let resp = ureq::post(&url)
-                .set("Content-Type", "application/json")
-                .set("Authorization", &format!("Bearer {key}"))
-                .send_json(body_for(&model))
-                .map_err(|e| anyhow::anyhow!("byok scout request failed: {e}"))?;
-            if !(200..300).contains(&resp.status()) {
-                bail!("byok scout returned HTTP {}", resp.status());
-            }
-            return Self::parse_chat_response(resp);
+        let mut request = ureq::post(&endpoint.url).set("Content-Type", "application/json");
+        if let Some(token) = endpoint.bearer {
+            request = request.set("Authorization", &format!("Bearer {token}"));
         }
-
-        // Ultra managed proxy fallback.
-        let url = format!(
-            "{}/deepseek/v1/chat/completions",
-            Self::proxy_base(ctx.config)
-        );
-        let model = Self::planner_model();
-        let mut req = ureq::post(&url).set("Content-Type", "application/json");
-        if let Ok(token) = std::env::var("PYTXO_ULTRA_SESSION") {
-            if !token.trim().is_empty() {
-                req = req.set("Authorization", &format!("Bearer {token}"));
-            }
-        }
-        let resp = req
-            .send_json(body_for(&model))
-            .map_err(|e| anyhow::anyhow!("llm planner proxy request failed: {e}"))?;
+        let resp = request
+            .send_json(body)
+            .map_err(|e| anyhow::anyhow!("coordinator request failed: {e}"))?;
         if !(200..300).contains(&resp.status()) {
-            bail!("llm planner proxy returned HTTP {}", resp.status());
+            bail!("coordinator returned HTTP {}", resp.status());
         }
         Self::parse_chat_response(resp)
     }
@@ -617,39 +588,103 @@ fn llm_planner_flag() -> bool {
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
-/// OpenAI-compatible BYOK scout: (base_url, api_key, model).
-fn byok_scout_endpoint() -> Option<(String, String, String)> {
-    let candidates = [
-        (
-            "DEEPSEEK_API_KEY",
-            "https://api.deepseek.com/v1",
-            "deepseek-chat",
-        ),
-        (
-            "OPENAI_API_KEY",
-            "https://api.openai.com/v1",
-            "gpt-4.1-mini",
-        ),
-        (
-            "OPENROUTER_API_KEY",
-            "https://openrouter.ai/api/v1",
-            "openai/gpt-4.1-mini",
-        ),
-        (
-            "MISTRAL_API_KEY",
-            "https://api.mistral.ai/v1",
-            "mistral-small-latest",
-        ),
-    ];
-    for (env, base, model) in candidates {
-        if let Ok(key) = std::env::var(env) {
-            if !key.trim().is_empty() {
-                let model = std::env::var("PYTXO_PLANNER_MODEL").unwrap_or_else(|_| model.into());
-                return Some((base.into(), key, model));
+#[derive(Debug)]
+struct CoordinatorEndpoint {
+    url: String,
+    bearer: Option<String>,
+    model: String,
+}
+
+/// Resolve one explicit OpenAI-compatible coordinator profile. This deliberately
+/// does not scan ambient provider keys and choose a provider by accident.
+fn coordinator_endpoint(config: &PytxoConfig) -> anyhow::Result<CoordinatorEndpoint> {
+    let profile = config.coordinator.profile().map_err(anyhow::Error::msg)?;
+    let model = std::env::var("PYTXO_PLANNER_MODEL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| profile.model.as_str().to_string());
+
+    let provider_spec = get_provider(profile.provider);
+    let custom_spec = find_custom_provider(&profile.provider_label);
+    let openai_compatible = custom_spec
+        .as_ref()
+        .map(|spec| spec.openai_compatible)
+        .or_else(|| provider_spec.map(|spec| spec.openai_compatible))
+        .unwrap_or(false);
+    if !openai_compatible {
+        bail!(
+            "coordinator provider {} has no OpenAI-compatible adapter",
+            profile.provider_label
+        );
+    }
+
+    match profile.transport {
+        CoordinatorTransport::Direct => {
+            let base =
+                resolve_openai_base_url(profile.provider, Some(profile.provider_label.as_str()))
+                    .with_context(|| {
+                        format!(
+                            "coordinator provider {} has no configured base URL",
+                            profile.provider_label
+                        )
+                    })?;
+            let key_env = custom_spec
+                .as_ref()
+                .map(|spec| spec.api_key_env.as_str())
+                .or_else(|| provider_spec.map(|spec| spec.api_key_env))
+                .unwrap_or("");
+            let bearer = if key_env.is_empty() {
+                None
+            } else {
+                Some(
+                    std::env::var(key_env)
+                        .ok()
+                        .filter(|value| !value.trim().is_empty())
+                        .with_context(|| {
+                            format!(
+                                "coordinator provider {} requires {key_env}",
+                                profile.provider_label
+                            )
+                        })?,
+                )
+            };
+            Ok(CoordinatorEndpoint {
+                url: format!("{}/chat/completions", base.trim_end_matches('/')),
+                bearer,
+                model,
+            })
+        }
+        CoordinatorTransport::Managed => {
+            if !ultra_billing_active(config) {
+                bail!("managed coordinator transport requires an active managed entitlement");
             }
+            if !matches!(
+                profile.provider,
+                ProviderId::Openai | ProviderId::Deepseek | ProviderId::Openrouter
+            ) {
+                bail!(
+                    "managed coordinator transport does not expose provider {}",
+                    profile.provider_label
+                );
+            }
+            let base = config.billing.inference_proxy_base_url();
+            if base.is_empty() {
+                bail!("managed coordinator transport requires inference_proxy_url");
+            }
+            let bearer = std::env::var("PYTXO_ULTRA_SESSION")
+                .ok()
+                .filter(|value| !value.trim().is_empty());
+            Ok(CoordinatorEndpoint {
+                url: format!(
+                    "{}/{}/v1/chat/completions",
+                    base.trim_end_matches('/'),
+                    profile.provider.as_str()
+                ),
+                bearer,
+                model,
+            })
         }
     }
-    None
 }
 
 fn suggest_verify_commands(repo: &Path) -> Vec<String> {
@@ -998,7 +1033,7 @@ mod tests {
             .decompose(&mission, &context)
             .unwrap_err()
             .to_string()
-            .contains("cloud planning is not enabled"));
+            .contains("model coordinator is not enabled"));
     }
 
     #[test]
@@ -1030,20 +1065,40 @@ mod tests {
         std::env::set_var("PYTXO_PLANNER_LLM", "1");
         assert!(!llm_planner_enabled(&PytxoConfig::default()));
         std::env::set_var("OPENAI_API_KEY", "test-only-not-a-real-key");
+        assert!(
+            !llm_planner_enabled(&PytxoConfig::default()),
+            "an unrelated provider key must not change the configured coordinator"
+        );
+        std::env::set_var("DEEPSEEK_API_KEY", "test-only-not-a-real-key");
         assert!(llm_planner_enabled(&PytxoConfig::default()));
         assert_eq!(
             mission_planner_mode(&PytxoConfig::default()),
             PlannerMode::Llm
         );
-        std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("DEEPSEEK_API_KEY");
+        let mut managed = PytxoConfig::default();
+        managed.coordinator.transport = CoordinatorTransport::Managed;
         std::env::set_var("PYTXO_LINK_TIER", "ultra");
-        assert!(llm_planner_enabled(&PytxoConfig::default()));
-        assert_eq!(
-            mission_planner_mode(&PytxoConfig::default()),
-            PlannerMode::Llm
-        );
+        assert!(llm_planner_enabled(&managed));
+        assert_eq!(mission_planner_mode(&managed), PlannerMode::Llm);
         std::env::remove_var("PYTXO_PLANNER_LLM");
         assert!(!llm_planner_enabled(&PytxoConfig::default()));
+    }
+
+    #[test]
+    fn local_openai_compatible_coordinator_needs_no_cloud_or_key() {
+        let _guard = planner_env_guard();
+        let _env = PlannerTestEnv::new();
+        std::env::set_var("PYTXO_PLANNER_LLM", "1");
+        let mut config = PytxoConfig::default();
+        config.coordinator.provider = "ollama".into();
+        config.coordinator.model = "qwen3:8b".into();
+
+        assert!(llm_planner_enabled(&config));
+        let endpoint = coordinator_endpoint(&config).unwrap();
+        assert_eq!(endpoint.url, "http://127.0.0.1:11434/v1/chat/completions");
+        assert_eq!(endpoint.model, "qwen3:8b");
+        assert!(endpoint.bearer.is_none());
     }
 
     // Restore even after an assertion fails; never send a request with these keys.
@@ -1057,6 +1112,8 @@ mod tests {
                     "PYTXO_PLANNER_LLM",
                     "PYTXO_MISSION_PLAN",
                     "PYTXO_LINK_TIER",
+                    "PYTXO_PLANNER_MODEL",
+                    "PYTXO_ULTRA_SESSION",
                     "DEEPSEEK_API_KEY",
                     "OPENAI_API_KEY",
                     "OPENROUTER_API_KEY",

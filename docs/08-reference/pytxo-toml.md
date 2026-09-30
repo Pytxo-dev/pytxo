@@ -6,8 +6,8 @@ tags: [reference, config]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-06-02
-related: [[MOC-home]], [[permission-profile-engine]], [[modular-projects]]
+updated: 2026-09-15
+related: [[MOC-home]], [[permission-profile-engine]], [[modular-projects]], [[ADR-0041-advisory-coordinator-and-routing-boundary]]
 ---
 
 # pytxo.toml reference
@@ -56,6 +56,25 @@ Tasks with overlapping `paths` are scheduled in different **waves**.
 
 Top-level `subprocess_stdin = true` pumps the Race Shield stdin queue into subprocess children at **spawn time** ([[race-shield]]). PTY backend uses a continuous drain loop.
 
+## `[coordinator]`
+
+The coordinator is the replaceable advisory model used by the optional model
+planner and future route/diagnosis calls. It is not an execution harness and it
+cannot authorize permissions, verification, approvals, or Apply
+([[ADR-0041-advisory-coordinator-and-routing-boundary]]).
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `provider` | string | `deepseek` | Built-in or registered provider; `ollama` and `lmstudio` are local options |
+| `model` | string | `deepseek-flash` | Provider model identifier; independently replaceable from worker-agent models |
+| `transport` | string | `direct` | `direct` uses the provider/local endpoint; `managed` uses the optional inference proxy |
+
+`PYTXO_PLANNER_LLM=1` is still required before mission planning sends repository
+context to the configured coordinator. Direct cloud providers require their
+registered API-key environment variable. Ollama and LM Studio use their local
+OpenAI-compatible endpoints without a Pytxo account. Managed transport requires
+an active managed entitlement and does not make local Core depend on Link.
+
 ## `[billing]`
 
 Ultra-tier managed metering ([[ADR-0009-ultra-managed-metering]], [[pytxo-link-service]]).
@@ -71,7 +90,7 @@ Ultra-tier managed metering ([[ADR-0009-ultra-managed-metering]], [[pytxo-link-s
 
 Set `PYTXO_ULTRA_SESSION` for `Authorization: Bearer` on reconcile POSTs. Local reference Link service: [`services/pytxo-link`](../../services/pytxo-link/).
 
-**Ultra default provider:** set `provider = "deepseek"` and `model = "deepseek-chat"` on `[[agent]]` rows; keys live on `pytxo-proxy` (`DEEPSEEK_API_KEY`), not on the client.
+**Worker model example:** set `provider = "deepseek"` and `model = "deepseek-chat"` on `[[agent]]` rows. Worker selection remains separate from `[coordinator]`; under managed transport provider keys live on `pytxo-proxy`, not on the client.
 
 ## `[cloud]`
 

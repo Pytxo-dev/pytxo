@@ -5,6 +5,7 @@
 //! Forwards provider API traffic so Ultra clients never hold provider keys locally.
 
 mod metering;
+mod routing;
 mod telemetry;
 
 use std::collections::HashMap;
@@ -25,7 +26,7 @@ use axum::http::{HeaderMap, StatusCode};
 
 use axum::response::{IntoResponse, Json, Response};
 
-use axum::routing::{any, get};
+use axum::routing::{any, get, post};
 
 use axum::Router;
 
@@ -53,6 +54,7 @@ struct AppState {
     link_api_key: Option<String>,
 
     rate_limiter: Arc<RateLimiter>,
+    hosted_routing: Option<routing::HostedRouting>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -361,6 +363,11 @@ async fn health() -> Json<telemetry::HealthBody> {
 async fn proxy_dispatch(State(state): State<Arc<AppState>>, request: Request) -> Response {
     let path = request.uri().path();
 
+    // The sponsored namespace never enters the paid provider pass-through.
+    if path == "/v1/routing" || path.starts_with("/v1/routing/") {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
     if path == "/health" || path == "/" {
         return health().await.into_response();
     }
@@ -656,12 +663,11 @@ async fn main() {
         link_api_key: std::env::var("LINK_API_KEY").ok().filter(|s| !s.is_empty()),
 
         rate_limiter: Arc::new(RateLimiter::from_env()),
+        hosted_routing: routing::HostedRouting::from_env()
+            .expect("refusing incomplete experimental hosted routing configuration"),
     });
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .fallback(any(proxy_dispatch))
-        .with_state(state);
+    let app = build_router(state);
 
     let addr = listen_addr();
 
@@ -674,10 +680,59 @@ async fn main() {
     axum::serve(listener, app).await.expect("serve proxy");
 }
 
+fn build_router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route("/health", get(health))
+        .route("/v1/routing/evaluations", post(routing::evaluate))
+        .fallback(any(proxy_dispatch))
+        .with_state(state)
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    use axum::body::Body;
+    use axum::http::Request;
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn sponsored_routing_never_falls_through_paid_proxy_auth() {
+        let state = Arc::new(AppState {
+            client: reqwest::Client::new(),
+            require_auth: false,
+            link_base: None,
+            link_api_key: Some("paid-key".into()),
+            rate_limiter: Arc::new(RateLimiter::from_env()),
+            hosted_routing: None,
+        });
+        for (method, path, expected) in [
+            (
+                "POST",
+                "/v1/routing/evaluations",
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
+            (
+                "GET",
+                "/v1/routing/evaluations",
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
+            ("POST", "/v1/routing/anything-else", StatusCode::NOT_FOUND),
+        ] {
+            let response = build_router(state.clone())
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .header("authorization", "Bearer paid-key")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), expected, "{method} {path}");
+        }
+    }
 
     #[test]
 

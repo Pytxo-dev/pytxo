@@ -5,6 +5,7 @@
   import { attemptTone, isPartiallyApplied, runState, worstTone, type EpistemicTone } from "../../lib/epistemic";
   import type { RunDto, RunReviewDto } from "../../lib/types";
   import BoundaryPanel from "./BoundaryPanel.svelte";
+  import RoutingRunDetails from "./RoutingRunDetails.svelte";
   import StateChip from "./StateChip.svelte";
 
   let {
@@ -187,6 +188,8 @@
       </article>
 
       {#if selected}
+      <div class="history-detail">
+        {#if selected.routing_revision != null}<RoutingRunDetails run={selected} {backend} />{/if}
       <BoundaryPanel
         run={selected}
         {review}
@@ -196,6 +199,7 @@
         onOpenApprovals={() => {}}
         onReview={onOpenRun}
       />
+      </div>
       {:else}
         <aside class="empty detail-empty" aria-label="Run details">
           <strong>No run selected</strong>
@@ -230,6 +234,7 @@
   .filters button{height:30px;padding:0 11px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-muted);font-family:inherit;font-size:12px;cursor:pointer}
   .filters button.active{border-color:color-mix(in oklab,var(--state-attention) 50%,var(--pytxo-line));color:var(--state-attention)}
 
+  .history-detail{display:flex;min-width:0;min-height:0;flex-direction:column;gap:12px;overflow:auto}
   .history-layout{display:grid;flex:1;min-height:0;grid-template-columns:minmax(0,1.62fr) minmax(300px,1fr);gap:14px;align-items:start}
   .history-layout :global(.boundary){max-height:100%;box-sizing:border-box}
   .history-layout :global(.boundary > *){flex-shrink:0}

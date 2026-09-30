@@ -4561,6 +4561,7 @@ dependencies = [
  "pytxo-catalog",
  "pytxo-core",
  "pytxo-orchestrate",
+ "pytxo-runner",
  "pytxo-shell",
  "pytxo-store",
  "pytxo-tui",
@@ -4611,19 +4612,24 @@ dependencies = [
 name = "pytxo-desktop"
 version = "1.2.2"
 dependencies = [
+ "axum",
  "base64 0.22.1",
  "chrono",
+ "getrandom 0.2.17",
  "keyring",
  "portable-pty",
  "pytxo-core",
  "pytxo-orchestrate",
+ "pytxo-planner",
  "pytxo-runner",
  "pytxo-signal",
  "pytxo-store",
  "pytxo-voice",
+ "reqwest 0.12.28",
  "rfd",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-deep-link",
@@ -4651,12 +4657,16 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "chrono",
+ "getrandom 0.2.17",
  "hex",
  "hmac",
  "http-body-util",
  "hyper",
  "jsonwebtoken",
+ "pytxo-planner",
+ "rand 0.8.6",
  "reqwest 0.12.28",
+ "rsa",
  "serde",
  "serde_json",
  "sha2",
@@ -4706,6 +4716,7 @@ dependencies = [
  "toml 0.8.2",
  "tracing",
  "ureq",
+ "uuid",
 ]
 
 [[package]]
@@ -4716,10 +4727,13 @@ dependencies = [
  "pytxo-core",
  "pytxo-sanitize",
  "pytxo-signal",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
  "ureq",
+ "uuid",
 ]
 
 [[package]]
@@ -4727,14 +4741,20 @@ name = "pytxo-proxy"
 version = "0.3.3"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "bytes",
  "futures-util",
+ "hex",
  "http-body-util",
  "pytxo-core",
+ "pytxo-planner",
  "reqwest 0.12.28",
+ "ring",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
+ "tower",
  "tower-http",
  "tracing",
  "tracing-subscriber",
@@ -4745,6 +4765,7 @@ name = "pytxo-runner"
 version = "1.2.2"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "chrono",
  "fs2",
  "fuser",
@@ -4817,11 +4838,13 @@ name = "pytxo-store"
 version = "1.2.2"
 dependencies = [
  "chrono",
+ "getrandom 0.2.17",
  "pytxo-core",
  "rusqlite",
  "serde",
  "serde_json",
  "tempfile",
+ "uuid",
 ]
 
 [[package]]

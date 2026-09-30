@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use crate::entitlements::EntitlementStore;
 use crate::jwt::JwksValidator;
 use crate::paddle::{PaddleEventStore, PaddlePriceCatalog};
+use crate::routing_admission::RoutingAdmissionConfig;
 use crate::runs::{MemoryRunStore, RunStore};
 
 #[derive(Clone)]
@@ -30,6 +31,9 @@ pub struct AppState {
     pub admin_key: Option<String>,
     pub require_auth: bool,
     pub jwks: Option<Arc<JwksValidator>>,
+    pub routing_token_audience: Option<String>,
+    pub routing_grant_experiment: bool,
+    pub routing_admission: Option<RoutingAdmissionConfig>,
     pub entitlements: EntitlementStore,
     pub db: Option<PgPool>,
     pub runs: RunLedger,

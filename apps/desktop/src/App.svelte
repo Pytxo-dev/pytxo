@@ -409,8 +409,7 @@
 
   async function doCommit() {
     if (!activeTab?.selectedRunId) return;
-    await ipc.applyRunChanges(activeTab.selectedRunId, activeTab.domainId);
-    await loadDiff();
+    diffText = "Apply requires the exact prepared candidate. Open this run in Desktop History and choose Review changes before Apply. This legacy live-diff view cannot authorize a package.";
   }
 
   async function loadEntitlements() {

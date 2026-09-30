@@ -44,6 +44,8 @@
   let error = $state("");
   let notice = $state("");
   let confirmApply = $state(false);
+  let confirmedPackageDigest = $state<string | null>(null);
+  let reviewLoad = 0;
   let confirmDiscard = $state(false);
   let backButton = $state<HTMLButtonElement | null>(null);
   let primaryTrigger = $state<HTMLButtonElement | null>(null);
@@ -124,13 +126,22 @@
   );
 
   async function loadReview({ focus = false }: { focus?: boolean } = {}) {
+    const request = ++reviewLoad;
     loading = true;
     error = "";
     try {
-      [review, agents] = await Promise.all([
+      const [nextReview, nextAgents] = await Promise.all([
         backend.runReview(run.id, domainId),
         backend.listAgents(run.id, domainId),
       ]);
+      if (request !== reviewLoad) return;
+      if (confirmedPackageDigest && confirmedPackageDigest !== nextReview.prepared_digest) {
+        confirmApply = false;
+        confirmedPackageDigest = null;
+        notice = "The candidate changed. Review the current changes and checks before Apply.";
+      }
+      review = nextReview;
+      agents = nextAgents;
       const firstFile = review?.prepared_manifest?.files[0];
       if (firstFile) {
         await selectPreparedFile(firstFile, true);
@@ -145,13 +156,13 @@
         backButton?.focus();
       }
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : String(cause);
+      if (request === reviewLoad) error = cause instanceof Error ? cause.message : String(cause);
     } finally {
-      loading = false;
+      if (request === reviewLoad) loading = false;
     }
   }
 
-  async function runPrimaryAction() {
+  async function runPrimaryAction(expectedPackageDigest?: string) {
     if (!review || actionPending) return;
     actionPending = true;
     error = "";
@@ -165,7 +176,8 @@
         presentation.primaryAction === "retry"
       ) {
         if (!presentation.applyAllowed || !allAgentsSucceeded) return;
-        await backend.applyRunChanges(run.id, domainId);
+        if (!expectedPackageDigest) throw new Error("Review and confirm the current candidate before Apply.");
+        await backend.applyRunChanges(run.id, domainId, expectedPackageDigest);
       } else if (presentation.primaryAction === "reconcile") {
         const outcome = await backend.reconcileRunRecovery(run.id, domainId);
         notice =
@@ -193,7 +205,12 @@
       presentation.primaryAction === "apply" ||
       presentation.primaryAction === "retry"
     ) {
-      if (!presentation.applyAllowed || !allAgentsSucceeded || actionPending) return;
+      if (!presentation.applyAllowed || !allAgentsSucceeded || actionPending || loading) return;
+      if (!review?.prepared_digest || review.run_id !== run.id || manifest?.run_id !== run.id || manifest.package_digest !== review.prepared_digest) {
+        error = "The displayed review identity is incomplete. Reload the review before Apply.";
+        return;
+      }
+      confirmedPackageDigest = review.prepared_digest;
       await withPreviewsHidden(() => { confirmApply = true; });
       await tick();
       cancelApplyButton?.focus();
@@ -203,12 +220,15 @@
   }
 
   async function applyExactPackage() {
+    const expectedPackageDigest = confirmedPackageDigest;
     confirmApply = false;
-    await runPrimaryAction();
+    confirmedPackageDigest = null;
+    if (expectedPackageDigest) await runPrimaryAction(expectedPackageDigest);
   }
 
   async function closeApplyDialog() {
     confirmApply = false;
+    confirmedPackageDigest = null;
     await tick();
     primaryTrigger?.focus();
   }

@@ -89,7 +89,7 @@ pub fn run_pty_session(
     swarm: &SwarmRegistry,
 ) -> Result<SingleResult> {
     run_pty_session_with_spawn(
-        worktree, cmd, env, rows, cols, on_event, agent_key, swarm, None,
+        worktree, cmd, env, rows, cols, on_event, agent_key, swarm, None, None,
     )
 }
 
@@ -104,6 +104,7 @@ pub(crate) fn run_pty_session_with_spawn(
     agent_key: &str,
     swarm: &SwarmRegistry,
     on_spawn: Option<&dyn Fn(u32) -> Result<()>>,
+    on_exit: Option<&dyn Fn() -> Result<bool>>,
 ) -> Result<SingleResult> {
     let shell_cwd = crate::run::shell_working_directory(worktree)?;
     let pty_system = native_pty_system();
@@ -246,6 +247,11 @@ pub(crate) fn run_pty_session_with_spawn(
         thread::sleep(Duration::from_millis(15));
     };
 
+    // Capture settlement before output draining can delay the observed result.
+    let cancellation = match on_exit {
+        Some(settle) => settle(),
+        None => Ok(swarm.stop_requested(agent_key)),
+    };
     active.store(false, Ordering::Relaxed);
     let _ = pump_handle.join();
     // Once the process and input pump are finished, close the MasterPty owner so
@@ -266,6 +272,7 @@ pub(crate) fn run_pty_session_with_spawn(
     };
 
     Ok(SingleResult {
+        cancelled: cancellation?,
         worktree_path: worktree.to_path_buf(),
         exit_code: Some(status.exit_code() as i32),
         stdout: stdout_acc,

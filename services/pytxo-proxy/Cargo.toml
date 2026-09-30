@@ -11,14 +11,22 @@ path = "src/main.rs"
 
 [dependencies]
 axum = "0.8"
+base64 = "0.22"
 bytes = "1.9"
 futures-util = "0.3"
 http-body-util = "0.1"
+hex = "0.4"
 pytxo-core = { workspace = true }
+pytxo-planner = { workspace = true }
 reqwest = { version = "0.12", features = ["stream", "rustls-tls", "json"], default-features = false }
+ring = "0.17"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sha2 = "0.10"
 tokio = { version = "1.43", features = ["macros", "rt-multi-thread", "sync", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tower-http = { version = "0.6", features = ["trace"] }
+
+[dev-dependencies]
+tower = "0.5"

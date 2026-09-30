@@ -10,6 +10,7 @@
   import type { RunDto, RunReviewDto } from "../../lib/types";
   import BoundaryPanel from "./BoundaryPanel.svelte";
   import RunLedger from "./RunLedger.svelte";
+  import RoutingRunDetails from "./RoutingRunDetails.svelte";
   import StateChip from "./StateChip.svelte";
   import type { DockReference } from "../../lib/dock-layout";
   import { selectMissionRun } from "../../lib/mission-selection";
@@ -298,6 +299,7 @@
     </section>
 
     <div class="work-layout">
+      {#if focusRun.routing_revision != null}<RoutingRunDetails run={focusRun} {backend} />{/if}
       <RunLedger
         {agents}
         plan={review?.plan ?? null}

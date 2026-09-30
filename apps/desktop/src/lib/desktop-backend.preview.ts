@@ -6,7 +6,7 @@
  * — a failed IPC call surfaces as a real error instead.
  */
 import type { DesktopBackend, DesktopSnapshot } from "./desktop-backend";
-import type { AdeCliStatusDto, DesktopChangedEvent, DomainChangeDto, FlowDraftInput, FlowDraftRecord, FlowPlan, PermissionEnforcementReceipt, PreparedContentChunkDto, PreparedRunManifest, ProviderStatusDto, RunApplyError, RunApplyManifest, RunReviewDto, VoiceProgressEvent, VoiceSessionDto } from "./types";
+import type { AdeCliStatusDto, DesktopChangedEvent, DomainChangeDto, FlowDraftInput, FlowDraftRecord, FlowPlan, PermissionEnforcementReceipt, PreparedContentChunkDto, PreparedRunManifest, ProposedHostedAdvisorPacketPreview, ProviderStatusDto, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RoutingDisplaySummary, RunApplyError, RunApplyManifest, RunReviewDto, VoiceProgressEvent, VoiceSessionDto } from "./types";
 
 const previewSignalMark = Uint8Array.from({ length: 300 }, (_, index) => index % 251);
 previewSignalMark.set([0x00, 0xff, 0x50, 0x4e, 0x47], 0);
@@ -27,6 +27,19 @@ const previewReviewContent: Record<string, { before?: string | Uint8Array; after
     after: previewSignalMark,
   },
 };
+
+// Opt-in substantial-content fixture for browser readability/scroll acceptance.
+// Never available through native IPC; no execution or verification evidence.
+function reviewContentFixture(): typeof previewReviewContent {
+  if (localStorage.getItem("pytxo-preview-review-substantial-v1") !== "true") return previewReviewContent;
+  const cases = Array.from({ length: 36 }, (_, index) =>
+    `#[test]\nfn preserves_public_shape_${index}() {\n    let source = "pub fn entry_${index}() {}";\n    let result = skeleton(source);\n    assert!(result.contains("entry_${index}"));\n}\n`).join("\n");
+  const file = previewReviewContent["crates/pytxo-signal/src/lib.rs"];
+  return { ...previewReviewContent, "crates/pytxo-signal/src/lib.rs": {
+    before: `${file.before}\n// Recorded source comparison fixture\n${cases}`,
+    after: `${file.after}\n// Recorded source comparison fixture\n${cases}`,
+  } };
+}
 
 function previewBytes(value: string | Uint8Array): Uint8Array {
   return typeof value === "string" ? new TextEncoder().encode(value) : value;
@@ -86,6 +99,7 @@ export const previewSnapshot: DesktopSnapshot = {
       prepared_at: null,
       last_apply_error: null,
       recovery_state: null,
+      routing_revision: null,
     },
     {
       id: "run-71ad",
@@ -103,6 +117,7 @@ export const previewSnapshot: DesktopSnapshot = {
       prepared_at: "2026-08-01T02:15:00Z",
       last_apply_error: null,
       recovery_state: null,
+      routing_revision: null,
     },
   ],
   agents: [
@@ -137,21 +152,42 @@ export const previewSnapshot: DesktopSnapshot = {
   error: null,
 };
 
+// Opt-in browser fixture only. It represents Store's whitelisted read model,
+// never an actual routing or worker execution receipt.
+const previewRoutingSummary: RoutingDisplaySummary = {
+  domain_id: "pytxo", run_id: "run-8f2c", routing_revision: "3", mode: "shadow", cancelled: false,
+  tasks: [
+    { task_id: "plan", state: "succeeded", dependency_task_ids: [], current_attempt_id: "route-plan-1", winning_attempt_id: "route-plan-1", last_decision: { selection: { kind: "selected", role: "everyday" }, reason: "mechanical_everyday", advice_status: "shadow_recorded" }, pre_admission: null, attempts: [
+      { attempt_id: "route-plan-1", agent_id: "architect", ordinal: 1, predecessor_id: null, state: "passed", role: "everyday", decision: { selection: { kind: "selected", role: "everyday" }, reason: "mechanical_everyday", advice_status: "shadow_recorded" }, profile_id: "codex-everyday", harness_id: "codex", billing_mode: "subscription", handoff_referenced: false, sealed_output_recorded: true, checks_receipt_recorded: true, usage_status: "unknown", ownership_released: true, admitted_at_ms: "1780000000000", updated_at_ms: "1780000001000" },
+    ] },
+    { task_id: "ui", state: "active", dependency_task_ids: ["plan"], current_attempt_id: "route-ui-2", winning_attempt_id: null, last_decision: { selection: { kind: "selected", role: "strong" }, reason: "strong_repair", advice_status: "rules_fallback" }, pre_admission: { ordinal: 2, decision: { selection: { kind: "selected", role: "strong" }, reason: "strong_repair", advice_status: "rules_fallback" }, outcome: { kind: "not_admitted", stage: "capacity_unavailable" } }, attempts: [
+      { attempt_id: "route-ui-1", agent_id: "desktop-1", ordinal: 1, predecessor_id: null, state: "failed", role: "everyday", decision: { selection: { kind: "selected", role: "everyday" }, reason: "mechanical_everyday", advice_status: "shadow_recorded" }, profile_id: "codex-everyday", harness_id: "codex", billing_mode: "subscription", handoff_referenced: true, sealed_output_recorded: true, checks_receipt_recorded: true, usage_status: "known", ownership_released: true, admitted_at_ms: "1780000002000", updated_at_ms: "1780000003000" },
+      { attempt_id: "route-ui-2", agent_id: "desktop-2", ordinal: 2, predecessor_id: "route-ui-1", state: "admitted", role: "strong", decision: { selection: { kind: "selected", role: "strong" }, reason: "strong_repair", advice_status: "rules_fallback" }, profile_id: "codex-strong", harness_id: "codex", billing_mode: "subscription", handoff_referenced: true, sealed_output_recorded: false, checks_receipt_recorded: false, usage_status: "unreported", ownership_released: false, admitted_at_ms: "1780000004000", updated_at_ms: "1780000004000" },
+    ] },
+    { task_id: "tests", state: "ready", dependency_task_ids: [], current_attempt_id: null, winning_attempt_id: null, last_decision: null, pre_admission: { ordinal: 1, decision: { selection: { kind: "selected", role: "everyday" }, reason: "mechanical_everyday", advice_status: "not_used" }, outcome: { kind: "not_admitted", stage: "capacity_unavailable" } }, attempts: [] },
+  ],
+};
+
 const previewAdeClis: AdeCliStatusDto[] = [
   { id: "codex", display_name: "OpenAI Codex", default_cmd: "codex exec --sandbox workspace-write", installed: true, auth_state: "signed_in", auth_label: "ChatGPT connected", auth_owner: "Codex", login_supported: true, login_label: "Connect with ChatGPT", docs_url: "https://developers.openai.com/codex/auth", detail: "Codex owns the browser session, token storage, and refresh." },
   { id: "claude", display_name: "Claude Code", default_cmd: "claude -p", installed: true, auth_state: "signed_in", auth_label: "Claude account connected", auth_owner: "Claude Code", login_supported: true, login_label: "Open Claude Code sign-in", docs_url: "https://code.claude.com/docs/en/authentication", detail: "Pytxo opens Claude Code's official sign-in and never receives its token." },
   { id: "cursor", display_name: "Cursor Agent", default_cmd: "cursor-agent -p --trust", installed: true, auth_state: "signed_in", auth_label: "Cursor account connected", auth_owner: "Cursor Agent", login_supported: true, login_label: "Open Cursor sign-in", docs_url: "https://docs.cursor.com/en/cli/reference/authentication", detail: "Cursor Agent keeps its account credential outside Pytxo." },
   { id: "opencode", display_name: "OpenCode", default_cmd: "opencode run", installed: true, auth_state: "signed_out", auth_label: "No OpenCode provider connected", auth_owner: "OpenCode", login_supported: true, login_label: "Connect an OpenCode provider", docs_url: "https://opencode.ai/docs/providers/", detail: "Provider-specific credentials remain owned by OpenCode." },
-  { id: "gemini", display_name: "Gemini CLI", default_cmd: "gemini --skip-trust -p", installed: true, auth_state: "unknown", auth_label: "Check authentication in Gemini CLI", auth_owner: "Gemini CLI", login_supported: true, login_label: "Open Gemini authentication", docs_url: "https://geminicli.com/docs/get-started/authentication/", detail: "Gemini CLI owns Google OAuth; Pytxo does not reuse its cached token." },
+  { id: "gemini", display_name: "Gemini CLI", default_cmd: "gemini --skip-trust -p", installed: true, auth_state: "vendor_managed", auth_label: "Authentication managed by Gemini CLI", auth_owner: "Gemini CLI", login_supported: true, login_label: "Open Gemini authentication", docs_url: "https://geminicli.com/docs/get-started/authentication/", detail: "Gemini CLI owns Google OAuth; Pytxo does not reuse its cached token." },
   { id: "copilot", display_name: "GitHub Copilot CLI", default_cmd: "copilot -p", installed: false, auth_state: "not_installed", auth_label: "Not installed", auth_owner: "Copilot CLI", login_supported: true, login_label: "Open GitHub sign-in", docs_url: "https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli", detail: "Copilot CLI owns the GitHub device flow and stores its token in the OS keychain." },
-  { id: "agy", display_name: "Antigravity", default_cmd: "agy", installed: false, auth_state: "not_installed", auth_label: "Not installed", auth_owner: "Vendor CLI", login_supported: false, login_label: null, docs_url: "https://pytxo.com/docs/reference/providers-byok", detail: "Pytxo detects the executable without reading vendor credential stores." },
+  { id: "agy", display_name: "Antigravity", default_cmd: "agy", installed: false, auth_state: "not_installed", auth_label: "Not installed", auth_owner: "Antigravity", login_supported: false, login_label: null, docs_url: "https://antigravity.google/docs/cli/headless/", detail: "Authentication and model access stay inside Antigravity." },
   { id: "aider", display_name: "Aider", default_cmd: "aider --message", installed: false, auth_state: "not_installed", auth_label: "Not installed", auth_owner: "Pytxo run policy", login_supported: false, login_label: null, docs_url: "https://aider.chat/docs/config/api-keys.html", detail: "Choose one explicit BYOK credential for the run; unrelated keys stay hidden." },
 ];
 
 function previewAdeState(): AdeCliStatusDto[] {
-  const codexOnly = typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-ade-state-v1") === "codex-only";
-  if (!codexOnly) return structuredClone(previewAdeClis);
-  return previewAdeClis.map((cli) => cli.id === "codex" ? { ...cli } : {
+  const state = typeof localStorage !== "undefined" ? localStorage.getItem("pytxo-preview-ade-state-v1") : null;
+  if (state === "detection-error") throw new Error("Agent detection failed. Check again to retry.");
+  if (!["codex-only", "no-agents", "codex-signed-out", "codex-unknown"].includes(state ?? "")) return structuredClone(previewAdeClis);
+  return previewAdeClis.map((cli) => cli.id === "codex" && state !== "no-agents" ? {
+    ...cli,
+    ...(state === "codex-signed-out" ? { auth_state: "signed_out" as const, auth_label: "Codex sign-in required" } : {}),
+    ...(state === "codex-unknown" ? { auth_state: "unknown" as const, auth_label: "Codex sign-in could not be verified" } : {}),
+  } : {
     ...cli,
     installed: false,
     auth_state: "not_installed" as const,
@@ -246,9 +282,51 @@ export class PreviewDesktopBackend implements DesktopBackend {
   private readonly domainListeners = new Set<(event: DesktopChangedEvent) => void>();
   private readonly changes: DomainChangeDto[] = [];
   private readonly recoveredRuns = new Set<string>();
+  private shadowConsent: RoutedAdvisorConsentStatus = { domain_id: "signal-lab", revision: 0, enabled: false, current_scope: false, recipient_identity: "pytxo-local-advisor-fixture/no-network/v1", updated_at_ms: 0 };
+  private readonly shadowConsentStorageKey = "pytxo-preview-shadow-grant-state-v1";
   private sequence = 0;
 
   constructor() {
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-routing-summary-v1") === "1") {
+      this.snapshot.runs[0].routing_revision = "3";
+      if (localStorage.getItem("pytxo-preview-routed-retry-workers-v1") === "1") {
+        this.snapshot.agents = this.snapshot.agents.flatMap((agent) => agent.id === "desktop"
+          ? [{ ...agent, id: "desktop-1", status: "failed", exit_code: 1 }, { ...agent, id: "desktop-2", status: "running", exit_code: null }]
+          : [agent]);
+      }
+      if (localStorage.getItem("pytxo-preview-routing-cancelled-v1") === "1") {
+        this.snapshot.runs[0].status = "cancelled";
+      }
+      if (localStorage.getItem("pytxo-preview-routing-same-id-v1") === "1") {
+        this.snapshot.runs.push({ ...this.snapshot.runs[0], domain_id: "signal-lab", repo_root: "C:/dev/signal-lab" });
+      }
+    }
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-routing-revision-error-v1") === "1") {
+      this.snapshot.runs[0].routing_revision = null;
+      this.snapshot.diagnostics.push({ domain_id: "pytxo", run_id: "run-8f2c", stage: "routing_revision", message: "Browser fixture: routing revision read failed" });
+    }
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-many-runs-v1") === "1") {
+      this.snapshot.runs.push(...Array.from({ length: 7 }, (_, index) => ({ ...this.snapshot.runs[0], id: `bb3355c8-330d-466e-8986-46cebc634c5${index}`, status: "completed" })));
+    }
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-legacy-retry-v1") === "1") {
+      Object.assign(this.snapshot.runs[0], {
+        status: "completed", apply_status: "applied", applied_at: "2026-09-19T21:00:00Z", recovery_state: "rolled_back",
+        last_apply_error: { at: "2026-09-19T20:00:00Z", code: "interrupted_apply", message: "The interrupted Apply was rolled back.", attempt_id: "attempt-preview-1", rollback_confirmed: true },
+      });
+      this.snapshot.approvals = this.snapshot.approvals.filter(item => item.run_id !== "run-8f2c");
+      this.snapshot.agents = this.snapshot.agents.map(agent => ({ ...agent, status: "completed", exit_code: 0 }));
+      if (localStorage.getItem("pytxo-preview-newer-apply-error-v1") === "1") {
+        this.snapshot.runs[0].recovery_state = null;
+        this.snapshot.runs[0].last_apply_error!.at = "2026-09-19T22:00:00Z";
+      }
+    }
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-approval-scope-v1") === "foreign-run") {
+      const approval = this.snapshot.approvals.find((item) => item.run_id === "run-8f2c");
+      if (approval) {
+        approval.run_id = "run-other";
+        approval.agent_key = "run-other:desktop";
+      }
+    }
     if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-run-state-v1") === "review_failed") {
       Object.assign(this.snapshot.runs[0], {
         status: "failed", apply_status: "review_failed", prepared_digest: null, prepared_at: null,
@@ -305,14 +383,24 @@ export class PreviewDesktopBackend implements DesktopBackend {
     }
   }
 
-  async loadSnapshot(_opts: { includeAgents?: boolean } = {}) {
+  async loadSnapshot(opts: { includeAgents?: boolean } = {}) {
+    if (localStorage.getItem("pytxo-preview-observe-polls-v1") === "1") {
+      const reads = Number(localStorage.getItem("pytxo-preview-snapshot-reads-v1") ?? "0");
+      localStorage.setItem("pytxo-preview-snapshot-reads-v1", String(reads + 1));
+    }
     const snapshot = structuredClone(this.snapshot);
+    // Match native IPC: omitted agent reads return no agent rows.
+    if (opts.includeAgents === false) snapshot.agents = [];
+    if (opts.includeAgents === false && localStorage.getItem("pytxo-preview-delayed-light-snapshot-v1") === "1") {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
     // Deliberately awkward browser-only data for responsive acceptance.
     const layoutFixture = localStorage.getItem("pytxo-preview-layout-fixture-v1");
     if (layoutFixture === "long") {
       snapshot.domains[0].repo_root = `C:/workspaces/${"a-long-folder/".repeat(8)}commit-boundary-20260901-160000-936`;
       snapshot.runs.push(...Array.from({ length: 40 }, (_, index) => ({ ...snapshot.runs[1], id: `history-fixture-${index}` })));
     }
+    if (localStorage.getItem("pytxo-preview-history-empty-v1") === "1") snapshot.runs = [];
     return snapshot;
   }
   async approve(requestId: string) {
@@ -353,29 +441,91 @@ export class PreviewDesktopBackend implements DesktopBackend {
     return previewAdeState();
   }
   async startAdeLogin(id: string) {
-    const target = previewAdeClis.find((item) => item.id === id);
+    const target = previewAdeState().find((item) => item.id === id);
     if (!target?.installed) throw new Error(`${target?.display_name ?? id} is not installed or is not on PATH.`);
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-login-error-v1") === "true") {
+      throw new Error("Could not open vendor sign-in. Try again.");
+    }
     return { id, message: `${target.display_name} sign-in opened. Finish the vendor flow, then recheck.` };
   }
   async listProviders() {
     return structuredClone(previewProviders);
   }
   async previewFlow(input: FlowDraftInput): Promise<FlowPlan> {
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-flow-delay-v1") === "1") {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
     if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-flow-error-v1") === "1") {
       throw new Error("Preview failed while checking the selected workspace. Fix the workspace issue, then build a new plan.");
     }
     const detected = previewAdeState();
     const requested = detected.find((cli) => cli.id === input.ade_id) ?? null;
-    const available = !!requested && requested.installed && (requested.auth_state === "signed_in" || requested.auth_state === "not_applicable");
+    const available = !!requested && requested.installed && ["signed_in", "vendor_managed", "not_applicable"].includes(requested.auth_state);
     const omitVerification = typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-flow-verification-v1") === "none";
     const tasks = [
       { id: "desktop-flow", agent: input.ade_id ?? "codex", prompt: `Implement the Desktop slice of: ${input.mission_text}`, paths: ["apps/desktop/src/components/desktop2/FlowScreen.svelte"], dependencies: [], root: null, verify: ["npm run check"] },
       { id: "orchestration-flow", agent: "codex", prompt: `Implement the orchestration slice of: ${input.mission_text}`, paths: ["crates/pytxo-orchestrate/src/flow.rs"], dependencies: [], root: null, verify: ["cargo test -p pytxo-orchestrate"] },
       { id: "contract-tests", agent: "codex", prompt: `Verify the reviewed Flow contract for: ${input.mission_text}`, paths: ["crates/pytxo-orchestrate/tests/flow_mission.rs"], dependencies: ["desktop-flow", "orchestration-flow"], root: null, verify: ["cargo test -p pytxo-orchestrate"] },
     ];
-    return { draft_id: input.id, domain_id: input.domain_id ?? "pytxo", project_id: input.project_id, status: "ready", tasks: tasks.map((task) => omitVerification ? { ...task, verify: [] } : task), waves: [["desktop-flow", "orchestration-flow"], ["contract-tests"]], permission_profile: "orbit", isolation_mode: "copy_on_write", isolation_backend_intent: "projfs", execution_backend: "pty", ade: { requested: input.ade_id ?? null, available, installed: detected.filter((cli) => cli.installed).map((cli) => cli.id), command: requested?.default_cmd ?? null }, warnings: [{ code: "preview_fixture", message: "Browser preview uses a contract-valid Pytxo fixture; native preview reads the selected repository." }], blocked_reasons: [], estimated_tokens: 18000, estimated_cost_usd: 0.64, previewed_at: new Date().toISOString() };
+    const max_workers = input.max_workers ?? 1;
+    const blocked_reasons: FlowPlan["blocked_reasons"] = [];
+    if (input.ade_id !== "codex") blocked_reasons.push({ kind: "permission_violation", message: "Desktop Beta runs Codex. Select Codex and build a new plan." });
+    if (max_workers !== 1) blocked_reasons.push({ kind: "permission_violation", message: "Desktop Beta runs one worker. Build a new plan with one worker." });
+    return { draft_id: input.id, domain_id: input.domain_id ?? "pytxo", project_id: input.project_id, status: blocked_reasons.length ? "blocked" : "ready", tasks: tasks.map((task) => ({ ...task, verify: [...new Set([...(omitVerification ? [] : task.verify), ...(input.verification_commands ?? [])])] })), max_workers, waves: max_workers === 1 ? tasks.map((task) => [task.id]) : [["desktop-flow", "orchestration-flow"], ["contract-tests"]], permission_profile: "orbit", isolation_mode: "copy_on_write", isolation_backend_intent: "projfs", execution_backend: "pty", ade: { requested: input.ade_id ?? null, available, installed: detected.filter((cli) => cli.installed).map((cli) => cli.id), command: requested?.default_cmd ?? null }, warnings: [{ code: "preview_fixture", message: "Browser preview uses a contract-valid Pytxo fixture; native preview reads the selected repository." }], blocked_reasons, estimated_tokens: null, estimated_cost_usd: null, previewed_at: new Date().toISOString() };
+  }
+  async experimentalClaudeRoutingAvailable() {
+    return typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-claude-route-v1") === "1";
+  }
+  async experimentalHostedReviewAvailable() { return false; }
+  async previewExperimentalClaudeHostedFlow(_input: FlowDraftInput, _facts: ReviewedDemandFacts): Promise<FlowPlan> {
+    throw new Error("Hosted Shadow review requires the native experimental Desktop.");
+  }
+  async previewExperimentalClaudeFlow(input: FlowDraftInput, facts: ReviewedDemandFacts): Promise<FlowPlan> {
+    if (!(await this.experimentalClaudeRoutingAvailable()) || input.ade_id !== null) {
+      throw new Error("Claude routing experiment is unavailable in browser preview.");
+    }
+    return {
+      draft_id: input.id,
+      domain_id: input.domain_id ?? "pytxo",
+      project_id: input.project_id,
+      status: "ready",
+      tasks: [{ id: "claude-proposal", agent: "Claude proposal route", prompt: input.mission_text, paths: ["src/api.ts"], dependencies: [], root: null, verify: input.verification_commands?.length ? input.verification_commands : ["npm run check"] }],
+      waves: [["claude-proposal"]],
+      max_workers: 1,
+      permission_profile: "orbit",
+      isolation_mode: "worktree",
+      isolation_backend_intent: "worktree",
+      execution_backend: "subprocess",
+      ade: { requested: null, available: false, installed: [], command: null },
+      warnings: [{ code: "claude_subscription_readiness_usage", message: "Dispatch runs live Claude subscription auth and model-readiness probes before the routed attempt. These may consume account quota even if no candidate is produced." }, { code: "preview_fixture", message: "Browser preview only; native routing requires a reviewed Store mission." }],
+      blocked_reasons: [],
+      estimated_tokens: null,
+      estimated_cost_usd: null,
+      previewed_at: new Date().toISOString(),
+      routing: {
+        authorization: {
+          run_id: "run-preview",
+          limits: {
+            max_attempts: localStorage.getItem("pytxo-preview-claude-repair-v1") === "1"
+              && ["documentation", "formatting", "rename", "local_transformation"].includes(facts.task_kind)
+              && facts.context_complete && facts.cross_component_requirement === false ? 2 : 1,
+          },
+        },
+        mission_digest: "browser-fixture-only",
+      },
+    };
   }
   async dispatchFlow() {
+    if (localStorage.getItem("pytxo-preview-routed-stop-v1") === "1") {
+      while (localStorage.getItem("pytxo-preview-routed-stop-requested-v1") !== "1") {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      throw new Error("Browser fixture: routed startup was stopped before a native run");
+    }
+    if (localStorage.getItem("pytxo-preview-flow-dispatch-recovery-v1") === "1") {
+      localStorage.setItem("pytxo-preview-flow-history-v1", "routed-recovery");
+      throw new Error("Browser fixture: routed startup requires recovery");
+    }
     const domain = this.snapshot.domains[0];
     if (!this.snapshot.runs.some((run) => run.id === "run-preview")) {
       this.snapshot.runs.unshift({
@@ -394,6 +544,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
         prepared_at: null,
         last_apply_error: null,
         recovery_state: null,
+        routing_revision: null,
       });
     }
     this.emitChange(domain?.domain_id ?? "pytxo", "run", "run-preview");
@@ -403,6 +554,12 @@ export class PreviewDesktopBackend implements DesktopBackend {
       this.emitChange(domain?.domain_id ?? "pytxo", "run", "run-preview");
     }, 350);
     return "run-preview";
+  }
+  async stopRoutedFlow(): Promise<void> {
+    if (localStorage.getItem("pytxo-preview-routed-stop-v1") !== "1") {
+      throw new Error("Browser preview cannot stop a native routed run.");
+    }
+    localStorage.setItem("pytxo-preview-routed-stop-requested-v1", "1");
   }
   async saveReviewedFlow(plan: FlowPlan) { return plan; }
   async startVoice(device: string, language: string): Promise<VoiceSessionDto> {
@@ -458,17 +615,31 @@ export class PreviewDesktopBackend implements DesktopBackend {
   async flowHistory(): Promise<FlowDraftRecord[]> {
     const fixture = typeof localStorage === "undefined" ? null : localStorage.getItem("pytxo-preview-flow-history-v1");
     if (!fixture) return [];
-    if (fixture === "long-mission") {
+    if (fixture.startsWith("advisor-")) {
+      return [{ id: "advisor-review", title: "Reviewed routing task", mission_text: "Browser fixture for a reviewed task", source: "text", domain_id: "signal-lab", project_id: null, status: "ready", plan_json: JSON.stringify({ status: "ready", routing: { authorization: { run_id: "browser-fixture-run" } } }), dispatched_run_id: null, created_at: "2026-09-06T12:00:00Z", updated_at: "2026-09-06T12:00:00Z" }];
+    }
+    if (fixture === "long-mission" || fixture === "long-worker-request") {
       const mission = "Update the parser while preserving its public API; add regression tests for Windows paths and mixed-case input; document the final behavior and exact examples. ".repeat(6);
-      return [{ id: "draft-density", title: mission.slice(0, 70), mission_text: mission, source: "text", domain_id: "pytxo", project_id: null, status: "completed", plan_json: "{}", dispatched_run_id: "run-8f2c", created_at: "2026-09-06T12:00:00Z", updated_at: "2026-09-06T12:00:00Z" }];
+      return [{ id: "draft-density", title: mission.slice(0, 70), mission_text: mission, source: "text", domain_id: "pytxo", project_id: null, status: "completed", plan_json: JSON.stringify({ tasks: [{ id: "plan", prompt: "Inspect the existing review contract" }, { id: "ui", prompt: fixture === "long-worker-request" ? mission : "Clarify the candidate review experience" }, { id: "tests", prompt: "Check the reviewed candidate safeguards" }] }), dispatched_run_id: "run-8f2c", created_at: "2026-09-06T12:00:00Z", updated_at: "2026-09-06T12:00:00Z" }];
     }
     const domainId = fixture === "long-path" ? `C:/workspaces/${"a-very-long-project-folder/".repeat(8)}repository` : fixture === "missing" ? "unavailable-workspace" : "signal-lab";
-    return [{ id: "draft-reuse", title: "Fix the parser regression", mission_text: "Fix src/parser.rs and add a regression test", source: "text", domain_id: domainId, project_id: null, status: "completed", plan_json: JSON.stringify({ ade: { requested: fixture === "unavailable-cli" ? "claude" : "codex" } }), dispatched_run_id: "run-71ad", created_at: "2026-09-06T12:00:00Z", updated_at: "2026-09-06T12:00:00Z" }];
+    return [{ id: "draft-reuse", title: "Fix the parser regression", mission_text: "Fix src/parser.rs and add a regression test", source: "text", domain_id: domainId, project_id: null, status: fixture === "routed-recovery" ? "recovery_required" : fixture === "routed-failed" ? "failed" : fixture === "routed-dispatching" ? "dispatching" : "completed", plan_json: JSON.stringify({ ade: { requested: fixture === "unavailable-cli" ? "claude" : "codex" }, ...(fixture === "routed-dispatching" && localStorage.getItem("pytxo-preview-routed-stop-v1") === "1" ? { routing: { authorization: { run_id: "run-71ad" } } } : {}) }), dispatched_run_id: "run-71ad", created_at: "2026-09-06T12:00:00Z", updated_at: "2026-09-06T12:00:00Z" }];
   }
   async deleteFlowDraft() {}
   async readAgentEvents(runId: string, agentId: string, domainId: string, after: number, limit: number): Promise<import("./types").EventDto[]> {
     const agent = this.snapshot.agents.find(a => a.id === agentId && a.run_id === runId && a.domain_id === domainId);
     if (!agent) throw new Error("Agent not present in this preview scope.");
+    if (localStorage.getItem("pytxo-preview-observe-polls-v1") === "1") {
+      const reads = Number(localStorage.getItem("pytxo-preview-agent-event-reads-v1") ?? "0");
+      localStorage.setItem("pytxo-preview-agent-event-reads-v1", String(reads + 1));
+    }
+    if (localStorage.getItem("pytxo-preview-output-events-v1") === "600") {
+      return Array.from({ length: 600 }, (_, index) => ({ id: index + 1, agent_id: agentId,
+        kind: index % 19 === 0 ? "tool" : "stdout",
+        payload: index % 19 === 0 ? `Browser fixture: tool record ${index}.` : `Browser fixture: worker output ${index}; read only and unverified.`,
+        ts: "2026-09-20T08:00:00Z",
+      })).filter(event => event.id > after).slice(0, limit);
+    }
     if (localStorage.getItem("pytxo-preview-layout-fixture-v1") === "long") {
       return Array.from({ length: 80 }, (_, index) => ({ id: index + 1, agent_id: agentId,
         kind: index === 0 ? "agent-start" : index === 79 ? "verify-ok" : "stdout",
@@ -495,12 +666,30 @@ export class PreviewDesktopBackend implements DesktopBackend {
     return agents;
   }
   async runReview(runId: string): Promise<RunReviewDto> {
+    if (localStorage.getItem("pytxo-preview-delayed-plan-v1") === "1") {
+      await new Promise(resolve => setTimeout(resolve, 1200));
+    }
+    if (localStorage.getItem("pytxo-preview-observe-polls-v1") === "1") {
+      const reads = Number(localStorage.getItem("pytxo-preview-review-reads-v1") ?? "0");
+      localStorage.setItem("pytxo-preview-review-reads-v1", String(reads + 1));
+    }
+    if (localStorage.getItem("pytxo-preview-history-evidence-error-v1") === "1" && runId === "run-71ad") throw new Error("Browser fixture: stored evidence unavailable");
     const delayedOtherRun = runId === "run-other";
     if (delayedOtherRun) await new Promise((resolve) => setTimeout(resolve, 1500));
     const run = this.snapshot.runs.find((item) => item.id === runId);
     if (!run) throw new Error(`Run not found: ${runId}`);
     const isSignalRun = runId === "run-71ad";
-    const plan = isSignalRun
+    const denseTopology = localStorage.getItem("pytxo-preview-topology-v1") === "24";
+    const densePlan: RunReviewDto["plan"] = {
+      waves: Array.from({ length: 6 }, (_, wave) => Array.from({ length: 4 }, (_, index) => {
+        const taskId = wave === 0 && index === 0 ? "plan" : wave === 1 && index === 0 ? "ui" : wave === 2 && index === 0 ? "tests" : `dense-${wave}-${index}`;
+        const previousId = wave - 1 === 0 && index === 0 ? "plan" : wave - 1 === 1 && index === 0 ? "ui" : wave - 1 === 2 && index === 0 ? "tests" : `dense-${wave - 1}-${index}`;
+        const dependency = wave === 0 ? [] : [previousId];
+        return { task_id: taskId, agent: "codex", paths: [`src/${taskId}.ts`], depends_on: dependency, wave, root: null, verify: ["npm test"] };
+      })),
+      warnings: [],
+    };
+    const plan = denseTopology ? densePlan : isSignalRun
       ? {
           waves: [
             [{
@@ -561,7 +750,8 @@ export class PreviewDesktopBackend implements DesktopBackend {
       run_id: runId,
       base_revision: isSignalRun ? "71ad8f2c4d90b6c6" : "8f2cc9814fc10e31",
       prepared_at: "2026-08-01T02:30:00Z",
-      package_digest: isSignalRun ? "pkg-71ad-immutable" : "pkg-8f2c-immutable",
+      package_digest: (isSignalRun ? "pkg-71ad-immutable" : "pkg-8f2c-immutable")
+        + (localStorage.getItem(`pytxo-preview-review-revision:${runId}`) ?? ""),
       summary: { added: 2, modified: 1, deleted: 1, bytes: 1847 },
       files: [
         {
@@ -575,12 +765,12 @@ export class PreviewDesktopBackend implements DesktopBackend {
           blob_digest: "e51c34aa",
           before_mode: null,
           after_mode: null,
-          before_byte_count: previewBytes(previewReviewContent["crates/pytxo-signal/src/lib.rs"].before!).length,
-          after_byte_count: previewBytes(previewReviewContent["crates/pytxo-signal/src/lib.rs"].after!).length,
+          before_byte_count: previewBytes(reviewContentFixture()["crates/pytxo-signal/src/lib.rs"].before!).length,
+          after_byte_count: previewBytes(reviewContentFixture()["crates/pytxo-signal/src/lib.rs"].after!).length,
           before_is_binary: false,
           after_is_binary: false,
-          before_chunks: [{ offset: 0, length: previewBytes(previewReviewContent["crates/pytxo-signal/src/lib.rs"].before!).length, sha256: "preview-lib-before-chunk" }],
-          after_chunks: [{ offset: 0, length: previewBytes(previewReviewContent["crates/pytxo-signal/src/lib.rs"].after!).length, sha256: "preview-lib-after-chunk" }],
+          before_chunks: [{ offset: 0, length: previewBytes(reviewContentFixture()["crates/pytxo-signal/src/lib.rs"].before!).length, sha256: "preview-lib-before-chunk" }],
+          after_chunks: [{ offset: 0, length: previewBytes(reviewContentFixture()["crates/pytxo-signal/src/lib.rs"].after!).length, sha256: "preview-lib-after-chunk" }],
         },
         {
           path: "crates/pytxo-signal/tests/skeleton.rs",
@@ -594,11 +784,11 @@ export class PreviewDesktopBackend implements DesktopBackend {
           before_mode: null,
           after_mode: null,
           before_byte_count: 0,
-          after_byte_count: previewBytes(previewReviewContent["crates/pytxo-signal/tests/skeleton.rs"].after!).length,
+          after_byte_count: previewBytes(reviewContentFixture()["crates/pytxo-signal/tests/skeleton.rs"].after!).length,
           before_is_binary: null,
           after_is_binary: false,
           before_chunks: [],
-          after_chunks: [{ offset: 0, length: previewBytes(previewReviewContent["crates/pytxo-signal/tests/skeleton.rs"].after!).length, sha256: "preview-test-after-chunk" }],
+          after_chunks: [{ offset: 0, length: previewBytes(reviewContentFixture()["crates/pytxo-signal/tests/skeleton.rs"].after!).length, sha256: "preview-test-after-chunk" }],
         },
         {
           path: "crates/pytxo-signal/src/legacy.rs",
@@ -611,11 +801,11 @@ export class PreviewDesktopBackend implements DesktopBackend {
           blob_digest: null,
           before_mode: null,
           after_mode: null,
-          before_byte_count: previewBytes(previewReviewContent["crates/pytxo-signal/src/legacy.rs"].before!).length,
+          before_byte_count: previewBytes(reviewContentFixture()["crates/pytxo-signal/src/legacy.rs"].before!).length,
           after_byte_count: 0,
           before_is_binary: false,
           after_is_binary: null,
-          before_chunks: [{ offset: 0, length: previewBytes(previewReviewContent["crates/pytxo-signal/src/legacy.rs"].before!).length, sha256: "preview-legacy-before-chunk" }],
+          before_chunks: [{ offset: 0, length: previewBytes(reviewContentFixture()["crates/pytxo-signal/src/legacy.rs"].before!).length, sha256: "preview-legacy-before-chunk" }],
           after_chunks: [],
         },
         {
@@ -691,7 +881,8 @@ export class PreviewDesktopBackend implements DesktopBackend {
         }],
       };
     }
-    const recovered = requested === "recovered" || this.recoveredRuns.has(runId);
+    const recovered = requested === "recovered" || this.recoveredRuns.has(runId)
+      || runId === "run-8f2c" && localStorage.getItem("pytxo-preview-legacy-retry-v1") === "1" && localStorage.getItem("pytxo-preview-newer-apply-error-v1") !== "1";
     const lastError: RunApplyError | null =
       recovered
         ? {
@@ -829,7 +1020,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
     offset: number,
     limit: number,
   ): Promise<PreparedContentChunkDto> {
-    const value = previewReviewContent[path]?.[side];
+    const value = reviewContentFixture()[path]?.[side];
     if (value == null) throw new Error(`${side} content does not exist for ${path}`);
     const review = await this.runReview(runId);
     const file = review.prepared_manifest?.files.find((candidate) => candidate.path === path);
@@ -876,6 +1067,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
     const run = this.snapshot.runs.find((item) => item.id === runId);
     if (!run) throw new Error(`Run not found: ${runId}`);
     run.apply_status = "ready";
+    localStorage.setItem(`pytxo-preview-review-revision:${runId}`, `-refresh-${Date.now()}`);
     localStorage.setItem("pytxo-preview-candidate-check-v1", "passed");
     this.emitChange("signal-lab", "contract", runId);
     return (await this.runReview(runId)).prepared_manifest!;
@@ -911,9 +1103,140 @@ export class PreviewDesktopBackend implements DesktopBackend {
       cursor_gap: false,
     };
   }
+  async previewFlowAdvisorPacket(draftId: string): Promise<RoutedAdvisorPacketPreview> {
+    if (draftId !== "advisor-review" || localStorage.getItem("pytxo-preview-flow-history-v1") !== "advisor-shadow") {
+      throw new Error("Browser fixture: no current ready Shadow packet is available");
+    }
+    const state = { schema_version: 1, goal: "Classify reviewed repository task using coarse facts", features: ["task_kind_local_transformation", "reviewed_checks", "single_component_claimed", "context_claimed_complete", "role_unrestricted", "no_required_egress"], everyday_role: "everyday execution role", strong_role: "strong execution role" };
+    const body = new TextEncoder().encode(JSON.stringify({ model: "browser-fixture-no-send", state, questions: { browser_fixture: { type: "choice" } } }));
+    const hexDigest = async (bytes: Uint8Array<ArrayBuffer>) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((value) => value.toString(16).padStart(2, "0")).join("");
+    return { domain_id: "signal-lab", run_id: "browser-fixture-run", task_id: "browser-fixture-task", reviewed_consent_revision: 1, recipient_identity: "pytxo-local-advisor-fixture/no-network/v1", packet_digest: await hexDigest(new TextEncoder().encode(JSON.stringify(state))), request_digest: await hexDigest(body), request_body: [...body] };
+  }
+
+  async previewProposedHostedPacket(draftId: string): Promise<ProposedHostedAdvisorPacketPreview> {
+    const local = await this.previewFlowAdvisorPacket(draftId);
+    const request = JSON.parse(new TextDecoder().decode(Uint8Array.from(local.request_body)));
+    const packet_body = [...new TextEncoder().encode(JSON.stringify(request.state))];
+    const scope = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("browser-fixture-proposed-hosted-scope-v1")));
+    return { domain_id: local.domain_id, run_id: local.run_id, task_id: local.task_id, source_review_recipient_identity: local.recipient_identity, recipient_identity: "pytxo-hosted-routing/typesafe-systemone/v1", scope_digest: [...scope].map((value) => value.toString(16).padStart(2, "0")).join(""), packet_digest: local.packet_digest, wire_schema_version: 1, decision_kind: "initial_demand", question_set_version: "execution_demand_v2", packet_body };
+  }
+
+  async previewReviewedHostedPacket(_draftId: string): Promise<ReviewedHostedAdvisorPacketPreview> {
+    throw new Error("Hosted Shadow review requires the native experimental Desktop.");
+  }
+  async hostedConsentStatus(_domainId: string): Promise<RoutedAdvisorConsentStatus> {
+    throw new Error("Hosted consent requires the native experimental Desktop.");
+  }
+  async enableHostedConsent(_draftId: string, _domainId: string, _requestDigest: string, _scopeDigest: string, _expectedRevision: number): Promise<RoutedAdvisorConsentStatus> {
+    throw new Error("Hosted consent requires the native experimental Desktop.");
+  }
+  async revokeHostedConsent(_domainId: string, _expectedRevision: number): Promise<RoutedAdvisorConsentStatus> {
+    throw new Error("Hosted consent requires the native experimental Desktop.");
+  }
+  async hostedGrantStatus(_domainId: string): Promise<RoutingHostedGrantStatus | null> { return null; }
+  async hostedGrants(): Promise<RoutingHostedGrantStatus[]> { return []; }
+  async enableHostedGrant(_domainId: string): Promise<RoutingHostedGrantStatus> {
+    throw new Error("Hosted grants require the native experimental Desktop.");
+  }
+  async revokeHostedGrant(_domainId: string, _expectedRevision: number): Promise<RoutingHostedGrantStatus> {
+    throw new Error("Hosted grants require the native experimental Desktop.");
+  }
+
+  async flowAdvisorConsentDomains(): Promise<string[]> {
+    return localStorage.getItem(this.shadowConsentStorageKey) ? [this.shadowConsent.domain_id] : [];
+  }
+
+  async flowAdvisorConsent(domainId: string): Promise<RoutedAdvisorConsentStatus> {
+    if (domainId !== this.shadowConsent.domain_id) throw new Error("Browser fixture: wrong routing workspace");
+    if (localStorage.getItem("pytxo-preview-shadow-consent-error-v1") === "1") throw new Error("Browser fixture: saved routing grant unavailable");
+    const saved = localStorage.getItem(this.shadowConsentStorageKey);
+    if (saved) {
+      try {
+        const parsed: unknown = JSON.parse(saved);
+        if (parsed && typeof parsed === "object" && "domain_id" in parsed && parsed.domain_id === domainId && "revision" in parsed && typeof parsed.revision === "number" && Number.isSafeInteger(parsed.revision) && "enabled" in parsed && typeof parsed.enabled === "boolean" && "current_scope" in parsed && typeof parsed.current_scope === "boolean" && "recipient_identity" in parsed && parsed.recipient_identity === this.shadowConsent.recipient_identity && "updated_at_ms" in parsed && typeof parsed.updated_at_ms === "number") {
+          this.shadowConsent = parsed as RoutedAdvisorConsentStatus;
+        }
+      } catch { /* A corrupt browser fixture is ignored. Native Store is authoritative. */ }
+    }
+    if (this.shadowConsent.revision === 0 && localStorage.getItem("pytxo-preview-shadow-consent-v1") === "other-scope") {
+      this.shadowConsent = { ...this.shadowConsent, revision: 1, enabled: true, current_scope: false, updated_at_ms: Date.now() };
+    }
+    return structuredClone(this.shadowConsent);
+  }
+
+  async enableFlowAdvisorConsent(draftId: string, domainId: string, requestDigest: string, recipientIdentity: string, expectedRevision: number): Promise<RoutedAdvisorConsentStatus> {
+    const packet = await this.previewFlowAdvisorPacket(draftId);
+    await this.flowAdvisorConsent(domainId);
+    if (packet.domain_id !== domainId || packet.request_digest !== requestDigest || packet.recipient_identity !== recipientIdentity || this.shadowConsent.revision !== expectedRevision || packet.reviewed_consent_revision !== expectedRevision + 1) {
+      throw new Error("Browser fixture: inspected Shadow packet or consent revision changed");
+    }
+    this.shadowConsent = { ...this.shadowConsent, revision: expectedRevision + 1, enabled: true, current_scope: true, updated_at_ms: Date.now() };
+    localStorage.setItem(this.shadowConsentStorageKey, JSON.stringify(this.shadowConsent));
+    return structuredClone(this.shadowConsent);
+  }
+
+  async revokeFlowAdvisorConsent(domainId: string, expectedRevision: number): Promise<RoutedAdvisorConsentStatus> {
+    await this.flowAdvisorConsent(domainId);
+    if (domainId !== this.shadowConsent.domain_id || this.shadowConsent.revision !== expectedRevision) throw new Error("Browser fixture: stale routing workspace consent");
+    this.shadowConsent = { ...this.shadowConsent, revision: expectedRevision + 1, enabled: false, current_scope: false, updated_at_ms: Date.now() };
+    localStorage.setItem(this.shadowConsentStorageKey, JSON.stringify(this.shadowConsent));
+    return structuredClone(this.shadowConsent);
+  }
+
+  async routingRunSummary(runId: string, domainId: string): Promise<RoutingDisplaySummary | null> {
+    if (localStorage.getItem("pytxo-preview-routing-summary-v1") !== "1" || runId !== "run-8f2c") return null;
+    if (localStorage.getItem("pytxo-preview-routing-error-v1") === "1") throw new Error("Browser fixture: routing read unavailable");
+    if (domainId === "pytxo" && localStorage.getItem("pytxo-preview-routing-delay-v1") === "1") {
+      await new Promise(resolve => setTimeout(resolve, 900));
+    }
+    if (domainId === "signal-lab" && localStorage.getItem("pytxo-preview-routing-same-id-v1") === "1") {
+      return { ...structuredClone(previewRoutingSummary), domain_id: domainId, tasks: [{ task_id: "other-domain-task", state: "ready", dependency_task_ids: [], current_attempt_id: null, winning_attempt_id: null, last_decision: null, pre_admission: null, attempts: [] }] };
+    }
+    if (domainId !== "pytxo") return null;
+    const record = structuredClone(previewRoutingSummary);
+    if (localStorage.getItem("pytxo-preview-routed-retry-workers-v1") === "1") {
+      record.tasks[1].attempts[1].state = "running";
+    }
+    if (localStorage.getItem("pytxo-preview-routing-cancelled-v1") === "1") {
+      record.cancelled = true;
+      record.tasks[1].state = "cancelled";
+      record.tasks[2].state = "cancelled";
+    }
+    if (localStorage.getItem("pytxo-preview-routing-later-block-v1") === "1") {
+      record.tasks[2].state = "waiting_input";
+      record.tasks[2].last_decision = {
+        selection: { kind: "blocked", code: "budget_exhausted" },
+        reason: "blocked",
+        advice_status: "not_used",
+      };
+    }
+    if (localStorage.getItem("pytxo-preview-routing-stale-revision-v1") === "1") record.routing_revision = "2";
+    return record;
+  }
+  async catalogFingerprint() {
+    const fixture = localStorage.getItem("pytxo-preview-catalog-fingerprint-v1");
+    if (fixture) return fixture;
+    return this.snapshot.domains
+      .map((domain) => `${domain.domain_id}:${domain.updated_at}`)
+      .sort()
+      .join("|");
+  }
   async onDomainChanged(callback: (event: DesktopChangedEvent) => void) {
     this.domainListeners.add(callback);
-    return () => this.domainListeners.delete(callback);
+    // Two browser clients share the fixture's durable package revision. Native
+    // clients receive the equivalent domain-change notification through IPC.
+    const onStorage = (event: StorageEvent) => {
+      const prefix = "pytxo-preview-review-revision:";
+      if (!event.key?.startsWith(prefix)) return;
+      const runId = event.key.slice(prefix.length);
+      const run = this.snapshot.runs.find((item) => item.id === runId);
+      if (run) callback({ domain_id: run.domain_id, entity_kind: "contract", entity_id: runId });
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      this.domainListeners.delete(callback);
+      window.removeEventListener("storage", onStorage);
+    };
   }
   async structuralGraph() {
     return {
@@ -943,7 +1266,11 @@ export class PreviewDesktopBackend implements DesktopBackend {
         fallback_paths: 0,
       }));
   }
-  async applyRunChanges(runId: string): Promise<RunApplyManifest> {
+  async applyRunChanges(runId: string, _domainId: string | null, expectedPackageDigest: string): Promise<RunApplyManifest> {
+    const current = await this.runReview(runId);
+    if (!expectedPackageDigest || expectedPackageDigest !== current.prepared_digest) {
+      throw new Error("[stale_review] The reviewed candidate changed. Reload and review the current candidate before Apply.");
+    }
     const run = this.snapshot.runs.find((item) => item.id === runId);
     if (!run) throw new Error(`Run not found: ${runId}`);
     const review = await this.runReview(runId);
