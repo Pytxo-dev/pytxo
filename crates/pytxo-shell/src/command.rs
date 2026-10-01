@@ -377,7 +377,7 @@ mod tests {
         match input {
             ShellInput::Slash(SlashCommand::Run { cmd, ade, .. }) => {
                 assert_eq!(ade.as_deref(), Some("cursor"));
-                assert_eq!(cmd, "cursor-agent -p --trust");
+                assert_eq!(cmd, "cursor-agent -p --trust --output-format text");
             }
             other => panic!("unexpected {other:?}"),
         }

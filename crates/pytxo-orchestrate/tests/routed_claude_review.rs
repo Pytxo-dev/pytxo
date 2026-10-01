@@ -71,6 +71,8 @@ fn reviewed_claude_preview_requires_gate_and_stages_subscription_without_a_run()
         domain_id: Some(repo.path().to_string_lossy().into_owned()),
         project_id: None,
         ade_id: None,
+        ade_ids: Vec::new(),
+        task_ades: Default::default(),
         max_workers: Some(1),
         verification_commands: vec!["echo verification-ok".into()],
     };

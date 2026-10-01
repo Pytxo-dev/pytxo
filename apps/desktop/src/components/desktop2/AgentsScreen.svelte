@@ -10,7 +10,7 @@
   import IconPlugConnected from "@tabler/icons-svelte/icons/plug-connected";
   import IconRefresh from "@tabler/icons-svelte/icons/refresh";
   import IconShieldLock from "@tabler/icons-svelte/icons/shield-lock";
-  import { isAdeRunnable } from "../../lib/ade-status";
+  import { DESKTOP_BETA_ADES, isAdeRunnable, isBetaAde } from "../../lib/ade-status";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { AdeCliStatusDto } from "../../lib/types";
 
@@ -31,10 +31,10 @@
   let adeMessageTone = $state<"success" | "error" | null>(null);
   let loginOpeningId = $state<string | null>(null);
 
-  const betaAgent = $derived(adeClis.find(cli => cli.id === "codex") ?? null);
-  const additionalAgents = $derived(
-    adeClis.filter(cli => cli.id !== "codex").sort((a, b) => Number(b.installed) - Number(a.installed) || a.display_name.localeCompare(b.display_name)),
-  );
+  const byReadiness = (a: AdeCliStatusDto, b: AdeCliStatusDto) => Number(b.installed) - Number(a.installed) || a.display_name.localeCompare(b.display_name);
+  const betaOrder = (cli: AdeCliStatusDto) => (DESKTOP_BETA_ADES as readonly string[]).indexOf(cli.id);
+  const betaAgents = $derived(adeClis.filter(cli => isBetaAde(cli.id)).sort((a, b) => Number(b.installed) - Number(a.installed) || betaOrder(a) - betaOrder(b)));
+  const additionalAgents = $derived(adeClis.filter(cli => !isBetaAde(cli.id)).sort(byReadiness));
 
   async function refreshAdeClis() {
     adeLoading = true;
@@ -121,7 +121,7 @@
     <IconShieldLock size={14} />
     Pytxo never reads token stores; credentials stay with each vendor CLI.
   </p>
-  <p class="beta-intro">Start with Codex, one repository and one worker. Local work needs no Pytxo account.</p>
+  <p class="beta-intro">Put any of the Beta agents to work, alone or together on one repository. Local work needs no Pytxo account.</p>
 
   <article class="panel">
     {#if adeMessage}
@@ -134,14 +134,14 @@
       <div class="cli-loading" role="status"><IconLoader2 size={18} class="spin" /><div><strong>Checking installed CLIs and sessions…</strong><span>No model request is sent.</span></div></div>
     {:else}
       <div class="catalog-heading">
-        <strong>Beta starting point</strong>
+        <strong>Beta agents</strong>
         <span>Installation and sign-in are separate checks</span>
       </div>
-      {#if betaAgent}
-        {@render agentRow(betaAgent)}
+      {#each betaAgents as cli (cli.id)}
+        {@render agentRow(cli)}
       {:else}
-        <p class="beta-intro">Codex status is unavailable. Recheck the agent catalog to continue setup.</p>
-      {/if}
+        <p class="beta-intro">Agent status is unavailable. Recheck the agent catalog to continue setup.</p>
+      {/each}
       {#if additionalAgents.length}
         <details class="supported-catalog">
           <summary>
@@ -149,7 +149,7 @@
             <small>{additionalAgents.filter(cli => cli.installed).length} installed · outside this beta’s focus</small>
           </summary>
           <div class="supported-rows">
-            <p class="beta-intro">Other agents remain available for advanced use. Start with Codex for the beta walkthrough.</p>
+            <p class="beta-intro">Detected for advanced use. Desktop Beta runs only the Beta agents above.</p>
             {#each additionalAgents as cli (cli.id)}
               {@render agentRow(cli)}
             {/each}

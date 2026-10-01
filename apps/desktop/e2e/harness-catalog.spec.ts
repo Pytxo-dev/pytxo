@@ -11,8 +11,8 @@ test("Setup keeps the expanded harness catalog compact and truthful", async ({ p
   await page.getByRole("button", { name: "Agents & permissions", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "Agent harnesses", exact: true })).toBeVisible();
-  await expect(page.getByText("Beta starting point", { exact: true })).toBeVisible();
-  await expect(page.locator(".agent-row:visible")).toHaveCount(1);
+  await expect(page.getByText("Beta agents", { exact: true })).toBeVisible();
+  await expect(page.locator(".agent-row:visible")).toHaveCount(5);
   const more = page.getByText("Additional agents", { exact: true });
   await expect(more).toBeVisible();
   await expect(page.getByText("Grok Build", { exact: true })).not.toBeVisible();

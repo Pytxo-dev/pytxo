@@ -376,7 +376,7 @@ mod tests {
         let cfg = PytxoConfig::default();
         let ent = effective_entitlements(&cfg).unwrap();
         assert_eq!(ent.tier, "core");
-        assert_eq!(ent.max_agents, 3);
+        assert_eq!(ent.max_agents, 8);
         assert!(!ent.cloud_enabled);
     }
 

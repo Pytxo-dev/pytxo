@@ -175,8 +175,9 @@ fn default_pty_cols() -> u16 {
     80
 }
 
+/// Local Core runs up to eight concurrent workers (one mixed-CLI fleet).
 fn default_tier_max_agents() -> usize {
-    3
+    8
 }
 
 impl Default for PytxoConfig {

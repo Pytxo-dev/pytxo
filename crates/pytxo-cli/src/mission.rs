@@ -58,6 +58,8 @@ pub async fn run_mission(opts: MissionOptions) -> anyhow::Result<()> {
         domain_id: Some(repo.to_string_lossy().into_owned()),
         project_id: None,
         ade_id: opts.ade.clone(),
+        ade_ids: Vec::new(),
+        task_ades: Default::default(),
         max_workers: None,
         verification_commands: vec![],
     };

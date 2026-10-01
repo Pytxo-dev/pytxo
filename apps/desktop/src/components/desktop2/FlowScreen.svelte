@@ -7,8 +7,9 @@
   import IconPlayerRecord from "@tabler/icons-svelte/icons/player-record";
   import { onDestroy, onMount, untrack } from "svelte";
   import HostedRoutingReview from "./HostedRoutingReview.svelte";
+  import AdeIdentity from "./AdeIdentity.svelte";
   import type { ComposerDraft } from "../../lib/composer-draft";
-  import { adeAvailabilityLabel, isAdeRunnable } from "../../lib/ade-status";
+  import { adeAvailabilityLabel, DESKTOP_BETA_MAX_WORKERS, isAdeRunnable, isBetaAde } from "../../lib/ade-status";
   import { draftTitle } from "../../lib/draft-title";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { AdeCliStatusDto, FlowDraftRecord, FlowPlan, ProposedHostedAdvisorPacketPreview, ReviewedDemandFacts, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
@@ -117,6 +118,12 @@
   let draftNotice = $state("");
   let domainSelectionInitialized = false;
   let adeSelectionInitialized = false;
+  /** Extra Beta CLIs that share the plan with the primary agent, in assignment order. */
+  let teamAdes = $state<string[]>([]);
+  /** Explicit per-task CLI choices; any change requires a fresh plan. */
+  let taskAdes = $state<Record<string, string>>({});
+  let workers = $state(1);
+  let workersTouched = false;
 
   const currentInputKey = $derived(
     JSON.stringify({
@@ -124,12 +131,29 @@
       source: missionSource,
       domain: selectedDomainId,
       ade: selectedAde,
+      team: teamAdes,
+      taskAdes,
+      workers,
       checks: runChecks.trim(),
       routingFacts: selectedAde === CLAUDE_ROUTE_CHOICE || selectedAde === CLAUDE_HOSTED_CHOICE
         ? [reviewedTaskKind, reviewedContextComplete, crossComponent, repeatableSymptom, specificCauseHypothesis] : null,
     }),
   );
   const planMatchesInputs = $derived(!!plan && planInputKey === currentInputKey);
+  const routedChoice = $derived(selectedAde === CLAUDE_ROUTE_CHOICE || selectedAde === CLAUDE_HOSTED_CHOICE);
+  /** Every CLI in this request, primary first. */
+  const team = $derived(routedChoice || !selectedAde ? [] : [selectedAde, ...teamAdes.filter((id) => id !== selectedAde)]);
+  const teamCandidates = $derived(adeClis.filter((cli) => isBetaAde(cli.id) && isAdeReady(cli) && cli.id !== selectedAde));
+  const adeName = (id: string | null | undefined) => adeClis.find((cli) => cli.id === id)?.display_name ?? id ?? "Not selected";
+  function toggleTeamAde(id: string) {
+    teamAdes = teamAdes.includes(id) ? teamAdes.filter((other) => other !== id) : [...teamAdes, id];
+    taskAdes = {};
+    if (!workersTouched) workers = Math.min(DESKTOP_BETA_MAX_WORKERS, 1 + teamAdes.filter((other) => other !== selectedAde).length);
+  }
+  function stepWorkers(delta: number) {
+    workersTouched = true;
+    workers = Math.min(DESKTOP_BETA_MAX_WORKERS, Math.max(1, workers + delta));
+  }
   const selectedAdeStatus = $derived(adeClis.find((cli) => cli.id === selectedAde) ?? null);
   const selectedAdeReady = $derived(selectedAde === CLAUDE_ROUTE_CHOICE ? experimentalClaudeAvailable : selectedAde === CLAUDE_HOSTED_CHOICE ? experimentalHostedAvailable : !!selectedAdeStatus && isAdeReady(selectedAdeStatus));
   const unavailableAdes = $derived(adeClis.filter((cli) => !isAdeReady(cli)));
@@ -428,6 +452,7 @@
 
   function chooseAde(value: string) {
     selectedAde = value;
+    taskAdes = {};
     if (typeof localStorage !== "undefined" && value !== CLAUDE_ROUTE_CHOICE && value !== CLAUDE_HOSTED_CHOICE) localStorage.setItem(ADE_CHOICE_KEY, value);
   }
 
@@ -463,7 +488,7 @@
     dispatchedStatus = "";
     historySyncedRun = "";
     try {
-      const input = { id: crypto.randomUUID(), title: draftTitle(mission), mission_text: mission, source: missionSource, domain_id: selectedDomainId || null, project_id: null, ade_id: selectedAde === CLAUDE_ROUTE_CHOICE || selectedAde === CLAUDE_HOSTED_CHOICE ? null : selectedAde, max_workers: 1, verification_commands: runChecks.split(/\r?\n/).map((command) => command.trim()).filter(Boolean) };
+      const input = { id: crypto.randomUUID(), title: draftTitle(mission), mission_text: mission, source: missionSource, domain_id: selectedDomainId || null, project_id: null, ade_id: routedChoice ? null : selectedAde, ade_ids: team.length > 1 ? team : undefined, task_ades: Object.keys(taskAdes).length ? taskAdes : undefined, max_workers: routedChoice ? 1 : workers, verification_commands: runChecks.split(/\r?\n/).map((command) => command.trim()).filter(Boolean) };
       const facts: ReviewedDemandFacts = {
         task_kind: reviewedTaskKind,
         context_complete: reviewedContextComplete,
@@ -658,7 +683,7 @@
 
   const planSummary = $derived(
     plan
-      ? `${plan.tasks.length} task${plan.tasks.length === 1 ? "" : "s"} · ${plan.waves.length} step${plan.waves.length === 1 ? "" : "s"} · ${[...new Set(plan.tasks.map((t) => t.agent))].join(" + ") || "no agent assigned"}`
+      ? `${plan.tasks.length} task${plan.tasks.length === 1 ? "" : "s"} · ${plan.waves.length} step${plan.waves.length === 1 ? "" : "s"} · ${[...new Set(plan.tasks.map((t) => adeName(t.ade_id ?? plan!.ade.requested)))].join(" + ") || "no agent assigned"}`
       : "",
   );
 
@@ -830,7 +855,7 @@
     {#if domains.length}
       <div class="composer-context">
         <label><span>Project</span><select bind:value={selectedDomainId} aria-label="Project">{#if !selectedDomainId}<option value="" disabled>Select a project</option>{/if}{#each domains as domain}<option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}{domain.project_id ? " · primary folder" : ""}</option>{/each}</select></label>
-        <label><span>Agent</span><select value={selectedAde} onchange={(event) => chooseAde(event.currentTarget.value)} aria-label="Agent CLI" disabled={adeLoading || (!adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable)}>{#if adeLoading}<option value="">Checking detected CLIs…</option>{:else if !adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable}<option value="">No ready CLI detected</option>{:else}{#if !selectedAde}<option value="" disabled>Select a ready CLI</option>{/if}<optgroup label="Beta starting point">{#each adeClis.filter(cli => cli.id === "codex") as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup><optgroup label="Additional agents">{#each adeClis.filter(cli => cli.id !== "codex") as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup>{#if experimentalClaudeAvailable || experimentalHostedAvailable}<optgroup label="Experimental">{#if experimentalClaudeAvailable}<option value={CLAUDE_ROUTE_CHOICE}>Claude proposal route · subscription</option>{/if}{#if experimentalHostedAvailable}<option value={CLAUDE_HOSTED_CHOICE}>Hosted Routing packet review · no run</option>{/if}</optgroup>{/if}{/if}</select></label>
+        <label><span>Agent</span><select value={selectedAde} onchange={(event) => chooseAde(event.currentTarget.value)} aria-label="Agent CLI" disabled={adeLoading || (!adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable)}>{#if adeLoading}<option value="">Checking detected CLIs…</option>{:else if !adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable}<option value="">No ready CLI detected</option>{:else}{#if !selectedAde}<option value="" disabled>Select a ready CLI</option>{/if}<optgroup label="Beta agents">{#each adeClis.filter(cli => isBetaAde(cli.id)) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup><optgroup label="Additional agents">{#each adeClis.filter(cli => !isBetaAde(cli.id)) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup>{#if experimentalClaudeAvailable || experimentalHostedAvailable}<optgroup label="Experimental">{#if experimentalClaudeAvailable}<option value={CLAUDE_ROUTE_CHOICE}>Claude proposal route · subscription</option>{/if}{#if experimentalHostedAvailable}<option value={CLAUDE_HOSTED_CHOICE}>Hosted Routing packet review · no run</option>{/if}</optgroup>{/if}{/if}</select></label>
       </div>
     {/if}
   </header>
@@ -971,8 +996,27 @@
         {/if}
         <button class="quiet" onclick={loadAdeClis} disabled={adeLoading || planning || dispatching}>{adeLoading ? "Checking…" : "Check again"}</button>
         </div>
-        <p>{selectedAde === CLAUDE_HOSTED_CHOICE ? "Review the redacted packet and optional account grant. This path cannot run an agent or send a Jev request." : selectedAde === CLAUDE_ROUTE_CHOICE ? "A Claude subscription worker proposes a one-file change. Run checks the account and both models before starting; these probes may consume quota." : "One worker runs the approved tasks in order. Installed and signed in means ready to try; a successful run validates execution."}</p>
-        {#if selectedAde && selectedAde !== "codex" && selectedAde !== CLAUDE_ROUTE_CHOICE && selectedAde !== CLAUDE_HOSTED_CHOICE}<p>Your agent selection is preserved. Desktop Beta runs Codex; select Codex to start a beta run.</p>{/if}
+        {#if !routedChoice && selectedAde && teamCandidates.length}
+          <fieldset class="agent-team">
+            <legend>Also put to work</legend>
+            {#each teamCandidates as cli (cli.id)}
+              <label class="team-chip" class:on={teamAdes.includes(cli.id)}><input type="checkbox" checked={teamAdes.includes(cli.id)} onchange={() => toggleTeamAde(cli.id)} /><AdeIdentity id={cli.id} />{cli.display_name}</label>
+            {/each}
+          </fieldset>
+        {/if}
+        {#if !routedChoice}
+          <div class="workers-row">
+            <span id="workers-label">At most at once</span>
+            <div class="stepper" role="group" aria-labelledby="workers-label">
+              <button aria-label="Fewer workers at once" disabled={workers <= 1} onclick={() => stepWorkers(-1)}>−</button>
+              <output aria-live="polite">{workers}</output>
+              <button aria-label="More workers at once" disabled={workers >= DESKTOP_BETA_MAX_WORKERS} onclick={() => stepWorkers(1)}>+</button>
+            </div>
+            <small>Up to {DESKTOP_BETA_MAX_WORKERS}. Tasks that share files never run together.</small>
+          </div>
+        {/if}
+        <p>{selectedAde === CLAUDE_HOSTED_CHOICE ? "Review the redacted packet and optional account grant. This path cannot run an agent or send a Jev request." : selectedAde === CLAUDE_ROUTE_CHOICE ? "A Claude subscription worker proposes a one-file change. Run checks the account and both models before starting; these probes may consume quota." : team.length > 1 ? `${team.length} agents share the tasks, each in its own isolated copy. Installed and signed in means ready to try; a successful run validates execution.` : "Each task runs in its own isolated copy. Installed and signed in means ready to try; a successful run validates execution."}</p>
+        {#if selectedAde && !routedChoice && !isBetaAde(selectedAde)}<p>Your agent selection is preserved. Desktop Beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity; choose one of those to start a beta run.</p>{/if}
         {#if unavailableAdes.length}
           <details><summary>{unavailableAdes.length} other CLI{unavailableAdes.length === 1 ? "" : "s"} unavailable</summary><ul>{#each unavailableAdes as cli}<li>{cli.display_name} · {adeUnavailableReason(cli)}</li>{/each}</ul></details>
         {/if}
@@ -1024,6 +1068,15 @@
                     <b>{String(plan.tasks.findIndex(item => item.id === taskId) + 1).padStart(2, "0")}</b>
                     <div class="plan-task">
                       <label><span>{task.id} · {task.agent}</span><textarea aria-label={`Task ${task.id} prompt`} rows="2" value={task.prompt || task.id} readonly={!!plan.routing} oninput={(event) => editTask(task.id, event.currentTarget.value)}></textarea></label>
+                      {#if !plan.routing}
+                        {@const taskAde = task.ade_id ?? plan.ade.requested}
+                        <div class="task-agent">
+                          {#if taskAde}<AdeIdentity id={taskAde} />{/if}
+                          {#if team.length > 1}
+                            <select aria-label={`Agent for ${task.id}`} value={taskAdes[task.id] ?? taskAde} onchange={(event) => taskAdes = { ...taskAdes, [task.id]: event.currentTarget.value }}>{#each team as id}<option value={id}>{adeName(id)}</option>{/each}</select>
+                          {:else}<span>{adeName(taskAde)}</span>{/if}
+                        </div>
+                      {/if}
                       <small class="task-paths">{task.paths.join(", ") || "No ownership paths reported"}</small>
                       <small class="task-dependencies">{task.dependencies.length ? `After ${task.dependencies.join(", ")}` : "No task dependencies"}</small>
                     </div>
@@ -1209,4 +1262,19 @@
     font: 12px/1.5 var(--pytxo-font-ui);
     text-align: left;
   }
+  .agent-team { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 0; border: 0; }
+  .agent-team legend { width: 100%; margin-bottom: 8px; color: var(--pytxo-text-muted); font: 500 11px var(--pytxo-font-mono, "IBM Plex Mono", monospace); letter-spacing: .06em; text-transform: uppercase; }
+  .team-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px 0 10px; border: 1px solid var(--pytxo-line); border-radius: 8px; background: var(--pytxo-surface-panel); color: var(--pytxo-text-body); font-size: 13px; cursor: pointer; transition: border-color 140ms ease, background-color 140ms ease; }
+  .team-chip:hover { border-color: var(--pytxo-text-muted); }
+  .team-chip.on { border-color: color-mix(in srgb, var(--pytxo-activity) 55%, var(--pytxo-line)); background: color-mix(in srgb, var(--pytxo-activity) 8%, var(--pytxo-surface-panel)); color: var(--pytxo-text-strong); }
+  .team-chip input { width: 15px; height: 15px; margin: 0; accent-color: var(--pytxo-activity); }
+  .team-chip:has(input:focus-visible) { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }
+  .workers-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; font-size: 13px; color: var(--pytxo-text-body); }
+  .workers-row small { color: var(--pytxo-text-muted); font-size: 12px; }
+  .stepper { display: inline-flex; border: 1px solid var(--pytxo-line); border-radius: 8px; overflow: hidden; }
+  .stepper button { width: 34px; min-height: 34px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--pytxo-text-body); font-size: 16px; }
+  .stepper button:disabled { opacity: .35; }
+  .stepper output { display: grid; place-items: center; min-width: 40px; border-inline: 1px solid var(--pytxo-line); color: var(--pytxo-text-strong); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .task-agent { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: var(--pytxo-text-strong); font-size: 13px; font-weight: 600; }
+  .task-agent select { min-height: 30px; font-size: 13px; }
 </style>

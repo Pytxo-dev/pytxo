@@ -9,7 +9,7 @@ for (const width of [1280, 860]) {
     await page.getByRole("button", { name: "Agents & permissions", exact: true }).click();
     const codex = page.getByRole("group", { name: "OpenAI Codex", exact: true });
     await expect(codex).toBeVisible();
-    await expect(page.locator(".agent-row:visible")).toHaveCount(1);
+    await expect(page.locator(".agent-row:visible")).toHaveCount(5);
     await expect(codex.getByText("Installation", { exact: true })).toBeVisible();
     await expect(codex.getByText("Agent account", { exact: true })).toBeVisible();
     await expect(codex.getByRole("button", { name: "Use in new work" })).toBeInViewport();
@@ -20,7 +20,7 @@ for (const width of [1280, 860]) {
     await codex.getByRole("button", { name: "Use in new work" }).click();
     const picker = page.getByLabel("Agent CLI", { exact: true });
     await expect(picker).toHaveValue("codex");
-    await expect(picker.locator('optgroup[label="Beta starting point"] option')).toHaveCount(1);
+    await expect(picker.locator('optgroup[label="Beta agents"] option')).toHaveCount(5);
     await expect(picker.locator('optgroup[label="Additional agents"] option')).not.toHaveCount(0);
   });
 }

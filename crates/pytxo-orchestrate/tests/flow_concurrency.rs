@@ -75,6 +75,8 @@ async fn dispatch_preserves_reviewed_single_worker_waves() {
             domain_id: Some(repo.to_string_lossy().into_owned()),
             project_id: None,
             ade_id: Some("codex".into()),
+            ade_ids: Vec::new(),
+            task_ades: Default::default(),
             max_workers: Some(1),
             verification_commands: vec![],
         },

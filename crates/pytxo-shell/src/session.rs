@@ -363,7 +363,20 @@ mod tests {
     use super::*;
     use crate::command::parse_line;
 
+    /// Trust and catalog writes go to one throwaway home per test process,
+    /// never the developer's real `~/.pytxo`.
+    fn isolate_home() {
+        static HOME: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+        HOME.get_or_init(|| {
+            let home = std::env::temp_dir().join(format!("pytxo-test-home-{}", std::process::id()));
+            std::fs::create_dir_all(&home).expect("isolated PYTXO_HOME");
+            std::env::set_var("PYTXO_HOME", &home);
+            home
+        });
+    }
+
     fn trust_cwd(session: &mut ShellSession) {
+        isolate_home();
         let _ = pytxo_orchestrate::trust_repo(&session.repo, pytxo_core::PermissionProfile::Orbit);
     }
 
@@ -399,7 +412,10 @@ mod tests {
         assert!(use_cursor
             .iter()
             .any(|e| { matches!(e, ShellEvent::Output(s) if s.contains("cursor-agent")) }));
-        assert_eq!(session.default_cmd, "cursor-agent -p --trust");
+        assert_eq!(
+            session.default_cmd,
+            "cursor-agent -p --trust --output-format text"
+        );
         let dry = session.handle(parse_line("/dry-run")).await;
         assert!(dry
             .iter()

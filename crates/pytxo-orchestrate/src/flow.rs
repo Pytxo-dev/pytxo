@@ -16,8 +16,8 @@ use pytxo_core::routing::{
     ExecutableIdentity, MissionAuthorization, RoutingMode, TaskContract,
 };
 use pytxo_core::{
-    ade_can_dispatch, ade_on_path, all_ade_clis, resolve_ade, ExecutionBackend, PermissionProfile,
-    PytxoConfig, Task, TaskId,
+    ade_can_dispatch, ade_on_path, all_ade_clis, resolve_ade, AdeCliSpec, ExecutionBackend,
+    PermissionProfile, PytxoConfig, Task, TaskId,
 };
 use pytxo_core::{DomainId, PytxoError, RunId};
 use pytxo_planner::advisor::{
@@ -115,6 +115,13 @@ pub struct FlowDraftInput {
     pub project_id: Option<String>,
     /// Optional ADE explicitly selected by Desktop. If selected, it must be registered and on PATH.
     pub ade_id: Option<String>,
+    /// Mixed-CLI selection in assignment order. When non-empty it replaces `ade_id`;
+    /// tasks are assigned round-robin in planned order.
+    #[serde(default)]
+    pub ade_ids: Vec<String>,
+    /// Explicit per-task CLI choices (task id → ADE id), validated like `ade_ids`.
+    #[serde(default)]
+    pub task_ades: HashMap<String, String>,
     /// Explicit per-run concurrency; omitted CLI requests retain repository configuration.
     #[serde(default)]
     pub max_workers: Option<usize>,
@@ -133,6 +140,10 @@ pub struct FlowPlanTask {
     pub root: Option<String>,
     #[serde(default)]
     pub verify: Vec<String>,
+    /// Reviewed CLI for this task. Absent in single-CLI and legacy plans, which
+    /// use `FlowPlan.ade.requested`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ade_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1925,10 +1936,12 @@ fn preview_flow_scoped(
     let (mut cfg, ceiling_blocker) =
         apply_flow_permission_ceiling(&cfg, entitlements.permission_ceiling);
     if let Some(workers) = input.max_workers {
-        if workers == 0 || workers > cfg.max_agents {
+        // An explicit per-run choice is bounded by the tier limit; the
+        // repository's max_agents is only the default for unattended runs.
+        if workers == 0 || workers > cfg.tier_max_agents {
             bail!(
-                "Requested workers must be between 1 and the configured limit ({})",
-                cfg.max_agents
+                "Requested workers must be between 1 and the tier limit ({})",
+                cfg.tier_max_agents
             );
         }
         cfg.max_agents = workers;
@@ -1974,12 +1987,20 @@ fn preview_flow_scoped(
     let mut blocked_reasons = validate_task_claims(&planned.tasks, input.project_id.as_deref());
     blocked_reasons.extend(ceiling_blocker);
     blocked_reasons.extend(validate_permission_scope(&planned.tasks, &cfg));
+    // Mixed-CLI plans record one reviewed CLI per task; single-CLI plans keep
+    // the plan-level selection so their persisted shape is unchanged.
+    let task_ades = if routed {
+        HashMap::new()
+    } else {
+        assign_task_ades(&planned.tasks, &input)
+    };
     if desktop_beta {
-        blocked_reasons.extend(desktop_beta_blockers(
-            &cfg,
-            &planned.tasks,
-            input.ade_id.as_deref(),
-        ));
+        let assigned: Vec<&str> = if task_ades.is_empty() {
+            input.ade_id.as_deref().into_iter().collect()
+        } else {
+            task_ades.values().map(String::as_str).collect()
+        };
+        blocked_reasons.extend(desktop_beta_blockers(&cfg, &planned.tasks, &assigned));
     }
     let checkout_check = if routed {
         observe_experimental_routed_git_base(&repo).map(|_| ())
@@ -2023,13 +2044,26 @@ fn preview_flow_scoped(
             command: None,
         }
     } else {
-        summarize_ade(input.ade_id.as_deref())
+        summarize_ade(selected_ades(&input).first().map(String::as_str))
     };
     if !ade.available && !routed {
         blocked_reasons.push(FlowBlockedReason::AdeUnavailable {
-            ade_id: input.ade_id.clone().unwrap_or_else(|| "any".into()),
+            ade_id: ade.requested.clone().unwrap_or_else(|| "any".into()),
         });
     }
+    let mut unavailable: Vec<&String> = task_ades
+        .values()
+        .filter(|id| {
+            Some(id.as_str()) != ade.requested.as_deref() && !summarize_ade(Some(id)).available
+        })
+        .collect();
+    unavailable.sort();
+    unavailable.dedup();
+    blocked_reasons.extend(
+        unavailable
+            .into_iter()
+            .map(|id| FlowBlockedReason::AdeUnavailable { ade_id: id.clone() }),
+    );
     let mut warnings: Vec<FlowWarning> = execution
         .warnings
         .iter()
@@ -2074,6 +2108,7 @@ fn preview_flow_scoped(
             dependencies: task.depends_on.clone(),
             root: task.root.clone(),
             verify: task.verify.clone(),
+            ade_id: task_ades.get(&task.id.0).cloned(),
         })
         .collect();
     let waves = execution
@@ -2241,6 +2276,7 @@ pub fn save_reviewed_flow_plan(catalog: &Catalog, reviewed: FlowPlan) -> anyhow:
             || edited.dependencies != task.dependencies
             || edited.root != task.root
             || edited.verify != task.verify
+            || edited.ade_id != task.ade_id
         {
             bail!("Flow plan structure changed; generate a new preview");
         }
@@ -4367,7 +4403,7 @@ fn dispatch_flow_scoped(
     if experimental_routed && cfg.requested_permission_profile != Some(PermissionProfile::Orbit) {
         bail!("routed Flow requested permission profile changed; generate a new preview");
     }
-    if plan.max_workers == 0 || plan.max_workers > cfg.max_agents {
+    if plan.max_workers == 0 || plan.max_workers > cfg.tier_max_agents {
         bail!(
             "Flow worker limit is missing or exceeds current configuration; generate a new preview"
         );
@@ -4396,7 +4432,7 @@ fn dispatch_flow_scoped(
         bail!("experimental routed Flow requires Orbit for every task");
     }
     if desktop_beta {
-        let blockers = desktop_beta_blockers(&cfg, &tasks, plan.ade.requested.as_deref());
+        let blockers = desktop_beta_blockers(&cfg, &tasks, &plan_ade_ids(&plan));
         if !blockers.is_empty() {
             bail!(
                 "Desktop Beta cannot start this plan: {}",
@@ -4433,6 +4469,16 @@ fn dispatch_flow_scoped(
     } else {
         validate_flow_checkout(&repo, &tasks, &cfg)?;
     }
+    let dispatchable = |ade_id: &str| -> anyhow::Result<&'static AdeCliSpec> {
+        let ade = resolve_ade(ade_id).context("selected Flow ADE is not registered")?;
+        if !ade_can_dispatch(ade) {
+            bail!("selected Flow ADE is detection-only until its permission model is mapped: {ade_id}");
+        }
+        if !ade_on_path(ade) {
+            bail!("selected Flow ADE is unavailable: {ade_id}");
+        }
+        Ok(ade)
+    };
     let ade = if experimental_routed {
         None
     } else {
@@ -4441,15 +4487,31 @@ fn dispatch_flow_scoped(
             .requested
             .as_deref()
             .context("Flow dispatch requires a selected ADE; generate a new preview")?;
-        let ade = resolve_ade(ade_id).context("selected Flow ADE is not registered")?;
-        if !ade_can_dispatch(ade) {
-            bail!("selected Flow ADE is detection-only until its permission model is mapped: {ade_id}");
-        }
-        if !ade_on_path(ade) {
-            bail!("selected Flow ADE is unavailable: {ade_id}");
-        }
-        Some(ade)
+        Some(dispatchable(ade_id)?)
     };
+    // Mixed-CLI plans: every task runs exactly its reviewed CLI.
+    let task_commands =
+        if experimental_routed || plan.tasks.iter().all(|task| task.ade_id.is_none()) {
+            None
+        } else {
+            let mut commands = HashMap::new();
+            for task in &plan.tasks {
+                let ade_id = task
+                    .ade_id
+                    .as_deref()
+                    .or(plan.ade.requested.as_deref())
+                    .context("Flow task has no reviewed CLI; generate a new preview")?;
+                let ade = dispatchable(ade_id)?;
+                commands.insert(
+                    task.id.clone(),
+                    pytxo_runner::TaskCommand {
+                        launcher: ade.default_cmd.to_string(),
+                        template: ade_prompt_command(ade.default_cmd),
+                    },
+                );
+            }
+            Some(pytxo_runner::TaskCommandTemplate::PerTask(commands))
+        };
     ensure_repo_trusted(&repo)?;
     #[cfg(windows)]
     let routed_store_guard = if experimental_routed {
@@ -4682,7 +4744,9 @@ fn dispatch_flow_scoped(
             execution: None,
             project: None,
             tasks: Some(tasks),
-            task_cmd_template: Some(ade_prompt_command(ade.default_cmd)),
+            task_cmd_template: Some(
+                task_commands.unwrap_or_else(|| ade_prompt_command(ade.default_cmd).into()),
+            ),
             task_prompts: Some(prompts),
         },
         cfg,
@@ -4830,17 +4894,79 @@ fn validate_flow_checkout(repo: &Path, tasks: &[Task], cfg: &PytxoConfig) -> any
     Ok(())
 }
 
+/// CLIs whose headless edit mode has been proven inside Pytxo isolation.
+const DESKTOP_BETA_ADES: &[&str] = &["codex", "claude", "cursor", "opencode", "agy"];
+const DESKTOP_BETA_MAX_WORKERS: usize = 8;
+
+/// Selected CLIs in assignment order: the multi-select, else the single choice.
+fn selected_ades(input: &FlowDraftInput) -> Vec<String> {
+    let ids = if input.ade_ids.is_empty() {
+        input.ade_id.iter().cloned().collect()
+    } else {
+        input.ade_ids.clone()
+    };
+    ids.into_iter()
+        .map(|id| resolve_ade(&id).map_or(id, |spec| spec.id.to_string()))
+        .collect()
+}
+
+/// Round-robin assignment over planned task order, with explicit per-task
+/// choices. Empty for single-CLI plans, which keep the plan-level selection.
+fn assign_task_ades(tasks: &[Task], input: &FlowDraftInput) -> HashMap<String, String> {
+    let selected = selected_ades(input);
+    if selected.len() < 2 && input.task_ades.is_empty() {
+        return HashMap::new();
+    }
+    tasks
+        .iter()
+        .enumerate()
+        .filter_map(|(index, task)| {
+            input
+                .task_ades
+                .get(&task.id.0)
+                .map(|id| resolve_ade(id).map_or(id.clone(), |spec| spec.id.to_string()))
+                .or_else(|| {
+                    (!selected.is_empty()).then(|| selected[index % selected.len()].clone())
+                })
+                .map(|ade| (task.id.0.clone(), ade))
+        })
+        .collect()
+}
+
+/// Every CLI a reviewed plan dispatches: per-task choices, else the plan-level one.
+fn plan_ade_ids(plan: &FlowPlan) -> Vec<&str> {
+    if plan.tasks.iter().any(|task| task.ade_id.is_some()) {
+        plan.tasks
+            .iter()
+            .map(|task| {
+                task.ade_id
+                    .as_deref()
+                    .or(plan.ade.requested.as_deref())
+                    .unwrap_or("")
+            })
+            .collect()
+    } else {
+        plan.ade.requested.as_deref().into_iter().collect()
+    }
+}
+
 fn desktop_beta_blockers(
     cfg: &PytxoConfig,
     tasks: &[Task],
-    ade_id: Option<&str>,
+    ade_ids: &[&str],
 ) -> Vec<FlowBlockedReason> {
     let mut messages = Vec::new();
-    if ade_id != Some("codex") {
-        messages.push("Desktop Beta runs Codex. Select Codex and build a new plan.");
+    if ade_ids.is_empty()
+        || ade_ids
+            .iter()
+            .any(|id| !resolve_ade(id).is_some_and(|spec| DESKTOP_BETA_ADES.contains(&spec.id)))
+    {
+        messages.push("Desktop Beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity. Choose from those agents and build a new plan.");
     }
-    if cfg.max_agents != 1 {
-        messages.push("Desktop Beta runs one worker. Build a new plan with one worker.");
+    if cfg.max_agents == 0 || cfg.max_agents > DESKTOP_BETA_MAX_WORKERS {
+        messages.push(
+            "Desktop Beta runs one to eight workers at once. Build a new plan within that limit.",
+        );
     }
     if cfg.execution_backend != pytxo_core::ExecutionBackend::Pty {
         messages.push("Desktop Beta requires local PTY execution. Set execution_backend = \"pty\" in this repository's pytxo.toml and build a new plan.");
@@ -4962,6 +5088,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn mixed_cli_selection_assigns_tasks_round_robin_with_overrides() {
+        let task = |id: &str| Task {
+            id: TaskId(id.into()),
+            agent: format!("agent-{id}"),
+            paths: vec![format!("{id}.rs")],
+            depends_on: vec![],
+            root: None,
+            signal_fidelity: None,
+            verify: vec![],
+        };
+        let tasks = [task("a"), task("b"), task("c")];
+        let mut input = FlowDraftInput {
+            id: "draft".into(),
+            title: "t".into(),
+            mission_text: "m".into(),
+            source: FlowSource::Text,
+            domain_id: None,
+            project_id: None,
+            ade_id: None,
+            ade_ids: vec!["codex".into(), "claude_code".into()],
+            task_ades: HashMap::new(),
+            max_workers: None,
+            verification_commands: vec![],
+        };
+        let assigned = assign_task_ades(&tasks, &input);
+        assert_eq!(
+            [&assigned["a"], &assigned["b"], &assigned["c"]],
+            ["codex", "claude", "codex"]
+        );
+        input.task_ades.insert("c".into(), "antigravity".into());
+        assert_eq!(assign_task_ades(&tasks, &input)["c"], "agy");
+        input.ade_ids = vec!["codex".into()];
+        input.task_ades.clear();
+        assert!(
+            assign_task_ades(&tasks, &input).is_empty(),
+            "a single CLI keeps the plan-level selection"
+        );
+    }
+
+    #[test]
     fn routed_store_locator_must_share_native_launch_gate_directory() {
         let data_dir = Path::new("/pytxo/data");
         assert!(
@@ -5053,6 +5219,7 @@ mod tests {
             dependencies: vec![],
             root: None,
             verify: vec!["git status --porcelain".into()],
+            ade_id: None,
         };
         let mut plan = FlowPlan {
             draft_id: "draft".into(),
@@ -5153,6 +5320,7 @@ mod tests {
             dependencies: vec![],
             root: None,
             verify: vec!["if exist result.txt (exit /b 0) else (exit /b 1)".into()],
+            ade_id: None,
         };
         let plan = FlowPlan {
             draft_id: "claude-review".into(),
@@ -5337,11 +5505,21 @@ mod tests {
             verify: vec!["cargo test".into()],
         }];
         assert_eq!(cfg.permission_profile, PermissionProfile::Orbit);
-        assert!(desktop_beta_blockers(&cfg, &tasks, Some("codex")).iter().any(|reason|
+        assert!(desktop_beta_blockers(&cfg, &tasks, &["codex"]).iter().any(|reason|
             matches!(reason, FlowBlockedReason::PermissionViolation { message } if message.contains("every worker"))));
-        for adapter in [None, Some("claude"), Some("gemini")] {
-            assert!(desktop_beta_blockers(&cfg, &[], adapter).iter().any(|reason|
-                matches!(reason, FlowBlockedReason::PermissionViolation { message } if message.contains("runs Codex"))));
+        let rejects_agents = |adapters: &[&str]| {
+            desktop_beta_blockers(&cfg, &[], adapters).iter().any(|reason|
+            matches!(reason, FlowBlockedReason::PermissionViolation { message } if message.contains("Choose from those agents")))
+        };
+        // Gemini CLI's individual tier is retired; unproven or missing CLIs stay out.
+        for adapters in [&[][..], &["gemini"][..], &["codex", "gemini"][..]] {
+            assert!(rejects_agents(adapters), "{adapters:?}");
+        }
+        for adapters in [
+            &["claude"][..],
+            &["codex", "claude", "cursor", "opencode", "agy"][..],
+        ] {
+            assert!(!rejects_agents(adapters), "{adapters:?}");
         }
     }
 
@@ -5500,7 +5678,7 @@ if (args.at(-1) === '-') {
             worktree_base: repo.join(".pytxo/worktrees"),
             data_dir: data_dir.clone(),
             cmd: default_cmd.into(),
-            task_cmd_template: Some(command),
+            task_cmd_template: Some(command.into()),
             task_prompts: HashMap::from([("task".into(), original.into())]),
             keep_worktrees: true,
             on_event: Some(Arc::new(move |_, kind, payload| {

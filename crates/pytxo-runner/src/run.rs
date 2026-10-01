@@ -103,7 +103,7 @@ pub struct RunContext {
     pub cmd: String,
     /// When set, expands non-prompt metadata via [`resolve_cmd_for_task`]. Prompt text is passed
     /// separately in `PYTXO_TASK_PROMPT` and cannot be interpolated into shell syntax.
-    pub task_cmd_template: Option<String>,
+    pub task_cmd_template: Option<TaskCommandTemplate>,
     pub task_prompts: HashMap<String, String>,
     pub keep_worktrees: bool,
     pub on_event: Option<EventCallback>,
@@ -158,6 +158,59 @@ pub struct RunContext {
     pub mcp_allowlist: Vec<String>,
     /// `[blast].sparse_exclude` from config (overlay sparse copy / cloud sync).
     pub sparse_exclude: Vec<String>,
+}
+
+/// How each scheduled task's command is chosen.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TaskCommandTemplate {
+    /// One template for every task.
+    Shared(String),
+    /// Mixed CLIs: every task id maps to its own command. A task without an
+    /// entry is refused rather than silently falling back to another CLI.
+    PerTask(HashMap<String, TaskCommand>),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TaskCommand {
+    /// The registry command recorded as the agent's launcher identity.
+    pub launcher: String,
+    /// The template expanded by [`resolve_cmd_for_task`].
+    pub template: String,
+}
+
+impl TaskCommandTemplate {
+    /// The template for one task; a mixed-CLI run refuses tasks it did not review.
+    pub fn template_for(&self, task_id: &str) -> Result<&str> {
+        match self {
+            Self::Shared(template) => Ok(template),
+            Self::PerTask(commands) => commands
+                .get(task_id)
+                .map(|command| command.template.as_str())
+                .ok_or_else(|| {
+                    PytxoError::Runner(format!("no reviewed command for task {task_id}"))
+                }),
+        }
+    }
+
+    /// Launcher recorded for a task, when it differs from the run-level command.
+    pub fn launcher_for(&self, task_id: &str) -> Option<&str> {
+        match self {
+            Self::Shared(_) => None,
+            Self::PerTask(commands) => commands.get(task_id).map(|c| c.launcher.as_str()),
+        }
+    }
+}
+
+impl From<String> for TaskCommandTemplate {
+    fn from(template: String) -> Self {
+        Self::Shared(template)
+    }
+}
+
+impl From<&str> for TaskCommandTemplate {
+    fn from(template: &str) -> Self {
+        Self::Shared(template.to_string())
+    }
 }
 
 impl RunContext {
@@ -2129,6 +2182,27 @@ fn task_handoff_metadata(value: &str) -> String {
     encoded
 }
 
+#[test]
+fn per_task_commands_select_each_cli_and_refuse_unreviewed_tasks() {
+    let command = |launcher: &str| TaskCommand {
+        launcher: launcher.into(),
+        template: format!("{launcher} --task {{task_id}}"),
+    };
+    let templates = TaskCommandTemplate::PerTask(HashMap::from([
+        ("a".to_string(), command("codex exec")),
+        ("b".to_string(), command("claude -p")),
+    ]));
+    assert_eq!(
+        templates.template_for("b").unwrap(),
+        "claude -p --task {task_id}"
+    );
+    assert_eq!(templates.launcher_for("a"), Some("codex exec"));
+    assert!(templates.template_for("c").is_err());
+    let shared = TaskCommandTemplate::from("opencode run");
+    assert_eq!(shared.template_for("anything").unwrap(), "opencode run");
+    assert_eq!(shared.launcher_for("anything"), None);
+}
+
 #[cfg(all(test, windows))]
 #[test]
 fn windows_task_handoff_metadata_preserves_unusual_values_without_shell_syntax() {
@@ -2150,7 +2224,12 @@ fn windows_task_handoff_metadata_preserves_unusual_values_without_shell_syntax()
 
 /// Resolve the shell command for one scheduled task (Hypervisor Shell templates).
 pub fn resolve_cmd_for_task(ctx: &RunContext, task: &pytxo_core::ScheduledTask) -> Result<String> {
-    if let Some(template) = &ctx.task_cmd_template {
+    let template = ctx
+        .task_cmd_template
+        .as_ref()
+        .map(|templates| templates.template_for(&task.task_id.0))
+        .transpose()?;
+    if let Some(template) = template {
         if template.contains("{prompt}") {
             return Err(PytxoError::Runner(
                 "raw {prompt} shell interpolation is forbidden; use PYTXO_TASK_PROMPT".into(),

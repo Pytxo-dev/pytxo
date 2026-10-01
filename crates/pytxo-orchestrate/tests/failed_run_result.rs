@@ -92,7 +92,7 @@ async fn fail_fast_false_settles_failed_and_returns_error_after_independent_work
                 task("dependent", &["upstream"]),
                 task("independent", &[]),
             ]),
-            task_cmd_template: Some(partial_then_fail_command()),
+            task_cmd_template: Some(partial_then_fail_command().into()),
             task_prompts: None,
         })
         .await

@@ -127,7 +127,8 @@ pub struct RunOptions {
     pub tasks: Option<Vec<Task>>,
     /// Per-agent command template: `{task_id}`, `{agent}`, `{paths}`, `{wave}`. Task prompts are
     /// supplied separately as `PYTXO_TASK_PROMPT`; raw shell interpolation is forbidden.
-    pub task_cmd_template: Option<String>,
+    /// Mixed-CLI runs supply one reviewed command per task.
+    pub task_cmd_template: Option<pytxo_runner::TaskCommandTemplate>,
     /// Per-task prompt text keyed by task id (used with `task_cmd_template`).
     pub task_prompts: Option<std::collections::HashMap<String, String>>,
 }
@@ -1998,6 +1999,7 @@ pub(crate) async fn execute_run_body(
         .collect();
     let event_run_id = run_id.0.clone();
     let event_command = opts.cmd.clone();
+    let event_templates = opts.task_cmd_template.clone();
     let on_event = Arc::new(move |agent_key: &str, kind: &str, line: &str| {
         let payload = if sanitize {
             #[cfg(feature = "sanitize")]
@@ -2020,13 +2022,17 @@ pub(crate) async fn execute_run_body(
                 // its first event, before writing evidence, rather than waiting
                 // until the entire plan has finished. Unstarted tasks stay absent.
                 if guard.get_agent(agent_key)?.is_none() {
+                    let launcher = event_templates
+                        .as_ref()
+                        .and_then(|templates| templates.launcher_for(&task.task_id.0))
+                        .unwrap_or(&event_command);
                     guard.insert_agent_with_root(
                         agent_key,
                         &event_run_id,
                         &task.task_id.0,
                         task.wave,
                         None,
-                        &event_command,
+                        launcher,
                         task.root.as_deref(),
                     )?;
                 }
@@ -2124,13 +2130,18 @@ pub(crate) async fn execute_run_body(
                 .as_ref()
                 .map(|path| path.to_string_lossy().into_owned());
             if store.get_agent(&agent_key)?.is_none() {
+                let launcher = opts
+                    .task_cmd_template
+                    .as_ref()
+                    .and_then(|templates| templates.launcher_for(&result.task_id))
+                    .unwrap_or(&opts.cmd);
                 store.insert_agent_with_root(
                     &agent_key,
                     &run_id.0,
                     &result.task_id,
                     result.wave,
                     worktree_path.as_deref(),
-                    &opts.cmd,
+                    launcher,
                     result.root_id.as_deref(),
                 )?;
             } else {

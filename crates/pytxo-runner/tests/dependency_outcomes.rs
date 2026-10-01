@@ -77,7 +77,7 @@ fn context(repo: &std::path::Path, command_template: String) -> RunContext {
         worktree_base,
         data_dir,
         cmd: String::new(),
-        task_cmd_template: Some(command_template),
+        task_cmd_template: Some(command_template.into()),
         task_prompts: HashMap::new(),
         keep_worktrees: true,
         on_event: None,

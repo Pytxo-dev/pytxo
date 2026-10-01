@@ -48,7 +48,7 @@ fn desktop_beta_rechecks_general_ready_plans_before_claiming_dispatch() {
     for (config, workers, expected) in [
         ("permission_profile = \"galaxy\"\n", 1, "requires Orbit"),
         ("execution_backend = \"subprocess\"\n", 1, "local PTY"),
-        ("max_agents = 2\n", 2, "one worker"),
+        ("tier_max_agents = 9\n", 9, "one to eight workers"),
     ] {
         let dir = tempfile::tempdir().unwrap();
         seed_mission_path(dir.path());
@@ -90,18 +90,47 @@ fn desktop_beta_accepts_the_scoped_codex_preview() {
     assert_eq!(plan.execution_backend, "pty");
 }
 
+#[test]
+fn desktop_beta_accepts_a_mixed_cli_fleet_with_one_reviewed_cli_per_task() {
+    let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
+    std::fs::write(dir.path().join("src/main.rs"), "fn main() {}\n").unwrap();
+    let mut request = input(dir.path());
+    request.mission_text = "Update src/lib.rs; update src/main.rs".into();
+    request.ade_ids = vec!["codex".into(), "claude".into()];
+    request.max_workers = Some(2);
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let plan = pytxo_orchestrate::preview_desktop_beta_flow(&catalog, request).unwrap();
+    assert_eq!(
+        plan.status,
+        FlowStatus::Ready,
+        "{:#?}",
+        plan.blocked_reasons
+    );
+    assert_eq!(plan.max_workers, 2);
+    let clis: Vec<_> = plan
+        .tasks
+        .iter()
+        .map(|task| task.ade_id.as_deref())
+        .collect();
+    assert_eq!(clis, [Some("codex"), Some("claude")]);
+}
+
 fn ensure_test_ade() {
     TEST_ADE_DIR.get_or_init(|| {
         let dir = tempfile::tempdir().unwrap();
-        #[cfg(windows)]
-        std::fs::write(dir.path().join("codex.cmd"), "@exit /b 0\r\n").unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
+        for cli in ["codex", "claude"] {
+            #[cfg(windows)]
+            std::fs::write(dir.path().join(format!("{cli}.cmd")), "@exit /b 0\r\n").unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
 
-            let executable = dir.path().join("codex");
-            std::fs::write(&executable, "#!/bin/sh\nexit 0\n").unwrap();
-            std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+                let executable = dir.path().join(cli);
+                std::fs::write(&executable, "#!/bin/sh\nexit 0\n").unwrap();
+                std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755))
+                    .unwrap();
+            }
         }
 
         let mut paths = vec![dir.path().to_path_buf()];
@@ -145,6 +174,8 @@ fn input(repo: &std::path::Path) -> FlowDraftInput {
         domain_id: Some(repo.to_string_lossy().into_owned()),
         project_id: None,
         ade_id: Some("codex".into()),
+        ade_ids: Vec::new(),
+        task_ades: Default::default(),
         max_workers: None,
         verification_commands: vec![],
     }

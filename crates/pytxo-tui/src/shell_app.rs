@@ -495,8 +495,21 @@ mod tests {
     use super::run;
     use pytxo_shell::{parse_line, ShellEvent, ShellSession};
 
+    /// Trust and catalog writes go to one throwaway home per test process,
+    /// never the developer's real `~/.pytxo`.
+    fn isolate_home() {
+        static HOME: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+        HOME.get_or_init(|| {
+            let home = std::env::temp_dir().join(format!("pytxo-test-home-{}", std::process::id()));
+            std::fs::create_dir_all(&home).expect("isolated PYTXO_HOME");
+            std::env::set_var("PYTXO_HOME", &home);
+            home
+        });
+    }
+
     #[tokio::test]
     async fn submit_help_does_not_nested_block_on() {
+        isolate_home();
         let mut session = ShellSession::new(None, Some(std::env::current_dir().unwrap())).unwrap();
         let _ = pytxo_orchestrate::trust_repo(&session.repo, pytxo_core::PermissionProfile::Orbit);
         let events = session.handle(parse_line("/help")).await;
@@ -515,6 +528,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_loop_submit_help_via_session() {
+        isolate_home();
         let mut session = ShellSession::new(None, Some(std::env::current_dir().unwrap())).unwrap();
         let _ = pytxo_orchestrate::trust_repo(&session.repo, pytxo_core::PermissionProfile::Orbit);
         let events = session.handle(parse_line("/help")).await;

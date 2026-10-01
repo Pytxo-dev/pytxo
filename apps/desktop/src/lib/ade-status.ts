@@ -1,5 +1,13 @@
 import type { AdeCliStatusDto } from "./types";
 
+/** CLIs Desktop Beta can dispatch; mirrors `DESKTOP_BETA_ADES` in Core. */
+export const DESKTOP_BETA_ADES = ["codex", "claude", "cursor", "opencode", "agy"] as const;
+export const DESKTOP_BETA_MAX_WORKERS = 8;
+
+export function isBetaAde(id: string): boolean {
+  return (DESKTOP_BETA_ADES as readonly string[]).includes(id);
+}
+
 /**
  * Runnable does not always mean that Pytxo verified an account session. Some
  * harnesses deliberately keep authentication opaque and validate it only when

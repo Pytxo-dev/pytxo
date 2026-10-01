@@ -32,12 +32,16 @@ pub struct AdeCliSpec {
     pub detail: &'static str,
 }
 
+// Headless commands were probed on Windows (2026-10-01): print modes cannot
+// prompt, so Claude Code and Antigravity need their accept-edits modes to write
+// inside Pytxo's isolated workspace (shell commands stay gated), and Cursor
+// Agent only exits after finishing when its output format is plain text.
 const REGISTRY: &[AdeCliSpec] = &[
     AdeCliSpec {
         id: "claude",
         display_name: "Claude Code",
         probe_bin: "claude",
-        default_cmd: "claude -p",
+        default_cmd: "claude -p --permission-mode acceptEdits",
         cli_adapter: CliAdapter::ClaudeCode,
         auth_policy: AdeAuthPolicy::VerifiedSession,
         dispatch_policy: AdeDispatchPolicy::Ready,
@@ -49,7 +53,7 @@ const REGISTRY: &[AdeCliSpec] = &[
         id: "agy",
         display_name: "Antigravity",
         probe_bin: "agy",
-        default_cmd: "agy -p",
+        default_cmd: "agy --mode accept-edits -p",
         cli_adapter: CliAdapter::Antigravity,
         auth_policy: AdeAuthPolicy::VendorManaged,
         dispatch_policy: AdeDispatchPolicy::Ready,
@@ -73,7 +77,7 @@ const REGISTRY: &[AdeCliSpec] = &[
         id: "cursor",
         display_name: "Cursor Agent",
         probe_bin: "cursor-agent",
-        default_cmd: "cursor-agent -p --trust",
+        default_cmd: "cursor-agent -p --trust --output-format text",
         cli_adapter: CliAdapter::Generic,
         auth_policy: AdeAuthPolicy::VerifiedSession,
         dispatch_policy: AdeDispatchPolicy::Ready,
@@ -310,9 +314,10 @@ mod tests {
     #[test]
     fn flow_defaults_are_headless_prompt_commands() {
         let expected = [
-            ("claude", "claude -p"),
+            ("claude", "claude -p --permission-mode acceptEdits"),
             ("codex", "codex exec --sandbox workspace-write"),
-            ("cursor", "cursor-agent -p --trust"),
+            ("cursor", "cursor-agent -p --trust --output-format text"),
+            ("agy", "agy --mode accept-edits -p"),
             ("opencode", "opencode run"),
             ("gemini", "gemini --skip-trust -p"),
             ("copilot", "copilot -p"),
