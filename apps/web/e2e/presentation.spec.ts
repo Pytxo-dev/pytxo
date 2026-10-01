@@ -68,51 +68,20 @@ test('homepage explains verification and does not claim coordinated modular Appl
   await expect(page.getByTestId('boundary-section')).toContainText('does not control every host or network side effect');
 });
 
-test('ASCII animation paints, pauses, and respects reduced motion', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  const errors: string[] = [];
-  page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-  await page.goto('/');
-  const glyph = page.getByTestId('ascii-aperture');
-  const pixels = () => glyph.locator('canvas').evaluate(canvas => (canvas as HTMLCanvasElement).toDataURL());
-  await expect(glyph).toHaveAttribute('data-animated', 'true');
-  const first = await pixels();
-  await expect.poll(pixels).not.toBe(first);
-  await glyph.getByRole('button', { name: 'Pause animation' }).click();
-  await expect(glyph).toHaveAttribute('data-animated', 'false');
-  await expect(glyph.locator('svg').first()).toBeVisible();
-  const paused = await pixels();
-  await page.waitForTimeout(200);
-  expect(await pixels()).toBe(paused);
-  await glyph.getByRole('button', { name: 'Play animation' }).click();
-  await expect(glyph).toHaveAttribute('data-animated', 'true');
-  await page.getByTestId('get-it-section').scrollIntoViewIfNeeded();
-  await expect(glyph).toHaveAttribute('data-animated', 'false');
-  await glyph.scrollIntoViewIfNeeded();
-  await expect(glyph).toHaveAttribute('data-animated', 'true');
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await expect(glyph).toHaveAttribute('data-animated', 'false');
-  await expect(glyph.getByRole('button', { name: 'Motion reduced' })).toBeDisabled();
-  expect(errors.filter(error => !error.includes('Clerk'))).toEqual([]);
-});
-
 for (const width of [390, 768, 1280, 1440, 1920]) {
-  test(`ASCII hero and docs stay readable at ${width}`, async ({ page }, testInfo) => {
+  test(`fleet hero and docs stay readable at ${width}`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
-    await expect(page.getByTestId('ascii-aperture').locator('svg').first()).toBeVisible();
-    const heading = await page.getByRole('heading', { level: 1 }).boundingBox();
-    const glyph = await page.getByTestId('ascii-aperture').boundingBox();
-    expect(heading && glyph).toBeTruthy();
-    // The art may share the heading's block, but never its actual text boxes.
-    expect(await page.getByRole('heading', { level: 1 }).evaluate((node, art) => {
-      const range = document.createRange(); range.selectNodeContents(node);
-      return [...range.getClientRects()].some(r => r.right > art!.x && r.left < art!.x + art!.width && r.bottom > art!.y && r.top < art!.y + art!.height);
-    }, glyph)).toBe(false);
+    const heading = page.getByRole('heading', { level: 1 });
+    await expect(heading).toBeInViewport();
+    // The headline must keep a readable size and never run under the fleet capture.
+    expect(parseFloat(await heading.evaluate(node => getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(40);
+    const headingBox = (await heading.boundingBox())!;
+    const fleetBox = (await page.getByTestId('hero-fleet').boundingBox())!;
+    expect(headingBox.y + headingBox.height).toBeLessThan(fleetBox.y);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
-    await page.screenshot({ path: testInfo.outputPath(`ascii-home-${width}.png`), fullPage: true });
+    await page.screenshot({ path: testInfo.outputPath(`fleet-home-${width}.png`), fullPage: true });
     await page.goto('/docs/getting-started/first-mission');
     await expect(page.getByRole('heading', { level: 1, name: 'First mission' })).toBeVisible();
     await expect(page.locator('article')).toContainText('unpublished');

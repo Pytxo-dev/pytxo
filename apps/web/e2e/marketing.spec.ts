@@ -26,12 +26,15 @@ for (const width of [1440, 390]) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     const hero = page.getByTestId("marketing-hero");
-    await expect(hero.getByRole("heading", { level: 1 })).toContainText("Agents do the work.");
-    await expect(hero.getByRole("heading", { level: 1 })).toContainText("You decide what lands.");
-    await expect(hero.getByText(/Give your coding agent a task/)).toBeVisible();
-    await expect(hero.getByRole("link", { name: "Download current v1.2.1" })).toBeInViewport();
-    await expect(hero.getByText("The walkthrough below previews the unpublished v1.2.2 Desktop interface.")).toBeVisible();
-    await expect(hero.getByRole("link", { name: "First mission" })).toHaveAttribute("href", "/docs/getting-started/first-mission");
+    await expect(hero.getByRole("heading", { level: 1 })).toContainText("Every coding agent you have.");
+    await expect(hero.getByRole("heading", { level: 1 })).toContainText("At once.");
+    await expect(hero.getByText(/Pytxo runs Codex, Claude Code, Cursor, OpenCode and Antigravity/)).toBeVisible();
+    await expect(hero.getByRole("link", { name: "Download for Windows" })).toBeInViewport();
+    await expect(hero.getByText("Mixed-CLI runs arrive in v1.2.2. The current download, v1.2.1, runs Codex.")).toBeVisible();
+    await expect(hero.getByRole("link", { name: "Run your first mission" })).toHaveAttribute("href", "/docs/getting-started/first-mission");
+    const agents = hero.getByRole("list", { name: "Agent CLIs Pytxo runs" });
+    for (const name of ["Codex", "Claude Code", "Cursor", "OpenCode", "Antigravity"]) await expect(agents).toContainText(name);
+    await expect(hero.getByTestId("hero-fleet").getByRole("img")).toHaveJSProperty("naturalWidth", 1600);
     await expect(page.getByRole("tab", { name: "Review & Apply" })).toHaveAttribute("aria-selected", "true");
     const walkthrough = page.getByTestId("product-walkthrough");
     await expect(walkthrough.getByText("Unpublished v1.2.2 · browser fixture")).toBeVisible();
@@ -49,7 +52,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByText("Interface previews using browser fixtures, not a recorded mission or proof of execution.")).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: testInfo.outputPath(`launch-home-${width}.png`), fullPage: true });
-    await hero.getByRole("link", { name: "Download current v1.2.1" }).click();
+    await hero.getByRole("link", { name: "Download for Windows" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Download" })).toBeVisible();
     await expect(page.getByText(/Workspace .* is unpublished/)).toBeVisible();
     await expect(page.getByText("The download below installs the current public v1.2.1 build.")).toBeVisible();
@@ -182,7 +185,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-test("chroma aperture identity is monochrome with one static spectrum signature", async ({ page }) => {
+test("chroma identity keeps the spectrum static and limited to its two signatures", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
@@ -193,9 +196,12 @@ test("chroma aperture identity is monochrome with one static spectrum signature"
   expect(font.toLowerCase()).not.toContain("geist");
   expect(headingColor).toBe("rgb(245, 245, 247)");
   await expect(page.locator(".nebula-bg, .chroma-glow")).toHaveCount(0);
-  await expect(page.locator(".chroma-text")).toHaveCount(0);
+  // The approved fleet hero carries the spectrum once in its headline; it never animates.
+  await expect(page.locator(".chroma-text")).toHaveCount(1);
+  await expect(page.locator(".chroma-text")).toHaveText("At once.");
+  expect(await page.locator(".chroma-text").evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
 
-  // The spectrum is a brand signature: exactly one instance, and it never animates.
+  // The walkthrough's execution trace stays the one spectrum rule, and it never animates.
   await expect(page.locator(".execution-trace")).toHaveCount(1);
   const animation = await page
     .locator(".execution-trace")

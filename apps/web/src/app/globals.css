@@ -17,21 +17,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-.ascii-aperture { width: min(100%, 320px); justify-self: center; }
-.ascii-aperture-art { aspect-ratio: 1; position: relative; }
-.ascii-aperture-art svg, .ascii-aperture-art canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.ascii-aperture-art text { font: 500 12px "IBM Plex Mono", monospace; text-anchor: middle; dominant-baseline: central; }
-.ascii-motion-control { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 8px auto 0; min-height: 44px; padding: 8px 12px; font-size: 12px; color: #aaaab3; border-radius: 4px; cursor: pointer; }
-.ascii-motion-control:hover { color: #f5f5f7; background: #ffffff08; }
-.ascii-motion-control:focus-visible { outline: 2px solid #b4b9ff; outline-offset: 4px; }
-.ascii-motion-control:disabled { cursor: default; }
-@media (max-width: 1023px) {
-  .ascii-aperture { position: absolute; right: 0; top: -32px; width: 110px; }
-  .ascii-motion-control { font-size: 0; margin-top: 0; min-width: 44px; }
-  .ascii-motion-control svg { width: 14px; height: 14px; }
-  [data-testid="marketing-hero"] h1 { padding-right: 100px; font-size: clamp(2rem, 6vw, 4rem); }
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

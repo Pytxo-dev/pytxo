@@ -102,7 +102,7 @@ export function ProductWalkthrough() {
                     : event.key === "Home" ? 0 : event.key === "End" ? VIEWS.length - 1 : null;
                   if (target !== null) { event.preventDefault(); select(target); }
                 }}
-                className="relative min-h-12 px-2 py-3 text-xs text-[#a9a9b2] aria-selected:bg-white/[0.04] aria-selected:text-white hover:text-white focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[#a59bff] sm:text-sm"
+                className="relative min-h-12 scroll-mt-24 px-2 py-3 text-xs text-[#a9a9b2] aria-selected:bg-white/[0.04] aria-selected:text-white hover:text-white focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[#a59bff] sm:text-sm"
               >{view.title}</button>
             ))}
           </div>

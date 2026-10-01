@@ -28,6 +28,7 @@ const VIEWPORTS = [
  */
 const ROUTES = [
   { route: "work", heading: "Work", marketing: true },
+  { route: "fleet", heading: "Work", marketing: true },
   { route: "history", heading: "History", marketing: true },
   { route: "flow", heading: "New work", marketing: true },
   { route: "approvals", heading: "Approvals", marketing: true },
@@ -70,11 +71,15 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
           "pytxo-preview-candidate-check-v1": "passed",
           "pytxo-preview-flow-history-v1": "ready",
         }
-      : undefined,
+      : route.route === "fleet"
+        ? { "pytxo-preview-fleet-v1": "1" }
+        : undefined,
   );
   await page.clock.install({ time: new Date("2026-01-15T10:00:00.000Z") });
-  await page.goto(`/#/${route.route}`);
-  if (route.route === "work") await expect(page.getByRole("region", { name: "Work", exact: true }).getByRole("heading", { level: 1 })).toBeVisible();
+  // The fleet capture is the Work view of a mixed-CLI run.
+  await page.goto(`/#/${route.route === "fleet" ? "work" : route.route}`);
+  if (route.route === "fleet") await expect(page.getByTestId("fleet-board").getByRole("log", { name: "Recent output from Claude Code" })).toContainText("Update(");
+  else if (route.route === "work") await expect(page.getByRole("region", { name: "Work", exact: true }).getByRole("heading", { level: 1 })).toBeVisible();
   else await expect(route.route === "run-review" ? page.locator("#run-review-title") : page.getByRole("heading", { name: route.heading, exact: true })).toBeVisible();
 
   if (route.route === "flow") {
