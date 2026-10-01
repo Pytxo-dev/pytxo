@@ -116,10 +116,57 @@ fn desktop_beta_accepts_a_mixed_cli_fleet_with_one_reviewed_cli_per_task() {
     assert_eq!(clis, [Some("codex"), Some("claude")]);
 }
 
+#[test]
+fn the_fleet_demo_fixture_plans_six_tasks_in_three_waves_across_five_clis() {
+    let dir = tempfile::tempdir().unwrap();
+    let demo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/demo/fleet");
+    copy_dir(&demo.join("template"), dir.path());
+    let mut request = input(dir.path());
+    request.mission_text = std::fs::read_to_string(demo.join("mission.txt")).unwrap();
+    request.ade_ids = ["codex", "claude", "cursor", "opencode", "agy"]
+        .map(String::from)
+        .to_vec();
+    request.max_workers = Some(4);
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let plan = pytxo_orchestrate::preview_desktop_beta_flow(&catalog, request).unwrap();
+    assert_eq!(
+        plan.status,
+        FlowStatus::Ready,
+        "{:#?}",
+        plan.blocked_reasons
+    );
+    // Four independent tasks, then the task that shares src/app.js and the
+    // filter bar, then the README that documents the combined result.
+    let waves: Vec<usize> = plan.waves.iter().map(Vec::len).collect();
+    assert_eq!(waves, [4, 1, 1], "{:#?}", plan.waves);
+    let clis: Vec<_> = plan
+        .tasks
+        .iter()
+        .map(|task| task.ade_id.as_deref().unwrap())
+        .collect();
+    assert_eq!(
+        clis,
+        ["codex", "claude", "cursor", "opencode", "agy", "codex"]
+    );
+}
+
+fn copy_dir(from: &std::path::Path, to: &std::path::Path) {
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            std::fs::create_dir_all(&target).unwrap();
+            copy_dir(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
 fn ensure_test_ade() {
     TEST_ADE_DIR.get_or_init(|| {
         let dir = tempfile::tempdir().unwrap();
-        for cli in ["codex", "claude"] {
+        for cli in ["codex", "claude", "cursor-agent", "opencode", "agy"] {
             #[cfg(windows)]
             std::fs::write(dir.path().join(format!("{cli}.cmd")), "@exit /b 0\r\n").unwrap();
             #[cfg(unix)]
