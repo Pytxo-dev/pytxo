@@ -56,8 +56,12 @@ pub mod routed_prompt;
 mod routed_supervisor;
 mod routed_worker;
 mod structural;
+mod terminal_text;
 
-pub use dashboard::{dashboard_snapshot, dashboard_snapshot_light, DashboardSnapshot};
+pub use dashboard::{
+    dashboard_snapshot, dashboard_snapshot_light, worker_panes, DashboardSnapshot, WorkerPane,
+};
+pub use terminal_text::{event_lines, strip_terminal_text};
 
 pub use cloud::{cloud_clients, cloud_health_url, ping_cloud, CloudClients};
 
@@ -219,6 +223,9 @@ pub struct RunStatusJson {
     pub arbitrage_saved_tokens: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wallet_balance_microcredits: Option<i64>,
+    /// Reviewed request title, when the run came from a Flow plan.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     pub agents: Vec<AgentStatusJson>,
 }
 
@@ -229,6 +236,10 @@ pub struct AgentStatusJson {
     pub wave: i32,
     pub status: String,
     pub exit_code: Option<i32>,
+    /// Registry name of the CLI whose reviewed command started this worker.
+    /// Aliases, wrappers and modified commands stay unknown rather than guessed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub launcher: Option<String>,
 }
 
 pub fn init(repo: Option<PathBuf>) -> anyhow::Result<()> {
@@ -2362,6 +2373,10 @@ pub fn run_status_json(
         .list_agents_for_run(&run.id)?
         .into_iter()
         .map(|a| AgentStatusJson {
+            launcher: pytxo_core::all_ade_clis()
+                .iter()
+                .find(|spec| spec.default_cmd == a.cmd.trim())
+                .map(|spec| spec.display_name.to_string()),
             id: a.id,
             task_id: a.task_id,
             wave: a.wave,
@@ -2387,6 +2402,7 @@ pub fn run_status_json(
         isolation_backend,
         arbitrage_saved_tokens: arbitrage_saved,
         wallet_balance_microcredits: wallet_balance,
+        title: None,
         agents,
     })
 }

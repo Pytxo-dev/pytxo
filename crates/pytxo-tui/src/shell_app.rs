@@ -11,7 +11,7 @@ use pytxo_core::PermissionProfile;
 use pytxo_core::RunId;
 use pytxo_orchestrate::{
     dashboard_snapshot_light, effective_entitlements, hitl_respond, project_roots, run_doctor,
-    DashboardSnapshot, DoctorReport, EntitlementStatus,
+    worker_panes, DashboardSnapshot, DoctorReport, EntitlementStatus, WorkerPane,
 };
 use pytxo_shell::{complete_line, parse_line, ShellEvent, ShellInput, ShellSession};
 use ratatui::layout::{Constraint, Direction, Layout};
@@ -19,6 +19,7 @@ use ratatui::DefaultTerminal;
 
 use crate::input::{accepts_key_event, is_cancel_key, is_submit_key};
 use crate::panels::board::{self, BoardView};
+use crate::panels::fleet;
 use crate::panels::prompt::Prompt;
 use crate::panels::scrollback::Scrollback;
 use crate::panels::splash;
@@ -89,6 +90,10 @@ struct ShellApp {
     show_splash: bool,
     /// First paint uses light snapshot only; full doctor runs on the next refresh cycle.
     doctor_boot_deferred: bool,
+    /// Worker panes for the selected run, refreshed with the board.
+    fleet: Vec<WorkerPane>,
+    /// Fleet panes replace the output scrollback until a command needs its reply shown.
+    show_fleet: bool,
 }
 
 fn trust_folders(repo: &Path) -> Vec<String> {
@@ -132,6 +137,8 @@ impl ShellApp {
             needs_redraw: true,
             show_splash: true,
             doctor_boot_deferred: false,
+            fleet: Vec::new(),
+            show_fleet: true,
         };
         app.scrollback
             .push("Hypervisor Shell — /help · Discord: https://discord.gg/AUFRPFjSYv");
@@ -171,6 +178,7 @@ impl ShellApp {
                 if self.board.hitl_selected >= self.snapshot.hitl_pending.len() {
                     self.board.hitl_selected = self.snapshot.hitl_pending.len().saturating_sub(1);
                 }
+                self.refresh_fleet();
                 if let Some(ref id) = self.active_run_label {
                     if let Some(run) = self.snapshot.runs.iter().find(|r| r.id == *id) {
                         if run.status == "completed" || run.status == "failed" {
@@ -186,6 +194,24 @@ impl ShellApp {
             Err(e) => self.status_message = format!("Refresh failed: {e}"),
         }
         self.last_refresh = Instant::now();
+    }
+
+    fn refresh_fleet(&mut self) {
+        self.fleet = self
+            .snapshot
+            .runs
+            .get(self.board.run_selected)
+            .and_then(|run| worker_panes(run, 12).ok())
+            .unwrap_or_default();
+        self.needs_redraw = true;
+    }
+
+    fn select_run(&mut self, index: usize) {
+        if index < self.snapshot.runs.len() && index != self.board.run_selected {
+            self.board.run_selected = index;
+            self.show_fleet = true;
+            self.refresh_fleet();
+        }
     }
 
     fn maybe_refresh(&mut self) {
@@ -217,6 +243,8 @@ impl ShellApp {
                 }
                 ShellEvent::RunStarted(id) => {
                     self.active_run_label = Some(id.0.clone());
+                    self.board.run_selected = 0;
+                    self.show_fleet = true;
                     self.push_scrollback(&format!("Run started: {}", id.0));
                     self.needs_redraw = true;
                 }
@@ -249,6 +277,7 @@ impl ShellApp {
         }
         self.prompt.push_history(line.clone());
         self.scroll_offset = 0;
+        self.show_fleet = false;
         self.push_scrollback(&format!("> {line}"));
         let input = parse_line(&line);
         if matches!(input, ShellInput::ReplExit) {
@@ -282,13 +311,19 @@ impl ShellApp {
             modal.draw(frame, area);
             return;
         }
+        let fleet_run = self
+            .snapshot
+            .runs
+            .get(self.board.run_selected)
+            .filter(|_| self.show_fleet && !self.fleet.is_empty());
+        // With a fleet on screen the run list shrinks to a few rows and the panes take the rest.
+        let board_height = match fleet_run {
+            Some(_) => Constraint::Length(2 + 3 + self.snapshot.runs.len().clamp(1, 3) as u16 + 3),
+            None => Constraint::Min(12),
+        };
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(12),
-                Constraint::Min(6),
-                Constraint::Length(4),
-            ])
+            .constraints([board_height, Constraint::Min(6), Constraint::Length(4)])
             .split(area);
         board::draw(
             frame,
@@ -301,7 +336,9 @@ impl ShellApp {
             &self.session.config.agent,
             &self.board,
         );
-        if self.splash_visible() {
+        if let Some(run) = fleet_run {
+            fleet::draw(frame, chunks[1], run, &self.fleet);
+        } else if self.splash_visible() {
             splash::draw(frame, chunks[1]);
         } else {
             self.scrollback.draw(frame, chunks[1], self.scroll_offset);
@@ -389,7 +426,15 @@ async fn run_loop(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
                 }
 
                 match key.code {
-                    KeyCode::Char('q') if app.prompt.buffer.is_empty() => should_exit = true,
+                    // Shortcuts need Ctrl: a request may start with any letter.
+                    KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        should_exit = true
+                    }
+                    KeyCode::Char('o') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        app.dismiss_splash();
+                        app.show_fleet = !app.show_fleet;
+                        app.needs_redraw = true;
+                    }
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         app.dismiss_splash();
                         let events = app
@@ -435,17 +480,8 @@ async fn run_loop(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
                         app.prompt.history_down();
                         app.needs_redraw = true;
                     }
-                    KeyCode::Up if !app.prompt.buffer.is_empty() => {
-                        app.board.run_selected = app.board.run_selected.saturating_sub(1);
-                        app.needs_redraw = true;
-                    }
-                    KeyCode::Down
-                        if !app.prompt.buffer.is_empty()
-                            && app.board.run_selected + 1 < app.snapshot.runs.len() =>
-                    {
-                        app.board.run_selected += 1;
-                        app.needs_redraw = true;
-                    }
+                    KeyCode::PageUp => app.select_run(app.board.run_selected.saturating_sub(1)),
+                    KeyCode::PageDown => app.select_run(app.board.run_selected + 1),
                     KeyCode::Tab if !app.prompt.buffer.is_empty() => {
                         if let Some(completed) = complete_line(&app.prompt.buffer) {
                             app.prompt.buffer = completed;
@@ -457,7 +493,7 @@ async fn run_loop(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
                             (app.board.hitl_selected + 1) % app.snapshot.hitl_pending.len();
                         app.needs_redraw = true;
                     }
-                    KeyCode::Char('a') if app.prompt.buffer.is_empty() => {
+                    KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         if let Some(req) = app.snapshot.hitl_pending.get(app.board.hitl_selected) {
                             match hitl_respond(None, &req.id, true) {
                                 Ok(true) => app.status_message = format!("Approved {}", req.id),
@@ -467,7 +503,7 @@ async fn run_loop(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
                             app.refresh_board(false);
                         }
                     }
-                    KeyCode::Char('x') if app.prompt.buffer.is_empty() => {
+                    KeyCode::Char('x') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         if let Some(req) = app.snapshot.hitl_pending.get(app.board.hitl_selected) {
                             match hitl_respond(None, &req.id, false) {
                                 Ok(true) => app.status_message = format!("Denied {}", req.id),

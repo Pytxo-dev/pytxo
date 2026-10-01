@@ -1146,7 +1146,7 @@ const FAILURE_HINT_MAX_CHARS: usize = 240;
 
 fn failure_hint<'a>(payloads: impl Iterator<Item = &'a str>) -> Option<String> {
     // Strip across event boundaries: PTY chunks split escape sequences and wraps.
-    let text = strip_terminal_sequences(&payloads.collect::<String>());
+    let text = pytxo_orchestrate::strip_terminal_text(&payloads.collect::<String>());
     // Prefer a structured provider message such as {"error":{"message":"…"}}.
     let structured = text.rfind("\"message\":\"").and_then(|at| {
         let rest = &text[at + "\"message\":\"".len()..];
@@ -1178,47 +1178,6 @@ fn failure_hint<'a>(payloads: impl Iterator<Item = &'a str>) -> Option<String> {
             + "…";
     }
     (!collapsed.is_empty()).then_some(collapsed)
-}
-
-/// Drop CSI/OSC terminal sequences and control characters from PTY output.
-/// ConPTY wraps a full line by moving the cursor back onto the last column and
-/// re-emitting that character; the repeat after a cursor move is dropped.
-fn strip_terminal_sequences(payload: &str) -> String {
-    let mut out = String::with_capacity(payload.len());
-    let mut chars = payload.chars().peekable();
-    let mut after_cursor_move = false;
-    while let Some(c) = chars.next() {
-        match c {
-            '\u{1b}' => match chars.next() {
-                // CSI: parameters until a final byte in '@'..='~'.
-                Some('[') => {
-                    for c in chars.by_ref() {
-                        if ('@'..='~').contains(&c) {
-                            after_cursor_move = c == 'H';
-                            break;
-                        }
-                    }
-                }
-                // OSC: until BEL or ST (ESC \).
-                Some(']') => {
-                    while let Some(c) = chars.next() {
-                        if c == '\u{7}' || (c == '\u{1b}' && chars.next_if_eq(&'\\').is_some()) {
-                            break;
-                        }
-                    }
-                }
-                _ => {}
-            },
-            '\n' | '\t' => out.push(' '),
-            c if c.is_control() => {}
-            c => {
-                if !(std::mem::take(&mut after_cursor_move) && out.ends_with(c)) {
-                    out.push(c);
-                }
-            }
-        }
-    }
-    out
 }
 
 #[tauri::command]
