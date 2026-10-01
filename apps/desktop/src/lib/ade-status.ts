@@ -4,6 +4,17 @@ import type { AdeCliStatusDto } from "./types";
 export const DESKTOP_BETA_ADES = ["codex", "claude", "cursor", "opencode", "agy"] as const;
 export const DESKTOP_BETA_MAX_WORKERS = 8;
 
+const ADE_NAMES: Record<string, string> = {
+  codex: "OpenAI Codex", claude: "Claude Code", cursor: "Cursor Agent", opencode: "OpenCode", agy: "Antigravity",
+  gemini: "Gemini CLI", copilot: "GitHub Copilot CLI", aider: "Aider", grok: "Grok Build", droid: "Factory Droid",
+  cline: "Cline CLI", goose: "Goose", qwen: "Qwen Code", kimi: "Kimi Code CLI",
+};
+
+/** Registry display name for a CLI id, when Pytxo knows it. */
+export function adeDisplayName(id: string | null | undefined): string | null {
+  return id ? ADE_NAMES[id] ?? null : null;
+}
+
 export function isBetaAde(id: string): boolean {
   return (DESKTOP_BETA_ADES as readonly string[]).includes(id);
 }

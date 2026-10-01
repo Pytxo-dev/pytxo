@@ -6,13 +6,16 @@
   import type { DockPosition, DockReference } from "../../lib/dock-layout";
   import type { AgentDto, RoutingDisplaySummary, RunDto, RunReviewDto } from "../../lib/types";
   import RunLedger from "./RunLedger.svelte";
+  import FleetBoard from "./FleetBoard.svelte";
+  import type { DesktopBackend } from "../../lib/desktop-backend";
 
   let {
     taskDescriptions = {}, run, review, agents, selectedAgentId = null,
     routingSummary = null, routingLoading = false, routingIdentityUnknown = false,
-    onSelect, onInspect, onDismissInspect = () => {},
+    onSelect, onInspect, onDismissInspect = () => {}, backend = null, taskClis = {},
   }: {
     taskDescriptions?: Record<string, string>; run: RunDto; review: RunReviewDto | null; agents: AgentDto[];
+    backend?: DesktopBackend | null; taskClis?: Record<string, string>;
     routingSummary?: RoutingDisplaySummary | null; routingLoading?: boolean; routingIdentityUnknown?: boolean;
     selectedAgentId?: string | null; onSelect: (id: string) => void;
     onInspect: (ref: DockReference, position?: DockPosition) => void; onDismissInspect?: () => void;
@@ -37,7 +40,11 @@
   let overviewMode = $state(false);
   let microOverviewMode = $state(false);
   let selectedId = $state<string | null>(null);
-  let viewMode = $state<"canvas" | "list">("canvas");
+  // A run that put several CLIs to work opens on the fleet board; others keep the canvas.
+  // A chosen view carries across runs while that view exists for the run.
+  const fleetRun = $derived(!routed && new Set(agents.filter(agent => agent.run_id === run.id && agent.launcher).map(agent => agent.launcher!.id)).size > 1);
+  let chosenView = $state<"fleet" | "canvas" | "list" | null>(null);
+  const viewMode = $derived(chosenView && (chosenView !== "fleet" || fleetRun) ? chosenView : fleetRun ? "fleet" : "canvas");
   let runKey = "";
   let camera: WorkbenchCamera = { x: FIT_PADDING, y: FIT_PADDING, scale: 1 };
   let cameraMode: "fit" | "manual" = "fit";
@@ -259,14 +266,17 @@
   <header class="map-toolbar">
     <div><strong>Recorded workers</strong><span>{nodes.length} {nodes.length === 1 ? "task" : "tasks"} · {topology.waves.length} {topology.waves.length === 1 ? "wave" : "waves"}</span></div>
     <div class="view-toggle" role="group" aria-label="Worker view">
-      <button aria-pressed={viewMode === "canvas"} class:active={viewMode === "canvas"} onclick={() => viewMode = "canvas"}>Canvas</button>
-      <button aria-pressed={viewMode === "list"} class:active={viewMode === "list"} onclick={() => viewMode = "list"}>List</button>
+      {#if fleetRun}<button aria-pressed={viewMode === "fleet"} class:active={viewMode === "fleet"} onclick={() => chosenView = "fleet"}>Fleet</button>{/if}
+      <button aria-pressed={viewMode === "canvas"} class:active={viewMode === "canvas"} onclick={() => chosenView = "canvas"}>Canvas</button>
+      <button aria-pressed={viewMode === "list"} class:active={viewMode === "list"} onclick={() => chosenView = "list"}>List</button>
     </div>
     {#if viewMode === "canvas"}<div class="camera-tools" role="group" aria-label="Canvas zoom"><button aria-label="Zoom out" onclick={() => zoomBy(-.1)}>−</button><button aria-label="Reset zoom to 100 percent" onclick={resetZoom}>{scaleLabel}%</button><button aria-label="Zoom in" onclick={() => zoomBy(.1)}>+</button><button onclick={fit}>Fit</button></div>{/if}
   </header>
 
   <div class="map-body">
-    {#if viewMode === "canvas"}
+    {#if viewMode === "fleet"}
+      <FleetBoard {run} {review} {agents} {taskDescriptions} {taskClis} {backend} onInspect={inspectAgent} />
+    {:else if viewMode === "canvas"}
       <!-- Direct scene transforms keep pointer frames outside Svelte's render path. -->
       <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
       <div class="canvas-viewport" class:panning={!!gesture} bind:this={viewport} tabindex="0" role="application" aria-label="Worker canvas. Drag or use arrow keys to pan. Control plus wheel, plus, or minus zooms. F fits all tasks." onpointerdown={beginPan} onpointermove={pan} onpointerup={endPan} onpointercancel={endPan} onkeydown={handleCanvasKey}>

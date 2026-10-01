@@ -169,6 +169,16 @@ const previewRoutingSummary: RoutingDisplaySummary = {
   ],
 };
 
+/** Browser fixture for a mixed-CLI fleet run (`pytxo-preview-fleet-v1`). Illustrative, not a recorded run. */
+const fleetTasks = [
+  { task_id: "model", cli: "codex", name: "OpenAI Codex", paths: ["src/model.mjs", "test/model.test.mjs"], wave: 0, depends_on: [] as string[], status: "completed", lines: ["$ node --test test/model.test.mjs", "filters by status (2.1ms)", "search is case-insensitive (0.9ms)", "composes search and status (1.2ms)", "pass 11 · fail 0"] },
+  { task_id: "dark-mode", cli: "claude", name: "Claude Code", paths: ["src/style.css", "src/app.js"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Update(src/style.css) · 38 lines of dark tokens", "Update(src/app.js) · follows prefers-color-scheme", "Update(src/index.html) · theme toggle with aria-pressed", "Checking contrast of muted text"] },
+  { task_id: "spanish", cli: "cursor", name: "Cursor Agent", paths: ["src/i18n/", "src/index.html"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Creating src/i18n/es.json · 48 strings", "Wiring t() in src/index.html · 12 labels", "Adding language switch es / en"] },
+  { task_id: "filter-bar", cli: "opencode", name: "OpenCode", paths: ["src/components/"], wave: 0, depends_on: [] as string[], status: "running", lines: ["src/components/filter-bar.js", "Empty state with Clear filters", "Status chips: All · Open · Done"] },
+  { task_id: "validation", cli: "codex", name: "OpenAI Codex", paths: ["src/app.js", "test/validation.test.mjs"], wave: 1, depends_on: ["dark-mode"], status: null, lines: [] as string[] },
+  { task_id: "readme", cli: "agy", name: "Antigravity", paths: ["README.md"], wave: 2, depends_on: ["model", "dark-mode", "spanish", "filter-bar", "validation"], status: null, lines: [] as string[] },
+];
+
 const previewAdeClis: AdeCliStatusDto[] = [
   { id: "codex", display_name: "OpenAI Codex", default_cmd: "codex exec --sandbox workspace-write", installed: true, auth_state: "signed_in", auth_label: "ChatGPT connected", auth_owner: "Codex", login_supported: true, login_label: "Connect with ChatGPT", docs_url: "https://developers.openai.com/codex/auth", detail: "Codex owns the browser session, token storage, and refresh." },
   { id: "claude", display_name: "Claude Code", default_cmd: "claude -p --permission-mode acceptEdits", installed: true, auth_state: "signed_in", auth_label: "Claude account connected", auth_owner: "Claude Code", login_supported: true, login_label: "Open Claude Code sign-in", docs_url: "https://code.claude.com/docs/en/authentication", detail: "Pytxo opens Claude Code's official sign-in and never receives its token." },
@@ -356,6 +366,14 @@ export class PreviewDesktopBackend implements DesktopBackend {
     }
     if (nativeAgentFixture === "1" || nativeAgentFixture === "switch") {
       this.snapshot.agents = this.snapshot.agents.map((agent) => ({ ...agent, id: `${agent.run_id}:${agent.id}` }));
+    }
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-fleet-v1") === "1") {
+      const run = this.snapshot.runs[0];
+      this.snapshot.approvals = this.snapshot.approvals.filter(item => item.run_id !== run.id);
+      this.snapshot.agents = [
+        ...this.snapshot.agents.filter(agent => agent.run_id !== run.id),
+        ...fleetTasks.filter(task => task.status).map(task => ({ id: `${run.id}:fleet-${task.task_id}`, domain_id: run.domain_id, run_id: run.id, task_id: task.task_id, wave: task.wave, status: task.status!, exit_code: task.status === "completed" ? 0 : null, root_id: null, launcher: { id: task.cli, display_name: task.name } })),
+      ];
     }
     if (localStorage.getItem("pytxo-preview-agent-identity-v1") === "1") {
       this.snapshot.agents[0] = { ...this.snapshot.agents[0], launcher: { id: "codex", display_name: "OpenAI Codex" }, workspace_path: "C:/browser-fixture/isolated/worker" };
@@ -650,6 +668,14 @@ export class PreviewDesktopBackend implements DesktopBackend {
       const reads = Number(localStorage.getItem("pytxo-preview-agent-event-reads-v1") ?? "0");
       localStorage.setItem("pytxo-preview-agent-event-reads-v1", String(reads + 1));
     }
+    const fleetTask = localStorage.getItem("pytxo-preview-fleet-v1") === "1" ? fleetTasks.find(task => agentId.endsWith(`:fleet-${task.task_id}`)) : undefined;
+    if (fleetTask) {
+      const start = Date.now() - 140_000 + fleetTask.wave * 40_000;
+      return fleetTask.lines.map((payload, index) => ({ id: index + 1, agent_id: agentId, kind: index === 0 && payload.startsWith("$ ") ? "verify" : "stdout", payload: index === 0 && payload.startsWith("$ ") ? payload.slice(2) : `${payload}
+`, ts: new Date(start + index * 9_000).toISOString() }))
+        .concat(fleetTask.status === "completed" ? [{ id: fleetTask.lines.length + 1, agent_id: agentId, kind: "verify-ok", payload: "", ts: new Date(start + 58_000).toISOString() }] : [])
+        .filter(e => e.id > after).slice(0, limit);
+    }
     if (localStorage.getItem("pytxo-preview-output-events-v1") === "600") {
       return Array.from({ length: 600 }, (_, index) => ({ id: index + 1, agent_id: agentId,
         kind: index % 19 === 0 ? "tool" : "stdout",
@@ -711,7 +737,12 @@ export class PreviewDesktopBackend implements DesktopBackend {
       })),
       warnings: [],
     };
-    const plan = denseTopology ? densePlan : isSignalRun
+    const fleetPlan: RunReviewDto["plan"] = {
+      waves: [0, 1, 2].map(wave => fleetTasks.filter(task => task.wave === wave).map(task => ({ task_id: task.task_id, agent: task.cli, paths: task.paths, depends_on: task.depends_on, wave, root: null, verify: ["node --test"] }))),
+      warnings: [],
+    };
+    const fleet = localStorage.getItem("pytxo-preview-fleet-v1") === "1" && runId === this.snapshot.runs[0]?.id;
+    const plan = fleet ? fleetPlan : denseTopology ? densePlan : isSignalRun
       ? {
           waves: [
             [{

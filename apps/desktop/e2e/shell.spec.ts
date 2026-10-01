@@ -286,11 +286,11 @@ test.describe("Pytxo Desktop shell", () => {
     await composerBuild.click();
     await expect(run).toBeEnabled();
 
-    await page.getByLabel("Agent CLI").selectOption("claude");
+    await page.getByLabel("Agent CLI").selectOption("gemini");
     await expect(run).toBeDisabled();
     await composerBuild.click();
     await expect(run).toBeDisabled();
-    await expect(page.getByText("Desktop Beta runs Codex. Select Codex and build a new plan.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Desktop Beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity. Choose from those agents and build a new plan.", { exact: true })).toBeVisible();
     await page.getByLabel("Agent CLI").selectOption("codex");
     await expect(run).toBeDisabled();
     await composerBuild.click();

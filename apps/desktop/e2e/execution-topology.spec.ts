@@ -367,7 +367,7 @@ test("New Work planning, blocked, and error states retain pane-owned scrolling",
   await expect(page.getByRole("heading", { name: "Review plan", exact: true })).toBeVisible();
 
   await page.evaluate(() => localStorage.removeItem("pytxo-preview-flow-delay-v1"));
-  await page.getByLabel("Agent CLI").selectOption("claude");
+  await page.getByLabel("Agent CLI").selectOption("gemini");
   await page.getByRole("button", { name: "Request", exact: true }).click();
   await page.getByRole("button", { name: "Build plan", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Plan blocked", exact: true })).toBeVisible();

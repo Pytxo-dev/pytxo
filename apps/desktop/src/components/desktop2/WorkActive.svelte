@@ -68,11 +68,13 @@
   let missionTitle = $state<string | null>(null);
   let missionText = $state<string | null>(null);
   let taskDescriptions = $state<Record<string, string>>({});
+  /** Reviewed CLI per task from the saved plan, so queued workers show who will run them. */
+  let taskClis = $state<Record<string, string>>({});
   const displayMissionTitle = $derived(missionTitle && missionText?.startsWith(missionTitle) && missionText.length > missionTitle.length ? `${missionTitle.trimEnd()}…` : missionTitle);
   $effect(() => {
     const id = focusRun?.id;
     const domain = focusRun?.domain_id;
-    missionTitle = null; missionText = null; taskDescriptions = {};
+    missionTitle = null; missionText = null; taskDescriptions = {}; taskClis = {};
     if (!id) return;
     let valid = true;
     backend.flowHistory().then(records => {
@@ -84,8 +86,15 @@
         const plan = JSON.parse(draft?.plan_json ?? "{}");
         if (Array.isArray(plan.tasks)) {
           const copy: Record<string,string> = {};
-          for (const task of plan.tasks) if (typeof task.id === "string" && typeof task.prompt === "string" && task.prompt.trim()) copy[task.id] = task.prompt.trim();
+          const clis: Record<string,string> = {};
+          for (const task of plan.tasks) {
+            if (typeof task.id !== "string") continue;
+            if (typeof task.prompt === "string" && task.prompt.trim()) copy[task.id] = task.prompt.trim();
+            const cli = typeof task.ade_id === "string" ? task.ade_id : plan.ade?.requested;
+            if (typeof cli === "string") clis[task.id] = cli;
+          }
           taskDescriptions = copy;
+          taskClis = clis;
         }
       } catch { /* A missing or invalid saved plan supplies no descriptive copy. */ }
     }).catch(() => {});
@@ -382,7 +391,7 @@
       {#if partialAttempt}<div class="work-feedback error" role="alert"><strong>Working tree may be partially modified</strong><span>Attempt {partialAttempt.attempt_id} has no confirmed rollback. Reconcile before starting another run.</span><button onclick={() => recover(focusRun.id)}>Reconcile recovery state</button></div>{/if}
       {#if currentApplyIssue}<div class="work-feedback error" role="alert">{(review?.apply_status ?? focusRun.apply_status) === "review_failed" ? "Package preparation failed. " : ""}{review?.last_apply_error?.message ?? focusRun.last_apply_error?.message ?? "Review the run’s preparation or recovery state before continuing."}<button onclick={() => onReviewRun(focusRun.id)}>Review recovery</button></div>{/if}
       {#if routingIdentityUnknown}<div class="work-feedback error" role="alert">Routing identity could not be checked for this run. Worker selection is unavailable until the run list is repaired.</div>{/if}
-      <ExecutionMap {taskDescriptions} run={focusRun} {review} {agents} {selectedAgentId} routingSummary={currentRoutingRead?.summary ?? null} routingLoading={currentRoutingRead?.loading ?? currentRoutingRead == null} {routingIdentityUnknown} onSelect={(agentId) => selectedAgentId = agentId} onInspect={(reference, position) => onInspect?.(reference, position)} {onDismissInspect} />
+      <ExecutionMap {taskDescriptions} {taskClis} {backend} run={focusRun} {review} {agents} {selectedAgentId} routingSummary={currentRoutingRead?.summary ?? null} routingLoading={currentRoutingRead?.loading ?? currentRoutingRead == null} {routingIdentityUnknown} onSelect={(agentId) => selectedAgentId = agentId} onInspect={(reference, position) => onInspect?.(reference, position)} {onDismissInspect} />
       {#if focusRun.routing_revision != null}<RoutingRunDetails run={focusRun} {backend} record={{ summary: currentRoutingRead?.summary ?? null, error: currentRoutingRead?.error ?? null, loading: currentRoutingRead?.loading ?? currentRoutingRead == null }} onRetry={() => routingRetry += 1} />{/if}
       {#if !onInspect}
       <BoundaryPanel
