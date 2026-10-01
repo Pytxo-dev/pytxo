@@ -1365,6 +1365,26 @@ async fn run_one_agent(
         let _ = isolation.rollback(&iso_ctx, &workspace);
     }
 
+    let outcome = if verification_cancelled || result.cancelled {
+        AgentRunOutcome::Cancelled
+    } else if verification_failed {
+        AgentRunOutcome::VerificationFailed
+    } else if exit_code == Some(0) {
+        AgentRunOutcome::Succeeded
+    } else {
+        AgentRunOutcome::ProcessFailed
+    };
+    // Settle this worker now: later waves can run for minutes, and a finished
+    // worker must not read as running until the whole plan returns.
+    if let Some(cb) = ctx.on_event.as_ref() {
+        let code = exit_code.map_or_else(|| "none".to_string(), |code| code.to_string());
+        cb(
+            &agent_key,
+            "agent-exit",
+            &format!("{} {code}", outcome.ledger_status()),
+        );
+    }
+
     Ok(AgentRunResult {
         agent_id: agent_id.clone(),
         task_id: task.task_id.0.clone(),
@@ -1373,15 +1393,7 @@ async fn run_one_agent(
         exit_code,
         stdout: result.stdout,
         stderr,
-        outcome: if verification_cancelled || result.cancelled {
-            AgentRunOutcome::Cancelled
-        } else if verification_failed {
-            AgentRunOutcome::VerificationFailed
-        } else if exit_code == Some(0) {
-            AgentRunOutcome::Succeeded
-        } else {
-            AgentRunOutcome::ProcessFailed
-        },
+        outcome,
         root_id: task.root.clone(),
     })
 }

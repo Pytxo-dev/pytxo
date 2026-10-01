@@ -33,8 +33,8 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await clearOnboarding(page);
       await page.goto("/");
       await page.getByRole("button", { name: "Get started" }).click();
-      await expect(page.getByText("Start this beta with Codex and its existing account.", { exact: false })).toBeVisible();
-      await expect(page.getByRole("status")).toContainText("5 installed · 4 available");
+      await expect(page.getByText("This beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity", { exact: false })).toBeVisible();
+      await expect(page.getByRole("status")).toContainText("4 installed · 3 available");
       await page.getByRole("button", { name: "Connect an OpenCode provider" }).click();
       await expect(page.getByText("OpenCode sign-in opened. Finish the vendor flow, then recheck.")).toBeVisible();
       // Simulate a changed vendor-owned probe result, not a successful real login.

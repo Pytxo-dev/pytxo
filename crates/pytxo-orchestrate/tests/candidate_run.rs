@@ -211,6 +211,10 @@ async fn real_candidate_checks_gate_apply_and_refresh_frozen_bytes() {
         .iter()
         .any(|event| event.kind == "verify-boundary"));
     assert!(!live_events.iter().any(|event| event.kind == "evidence-gap"));
+    // The worker settles when it exits, not when the whole plan returns.
+    assert!(live_events
+        .iter()
+        .any(|event| event.kind == "agent-exit" && event.payload == "completed 0"));
     let prepared = load_review_package(&data, &id.0).unwrap();
     assert_eq!(prepared.version, 3);
     assert_eq!(

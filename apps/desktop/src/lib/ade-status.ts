@@ -19,6 +19,11 @@ export function isBetaAde(id: string): boolean {
   return (DESKTOP_BETA_ADES as readonly string[]).includes(id);
 }
 
+/** Beta CLIs in their canonical order (Codex first); other CLIs are dropped. */
+export function betaAdesInOrder<T extends { id: string }>(clis: T[]): T[] {
+  return DESKTOP_BETA_ADES.flatMap((id) => clis.filter((cli) => cli.id === id));
+}
+
 /**
  * Runnable does not always mean that Pytxo verified an account session. Some
  * harnesses deliberately keep authentication opaque and validate it only when

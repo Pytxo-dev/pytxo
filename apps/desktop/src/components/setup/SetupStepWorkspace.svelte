@@ -110,6 +110,7 @@
         ? "Guided local Git example ready. Its baseline tests need no API key."
         : "Workspace selected. Pytxo will use its existing Git state and configuration."}
     </small>
+    <Button variant="outline" disabled={busy} onclick={() => { selected = null; selectedKind = null; }}>Choose a different folder</Button>
 
   {:else}
     <div class="folder-choices">

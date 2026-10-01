@@ -1,7 +1,7 @@
 <script lang="ts">
   import SetupStepFrame from "./SetupStepFrame.svelte";
   import { onMount } from "svelte";
-  import { isAdeRunnable, isAdeSessionConfirmed } from "../../lib/ade-status";
+  import { betaAdesInOrder, isAdeRunnable, isAdeSessionConfirmed } from "../../lib/ade-status";
   import { createDesktopBackend } from "../../lib/desktop-backend";
   import type { AdeCliStatusDto } from "../../lib/types";
   import { Button } from "$lib/components/ui/button";
@@ -23,21 +23,10 @@
   let message = $state("");
   let error = $state("");
 
-  const usefulAgents = $derived(
-    [...agents]
-      .sort((a, b) => {
-        if (a.id === "codex") return -1;
-        if (b.id === "codex") return 1;
-        const score = (agent: AdeCliStatusDto) =>
-          Number(agent.installed) * 4 +
-          Number(agent.auth_state === "signed_in") * 2 +
-          Number(agent.login_supported);
-        return score(b) - score(a);
-      })
-      .slice(0, 5),
-  );
-  const installedCount = $derived(agents.filter((agent) => agent.installed).length);
-  const readyCount = $derived(agents.filter(isReady).length);
+  // Onboarding lists the agents this beta can run; other CLIs stay in Setup.
+  const usefulAgents = $derived(betaAdesInOrder(agents));
+  const installedCount = $derived(usefulAgents.filter((agent) => agent.installed).length);
+  const readyCount = $derived(usefulAgents.filter(isReady).length);
 
   function isReady(agent: AdeCliStatusDto) {
     return isAdeRunnable(agent);
@@ -80,7 +69,7 @@
 <SetupStepFrame>
   <h2 class="title">Connect your coding agents</h2>
   <p class="lead">
-    Start this beta with Codex and its existing account. Pytxo can open the tool's own sign-in if needed.
+    This beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity with the accounts you already have. Pytxo can open a tool's own sign-in if needed.
   </p>
 
   {#if loading}

@@ -14,7 +14,7 @@ test.describe("Pytxo Desktop shell", () => {
     await clearOnboarding(page);
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Your coding agents. One clear place to work.", exact: true })).toBeVisible();
-    await expect(page.getByText("Start with Codex. Other installed tools can be inspected in Setup.")).toBeVisible();
+    await expect(page.getByText("Codex, Claude Code, Cursor Agent, OpenCode or Antigravity, with the accounts you already have.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Get started" })).toBeVisible();
     await expect(page.getByLabel("Setup progress")).toBeVisible();
   });
@@ -115,13 +115,17 @@ test.describe("Pytxo Desktop shell", () => {
 
     await expect(page.getByRole("heading", { name: "Connect your coding agents" })).toBeVisible();
     await expect(page.getByText("ChatGPT connected", { exact: true })).toBeVisible();
-    await expect(page.getByText("Start this beta with Codex and its existing account.", { exact: false })).toBeVisible();
+    await expect(page.getByText("This beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Continue" }).click();
 
     await expect(page.getByRole("heading", { name: "Choose your project" })).toBeVisible();
     await page.getByRole("button", { name: "Try the guided example" }).click();
     await expect(page.getByText("C:/Users/demo/Documents/Pytxo Examples/approval-risk-demo", { exact: true })).toBeVisible();
     await expect(page.getByText("Guided local Git example ready. Its baseline tests need no API key.")).toBeVisible();
+    // A picked folder can be replaced before setup finishes.
+    await page.getByRole("button", { name: "Choose a different folder" }).click();
+    await expect(page.getByRole("button", { name: "Select folder" })).toBeVisible();
+    await page.getByRole("button", { name: "Try the guided example" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByRole("heading", { name: "Desktop setup complete" })).toBeVisible();
   });

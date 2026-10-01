@@ -19,7 +19,7 @@ fn tone(pane: &WorkerPane) -> Tone {
     match pane.status.as_str() {
         "running" | "starting" | "pending" => Tone::Live,
         "completed" if pane.exit_code == Some(0) => Tone::Done,
-        "failed" | "blocked_by_dependency" | "verification_failed" => Tone::Failed,
+        "failed" | "blocked_by_dependency" | "verify_failed" => Tone::Failed,
         "queued" => Tone::Queued,
         _ => Tone::Settled,
     }

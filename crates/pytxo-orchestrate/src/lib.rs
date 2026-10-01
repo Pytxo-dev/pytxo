@@ -2047,7 +2047,15 @@ pub(crate) async fn execute_run_body(
                         task.root.as_deref(),
                     )?;
                 }
-                guard.append_event(agent_key, kind, &payload)
+                guard.append_event(agent_key, kind, &payload)?;
+                // "<ledger status> <exit code|none>" from the runner when a worker settles.
+                if kind == "agent-exit" {
+                    let mut parts = line.split(' ');
+                    let status = parts.next().unwrap_or("failed");
+                    let exit_code = parts.next().and_then(|code| code.parse().ok());
+                    guard.finish_agent(agent_key, exit_code, status)?;
+                }
+                Ok(())
             };
             write().is_ok()
         });

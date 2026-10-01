@@ -9,7 +9,7 @@
   import HostedRoutingReview from "./HostedRoutingReview.svelte";
   import AdeIdentity from "./AdeIdentity.svelte";
   import type { ComposerDraft } from "../../lib/composer-draft";
-  import { adeAvailabilityLabel, DESKTOP_BETA_MAX_WORKERS, isAdeRunnable, isBetaAde } from "../../lib/ade-status";
+  import { adeAvailabilityLabel, betaAdesInOrder, DESKTOP_BETA_MAX_WORKERS, isAdeRunnable, isBetaAde } from "../../lib/ade-status";
   import { draftTitle } from "../../lib/draft-title";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { AdeCliStatusDto, FlowDraftRecord, FlowPlan, ProposedHostedAdvisorPacketPreview, ReviewedDemandFacts, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
@@ -143,7 +143,7 @@
   const routedChoice = $derived(selectedAde === CLAUDE_ROUTE_CHOICE || selectedAde === CLAUDE_HOSTED_CHOICE);
   /** Every CLI in this request, primary first. */
   const team = $derived(routedChoice || !selectedAde ? [] : [selectedAde, ...teamAdes.filter((id) => id !== selectedAde)]);
-  const teamCandidates = $derived(adeClis.filter((cli) => isBetaAde(cli.id) && isAdeReady(cli) && cli.id !== selectedAde));
+  const teamCandidates = $derived(betaAdesInOrder(adeClis).filter((cli) => isAdeReady(cli) && cli.id !== selectedAde));
   const adeName = (id: string | null | undefined) => adeClis.find((cli) => cli.id === id)?.display_name ?? id ?? "Not selected";
   function toggleTeamAde(id: string) {
     teamAdes = teamAdes.includes(id) ? teamAdes.filter((other) => other !== id) : [...teamAdes, id];
@@ -855,7 +855,7 @@
     {#if domains.length}
       <div class="composer-context">
         <label><span>Project</span><select bind:value={selectedDomainId} aria-label="Project">{#if !selectedDomainId}<option value="" disabled>Select a project</option>{/if}{#each domains as domain}<option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}{domain.project_id ? " · primary folder" : ""}</option>{/each}</select></label>
-        <label><span>Agent</span><select value={selectedAde} onchange={(event) => chooseAde(event.currentTarget.value)} aria-label="Agent CLI" disabled={adeLoading || (!adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable)}>{#if adeLoading}<option value="">Checking detected CLIs…</option>{:else if !adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable}<option value="">No ready CLI detected</option>{:else}{#if !selectedAde}<option value="" disabled>Select a ready CLI</option>{/if}<optgroup label="Beta agents">{#each adeClis.filter(cli => isBetaAde(cli.id)) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup><optgroup label="Additional agents">{#each adeClis.filter(cli => !isBetaAde(cli.id)) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup>{#if experimentalClaudeAvailable || experimentalHostedAvailable}<optgroup label="Experimental">{#if experimentalClaudeAvailable}<option value={CLAUDE_ROUTE_CHOICE}>Claude proposal route · subscription</option>{/if}{#if experimentalHostedAvailable}<option value={CLAUDE_HOSTED_CHOICE}>Hosted Routing packet review · no run</option>{/if}</optgroup>{/if}{/if}</select></label>
+        <label><span>Agent</span><select value={selectedAde} onchange={(event) => chooseAde(event.currentTarget.value)} aria-label="Agent CLI" disabled={adeLoading || (!adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable)}>{#if adeLoading}<option value="">Checking detected CLIs…</option>{:else if !adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable}<option value="">No ready CLI detected</option>{:else}{#if !selectedAde}<option value="" disabled>Select a ready CLI</option>{/if}<optgroup label="Beta agents">{#each betaAdesInOrder(adeClis) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup><optgroup label="Additional agents">{#each adeClis.filter(cli => !isBetaAde(cli.id)) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup>{#if experimentalClaudeAvailable || experimentalHostedAvailable}<optgroup label="Experimental">{#if experimentalClaudeAvailable}<option value={CLAUDE_ROUTE_CHOICE}>Claude proposal route · subscription</option>{/if}{#if experimentalHostedAvailable}<option value={CLAUDE_HOSTED_CHOICE}>Hosted Routing packet review · no run</option>{/if}</optgroup>{/if}{/if}</select></label>
       </div>
     {/if}
   </header>

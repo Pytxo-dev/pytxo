@@ -115,7 +115,7 @@
     if (!agent) return "queued";
     if (isLive(agent)) return "live";
     if (agent.status === "completed" && agent.exit_code === 0) return "done";
-    if (["failed", "blocked_by_dependency", "verification_failed"].includes(agent.status)) return "failed";
+    if (["failed", "blocked_by_dependency", "verify_failed"].includes(agent.status)) return "failed";
     return "settled";
   }
 </script>
@@ -183,13 +183,14 @@
   .worker[data-tone="done"] { border-color: color-mix(in srgb, var(--state-verified) 40%, var(--pytxo-line)); }
   .worker[data-tone="failed"] { border-color: color-mix(in srgb, var(--state-refuted) 50%, var(--pytxo-line)); }
   .worker[data-tone="queued"] { border-style: dashed; opacity: .78; }
-  .head { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px 10px; border: 0; border-radius: 0; background: transparent; text-align: left; justify-content: stretch; }
+  .head { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; padding: 12px 14px 10px; border: 0; border-radius: 0; background: transparent; text-align: left; justify-content: stretch; }
   .head:hover:not(:disabled) { background: var(--pytxo-surface-hover); }
-  .logo { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--pytxo-surface-raised); }
-  .who { display: grid; min-width: 0; }
-  .who strong { overflow: hidden; color: var(--pytxo-text-strong); font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-  .who small { overflow: hidden; color: var(--pytxo-text-soft); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-  .state { font-size: 13px; font-weight: 600; color: var(--pytxo-text-muted); white-space: nowrap; }
+  .logo { grid-row: 1 / span 2; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--pytxo-surface-raised); }
+  /* The vendor shares its row with the state; the task line spans both. */
+  .who { display: contents; }
+  .who strong { grid-column: 2; grid-row: 1; overflow: hidden; color: var(--pytxo-text-strong); font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+  .who small { grid-column: 2 / -1; grid-row: 2; overflow: hidden; color: var(--pytxo-text-soft); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+  .state { grid-column: 3; grid-row: 1; font-size: 13px; font-weight: 600; color: var(--pytxo-text-muted); white-space: nowrap; }
   .worker[data-tone="live"] .state { color: var(--pytxo-activity); }
   .worker[data-tone="done"] .state { color: var(--state-verified); }
   .worker[data-tone="failed"] .state { color: var(--state-refuted); }
