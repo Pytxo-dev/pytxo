@@ -15,6 +15,18 @@ use pytxo_runner::{
 };
 use pytxo_store::PytxoStore;
 
+/// Apply registers its execution domain in the default hypervisor catalog.
+/// Point that catalog at one temp home for this test process so test
+/// repositories never appear in the developer's real `~/.pytxo`.
+fn isolate_home() {
+    static HOME: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+    HOME.get_or_init(|| {
+        let home = tempfile::tempdir().expect("isolated PYTXO_HOME");
+        std::env::set_var("PYTXO_HOME", home.path());
+        home
+    });
+}
+
 // Existing integrity/recovery tests explicitly review the current persisted
 // snapshot. Stale-client tests below retain their original digest instead.
 fn apply_run_changes(
@@ -106,6 +118,7 @@ struct PreparedFixture {
 }
 
 fn prepared_fixture(run_id: &str) -> PreparedFixture {
+    isolate_home();
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path().join("repo");
     std::fs::create_dir_all(&repo).unwrap();
@@ -631,6 +644,7 @@ fn review_manifest_persistence_failure_settles_contract_and_keeps_original_error
 
 #[test]
 fn applies_a_completed_single_domain_run_once() {
+    isolate_home();
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path().join("repo");
     std::fs::create_dir_all(&repo).expect("create repo");
@@ -767,6 +781,7 @@ fn applies_a_completed_single_domain_run_once() {
 
 #[test]
 fn rejects_affected_primary_edits_made_after_review() {
+    isolate_home();
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path().join("repo");
     std::fs::create_dir_all(&repo).expect("create repo");
@@ -884,6 +899,7 @@ fn rejects_affected_primary_edits_made_after_review() {
 
 #[test]
 fn recovered_commit_persists_the_normal_apply_audit_schema_and_attempt_id() {
+    isolate_home();
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path().join("repo");
     std::fs::create_dir_all(&repo).unwrap();

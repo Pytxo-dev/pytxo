@@ -345,7 +345,8 @@ pub fn project_status(
 }
 
 fn projects_dir() -> Option<PathBuf> {
-    std::env::var_os("HOME")
+    std::env::var_os("PYTXO_HOME")
+        .or_else(|| std::env::var_os("HOME"))
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(|h| PathBuf::from(h).join(".pytxo").join("projects"))
 }
