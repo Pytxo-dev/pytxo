@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "kind": "r6-native-still-cockpit-proof",
+  "candidate": {
+    "version": "1.2.2",
+    "msiSha256": "d2950419f3f843b5d615e46f0986544650f5b57df48426795b9d1faddda8183a",
+    "executableSha256": "0b9bcaceaf1f5a04867cbdb86ddf4dbcae7dd9956d1970d3ee227f498cda02fa",
+    "candidateReceiptSha256": "225d72b36c7ad971b58379aff2bdc8f5ddab94a81710d8c837bcf691c2c92855",
+    "stateReceiptSha256": "0b3049f5bf1a1516c65e3330ba394f9dc211a25d6c0dfef106a006332074a757"
+  },
+  "evidenceBoundary": {
+    "continuousFootage": false,
+    "pointerMotion": false,
+    "native4kSource": false,
+    "windowsScalePercent": 125,
+    "windowDpi": 120,
+    "label": "R6 cockpit proof · exact native stills · continuous capture pending"
+  },
+  "observed": {
+    "workers": 24,
+    "waves": 8,
+    "fitPercent": 39,
+    "minimapVisible": true,
+    "redundantCommitRailAbsent": true
+  },
+  "assets": [
+    {
+      "key": "first-use",
+      "path": "product/r6-cockpit/r6-first-use.png",
+      "sha256": "e36f6d507ccf10c4c1d638dd9bfd0b4859d3a3deb5139913c482abdc6b97e36b",
+      "width": 1602,
+      "height": 1002
+    },
+    {
+      "key": "dense-canvas",
+      "path": "product/r6-cockpit/r6-dense-canvas.png",
+      "sha256": "3429ecdc07b0ddc39d31a480e7377bb81192d58a3553cd75ff91118a7ae83ae7",
+      "width": 1602,
+      "height": 1002
+    }
+  ]
+}

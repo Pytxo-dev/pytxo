@@ -8,7 +8,9 @@ import {
 import {
   consumeDomainChanges,
   fingerprintDesktopSnapshot,
+  incrementalDomainBatchSize,
   loadConsistentDesktopSnapshot,
+  selectIncrementalDomainBatch,
 } from "../src/lib/desktop-sync";
 import type { DesktopSnapshot } from "../src/lib/desktop-backend";
 import type { AgentDto } from "../src/lib/types";
@@ -110,6 +112,7 @@ test.describe("Run Review state contracts", () => {
       reviewPresentation({
         apply_status: "review_failed",
         recovery_state: null,
+        routing_revision: null,
         last_apply_error: {
           at: "2026-08-09T00:00:00Z",
           code: "review_package_upgrade_required",
@@ -231,6 +234,11 @@ test.describe("Run Review state contracts", () => {
     expect(fingerprintDesktopSnapshot(changed)).not.toBe(
       fingerprintDesktopSnapshot(snapshot),
     );
+    const routed = structuredClone(snapshot);
+    routed.runs[0].routing_revision = "3";
+    expect(fingerprintDesktopSnapshot(routed)).not.toBe(
+      fingerprintDesktopSnapshot(snapshot),
+    );
   });
 
   test("snapshot boundary reloads after a mutation races cursor priming", async () => {
@@ -306,4 +314,94 @@ test.describe("Run Review state contracts", () => {
     expect(reconnect.changed).toBe(true);
     expect(cursors.get("repo")).toBe(3);
   });
+});
+
+
+test("domain batches bound IPC calls and retain pagination and reset semantics", async () => {
+  const ids = Array.from({ length: 149 }, (_, index) => `domain-${index}`);
+  const cursors = new Map(ids.map(id => [id, 10]));
+  const batches: number[] = [];
+  const followups: string[] = [];
+  const result = await consumeDomainChanges(ids, cursors, async (id, cursor) => {
+    followups.push(id);
+    expect(cursor).toBe(11);
+    return { changes: [], next_cursor: 11, has_more: false, cursor_gap: false };
+  }, 200, async requests => {
+    batches.push(requests.length);
+    return requests.map(({ domain_id, cursor }) => ({
+      changes: domain_id === "domain-0" ? [{ sequence: 11, entity_kind: "run", entity_id: "run", changed_at: "now" }] : [],
+      next_cursor: domain_id === "domain-0" ? 11 : domain_id === "domain-148" ? 0 : cursor,
+      has_more: domain_id === "domain-0",
+      cursor_gap: domain_id === "domain-148",
+    }));
+  });
+  expect(batches).toEqual([128, 21]);
+  expect(followups).toEqual(["domain-0"]);
+  expect(cursors.get("domain-148")).toBe(0);
+  expect(result).toEqual({ changed: true, needsSnapshot: true });
+});
+
+test("incremental polling prioritizes live work and cycles through a large dormant catalog", () => {
+  const ids = Array.from({ length: 149 }, (_, index) => `domain-${index}`);
+  const urgent = ["domain-148", "domain-77", "missing-domain", "domain-148"];
+  const idleBatchSize = incrementalDomainBatchSize(ids.length, 8_000);
+  const activeBatchSize = incrementalDomainBatchSize(ids.length, 2_500);
+  expect(idleBatchSize).toBe(20);
+  expect(activeBatchSize).toBe(7);
+
+  let offset = 0;
+  const observed = new Set<string>();
+  for (let pass = 0; pass < 8; pass += 1) {
+    const selected = selectIncrementalDomainBatch(ids, urgent, offset, idleBatchSize);
+    offset = selected.nextDormantOffset;
+    expect(selected.domainIds.slice(0, 2)).toEqual(["domain-148", "domain-77"]);
+    expect(selected.domainIds.length).toBeLessThanOrEqual(22);
+    selected.domainIds.forEach(domainId => observed.add(domainId));
+  }
+  expect(observed).toEqual(new Set(ids));
+});
+
+test("failed or incomplete change batches never advance their cursors", async () => {
+  for (const fails of [true, false]) {
+    const cursors = new Map([["repo", 42]]);
+    await expect(consumeDomainChanges(["repo"], cursors, async () => {
+      throw new Error("Unexpected fallback");
+    }, 200, async () => {
+      if (fails) throw new Error("Store missing");
+      return [];
+    })).rejects.toThrow(fails ? "Store missing" : "Incomplete domain change batch");
+    expect(cursors.get("repo")).toBe(42);
+  }
+});
+
+
+test("batched snapshot priming reloads a mutation arriving across chunk boundaries", async () => {
+  const domains = Array.from({ length: 149 }, (_, index) => ({ domain_id: `repo-${index}` }));
+  const cursors = new Map<string, number>();
+  let revision = 1;
+  let loads = 0;
+  let batchCalls = 0;
+  const result = await loadConsistentDesktopSnapshot(
+    async () => { loads++; return { domains, revision }; },
+    async () => { throw new Error("Unexpected single-domain fallback"); },
+    cursors,
+    async requests => {
+      batchCalls++;
+      // The second chunk races the snapshot reload: an already-read domain
+      // advances after its first batch page has been returned.
+      if (batchCalls === 2) revision = 2;
+      return requests.map(({ domain_id, cursor }) => {
+        const boundary = domain_id === "repo-0" ? revision : 1;
+        return {
+          changes: cursor < boundary ? [{ sequence: boundary, entity_kind: "contract", entity_id: "run", changed_at: "now" }] : [],
+          next_cursor: boundary, has_more: false, cursor_gap: false,
+        };
+      });
+    },
+  );
+  expect(result.revision).toBe(2);
+  expect(loads).toBe(3);
+  expect(cursors.get("repo-0")).toBe(2);
+  expect(cursors.size).toBe(149);
+  expect(batchCalls).toBe(6);
 });

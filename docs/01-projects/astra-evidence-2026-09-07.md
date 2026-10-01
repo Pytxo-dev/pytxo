@@ -6,11 +6,189 @@ tags: [verification, desktop, release, benchmarks]
 audience: [human, agent]
 layer: orchestration
 created: 2026-09-07
-updated: 2026-09-08
+updated: 2026-09-10
 related: [[astra-execution-2026-09-07]], [[astra-release-proposal-2026-09-07]]
 ---
 
 # Verification and artifact ledger
+
+## Current ownership/Git repair package — September 10
+
+[[astra-native-finish-2026-09-10]] is the current implementation and acceptance note.
+MSI `9676d38f…` / extracted EXE `e0eeb950…` contains recorded runtime worker labels
+and console-free background Git commands. All 361 frozen/current inputs match;
+build, MSI import inspection, 65 affected UI tests, 193 Rust library tests,
+21 integration checks, strict Clippy and formatting passed. Binaries are unsigned.
+The initial fast-verifier timeout is retained; its cause has not been proven.
+
+The preceding 6acc package completed native Cancel/Apply/restart with 11 project
+and 26 independent checks. Its build-specific Bench record is
+`tooling/benchmarks/results/astra-native-review-2026-09-10.json`; it cannot certify
+the repaired executable. After the latest physical Escape, e0ee native acceptance
+and final-build video remain unexecuted. The Windows packet and source handoff
+are under `target/astra-native-finish-20260910/`. Clean Windows, current-source CI
+and public download remain open. Game-like mission/crew and Focus/Control mockups
+remain proposals. No Actions, spending, account changes or publication occurred.
+
+## Preserved native follow-up — September 10
+
+Current unsigned MSI `7d30141b1d7c7be15fb8d44e09970508306c5e2c89efa390da38bb222897344a`
+and packaged EXE `8910d153d73cff2973892c15a9bba58a797617e1ecd3af865c21991f39e2593d`
+passed build and dependency inspection. The 359-input manifest is
+`019fa099b4e12b29cddde5f3aeee3f6b5982d44c9b138b7058b636c64ceb2ac5`; all current and
+frozen inputs match. Only network_isolation.rs differs from f968. The read-only
+netsh receipt query suppresses console creation without changing query results,
+profiles, install logic or ConPTY. Its detached-parent regression genuinely
+failed before the flag and passed afterward; all 77 runner tests, strict Clippy
+and formatting passed. Independent build review passed 16 checks. The unchanged
+frontend retains 157 browser tests, zero Svelte errors/warnings and CSS lint.
+The earlier 42 story checks were not rerun for the latest UI follow-ups.
+
+Native 891 acceptance is unexecuted. Physical Escape stopped Computer Use before
+launch; automatic goal continuation does not resume it. Prepared fixture and
+launch/snapshot helpers are under `target/astra-ux-20260909/native-run-netsh/`.
+Exact build records are under `native-build-netsh/` and `msi-extraction-netsh/`.
+
+The preceding f968 host run `b6446140-6586-4f9f-a2ab-58282100298b` completed three
+tasks/two waves in 225.51 seconds. All six primary files stayed unchanged before
+Apply and after Cancel. Apply wrote exactly three reviewed files; 11 project
+tests and 26 independent checks passed, with actual exit-zero records. Restart
+retained the same package and single committed receipt. Reviews passed 18 candidate
+and 29 final artifact checks. The sanitized native record is
+`tooling/benchmarks/results/astra-native-menus-2026-09-10.json`.
+
+The 94-second private Remotion walkthrough has SHA256
+`fb0e00a3eb476e9b644218a89ee9086a556323c87c1afc2a71851a03da6ecd3d` and uninterrupted
+Apply at output 67–88 seconds. It retains and labels the startup netsh defect
+discovered in its source. Verification showed no console interruption in the
+stated sampled intervals; that is not an exhaustive absence claim. Decode,
+typecheck and frame QA passed; normal-speed viewing remains unverified. The
+sanitized film ledger is `astra-native-menus-video-2026-09-10.json`.
+It validates f968 correctness, not the newest bytes or a finished smooth demo.
+
+Read-only API checks still show PR #31 open/draft at eb5f73d with 12 prior green
+jobs, public v1.2.1, zero net Actions charges and the $0 stop budget enabled.
+Remaining included allowance is not supplied. Clean Windows, current-source CI
+and public download remain open; no Actions or publication occurred. CHECKPOINT
+records the next native action and the separately prepared Windows packet.
+
+## Preserved menu pass — September 9, before native resumption
+
+[[astra-desktop-menus-2026-09-09]] and CHECKPOINT record the subsequent local UI
+pass and its current source/build identities. All evidence below remains tied
+to its named historical bytes; it does not validate the later menu changes.
+
+Current MSI `26ef95bc…` / extracted EXE `073a1a30…` passed local build and packaged
+runtime-dependency inspection. All 359 source inputs matched their frozen copies;
+only ipc_meta.rs differs from the preceding menu candidate. The repair suppresses
+background readiness consoles, with 26 Desktop library tests, strict Clippy and
+formatting passed. A controlled Windows child through the real cmd wrapper checks
+console absence, both output streams and exit status. Independent review cleared it.
+
+The preceding 154 production browser tests, 42 stories, Svelte/CSS checks and 64
+screenshots cover the unchanged frontend. Current build/test/packet identities are
+in `target/astra-ux-20260909/native-probe-verification.json`; the original UI record
+remains `verification.json`. Predecessor fcd onboarding, workspace selection and
+Work/New run were observed before physical Escape, reproducing the console issue.
+No mission was started, six primary hashes remain unchanged, and static diagnostic
+clips do not establish motion capture. Repaired-payload native launch, clean
+Windows installation, exact-build film, current-source hosted CI and public
+download remain open. No Actions run was used for this pass.
+
+## Preserved evidence — preceding polished Desktop
+
+The preceding local MSI is
+`e7752cf4f704110319efd26711c264f516fbc3dc818f354f2f335cfa3166f1af`
+(10,850,304 bytes). Its extracted packaged executable is
+`7abe2097b8c886aaccbd27cb35882bbf0f28f81e3d9b435975082c6ff6183947`.
+The 356-input manifest SHA256 is
+`58534b17878177ac4340d8dd8ea85e1986c29e59a3acf46332aee2d88ff460be`.
+Current/frozen input pairs were rechecked without drift; MSI hash was rechecked
+again during this audit. Native launch, clean installation and publication of
+this artifact remain unverified. It is Authenticode unsigned.
+
+| Outcome | Actual evidence and limit |
+| --- | --- |
+| Desktop polish | 141 production tests and one legacy test passed. Final keyboard/switch changes passed 7 focused checks against the packaged frontend. All 41 rebuilt stories passed; Svelte reported zero errors/warnings and CSS lint passed. These are browser/component checks, not native acceptance. |
+| Build | Two-worker MSI build and extracted PE dependency inspection passed. Standalone EXE `528038…` differs from packaged `7abe…` by Tauri's recorded three-byte `UNK`→`MSI` patch; native evidence must identify the packaged executable. |
+| UI evidence | Same-state Work, Apply/Discard, Appearance, scrolling and narrow-window captures plus loading/empty/error/offline stories are indexed in [[astra-desktop-polish-2026-09-08]]. |
+| Native mission and Bench | The earlier c77 payload completed run `16dab199-72fa-4596-b6fd-610e7c0ebb4c`, 3 combined checks, 11 repository tests and 26 independent checks, Cancel and restart. Record: `astra-aperture-native-2026-09-08.json`. No transfer of that proof to 7abe. |
+| Demo | Reviewed 58-second redacted checkpoint master SHA256 `925ddfcf60d94f83c75d3ec86755cdc765036d3899b08410a5dfce6a734400e2`; 26 encoded frames inspected and complete machine playback recorded. Record: `astra-aperture-demo-2026-09-09.json`. Final polished-build recording remains pending. |
+| Website | Build/lint and 3 focused evidence tests passed. Two screenshot tests reran after correcting capture position; four 1440/390 viewport images passed independent review. No deployment. |
+| CI | Twelve green jobs belong to `eb5f73d`. This earlier polish changed Desktop/web/film source; the later readiness repair additionally changes native Rust. Current-source hosted CI is still open. |
+| Windows packet | 21-file e775 packet SHA256 `e8d05cd1ad545382d107dda3dd4743ceac8188cfcab465a343226f3d49dc6ffd`; inventory and ZIP hash verified. Staging does not close installation, native workflow or public-download acceptance. |
+
+Current local logs, source copies and screenshots are under
+`target/astra-polish-20260908/`; sanitized records are under
+`tooling/benchmarks/results/`. [[astra-release-proposal-2026-09-07]] holds the
+artifact/approval sequence. Earlier sections below retain their original tested
+identities and dates; their use of “final” refers to that earlier checkpoint.
+
+## Earlier MSI guest installation — September 8, 09:10 UTC
+
+The final `cf8db2e…` MSI installed with exit **0** at 08:55:02 UTC in the
+preserved Windows 10 LTSC evaluation guest. Its exported inventory verifies the
+installed EXE against final payload `d75be6…`, version 1.2.2. All six checked
+VC++ runtime DLLs remain absent. Normal removal of the preceding same-version
+candidate left its local Pytxo data directory present; its contents were not
+compared. This is not a 1.2.1-to-1.2.2 upgrade test.
+The earlier final-before inventory also completed and has now been recovered.
+
+The Start-menu shortcut opened a white application window at 09:04:37; the
+interface had not rendered before the host resource guard interrupted the test.
+Two samples of 919 and 955 MiB free host RAM crossed its revised 1,024 MiB floor.
+ACPI shutdown was requested at 09:04:40; after fifteen seconds the guard used QMP
+quit. QEMU exited 0, but the event is `host-qmp-quit`, **not a clean Windows
+shutdown**. No forced process kill was observed. The guest disk is preserved.
+
+The final installed inventory SHA256 is
+`584311557f86a9a288f83a57d1a0d1afc79eecb9b00b20839d81869e2a99819d`.
+Independently reviewed continuation record `final-install-continuation-v2.json`
+and twelve bound files are under
+`target/astra-clean-vm-20260907/guest-evidence/`, prefixed
+`c41a57d8-0a29-48f0-a946-11d1bdfc36a7`. The guest installer log/result and packet-copy
+record still need export. Native rendered onboarding, local fixture checks,
+authentication and guest mission/recovery remain unverified for the final MSI.
+No additional Actions or publication occurred. A further attempt requires actual
+host memory headroom; permission to close the visible Minecraft client is pending.
+
+## Final source CI — September 8
+
+All twelve jobs in [run 34181828835](https://github.com/Pytxo-dev/pytxo/actions/runs/34181828835)
+passed on `eb5f73d9dc21ffbcc6e51306db071fddbe0b8d78`. The final Windows job
+completed at 03:29:16 UTC. This was one consolidated PR-only run with no retries.
+The later billing API reports every usage item fully discounted and zero net
+Actions amount. No budget, merge, tag, release or deployment changed.
+
+Saved logs establish 130 Desktop production browser tests, one development-only
+test, 41 Storybook checks and 23 website browser tests passed. Workspace result
+totals were 469 on Windows, 452 on Linux and 452 on macOS, zero failed or ignored
+in each workspace step. Clippy, audit and applicable feature checks passed on all
+three platforms; Cargo audit retains 19 allowed warnings. The Linux native
+Desktop build and its test job also passed.
+
+Evidence: `target/astra-final-native/ci-final-run.json`, `ci-*-final.log`, and
+`actions-post-ci-usage.json`. All 354 frozen native source inputs still matched
+after the selective commit. This closes CI for the current source, separately
+from MSI identity, clean guest acceptance and public distribution.
+
+The final guest memory wait ended without a boot at 03:32:48 UTC. Last free RAM
+was 1,958 MiB against its 4 GiB launch gate; the preserved disk remains stopped.
+Temporary device-login account approval is still unanswered. No account setting
+or host app was changed. Final guest and publication gates remain open.
+
+The owner resumed at 07:40 UTC. Three host-memory samples of 4,985–5,026 MiB
+and the post-media-hash check passed, allowing preserved guest session
+`d6cf4ed6-9b78-4187-b18f-ecc28441d49a` to start at 07:48:22 UTC. Its normal
+local sign-in and desktop/PowerShell prompt were inspected. The final-before
+inventory's completion was initially unknown; the later session exported it,
+confirming its 07:55:48 completion and prior EXE identity.
+At 07:59:47 UTC the resource guard began shutdown after two low-memory samples
+(last 420 MiB). QEMU exited 0 at 08:00:02 UTC; the manager/launcher reported the
+resource abort. The final MSI was not installed during this continuation.
+Session logs and unmodified screenshots remain under
+`target/astra-clean-vm-20260907/`. No user app, host setting, CI run or publication
+was changed. The current source's passing CI remains valid.
 
 ## Current candidate — September 8, 02:55 UTC
 
@@ -34,7 +212,8 @@ Logs, frozen inputs, extracted executable and reports are under
 `target/astra-onboarding-prereqs-20260908/`. Its final 16-file packet ZIP hash is
 `47517631b8602ad671ec3cade5ff3530de2615648f7a0b2d1b008c79627bac46`;
 all archive entries and both read-only transfer discs were compared byte for
-byte. This candidate's guest installation and guest mission remain pending.
+byte. This candidate's guest installation is now verified above; its guest
+application acceptance and mission remain pending.
 The preceding 1f47 MSI's successful guest welcome below remains narrower,
 historical evidence. No additional Actions run or publication occurred here.
 

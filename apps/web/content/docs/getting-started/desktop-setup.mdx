@@ -1,81 +1,55 @@
 ---
 title: Desktop setup
-description: Install Pytxo Desktop from release installers.
+description: Connect Codex, choose a repository, and get ready for your first task.
 ---
 
-**Pytxo Desktop** is the optional control UI. It has three destinations — Work,
-History, and Setup — plus a workspace switcher in the title bar and an approvals
-overlay. It is not a multi-terminal IDE.
+**Version note:** the steps below describe the unpublished **v1.2.2 Desktop preview**. The public download is v1.2.1 and may look different. Check [Download](/download) before installing.
 
-## Download
+## What you need
 
-Get installers from [pytxo.com/download](https://pytxo.com/download) or
-[GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases).
-Use the version and installation notes shown on the download page:
+- Windows x64 and Pytxo Desktop. The separate Pytxo CLI is optional.
+- Codex CLI installed and signed in through its own sign-in flow.
+- A Git repository with its build and test dependencies installed.
 
-| Platform | Installer |
-|----------|-----------|
-| Windows x64 | `pytxo-desktop-windows-x64.msi` |
-| macOS / Linux | No v1 Desktop binary |
+Local Core needs no Pytxo account. Codex access and usage costs belong to your agent account.
 
-Desktop is currently Windows-first. Older macOS or Linux artifacts do not
-establish support for the current Desktop release.
+## Complete the welcome steps
 
-## Prerequisites
+1. **Welcome:** choose **Get started**.
+2. **Agent:** select Codex. Finish its sign-in if needed, then **Check again**. Opening the sign-in window alone does not confirm access.
+3. **Project:** choose **Select folder**, or **Try the guided example**.
+4. **Ready:** choose **Enter Pytxo Desktop**.
 
-1. On Windows x64, install the Desktop MSI. It includes the local Pytxo core;
-   the separate [Pytxo CLI](/docs/getting-started/install) is optional.
-2. Install and sign in to at least one supported agent CLI, such as Codex or
-   Claude Code. The agent runs under your existing vendor session.
+You can skip agent or project setup and finish it later. Skipping does not make a run ready.
 
-On other platforms, use the Pytxo CLI; a current Desktop installer is not available.
+## Choose your repository
 
-## First session
+If you skipped the folder step, choose **Add workspace**. Select your Git repository and review its requested permissions. The preview's first-run path uses **Orbit**, one Codex worker, one repository, and local PTY execution.
 
-1. Open Desktop and choose **Add workspace**. Select a repository and review its
-   permission profile in the folder trust flow.
-2. Open **Setup → Agents** and confirm that your installed agent has an active
-   vendor session. Use its official sign-in action if needed.
-3. On **Work**, choose **New run**. Name a concrete outcome and the existing files
-   involved. Start with one agent instance.
-4. Inspect the generated plan, file scope, dependencies, and checks before **Run**.
-5. Review the combined candidate and its recorded check result before **Apply**.
+Open **Setup → Agents & permissions** to recheck Codex. A detected installation and a working sign-in are separate checks.
 
-The [first mission guide](/docs/getting-started/first-mission) walks through a
-scoped bug fix, including readiness checks and starting a fresh job from history.
+Then open **Work → New work** and follow [First mission](/docs/getting-started/first-mission).
 
-Desktop can also create the bundled **Approval risk demo** from onboarding or
-**Setup → Workspaces**. Its baseline tests run without model credentials;
-dispatching the run uses the agent CLI selected in **New run**.
+## Find your way around
 
-## What you should see
+| Place | Use it to |
+|---|---|
+| **Work** | Describe a task, review its plan, follow execution, and open Review changes |
+| **History** | Return to a recorded run and check whether its changes were applied |
+| **Setup** | Manage workspaces, agent access, appearance, and updates |
+| **Approvals** | Respond to runtime permission requests; these do not apply repository changes |
 
-- **Work** — the run ledger by wave on the left, the commit boundary and its enforcement receipt on the right
-- **History** — every run with its outcome and Apply state, and the boundary panel for the selected run
-- **Setup** — Providers, Workspaces, Agents, Appearance, Keyboard, Voice, Privacy, and Account
-- **Approvals** — an overlay from the title bar: evidence, consequence, then Apply or Discard
-- **Run Review** — the exact package a finished run prepared, reached from History
+## If you cannot run
 
-## Agent sessions and API providers
+- **Codex missing:** follow its install guide, then recheck in Setup.
+- **Sign-in required or unknown:** complete the vendor sign-in, then check again.
+- **Plan blocked:** read the reason beside Run. The preview requires Orbit and `execution_backend = "pty"`. After changing configuration, build a fresh plan.
+- **No checks found:** add a command that already works in your project under **Additional verification commands** before building the plan.
 
-Pytxo does not ask for ChatGPT, Claude, or other vendor passwords. **Agents**
-detects installed CLIs and can launch their official sign-in command:
+Changing the default permission profile does not change an existing repository's trust or configuration. See [Troubleshooting](/docs/troubleshooting).
 
-- ChatGPT subscription access is represented by the vendor-owned **Codex CLI** session.
-- Claude subscription access is represented by the vendor-owned **Claude Code** session.
-- Cursor Agent, OpenCode, Gemini CLI, and Aider keep their own login or provider setup.
+## Updates
 
-Direct API keys are separate. Configure those under **Setup → Providers**;
-Desktop shows only configured/not-configured state and never returns key values
-to the webview.
+In the preview, use **Setup → General → Check for updates**. Finish active work and resolve any reported recovery issue before installing. After reopening, check the running version. An installer opening does not confirm that an update finished.
 
-## Build from source
-
-If you are contributing to Desktop itself, see [Contributing](/docs/developers/contributing). End users should use the installers above.
-
-## Next steps
-
-- [Folder trust](/docs/getting-started/folder-trust)
-- [First mission](/docs/getting-started/first-mission)
-- [Pytxo Desktop concepts](/docs/concepts/desktop)
-- [Troubleshooting](/docs/troubleshooting)
+A local preview can be newer than the public download. Check the offered version before using **Manual download**.

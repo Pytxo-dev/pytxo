@@ -1,6 +1,6 @@
 import Link from "next/link";
 import nativeObservation from "../../../../public/evidence/astra-native-codex-2026-09-07.json";
-import currentObservation from "../../../../public/evidence/astra-final-native-2026-09-08.json";
+import checkpointObservation from "../../../../public/evidence/astra-aperture-native-2026-09-08.json";
 
 import { StateChip } from "@/components/site/state-chip";
 import { SIGNAL_BENCHMARK, SIGNAL_LANGUAGE_BREAKDOWN } from "@/lib/evidence";
@@ -91,25 +91,29 @@ export default function EvidencePage() {
           <a className="aperture-link" href="/evidence/astra-review-withheld-2026-09-07.json">Review withheld record</a>
         </div>
         <div className="mt-12 border-t border-[var(--aperture-line)] pt-8">
-          <h3 className="text-xl tracking-[-0.025em]">Current candidate follow-up</h3>
+          <h3 className="text-xl tracking-[-0.025em]">September 8 recorded checkpoint</h3>
           <p className="mt-5 max-w-[52rem] text-sm leading-relaxed text-[#a9a9b2]">
-            On 8 September 2026, the MSI with the Windows runtime and setup fixes
-            completed a fresh credentials-path rehearsal. Three
+            On 8 September 2026, the MSI with the review-scrolling and reduced-motion
+            fixes completed a fresh credentials-path rehearsal. Three
             tasks passed combined checks and explicit native Apply. All three file
-            hashes matched, {currentObservation.native_apply.post_apply_tests_passed} repository
-            tests passed, and {currentObservation.native_apply.independent_acceptance.post_apply_passed} separately
+            hashes matched, {checkpointObservation.apply.repository_tests_passed} repository
+            tests passed, and {checkpointObservation.apply.independent_tests_passed} separately
             authored acceptance checks passed. Five of those acceptance checks had
             failed on the baseline. The committed receipt survived a native restart.
-            Cancel left the primary files unchanged, and restoring a draft required
-            a fresh plan. This host rehearsal is not a direct-run comparison or
-            clean-install result.
+            Cancel left the primary inventory and file contents unchanged.
+            Native recordings retain the actual review and Apply interactions;
+            removed review waiting time is labeled. This recording predates the
+            newer Desktop polish build, whose native verification is pending.
+            Clean-install and public-download acceptance remain open. This host
+            rehearsal is not a direct-run comparison.
           </p>
           <p className="mt-5 max-w-[52rem] break-all font-mono text-xs leading-relaxed text-[#8d8d96]">
-            Follow-up MSI SHA256: {currentObservation.msi_sha256}
+            Recorded checkpoint MSI SHA256: {checkpointObservation.msi_sha256}
           </p>
           <div className="mt-5 flex flex-wrap gap-x-7 gap-y-3 text-sm text-[#f5f5f7]">
-            <a className="aperture-link" href="/evidence/astra-final-native-2026-09-08.json">Current candidate record</a>
-            <a className="aperture-link" href="/evidence/astra-ci-native-2026-09-07.json">Previous candidate record</a>
+            <a className="aperture-link" href="/evidence/astra-aperture-native-2026-09-08.json">September 8 checkpoint record</a>
+            <a className="aperture-link" href="/evidence/astra-final-native-2026-09-08.json">Earlier onboarding record</a>
+            <a className="aperture-link" href="/evidence/astra-ci-native-2026-09-07.json">Earlier CI candidate record</a>
           </div>
         </div>
       </section>
@@ -154,7 +158,7 @@ export default function EvidencePage() {
           {SIGNAL_BENCHMARK.minimumBytes.toLocaleString("en-US")} bytes were excluded.
         </p>
         <div className="mt-10 overflow-hidden rounded-[8px] border border-[var(--aperture-line)]">
-          <div className="hidden grid-cols-[minmax(0,1fr)_5rem_minmax(0,0.9fr)_minmax(0,0.9fr)_6rem] gap-6 border-b border-[var(--aperture-line)] bg-[var(--aperture-raised)] px-6 py-3 font-mono text-[11px] uppercase tracking-[0.05em] text-[#6f6f79] sm:grid">
+          <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_5rem_minmax(0,0.9fr)_minmax(0,0.9fr)_6rem] gap-6 border-b border-[var(--aperture-line)] bg-[var(--aperture-raised)] px-6 py-3 font-mono text-[11px] uppercase tracking-[0.05em] text-[#8d8d96] sm:grid">
             <span>Language</span>
             <span className="text-right">Files</span>
             <span className="text-right">Source bytes</span>
@@ -166,19 +170,20 @@ export default function EvidencePage() {
               key={row.language}
               className="grid gap-1 border-b border-[var(--aperture-line)] px-6 py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_5rem_minmax(0,0.9fr)_minmax(0,0.9fr)_6rem] sm:items-center sm:gap-6"
             >
-              <span className="text-[15px] text-[#f5f5f7]">{row.language}</span>
-              <span className="font-mono text-[13px] tabular-nums text-[#a9a9b2] sm:text-right">
-                {row.files}
-              </span>
-              <span className="font-mono text-[13px] tabular-nums text-[#7d7d87] sm:text-right">
-                {row.originalBytes.toLocaleString("en-US")}
-              </span>
-              <span className="font-mono text-[13px] tabular-nums text-[#7d7d87] sm:text-right">
-                {row.scaffoldedBytes.toLocaleString("en-US")}
-              </span>
-              <span className="font-mono text-[13px] tabular-nums text-[#c7c7ce] sm:text-right">
-                {row.reductionPct}%
-              </span>
+              <h3 className="mb-3 text-[15px] text-[#f5f5f7] sm:mb-0">{row.language}</h3>
+              <dl className="space-y-2 sm:contents sm:space-y-0">
+                {[
+                  ["Files", row.files],
+                  ["Source bytes", row.originalBytes.toLocaleString("en-US")],
+                  ["Scaffold bytes", row.scaffoldedBytes.toLocaleString("en-US")],
+                  ["Reduction", `${row.reductionPct}%`],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-baseline justify-between gap-4 sm:block sm:text-right">
+                    <dt className="text-[13px] text-[#a9a9b2] sm:sr-only">{label}</dt>
+                    <dd className="font-mono text-[13px] tabular-nums text-[#c7c7ce]">{value}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           ))}
         </div>

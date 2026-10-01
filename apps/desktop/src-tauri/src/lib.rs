@@ -17,6 +17,7 @@ pub mod local_preview_policy;
 #[cfg(windows)]
 mod main_profile;
 mod tray;
+mod update_safety;
 mod workspace_project;
 mod workspace_terminal;
 
@@ -48,8 +49,9 @@ use ipc_install::{
 use ipc_meta::{check_pytxo_cli, entitlement_status, ipc_version, list_ade_clis, start_ade_login};
 use ipc_routing_account::{
     routing_account_connect, routing_account_disconnect, routing_account_reconnect_for_revocation,
-    routing_account_status, routing_hosted_grant_enable, routing_hosted_grant_revoke,
-    routing_hosted_grant_status, routing_hosted_grants,
+    routing_account_status,
+    routing_hosted_grant_enable, routing_hosted_grant_revoke, routing_hosted_grant_status,
+    routing_hosted_grants,
 };
 use ipc_voice::{
     voice_cancel_session, voice_default_model, voice_finish_session, voice_get_session,
@@ -117,6 +119,7 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .manage(tray::TrayPrefs::load())
         .manage(workspace_terminal::WorkspaceTerminals::default())
+        .manage(update_safety::UpdateHandoff::default())
         .manage(AppState {
             config_path: Mutex::new(None),
             poll_cursors: Mutex::new(std::collections::HashMap::new()),
@@ -142,6 +145,9 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            update_safety::update_preflight,
+            update_safety::begin_update_handoff,
+            update_safety::finish_update_handoff,
             local_preview::local_preview_open,
             local_preview::local_preview_sync,
             local_preview::local_preview_close,

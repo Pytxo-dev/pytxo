@@ -7,13 +7,17 @@
   import IconPlus from "@tabler/icons-svelte/icons/plus";
   import type { DesktopBackend, DesktopSnapshot } from "../../lib/desktop-backend";
   import { runState, isPartiallyApplied } from "../../lib/epistemic";
-  import type { RunDto, RunReviewDto } from "../../lib/types";
+  import type { RoutingDisplaySummary, RunDto, RunReviewDto } from "../../lib/types";
   import BoundaryPanel from "./BoundaryPanel.svelte";
-  import RunLedger from "./RunLedger.svelte";
+  import ApertureGlyph from "./ApertureGlyph.svelte";
+  import { workActivity, hasCurrentApplyIssue } from "../../lib/work-activity";
+  import ExecutionMap from "./ExecutionMap.svelte";
+  import { exactAttemptAgent } from "../../lib/execution-topology";
   import RoutingRunDetails from "./RoutingRunDetails.svelte";
   import StateChip from "./StateChip.svelte";
-  import type { DockReference } from "../../lib/dock-layout";
+  import type { DockPosition, DockReference } from "../../lib/dock-layout";
   import { selectMissionRun } from "../../lib/mission-selection";
+  import { readReviewRevision, reviewRevisionKey } from "../../lib/review-detail-cache";
 
   let {
     snapshot,
@@ -27,6 +31,7 @@
     onStopRun,
     onSelectRun,
     onInspect = null,
+    onDismissInspect = () => {},
   }: {
     snapshot: DesktopSnapshot;
     backend: DesktopBackend;
@@ -38,7 +43,8 @@
     onReviewRun: (runId: string) => void;
     onStopRun: (runId: string, domainId: string) => Promise<void>;
     onSelectRun: (runId: string) => void;
-    onInspect?: ((ref: DockReference) => void) | null;
+    onInspect?: ((ref: DockReference, position?: DockPosition) => void) | null;
+    onDismissInspect?: () => void;
   } = $props();
 
   let heading: HTMLElement | undefined = $state();
@@ -49,6 +55,11 @@
   let stopMessage = $state("");
   let stopping = $state(false);
   let selectedAgentId = $state<string | null>(null);
+  let routingRetry = $state(0);
+  let routingRead = $state<{
+    runId: string; domainId: string; revision: string;
+    summary: RoutingDisplaySummary | null; error: string | null; loading: boolean;
+  } | null>(null);
 
   let loadedReview = $state<RunReviewDto | null>(null);
   let loadedReviewDomain = $state<string | null>(null);
@@ -56,17 +67,27 @@
   let reviewLoading = $state(false);
   let missionTitle = $state<string | null>(null);
   let missionText = $state<string | null>(null);
+  let taskDescriptions = $state<Record<string, string>>({});
   const displayMissionTitle = $derived(missionTitle && missionText?.startsWith(missionTitle) && missionText.length > missionTitle.length ? `${missionTitle.trimEnd()}…` : missionTitle);
   $effect(() => {
     const id = focusRun?.id;
     const domain = focusRun?.domain_id;
-    missionTitle = null; missionText = null;
+    missionTitle = null; missionText = null; taskDescriptions = {};
     if (!id) return;
     let valid = true;
     backend.flowHistory().then(records => {
       if (!valid) return;
       const draft = records.find(d => d.dispatched_run_id === id && d.domain_id === domain);
-      missionTitle = draft?.title ?? null; missionText = draft?.mission_text ?? null;
+      missionTitle = draft?.title.trim() || draft?.mission_text.trim() || null; missionText = draft?.mission_text ?? null;
+      // Saved plan prose is presentation only; scheduling still uses the recorded run plan.
+      try {
+        const plan = JSON.parse(draft?.plan_json ?? "{}");
+        if (Array.isArray(plan.tasks)) {
+          const copy: Record<string,string> = {};
+          for (const task of plan.tasks) if (typeof task.id === "string" && typeof task.prompt === "string" && task.prompt.trim()) copy[task.id] = task.prompt.trim();
+          taskDescriptions = copy;
+        }
+      } catch { /* A missing or invalid saved plan supplies no descriptive copy. */ }
     }).catch(() => {});
     return () => { valid = false; };
   });
@@ -79,10 +100,20 @@
       : snapshot.runs,
   );
   const focusRun = $derived(selectMissionRun(snapshot.runs, activeDomainId, focusRunId));
+  const routingIdentityUnknown = $derived(!!focusRun && snapshot.diagnostics.some((diagnostic) =>
+    diagnostic.stage === "routing_revision" && diagnostic.domain_id === focusRun.domain_id && diagnostic.run_id === focusRun.id));
+  const currentRoutingRead = $derived(
+    focusRun?.routing_revision != null
+      && routingRead?.runId === focusRun.id
+      && routingRead.domainId === focusRun.domain_id
+      && routingRead.revision === focusRun.routing_revision
+        ? routingRead : null,
+  );
   const agents = $derived(focusRun ? snapshot.agents.filter((agent) => agent.run_id === focusRun.id && agent.domain_id === focusRun.domain_id) : []);
   const focusState = $derived(focusRun ? runState(focusRun) : null);
   const review = $derived(loadedReview?.run_id === focusRun?.id && loadedReviewDomain === focusRun?.domain_id ? loadedReview : null);
   const partialAttempt = $derived(review?.apply_attempts.find(isPartiallyApplied) ?? null);
+  const currentApplyIssue = $derived(!!focusRun && (hasCurrentApplyIssue(focusRun) || !!review && hasCurrentApplyIssue(review)));
   const receiptProfile = $derived((review?.enforcement?.run?.effective_profile ?? "").toLowerCase());
   const canReviewFocusRun = $derived(canOpenRunReview(focusRun, review));
   const canStopFocusRun = $derived(!!focusRun && ACTIVE_STATUSES.includes(focusRun.status.toLowerCase()));
@@ -90,11 +121,25 @@
   const workSummary = $derived.by(() => {
     if (!focusRun) return "";
     if (partialAttempt) return "Some project files may have changed. Check recovery before continuing.";
-    if (review?.last_apply_error || focusRun.last_apply_error) return "Something needs your attention before these changes can be saved.";
-    if (review?.recovery_state || focusRun.recovery_state || ["review_failed", "recovery_required"].includes(review?.apply_status ?? focusRun.apply_status ?? "")) return "The changes need attention. Review the problem before continuing.";
+    if (currentApplyIssue) return "The changes need attention. Review the problem before continuing.";
     if (focusRun.applied_at) return "These changes have been saved to your project.";
     if (["starting", "pending", "dispatching"].includes(focusRun.status.toLowerCase())) return "Getting the work ready. Your agents have not reported a result yet.";
     if (focusRun.status === "failed_startup") return "The work could not start. Open details to see what needs fixing.";
+    if (runApprovals.length) return "A decision for this run needs your attention.";
+    if (routingIdentityUnknown) return "Routing identity could not be checked. Worker selection is unavailable.";
+    if (focusRun.routing_revision != null && canStopFocusRun) {
+      if (!currentRoutingRead?.summary) return currentRoutingRead?.loading === false
+        ? "Routing record unavailable. Retry the record below to see the latest attempt."
+        : "Checking the latest routing attempt…";
+      const admitted = currentRoutingRead.summary.tasks.flatMap((task) => task.attempts
+        .filter((attempt) => task.current_attempt_id === attempt.attempt_id && attempt.state === "admitted")
+        .map((attempt) => ({ task, attempt })));
+      if (activity.active) return "A recorded worker is running. You can follow its attempt below.";
+      if (admitted.length) return exactAttemptAgent(agents, focusRun, admitted[0].task.task_id, admitted[0].attempt.agent_id)
+        ? `Attempt ${admitted[0].attempt.ordinal} is admitted. Waiting for its worker state to settle.`
+        : `Attempt ${admitted[0].attempt.ordinal} is admitted. Its worker has not been recorded yet.`;
+      return "Routing is in progress. Open the attempt record for its latest state.";
+    }
     if (canStopFocusRun) return "Your agents are working on this request. You can follow their progress below.";
     if (["failed", "stopped", "cancelled"].includes(focusRun.status.toLowerCase())) return "The work stopped before finishing. Open details to see what happened.";
     if (checks.some(check => !check.passed)) return "Some checks failed. Review the results before deciding what to do next.";
@@ -104,27 +149,34 @@
     return focusRun.status === "completed" ? "The agents have reported back. Details show what is ready and what still needs checking." : "The current work status needs checking. Open details before continuing.";
   });
   const runApprovals = $derived(
-    snapshot.approvals.filter((approval) => !activeDomainId || approval.domain_id === activeDomainId),
+    focusRun
+      ? snapshot.approvals.filter((approval) => approval.domain_id === focusRun.domain_id && approval.run_id === focusRun.id)
+      : [],
   );
+
+  const activity = $derived(workActivity(focusRun, agents,
+    runApprovals.length > 0,
+    !!snapshot.error || snapshot.diagnostics.some(d => d.domain_id === focusRun?.domain_id && (!d.run_id || d.run_id === focusRun?.id)), canReviewFocusRun, !!partialAttempt || currentApplyIssue, currentRoutingRead?.summary ?? null));
 
   /**
    * The enforcement receipt is the boundary panel's whole substance, so it is
    * fetched per focused run. A stale response from a previous run is discarded
-   * rather than rendered against the wrong candidate.
-   */
+  * rather than rendered against the wrong candidate.
+  */
   $effect(() => {
-    const runId = focusRun?.id ?? null;
-    if (!runId) {
+    const currentRun = focusRun;
+    if (!currentRun) {
       loadedReview = null;
       reviewError = null;
       return;
     }
+    const runId = currentRun.id;
+    const revisionKey = reviewRevisionKey(currentRun);
     let current = true;
-    const domainId = focusRun?.domain_id ?? null;
+    const domainId = currentRun.domain_id;
     reviewLoading = true;
     reviewError = null;
-    backend
-      .runReview(runId, focusRun?.domain_id ?? null)
+    readReviewRevision(backend, revisionKey, runId, domainId)
       .then((result) => {
         if (!current) return;
         loadedReview = result;
@@ -141,6 +193,31 @@
     return () => {
       current = false;
     };
+  });
+
+  // The Work canvas and the detailed ledger share one revision-matched Store
+  // read. An older response must never identify a worker in a newer run.
+  $effect(() => {
+    void routingRetry;
+    const runId = focusRun?.id;
+    const domainId = focusRun?.domain_id;
+    const revision = focusRun?.routing_revision;
+    routingRead = null;
+    if (!runId || !domainId || revision == null) return;
+    const key = { runId, domainId, revision };
+    let current = true;
+    routingRead = { ...key, summary: null, error: null, loading: true };
+    backend.routingRunSummary(runId, domainId)
+      .then((summary) => {
+        if (!current) return;
+        routingRead = summary?.run_id === runId && summary.domain_id === domainId && summary.routing_revision === revision
+          ? { ...key, summary, error: null, loading: false }
+          : { ...key, summary: null, error: "Routing record changed or could not be matched to this run. Refreshing the run list may resolve it.", loading: false };
+      })
+      .catch((cause: unknown) => {
+        if (current) routingRead = { ...key, summary: null, error: cause instanceof Error ? cause.message : String(cause), loading: false };
+      });
+    return () => { current = false; };
   });
 
   function domainForRun(run: RunDto) {
@@ -231,22 +308,26 @@
 </script>
 
 <section class="screen work" aria-label="Work">
-  <header class="work-heading">
-    <div bind:this={heading} tabindex="-1">
-      <h1>{focusRun ? (displayMissionTitle ?? "Your coding task") : "Work"}</h1>
-      {#if activeDomainLabel}<span class="scope">Project · {activeDomainLabel}</span>{/if}
+  <header class="command-strip work-heading" role={focusRun ? "region" : undefined} aria-label={focusRun ? "Focused run" : undefined}>
+    {#if focusRun}<ApertureGlyph active={activity.active} tone={activity.tone} />{/if}
+    <div class="command-copy" bind:this={heading} tabindex="-1">
+      <h1>{focusRun ? (displayMissionTitle ?? `Work in ${focusRun.repo_root.split(/[\\/]/).pop() || "selected repository"}`) : "Work"}</h1>
+      <div class="heading-meta">{#if activeDomainLabel}<span class="scope">{activeDomainLabel}</span>{/if}{#if focusState}<StateChip tone={focusState.tone} label={focusState.label} />{/if}</div>
+      {#if focusRun}<p class="work-summary" role="status">{workSummary}</p>{/if}
+      {#if missionText}{#key `${focusRun?.domain_id}:${focusRun?.id}`}<details class="mission-outcome"><summary>Full request</summary><p>{missionText}</p></details>{/key}{/if}
     </div>
+    {#if focusRun}
+      <div class="command-actions run-bar">
+        <details class="run-reference"><summary>Runs</summary><div class="run-switch" role="tablist" aria-label="Runs in this snapshot">{#each runs.slice(0, 8) as run (run.id)}{@const chip = runState(run)}<button role="tab" aria-selected={run.id === focusRun?.id} data-tone={chip.tone} class:active={run.id === focusRun?.id} title={run.id} onclick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); onSelectRun(run.id); }}><i aria-hidden="true"></i>{displayRunId(run.id)}</button>{/each}</div></details>
+        {#if onInspect}<button class="details-action" onclick={() => onInspect?.({ kind: "evidence", domainId: focusRun.domain_id, runId: focusRun.id, title: "Checks & details" }, "right")}>Details</button>{/if}
+        {#if runApprovals.length}<button class="attention-action" onclick={onOpenApprovals}><strong>Decision needed</strong><span>Open approval</span></button>{/if}
+        <button class="review-run" class:secondary={runApprovals.length > 0} disabled={!canReviewFocusRun} aria-describedby={!canReviewFocusRun ? "review-unavailable-reason" : undefined} onclick={() => canReviewFocusRun && onReviewRun(focusRun.id)}>Review changes<IconArrowRight size={15} /></button>
+        <button class="stop-run" disabled={!canStopFocusRun} aria-describedby={!canStopFocusRun ? "stop-disabled-reason" : undefined} onclick={() => requestStop(focusRun)}><IconPlayerStop size={14} />Stop</button>
+        {#if !canReviewFocusRun}<span id="review-unavailable-reason" class="sr-reason">Review is available when the agents prepare changes.</span>{/if}
+        {#if !canStopFocusRun}<span id="stop-disabled-reason" class="sr-reason">There is no running work to stop.</span>{/if}
+      </div>
+    {/if}
   </header>
-  {#if missionText}
-    {#key `${focusRun?.domain_id}:${focusRun?.id}`}
-      <details class="mission-outcome">
-        <summary>Read full request</summary>
-        <p>{missionText}</p>
-      </details>
-    {/key}
-  {/if}
-  {#if focusRun}<p class="work-summary">{workSummary}</p>{/if}
-
   {#if stopMessage}
     <div class="work-feedback" role="status">{stopMessage}</div>
   {:else if stopError && !stopTarget}
@@ -266,66 +347,18 @@
       <span class="empty-mark" aria-hidden="true"><IconPlus size={22} stroke={1.4} /></span>
       <h2 id="empty-work-title">What would you like to build?</h2>
       <p>Pytxo puts coding agents to work on your project. Describe a change, follow the work, and review the result before saving it.</p>
-      <button class="new-run" onclick={onNewRun}><IconPlus size={15} />New run</button>
+      <button class="new-run" onclick={onNewRun}><IconPlus size={15} />New work</button>
       <ol aria-label="A run in three steps"><li>Describe a change</li><li>Let agents work</li><li>Review the result</li></ol>
     </section>
   {:else}
-    <section class="run-bar" aria-label="Focused run">
-      {#if focusState}<StateChip tone={focusState.tone} label={focusState.label} />{/if}
-      <details class="run-reference"><summary>Other runs &amp; IDs</summary>
-        <div class="run-switch" role="tablist" aria-label="Runs in this snapshot">
-          {#each runs.slice(0, 8) as run (run.id)}
-            {@const chip = runState(run)}
-            <button role="tab" aria-selected={run.id === focusRun?.id} data-tone={chip.tone} class:active={run.id === focusRun?.id} title={run.id} onclick={() => onSelectRun(run.id)}><i aria-hidden="true"></i>{displayRunId(run.id)}</button>
-          {/each}
-        </div>
-      </details>
-      {#if focusRun}
-        <div class="run-actions">
-          <div class="review-action">
-            <button class="review-run" disabled={!canReviewFocusRun}
-              aria-describedby={!canReviewFocusRun ? "review-unavailable-reason" : undefined}
-              onclick={() => canReviewFocusRun && onReviewRun(focusRun.id)}>
-              Review changes<IconArrowRight size={15} />
-            </button>
-            {#if !canReviewFocusRun}<small id="review-unavailable-reason">Available when the agents prepare changes.</small>{/if}
-          </div>
-        <div class="stop-action">
-          <button class="stop-run" disabled={!canStopFocusRun} aria-describedby={!canStopFocusRun ? "stop-disabled-reason" : undefined} onclick={() => requestStop(focusRun)}><IconPlayerStop size={14} />Stop</button>
-          {#if !canStopFocusRun}<small id="stop-disabled-reason">There is no running work to stop.</small>{/if}
-        </div>
-        </div>
-      {/if}
-    </section>
-
     <div class="work-layout">
-      {#if focusRun.routing_revision != null}<RoutingRunDetails run={focusRun} {backend} />{/if}
-      <RunLedger
-        {agents}
-        plan={review?.plan ?? null}
-        agentReceipts={review?.enforcement?.agents ?? null}
-        {selectedAgentId}
-        inlineInspector={!onInspect}
-        onSelect={(agentId) => {
-          selectedAgentId = agentId;
-          const agent = agents.find(a => a.id === agentId);
-          if (agent) onInspect?.({ kind: "agent", domainId: agent.domain_id, runId: agent.run_id, agentId, title: agent.task_id });
-        }}
-      />
-      {#if onInspect}
-        <section class="mission-boundary" aria-label="Checks and details">
-          <span>{focusRun.applied_at ? "Changes saved to your project." : (receiptProfile === "orbit" || receiptProfile === "galaxy") && review?.enforcement?.run?.workspace_isolation.status === "enforced" && review?.enforcement?.run?.apply_boundary.status === "enforced" ? "Changes stay separate until you choose Apply." : receiptProfile === "supernova" ? "Agents can change this project directly." : receiptProfile === "deepspace" ? "This job cannot apply changes to your project." : "Check permissions before trusting changes to your project."}</span>
-          <button onclick={() => onInspect?.({ kind: "evidence", domainId: focusRun.domain_id, runId: focusRun.id, title: "Checks & details" })}>View details</button>
-        </section>
-        {#if reviewError}<p class="work-feedback error" role="alert">Checks could not be loaded: {reviewError}</p>{/if}
-        {#if partialAttempt}
-          <div class="work-feedback error" role="alert"><strong>Working tree may be partially modified</strong><span>Attempt {partialAttempt.attempt_id} has no confirmed rollback. Reconcile before starting another run.</span><button onclick={() => recover(focusRun.id)}>Reconcile recovery state</button></div>
-        {/if}
-        {#if runApprovals.length}<button class="work-feedback" onclick={onOpenApprovals}>A decision is waiting · Open approvals</button>{/if}
-        {#if review?.last_apply_error || focusRun.last_apply_error || review?.recovery_state || focusRun.recovery_state || ["review_failed", "recovery_required"].includes(review?.apply_status ?? focusRun.apply_status ?? "")}
-          <div class="work-feedback error" role="alert">{(review?.apply_status ?? focusRun.apply_status) === "review_failed" ? "Package preparation failed. " : ""}{review?.last_apply_error?.message ?? focusRun.last_apply_error?.message ?? "Review the run’s preparation or recovery state before continuing."}<button onclick={() => onReviewRun(focusRun.id)}>Review recovery</button></div>
-        {/if}
-      {:else}
+      {#if reviewError}<p class="work-feedback error" role="alert">Checks could not be loaded: {reviewError}</p>{/if}
+      {#if partialAttempt}<div class="work-feedback error" role="alert"><strong>Working tree may be partially modified</strong><span>Attempt {partialAttempt.attempt_id} has no confirmed rollback. Reconcile before starting another run.</span><button onclick={() => recover(focusRun.id)}>Reconcile recovery state</button></div>{/if}
+      {#if currentApplyIssue}<div class="work-feedback error" role="alert">{(review?.apply_status ?? focusRun.apply_status) === "review_failed" ? "Package preparation failed. " : ""}{review?.last_apply_error?.message ?? focusRun.last_apply_error?.message ?? "Review the run’s preparation or recovery state before continuing."}<button onclick={() => onReviewRun(focusRun.id)}>Review recovery</button></div>{/if}
+      {#if routingIdentityUnknown}<div class="work-feedback error" role="alert">Routing identity could not be checked for this run. Worker selection is unavailable until the run list is repaired.</div>{/if}
+      <ExecutionMap {taskDescriptions} run={focusRun} {review} {agents} {selectedAgentId} routingSummary={currentRoutingRead?.summary ?? null} routingLoading={currentRoutingRead?.loading ?? currentRoutingRead == null} {routingIdentityUnknown} onSelect={(agentId) => selectedAgentId = agentId} onInspect={(reference, position) => onInspect?.(reference, position)} {onDismissInspect} />
+      {#if focusRun.routing_revision != null}<RoutingRunDetails run={focusRun} {backend} record={{ summary: currentRoutingRead?.summary ?? null, error: currentRoutingRead?.error ?? null, loading: currentRoutingRead?.loading ?? currentRoutingRead == null }} onRetry={() => routingRetry += 1} />{/if}
+      {#if !onInspect}
       <BoundaryPanel
         showReviewAction={false}
         run={focusRun}
@@ -357,16 +390,6 @@
 </dialog>
 
 <style>
-  .work{display:flex;flex-direction:column;gap:14px}
-  .mission-outcome{margin:0;max-width:84ch;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--pytxo-text-soft);font-size:13px;line-height:1.6}
-  .mission-outcome summary{cursor:pointer;font-size:12px;color:var(--pytxo-text-muted)}.mission-outcome p{margin:8px 0 0}.mission-outcome summary:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:3px}
-  .work-summary{margin:0;max-width:65ch;color:var(--pytxo-text-soft);font-size:15px;line-height:1.6}
-  .run-reference{font-size:12px;color:var(--pytxo-text-muted)}.run-reference summary{cursor:pointer}.run-reference[open]{flex-basis:100%;order:3}.run-reference .run-switch{padding-top:10px}
-  .work-heading{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
-  .work-heading>div{display:flex;align-items:baseline;gap:10px}
-  .work-heading h1{margin:0;min-width:0;overflow-wrap:anywhere;font-size:clamp(24px,2.4vw,34px);font-weight:640;letter-spacing:-.025em}
-  .work-heading .scope{color:var(--pytxo-text-muted);font:12px "IBM Plex Mono",monospace}
-  .work-heading div:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:4px}
   .new-run{display:flex;min-height:var(--pytxo-control-height);align-items:center;gap:7px;padding:0 14px;border:1px solid transparent;border-radius:var(--pytxo-control-radius);background:var(--pytxo-text-strong);color:var(--pytxo-surface-shell);font-size:12px;font-weight:620;cursor:pointer;transition:background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease)}
   .new-run:hover{background:var(--pytxo-text-soft)}
   .new-run:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:3px}
@@ -378,22 +401,21 @@
   .empty-work li{display:flex;align-items:center;gap:8px;color:var(--pytxo-text-muted);font-size:11px;counter-increment:step}
   .empty-work li::before{content:counter(step);display:grid;place-items:center;width:20px;height:20px;border:1px solid var(--pytxo-line);border-radius:50%;font:10px "IBM Plex Mono",monospace}
 
-  .work-feedback{padding:9px 12px;border:1px solid var(--pytxo-line-soft);border-left:2px solid var(--state-verified);border-radius:4px;background:var(--pytxo-surface-panel);font-size:12px}
-  .work-feedback.error{border-left-color:var(--state-refuted);color:var(--state-refuted)}
+  .work-feedback{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:9px 12px;border:1px solid var(--pytxo-line-soft);border-radius:4px;background:var(--pytxo-surface-panel);font-size:12px}
+  .work-feedback.error{border-color:color-mix(in srgb,var(--state-refuted) 48%,var(--pytxo-line));color:var(--state-refuted)}
 
 
   .stop-run{display:flex;min-height:40px;align-items:center;gap:6px;padding:0 12px;border:1px solid var(--pytxo-line);border-radius:var(--pytxo-control-radius);background:transparent;color:var(--pytxo-text-soft);font-size:12px;cursor:pointer;transition:background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease),border-color var(--pytxo-motion-fast) var(--pytxo-motion-ease)}
   .stop-run:hover{border-color:var(--state-refuted);color:var(--state-refuted)}
   .stop-run:disabled{cursor:not-allowed;opacity:.42}
-  .stop-action{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
-  .stop-action small, .review-action small{max-width:150px;color:var(--pytxo-text-muted);font-size:10px;text-align:right}
-
-  .run-actions{display:flex;grid-column:3;grid-row:1;align-items:flex-start;gap:10px}
-  .review-action{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
   .review-run{display:flex;min-height:40px;align-items:center;justify-content:center;gap:7px;padding:0 12px;border:1px solid var(--pytxo-line);border-radius:var(--pytxo-control-radius);background:var(--pytxo-text-strong);color:var(--pytxo-surface-shell);font-size:12px;cursor:pointer;white-space:nowrap}
   .review-run:disabled{opacity:.45;cursor:not-allowed;background:transparent;color:var(--pytxo-text-muted)}
   .review-run:hover:not(:disabled){background:var(--pytxo-text-soft)}
   .review-run:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:3px}
+  .review-run.secondary{background:transparent;color:var(--pytxo-text-strong)}
+  .review-run.secondary:hover:not(:disabled){background:var(--pytxo-surface-raised)}
+  .attention-action{display:grid;min-height:40px;align-content:center;gap:1px;padding:5px 12px;border:1px solid #f5f5f7;border-radius:var(--pytxo-control-radius);background:#f5f5f7;color:#07090c;text-align:left;cursor:pointer}
+  .attention-action strong{font-size:12px}.attention-action span{font-size:10px;opacity:.72}.attention-action:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:3px}
   .run-switch{display:flex;min-width:0;flex-wrap:wrap;gap:6px}
   .run-switch button{display:flex;height:26px;align-items:center;gap:6px;padding:0 9px;border:1px solid var(--pytxo-line-soft);border-radius:4px;background:transparent;color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;cursor:pointer}
   .run-switch button i{width:6px;height:6px;border:1px solid var(--tone);border-radius:1px;background:var(--tone)}
@@ -410,12 +432,78 @@
   .dialog-actions .danger{border:1px solid var(--state-refuted);background:transparent;color:var(--state-refuted)}
   .dialog-actions button:disabled{cursor:not-allowed;opacity:.45}
 
-  .mission-boundary{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;order:-1;padding:12px 0;border-block:1px solid var(--pytxo-line-soft);font-size:12px;color:var(--pytxo-text-soft)}.mission-boundary button,.work-feedback button{min-height:30px;padding:4px 8px;margin-left:auto;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-strong);font:inherit;cursor:pointer}
-  .work-layout{display:flex;min-height:0;flex-direction:column;gap:14px;align-items:stretch}
-  .work-heading>div{min-width:0;display:block}.work-heading .scope{display:block;margin-top:8px}.work-layout :global(.ledger){border-inline:0;border-radius:0}
-  @media(max-width:760px){.run-actions{flex-wrap:wrap;justify-content:flex-start}.review-action,.stop-action{align-items:flex-start}.run-actions small{text-align:left;max-width:180px}.empty-work{margin:12px 0;padding:16px}.empty-work h2{font-size:21px}.scope{overflow-wrap:anywhere}}
-  .run-bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:4px 0 16px;border:0;border-radius:0;background:transparent;border-bottom:1px solid var(--pytxo-line-soft)}
-  .run-actions{margin-left:auto;align-items:center}.run-reference{margin-left:8px}.work-heading h1{max-width:32ch;line-height:1.2}
-  .mission-boundary{order:0;border-top:0;font-size:12px}.work-layout{gap:12px}
-  @media(max-width:760px){.run-actions{margin-left:0;width:100%}.work-heading h1{font-size:26px}}
+  /* Work is a cockpit. The shell owns its height; only explicit inspectors scroll. */
+  .screen.work {
+    display:flex;
+    width:100%;
+    max-width:none;
+    height:100%;
+    min-height:0;
+    box-sizing:border-box;
+    flex-direction:column;
+    align-items:stretch;
+    gap:9px;
+    padding:10px 14px 12px;
+    overflow:hidden;
+  }
+  .command-strip {
+    position:relative;
+    z-index:2;
+    display:grid;
+    grid-template-columns:64px minmax(0,1fr) auto;
+    min-height:92px;
+    flex:0 0 auto;
+    align-items:center;
+    gap:12px;
+    padding:7px 0 9px;
+    border-bottom:1px solid var(--pytxo-line);
+  }
+  .command-copy { min-width:0; outline:0; }
+  .command-copy:focus-visible { outline:2px solid var(--pytxo-accent); outline-offset:3px; }
+  .command-copy h1 { display:block;max-width:46ch;margin:0;overflow:hidden;font-size:clamp(19px,1.7vw,25px);font-weight:650;line-height:1.2;letter-spacing:-.035em;text-overflow:ellipsis;white-space:nowrap; }
+  .heading-meta { display:flex;align-items:center;gap:8px;margin-top:5px; }
+  .heading-meta .scope { overflow:hidden;color:var(--pytxo-text-muted);font:10px "IBM Plex Mono",monospace;text-overflow:ellipsis;white-space:nowrap; }
+  .work-summary { max-width:72ch;margin:5px 0 0;overflow:hidden;color:var(--pytxo-text-soft);font-size:12px;line-height:1.35;text-overflow:ellipsis;white-space:nowrap; }
+  .mission-outcome { position:relative;display:inline-block;margin-top:2px;font-size:10px;line-height:1.4; }
+  .mission-outcome summary { min-height:18px;color:var(--pytxo-text-muted);cursor:pointer; }
+  .mission-outcome p { position:absolute;z-index:12;top:100%;left:0;width:min(620px,70vw);max-height:240px;margin:4px 0 0;padding:12px;overflow:auto;border:1px solid var(--pytxo-line);border-radius:5px;background:var(--pytxo-surface-raised);box-shadow:0 16px 40px #0008;color:var(--pytxo-text-body);white-space:pre-wrap; }
+  .command-actions { display:flex;align-items:center;justify-content:flex-end;gap:7px; }
+  .command-actions>button,.run-reference>summary { min-height:34px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-soft);font:11px var(--pytxo-font-ui);cursor:pointer; }
+  .command-actions>button:focus-visible,.run-reference>summary:focus-visible { outline:2px solid var(--pytxo-accent);outline-offset:2px; }
+  .details-action:hover,.run-reference>summary:hover { background:var(--pytxo-surface-active);color:var(--pytxo-text-strong); }
+  .command-actions .review-run { min-height:36px;border-color:var(--pytxo-text-strong);background:var(--pytxo-text-strong);color:var(--pytxo-surface-shell); }
+  .command-actions .review-run.secondary { background:transparent;color:var(--pytxo-text-strong); }
+  .command-actions .stop-run { min-height:36px; }
+  .command-actions .attention-action { min-height:36px;padding-inline:10px;border-color:#f5f5f7;background:#f5f5f7;color:#07090c; }
+  :global(html[data-chroma-theme="light"]) .command-actions .attention-action { border-color:#0f1419;background:#0f1419;color:#f8fafc; }
+  .run-reference { position:relative;order:0;margin:0;font-size:11px; }
+  .run-reference[open] { width:auto;flex-basis:auto;order:0; }
+  .run-reference summary { display:grid;place-items:center;list-style:none; }
+  .run-reference .run-switch { position:absolute;z-index:12;top:calc(100% + 6px);right:0;display:grid;width:220px;padding:6px;border:1px solid var(--pytxo-line);border-radius:5px;background:var(--pytxo-surface-raised);box-shadow:0 16px 40px #0008; }
+  .run-switch button { width:100%;justify-content:flex-start; }
+  .sr-reason { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap; }
+  .work-layout { display:flex;flex:1;min-height:0;flex-direction:column;gap:8px;overflow:hidden;container:work-space / inline-size; }
+  .work-layout>.work-feedback { flex:0 0 auto;order:0;margin:0; }
+  .work-layout :global(.execution-map) { flex:1;min-height:0; }
+  .work-layout :global(.routing-record) { flex:0 1 auto;min-height:0;max-height:min(44%,360px);overflow:auto;overscroll-behavior:contain; }
+  .work-feedback { flex:0 0 auto;margin:0; }
+  .work-feedback button { min-height:28px;margin-left:auto;padding:3px 8px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:inherit;font:inherit;cursor:pointer; }
+  .offline-panel,.empty-work { flex:1;min-height:0;overflow:auto; }
+  .empty-work { margin:auto;padding:20px; }
+
+  @container mission (max-width:880px) {
+    .command-strip { grid-template-columns:52px minmax(0,1fr);min-height:112px;align-content:center; }
+    .command-actions { grid-column:1 / -1;justify-content:flex-start;flex-wrap:wrap;padding-bottom:2px; }
+    .run-reference .run-switch { right:auto;left:0; }
+    .command-copy h1 { font-size:20px; }
+    .work-summary { max-width:100%; }
+  }
+  @container mission (max-width:520px) {
+    .screen.work { padding:8px; }
+    .command-strip { grid-template-columns:minmax(0,1fr);min-height:126px;gap:5px; }
+    .command-strip :global(.aperture-glyph) { display:none; }
+    .command-actions { gap:5px; }
+    .command-actions>button,.run-reference>summary { padding-inline:8px;white-space:nowrap; }
+    .details-action,.run-reference,.attention-action { display:none; }
+  }
 </style>

@@ -8,6 +8,23 @@
 @import "../../../packages/chroma/utilities.css";
 @import "./deck-scroll.css";
 
+/* Brand boundaries are not evidence colors. Activity never means verified. */
+:root {
+  --pytxo-font-ui: "Satoshi", "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --pytxo-glyph-cyan: #7ee1ed;
+  --pytxo-glyph-periwinkle: #b4b9ff;
+  --pytxo-glyph-violet: #bd9eef;
+  --pytxo-glyph-warm: #e9bb91;
+  --pytxo-work-canvas: var(--pytxo-surface-shell);
+  --pytxo-work-node: color-mix(in srgb, var(--pytxo-surface-panel) 97%, #e9bb91);
+  --pytxo-work-inspector: var(--pytxo-surface-panel);
+  --pytxo-code-surface: color-mix(in srgb, var(--pytxo-surface-input) 96%, #7188a7);
+  --pytxo-activity: var(--cyan, #45dccb);
+  --pytxo-aperture: linear-gradient(180deg, #b764ed, #45dccb 42%, #f3c64e 72%, #f04da3);
+  --pytxo-aperture-horizontal: linear-gradient(90deg, #b764ed, #45dccb 42%, #f3c64e 72%, #f04da3);
+}
+html[data-chroma-theme="light"] { --pytxo-activity: #11675f; --pytxo-glyph-cyan: #176773; --pytxo-glyph-periwinkle: #5054a4; --pytxo-glyph-violet: #7844a6; --pytxo-glyph-warm: #9a592b; }
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

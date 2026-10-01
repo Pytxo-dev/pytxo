@@ -18,17 +18,6 @@
     markSetupComplete();
     onFinish();
   }
-
-  async function requestNotify() {
-    if (typeof Notification === "undefined") return;
-    if (Notification.permission === "default") {
-      try {
-        await Notification.requestPermission();
-      } catch {
-        /* ignore */
-      }
-    }
-  }
 </script>
 
 <SetupStepFrame>
@@ -39,7 +28,6 @@
     <code class="path" title={workspacePath}>{displayPath(workspacePath)}</code>
   {/if}
   {#if onDisplay}<Button variant="outline" onclick={onDisplay}>Adjust display</Button>{/if}
-  <Button variant="ghost" size="sm" onclick={() => void requestNotify()}>Allow approval notifications</Button>
   {#snippet actions()}<Button onclick={enter}>Enter Pytxo Desktop</Button>{/snippet}
 </SetupStepFrame>
 

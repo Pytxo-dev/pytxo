@@ -6,13 +6,78 @@ tags: [project, desktop, verification, research]
 audience: [human, agent]
 layer: orchestration
 created: 2026-09-07
-updated: 2026-09-08
+updated: 2026-09-10
 related: [[beta-readiness-plan-2026-09-05]], [[beta-competitor-research-2026-09-05]]
 ---
 
 # ASTRA execution
 
-## Current implementation — clean Windows runtime dependency
+## Current ownership/Git repair package — September 10
+
+[[astra-native-finish-2026-09-10]] is the current implementation and acceptance note.
+MSI `9676d38f…` / extracted EXE `e0eeb950…` contains recorded runtime worker labels
+and console-free background Git commands. All 361 frozen/current inputs match;
+build, MSI import inspection, 65 affected UI tests, 193 Rust library tests,
+21 integration checks, strict Clippy and formatting passed. Binaries are unsigned.
+The initial fast-verifier timeout is retained; its cause has not been proven.
+
+The preceding 6acc package completed native Cancel/Apply/restart with 11 project
+and 26 independent checks. Its build-specific Bench record is
+`tooling/benchmarks/results/astra-native-review-2026-09-10.json`; it cannot certify
+the repaired executable. After the latest physical Escape, e0ee native acceptance
+and final-build video remain unexecuted. The Windows packet and source handoff
+are under `target/astra-native-finish-20260910/`. Clean Windows, current-source CI
+and public download remain open. Game-like mission/crew and Focus/Control mockups
+remain proposals. No Actions, spending, account changes or publication occurred.
+
+## Preserved native follow-up — September 10
+
+The f968 host mission passed Cancel, exact Apply, 11 project tests, 26 independent
+checks and restart. Its 94-second actual-native walkthrough retains and labels
+the netsh startup console found by denser frame review. The follow-up read-only
+query repair passed a genuine detached-parent red-to-green regression, all 77
+runner tests, strict Clippy and formatting. MSI 7d30141b… / EXE 8910d153… passed
+build/dependency inspection; all 359 frozen inputs match. Only network_isolation.rs
+differs from f968, and the frontend retains its 157-test evidence.
+
+Physical Escape stopped native control before 891 launched. Wait for explicit
+resumption before using native tools or capturing again. Final native proof and
+smooth demo remain open for those bytes. The clean-Windows packet is ready with all 21 ZIP/ISO entries verified; guest RAM/direct owner sign-in remain practical constraints. PR #31's
+12 green jobs cover eb5f73d, not current dirty source. The read-only billing check
+still shows zero net charges and the $0 stop budget, without a remaining-allowance
+field. Public release remains v1.2.1. No Actions or publication occurred.
+See [[astra-evidence-2026-09-07]] and CHECKPOINT for exact artifacts and next steps.
+
+## Preserved selected increment — September 9, before native resumption
+
+The current candidate includes the September 9 menu/workflow pass: MSI
+`26ef95bc…`, extracted executable `073a1a30…`, with 359 frozen source inputs.
+It adds the native background-probe console repair. Local build, packaged
+dependency inspection, 26 Desktop library tests and strict Clippy passed; the
+preceding 154 browser tests / 42 stories / 64 screenshots cover unchanged frontend
+inputs. It has not completed native launch, recording or clean-Windows acceptance.
+The predecessor fcd reached onboarding/Work before physical Escape; it supplied
+the console-flash reproduction, not completed mission evidence. The e775/7abe polish and c77 mission
+and film remain historical evidence. See [[astra-desktop-menus-2026-09-09]] for
+current UI decisions and before/after evidence, and [[astra-evidence-2026-09-07]]
+for exact identities and check scope. The refreshed 21-file Windows packet is
+`target/astra-ux-20260909/windows-validation-probes/pytxo-windows-local-validation.zip`
+(SHA256 `b198756b…`); preparation is not installation.
+
+| Remaining outcome | Current evidence and next action |
+| --- | --- |
+| Final-build native workflow and demo | Native control attached, then physical Escape stopped it again. The repaired payload is unlaunched. Recordly HUD targeting failed; fallback frames establish static framing only. After explicit resumption, verify a timestamped concurrent UI/capture transition, then the exact-build mission and DEMO plan. |
+| Clean Windows validation | New 21-file packet staged; existing guest history is explicit. Run the retained install/workflow/recovery protocol when guest access is available. Prior guest sign-in execution was rejected by tool policy; do not bypass it. |
+| Current-source CI | Twelve green jobs cover `eb5f73d`, before the polish. Preserve the existing PR31 authorization and included-allowance boundary; consolidate after native proof to avoid redundant runs. |
+| Distribution | No publication approval or anonymous-download evidence for this candidate. Use [[astra-release-proposal-2026-09-07]]; source-equivalent release rebuilds need their own artifact validation. |
+| Larger customization proposal | Focus/Control is reviewable but unapproved. Existing Work/History/Setup polish is implemented; no preview-only feature is represented as shipping. |
+
+No further runtime architecture or platform expansion is selected. The research,
+competent direct baseline, unsuccessful native attempts and narrow two-job pilot
+plan remain in [[astra-product-decisions-2026-09-07]]. New implementation must
+address an observed gap, not prolong work while an input request is unanswered.
+
+## Earlier implementation — clean Windows runtime dependency
 
 The actual clean guest installed the frozen MSI with exit 0, then failed its
 first Start-menu launch with missing `MSVCP140.dll`. This reopens packaging;
@@ -30,8 +95,18 @@ with all 354 frozen source inputs unchanged. Its separate host rehearsal passed
 three-task review/Apply, 11 repository tests, 26 independent checks, Cancel and
 receipt persistence after native restart. The final 52-second silent film and
 website evidence checks passed. Continue guest acceptance from its existing
-disk using the final packet. No extra Actions run or publication has occurred
-for these repairs.
+disk using the final packet once memory and vendor sign-in are available.
+One consolidated CI run subsequently passed all twelve jobs on `eb5f73d`;
+no retry or publication occurred for these repairs.
+
+The final MSI subsequently installed with exit 0 in the preserved Windows guest,
+and its installed EXE hash matches the final payload. The normal Start-menu
+launch was interrupted by host memory pressure before the interface rendered.
+The resource guard escalated ACPI shutdown to QMP quit after fifteen seconds;
+this does not establish clean Windows shutdown or application acceptance.
+The guest remains stopped pending actual host headroom. Root requested permission
+to close the visible Minecraft client normally; no user app was closed. Retain
+the final CI result and complete guest acceptance without an unnecessary rebuild.
 
 Chosen over manually adding a guest prerequisite or copying one runtime DLL:
 the current MSI should start without a separately installed VC++ runtime.
@@ -88,7 +163,8 @@ changes, new system features and major redesign retain separate approval gates.
 - [x] Earlier MSI provenance, native demo and Bench evidence, retained by identity.
 - [x] Replacement MSI native workflow, demo and Bench evidence; host scope only.
 - [x] Hosted CI at `f64a0b0`: twelve jobs passed in run `34112393479`.
-- [ ] Hosted CI for the subsequent static-runtime and onboarding repairs.
+- [x] Hosted CI for the subsequent static-runtime and onboarding repairs:
+  all twelve jobs passed on `eb5f73d` in run `34181828835`, September 8.
 - [ ] Clean Windows installation and public download gates; VM preparation is
   authorized and in progress, while publication still requires approval.
 

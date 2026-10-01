@@ -7,9 +7,9 @@ Pytxo uses local **permission profiles** to gate filesystem, network, and tool c
 
 | Profile | Intent |
 |---------|--------|
-| `deep_space` | Most restrictive: air-gapped bubble, minimal host access |
+| `deep_space` | Most restrictive; Apply denied; fails closed without required network isolation |
 | `orbit` | **Default:** balanced local development with isolated copies |
-| `galaxy` | Host tools plus **[human approval](/docs/concepts/galaxy-approvals)** for risky commands and merges |
+| `galaxy` | Host tools plus **[human approval](/docs/concepts/galaxy-approvals)** for risky commands; Apply is still Desktop Run Review |
 | `supernova` | Highest local capability (use deliberately) |
 
 ```toml
@@ -42,7 +42,7 @@ turns a best-effort policy into a stronger security claim. DeepSpace fails
 closed if its required network boundary cannot be installed.
 
 For Orbit and Galaxy, Apply validates affected-path preimages and writes a
-durable attempt journal. Unrelated dirty files are allowed. The journal
+durable attempt journal. For the v1.2.2 preview, freshness also covers the source inventory bound to verification. Changes to included source files can require refreshing and checking the candidate again. The journal
 supports automatic process-crash recovery; it is not a power-loss ACID or
 cross-filesystem durability guarantee.
 

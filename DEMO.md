@@ -1,6 +1,275 @@
 # Pytxo agent-hypervisor demo
 
-## Current September 8 native proof
+## Current R3 beta-candidate capture gate — September 21
+
+The exact unpublished 1.2.2 R3 target is retained at
+`D:/pytxo-beta-lab/cockpit-beta-candidate-r3-20260921/`: MSI SHA-256
+`8b8e666b0354616c4f2c082917dd184a9aee8846614eb411444538be88f27883`,
+extracted EXE SHA-256
+`ffc6dccd75cacf193b46af4bbae9fed329c4f5ab8d9e4f457f754213a32154bc`.
+All 27 runtime source identities recompute with zero mismatches. This exact
+executable has passed native 125% scaling inspection, the 24-worker/eight-wave
+Fit view, settled idle sampling, updater fallback behavior, and a real disposable
+Codex Work → Review → confirmed Apply journey with combined and post-Apply tests
+passing 7/7.
+
+Four exact-package native stills retain running, completed, Review, and applied
+states. They are not continuous footage and do not prove pointer interaction,
+transition quality, or timing. Current website/docs product images are browser
+fixtures of the matching UI. The existing Remotion films remain historical and
+must not be relabeled as R3.
+
+The next capture must start with a short native pointer/hover/click sample, then
+record one real bounded request through plan inspection, canvas execution, worker
+inspection, exact Review, uninterrupted confirmation → Apply receipt, and History.
+Keep the app visible inside two seconds, at least 85% of the edit as real native
+footage, and Chroma Aperture/ASCII motion bound to actual product state. The full
+shot list and source requirements are in
+[the demo-video guide](apps/demo-video/README.md).
+
+The local Remotion pipeline now supports a 3840×2160 H.264/BT.709 output and a
+one-second historical proof render. This verifies encoding only. The current
+1920×1080 host and 1282×802 acceptance stills cannot provide true 4K product
+pixels; a premium R3 4K master needs a fresh native capture on a 3840×2160 target.
+No current R3 video, upload, publication, or release is claimed.
+
+A separate 24-second R3 review storyboard now demonstrates the approved motion
+language using the four exact native stills. It carries a permanent storyboard
+disclosure, hash-locks every input, masks the disposable validation path, and uses
+smooth Execute → Candidate → Review → Apply handoffs. Its reviewed local output is
+`D:/pytxo-beta-lab/cockpit-beta-candidate-r3-20260921/pytxo-r3-storyboard-review.mp4`,
+SHA-256 `d57c73c2ecfaa9e31abd05c10da1bbd058e845b2cd527866a62490211aa9d683`.
+The masks now share the screenshot transform, so they remain aligned through zoom
+and scene dissolves. The earlier `d8f81a68…` output was superseded after that
+alignment defect was found in source review. The corrected encoded file completed a
+full 1× local agent playback; normal-speed human playback remains open.
+It is not continuous native interaction or a launch master; its purpose is to let
+the final pointer-visible footage replace still scenes without redesigning the film.
+
+September 17 Review finishing captures: current local Review/Apply images now show the compact verification summary, explicit candidate map disclosure, full destination and consolidated decision area. These remain browser fixtures, not a genuine mission demonstration. Substantial-file inspection captures are local QA artifacts in `target/spatial-workbench-20260917/finishing/`, not public product evidence.
+
+## Spatial reading-mode captures — September 17 follow-up
+
+Work and Review captures now reflect the interactive dependency map and focused
+comparison. The Review headline comes from an existing illustrative Flow-history
+record. These remain browser fixtures, not a continuous genuine mission. Keep the
+existing explicit website caption. A launch demonstration must still be recorded
+from one accepted real task through execution, Review, confirmed Apply and outcome;
+no successful customer/native run or video is supplied by this UI polish pass.
+
+## Current imagery — September 17 hypervisor UI
+
+The local Desktop and website now implement the approved hypervisor workbench.
+Current Work, New work, History and Review browser fixtures were rendered from
+this source into the existing Desktop captures, documentation attachments and
+website product asset paths. They are real UI renders with illustrative data,
+not recorded agent missions, native screenshots or accepted-release evidence.
+The website labels this distinction. ImageGen proposals remain only in
+`docs/design/mockups/` and are not used as shipped-product proof.
+
+Existing MSI/EXE and footage below predate this visual slice. No new native video,
+MP4 export or publication occurred. Final launch footage must come from the
+accepted packaged candidate; capture real transitions only after Core confirms
+outcomes. See RELEASE_READINESS for the current browser evidence and native gate.
+
+## Latest source notice — September 13 screenshot feedback
+
+The UI now includes direct dock dragging, compact review/setup controls,
+permission emblems and Desktop folder grouping. The MSI and footage referenced
+below predate these changes. See CHECKPOINT and
+docs/01-projects/astra-ui-feedback-2026-09-13.md. Browser screenshots are UI
+fixtures; generated emblems are art assets. The new native validation app reached
+onboarding, but a competing Roblox window contaminated its screenshot. No current
+native demo footage or final-build MP4 is claimed. Capture only after native
+acceptance and a frozen matching candidate; preserve privacy and publication gates.
+
+## Current recording gate — September 13
+
+The approved mission-workspace and right/bottom docking layout is implemented in
+the local worktree; its former proposal status below is historical. Source HEAD
+remains eb5f73d9dc21ffbcc6e51306db071fddbe0b8d78 plus preserved local changes.
+Do not use the September 10 launcher or older film to certify the current product.
+
+Current local MSI test candidate after the reproduced pinned-review identity fix:
+- MSI SHA256: 322489A0F8858E4FAEEC2C20E09875F24D5B85920EC8D363402E4D8445CA57B3.
+- Extracted executable SHA256: F84BF980AED4482A515452745A9824CF155EE37D2CF3EE07A197BA6FE24FC284.
+- Identity and paths: target/astra-review-identity-20260913/package/candidate.json.
+- Payload proof: package/msi-extraction/payload-identity.json in that evidence folder.
+
+Build, source-input stability, administrative extraction and static import checks
+passed. This packaged executable has not been launched or installed. It is not a
+frozen release candidate. The standalone executable has a different bundle marker
+and hash; bind future footage to the executable actually running.
+
+Earlier September 13 native Apply/Stop/restart evidence belongs to debug EXE
+3693D25BE5B5D7C14D845AA5616F2007D50E39137D28AC672960FEBF0F94EFCC using a copied
+validation profile. It does not certify this default-profile MSI. No new MP4 has
+been captured from either the integrated candidate or its installer.
+
+Before final filming: restore desktop access, finish the prepared dependency-bearing
+mission and pending native checks, accept/freeze the exact candidate, and complete
+clean-Windows acceptance. Then follow RELEASE_PLAN stage 4 for the existing smooth
+45–90-second real-footage edit, matching website/docs and version-bound Bench proof.
+Keep raw footage, disclose cuts/fixtures, and verify playback/privacy. Publication
+still requires explicit approval. The last actual desktop capture showed Windows
+locked; do not automate that screen or treat its image as Pytxo evidence.
+
+
+## Historical native evidence — September 10
+
+Current capture target is packaged EXE `e0eeb950…` / MSI `9676d38f…` under
+`target/astra-native-finish-20260910/`. All 361 frozen inputs match. Build, packaged
+import inspection and affected checks passed; native control is paused after
+physical Escape. No launch, mission or recording of this exact package exists.
+Use its prepared launcher only after explicit native resumption. The game-like
+mockup and Focus/Control design are proposals, not demonstrated app features.
+
+The preceding 6acc native mission completed Cancel, exact Apply and restart with
+11 project tests and 26 independent checks. Its raw 1,200-second recording fully
+decodes; Review/Apply intervals were inspected, with a confirmed Git startup
+interruption retained in the evidence. Raw restart background stays private.
+The miniature-frame black-content warning was withdrawn after full-resolution
+inspection. The private 90-second proof film is complete at
+`target/astra-review-20260910/native-video/out/pytxo-native-review-proof-6acc.mp4`,
+SHA256 `92ad0721a4a31797911aa16bb6d138b5ca3ee04f2000e290ed757eeb1208a2a0`.
+It has 84 seconds of original-speed footage and a labeled six-second restart still;
+Apply is uninterrupted at output 60–84 seconds. Typecheck, render, full decode and
+representative frame inspection passed. Normal-speed human playback is unverified.
+`tooling/benchmarks/results/astra-native-review-video-2026-09-10.json` binds the edit
+and QA to this private output. It cannot certify e0ee or final-build smoothness.
+See `tooling/benchmarks/results/astra-native-review-2026-09-10.json` and
+`docs/01-projects/astra-native-finish-2026-09-10.md` for exact scope and identities.
+
+The private 94-second Remotion walkthrough is complete:
+`target/astra-ux-20260909/native-video-followup/out/pytxo-native-apply-f968.mp4`.
+SHA256: `fb0e00a3eb476e9b644218a89ee9086a556323c87c1afc2a71851a03da6ecd3d`.
+It uses 88 seconds of actual native footage at 1× and a six-second labeled later
+restart still. The 21-second Apply confirmation → action → success interval is
+uninterrupted. Cuts are disclosed, the operating-system pointer is baked into
+the recording, and no synthetic activity or frame-rate claim is added.
+
+This film shows the f968 host journey, including Cancel, Apply and restart
+persistence. Separate command and state evidence confirms exactly three reviewed
+writes, 11 project tests and 26 independent checks. The run lasted 225.51 seconds,
+one local observation. See the sanitized records
+`tooling/benchmarks/results/astra-native-menus-2026-09-10.json` and
+`astra-native-menus-video-2026-09-10.json`; the latter binds edits and QA to the
+video. Decode, typecheck and frame inspection passed. Normal-speed human playback
+remains unverified. Raw working footage contains an unrelated desktop tail that
+is excluded from the film and remains private.
+
+Denser review found a netsh startup console at source seconds 165–174. The film
+retains and labels that defect; the smooth final-demo gate remains open. Its
+read-only query constructor has now been repaired with a genuine pre-fix-fail /
+post-fix-pass detached-parent test. All 77 runner tests and strict Clippy passed.
+The intermediate MSI `7d30141b…` / EXE `8910d153…` passed dependency inspection
+with only network_isolation.rs changed from f968. It has since been superseded
+by the review-pilot package named above; all native proof remains build-specific.
+
+Physical Escape stopped Computer Use before 891 launched. Wait for explicit user
+resumption, then record startup through Apply/restart on that exact payload.
+Historical 073/c77 films remain unchanged. Host acceptance does not close clean
+Windows, current-source CI or public-download gates. Nothing has been published.
+
+## Preserved build boundary before native resumption
+
+The September 9 menu/workflow pass supersedes the UI below; its current artifact
+identities and checks are in `CHECKPOINT.md` and
+`docs/01-projects/astra-desktop-menus-2026-09-09.md`. Fresh native capture is still
+required. Browser screenshots use explicit preview fixtures.
+The current local MSI is `26ef95bc…`, with extracted payload `073a1a30…` and
+359 frozen source inputs. It adds a background-probe console repair to the menu
+candidate. Build, package inspection, 26 Desktop library tests and strict Clippy
+passed. The 154 browser tests and 42 stories cover the unchanged frontend.
+
+## Preserved capture plan — September 9, before resumption
+
+**Prepared, not recorded.** Target the preserved MSI in
+`target/astra-ux-20260909/native-build-probes/`, SHA256
+`26ef95bc5a87d721bcece8e9df6d8a92ff52dc3d63f7aef03483a2937551999b`;
+expected packaged executable
+`073a1a3063d9d41b95a38bdb6cc80f1b987080beae4638a5f17a172730028b35`.
+Do not rebuild just to capture: a rebuild creates another identity requiring
+validation. Use the staged fixture, mission and independent verifier from
+`target/astra-ux-20260909/windows-validation-probes/packet/` in an isolated demo folder.
+Preserve primary bytes until explicit Apply and keep operator data out of frame.
+
+Native Computer Use attached and the preceding fcd payload reached onboarding,
+Work and New run. The user then stopped input with physical Escape. The repaired
+073 payload remains unlaunched. Recordly 1.4's floating HUD failed target validation
+twice. FFmpeg window-title capture produced readable static Work frames, but its
+80-second diagnostic clip does not show a UI transition. No synchronized action
+timestamps distinguish a stale capture from an action outside the interval.
+It is not a motion sample or demo. No recorder settings or system permissions changed.
+
+After explicit native-control resumption, first prove one concurrent harmless
+UI transition with recording-start and action UTC timestamps and a confirmed live
+recorder. Only then record and inspect a roughly ten-second technical
+sample: move to New run, pause for its hover response, click, enter harmless
+draft text, open Setup and return to Continue draft. Include one gentle camera
+move in the sample edit. Confirm one pointer, visible click response, synchronized
+cursor/hover timing, readable text and continuous footage before the full take.
+This sample is not agent-run evidence. Retain its project, video and any pointer
+telemetry; do not fabricate a cursor track for cursor-free historical footage.
+
+The primary edit should be about 60 seconds, with the app visible within two
+seconds and at least 85% actual native footage. This is an editorial plan, not a
+measurement of how long the job takes. Adjust holds to the actual captured UI.
+
+| Approximate edit | Actual action and response | Hold / camera |
+| --- | --- | --- |
+| 0–2s | Open Work in the exact native build. | Establish the whole window; small product label. |
+| 2–10s | New run; enter the bounded mission and choose one ready CLI. | Smooth pointer, real hover/click; show workspace and CLI. |
+| 10–20s | Build and inspect the real plan; review paths, dependencies and checks before starting. | Hold the actual task scopes. Show only the worker count the plan supports. |
+| 20–25s | Observe native Work progress. | Cut long waits only with a measured, disclosed timing map; no animated substitute workers. |
+| 25–43s | Open Review and scroll through the combined candidate and check evidence. | One useful zoom; retain package identity and readable changes. |
+| 43–54s | Open Apply confirmation, inspect its identity and deliberately confirm. | Capture confirmation through receipt continuously at 1×; extend if needed. |
+| 54–60s | Show the actual receipt and History after restart. | Disclose the restart cut. End on the recorded result, not a predicted success card. |
+
+Use Recordly for native window capture and editable pointer telemetry when its
+short sample proves that mode works. A baked-in cursor needs no second overlay.
+Keep microphone/webcam off unless requested. Remotion may compose the real
+footage with modest camera emphasis and concise captions; do not apply duplicate
+zoom/cursor treatment to an already edited export. Keep menus and native dialogs
+inside the captured surface. No setting changes or uploads are implied here.
+
+Before calling the new film final, bind clip hashes, source cadence, trims,
+pointer data when present, omission durations, run/package identities and actual
+post-Apply tests. Preserve failed takes privately. Decode the complete MP4,
+inspect contact-sheet and click/hover boundary frames, and play at normal speed.
+Record playback limitations honestly. Retain the 58-second c77 master and its
+existing provenance; it is not proof of this build or of cursor interaction.
+
+## Preserved earlier capture evidence
+
+The preceding polished Desktop build is MSI `e7752cf4…`, packaged executable `7abe2097…`,
+with 356 frozen inputs. Local packaging and frontend checks passed; native testing
+and recording of these exact bytes are still pending. Do not present earlier
+native footage as proof of this newer build.
+
+The latest completed host mission is
+[the Aperture native record](tooling/benchmarks/results/astra-aperture-native-2026-09-08.json):
+run `16dab199-72fa-4596-b6fd-610e7c0ebb4c`, MSI `475f7f91…`, payload `c77b8418…`,
+three tasks, two waves and capacity for two workers. Native onboarding, folder selection,
+task editing, review, Cancel, Apply and restart were exercised. Three combined
+checks, 11 repository tests and 26 independent post-Apply checks passed; primary
+inventory stayed unchanged before Apply and after Cancel.
+
+Its 58-second Remotion film uses actual native MP4 intervals with the 41-second Review
+cut labeled and an uninterrupted 11-second Apply interval. The reviewed redacted
+master is `apps/demo-video/out/pytxo-aperture-native.mp4`, 7,696,333 bytes, SHA256
+`925ddfcf60d94f83c75d3ec86755cdc765036d3899b08410a5dfce6a734400e2`.
+All 26 selected encoded frames were inspected, including every mask boundary and
+the unobscured confirmation digest. Format/black scan and 14 invalid-edit cases
+passed. Continuous 1× machine playback ended without errors: 3,480 frames,
+10 dropped, none corrupted, one 332ms startup wait. This was not a human full-film
+watch. [Film provenance](tooling/benchmarks/results/astra-aperture-demo-2026-09-09.json)
+records the exact scope and limitations. The original c1d8f262… master and raw
+recordings remain private and unchanged. Sixty fps is encoded cadence, not
+measured app performance. Publication remains gated. See [the film source guide](apps/demo-video/README.md)
+and [polish evidence](docs/01-projects/astra-desktop-polish-2026-09-08.md).
+
+## Earlier September 8 onboarding proof
 
 The final MSI with the Windows runtime and guided-example prerequisite fixes
 completed a fresh host rehearsal. Three Codex tasks ran in two waves with at most
@@ -11,7 +280,7 @@ reviewed hashes. Eleven repository tests and 26 independent checks then passed,
 with no failures or skips. The committed receipt survived a native process restart.
 Worker headers reported Codex 0.153.4, Astra/high.
 
-The [current native record](tooling/benchmarks/results/astra-final-native-2026-09-08.json)
+The [earlier native record](tooling/benchmarks/results/astra-final-native-2026-09-08.json)
 identifies run `267ba929-200f-48af-b5bc-6735e5810ae4`, package
 `349ff5f7a504516497aa60f04887bf969dd4215d92f84701d54f8ca40f5bc93c`, MSI
 `cf8db2e0b41ceaaf678d3c74226b62dc62589f2a68880ec8ba49d42088dbd911`, and payload
@@ -34,7 +303,7 @@ full-resolution receipt and confirmation frames. Full continuous playback was
 not watched. No new narration was generated. The previous film, poster, QA sheets,
 composition and records were copied and hash-verified into
 `apps/demo-video/out/archive-2026-09-08-pre-final/` before replacement.
-The current 16-file Windows packet is
+The earlier 16-file Windows packet is
 `target/astra-final-windows-validation-packet.zip`, SHA256
 `47517631b8602ad671ec3cade5ff3530de2615648f7a0b2d1b008c79627bac46`.
 Its clean-guest acceptance remains pending. Historical observations below retain

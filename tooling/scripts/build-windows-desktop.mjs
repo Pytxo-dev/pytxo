@@ -18,4 +18,11 @@ const result = spawnSync("cargo", [
   "--", "--locked", "--config", path.join(root, ".cargo/windows-msvc.toml"),
 ], { cwd: path.join(root, "apps/desktop"), stdio: "inherit", windowsHide: true });
 if (result.error) console.error(result.error.message);
-process.exit(result.status ?? 1);
+if (result.status !== 0) process.exit(result.status ?? 1);
+const assets = spawnSync(process.execPath, [
+  path.join(root, "tooling/scripts/verify-desktop-embedded-assets.mjs"),
+  path.join(root, "target/x86_64-pc-windows-msvc/release/pytxo-desktop.exe"),
+  path.join(root, "apps/desktop/dist"),
+], { stdio: "inherit", windowsHide: true });
+if (assets.error) console.error(assets.error.message);
+process.exit(assets.status ?? 1);

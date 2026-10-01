@@ -86,6 +86,7 @@ export interface DesktopBackend {
   discardRunReview(runId: string, domainId: string | null): Promise<void>;
   reconcileRunRecovery(runId: string, domainId: string | null): Promise<{ outcome: string; attempt_id: string | null }>;
   domainChanges(domainId: string, cursor: number, limit?: number): Promise<DomainChangesPageDto>;
+  domainChangesBatch?: import("./desktop-sync").DomainChangesBatchLoader;
   catalogFingerprint(): Promise<string>;
   onDomainChanged(callback: (event: DesktopChangedEvent) => void): Promise<() => void>;
   structuralGraph(runId: string, domainId: string | null): Promise<StructuralGraphDto>;

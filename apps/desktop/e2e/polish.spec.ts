@@ -6,8 +6,8 @@ test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
 
 async function openReview(page: Page) {
   await page.goto("/#/history");
-  await page.locator(".history .row", { hasText: "run-71ad" }).first().click();
-  await page.getByRole("button", { name: "Review changes", exact: true }).click();
+  await page.locator('.history .row[data-run-id="run-71ad"]').click();
+  await page.getByRole("button", { name: "Review prepared changes", exact: true }).click();
 }
 
 for (const theme of ["void", "light"]) {
@@ -22,7 +22,7 @@ for (const theme of ["void", "light"]) {
       });
       await page.goto("/#/work");
       await expect(page.locator("html")).toHaveAttribute("data-chroma-theme", theme);
-      await expect(page.getByRole("heading", { name: "What the agents are doing" })).toBeVisible();
+      await expect(page.getByTestId("execution-map").getByText("Recorded workers", { exact: true })).toBeVisible();
       const command = page.getByRole("button", { name: "Open command palette" });
       await expect(command).toBeInViewport();
       expect(await command.evaluate(e => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(1);
@@ -34,13 +34,12 @@ for (const theme of ["void", "light"]) {
         await expect(command.locator("span")).toHaveText("Search");
         expect(await command.locator("span").evaluate(e => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(1);
       }
-      for (const selector of [".ledger .body", ".ledger .row", ".run-bar .chip strong"]) {
+      for (const selector of [".task-node button", ".task-node strong", ".run-bar button"]) {
         const overflow = await page.locator(selector).evaluateAll(nodes => nodes.map(e => e.scrollWidth - e.clientWidth));
         expect(overflow.length).toBeGreaterThan(0);
         expect(Math.max(...overflow)).toBeLessThanOrEqual(1);
       }
-      const optionalDetails = await page.locator(".run-bar .chip small").evaluateAll(nodes => nodes.map(e => e.scrollWidth - e.clientWidth));
-      if (optionalDetails.length) expect(Math.max(...optionalDetails)).toBeLessThanOrEqual(1);
+      await page.getByTestId("execution-map").getByRole("button", { name: "List", exact: true }).click();
       const architect = page.locator(".ledger").getByRole("button", { name: /run-8f2c:architect/ });
       await expect(architect.locator(".agent")).toHaveText("Agent 1");
       await expect(architect.locator(".agent")).toHaveAttribute("title", "run-8f2c:architect");
@@ -95,20 +94,22 @@ test("custom scrollbars remain draggable and keyboard navigation keeps chrome fi
   await page.setViewportSize({ width: 1280, height: 800 });
   await completeOnboarding(page);
   await openReview(page);
-  const content = page.locator(".mission-content > .content");
+  const content = page.locator(".review-scroll");
   const chrome = await page.locator(".app-bar").boundingBox();
   const metrics = await content.evaluate(e => {
     const box = e.getBoundingClientRect();
     return { x: box.x, y: box.y, width: box.width, height: box.height, clientHeight: e.clientHeight, scrollHeight: e.scrollHeight, thumbWidth: getComputedStyle(e, "::-webkit-scrollbar").width, scrollbarWidth: getComputedStyle(e).scrollbarWidth };
   });
   expect(metrics.scrollbarWidth).toBe("auto");
-  expect(metrics.thumbWidth).toBe("12px");
+  expect(metrics.thumbWidth).toBe("10px");
+  const maxScroll = metrics.scrollHeight - metrics.clientHeight;
+  expect(maxScroll).toBeGreaterThan(0);
   const thumbHeight = metrics.clientHeight * metrics.clientHeight / metrics.scrollHeight;
   await page.mouse.move(metrics.x + metrics.width - 6, metrics.y + thumbHeight / 2);
   await page.mouse.down();
   await page.mouse.move(metrics.x + metrics.width - 6, metrics.y + thumbHeight / 2 + 200, { steps: 12 });
   await page.mouse.up();
-  await expect.poll(() => content.evaluate(e => e.scrollTop)).toBeGreaterThan(200);
+  await expect.poll(() => content.evaluate(e => e.scrollTop)).toBeGreaterThanOrEqual(Math.max(1, Math.floor(maxScroll * .75)));
   expect(await page.locator(".app-bar").boundingBox()).toEqual(chrome);
   await page.screenshot({ path: testInfo.outputPath("scrollbar-drag.png") });
   await page.getByRole("link", { name: "Work", exact: true }).focus();

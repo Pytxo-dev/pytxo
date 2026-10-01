@@ -1,6 +1,7 @@
 import type { HitlDto } from "./types";
 
 export type ApprovalPresentation = {
+  requiresCandidateReview: boolean;
   title: string;
   category: string;
   approveLabel: string;
@@ -12,7 +13,7 @@ export type ApprovalPresentation = {
 
 type PendingApprovalPresentation = Omit<
   ApprovalPresentation,
-  "approvedMessage" | "deniedMessage"
+  "approvedMessage" | "deniedMessage" | "requiresCandidateReview"
 >;
 
 const ACTION_PRESENTATIONS: Record<string, PendingApprovalPresentation> = {
@@ -104,14 +105,15 @@ export function approvalPresentation(approval: HitlDto): ApprovalPresentation {
   const action = approval.action.trim().toLowerCase();
   if (action === "blast.flush" || action.includes("flush blast shield")) {
     return {
-      title: "Apply reviewed workspace changes",
-      category: "Sandbox",
-      approveLabel: "Approve and apply",
-      denyLabel: "Deny and discard",
+      requiresCandidateReview: true,
+      title: "Review repository changes",
+      category: "Repository",
+      approveLabel: "Review changes",
+      denyLabel: "Deny request",
       consequence:
-        "Approving writes the isolated workspace changes into the repository. Denying discards them.",
-      approvedMessage: "Reviewed workspace changes can be applied.",
-      deniedMessage: "Isolated changes will be discarded.",
+        "This legacy request cannot authorize an exact candidate. Open Review to inspect and verify the changes before Apply. Denying stops this request; it does not discard the workspace.",
+      approvedMessage: "Repository changes require a separate reviewed Apply.",
+      deniedMessage: "The workspace flush will not proceed.",
     };
   }
 
@@ -125,6 +127,7 @@ export function approvalPresentation(approval: HitlDto): ApprovalPresentation {
   };
   return {
     ...matched,
+    requiresCandidateReview: false,
     approvedMessage: "The blocked action can proceed.",
     deniedMessage: "The blocked action will not run.",
   };

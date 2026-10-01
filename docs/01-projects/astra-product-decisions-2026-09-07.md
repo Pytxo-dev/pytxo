@@ -6,11 +6,72 @@ tags: [project, product, research, economics]
 audience: [human, agent]
 layer: orchestration
 created: 2026-09-07
-updated: 2026-09-07
+updated: 2026-09-10
 related: [[astra-execution-2026-09-07]], [[beta-competitor-research-2026-09-05]], [[vision]]
 ---
 
 # Decisions for this increment
+
+## Current ownership/Git repair package — September 10
+
+[[astra-native-finish-2026-09-10]] is the current implementation and acceptance note.
+MSI `9676d38f…` / extracted EXE `e0eeb950…` contains recorded runtime worker labels
+and console-free background Git commands. All 361 frozen/current inputs match;
+build, MSI import inspection, 65 affected UI tests, 193 Rust library tests,
+21 integration checks, strict Clippy and formatting passed. Binaries are unsigned.
+The initial fast-verifier timeout is retained; its cause has not been proven.
+
+The preceding 6acc package completed native Cancel/Apply/restart with 11 project
+and 26 independent checks. Its build-specific Bench record is
+`tooling/benchmarks/results/astra-native-review-2026-09-10.json`; it cannot certify
+the repaired executable. After the latest physical Escape, e0ee native acceptance
+and final-build video remain unexecuted. The Windows packet and source handoff
+are under `target/astra-native-finish-20260910/`. Clean Windows, current-source CI
+and public download remain open. Game-like mission/crew and Focus/Control mockups
+remain proposals. No Actions, spending, account changes or publication occurred.
+
+## Preserved September 10 disposition
+
+Keep the bounded native repairs: consume successful drafts, reset dispatch
+scroll, use honest pending-result wording, and suppress background verification
+and receipt-query consoles. F968 native execution confirmed the UI fixes and
+passed mission/Cancel/Apply/restart with 11 project and 26 independent checks.
+Denser video review then identified the remaining startup window as netsh, before
+agent-start. Repair the read-only query constructor; preserve query interpretation,
+permission/enforcement semantics, opt-in firewall changes and ConPTY. A detached
+parent regression demonstrated failure before the flag and success afterward.
+All 77 runner tests and strict Clippy passed; the new 891 payload is packaged.
+
+Keep the 94-second f968 film as truthful correctness evidence with that defect
+visible and labeled. It has actual 1× footage, disclosed cuts, uninterrupted Apply
+and a labeled later restart still. Do not call it a finished smooth demo or reuse
+it to certify 891. Physical Escape paused native control before that new payload
+launched; explicit resumption is required. No new redesign/platform requirement
+is selected. Clean Windows, included-allowance CI and authorized distribution
+remain separate gates. See [[astra-evidence-2026-09-07]].
+
+## Preserved September 9 disposition, before native resumption
+
+The historical implementation/native observations below remain tied to their
+recorded builds. In particular, “final MSI” in an earlier observation does not
+mean the current MSI `26ef95bc…` / packaged EXE `073a1a30…`. That candidate has
+359 frozen inputs, passing local package checks and 26 Desktop library tests.
+It hides background readiness consoles reproduced on the predecessor fcd build;
+intentional vendor sign-in is unchanged. Frontend inputs match the previously
+tested menu pass. Native acceptance of the repaired payload is
+unexecuted. See [[astra-desktop-menus-2026-09-09]] and
+[[astra-evidence-2026-09-07]].
+
+The selected planning, context, task-authority, Windows transport, first-use and
+repeat-use repairs have been implemented at their recorded stages; older
+**IMPROVE NOW** labels below identify those decisions, not fresh open tasks.
+The September 9 pass adds in-window input retention, workspace-scoped commands,
+menu/search/focus improvements and connected voice preferences. Deliberate
+deferrals and rejected expansions remain unchanged. The remaining substantive
+work is exact-build native proof, clean Windows acceptance, confirmed included CI
+allowance and authorized distribution. No new platform or redesign is selected.
+
+## Established product direction
 
 Pytxo remains an **agent hypervisor**. The chosen first job is a reproducible
 repository bug plus its regression test, using one existing coding-agent CLI.

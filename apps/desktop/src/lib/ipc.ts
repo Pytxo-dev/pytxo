@@ -65,6 +65,15 @@ export async function ipcVersion(): Promise<string> {
   return invoke<string>("ipc_version");
 }
 
+export async function updatePreflight(): Promise<void> {
+  return invoke<void>("update_preflight");
+}
+
+export async function beginUpdateHandoff(): Promise<() => Promise<void>> {
+  const token = await invoke<string>("begin_update_handoff");
+  return () => invoke<void>("finish_update_handoff", { token });
+}
+
 function inTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }

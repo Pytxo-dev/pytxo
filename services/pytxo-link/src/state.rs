@@ -3,9 +3,11 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
+use crate::commerce::CommerceStore;
+use crate::dodo::DodoProductCatalog;
 use crate::entitlements::EntitlementStore;
 use crate::jwt::JwksValidator;
-use crate::paddle::{PaddleEventStore, PaddlePriceCatalog};
+use crate::paddle::PaddlePriceCatalog;
 use crate::routing_admission::RoutingAdmissionConfig;
 use crate::runs::{MemoryRunStore, RunStore};
 
@@ -31,15 +33,20 @@ pub struct AppState {
     pub admin_key: Option<String>,
     pub require_auth: bool,
     pub jwks: Option<Arc<JwksValidator>>,
+    /// Separate, opt-in session audience for the sponsored routing token path.
     pub routing_token_audience: Option<String>,
+    /// Stops new Desktop connections, workspace grants and evaluation token
+    /// issuance without disabling grant reads, revocation or account recovery.
     pub routing_grant_experiment: bool,
     pub routing_admission: Option<RoutingAdmissionConfig>,
     pub entitlements: EntitlementStore,
     pub db: Option<PgPool>,
     pub runs: RunLedger,
+    pub commerce: Option<CommerceStore>,
     pub paddle_webhook_secret: Option<String>,
-    pub paddle_events: Option<PaddleEventStore>,
     pub paddle_prices: Option<PaddlePriceCatalog>,
+    pub dodo_webhook_secret: Option<String>,
+    pub dodo_products: Option<DodoProductCatalog>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

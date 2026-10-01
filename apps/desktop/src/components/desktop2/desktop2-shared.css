@@ -50,7 +50,7 @@
 .desktop2 .race-row strong{color:#d7dbe0;font-weight:600}
 @media(max-width:900px){.desktop2 .ops-truth{grid-template-columns:repeat(2,1fr)}}
 @media(prefers-reduced-motion:reduce){.desktop2 *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
-html[data-chroma-theme="light"] .desktop2 main{background:var(--pytxo-surface-shell)}html[data-chroma-theme="light"] .desktop2 .panel-head{border-color:var(--pytxo-line)}html[data-chroma-theme="light"] .desktop2 .panel,html[data-chroma-theme="light"] .desktop2 .metrics article,html[data-chroma-theme="light"] .desktop2 .workspace-card{background:var(--pytxo-surface-panel);border-color:var(--pytxo-line)}html[data-chroma-theme="light"] .desktop2 h1,html[data-chroma-theme="light"] .desktop2 h2,html[data-chroma-theme="light"] .desktop2 h3,html[data-chroma-theme="light"] .desktop2 strong{color:var(--pytxo-text-strong)}
+html[data-chroma-theme="light"] .desktop2 main{background:var(--pytxo-surface-shell)}html[data-chroma-theme="light"] .desktop2 .panel-head{border-color:var(--pytxo-line)}html[data-chroma-theme="light"] .desktop2 .panel,html[data-chroma-theme="light"] .desktop2 .metrics article,html[data-chroma-theme="light"] .desktop2 .workspace-card{background:var(--pytxo-surface-panel);border-color:var(--pytxo-line)}html[data-chroma-theme="light"] .desktop2 h1,html[data-chroma-theme="light"] .desktop2 h2,html[data-chroma-theme="light"] .desktop2 h3{color:var(--pytxo-text-strong)}
 html[data-chroma-theme="light"] .desktop2 .decision-card{border-color:color-mix(in oklab,var(--pytxo-gold) 30%,var(--pytxo-line));background:color-mix(in oklab,var(--pytxo-gold) 7%,var(--pytxo-surface-panel))}
 html[data-chroma-theme="light"] .desktop2 .risk{background:color-mix(in oklab,var(--pytxo-gold) 18%,var(--pytxo-surface-panel));color:#70511f}
 html[data-chroma-theme="light"] .desktop2 .primary{background:#050507;color:#ededef}
@@ -125,7 +125,7 @@ html[data-chroma-theme="light"] .desktop2 .primary{background:#050507;color:#ede
 .desktop2 .integration-card--session .provider-icon{flex:0 0 auto}
 @media(max-width:760px){.desktop2 .integration-grid{grid-template-columns:1fr}.desktop2 .integration-safety{display:none}.desktop2 .integration-actions .quiet{max-width:76%}}
 .desktop2 .run-cost{font-variant-numeric:tabular-nums;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;color:#9aa1ab}
-html[data-ui-density="compact"] .desktop2 .screen:not(.embedded){padding:22px 24px 52px}
+html[data-ui-density="compact"] .desktop2 .screen:not(.embedded):where(:not(.work)){padding:22px 24px 52px}
 html[data-ui-density="compact"] .desktop2 .screen-heading{margin-bottom:18px}
 html[data-ui-density="compact"] .desktop2 .screen-heading h1{font-size:var(--text-lg,1.125rem)}
 html[data-ui-density="compact"] .desktop2 .workspace-card,
@@ -134,7 +134,7 @@ html[data-ui-density="compact"] .desktop2 .run-row,
 html[data-ui-density="compact"] .desktop2 .inbox-row{padding-block:8px}
 html[data-ui-density="compact"] .desktop2 .metrics article{min-height:88px;padding:12px}
 html[data-ui-density="compact"] .desktop2 .setting-row{min-height:52px}
-html[data-ui-density="comfortable"] .desktop2 .screen:not(.embedded){padding:28px 36px 64px}
+html[data-ui-density="comfortable"] .desktop2 .screen:not(.embedded):where(:not(.work)){padding:28px 36px 64px}
 html[data-ui-density="comfortable"] .desktop2 .screen-heading{margin-bottom:28px}
 html[data-ui-density="comfortable"] .desktop2 .screen-heading h1{font-size:1.55rem}
 html[data-ui-density="comfortable"] .desktop2 .workspace-card,
@@ -271,7 +271,7 @@ html[data-chroma-theme="light"] .desktop2 .primary{background:#050507;color:#ede
 .desktop2 .agent-row strong{font-size:13px}
 .desktop2 .agent-row small{display:block;margin-top:2px;color:var(--pytxo-text-muted);font-size:12px}
 .desktop2 .flow-layout{grid-template-columns:minmax(360px,.88fr) minmax(460px,1.12fr);max-width:none}
-.desktop2 .flow-layout--solo{grid-template-columns:1fr;max-width:720px}
+.desktop2 .flow-layout--solo{grid-template-columns:1fr;max-width:920px}
 .desktop2 .flow-steps,.desktop2 .waveform,.desktop2 .orbit{display:none!important}
 .desktop2 .composer-panel textarea{font-size:14px!important;line-height:1.65!important}
 .desktop2 .plan-wave>span{text-transform:none;letter-spacing:0;font-size:12px;color:var(--pytxo-text-muted)}
@@ -371,3 +371,7 @@ html[data-chroma-theme="light"] .desktop2 .primary{background:#050507;color:#ede
 .desktop2 .profile-grid button{display:grid;grid-template-columns:40px minmax(0,1fr);column-gap:10px;align-items:center;min-width:0}
 .desktop2 .profile-grid .profile-emblem{grid-row:1 / span 2}
 .desktop2 .profile-grid strong,.desktop2 .profile-grid small{grid-column:2;overflow-wrap:anywhere}
+
+/* Reading surfaces retain working space across density preferences. */
+html[data-ui-density] .desktop2 .screen.review-screen { padding-top:8px; padding-bottom:12px; }
+html[data-ui-density] .desktop2 .screen.history { max-width:none; width:100%; }

@@ -2,15 +2,16 @@ import { expect, test } from "@playwright/test";
 import { completeOnboarding } from "./helpers";
 import { closeDockView, defaultDockLayout, dockId, moveDockView, openDockView, restoreDockLayout } from "../src/lib/dock-layout";
 
-test("New run hides focused inspection without losing saved views", async ({ page }) => {
+test("New work hides focused inspection without losing saved views", async ({ page }) => {
   await completeOnboarding(page);
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await page.getByRole("button", { name: "Checks & details", exact: true }).click();
   await page.getByLabel("Options for Checks & details", { exact: true }).click();
   await page.getByRole("button", { name: "Focus view", exact: true }).click();
   await expect(page.getByRole("tablist", { name: "bottom dock" })).toBeVisible();
-  await page.getByRole("button", { name: "New run from sidebar" }).click();
+  await page.getByRole("button", { name: "New work from sidebar" }).click();
   await expect(page.getByRole("tablist", { name: /dock$/ })).toHaveCount(0);
   await expect(page.getByLabel("Task views", { exact: true })).toHaveCount(0);
   expect((await page.locator(".content").boundingBox())!.height).toBeGreaterThan(500);
@@ -19,7 +20,7 @@ test("New run hides focused inspection without losing saved views", async ({ pag
   await page.setViewportSize({ width: 740, height: 800 });
   await page.getByRole("button", { name: "Checks & details", exact: true }).click();
   await expect(page.getByRole("tablist", { name: "bottom dock" })).toBeVisible();
-  await page.getByRole("button", { name: "New run from sidebar" }).click();
+  await page.getByRole("button", { name: "New work from sidebar" }).click();
   await expect(page.getByRole("tablist", { name: "bottom dock" })).toBeHidden();
   expect((await page.locator(".content").boundingBox())!.height).toBeGreaterThan(500);
   await page.getByRole("link", { name: "Work", exact: true }).click();
@@ -48,6 +49,7 @@ test("mission remains actionable while inspection moves, resizes, hides and rest
   await completeOnboarding(page);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await expect(page.getByRole("region", { name: "Work", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Checks & details", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Checks & details", exact: true })).toBeVisible();
@@ -71,6 +73,7 @@ test("mission remains actionable while inspection moves, resizes, hides and rest
   await page.getByRole("button", { name: "Show bottom dock", exact: true }).click();
   await page.reload();
   await expect(page.getByRole("tablist", { name: "bottom dock" })).toContainText("Checks & details");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await page.getByText("Layout · 1 views", { exact: true }).click();
   await page.getByRole("button", { name: "Reset layout", exact: true }).click();
   await expect(page.getByRole("tablist", { name: "right dock" })).toContainText("Checks & details");
@@ -81,44 +84,49 @@ test("mission remains actionable while inspection moves, resizes, hides and rest
   await page.screenshot({ path: "../../target/astra-mission-dock-20260912/browser-laptop.png" });
 });
 
-test("long mission and bottom output leave room for decisions, with full source details reachable", async ({ page }) => {
+test("long mission and bottom output leave room for decisions, with full source details reachable", async ({ page }, info) => {
   await completeOnboarding(page, { "pytxo-preview-flow-history-v1": "long-mission" });
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   const brief = page.locator(".mission-outcome");
   await expect(brief).toBeVisible();
   await expect(brief).not.toHaveAttribute("open", "");
-  await expect(page.locator(".work-heading h1")).toHaveText(/…$/);
+  await expect(page.locator(".command-copy h1")).toHaveText(/…$/);
   expect((await brief.boundingBox())!.height).toBeLessThan(80);
   await brief.locator("summary").focus(); await page.keyboard.press("Enter");
   await expect(brief.locator("p")).toBeVisible();
   expect((await brief.locator("p").textContent())!.length).toBeGreaterThan(800);
   await page.keyboard.press("Enter");
-  await page.locator(".ledger").getByRole("button", { name: /architect/ }).click();
-  await page.locator(".dock-panel:visible summary").filter({ hasText: "View options" }).click();
-  await page.getByRole("button", { name: "Move to bottom", exact: true }).click();
-  const panel = page.locator(".dock-panel:visible");
+  await page.getByTestId("execution-map").getByRole("button", { name: /^plan / }).click();
+  const summary = page.locator(".dock-panel:visible").filter({ hasText: "Recorded scope" });
+  await expect(summary).toBeVisible();
+  await summary.getByRole("button", { name: "Open output", exact: true }).click();
+  const panel = page.locator(".dock-panel:visible").filter({ has: page.getByRole("region", { name: "Recorded agent output", exact: true }) });
   const output = panel.getByRole("region", { name: "Recorded agent output", exact: true });
   await expect(output).toContainText("Browser fixture: recorded output example.");
   await expect(output).toBeInViewport({ ratio: 1 });
   expect((await output.boundingBox())!.height).toBeGreaterThanOrEqual(64);
   await expect(panel.getByText("Plain text · read only · claims", { exact: true })).toBeInViewport();
   await expect(output).not.toContainText("\x1b");
+  await page.screenshot({ path: info.outputPath("bottom-output-actions.png") });
   await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeInViewport({ ratio: 1 });
   await panel.locator(".source summary").focus(); await page.keyboard.press("Enter");
   await expect(panel.locator(".source")).toContainText("Run run-8f2c");
   await expect(panel.locator(".source")).toContainText("Agent architect");
-  await expect(panel.locator(".source")).toContainText("Independent checks appear in Checks & details");
-  await panel.getByRole("button", { name: "Show raw event text", exact: true }).click();
+  await panel.getByRole("button", { name: "Raw text", exact: true }).click();
   await expect(output).toContainText("\x1b");
-  await panel.getByRole("button", { name: "Show plain text", exact: true }).click();
+  await panel.getByRole("button", { name: "Plain text", exact: true }).click();
   await expect(output).not.toContainText("\x1b");
   await panel.locator(".source summary").focus();
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "Checks & details", exact: true }).click();
   const bottomResize = page.getByRole("separator", { name: "Resize bottom dock" });
   await bottomResize.focus(); await page.keyboard.press("End"); await page.keyboard.press("Tab");
-  await expect(page.getByRole("tablist", { name: "right dock" })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "right dock" })).toHaveCount(0);
+  await expect(page.getByRole("tablist", { name: "bottom dock" })).toContainText("Checks & details");
+  await expect(page.getByRole("tablist", { name: "bottom dock" })).toContainText("Output");
+  expect((await page.getByTestId("execution-map").locator(".map-body").boundingBox())!.height).toBeGreaterThan(120);
   await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeInViewport({ ratio: 1 });
   await expect(page.getByRole("button", { name: "Review changes", exact: true })).toBeInViewport({ ratio: 1 });
   await page.reload();
@@ -128,9 +136,10 @@ test("long mission and bottom output leave room for decisions, with full source 
 test("prepared file dock reads immutable before/after content", async ({ page }) => {
   await completeOnboarding(page);
   await page.goto("/#/history");
-  await page.locator(".history .row", { hasText: "run-71ad" }).first().click();
-  await page.getByRole("button", { name: "Review changes", exact: true }).click();
-  await page.getByRole("button", { name: "Files", exact: true }).click();
+  await page.locator('.history .row[data-run-id="run-71ad"]').click();
+  await page.getByRole("button", { name: "Review prepared changes", exact: true }).click();
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
+  await page.locator("button.draggable-view[aria-label=Files]").click();
   await page.locator(".dock-panel:visible .file").filter({ hasText: "crates/pytxo-signal/src/lib.rs" }).click();
   const frozen = page.getByRole("region", { name: "Frozen contents of crates/pytxo-signal/src/lib.rs", exact: true });
   await expect(frozen.getByRole("region", { name: "before content", exact: true })).toContainText("pub fn");
@@ -143,15 +152,17 @@ test("Review adapts to remaining workspace width beside the right dock", async (
   await completeOnboarding(page);
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/#/history");
-  await page.locator(".history .row", { hasText: "run-71ad" }).first().click();
-  await page.getByRole("button", { name: "Review changes", exact: true }).click();
+  await page.locator('.history .row[data-run-id="run-71ad"]').click();
+  await page.getByRole("button", { name: "Review prepared changes", exact: true }).click();
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await page.getByRole("button", { name: "Checks & details", exact: true }).click();
   await expect(page.getByRole("tablist", { name: "right dock" })).toBeVisible();
   const files = page.locator(".files-panel");
   const grid = page.locator(".review-grid");
   expect((await files.boundingBox())!.width).toBeGreaterThan((await grid.boundingBox())!.width - 4);
   const filename = files.locator(".file-row strong").first();
-  expect((await filename.boundingBox())!.width).toBeGreaterThan(200);
+  await expect(filename).toBeVisible();
+  await expect(files.locator(".file-row").first()).toHaveAttribute("title", "crates/pytxo-signal/src/lib.rs");
   await expect(page.getByRole("button", { name: "Apply reviewed changes", exact: true })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
 });
@@ -160,8 +171,9 @@ test("narrow arrangement persists without overwriting wide placement or geometry
   await completeOnboarding(page);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await page.getByRole("button", { name: "Checks & details", exact: true }).click();
-  await page.getByRole("button", { name: "Files", exact: true }).click();
+  await page.locator("button.draggable-view[aria-label=Files]").click();
   const wide = page.getByRole("separator", { name: "Resize right dock" });
   const width = await wide.getAttribute("aria-valuenow");
   await page.setViewportSize({ width: 1000, height: 800 });
@@ -187,6 +199,7 @@ test("hiding a focused inspection returns to the mission without reopening its o
   await completeOnboarding(page);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await page.getByRole("button", { name: "Checks & details", exact: true }).click();
   await page.getByLabel("Options for Checks & details", { exact: true }).click();
   await page.getByRole("button", { name: "Focus view", exact: true }).click();
@@ -205,6 +218,7 @@ test("mission actions and inspection stay reachable at 200 percent text zoom", a
   await completeOnboarding(page);
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await page.getByRole("button", { name: "Checks & details", exact: true }).click();
   // Browser CSS-zoom simulation; this is not Windows display-scaling evidence.
   await page.evaluate(() => document.documentElement.style.zoom = "2");
@@ -239,6 +253,7 @@ test("named layouts and focus preserve mission warnings, and Escape cancels keyb
   await completeOnboarding(page, { "pytxo-preview-state-matrix-v1": "1" });
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await page.getByRole("button", { name: "Checks & details", exact: true }).click();
   const separator = page.getByRole("separator", { name: "Resize right dock" });
   const original = await separator.getAttribute("aria-valuenow");
@@ -270,6 +285,7 @@ test("terminal UI routes only explicitly enabled input and preserves sessions wh
   const ref = { kind: "terminal" as const, domainId: "pytxo", runId: "workspace", sessionId: "test-user-session", title: "Your terminal fixture" };
   await completeOnboarding(page, { "pytxo-mission-dock-v1": JSON.stringify(openDockView(defaultDockLayout(), ref, "bottom")) });
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await expect(page.getByRole("region", { name: "Work", exact: true })).toBeVisible();
   // Install only after the app has chosen the browser backend. No native bridge
   // or production fixture branch is added to the product for this test.

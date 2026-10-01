@@ -1,0 +1,55 @@
+{
+  "waves": [
+    [
+      {
+        "task_id": "mission-0",
+        "agent": "agent-0",
+        "paths": [
+          "src/risk-policy.mjs"
+        ],
+        "depends_on": [],
+        "wave": 0,
+        "root": null,
+        "signal_fidelity": null,
+        "verify": [
+          "npm test"
+        ]
+      },
+      {
+        "task_id": "mission-2",
+        "agent": "agent-2",
+        "paths": [
+          "README.md"
+        ],
+        "depends_on": [],
+        "wave": 0,
+        "root": null,
+        "signal_fidelity": null,
+        "verify": [
+          "npm test"
+        ]
+      }
+    ],
+    [
+      {
+        "task_id": "mission-1",
+        "agent": "agent-1",
+        "paths": [
+          "test/risk-policy.test.mjs"
+        ],
+        "depends_on": [
+          "mission-0"
+        ],
+        "wave": 1,
+        "root": null,
+        "signal_fidelity": null,
+        "verify": [
+          "npm test"
+        ]
+      }
+    ]
+  ],
+  "conflicts": [],
+  "max_agents": 2,
+  "warnings": []
+}

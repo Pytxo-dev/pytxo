@@ -6,10 +6,9 @@ use crate::{PytxoError, Result, RunId};
 
 /// HTTP Pytxo Link reconciler. Local dev uses [`NoopBillingReconciler`].
 ///
-/// The Link service itself lives in a **separate private repo** ([[github-organization]]);
-/// this client builds the request envelopes (endpoint + JSON body). The actual
-/// transport is attached when the Link service is deployed — the monorepo stays
-/// network-free and offline-testable.
+/// Link's reference account/control service lives in `services/pytxo-link`;
+/// this client builds its request envelopes (endpoint + JSON body). Local BYOK
+/// remains accountless, and builds without `link-http` stay network-free.
 #[derive(Clone, Debug)]
 pub struct HttpBillingReconciler {
     pub base_url: String,

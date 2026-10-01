@@ -1,61 +1,35 @@
 ---
 title: Troubleshooting
-description: Fix common Pytxo install, trust, doctor, and MCP failures.
+description: Find the reason a task is blocked and the next step to fix it.
 ---
 
-In Desktop, note the failed stage in **Work** or **Run Review**, then check
-**Setup → Agents** for your selected CLI's current session status. If you also
-installed the optional Pytxo CLI, run `pytxo doctor` in the affected repository.
-It probes Git, writable data directories, terminal support, approval persistence,
-and configured cloud or billing connectivity.
+Start with the exact message in Work, Review, or Setup. A failed check and a failed Apply need different fixes.
 
-| Symptom | Where to look |
-|---------|----------------|
-| Doctor failures | [Doctor checks](/docs/troubleshooting/doctor) |
-| Trust / spawn blocked | [Common failures](/docs/troubleshooting/common-failures) |
-| MCP path or version mismatch | [Common failures](/docs/troubleshooting/common-failures) |
-| HITL stuck | [Galaxy approvals](/docs/concepts/galaxy-approvals) |
+## Common problems
 
-## Quick checks
+| Problem | Next step |
+|---|---|
+| Codex is missing or sign-in is unknown | Finish the agent's installation or sign-in, then recheck in Setup |
+| A plan cannot run | Read the blocker, fix its configuration, and build a fresh plan |
+| No verification command was found | Add a test or build command that works in this project |
+| Checks fail | Read the recorded command output; passing worker text is not a check result |
+| Review is stale | Refresh the candidate and review the new files and checks |
+| Apply was interrupted | Read the recorded recovery state before retrying |
+| The installed app looks different | Check its version; this site's new Desktop workflow previews unpublished v1.2.2 |
 
-```bash
-pytxo doctor
-pytxo doctor --json
-```
+For Desktop setup issues, see [Desktop setup](/docs/getting-started/desktop-setup). For stale, blocked, or interrupted Apply, see [Review and Apply](/docs/getting-started/review-and-apply).
 
-If the Hypervisor Shell will not open in CI or pipes, set `PYTXO_NO_TUI=1` and use explicit subcommands.
+## CLI and editor issues
 
-Change a folder's trust profile only after reviewing the permissions described
-in [Folder trust](/docs/getting-started/folder-trust). A diagnostic failure does
-not by itself require a more permissive profile.
+Run `pytxo doctor` if you have the CLI installed. It checks local setup; it does not prove a task or Apply succeeded.
 
-## A useful support report
-
-For a non-sensitive bug, copy this small template into a local note, fill in what
-you know, and review it before sharing through
-[public issues](https://github.com/Pytxo-dev/pytxo-releases/issues):
-
-```text
-Pytxo version:
-Windows edition and build:
-Agent CLI name and version:
-Failed stage: installation / agent readiness / planning / running / review / Apply
-Permission profile and execution backend (if known):
-Expected result:
-Observed result:
-Check outcome: passed / failed / not run / unknown
-Can it be reproduced in a small example without private source?
-```
-
-Use “unknown” for unavailable fields. Share the relevant error category first.
-Raw doctor JSON, terminal logs, configurations and databases can contain local
-paths, repository content, account information or configured URLs; they are not
-a redacted support bundle. Do not attach them by default. Check screenshots for
-the same information before sharing. Security-sensitive reports need a private
-route from a maintainer; do not put details in a public issue.
-
-## Still stuck?
-
-- [Install](/docs/getting-started/install)
+- [Doctor checks](/docs/troubleshooting/doctor)
+- [Common CLI failures](/docs/troubleshooting/common-failures)
 - [Folder trust](/docs/getting-started/folder-trust)
-- [Discord](https://discord.gg/AUFRPFjSYv)
+- [MCP setup](/docs/getting-started/mcp-from-cursor)
+
+## Ask for help
+
+Include your Pytxo version, operating system, the action you tried, and the exact error. Remove keys, tokens, and private repository content from anything you share.
+
+[Get help on Discord](https://discord.gg/AUFRPFjSYv).

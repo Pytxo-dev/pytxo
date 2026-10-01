@@ -1,0 +1,118 @@
+{
+  "created_at_utc": "2026-09-09T23:07:05.545597+00:00",
+  "artifact_type": "Private native verification walkthrough; smooth final demo gate remains open",
+  "run_id": "b6446140-6586-4f9f-a2ab-58282100298b",
+  "packaged_executable_sha256": "f968d665ca939c6635e6350f423218f5a5a74145769b3aca6273710bdcfd71a5",
+  "source_manifest_sha256": "351aaa8f002ab293d9bcd74bd47251fba14259610e92fb172117f36fdccffa53",
+  "moving_source_percent": 93.61702127659575,
+  "timing": {
+    "playback_rate": 1,
+    "interior_cuts": "All disclosed on screen",
+    "utc_anchor": "Approximate FFmpeg process start; raw MP4 has no embedded action timecode",
+    "performance_claim": false
+  },
+  "apply": {
+    "uninterrupted_source_seconds": [
+      626,
+      647
+    ],
+    "uninterrupted_output_seconds": [
+      67,
+      88
+    ],
+    "confirmation_opened": true,
+    "real_apply_action_and_success_visible": true,
+    "speed_change": false,
+    "interior_cut": false,
+    "camera_zoom": "Framing only; eased 1.0 -> 1.52 -> 1.0; same transform for video and baked pointer"
+  },
+  "cursor": {
+    "source": "Baked operating-system pointer",
+    "added": false,
+    "smoothed": false,
+    "synthetic_clicks": false,
+    "separate_telemetry_available": false
+  },
+  "verification_console_observation": {
+    "first_wave_source_seconds": [
+      308,
+      316
+    ],
+    "first_wave_sampling_fps": 4,
+    "first_wave_samples": 32,
+    "completion_source_seconds": [
+      375,
+      405
+    ],
+    "completion_sampling_fps": 1,
+    "completion_samples": 30,
+    "observation": "No console interruption observed in these sampled verification intervals",
+    "all_frame_scene_scan": {
+      "source_seconds": [
+        370,
+        402
+      ],
+      "threshold": 0.012,
+      "selected_change_source_seconds": [
+        392.7
+      ],
+      "interpretation": "Expected completed-state redraw; a scene threshold is not exhaustive evidence of absence"
+    },
+    "startup_defect_separate": true
+  },
+  "qa": {
+    "typescript": "passed",
+    "full_raw_decode": "passed",
+    "full_output_decode": "passed",
+    "sample_render": "10 seconds, Apply interaction and camera transition; full decode passed",
+    "selected_frame_review": "All 88 selected seconds sampled at 1 fps and inspected; additional Apply and verification contact sheets inspected",
+    "output_frame_review": "Contact sheet and selected transition frames inspected; see output-frames.json",
+    "normal_speed_playback": "unverified",
+    "privacy": "No unrelated app or auth content observed in selected segments; unrelated raw tail omitted, raw remains private",
+    "new_downloads": false,
+    "publication": false
+  },
+  "limits": [
+    "Not a clean Windows installation test",
+    "Not current-source hosted CI",
+    "Unsigned candidate",
+    "Later source edits require their own build and native evidence",
+    "Six-second restart image is a later still, not video",
+    "Post-Apply 11+26 test counts are separate command evidence",
+    "Remaining startup console defect prevents closing smooth-demo gate"
+  ],
+  "output": {
+    "path": "target/astra-ux-20260909/native-video-followup/out/pytxo-native-apply-f968.mp4",
+    "bytes": 7196258,
+    "sha256": "fb0e00a3eb476e9b644218a89ee9086a556323c87c1afc2a71851a03da6ecd3d"
+  },
+  "duration_seconds": 94,
+  "video_seconds": 88,
+  "later_restart_still_seconds": 6,
+  "known_defect": {
+    "component": "read-only netsh receipt probe",
+    "source_seconds_approx": [
+      165,
+      174
+    ],
+    "visible_and_labeled": true,
+    "fixed_in_later_source": true,
+    "later_source_native_acceptance": "pending"
+  },
+  "native_acceptance": {
+    "path": "tooling/benchmarks/results/astra-native-menus-2026-09-10.json",
+    "sha256": "ea9c215f1d4f0a49e70989785fdb1f028cd9129afa556d8d6255d788c13fd672"
+  },
+  "full_manifest": {
+    "path": "target/astra-ux-20260909/native-video-followup/edit-manifest.json",
+    "sha256": "6a9198cc1c2805ad0ce0585679a9de59d63c98eaaff45441758c977f44a1a37e"
+  },
+  "root_frame_review": {
+    "contact_sheet": true,
+    "apply_transition_sheet": true,
+    "startup_defect_frame": true,
+    "normal_speed_playback_verified": false
+  },
+  "smooth_final_demo_gate_closed": false,
+  "publication": "none"
+}

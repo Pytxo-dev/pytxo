@@ -60,6 +60,12 @@ export async function verifyReleaseVersion(root, expected) {
   const cargo = await readFile(path.join(root, "Cargo.toml"), "utf8");
   const rust = cargo.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
   if (!rust) throw new Error("Missing workspace package version in Cargo.toml");
+  const siteFile = path.join(root, "apps", "web", "src", "lib", "site.ts");
+  const site = await readFile(siteFile, "utf8");
+  const published = await capturedVersion(siteFile, /^export const PUBLISHED_VERSION = "([^"]+)";/m, "published website");
+  if (!/^export const PYTXO_VERSION = PUBLISHED_VERSION;/m.test(site)) {
+    throw new Error("Website download alias must use PUBLISHED_VERSION");
+  }
 
   const versions = {
     rust,
@@ -71,10 +77,11 @@ export async function verifyReleaseVersion(root, expected) {
     demoLock: await packageLockVersion(path.join(root, "apps", "demo-video", "package-lock.json")),
     npm: await jsonVersion(path.join(root, "packages", "pytxo", "package.json")),
     web: await capturedVersion(
-      path.join(root, "apps", "web", "src", "lib", "site.ts"),
-      /PYTXO_VERSION = "([^"]+)"/,
-      "web download",
+      siteFile,
+      /^export const CANDIDATE_VERSION = "([^"]+)";/m,
+      "web source candidate",
     ),
+    published,
     installer: await capturedVersion(
       path.join(root, "distribution", "pytxo-releases", "install.ps1"),
       /\(v([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) provides Windows x64\)/,
@@ -97,11 +104,20 @@ export async function verifyReleaseVersion(root, expected) {
     ),
   };
   expected ??= versions.rust;
+  // The checked-in installer/release notes target the next candidate. Public
+  // install instructions must remain on the published tag until promotion.
+  const publishedSurfaces = new Set(["published", "readme"]);
   const mismatches = Object.entries(versions)
-    .filter(([, version]) => version !== expected)
+    .filter(([name, version]) => !publishedSurfaces.has(name) && version !== expected)
     .map(([name, version]) => `${name}=${version}`);
   if (mismatches.length) {
     throw new Error(`Release version must be ${expected}; found ${mismatches.join(", ")}`);
+  }
+  const publicMismatches = Object.entries(versions)
+    .filter(([name, version]) => publishedSurfaces.has(name) && version !== published)
+    .map(([name, version]) => `${name}=${version}`);
+  if (publicMismatches.length) {
+    throw new Error(`Published version must be ${published}; found ${publicMismatches.join(", ")}`);
   }
   return versions;
 }
@@ -111,5 +127,5 @@ if (invoked) {
   const expected = process.argv[2];
   const root = path.resolve(import.meta.dirname, "..", "..");
   const versions = await verifyReleaseVersion(root, expected);
-  console.log(`Verified Pytxo ${versions.rust}: ${Object.keys(versions).join(", ")}`);
+  console.log(`Verified candidate Pytxo ${versions.rust} and declared published ${versions.published}: ${Object.keys(versions).join(", ")}. Public availability was not checked.`);
 }

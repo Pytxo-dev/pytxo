@@ -1,0 +1,270 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-09-09T13:58:08.639584+00:00",
+  "scenario": "Menu and background-probe build: actual native host mission, Cancel, reviewed Apply and restart",
+  "source_head": "eb5f73d9dc21ffbcc6e51306db071fddbe0b8d78",
+  "source_has_uncommitted_changes": true,
+  "source_inputs_sha256": "8d42c8b55dcc401d7b9f39a7f6342eb4e8396e24a4dc11bd7b1c0fc87d47a125",
+  "msi_sha256": "26ef95bc5a87d721bcece8e9df6d8a92ff52dc3d63f7aef03483a2937551999b",
+  "packaged_executable_sha256": "073a1a3063d9d41b95a38bdb6cc80f1b987080beae4638a5f17a172730028b35",
+  "app_version": "1.2.2",
+  "runtime": "OpenAI Codex 0.153.4; existing authorized CLI session",
+  "run_id": "0738e1eb-5db8-486a-b9dd-24822e993fad",
+  "run_status": "completed",
+  "started_at": "2026-09-09T13:38:37.005081100+00:00",
+  "finished_at": "2026-09-09T13:42:23.254599+00:00",
+  "observed_run_seconds": 226.249518,
+  "timing_limit": "One local observation; no comparative speed, reliability, model-cost or app-frame-rate claim.",
+  "fixture_baseline_revision": "6a249e0b10363918a2cb34902b20ef324a4cebda",
+  "planned_tasks": 3,
+  "waves": 2,
+  "configured_max_concurrent_workers": 2,
+  "permission_profile": "orbit",
+  "execution_domain": "isolated disposable native fixture",
+  "worker_outcomes": [
+    {
+      "task_id": "mission-2",
+      "wave": 0,
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-0",
+      "wave": 0,
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-1",
+      "wave": 1,
+      "status": "completed",
+      "exit_code": 0
+    }
+  ],
+  "package_digest": "e9fd924074decbe23024b8c0d2565d10772989f97128fc27e8be197d3a09bfc1",
+  "manifest_sha256": "48ae21ae9fe39d7a739e3f0aec82826f1aca56e89d6efde0eb2cd17f949b0483",
+  "changed_files": [
+    {
+      "path": "README.md",
+      "kind": "modify",
+      "before_sha256": "ba5554e0f4ea3d941289626c7cacd23ddc0b4be0119c803eb3206ed8865efda7",
+      "after_sha256": "199cbd468bde8cdaee565aceeab3d3de11cc832fd720fbdac4e56aa97a4fb671"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "kind": "modify",
+      "before_sha256": "8fa4f3d2d98daa4ddb3879fba5d3839d12dab56a061eb97898b13c6e768d2a33",
+      "after_sha256": "bd65285021be23d6809e81a4b0806e68dc66e5ae3e4baa18300a5224a5d2e8e1"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "kind": "modify",
+      "before_sha256": "c97734269272bdb5f1d4203f6b87891d8de2c903a4072e137b3ab52419f8af7b",
+      "after_sha256": "9a62b0582604acb2a78d7c5154d857191f913b500ff5d17f555bda3e0d83a6f0"
+    }
+  ],
+  "combined_candidate_checks": {
+    "passed": 3,
+    "commands": [
+      "npm test",
+      "npm test",
+      "npm test"
+    ],
+    "same_candidate_inventory": true
+  },
+  "primary_unchanged_before_apply": true,
+  "cancel_preserved_primary_and_package": true,
+  "cancel_created_apply_attempt": false,
+  "apply": {
+    "status": "applied",
+    "attempt_count": 1,
+    "transaction_id": "91d8c043-63f0-4ce0-abe8-57b3b2ffa637",
+    "applied_at": "2026-09-09T13:51:05.257483200+00:00",
+    "journal_sha256": "0dd8b612fac6ae7a8ee35d3dc3d3f168c203a6742ef477a3b705e2fd49cde052",
+    "phase": "committed",
+    "completed_operations": 3,
+    "all_primary_files_match_frozen_candidate": true
+  },
+  "post_apply_tests": {
+    "fixture": {
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0
+    },
+    "independent": {
+      "passed": 26,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0
+    }
+  },
+  "restart": {
+    "native_history_completed_applied_committed": true,
+    "same_package_and_journal": true,
+    "same_primary_hashes": true,
+    "launch_record": "target/astra-ux-20260909/native-run/launch-20260909-135247.json"
+  },
+  "native_ui_checks": [
+    "Codex and Claude readiness visible without an observed console flash",
+    "Use Codex in mission selects fixture and Codex",
+    "Draft text, workspace and CLI survive History navigation",
+    "Three tasks in two waves; real prepared file comparisons and custom diff scrollbar",
+    "Cancel then exact-package Apply; History and restart persistence"
+  ],
+  "readiness_limit": "Window observations plus automated Windows console regression; no continuous whole-desktop console-absence recording of the readiness interval.",
+  "enforcement": {
+    "workspace_isolation": "enforced: projfs-sparse-copy-v2",
+    "host_filesystem": "advisory",
+    "network": "advisory",
+    "apply_boundary": "enforced: reviewed-run-atomic-apply"
+  },
+  "capture": {
+    "method": "Windows Desktop Duplication",
+    "configured_fps": 30,
+    "dimensions": [
+      1920,
+      1020
+    ],
+    "cursor": "baked into native pixels",
+    "gdigrab_attempts": "Two window-title clips show stale Providers imagery; rejected as transition evidence.",
+    "technical_sample": "target/astra-ux-20260909/native-run/capture/qa-repaired-transition-dda/technical-framing-10s.mp4",
+    "mission_raw": "target/astra-ux-20260909/native-run/capture/native-mission-repaired-01.mp4",
+    "mission_raw_limit": "600-second recording ended before Cancel and Apply. These actions are proven by native screenshots, timestamps, journal and primary bytes, not this video.",
+    "full_final_demo_gate_closed": false
+  },
+  "independent_review": {
+    "candidate_checks_passed": 21,
+    "apply_checks_passed": 17,
+    "blocking_findings": []
+  },
+  "clean_windows_install": false,
+  "current_source_ci": "unverified",
+  "public_download": "unverified",
+  "hosted_actions_runs_this_pass": 0,
+  "publication": "none",
+  "evidence": [
+    {
+      "path": "target/astra-ux-20260909/native-run/readiness-repaired.jpg",
+      "bytes": 87649,
+      "sha256": "19c18d727650bd35bef930017da11e7f43287a0db4c1cd23100f383453843824"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/reviewed-plan-boundary-repaired.jpg",
+      "bytes": 81629,
+      "sha256": "394716e567fdb92467f36bf8b23642491d0b7169bbb9d2accc53b74081b63102"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/active-wave-repaired.jpg",
+      "bytes": 86570,
+      "sha256": "9876fad05fef070f0008e2de4ed9f49f272ed83ef2139c09cf9b544d8676d4f1"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/review-source-repaired.jpg",
+      "bytes": 116835,
+      "sha256": "7485c52a0e3b055cd20cfbcb8c90b43f012e7165acd40334e170ce5b2eae395b"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/review-tests-repaired.jpg",
+      "bytes": 110860,
+      "sha256": "eb5f049f7a26a98a7653a024ebcb990490d01d2bd2123465ffc027370b58532b"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/apply-confirmation-repaired.jpg",
+      "bytes": 65093,
+      "sha256": "defe3e9445d92d0dc97676eb8820e8b7abc1d09932c515e9c8fa865d3ba2f4db"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/applied-success-repaired.jpg",
+      "bytes": 100121,
+      "sha256": "da027af5eb2d6c04b89eab1d79e0c0b2767336656003dc8c80c4bedf550e5426"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/history-applied-repaired.jpg",
+      "bytes": 84473,
+      "sha256": "bd09f3f1f6a3cfa8d4ff42fbe65958fea483e707f20e9d02f561e5af5b178a54"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/history-after-restart-repaired.jpg",
+      "bytes": 82402,
+      "sha256": "ad5bec71f0d0226ef5429dcf9bb046b6d76f5444f9589bf1b086ffe577bdda62"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/post-apply-fixture-tests-repaired.log",
+      "bytes": 789,
+      "sha256": "b9f52d45dfb6b6b8ce45e8a3d9c56579d9640371a4fb906fff0d1859535acb3f"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/post-apply-independent-tests-repaired.log",
+      "bytes": 2007,
+      "sha256": "9d3681de4f4c3b4b55000830a022f70b6e65a41d125f80fa7b662132d0268003"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/post-apply-command-results-repaired.json",
+      "bytes": 1396,
+      "sha256": "a3d74834cefc922c8023c0cca0e7d1d922781ac3fe67ab37c905abe31b7f6cda"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/repaired-candidate-independent-review.json",
+      "bytes": 19527,
+      "sha256": "34f55d89fa12ff8d6098837b0abd9fcb9797ecd5d7816e0f0bdeb3c39cb8a7d6"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/repaired-apply-independent-review.json",
+      "bytes": 12172,
+      "sha256": "0bda4446c6352bae07cc5ffa1c3d138635a4d6fb2d38e288c52efd5c0b6305ce"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/independent-policy.test.mjs",
+      "bytes": 2630,
+      "sha256": "2a028adcfa2ad5dc9aabee048983be86bea06e8b8a4fd00a32f24ae612d03cb8"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/capture/native-action-events.json",
+      "bytes": 5502,
+      "sha256": "600f5f562f27fa5f59ec6caa65f335d43a89ca7b0a65e6cea44aaaf1aa5c53f1"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/capture/native-mission-repaired-01.mp4",
+      "bytes": 24043242,
+      "sha256": "c3e5fdc80953368ef158234c0b5238a23173c24a4061a4d09c358cd600171d9c"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/capture/qa-repaired-transition-dda/technical-framing-10s.mp4",
+      "bytes": 299549,
+      "sha256": "bfa868906f27bb489ed2a293028392a0096557f86f625c3f25bfb63ace090460"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/evidence-prepared-0738e1eb-5db8-486a-b9dd-24822e993fad/snapshot.json",
+      "bytes": 20126,
+      "sha256": "c653d32eb7b93272145575f52d2e9b2401f9dbf7fd9aff2b264bbcf0e42c2e24"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/evidence-cancelled-0738e1eb-5db8-486a-b9dd-24822e993fad/snapshot.json",
+      "bytes": 20127,
+      "sha256": "04098c7eec960c7f92a32f2cea5ccd17c895f2b1e542f8a7441e1cf7a254cf81"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/evidence-applied-0738e1eb-5db8-486a-b9dd-24822e993fad/snapshot.json",
+      "bytes": 23716,
+      "sha256": "e36d3a7c9c944aa480600eaeac5ba75ed09582b1813755da797602207c5fd5a4"
+    },
+    {
+      "path": "target/astra-ux-20260909/native-run/evidence-restarted-0738e1eb-5db8-486a-b9dd-24822e993fad/snapshot.json",
+      "bytes": 23718,
+      "sha256": "da78a950656c1c8c0bf6ab4ef1025e445133832b329834ad19bc237c6f99a0a2"
+    }
+  ],
+  "later_capture_review": {
+    "observed_verification_console": true,
+    "source_seconds_approx": 231,
+    "source_frame": "target/astra-ux-20260909/native-video/source-frames/010.jpg",
+    "limit": "Readiness observation does not establish console-free verification. Source fixes followed; this native result covers only the named 073 executable.",
+    "excerpt_path": "target/astra-ux-20260909/native-video/out/native-verification-excerpt.mp4",
+    "excerpt_sha256": "e0be482c4312c8c3d1f65c9b9623e1db404555d51e7df9395dc0d23204c6a28d",
+    "excerpt_seconds": 42,
+    "apply_recorded": false,
+    "full_demo": false,
+    "normal_speed_playback_verified": false
+  }
+}

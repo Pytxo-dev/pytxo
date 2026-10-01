@@ -29,12 +29,12 @@ const VIEWPORTS = [
 const ROUTES = [
   { route: "work", heading: "Work", marketing: true },
   { route: "history", heading: "History", marketing: true },
-  { route: "flow", heading: "New run", marketing: true },
+  { route: "flow", heading: "New work", marketing: true },
   { route: "approvals", heading: "Approvals", marketing: true },
   { route: "setup", heading: "Appearance", marketing: false },
-  { route: "integrations", heading: "Agents", marketing: true },
+  { route: "integrations", heading: "Agents & permissions", marketing: true },
   { route: "workspaces", heading: "Workspaces", marketing: false },
-  { route: "run-review", heading: "Run Review", marketing: true },
+  { route: "run-review", heading: "Review changes", marketing: true },
 ] as const;
 
 const RETRYABLE_WRITE_CODES = new Set(["EACCES", "EBUSY", "EPERM", "UNKNOWN"]);
@@ -68,12 +68,14 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
       ? {
           "pytxo-preview-review-state-v1": "ready",
           "pytxo-preview-candidate-check-v1": "passed",
+          "pytxo-preview-flow-history-v1": "ready",
         }
       : undefined,
   );
   await page.clock.install({ time: new Date("2026-01-15T10:00:00.000Z") });
   await page.goto(`/#/${route.route}`);
-  await expect(page.getByRole("heading", { name: route.heading, exact: true })).toBeVisible();
+  if (route.route === "work") await expect(page.getByRole("region", { name: "Work", exact: true }).getByRole("heading", { level: 1 })).toBeVisible();
+  else await expect(route.route === "run-review" ? page.locator("#run-review-title") : page.getByRole("heading", { name: route.heading, exact: true })).toBeVisible();
 
   if (route.route === "flow") {
     await page
@@ -85,7 +87,7 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
 
   if (route.route === "approvals") {
     await expect(
-      page.getByRole("heading", { name: "Apply reviewed workspace changes" }),
+      page.getByRole("heading", { name: "Review repository changes" }),
     ).toBeVisible();
   }
 

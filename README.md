@@ -23,13 +23,13 @@ star, not a shipping claim.
 ## Install
 
 ```bash
-npm i -g pytxo@1.2.2
+npm i -g pytxo@1.2.1
 pytxo doctor
 ```
 
 Installers and binaries are published through
 [Pytxo releases](https://github.com/Pytxo-dev/pytxo-releases). Pytxo Desktop is
-Windows-first for v1.2.2. The npm installer must fail if the binary for the
+Windows-first for v1.2.1. The npm installer must fail if the binary for the
 current platform is not present or cannot be verified; it must not imply that a
 missing platform succeeded.
 

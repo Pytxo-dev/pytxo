@@ -1,14 +1,15 @@
 ---
-title: Three moats
+title: Safety and coordination model
+description: Signal Core, Blast Shield, and Race Shield — how Pytxo scopes reads, isolates writes, and orders overlapping work.
 ---
 
-Every Pytxo run goes through three safety and efficiency layers.
+Pytxo has three controls for context, isolated changes, and overlapping tasks. Their effect depends on the run configuration and permission profile.
 
 | What it does | Feature | Function |
 |------|----------|----------|
 | Smarter context | [Signal Core](/docs/concepts/signal-core) | Send agents code skeletons so they spend tokens on work, not noise |
-| Safe sandbox | [Blast Shield](/docs/concepts/blast-shield) | Keep writes isolated until you approve a merge |
-| No write collisions | [Race Shield](/docs/concepts/race-shield) | Registry + stdin buffering so swarms do not stomp each other |
+| Isolated writes | [Blast Shield](/docs/concepts/blast-shield) | Keep writes in isolated copies until you **Review → Apply** |
+| No write collisions | [Race Shield](/docs/concepts/race-shield) | Path ownership and waves so overlapping work does not run together |
 
 ```text
          Signal Core          Blast Shield         Race Shield
@@ -20,8 +21,8 @@ Every Pytxo run goes through three safety and efficiency layers.
                       Agents
 ```
 
-On **Galaxy**, [human approvals](/docs/concepts/galaxy-approvals) add a fourth layer for risky commands and merges.
+On **Galaxy**, [human approvals](/docs/concepts/galaxy-approvals) add a queue for risky host commands. That queue is not repository Apply. Apply is Desktop [Run Review](/docs/getting-started/review-and-apply).
 
-Today, agents run in isolated copies of your repo (git worktrees by default), and Race Shield tracks write claims so parallel work does not collide. See [Signal Core](/docs/concepts/signal-core) for how context scaffolding works.
+Eligible Orbit and Galaxy runs use isolated copies of your repo (Git worktrees by default). Supernova writes directly to the host. Race Shield orders declared overlapping path claims; it does not govern every external side effect. See [Signal Core](/docs/concepts/signal-core) for how context scaffolding works.
 
-Each moat has its own concept page with configuration options.
+Each layer has its own concept page with configuration options.

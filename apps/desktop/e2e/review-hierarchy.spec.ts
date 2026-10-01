@@ -4,14 +4,15 @@ import { completeOnboarding } from "./helpers";
 
 async function openReview(page: Page) {
   await page.goto("/#/history");
-  await page.locator(".history .row", { hasText: "run-71ad" }).first().click();
-  await page.getByRole("button", { name: "Review changes", exact: true }).click();
+  await page.locator('.history .row[data-run-id="run-71ad"]').click();
+  await page.getByRole("button", { name: "Review prepared changes", exact: true }).click();
   await expect(page.locator(".diff-side.after .text-content")).toContainText("structural_skeleton()");
 }
 
 test("ownership identifies recorded workers instead of planned CLI labels", async ({ page }) => {
   await completeOnboarding(page);
   await openReview(page);
+  await page.locator(".technical-evidence > summary").click();
   const ownership = page.locator(".task-list");
   await expect(ownership.locator("div", { has: page.getByText("signal-core", { exact: true }) }).locator("small"))
     .toHaveText("agent-0 · crates/pytxo-signal/src/lib.rs");
@@ -46,10 +47,13 @@ test("hierarchy acceptance keeps changes and verification in the first viewport"
   await openReview(page);
   await expect(page.getByRole("heading", { name: "Prepared changes", exact: true })).toBeInViewport();
   await expect(page.locator(".diff-side.after .text-content")).toBeInViewport({ ratio: 1 });
-  const decision = page.getByRole("region", { name: "Review decision" });
-  await expect(decision.getByText("Combined checks: not verified", { exact: true })).toBeInViewport();
+  const decision = page.locator(".decision-bar");
+  await expect(page.locator(".candidate-overview")).toContainText("Verification not established");
   await expect(decision.getByRole("button", { name: "Apply reviewed changes", exact: true })).toBeInViewport();
-  await expect(decision.getByText("pkg-71ad-immutable", { exact: true })).toBeInViewport();
+  const identity = decision.getByText("pkg-71ad-immutable", { exact: true });
+  await expect(identity).toBeHidden();
+  await decision.getByText("Exact candidate", { exact: true }).click();
+  await expect(identity).toBeInViewport();
 });
 
 test("hierarchy acceptance exposes the Work review action without scrolling", async ({ page }) => {
@@ -60,24 +64,71 @@ test("hierarchy acceptance exposes the Work review action without scrolling", as
   await expect(review).toBeInViewport();
   await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeInViewport();
   await openReview(page);
-  await page.getByRole("button", { name: "Back to runs", exact: true }).click();
+  await page.getByRole("link", { name: "History", exact: true }).click();
   await page.getByRole("link", { name: "Work", exact: true }).click();
   await expect(review).toBeEnabled();
   await review.click();
-  await expect(page.getByRole("heading", { name: "Run Review", exact: true })).toBeVisible();
+  await expect(page.locator("#run-review-title")).toBeVisible();
+});
+
+test("History leads with the requested outcome and keeps the exact run as metadata", async ({ page }) => {
+  await completeOnboarding(page, { "pytxo-preview-flow-history-v1": "ready" });
+  await page.goto("/#/history");
+  const row = page.locator('.history .row[data-run-id="run-71ad"]');
+  await expect(row.getByText("Fix the parser regression", { exact: true })).toBeVisible();
+  await expect(row).toContainText("signal-lab");
+  await expect(row).not.toContainText("run-71ad");
+  await page.getByLabel("Search work history", { exact: true }).fill("parser regression");
+  await expect(page.locator(".history .row")).toHaveCount(1);
+});
+
+test("Review starts focused while preserved evidence remains one click away", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await completeOnboarding(page);
+  await openReview(page);
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
+  await page.getByRole("button", { name: "Checks & details", exact: true }).click();
+  await page.getByRole("button", { name: "Files", exact: true }).click();
+  await expect(page.getByRole("tablist", { name: "right dock" })).toBeVisible();
+
+  await page.getByRole("link", { name: "History", exact: true }).click();
+  await page.locator('.history .row[data-run-id="run-71ad"]').click();
+  await page.getByRole("button", { name: "Review prepared changes", exact: true }).click();
+
+  await expect(page.getByRole("tablist", { name: /dock$/ })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Prepared changes", exact: true })).toBeInViewport();
+  await expect(page.locator(".run-details code")).toBeHidden();
+  await page.getByText("Run details", { exact: true }).click();
+  await expect(page.locator(".run-details code")).toHaveText("run-71ad");
+  await expect(page.locator(".run-details code")).toBeVisible();
+  const files = page.getByRole("button", { name: "Files", exact: true });
+  const from = (await files.boundingBox())!;
+  await page.mouse.move(from.x + 20, from.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 30, from.y + 40, { steps: 5 });
+  const bottom = (await page.locator(".drop-bottom").boundingBox())!;
+  await page.mouse.move(bottom.x + bottom.width / 2, bottom.y + bottom.height / 2, { steps: 10 });
+  await page.mouse.up();
+  await expect(page.getByRole("tablist", { name: "bottom dock" })).toContainText("Files");
+  await page.getByRole("button", { name: "Pin view", exact: true }).click();
+  await page.getByRole("link", { name: "History", exact: true }).click();
+  await page.locator('.history .row[data-run-id="run-71ad"]').click();
+  await page.getByRole("button", { name: "Review prepared changes", exact: true }).click();
+  await expect(page.getByRole("tablist", { name: "bottom dock" })).toContainText("Files");
 });
 
 test("mobile review paths and ownership remain readable beside their action", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await completeOnboarding(page, { "pytxo-deck-theme": "light" });
   await openReview(page);
-  for (const header of await page.locator(".file-row > header").all()) {
-    const labels = header.locator("div");
-    expect(await labels.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
-    const labelBox = await labels.boundingBox();
-    const actionBox = await header.getByRole("button").boundingBox();
-    expect(labelBox!.y).toBeGreaterThanOrEqual(actionBox!.y + actionBox!.height);
-    await expect(labels.locator("strong")).toHaveCSS("white-space", "normal");
+  const files = page.locator(".file-navigation .file-row");
+  await expect(files).toHaveCount(4);
+  for (const file of await files.all()) {
+    const path = await file.getAttribute("title");
+    expect(path).toBeTruthy();
+    await expect(file).toHaveAccessibleName(`Inspect exact content for ${path}`);
+    expect(await file.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    await expect(file.locator("strong")).toBeVisible();
   }
   expect(await page.locator(".mission-content > .content").evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
 });
@@ -104,6 +155,7 @@ for (const width of [1280, 390]) {
     }
     await details.scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath("expanded-digests-synthetic-64.png") });
+    await page.locator(".technical-evidence > summary").click();
     const ownership = page.locator(".task-list");
     for (const label of await ownership.locator("strong, small, em").all()) {
       await expect(label).toHaveCSS("white-space", "normal");
@@ -166,7 +218,7 @@ for (const theme of ["void", "light"]) {
         "pytxo-preview-candidate-check-v1": "passed",
       });
       await page.goto("/#/work");
-      await expect(page.getByRole("heading", { name: "What the agents are doing" })).toBeVisible();
+      await expect(page.getByTestId("execution-map")).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath("work.png") });
       const workReview = await page.getByRole("button", { name: "Review changes", exact: true }).boundingBox();
       await openReview(page);
@@ -183,4 +235,43 @@ for (const theme of ["void", "light"]) {
       await expect(dialog).toBeHidden();
     });
   }
+}
+
+for (const width of [1600, 960]) {
+  test(`substantial Review stays readable at ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 1600 ? 1000 : 800 });
+    await completeOnboarding(page, {
+      "pytxo-preview-review-substantial-v1": "true",
+      "pytxo-preview-review-state-v1": "ready",
+      "pytxo-preview-candidate-check-v1": "passed",
+      "pytxo-preview-flow-history-v1": "ready",
+    });
+    await openReview(page);
+    await expect(page.getByRole("button", { name: "Back to Work", exact: true })).toHaveCount(1);
+    await expect(page.locator(".review-destination")).toContainText("C:/dev/signal-lab");
+    await expect(page.locator(".verification-summary")).toHaveText("Combined checks: passed");
+    const content = page.locator(".diff-side.after .text-content");
+    await expect(content).toContainText("preserves_public_shape_35");
+    expect(await content.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(13);
+    expect(await content.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
+    await expect(page.getByRole("button", { name: "Apply reviewed changes", exact: true })).toBeInViewport();
+    await page.screenshot({ path: `../../target/spatial-workbench-20260917/finishing/review-substantial-${width}.png` });
+    if (!(await page.locator(".candidate-overview").evaluate(el => (el as HTMLDetailsElement).open))) await page.getByText("Show candidate map", { exact: true }).click();
+    await expect(page.locator(".map-boundary")).toContainText("signal-lab");
+    await expect(page.locator(".candidate-context")).toContainText("1 recorded command");
+    // Resize round-trip forces a complete browser repaint after disclosure expansion.
+    const size = page.viewportSize()!;
+    await page.setViewportSize({ ...size, width: size.width + 1 });
+    await page.setViewportSize(size);
+    await page.screenshot({ path: `../../target/spatial-workbench-20260917/finishing/review-map-${width}.png`, animations: "disabled" });
+    await page.getByText("Focus on code", { exact: true }).click();
+    await expect(page.locator(".map-boundary")).toBeHidden();
+    // Layout stress, not a backend path or authorization fixture.
+    await page.locator(".review-destination strong").evaluate(el => {
+      el.textContent = `C:/workspaces/${"long-repository-directory/".repeat(8)}signal-lab`;
+    });
+    const viewport = page.locator(".mission-content > .content");
+    expect(await viewport.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    await expect(page.getByRole("button", { name: "Apply reviewed changes", exact: true })).toBeInViewport();
+  });
 }

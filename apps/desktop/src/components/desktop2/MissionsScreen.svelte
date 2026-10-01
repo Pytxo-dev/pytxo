@@ -72,6 +72,7 @@
       domainId={detailDomainId}
       onBack={() => onView("list")}
       onChanged={onRunCompleted}
+      onWork={() => onOpenMission(focusedRun.id, "live")}
     />
   {/key}
 {:else}
@@ -79,9 +80,9 @@
     <header class="screen-heading">
       <div>
         <button class="back" onclick={() => onView("list")}>
-          <IconArrowLeft size={15} /> Runs
+          <IconArrowLeft size={15} /> History
         </button>
-        <h1>Run Review</h1>
+        <h1>Review changes</h1>
       </div>
     </header>
     <article class="panel">

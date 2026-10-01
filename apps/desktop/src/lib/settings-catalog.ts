@@ -16,8 +16,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     id: "general",
     label: "General",
     group: "Preferences",
-    description: "Window behavior and reduced motion.",
-    keywords: ["close to tray", "quit", "window", "reduced motion", "animations", "transitions"],
+    description: "Window behavior, reduced motion, and Desktop updates.",
+    keywords: ["close to tray", "quit", "window", "reduced motion", "animations", "transitions", "updates", "version", "restart"],
   },
   {
     id: "appearance",
@@ -72,8 +72,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     id: "account",
     label: "Account & billing",
     group: "More",
-    description: "Pytxo account, plan, updates, and onboarding.",
-    keywords: ["account", "billing", "tier", "plan", "payment", "invoices", "sign out", "updates", "version", "restart", "pytxo cli", "onboarding", "welcome", "community", "discord"],
+    description: "Pytxo account, plan, and onboarding.",
+    keywords: ["account", "billing", "tier", "plan", "payment", "invoices", "sign out", "pytxo cli", "onboarding", "welcome", "community", "discord"],
   },
 ];
 

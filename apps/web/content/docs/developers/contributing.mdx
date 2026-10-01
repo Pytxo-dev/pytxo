@@ -1,14 +1,17 @@
 ---
 title: Contributing
-description: Build Pytxo from source and open pull requests.
+description: Build Pytxo from source when you already have repository access.
 ---
 
-Pytxo is open source under the **MIT License**. Contributions welcome via GitHub pull requests.
+The local Rust core is **MIT-licensed**. That is a license, not a public source dump. The product repository (`Pytxo-dev/pytxo`) is **not public**. Installers and CLI binaries ship from [`Pytxo-dev/pytxo-releases`](https://github.com/Pytxo-dev/pytxo-releases).
+
+Do not `git clone https://github.com/Pytxo-dev/pytxo.git` expecting a public checkout. If you do not already have source access, use [Install](/docs/getting-started/install) and [Download](/download).
 
 ## Development setup
 
+These commands assume a local clone you already have:
+
 ```bash
-git clone https://github.com/Pytxo-dev/pytxo.git
 cd pytxo
 cargo build --workspace
 ```
@@ -42,16 +45,11 @@ Edit MDX under `apps/web/content/docs`. Preview with `pnpm --dir apps/web dev` a
 
 ## Guidelines
 
-- Route orchestration changes through the three moats where applicable
+- Route orchestration changes through the [safety and coordination model](/docs/concepts/three-moats) where applicable
 - Add tests for scheduling, worktree, and store behavior
 - Update public docs when user-facing behavior changes
 - Follow existing Rust formatting (`cargo fmt`) and CI
 
 ## Pull requests
 
-1. Fork and branch from `main`
-2. Keep commits focused
-3. Ensure `cargo test` and CI pass
-4. Link related issues or ADRs in the PR description
-
-Full policy: [CONTRIBUTING.md](https://github.com/Pytxo-dev/pytxo/blob/main/CONTRIBUTING.md) on GitHub.
+Internal contributors with source access: branch from `main`, keep commits focused, ensure `cargo test` and CI pass, and link related issues or ADRs. There is no public contribution inbox on GitHub for the private source repo.

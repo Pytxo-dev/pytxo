@@ -48,6 +48,17 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: Build and pin Windows owned-launch test helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cargo build -p pytxo-cli --bin pytxo-attempt-host --locked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $helper = (Resolve-Path -LiteralPath target/debug/pytxo-attempt-host.exe).Path
+          $digest = (Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant()
+          "PYTXO_TEST_ATTEMPT_HOST=$helper" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PYTXO_TEST_ATTEMPT_HOST_SHA256=$digest" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: cargo test
         run: cargo test --workspace
 

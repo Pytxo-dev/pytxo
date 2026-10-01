@@ -1,0 +1,87 @@
+{
+  "browser": "152.0.7977.83",
+  "host": "win32",
+  "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics        ",
+  "checks": {
+    "waitingTask": true,
+    "emptyFiles": true,
+    "connectedFiles": true,
+    "tabKeyboard": true,
+    "waitingSettles": true,
+    "reducedMotion": true,
+    "narrowOverflow": true,
+    "smallOverflow": true,
+    "narrowInspectionVisible": true,
+    "offscreenSettles": true,
+    "cleanup": true
+  },
+  "errors": [],
+  "measurements": [
+    {
+      "enabled": false,
+      "run": 1,
+      "draws": 0,
+      "drawP50": 0,
+      "drawP95": 0,
+      "rafP50": 7,
+      "rafP95": 7,
+      "longTasks": []
+    },
+    {
+      "enabled": false,
+      "run": 2,
+      "draws": 0,
+      "drawP50": 0,
+      "drawP95": 0,
+      "rafP50": 7,
+      "rafP95": 7.099999999999454,
+      "longTasks": []
+    },
+    {
+      "enabled": false,
+      "run": 3,
+      "draws": 0,
+      "drawP50": 0,
+      "drawP95": 0,
+      "rafP50": 7,
+      "rafP95": 7,
+      "longTasks": []
+    },
+    {
+      "enabled": true,
+      "run": 1,
+      "draws": 64,
+      "drawP50": 2.0999999940395355,
+      "drawP95": 2.699999988079071,
+      "rafP50": 7,
+      "rafP95": 7,
+      "longTasks": []
+    },
+    {
+      "enabled": true,
+      "run": 2,
+      "draws": 64,
+      "drawP50": 2.0999999940395355,
+      "drawP95": 2.800000011920929,
+      "rafP50": 7,
+      "rafP95": 7.100000000000364,
+      "longTasks": []
+    },
+    {
+      "enabled": true,
+      "run": 3,
+      "draws": 63,
+      "drawP50": 2.0999999940395355,
+      "drawP95": 2.699999988079071,
+      "rafP50": 7,
+      "rafP95": 7.100000000000364,
+      "longTasks": []
+    }
+  ],
+  "limits": [
+    "Headless Chrome; not native WebView or display FPS.",
+    "CPU canvas draw timing; GPU power and Windows DPI not measured.",
+    "Hidden-page visibility handler implemented; offscreen and cleanup tested.",
+    "Fixture preview only; no production authorization tests required or claimed."
+  ]
+}

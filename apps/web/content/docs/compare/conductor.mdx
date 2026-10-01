@@ -1,0 +1,32 @@
+---
+title: Pytxo and Conductor
+description: Exact-byte Apply compared with Conductor’s worktree, branch, and pull-request workspace.
+---
+
+[Conductor](https://www.conductor.build/docs/concepts/git-worktrees) is a desktop workflow around **Git worktrees**. Each workspace gets its own working tree, branch, commands, chats, and review path. The workspace branch is the unit you review, push, and turn into a pull request. Isolation is development isolation on the operator’s machine, not a security boundary.
+
+Pytxo also uses isolated copies (worktrees by default). It does not treat a branch or GitHub pull request as the review unit. After an eligible run it stores an **immutable package of exact file bytes**. Desktop Run Review shows that package; Apply writes only those stored bytes.
+
+## Practical differences
+
+| | Conductor | Pytxo |
+|---|-----------|-------|
+| Isolation | Git worktree per workspace | Worktree or overlay workspace per agent/task |
+| Review unit | Workspace branch → pull request | Immutable byte package → Apply |
+| Agent model | Agents inside Conductor workspaces | Installed third-party CLIs under one scheduler |
+| Merge path | Push / PR / merge from the workspace | Apply the reviewed package, then your normal Git workflow |
+| Collision control | Separate worktrees; agents share a branch only when you keep them together | Race Shield waves before overlapping paths run |
+
+## Choose Conductor when
+
+- The branch and pull request *are* the review workflow.
+- You want setup scripts, workspace-local ports, and PR state attached to each worktree.
+- A worktree-per-task desktop on the Conductor model matches how you already ship.
+
+## Choose Pytxo when
+
+- Several vendor CLIs must share one ownership, wave, and Apply contract.
+- Review must show the exact bytes that Apply will write, not a live worktree.
+- Apply recovery for one repository root matters more than a built-in PR workspace.
+
+Pytxo does not replace GitHub pull requests. After Apply, you still use your existing Git process. Conductor’s docs are the source for its worktree and PR model; check [conductor.build](https://www.conductor.build/docs/concepts/workspaces-and-branches) for current platform availability.

@@ -39,7 +39,7 @@ The workflow will:
 | `APPLE_CERTIFICATE*`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_*` | Optional Apple signing/notarization credentials; only used when **Sign Desktop installers** is enabled |
 | `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` | Optional Windows signing credentials; only used when **Sign Desktop installers** is enabled |
 
-Without `TAURI_SIGNING_PRIVATE_KEY`, Desktop installers still publish, but the updater channel (`latest.json`) is skipped.
+Without `TAURI_SIGNING_PRIVATE_KEY`, Desktop installers still publish, but no new updater manifest is produced. The public mirror keeps the last signed `latest.json` on its stable branch channel instead of replacing or deleting it.
 
 ## CLI release (alternative)
 
@@ -79,12 +79,14 @@ failure is not a reason to bypass CI.
 7. Verify downloaded checksums, `pytxo --version`, `npm i -g`, the Windows
    installer, website `/download`, and current-version documentation.
 
-Without a Tauri signing key, only manual installers can be published. The current
-updater endpoint uses GitHub's `releases/latest/download/latest.json`: making an
-unsigned release Latest without that asset makes the endpoint return 404. It does
-not preserve the previous signed manifest automatically. Before publication,
-explicitly decide the Latest designation and verify the existing updater URL.
-Do not advertise working auto-update without that signed artifact check.
+Without a Tauri signing key, only manual installers can be published. Desktop
+checks the branch-backed stable `latest.json` first and retains the GitHub Latest
+release URL as a migration fallback. A signed release copies its validated
+manifest to the stable channel only after the referenced release assets exist;
+an unsigned release leaves the prior signed channel unchanged. Before
+publication, verify the stable manifest, its referenced asset, and the fallback
+URL. Do not advertise working auto-update until a packaged older build has
+installed the new signed release and confirmed its running version after restart.
 
 ## After release
 

@@ -20,135 +20,93 @@ async function renderedLineCount(locator: ReturnType<Page["getByRole"]>) {
   });
 }
 
-async function contentLineCount(locator: ReturnType<Page["getByRole"]>) {
-  return locator.evaluate((element) => {
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    const tops = [
-      ...new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))),
-    ];
-    return tops.length;
+for (const width of [1440, 390]) {
+  test(`launch journey is scoped and readable at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    const hero = page.getByTestId("marketing-hero");
+    await expect(hero.getByRole("heading", { level: 1 })).toContainText("Agents do the work.");
+    await expect(hero.getByRole("heading", { level: 1 })).toContainText("You decide what lands.");
+    await expect(hero.getByText(/Give your coding agent a task/)).toBeVisible();
+    await expect(hero.getByRole("link", { name: "Download current v1.2.1" })).toBeInViewport();
+    await expect(hero.getByText("The walkthrough below previews the unpublished v1.2.2 Desktop interface.")).toBeVisible();
+    await expect(hero.getByRole("link", { name: "First mission" })).toHaveAttribute("href", "/docs/getting-started/first-mission");
+    await expect(page.getByRole("tab", { name: "Review & Apply" })).toHaveAttribute("aria-selected", "true");
+    const walkthrough = page.getByTestId("product-walkthrough");
+    await expect(walkthrough.getByText("Unpublished v1.2.2 · browser fixture")).toBeVisible();
+    const panel = walkthrough.getByRole("tabpanel");
+    if (width < 1280) {
+      const details = panel.getByTestId("mobile-product-details");
+      await expect(details.getByRole("img")).toHaveCount(2);
+      await expect(details.getByRole("img").first()).toHaveJSProperty("naturalWidth", 1600);
+      await expect(details).toContainText("Checks belong to this candidate");
+      await expect(details).toContainText("Apply is an explicit decision");
+    } else {
+      await expect(panel.getByRole("img")).toHaveJSProperty("naturalWidth", 1600);
+      expect((await panel.getByRole("img").boundingBox())!.width).toBeGreaterThan(900);
+    }
+    await expect(page.getByText("Interface previews using browser fixtures, not a recorded mission or proof of execution.")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: testInfo.outputPath(`launch-home-${width}.png`), fullPage: true });
+    await hero.getByRole("link", { name: "Download current v1.2.1" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Download" })).toBeVisible();
+    await expect(page.getByText(/Workspace .* is unpublished/)).toBeVisible();
+    await expect(page.getByText("The download below installs the current public v1.2.1 build.")).toBeVisible();
+    await expect(page.getByText("The product source repository is currently private.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Not yet" })).toHaveCount(2);
+    await expect(page.getByText("The CLI does not Apply repository changes")).toBeVisible();
+    await expect(page.getByText("planning, waves, isolation, and Apply")).toHaveCount(0);
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: testInfo.outputPath(`launch-download-${width}.png`), fullPage: true });
   });
 }
 
-test("desktop hero leads with the mission and current product evidence", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-
-  const heading = page.getByRole("heading", { level: 1 });
-  const product = page.getByTestId("hero-product");
-  const productImage = product.getByRole("img");
-
-  await expect(heading).toHaveText("Agents do the work.You decide what lands.");
-  await expect(page.getByTestId("marketing-hero").getByRole("link", { name: "Download Pytxo" })).toBeVisible();
-  await expect(product).toBeInViewport();
-  await expect(productImage).toHaveJSProperty("naturalWidth", 1600);
-  expect(await renderedLineCount(heading)).toBeLessThanOrEqual(2.2);
-
-  // The headline must stay inside its own grid column, never under the capture.
-  const productBox = await product.boundingBox();
-  const headingBox = await heading.boundingBox();
-  expect(headingBox && productBox ? headingBox.x + headingBox.width : 0).toBeLessThanOrEqual(productBox?.x ?? 1440);
-  expect(await heading.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
-  await expectNoHorizontalOverflow(page);
+test("plans present current availability without a public subscription checkout", async ({ page }) => {
+  await page.goto("/plans");
+  await expect(page.getByRole("heading", { level: 1, name: "Plans and availability" })).toBeVisible();
+  await expect(page.getByText("Core works today on your machine without checkout.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Subscribe to/i })).toHaveCount(0);
+  await expect(page.locator("main").getByRole("link", { name: "Sign in" })).toHaveCount(0);
 });
 
-test("hero states one primary action and an honest platform scope", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-
-  const hero = page.getByTestId("marketing-hero");
-  const buttons = hero.getByRole("link").filter({ hasText: /Download Pytxo|Run your first mission/ });
-  await expect(buttons).toHaveCount(2);
-  await expect(hero.getByRole("link", { name: "Run your first mission" })).toHaveAttribute("href", "/docs/getting-started/first-mission");
-  await expect(hero.getByText("Local Core needs no Pytxo account.", { exact: false })).toBeVisible();
-  await expect(hero.getByText("Desktop ships for Windows today.")).toBeVisible();
-});
-
-test("mobile hero exposes the CTA and beginning of real product evidence", async ({ page }) => {
+test("install commands can be copied intact on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
-
-  const hero = page.getByTestId("marketing-hero");
-  const heading = hero.getByRole("heading", { level: 1 });
-  const download = hero.getByRole("link", { name: "Download Pytxo" });
-
-  await expect(heading).toBeVisible();
-  await expect(download).toBeInViewport();
-  expect(await renderedLineCount(heading)).toBeLessThanOrEqual(3.2);
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3101" });
+  await page.goto("/download");
+  const copyButton = page.getByRole("button", { name: "Copy Windows PowerShell install command" });
+  const command = await copyButton.locator("..").locator("..").locator("pre").textContent();
+  expect(command).toMatch(/^irm https:\/\/raw\.githubusercontent\.com\/.+\/install\.ps1 \| iex$/);
+  await copyButton.click();
+  await expect(copyButton).toHaveText("Copied");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(command);
   await expectNoHorizontalOverflow(page);
 });
 
-test("the homepage tells the seven-section narrative in order", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+test("walkthrough supports keyboard navigation without simulated live state", async ({ page }) => {
   await page.goto("/");
-
-  const order = await page.evaluate(() => {
-    const ids = [
-      "marketing-hero",
-      "product-section",
-      "boundary-section",
-      "compatibility-section",
-      "evidence-section",
-      "get-it-section",
-    ];
-    return ids.map((id) => {
-      const node = document.querySelector(`[data-testid="${id}"]`);
-      return node ? Math.round(node.getBoundingClientRect().top + window.scrollY) : -1;
-    });
-  });
-
-  expect(order.every((top) => top >= 0)).toBe(true);
-  expect([...order].sort((a, b) => a - b)).toEqual(order);
-  await expect(page.getByRole("heading", { name: "One agent first. More when it helps." })).toBeVisible();
+  const review = page.getByRole("tab", { name: "Review & Apply" });
+  await review.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "Recorded outcome" })).toBeFocused();
+  await expect(page.getByRole("tabpanel")).toContainText("A saved history entry is not itself proof");
+  await page.keyboard.press("Home");
+  await expect(page.getByRole("tab", { name: "Execution" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tabpanel")).toContainText(
+    "Follow recorded workers on the canvas, inspect their evidence, and open output when needed",
+  );
 });
 
-test("the product section shows one capture large enough to read", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+test("homepage explains workflow, limits and supported Beta in order", async ({ page }) => {
   await page.goto("/");
-
-  const section = page.getByTestId("product-section");
-  const captures = section.getByRole("img");
-  await expect(captures).toHaveCount(1);
-
-  const box = await captures.first().boundingBox();
-  expect(box?.width ?? 0).toBeGreaterThan(900);
-  await expect(section.getByRole("heading", { name: "Commit boundary" })).toBeVisible();
-  await expect(section.getByRole("heading", { name: "Enforcement receipt" })).toBeVisible();
-});
-
-test("the boundary section publishes every enforcement state, not just the good ones", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-
-  const section = page.getByTestId("boundary-section");
-  await expect(section.getByText("Advisory only", { exact: true })).toBeVisible();
-  await expect(section.getByText("Unavailable", { exact: true })).toBeVisible();
-  await expect(section.getByText("Enforced", { exact: true }).first()).toBeVisible();
-  await expect(section.getByText("Network", { exact: true })).toBeVisible();
-});
-
-test("compatibility names the real registry adapters and their commands", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-
-  const section = page.getByTestId("compatibility-section");
-  for (const name of ["Claude Code", "OpenAI Codex", "Cursor Agent", "Antigravity"]) {
-    await expect(section.getByText(name, { exact: true })).toBeVisible();
-  }
-  await expect(section.getByText("cursor-agent -p --trust", { exact: true })).toBeVisible();
+  const ids = ["marketing-hero", "boundary-section", "compatibility-section", "get-it-section"];
+  const tops = await Promise.all(ids.map(id => page.getByTestId(id).evaluate(el => el.getBoundingClientRect().top)));
+  expect([...tops].sort((a,b)=>a-b)).toEqual(tops);
+  await expect(page.getByTestId("product-walkthrough").getByRole("tab")).toHaveCount(3);
+  await expect(page.getByTestId("boundary-section")).toContainText("does not control every host or network side effect");
+  await expect(page.getByTestId("compatibility-section")).toContainText("Codex CLI installed and authenticated");
+  await expect(page.getByTestId("evidence-section")).toHaveCount(0);
   await expect(page.locator(".aperture-marquee")).toHaveCount(0);
-  await expectNoHorizontalOverflow(page);
-});
-
-test("the published figure carries its non-claims and links to source data", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-
-  const section = page.getByTestId("evidence-section");
-  await expect(section.getByTestId("evidence-figure")).toHaveText("82.9%");
-  await expect(section.getByText("Not a model-token saving. Tokenizer output was not measured.")).toBeVisible();
-  await expect(section.getByRole("link", { name: "Read the methodology" })).toBeVisible();
 });
 
 test("the evidence page states the corpus, caveats, and source access limit", async ({ page }) => {
@@ -181,23 +139,45 @@ for (const width of [1440, 390]) {
     expect(record.native_apply.applied_files_match_frozen_digests).toBe(true);
     expect(record.msi_sha256).toMatch(/^[a-f0-9]{64}$/);
     await expect(page.getByText(`Recorded MSI SHA256: ${record.msi_sha256}`, { exact: true })).toBeVisible();
-    const currentHref = await page.getByRole("link", { name: "Current candidate record", exact: true }).getAttribute("href");
+    const currentHref = await page.getByRole("link", { name: "September 8 checkpoint record", exact: true }).getAttribute("href");
     expect(currentHref).toBeTruthy();
     const currentResponse = await page.request.get(currentHref!);
     expect(currentResponse.ok()).toBe(true);
     const current = await currentResponse.json();
     expect(current.run_id).not.toBe(record.run_id);
-    expect(current.native_apply.persisted_after_native_restart).toBe(true);
-    expect(current.native_apply.independent_acceptance.post_apply_passed).toBe(26);
-    await expect(page.getByText(`Follow-up MSI SHA256: ${current.msi_sha256}`, { exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Current candidate record", exact: true }).scrollIntoViewIfNeeded();
-    await page.screenshot({ path: testInfo.outputPath(`current-candidate-${width}.png`), fullPage: true });
-    for (const name of ["Direct worktree record", "Earlier refusal record", "Launch failure record", "Review withheld record", "Previous candidate record"]) {
+    expect(current.apply.state).toBe("committed");
+    expect(current.apply.receipt_survived_restart).toBe(true);
+    expect(current.apply.independent_tests_passed).toBe(26);
+    expect(current.apply.repository_tests_passed).toBe(11);
+    expect(current.primary_before_apply.inventory_matches).toBe(true);
+    expect(current.primary_before_apply.cancel_left_unchanged).toBe(true);
+    expect(current.native_ui.lower_diff_wheel_reachability).toBe("passed");
+    await expect(page.getByText(`Recorded checkpoint MSI SHA256: ${current.msi_sha256}`, { exact: true })).toBeVisible();
+    await expect(page.getByText(/This recording predates the newer Desktop polish build/)).toBeVisible();
+    await page.getByRole("heading", { name: "September 8 recorded checkpoint" }).evaluate(element => element.scrollIntoView({ block: "start" }));
+    await page.evaluate(() => window.scrollBy(0, -96));
+    await page.screenshot({ path: testInfo.outputPath(`checkpoint-viewport-${width}.png`) });
+    for (const name of ["Direct worktree record", "Earlier refusal record", "Launch failure record", "Review withheld record", "Earlier onboarding record", "Earlier CI candidate record"]) {
       const url = await page.getByRole("link", { name, exact: true }).getAttribute("href");
       expect(url).toBeTruthy();
       expect((await page.request.get(url!)).ok()).toBe(true);
     }
     await expect(page.getByText(/Host filesystem and network controls remained advisory/)).toBeVisible();
+    const corpus = page.getByRole("region", { name: "The corpus", exact: true });
+    await corpus.getByRole("heading", { name: "The corpus", exact: true }).evaluate(element => element.scrollIntoView({ block: "start" }));
+    await page.evaluate(() => window.scrollBy(0, -96));
+    if (width < 640) {
+      // Each mobile value needs a readable visible label, not a hidden desktop header.
+      for (const label of ["Files", "Source bytes", "Scaffold bytes", "Reduction"]) {
+        const term = corpus.getByRole("term").filter({ hasText: new RegExp(`^${label}$`) }).first();
+        await expect(term).toBeInViewport();
+        const box = await term.boundingBox();
+        expect(box?.width ?? 0).toBeGreaterThan(20);
+        expect(box?.height ?? 0).toBeGreaterThan(12);
+      }
+    }
+    await page.screenshot({ path: testInfo.outputPath(`corpus-viewport-${width}.png`) });
+    await page.screenshot({ path: testInfo.outputPath(`checkpoint-full-${width}.png`), fullPage: true });
     await expectNoHorizontalOverflow(page);
   });
 }
@@ -248,12 +228,10 @@ test("the homepage no longer pins a scroll-jacked sequence", async ({ page }) =>
 
 const PLAN_TIERS = [
   { title: "Pytxo Core", status: "Available now" },
-  { title: "Pytxo Pro Cloud", status: "Capability-gated" },
-  { title: "Pytxo Max Swarm", status: "Configured deployments" },
-  { title: "Pytxo Ultra", status: "Local ledger available" },
+  { title: "Cloud / Teams", status: "Not a default hosted product" },
 ] as const;
 
-test("plans expose capability gates before checkout", async ({ page }) => {
+test("plans expose Core versus Cloud / Teams without subscribe tiers", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/plans");
 
@@ -263,8 +241,48 @@ test("plans expose capability gates before checkout", async ({ page }) => {
 
   const grid = page.getByTestId("plans-grid");
   const cells = grid.getByTestId("plan-cell");
-  await expect(cells).toHaveCount(4);
+  await expect(cells).toHaveCount(2);
 
+  for (const tier of PLAN_TIERS) {
+    await expect(page.locator('[data-slot="card-title"]', { hasText: tier.title })).toBeVisible();
+    await expect(page.getByText(tier.status, { exact: true })).toBeVisible();
+  }
+
+  const layout = await cells.evaluateAll((nodes) => {
+    const tops = [...new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().top)))];
+    const lefts = [...new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().left)))];
+    return { rowCount: tops.length, columnCount: lefts.length };
+  });
+  expect(layout.rowCount).toBe(1);
+  expect(layout.columnCount).toBe(2);
+
+  await expect(
+    page.getByText(
+      "Cloud execution and team entitlements are not a default hosted product. They work only in deployments that already have those services configured. Local Core does not require checkout.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("Subscribe to Pro")).toHaveCount(0);
+  await expect(page.getByText("Subscribe to Max")).toHaveCount(0);
+  await expect(page.getByText("Subscribe to Ultra")).toHaveCount(0);
+  await expect(page.getByText("Pytxo Pro Cloud")).toHaveCount(0);
+  await expect(page.getByText("Isolated sandbox service")).toHaveCount(0);
+  await expect(page.getByText("Live billing")).toHaveCount(0);
+  await expect(page.getByText("Hosted cloud sandboxes")).toHaveCount(0);
+  await expect(page.getByText("Managed metered billing")).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("plans-1440.png"), fullPage: true });
+});
+
+test("plans remain complete and single-column on mobile", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/plans");
+
+  const heading = page.getByRole("heading", { level: 1, name: "Plans and availability" });
+  await expect(heading).toBeVisible();
+  expect(await renderedLineCount(heading)).toBeLessThanOrEqual(2.2);
+
+  const cells = page.getByTestId("plan-cell");
+  await expect(cells).toHaveCount(2);
   for (const tier of PLAN_TIERS) {
     await expect(page.locator('[data-slot="card-title"]', { hasText: tier.title })).toBeVisible();
     await expect(page.getByText(tier.status, { exact: true })).toBeVisible();
@@ -276,72 +294,9 @@ test("plans expose capability gates before checkout", async ({ page }) => {
     return { rowCount: tops.length, columnCount: lefts.length };
   });
   expect(layout.rowCount).toBe(2);
-  expect(layout.columnCount).toBe(2);
-
-  await expect(
-    page.getByText(
-      "Cloud execution is not a default hosted service yet. It works only in deployments with a configured cloud dispatcher.",
-    ),
-  ).toBeVisible();
-  await expect(
-    page.getByText(
-      "Ultra mode includes local metering hooks. Managed inference and Link reconciliation are not end-to-end on the default path.",
-    ),
-  ).toBeVisible();
-  await expect(page.getByText("Sandbox service when configured")).toBeVisible();
-  await expect(page.getByText("Isolated sandbox service")).toHaveCount(0);
-  await expect(page.getByText("Live billing")).toHaveCount(0);
-  await expect(page.getByText("Hosted cloud sandboxes")).toHaveCount(0);
-  await expect(page.getByText("Managed metered billing")).toHaveCount(0);
-  const checkoutConfigured =
-    (await page.getByRole("link", { name: "Subscribe to Pro" }).count()) > 0;
-  if (checkoutConfigured) {
-    await expect(page.getByRole("link", { name: "Subscribe to Pro" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Subscribe to Max" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Subscribe to Ultra" })).toBeVisible();
-  } else {
-    await expect(
-      page.getByRole("button", { name: "Account checkout not configured" }),
-    ).toHaveCount(3);
-  }
-  await expectNoHorizontalOverflow(page);
-});
-
-test("plans remain complete and single-column on mobile", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/plans");
-
-  const heading = page.getByRole("heading", { level: 1, name: "Plans and availability" });
-  await expect(heading).toBeVisible();
-  expect(await renderedLineCount(heading)).toBeLessThanOrEqual(2.2);
-
-  const cells = page.getByTestId("plan-cell");
-  await expect(cells).toHaveCount(4);
-  for (const tier of PLAN_TIERS) {
-    await expect(page.locator('[data-slot="card-title"]', { hasText: tier.title })).toBeVisible();
-    await expect(page.getByText(tier.status, { exact: true })).toBeVisible();
-  }
-
-  const layout = await cells.evaluateAll((nodes) => {
-    const tops = [...new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().top)))];
-    const lefts = [...new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().left)))];
-    return { rowCount: tops.length, columnCount: lefts.length };
-  });
-  expect(layout.rowCount).toBe(4);
   expect(layout.columnCount).toBe(1);
 
-  const checkoutConfigured =
-    (await page.getByRole("link", { name: "Subscribe to Pro" }).count()) > 0;
-  if (checkoutConfigured) {
-    for (const name of ["Subscribe to Pro", "Subscribe to Max", "Subscribe to Ultra"]) {
-      const link = page.getByRole("link", { name });
-      await expect(link).toBeVisible();
-      expect(await contentLineCount(link)).toBe(1);
-    }
-  } else {
-    await expect(
-      page.getByRole("button", { name: "Account checkout not configured" }),
-    ).toHaveCount(3);
-  }
+  await expect(page.getByText("Subscribe to Pro")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("plans-390.png"), fullPage: true });
 });

@@ -1,5 +1,6 @@
 ---
 title: Folder trust
+description: Choose a repository trust decision and permission tier before Pytxo spawns local agent processes.
 ---
 
 Before Pytxo dispatches agents in a repository, you choose whether to **trust the folder** and which **permission tier** applies. This mirrors VS Code's "Do you trust this folder?" flow: preflight and planning work without trust; spawning real processes does not.
@@ -10,7 +11,7 @@ Run `pytxo` in a repo. If the canonical git root is not trusted yet, a full-scre
 
 | Tier | Summary |
 |------|---------|
-| **DeepSpace** | Air-gapped bubble: minimal host access |
+| **DeepSpace** | Most restrictive; Apply denied and required network isolation must be available |
 | **Orbit** | Default engineering (recommended) |
 | **Galaxy** | Host tools + human-in-the-loop gates |
 | **Supernova** | Full host privileges |
@@ -44,5 +45,5 @@ Trusted tier **overrides** the default `permission_profile` in `pytxo.toml` for 
 ## Security notes
 
 - Trust is keyed by **canonical repo root**, not the current working directory inside the tree.
-- Secrets stay in environment variables. Pytxo never writes API keys to disk.
+- Keep secrets out of project files and logs. Configure API providers separately from folder trust; see [Providers and BYOK](/docs/reference/providers-byok).
 - See [Permission tiers](/docs/reference/permission-tiers) and [Galaxy approvals](/docs/concepts/galaxy-approvals) for what each tier allows.

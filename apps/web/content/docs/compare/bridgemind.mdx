@@ -1,0 +1,34 @@
+---
+title: Pytxo and BridgeMind
+description: A local commit layer compared with BridgeMind’s agent super-app.
+---
+
+[BridgeMind One](https://docs.bridgemind.ai/docs) documents itself as an **Agent Super App**: persistent AI teammates, agentic coding in project folders, sandboxed chat, routines, plugins, and dictation in one desktop. Work starts in Agent, Code, or Chat mode. Code mode launches supported coding-agent CLIs already installed on the machine; it does not bundle them.
+
+Pytxo is not a super-app. It does not host teammates, dictation, or a chat mode detached from a repository. It schedules those same kinds of CLIs, isolates overlapping writes, and prepares one exact package for Review → Apply.
+
+## Practical differences
+
+| | BridgeMind One | Pytxo |
+|---|----------------|-------|
+| Product shape | Agent / Code / Chat super-app | Local commit layer + optional Desktop |
+| Agents | Launches installed CLIs; Claude Code and Codex as chat engines | Heterogeneous CLIs under one scheduler |
+| Review | Inspect changes in the app, then ship | Immutable byte package; Desktop Run Review |
+| Extra surfaces | Routines, plugins, dictation, persistent memory | Work, History, Setup, MCP, Hypervisor Shell |
+| Apply | Your judgement in the super-app | Journaled Apply of stored target blobs |
+
+BridgeMind’s first-party docs (as of this writing) list **macOS** as the available desktop, with Windows in development and Linux not supported. Marketing pages may claim more platforms; treat the docs table as the conservative source and re-check before you depend on a Windows or Linux build.
+
+## Choose BridgeMind when
+
+- You want one desktop for teammates, a coding workspace, and sandboxed chat.
+- Routines, plugins, and dictation are part of the job.
+- Launching CLIs inside a super-app is preferable to a scheduler with an Apply journal.
+
+## Choose Pytxo when
+
+- Several CLIs must share path ownership, waves, and one Apply contract.
+- Review must show the exact bytes Apply will write.
+- You want a commit layer, not an Agent / Code / Chat product.
+
+Pytxo does not replace BridgeMind’s teammate or dictation surfaces. BridgeMind does not claim Pytxo’s crash-recoverable Apply journal. Sources: [BridgeMind docs](https://docs.bridgemind.ai/docs) and [getting started](https://docs.bridgemind.ai/docs/getting-started).

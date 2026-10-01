@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import IconActivity from "@tabler/icons-svelte/icons/activity";
   import IconChecks from "@tabler/icons-svelte/icons/checks";
   import IconHistory from "@tabler/icons-svelte/icons/history";
@@ -12,7 +12,9 @@
   import {
     consumeDomainChanges,
     fingerprintDesktopSnapshot,
+    incrementalDomainBatchSize,
     loadConsistentDesktopSnapshot,
+    selectIncrementalDomainBatch,
   } from "../../lib/desktop-sync";
   import {
     addWorkspaceRecent,
@@ -37,7 +39,7 @@
   import WorkActive from "./WorkActive.svelte";
   import MissionDock from "./MissionDock.svelte";
   import { selectMissionRun, restoreSelectedWork, SELECTED_WORK_KEY } from "../../lib/mission-selection";
-  import type { DockReference } from "../../lib/dock-layout";
+  import type { DockPosition, DockReference } from "../../lib/dock-layout";
   import HistoryScreen from "./HistoryScreen.svelte";
   import MissionsScreen from "./MissionsScreen.svelte";
   import WorkspacesScreen from "./WorkspacesScreen.svelte";
@@ -50,7 +52,7 @@
 
   const DOMAIN_DELTA_ACTIVE_MS = 2500;
   const DOMAIN_DELTA_IDLE_MS = 8000;
-  const INTEGRITY_REFRESH_MS = 60_000;
+  const RECOVERY_AUDIT_MS = 5 * 60_000;
   const OPEN_BEHAVIOR_KEY = "pytxo-workspace-open-behavior-v1";
   const DEFAULT_PROFILE_KEY = "pytxo-default-permission-profile-v1";
 
@@ -116,9 +118,17 @@
   let nowMs = $state(Date.now());
   let workScreen = $state<{ focusActiveRun: () => void; requestStopRun: (id: string) => void } | null>(null);
   let composerDraft = $state<ComposerDraft | null>(null);
+  const workspaceDrafts = new Map<string, ComposerDraft>();
+
+  function retainComposerDraft(draft: ComposerDraft | null) {
+    if (composerDraft) workspaceDrafts.delete(composerDraft.domainId);
+    if (draft) workspaceDrafts.set(draft.domainId, draft);
+    composerDraft = draft;
+    preferredAdeId = null;
+  }
   let preferredAdeId = $state<string | null>(null);
   let contentElement = $state<HTMLDivElement | null>(null);
-  let missionDock = $state<{ open: (ref: DockReference) => void; leaveFocus: () => void } | null>(null);
+  let missionDock = $state<{ open: (ref: DockReference, position?: DockPosition) => void; leaveFocus: () => void; dismiss: (position?: DockPosition) => void } | null>(null);
   const dockRun = $derived(selectMissionRun(snapshot.runs, activeDomainId, focusRunId));
 
   const activeDomain = $derived(
@@ -146,6 +156,8 @@
   ];
   const system = [{ route: "setup" as const, label: "Setup", icon: IconSettings }];
   const domainCursors = new Map<string, number>();
+  let catalogFingerprint: string | null = null;
+  let dormantDomainPollOffset = 0;
   const hasActiveRuns = $derived(
     snapshot.runs.some((r) =>
       ["starting", "running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
@@ -188,7 +200,7 @@
     })),
     {
       id: "flow",
-      label: "New run",
+      label: "New work",
       icon: IconTarget,
       aliases: ["flow", "compose", "mission"],
       group: "Actions" as const,
@@ -286,6 +298,7 @@
 
   function openCompose() {
     missionDock?.leaveFocus();
+    composerDraft ??= workspaceDrafts.get(activeDomainId ?? "") ?? null;
     const draftDomain = composerDraft?.domainId;
     if (draftDomain && snapshot.domains.some((d) => d.domain_id === draftDomain)) {
       activeDomainId = draftDomain;
@@ -372,13 +385,19 @@
     );
   }
 
-  async function refreshSnapshot(opts: { silent?: boolean; primeCursors?: boolean } = {}) {
+  let snapshotRequest = 0;
+  async function refreshSnapshot(opts: { silent?: boolean; primeCursors?: boolean } = {}): Promise<boolean> {
+    const request = ++snapshotRequest;
+    // Cursor progress belongs to the snapshot we publish, never a discarded read.
+    const nextCursors = new Map(domainCursors);
     try {
       const opsHeavy = route === "work";
       const documentHidden =
         typeof document !== "undefined" && document.visibilityState === "hidden";
       const idleChrome = !windowFocused || documentHidden || route === "setup";
-      const includeAgents = opsHeavy && !idleChrome;
+      // Work still renders worker identity and evidence while unfocused.
+      // Throttle background polling, but never publish an incomplete Work snapshot.
+      const includeAgents = opsHeavy;
       const load = () => backend.loadSnapshot({
         includeAgents,
         runLimit: idleChrome && !opsHeavy ? 12 : 30,
@@ -389,8 +408,15 @@
         : await loadConsistentDesktopSnapshot(
             load,
             (domainId, cursor, limit) => backend.domainChanges(domainId, cursor, limit),
-            domainCursors,
+            nextCursors,
+            backend.domainChangesBatch?.bind(backend),
           );
+      // A late lightweight read must not erase worker rows after entering Work.
+      if (request !== snapshotRequest || (!includeAgents && route === "work")) return false;
+      if (opts.primeCursors !== false) {
+        domainCursors.clear();
+        for (const [domain, cursor] of nextCursors) domainCursors.set(domain, cursor);
+      }
       const nextFp = fingerprintDesktopSnapshot(next);
       if (nextFp !== snapshotFingerprint) {
         snapshot = next;
@@ -413,16 +439,68 @@
       } else if (!next.error && loadMessage && previewState === "default") {
         loadMessage = "";
       }
+      return next.error === null;
     } catch {
       /* keep last snapshot */
+      return false;
     }
   }
 
+  function openWorkspaceCompose() {
+    // New work belongs to the visible workspace. Only Continue draft may
+    // deliberately return to a different workspace's unfinished request.
+    composerDraft = workspaceDrafts.get(activeDomainId ?? "") ?? null;
+    openCompose();
+  }
+
+  let previousSnapshotRoute: CanonicalRoute = "work";
+  $effect(() => {
+    const nextRoute = route;
+    const enteredWork = nextRoute === "work" && previousSnapshotRoute !== "work";
+    previousSnapshotRoute = nextRoute;
+    // Setup/History snapshots intentionally omit agents. Route changes do not
+    // produce backend events, so fetch the full Work snapshot immediately.
+    if (enteredWork) untrack(() => { void refreshSnapshot({ silent: true }); });
+  });
+
   async function catchUpDomainChanges() {
+    const observedCatalog = await backend.catalogFingerprint().catch(() => null);
+    if (observedCatalog !== null && (catalogFingerprint === null || observedCatalog !== catalogFingerprint)) {
+      // Capture before loading. A catalog write racing this snapshot changes
+      // the next fingerprint, so the following poll refreshes again.
+      const refreshed = await refreshSnapshot({ silent: true });
+      if (refreshed) catalogFingerprint = observedCatalog;
+      nowMs = Date.now();
+      return;
+    }
+    const urgentDomainIds = new Set<string>();
+    if (activeDomainId) urgentDomainIds.add(activeDomainId);
+    for (const domain of snapshot.domains) {
+      if (domain.active_runs > 0 || domain.hitl_pending > 0) urgentDomainIds.add(domain.domain_id);
+    }
+    for (const run of snapshot.runs) {
+      if (["starting", "running", "pending", "dispatching", "active"].includes(run.status.toLowerCase())) {
+        urgentDomainIds.add(run.domain_id);
+      }
+    }
+    for (const approval of snapshot.approvals) urgentDomainIds.add(approval.domain_id);
+    const interval = deltaIntervalMs();
+    const documentHidden =
+      typeof document !== "undefined" && document.visibilityState === "hidden";
+    const coverageMs = !windowFocused || documentHidden ? RECOVERY_AUDIT_MS : 60_000;
+    const selected = selectIncrementalDomainBatch(
+      snapshot.domains.map(domain => domain.domain_id),
+      urgentDomainIds,
+      dormantDomainPollOffset,
+      incrementalDomainBatchSize(snapshot.domains.length, interval, coverageMs),
+    );
+    dormantDomainPollOffset = selected.nextDormantOffset;
     const result = await consumeDomainChanges(
-      snapshot.domains.map((domain) => domain.domain_id),
+      selected.domainIds,
       domainCursors,
       (domainId, cursor, limit) => backend.domainChanges(domainId, cursor, limit),
+      200,
+      backend.domainChangesBatch?.bind(backend),
     );
     // A cursor gap means the change log dropped entries between polls, so this
     // view may have missed events. The operator is told rather than left to
@@ -667,7 +745,9 @@
     }
     void (async () => {
       try {
-        await refreshSnapshot();
+        const observedCatalog = await backend.catalogFingerprint().catch(() => null);
+        const refreshed = await refreshSnapshot();
+        if (refreshed && observedCatalog !== null) catalogFingerprint = observedCatalog;
         const openBehavior =
           typeof localStorage !== "undefined" &&
           localStorage.getItem(OPEN_BEHAVIOR_KEY) === "picker"
@@ -710,7 +790,7 @@
         scheduleDelta();
         integrityTimer = setInterval(
           () => void refreshSnapshot({ silent: true }),
-          INTEGRITY_REFRESH_MS,
+          RECOVERY_AUDIT_MS,
         );
       }
       try {
@@ -755,7 +835,7 @@
     onOpenRecent={openRecent}
     onAccountClick={() => navigate("setup", "account")}
     onNewRun={openCompose}
-    hasDraft={!!composerDraft?.mission.trim()}
+    hasDraft={!!(composerDraft ?? workspaceDrafts.get(activeDomainId ?? ""))?.mission.trim()}
     activeRunsCount={activeCommandRuns.length}
     workspaceLabel={activeDomain?.repo_root.split(/[\\/]/).pop() ?? "Workspace"}
     onOpenWorkspace={() => navigate("setup", "workspaces")}
@@ -782,7 +862,7 @@
       surface={route === "work" && workPane === "active" ? "run" : route === "work" && workPane === "review" ? "review" : "other"}
       previewAllowed={route === "work" && !approvalsOpen && !editingWorkspaceId}
       onReview={(runId, domainId) => openMission(runId, "review", domainId)} onOpenApprovals={() => approvalsOpen = true}>
-    <div class="content" class:history-content={route === "history"} bind:this={contentElement}>
+    <div class="content" class:work-content={route === "work"} class:history-content={route === "history"} class:setup-content={route === "setup"} bind:this={contentElement}>
       {#if authErrorMessage}<div class="status-banner error-banner">{authErrorMessage}</div>{/if}
       {#if workspaceError}<div class="status-banner error-banner">{workspaceError}</div>{/if}
       {#if workspaceMessage}<div class="status-banner" role="status"><span>{workspaceMessage}</span><button aria-label="Dismiss workspace message" onclick={() => workspaceMessage = ""}>×</button></div>{/if}
@@ -815,12 +895,13 @@
           activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? null) : null}
           {activeDomainId}
           {focusRunId}
-          onNewRun={openCompose}
+          onNewRun={openWorkspaceCompose}
           onOpenApprovals={() => (approvalsOpen = true)}
           onReviewRun={(runId) => openMission(runId, "review")}
           onStopRun={stopRunFromOps}
           onSelectRun={focusRun}
-          onInspect={(ref) => missionDock?.open(ref)}
+          onInspect={(ref, position) => missionDock?.open(ref, position)}
+          onDismissInspect={() => missionDock?.dismiss("right")}
         />
       {:else if route === "history"}
         <HistoryScreen
@@ -828,8 +909,8 @@
           {backend}
           {activeDomainId}
           {focusRunId}
-          onOpenRun={(runId) => openMission(runId, "review")}
-          onSelectRun={focusRun}
+          onOpenRun={(runId, domainId) => openMission(runId, "review", domainId)}
+          onSelectRun={(runId, domainId) => { focusRunId = runId; focusDomainId = domainId ?? null; }}
         />
       {:else if route === "work"}
         <MissionsScreen
@@ -855,7 +936,7 @@
           {onRunCompleted}
           {composerDraft}
           {preferredAdeId}
-          onDraftChange={(draft) => { composerDraft = draft; preferredAdeId = null; }}
+          onDraftChange={retainComposerDraft}
         />
       {:else}
         <SettingsScreen
@@ -903,7 +984,7 @@
     {backend}
     onClose={() => (approvalsOpen = false)}
     onReviewRun={(runId) => openMission(runId, "review")}
-    onApprovalsChanged={refreshSnapshot}
+    onApprovalsChanged={async () => { await refreshSnapshot(); }}
   />
 
   {#if editingDomain}
@@ -911,7 +992,7 @@
       domain={editingDomain}
       onClose={() => (editingWorkspaceId = null)}
       onForgotten={onDomainForgotten}
-      onChanged={refreshSnapshot}
+      onChanged={async () => { await refreshSnapshot(); }}
     />
   {/if}
 </div>
@@ -919,7 +1000,7 @@
 <style>
   .desktop2 {
     display: grid;
-    grid-template-columns: 208px minmax(0, 1fr);
+    grid-template-columns: 184px minmax(0, 1fr);
     height: 100%;
     background: var(--pytxo-surface-shell);
     color: var(--pytxo-text-strong);
@@ -943,6 +1024,12 @@
     scroll-padding-block: 20px;
   }
   .history-content { display: flex; flex-direction: column; container: history-viewport / inline-size; }
+  /* Work owns a viewport. Canvas, plan, details, and output own their own scroll. */
+  .content.work-content { display:flex;min-height:0;flex-direction:column;overflow:hidden;scrollbar-gutter:auto; }
+  .work-content > .status-banner { flex-shrink:0; }
+  /* Setup owns two sibling scroll areas; shell chrome must not scroll with them. */
+  .content.setup-content { display: flex; flex-direction: column; overflow: hidden; scrollbar-gutter: auto; }
+  .setup-content > .status-banner { flex-shrink: 0; }
   .history-content > .status-banner { flex-shrink: 0; }
   .loading-state {
     display: grid;

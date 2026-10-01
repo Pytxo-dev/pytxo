@@ -19,6 +19,7 @@ test("local preview docks and restores without claiming browser execution", asyn
   await completeOnboarding(page);
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   const panel = page.getByRole("region", { name: "Local preview", exact: true });
   await expect(panel).toContainText("Local previews require native Windows Desktop.");
@@ -39,6 +40,7 @@ test("decision overlays wait for preview hiding and inline details do not blank 
   await completeOnboarding(page, { "pytxo-preview-flow-history-v1": "long-mission" });
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await expect(page.getByRole("region", { name: "Work", exact: true })).toBeVisible();
   // IPC contract fixture, not evidence of a native renderer or its isolation.
   await page.evaluate(() => {
@@ -84,6 +86,7 @@ test("decision overlays wait for preview hiding and inline details do not blank 
 test("failed preview retries only after the old renderer closes", async ({ page }) => {
   await completeOnboarding(page);
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   // IPC lifecycle contract only; real load failure/recovery is checked natively.
   await page.evaluate(() => {
     const fixture = { opens: 0, failClose: true, failed: false, calls: [] as string[], holdNextSync: false, rejectSync: null as null | (() => void), failNextHide: false, holdNextClose: false, releaseClose: null as null | (() => void) };

@@ -1,9 +1,19 @@
 /** Public distribution repo (binaries + install scripts). */
 export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
-export const PYTXO_VERSION = "1.2.2";
+
+/**
+ * Latest published GitHub/npm tag. Download URLs, install commands, and
+ * "current release" copy must use this — never the unpublished workspace
+ * candidate.
+ */
+export const PUBLISHED_VERSION = "1.2.1";
+/** In-repo / changelog candidate. Not for public download URLs. */
+export const CANDIDATE_VERSION = "1.2.2";
+/** Alias for published tag used by download UI. */
+export const PYTXO_VERSION = PUBLISHED_VERSION;
 
 export const DESKTOP_RELEASE_BASE =
-  `https://github.com/${DISTRIBUTION_REPO}/releases/download/v${PYTXO_VERSION}`;
+  `https://github.com/${DISTRIBUTION_REPO}/releases/download/v${PUBLISHED_VERSION}`;
 
 /** Display name for the optional desktop app. */
 export const DESKTOP_PRODUCT_NAME = "Pytxo Desktop";
@@ -21,7 +31,7 @@ export const RELEASES_URL = `${GITHUB_URL}/releases`;
 /** Community Discord invite (canonical). */
 export const DISCORD_URL = "https://discord.gg/AUFRPFjSYv";
 export const NPM_URL = "https://www.npmjs.com/package/pytxo";
-export const NPM_INSTALL = "npm i -g pytxo";
+export const NPM_INSTALL = `npm i -g pytxo@${PUBLISHED_VERSION}`;
 
 export const INSTALL_SH_URL = `https://raw.githubusercontent.com/${DISTRIBUTION_REPO}/main/install.sh`;
 export const INSTALL_PS1_URL = `https://raw.githubusercontent.com/${DISTRIBUTION_REPO}/main/install.ps1`;
@@ -36,8 +46,8 @@ export type NavLink = {
 };
 
 export const NAV_LINKS: NavLink[] = [
+  { href: "/#product", label: "Product" },
   { href: "/docs", label: "Docs" },
-  { href: "/evidence", label: "Evidence" },
-  { href: "/plans", label: "Plans" },
+  { href: DISCORD_URL, label: "Support" },
   { href: "/download", label: "Download" },
 ];

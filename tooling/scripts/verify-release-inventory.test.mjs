@@ -21,6 +21,19 @@ const DESKTOP_FILES = ["DESKTOP_SHA256SUMS.txt", "pytxo-desktop-windows-x64.msi"
 async function fixture(files) {
   const root = await mkdtemp(path.join(tmpdir(), "pytxo-release-inventory-"));
   await Promise.all(files.map((name) => writeFile(path.join(root, name), "release-asset")));
+  const updaterAsset = files.find((name) => name.startsWith("windows-x86_64-"));
+  if (files.includes("latest.json") && updaterAsset) {
+    await writeFile(path.join(root, "latest.json"), JSON.stringify({
+      version: "1.2.3",
+      pub_date: "2026-09-21T00:00:00Z",
+      platforms: {
+        "windows-x86_64": {
+          signature: Buffer.from("fixture updater signature").toString("base64"),
+          url: `https://github.com/Pytxo-dev/pytxo-releases/releases/download/v1.2.3/${updaterAsset}`,
+        },
+      },
+    }));
+  }
   const checksum = files.includes("SHA256SUMS.txt") ? "SHA256SUMS.txt" : "DESKTOP_SHA256SUMS.txt";
   const assets = checksum === "SHA256SUMS.txt"
     ? CLI_FILES.filter((name) => name !== checksum)
@@ -83,6 +96,42 @@ test("rejects signed Desktop staging without updater evidence", async () => {
     () => verifyReleaseInventory(root, "desktop", { hasSigningKey: true }),
     /requires exactly one Windows updater asset/,
   );
+});
+
+test("rejects a signed Desktop manifest that does not bind its exact updater asset", async () => {
+  const files = [...DESKTOP_FILES, "latest.json", "windows-x86_64-installer.msi.zip"];
+  const root = await fixture(files);
+  const manifestPath = path.join(root, "latest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.platforms["windows-x86_64"].url =
+    "https://github.com/Pytxo-dev/pytxo-releases/releases/download/v1.2.3/different.msi.zip";
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  await assert.rejects(
+    () => verifyReleaseInventory(root, "desktop", { hasSigningKey: true }),
+    /does not bind v1\.2\.3 to windows-x86_64-installer\.msi\.zip/,
+  );
+});
+
+test("rejects malformed signed Desktop updater metadata", async () => {
+  const files = [...DESKTOP_FILES, "latest.json", "windows-x86_64-installer.msi.zip"];
+  for (const corruption of ["invalid-json", "invalid-version", "invalid-signature", "extra-platform"]) {
+    const root = await fixture(files);
+    const manifestPath = path.join(root, "latest.json");
+    if (corruption === "invalid-json") {
+      await writeFile(manifestPath, "{");
+    } else {
+      const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+      if (corruption === "invalid-version") manifest.version = "not-semver";
+      if (corruption === "invalid-signature") manifest.platforms["windows-x86_64"].signature = "file.sig";
+      if (corruption === "extra-platform") manifest.platforms["linux-x86_64"] = manifest.platforms["windows-x86_64"];
+      await writeFile(manifestPath, JSON.stringify(manifest));
+    }
+    await assert.rejects(
+      () => verifyReleaseInventory(root, "desktop", { hasSigningKey: true }),
+      /Updater manifest/,
+      corruption,
+    );
+  }
 });
 
 test("rejects directories and empty assets", async () => {
@@ -171,4 +220,43 @@ test("release publication waits for exact CLI and Desktop preparation", async ()
   }
   assert.equal(workflow.match(/softprops\/action-gh-release/g)?.length, 2);
   assert.equal(workflow.match(/npm publish --access public/g)?.length, 1);
+});
+
+test("candidate signing cannot publish a release or update channel", async () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const workflow = await readFile(path.resolve(here, "../../.github/workflows/desktop-candidate.yml"), "utf8");
+  assert.match(workflow, /on:\s+workflow_dispatch:/);
+  assert.match(workflow, /permissions:\s+contents: read/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.doesNotMatch(workflow, /^\s+(push|pull_request|pull_request_target|schedule):/m);
+  assert.doesNotMatch(workflow, /softprops\/action-gh-release|npm publish|git push|gh release/);
+  assert.doesNotMatch(workflow, /^\s+(tagName|releaseName|releaseId|releaseBody):/m);
+  assert.doesNotMatch(workflow, /PYTXO_RELEASES_TOKEN|NPM_TOKEN/);
+  assert.match(workflow, /Missing updater signature/);
+  assert.match(workflow, /verify-windows-msi\.ps1/);
+  assert.match(workflow, /verify-desktop-embedded-assets\.mjs/);
+  assert.ok(workflow.indexOf("verify-windows-msi.ps1") < workflow.indexOf("actions/upload-artifact"));
+});
+
+test("the Desktop updater uses a stable signed channel with a release fallback", async () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const workflow = await readFile(path.resolve(here, "../../.github/workflows/release.yml"), "utf8");
+  const config = JSON.parse(await readFile(
+    path.resolve(here, "../../apps/desktop/src-tauri/tauri.conf.json"),
+    "utf8",
+  ));
+  const mirror = jobBlock(workflow, "mirror-public-release");
+
+  assert.deepEqual(config.plugins.updater.endpoints, [
+    "https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/latest.json",
+    "https://github.com/Pytxo-dev/pytxo-releases/releases/latest/download/latest.json",
+  ]);
+  assert.match(mirror, /if \[ -f desktop-dist\/latest\.json \]; then/);
+  assert.match(mirror, /cp desktop-dist\/latest\.json "\$WORK\/latest\.json"/);
+  assert.match(mirror, /preserving the existing updater channel/);
+  assert.ok(
+    mirror.indexOf("Mirror to public pytxo-releases") <
+      mirror.indexOf("Sync install scripts and signed updater channel"),
+    "the signed channel must point only to assets already published on the release",
+  );
 });

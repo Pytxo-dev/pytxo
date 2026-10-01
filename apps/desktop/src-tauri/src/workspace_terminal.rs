@@ -284,6 +284,7 @@ pub async fn workspace_terminal_create(
     state: State<'_, WorkspaceTerminals>,
     domain_id: String,
 ) -> IpcResult<TerminalInfo> {
+    let _upgrade_guard = pytxo_core::UpgradeGuard::work().map_err(err)?;
     if window.label() != "main" {
         return Err(err("Workspace terminals belong to the main window"));
     }

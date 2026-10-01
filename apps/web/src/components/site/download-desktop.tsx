@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DESKTOP_DOWNLOADS, DESKTOP_PRODUCT_NAME, PYTXO_VERSION } from "@/lib/site";
+import { DESKTOP_DOWNLOADS, DESKTOP_PRODUCT_NAME, PUBLISHED_VERSION } from "@/lib/site";
 import { AppleIcon, detectOs, LinuxIcon, WindowsIcon, type DetectedOs } from "@/components/site/os-icons";
 import { cn } from "@/lib/utils";
 
@@ -65,7 +65,7 @@ export function DownloadDesktop() {
               variant="outline"
               className="border-border font-mono text-[10px] text-muted-foreground"
             >
-              v{PYTXO_VERSION}
+              v{PUBLISHED_VERSION}
             </Badge>
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">

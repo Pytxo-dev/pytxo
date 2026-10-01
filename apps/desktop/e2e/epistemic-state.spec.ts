@@ -177,10 +177,13 @@ test.describe("Epistemic summary rendering", () => {
 
   test("reported advisory evidence is not downgraded to unknown", async ({ page }) => {
     await page.goto("/#/history");
-    const run = page.getByRole("button").filter({ hasText: "run-71ad" });
+    await page.getByLabel("Search work history").fill("run-71ad");
+    const run = page.locator(".history .row").first();
 
-    await expect(run).toHaveAttribute("data-tone", "claimed");
+    await expect(run).toContainText("Completed");
+    await expect(run).toContainText("No confirmed Apply");
     await run.click();
+    await page.getByText("Technical details", { exact: true }).click();
     await expect(page.getByText("Partly advisory only", { exact: true })).toBeVisible();
     await expect(page.getByText("Enforcement not fully reported", { exact: true })).toHaveCount(0);
   });
@@ -188,20 +191,19 @@ test.describe("Epistemic summary rendering", () => {
   test("native run-scoped agent IDs resolve their own stored receipt", async ({ page }) => {
     await completeOnboarding(page, { "pytxo-preview-native-agent-ids-v1": "1" });
     await page.goto("/#/work");
+    await page.getByTestId("execution-map").getByRole("button", { name: "List", exact: true }).click();
     await page.locator(".ledger").getByRole("button", { name: /run-8f2c:architect/ }).click();
-    await page.getByRole("button", { name: "Task & receipt", exact: true }).click();
-    const inspector = page.locator(".inspector");
-    await expect(inspector.getByText("Enforced", { exact: true })).toHaveCount(2);
-    await expect(inspector.getByText("No agent receipt", { exact: true })).toHaveCount(0);
-    await expect(inspector.getByText("Project root", { exact: true })).toBeVisible();
-    await expect(inspector.getByText("Default project root", { exact: true })).toBeVisible();
-    await expect(inspector.getByText("Shared working tree", { exact: true })).toHaveCount(0);
+    const inspector = page.locator(".dock-panel:visible");
+    await expect(inspector.locator(".summary-body")).toContainText("Workspace isolation");
+    await expect(inspector.locator(".summary-body dd").filter({ hasText: "enforced" })).toHaveCount(2);
+    await expect(inspector).toContainText("Recorded scope");
+    await expect(inspector).toContainText("Prepared files");
   });
 
   test("a native starting run remains visible and can be stopped", async ({ page }) => {
     await completeOnboarding(page, { "pytxo-preview-run-state-v1": "starting" });
     await page.goto("/#/work");
-    await expect(page.getByRole("region", { name: "Focused run" }).getByText("Starting", { exact: true })).toBeVisible();
+    await expect(page.locator(".work-heading").getByText("Starting", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Stop", exact: true }).click();
     await page.locator("dialog.confirm-dialog").getByRole("button", { name: "Stop run", exact: true }).click();
     await expect(page.locator('.work-feedback[role="status"]')).toHaveText("Stop requested for run-8f2c in pytxo.");
@@ -211,17 +213,17 @@ test.describe("Epistemic summary rendering", () => {
   test("switching runs cannot borrow another agent's enforcement receipt", async ({ page }) => {
     await completeOnboarding(page, { "pytxo-preview-native-agent-ids-v1": "switch" });
     await page.goto("/#/work");
+    await page.getByTestId("execution-map").getByRole("button", { name: "List", exact: true }).click();
     await page.locator(".ledger").getByRole("button", { name: /run-8f2c:architect/ }).click();
-    await page.getByRole("button", { name: "Task & receipt", exact: true }).click();
-    await expect(page.locator(".inspector").getByText("Enforced", { exact: true })).toHaveCount(2);
+    const inspector = page.locator(".dock-panel:visible");
+    await expect(inspector.locator(".summary-body dd").filter({ hasText: "enforced" })).toHaveCount(2);
+    await page.locator(".hide-dock:visible").click();
     await page.locator(".run-reference summary").click();
     await page.getByRole("tab", { name: "run-other", exact: true }).click();
     await page.locator(".ledger").getByRole("button", { name: /run-other:architect/ }).click();
-    await page.getByRole("button", { name: "Task & receipt", exact: true }).click();
-    const inspector = page.locator(".inspector");
-    await expect(inspector.getByText("No agent receipt", { exact: true })).toBeVisible();
-    await expect(inspector.getByText("Enforced", { exact: true })).toHaveCount(1);
-    await expect(inspector.getByText("Bypassed", { exact: true })).toBeVisible();
+    await expect(inspector.locator(".source")).toContainText("Run run-other");
+    await expect(inspector.locator(".summary-body dd").filter({ hasText: "enforced" })).toHaveCount(1);
+    await expect(inspector.locator(".summary-body dd").filter({ hasText: "bypassed" })).toBeVisible();
   });
 });
 
@@ -229,7 +231,7 @@ test("History does not borrow another run's rollback footer while loading", asyn
   await completeOnboarding(page, { "pytxo-preview-native-agent-ids-v1": "switch", "pytxo-preview-state-matrix-v1": "1" });
   await page.goto("/#/history");
   await expect(page.locator(".history > .unresolved")).toBeVisible();
-  await page.locator(".history .row").filter({ hasText: "run-other" }).click();
+  await page.locator('.history .row[data-run-id="run-other"]').click();
   await expect(page.locator(".history > .unresolved")).toHaveCount(0, { timeout: 1000 });
   await expect(page.locator(".history > .unresolved")).toBeVisible();
 });
@@ -238,13 +240,15 @@ for (const route of ["work", "history"]) {
   test(`a refused package exposes its reason without claiming an Apply in ${route}`, async ({ page }) => {
     await completeOnboarding(page, { "pytxo-preview-run-state-v1": "review_failed" });
     await page.goto(`/#/${route}`);
-    const boundary = page.locator(route === "work" ? ".work" : ".boundary");
-    await expect(boundary.getByRole("alert")).toContainText("Package preparation failed");
+    const boundary = page.locator(route === "work" ? ".work" : ".outcome-inspector");
+    if (route === "work") await expect(boundary.getByRole("alert")).toContainText("Package preparation failed");
+    else await expect(page.locator(".outcome-heading")).toContainText("Preparation failed");
     await expect(boundary.getByRole("alert")).toContainText("edited test/risk-policy.test.mjs outside declared claims");
     // Work promotes the same guarded entry to its run action area; History keeps it in the boundary.
-    await expect(page.getByRole("button", { name: "Review changes", exact: true })).toBeDisabled();
+    if (route === "work") await expect(page.getByRole("button", { name: "Review changes", exact: true })).toBeDisabled();
+    else { await expect(page.getByRole("button", { name: "Review prepared changes", exact: true })).toHaveCount(0); await expect(page.getByRole("button", { name: "View run details", exact: true })).toBeEnabled(); }
     if (route === "history") {
-      const failedRow = page.locator(".history .row").filter({ hasText: "run-8f2c" });
+      const failedRow = page.locator('.history .row[data-run-id="run-8f2c"]');
       await expect(failedRow).toContainText("Preparation failed");
       await expect(failedRow).not.toContainText("Apply failed");
     }
@@ -258,6 +262,7 @@ test.describe("Epistemic state rendering", () => {
 
   test("all four enforcement statuses render distinct non-colour affordances", async ({ page }) => {
     await page.goto("/#/work");
+    await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
     await page.getByRole("button", { name: "Checks & details", exact: true }).click();
     const receipt = page.getByLabel("Permission enforcement receipt");
     await expect(receipt).toBeVisible();
@@ -295,6 +300,7 @@ test.describe("Epistemic state rendering", () => {
 
   test("all four apply outcomes render distinct non-colour affordances", async ({ page }) => {
     await page.goto("/#/work");
+    await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
     await page.getByRole("button", { name: "Checks & details", exact: true }).click();
     await expect(page.getByLabel("Apply attempts")).toBeVisible();
 
@@ -323,6 +329,7 @@ test.describe("Epistemic state rendering", () => {
 
   test("operator-read state labels sit at or above the 11px floor", async ({ page }) => {
     await page.goto("/#/work");
+    await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
     await page.getByRole("button", { name: "Checks & details", exact: true }).click();
     for (const region of ["Permission enforcement receipt", "Apply attempts"]) {
       for (const chip of await readChips(page, region)) {

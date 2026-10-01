@@ -24,7 +24,7 @@ test.describe("Navigation labels", () => {
 
       if (route === "work") {
         await expect(page.getByRole("region", { name: "Work", exact: true })).toBeVisible();
-        await expect(page.getByRole("heading", { level: 1, name: "Your coding task", exact: true })).toBeVisible();
+        await expect(page.getByRole("heading", { level: 1, name: "Work in pytxo", exact: true })).toBeVisible();
       } else {
         await expect(page.getByRole("heading", { level: 1, name: label, exact: true })).toBeVisible();
       }

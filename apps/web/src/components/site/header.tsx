@@ -18,7 +18,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { HeaderAuth } from "@/components/header-auth";
 import { NAV_LINKS } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +60,6 @@ export function SiteHeader() {
         </NavigationMenu>
 
         <div className="flex items-center justify-end gap-2">
-          <HeaderAuth />
           <Button size="sm" className="hidden h-8 rounded-[4px] bg-white px-3.5 text-black hover:bg-white/85 sm:inline-flex" asChild>
             <Link href="/download">Download</Link>
           </Button>
@@ -87,18 +85,7 @@ export function SiteHeader() {
                     {link.label}
                   </Link>
                 ))}
-                <Link
-                  href="/sign-in"
-                  className="rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
-                >
-                  Sign in
-                </Link>
-                <Link
-                  href="/sign-up"
-                  className="rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
-                >
-                  Sign up
-                </Link>
+
               </nav>
             </SheetContent>
           </Sheet>

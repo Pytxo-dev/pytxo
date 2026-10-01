@@ -8,65 +8,60 @@ import { BoundarySection } from "@/components/site/boundary-section";
 import { CompatibilitySection } from "@/components/site/compatibility-section";
 import { GetItSection } from "@/components/site/get-it-section";
 import { Hero } from "@/components/site/hero";
-import { MeasuredEvidence } from "@/components/site/measured-evidence";
-import { ProductSection } from "@/components/site/product-section";
-import { SituationSection } from "@/components/site/situation-section";
 import { pageMetadata } from "@/lib/page-metadata";
+import { PUBLISHED_VERSION } from "@/lib/site";
 
 export const metadata = pageMetadata(
   "/",
-  "Pytxo: Local agent hypervisor",
-  "Run scoped work with the coding agent CLI you already use. Pytxo isolates changes, records combined checks, and prepares exact bytes for your reviewed Apply.",
+  "Pytxo: Agent hypervisor for repository work",
+  "Run coding agents in isolated copies of your repository. Verify the combined changes, review the exact diff, then explicitly Apply.",
 );
 
+const STRUCTURED_DATA = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://pytxo.com/#website",
+      name: "Pytxo",
+      url: "https://pytxo.com",
+      description:
+        "A local agent hypervisor for bounded coding work and reviewed repository changes.",
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://pytxo.com/#software",
+      name: "Pytxo",
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Windows, macOS, Linux",
+      softwareVersion: PUBLISHED_VERSION,
+      url: "https://pytxo.com",
+      downloadUrl: "https://pytxo.com/download",
+      image: "https://pytxo.com/product/work-1600x1000.png",
+      description:
+        "Coordinate coding-agent CLIs in isolated workspaces, inspect one prepared candidate, and explicitly Apply reviewed repository changes.",
+    },
+  ],
+} as const;
+
 const FAQ = [
-  {
-    q: "Is Pytxo an IDE or a cloud workspace?",
-    a: "Neither. Pytxo runs the terminal agents you already use, assigns path ownership and dependencies, records what changed, and prepares one result for review. Your editor stays your editor.",
-  },
-  {
-    q: "Which agents are supported?",
-    a: "Any command you can run in a terminal: Claude Code, Codex, Antigravity CLI (agy), Cursor Agent, OpenCode, Gemini CLI, Copilot CLI, Aider, or custom scripts via pytxo run --cmd. Editors connect through the local MCP hub instead.",
-  },
-  {
-    q: "What is Pytxo Desktop?",
-    a: "An optional native control surface for Work, History, and Setup, including approvals and applying eligible Orbit or Galaxy runs to one repository root. It reads the same local core the CLI uses, so it grants no extra authority.",
-  },
-  {
-    q: "What does 'advisory only' mean on a receipt?",
-    a: "Pytxo constrained the child process but the platform did not guarantee the constraint. It is recorded separately from enforced because it is weaker evidence, and it is never coloured as a pass.",
-  },
-  {
-    q: "What happens if an Apply fails halfway?",
-    a: "The run records the attempt, its outcome, and whether rollback was confirmed. If rollback was not confirmed, Pytxo says the working tree may be partially modified and offers the reconcile step rather than claiming a clean state.",
-  },
-  {
-    q: "What are Workspaces and fleet runs?",
-    a: "A Workspace coordinates work across folders. Fleet runs order steps across separate Git roots. Each repository root keeps its own Apply boundary; a fleet is not a cross-root transaction.",
-  },
-  {
-    q: "How do I test with Antigravity (agy)?",
-    a: "Install pytxo via npm, scaffold a test repo with tooling/test-envs, set cli_adapter = \"agy\" in pytxo.toml, and run pytxo run --cmd \"agy …\". See the docs guide for testing terminal agent CLIs.",
-  },
-  {
-    q: "What are Signal Core, Blast Shield, and Race Shield?",
-    a: "Signal Core starts reads with AST structure. Blast Shield isolates writes, stores the reviewed target blobs, and journals single-root Apply. Race Shield turns path ownership and dependencies into ordered waves.",
-  },
-  {
-    q: "Where are the docs?",
-    a: "Guides live at pytxo.com/docs: install, tutorials, CLI reference, Workspaces, fleet runs, and approval gates. ptyxo.com is unrelated.",
-  },
+ { q: "Does local work require a Pytxo account?", a: "No. Local Core can use your existing agent access without a Pytxo account. Your agent provider’s costs and authentication are separate." },
+ { q: "What does verification prove?", a: "It records the configured commands run against the combined candidate. Passing checks are evidence for those checks, not a guarantee that all behavior is correct. Worker self-report is not verification." },
+ { q: "What happens if Apply is interrupted?", a: "Pytxo records attempts and journal evidence. If a safe outcome cannot be established, recovery remains unresolved rather than claiming the repository was restored." },
 ] as const;
 
 export default function HomePage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(STRUCTURED_DATA).replace(/</g, "\\u003c"),
+        }}
+      />
       <Hero />
-      <SituationSection />
-      <ProductSection />
       <BoundarySection />
       <CompatibilitySection />
-      <MeasuredEvidence />
       <section
         className="section-pad mx-auto grid max-w-[92rem] gap-12 lg:grid-cols-[0.72fr_1.28fr] lg:px-10"
         aria-labelledby="faq-title"
@@ -76,10 +71,10 @@ export default function HomePage() {
             id="faq-title"
             className="max-w-md text-[clamp(2rem,3.4vw,3.25rem)] leading-[1.06] tracking-[-0.04em]"
           >
-            Questions with exact answers.
+            Before you start.
           </h2>
           <p className="mt-6 max-w-sm text-sm leading-relaxed text-[#85858f]">
-            Pytxo is local-first orchestration, not another editor or opaque agent cloud.
+            Your agent does the coding. You stay in charge of the changes.
           </p>
         </div>
         <Accordion type="single" collapsible className="w-full border-t border-white/10">

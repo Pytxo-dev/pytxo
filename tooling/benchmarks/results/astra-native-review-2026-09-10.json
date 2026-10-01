@@ -1,0 +1,331 @@
+{
+  "schema_version": 1,
+  "record_status": "observed_build_evidence",
+  "prepared_at_utc": "2026-09-10T03:57:26.685501+00:00",
+  "observed_at_utc": "2026-09-10T03:26:46.193519+00:00",
+  "scenario": "6acc native Work/Review mission: Cancel, exact Apply and restart; known ownership-label and Git-console defects",
+  "acceptance_scope": "Functional evidence for the exact observed 6acc build only; no final smoothness or later-build acceptance.",
+  "source_head": "eb5f73d9dc21ffbcc6e51306db071fddbe0b8d78",
+  "source_has_uncommitted_changes": true,
+  "source_inputs_sha256": "51d9f5fafb7862bf8c0ef3eb54fbac491a25b56dfaafae7bdba1672a8071daa1",
+  "source_inputs": 360,
+  "all_current_and_frozen_inputs_matched_at_launch": true,
+  "source_identity_limit": "Historical launch preflight and frozen inputs only. Root is repairing source after this run; current checkout or future binaries are not certified here.",
+  "msi_sha256": "7389d07a574faca5c9528903119490f478485504590eefbdc494673fea0138ad",
+  "packaged_executable_sha256": "6acc8a371de4cc2f827880d7085b6002863c117aac376fc681d3fe0c964624dc",
+  "app_version": "1.2.2",
+  "signature": "unsigned",
+  "runtime": "OpenAI Codex; existing authorized CLI session",
+  "run_id": "f3e164cd-928a-43eb-b409-ba726b8c33b7",
+  "run_status": "completed",
+  "started_at": "2026-09-10T03:12:39.838551500+00:00",
+  "finished_at": "2026-09-10T03:17:39.979424100+00:00",
+  "observed_run_seconds": 300.140873,
+  "timing_limit": "One development-host observation from recorded run start to completion. Human preparation, review and Apply effort excluded. No comparative speed, reliability, cost or app frame-rate claim.",
+  "fixture_baseline_revision": "6a249e0b10363918a2cb34902b20ef324a4cebda",
+  "planned_tasks": 3,
+  "waves": 2,
+  "configured_max_concurrent_workers": 2,
+  "permission_profile": "orbit",
+  "execution_domain": "one isolated disposable native fixture",
+  "worker_outcomes": [
+    {
+      "task_id": "mission-0",
+      "wave": 0,
+      "actual_runtime_agent_id": "agent-0",
+      "planned_agent_label": "agent-0",
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-2",
+      "wave": 0,
+      "actual_runtime_agent_id": "agent-1",
+      "planned_agent_label": "agent-2",
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-1",
+      "wave": 1,
+      "actual_runtime_agent_id": "agent-2",
+      "planned_agent_label": "agent-1",
+      "status": "completed",
+      "exit_code": 0
+    }
+  ],
+  "package_digest": "1cfe11d5230f07188808f8b102a9fc5f7b2a789940bcce573ece73d5d0c51bfd",
+  "manifest_sha256": "4e5c7c3f5fa5cf36d5b83d32b608cf94d3f06b11f411c397c5e5518b50dd01e4",
+  "changed_files": [
+    {
+      "path": "README.md",
+      "kind": "modify",
+      "before_sha256": "ba5554e0f4ea3d941289626c7cacd23ddc0b4be0119c803eb3206ed8865efda7",
+      "after_sha256": "199cbd468bde8cdaee565aceeab3d3de11cc832fd720fbdac4e56aa97a4fb671",
+      "source_task_id": "mission-2",
+      "source_agent_id": "agent-1"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "kind": "modify",
+      "before_sha256": "8fa4f3d2d98daa4ddb3879fba5d3839d12dab56a061eb97898b13c6e768d2a33",
+      "after_sha256": "bd65285021be23d6809e81a4b0806e68dc66e5ae3e4baa18300a5224a5d2e8e1",
+      "source_task_id": "mission-0",
+      "source_agent_id": "agent-0"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "kind": "modify",
+      "before_sha256": "c97734269272bdb5f1d4203f6b87891d8de2c903a4072e137b3ab52419f8af7b",
+      "after_sha256": "c0f3e1e74328e09156ca10a1410b80e14f193c51cd506f3232e931cc1ca33793",
+      "source_task_id": "mission-1",
+      "source_agent_id": "agent-2"
+    }
+  ],
+  "combined_candidate_checks": {
+    "passed": 3,
+    "commands": [
+      "npm test",
+      "npm test",
+      "npm test"
+    ],
+    "same_candidate_inventory": true
+  },
+  "primary_unchanged_before_apply": true,
+  "primary_file_count": 6,
+  "cancel_preserved_primary_and_package": true,
+  "cancel_created_apply_attempt": false,
+  "apply": {
+    "status": "applied",
+    "attempt_count": 1,
+    "transaction_id": "0941df78-45cb-458c-854b-74b7654eaa88",
+    "applied_at": "2026-09-10T03:22:56.538347200+00:00",
+    "journal_sha256": "3e42e97301a0cfec8b164221d418d2a7ad921c0d77baa26aeb56733aa1f49284",
+    "phase": "committed",
+    "completed_operations": 3,
+    "all_primary_files_match_frozen_candidate": true
+  },
+  "post_apply_tests": {
+    "fixture": {
+      "command": "npm test",
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "exit_code": 0,
+      "started_at": "2026-09-10T03:23:33.0372621Z",
+      "finished_at": "2026-09-10T03:23:35.7065105Z"
+    },
+    "independent": {
+      "command": "node --test independent-policy.test.mjs",
+      "passed": 26,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "exit_code": 0,
+      "started_at": "2026-09-10T03:23:33.1411954Z",
+      "finished_at": "2026-09-10T03:23:34.3935402Z"
+    }
+  },
+  "restart": {
+    "started_at": "2026-09-10T03:25:32.6215829Z",
+    "completed_applied_committed_persisted_in_ledger": true,
+    "same_package_and_journal": true,
+    "same_primary_hashes": true,
+    "same_single_apply_receipt": true,
+    "same_packaged_executable": true
+  },
+  "enforcement": {
+    "workspace_isolation": {
+      "status": "enforced",
+      "mechanism": "projfs-sparse-copy-v2"
+    },
+    "host_filesystem": {
+      "status": "advisory",
+      "mechanism": "child-cwd-and-policy-gates"
+    },
+    "network": {
+      "status": "advisory",
+      "mechanism": "spawn-command-policy"
+    },
+    "apply_boundary": {
+      "status": "enforced",
+      "mechanism": "reviewed-run-atomic-apply"
+    }
+  },
+  "known_ui_defects": [
+    {
+      "kind": "planned agent label mistaken for runtime attribution in Review Ownership path",
+      "planned": {
+        "mission-2": "agent-2",
+        "mission-1": "agent-1"
+      },
+      "actual_runtime_and_prepared_files_and_apply_receipt": {
+        "mission-2": "agent-1",
+        "mission-1": "agent-2"
+      },
+      "scope": "Pre-existing frontend display at RunReviewScreen task.agent; file scopes, exact prepared headers, verifier actors and committed Apply source IDs are correct. Native observed defect is being repaired separately."
+    }
+  ],
+  "capture": {
+    "mission_raw": "target/astra-review-20260910/native-run/capture/native-review-full-01.mp4",
+    "sha256": "f7c87383e6ec1263475bd60da2f0f218134b4dbe817a20f843e82f5ba628f3e7",
+    "dimensions": [
+      1920,
+      1020
+    ],
+    "configured_fps": 30,
+    "duration_seconds": 1200,
+    "full_decode": "passed",
+    "normal_speed_playback_verified": false,
+    "git_startup_console_flash": {
+      "source_seconds": 32.833,
+      "timestamp_is_approximate": true,
+      "status": "confirmed_by_media_specialist_full_resolution_inspection",
+      "evidence": {
+        "path": "target/astra-review-20260910/native-video/full-capture-qa/startup-detail/011.jpg",
+        "sha256": "0e991c39d725e268ed63894aa0dc5f1030746ca8d7dce050adab7b26e2a291ff"
+      },
+      "evidence_limit": "Visible Git title confirmed in the full-resolution source frame. Frame alone does not identify the spawning call site. This summary worker hash-checked the cited evidence but did not independently inspect frames or playback."
+    },
+    "black_content_capture_interval": {
+      "status": "withdrawn_after_full_resolution_reinspection",
+      "missing_content_defect_established": false,
+      "correction": "Dark contact-sheet thumbnails were misread. Reinspection of startup sheets 6/9/10 and verifier sheets plus full-resolution source40 confirms visible Work content. No missing-content defect established by this QA.",
+      "evidence": {
+        "path": "target/astra-review-20260910/native-video/full-capture-qa/startup-work-content-40.jpg",
+        "sha256": "dc34c605795b41d9ddbbacea7d32c183fb5a5ca731dc349fc2f33ffa07b47098"
+      },
+      "evidence_limit": "The media specialist withdrew the earlier miniature-contact-sheet interpretation. This is a correction of that finding, not an all-frames smoothness assertion."
+    },
+    "privacy_limit": "Raw includes background during restart; retain privately. No raw-capture publication approval is implied.",
+    "scope": "Contains known visual defects and unverified normal-speed playback. Not proof of a smooth or final-build demo.",
+    "media_review": {
+      "path": "target/astra-review-20260910/native-video/full-capture-qa/review-findings.json",
+      "sha256": "6828e52c83c5733bb8993b7a287e2861be52dd6ed9a3bfea1dc061a12924b0ce",
+      "scope": "Saved media specialist review: 382 regular samples plus listed additional full-resolution frames; normal-speed human playback remains unverified."
+    }
+  },
+  "independent_review": {
+    "checks_passed": 28,
+    "findings": [],
+    "known_ui_defect_retained": true,
+    "report": "target/astra-review-20260910/native-independent-review/final-native-review-f3e164cd.json",
+    "scope": "Read-only artifact/SQLite review of 6acc host native mission, Cancel, Apply, actual command evidence and restart. No UI, tests, builds, source/fixture mutations or new run/Apply. This final review JSON is the only write.",
+    "summary_worker_reran_tests": false
+  },
+  "repair_status": {
+    "status": "source_repairs_tested_separate_packaged_native_acceptance_pending",
+    "scope": "Runtime worker-label repair and background Git command repair passed affected local checks. This historical run certifies neither repair nor the next build."
+  },
+  "limitations": [
+    "This is one development-host observation, not clean Windows installation or a controlled timing/competitive benchmark.",
+    "Elapsed 300.140873 seconds spans recorded run start through completion; human preparation/review/Apply effort is excluded.",
+    "Raw capture playback, console smoothness, video QA and screenshot interpretation were not audited here.",
+    "Project and independent test execution results are root-saved command records plus full logs; reviewer did not run new tests.",
+    "Original eighth test line endings changed CRLF to LF; assertions and test body otherwise retained.",
+    "Later ownership-label repair needs its own source/build/UI verification; no final-build acceptance claim.",
+    "The confirmed Git startup console flash and unverified normal-speed playback prevent a final smoothness claim. The earlier black-content finding was withdrawn after full-resolution inspection; no missing-content defect was established.",
+    "This sanitized summary contains allowlisted artifact references and digests, not raw host paths, environment values, credential material or log bodies.",
+    "Native host execution does not establish clean Windows installation, current-source hosted CI or public-download availability."
+  ],
+  "clean_windows_install": false,
+  "current_source_ci": "unverified",
+  "public_download": "unverified",
+  "hosted_actions_runs_this_summary_task": 0,
+  "publication": "none",
+  "next_engineering_action": "Complete the next package and test its exact bytes after explicit native resumption. Preserve this 6acc observation as build-specific history.",
+  "evidence": [
+    {
+      "path": "target/astra-review-20260910/native-independent-review/final-native-review-f3e164cd.json",
+      "bytes": 7315,
+      "sha256": "3fe0d465f702896c13541c984d90ea0e43d80f0a68cf0ce188dade921fa8759c"
+    },
+    {
+      "path": "target/astra-review-20260910/native-video/full-capture-qa/source-inspection.json",
+      "bytes": 3068,
+      "sha256": "61098dfe778bcb640f27251b37575982e5baf60c4cb295276f171285c1a704b3"
+    },
+    {
+      "path": "target/astra-review-20260910/native-run/capture/native-review-full-01.mp4",
+      "bytes": 49174054,
+      "sha256": "f7c87383e6ec1263475bd60da2f0f218134b4dbe817a20f843e82f5ba628f3e7"
+    },
+    {
+      "path": "target/astra-review-20260910/native-run/attribution-defect-accessibility.txt",
+      "bytes": 16817,
+      "sha256": "8b91d4849b9d9eae71bf73c6c2abb1ddc0114cb50f9e7c37af1bd4bf8675b3b1"
+    },
+    {
+      "path": "target/astra-review-20260910/native-run/evidence-prepared-f3e164cd-928a-43eb-b409-ba726b8c33b7/snapshot.json",
+      "bytes": 20172,
+      "sha256": "19846e45808d769ab7fe4b626e83ed3a26aa996385caac98f4a35b6a8e6bf3d2"
+    },
+    {
+      "path": "target/astra-review-20260910/native-run/evidence-cancelled-f3e164cd-928a-43eb-b409-ba726b8c33b7/snapshot.json",
+      "bytes": 20173,
+      "sha256": "76a0cbd5cf223aefdfcf9e31f99d328ff403176644bbca42384cf862d42ec9f7"
+    },
+    {
+      "path": "target/astra-review-20260910/native-run/evidence-applied-f3e164cd-928a-43eb-b409-ba726b8c33b7/snapshot.json",
+      "bytes": 23759,
+      "sha256": "b9f8ca51185c17a2a5259d4ee09680c217ee00850f3375769064336270b6ea7f"
+    },
+    {
+      "path": "target/astra-review-20260910/native-run/evidence-restarted-f3e164cd-928a-43eb-b409-ba726b8c33b7/snapshot.json",
+      "bytes": 23761,
+      "sha256": "95c3e1524da2f740250b62313e230b8750b580d53334097340e4372f410cf468"
+    },
+    {
+      "path": "target/astra-review-20260910/native-run/post-apply-project-tests.json",
+      "bytes": 233,
+      "sha256": "b38b18678aaf701e762e7dfed2ebd5dcb315e11367fec217eadacf6f48c9cc92"
+    },
+    {
+      "path": "target/astra-review-20260910/native-run/post-apply-project-tests.log",
+      "bytes": 792,
+      "sha256": "492c452e4d64c6fda92b4b9e3b5785357da8f13bd10c27fc625741995702af1e"
+    },
+    {
+      "path": "target/astra-review-20260910/native-run/post-apply-independent-tests.json",
+      "bytes": 243,
+      "sha256": "d940fd524fc0f91f48258526511f3adf3c7fa8f62bf05db2384e93ef25640adc"
+    },
+    {
+      "path": "target/astra-review-20260910/native-run/post-apply-independent-tests.log",
+      "bytes": 2010,
+      "sha256": "15a27cc2a8a00bb1c78bac2c90aab54b137d0eac7cb96c7fae76c9164422b75e"
+    },
+    {
+      "path": "target/astra-review-20260910/native-video/full-capture-qa/review-findings.json",
+      "bytes": 13311,
+      "sha256": "6828e52c83c5733bb8993b7a287e2861be52dd6ed9a3bfea1dc061a12924b0ce"
+    },
+    {
+      "path": "target/astra-review-20260910/native-video/full-capture-qa/startup-detail/011.jpg",
+      "bytes": 91509,
+      "sha256": "0e991c39d725e268ed63894aa0dc5f1030746ca8d7dce050adab7b26e2a291ff"
+    },
+    {
+      "path": "target/astra-review-20260910/native-video/full-capture-qa/startup-work-content-40.jpg",
+      "bytes": 155060,
+      "sha256": "dc34c605795b41d9ddbbacea7d32c183fb5a5ca731dc349fc2f33ffa07b47098"
+    }
+  ],
+  "updated_at_utc": "2026-09-10T04:08:00.389354+00:00",
+  "evidence_corrections": [
+    {
+      "at": "2026-09-10T04:08:00.389354+00:00",
+      "subject": "black-content capture interval",
+      "prior_status": "observed_and_reported_by_root",
+      "current_status": "withdrawn",
+      "reason": "Dark contact-sheet thumbnails were misread. Reinspection of startup sheets 6/9/10 and verifier sheets plus full-resolution source40 confirms visible Work content. No missing-content defect established by this QA.",
+      "source_review": "target/astra-review-20260910/native-video/full-capture-qa/review-findings.json",
+      "source_review_sha256": "6828e52c83c5733bb8993b7a287e2861be52dd6ed9a3bfea1dc061a12924b0ce",
+      "preserved_prior_draft_sha256": "150b567627d0f3dcfbcce9645ae882d2bfaf6d95670f06ab70faca71d989dbe1",
+      "history_directory": "target/astra-review-20260910/native-summary/history/before-black-content-correction"
+    }
+  ],
+  "integrated_at_utc": "2026-09-10T04:55:17.325Z",
+  "source_draft_sha256": "25102efaf65fae1a47eedd099f8314604e24948ff76782864f4ac5748d142409"
+}

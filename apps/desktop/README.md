@@ -80,3 +80,36 @@ before navigation. Interactive agent TUIs remain deferred.
 - Presentation layer has no direct filesystem access (ADR-0001).
 
 Export artifacts and release staging: see [`../desktop-export/README.md`](../desktop-export/README.md).
+
+
+### Experimental owned-attempt host (development only)
+
+`npm run build:native` includes the `pytxo-attempt-host/1` entry point in the
+Desktop executable. A routed launch must still supply an exact absolute
+SHA-256 pin for that executable; the runner never searches PATH or substitutes
+a shell. The separate `npm run build:attempt-host` debug binary remains useful
+in CI, but is not required by the embedded-host path. Adapter qualification
+must bind the host bytes, protocol, argument lowering, and complete worker
+dependency chain before enabling an adapter. Merely finding either executable
+is not qualification.
+
+From the repository root, run the Windows fixtures in PowerShell after the
+workspace dependencies are cached. The pin applies only to this terminal session:
+
+```powershell
+cargo build -p pytxo-cli --bin pytxo --locked --offline -j1
+if ($LASTEXITCODE -ne 0) { throw "Embedded attempt host build failed" }
+$env:PYTXO_TEST_ATTEMPT_HOST = (Resolve-Path target/debug/pytxo.exe).Path
+$env:PYTXO_TEST_ATTEMPT_HOST_SHA256 = (Get-FileHash -LiteralPath $env:PYTXO_TEST_ATTEMPT_HOST -Algorithm SHA256).Hash.ToLowerInvariant()
+cargo test -p pytxo-runner --locked --offline -j1 -- --test-threads=1
+```
+
+The Windows CI Rust job currently uses the separate debug host with the same
+protocol and pin checks. A missing or changed host fails the tests; they never
+launch a recursive Cargo build or silently substitute another executable.
+
+This opt-in runner primitive is not connected to production routing. The
+embedded entry point removes the need to stage an experimental Tauri sidecar,
+but the installed Desktop package and an actual Codex profile pair still need
+separate native qualification. Current packages must not advertise live Jev
+routing. A local source build does not establish installed-package behavior.

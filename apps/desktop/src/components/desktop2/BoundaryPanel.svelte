@@ -151,7 +151,7 @@
     <div class="preparation-error" role="alert">
       <strong>Package preparation failed</strong>
       <p>{preparationError?.message ?? "The run did not produce a reviewable package. No failure detail was recorded."}</p>
-      <small>Use New run to correct the scope or checks and review a fresh plan. This run remains in History.</small>
+      <small>Use New work to correct the scope or checks and review a fresh plan. This run remains in History.</small>
     </div>
   {/if}
 

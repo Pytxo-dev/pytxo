@@ -49,12 +49,13 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 700
     const actionBox = (await actions.boundingBox())!;
     await inbox.locator(".detail-body").evaluate(el => { el.scrollTop = el.scrollHeight; });
     expect((await actions.boundingBox())!.y).toBe(actionBox.y);
-    await expect(inbox.getByRole("button", { name: /Approve and apply/ })).toBeInViewport();
+    await expect(inbox.getByRole("button", { name: "Review changes", exact: true })).toBeInViewport();
     await expect(inbox.getByRole("button", { name: "Close approvals" })).toBeInViewport();
     await fit();
     await page.screenshot({ path: info.outputPath("approvals.png") });
     await page.keyboard.press("Escape");
     await page.goto("/#/work");
+    await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
     await page.locator(".layout-menu summary").click();
     await expect(page.getByRole("button", { name: "Save current layout", exact: true })).toBeInViewport();
     await page.screenshot({ path: info.outputPath("layout-menu.png") });
@@ -71,7 +72,7 @@ test("an empty approvals inbox uses one compact message", async ({ page }, info)
   await page.goto("/#/approvals");
   const inbox = page.getByRole("dialog", { name: "Approvals inbox" });
   // Resolve only the deterministic browser fixture requests.
-  await inbox.getByRole("button", { name: /Deny and discard/ }).click();
+  await inbox.getByRole("button", { name: /Deny request/ }).click();
   await inbox.getByRole("button", { name: /Deny action/ }).click();
   await expect(inbox.getByText("Inbox clear", { exact: true }).and(page.locator(":visible"))).toHaveCount(1);
   expect((await inbox.boundingBox())!.height).toBeLessThanOrEqual(320);

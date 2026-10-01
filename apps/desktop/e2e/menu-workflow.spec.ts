@@ -21,11 +21,12 @@ test("an unfinished mission survives visiting Setup, without retaining plan auth
   await expect(page.getByRole("button", { name: "Start run", exact: true })).toHaveCount(0);
 });
 
-test("Use in mission preserves the agent that was clicked", async ({ page }) => {
+test("Use in new work preserves the agent that was clicked", async ({ page }) => {
   await page.goto("/#/setup");
   await page.getByRole("button", { name: "Agents & permissions", exact: true }).click();
-  await page.locator(".agent-row", { hasText: "Claude Code" }).getByRole("button", { name: "Use in mission" }).click();
-  await expect(page.getByRole("heading", { name: "New run", exact: true })).toBeVisible();
+  await page.getByText("Additional agents", { exact: true }).click();
+  await page.locator(".agent-row", { hasText: "Claude Code" }).getByRole("button", { name: "Use in new work" }).click();
+  await expect(page.getByRole("heading", { name: "New work", exact: true })).toBeVisible();
   await expect(page.getByLabel("Agent CLI", { exact: true })).toHaveValue("claude");
 });
 
@@ -38,7 +39,7 @@ test("dispatching a retained mission clears the sidebar draft", async ({ page })
   await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByRole("region", { name: "Work", exact: true }).getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue draft", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "New run from sidebar", exact: true }).click();
+  await page.getByRole("button", { name: "New work from sidebar", exact: true }).click();
   await expect(page.getByLabel("What should Pytxo do?")).toHaveValue("");
 });
 
@@ -48,7 +49,7 @@ test("dispatch from the bottom of a plan reveals the live run overview", async (
   await page.getByRole("button", { name: "Build plan", exact: true }).click();
   const run = page.getByRole("button", { name: "Run", exact: true });
   await run.scrollIntoViewIfNeeded();
-  expect(await page.locator(".content").evaluate(element => element.scrollTop)).toBeGreaterThan(100);
+  expect(await page.locator(".content").evaluate(element => element.scrollTop)).toBe(0);
   await run.click();
   await expect(page.getByRole("region", { name: "Work", exact: true }).getByRole("heading", { level: 1 })).toBeInViewport();
   await expect(page.locator(".run-bar")).toBeInViewport();
@@ -68,10 +69,49 @@ test("a retained mission keeps its workspace when the shell switches folders", a
   await expect(page.getByLabel("What should Pytxo do?")).toHaveValue("Fix src/parser.rs in the original workspace.");
 });
 
+test("workspace New work keeps context and preserves another workspace's draft", async ({ page }) => {
+  await completeOnboarding(page, { "pytxo-preview-history-empty-v1": "1" });
+  await page.goto("/#/flow");
+  const original = await page.getByLabel("Project", { exact: true }).inputValue();
+  const request = "Preserve this unfinished request in the original workspace.";
+  await page.getByLabel("What should Pytxo do?").fill(request);
+  await page.getByTitle("Switch workspace", { exact: true }).click();
+  await page.getByRole("dialog", { name: "Switch workspace", exact: true }).getByRole("option", { name: /signal-lab/ }).click();
+  await page.getByRole("button", { name: "New work", exact: true }).click();
+  await expect(page.getByLabel("Project", { exact: true })).toHaveValue("signal-lab");
+  await expect(page.getByLabel("What should Pytxo do?")).toHaveValue("");
+  await expect(page.getByTitle("Switch workspace", { exact: true })).toContainText("signal-lab");
+  await page.getByLabel("What should Pytxo do?").fill("A separate request for signal-lab.");
+  await page.getByTitle("Switch workspace", { exact: true }).click();
+  await page.getByRole("dialog", { name: "Switch workspace", exact: true }).getByRole("option", { name: /^pytxo/ }).click();
+  await page.getByRole("button", { name: "New work", exact: true }).click();
+  await expect(page.getByLabel("Project", { exact: true })).toHaveValue(original);
+  await expect(page.getByLabel("What should Pytxo do?")).toHaveValue(request);
+  await page.getByTitle("Switch workspace", { exact: true }).click();
+  await page.getByRole("dialog", { name: "Switch workspace", exact: true }).getByRole("option", { name: /signal-lab/ }).click();
+  await page.getByRole("button", { name: "New work", exact: true }).click();
+  await expect(page.getByLabel("What should Pytxo do?")).toHaveValue("A separate request for signal-lab.");
+});
+
+test("sidebar recovers an older workspace draft after opening an empty request elsewhere", async ({ page }) => {
+  await completeOnboarding(page, { "pytxo-preview-history-empty-v1": "1" });
+  await page.goto("/#/flow");
+  await page.getByLabel("What should Pytxo do?").fill("Keep the original workspace request.");
+  await page.getByTitle("Switch workspace", { exact: true }).click();
+  await page.getByRole("dialog", { name: "Switch workspace", exact: true }).getByRole("option", { name: /signal-lab/ }).click();
+  await page.getByRole("button", { name: "New work", exact: true }).click();
+  await expect(page.getByLabel("What should Pytxo do?")).toHaveValue("");
+  await page.getByTitle("Switch workspace", { exact: true }).click();
+  await page.getByRole("dialog", { name: "Switch workspace", exact: true }).getByRole("option", { name: /^pytxo/ }).click();
+  await page.getByRole("button", { name: "Continue draft", exact: true }).click();
+  await expect(page.getByLabel("What should Pytxo do?")).toHaveValue("Keep the original workspace request.");
+});
+
 for (const mode of ["hold", "click"]) {
   test(`Voice respects the ${mode} capture preference`, async ({ page }) => {
     await completeOnboarding(page, { "pytxo-desktop-voice-capture-v1": mode });
     await page.goto("/#/flow");
+    await page.locator(".voice-disclosure > summary").click();
     const capture = page.getByTestId("voice-capture");
     if (mode === "hold") {
       await capture.focus();
@@ -91,6 +131,7 @@ for (const mode of ["hold", "click"]) {
 test("keyboard hold capture cancels when focus moves away", async ({ page }) => {
   await completeOnboarding(page, { "pytxo-desktop-voice-capture-v1": "hold" });
   await page.goto("/#/flow");
+  await page.locator(".voice-disclosure > summary").click();
   await page.getByTestId("voice-capture").focus();
   await page.keyboard.down("Space");
   await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
@@ -103,7 +144,7 @@ test("keyboard hold capture cancels when focus moves away", async ({ page }) => 
 
 test("settings search finds controls and recovers from no results", async ({ page }) => {
   await page.goto("/#/setup");
-  for (const [query, section] of [[" scale ", "Appearance"], ["TRAY", "General"], ["Whisper", "Voice"], ["updates", "Account & billing"], ["api key", "Providers"]]) {
+  for (const [query, section] of [[" scale ", "Appearance"], ["TRAY", "General"], ["Whisper", "Voice"], ["updates", "General"], ["api key", "Providers"]]) {
     await page.getByLabel("Search settings").fill(query);
     const match = page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: section, exact: true });
     await expect(match).toBeVisible();
@@ -120,10 +161,12 @@ test("settings search finds controls and recovers from no results", async ({ pag
 test("switching settings sections returns the content pane to the top", async ({ page }) => {
   await page.goto("/#/setup");
   await page.getByRole("button", { name: "Agents & permissions", exact: true }).click();
+  await page.getByText("Additional agents", { exact: true }).click();
+  await page.getByText("Change default permissions", { exact: true }).click();
   await page.getByRole("button", { name: "Supernova Full host privileges", exact: true }).scrollIntoViewIfNeeded();
-  expect(await page.locator(".content").evaluate(element => element.scrollTop)).toBeGreaterThan(100);
+  expect(await page.locator(".settings-main").evaluate(element => element.scrollTop)).toBeGreaterThan(100);
   await page.getByRole("button", { name: "Appearance", exact: true }).click();
-  await expect.poll(() => page.locator(".content").evaluate(element => element.scrollTop)).toBe(0);
+  await expect.poll(() => page.locator(".settings-main").evaluate(element => element.scrollTop)).toBe(0);
 });
 
 test("the command palette scopes Stop to the workspace and opens confirmation", async ({ page }) => {
@@ -142,7 +185,7 @@ test("the command palette scopes Stop to the workspace and opens confirmation", 
   await expect(page.getByRole("heading", { name: "Stop run-8f2c?", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Keep running" })).toBeFocused();
   await page.getByRole("button", { name: "Keep running" }).click();
-  await expect(page.locator(".run-bar")).toContainText("Running");
+  await expect(page.locator(".work-heading")).toContainText("Running");
 });
 
 test("workspace menus support keyboard selection, Escape and modal focus", async ({ page }) => {
@@ -175,13 +218,13 @@ test("workspace menus support keyboard selection, Escape and modal focus", async
 
 test("History detail follows the filtered result and review identifies its workspace", async ({ page }) => {
   await page.goto("/#/history");
-  await page.getByLabel("Search runs").fill("run-71ad");
+  await page.getByLabel("Search work history").fill("run-71ad");
   await expect(page.locator(".history .row")).toHaveCount(1);
-  await page.getByRole("button", { name: "Review changes", exact: true }).click();
+  await page.getByRole("button", { name: "Review prepared changes", exact: true }).click();
   await expect(page.getByTitle("Switch workspace", { exact: true })).toContainText("signal-lab");
   await page.getByRole("link", { name: "History", exact: true }).click();
-  await page.getByLabel("Search runs").fill("missing-run");
-  await expect(page.getByRole("button", { name: "Review changes", exact: true })).toHaveCount(0);
+  await page.getByLabel("Search work history").fill("missing-run");
+  await expect(page.getByRole("button", { name: "Review prepared changes", exact: true })).toHaveCount(0);
 });
 
 for (const theme of ["void", "light"]) {
@@ -204,6 +247,7 @@ for (const theme of ["void", "light"]) {
         }
       }
       if (section === "Agents & permissions") {
+        await page.getByText("Additional agents", { exact: true }).click();
         const connect = page.getByRole("button", { name: "Connect an OpenCode provider", exact: true });
         await connect.scrollIntoViewIfNeeded();
         expect(await connect.evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);

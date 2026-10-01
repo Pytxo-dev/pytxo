@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { clearOnboarding } from "./helpers";
 
-for (const viewport of [{ width: 1280, height: 800 }, { width: 860, height: 560 }]) {
-  test(`flat onboarding keeps actions reachable at ${viewport.width}`, async ({ page }, info) => {
+for (const viewport of [{ width: 1280, height: 800 }, { width: 860, height: 560 }, { width: 640, height: 400 }, { width: 640, height: 353 }]) {
+  test(`flat onboarding keeps actions reachable at ${viewport.width}x${viewport.height}`, async ({ page }, info) => {
     await page.setViewportSize(viewport);
     await clearOnboarding(page);
     await page.goto("/");

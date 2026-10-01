@@ -256,7 +256,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
 
-      - name: Sync install scripts to pytxo-releases
+      - name: Sync install scripts and signed updater channel to pytxo-releases
         env:
           GH_TOKEN: ${{ secrets.PYTXO_RELEASES_TOKEN }}
         run: |
@@ -266,14 +266,21 @@ jobs:
           cp distribution/pytxo-releases/install.sh "$WORK/install.sh"
           cp distribution/pytxo-releases/install.ps1 "$WORK/install.ps1"
           cp distribution/pytxo-releases/README.md "$WORK/README.md"
+          if [ -f desktop-dist/latest.json ]; then
+            cp desktop-dist/latest.json "$WORK/latest.json"
+            echo "Staged the signed updater channel from ${{ env.TAG_NAME }}"
+          else
+            echo "No signed updater manifest in this release; preserving the existing updater channel"
+          fi
           cd "$WORK"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add install.sh install.ps1 README.md
+          if [ -f latest.json ]; then git add latest.json; fi
           if git diff --staged --quiet; then
-            echo "Install scripts unchanged"
+            echo "Install scripts and updater channel unchanged"
           else
-            git commit -m "Sync install scripts from pytxo ${{ env.TAG_NAME }}"
+            git commit -m "Sync release channel from pytxo ${{ env.TAG_NAME }}"
             git push origin HEAD:main
           fi
 

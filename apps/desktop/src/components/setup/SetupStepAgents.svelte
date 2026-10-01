@@ -1,6 +1,7 @@
 <script lang="ts">
   import SetupStepFrame from "./SetupStepFrame.svelte";
   import { onMount } from "svelte";
+  import { isAdeRunnable, isAdeSessionConfirmed } from "../../lib/ade-status";
   import { createDesktopBackend } from "../../lib/desktop-backend";
   import type { AdeCliStatusDto } from "../../lib/types";
   import { Button } from "$lib/components/ui/button";
@@ -25,6 +26,8 @@
   const usefulAgents = $derived(
     [...agents]
       .sort((a, b) => {
+        if (a.id === "codex") return -1;
+        if (b.id === "codex") return 1;
         const score = (agent: AdeCliStatusDto) =>
           Number(agent.installed) * 4 +
           Number(agent.auth_state === "signed_in") * 2 +
@@ -37,11 +40,12 @@
   const readyCount = $derived(agents.filter(isReady).length);
 
   function isReady(agent: AdeCliStatusDto) {
-    return agent.installed && (agent.auth_state === "signed_in" || agent.auth_state === "not_applicable");
+    return isAdeRunnable(agent);
   }
 
   async function refresh() {
     loading = true;
+    agents = [];
     error = "";
     message = "";
     try {
@@ -76,7 +80,7 @@
 <SetupStepFrame>
   <h2 class="title">Connect your coding agents</h2>
   <p class="lead">
-    One coding agent is enough to start. Use its existing account; Pytxo can open the tool's own sign-in if needed.
+    Start this beta with Codex and its existing account. Pytxo can open the tool's own sign-in if needed.
   </p>
 
   {#if loading}
@@ -97,13 +101,16 @@
             <a class="install-guide" href={agent.docs_url} target="_blank" rel="noopener noreferrer">Install guide</a>
           {:else}
             <b class:ready={isReady(agent)}>
-              {isReady(agent) ? "Ready" : agent.installed ? "Installed" : "Later"}
+              {isAdeSessionConfirmed(agent) ? "Ready" : isReady(agent) ? "Available" : agent.installed ? "Installed" : "Later"}
             </b>
           {/if}
         </div>
       {/each}
     </div>
-    <p class="summary" role="status">{installedCount} installed · {readyCount} ready. After signing in, check again to confirm the session.</p>
+    {#if agents.length}
+      <p class="summary" role="status">{installedCount} installed · {readyCount} available. Confirmed sessions are labeled Ready; vendor-managed sessions stay private.</p>
+    {/if}
+    {#if readyCount === 0 && !error}<p class="summary">Install an agent or finish sign-in, then check again. You can also finish Desktop setup and connect an agent later.</p>{/if}
   {/if}
 
   {#if message}<p class="message" role="status">{message}</p>{/if}
@@ -114,8 +121,8 @@
     <Button variant="outline" disabled={loading || openingId !== null} onclick={() => void refresh()}>
       {loading ? "Checking…" : "Check again"}
     </Button>
-    {#if readyCount > 0}<Button onclick={onContinue}>Continue</Button>
-    {:else}<Button onclick={onSkip}>Continue to Desktop</Button>{/if}
+    {#if readyCount > 0}<Button disabled={loading || openingId !== null} onclick={onContinue}>Continue</Button>
+    {:else}<Button disabled={loading || openingId !== null} onclick={onSkip}>Set up agents later</Button>{/if}
   {/snippet}
 </SetupStepFrame>
 

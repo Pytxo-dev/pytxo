@@ -38,10 +38,6 @@
     walletMicrocredits != null ? (walletMicrocredits / 1_000_000).toFixed(2) : null,
   );
 
-  async function signIn() {
-    await ipc.authOpenSignIn();
-  }
-
   async function signOut() {
     await ipc.authClearSession();
     onAuthChange?.();
@@ -109,7 +105,7 @@
     {#if signedIn}
       <Button variant="ghost" size="sm" onclick={signOut}>Sign out</Button>
     {:else}
-      <Button size="sm" onclick={signIn}>Sign in</Button>
+      <Badge variant="outline" title="Connect experimental Routing in Settings; general account sign-in is paused">Local Core</Badge>
     {/if}
   </div>
 </div>

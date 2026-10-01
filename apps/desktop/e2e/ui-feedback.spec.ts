@@ -7,7 +7,8 @@ test("run-scoped views stay saved but do not leak into another run or global scr
   await completeOnboarding(page, { "pytxo-mission-dock-v1": JSON.stringify(layout) });
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto("/#/work");
-  const files = page.getByRole("button", { name: "Files", exact: true });
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
+  const files = page.getByRole("button", { name: "Files", description: "Click to open, or drag to the right or bottom edge", exact: true });
   await expect(files).toBeEnabled();
   await expect(page.getByRole("tab", { name: "Earlier files", exact: true })).toHaveCount(0);
   const from = (await files.boundingBox())!;
@@ -93,6 +94,7 @@ test("pointer dragging opens hidden docks, moves tabs and cancels without changi
   await completeOnboarding(page);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto("/#/work");
+  await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   const evidence = page.getByRole("button", { name: "Checks & details", exact: true });
   await expect(evidence).toBeEnabled();
   const start = (await evidence.boundingBox())!;
@@ -100,10 +102,12 @@ test("pointer dragging opens hidden docks, moves tabs and cancels without changi
   await page.mouse.down();
   await page.mouse.move(start.x + 30, start.y + 40, { steps: 5 });
   await expect(page.locator(".drop-bottom")).toBeVisible();
+  await expect(evidence).toHaveClass(/drag-source/);
   const target = (await page.locator(".drop-bottom").boundingBox())!;
   await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 10 });
   await expect(page.locator(".drop-bottom")).toHaveClass(/targeted/);
   await page.mouse.up();
+  await expect(page.locator(".layout-status")).toContainText("Checks & details docked below.");
   const tab = page.getByRole("tab", { name: "Checks & details", exact: true });
   await expect(page.getByRole("tablist", { name: "bottom dock" })).toContainText("Checks & details");
   const from = (await tab.boundingBox())!;
@@ -119,6 +123,7 @@ test("pointer dragging opens hidden docks, moves tabs and cancels without changi
   await page.mouse.move(fresh.x - 40, fresh.y + 60, { steps: 5 });
   await page.keyboard.press("Escape"); await page.mouse.up();
   await expect(page.locator(".drop-zones")).toHaveCount(0);
+  await expect(page.locator(".layout-status")).toContainText("Checks & details stayed in place.");
   expect(await page.evaluate(() => localStorage.getItem("pytxo-mission-dock-v1"))).toBe(saved);
   await page.screenshot({ path: testInfo.outputPath("dragged-right-dock.png") });
 });
@@ -127,12 +132,13 @@ test("review evidence follows the files without the tall-column blank area", asy
   await completeOnboarding(page, { "pytxo-preview-review-state-v1": "ready" });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/#/history");
-  await page.locator(".history .row", { hasText: "run-71ad" }).first().click();
-  await page.getByRole("button", { name: /Review changes/ }).click();
-  const files = (await page.locator(".files-panel").boundingBox())!;
+  await page.locator('.history .row[data-run-id="run-71ad"]').click();
+  await page.getByRole("button", { name: "Review prepared changes", exact: true }).click();
+  await page.locator(".technical-evidence > summary").click();
+  const disclosure = (await page.locator(".technical-evidence > summary").boundingBox())!;
   const evidence = (await page.locator(".review-support").boundingBox())!;
-  expect(evidence.y - (files.y + files.height)).toBeGreaterThanOrEqual(0);
-  expect(evidence.y - (files.y + files.height)).toBeLessThan(25);
+  expect(evidence.y - (disclosure.y + disclosure.height)).toBeGreaterThanOrEqual(0);
+  expect(evidence.y - (disclosure.y + disclosure.height)).toBeLessThan(25);
   await page.locator(".review-support").scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("review-evidence-flow.png") });
   await page.setViewportSize({ width: 1024, height: 768 });
@@ -150,6 +156,7 @@ test("profile emblems load and voice control reserves room for its label and arr
   await icons.first().scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("permission-emblems.png") });
   await page.goto("/#/flow");
+  await page.locator(".voice-disclosure > summary").click();
   const selector = page.locator(".voice-device");
   await expect(selector).toBeVisible();
   const size = (await selector.boundingBox())!;

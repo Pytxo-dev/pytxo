@@ -184,6 +184,13 @@ fn auth_meta(id: &str, installed: bool) -> AuthMeta {
         },
     };
 
+    match id {
+        "cline" => meta.login_label = Some("Open Cline authentication"),
+        "grok" => meta.login_label = Some("Open Grok Build sign-in"),
+        "kimi" => meta.login_label = Some("Open Kimi device sign-in"),
+        _ => {}
+    }
+
     if !installed {
         meta.state = "not_installed";
         meta.label = "Not installed".into();
@@ -372,6 +379,21 @@ pub fn start_ade_login(id: String) -> IpcResult<AdeLoginLaunchDto> {
             "copilot",
             vec!["login"],
             "GitHub Copilot sign-in opened. Finish the device flow, then recheck.",
+        ),
+        "cline" => (
+            "cline",
+            vec!["auth"],
+            "Cline authentication opened. Finish in the vendor terminal, then recheck.",
+        ),
+        "grok" => (
+            "grok",
+            vec!["login"],
+            "Grok Build sign-in opened. Finish the vendor flow, then recheck.",
+        ),
+        "kimi" => (
+            "kimi",
+            vec!["login"],
+            "Kimi Code device sign-in opened. Finish the vendor flow, then recheck.",
         ),
         _ => {
             return Err(PytxoIpcError::new(
@@ -607,5 +629,20 @@ mod tests {
             &mut meta,
         );
         assert_eq!(meta.state, "signed_out");
+    }
+
+    #[test]
+    fn vendor_managed_harness_is_available_without_claiming_a_session() {
+        let meta = auth_meta("grok", true);
+        assert_eq!(meta.state, "vendor_managed");
+        assert_eq!(meta.label, "Authentication managed by Grok Build");
+        assert_eq!(meta.login_label, Some("Open Grok Build sign-in"));
+    }
+
+    #[test]
+    fn detection_only_harness_is_not_presented_as_write_ready() {
+        let meta = auth_meta("qwen", true);
+        assert_eq!(meta.state, "detected_only");
+        assert_eq!(meta.label, "Detected; write mode not mapped yet");
     }
 }

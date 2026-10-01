@@ -16,7 +16,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await expect(page.getByRole("button", { name: "Build plan", exact: true })).toBeEnabled();
       await page.getByRole("button", { name: "Check again", exact: true }).click();
       await expect(page.getByLabel("Agent CLI")).toHaveValue("codex");
-      await expect(page.getByText("One ready CLI is enough.", { exact: false })).toBeVisible();
+      await expect(page.getByText("One worker runs the approved tasks in order.", { exact: false })).toBeVisible();
       expect((await rootOverflow(page)).horizontal).toBeLessThanOrEqual(1);
       await page.screenshot({ path: testInfo.outputPath("composer.png"), fullPage: true });
       await page.getByRole("button", { name: "Build plan", exact: true }).click();
@@ -32,6 +32,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await page.getByLabel("What should Pytxo do?").fill("Improve src/api.ts and its tests");
       await page.getByRole("button", { name: "Build plan", exact: true }).click();
       await expect(page.getByRole("button", { name: "Run", exact: true })).toBeEnabled();
+      await page.locator(".flow-history > summary").click();
       await page.getByRole("button", { name: /Use as new request: Fix the parser regression/ }).click();
       await expect(page.getByLabel("Project", { exact: true })).toHaveValue("signal-lab");
       await expect(page.getByRole("button", { name: "Run", exact: true })).not.toBeVisible();
@@ -41,6 +42,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     test("an unavailable draft workspace requires an explicit new selection", async ({ page }) => {
       await completeOnboarding(page, { "pytxo-preview-ade-state-v1": "codex-only", "pytxo-preview-flow-history-v1": "missing" });
       await page.goto("/#/flow");
+      await page.locator(".flow-history > summary").click();
       await page.getByRole("button", { name: /Use as new request: Fix the parser regression/ }).click();
       await expect(page.getByLabel("Project", { exact: true })).toHaveValue("");
       await expect(page.getByRole("button", { name: "Build plan", exact: true })).toBeDisabled();
@@ -52,6 +54,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     test("rechecking does not replace an unavailable original harness", async ({ page }) => {
       await completeOnboarding(page, { "pytxo-preview-ade-state-v1": "codex-only", "pytxo-preview-flow-history-v1": "unavailable-cli", "pytxo-flow-ade-v1": "codex" });
       await page.goto("/#/flow");
+      await page.locator(".flow-history > summary").click();
       await page.getByRole("button", { name: /Use as new request: Fix the parser regression/ }).click();
       await expect(page.getByLabel("Agent CLI")).toHaveValue("");
       await page.getByRole("button", { name: "Check again", exact: true }).click();
@@ -64,6 +67,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     test("long original workspace paths remain readable", async ({ page }, testInfo) => {
       await completeOnboarding(page, { "pytxo-preview-ade-state-v1": "codex-only", "pytxo-preview-flow-history-v1": "long-path" });
       await page.goto("/#/flow");
+      await page.locator(".flow-history > summary").click();
       const path = page.locator(".flow-history small");
       await path.scrollIntoViewIfNeeded();
       await expect(path).toContainText("C:/workspaces/");

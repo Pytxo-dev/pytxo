@@ -1,8 +1,9 @@
 ---
 title: Galaxy approvals
+description: Review high-risk command requests in Galaxy without confusing the approval queue with repository Apply.
 ---
 
-On the **Galaxy** [permission tier](/docs/reference/permission-tiers), Pytxo pauses high-risk agent actions until **you** approve or deny them. That covers destructive shell commands and merging isolated copies back into your real tree.
+On the **Galaxy** [permission tier](/docs/reference/permission-tiers), Pytxo pauses high-risk agent actions until **you** approve or deny them. That is the HITL **approval queue** (`pytxo hitl`). It is not repository Apply. Apply of a reviewed package is Desktop [Run Review](/docs/getting-started/review-and-apply).
 
 ## At a glance
 
@@ -19,7 +20,7 @@ Examples of commands that require approval under Galaxy:
 - `git push`
 - Docker invocations
 - Network fetches (`curl`, `wget`)
-- Merge / flush of agent changes into the physical repo
+- Destructive host tools that the Galaxy profile gates (deletes, push, docker, egress)
 
 ## CLI
 
@@ -59,5 +60,6 @@ Look for the `hitl_persistence` check. It verifies the domain can write approval
 ## Related
 
 - [Permission tiers](/docs/reference/permission-tiers): when to use Galaxy vs Orbit
-- [Blast Shield](/docs/concepts/blast-shield): isolated copies and approve-to-merge
+- [Blast Shield](/docs/concepts/blast-shield): isolated copies and Review → Apply
+- [Review and Apply](/docs/getting-started/review-and-apply): Desktop Run Review; no `pytxo apply`
 - [Folder trust](/docs/getting-started/folder-trust): pick a tier when you first open a repo

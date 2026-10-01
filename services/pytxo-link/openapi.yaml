@@ -64,9 +64,143 @@ paths:
   /v1/runs/end:
     post:
       summary: Reconcile run end with usage totals
+  /v1/routing/tokens:
+    post:
+      summary: Issue experimental routing-only token for an enabled hosted workspace grant (disabled by default)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workspace_id, expected_grant_revision]
+              additionalProperties: false
+              properties:
+                workspace_id:
+                  type: string
+                  description: Random opaque 16-byte workspace ID as lowercase hex
+                expected_grant_revision:
+                  type: integer
+                  minimum: 1
+      responses:
+        "200":
+          description: Short-lived token bound to account, workspace, recipient, scope and grant revision
+        "401":
+          description: Invalid session, issuer, audience, or claims
+        "403":
+          description: Workspace grant missing, revoked, stale or wrong scope
+        "503":
+          description: Routing experiment or durable store unavailable
+    delete:
+      summary: Revoke experimental routing token
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Token revoked or already absent
+  /v1/routing/workspace-grants:
+    post:
+      summary: Enable a versioned hosted routing workspace grant (experimental)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workspace_id, recipient_identity, scope_digest, expected_revision]
+              additionalProperties: false
+              properties:
+                workspace_id:
+                  type: string
+                  description: Random opaque 16-byte workspace ID as lowercase hex
+                recipient_identity:
+                  type: string
+                  const: pytxo-hosted-routing/typesafe-systemone/v1
+                scope_digest:
+                  type: string
+                  description: Link-pinned reviewed coarse projection and template digest
+                expected_revision:
+                  type: integer
+                  minimum: 0
+      responses:
+        "200":
+          description: Account-bound grant revision and enabled state; Cache-Control no-store
+        "400":
+          description: Recipient, scope or workspace ID differs from hosted v1
+        "409":
+          description: Grant revision conflict
+        "429":
+          description: Account has reached the experimental limit of 64 retained workspace grants
+    delete:
+      summary: Revoke a hosted workspace grant or fence an uncertain first grant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workspace_id, expected_revision]
+              additionalProperties: false
+              properties:
+                workspace_id:
+                  type: string
+                expected_revision:
+                  type: integer
+                  minimum: 0
+      responses:
+        "200":
+          description: Disabled revision, including a revision-one tombstone when an uncertain first grant was absent; an already claimed request may still send
+        "409":
+          description: Grant revision conflict
+        "429":
+          description: Account has reached the experimental limit of 64 retained workspace grants
+  /v1/routing/workspace-grants/{workspace_id}:
+    get:
+      summary: Read the account's current hosted routing grant for one opaque workspace ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{32}$'
+      responses:
+        "200":
+          description: Stored grant revision, enabled state, recipient and actual scope digest; Cache-Control no-store. A changed scope requires a new reviewed opt-in at the returned revision.
+        "401":
+          description: Invalid account session
+        "404":
+          description: No grant for this workspace in the authenticated account
   /v1/webhooks/paddle:
     post:
       summary: Paddle subscription lifecycle webhooks
+  /v1/webhooks/dodo:
+    post:
+      summary: Dodo subscription lifecycle webhooks
+      parameters:
+        - in: header
+          name: webhook-id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: webhook-timestamp
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: webhook-signature
+          required: true
+          schema:
+            type: string
 components:
   securitySchemes:
     bearerAuth:

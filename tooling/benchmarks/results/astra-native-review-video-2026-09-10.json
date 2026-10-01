@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "integrated_at_utc": "2026-09-10T05:43:06.784Z",
+  "private_artifact": true,
+  "published": false,
+  "source_record_sha256": "ed47c5ba9cb762efe9235ecb485fa625becdd7a5fbdfa50132d0f3ba5f86d32d",
+  "functional_evidence": {
+    "path": "tooling/benchmarks/results/astra-native-review-2026-09-10.json",
+    "sha256": "1a2d6b9164d124d85804a7cec87b83d9049dff6bdaac19ae3731542c4ff58ed2"
+  },
+  "status": "Private completed-review-pilot proof rendered; no final-build or smoothness acceptance claim",
+  "output": {
+    "output": "target/astra-review-20260910/native-video/out/pytxo-native-review-proof-6acc.mp4",
+    "sha256": "92ad0721a4a31797911aa16bb6d138b5ca3ee04f2000e290ed757eeb1208a2a0",
+    "bytes": 3129629,
+    "decode_exit_code": 0,
+    "decode_stderr": ""
+  },
+  "duration_seconds": 90,
+  "dimensions": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "frames": 2700,
+  "audio_streams": 0,
+  "actual_video_seconds_at_original_speed": 84,
+  "explicit_later_screenshot_seconds": 6,
+  "payload_sha256": "6acc8a371de4cc2f827880d7085b6002863c117aac376fc681d3fe0c964624dc",
+  "source_video_sha256": "f7c87383e6ec1263475bd60da2f0f218134b4dbe817a20f843e82f5ba628f3e7",
+  "run_id": "f3e164cd-928a-43eb-b409-ba726b8c33b7",
+  "package_sha256": "1cfe11d5230f07188808f8b102a9fc5f7b2a789940bcce573ece73d5d0c51bfd",
+  "apply_transaction_id": "0941df78-45cb-458c-854b-74b7654eaa88",
+  "edl_validation": "passed; exact source/output intervals match requested plan, contiguous 90s, all video 1x, uninterrupted Apply 628–652 mapped to output 60–84",
+  "typecheck": {
+    "command": "node node_modules/typescript/bin/tsc --noEmit",
+    "exit_code": 0
+  },
+  "render": {
+    "command": "node node_modules/@remotion/cli/remotion-cli.js render src/proof.tsx NativeReviewProof6acc out/pytxo-native-review-proof-6acc.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p --color-space=bt709 --muted --concurrency=1 --offthreadvideo-threads=1 --x264-preset=veryfast",
+    "exit_code": 0,
+    "remotion_workers": 1,
+    "encoder_threads": 1,
+    "thread_option_note": "The supplied offthreadvideo-threads spelling differs from installed offthreadvideo-video-threads. The composition uses @remotion/media Video; optional OffthreadVideo fallback retains the installed bounded default 2. Explicit render concurrency 1 and encoder threads 1 were enforced. Reproduction documentation uses the installed spelling.",
+    "log": {
+      "path": "target/astra-review-20260910/native-video/proof-render.log",
+      "bytes": 117604,
+      "sha256": "697ab5873335c9dd06926ff7e3c750f64209cc2170fa1ed591dfa76174b7dcb5"
+    }
+  },
+  "frame_qa": {
+    "selected_source_samples": 168,
+    "sample_cadence": "2fps across all 84 selected video seconds; earlier full-resolution source Git detail also inspected",
+    "output_frames": [
+      0,
+      300,
+      384,
+      390,
+      594,
+      595,
+      596,
+      659,
+      660,
+      795,
+      945,
+      1019,
+      1020,
+      1148,
+      1439,
+      1440,
+      1583,
+      1598,
+      1799,
+      1800,
+      1838,
+      2205,
+      2213,
+      2228,
+      2243,
+      2280,
+      2519,
+      2520,
+      2699
+    ],
+    "output_contact_frames_inspected": 29,
+    "full_resolution_output_frames_inspected": [
+      595,
+      1838,
+      2243,
+      2520
+    ],
+    "layout_preview": "Later screenshot caption layout inspected before full render",
+    "normal_speed_human_playback": "unverified",
+    "all_frame_apply_comparison": {
+      "method": "SSIM between native area of output 60–84 and prepared source clip 628–652, without film caption band",
+      "frames_compared": 720,
+      "mean_ssim": 0.9874437416666666,
+      "min_ssim": 0.983541,
+      "limit": "Image correspondence supports the encoded timeline; it is not human playback or an app-performance measurement",
+      "stats": {
+        "path": "target/astra-review-20260910/native-video/proof-qa-output/apply-ssim.log",
+        "bytes": 46692,
+        "sha256": "92a590461d6c9f02fab21b8ca524068c0dbf6816ba52cb5a55d44a907e0c1056"
+      }
+    }
+  },
+  "observed_limits": [
+    "Known startup Git console interruption retained and labeled as a remaining 6acc defect",
+    "Known 6acc Ownership display issue disclosed; corrected later rebuild is not depicted",
+    "Earlier black-content warning withdrawn after reinspection; no missing-content defect claimed",
+    "No unrelated app or authentication content observed in chosen/output samples; raw restart background excluded",
+    "Local username/fixture paths remain visible inside the app; private artifact only",
+    "No game mockup or later build footage; e0ee native testing remains unverified",
+    "No clean Windows install, hosted CI, public download or perceptual smoothness acceptance claim"
+  ],
+  "tests_caption": "Separate post-Apply logs show 11 project tests and 26 independent checks passed; logs cross-checked in full-capture-qa/review-findings.json",
+  "underlying_source_qa": {
+    "path": "target/astra-review-20260910/native-video/full-capture-qa/review-findings.json",
+    "bytes": 13311,
+    "sha256": "6828e52c83c5733bb8993b7a287e2861be52dd6ed9a3bfea1dc061a12924b0ce"
+  },
+  "files": [
+    {
+      "path": "target/astra-review-20260910/native-video/src/proof.tsx",
+      "bytes": 3472,
+      "sha256": "cd4d11c022fc818b809a41f5db0721f0932cd155d3d436d447dbd7c33dfe0223"
+    },
+    {
+      "path": "target/astra-review-20260910/native-video/proof-timeline.json",
+      "bytes": 3986,
+      "sha256": "a382598e667ff9dc81e8710aee919fae3af1eab6b905bb3ae20e18efc1aea7c0"
+    },
+    {
+      "path": "target/astra-review-20260910/native-video/prepare-proof-cut.py",
+      "bytes": 3319,
+      "sha256": "7e78ffe24bf21fce549e91114a5d3cd876c19ecea02979c1f9e9d2327bb60395"
+    },
+    {
+      "path": "target/astra-review-20260910/native-video/inspect-proof-output.py",
+      "bytes": 2373,
+      "sha256": "c48f99309cbd5121b7e31a5bc7c7ec6d6a53a3821e8f049896db5f185d164f5c"
+    },
+    {
+      "path": "target/astra-review-20260910/native-video/remotion.config.ts",
+      "bytes": 498,
+      "sha256": "e4db035a056946453b35d83f45584069cac70e1919ce6538be517c52fe30ca54"
+    },
+    {
+      "path": "target/astra-review-20260910/native-video/PROOF-6ACC.md",
+      "bytes": 4693,
+      "sha256": "5e2b66a21374be0507134e44f5f89c1a4087601d70dcd6f36f79ca10792ac8e1"
+    }
+  ],
+  "next_human_action": "Watch out/pytxo-native-review-proof-6acc.mp4 once at normal speed; native final-build testing requires the root-owned fresh run after the physicalEscape pause is lifted.",
+  "integration_review": {
+    "output_hash_rechecked": true,
+    "source_artifact_hashes_rechecked": true,
+    "root_inspected_full_resolution_output_frames": [
+      595,
+      2243,
+      2520
+    ],
+    "observations": "Git interruption retained and labeled; actual Applied successfully state; later restart still explicitly identified. This is representative frame inspection, not normal-speed playback."
+  }
+}

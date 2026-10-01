@@ -78,8 +78,8 @@
   </div>
 
   {#if onNewRun}
-    <button class="compose-trigger" onclick={onNewRun} aria-label={hasDraft ? "Continue draft" : "New run from sidebar"} title={hasDraft ? "Continue your draft in this window" : "Create a new run"}>
-      <IconPlus size={16} /><span>{hasDraft ? "Continue draft" : "New run"}</span>
+    <button class="compose-trigger" onclick={onNewRun} aria-label={hasDraft ? "Continue draft" : "New work from sidebar"} title={hasDraft ? "Continue your draft in this window" : "Create a new run"}>
+      <IconPlus size={16} /><span>{hasDraft ? "Continue draft" : "New work"}</span>
       {#if hasDraft}<i aria-hidden="true"></i>{/if}
     </button>
   {/if}

@@ -20,13 +20,14 @@ function parseRgb(value) {
   return parts ? parts.slice(0, 3).map(Number) : null;
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || "chromium" });
+const session = { storageState: process.env.PLAYWRIGHT_STORAGE_STATE || undefined };
 const failures = [];
 
 // Acceptance criterion: the hero headline's glyph box must not intersect the
 // product frame at any of the three reference widths.
 for (const width of [1280, 1440, 1920]) {
-  const context = await browser.newContext({ viewport: { width, height: 900 } });
+  const context = await browser.newContext({ ...session, viewport: { width, height: 900 } });
   const page = await context.newPage();
   await page.goto(`${BASE}/`, { waitUntil: "load" });
   await page.waitForTimeout(400);
@@ -71,7 +72,7 @@ for (const width of [1280, 1440, 1920]) {
 }
 
 // Every state chip must meet AA as text on its own background.
-const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const context = await browser.newContext({ ...session, viewport: { width: 1440, height: 900 } });
 const page = await context.newPage();
 
 for (const route of ["/", "/evidence"]) {
@@ -126,7 +127,7 @@ await context.close();
 // A hydration mismatch means the served HTML and the client render disagree, so
 // what a first-time reader sees is not what the code says. Docs pages are the
 // ones that historically regressed, so they are checked alongside marketing.
-const consoleContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const consoleContext = await browser.newContext({ ...session, viewport: { width: 1440, height: 900 } });
 const consolePage = await consoleContext.newPage();
 const noise = [/favicon/i, /Failed to load resource/i, /Clerk/i];
 
@@ -151,6 +152,81 @@ for (const route of ["/", "/evidence", "/download", "/docs", "/docs/concepts/wha
 }
 
 await consoleContext.close();
+
+// Public pages need stable search identity. Test the rendered head because
+// streamed metadata can differ from the source-level metadata object.
+const seoContext = await browser.newContext({ ...session, viewport: { width: 1280, height: 800 } });
+const seoPage = await seoContext.newPage();
+const publicRoutes = [
+  "/",
+  "/download",
+  "/evidence",
+  "/plans",
+  "/docs",
+  "/docs/concepts/what-is-pytxo",
+];
+
+for (const route of publicRoutes) {
+  await seoPage.goto(`${BASE}${route}`, { waitUntil: "load" });
+  const head = await seoPage.evaluate(() => ({
+    title: document.title,
+    description: document.querySelector('meta[name="description"]')?.getAttribute("content") ?? "",
+    canonical: document.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? "",
+  }));
+  const expectedCanonical = new URL(route, "https://pytxo.com").href;
+  if (!head.title.trim()) failures.push(`${route}: missing title`);
+  if (head.description.trim().length < 50) {
+    failures.push(`${route}: description is missing or too short (${head.description.trim().length} chars)`);
+  }
+  if (!head.canonical || new URL(head.canonical, "https://pytxo.com").href !== expectedCanonical) {
+    failures.push(`${route}: canonical ${head.canonical || "missing"} (expected ${expectedCanonical})`);
+  }
+}
+
+await seoPage.goto(`${BASE}/`, { waitUntil: "load" });
+const jsonLd = await seoPage.locator('script[type="application/ld+json"]').allTextContents();
+const structuredTypes = jsonLd.flatMap((block) => {
+  try {
+    const parsed = JSON.parse(block);
+    const records = Array.isArray(parsed?.["@graph"]) ? parsed["@graph"] : [parsed];
+    return records.map((record) => record?.["@type"]).filter(Boolean);
+  } catch {
+    failures.push("/: invalid JSON-LD payload");
+    return [];
+  }
+});
+for (const type of ["WebSite", "SoftwareApplication"]) {
+  if (!structuredTypes.includes(type)) failures.push(`/: JSON-LD missing ${type}`);
+}
+
+for (const route of ["/account", "/sign-in", "/sign-up"]) {
+  await seoPage.goto(`${BASE}${route}`, { waitUntil: "load" });
+  const robots =
+    (await seoPage.locator('meta[name="robots"]').getAttribute("content"))?.toLowerCase() ?? "";
+  if (!robots.includes("noindex")) failures.push(`${route}: private account surface is indexable`);
+}
+
+const robotsResponse = await seoPage.request.get(`${BASE}/robots.txt`);
+const robotsText = await robotsResponse.text();
+if (!robotsResponse.ok() || !robotsText.includes("https://pytxo.com/sitemap.xml")) {
+  failures.push("/robots.txt: missing public sitemap declaration");
+}
+
+const sitemapResponse = await seoPage.request.get(`${BASE}/sitemap.xml`);
+const sitemapText = await sitemapResponse.text();
+if (!sitemapResponse.ok()) failures.push("/sitemap.xml: request failed");
+for (const route of ["/download", "/evidence", "/plans", "/docs", "/docs/concepts/what-is-pytxo"]) {
+  if (!sitemapText.includes(`<loc>https://pytxo.com${route}</loc>`)) {
+    failures.push(`/sitemap.xml: missing ${route}`);
+  }
+}
+for (const route of ["/account", "/sign-in", "/sign-up"]) {
+  if (sitemapText.includes(`<loc>https://pytxo.com${route}</loc>`)) {
+    failures.push(`/sitemap.xml: private route ${route} should not be listed`);
+  }
+}
+
+await seoContext.close();
 await browser.close();
 
 if (failures.length > 0) {
@@ -159,6 +235,6 @@ if (failures.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    "\nHero geometry clean at 1280/1440/1920; state chips pass AA at 11px or larger; no console errors on marketing or docs.",
+    "\nHero geometry clean at 1280/1440/1920; state chips pass AA at 11px or larger; no console errors; public metadata and structured data are complete; account routes are noindex.",
   );
 }

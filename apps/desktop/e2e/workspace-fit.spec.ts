@@ -6,6 +6,7 @@ for (const size of [{ width: 1536, height: 816 }, { width: 1280, height: 800 }, 
     await page.setViewportSize(size);
     await completeOnboarding(page, { "pytxo-preview-layout-fixture-v1": "long" });
     await page.goto("/#/work");
+    await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
     await page.getByRole("button", { name: "Preview", exact: true }).click();
     await page.goto("/#/setup");
     const picker = page.getByRole("combobox", { name: "Settings section", exact: true });
@@ -32,6 +33,7 @@ for (const fixture of ["short", "long"]) {
     await completeOnboarding(page, { "pytxo-preview-layout-fixture-v1": fixture });
     await page.setViewportSize({ width: 1536, height: 900 });
     await page.goto("/#/history");
+    await page.getByText("Technical details", { exact: true }).click();
     await expect(page.locator('.history .boundary .candidate')).toBeVisible();
     const overflow = () => page.locator('.content').evaluate(el => el.scrollHeight - el.clientHeight);
     expect(await overflow()).toBeLessThanOrEqual(1);
@@ -45,6 +47,8 @@ for (const fixture of ["short", "long"]) {
     }
     await page.screenshot({ path: info.outputPath('history-wide.png') });
     await page.setViewportSize({ width: 860, height: 560 });
+    await rows.locator('.row').first().click();
+    await page.getByText("Technical details", { exact: true }).click();
     await page.locator('.history .boundary footer').scrollIntoViewIfNeeded();
     await expect(page.locator('.history .boundary footer')).toBeInViewport();
     expect(await overflow()).toBeLessThanOrEqual(1);
@@ -57,8 +61,11 @@ test('agent activity separates recorded controls and preserves output reading po
   await completeOnboarding(page, { "pytxo-preview-layout-fixture-v1": "long" });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/#/work');
-  await page.locator('.ledger').getByRole('button', { name: /architect/ }).click();
-  const panel = page.locator('.dock-panel:visible');
+  await page.getByTestId('execution-map').getByRole('button', { name: /^plan / }).click();
+  const summary = page.locator('.dock-panel:visible').filter({ hasText: 'Recorded scope' });
+  await expect(summary).toBeVisible();
+  await summary.getByRole('button', { name: 'Open output', exact: true }).click();
+  const panel = page.getByRole('region', { name: 'Output · plan inspection', exact: true });
   const output = panel.getByRole('region', { name: 'Recorded agent output', exact: true });
   await expect(output).toContainText('worker prose 78');
   await output.focus();
@@ -71,7 +78,7 @@ test('agent activity separates recorded controls and preserves output reading po
   expect(await output.evaluate(el => el.scrollTop)).toBe(position);
   await panel.getByRole('button', { name: 'Follow output', exact: true }).click();
   await expect.poll(() => output.evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop)).toBeLessThanOrEqual(2);
-  await panel.getByRole('button', { name: 'Activity', exact: true }).click();
+  await panel.getByRole('button', { name: 'Events', exact: true }).click();
   const activity = panel.getByLabel('Recorded agent activity', { exact: true });
   await expect(activity).toContainText('agent-start');
   await expect(activity).toContainText('verify-ok');

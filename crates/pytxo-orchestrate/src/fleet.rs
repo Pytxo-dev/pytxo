@@ -236,6 +236,7 @@ pub async fn wait_for_domain_run(
 }
 
 pub async fn fleet_run(opts: FleetRunOptions) -> anyhow::Result<FleetRunResult> {
+    let _upgrade_guard = pytxo_core::UpgradeGuard::work()?;
     let manifest = discover_manifest(opts.manifest.as_deref(), opts.fleet_id.as_deref())?;
     let plan = manifest.plan().map_err(|e| anyhow::anyhow!(e))?;
     let fleet_id = manifest.fleet.id.clone();

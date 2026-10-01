@@ -7,7 +7,7 @@ import {
   setBrowserPreviewScale,
 } from "./helpers";
 
-const DEVICE_SCALE_FACTORS = [1, 1.25, 1.5] as const;
+const DEVICE_SCALE_FACTORS = [1, 1.25, 1.5, 2] as const;
 const USER_SCALES = [
   { label: "90%" as const, value: 0.9 },
   { label: "100%" as const, value: 1 },
@@ -38,8 +38,8 @@ for (const deviceScaleFactor of DEVICE_SCALE_FACTORS) {
         await expect(page.getByRole("button", { name: "Maximize" })).toBeVisible();
         await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
 
-        // The ledger row is the operator's primary target, so it has to stay in
-        // the viewport at every DPI and zoom combination.
+        // The canvas is primary; List preserves the complete accessible ledger.
+        await page.getByTestId("execution-map").getByRole("button", { name: "List", exact: true }).click();
         const ledgerRow = page.locator(".ledger .row").first();
         await ledgerRow.scrollIntoViewIfNeeded();
         await expect(ledgerRow).toBeVisible();
@@ -63,7 +63,7 @@ for (const deviceScaleFactor of DEVICE_SCALE_FACTORS) {
         await page.getByRole("button", { name: /^Approvals inbox/ }).click();
         const inbox = page.getByRole("dialog", { name: "Approvals inbox" });
         await expect(inbox).toBeVisible();
-        await expect(inbox.getByRole("heading", { name: "Apply reviewed workspace changes" })).toBeVisible();
+        await expect(inbox.getByRole("heading", { name: "Review repository changes" })).toBeVisible();
 
         const evidence = inbox.locator(".evidence");
         const actions = inbox.locator(".actions");
@@ -79,7 +79,7 @@ for (const deviceScaleFactor of DEVICE_SCALE_FACTORS) {
         const reviewRun = inbox.getByRole("button", { name: "Review run" });
         await reviewRun.scrollIntoViewIfNeeded();
         await expect(reviewRun).toBeInViewport();
-        const approveAndApply = inbox.getByRole("button", { name: /Approve and apply/ });
+        const approveAndApply = inbox.getByRole("button", { name: "Review changes", exact: true });
         await approveAndApply.scrollIntoViewIfNeeded();
         await expect(approveAndApply).toBeInViewport();
       });

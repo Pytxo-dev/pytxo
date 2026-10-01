@@ -1,155 +1,52 @@
 ---
 title: First mission
-description: Run one natural-language mission without hand-writing [[task]] rows.
+description: Give Codex one small task, check the plan, and review the result in Desktop.
 ---
 
-You do not need to hand-write `[[task]]` rows to try Pytxo. One mission becomes
-an owned task plan, isolated agent work, and an immutable package for review.
+**Version note:** this Desktop walkthrough describes the unpublished **v1.2.2 preview**, not the current v1.2.1 download. Complete [Desktop setup](/docs/getting-started/desktop-setup) first.
 
-## Who this is for
+Start with one bug fix or one test in a repository you know. The preview uses one Codex worker, one repository, and the Orbit permission profile.
 
-You use a coding agent and want to review its exact changes before they reach
-your working repository. **One installed agent CLI is enough.** Pytxo adds
-isolated work, recorded task checks, an immutable review package, and guarded
-Apply. You can use several instances of the same CLI or add another vendor later.
+## 1. Describe the result
 
-## Prerequisites
+Open **Work → New work**. Confirm the repository and Codex, then enter a concrete request. For example, replace these paths with files that exist in your project:
 
-- For terminal workflows, `pytxo` on `PATH` (use the version on the [download page](/download)). Desktop includes its local core; the Pytxo CLI is optional.
-- At least one coding agent CLI on `PATH` (Claude Code, Codex, Cursor CLI, or OpenCode)
-- A Git repository you are willing to trust at Orbit (or higher)
-
-For Desktop, open the app, complete the agent setup step, and select your
-repository with **Add workspace**. Review its requested trust before proceeding.
-Use the [Desktop setup guide](/docs/getting-started/desktop-setup) if a prerequisite
-is missing. The following commands are the optional **terminal workflow**:
-
-```bash
-cd my-project
-pytxo trust orbit
-pytxo agents
+```text
+Add input validation in src/api.ts.
+Reject an empty name and cover it in test/api.test.ts.
 ```
 
-## Run a mission
+Name the expected behavior and the files the agent may change. If Pytxo cannot determine the file scope, make the request more specific.
 
-In **Pytxo Desktop → Work → New run**, choose your repository and installed,
-signed-in CLI. Pytxo selects a ready CLI automatically. Name the existing
-files or directories the agent should change; for example, adapt these paths
-to your repository:
+## 2. Check the plan
 
-```bash
-pytxo mission "Add input validation in src/api.ts and regression tests in test/api.test.ts"
-```
+Choose **Build plan**, then inspect:
 
-The default local planner uses explicit paths and repository structure. If it
-cannot determine ownership, it asks for a path instead of granting the whole
-repository. It does not automatically select skills or inspect screenshots.
+- **Agent:** Codex is installed and signed in.
+- **Files:** the allowed paths cover the task without including unrelated work.
+- **Checks:** the test or build commands are appropriate for the requested change.
+- **Blockers:** resolve anything shown before starting.
 
-In Desktop, **Fix a failure**, **Build a feature**, and **Add coverage** provide
-editable starting points. Replace every bracketed path and expected behavior
-before building a plan. **Check again** refreshes CLI readiness after you finish
-the vendor's sign-in flow. One ready CLI is enough; unavailable alternatives
-do not need to be installed.
+If no checks are detected, add a known working command under **Additional verification commands** and build the plan again. Do the same after changing the agent or configuration.
 
-Local planning does not call a model provider. Cloud planning is optional and
-requires the explicit process setting `PYTXO_PLANNER_LLM=1` and a configured
-BYOK or managed transport. It sends the mission and repository brief to that
-provider and can incur charges. An inherited API key alone does not enable it.
-Set `PYTXO_PLANNER=signal` or `PYTXO_PLANNER=heuristic` to keep planning local,
-even if a cloud-planner flag is present. Worker execution uses the selected
-agent CLI's own account and costs independently of the planning mode.
+Local planning does not call a model provider by default. Running Codex uses its own account and may incur provider charges. A missing cost estimate does not mean a run is free.
 
-Pytxo will:
+## 3. Run the task
 
-1. Detect available agents
-2. Propose tasks, paths, and execution stages (waves)
-3. Show predicted path overlaps and isolation mode in plain language
-4. Ask `Approve mission? [Y/n]` (use `--yes` to skip)
-5. Run agents in **isolated copies** of the repo (Blast)
-6. Keep overlapping path claims in **separate waves** (Race)
-7. Run the planned verification commands in each task's isolated workspace
-8. Persist the run contract and prepare an immutable review package
+Choose **Run**. Follow the task on **Work**. Select a worker to inspect its status or open its output. A worker saying it is finished is not a passing test result or a confirmed Apply.
 
-Preview only (no dispatch):
+## 4. Review the result
 
-```bash
-pytxo mission "…" --json
-```
+Choose **Review changes** from Work, or open the run from History.
 
-## Check the plan
+Read the prepared file changes and the checks recorded for the combined result. Checks run in a separate snapshot; dependencies, build outputs, or Git history may be excluded. A check that needs an excluded file must be addressed before treating the result as verified.
 
-Review task prompts, owned paths, dependencies, the selected CLI, and exact
-verification commands before starting. A passing task check applies to that
-task's workspace; it is not proof that a combined multi-task candidate passes.
-Run Review shows combined candidate checks separately. A version 3 package
-records the commands run against its combined candidate and the verification
-time. Older packages without that receipt show **Not verified**.
-The combined snapshot excludes the paths listed in its receipt, including Git
-metadata. Checks requiring Git history fail rather than inspect the primary
-repository. Excluded dependencies and build outputs are not attested; use
-verification commands that work from the included source.
-An unavailable cost estimate does not mean the vendor CLI is free.
+Choose **Apply** only when you accept the changes. If the source has changed since review, refresh the candidate and inspect the new result. Read [Review and Apply](/docs/getting-started/review-and-apply) for blocked or interrupted attempts.
 
-## Start the next job
+## Try another task
 
-In **Work → New run → Drafts**, choose **Use as new mission**. Pytxo restores
-the original workspace when it is available and restores a ready original CLI
-when recorded. An unavailable workspace or CLI requires a new selection.
-Check the visible choices and edit the outcome before building a fresh plan.
-Prior check results, approvals, and dispatch authority are not reused.
+Use **New work** for the next request. Saved requests can provide a starting point, but always confirm the repository, agent, paths, and new plan. Earlier checks and approvals do not carry over.
 
-Keep the next job bounded: for example, reproduce a second bug in the same
-module and add its regression test. This makes a second run useful without
-requiring additional agent accounts or another setup process.
+## Prefer the terminal?
 
-Desktop refuses plans with no verification commands. If your repository has
-no detected checks, define explicit tasks in `pytxo.toml` and rebuild. For
-example, a Windows Gradle plugin task can use:
-
-```toml
-[[task]]
-id = "plugin-change"
-agent = "agent-0"
-paths = ["src"]
-verify = [".\\gradlew.bat test", ".\\gradlew.bat build"]
-```
-
-Use commands that already work in your repository. Inspect the rebuilt task
-prompt as well: manifest tasks determine ownership, and your mission supplies
-the requested change. A built plugin jar still needs a server load check before
-you claim the plugin works in-game.
-
-## After the run
-
-Open **Pytxo Desktop → History**, select the run, and **Review package**. Run
-Review is the reviewed-package Apply surface for Orbit and Galaxy. It shows the
-exact prepared additions, modifications, and deletions. Before Apply, Pytxo
-checks the current preimage of every affected path and the included source
-inventory bound to verification. Changes to any included file make the review
-stale, including new operator files. Explicitly refresh to preserve those files
-and rerun checks against the updated base before reviewing and applying again.
-
-The `hitl` command manages Galaxy approval requests only:
-
-```bash
-pytxo hitl list
-pytxo hitl approve <id>
-# or use Pytxo Desktop → History → Review package → Apply
-```
-
-These commands do not initiate Apply. Orbit has no Galaxy HITL step; Orbit
-users review and Apply the prepared package in Run Review.
-
-Reviewed Apply covers Orbit and Galaxy in one execution domain and one
-repository root. DeepSpace is non-flushable. Supernova writes directly to the
-host tree.
-
-## Without agent CLIs
-
-Prove scheduling and isolation with the [collision demo](/docs/getting-started/first-three-agent-run) using `--cmd` echo (no paid model keys).
-
-## Learn more
-
-- [Collision demo](/docs/getting-started/first-three-agent-run)
-- [CLI reference](/docs/reference/cli)
-- [Three moats](/docs/concepts/three-moats)
+The [CLI reference](/docs/reference/cli) covers `pytxo mission`, previewing a plan, and running explicit tasks. The CLI has no Apply command. For a scheduling example without a model account, try the [collision demo](/docs/getting-started/first-three-agent-run).

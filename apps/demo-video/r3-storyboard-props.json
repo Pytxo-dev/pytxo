@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "kind": "r3-native-still-storyboard",
+  "candidate": {
+    "version": "1.2.2",
+    "msiSha256": "8b8e666b0354616c4f2c082917dd184a9aee8846614eb411444538be88f27883",
+    "executableSha256": "ffc6dccd75cacf193b46af4bbae9fed329c4f5ab8d9e4f457f754213a32154bc",
+    "runId": "a180a916-023b-4ada-99ad-7e7d20bb8cd4",
+    "packageDigest": "350cbbc5810f375152c9eb098ecfd840503adc73d0b0601c93c1fb5c32e29f85"
+  },
+  "evidenceBoundary": {
+    "continuousFootage": false,
+    "pointerMotion": false,
+    "native4kSource": false,
+    "label": "R3 storyboard · exact native stills · motion capture pending"
+  },
+  "assets": [
+    {
+      "key": "running",
+      "path": "product/r3-storyboard/r3-running.jpg",
+      "sha256": "97ee5b0167060595305f03cec24facb0446918fbde68ed734b632f30493174d7",
+      "width": 1282,
+      "height": 802
+    },
+    {
+      "key": "completed",
+      "path": "product/r3-storyboard/r3-completed.jpg",
+      "sha256": "0201a133d2b2229e52a60ce2af25fafbffaea216846a29d731aa211ab18e2996",
+      "width": 1282,
+      "height": 802
+    },
+    {
+      "key": "review",
+      "path": "product/r3-storyboard/r3-review.jpg",
+      "sha256": "dbba16b8b44e0ec42d7c45f4e891ee9e1c09945a2e37d77c9e7ac072ccd44ff0",
+      "width": 1282,
+      "height": 802,
+      "privacyMasks": [
+        {
+          "x": 203,
+          "y": 158,
+          "width": 845,
+          "height": 22,
+          "label": "Disposable validation workspace"
+        }
+      ]
+    },
+    {
+      "key": "applied",
+      "path": "product/r3-storyboard/r3-applied.jpg",
+      "sha256": "ca5612548a09b21b6edbb89c906310c69277133c4db0a372dc7aed07a2c88e6b",
+      "width": 1282,
+      "height": 802,
+      "privacyMasks": [
+        {
+          "x": 203,
+          "y": 158,
+          "width": 845,
+          "height": 22,
+          "label": "Disposable validation workspace"
+        }
+      ]
+    }
+  ]
+}

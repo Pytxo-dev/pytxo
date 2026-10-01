@@ -8,7 +8,7 @@ import { pageMetadata } from "@/lib/page-metadata";
 export const metadata = pageMetadata(
   "/plans",
   "Plans · Pytxo",
-  "Pytxo Core is available now. Paid entitlements are capability-gated while Link, cloud dispatch, and managed metering mature.",
+  "Pytxo Core is available now. Cloud and Teams are not a default hosted product.",
 );
 
 const ROADMAP = [
@@ -17,56 +17,24 @@ const ROADMAP = [
     status: "Available now",
     statusVariant: "default" as const,
     highlights: [
-      "Local Rust core + native Desktop",
-      "Tree-sitter scaffolding",
-      "One or more existing agent CLIs",
+      "Local Rust core; Windows Desktop MSI",
+      "CLI on Windows, macOS, and Linux",
+      "Your existing agent CLI; no Pytxo account",
     ],
     detail:
       "Run and review local repository work without a Pytxo account. Agent subscriptions or API usage are billed by your chosen provider. Public downloads are available from the releases repository.",
-    plan: null as null,
-    ctaLabel: null as null,
   },
   {
-    name: "Pytxo Pro Cloud",
-    status: "Capability-gated",
+    name: "Cloud / Teams",
+    status: "Not a default hosted product",
     statusVariant: "secondary" as const,
     highlights: [
-      "Higher local agent limits",
-      "Link entitlements when configured",
-      "Cloud context cache roadmap",
+      "Configured deployments only",
+      "Link, cloud dispatch, and metering when those services exist",
+      "No public subscription checkout",
     ],
     detail:
-      "Checkout provisions the Pro entitlement. Link routing and cloud caching still require their services to be configured.",
-    plan: "pro" as const,
-    ctaLabel: "Subscribe to Pro",
-  },
-  {
-    name: "Pytxo Max Swarm",
-    status: "Configured deployments",
-    statusVariant: "secondary" as const,
-    highlights: [
-      "Higher local swarm limits",
-      "Cloud dispatch when configured",
-      "Sandbox service when configured",
-    ],
-    detail:
-      "Cloud execution is not a default hosted service yet. It works only in deployments with a configured cloud dispatcher.",
-    plan: "max" as const,
-    ctaLabel: "Subscribe to Max",
-  },
-  {
-    name: "Pytxo Ultra",
-    status: "Local ledger available",
-    statusVariant: "secondary" as const,
-    highlights: [
-      "Local wallet and usage ledger",
-      "Managed transport when configured",
-      "Link reconciliation target",
-    ],
-    detail:
-      "Ultra mode includes local metering hooks. Managed inference and Link reconciliation are not end-to-end on the default path.",
-    plan: "ultra" as const,
-    ctaLabel: "Subscribe to Ultra",
+      "Cloud execution and team entitlements are not a default hosted product. They work only in deployments that already have those services configured. Local Core does not require checkout.",
   },
 ] as const;
 
@@ -78,30 +46,17 @@ export default function PlansPage() {
           Plans and availability
         </h1>
         <p className="max-w-2xl text-lg text-muted-foreground">
-          Core works today. Paid entitlements are available, while cloud dispatch and managed
-          metering remain capability-gated.
+          Core works today on your machine without checkout. Cloud and Teams require
+          a deployment with those services configured.
         </p>
         <div className="mt-2 flex flex-wrap gap-3">
           <Button size="lg" asChild>
             <Link href="/download">Download Pytxo</Link>
           </Button>
-          {SITE_AUTH_ENABLED ? (
-            <Button size="lg" variant="outline" className="border-border" asChild>
-              <Link href="/account">Sign in</Link>
-            </Button>
-          ) : null}
         </div>
       </div>
 
-      <div className="mt-16 border-t border-border pt-10">
-        <h2 className="text-2xl font-semibold tracking-tight">Availability by tier</h2>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Checkout provisions a Pytxo entitlement through MBCZ. Runtime availability still
-          depends on the configured Link, cloud, and proxy services.
-        </p>
-      </div>
-
-      <div data-testid="plans-grid" className="mt-8 grid gap-4 md:grid-cols-2">
+      <div data-testid="plans-grid" className="mt-16 grid gap-4 md:grid-cols-2">
         {ROADMAP.map((tier) => (
           <div key={tier.name} data-testid="plan-cell" className="flex flex-col gap-3">
             <PlanRoadmapCard
@@ -111,27 +66,26 @@ export default function PlansPage() {
               highlights={tier.highlights}
               detail={tier.detail}
             />
-            {tier.plan && SITE_AUTH_ENABLED ? (
-              <Button className="w-full" asChild>
-                <Link href={`/api/billing/checkout-redirect?plan=${tier.plan}`}>
-                  {tier.ctaLabel}
-                </Link>
-              </Button>
-            ) : tier.plan ? (
-              <Button className="w-full" disabled>
-                Account checkout not configured
-              </Button>
-            ) : null}
           </div>
         ))}
       </div>
+
+      {SITE_AUTH_ENABLED ? (
+        <p className="mt-8 text-sm text-muted-foreground">
+          Already have access through a configured Cloud or Teams deployment?{" "}
+          <Link href="/account" className="font-medium text-foreground underline underline-offset-4 hover:text-primary">
+            View your account entitlements
+          </Link>
+          .
+        </p>
+      ) : null}
 
       <p className="mt-12 text-sm text-muted-foreground">
         See{" "}
         <Link href="/docs/concepts/what-is-pytxo" className="text-primary hover:underline">
           what is Pytxo
         </Link>{" "}
-        for the product model.
+        for the product model and current boundaries.
       </p>
     </div>
   );

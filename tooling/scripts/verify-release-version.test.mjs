@@ -27,9 +27,9 @@ async function fixture(versions) {
   await writeFile(path.join(root, "apps", "demo-video", "package.json"), JSON.stringify({ version: versions.demo }));
   await writeFile(path.join(root, "apps", "demo-video", "package-lock.json"), JSON.stringify({ version: versions.demoLock ?? versions.demo, packages: { "": { version: versions.demoLock ?? versions.demo } } }));
   await writeFile(path.join(root, "packages", "pytxo", "package.json"), JSON.stringify({ version: versions.npm }));
-  await writeFile(path.join(root, "apps", "web", "src", "lib", "site.ts"), `export const PYTXO_VERSION = "${versions.web ?? versions.rust}";\n`);
+  await writeFile(path.join(root, "apps", "web", "src", "lib", "site.ts"), `export const PUBLISHED_VERSION = "${versions.publicRelease ?? versions.rust}";\nexport const CANDIDATE_VERSION = "${versions.web ?? versions.rust}";\nexport const PYTXO_VERSION = PUBLISHED_VERSION;\n`);
   await writeFile(path.join(root, "distribution", "pytxo-releases", "install.ps1"), `throw "(v${versions.installer ?? versions.rust} provides Windows x64)"\n`);
-  await writeFile(path.join(root, "README.md"), `npm i -g pytxo@${versions.readme ?? versions.rust}\n`);
+  await writeFile(path.join(root, "README.md"), `npm i -g pytxo@${versions.readme ?? versions.publicRelease ?? versions.rust}\n`);
   await writeFile(path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"), `This source candidate targets **${versions.changelog ?? versions.rust}**.\nThe latest public release is **${versions.publicRelease ?? versions.rust}**.\n`);
   await writeFile(path.join(root, "distribution", "release-notes", `v${versions.rust}.md`), `# Pytxo v${versions.releaseNotes ?? versions.rust}\n`);
   return root;
@@ -83,6 +83,26 @@ test("validates the candidate independently of the older published release", asy
   const root = await fixture({ rust: "1.2.2", desktop: "1.2.2", tauri: "1.2.2", demo: "1.2.2", npm: "1.2.2", publicRelease: "1.2.1" });
   const actual = await verifyReleaseVersion(root);
   assert.equal(actual.changelog, "1.2.2");
+  assert.equal(actual.web, "1.2.2");
+  assert.equal(actual.published, "1.2.1");
+  assert.equal(actual.readme, "1.2.1");
+});
+
+test("rejects README install instructions that advertise an unpublished candidate", async () => {
+  const root = await fixture({ rust: "1.2.2", desktop: "1.2.2", tauri: "1.2.2", demo: "1.2.2", npm: "1.2.2", publicRelease: "1.2.1", readme: "1.2.2" });
+  await assert.rejects(() => verifyReleaseVersion(root), /Published version must be 1\.2\.1; found readme=1\.2\.2/);
+});
+
+test("rejects a download alias that points at the candidate", async () => {
+  const root = await fixture({ rust: "1.2.2", desktop: "1.2.2", tauri: "1.2.2", demo: "1.2.2", npm: "1.2.2" });
+  await writeFile(path.join(root, "apps", "web", "src", "lib", "site.ts"), 'export const PUBLISHED_VERSION = "1.2.1";\nexport const CANDIDATE_VERSION = "1.2.2";\nexport const PYTXO_VERSION = CANDIDATE_VERSION;\n');
+  await assert.rejects(() => verifyReleaseVersion(root), /download alias must use PUBLISHED_VERSION/);
+});
+
+test("does not substitute the published tag for a missing website candidate", async () => {
+  const root = await fixture({ rust: "1.2.2", desktop: "1.2.2", tauri: "1.2.2", demo: "1.2.2", npm: "1.2.2" });
+  await writeFile(path.join(root, "apps", "web", "src", "lib", "site.ts"), 'export const PUBLISHED_VERSION = "1.2.2";\nexport const PYTXO_VERSION = PUBLISHED_VERSION;\n');
+  await assert.rejects(() => verifyReleaseVersion(root), /Missing web source candidate version/);
 });
 
 test("rejects a stale candidate even when the published version matches", async () => {

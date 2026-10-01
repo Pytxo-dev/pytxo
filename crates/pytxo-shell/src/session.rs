@@ -143,8 +143,19 @@ impl ShellSession {
                 agents,
                 cmd,
                 keep_worktrees,
-                ..
-            } => self.dispatch_run(agents, cmd, keep_worktrees).await,
+                ade,
+            } => {
+                if let Some(id) = ade {
+                    if let Some(spec) = pytxo_core::resolve_ade(&id) {
+                        if !pytxo_core::ade_can_dispatch(spec) {
+                            return vec![ShellEvent::Error(format!(
+                                "ADE {id} is detection-only until its permission model is mapped"
+                            ))];
+                        }
+                    }
+                }
+                self.dispatch_run(agents, cmd, keep_worktrees).await
+            }
             SlashCommand::Logs { agent, tail } => {
                 match logs(
                     self.config_path.clone(),
@@ -194,6 +205,9 @@ impl ShellSession {
 
     fn handle_use(&mut self, ade: &str) -> Vec<ShellEvent> {
         match pytxo_core::resolve_ade(ade) {
+            Some(spec) if !pytxo_core::ade_can_dispatch(spec) => vec![ShellEvent::Error(format!(
+                "ADE {ade} is detection-only until its permission model is mapped"
+            ))],
             Some(spec) => {
                 self.default_cmd = spec.default_cmd.to_string();
                 vec![ShellEvent::Output(format!(
@@ -390,5 +404,16 @@ mod tests {
         assert!(dry
             .iter()
             .any(|e| matches!(e, ShellEvent::PlanPreview(s) if s.contains("waves"))));
+    }
+
+    #[test]
+    fn detection_only_harness_cannot_become_the_default() {
+        let mut session = ShellSession::new(None, Some(std::env::current_dir().unwrap())).unwrap();
+        let previous = session.default_cmd.clone();
+        let events = session.handle_use("qwen");
+        assert!(events.iter().any(
+            |event| matches!(event, ShellEvent::Error(message) if message.contains("detection-only"))
+        ));
+        assert_eq!(session.default_cmd, previous);
     }
 }

@@ -37,8 +37,7 @@
   import { SETTINGS_GROUPS, SETTINGS_SECTIONS, settingsSectionMatches } from "../../lib/settings-catalog";
   import { setReducedMotion, setUiDensity, setUiScale, UI_SCALES, uiPrefs } from "../../lib/ui-prefs.svelte";
   import { ipc, onAuthChanged } from "../../lib/ipc";
-  import { check, type Update } from "@tauri-apps/plugin-updater";
-  import { relaunch } from "@tauri-apps/plugin-process";
+  import UpdateControls from "../shell/UpdateControls.svelte";
 
   const VOICE_CAPTURE_KEY = "pytxo-desktop-voice-capture-v1";
   const VOICE_CONSENT_KEY = "pytxo-desktop-voice-cloud-consent-v1";
@@ -60,7 +59,7 @@
 
   const PROFILES = [
     { id: "deep_space", label: "DeepSpace", hint: "Air-gapped cwd reads" },
-    { id: "orbit", label: "Orbit", hint: "Default; approve-to-flush" },
+    { id: "orbit", label: "Orbit", hint: "Review before Apply" },
     { id: "galaxy", label: "Galaxy", hint: "Host tools + HITL" },
     { id: "supernova", label: "Supernova", hint: "Full host privileges" },
   ] as const;
@@ -109,7 +108,7 @@
   let section = $state<SettingsSectionId>(loadSettingsSection());
   let settingsHeading: HTMLElement | undefined = $state();
   $effect(() => {
-    if (section && settingsHeading) settingsHeading.closest<HTMLElement>(".content")?.scrollTo({ top: 0, behavior: "instant" });
+    if (section && settingsHeading) settingsHeading.closest<HTMLElement>(".settings-main")?.scrollTo({ top: 0, behavior: "instant" });
   });
   let theme = $state<DeckTheme>(loadTheme());
   let accent = $state<AccentPreset>(loadAccent());
@@ -127,17 +126,12 @@
   });
   let defaultProfile = $state<string>("orbit");
   let openBehavior = $state<"last" | "picker">("last");
-  let updateChecking = $state(false);
-  let updateInstalling = $state(false);
-  let pendingUpdate = $state<Update | null>(null);
-  let updateMessage = $state("");
   let closeToTray = $state(true);
   let providers = $state<ProviderStatusDto[]>([]);
   let providersLoading = $state(false);
   let providersError = $state("");
   let showAllProviders = $state(false);
   let copiedProviderEnv = $state("");
-
   let routingCredentialPresent = $state(false);
   let routingBridgeAvailable = $state(false);
   let routingAccountId = $state<string | null>(null);
@@ -184,9 +178,6 @@
       if (active) unlisten = stop;
       else stop();
     });
-    return () => { active = false; unlisten?.(); clearInterval(verifyTimer); };
-  });
-  onMount(() => {
     if (typeof localStorage === "undefined") return;
     const capture = localStorage.getItem(VOICE_CAPTURE_KEY);
     if (capture === "both" || capture === "hold" || capture === "click") voiceCapture = capture;
@@ -199,6 +190,7 @@
       closeToTray = v;
     });
     void refreshProviders();
+    return () => { active = false; unlisten?.(); clearInterval(verifyTimer); };
   });
 
   async function refreshRoutingAccount() {
@@ -349,51 +341,6 @@
     onAuthChange();
   }
 
-  function isBenignUpdaterError(message: string): boolean {
-    const lower = message.toLowerCase();
-    return (
-      lower.includes("release json") ||
-      lower.includes("could not fetch") ||
-      lower.includes("network") ||
-      lower.includes("404") ||
-      lower.includes("not found") ||
-      lower.includes("disabled")
-    );
-  }
-
-  async function checkForUpdates() {
-    updateChecking = true;
-    updateMessage = "";
-    pendingUpdate = null;
-    try {
-      const found = await check();
-      if (found) {
-        pendingUpdate = found;
-        updateMessage = `Update available: v${found.version}`;
-      } else {
-        updateMessage = "You're on the latest version.";
-      }
-    } catch (e) {
-      const msg = String(e);
-      updateMessage = isBenignUpdaterError(msg)
-        ? "No update channel available yet."
-        : msg;
-    } finally {
-      updateChecking = false;
-    }
-  }
-
-  async function installPendingUpdate() {
-    if (!pendingUpdate) return;
-    updateInstalling = true;
-    try {
-      await pendingUpdate.downloadAndInstall();
-      await relaunch();
-    } catch (e) {
-      updateMessage = String(e);
-      updateInstalling = false;
-    }
-  }
 </script>
 
 <div class="settings-viewport">
@@ -440,6 +387,7 @@
   </div>
 
   <div class="settings-main">
+    <div class="settings-content">
     <header class="settings-heading" bind:this={settingsHeading}>
       <div>
         <h1>Setup</h1>
@@ -465,6 +413,10 @@
             onclick={() => void setCloseToTray(!closeToTray)}
           ><i></i></button>
         </div>
+      </article>
+      <article class="settings-group">
+        <h2>Desktop updates</h2>
+        <div class="updater-settings"><UpdateControls /></div>
       </article>
     {:else if section === "appearance"}
       <article class="settings-group">
@@ -638,9 +590,11 @@
     {:else if section === "agents"}
       {#if agentsCatalog}<div class="embedded-catalog">{@render agentsCatalog()}</div>{/if}
       <article class="settings-group">
-        <h2>Permission profile</h2>
+        <h2>Default permissions</h2>
         <div class="setting-row stack">
-          <div><strong>Default for newly trusted folders</strong><small>Applied when you trust a workspace. Galaxy queues high-risk actions for HITL approval.</small></div>
+          <div><strong>{PROFILES.find(p => p.id === defaultProfile)?.label ?? "Orbit"} for new folders</strong><small>Orbit is the beta starting point. Existing workspace permissions stay unchanged.</small></div>
+          <details class="permission-options">
+            <summary>Change default permissions</summary>
           <div class="profile-grid">
             {#each PROFILES as p (p.id)}
               <button class:active={defaultProfile === p.id} aria-pressed={defaultProfile === p.id} onclick={() => setDefaultProfile(p.id)}>
@@ -649,6 +603,7 @@
               </button>
             {/each}
           </div>
+          </details>
         </div>
       </article>
     {:else if section === "voice"}
@@ -701,26 +656,11 @@
         {#if cliMissing}
           <div class="setting-row"><div><strong>Pytxo CLI</strong><small>Not detected on PATH. Terminal parity and MCP tools need it.</small></div><strong>Missing</strong></div>
         {/if}
-        <div class="setting-row">
-          <div>
-            <strong>Updates</strong>
-            <small>{updateMessage || "Check GitHub releases for a newer Desktop build."}</small>
-          </div>
-          <div class="row-actions">
-            <button class="quiet" disabled={updateChecking || updateInstalling} onclick={() => void checkForUpdates()}>
-              {updateChecking ? "Checking…" : "Check for updates"}
-            </button>
-            {#if pendingUpdate}
-              <button class="quiet" disabled={updateInstalling} onclick={() => void installPendingUpdate()}>
-                {updateInstalling ? "Installing…" : "Restart to update"}
-              </button>
-            {/if}
-          </div>
-        </div>
         <div class="setting-row"><div><strong>Onboarding</strong><small>Replay the welcome flow, including CLI, account, and workspace checks.</small></div><button class="quiet" onclick={onReplayOnboarding}>Run onboarding again</button></div>
         <div class="setting-row"><div><strong>Community</strong><small>Ask questions, report issues, and follow releases with other Pytxo users.</small></div><a class="quiet" href="https://discord.gg/AUFRPFjSYv" target="_blank" rel="noopener noreferrer">Open Discord</a></div>
       </article>
     {/if}
+    </div>
   </div>
 
   {#if showCloudConsent}
@@ -749,20 +689,20 @@
 </div>
 
 <style>
-  .settings-viewport { container-type: inline-size; min-width: 0; min-height: 100%; }
+  .settings-viewport { container-type: inline-size; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
   .compact-section { display: none; }
   .settings-screen {
     display: grid;
     grid-template-columns: 188px minmax(0, 1fr);
-    min-height: 100%;
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
     position: relative;
   }
   .settings-rail {
-    position: sticky;
-    top: 0;
-    align-self: start;
-    height: calc(100dvh - 90px);
+    min-height: 0;
     overflow: auto;
+    overscroll-behavior: contain;
     box-sizing: border-box;
     border-right: 1px solid var(--pytxo-line, #1e2026);
     padding: 16px 12px;
@@ -775,6 +715,9 @@
      section body rather than reading as a nested screen. */
   .embedded-catalog {
     display: contents;
+  }
+  .embedded-catalog + .settings-group {
+    margin-top: 14px;
   }
   .search {
     display: flex;
@@ -876,10 +819,21 @@
     font-weight: 600;
   }
   .settings-main {
-    padding: 24px clamp(16px, 3cqi, 32px) 32px;
     container-type: inline-size;
-    max-width: 760px;
+    width: 100%;
+    box-sizing: border-box;
     min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scroll-padding-block: 24px;
+  }
+  .settings-content {
+    width: 100%;
+    max-width: 960px;
+    box-sizing: border-box;
+    padding: 24px 12px 32px clamp(16px, 3cqi, 32px);
   }
   .settings-heading {
     margin-bottom: 18px;
@@ -930,13 +884,16 @@
     padding: 12px 16px;
     border-top: 1px solid color-mix(in oklab, var(--pytxo-line, #1e2026) 80%, transparent);
   }
+  .updater-settings { padding: 12px 16px; border-top: 1px solid var(--pytxo-line); }
   .setting-row.stack {
     flex-direction: column;
     align-items: stretch;
   }
+  .permission-options { width: 100%; }
+  .permission-options > summary { cursor: pointer; padding: 8px 0; font-size: 13px; color: var(--pytxo-text-soft); }
   .setting-row strong {
     display: block;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 550;
     color: var(--pytxo-text-strong);
   }
@@ -944,14 +901,8 @@
     display: block;
     margin-top: 3px;
     color: var(--pytxo-text-muted);
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.55;
-  }
-  .row-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: flex-end;
   }
   .settings-screen .segmented {
     display: inline-flex;
@@ -1124,12 +1075,12 @@
     padding: 0;
     border: 0;
     background: transparent;
-    color: #7e8792;
-    font-size: 11px;
+    color: var(--pytxo-text-soft);
+    font-size: 12px;
     cursor: pointer;
   }
   .provider-env:hover:not(:disabled) {
-    color: #a4eee0;
+    color: var(--pytxo-text-strong);
   }
   .provider-env:focus-visible {
     outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
@@ -1270,18 +1221,17 @@
     max-width: 420px;
   }
   @container (max-width: 720px) {
-    .settings-screen { grid-template-columns: minmax(0,1fr); }
+    .settings-screen { grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr); }
     .settings-rail { position: static; height: auto; display: grid; grid-template-columns: minmax(0,1fr) minmax(160px,1fr); align-items: end; border-right: 0; border-bottom: 1px solid var(--pytxo-line); padding: 12px 16px; }
     .settings-rail nav { display: none; }
     .compact-section { display: flex; flex-direction: column; gap: 4px; color: var(--pytxo-text-muted); font-size: 11px; min-width: 0; }
     .compact-section select { min-width: 0; width: 100%; min-height: 40px; padding: 0 28px 0 10px; border: 1px solid var(--pytxo-line); border-radius: 6px; background-color: var(--pytxo-surface-input); color: var(--pytxo-text-strong); font: inherit; font-size: 13px; }
     .search-summary, .search-help { grid-column: 1/-1; }
-    .settings-main { padding: 20px 16px; }
+    .settings-content { padding: 20px 16px; }
   }
   @container (max-width: 440px) {
     .setting-row { flex-wrap: wrap; gap: 10px; }
     .setting-row > div:first-child { flex: 1 1 180px; min-width: 0; }
-    .setting-row .row-actions { justify-content: flex-start; }
     .settings-group .segmented { flex-wrap: wrap; max-width: 100%; }
     .accent-swatches { flex-wrap: wrap; }
   }

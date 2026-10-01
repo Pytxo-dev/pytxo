@@ -1,0 +1,32 @@
+---
+title: Pytxo and Factory
+description: A local commit layer compared with Factory’s Software Factory across the delivery lifecycle.
+---
+
+[Factory Software Factory](https://docs.factory.ai/software-factory/overview) is an org-level system that connects agents across the software delivery lifecycle: triage, code-gen, validate, release, document, and monitor. In the Factory App it is a coverage map for automations, repository gates, and integrations such as GitHub, Slack, Linear, and GitLab. Factory documents Software Factory as Private Preview.
+
+Pytxo is not an org software factory. It coordinates the coding-agent CLIs you already run locally, prepares one immutable review package for a repository root, and waits for Review → Apply.
+
+## Practical differences
+
+| | Factory Software Factory | Pytxo |
+|---|--------------------------|-------|
+| Job | SDLC automation coverage for a team | Local commit layer for installed CLIs |
+| Scope | Intake through monitoring across repos | One execution domain, one repository Apply |
+| Agents | Factory Droids and connected workflows | Claude Code, Codex, Cursor Agent, and other CLIs you install |
+| Review | Stage gates, PR validation, security and QA automations | Exact stored bytes in Desktop Run Review |
+| Availability | Private Preview; contact Factory for access | Public CLI; Windows Desktop MSI |
+
+## Choose Factory when
+
+- You want a single view of triage, code-gen, validate, release, docs, and incident automations.
+- Repository coverage and merge-gate metrics are the operating model.
+- An org software factory is the product you are buying, not a local scheduler.
+
+## Choose Pytxo when
+
+- Heterogeneous CLIs on the operator’s machine are the workers.
+- The control boundary is exact-byte Apply for one repository root.
+- You do not need Factory’s SDLC coverage map.
+
+Pytxo does not claim Factory’s stage health, AutoWiki, or incident-response coverage. Factory does not claim Pytxo’s reviewed Apply journal. Use [docs.factory.ai](https://docs.factory.ai/software-factory/overview) for Factory’s current preview status.
