@@ -160,7 +160,8 @@ impl MissionPlanner for HeuristicPlanner {
             let paths = infer_paths_from_chunk(part, ctx.repo);
             if paths.is_empty() {
                 bail!(
-                    "planner could not determine safe ownership paths for task {id}: {part}. Name a repo-relative file or directory"
+                    "planner could not determine safe ownership paths for task {id}: {}. Name a repo-relative file or directory.",
+                    part.trim_end_matches('.')
                 );
             }
             task_prompts.insert(id.0.clone(), part.to_string());
@@ -330,8 +331,9 @@ impl MissionPlanner for SignalBackedPlanner {
             let paths = chunk_paths[i].clone();
             if paths.is_empty() {
                 bail!(
-                    "planner could not determine safe ownership paths for task {}: {part}. Name a repo-relative file or directory",
-                    task_ids[i].0
+                    "planner could not determine safe ownership paths for task {}: {}. Name a repo-relative file or directory.",
+                    task_ids[i].0,
+                    part.trim_end_matches('.')
                 );
             }
             let mut depends_on = infer_depends_on(i, &paths, &chunk_paths, &graph.edges, &task_ids);
@@ -436,14 +438,16 @@ fn infer_paths_from_chunk(chunk: &str, repo: &Path) -> Vec<String> {
     let mut out = Vec::new();
     let mut seen = HashSet::new();
     for token in chunk.split_whitespace() {
-        let cleaned = token.trim_matches(|c: char| {
-            !c.is_alphanumeric() && c != '.' && c != '/' && c != '-' && c != '_'
-        });
-        // A sentence-ending period is prose punctuation, not part of a path.
-        // This matters on Windows, where `README.md.` resolves to `README.md`
-        // and would otherwise survive the existence check with the wrong
-        // reader-facing claim.
-        let cleaned = cleaned.trim_end_matches('.');
+        // Keep a leading `.` for dotfiles, but treat any trailing `.` as prose
+        // punctuation in whatever order it follows quotes or backticks
+        // (`README.md`. or "README.md."). This matters on Windows, where
+        // `README.md.` resolves to `README.md` and would otherwise survive the
+        // existence check with the wrong reader-facing claim.
+        let cleaned = token
+            .trim_start_matches(|c: char| {
+                !c.is_alphanumeric() && !matches!(c, '.' | '/' | '-' | '_')
+            })
+            .trim_end_matches(|c: char| !c.is_alphanumeric() && !matches!(c, '/' | '-' | '_'));
         if cleaned.len() < 3 {
             continue;
         }
@@ -1380,6 +1384,34 @@ paths = ["src/app.ts"]
             Some(v) => std::env::set_var("PYTXO_PLANNER", v),
             None => std::env::remove_var("PYTXO_PLANNER"),
         }
+    }
+
+    #[test]
+    fn guided_example_mission_resolves_backticked_paths_before_sentence_periods() {
+        // The exact first mission shipped in examples/pytxo-first-mission/README.md.
+        let dir = tempfile::tempdir().unwrap();
+        for file in [
+            "src/risk-policy.mjs",
+            "test/risk-policy.test.mjs",
+            "README.md",
+        ] {
+            let path = dir.path().join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "// fixture\n").unwrap();
+        }
+        let cfg = PytxoConfig::default();
+        let plan = SignalBackedPlanner.decompose(&MissionSpec { text:
+            "Add concise risk summaries for network and destructive command changes in `src/risk-policy.mjs`; add regression tests in `test/risk-policy.test.mjs`; document two examples in `README.md`. Keep the existing `classifyChange` API.".into()
+        }, &PlannerContext { repo: dir.path(), config: &cfg }).unwrap();
+        let paths: Vec<_> = plan.tasks.iter().map(|task| task.paths.clone()).collect();
+        assert_eq!(
+            paths,
+            vec![
+                vec!["src/risk-policy.mjs".to_string()],
+                vec!["test/risk-policy.test.mjs".to_string()],
+                vec!["README.md".to_string()],
+            ]
+        );
     }
 
     #[test]

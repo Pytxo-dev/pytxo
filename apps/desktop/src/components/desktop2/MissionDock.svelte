@@ -576,5 +576,10 @@
   .layout-options-footer button { white-space: nowrap; justify-content: center; width: auto; flex: 1; }
   .workspace-tools.tools-folded { position: absolute; top: 8px; right: 12px; z-index: 3; min-height: 28px; padding: 0; border: 0; justify-content: flex-end; }
   .workspace-tools.tools-folded>:not(.tools-toggle) { display: none; }
-  .workspace-tools>.tools-toggle { min-height: 28px; font-size: 11px; color: var(--pytxo-text-muted); }
+  .workspace-tools>.tools-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; font-size: 11px; color: var(--pytxo-text-muted); }
+  .workspace-tools>.tools-toggle:hover { color: var(--foreground); }
+  /* Disclosure chevron so the toggle reads as a control, not an orphan label. */
+  .workspace-tools>.tools-toggle::after { content: ""; width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform 150ms ease; }
+  .workspace-tools>.tools-toggle[aria-expanded="true"]::after { transform: translateY(1px) rotate(-135deg); }
+  @media (prefers-reduced-motion: reduce) { .workspace-tools>.tools-toggle::after { transition: none; } }
 </style>

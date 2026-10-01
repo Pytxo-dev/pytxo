@@ -23,9 +23,10 @@
 <SetupStepFrame>
   <h2 class="title">Desktop setup complete</h2>
   <p class="lead">Describe what you want to build or fix. Pytxo will help you plan the work, follow your agents, and review their changes.</p>
-  <p class="lead">Choose a project and a ready coding agent to start. You can finish those steps in Setup.</p>
   {#if workspacePath}
     <code class="path" title={workspacePath}>{displayPath(workspacePath)}</code>
+  {:else}
+    <p class="lead">Choose a project and a ready coding agent to start. You can finish those steps in Setup.</p>
   {/if}
   {#if onDisplay}<Button variant="outline" onclick={onDisplay}>Adjust display</Button>{/if}
   {#snippet actions()}<Button onclick={enter}>Enter Pytxo Desktop</Button>{/snippet}

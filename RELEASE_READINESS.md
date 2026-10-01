@@ -1,5 +1,63 @@
 # Pytxo v1.2.2 release readiness
 
+## October 1 — consolidated source, full local gates, native failure-path proof
+
+**Decision: NOT READY for public Beta; locally green.** Source state is
+`6c0eb57` (`codex/beta-candidate-verification`) plus the uncommitted Beta work
+imported from the main checkout, plus this session's fixes, on branch
+`mbcz/pytxo-beta-release-4f320c`. Nothing was committed, pushed or published.
+
+Fixes made and covered:
+
+- Planner: the guided example's own first mission failed planning because
+  `` `README.md`. `` kept a backtick after the sentence period was stripped.
+  Trailing prose punctuation is now trimmed in any order (regression test
+  reproduces the shipped mission); the error no longer prints a double period.
+- Failed runs now name the failed task and the agent's last reported error via
+  a new `agent_failure_hint` IPC (ConPTY wrap-aware, bounded to 240 chars,
+  advisory only). Previously Work said only "Open details", and Details did not
+  contain the cause.
+- A starting run no longer shows "Checks could not be loaded: … no
+  review/apply contract".
+- Review: blocked-Apply reason shown once beside Apply (was duplicated);
+  file-row status badges aligned; sentence-case digest disclosure; one-line
+  "Prepared files" label. Work: empty-state heading no longer squeezed into the
+  glyph column. Setup rail fits "Agents & permissions". Sidebar account label
+  fits. Shortcut hints show `Ctrl` on Windows instead of `Ctrl/⌘`. Onboarding
+  Ready step no longer says "choose a project" after one was chosen. "New run"
+  copy updated to "New work" in the guided example and first-mission guide.
+- Clippy (Rust 1.98 `chunks_exact_to_as_chunks`) and rustfmt failures fixed;
+  routing-attempts e2e selects History rows by `data-run-id`.
+- `build-windows-desktop.mjs` honors `CARGO_TARGET_DIR`.
+
+Verification (all exit 0 unless noted):
+
+| Gate | Result |
+|------|--------|
+| `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings` | PASS |
+| `cargo test --workspace` | 1072 pass; 30 runner/orchestrate failures were the unset `PYTXO_TEST_ATTEMPT_HOST` pin. With CI's pinned helper: runner+orchestrate 503/503 |
+| Planner / desktop-native (`pytxo-desktop`) | 36/36, 74/74 |
+| Desktop `npm run check` (svelte-check + stylelint) | 0 errors, 0 warnings |
+| Desktop production-preview e2e | 401/401 after the selector fix; failure-cause spec 2/2; dev suite 1/1 |
+| Desktop `@performance` | 4/4 idle; one 53 ms long task only under concurrent build load |
+| Web lint, 167 links, 27 product assets, production build (63 pages) | PASS |
+| Web e2e (system Chrome) | 32/32 (sitemap spec passed on idle retry) |
+| `npm run build:msi` | PASS; MSI `2024CA88…D64E`, payload EXE `D543CC21…0EF2`; unsigned |
+
+Native (extracted MSI payload, isolated `PYTXO_HOME`, trust store and WebView2
+profile, CDP; 1280×800 at 125%): fresh onboarding detected Codex as Ready,
+created the guided example, built a 3-step plan (README task now resolves) and
+dispatched Orbit/`projfs-sparse-copy-v2`. Codex 0.144.4 then exited 1 because
+the host's `~/.codex/config.toml` selects `gpt-6.1-sol`, which the ChatGPT
+account rejects. Work showed that exact cause; no package was prepared and the
+primary checkout was untouched. A successful real-agent Review → Apply on this
+build is **not** yet proven. Evidence: `D:/pytxo-native-acceptance/run-20261001-*`.
+
+Remaining gates: successful native Codex mission on this build (host Codex
+model/version), commit and source freeze, hosted CI, signed build, clean
+install/upgrade of this artifact, matching media, publication approval. The
+Jev routing experiment is still in the source (see September 24 note).
+
 ## September 24 — beta release cut audit
 
 **Decision: NOT READY for public Beta.** The approved first release path remains

@@ -19,9 +19,13 @@ const result = spawnSync("cargo", [
 ], { cwd: path.join(root, "apps/desktop"), stdio: "inherit", windowsHide: true });
 if (result.error) console.error(result.error.message);
 if (result.status !== 0) process.exit(result.status ?? 1);
+// Cargo honors CARGO_TARGET_DIR; verify the executable it actually produced.
+const targetDir = process.env.CARGO_TARGET_DIR
+  ? path.resolve(process.env.CARGO_TARGET_DIR)
+  : path.join(root, "target");
 const assets = spawnSync(process.execPath, [
   path.join(root, "tooling/scripts/verify-desktop-embedded-assets.mjs"),
-  path.join(root, "target/x86_64-pc-windows-msvc/release/pytxo-desktop.exe"),
+  path.join(targetDir, "x86_64-pc-windows-msvc/release/pytxo-desktop.exe"),
   path.join(root, "apps/desktop/dist"),
 ], { stdio: "inherit", windowsHide: true });
 if (assets.error) console.error(assets.error.message);

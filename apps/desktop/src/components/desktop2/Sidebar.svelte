@@ -3,9 +3,9 @@
   import IconChevronsRight from "@tabler/icons-svelte/icons/chevrons-right";
   import IconPlus from "@tabler/icons-svelte/icons/plus";
   import IconSearch from "@tabler/icons-svelte/icons/search";
-  import IconSettings from "@tabler/icons-svelte/icons/settings";
   import IconUserCircle from "@tabler/icons-svelte/icons/user-circle";
   import type { CanonicalRoute, WorkspaceRecent } from "../../lib/navigation.svelte";
+  import { MOD_KEY } from "../../lib/platform";
 
   type NavItem = { route: CanonicalRoute; label: string; icon: typeof IconSearch };
 
@@ -49,8 +49,7 @@
     onOpenWorkspace?: () => void;
   } = $props();
 
-  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPod|iPad/.test(navigator.userAgent);
-  const shortcutHint = isMac ? "⌘K" : "Ctrl K";
+  const shortcutHint = MOD_KEY === "⌘" ? "⌘K" : "Ctrl K";
 
   function go(next: CanonicalRoute) {
     return (event: MouseEvent) => {
@@ -145,7 +144,6 @@
       <span class="avatar"><IconUserCircle size={18} /></span>
       {#if !collapsed}
         <span class="account-copy"><strong>{accountLabel}</strong><small>{accountSub}</small></span>
-        <IconSettings size={15} />
       {/if}
     </button>
   </div>
@@ -451,6 +449,9 @@
     font-size: 11px;
     color: var(--pytxo-text-muted);
     margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   @media (max-width: 1279px) {

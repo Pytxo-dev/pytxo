@@ -855,9 +855,9 @@
           <h2>Describe the job</h2>
         </div>
       </div>
-      <p id="mission-guidance" class="mission-guidance">Describe the change you want. Include a file or folder if you know it, and anything that must stay unchanged.</p>
+      <p id="mission-guidance" class="mission-guidance">Name the file or folder if you know it, the expected behavior, and anything that must stay unchanged.</p>
       <textarea bind:this={missionInput} bind:value={mission} aria-label="What should Pytxo do?" aria-describedby="mission-guidance" placeholder="Fix the parser in src/parser.rs so empty input returns an error. Add a regression test. Keep the public API unchanged."></textarea>
-      <div class="composer-command-bar"><span>{mission.trim() ? `${mission.trim().length} characters` : "Describe an outcome"}</span><button class="primary" disabled={!!buildPlanDisabledReason} aria-describedby={buildPlanDisabledReason ? "build-plan-disabled-reason" : undefined} onclick={buildPlan}>{planning ? "Building…" : "Build plan"}</button>{#if buildPlanDisabledReason}<small id="build-plan-disabled-reason" class="action-reason">{buildPlanDisabledReason}</small>{/if}</div>
+      <div class="composer-command-bar"><span>{mission.trim() ? `${mission.trim().length} characters` : ""}</span><button class="primary" disabled={!!buildPlanDisabledReason} aria-describedby={buildPlanDisabledReason ? "build-plan-disabled-reason" : undefined} onclick={buildPlan}>{planning ? "Building…" : "Build plan"}</button>{#if buildPlanDisabledReason}<small id="build-plan-disabled-reason" class="action-reason">{buildPlanDisabledReason}</small>{/if}</div>
       <details class="checks-editor" open={!!runChecks}>
       <summary>Verification commands <span>{runChecks.trim() ? "Custom checks added" : "Use project checks or add your own"}</span></summary>
       <label class="run-checks">

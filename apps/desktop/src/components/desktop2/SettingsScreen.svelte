@@ -37,6 +37,7 @@
   import { SETTINGS_GROUPS, SETTINGS_SECTIONS, settingsSectionMatches } from "../../lib/settings-catalog";
   import { setReducedMotion, setUiDensity, setUiScale, UI_SCALES, uiPrefs } from "../../lib/ui-prefs.svelte";
   import { ipc, onAuthChanged } from "../../lib/ipc";
+  import { MOD_KEY } from "../../lib/platform";
   import UpdateControls from "../shell/UpdateControls.svelte";
 
   const VOICE_CAPTURE_KEY = "pytxo-desktop-voice-capture-v1";
@@ -509,10 +510,10 @@
     {:else if section === "keyboard"}
       <article class="settings-group">
         <h2>Shortcuts</h2>
-        <div class="setting-row"><div><strong>Command palette</strong><small>Find actions, destinations, and settings.</small></div><kbd>Ctrl/⌘ K</kbd></div>
-        <div class="setting-row"><div><strong>Focus Work</strong><small>Open Work and focus the active run.</small></div><kbd>Ctrl/⌘ Shift O</kbd></div>
+        <div class="setting-row"><div><strong>Command palette</strong><small>Find actions, destinations, and settings.</small></div><kbd>{MOD_KEY} K</kbd></div>
+        <div class="setting-row"><div><strong>Focus Work</strong><small>Open Work and focus the active run.</small></div><kbd>{MOD_KEY} Shift O</kbd></div>
         <div class="setting-row"><div><strong>Approvals</strong><small>J and K move. Modifier Enter approves. Modifier Backspace denies.</small></div><kbd>J K</kbd></div>
-        <div class="setting-row"><div><strong>Stop run</strong><small>From a focused running row. Confirmation is required.</small></div><kbd>Ctrl/⌘ Shift ⌫</kbd></div>
+        <div class="setting-row"><div><strong>Stop run</strong><small>From a focused running row. Confirmation is required.</small></div><kbd>{MOD_KEY} Shift ⌫</kbd></div>
       </article>
     {:else if section === "providers"}
       <article class="settings-group">
@@ -693,7 +694,8 @@
   .compact-section { display: none; }
   .settings-screen {
     display: grid;
-    grid-template-columns: 188px minmax(0, 1fr);
+    /* Wide enough that "Agents & permissions" stays on one line. */
+    grid-template-columns: 212px minmax(0, 1fr);
     height: 100%;
     min-height: 0;
     grid-template-rows: minmax(0, 1fr);

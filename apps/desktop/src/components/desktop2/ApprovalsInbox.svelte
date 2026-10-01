@@ -7,6 +7,7 @@
   import { approvalPresentation } from "../../lib/approval-presentation";
   import type { DesktopBackend, DesktopSnapshot } from "../../lib/desktop-backend";
   import type { HitlDto } from "../../lib/types";
+  import { MOD_KEY } from "../../lib/platform";
 
   let {
     open = false,
@@ -206,7 +207,7 @@
         </div>
         <div class="actions">
           <button class="deny" disabled={deciding} onclick={() => resolve(false)}>
-            {presentation.denyLabel}<kbd aria-hidden="true">Ctrl/⌘ ⌫</kbd>
+            {presentation.denyLabel}<kbd aria-hidden="true">{MOD_KEY} ⌫</kbd>
           </button>
           {#if presentation.requiresCandidateReview}
             <button class="primary" disabled={deciding || !selectedRun} onclick={() => {
@@ -216,7 +217,7 @@
             </button>
           {:else}
           <button class="primary" disabled={deciding} onclick={() => resolve(true)}>
-            <IconCheck size={16} /> {presentation.approveLabel}<kbd aria-hidden="true">Ctrl/⌘ ↵</kbd>
+            <IconCheck size={16} /> {presentation.approveLabel}<kbd aria-hidden="true">{MOD_KEY} ↵</kbd>
           </button>
           {/if}
         </div>

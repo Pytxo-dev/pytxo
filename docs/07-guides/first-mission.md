@@ -40,7 +40,7 @@ planner infers ownership from explicit paths and repository structure; a vague
 request without safe ownership fails with an actionable error. Automatic skill
 routing and screenshot-based analysis are not part of this planner.
 
-In Desktop, use **Work → New run** and choose your ready CLI. Inspect prompts,
+In Desktop, use **New work** and choose your ready CLI. Inspect prompts,
 paths, dependencies, and per-task verification commands before Run. If no
 checks are detected, define `verify` commands on your `pytxo.toml` tasks and
 rebuild. Passing per-task checks does not establish combined-candidate success.
@@ -71,7 +71,7 @@ pytxo mission "…" --json
 ## After the run
 
 Open **Pytxo Desktop → Work**, select the run, and open **Run Review**. New
-missions begin from **Work → New run**; completed outcomes remain under
+missions begin from **New work**; completed outcomes remain under
 **History**. Run Review is the reviewed-package Apply surface for Orbit and Galaxy. It shows the exact
 prepared additions, modifications, and deletions. Before Apply, Pytxo checks
 the current preimage of every affected path and the included source inventory

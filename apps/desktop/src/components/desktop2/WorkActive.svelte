@@ -141,7 +141,9 @@
       return "Routing is in progress. Open the attempt record for its latest state.";
     }
     if (canStopFocusRun) return "Your agents are working on this request. You can follow their progress below.";
-    if (["failed", "stopped", "cancelled"].includes(focusRun.status.toLowerCase())) return "The work stopped before finishing. Open details to see what happened.";
+    if (["failed", "stopped", "cancelled"].includes(focusRun.status.toLowerCase())) return failureHint
+      ? `${failureHint.task} failed. The agent reported: ${failureHint.text}`
+      : "The work stopped before finishing. Open details to see what happened.";
     if (checks.some(check => !check.passed)) return "Some checks failed. Review the results before deciding what to do next.";
     if (canReviewFocusRun) return review?.prepared_manifest?.version === 3 && review.prepared_manifest.candidate_verification?.version === 1 && checks.length > 0 && checks.every(check => check.passed)
       ? "The changes are ready for your review. The saved checks passed."
@@ -157,6 +159,25 @@
   const activity = $derived(workActivity(focusRun, agents,
     runApprovals.length > 0,
     !!snapshot.error || snapshot.diagnostics.some(d => d.domain_id === focusRun?.domain_id && (!d.run_id || d.run_id === focusRun?.id)), canReviewFocusRun, !!partialAttempt || currentApplyIssue, currentRoutingRead?.summary ?? null));
+
+  /** First failed worker's last reported error, scoped to the focused run. */
+  let failureHint = $state<{ task: string; text: string } | null>(null);
+  // Plain (non-reactive) so snapshot refreshes do not refetch the same worker.
+  let failureHintKey: string | null = null;
+  $effect(() => {
+    const run = focusRun;
+    const failed = run && run.status.toLowerCase() === "failed"
+      ? agents.find((agent) => agent.run_id === run.id && agent.domain_id === run.domain_id && agent.status === "failed")
+      : undefined;
+    const key = failed ? `${failed.domain_id}:${failed.run_id}:${failed.id}` : null;
+    if (key === failureHintKey) return;
+    failureHintKey = key;
+    failureHint = null;
+    if (!run || !failed) return;
+    backend.agentFailureHint(run.id, failed.id, failed.domain_id)
+      .then((text) => { if (failureHintKey === key) failureHint = text ? { task: failed.task_id, text } : null; })
+      .catch(() => {});
+  });
 
   /**
    * The enforcement receipt is the boundary panel's whole substance, so it is
@@ -185,7 +206,12 @@
       .catch((error: unknown) => {
         if (!current) return;
         loadedReview = null;
-        reviewError = error instanceof Error ? error.message : String(error);
+        const message = error instanceof Error ? error.message : String(error);
+        // A run still starting has not recorded its review contract yet; that is
+        // "not available yet", not a failure to load checks.
+        const notYetRecorded = message === "[run_review] run has no review/apply contract"
+          && ["starting", "pending", "dispatching", "running"].includes(currentRun.status.toLowerCase());
+        reviewError = notYetRecorded ? null : message;
       })
       .finally(() => {
         if (current) reviewLoading = false;
@@ -308,12 +334,12 @@
 </script>
 
 <section class="screen work" aria-label="Work">
-  <header class="command-strip work-heading" role={focusRun ? "region" : undefined} aria-label={focusRun ? "Focused run" : undefined}>
+  <header class="command-strip work-heading" class:idle={!focusRun} role={focusRun ? "region" : undefined} aria-label={focusRun ? "Focused run" : undefined}>
     {#if focusRun}<ApertureGlyph active={activity.active} tone={activity.tone} />{/if}
     <div class="command-copy" bind:this={heading} tabindex="-1">
       <h1>{focusRun ? (displayMissionTitle ?? `Work in ${focusRun.repo_root.split(/[\\/]/).pop() || "selected repository"}`) : "Work"}</h1>
       <div class="heading-meta">{#if activeDomainLabel}<span class="scope">{activeDomainLabel}</span>{/if}{#if focusState}<StateChip tone={focusState.tone} label={focusState.label} />{/if}</div>
-      {#if focusRun}<p class="work-summary" role="status">{workSummary}</p>{/if}
+      {#if focusRun}<p class="work-summary" class:wraps={!!failureHint} role="status">{workSummary}</p>{/if}
       {#if missionText}{#key `${focusRun?.domain_id}:${focusRun?.id}`}<details class="mission-outcome"><summary>Full request</summary><p>{missionText}</p></details>{/key}{/if}
     </div>
     {#if focusRun}
@@ -458,12 +484,16 @@
     padding:7px 0 9px;
     border-bottom:1px solid var(--pytxo-line);
   }
+  /* No focused run means no glyph or actions: the heading owns the full row. */
+  .command-strip.idle { grid-template-columns:minmax(0,1fr); }
   .command-copy { min-width:0; outline:0; }
   .command-copy:focus-visible { outline:2px solid var(--pytxo-accent); outline-offset:3px; }
   .command-copy h1 { display:block;max-width:46ch;margin:0;overflow:hidden;font-size:clamp(19px,1.7vw,25px);font-weight:650;line-height:1.2;letter-spacing:-.035em;text-overflow:ellipsis;white-space:nowrap; }
   .heading-meta { display:flex;align-items:center;gap:8px;margin-top:5px; }
   .heading-meta .scope { overflow:hidden;color:var(--pytxo-text-muted);font:10px "IBM Plex Mono",monospace;text-overflow:ellipsis;white-space:nowrap; }
   .work-summary { max-width:72ch;margin:5px 0 0;overflow:hidden;color:var(--pytxo-text-soft);font-size:12px;line-height:1.35;text-overflow:ellipsis;white-space:nowrap; }
+  /* A failure cause is the next action's input; show it whole (bounded at 240 chars by Core). */
+  .work-summary.wraps { max-width:96ch;white-space:normal;overflow-wrap:anywhere; }
   .mission-outcome { position:relative;display:inline-block;margin-top:2px;font-size:10px;line-height:1.4; }
   .mission-outcome summary { min-height:18px;color:var(--pytxo-text-muted);cursor:pointer; }
   .mission-outcome p { position:absolute;z-index:12;top:100%;left:0;width:min(620px,70vw);max-height:240px;margin:4px 0 0;padding:12px;overflow:auto;border:1px solid var(--pytxo-line);border-radius:5px;background:var(--pytxo-surface-raised);box-shadow:0 16px 40px #0008;color:var(--pytxo-text-body);white-space:pre-wrap; }

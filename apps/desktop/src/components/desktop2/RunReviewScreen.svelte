@@ -689,9 +689,6 @@
       </article>
 
 
-  {#if applyDisabledReason && applyDisabledReason !== presentation.detail}
-    <p class="action-explanation" id="apply-disabled-reason">{applyDisabledReason}</p>
-  {/if}
   {#if notice}<p class="action-notice" aria-live="polite">{notice}</p>{/if}
   {#if error}<p class="action-error" role="alert">{error}</p>{/if}
 
@@ -818,7 +815,12 @@
       <details class="decision-identity package-identity"><summary>Exact candidate</summary><code>{review?.prepared_digest ?? "Identity unavailable"}</code></details>
       <span class="decision-aperture" aria-hidden="true"></span>
       <div><strong>Canonical repository · {run.repo_root.split(/[\\/]/).pop()}</strong><span>{presentation.state === "applied" ? "Apply recorded" : presentation.state === "applying" ? "Apply in progress · outcome not confirmed" : "No confirmed Apply"}</span></div>
-      <p class="boundary-reason">{applyDisabledReason || (presentation.state === "applied" ? "Recorded outcome, not a live filesystem check." : "Apply writes this reviewed candidate to the destination.")}</p>
+      <!-- A blocked reason equal to the decision copy is already shown above; show any other reason once, beside Apply. -->
+      {#if applyDisabledReason && applyDisabledReason !== presentation.detail}
+        <p class="boundary-reason blocked" id="apply-disabled-reason">{applyDisabledReason}</p>
+      {:else}
+        <p class="boundary-reason">{presentation.state === "applied" ? "Recorded outcome, not a live filesystem check." : "Apply writes this reviewed candidate to the destination."}</p>
+      {/if}
     </div>
     </div>
     <div class="review-actions">
@@ -1044,11 +1046,11 @@
   .review-status.state-recovery_required { color: var(--state-attention); border-color: var(--pytxo-line); background: var(--pytxo-surface-panel); }
   .review-status.state-ready,
   .review-status.state-applied { color: var(--state-verified); }
-  .action-explanation, .action-notice, .action-error {
+  .boundary-reason.blocked { color: var(--state-attention); }
+  .action-notice, .action-error {
     margin: 8px 0 0;
     font-size: 12px;
   }
-  .action-explanation { color: var(--state-attention); }
   .action-notice { color: var(--state-verified); }
   .action-error { color: var(--state-refuted); }
   .review-screen .review-grid {
@@ -1138,7 +1140,7 @@
   .content-error { color: var(--state-refuted); }
   .expand-content { margin: 0 10px 10px; color: var(--pytxo-text-strong); border-color: var(--pytxo-line); background: var(--pytxo-surface-raised); }
   .digest-details { padding: 8px 14px 10px; border-top: 1px solid var(--pytxo-line-soft); color: var(--pytxo-text-muted); }
-  .digest-details summary { cursor: pointer; font-size: 12px; text-transform: uppercase; }
+  .digest-details summary { cursor: pointer; font-size: 12px; }
   .digest-details dl { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 8px 0 0; }
   .file-content dl div { min-width: 0; }
   .file-content dt { color: var(--pytxo-text-muted); font-size: 12px; text-transform: uppercase; }
@@ -1214,7 +1216,7 @@
   @media(max-width:1100px){.candidate-workspace{grid-template-columns:1fr}.review-support{grid-template-columns:1fr}.file-list{grid-template-columns:175px minmax(0,1fr)}}
   @media(max-width:760px){.review-order{grid-template-columns:repeat(2,minmax(0,1fr))}.file-list{display:block;min-height:0}.file-row{display:block}.file-content>.exact-diff{display:grid;grid-template-columns:1fr}.file-content>.digest-details{display:block}.decision-bar{flex-wrap:wrap;padding:10px 0}.decision-bar .review-actions{width:100%;justify-content:flex-start;gap:8px}.diff-side .text-content{min-height:100px}.candidate-formation small{display:none}}
 
-  .review-header{align-items:center}.review-header h1{margin-top:6px}.review-header .back{min-height:26px;padding:0;border:0}.review-context{margin-top:4px}.review-order{margin-top:0}.candidate-workspace .review-status{margin:12px 16px}.candidate-workspace .decision-evidence{padding:0 16px 12px}.candidate-workspace .action-explanation,.candidate-workspace .action-error,.candidate-workspace .action-notice{margin:8px 16px}.technical-evidence{border:1px solid var(--pytxo-line)}
+  .review-header{align-items:center}.review-header h1{margin-top:6px}.review-header .back{min-height:26px;padding:0;border:0}.review-context{margin-top:4px}.review-order{margin-top:0}.candidate-workspace .review-status{margin:12px 16px}.candidate-workspace .decision-evidence{padding:0 16px 12px}.candidate-workspace .action-error,.candidate-workspace .action-notice{margin:8px 16px}.technical-evidence{border:1px solid var(--pytxo-line)}
   @container run-review (max-width:1000px){
     .candidate-workspace{grid-template-columns:1fr}.review-support{grid-template-columns:1fr}.file-list{display:block;min-height:0}.file-row{display:block}.file-content>.exact-diff{display:grid;grid-template-columns:1fr}.file-content>.digest-details{display:block}.review-order{grid-template-columns:repeat(2,minmax(0,1fr))}.decision-bar{flex-wrap:wrap}.decision-bar .review-actions{width:100%;justify-content:flex-start}
   }
@@ -1232,7 +1234,8 @@
   .candidate-symbol { color: var(--pytxo-activity); font-size: 22px; }
   .file-list { grid-template-columns: 230px minmax(0,1fr); min-height: 260px; }
   .file-navigation { max-height: 60vh; background: var(--pytxo-surface-panel); padding: 6px; }
-  .review-screen .file-row { display: flex; width: 100%; gap: 10px; padding: 12px 10px; border: 0; border-radius: 3px; text-align: left; background: transparent; align-items: center; text-transform: none; }
+  .review-screen .file-row { display: flex; width: 100%; gap: 10px; padding: 12px 10px; border: 0; border-radius: 3px; text-align: left; background: transparent; align-items: center; justify-content: flex-start; text-transform: none; }
+  .review-screen .file-row .file-name { flex: 1; min-width: 0; }
   .review-screen .file-row.chosen { background: var(--pytxo-surface-active); box-shadow: inset 2px 0 var(--pytxo-activity); }
   .file-kind { flex: none; font: 11px "IBM Plex Mono",monospace; color: var(--pytxo-text-soft); width: 22px; height: 24px; display: grid; place-items: center; border: 1px solid var(--pytxo-line); border-radius: 3px; }
   .file-name { display: grid; gap: 5px; min-width: 0; }.file-name strong { font-size: 13px; font-weight: 500; }.file-name small { display: block; font-size: 11px; color: var(--pytxo-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1269,7 +1272,7 @@
   .review-header h1 { margin: 4px 0; }
   .candidate-overview>summary { padding: 9px 16px; }
   .candidate-context { display: grid; grid-template-columns: minmax(150px,1.1fr) 56px minmax(150px,1fr) 28px minmax(170px,1fr) minmax(180px,1fr); align-items: center; padding: 12px 16px; gap: 0; }
-  .map-label { color: var(--pytxo-text-muted); font-size: 11px; font-weight: 500; }
+  .map-label { color: var(--pytxo-text-muted); font-size: 11px; font-weight: 500; white-space: nowrap; }
   .formation-files { display: grid; gap: 5px; min-width: 0; }
   .formation-files button { display: flex; justify-content: flex-start; gap: 8px; min-height: 28px; padding: 4px 8px; border: 1px solid var(--pytxo-line); border-radius: 3px; background: var(--pytxo-surface-panel); color: var(--pytxo-text-body); font-size: 12px; text-align: left; }
   .formation-files button>span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

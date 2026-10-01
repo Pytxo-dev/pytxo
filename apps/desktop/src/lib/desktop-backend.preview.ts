@@ -343,6 +343,11 @@ export class PreviewDesktopBackend implements DesktopBackend {
     if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-run-state-v1") === "starting") {
       this.snapshot.runs[0].status = "starting";
     }
+    if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-run-state-v1") === "agent_failed") {
+      this.snapshot.runs[0].status = "failed";
+      this.snapshot.approvals = this.snapshot.approvals.filter(item => item.run_id !== this.snapshot.runs[0].id);
+      this.snapshot.agents = this.snapshot.agents.map((agent) => agent.id === "desktop" ? { ...agent, status: "failed", exit_code: 1 } : agent);
+    }
     const nativeAgentFixture = typeof localStorage === "undefined" ? null : localStorage.getItem("pytxo-preview-native-agent-ids-v1");
     if (nativeAgentFixture === "switch") {
       this.snapshot.runs.push({ ...this.snapshot.runs[0], id: "run-other", status: "completed" });
@@ -654,6 +659,11 @@ export class PreviewDesktopBackend implements DesktopBackend {
       })).filter(e => e.id > after).slice(0, limit);
     }
     return ["\x1b[", "32mBrowser fixture: recorded output example. Native Desktop reads actual stored events.", "\x1b[0m"].map((payload, index) => ({ id: index + 1, agent_id: agentId, kind: "stdout", payload, ts: "2026-09-12T00:00:00Z" })).filter(e => e.id > after).slice(0, limit);
+  }
+  async agentFailureHint(runId: string, agentId: string, domainId: string): Promise<string | null> {
+    const agent = this.snapshot.agents.find(a => a.id === agentId && a.run_id === runId && a.domain_id === domainId);
+    if (!agent) throw new Error("Agent not present in this preview scope.");
+    return agent.status === "failed" ? "Browser fixture: the agent CLI reported an error before finishing." : null;
   }
   async listAgents(runId: string) {
     const verification = localStorage.getItem("pytxo-preview-agent-verification-v1");

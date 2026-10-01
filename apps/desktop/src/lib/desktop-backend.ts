@@ -79,6 +79,8 @@ export interface DesktopBackend {
   deleteFlowDraft(draftId: string): Promise<void>;
   listAgents(runId: string, domainId: string | null): Promise<AgentDto[]>;
   readAgentEvents(runId: string, agentId: string, domainId: string, after: number, limit: number): Promise<import("./types").EventDto[]>;
+  /** Last error the worker printed, as one advisory sentence; null when none. */
+  agentFailureHint(runId: string, agentId: string, domainId: string): Promise<string | null>;
   runReview(runId: string, domainId: string | null): Promise<RunReviewDto>;
   routingRunSummary(runId: string, domainId: string): Promise<RoutingDisplaySummary | null>;
   runReviewContent(runId: string, path: string, side: "before" | "after", offset: number, limit: number, domainId: string | null): Promise<PreparedContentChunkDto>;
@@ -191,6 +193,7 @@ class TauriDesktopBackend implements DesktopBackend {
   async deleteFlowDraft(draftId: string) { return ipc.flowDelete(draftId); }
   async listAgents(runId: string, domainId: string | null) { return ipc.listAgents(runId, domainId); }
   async readAgentEvents(runId: string, agentId: string, domainId: string, after: number, limit: number) { return ipc.readAgentEvents(runId, agentId, domainId, after, limit); }
+  async agentFailureHint(runId: string, agentId: string, domainId: string) { return ipc.agentFailureHint(runId, agentId, domainId); }
   async runReview(runId: string, domainId: string | null) { return ipc.runReview(runId, domainId); }
   async routingRunSummary(runId: string, domainId: string) { return ipc.routingRunSummary(runId, domainId); }
   async runReviewContent(runId: string, path: string, side: "before" | "after", offset: number, limit: number, domainId: string | null) { return ipc.runReviewContent(runId, path, side, offset, limit, domainId); }

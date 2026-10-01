@@ -756,7 +756,9 @@ impl PromptPipe {
         }
         let count = self.ack.len() / 5;
         let messages = self.ack[..count * 5]
-            .chunks_exact(5)
+            .as_chunks::<5>()
+            .0
+            .iter()
             .map(|b| (b[0], u32::from_le_bytes(b[1..5].try_into().unwrap())))
             .collect();
         self.ack.drain(..count * 5);

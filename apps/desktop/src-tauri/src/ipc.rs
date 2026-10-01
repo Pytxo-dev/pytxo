@@ -1110,6 +1110,117 @@ fn read_scoped_agent_events(
         .map(|events| events.into_iter().map(event_to_dto).collect())
 }
 
+/// The last error a worker printed, reduced to one plain sentence so a failed
+/// run can say why without opening raw output. Advisory only: the recorded exit
+/// status stays authoritative, and payloads were already sanitized at capture.
+#[tauri::command]
+pub fn agent_failure_hint(
+    state: State<'_, AppState>,
+    run_id: String,
+    agent_id: String,
+    domain_id: String,
+) -> IpcResult<Option<String>> {
+    let domain = resolve_domain(&state, Some(domain_id))?;
+    let cfg = load_cfg_for_domain(&domain, &state)?;
+    let store = open_store_for_domain(&cfg, &domain)?;
+    let agent = store
+        .get_agent(&agent_id)
+        .map_err(map_store_err)?
+        .ok_or_else(|| PytxoIpcError::new("missing_agent", "No recorded agent in this domain"))?;
+    if agent.run_id != run_id {
+        return Err(PytxoIpcError::new(
+            "scope_mismatch",
+            "Agent does not belong to the requested run",
+        ));
+    }
+    let events = store.list_events(&agent_id, 200).map_err(map_store_err)?;
+    Ok(failure_hint(
+        events
+            .iter()
+            .filter(|event| event.kind == "stdout" || event.kind == "stderr")
+            .map(|event| event.payload.as_str()),
+    ))
+}
+
+const FAILURE_HINT_MAX_CHARS: usize = 240;
+
+fn failure_hint<'a>(payloads: impl Iterator<Item = &'a str>) -> Option<String> {
+    // Strip across event boundaries: PTY chunks split escape sequences and wraps.
+    let text = strip_terminal_sequences(&payloads.collect::<String>());
+    // Prefer a structured provider message such as {"error":{"message":"…"}}.
+    let structured = text.rfind("\"message\":\"").and_then(|at| {
+        let rest = &text[at + "\"message\":\"".len()..];
+        let mut escaped = false;
+        rest.char_indices()
+            .find(|&(_, c)| {
+                let end = c == '"' && !escaped;
+                escaped = c == '\\' && !escaped;
+                end
+            })
+            .map(|(end, _)| rest[..end].replace("\\\"", "\""))
+    });
+    let hint = structured.or_else(|| {
+        let at = text.to_ascii_lowercase().rfind("error")?;
+        // Read past the limit so the truncation below can mark the cut.
+        Some(
+            text[at..]
+                .chars()
+                .take(FAILURE_HINT_MAX_CHARS * 2)
+                .collect(),
+        )
+    })?;
+    let mut collapsed = hint.split_whitespace().collect::<Vec<_>>().join(" ");
+    if collapsed.chars().count() > FAILURE_HINT_MAX_CHARS {
+        collapsed = collapsed
+            .chars()
+            .take(FAILURE_HINT_MAX_CHARS - 1)
+            .collect::<String>()
+            + "…";
+    }
+    (!collapsed.is_empty()).then_some(collapsed)
+}
+
+/// Drop CSI/OSC terminal sequences and control characters from PTY output.
+/// ConPTY wraps a full line by moving the cursor back onto the last column and
+/// re-emitting that character; the repeat after a cursor move is dropped.
+fn strip_terminal_sequences(payload: &str) -> String {
+    let mut out = String::with_capacity(payload.len());
+    let mut chars = payload.chars().peekable();
+    let mut after_cursor_move = false;
+    while let Some(c) = chars.next() {
+        match c {
+            '\u{1b}' => match chars.next() {
+                // CSI: parameters until a final byte in '@'..='~'.
+                Some('[') => {
+                    for c in chars.by_ref() {
+                        if ('@'..='~').contains(&c) {
+                            after_cursor_move = c == 'H';
+                            break;
+                        }
+                    }
+                }
+                // OSC: until BEL or ST (ESC \).
+                Some(']') => {
+                    while let Some(c) = chars.next() {
+                        if c == '\u{7}' || (c == '\u{1b}' && chars.next_if_eq(&'\\').is_some()) {
+                            break;
+                        }
+                    }
+                }
+                _ => {}
+            },
+            '\n' | '\t' => out.push(' '),
+            c if c.is_control() => {}
+            c => {
+                if !(std::mem::take(&mut after_cursor_move) && out.ends_with(c)) {
+                    out.push(c);
+                }
+            }
+        }
+    }
+    out
+}
+
 #[tauri::command]
 pub fn dry_run(
     state: State<'_, AppState>,
@@ -2706,5 +2817,45 @@ mod mission_control_contract_tests {
             load_run_apply_attempts(&repo, &PytxoConfig::default(), run_id, &contract).unwrap();
         assert_eq!(attempts.len(), 1);
         assert_eq!(attempts[0].outcome, "committed");
+    }
+}
+
+#[cfg(test)]
+mod failure_hint_tests {
+    use super::failure_hint;
+
+    #[test]
+    fn wrapped_pty_provider_error_becomes_one_sentence() {
+        // Captured shape of a real Codex PTY failure: the JSON error is split
+        // across events by cursor moves, framed by OSC titles and colours.
+        let events = [
+            "\u{1b}]0;npm\u{7}\u{1b}[33m\u{1b}[1mwarning:\u{1b}[m Exceeded skills context budget",
+            "\u{1b}[31m\u{1b}[1mERROR:\u{1b}[m {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"mes",
+            "\u{1b}[23;80Hssage\":\"The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT ",
+            "\u{1b}[23;80H account.\"}}",
+            "\u{1b}[?9001l\u{1b}[?1004l",
+        ];
+        assert_eq!(
+            failure_hint(events.into_iter()).as_deref(),
+            Some(
+                "The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account."
+            )
+        );
+    }
+
+    #[test]
+    fn plain_error_text_is_bounded_and_silence_has_no_hint() {
+        let hint = failure_hint(
+            [
+                "Error: Cannot find module './missing.mjs'\r\n",
+                "x".repeat(400).as_str(),
+            ]
+            .into_iter(),
+        )
+        .unwrap();
+        assert!(hint.starts_with("Error: Cannot find module './missing.mjs'"));
+        assert_eq!(hint.chars().count(), 240);
+        assert!(hint.ends_with('…'));
+        assert_eq!(failure_hint(["\u{1b}[2J", "all good"].into_iter()), None);
     }
 }
