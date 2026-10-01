@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pytxo new work — mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --void:#050507; --shell:#08080a; --panel:#101012; --raised:#161619; --line:#27272a; --line-soft:#1c1c20; --strong:#f5f5f7; --body:#c7c7ce; --soft:#aaaab3; --muted:#898993; --cyan:#45dccb; --ok:#5bbf8a; --amber:#f3c64e; --aperture-h:linear-gradient(90deg,#b764ed,#45dccb 42%,#f3c64e 72%,#f04da3); --ui:"Sora",system-ui,sans-serif; --mono:"IBM Plex Mono",monospace; }
+  * { box-sizing:border-box; margin:0; }
+  html,body { width:1920px; height:1080px; background:var(--void); color:var(--body); font:15px/1.45 var(--ui); overflow:hidden; }
+  .titlebar { height:40px; display:flex; align-items:center; gap:10px; padding:0 18px; border-bottom:1px solid var(--line-soft); color:var(--soft); font-size:14px; position:relative; }
+  .titlebar::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:1px; background:var(--aperture-h); opacity:.55; }
+  .app { display:grid; grid-template-columns:64px 1fr; height:1040px; }
+  .rail { border-right:1px solid var(--line-soft); display:flex; flex-direction:column; align-items:center; gap:14px; padding:18px 0; }
+  .rail i { width:36px; height:36px; border-radius:9px; background:var(--raised); display:block; }
+  .rail i.on { box-shadow:inset 2px 0 var(--cyan); background:#1f1f24; }
+  main { display:grid; grid-template-columns:720px 1fr; min-height:0; }
+  .compose { padding:34px 36px; border-right:1px solid var(--line-soft); display:grid; align-content:start; gap:24px; }
+  h1 { color:var(--strong); font-size:32px; font-weight:650; letter-spacing:-.03em; }
+  .sub { color:var(--soft); font-size:16px; margin-top:6px; }
+  label { display:block; color:var(--muted); font:500 13px var(--mono); letter-spacing:.06em; text-transform:uppercase; margin-bottom:10px; }
+  .box { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; color:var(--strong); font-size:18px; line-height:1.55; }
+  .agents { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .agent { display:grid; grid-template-columns:30px 1fr 20px; gap:11px; align-items:center; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+  .agent.on { border-color:color-mix(in srgb,var(--cyan) 55%,var(--line)); background:#0d1716; }
+  .agent img { width:22px; height:22px; justify-self:center; }
+  .agent b { color:var(--strong); font-size:15.5px; font-weight:600; display:block; }
+  .agent small { color:var(--ok); font-size:13px; }
+  .tick { width:20px; height:20px; border-radius:6px; border:1.5px solid var(--line); }
+  .agent.on .tick { background:var(--cyan); border-color:var(--cyan); box-shadow:inset 0 0 0 4px #0d1716; }
+  .row { display:flex; gap:12px; align-items:center; }
+  .stepper { display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .stepper span { width:44px; height:44px; display:grid; place-items:center; font-size:18px; color:var(--body); }
+  .stepper b { width:64px; display:grid; place-items:center; color:var(--strong); font-size:20px; border-left:1px solid var(--line); border-right:1px solid var(--line); }
+  .hint { color:var(--soft); font-size:15px; }
+  .build { margin-top:6px; height:52px; border-radius:10px; background:var(--strong); color:var(--void); font-weight:650; font-size:17px; display:grid; place-items:center; }
+  .plan { padding:34px 40px; display:grid; grid-template-rows:auto auto 1fr auto; gap:20px; min-height:0; }
+  .plan h2 { color:var(--strong); font-size:24px; font-weight:650; display:flex; align-items:center; gap:14px; }
+  .pill { font-size:14px; font-weight:600; color:var(--ok); border:1px solid rgba(91,191,138,.45); background:rgba(91,191,138,.08); border-radius:999px; padding:3px 12px; }
+  .summary { display:flex; gap:30px; font-size:16px; color:var(--soft); }
+  .summary b { color:var(--strong); font-size:18px; margin-right:5px; }
+  .waves { display:grid; grid-template-columns:2.1fr 1fr 1fr; gap:22px; align-content:start; }
+  .wave h3 { color:var(--muted); font:500 13px var(--mono); letter-spacing:.06em; text-transform:uppercase; margin-bottom:12px; }
+  .task { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
+  .task .t { color:var(--strong); font-size:16.5px; font-weight:600; }
+  .task .paths { font:13.5px var(--mono); color:var(--soft); margin-top:7px; }
+  .assign { margin-top:12px; display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; background:var(--raised); border:1px solid var(--line); }
+  .assign img { width:18px; height:18px; }
+  .assign b { color:var(--strong); font-size:15px; font-weight:600; white-space:nowrap; }
+  .assign span { margin-left:auto; color:var(--muted); font-size:13px; }
+  .wave1 .tasks { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .wave1 .task { margin:0; }
+  .overlap { margin-top:10px; font-size:14px; color:#eadcb0; background:#17140a; border:1px solid rgba(243,198,78,.45); border-radius:8px; padding:9px 11px; }
+  .start { display:flex; justify-content:space-between; align-items:center; padding-top:18px; border-top:1px solid var(--line-soft); }
+  .start .facts { color:var(--soft); font-size:15.5px; display:flex; gap:26px; }
+  .start .facts b { color:var(--strong); }
+  .run { height:52px; padding:0 30px; border-radius:10px; background:var(--strong); color:var(--void); font-weight:650; font-size:17px; display:grid; place-items:center; }
+  .tag { position:fixed; right:18px; bottom:12px; font:12px var(--mono); color:#55555d; }
+</style>
+</head>
+<body>
+<div class="titlebar"><span style="color:#f5f5f7;font-weight:600">Pytxo</span><span>taskboard</span><span style="margin-left:auto">Local · Orbit</span></div>
+<div class="app">
+  <nav class="rail"><i class="on"></i><i></i><i></i></nav>
+  <main>
+    <section class="compose">
+      <div><h1>New work</h1><p class="sub">Describe the outcome. You review the plan before any agent starts.</p></div>
+      <div><label>Request</label><div class="box">Add search and status filters, a dark mode that follows the system, and a Spanish translation to the task board. Reject blank titles. Document it in the README.</div></div>
+      <div><label>Agents · 6 ready</label>
+        <div class="agents">
+          <div class="agent on"><img src="../../../../apps/desktop/public/ade/openai-on-dark.svg"><span><b>Codex</b><small>Signed in</small></span><i class="tick"></i></div>
+          <div class="agent on"><img src="../../../../apps/desktop/public/ade/anthropic.svg"><span><b>Claude Code</b><small>Signed in</small></span><i class="tick"></i></div>
+          <div class="agent on"><img src="../../../../apps/desktop/public/ade/gemini.svg"><span><b>Gemini CLI</b><small>Signed in</small></span><i class="tick"></i></div>
+          <div class="agent on"><img src="../../../../apps/desktop/public/ade/cursor-on-dark.svg"><span><b>Cursor Agent</b><small>Signed in</small></span><i class="tick"></i></div>
+          <div class="agent on"><img src="../../../../apps/desktop/public/ade/opencode.svg"><span><b>OpenCode</b><small>Provider connected</small></span><i class="tick"></i></div>
+          <div class="agent on"><img src="../../../../apps/desktop/public/ade/antigravity.png"><span><b>Antigravity</b><small>Signed in</small></span><i class="tick"></i></div>
+        </div>
+      </div>
+      <div><label>At most at once</label><div class="row"><div class="stepper"><span>−</span><b>4</b><span>+</span></div><span class="hint">Up to 8. Tasks that share files never run together.</span></div></div>
+      <div class="build">Build plan</div>
+    </section>
+    <section class="plan">
+      <h2>Plan <span class="pill">Ready</span></h2>
+      <div class="summary"><span><b>6</b>tasks</span><span><b>6</b>vendors</span><span><b>3</b>waves</span><span><b>4</b>at once</span><span><b>0</b>shared files in a wave</span></div>
+      <div class="waves">
+        <div class="wave wave1"><h3>Wave 1 · in parallel</h3><div class="tasks">
+          <div class="task"><div class="t">Search + status filter model</div><div class="paths">src/model.mjs · test/model.test.mjs</div><div class="assign"><img src="../../../../apps/desktop/public/ade/openai-on-dark.svg"><b>Codex</b><span>▾</span></div></div>
+          <div class="task"><div class="t">Dark mode</div><div class="paths">src/style.css · src/app.js</div><div class="assign"><img src="../../../../apps/desktop/public/ade/anthropic.svg"><b>Claude Code</b><span>▾</span></div></div>
+          <div class="task"><div class="t">Spanish translation</div><div class="paths">src/i18n/ · src/index.html</div><div class="assign"><img src="../../../../apps/desktop/public/ade/gemini.svg"><b>Gemini CLI</b><span>▾</span></div></div>
+          <div class="task"><div class="t">Filter bar component</div><div class="paths">src/components/</div><div class="assign"><img src="../../../../apps/desktop/public/ade/cursor-on-dark.svg"><b>Cursor Agent</b><span>▾</span></div></div>
+        </div></div>
+        <div class="wave"><h3>Wave 2 · after dark mode</h3>
+          <div class="task"><div class="t">Blank-title validation</div><div class="paths">src/app.js · test/validation.test.mjs</div><div class="assign"><img src="../../../../apps/desktop/public/ade/opencode.svg"><b>OpenCode</b><span>▾</span></div>
+            <div class="overlap">Shares src/app.js with Dark mode, so it starts on Claude Code's result.</div></div>
+        </div>
+        <div class="wave"><h3>Wave 3 · after all</h3>
+          <div class="task"><div class="t">README examples</div><div class="paths">README.md</div><div class="assign"><img src="../../../../apps/desktop/public/ade/antigravity.png"><b>Antigravity</b><span>▾</span></div></div>
+        </div>
+      </div>
+      <div class="start"><div class="facts"><span>Each agent works in its <b>own isolated copy</b></span><span>Checks: <b>node --test</b> per task and on the combined result</span></div><div class="run">Run 6 agents</div></div>
+    </section>
+  </main>
+</div>
+<div class="tag">Mockup · illustrative fixture</div>
+</body>
+</html>

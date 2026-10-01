@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pytxo website hero — mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --void:#050507; --line:#232328; --strong:#f5f5f7; --body:#c7c7ce; --soft:#aaaab3; --muted:#898993; --cyan:#45dccb; --spec:linear-gradient(90deg,#b764ed,#45dccb 42%,#f3c64e 72%,#f04da3); }
+  * { box-sizing:border-box; margin:0; }
+  html,body { width:1920px; height:1080px; background:var(--void); color:var(--body); font:16px/1.5 "Sora",system-ui,sans-serif; overflow:hidden; }
+  nav { height:76px; display:flex; align-items:center; gap:36px; padding:0 96px; color:var(--soft); font-size:15.5px; }
+  nav .brand { color:var(--strong); font-weight:650; font-size:19px; display:flex; gap:10px; align-items:center; margin-right:auto; }
+  nav .brand i { width:18px; height:18px; background:var(--spec); clip-path:polygon(50% 0,100% 100%,74% 100%,50% 45%,26% 100%,0 100%); display:block; }
+  nav .cta { color:var(--void); background:var(--strong); padding:10px 18px; border-radius:8px; font-weight:600; }
+  .hero { display:grid; grid-template-columns:1fr; justify-items:center; text-align:center; padding-top:52px; }
+  h1 { color:var(--strong); font-size:84px; line-height:1.02; letter-spacing:-.045em; font-weight:650; }
+  h1 em { font-style:normal; background:var(--spec); -webkit-background-clip:text; color:transparent; }
+  .lede { margin-top:22px; font-size:22px; color:var(--soft); max-width:860px; }
+  .ctas { margin-top:30px; display:flex; gap:14px; }
+  .btn { height:56px; padding:0 26px; border-radius:10px; display:inline-flex; align-items:center; gap:10px; font-size:17px; font-weight:600; border:1px solid var(--line); color:var(--strong); }
+  .btn.primary { background:var(--strong); color:var(--void); border-color:var(--strong); }
+  .btn .play { width:0; height:0; border-left:11px solid var(--strong); border-top:7px solid transparent; border-bottom:7px solid transparent; }
+  .vendors { margin-top:28px; display:flex; gap:26px; align-items:center; color:var(--muted); font-size:15px; }
+  .vendors span { display:inline-flex; align-items:center; gap:8px; color:var(--soft); }
+  .vendors img { width:20px; height:20px; }
+  .stage { position:relative; margin-top:44px; width:1560px; height:420px; border-radius:16px 16px 0 0; overflow:hidden; border:1px solid var(--line); border-bottom:0; box-shadow:0 -30px 120px rgba(69,220,203,.08); }
+  .stage img { width:100%; display:block; }
+  .stage::after { content:""; position:absolute; inset:auto 0 0 0; height:160px; background:linear-gradient(180deg,transparent,var(--void)); }
+  .badge { position:absolute; left:24px; top:22px; z-index:2; font:13px "IBM Plex Mono",monospace; color:var(--strong); background:rgba(5,5,7,.78); border:1px solid var(--line); border-radius:999px; padding:6px 12px; }
+  .badge b { color:var(--cyan); }
+  .tag { position:fixed; right:18px; bottom:12px; font:12px "IBM Plex Mono",monospace; color:#55555d; }
+</style>
+</head>
+<body>
+<nav><span class="brand"><i></i>Pytxo</span><span>How it works</span><span>Docs</span><span>Changelog</span><span class="cta">Download for Windows</span></nav>
+<section class="hero">
+  <h1>Every coding agent you have.<br><em>At once.</em></h1>
+  <p class="lede">Pytxo runs Codex, Claude Code, Gemini, Cursor and more on one repository in parallel, keeps them out of each other's files, and lands only the exact changes you approve.</p>
+  <div class="ctas"><span class="btn primary">Download for Windows</span><span class="btn"><i class="play"></i>Watch six agents ship a feature · 60s</span></div>
+  <div class="vendors">Works with the CLIs you already use
+    <span><img src="../../../../apps/desktop/public/ade/openai-on-dark.svg">Codex</span>
+    <span><img src="../../../../apps/desktop/public/ade/anthropic.svg">Claude Code</span>
+    <span><img src="../../../../apps/desktop/public/ade/gemini.svg">Gemini CLI</span>
+    <span><img src="../../../../apps/desktop/public/ade/cursor-on-dark.svg">Cursor</span>
+    <span><img src="../../../../apps/desktop/public/ade/opencode.svg">OpenCode</span>
+    <span><img src="../../../../apps/desktop/public/ade/antigravity.png">Antigravity</span></div>
+  <div class="stage"><span class="badge"><b>●</b> Recorded run · 6 vendors · 3 waves · 0 overwrites</span><img src="fleet-board.png" alt=""></div>
+</section>
+<div class="tag">Mockup · hero media will be the real recorded run</div>
+</body>
+</html>

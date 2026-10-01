@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pytxo TUI fleet — mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0b0b0d; --line:#34343b; --strong:#f2f2f4; --body:#c4c4cc; --muted:#7c7c86; --cyan:#45dccb; --ok:#5bbf8a; --amber:#f3c64e; --spec:linear-gradient(90deg,#b764ed,#45dccb 42%,#f3c64e 72%,#f04da3); }
+  * { box-sizing:border-box; margin:0; }
+  html,body { width:1920px; height:1080px; background:#1b1b1f; overflow:hidden; font:17px/1.45 "IBM Plex Mono",monospace; color:var(--body); }
+  .win { position:absolute; inset:28px 40px; background:var(--bg); border-radius:12px; border:1px solid #2a2a30; box-shadow:0 30px 80px #000c; overflow:hidden; display:flex; flex-direction:column; }
+  .chrome { height:40px; background:#141417; border-bottom:1px solid #222228; display:flex; align-items:center; padding:0 16px; gap:8px; font-size:14px; color:var(--muted); flex:none; }
+  .chrome i { width:12px; height:12px; border-radius:50%; background:#33333a; }
+  .term { padding:16px 22px; display:flex; flex-direction:column; gap:12px; flex:1; min-height:0; }
+  .top { display:flex; gap:22px; align-items:baseline; }
+  .rule { height:2px; background:var(--spec); opacity:.85; }
+  .s { color:var(--strong); font-weight:600; } .m { color:var(--muted); } .c { color:var(--cyan); } .g { color:var(--ok); } .a { color:var(--amber); }
+  .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+  .pane { position:relative; border:1px solid var(--line); border-radius:4px; padding:16px 16px 12px; min-height:200px; display:flex; flex-direction:column; }
+  .pane.live { border-color:#2f6a63; } .pane.done { border-color:#2e5a43; } .pane.wait { border-color:#5c4f28; border-style:dashed; }
+  .legend { position:absolute; top:-12px; left:12px; right:12px; display:flex; justify-content:space-between; }
+  .legend span { background:var(--bg); padding:0 6px; }
+  .pane .out { flex:1; }
+  .pane .own { color:var(--muted); font-size:15px; border-top:1px solid #222228; padding-top:8px; margin-top:8px; }
+  .cursor { display:inline-block; width:10px; height:18px; background:var(--strong); vertical-align:-3px; }
+  .act { display:grid; grid-template-columns:150px 1fr; row-gap:4px; align-items:center; }
+  .track { height:14px; background:#141418; position:relative; }
+  .track i { position:absolute; top:0; bottom:0; }
+  .foot { margin-top:auto; display:grid; gap:8px; }
+  .tag { position:fixed; right:18px; bottom:6px; font-size:12px; color:#55555d; }
+</style>
+</head>
+<body>
+<div class="win">
+  <div class="chrome"><i></i><i></i><i></i><span style="margin-left:12px">pytxo — taskboard</span></div>
+  <div class="term">
+    <div class="top"><span class="s">pytxo</span><span class="m">1.3.0</span><span class="s">taskboard</span><span class="m">orbit · trusted</span><span style="margin-left:auto" class="c">● running</span><span><span class="s">6</span> agents</span><span><span class="s">3</span> waves</span><span class="s">2:14</span></div>
+    <div class="rule"></div>
+    <div class="s" style="font-size:20px">Search, filters, dark mode and Spanish for the task board</div>
+    <div class="grid">
+      <div class="pane done"><div class="legend"><span><span class="s">Codex</span> <span class="m">· model + tests</span></span><span class="g">✓ done</span></div>
+        <div class="out"><div><span class="g">✔</span> filters by status <span class="m">2.1ms</span></div><div><span class="g">✔</span> search is case-insensitive <span class="m">0.9ms</span></div><div><span class="g">✔</span> composes search and status <span class="m">1.2ms</span></div><div class="g">pass 11 · fail 0</div></div>
+        <div class="own">src/model.mjs · test/model.test.mjs</div></div>
+      <div class="pane live"><div class="legend"><span><span class="s">Claude Code</span> <span class="m">· dark mode</span></span><span class="c">● editing</span></div>
+        <div class="out"><div><span class="c">●</span> Update(src/style.css) <span class="m">+38</span></div><div><span class="c">●</span> Update(src/app.js) <span class="m">theme toggle</span></div><div><span class="c">●</span> Bash(node --test) <span class="m">11 passed</span></div><div><span class="c">●</span> checking contrast <span class="cursor"></span></div></div>
+        <div class="own">src/style.css · <span class="a">src/app.js ◆ owner</span></div></div>
+      <div class="pane live"><div class="legend"><span><span class="s">Gemini CLI</span> <span class="m">· Spanish</span></span><span class="c">● writing</span></div>
+        <div class="out"><div><span class="a">✦</span> src/i18n/es.json <span class="m">48 strings</span></div><div><span class="a">✦</span> t() wired in src/index.html</div><div><span class="a">✦</span> language switch es / en</div><div><span class="a">✦</span> validating keys <span class="cursor"></span></div></div>
+        <div class="own">src/i18n/ · src/index.html</div></div>
+      <div class="pane live"><div class="legend"><span><span class="s">Cursor Agent</span> <span class="m">· filter bar</span></span><span class="c">● editing</span></div>
+        <div class="out"><div><span class="c">→</span> src/components/filter-bar.js</div><div><span class="c">→</span> empty state + "Clear filters"</div><div><span class="c">→</span> status chips All · Open · Done</div><div><span class="c">→</span> writing test <span class="cursor"></span></div></div>
+        <div class="own">src/components/</div></div>
+      <div class="pane wait"><div class="legend"><span><span class="s">OpenCode</span> <span class="m">· blank titles</span></span><span class="a">◆ next</span></div>
+        <div class="out"><div class="a">After Claude Code</div><div class="m">shares src/app.js, so it starts</div><div class="m">on Claude's result. Nothing</div><div class="m">is overwritten.</div></div>
+        <div class="own"><span class="a">src/app.js</span> · test/validation.test.mjs</div></div>
+      <div class="pane wait" style="border-color:#34343b"><div class="legend"><span><span class="s">Antigravity</span> <span class="m">· README</span></span><span class="m">after all</span></div>
+        <div class="out"><div class="m">Waits for waves 1 and 2 so the</div><div class="m">docs describe the combined</div><div class="m">result.</div></div>
+        <div class="own">README.md</div></div>
+    </div>
+    <div class="act">
+      <span class="m">activity</span><span></span>
+      <span>Codex</span><div class="track"><i style="left:0;width:58%;background:#5bbf8a"></i></div>
+      <span>Claude Code</span><div class="track"><i style="left:0;width:86%;background:#45dccb"></i></div>
+      <span>Gemini CLI</span><div class="track"><i style="left:2%;width:84%;background:#45dccb"></i></div>
+      <span>Cursor</span><div class="track"><i style="left:4%;width:82%;background:#45dccb"></i></div>
+      <span>OpenCode</span><div class="track"><i style="left:0;width:86%;background:repeating-linear-gradient(90deg,#3b3320 0 6px,#2a2416 6px 12px)"></i></div>
+    </div>
+    <div class="foot">
+      <div><span class="m">boundary</span>  <span class="s">2 of 7</span> files prepared   <span class="m">·</span> combined checks <span class="m">after all waves</span>   <span class="m">·</span> apply <span class="m">locked until review</span></div>
+      <div class="rule"></div>
+      <div><span class="c">pytxo›</span> <span class="cursor"></span></div>
+      <div class="m">tab focus pane · enter open output · r review · s stop · ? help</div>
+    </div>
+  </div>
+</div>
+<div class="tag">Mockup · illustrative fixture</div>
+</body>
+</html>
