@@ -12,7 +12,7 @@
   import IconTrash from "@tabler/icons-svelte/icons/trash";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import { workbenchSelection, rememberWorkbenchSelection } from "../../lib/workbench-selection";
-  import { recordedWorkerLabel, reviewPresentation } from "../../lib/review-state";
+  import { recordedCliFor, recordedWorkerLabel, reviewPresentation } from "../../lib/review-state";
   import type {
     AgentDto,
     EnforcementSurface,
@@ -627,18 +627,20 @@
         <div class="file-list">
           <div class="file-navigation" bind:this={fileNavigation} role="group" aria-label="Prepared file navigation">
           {#each manifest.files as file (file.path)}
+            {@const cli = recordedCliFor(agents, run, file.task_id)}
             <button class={`file-row ${file.kind}`} class:chosen={selectedPreparedPath === file.path}
               aria-label={`Inspect exact content for ${file.path}`} aria-pressed={selectedPreparedPath === file.path}
               title={file.path} onclick={() => void selectPreparedFile(file)}>
               <span class="file-kind">{file.kind === "add" ? "A" : file.kind === "delete" ? "D" : "M"}</span>
-              <span class="file-name"><strong>{file.path.split("/").pop()}</strong><small>{file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : "Repository root"}</small></span>
+              <span class="file-name"><strong>{file.path.split("/").pop()}</strong><small>{file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : "Repository root"}</small>{#if cli}<small class="file-cli">by {cli}</small>{/if}</span>
             </button>
           {/each}
           </div>
           <div class="file-content">
             {#if selectedPreparedFile}
               {@const file = selectedPreparedFile}
-              <div class="comparison-context"><strong>{file.path.split("/").pop()}</strong><span>Exact-content comparison · no inferred line changes</span></div>
+              {@const cli = recordedCliFor(agents, run, file.task_id)}
+              <div class="comparison-context"><strong>{file.path.split("/").pop()}</strong><span>{cli ? `Prepared by ${cli} · ` : ""}Exact-content comparison · no inferred line changes</span></div>
                 <div class="exact-diff" class:single={file.kind !== "modify"}>
                   {#each (["before", "after"] as ReviewSide[]) as side}
                     {@const exists = side === "before" ? !!file.before_sha256 : !!file.after_sha256}
@@ -1125,6 +1127,7 @@
   .file-row.add { color: var(--state-verified); } .file-row.modify { color: var(--state-attention); } .file-row.delete { color: var(--state-refuted); }
   .file-row strong { color: var(--pytxo-text-strong); font: 12px/1.4 "IBM Plex Mono", monospace; overflow-wrap: anywhere; white-space: normal; }
   .file-row small { color: var(--pytxo-text-muted); font-size: 12px; overflow-wrap: anywhere; }
+  .file-row small.file-cli { display: block; color: var(--pytxo-text-soft); }
   .inspect-file { padding: 5px 8px; border-color: var(--pytxo-line); color: var(--pytxo-text-soft); background: var(--pytxo-surface-raised); font: 600 9px/1 "IBM Plex Mono", monospace; text-transform: uppercase; }
   .inspect-file.selected { border-color: var(--pytxo-text-muted); color: var(--pytxo-text-strong); background: var(--pytxo-surface-active); }
   .exact-diff { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--pytxo-line-soft); background: var(--pytxo-surface-input); }

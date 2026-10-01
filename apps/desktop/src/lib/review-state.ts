@@ -1,6 +1,21 @@
 import type { AgentDto, RunApplyError, RunDto, RunReviewDto } from "./types";
 
 /** Planned agent labels are not runtime identities: dispatch may reorder tasks. */
+/**
+ * The CLI whose recorded worker prepared a task's files, when the run put more
+ * than one CLI to work. Single-CLI runs and unknown launchers name nobody.
+ */
+export function recordedCliFor(
+  agents: AgentDto[],
+  run: Pick<RunDto, "id" | "domain_id">,
+  taskId: string,
+): string | null {
+  const recorded = agents.filter((agent) => agent.domain_id === run.domain_id && agent.run_id === run.id);
+  if (new Set(recorded.map((agent) => agent.launcher?.id).filter(Boolean)).size < 2) return null;
+  const owners = recorded.filter((agent) => agent.task_id === taskId);
+  return owners.length === 1 ? owners[0].launcher?.display_name ?? null : null;
+}
+
 export function recordedWorkerLabel(
   agents: AgentDto[],
   run: Pick<RunDto, "id" | "domain_id">,
