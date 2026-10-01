@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
+import { draftTitle } from "../src/lib/draft-title";
 import { completeOnboarding } from "./helpers";
+
+test("saved request titles end on a whole word and mark the cut", () => {
+  const mission = "Add concise risk summaries for network and destructive command changes in `src/risk-policy.mjs`.";
+  expect(draftTitle(mission)).toBe("Add concise risk summaries for network and destructive command changes…");
+  expect(draftTitle("  Short   request ")).toBe("Short request");
+  expect(draftTitle("x".repeat(100))).toBe(`${"x".repeat(71)}…`);
+});
 
 test("a failed run names the failed task and the agent's reported cause", async ({ page }) => {
   await completeOnboarding(page, { "pytxo-preview-run-state-v1": "agent_failed" });

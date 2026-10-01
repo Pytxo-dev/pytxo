@@ -132,7 +132,9 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "stale",
         title: "Review is stale",
-        detail: "Affected checkout paths changed after this package was prepared.",
+        // Freshness covers the whole project, not only the reviewed paths: any
+        // added or edited file can change what the recorded checks proved.
+        detail: "Project files changed after this package was prepared. Refresh to recheck it against the current files.",
         primaryAction: "refresh",
         primaryLabel: "Refresh review",
         applyAllowed: false,

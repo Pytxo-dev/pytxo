@@ -9,6 +9,7 @@
   import HostedRoutingReview from "./HostedRoutingReview.svelte";
   import type { ComposerDraft } from "../../lib/composer-draft";
   import { adeAvailabilityLabel, isAdeRunnable } from "../../lib/ade-status";
+  import { draftTitle } from "../../lib/draft-title";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { AdeCliStatusDto, FlowDraftRecord, FlowPlan, ProposedHostedAdvisorPacketPreview, ReviewedDemandFacts, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
 
@@ -462,7 +463,7 @@
     dispatchedStatus = "";
     historySyncedRun = "";
     try {
-      const input = { id: crypto.randomUUID(), title: mission.slice(0, 72), mission_text: mission, source: missionSource, domain_id: selectedDomainId || null, project_id: null, ade_id: selectedAde === CLAUDE_ROUTE_CHOICE || selectedAde === CLAUDE_HOSTED_CHOICE ? null : selectedAde, max_workers: 1, verification_commands: runChecks.split(/\r?\n/).map((command) => command.trim()).filter(Boolean) };
+      const input = { id: crypto.randomUUID(), title: draftTitle(mission), mission_text: mission, source: missionSource, domain_id: selectedDomainId || null, project_id: null, ade_id: selectedAde === CLAUDE_ROUTE_CHOICE || selectedAde === CLAUDE_HOSTED_CHOICE ? null : selectedAde, max_workers: 1, verification_commands: runChecks.split(/\r?\n/).map((command) => command.trim()).filter(Boolean) };
       const facts: ReviewedDemandFacts = {
         task_kind: reviewedTaskKind,
         context_complete: reviewedContextComplete,

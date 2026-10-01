@@ -1,11 +1,34 @@
 # Pytxo v1.2.2 release readiness
 
-## October 1 — consolidated source, full local gates, native failure-path proof
+## October 1 — consolidated source, full local gates, native Codex Review → Apply
 
-**Decision: NOT READY for public Beta; locally green.** Source state is
-`6c0eb57` (`codex/beta-candidate-verification`) plus the uncommitted Beta work
-imported from the main checkout, plus this session's fixes, on branch
-`mbcz/pytxo-beta-release-4f320c`. Nothing was committed, pushed or published.
+**Decision: NOT READY for public Beta; locally verified candidate.** Source is
+branch `mbcz/pytxo-beta-release-4f320c`: `1c01532` imports the Beta work that
+existed only uncommitted in the main checkout (unchanged), then this session's
+fixes. Local commits only; nothing pushed, released or published.
+
+Final candidate: MSI `C751A8025941FA8D6E1E63903CB89182279008DDFA87CF75817C789986FAA7BF`,
+payload EXE `2E4C908DBF3063C7947984CC017FF06A816339F233A3600836E527BB52C2213B`
+(unsigned). Its native smoke (fresh onboarding → guided example → 3-step Ready
+plan, word-boundary saved title, clean example `git status`) passed. The full
+mission below ran on an earlier build (`2024CA88…`) that differs only by the
+saved-title and stale-review copy and the example `.gitignore`.
+
+Native mission (extracted payload, isolated `PYTXO_HOME`/trust store/WebView2,
+CDP, Codex CLI 0.159.3 after the host upgrade): guided example, Orbit,
+`projfs-sparse-copy-v2`, one worker, three sequential tasks. All three exited 0
+with task checks passing; combined checks passed; Review showed exactly
+README.md, `src/risk-policy.mjs`, `test/risk-policy.test.mjs` (digest
+`7f0f908e…`). An unrelated untracked `operator-note.txt` added after
+preparation made Apply refuse as stale (whole-project freshness, by design) with
+nothing written. Refresh produced `c504395c…`; Apply then committed exactly the
+three paths, the operator file survived, the fixture's `node --test` passed
+40/40 (baseline 2), and History shows Completed / Apply recorded with one
+committed attempt. Evidence: `D:/pytxo-native-acceptance/run-20261001-d`.
+
+Additional fixes from that run: saved-request titles end on a whole word with
+"…" (were cut mid-word, e.g. "…changes i"); the stale message no longer claims
+"affected checkout paths changed" when any project file changed.
 
 Fixes made and covered:
 
@@ -38,25 +61,22 @@ Verification (all exit 0 unless noted):
 | `cargo test --workspace` | 1072 pass; 30 runner/orchestrate failures were the unset `PYTXO_TEST_ATTEMPT_HOST` pin. With CI's pinned helper: runner+orchestrate 503/503 |
 | Planner / desktop-native (`pytxo-desktop`) | 36/36, 74/74 |
 | Desktop `npm run check` (svelte-check + stylelint) | 0 errors, 0 warnings |
-| Desktop production-preview e2e | 401/401 after the selector fix; failure-cause spec 2/2; dev suite 1/1 |
+| Desktop production-preview e2e | 394/394 on the final source (includes new failure-cause/title specs); dev suite 1/1 |
 | Desktop `@performance` | 4/4 idle; one 53 ms long task only under concurrent build load |
 | Web lint, 167 links, 27 product assets, production build (63 pages) | PASS |
 | Web e2e (system Chrome) | 32/32 (sitemap spec passed on idle retry) |
-| `npm run build:msi` | PASS; MSI `2024CA88…D64E`, payload EXE `D543CC21…0EF2`; unsigned |
+| `npm run build:msi` | PASS; final MSI `C751A802…A7BF`; unsigned |
 
-Native (extracted MSI payload, isolated `PYTXO_HOME`, trust store and WebView2
-profile, CDP; 1280×800 at 125%): fresh onboarding detected Codex as Ready,
-created the guided example, built a 3-step plan (README task now resolves) and
-dispatched Orbit/`projfs-sparse-copy-v2`. Codex 0.144.4 then exited 1 because
-the host's `~/.codex/config.toml` selects `gpt-6.1-sol`, which the ChatGPT
-account rejects. Work showed that exact cause; no package was prepared and the
-primary checkout was untouched. A successful real-agent Review → Apply on this
-build is **not** yet proven. Evidence: `D:/pytxo-native-acceptance/run-20261001-*`.
+Failure path (earlier build, Codex CLI 0.144.4): the host `~/.codex` model
+`gpt-6.1-sol` was rejected for the ChatGPT account; Work showed "mission-0
+failed. The agent reported: The 'gpt-6.1-sol' model is not supported when using
+Codex with a ChatGPT account." No package was prepared. Upgrading the CLI to
+0.159.3 resolved it without changing the Codex config.
 
-Remaining gates: successful native Codex mission on this build (host Codex
-model/version), commit and source freeze, hosted CI, signed build, clean
-install/upgrade of this artifact, matching media, publication approval. The
-Jev routing experiment is still in the source (see September 24 note).
+Remaining gates: hosted CI on this branch (push not yet authorized), signed
+build, clean install/upgrade of the final artifact, multi-DPI native pass,
+matching media, publication approval. The Jev routing experiment is still in
+the source (see September 24 note). The guided example now ignores `.pytxo/`.
 
 ## September 24 — beta release cut audit
 
