@@ -22,10 +22,13 @@ import {
   parseR6CockpitProofProps,
 } from "./r6/PytxoR6CockpitProof";
 import importedR6CockpitJson from "../r6-cockpit-props.json";
+import {FLEET_FPS, FLEET_FRAMES, PytxoFleetFilm, parseFleetFilmProps} from "./fleet/PytxoFleetFilm";
+import importedFleetJson from "../fleet-props.json";
 
 const apertureProps = parseApertureFilmProps(importedApertureJson);
 const r3StoryboardProps = parseR3StoryboardProps(importedR3StoryboardJson);
 const r6CockpitProps = parseR6CockpitProofProps(importedR6CockpitJson);
+const fleetProps = parseFleetFilmProps(importedFleetJson);
 
 export const RemotionRoot = () => {
   return (
@@ -69,6 +72,15 @@ export const RemotionRoot = () => {
       width={1920}
       height={1080}
       defaultProps={r6CockpitProps}
+    />
+    <Composition
+      id="PytxoFleetFilm"
+      component={PytxoFleetFilm}
+      durationInFrames={FLEET_FRAMES}
+      fps={FLEET_FPS}
+      width={1920}
+      height={1080}
+      defaultProps={fleetProps}
     />
     </>
   );

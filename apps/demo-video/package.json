@@ -35,7 +35,9 @@
     "transition-sheet": "node scripts/render-transition-sheet.mjs",
     "poster": "remotion still src/index.ts PytxoLaunchDemo public/poster.png --frame=600 --overwrite",
     "voiceover": "node scripts/generate-voiceover.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "fleet:ledger": "node scripts/fleet-ledger.mjs",
+    "render:fleet": "remotion render src/index.ts PytxoFleetFilm out/pytxo-fleet-film.render.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p --color-space=bt709 --muted --concurrency=2 --overwrite && node scripts/finalize-master.mjs out/pytxo-fleet-film.render.mp4 out/pytxo-fleet-film.mp4"
   },
   "dependencies": {
     "@fontsource-variable/geist": "5.3.0",

@@ -1,5 +1,33 @@
 # Pytxo product demo
 
+## Fleet film — October 2 draft
+
+`PytxoFleetFilm` (52 s, 1920×1080, 30 fps) is the approved fleet storyboard:
+terminal wall → wave graph with the shared-file ordering → the recorded fleet
+board → one exact package with its checks and digest → stale refusal → Apply →
+the resulting app → end card. Every count, vendor, path, digest and worker line
+comes from `fleet-props.json`, which `scripts/fleet-ledger.mjs` exports from one
+recorded native run of `docs/demo/fleet`. Worker lines are allow-listed (commands,
+check results, added code, lines about owned files) because workers read the
+operator's own agent configuration; host paths and secrets never pass.
+
+```powershell
+cd apps/demo-video
+npm run fleet:ledger -- --evidence D:/pytxo-native-acceptance/<root> `
+  --repo <fixture repo> --stale-digest <refused digest> --stills <dir of key PNGs>
+npm run typecheck
+npm run render:fleet
+```
+
+The current props and `public/fleet/*.png` come from the October 2 run on MSI
+`0D20D3B8…` (`D:/pytxo-native-acceptance/fleet-20261002b`), where OpenCode and
+Antigravity prepared no files; the film shows them as "no changes". The draft
+uses native stills, so its disclosure reads "native stills, continuous capture
+pending". Before publication: repeat the run on the final MSI with OpenCode's
+provider stored, replace the stills with continuous native capture, cut to the
+licensed track, and resolve the Antigravity mark (the Desktop UI in the footage
+shows it).
+
 ## Current R6 cockpit proof and recording boundary — September 21
 
 `PytxoR6CockpitProof` is a 12-second review composition bound to the exact local
