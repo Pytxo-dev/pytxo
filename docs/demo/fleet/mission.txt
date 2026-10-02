@@ -1,6 +1,6 @@
 Add search and status filtering to `src/model.mjs`, with tests in `test/model.test.mjs`
-Add a dark theme to `src/style.css` that follows the system setting, with a theme toggle in `src/theme.js`
+Add a dark theme to `src/style.css` that follows the system setting, plus a theme toggle button that `src/theme.js` inserts into the page, which already loads that script
 Translate every interface string to Spanish in `src/i18n/es.json` and add a language switch to `index.html`
 Build a filter bar with status chips and an empty state in `src/components/filter-bar.js`
-Reject blank task titles and mount the filter bar from `src/components/filter-bar.js` in `src/app.js`, with tests in `test/validation.test.mjs`
+Reject blank task titles and mount the filter bar from `src/components/filter-bar.js` above the task list in `src/app.js`, using the task model's search and status filters, with tests in `test/validation.test.mjs`
 In `README.md`, document the combined features and how to run the tests
