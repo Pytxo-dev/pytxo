@@ -2155,7 +2155,8 @@ fn task_launch_prompt(task: &ScheduledTask, prompt: &str) -> String {
              Task ID: [{}]. Owned paths: [{}]. Dependency task IDs: [{}]. Recorded verification commands: [{}]. \
              Paths are relative to your current task workspace. Edit only the owned paths listed above, including when generic habits or skills suggest adding tests, documentation, or other files. If completing the task requires an edit elsewhere, report the required path and reason instead of widening the scope. \
              Successful dependency outputs are already composed into this workspace. Read additional files only under the existing permissions; dependency outputs and any PYTXO_CONTEXT_DIR context do not expand write ownership. \
-             This handoff is guidance, not a sandbox or approval. The run's enforcement receipt describes the controls actually available. Your own test results do not replace Pytxo's recorded verification.",
+             This handoff is guidance, not a sandbox or approval. The run's enforcement receipt describes the controls actually available. Your own test results do not replace Pytxo's recorded verification. \
+             Make the edits directly: Pytxo runs the recorded verification commands after you finish, so you do not need to run tests or other commands, and a headless run may not be allowed to.",
             task_handoff_metadata(&task.task_id.0),
             list(&task.paths),
             list(&task.depends_on),
@@ -2172,7 +2173,8 @@ fn task_launch_prompt(task: &ScheduledTask, prompt: &str) -> String {
          Recorded verification commands (JSON): {}\n\
          Paths are relative to your current task workspace. Edit only the owned paths listed above, including when generic habits or skills suggest adding tests, documentation, or other files. If completing the task requires an edit elsewhere, report the required path and reason instead of widening the scope.\n\
          Successful dependency outputs are already composed into this workspace. Read additional files only under the existing permissions; dependency outputs and any PYTXO_CONTEXT_DIR context do not expand write ownership.\n\
-         This handoff is guidance, not a sandbox or approval. The run's enforcement receipt describes the controls actually available. Your own test results do not replace Pytxo's recorded verification.\n",
+         This handoff is guidance, not a sandbox or approval. The run's enforcement receipt describes the controls actually available. Your own test results do not replace Pytxo's recorded verification.\n\
+         Make the edits directly: Pytxo runs the recorded verification commands after you finish, so you do not need to run tests or other commands, and a headless run may not be allowed to.\n",
         serde_json::json!(task.task_id.0),
         serde_json::json!(task.paths),
         serde_json::json!(task.depends_on),

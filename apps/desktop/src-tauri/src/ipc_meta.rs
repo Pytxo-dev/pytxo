@@ -297,9 +297,18 @@ fn apply_probe_result(id: &str, probe: &ProbeResult, meta: &mut AuthMeta) {
             meta.state = "signed_in";
             meta.label = "Cursor account connected".into();
         }
+        // Workers get no host environment keys, so only stored credentials count.
         "opencode" if probe.success && !lower.contains("0 credentials") => {
             meta.state = "signed_in";
-            meta.label = "OpenCode provider connected".into();
+            meta.label = if lower.contains("environment variable") {
+                "OpenCode provider connected · environment keys stay outside workers".into()
+            } else {
+                "OpenCode provider connected".into()
+            };
+        }
+        "opencode" if probe.success && lower.contains("environment variable") => {
+            meta.state = "signed_out";
+            meta.label = "OpenCode has only environment keys, which workers do not receive. Store a provider with opencode auth login".into();
         }
         "opencode" if probe.success => {
             meta.state = "signed_out";
@@ -509,6 +518,48 @@ pub fn entitlement_status(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opencode_counts_stored_credentials_not_environment_keys() {
+        let probe = |output: &str| {
+            let mut meta = auth_meta("opencode", true);
+            apply_probe_result(
+                "opencode",
+                &ProbeResult {
+                    success: true,
+                    output: output.into(),
+                },
+                &mut meta,
+            );
+            (meta.state, meta.label)
+        };
+        let env_only = probe(
+            "Credentials
+0 credentials
+Environment
+OpenRouter OPENROUTER_API_KEY
+1 environment variable",
+        );
+        assert_eq!(env_only.0, "signed_out");
+        assert!(env_only.1.contains("workers do not receive"));
+        let stored = probe(
+            "Credentials
+OpenCode Zen api
+1 credentials
+Environment
+1 environment variable",
+        );
+        assert_eq!(stored.0, "signed_in");
+        assert!(stored.1.contains("stay outside workers"));
+        assert_eq!(
+            probe(
+                "Credentials
+1 credentials"
+            )
+            .1,
+            "OpenCode provider connected"
+        );
+    }
 
     #[cfg(windows)]
     #[test]
