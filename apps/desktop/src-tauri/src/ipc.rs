@@ -1145,8 +1145,9 @@ pub fn agent_failure_hint(
 const FAILURE_HINT_MAX_CHARS: usize = 240;
 
 fn failure_hint<'a>(payloads: impl Iterator<Item = &'a str>) -> Option<String> {
-    // Strip across event boundaries: PTY chunks split escape sequences and wraps.
-    let text = pytxo_orchestrate::strip_terminal_text(&payloads.collect::<String>());
+    // Events are lines; ConPTY wraps continue across them (see join_output_lines).
+    let text =
+        pytxo_orchestrate::strip_terminal_text(&pytxo_orchestrate::join_output_lines(payloads));
     // Prefer a structured provider message such as {"error":{"message":"…"}}.
     let structured = text.rfind("\"message\":\"").and_then(|at| {
         let rest = &text[at + "\"message\":\"".len()..];

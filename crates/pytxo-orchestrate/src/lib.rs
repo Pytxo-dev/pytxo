@@ -61,7 +61,7 @@ mod terminal_text;
 pub use dashboard::{
     dashboard_snapshot, dashboard_snapshot_light, worker_panes, DashboardSnapshot, WorkerPane,
 };
-pub use terminal_text::{event_lines, strip_terminal_text};
+pub use terminal_text::{event_lines, join_output_lines, strip_terminal_text};
 
 pub use cloud::{cloud_clients, cloud_health_url, ping_cloud, CloudClients};
 
@@ -2166,16 +2166,10 @@ pub(crate) async fn execute_run_body(
             } else {
                 store.set_agent_workspace(&agent_key, worktree_path.as_deref())?;
             }
-            if !result.stdout.is_empty() {
-                let payload = maybe_sanitize(&result.stdout, sanitize);
-                store.append_event(&agent_key, "stdout", &payload)?;
-                all_lines.extend(result.stdout.lines().map(String::from));
-            }
-            if !result.stderr.is_empty() {
-                let payload = maybe_sanitize(&result.stderr, sanitize);
-                store.append_event(&agent_key, "stderr", &payload)?;
-                all_lines.extend(result.stderr.lines().map(String::from));
-            }
+            // Output was already recorded line by line as it streamed; appending
+            // the accumulated copy here duplicated every worker's output.
+            all_lines.extend(result.stdout.lines().map(String::from));
+            all_lines.extend(result.stderr.lines().map(String::from));
             let status = result.outcome.ledger_status();
             if !result.outcome.is_success() {
                 failed = true;
