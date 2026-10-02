@@ -287,6 +287,8 @@ test.describe("Review depth", () => {
     await page.getByRole("button", { name: "Apply reviewed changes" }).click();
     await page.getByRole("button", { name: "Apply exact package" }).click();
     await expect(page.locator(".review-status")).toContainText("Review is stale");
+    // The stale status explains the refusal; the raw runner error is not repeated.
+    await expect(page.locator(".action-error")).toHaveCount(0);
     await page.getByRole("link", { name: "History", exact: true }).click();
     // History reports the refreshed apply state without needing a reload.
     await expect(

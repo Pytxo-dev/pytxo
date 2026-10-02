@@ -23,9 +23,12 @@ pins this plan shape, so a planner change that alters it fails in CI.
 - Windows x64 with Git and Node.js on `PATH`.
 - Pytxo Desktop from the release candidate MSI.
 - Signed in and on `PATH`: `codex`, `claude`, `cursor-agent`, `opencode`, `agy`.
-- OpenCode needs a model that supports tool calls. The fixture's
-  `opencode.json` pins `openrouter/~moonshotai/kimi-latest`; change it if your
-  OpenCode account uses another provider.
+- OpenCode needs a model that supports tool calls, from a provider stored with
+  `opencode auth login`. Pytxo does not pass environment API keys such as
+  `OPENROUTER_API_KEY` to workers, so a key that exists only in your
+  environment is not enough. The fixture's `opencode.json` pins
+  `openrouter/~moonshotai/kimi-latest`; change it to match your stored
+  provider.
 
 Each CLI runs on your own account and may consume its quota.
 

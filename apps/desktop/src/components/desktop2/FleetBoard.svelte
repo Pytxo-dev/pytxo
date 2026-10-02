@@ -38,6 +38,8 @@
     return null;
   }
   const orderedShares = $derived(waves.flat().filter((task) => sharedOwner(task)).length);
+  /** Tasks with prepared files; null until a candidate exists. A worker can pass its checks and change nothing. */
+  const preparedTasks = $derived(review?.prepared_manifest ? new Set(review.prepared_manifest.files.map((file) => file.task_id)) : null);
 
   let tails = $state<Record<string, Tail>>({});
   let now = $state(Date.now());
@@ -134,11 +136,12 @@
             {@const lines = agent && tails[agent.id] ? eventLines(tails[agent.id].events).slice(-14) : []}
             {@const cli = cliOf(task, agent)}
             {@const vendor = vendorOf(task, agent)}
-            <article class="worker" data-tone={tone(agent)}>
+            {@const unchanged = tone(agent) === "done" && !!preparedTasks && !preparedTasks.has(task.task_id)}
+            <article class="worker" data-tone={tone(agent)} data-unchanged={unchanged || undefined}>
               <button class="head" onclick={() => agent && onInspect(agent)} disabled={!agent} aria-label={`${vendor}: ${taskDescriptions[task.task_id] ?? task.task_id}. ${state?.label ?? "Not started"}. Open output.`}>
                 <span class="logo">{#if cli}<AdeIdentity id={cli} />{/if}</span>
                 <span class="who"><strong>{vendor}</strong><small title={taskDescriptions[task.task_id]}>{taskDescriptions[task.task_id] ?? task.task_id}</small></span>
-                <span class="state">{#if tone(agent) === "done"}<span class="wide">✓ Checks passed</span><span class="narrow">✓ Passed</span>{:else}{tone(agent) === "live" ? "● Working" : tone(agent) === "queued" ? (share ? "Next" : "Queued") : state?.label ?? "Settled"}{/if}</span>
+                <span class="state">{#if unchanged}No changes{:else if tone(agent) === "done"}<span class="wide">✓ Checks passed</span><span class="narrow">✓ Passed</span>{:else}{tone(agent) === "live" ? "● Working" : tone(agent) === "queued" ? (share ? "Next" : "Queued") : state?.label ?? "Settled"}{/if}</span>
               </button>
               <div class="term" role="log" aria-label={`Recent output from ${vendor}`}>
                 {#if lines.length}
@@ -193,6 +196,7 @@
   .state { grid-column: 3; grid-row: 1; font-size: 13px; font-weight: 600; color: var(--pytxo-text-muted); white-space: nowrap; }
   .worker[data-tone="live"] .state { color: var(--pytxo-activity); }
   .worker[data-tone="done"] .state { color: var(--state-verified); }
+  .worker[data-unchanged] .state { color: var(--pytxo-text-muted); }
   .worker[data-tone="failed"] .state { color: var(--state-refuted); }
   .term { display: flex; flex: 1; flex-direction: column; justify-content: flex-end; min-height: 90px; overflow: hidden; padding: 10px 14px; border-top: 1px solid var(--pytxo-line-soft); background: color-mix(in srgb, var(--pytxo-surface-shell) 70%, black); color: var(--pytxo-text-body); font: 13px/1.5 var(--pytxo-font-mono, "IBM Plex Mono", monospace); }
   .term div { flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

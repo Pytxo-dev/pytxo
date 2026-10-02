@@ -1,5 +1,47 @@
 # Pytxo v1.2.2 release readiness
 
+## October 2 — native six-agent fleet run, five vendors, Review → stale → Apply
+
+**Decision: NOT READY for public Beta.** The mixed-CLI fleet works end to end
+natively; the run exposed defects now fixed in source but not yet in a rebuilt
+MSI, and two external blockers remain. Local commits only; nothing pushed.
+
+Native run (MSI `0D20D3B8EB5EFB8D5C28A8060F6EE55E0CE9289106FEFD4FB5E3095CDCCECF29`,
+EXE `40BB45D26175882C184DFF2B7E676320D240CFB9BDAA0EEE810A6D700B1171D4`,
+unsigned; extracted payload, isolated `PYTXO_HOME`/trust store/WebView2, CDP;
+folder chosen through the real OS dialog): `docs/demo/fleet` fixture, one
+request, plan 6 tasks in 4 → 1 → 1 waves across OpenAI Codex, Claude Code,
+Cursor Agent, OpenCode, Antigravity and Codex. Four workers ran concurrently on
+the fleet board. All six exited 0 with task checks passing (14 m 28 s); combined
+checks passed; Review listed 7 files, each named with the CLI that prepared it
+(Codex 3, Cursor Agent 2, Claude Code 2). An unrelated `operator-note.txt`
+made Apply refuse as stale; after removing it and refreshing (digest
+`2c6b6cac…957b`), Apply wrote exactly the 7 paths, the ledger records
+`applied`, and the fixture's `npm test` passed 10/10 (baseline 3). Evidence and
+ledger export: `D:/pytxo-native-acceptance/fleet-20261002b`.
+
+Defects found in that run and fixed since (tests cover each):
+
+- A finished worker read as running until the whole plan returned; workers now
+  settle when they exit (`agent-exit`).
+- OpenCode and Antigravity exited 0 without editing anything. OpenCode could
+  not find its OpenRouter model because workers do not receive host env keys;
+  Desktop called it connected anyway. Readiness now counts only stored
+  credentials. Antigravity's headless mode auto-denied a command and gave up;
+  the task handoff now tells workers Pytxo runs the checks, so they edit
+  directly. The fleet board marks a passing worker that prepared no files as
+  "No changes".
+- Onboarding said to start with Codex and listed Gemini CLI instead of
+  Antigravity; a picked folder could not be changed.
+- Fleet cards truncated vendor names at native width.
+- A stale refusal repeated the raw runner error under the stale status.
+
+Blockers before the film run: store the OpenRouter key in OpenCode
+(`opencode auth login`; the OpenCode Zen credential has no funds and its free
+tier refuses outside OpenCode), then rebuild the MSI and repeat this run.
+Antigravity's public mark still needs Google's compatibility-use approval or
+removal (see `apps/desktop/public/ade/PROVENANCE.md`).
+
 ## October 1 — consolidated source, full local gates, native Codex Review → Apply
 
 **Decision: NOT READY for public Beta; locally verified candidate.** Source is

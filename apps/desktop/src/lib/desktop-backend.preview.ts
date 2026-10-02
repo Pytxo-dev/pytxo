@@ -1052,9 +1052,9 @@ export class PreviewDesktopBackend implements DesktopBackend {
         ),
       },
       apply_manifest: appliedManifest,
-      prepared_manifest: run.apply_status === "review_failed" ? null : preparedManifest,
-      prepared_digest: run.apply_status === "review_failed" ? null : preparedManifest.package_digest,
-      prepared_at: run.apply_status === "review_failed" ? null : preparedManifest.prepared_at,
+      prepared_manifest: fleet || run.apply_status === "review_failed" ? null : preparedManifest,
+      prepared_digest: fleet || run.apply_status === "review_failed" ? null : preparedManifest.package_digest,
+      prepared_at: fleet || run.apply_status === "review_failed" ? null : preparedManifest.prepared_at,
       last_apply_error: run.last_apply_error ?? lastError,
       recovery_state: recovered
         ? "rolled_back"

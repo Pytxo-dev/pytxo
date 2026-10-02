@@ -237,7 +237,9 @@
         /* Preserve the original action error; the immediate domain event is a second refresh path. */
       }
       await loadReview();
-      error = actionError;
+      // A refusal that left the review stale is explained by its status; the
+      // runner's own wording would only repeat it in internal terms.
+      error = presentation.state === "stale" ? "" : actionError;
     } finally {
       actionPending = false;
     }

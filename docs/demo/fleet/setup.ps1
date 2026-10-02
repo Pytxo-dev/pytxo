@@ -6,6 +6,8 @@ if (Test-Path $Path) { throw "$Path already exists. Run reset.ps1 first." }
 New-Item -ItemType Directory -Force (Split-Path $Path) | Out-Null
 Copy-Item -Recurse (Join-Path $PSScriptRoot "template") $Path
 git -C $Path init -q
+# Commit the template bytes as they are, without line-ending conversion noise.
+git -C $Path config core.autocrlf false
 # reset.ps1 deletes only folders that carry this marker.
 New-Item -ItemType File (Join-Path $Path ".git\pytxo-demo") | Out-Null
 git -C $Path add .
