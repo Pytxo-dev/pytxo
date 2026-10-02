@@ -66,6 +66,20 @@ It deletes the fixture only if `setup.ps1` created it.
 
 ## Film capture
 
-Record the Desktop window at 3840×2160 from step 5 to step 8. Keep the run's
-History entry: the film's on-screen numbers (workers, waves, checks, files and
-package digest) must come from that recorded run.
+`capture/` reproduces the run for the film without manual steps:
+
+```powershell
+./docs/demo/fleet/setup.ps1 -Path D:/fleet-demo/taskboard
+./docs/demo/fleet/capture/launch.ps1 -Msi <candidate MSI> -Root D:/fleet-demo/evidence
+node docs/demo/fleet/capture/capture.mjs --root D:/fleet-demo/evidence --repo D:/fleet-demo/taskboard
+```
+
+`launch.ps1` extracts the MSI without installing it and starts Desktop with
+isolated Pytxo state and a local CDP port. `capture.mjs` drives onboarding (the
+folder is chosen through Desktop's real folder dialog by `pick-folder.ps1`),
+the request, plan, run, Review, the stale refusal and Apply, while recording
+the app's own frames through CDP screencast into `capture.mp4`. It writes
+`clicks.json` (each click's target and time, for a pointer drawn in the edit;
+the OS pointer is not recorded) and screenshots of each beat. Then export the
+ledger for the film with `apps/demo-video`'s `npm run fleet:ledger`. Pass
+`--until plan` to stop before any agent runs.
