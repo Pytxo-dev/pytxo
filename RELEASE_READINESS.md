@@ -36,6 +36,23 @@ Defects found in that run and fixed since (tests cover each):
 - Fleet cards truncated vendor names at native width.
 - A stale refusal repeated the raw runner error under the stale status.
 
+Also fixed after the run: recorded worker output was merged into one line by
+every reader (workers record one event per line) and stored twice per worker.
+
+Rebuilt candidate: MSI `F65B09E5025BFD2B63ED217E8F1983E3E33FDC00574EB1BF2C546E42FB27F3ED`,
+EXE `FB5A6461FAED6706BA90D5970CE064BC77A1BCDA7E06B5E5E4FC6D3CB1036D36` (unsigned),
+from `23b77ce`. On it, the scripted capture (`docs/demo/fleet/capture`) drove
+onboarding through the real folder dialog to a Ready 6-task / 3-step plan with
+continuous screencast footage (`D:/pytxo-native-acceptance/fleet-20261002d`);
+no agents ran. The new onboarding copy, Beta agent list and folder change were
+confirmed natively. On a cold first launch the OpenCode readiness probe can hit
+its 10 s limit and read "Session status unavailable — recheck"; Check again
+recovers.
+
+A draft of the fleet film renders from the ledger (`apps/demo-video`,
+`PytxoFleetFilm`, 52 s); it uses the run's native stills until the final run is
+captured.
+
 Blockers before the film run: store the OpenRouter key in OpenCode
 (`opencode auth login`; the OpenCode Zen credential has no funds and its free
 tier refuses outside OpenCode), then rebuild the MSI and repeat this run.
