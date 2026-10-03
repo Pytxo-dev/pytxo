@@ -204,6 +204,9 @@ pub fn process_start_identity(pid: u32) -> Result<Option<String>> {
             .output()
             .map_err(|error| PytxoError::Runner(format!("query process identity: {error}")))?;
         if !output.status.success() {
+            if unix_pid_is_confirmed_missing(pid)? {
+                return Ok(None);
+            }
             return Err(PytxoError::Runner(format!(
                 "query process identity failed for pid {pid}: ps exited {}",
                 output.status
@@ -211,6 +214,9 @@ pub fn process_start_identity(pid: u32) -> Result<Option<String>> {
         }
         let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if token.is_empty() {
+            if unix_pid_is_confirmed_missing(pid)? {
+                return Ok(None);
+            }
             return Err(PytxoError::Runner(format!(
                 "query process identity returned no start time for pid {pid}"
             )));
@@ -220,6 +226,33 @@ pub fn process_start_identity(pid: u32) -> Result<Option<String>> {
 
     #[allow(unreachable_code)]
     Ok(None)
+}
+
+#[cfg(all(unix, not(target_os = "linux")))]
+fn unix_pid_is_confirmed_missing(pid: u32) -> Result<bool> {
+    let Ok(native_pid) = libc::pid_t::try_from(pid) else {
+        return Ok(true);
+    };
+    if native_pid <= 0 {
+        return Ok(true);
+    }
+    // Signal zero only probes existence. Never cast a large PID into a negative
+    // process-group selector, or infer absence from ps failure/access denial.
+    if unsafe { libc::kill(native_pid, 0) } == 0 {
+        return Ok(false);
+    }
+    let error = std::io::Error::last_os_error();
+    if unix_pid_error_is_confirmed_missing(&error) {
+        return Ok(true);
+    }
+    Err(PytxoError::Runner(format!(
+        "query process existence failed for pid {pid}: {error}"
+    )))
+}
+
+#[cfg(all(unix, not(target_os = "linux")))]
+fn unix_pid_error_is_confirmed_missing(error: &std::io::Error) -> bool {
+    error.raw_os_error() == Some(libc::ESRCH)
 }
 
 #[cfg(windows)]
@@ -342,6 +375,42 @@ mod windows_identity_tests {
         assert!(!windows_pid_is_confirmed_missing(
             &std::io::Error::from_raw_os_error(5)
         ));
+    }
+}
+
+#[cfg(all(test, unix, not(target_os = "linux")))]
+mod unix_identity_tests {
+    use super::{process_start_identity, unix_pid_error_is_confirmed_missing};
+
+    #[test]
+    fn access_denied_is_not_absence() {
+        assert!(unix_pid_error_is_confirmed_missing(
+            &std::io::Error::from_raw_os_error(libc::ESRCH)
+        ));
+        for code in [libc::EPERM, libc::EACCES, libc::EINVAL] {
+            assert!(!unix_pid_error_is_confirmed_missing(
+                &std::io::Error::from_raw_os_error(code)
+            ));
+        }
+    }
+
+    #[test]
+    fn current_process_has_identity_and_out_of_range_pid_is_absent() {
+        assert!(process_start_identity(std::process::id())
+            .unwrap()
+            .is_some());
+        assert_eq!(process_start_identity(u32::MAX).unwrap(), None);
+    }
+
+    #[test]
+    fn reaped_process_is_confirmed_absent() {
+        let mut child = std::process::Command::new("sh")
+            .args(["-c", "exit 0"])
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        assert!(child.wait().unwrap().success());
+        assert_eq!(process_start_identity(pid).unwrap(), None);
     }
 }
 

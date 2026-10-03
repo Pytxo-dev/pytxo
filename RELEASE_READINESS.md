@@ -45,7 +45,7 @@ older readiness summaries, not their historical evidence.
 | Local check | Evidence |
 |-------------|----------|
 | Rust format and workspace Clippy, warnings denied | PASS |
-| `cargo test --locked --workspace -j2`, pinned attempt host, isolated state | PASS: 1,100 tests, 16 ignored; the first unbounded attempt exhausted paging, not a source failure |
+| `cargo test --locked --workspace -j2`, pinned attempt host, isolated state | PASS: 1,114 tests, 16 ignored at patched TLS head `69501ac`; subsequent platform repairs require their affected checks and hosted CI |
 | Desktop Svelte and CSS checks | PASS: 0 errors, 0 warnings |
 | Desktop full production-preview suite | PASS: 413/413 after clean dependency install and final accessibility/output fixes |
 | Storybook build, interactions and accessibility | PASS: 42/42 after fixing Windows discovery, landmark semantics and Review contrast |
@@ -55,8 +55,9 @@ older readiness summaries, not their historical evidence.
 | Release inventory and version tests | PASS: 27/27, including the candidate no-deployment boundary |
 | Silent film source, evidence and master validation | PASS: 56 s, 1920x1080, 60 fps, H.264/BT.709, no audio; full decode and normal-speed browser playback |
 
-Detailed local logs are under `apps/desktop/audit-shots/`; bounded Rust output is
-`D:/pytxo-target/astra-20261003-tests-bounded.log`.
+Detailed local logs are under `apps/desktop/audit-shots/`; the patched workspace
+run is `astra-candidate-rust-final-tests.log`. Strict workspace Clippy passed at
+`c45c756`; the subsequent preview-policy regression run passed 5/5.
 
 ### Native evidence
 
@@ -134,13 +135,22 @@ selection, preserving Windows hide-on-invalid and stale-revision behavior. Other
 platforms still return the same unsupported-preview error. No lint suppression or
 test relaxation was added; independent review found no boundary change.
 
+CI then exposed three Windows-only consent test imports; their imports now share
+the tests' existing platform guard. Once macOS reached execution, stale supervisor
+recovery failed because a missing process was indistinguishable from a failed
+`ps` query. The non-Linux Unix fallback now confirms absence using a signal-zero
+probe and accepts only `ESRCH`; permission errors remain uncertainty. Checked PID
+conversion cannot accidentally select a process group. New native tests cover
+live, out-of-range and reaped PIDs plus permission-error classification. Scope is
+the existing owner-identity primitive for all profiles, exercised by Orbit
+single-repository recovery; no authority or execution domain is expanded.
+
 A fresh Rust audit also identified RUSTSEC-2026-0285. The lock now uses rustls
 0.23.45 and its compatible webpki 0.103.15 dependency. Audit reports zero blocking
 vulnerabilities under the unchanged documented exceptions in `.cargo/audit.toml`;
-unmaintained/unsound/yanked warnings remain visible. Format and targeted
-orchestrate Clippy passed. The 1,100-test workspace result above predates this
-TLS lock update; match the patched rerun and hosted checks to the PR head before
-acceptance. The demo's fast-uri 3.1.8 and
+unmaintained/unsound/yanked warnings remain visible. The patched local workspace
+rerun passed 1,114 tests with 16 ignored; match subsequent affected checks and
+hosted results to the PR head before acceptance. The demo's fast-uri 3.1.8 and
 js-yaml 4.3.2 patches produce a clean full npm audit; source and evidence validation
 pass. The exported film's bytes are unchanged. These patches require a new
 candidate build; the first PR head and all older MSIs lack this new Rust lock.
