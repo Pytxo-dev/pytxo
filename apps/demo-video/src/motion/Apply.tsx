@@ -22,7 +22,7 @@ export const Apply = (props: FilmProps) => {
     </div>
     <div style={{position: "absolute", inset: "0 0 94px", background: "#1e1e1e", clipPath: `inset(${(1 - result) * 100}% 0 0 0)`}}>
       <div style={{position: "absolute", left: 92, top: 87, color: "#fafafa", fontSize: 80, fontWeight: 550, lineHeight: 1.15}}>Now part of<br />your project.</div>
-      <Label style={{position: "absolute", left: 96, top: 373, width: 480, color: "#c3c8c5"}}>The recorded result.<br />Changes and limitations intact.</Label>
+      <Label style={{position: "absolute", left: 96, top: 373, width: 480, color: "#c3c8c5"}}>Your project, with<br />the reviewed changes.</Label>
       <Native props={props} assetKey="result" x={525} y={76} cropWidth={885} width={1190} height={713} style={{position: "absolute", left: 650, top: 106 + (1 - result) * 90}} />
       <div style={{position: "absolute", left: 96, right: 96, bottom: 90, height: 2, background: "#737976", transform: `scaleX(${move(f, 548, 658)})`, transformOrigin: "left"}} />
     </div>

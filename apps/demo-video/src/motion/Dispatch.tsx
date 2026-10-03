@@ -13,7 +13,7 @@ export const Dispatch = (props: FilmProps) => {
   return <Stage>
     <div style={{position: "absolute", top: 108 - depart * 350, left: 88}} key={heading}><MaskText at={f < 264 ? 0 : f < 568 ? 264 : 568} size={88}>{heading}</MaskText></div>
     <Label style={{position: "absolute", left: 94, top: 226, opacity: 1 - depart}}>{f < 264 ? "Improve this task board." : "6 tasks / 5 vendors / recorded order, time compressed"}</Label>
-    <div style={{position: "absolute", left: 96, top: 368, width: 1728, height: 140, border: `2px solid ${C.ink}`, borderRadius: 4, opacity: 1 - split, display: "flex", alignItems: "center", padding: "0 38px", boxSizing: "border-box", fontSize: 56}}>Improve this task board.<span style={{marginLeft: "auto", fontSize: 62}}>+</span></div>
+    <div style={{position: "absolute", left: 96, top: 368, width: 1728, height: 140, border: `2px solid ${C.ink}`, borderRadius: 4, opacity: 1 - move(f, 98, 126), display: "flex", alignItems: "center", padding: "0 38px", boxSizing: "border-box", fontSize: 56}}>Improve this task board.<span style={{marginLeft: "auto", fontSize: 62}}>+</span></div>
     <svg width={1920} height={1080} style={{position: "absolute", inset: 0, opacity: arrange * (1 - depart)}} aria-hidden>
       {[0, 1, 2, 3].map(i => <path key={i} d={`M 654 ${384 + i * 128} H 704 Q 730 ${384 + i * 128} 730 ${410 + i * 128} V 570 Q 730 596 756 596 H 817`} fill="none" stroke={C.rule} strokeWidth={3} />)}
       <path d="M 1238 596 H 1408" stroke={C.rule} strokeWidth={3} />
@@ -30,10 +30,10 @@ export const Dispatch = (props: FilmProps) => {
       const active = move(f, activeAt, activeAt + 22);
       const done = move(f, finishedAt, finishedAt + 24);
       const hasFiles = worker.filesPrepared.length > 0;
-      return <div key={worker.taskId} style={{position: "absolute", left: mix(mix(96, gridX, split), laneX, arrange), top: mix(mix(368, gridY, split), laneY, arrange) - depart * (80 + i * 16), width: mix(546, i < 4 ? 560 : 416, arrange), height: mix(198, i < 4 ? 108 : 182, arrange), opacity: split * (1 - depart), border: `2px solid ${done ? hasFiles ? C.green : C.muted : active ? C.ink : C.rule}`, borderRadius: 4, boxSizing: "border-box", background: C.paper, overflow: "hidden", padding: "17px 22px"}}>
+      return <div key={worker.taskId} style={{position: "absolute", left: mix(mix(96, gridX, split), laneX, arrange), top: mix(mix(368, gridY, split), laneY, arrange) - depart * (80 + i * 16), width: mix(546, i < 4 ? 560 : 416, arrange), height: mix(198, i < 4 ? 116 : 182, arrange), opacity: split * (1 - depart), border: `2px solid ${done ? hasFiles ? C.green : C.muted : active ? C.ink : C.rule}`, borderRadius: 4, boxSizing: "border-box", background: C.paper, overflow: "hidden", padding: "17px 22px"}}>
         <div style={{position: "absolute", inset: 0, background: done && hasFiles ? C.wash : "#f0f1f0", transformOrigin: "left", transform: `scaleX(${active * (1 - done) + done * (hasFiles ? 1 : 0)})`, opacity: 0.8}} />
-        <div style={{position: "relative", display: "flex", alignItems: "baseline", justifyContent: "space-between", opacity: move(f, 163 + i * 3, 195 + i * 3)}}><span style={{fontSize: 34, fontWeight: 620}}>{names[i]}</span><span style={{fontSize: 30, color: C.muted}}>{String(i + 1).padStart(2, "0")}</span></div>
-        <div style={{position: "relative", marginTop: 7, fontSize: 30, color: C.muted, whiteSpace: "nowrap", opacity: move(f, 163 + i * 3, 195 + i * 3)}}>{done > 0.9 ? hasFiles ? `${worker.filesPrepared.length} ${worker.filesPrepared.length === 1 ? "file" : "files"} prepared` : "No changes prepared" : tasks[i]}</div>
+        <div style={{position: "relative", display: "flex", alignItems: "baseline", justifyContent: "space-between", lineHeight: 1.15, opacity: move(f, 163 + i * 3, 195 + i * 3)}}><span style={{fontSize: 34, fontWeight: 620}}>{names[i]}</span><span style={{fontSize: 30, color: C.muted}}>{String(i + 1).padStart(2, "0")}</span></div>
+        <div style={{position: "relative", marginTop: 7, fontSize: 30, lineHeight: 1.15, color: C.muted, whiteSpace: "nowrap", opacity: move(f, 163 + i * 3, 195 + i * 3)}}>{done > 0.9 ? hasFiles ? `${worker.filesPrepared.length} ${worker.filesPrepared.length === 1 ? "file" : "files"} prepared` : "No changes prepared" : tasks[i]}</div>
         <div style={{position: "absolute", bottom: 0, left: 0, height: 3, width: `${move(f, activeAt, finishedAt) * 100}%`, background: hasFiles ? C.green : C.ink, opacity: arrange}} />
       </div>;
     })}

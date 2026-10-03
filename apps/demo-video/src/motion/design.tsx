@@ -16,7 +16,8 @@ export const Label = ({children, style}: {children: ReactNode; style?: CSSProper
 
 export const MaskText = ({children, at = 0, size = 100, style}: {children: ReactNode; at?: number; size?: number; style?: CSSProperties}) => {
   const f = useCurrentFrame();
-  return <div style={{overflow: "hidden", fontSize: size, fontWeight: 580, lineHeight: 1.12, ...style}}><div style={{transform: `translateY(${(1 - move(f, at, at + 42)) * 112}%)`}}>{children}</div></div>;
+  const reveal = interpolate(f, [at, at + 36], [0, 1], {extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.22, 1, 0.36, 1)});
+  return <div style={{overflow: "hidden", fontSize: size, fontWeight: 580, lineHeight: 1.12, ...style}}><div style={{transform: `translateY(${(1 - reveal) * 112}%)`}}>{children}</div></div>;
 };
 
 export const Native = ({props, assetKey, x, y, cropWidth, width, height, style}: {props: FilmProps; assetKey: string; x: number; y: number; cropWidth: number; width: number; height: number; style?: CSSProperties}) => {
