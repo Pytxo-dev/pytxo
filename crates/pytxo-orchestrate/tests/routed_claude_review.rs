@@ -122,9 +122,9 @@ fn reviewed_claude_preview_requires_gate_and_stages_subscription_without_a_run()
     git(
         repo.path(),
         &[
-            "-c",
-            "core.autocrlf=true",
             "clone",
+            "--config",
+            "core.autocrlf=true",
             "--quiet",
             repo.path().to_str().unwrap(),
             normalized_repo.to_str().unwrap(),

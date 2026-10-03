@@ -69,7 +69,7 @@ jobs:
           "PYTXO_TEST_ATTEMPT_HOST_SHA256=$digest" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: cargo test
-        run: cargo test --workspace
+        run: cargo test --workspace --no-fail-fast
 
       - name: Unix reviewed-file mode and recovery matrix
         if: runner.os == 'Linux'

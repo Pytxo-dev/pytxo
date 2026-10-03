@@ -123,15 +123,19 @@ fn exact_reviewed_checkout_rejects_clean_crlf_normalization() {
     git(
         &source,
         &[
-            "-c",
-            "core.autocrlf=true",
             "clone",
+            "--config",
+            "core.autocrlf=true",
             "--quiet",
             source.to_str().unwrap(),
             checkout.to_str().unwrap(),
         ],
     );
     assert_eq!(fs::read(checkout.join("result.txt")).unwrap(), b"first\r\n");
+    assert_eq!(
+        git(&checkout, &["config", "--local", "core.autocrlf"]),
+        "true"
+    );
     assert_eq!(git(&checkout, &["status", "--porcelain"]), "");
     let error =
         require_exact_reviewed_checkout(&checkout, &committed_base(&checkout), &[]).unwrap_err();
