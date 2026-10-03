@@ -1,6 +1,7 @@
 import Link from "next/link";
 import nativeObservation from "../../../../public/evidence/astra-native-codex-2026-09-07.json";
 import checkpointObservation from "../../../../public/evidence/astra-aperture-native-2026-09-08.json";
+import fleetRecord from "../../../../public/evidence/fleet-native-2026-10-02.json";
 
 import { StateChip } from "@/components/site/state-chip";
 import { SIGNAL_BENCHMARK, SIGNAL_LANGUAGE_BREAKDOWN } from "@/lib/evidence";
@@ -9,7 +10,7 @@ import { pageMetadata } from "@/lib/page-metadata";
 export const metadata = pageMetadata(
   "/evidence",
   "Evidence · Pytxo",
-  "Recorded native workflow evidence, a direct worktree baseline, and the scope and limits of Pytxo's Signal Core measurement.",
+  "Recorded native runs, including one request run across five agent CLIs, a direct worktree baseline, and the limits of each measurement.",
 );
 
 export default function EvidencePage() {
@@ -24,6 +25,55 @@ export default function EvidencePage() {
         limits of what they establish.
       </p>
 
+      <section id="fleet" className="mt-16 scroll-mt-24 border-t border-[var(--aperture-line)] pt-10" aria-labelledby="fleet-title">
+        <div className="flex flex-wrap items-center gap-4">
+          <h2 id="fleet-title" className="text-2xl tracking-[-0.025em]">One request. Five agent CLIs.</h2>
+          <StateChip tone="verified" label="Observed locally" />
+        </div>
+        <p className="mt-6 max-w-[52rem] text-sm leading-relaxed text-[#a9a9b2]">
+          On 2 October 2026 the packaged Windows 1.2.2 candidate planned one six-line request
+          into {fleetRecord.plan.tasks} tasks and ran them in {fleetRecord.plan.waves.length} steps
+          across OpenAI Codex, Claude Code, Cursor Agent, OpenCode and Antigravity, four at once.
+          Every worker exited successfully with its task checks passing, and the combined checks
+          passed. Review listed {fleetRecord.review.files} files, each with the CLI that prepared it.
+          An unrelated file added after review made Apply refuse with nothing written; after a
+          refresh, Apply wrote exactly the {fleetRecord.apply.files_written} reviewed files and the
+          project&apos;s tests passed {fleetRecord.fixture_tests_after_apply.passed}/{fleetRecord.fixture_tests_after_apply.passed + fleetRecord.fixture_tests_after_apply.failed}.
+        </p>
+        <dl className="mt-8 grid grid-cols-2 gap-8 lg:grid-cols-4">
+          {[
+            ["Planned tasks", fleetRecord.plan.tasks],
+            ["Agent CLIs", new Set(fleetRecord.workers.map((worker) => worker.cli)).size],
+            ["Combined checks passed", `${fleetRecord.combined_checks.passed}/${fleetRecord.combined_checks.recorded}`],
+            ["Files applied", fleetRecord.apply.files_written],
+          ].map(([label, value]) => <div key={String(label)}>
+            <dt className="font-mono text-xs text-[#8d8d96]">{label}</dt>
+            <dd className="mt-3 text-3xl tabular-nums text-[#f5f5f7]">{value}</dd>
+          </div>)}
+        </dl>
+        <div className="mt-10 overflow-x-auto">
+          <table className="w-full min-w-[35rem] border-collapse text-left text-sm">
+            <caption className="mb-4 text-left text-[#8d8d96]">Each task, the CLI that ran it, and the files it prepared.</caption>
+            <thead className="text-[#f5f5f7]"><tr className="border-b border-[var(--aperture-line)]">
+              <th className="py-3 pr-6 font-medium">Task</th><th className="py-3 pr-6 font-medium">Agent CLI</th><th className="py-3 pr-6 font-medium">Step</th><th className="py-3 font-medium">Files prepared</th>
+            </tr></thead>
+            <tbody className="text-[#a9a9b2]">
+              {fleetRecord.workers.map((worker) => <tr key={worker.task} className="border-b border-[var(--aperture-line)]">
+                <th scope="row" className="py-4 pr-6 font-mono text-xs font-normal text-[#c7c7ce]">{worker.task}</th><td className="py-4 pr-6">{worker.cli}</td><td className="py-4 pr-6 tabular-nums">{worker.wave}</td><td className="py-4 font-mono text-xs">{worker.files_prepared.length ? worker.files_prepared.join(", ") : "None"}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+        <ul className="mt-8 max-w-[52rem] list-disc space-y-2 pl-5 text-sm leading-relaxed text-[#a9a9b2]">
+          {fleetRecord.limits.map((limit) => <li key={limit}>{limit}</li>)}
+        </ul>
+        <p className="mt-5 max-w-[52rem] break-all font-mono text-xs leading-relaxed text-[#8d8d96]">
+          Recorded fleet MSI SHA256: {fleetRecord.msi_sha256}
+        </p>
+        <div className="mt-5 flex flex-wrap gap-x-7 gap-y-3 text-sm text-[#f5f5f7]">
+          <a className="aperture-link" href="/evidence/fleet-native-2026-10-02.json">Fleet run record</a>
+        </div>
+      </section>
       <section className="mt-16 border-t border-[var(--aperture-line)] pt-10" aria-labelledby="workflow-title">
         <div className="flex flex-wrap items-center gap-4">
           <h2 id="workflow-title" className="text-2xl tracking-[-0.025em]">One harness. Three scoped tasks.</h2>

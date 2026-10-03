@@ -26,36 +26,26 @@ for (const width of [1440, 390]) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     const hero = page.getByTestId("marketing-hero");
-    await expect(hero.getByRole("heading", { level: 1 })).toContainText("Every coding agent you have.");
-    await expect(hero.getByRole("heading", { level: 1 })).toContainText("At once.");
-    await expect(hero.getByText(/Pytxo runs Codex, Claude Code, Cursor, OpenCode and Antigravity/)).toBeVisible();
+    await expect(hero.getByRole("heading", { level: 1 })).toContainText("Many agents.");
+    await expect(hero.getByRole("heading", { level: 1 })).toContainText("One verified change.");
+    await expect(hero.getByText(/Pytxo splits it across the coding agents you choose/)).toBeVisible();
     await expect(hero.getByRole("link", { name: "Download for Windows" })).toBeInViewport();
-    await expect(hero.getByText("Mixed-CLI runs arrive in v1.2.2. The current download, v1.2.1, runs Codex.")).toBeVisible();
-    await expect(hero.getByRole("link", { name: "Run your first mission" })).toHaveAttribute("href", "/docs/getting-started/first-mission");
+    await expect(hero.getByText("Mixed-agent runs arrive in v1.2.2. Today's download, v1.2.1, runs Codex.")).toBeVisible();
+    await expect(hero.getByRole("link", { name: /See how it works/ })).toHaveAttribute("href", "#how");
     const agents = hero.getByRole("list", { name: "Agent CLIs Pytxo runs" });
     for (const name of ["Codex", "Claude Code", "Cursor", "OpenCode", "Antigravity"]) await expect(agents).toContainText(name);
+    await expect(agents.locator('img[src*="antigravity"]')).toHaveCount(1);
     await expect(hero.getByTestId("hero-fleet").getByRole("img")).toHaveJSProperty("naturalWidth", 1600);
-    await expect(page.getByRole("tab", { name: "Review & Apply" })).toHaveAttribute("aria-selected", "true");
-    const walkthrough = page.getByTestId("product-walkthrough");
-    await expect(walkthrough.getByText("Unpublished v1.2.2 · browser fixture")).toBeVisible();
-    const panel = walkthrough.getByRole("tabpanel");
-    if (width < 1280) {
-      const details = panel.getByTestId("mobile-product-details");
-      await expect(details.getByRole("img")).toHaveCount(2);
-      await expect(details.getByRole("img").first()).toHaveJSProperty("naturalWidth", 1600);
-      await expect(details).toContainText("Checks belong to this candidate");
-      await expect(details).toContainText("Apply is an explicit decision");
-    } else {
-      await expect(panel.getByRole("img")).toHaveJSProperty("naturalWidth", 1600);
-      expect((await panel.getByRole("img").boundingBox())!.width).toBeGreaterThan(900);
-    }
-    await expect(page.getByText("Interface previews using browser fixtures, not a recorded mission or proof of execution.")).toBeVisible();
+    const how = page.getByTestId("how-it-works");
+    await expect(how.getByRole("listitem")).toHaveCount(3);
+    // Step images load lazily; each must load once it is scrolled into view.
+    for (const image of await how.getByRole("img").all()) { await image.scrollIntoViewIfNeeded(); await expect(image).toHaveJSProperty("naturalWidth", 1600); }
+    await expect(how).toContainText("Screens are preview captures");
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: testInfo.outputPath(`launch-home-${width}.png`), fullPage: true });
     await hero.getByRole("link", { name: "Download for Windows" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Download" })).toBeVisible();
-    await expect(page.getByText(/Workspace .* is unpublished/)).toBeVisible();
-    await expect(page.getByText("The download below installs the current public v1.2.1 build.")).toBeVisible();
+    await expect(page.getByText(/download below installs the current public v1\.2\.1, which runs Codex/)).toBeVisible();
     await expect(page.getByText("The product source repository is currently private.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Not yet" })).toHaveCount(2);
     await expect(page.getByText("The CLI does not Apply repository changes")).toBeVisible();
@@ -86,30 +76,30 @@ test("install commands can be copied intact on mobile", async ({ page }) => {
   await expectNoHorizontalOverflow(page);
 });
 
-test("walkthrough supports keyboard navigation without simulated live state", async ({ page }) => {
+test("homepage leads with the outcome, then how, why, proof and requirements", async ({ page }) => {
   await page.goto("/");
-  const review = page.getByRole("tab", { name: "Review & Apply" });
-  await review.focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("tab", { name: "Recorded outcome" })).toBeFocused();
-  await expect(page.getByRole("tabpanel")).toContainText("A saved history entry is not itself proof");
-  await page.keyboard.press("Home");
-  await expect(page.getByRole("tab", { name: "Execution" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("tabpanel")).toContainText(
-    "Follow recorded workers on the canvas, inspect their evidence, and open output when needed",
-  );
+  const ids = ["marketing-hero", "how-it-works", "compare-section", "proof-section", "compatibility-section", "faq-section", "get-it-section"];
+  const tops = await Promise.all(ids.map(id => page.getByTestId(id).evaluate(el => el.getBoundingClientRect().top)));
+  expect([...tops].sort((a, b) => a - b)).toEqual(tops);
+  await expect(page.getByTestId("compare-section").getByRole("row")).toHaveCount(6);
+  await expect(page.getByTestId("compare-section")).toContainText("Exactly the reviewed files, refused if the project moved");
+  const proof = page.getByTestId("proof-section");
+  await expect(proof).toContainText("6/6");
+  await expect(proof).toContainText("OpenCode and Antigravity finished their tasks without changing files");
+  await expect(proof.getByRole("link", { name: /Read the run record/ })).toHaveAttribute("href", "/evidence#fleet");
+  await expect(page.getByTestId("compatibility-section")).toContainText("your shell's API keys are not passed to them");
+  await expect(page.getByTestId("faq-section")).toContainText("Does Pytxo sandbox everything an agent does?");
+  await expect(page.locator(".aperture-marquee")).toHaveCount(0);
 });
 
-test("homepage explains workflow, limits and supported Beta in order", async ({ page }) => {
+test("homepage FAQ answers open and close by keyboard", async ({ page }) => {
   await page.goto("/");
-  const ids = ["marketing-hero", "boundary-section", "compatibility-section", "get-it-section"];
-  const tops = await Promise.all(ids.map(id => page.getByTestId(id).evaluate(el => el.getBoundingClientRect().top)));
-  expect([...tops].sort((a,b)=>a-b)).toEqual(tops);
-  await expect(page.getByTestId("product-walkthrough").getByRole("tab")).toHaveCount(3);
-  await expect(page.getByTestId("boundary-section")).toContainText("does not control every host or network side effect");
-  await expect(page.getByTestId("compatibility-section")).toContainText("Codex CLI installed and authenticated");
-  await expect(page.getByTestId("evidence-section")).toHaveCount(0);
-  await expect(page.locator(".aperture-marquee")).toHaveCount(0);
+  const question = page.getByRole("button", { name: "What if my project changes after I review?" });
+  await question.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Apply refuses and nothing is written.", { exact: false })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Apply refuses and nothing is written.", { exact: false })).toBeHidden();
 });
 
 test("the evidence page states the corpus, caveats, and source access limit", async ({ page }) => {
@@ -198,15 +188,9 @@ test("chroma identity keeps the spectrum static and limited to its two signature
   await expect(page.locator(".nebula-bg, .chroma-glow")).toHaveCount(0);
   // The approved fleet hero carries the spectrum once in its headline; it never animates.
   await expect(page.locator(".chroma-text")).toHaveCount(1);
-  await expect(page.locator(".chroma-text")).toHaveText("At once.");
+  await expect(page.locator(".chroma-text")).toHaveText("One verified change.");
   expect(await page.locator(".chroma-text").evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
 
-  // The walkthrough's execution trace stays the one spectrum rule, and it never animates.
-  await expect(page.locator(".execution-trace")).toHaveCount(1);
-  const animation = await page
-    .locator(".execution-trace")
-    .evaluate((el) => getComputedStyle(el).animationName);
-  expect(animation).toBe("none");
 
   await expect(page.locator('header img[src*="logo"]')).toHaveCount(1);
   const download = page.locator("header").getByRole("link", { name: "Download", exact: true });

@@ -32,7 +32,7 @@ export function SiteFooter() {
               <p className="font-semibold tracking-tight">Pytxo</p>
             </div>
             <p className="text-sm leading-relaxed text-[#7d7d87]">
-              An agent hypervisor for bounded coding work and reviewed repository changes.
+              The agent hypervisor for your repository. Many coding agents, one verified change.
             </p>
           </div>
 

@@ -9,6 +9,8 @@ export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
 export const PUBLISHED_VERSION = "1.2.1";
 /** In-repo / changelog candidate. Not for public download URLs. */
 export const CANDIDATE_VERSION = "1.2.2";
+/** True once the candidate is the public release; "coming in" copy switches on this. */
+export const CANDIDATE_PUBLISHED = (PUBLISHED_VERSION as string) === CANDIDATE_VERSION;
 /** Alias for published tag used by download UI. */
 export const PYTXO_VERSION = PUBLISHED_VERSION;
 
@@ -46,7 +48,8 @@ export type NavLink = {
 };
 
 export const NAV_LINKS: NavLink[] = [
-  { href: "/#product", label: "Product" },
+  { href: "/#how", label: "How it works" },
+  { href: "/evidence", label: "Evidence" },
   { href: "/docs", label: "Docs" },
   { href: DISCORD_URL, label: "Support" },
   { href: "/download", label: "Download" },

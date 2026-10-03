@@ -11,6 +11,7 @@ import {
   INSTALL_SH_CMD,
   NPM_INSTALL,
   NPM_URL,
+  CANDIDATE_PUBLISHED,
   CANDIDATE_VERSION,
   PUBLISHED_VERSION,
   RELEASES_URL,
@@ -19,7 +20,7 @@ import {
 export const metadata = pageMetadata(
   "/download",
   "Download · Pytxo",
-  "Windows: Desktop MSI plus an agent CLI. macOS and Linux: Pytxo CLI. Current public release 1.2.1.",
+  "Windows: Pytxo Desktop plus an agent CLI you already use. macOS and Linux: the Pytxo CLI.",
 );
 
 export default function DownloadPage() {
@@ -36,15 +37,14 @@ export default function DownloadPage() {
           </Badge>
         </div>
         <p className="max-w-2xl text-lg text-muted-foreground">
-          On Windows, start with the Desktop MSI and a vendor agent CLI. The Pytxo CLI is
-          optional there for terminal workflows, MCP, and doctor. On macOS and Linux, start
-          with the Pytxo CLI; Desktop is not built yet. Current public release is v{PUBLISHED_VERSION}.
-          Workspace {CANDIDATE_VERSION} is unpublished.
+          On Windows, install Pytxo Desktop and at least one agent CLI you already use: Codex,
+          Claude Code, Cursor Agent, OpenCode or Antigravity. On macOS and Linux, start with the
+          Pytxo CLI; Desktop for them is not built yet.
         </p>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          The homepage walkthrough previews the unpublished v{CANDIDATE_VERSION} interface.
-          The download below installs the current public v{PUBLISHED_VERSION} build.
-        </p>
+        {!CANDIDATE_PUBLISHED && <p className="max-w-2xl text-sm text-muted-foreground">
+          The homepage shows the upcoming v{CANDIDATE_VERSION}, which adds mixed-agent runs. The
+          download below installs the current public v{PUBLISHED_VERSION}, which runs Codex.
+        </p>}
       </div>
 
       <div className="mt-10 flex flex-col gap-10">
@@ -60,7 +60,6 @@ export default function DownloadPage() {
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
             Terminal missions, doctor checks, and MCP. Desktop on Windows already includes the
             local core. The CLI does not Apply repository changes; Apply stays in Desktop Review.
-            The one-worker Desktop beta is not a CLI limit.
           </p>
 
           <div className="mt-6 flex flex-col gap-6">
