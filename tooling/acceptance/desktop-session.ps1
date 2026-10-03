@@ -1,8 +1,15 @@
-# Hosted runners sign in as a full-token administrator, and WebView2 150+ drops
-# environment and registry browser arguments (so remote debugging) for elevated
-# hosts (MicrosoftEdge/WebView2Feedback#5639). Real users run Desktop as standard
-# users, so acceptance does too: a throwaway local account on the disposable
-# runner, with a random password that is never printed or stored.
+# WebView2 150+ takes remote debugging only from the machine policy or the app
+# itself, never from WEBVIEW2_* variables or HKCU (MicrosoftEdge/WebView2Feedback
+# #5640, #5645), so acceptance sets the HKLM policy on the disposable runner.
+function Set-DesktopBrowserArguments([string]$Arguments) {
+  $key = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
+  if (-not (Test-Path $key)) { New-Item -Force $key | Out-Null }
+  Set-ItemProperty -Path $key -Name "pytxo-desktop.exe" -Value $Arguments
+}
+
+# Hosted runners sign in as a full-token administrator; real users run Desktop as
+# standard users, so acceptance does too: a throwaway local account on the
+# disposable runner, with a random password that is never printed or stored.
 function Get-DesktopTester {
   if ($script:DesktopTester) { return $script:DesktopTester }
   $name = "pytxo-tester"
@@ -80,7 +87,6 @@ function Wait-DesktopCdp([System.Diagnostics.Process]$App, [string]$Evidence, [s
     webview2_runtime = $runtime.pv
     webview_processes = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Id) session $($_.SessionId)" })
     listening = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -in @((Get-Process msedgewebview2, pytxo-desktop -ErrorAction SilentlyContinue).Id) } | ForEach-Object { "$($_.LocalAddress):$($_.LocalPort)" })
-    env_args = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
     webview_command_lines = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -notmatch '--type=' } | ForEach-Object { $_.CommandLine })
     edge_policies = @("HKLM:\SOFTWARE\Policies\Microsoft\Edge", "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2", "HKCU:\SOFTWARE\Policies\Microsoft\Edge\WebView2") | ForEach-Object { if (Test-Path $_) { "$_ " + ((Get-ItemProperty $_ | Select-Object * -ExcludeProperty PS* | ConvertTo-Json -Compress)) } }
   } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 (Join-Path $dir "state.json")

@@ -43,25 +43,26 @@ $summary.install = [ordered]@{
 $bin = Join-Path $env:RUNNER_TEMP "pytxo-stand-in-agents"
 New-Item -ItemType Directory -Force $bin | Out-Null
 Copy-Item (Join-Path $PSScriptRoot "stand-in-agent.mjs") $bin
+# Matching tasks replay the recorded 2 October workers' output and files.
+Copy-Item (Join-Path $PSScriptRoot "replay-20261002.json") (Join-Path $bin "replay.json")
 foreach ($cli in "codex", "claude", "cursor-agent", "opencode", "agy") {
   Set-Content -Encoding ascii (Join-Path $bin "$cli.cmd") "@node `"%~dp0stand-in-agent.mjs`" $cli %*"
 }
 $env:PATH = "$bin;$env:PATH"
+# Desktop runs as the standard-user tester (see desktop-session.ps1) on folders this
+# elevated runner created; Pytxo strips GIT_* variables, so trust them system-wide.
+git config --system --add safe.directory "*"
 
 function Start-Desktop([string]$Name, [string]$Scale) {
   $dir = Join-Path $env:RUNNER_TEMP "pytxo-$Name"
   New-Item -ItemType Directory -Force "$dir\home", "$dir\webview" | Out-Null
-  # Desktop runs as the standard-user tester (see desktop-session.ps1): it needs
-  # write access to this elevated runner's temp tree and must trust its repositories.
+  # The tester needs write access to this elevated runner's temp tree.
   icacls $env:RUNNER_TEMP /grant "*S-1-1-0:(OI)(CI)F" /T /C /Q | Out-Null
   $env:PYTXO_HOME = "$dir\home"
+  Set-DesktopBrowserArguments "--remote-debugging-port=9340 --force-device-scale-factor=$Scale"
   Start-DesktopAsTester $exe.FullName @{
     PYTXO_HOME = "$dir\home"
     WEBVIEW2_USER_DATA_FOLDER = "$dir\webview"
-    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9340 --force-device-scale-factor=$Scale"
-    GIT_CONFIG_COUNT = "1"
-    GIT_CONFIG_KEY_0 = "safe.directory"
-    GIT_CONFIG_VALUE_0 = "*"
     PATH = $env:PATH
   } "$dir\home" $Evidence $Name
 }
@@ -95,6 +96,9 @@ $summary.journey = [ordered]@{
   operator_note_left = Test-Path (Join-Path $fixture "operator-note.txt")
   tests_after_apply = if ($LASTEXITCODE -eq 0) { "passed" } else { "failed" }
 }
+# How many applied files are byte-identical to the recorded workers' files (replay coverage).
+$recorded = @((Get-Content (Join-Path $PSScriptRoot "replay-20261002.json") -Raw | ConvertFrom-Json).tasks.PSObject.Properties.Value | ForEach-Object { $_.files.PSObject.Properties })
+$summary.journey.replayed_files = "{0}/{1}" -f @($recorded | Where-Object { (Get-Content -Raw -LiteralPath (Join-Path $fixture $_.Name) -ErrorAction SilentlyContinue) -ceq $_.Value }).Count, $recorded.Count
 Set-Content -Encoding utf8 (Join-Path $Evidence "fixture-tests.txt") "--- before ---`n$baselineTests`n--- after Apply ---`n$tests"
 git -C $fixture diff > (Join-Path $Evidence "fixture-applied.diff")
 

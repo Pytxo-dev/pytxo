@@ -26,7 +26,8 @@ function Find-Exe {
 function Use-Desktop([string]$Name, [string[]]$ProbeArgs) {
   $exe = Find-Exe
   # Default data locations of the standard-user tester (see desktop-session.ps1).
-  $app = Start-DesktopAsTester $exe.FullName @{ WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9340" } $null $Evidence $Name
+  Set-DesktopBrowserArguments "--remote-debugging-port=9340"
+  $app = Start-DesktopAsTester $exe.FullName @{} $null $Evidence $Name
   try {
     node (Join-Path $PSScriptRoot "probe.mjs") --cdp 9340 --out $Evidence --name $Name @ProbeArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Probe $Name failed" }

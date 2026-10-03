@@ -32,6 +32,29 @@ const paths = owned.startsWith('["')
 const task = /Task ID(?: \(JSON\))?: \[?"?([^\]"\s]+)/.exec(prompt)?.[1] ?? "task";
 const note = `pytxo stand-in ${cli} ${task}`;
 
+// Replay: with a replay.json beside this script (see apps/demo-video/scripts/fleet-ledger.mjs),
+// a task that matches the recorded one (same ID, vendor and owned paths) prints
+// what that worker printed and writes exactly the files it prepared, 20 times
+// faster. Anything else falls through to marker edits. (Pytxo passes workers
+// only a baseline environment, so this cannot be an environment variable.)
+const replayFile = path.join(import.meta.dirname, "replay.json");
+const replay = existsSync(replayFile) ? JSON.parse(readFileSync(replayFile, "utf8")).tasks[task] : null;
+const sorted = (list) => JSON.stringify([...list].sort());
+if (replay && replay.cli === cli.replace(/-agent$/, "") && sorted(replay.paths) === sorted(paths)) {
+  // ponytail: lines are paced evenly over the recorded duration, not at their original offsets.
+  const pause = replay.durationMs / 20 / (replay.lines.length + 2);
+  const writeAt = Math.floor(replay.lines.length * 0.6);
+  const prepare = () => { for (const [file, text] of Object.entries(replay.files)) { mkdirSync(path.dirname(path.resolve(file)), { recursive: true }); writeFileSync(path.resolve(file), text); } };
+  for (const [index, line] of replay.lines.entries()) {
+    if (index === writeAt) prepare();
+    said(line);
+    await delay(pause);
+  }
+  if (writeAt >= replay.lines.length) prepare();
+  await delay(pause * 2);
+  process.exit(0);
+}
+
 said(`Reading the request for ${task}`);
 for (const file of paths) {
   const target = path.resolve(file);

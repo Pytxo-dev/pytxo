@@ -2,7 +2,10 @@
 // Every number and worker line in the film comes from this ledger export.
 //
 //   node scripts/fleet-ledger.mjs --evidence D:/pytxo-native-acceptance/<root> \
-//     --repo D:/.../taskboard [--stale-digest <first digest refused as stale>] //     [--stills <dir of native PNGs named by film key>]
+//     --repo D:/.../taskboard [--stale-digest <first digest refused as stale>] //     [--stills <dir of native PNGs named by film key>] [--replay <file>]
+//
+// --replay also writes what each worker printed (allow-listed) and the exact
+// files it prepared, for tooling/acceptance/stand-in-agent.mjs to replay.
 import { DatabaseSync } from "node:sqlite";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -117,6 +120,33 @@ const props = {
   },
   assets,
 };
+
+if (args.replay) {
+  // File contents are demo fixture code, so only host paths and credentials are refused.
+  const SECRET = /[A-Za-z]:\\|\\Users\\|\/Users\/|api[_-]?key|secret|password|session id/i;
+  const tasks = Object.fromEntries(plan.tasks.map((task) => {
+    const worker = workers.find((candidate) => candidate.taskId === task.id);
+    const agent = agents.find((candidate) => candidate.task_id === task.id);
+    const all = agent ? events(agent.id) : [];
+    const settled = all.findLastIndex((event) => ["agent-exit", "verify-ok", "verify-failed"].includes(event.kind));
+    const stdout = (settled >= 0 ? all.slice(0, settled + 1) : all).filter((event) => event.kind === "stdout");
+    const files = Object.fromEntries(worker.filesPrepared.map((file) => {
+      const text = readFileSync(path.join(args.repo, file), "utf8");
+      if (SECRET.test(text)) throw new Error(`Private-looking content in ${file}`);
+      return [file, text];
+    }));
+    return [task.id, {
+      cli: worker.cli,
+      paths: task.paths,
+      durationMs: Date.parse(worker.endedAt) - Date.parse(worker.startedAt),
+      lines: eventLines(stdout).filter(filmLine(task.paths)),
+      files,
+    }];
+  }));
+  writeFileSync(args.replay, `${JSON.stringify({ source: `Recorded native run ${run.id}`, tasks }, null, 2)}
+`);
+  console.log(`wrote ${args.replay}: ${Object.keys(tasks).length} tasks`);
+}
 
 const out = args.out ?? path.join(import.meta.dirname, "..", "fleet-props.json");
 writeFileSync(out, `${JSON.stringify(props, null, 2)}\n`);
