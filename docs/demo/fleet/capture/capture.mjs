@@ -1,7 +1,7 @@
 // Drives the fleet demo in a launched Pytxo Desktop (see launch.ps1) while
 // recording the app window, and keeps every click as telemetry for the film.
 //
-//   node docs/demo/fleet/capture/capture.mjs --root <evidence root> --repo <fixture repo> [--until plan|run|apply]
+//   node docs/demo/fleet/capture/capture.mjs --root <evidence root> --repo <fixture repo> [--until plan|run|apply] [--team "Claude Code,Cursor Agent"]
 //
 // The app's own rendered frames are recorded through CDP screencast (GDI
 // window capture cannot see WebView2's GPU-composited content). There is no OS
@@ -17,11 +17,12 @@ const require = createRequire(path.join(here, "../../../../apps/desktop/package.
 const { chromium } = require("@playwright/test");
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, index, all) => (value.startsWith("--") ? [...pairs, [value.slice(2), all[index + 1]]] : pairs), []));
-if (!args.root || !args.repo) throw new Error("usage: --root <evidence root> --repo <fixture repo> [--until plan|run|apply]");
+if (!args.root || !args.repo) throw new Error("usage: --root <evidence root> --repo <fixture repo> [--until plan|run|apply] [--team <names>]");
 const until = args.until ?? "apply";
 const launch = JSON.parse(readFileSync(path.join(args.root, "launch.json"), "utf8").replace(/^﻿/, ""));
 const mission = readFileSync(path.join(here, "..", "mission.txt"), "utf8").replace(/\r/g, "").trim();
-const TEAM = ["Claude Code", "Cursor Agent", "OpenCode", "Antigravity"];
+// Agents added beside Codex; only agents Setup reports ready can be ticked.
+const TEAM = (args.team ?? "Claude Code,Cursor Agent,OpenCode,Antigravity").split(",").map((name) => name.trim()).filter(Boolean);
 
 const startedAt = Date.now();
 const clicks = [];
