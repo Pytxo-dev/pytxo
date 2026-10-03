@@ -24,9 +24,10 @@ The current props and `public/fleet/*.png` come from the October 2 run on MSI
 Antigravity prepared no files; the film shows them as "no changes". The draft
 uses native stills, so its disclosure reads "native stills, continuous capture
 pending". Before publication: repeat the run on the final MSI with OpenCode's
-provider stored, replace the stills with continuous native capture, cut to the
-licensed track, and resolve the Antigravity mark (the Desktop UI in the footage
-shows it).
+provider stored, replace the stills with continuous native capture, and cut to
+the licensed track. The Antigravity mark is drawn from
+`public/fleet/logos/antigravity.png` (Matt approved public use on 2026-10-02;
+see `apps/desktop/public/ade/PROVENANCE.md`).
 
 ## Current R6 cockpit proof and recording boundary — September 21
 

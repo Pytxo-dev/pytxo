@@ -70,8 +70,7 @@ const fade = (frame: number, from: number, to: number) => interpolate(frame, [fr
 const Logo = ({cli, size}: {cli: string; size: number}) => {
   const box: CSSProperties = {width: size, height: size, flex: "none"};
   if (cli === "claude") return <div style={{...box, background: color.text, mask: `url(${staticFile("fleet/logos/anthropic.svg")}) center / contain no-repeat`}} />;
-  const file = {codex: "openai-on-dark.svg", cursor: "cursor-on-dark.svg", opencode: "opencode.svg"}[cli];
-  // Antigravity's mark is not cleared for public use; it is named, not drawn.
+  const file = {codex: "openai-on-dark.svg", cursor: "cursor-on-dark.svg", opencode: "opencode.svg", agy: "antigravity.png"}[cli];
   if (!file) return <div style={{...box, borderRadius: size, background: ACCENT[cli] ?? color.muted}} />;
   return <Img src={staticFile(`fleet/logos/${file}`)} style={box} />;
 };

@@ -5,9 +5,12 @@
 [![npm](https://img.shields.io/npm/v/pytxo)](https://www.npmjs.com/package/pytxo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
 
-**Reviewed commit layer for coding agents.** Pytxo coordinates headless agents
-on local silicon or configured hosted sandboxes, then turns isolated proposals
-into exact repository changes you can verify and Apply.
+**Many coding agents, one verified change.** Pytxo splits one request across the
+agent CLIs you already use (Codex, Claude Code, Cursor Agent, OpenCode,
+Antigravity), runs each task in an isolated copy, keeps tasks that share a file
+from running together, checks the combined result with your commands, and
+applies exactly the files you reviewed. It is an agent hypervisor: a control
+layer around the agents, not another agent or IDE.
 
 The wider product direction is a commit layer for autonomous work: effect-bound
 authority, independent post-state verification, causal evidence, and honest
