@@ -1,6 +1,7 @@
 # Retained-data upgrade on a disposable Windows runner: install the public
 # v1.2.1 MSI, use it once with the default data locations, then install the
-# candidate over it and check the version, the data and the WebView profile.
+# candidate over it and check the version, the data and the WebView profile
+# (onboarding finished in v1.2.1 must not be shown again).
 param(
   [Parameter(Mandatory)] [string]$Msi,
   [Parameter(Mandatory)] [string]$Evidence,
@@ -26,10 +27,9 @@ function Find-Exe {
 function Use-Desktop([string]$Name, [string[]]$ProbeArgs) {
   $exe = Find-Exe
   # Default data locations of the standard-user tester (see desktop-session.ps1).
-  Set-DesktopBrowserArguments "--remote-debugging-port=0"
   $app = Start-DesktopAsTester $exe.FullName @{} $null $Evidence $Name
   try {
-    node (Join-Path $PSScriptRoot "probe.mjs") --cdp $script:DesktopCdpPort --out $Evidence --name $Name @ProbeArgs | Out-Host
+    python (Join-Path $PSScriptRoot "journey.py") --out $Evidence --mode probe --name $Name @ProbeArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Probe $Name failed" }
   } finally {
     Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -48,7 +48,7 @@ Invoke-WebRequest -Uri $PreviousUrl -OutFile $previous -UseBasicParsing
 $summary.previous_sha256 = (Get-FileHash -LiteralPath $previous -Algorithm SHA256).Hash
 Install $previous (Join-Path $Evidence "install-previous.log")
 $summary.before = [ordered]@{ installed = @(Get-Installed | ForEach-Object { "$($_.DisplayName) $($_.DisplayVersion)" }) }
-$exe = Use-Desktop "previous" @("--set-marker", "v1.2.1", "--onboard")
+$exe = Use-Desktop "previous" @("--onboard")
 $summary.before.file_version = $exe.VersionInfo.FileVersion
 $before = @(Snapshot-Data)
 $summary.before.data_files = $before.Count
@@ -61,12 +61,13 @@ $after = @(Snapshot-Data)
 $summary.after.data_files = $after.Count
 $missing = @($before | Where-Object { $path = $_.path; -not ($after | Where-Object { $_.path -eq $path }) } | ForEach-Object { $_.path })
 $summary.after.missing_data_files = $missing
+$onboarded = @((Get-Content (Join-Path $Evidence "previous.json") -Raw | ConvertFrom-Json).steps.label) -contains "desktop entered"
 $probe = Get-Content (Join-Path $Evidence "candidate.json") -Raw | ConvertFrom-Json
-$summary.after.webview_marker = $probe.markerBefore
-$summary.after.headings = $probe.headings
+$summary.after.onboarding_shown_again = if ($onboarded) { $probe.onboarding_shown } else { "not checked: v1.2.1 onboarding was not completed" }
+$summary.after.texts = $probe.texts
 
 $summary | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 (Join-Path $Evidence "upgrade.json")
 Get-Content (Join-Path $Evidence "upgrade.json")
 if ($summary.after.installed.Count -ne 1 -or $summary.after.installed[0] -notlike "*1.2.2*") { throw "Upgrade did not leave exactly the candidate installed" }
 if ($missing.Count) { throw "Upgrade lost data files: $($missing -join ', ')" }
-if ($probe.markerBefore -ne "v1.2.1") { throw "WebView storage was not retained across the upgrade" }
+if ($onboarded -and $probe.onboarding_shown) { throw "WebView storage was not retained across the upgrade: onboarding shown again" }

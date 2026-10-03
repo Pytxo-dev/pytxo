@@ -1,12 +1,12 @@
-# WebView2 150+ takes remote debugging only from the machine policy or the app
-# itself, never from WEBVIEW2_* variables or HKCU (MicrosoftEdge/WebView2Feedback
-# #5640, #5645), so acceptance sets the HKLM policy on the disposable runner.
+# Shared by run-acceptance.ps1 and upgrade.ps1, on disposable cloud runners only.
+
+# Device scale for the layout passes. WebView2 150+ takes browser arguments for
+# this app only from the machine policy (MicrosoftEdge/WebView2Feedback#5640).
 function Set-DesktopBrowserArguments([string]$Arguments) {
   $key = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
   if (-not (Test-Path $key)) { New-Item -Force $key | Out-Null }
   Set-ItemProperty -Path $key -Name "pytxo-desktop.exe" -Value $Arguments
 }
-
 # Hosted runners sign in as a full-token administrator; real users run Desktop as
 # standard users, so acceptance does too: a throwaway local account on the
 # disposable runner, with a random password that is never printed or stored.
@@ -29,19 +29,9 @@ function Get-DesktopTesterProfile {
   (Get-CimInstance Win32_UserProfile | Where-Object { $_.SID -eq $sid }).LocalPath
 }
 
-function Test-DesktopCdp([int]$Port, [int]$Seconds) {
-  $deadline = (Get-Date).AddSeconds($Seconds)
-  while ((Get-Date) -lt $deadline) {
-    try { Invoke-RestMethod -Uri "http://127.0.0.1:$Port/json/version" -TimeoutSec 2 | Out-Null; return $true } catch { Start-Sleep -Seconds 2 }
-  }
-  $false
-}
-
-# Starts Desktop as the tester with exactly $Environment (plus the tester's own
-# profile variables) and returns its process once the WebView answers on CDP.
-# The WebView picks its own debugging port (--remote-debugging-port=0): runners
-# reserve port ranges for Hyper-V, and a fixed port can silently fail to bind.
-# The chosen port, from the profile's DevToolsActivePort, is $script:DesktopCdpPort.
+# Starts Desktop as the tester with $Environment on top of the tester's own
+# profile variables, and returns its process once its window is up. If no window
+# appears, records why (session, WebView2 runtime, the screen, Pytxo's logs).
 function Start-DesktopAsTester([string]$Exe, [hashtable]$Environment, [string]$WorkingDirectory, [string]$Evidence, [string]$Name) {
   Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
   Start-Sleep -Seconds 2
@@ -53,57 +43,26 @@ function Start-DesktopAsTester([string]$Exe, [hashtable]$Environment, [string]$W
   $lines += "start `"`" `"$Exe`""
   Set-Content -Encoding ascii -LiteralPath $launcher -Value $lines
   icacls $launcher /grant "*S-1-1-0:RX" | Out-Null
-  $since = (Get-Date).AddSeconds(-2)
   Start-Process -FilePath cmd.exe -ArgumentList "/d /c $launcher" -Credential (@(Get-DesktopTester) | Where-Object { $_ -is [pscredential] } | Select-Object -First 1) -LoadUserProfile -WorkingDirectory $env:SystemRoot -WindowStyle Hidden
-  $script:DesktopCdpPort = $null
-  $app = $null
-  $deadline = (Get-Date).AddSeconds(120)
-  while ((Get-Date) -lt $deadline -and -not $script:DesktopCdpPort) {
-    Start-Sleep -Seconds 2
-    if (-not $app) { $app = Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Select-Object -First 1 }
-    $testerProfile = Get-DesktopTesterProfile
-    $roots = @($Environment.WEBVIEW2_USER_DATA_FOLDER, $(if ($testerProfile) { Join-Path $testerProfile "AppData\Local" })) | Where-Object { $_ -and (Test-Path $_) }
-    $file = Get-ChildItem -Recurse -File -Filter DevToolsActivePort $roots -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $since } | Select-Object -First 1
-    if ($file) {
-      $port = [int](Get-Content -LiteralPath $file.FullName -TotalCount 1)
-      if (Test-DesktopCdp $port 10) { $script:DesktopCdpPort = $port }
-    }
-  }
-  if ($script:DesktopCdpPort) { Write-Host "CDP ready for $Name on port $script:DesktopCdpPort"; return $app }
-  Wait-DesktopCdp $app $Evidence $Name 9 5
+  $deadline = (Get-Date).AddSeconds(90)
+  do {
+    Start-Sleep -Seconds 1
+    $app = Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  } while (-not $app -and (Get-Date) -lt $deadline)
+  if ($app) { Write-Host "Desktop window up for $Name"; return $app }
+  Save-DesktopDiagnostics $Evidence $Name
+  throw "Desktop ($Name) never showed a window; see diagnostics-$Name"
 }
 
-
-# Shared helpers: wait for a launched Desktop to expose its WebView over CDP,
-# and, if it never does, record why (process, session, WebView2 runtime, the
-# screen, and Pytxo's own data folder) before failing.
-function Wait-DesktopCdp([System.Diagnostics.Process]$App, [string]$Evidence, [string]$Name, [int]$Port = 9340, [int]$Seconds = 120) {
-  $deadline = (Get-Date).AddSeconds($Seconds)
-  while ((Get-Date) -lt $deadline) {
-    try {
-      $version = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/json/version" -TimeoutSec 2
-      Write-Host "CDP ready for ${Name}: $($version.Browser)"
-      return
-    } catch { Start-Sleep -Seconds 2 }
-  }
+function Save-DesktopDiagnostics([string]$Evidence, [string]$Name) {
   $dir = Join-Path $Evidence "diagnostics-$Name"
   New-Item -ItemType Directory -Force $dir | Out-Null
   $runtime = Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}", "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -ErrorAction SilentlyContinue | Select-Object -First 1
   [ordered]@{
-    app_started = [bool]$App
-    app_exited = $App -and $App.HasExited
-    app_session = $(if ($App) { (Get-Process -Id $App.Id -ErrorAction SilentlyContinue).SessionId })
     runner_session = (Get-Process -Id $PID).SessionId
-    main_window = $(if ($App) { (Get-Process -Id $App.Id -ErrorAction SilentlyContinue).MainWindowHandle.ToInt64() })
-    uac = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -ErrorAction SilentlyContinue | Select-Object EnableLUA, ConsentPromptBehaviorAdmin, FilterAdministratorToken
-    app_user = $(if ($App) { (Get-Process -Id $App.Id -IncludeUserName -ErrorAction SilentlyContinue).UserName })
+    desktop = @(Get-Process pytxo-desktop -IncludeUserName -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Id) session $($_.SessionId) $($_.UserName) window $($_.MainWindowHandle)" })
     webview2_runtime = $runtime.pv
-    webview_processes = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Id) session $($_.SessionId)" })
-    listening = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -in @((Get-Process msedgewebview2, pytxo-desktop -ErrorAction SilentlyContinue).Id) } | ForEach-Object { "$($_.LocalAddress):$($_.LocalPort)" })
     webview_command_lines = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -notmatch '--type=' } | ForEach-Object { $_.CommandLine })
-    excluded_ports = (netsh int ipv4 show excludedportrange protocol=tcp | Out-String)
-    devtools_port_files = @(Get-ChildItem -Recurse -File -Filter DevToolsActivePort $env:RUNNER_TEMP, "C:\Users" -ErrorAction SilentlyContinue | ForEach-Object { "$($_.FullName) $($_.LastWriteTime.ToString('o'))" })
-    edge_policies = @("HKLM:\SOFTWARE\Policies\Microsoft\Edge", "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments") | ForEach-Object { if (Test-Path $_) { "$_ " + ((Get-ItemProperty $_ | Select-Object * -ExcludeProperty PS* | ConvertTo-Json -Compress)) } }
   } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 (Join-Path $dir "state.json")
   try {
     Add-Type -AssemblyName System.Windows.Forms, System.Drawing
@@ -116,5 +75,4 @@ function Wait-DesktopCdp([System.Diagnostics.Process]$App, [string]$Evidence, [s
     Get-ChildItem -Recurse -File $env:PYTXO_HOME | Where-Object { $_.Extension -in ".log", ".txt", ".json" } | Select-Object -First 20 | Copy-Item -Destination $dir -ErrorAction SilentlyContinue
   }
   Get-Content (Join-Path $dir "state.json")
-  throw "Desktop ($Name) never exposed its WebView over CDP; see $dir"
 }

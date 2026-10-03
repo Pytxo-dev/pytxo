@@ -66,8 +66,11 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
-      - name: Install the browser driver used over CDP
-        run: npm ci --prefix apps/desktop
+      - name: Install UI Automation, screen recording and the Edge driver
+        run: |
+          python -m pip install --disable-pip-version-check --quiet pywinauto==0.6.9 pillow
+          choco install ffmpeg -y --no-progress --limit-output
+          npm ci --prefix apps/desktop
       - name: Download the candidate MSI
         env:
           GH_TOKEN: ${{ github.token }}
@@ -99,7 +102,7 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
-      - run: npm ci --prefix apps/desktop
+      - run: python -m pip install --disable-pip-version-check --quiet pywinauto==0.6.9 pillow
       - name: Download the candidate MSI
         env:
           GH_TOKEN: ${{ github.token }}
@@ -131,11 +134,14 @@ jobs:
       - name: Assemble the continuous journey recording
         run: |
           cd acceptance/journey 2>/dev/null || { echo "No journey recorded"; exit 0; }
-          for take in frames result-frames; do
-            [ -f "$take.txt" ] || continue
-            ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i "$take.txt" -vf "fps=60,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p" -c:v libx264 -crf 16 -y "$take.mp4"
-            echo "$take.mp4: $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$take.mp4")s"
-          done
+          # The native screen recording keeps wall-clock timestamps; start it at zero.
+          if [ -f screen.mkv ]; then
+            ffmpeg -hide_banner -loglevel error -i screen.mkv -vf "setpts=PTS-STARTPTS,format=yuv420p" -r 30 -c:v libx264 -crf 16 -movflags +faststart -y screen.mp4
+          fi
+          if [ -f result-frames.txt ]; then
+            ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i result-frames.txt -vf "fps=60,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p" -c:v libx264 -crf 16 -movflags +faststart -y result-frames.mp4
+          fi
+          for take in *.mp4; do echo "$take: $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$take")s"; done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-acceptance-footage-${{ github.sha }}
