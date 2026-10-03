@@ -128,6 +128,12 @@ domain or feature default changed. Scope is compilation of the existing Orbit
 local qualification code within one repository's execution domain, not a new
 execution authorization.
 
+The next macOS pass exposed unused preview geometry outside the Windows renderer.
+Bounds validation now runs in the authorized UI-thread IPC closure before backend
+selection, preserving Windows hide-on-invalid and stale-revision behavior. Other
+platforms still return the same unsupported-preview error. No lint suppression or
+test relaxation was added; independent review found no boundary change.
+
 A fresh Rust audit also identified RUSTSEC-2026-0285. The lock now uses rustls
 0.23.45 and its compatible webpki 0.103.15 dependency. Audit reports zero blocking
 vulnerabilities under the unchanged documented exceptions in `.cargo/audit.toml`;

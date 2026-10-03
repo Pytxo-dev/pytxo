@@ -333,7 +333,7 @@ mod native {
                 });
             }
             preview.revision = revision;
-            if let Some(bounds) = bounds.filter(|b| b.valid()).filter(|_| failure.is_none()) {
+            if let Some(bounds) = bounds.filter(|_| failure.is_none()) {
                 let size = window.inner_size().map_err(error)?;
                 // Physical conversion uses the actual native client size, including
                 // browser zoom and Windows scaling; never trust a supplied DPR.
@@ -458,6 +458,7 @@ pub async fn local_preview_sync(
     revision: u64,
 ) -> IpcResult<PreviewInfo> {
     on_ui(webview, move |window| {
+        let bounds = bounds.filter(|bounds| bounds.valid());
         #[cfg(windows)]
         {
             native::sync(&window, &id, bounds, revision)
