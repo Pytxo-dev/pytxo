@@ -5,10 +5,9 @@ name: Desktop acceptance (cloud Windows)
 # stand-in agent CLIs, 150%/200% layout passes, and a retained-data upgrade from
 # the public v1.2.1. Nothing here runs on a developer machine, signs, tags or
 # publishes. Stand-in agents prove Pytxo's own behavior, not vendor agents.
+# Manual only: Windows minutes are billed double; trigger when a candidate is ready.
 on:
   workflow_dispatch:
-  push:
-    branches: [2ntt/pytxo-beta-candidate-20261003]
 
 permissions:
   contents: read

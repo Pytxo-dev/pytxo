@@ -1,11 +1,8 @@
 name: Demo motion film (private artifact)
 
+# Manual only, to keep renders off the billed minutes until a cut is ready.
 on:
-  push:
-    branches: [2ntt/pytxo-beta-candidate-20261003]
-    paths:
-      - apps/demo-video/**
-      - .github/workflows/demo-motion.yml
+  workflow_dispatch:
 
 permissions:
   contents: read

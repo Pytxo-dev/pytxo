@@ -1,9 +1,8 @@
 name: Desktop candidate (build only)
 
+# Manual only: Windows minutes are billed double; trigger when a candidate is ready.
 on:
   workflow_dispatch:
-  push:
-    branches: [2ntt/pytxo-beta-candidate-20261003]
 
 permissions:
   contents: read
