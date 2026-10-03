@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "render:motion": "node scripts/validate-beta.mjs && node scripts/validate-motion-assets.mjs && node scripts/mix-motion-audio.mjs && remotion render src/index.ts PytxoMotionFilm out/pytxo-motion.render.mp4 --codec=h264 --crf=18 --image-format=png --pixel-format=yuv420p --color-space=bt709 --audio-codec=aac --audio-bitrate=256k --sample-rate=48000 --concurrency=2 --overwrite && node scripts/finalize-master.mjs out/pytxo-motion.render.mp4 out/pytxo-motion.mp4",
+    "validate:motion:master": "node scripts/validate-motion-master.mjs",
     "render:beta": "node scripts/validate-beta.mjs && remotion render src/index.ts PytxoBetaFilm out/pytxo-beta-silent.render.mp4 --codec=h264 --crf=18 --image-format=png --pixel-format=yuv420p --color-space=bt709 --muted --concurrency=2 --overwrite && node scripts/finalize-master.mjs out/pytxo-beta-silent.render.mp4 out/pytxo-beta-silent.mp4",
     "validate:beta": "node scripts/validate-beta.mjs",
     "validate:beta:master": "node scripts/validate-master.mjs out/pytxo-beta-silent.mp4 silent beta",

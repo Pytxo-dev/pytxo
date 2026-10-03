@@ -1,5 +1,12 @@
 import "@fontsource-variable/geist";
-import {Composition} from "remotion";
+import {Composition, Folder} from "remotion";
+import {PytxoMotionFilm} from "./motion/PytxoMotionFilm";
+import {Opening as MotionOpening} from "./motion/Opening";
+import {Dispatch as MotionDispatch} from "./motion/Dispatch";
+import {Merge as MotionMerge} from "./motion/Merge";
+import {Boundary as MotionBoundary} from "./motion/Boundary";
+import {Apply as MotionApply} from "./motion/Apply";
+import {Closing as MotionClosing} from "./motion/Closing";
 import {
   FPS,
   PytxoLaunchDemo,
@@ -35,6 +42,15 @@ const fleetProps = parseFleetFilmProps(importedFleetJson);
 export const RemotionRoot = () => {
   return (
     <>
+    <Composition id="PytxoMotionFilm" component={PytxoMotionFilm} durationInFrames={3000} fps={60} width={1920} height={1080} defaultProps={fleetProps} />
+    <Folder name="Motion-Scenes">
+      <Composition id="Motion-Opening" component={MotionOpening} durationInFrames={240} fps={60} width={1920} height={1080} defaultProps={fleetProps} />
+      <Composition id="Motion-Dispatch" component={MotionDispatch} durationInFrames={900} fps={60} width={1920} height={1080} defaultProps={fleetProps} />
+      <Composition id="Motion-Merge" component={MotionMerge} durationInFrames={420} fps={60} width={1920} height={1080} defaultProps={fleetProps} />
+      <Composition id="Motion-Boundary" component={MotionBoundary} durationInFrames={480} fps={60} width={1920} height={1080} defaultProps={fleetProps} />
+      <Composition id="Motion-Apply" component={MotionApply} durationInFrames={720} fps={60} width={1920} height={1080} defaultProps={fleetProps} />
+      <Composition id="Motion-Closing" component={MotionClosing} durationInFrames={240} fps={60} width={1920} height={1080} />
+    </Folder>
     <Composition
       id="PytxoBetaFilm"
       component={PytxoBetaFilm}

@@ -1,5 +1,18 @@
 # Demo media license record
 
+## October 3 Motion Recut
+
+`PytxoMotionFilm` uses **Breath by HoliznaCC0** and four **Kenney Interface
+Sounds** recordings, all from explicit CC0 distributions. Original source
+recordings, hashes, source links, rights notes, and the cue sheet are retained
+in [the CC0 audio record](public/audio/cc0/README.md) and
+[`motion-audio.json`](motion-audio.json). This supersedes the silent-only
+audio decision for this composition, not the historical films below.
+
+The effects accompany editorial graphics; they are not native interaction
+recordings. No narration or generative music is used. No soundtrack license
+can guarantee freedom from erroneous automated claims.
+
 ## Modern Chillout (Future Calm)
 
 - Track: `penguinmusic - Modern Chillout (Future Calm)`

@@ -1,0 +1,65 @@
+name: Demo motion film (private artifact)
+
+on:
+  push:
+    branches: [2ntt/pytxo-beta-candidate-20261003]
+    paths:
+      - apps/demo-video/**
+      - .github/workflows/demo-motion.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-motion-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render:
+    if: github.repository == 'Pytxo-dev/pytxo'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/demo-video
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          sparse-checkout: apps/demo-video
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/demo-video/package-lock.json
+      - name: Install render tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          npm ci
+      - name: Verify sources and mix CC0 score
+        run: |
+          npm run typecheck
+          npm run validate:beta
+          node scripts/validate-motion-assets.mjs
+          node scripts/mix-motion-audio.mjs
+      - name: Render the motion film
+        run: |
+          npx remotion render src/index.ts PytxoMotionFilm out/pytxo-motion.render.mp4 --codec=h264 --crf=18 --image-format=png --pixel-format=yuv420p --color-space=bt709 --audio-codec=aac --audio-bitrate=256k --sample-rate=48000 --concurrency=2 --overwrite
+          node scripts/finalize-master.mjs out/pytxo-motion.render.mp4 out/pytxo-motion.mp4
+      - name: Verify the encoded master
+        run: node scripts/validate-motion-master.mjs
+      - name: Retain private review artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pytxo-motion-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            apps/demo-video/out/pytxo-motion.mp4
+            apps/demo-video/out/motion-review/*.json
+            apps/demo-video/out/motion-review/frames/*.png
+            apps/demo-video/public/audio/cc0/motion-mix.wav
+            apps/demo-video/public/audio/cc0/README.md
+            apps/demo-video/motion-audio.json
