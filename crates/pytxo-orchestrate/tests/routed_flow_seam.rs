@@ -9,12 +9,16 @@ use pytxo_core::{DomainId, ExecutionBackend, PermissionProfile, PytxoConfig, Run
 use pytxo_orchestrate::apply_run_changes;
 use pytxo_orchestrate::flow::observe_experimental_routed_git_base;
 use pytxo_orchestrate::{
-    dispatch_experimental_routed_flow, dispatch_flow, enable_experimental_routed_advisor_consent,
-    list_flow_drafts_with_routed_recovery, preview_experimental_routed_advisor_packet,
-    preview_experimental_routed_flow, preview_proposed_hosted_advisor_packet,
-    read_experimental_routed_advisor_consent, reconcile_routed_flow_startup,
-    request_stop_experimental_routed_flow, revoke_experimental_routed_advisor_consent,
-    save_reviewed_flow_plan, trust_repo, FlowDraftInput, FlowPlan, FlowSource, FlowStatus,
+    dispatch_experimental_routed_flow, dispatch_flow, list_flow_drafts_with_routed_recovery,
+    preview_experimental_routed_advisor_packet, preview_experimental_routed_flow,
+    preview_proposed_hosted_advisor_packet, reconcile_routed_flow_startup,
+    request_stop_experimental_routed_flow, save_reviewed_flow_plan, trust_repo, FlowDraftInput,
+    FlowPlan, FlowSource, FlowStatus,
+};
+#[cfg(windows)]
+use pytxo_orchestrate::{
+    enable_experimental_routed_advisor_consent, read_experimental_routed_advisor_consent,
+    revoke_experimental_routed_advisor_consent,
 };
 #[cfg(all(windows, feature = "routed-test-faults"))]
 use pytxo_orchestrate::{
