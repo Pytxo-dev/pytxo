@@ -53,7 +53,7 @@ function Start-Desktop([string]$Name, [string]$Scale) {
   New-Item -ItemType Directory -Force "$dir\home", "$dir\webview" | Out-Null
   $env:PYTXO_HOME = "$dir\home"
   $env:WEBVIEW2_USER_DATA_FOLDER = "$dir\webview"
-  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9340 --force-device-scale-factor=$Scale"
+  Set-DesktopBrowserArguments "--remote-debugging-port=9340 --force-device-scale-factor=$Scale"
   Start-Process -FilePath $exe.FullName -WorkingDirectory "$dir\home" -PassThru
 }
 function Stop-Desktop($Process) {

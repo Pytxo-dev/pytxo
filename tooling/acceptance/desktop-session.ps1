@@ -1,3 +1,13 @@
+# WebView2 ignores WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS for this app on the
+# hosted image, so set the per-user WebView2 policy for its executable instead
+# (disposable runner only).
+function Set-DesktopBrowserArguments([string]$Arguments) {
+  $key = "HKCU:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
+  New-Item -Force $key | Out-Null
+  Set-ItemProperty -Path $key -Name "pytxo-desktop.exe" -Value $Arguments
+  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $Arguments
+}
+
 # Shared helpers: wait for a launched Desktop to expose its WebView over CDP,
 # and, if it never does, record why (process, session, WebView2 runtime, the
 # screen, and Pytxo's own data folder) before failing.

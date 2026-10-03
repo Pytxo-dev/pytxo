@@ -25,7 +25,7 @@ function Find-Exe {
 }
 function Use-Desktop([string]$Name, [string[]]$ProbeArgs) {
   $exe = Find-Exe
-  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9340"
+  Set-DesktopBrowserArguments "--remote-debugging-port=9340"
   $app = Start-Process -FilePath $exe.FullName -PassThru
   try {
     Wait-DesktopCdp $app $Evidence $Name
