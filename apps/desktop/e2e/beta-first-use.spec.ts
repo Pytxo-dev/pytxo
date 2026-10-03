@@ -10,8 +10,7 @@ for (const width of [1280, 860]) {
     const codex = page.getByRole("group", { name: "OpenAI Codex", exact: true });
     await expect(codex).toBeVisible();
     await expect(page.locator(".agent-row:visible")).toHaveCount(5);
-    await expect(codex.getByText("Installation", { exact: true })).toBeVisible();
-    await expect(codex.getByText("Agent account", { exact: true })).toBeVisible();
+    await expect(codex.locator(".agent-status .state")).toContainText("Ready");
     await expect(codex.getByRole("button", { name: "Use in new work" })).toBeInViewport();
     await expect(page.getByText("Orbit for new folders", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Supernova Full host privileges", exact: true })).toBeHidden();

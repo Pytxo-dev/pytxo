@@ -40,7 +40,7 @@
   <dl class="facts">
     <div><dt>Recorded launcher</dt><dd>{agent.launcher?.display_name ?? "Not identified"}</dd></div>
     <div><dt>Task</dt><dd>{agent.task_id}</dd></div>
-    <div><dt>Wave</dt><dd>{agent.wave + 1}</dd></div>
+    <div><dt>Step</dt><dd>{agent.wave + 1}</dd></div>
     <div><dt>Exit code</dt><dd>{agent.exit_code ?? "Not reported"}</dd></div>
     <div class="wide"><dt>Project root</dt><dd>{agent.root_id ?? "Default project root"}</dd></div>
     <div class="wide"><dt>Recorded workspace</dt><dd>{agent.workspace_path ?? "Not recorded"}</dd></div>

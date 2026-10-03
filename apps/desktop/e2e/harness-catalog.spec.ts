@@ -10,7 +10,7 @@ test("Setup keeps the expanded harness catalog compact and truthful", async ({ p
   await page.goto("/#/settings");
   await page.getByRole("button", { name: "Agents & permissions", exact: true }).click();
 
-  await expect(page.getByRole("heading", { name: "Agent harnesses", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agent CLIs", exact: true })).toBeVisible();
   await expect(page.getByText("Beta agents", { exact: true })).toBeVisible();
   await expect(page.locator(".agent-row:visible")).toHaveCount(5);
   const more = page.getByText("Additional agents", { exact: true });
@@ -88,7 +88,7 @@ test("Setup keeps the expanded harness catalog compact and truthful", async ({ p
   await expect(page.locator('.ade-identity[data-ade-id="grok"] .ade-logo-on-light')).toBeHidden();
   await expect(page.locator('.ade-identity[data-ade-id="cline"] .ade-mark')).toBeVisible();
   await expect(page.locator('.ade-identity[data-ade-id="cline"] img')).toHaveCount(0);
-  await page.getByRole("heading", { name: "Agent harnesses", exact: true }).scrollIntoViewIfNeeded();
+  await page.getByRole("heading", { name: "Agent CLIs", exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath("harness-catalog-expanded-top.png") });
   await page.locator('.ade-identity[data-ade-id="aider"]').scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath("harness-catalog-expanded-middle.png") });
@@ -106,7 +106,7 @@ test("Setup keeps the expanded harness catalog compact and truthful", async ({ p
   await expect(page.locator('.ade-identity[data-ade-id="cursor"] .ade-logo-on-light')).toBeVisible();
   await expect(page.locator('.ade-identity[data-ade-id="grok"] .ade-logo-on-dark')).toBeHidden();
   await expect(page.locator('.ade-identity[data-ade-id="grok"] .ade-logo-on-light')).toBeVisible();
-  await page.getByRole("heading", { name: "Agent harnesses", exact: true }).scrollIntoViewIfNeeded();
+  await page.getByRole("heading", { name: "Agent CLIs", exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath("harness-catalog-expanded-light-top.png") });
   await page.locator('.ade-identity[data-ade-id="aider"]').scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath("harness-catalog-expanded-light-middle.png") });

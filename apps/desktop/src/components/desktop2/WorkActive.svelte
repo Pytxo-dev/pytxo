@@ -502,7 +502,7 @@
   .command-copy:focus-visible { outline:2px solid var(--pytxo-accent); outline-offset:3px; }
   .command-copy h1 { display:block;max-width:46ch;margin:0;overflow:hidden;font-size:clamp(19px,1.7vw,25px);font-weight:650;line-height:1.2;letter-spacing:-.035em;text-overflow:ellipsis;white-space:nowrap; }
   .heading-meta { display:flex;align-items:center;gap:8px;margin-top:5px; }
-  .heading-meta .scope { overflow:hidden;color:var(--pytxo-text-muted);font:10px "IBM Plex Mono",monospace;text-overflow:ellipsis;white-space:nowrap; }
+  .heading-meta .scope { overflow:hidden;color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui);text-overflow:ellipsis;white-space:nowrap; }
   .work-summary { max-width:72ch;margin:5px 0 0;overflow:hidden;color:var(--pytxo-text-soft);font-size:12px;line-height:1.35;text-overflow:ellipsis;white-space:nowrap; }
   /* A failure cause is the next action's input; show it whole (bounded at 240 chars by Core). */
   .work-summary.wraps { max-width:96ch;white-space:normal;overflow-wrap:anywhere; }

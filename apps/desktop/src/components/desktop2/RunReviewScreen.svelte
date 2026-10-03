@@ -804,7 +804,7 @@
         <div class="task-list">
           {#each tasks as task (task.task_id)}
             <div>
-              <span>W{task.wave + 1}</span>
+              <span>Step {task.wave + 1}</span>
               <p><strong>{task.task_id}</strong><small>{recordedWorkerLabel(agents, run, task.task_id)} · {task.paths.join(", ")}</small></p>
               <em>{task.depends_on.length ? `after ${task.depends_on.join(", ")}` : "root task"}</em>
             </div>

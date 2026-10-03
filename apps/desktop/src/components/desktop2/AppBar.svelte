@@ -321,7 +321,7 @@
   }
   .age {
     color: var(--pytxo-text-muted);
-    font: 11px "IBM Plex Mono", monospace;
+    font: 11px var(--pytxo-font-ui);
     font-variant-numeric: tabular-nums;
   }
   .gap {

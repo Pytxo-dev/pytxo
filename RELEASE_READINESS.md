@@ -1,5 +1,37 @@
 # Pytxo v1.2.2 release readiness
 
+## October 3 — positioning, Desktop and website polish, terminal quick start
+
+**Decision: release candidate pending native acceptance (below) and the
+publication gates.** Local commits only; nothing pushed.
+
+Matt's direction (2026-10-02): use the Antigravity logo; make Desktop, website
+and positioning release-ready after studying competitors.
+
+- **Positioning** (`docs/06-product/positioning.md`, sources checked 2026-10-02):
+  running agents side by side is now common (Conductor, Superset, Orca,
+  BridgeMind, vendor apps), so Pytxo leads with one request split across agents,
+  checks Pytxo runs itself, and an exact, stale-safe Apply. README, website,
+  docs and onboarding follow it.
+- **Desktop:** Review opens on a line diff (Myers, computed from the same exact
+  bytes; edit cap falls back to Before & after) with the writing agent per file;
+  internal terms removed from Review, History, Approvals, onboarding and New
+  work; "wave" is "step" everywhere; team picker above Build plan; compact
+  waiting fleet cards; small plans fit the canvas; decision action no longer a
+  second primary; native caption buttons; compact agent rows with logos.
+- **Website:** new homepage (outcome-first hero with the Antigravity mark, how it
+  works with current captures, a category comparison, the recorded Oct 2 run as
+  proof with its limits, requirements, practical FAQ); evidence page adds the
+  fleet record; new docs guide "One job, several agents"; setup/install/
+  troubleshooting no longer assume one Codex worker; Conductor and BridgeMind
+  comparisons refreshed; release copy flips on `CANDIDATE_PUBLISHED`.
+- **Terminal shell:** opens on a quick start; plain status; corrected help (the
+  planner-flag note was wrong).
+- **Antigravity mark:** public use per Matt; no Google approval on file
+  (`apps/desktop/public/ade/PROVENANCE.md`).
+
+Checks on the final source: see the native acceptance and gate table below.
+
 ## October 2 — native six-agent fleet run, five vendors, Review → stale → Apply
 
 **Decision: NOT READY for public Beta.** The mixed-CLI fleet works end to end

@@ -126,8 +126,8 @@
   <div class="lanes">
     {#each waves as wave, index}
       {@const columns = wave.length >= 3 ? 2 : 1}
-      <section class="lane" style={`--columns:${columns};flex:${columns}`} aria-label={`Wave ${index + 1}`}>
-        <h3><span>Wave {index + 1}</span><small>{wave.length > 1 ? `${wave.length} in parallel` : index === 0 ? "first" : "after its inputs"}</small></h3>
+      <section class="lane" style={`--columns:${columns};flex:${columns}`} aria-label={`Step ${index + 1}`}>
+        <h3><span>Step {index + 1}</span><small>{wave.length > 1 ? `${wave.length} in parallel` : index === 0 ? "first" : "after its inputs"}</small></h3>
         <div class="cards">
           {#each wave as task (task.task_id)}
             {@const agent = agentFor(task)}

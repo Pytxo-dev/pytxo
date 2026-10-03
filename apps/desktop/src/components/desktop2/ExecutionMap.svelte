@@ -266,7 +266,7 @@
 
 <section class="execution-map" aria-label="Recorded worker canvas" data-testid="execution-map">
   <header class="map-toolbar">
-    <div><strong>Recorded workers</strong><span>{nodes.length} {nodes.length === 1 ? "task" : "tasks"} · {topology.waves.length} {topology.waves.length === 1 ? "wave" : "waves"}</span></div>
+    <div><strong>Recorded workers</strong><span>{nodes.length} {nodes.length === 1 ? "task" : "tasks"} · {topology.waves.length} {topology.waves.length === 1 ? "step" : "steps"}</span></div>
     <div class="view-toggle" role="group" aria-label="Worker view">
       {#if fleetRun}<button aria-pressed={viewMode === "fleet"} class:active={viewMode === "fleet"} onclick={() => chosenView = "fleet"}>Fleet</button>{/if}
       <button aria-pressed={viewMode === "canvas"} class:active={viewMode === "canvas"} onclick={() => chosenView = "canvas"}>Canvas</button>
@@ -298,10 +298,10 @@
                   : node.agent?.status === "completed" && node.agent.exit_code === 0 ? "Completed · checks separate" : state?.label ?? "Worker not recorded")}
               {@const running = routed ? node.routingAttempt?.state === "running" : node.agent?.status === "running"}
               <article class="task-node" class:running={running} class:chosen={node.task.task_id === selected?.task.task_id} class:related={!!selected && related(node.task.task_id)} data-state={node.routingAttempt?.state === "passed" ? "completed" : node.routingAttempt?.state ?? node.agent?.status ?? "unreported"} style={`left:${node.sceneX}px;top:${node.sceneY}px`}>
-                <div class="node-kicker"><span>{routed && node.routingAttempt ? `Attempt ${node.routingAttempt.ordinal} of ${node.attemptCount} · ${label(node.routingAttempt.role)}` : running ? "Active worker" : node.agent?.launcher?.display_name ?? `Wave ${node.task.wave + 1}`}</span>{#if running}<i class="worker-pulse" aria-hidden="true">. : + * = x</i>{/if}</div>
+                <div class="node-kicker"><span>{routed && node.routingAttempt ? `Attempt ${node.routingAttempt.ordinal} of ${node.attemptCount} · ${label(node.routingAttempt.role)}` : running ? "Active worker" : node.agent?.launcher?.display_name ?? `Step ${node.task.wave + 1}`}</span>{#if running}<i class="worker-pulse" aria-hidden="true">. : + * = x</i>{/if}</div>
                 <button aria-pressed={node.task.task_id === selected?.task.task_id} aria-label={`${node.task.task_id} ${mainLabel}${routed && node.routingAttempt && !node.agent ? ", worker not recorded" : ""}`} title={state?.detail ?? "No exact worker record for this task attempt"} onclick={() => choose(node.task.task_id)}>
                   <span class="node-overview" aria-hidden="true">
-                    <span class="overview-meta"><i></i>W{node.task.wave + 1}</span>
+                    <span class="overview-meta"><i></i>S{node.task.wave + 1}</span>
                     <strong>{node.task.task_id}</strong>
                     <span>{routed ? mainLabel : node.agent?.launcher?.display_name ?? state?.label ?? "Unassigned"}</span>
                   </span>
@@ -324,7 +324,7 @@
 
 <style>
   .execution-map{display:flex;flex:1;min-width:0;min-height:0;flex-direction:column;overflow:hidden;border:1px solid var(--pytxo-line);border-radius:7px;background:var(--pytxo-work-canvas);font-family:var(--pytxo-font-ui)}
-  .map-toolbar{display:flex;min-height:44px;flex:0 0 auto;align-items:center;gap:14px;padding:6px 10px;border-bottom:1px solid var(--pytxo-line);background:color-mix(in srgb,var(--pytxo-surface-panel) 88%,transparent)}.map-toolbar>div:first-child{display:flex;min-width:0;align-items:baseline;gap:9px;margin-right:auto}.map-toolbar strong{font-size:13px}.map-toolbar span{color:var(--pytxo-text-muted);font:10px "IBM Plex Mono",monospace}
+  .map-toolbar{display:flex;min-height:44px;flex:0 0 auto;align-items:center;gap:14px;padding:6px 10px;border-bottom:1px solid var(--pytxo-line);background:color-mix(in srgb,var(--pytxo-surface-panel) 88%,transparent)}.map-toolbar>div:first-child{display:flex;min-width:0;align-items:baseline;gap:9px;margin-right:auto}.map-toolbar strong{font-size:13px}.map-toolbar span{color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui)}
   .view-toggle,.camera-tools{display:flex;align-items:center;border:1px solid var(--pytxo-line);border-radius:4px;overflow:hidden}.view-toggle button,.camera-tools button{min-width:34px;height:30px;padding:0 9px;border:0;border-left:1px solid var(--pytxo-line);background:transparent;color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui);cursor:pointer}.view-toggle button:first-child,.camera-tools button:first-child{border-left:0}.view-toggle button.active,.camera-tools button:hover{background:var(--pytxo-surface-active);color:var(--pytxo-text-strong)}button:focus-visible,.canvas-viewport:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:-2px}
   .map-body{position:relative;flex:1;min-height:0;overflow:hidden}.canvas-viewport{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab;outline:0}.canvas-viewport.panning{cursor:grabbing}.canvas-grid{position:absolute;inset:0;background-image:radial-gradient(color-mix(in srgb,var(--pytxo-text-muted) 24%,transparent) .7px,transparent .7px);background-size:22px 22px;opacity:.4;pointer-events:none}
   .scene{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;contain:layout paint style}.flowlines{position:absolute;inset:0;width:100%;height:100%;overflow:visible}.flowlines path{fill:none;stroke:color-mix(in srgb,var(--pytxo-text-muted) 54%,transparent);stroke-width:1.3;vector-effect:non-scaling-stroke}.flowlines path.highlighted{stroke:var(--pytxo-activity);stroke-width:2.2}

@@ -79,15 +79,9 @@
       <strong class="ade-name"><AdeIdentity id={cli.id} />{cli.display_name}</strong>
       <small class="mono">{cli.default_cmd}</small>
     </div>
-    <div>
-      <span class="field-label">Installation</span>
-      <strong>{cli.installed ? "Installed" : "Not installed"}</strong>
+    <div class="agent-status">
+      <p class="state-line"><strong class="state" data-state={!cli.installed ? "missing" : isAdeRunnable(cli) ? "ready" : "attention"}>{!cli.installed ? "Not installed" : isAdeRunnable(cli) ? "Ready" : "Not ready"}</strong>{#if cli.installed}<span class="auth">{cli.auth_label}</span>{/if}</p>
       <small>{cli.detail}</small>
-    </div>
-    <div>
-      <span class="field-label">Agent account</span>
-      <strong>{cli.auth_label}</strong>
-      <small>Owned by {cli.auth_owner}</small>
     </div>
     <div class="row-actions">
       <a href={cli.docs_url} target="_blank" rel="noopener noreferrer">
@@ -109,7 +103,7 @@
 <section class="screen collection-screen" class:embedded>
   <header class="screen-heading" class:compact={embedded}>
     <div>
-      {#if embedded}<h2>Agent harnesses</h2>{:else}<h1>Agents</h1>{/if}
+      {#if embedded}<h2>Agent CLIs</h2>{:else}<h1>Agents</h1>{/if}
     </div>
     <button class="quiet integration-refresh" onclick={() => void refreshAdeClis()} disabled={adeLoading}>
       <IconRefresh size={14} class={adeLoading ? "spin" : undefined} />
@@ -121,7 +115,7 @@
     <IconShieldLock size={14} />
     Pytxo never reads token stores; credentials stay with each vendor CLI.
   </p>
-  <p class="beta-intro">Put any of the Beta agents to work, alone or together on one repository. Local work needs no Pytxo account.</p>
+  <p class="beta-intro">Use any of these agents alone, or put several on one job. Each signs in with its own account; local work needs no Pytxo account.</p>
 
   <article class="panel">
     {#if adeMessage}
@@ -135,7 +129,7 @@
     {:else}
       <div class="catalog-heading">
         <strong>Beta agents</strong>
-        <span>Installation and sign-in are separate checks</span>
+        <span>Installed and signed in are checked separately</span>
       </div>
       {#each betaAgents as cli (cli.id)}
         {@render agentRow(cli)}
@@ -183,7 +177,12 @@
 
 <style>
   .ade-name { display: flex; align-items: center; gap: 8px; }
-  .field-label { display: block; margin-bottom: 4px; font-size: 11px; color: var(--pytxo-text-muted); }
+  .state-line { margin: 0; font-size: 13px; }
+  .state-line .auth { color: var(--pytxo-text-soft); }
+  .state-line .auth::before { content: " · "; color: var(--pytxo-text-muted); }
+  .agent-status .state[data-state="ready"]::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: var(--state-verified); vertical-align: 2px; }
+  .agent-status .state[data-state="missing"] { color: var(--pytxo-text-muted); }
+  .agent-status small { display: block; margin-top: 3px; color: var(--pytxo-text-muted); font-size: 12px; }
   .beta-intro { margin: 0; padding: 12px 16px; font-size: 13px; line-height: 1.5; color: var(--pytxo-text-soft); }
   .advanced-integrations > summary { padding: 12px 0; cursor: pointer; font-size: 13px; color: var(--pytxo-text-soft); }
   .cli-loading { display: flex; align-items: center; gap: 12px; padding: 20px; }
@@ -221,9 +220,10 @@
     letter-spacing: -0.01em;
   }
   .screen.embedded .agent-row {
-    grid-template-columns: minmax(130px, .8fr) minmax(0, 1.6fr);
-    gap: 10px 24px;
-    padding: 16px;
+    grid-template-columns: minmax(170px, .9fr) minmax(0, 1.5fr) 19rem;
+    align-items: center;
+    gap: 6px 24px;
+    padding: 12px 16px;
   }
   .agent-row > div { min-width: 0; }
   .agent-row small { overflow-wrap: anywhere; line-height: 1.5; }
@@ -233,6 +233,11 @@
   .row-actions a:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }
   .screen .row-actions .quiet { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: auto; min-height: 40px; max-width: 100%; padding: 8px 10px; line-height: 1.5; }
   .row-actions :global(svg) { flex: none; }
+  /* Narrow Setup panes: actions move under the agent instead of off the edge. */
+  @media (max-width: 1180px) {
+    .screen.embedded .agent-row { grid-template-columns: minmax(150px, .9fr) minmax(0, 1.5fr); }
+    .screen.embedded .agent-row .row-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  }
   @media (max-width: 580px) {
     .integration-option { flex-direction: column; gap: 8px; }
     .screen.embedded .agent-row { grid-template-columns: minmax(0, 1fr); }
