@@ -1,5 +1,39 @@
 # Pytxo product demo
 
+## Silent beta film - October 3
+
+`PytxoBetaFilm` is a 56-second, 1920x1080, 60 fps motion-graphics edit: large
+Geist type, neutral white space, restrained motion and recorded native receipts.
+The final export is `out/pytxo-beta-silent.mp4`. No audio track is included, per
+Matt's October 3 direction. The previous compositions remain available.
+
+```powershell
+cd apps/demo-video
+npm run typecheck
+npm run validate:beta
+npm run studio -- --port=3100
+npm run render:beta
+npm run validate:beta:master
+```
+
+The source is `src/beta/`; editable scene timings are in `PytxoBetaFilm.tsx`.
+Scenes: introduction (0-5 s), request (5-11), ordered fleet (11-20), combined
+package (20-28), stale refusal (28-35), recorded Apply (35-42), resulting task
+board (42-49), closing (49-56). Long holds are deliberate reading time.
+
+Evidence: the same October 2 run described below, **not a new run on the final
+candidate**. The film combines ledger-driven diagrams with cropped native
+stills; it is not continuous footage or a simulated live interaction. No
+pointer, elapsed-time performance claim, or six-vendor success is invented.
+Both no-change workers remain visible. `validate:beta` checks the depicted run,
+worker outcomes, package ownership, counts and native-image SHA-256 values.
+`validate:beta:master` checks the exported stream, duration, silence and decode.
+
+The final export played to completion at normal speed in Chrome, with no media
+error; all scenes were also inspected as rendered frames. Final-build continuous
+native capture, independent privacy review and publication approval remain
+separate release gates. A 60 fps edit does not make its stills 60 fps product capture.
+
 ## Fleet film — October 2 draft
 
 `PytxoFleetFilm` (52 s, 1920×1080, 30 fps) is the approved fleet storyboard:

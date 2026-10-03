@@ -12,14 +12,15 @@ related: [[positioning]], [[product-vision]]
 
 # Pytxo v1.2.2 — release notes draft
 
-Draft body for the GitHub release. Not published; publication needs Matt's
-approval of the exact payload. Claims match `RELEASE_READINESS.md`.
+Editorial draft. The release workflow's canonical prepared payload is
+`distribution/release-notes/v1.2.2.md`. Not published; publication needs Matt's
+approval of that exact payload. Claims match `RELEASE_READINESS.md`.
 
 ---
 
 ## Many coding agents, one verified change
 
-Pytxo v1.2.2 is the first Beta that puts several coding-agent CLIs on one job.
+Pytxo v1.2.2 is a beta candidate that puts several coding-agent CLIs on one job.
 
 **One request, several agents.** In New work, pick a main agent and add more
 under *Add agents to this job*: Codex, Claude Code, Cursor Agent, OpenCode and
@@ -64,4 +65,6 @@ project changed after review, Apply refuses and asks you to refresh.
   "No changes". Name the file and the change in that task's prompt.
 - Host filesystem and network controls are advisory; each run's details list
   which protections were enforced.
-- The installer is [signed / unsigned — fill in at publication].
+- The current local installer is unsigned. Final-artifact native acceptance,
+  clean install/upgrade, multi-DPI acceptance, hosted CI and signing remain
+  release gates; this draft is not a release announcement.

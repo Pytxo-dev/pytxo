@@ -228,14 +228,24 @@ test("candidate signing cannot publish a release or update channel", async () =>
   assert.match(workflow, /on:\s+workflow_dispatch:/);
   assert.match(workflow, /permissions:\s+contents: read/);
   assert.match(workflow, /persist-credentials: false/);
-  assert.doesNotMatch(workflow, /^\s+(push|pull_request|pull_request_target|schedule):/m);
+  assert.match(workflow, /push:\s+branches: \[2ntt\/pytxo-beta-candidate-20261003\]/);
+  assert.match(workflow, /if: github\.repository == 'Pytxo-dev\/pytxo' && github\.ref == 'refs\/heads\/2ntt\/pytxo-beta-candidate-20261003'/);
+  assert.doesNotMatch(workflow, /^\s+(pull_request|pull_request_target|schedule|tags):/m);
   assert.doesNotMatch(workflow, /softprops\/action-gh-release|npm publish|git push|gh release/);
   assert.doesNotMatch(workflow, /^\s+(tagName|releaseName|releaseId|releaseBody):/m);
   assert.doesNotMatch(workflow, /PYTXO_RELEASES_TOKEN|NPM_TOKEN/);
   assert.match(workflow, /Missing updater signature/);
   assert.match(workflow, /verify-windows-msi\.ps1/);
-  assert.match(workflow, /verify-desktop-embedded-assets\.mjs/);
+  assert.match(workflow, /Get-ChildItem candidate-evidence\/payload -Recurse -File -Filter 'pytxo-desktop\.exe'/);
+  assert.match(workflow, /verify-desktop-embedded-assets\.mjs \$payload\.FullName apps\/desktop\/dist/);
+  assert.match(workflow, /payload_sha256 = \(Get-FileHash -LiteralPath \$payload\.FullName -Algorithm SHA256\)\.Hash/);
   assert.ok(workflow.indexOf("verify-windows-msi.ps1") < workflow.indexOf("actions/upload-artifact"));
+});
+
+test("the private candidate branch does not trigger a Vercel deployment", async () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const config = JSON.parse(await readFile(path.resolve(here, "../../apps/web/vercel.json"), "utf8"));
+  assert.deepEqual(config.git.deploymentEnabled, { "2ntt/pytxo-beta-candidate-20261003": false });
 });
 
 test("the Desktop updater uses a stable signed channel with a release fallback", async () => {

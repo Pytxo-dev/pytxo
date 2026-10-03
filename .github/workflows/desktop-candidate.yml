@@ -2,6 +2,8 @@ name: Desktop candidate (build only)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [2ntt/pytxo-beta-candidate-20261003]
 
 permissions:
   contents: read
@@ -12,6 +14,7 @@ concurrency:
 
 jobs:
   candidate:
+    if: github.repository == 'Pytxo-dev/pytxo' && github.ref == 'refs/heads/2ntt/pytxo-beta-candidate-20261003'
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -73,7 +76,10 @@ jobs:
           if (!(Test-Path -LiteralPath $signature) -or (Get-Item -LiteralPath $signature).Length -eq 0) { throw 'Missing updater signature.' }
           ./tooling/scripts/verify-windows-msi.ps1 -InstallerPath $installer.FullName -EvidenceDirectory candidate-evidence
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node tooling/scripts/verify-desktop-embedded-assets.mjs target/x86_64-pc-windows-msvc/release/pytxo-desktop.exe apps/desktop/dist
+          $payloads = @(Get-ChildItem candidate-evidence/payload -Recurse -File -Filter 'pytxo-desktop.exe')
+          if ($payloads.Count -ne 1) { throw 'Expected exactly one packaged Desktop executable.' }
+          $payload = $payloads[0]
+          node tooling/scripts/verify-desktop-embedded-assets.mjs $payload.FullName apps/desktop/dist
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item -LiteralPath $installer.FullName -Destination candidate-evidence
           Copy-Item -LiteralPath $signature -Destination candidate-evidence
@@ -81,6 +87,7 @@ jobs:
             source_commit = $env:GITHUB_SHA
             workflow_run = $env:GITHUB_RUN_ID
             installer_sha256 = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash
+            payload_sha256 = (Get-FileHash -LiteralPath $payload.FullName -Algorithm SHA256).Hash
             authenticode = (Get-AuthenticodeSignature -LiteralPath $installer.FullName).Status.ToString()
             native_update_acceptance = 'not performed'
             publication = 'not performed'

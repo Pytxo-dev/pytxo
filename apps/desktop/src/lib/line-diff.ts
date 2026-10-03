@@ -1,8 +1,9 @@
 /** One line of a unified diff; numbers are 1-based and absent on the side the line is not in. */
-export type DiffLine =
+type LineContent = { text: string; ending: "lf" | "crlf" | "none" };
+export type DiffLine = LineContent & (
   | { kind: "same"; text: string; before: number; after: number }
   | { kind: "add"; text: string; after: number }
-  | { kind: "del"; text: string; before: number };
+  | { kind: "del"; text: string; before: number });
 
 /** A run of unchanged lines folded away from the visible context. */
 export type DiffFold = { kind: "fold"; count: number; lines: DiffLine[] };
@@ -11,9 +12,15 @@ export const MAX_DIFF_EDITS = 1000;
 
 function splitLines(text: string) {
   if (text === "") return [];
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const lines = text.split("\n").map((line, index, all) => index < all.length - 1 ? `${line}\n` : line);
   if (lines.at(-1) === "") lines.pop();
   return lines;
+}
+
+function lineContent(raw: string): LineContent {
+  if (raw.endsWith("\r\n")) return { text: raw.slice(0, -2), ending: "crlf" };
+  if (raw.endsWith("\n")) return { text: raw.slice(0, -1), ending: "lf" };
+  return { text: raw, ending: "none" };
 }
 
 /**
@@ -64,17 +71,17 @@ export function diffLines(beforeText: string, afterText: string, maxEdits = MAX_
     const prevK = down ? k + 1 : k - 1;
     const prevX = d === 0 ? 0 : previous[offset + prevK];
     const prevY = prevX - prevK;
-    while (x > prevX && y > prevY) { x--; y--; middle.push({ kind: "same", text: a[start + x], before: start + x + 1, after: start + y + 1 }); }
+    while (x > prevX && y > prevY) { x--; y--; middle.push({ kind: "same", ...lineContent(a[start + x]), before: start + x + 1, after: start + y + 1 }); }
     if (d === 0) break;
-    if (down) { y--; middle.push({ kind: "add", text: b[start + y], after: start + y + 1 }); }
-    else { x--; middle.push({ kind: "del", text: a[start + x], before: start + x + 1 }); }
+    if (down) { y--; middle.push({ kind: "add", ...lineContent(b[start + y]), after: start + y + 1 }); }
+    else { x--; middle.push({ kind: "del", ...lineContent(a[start + x]), before: start + x + 1 }); }
   }
   middle.reverse();
 
   const lines: DiffLine[] = [];
-  for (let i = 0; i < start; i++) lines.push({ kind: "same", text: a[i], before: i + 1, after: i + 1 });
+  for (let i = 0; i < start; i++) lines.push({ kind: "same", ...lineContent(a[i]), before: i + 1, after: i + 1 });
   lines.push(...middle);
-  for (let i = 0; i < a.length - endA; i++) lines.push({ kind: "same", text: a[endA + i], before: endA + i + 1, after: endB + i + 1 });
+  for (let i = 0; i < a.length - endA; i++) lines.push({ kind: "same", ...lineContent(a[endA + i]), before: endA + i + 1, after: endB + i + 1 });
   return lines;
 }
 
@@ -115,8 +122,8 @@ export function checkLineDiff() {
   assert(render(diffLines("a\nb\nc\n", "a\nB\nc\n")) === " a\n-b\n+B\n c", "single-line change");
   assert(render(diffLines("", "x\ny")) === "+x\n+y", "added file");
   assert(render(diffLines("x\ny\n", "")) === "-x\n-y", "deleted file");
-  assert(render(diffLines("same\r\n", "same\n")) === " same", "CRLF is not a change");
-  const moved = diffLines("1\n2\n3\n4\n5", "0\n1\n2\n4\n5\n6");
+  assert(render(diffLines("same\r\n", "same\n")) === "-same\n+same", "line endings are exact changes");
+  const moved = diffLines("1\n2\n3\n4\n5\n", "0\n1\n2\n4\n5\n6\n");
   assert(render(moved) === "+0\n 1\n 2\n-3\n 4\n 5\n+6", "insert, delete and append");
   const numbered = moved!.find((line) => line.kind === "same" && line.text === "4");
   assert(!!numbered && numbered.kind === "same" && numbered.before === 4 && numbered.after === 4, "line numbers follow both sides");

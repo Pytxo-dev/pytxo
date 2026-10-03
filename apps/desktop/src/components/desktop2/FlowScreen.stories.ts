@@ -23,7 +23,7 @@ export const RetainedDraftMissingWorkspace: Story = {
     preferredDomainId: "dom-pytxo",
   },
   play: async ({ canvasElement }) => {
-    const workspace = canvasElement.querySelector<HTMLSelectElement>('select[aria-label="Workspace"]');
+    const workspace = canvasElement.querySelector<HTMLSelectElement>('select[aria-label="Project"]');
     const build = Array.from(canvasElement.querySelectorAll("button")).find(button => button.textContent?.trim() === "Build plan");
     if (!workspace || workspace.value !== "" || !build?.disabled || !canvasElement.textContent?.includes("The draft's workspace is no longer available")) {
       throw new Error("An unavailable draft workspace must require explicit selection, without falling back to the current folder.");

@@ -14,7 +14,9 @@ const master = process.argv[2];
 const mode = process.argv[3] ?? "silent";
 const profile = process.argv[4] ?? "launch";
 const resolution = process.argv[5] ?? "1080p";
-const expected = profile === "aperture"
+const expected = profile === "beta"
+  ? {seconds: 56, fps: 60}
+  : profile === "aperture"
   ? {seconds: 58, fps: 60}
   : profile === "r3-storyboard"
     ? {seconds: 24, fps: 30}
@@ -28,11 +30,11 @@ const frameSize = resolution === "2160p"
 if (
   !master
   || !["silent", "narrated"].includes(mode)
-  || !["launch", "aperture", "r3-storyboard", "r6-cockpit"].includes(profile)
+  || !["launch", "aperture", "r3-storyboard", "r6-cockpit", "beta"].includes(profile)
   || !["1080p", "2160p"].includes(resolution)
 ) {
   throw new Error(
-    "Usage: node scripts/validate-master.mjs <master.mp4> [silent|narrated] [launch|aperture|r3-storyboard|r6-cockpit] [1080p|2160p]",
+    "Usage: node scripts/validate-master.mjs <master.mp4> [silent|narrated] [launch|aperture|r3-storyboard|r6-cockpit|beta] [1080p|2160p]",
   );
 }
 

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createRecordedOutputReader } from "../src/lib/recorded-output";
+import { createRecordedOutputChunkReader, createRecordedOutputReader, groupRecordedOutput } from "../src/lib/recorded-output";
 
 test("recorded text removes formatting across chunks without mixing streams", () => {
   const read = createRecordedOutputReader();
@@ -33,4 +33,65 @@ test("C1 sequences and cancellation preserve subsequent readable data", () => {
   const otherObserver = createRecordedOutputReader();
   read("out", "\x1b[");
   expect(otherObserver("out", "31m literal")).toBe("31m literal");
+});
+
+test("ConPTY soft wraps join without changing the raw event payloads", () => {
+  const read = createRecordedOutputChunkReader();
+  const prefix = " ".repeat(68);
+  const raw = [prefix + "risk is foun", "\x1b[23;80Hnd.", "bookkeeper", "repeat", "together"];
+  const events = raw.map((payload, id) => ({ id, kind: "stdout", payload, ...read("stdout", payload) }));
+  expect(groupRecordedOutput(events)).toEqual([{ id: 0, kind: "stdout", readable: prefix + "risk is found.\nbookkeeper\nrepeat\ntogether" }]);
+  expect(events.map(event => event.payload)).toEqual(raw);
+});
+
+test("split ConPTY cursor sequences survive record and page boundaries", () => {
+  for (const split of [0, 1, 2, 5, 8, 9]) {
+    const read = createRecordedOutputChunkReader();
+    const cursor = "\x1b[23;80H";
+    const prefix = " ".repeat(76);
+    const payloads = [prefix + "foun" + cursor.slice(0, split), cursor.slice(split) + "nd."];
+    const events = payloads.map((payload, id) => ({ id, kind: "stdout", ...read("stdout", payload) }));
+    expect(groupRecordedOutput(events)[0].readable).toBe(prefix + "found.");
+  }
+});
+
+test("output streams retain order and cannot borrow another stream's repeated character", () => {
+  const read = createRecordedOutputChunkReader();
+  const events = [
+    { id: 1, kind: "stdout", payload: " ".repeat(76) + "foun" },
+    { id: 2, kind: "stderr", payload: "warning" },
+    { id: 3, kind: "stdout", payload: "\x1b[23;80Hnd." },
+    { id: 4, kind: "stderr", payload: "\x1b[1;1Hgenuine" },
+  ].map(event => ({ ...event, ...read(event.kind, event.payload) }));
+  expect(groupRecordedOutput(events).map(row => [row.kind, row.readable])).toEqual([
+    ["stdout", " ".repeat(76) + "foun"], ["stderr", "warning"], ["stdout", "d."], ["stderr", "genuine"],
+  ]);
+});
+
+test("home, relative movement, colors, and plain repeats do not trigger wrap deduplication", () => {
+  for (const control of ["", "\x1b[H", "\x1b[1;1H", "\x1b[2C", "\x1b[31m"]) {
+    const read = createRecordedOutputReader();
+    expect(read("stdout", "foun" + control + "nd.")).toBe("founnd.");
+  }
+});
+
+test("cursor movement without the matching repeated character is not a continuation", () => {
+  const read = createRecordedOutputChunkReader();
+  const events = ["first", "\x1b[2;2Hsecond"].map((payload, id) => ({ id, kind: "stdout", ...read("stdout", payload) }));
+  expect(groupRecordedOutput(events)[0].readable).toBe("first\nsecond");
+});
+
+test("a new cursor operation cancels a pending ConPTY wrap", () => {
+  for (const control of ["\x1b[H", "\x1b[2C", "\x1b]0;title\x07", "\b"]) {
+    const read = createRecordedOutputChunkReader();
+    const prefix = " ".repeat(76);
+    const events = [prefix + "foun\x1b[23;80H", control + "nd."].map((payload, id) => ({ id, kind: "stdout", ...read("stdout", payload) }));
+    expect(groupRecordedOutput(events)[0].readable).toBe(prefix + "foun\nnd.");
+  }
+});
+
+test("a matching letter alone does not prove the cursor is at a wrapped row boundary", () => {
+  const read = createRecordedOutputChunkReader();
+  const events = ["first", "\x1b[2;2Htree"].map((payload, id) => ({ id, kind: "stdout", ...read("stdout", payload) }));
+  expect(groupRecordedOutput(events)[0].readable).toBe("first\ntree");
 });

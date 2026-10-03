@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 if (Test-Path $Root) { throw "Refusing to reuse existing evidence root $Root" }
 New-Item -ItemType Directory -Force "$Root\payload", "$Root\home", "$Root\webview" | Out-Null
 $msiHash = (Get-FileHash -LiteralPath $Msi -Algorithm SHA256).Hash
-$extract = Start-Process msiexec.exe -ArgumentList @("/a", "`"$Msi`"", "/qn", "TARGETDIR=`"$Root\payload`"", "/L*v", "`"$Root\msi-admin.log`"") -Wait -PassThru
+$extract = Start-Process msiexec.exe -ArgumentList @("/a", "`"$Msi`"", "/qn", "TARGETDIR=`"$Root\payload`"", "/L*v", "`"$Root\msi-admin.log`"") -WindowStyle Hidden -Wait -PassThru
 if ($extract.ExitCode -ne 0) { throw "msiexec /a exited $($extract.ExitCode)" }
 $exe = Get-ChildItem -Recurse -LiteralPath "$Root\payload" -Filter pytxo-desktop.exe | Select-Object -First 1
 $env:PYTXO_HOME = "$Root\home"

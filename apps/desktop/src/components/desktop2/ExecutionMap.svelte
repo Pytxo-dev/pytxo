@@ -316,7 +316,7 @@
         {:else}<div class="canvas-empty"><strong>Task relationships unavailable</strong><span>Recorded workers remain available in List.</span></div>{/if}
       </div>
     {:else}
-      <div class="list-view"><RunLedger {agents} plan={review?.plan ?? null} agentReceipts={review?.enforcement?.agents ?? null} {selectedAgentId} inlineInspector={false} onSelect={(agentId) => { const agent = agents.find(candidate => candidate.id === agentId); if (agent) inspectAgent(agent); }} /></div>
+      <div class="list-view"><RunLedger {agents} {taskDescriptions} plan={review?.plan ?? null} agentReceipts={review?.enforcement?.agents ?? null} {selectedAgentId} inlineInspector={false} onSelect={(agentId) => { const agent = agents.find(candidate => candidate.id === agentId); if (agent) inspectAgent(agent); }} /></div>
     {/if}
   </div>
 

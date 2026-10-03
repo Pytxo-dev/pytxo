@@ -343,7 +343,7 @@
 </script>
 
 <section class="screen work" aria-label="Work">
-  <header class="command-strip work-heading" class:idle={!focusRun} role={focusRun ? "region" : undefined} aria-label={focusRun ? "Focused run" : undefined}>
+  <section class="command-strip work-heading" class:idle={!focusRun} aria-label={focusRun ? "Focused run" : undefined}>
     {#if focusRun}<ApertureGlyph active={activity.active} tone={activity.tone} />{/if}
     <div class="command-copy" bind:this={heading} tabindex="-1">
       <h1>{focusRun ? (displayMissionTitle ?? `Work in ${focusRun.repo_root.split(/[\\/]/).pop() || "selected repository"}`) : "Work"}</h1>
@@ -362,7 +362,7 @@
         {#if !canStopFocusRun}<span id="stop-disabled-reason" class="sr-reason">There is no running work to stop.</span>{/if}
       </div>
     {/if}
-  </header>
+  </section>
   {#if stopMessage}
     <div class="work-feedback" role="status">{stopMessage}</div>
   {:else if stopError && !stopTarget}

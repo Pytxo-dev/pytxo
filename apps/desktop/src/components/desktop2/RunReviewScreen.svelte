@@ -688,7 +688,7 @@
                       <button class="diff-fold" onclick={() => (openFolds = [...openFolds, `${file.path}:${index}`])}>{row.count} unchanged lines</button>
                     {:else}
                       {#each row.kind === "fold" ? row.lines : [row] as line}
-                        <div class={`diff-line ${line.kind}`}><span class="ln">{line.kind === "add" ? "" : line.before}</span><span class="ln">{line.kind === "del" ? "" : line.after}</span><span class="mark" aria-hidden="true">{line.kind === "add" ? "+" : line.kind === "del" ? "−" : ""}</span><code>{line.text}</code></div>
+                        <div class={`diff-line ${line.kind}`}><span class="ln">{line.kind === "add" ? "" : line.before}</span><span class="ln">{line.kind === "del" ? "" : line.after}</span><span class="mark" aria-hidden="true">{line.kind === "add" ? "+" : line.kind === "del" ? "−" : ""}</span><code>{line.text}{#if line.ending !== "lf"}<span class="line-ending">{line.ending === "crlf" ? "CRLF" : "No newline at end of file"}</span>{/if}</code></div>
                       {/each}
                     {/if}
                   {:else}
@@ -1447,6 +1447,7 @@
     background:color-mix(in srgb,var(--pytxo-surface-active) 82%,var(--pytxo-activity));
     box-shadow:inset 2px 0 var(--pytxo-activity);
   }
+  .file-row.chosen .file-name small { color:var(--pytxo-text-body); }
   .comparison-context { background:color-mix(in srgb,var(--pytxo-surface-panel) 86%,var(--pytxo-work-canvas)); }
   .diff-side.before,.diff-side.after,.diff-side .text-content { background:var(--pytxo-code-surface); }
   .diff-side .text-content { color:var(--pytxo-text-body); }
@@ -1488,6 +1489,7 @@
   .diff-line .ln { color:var(--pytxo-text-muted);opacity:.7;text-align:right;user-select:none;font-variant-numeric:tabular-nums; }
   .diff-line .mark { text-align:center;user-select:none; }
   .diff-line code { min-width:0;color:var(--pytxo-text-body);font:inherit;white-space:pre-wrap;overflow-wrap:anywhere; }
+  .diff-line .line-ending { display:inline-block;margin-left:12px;color:var(--pytxo-text-muted);font:11px/1.6 var(--pytxo-font-ui, sans-serif);white-space:normal; }
   .diff-line.add { background:color-mix(in oklab,var(--state-verified) 13%,transparent); }
   .diff-line.add .mark,.diff-line.add .ln { color:var(--state-verified);opacity:1; }
   .diff-line.del { background:color-mix(in oklab,var(--state-refuted) 13%,transparent); }

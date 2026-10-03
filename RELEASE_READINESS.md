@@ -1,5 +1,141 @@
 # Pytxo v1.2.2 release readiness
 
+## October 3 - Codex continuation, silent film and native safety acceptance
+
+**Decision: NOT READY for public Beta.** Continued Claude's latest implementation
+in `C:/pytxo/.claude/worktrees/nav-inventory-prototype-2e7ea3`, starting at
+Claude's `43cd5e6c`. Matt approved committing the candidate to private
+`Pytxo-dev/pytxo` as `2ntt/pytxo-beta-candidate-20261003` and opening an unmerged
+PR for CI. That authorization includes the 41 accumulated local commits, not
+only this UI patch; experimental routing and service migration source remain
+included but are not activated or deployed. No main merge, deployment, tag or
+release is authorized. Local chats, audit logs and temporary capture tests are
+excluded. The older dirty root checkout was preserved. This section supersedes
+older readiness summaries, not their historical evidence.
+
+### Changes and verification
+
+- Fleet cards now keep vendor names, paths and useful output readable at the
+  supported widths. Settled workers drain their final events, long tails continue
+  past 2,000 records, failed reads retry, and switching runs cannot mix output.
+  Counts distinguish configured checks, completed tasks and no-change workers.
+- Review's line diff preserves CRLF and final-newline differences. A file whose
+  bytes changed can no longer appear unchanged because of newline normalization.
+- List view shows the saved task request, retaining technical IDs in inspection.
+  Readable output groups records and conservatively repairs corroborated ConPTY
+  wraps; Raw text retains the original payloads. Cursor movement alone never
+  authorizes removing a character. Escape strings remain suppressed.
+- Release notes now describe the current multi-agent candidate and its limits;
+  `distribution/release-notes/v1.2.2.md` is the publication payload.
+- Accessibility review corrected the focused-run landmark and selected Review
+  file-path contrast. The missing-project story now targets the current Project
+  picker, and Storybook normalizes mixed Windows path separators.
+- Locked `devalue` moved from 5.8.1 to compatible 5.9.4; compatible tooling fixes
+  cover axios, brace-expansion, fast-uri and joi. Clean `npm ci` confirms installed
+  versions. Desktop and Web production audits report zero vulnerabilities.
+  Desktop's full audit still reports 10 development-only findings: 5 high through
+  the braces/glob chain and 5 moderate through uuid/Storybook coverage tooling.
+  No forced major upgrades or audit suppressions were introduced.
+- The private candidate workflow runs only for this exact branch/repository,
+  builds updater-signed artifacts with read-only repository permissions, and
+  checks the MSI-extracted executable against the current frontend. Its evidence
+  records both installer and payload hashes. It does not publish a release or
+  update feed. Vercel automatic deployment is disabled for this candidate branch.
+
+| Local check | Evidence |
+|-------------|----------|
+| Rust format and workspace Clippy, warnings denied | PASS |
+| `cargo test --locked --workspace -j2`, pinned attempt host, isolated state | PASS: 1,100 tests, 16 ignored; the first unbounded attempt exhausted paging, not a source failure |
+| Desktop Svelte and CSS checks | PASS: 0 errors, 0 warnings |
+| Desktop full production-preview suite | PASS: 413/413 after clean dependency install and final accessibility/output fixes |
+| Storybook build, interactions and accessibility | PASS: 42/42 after fixing Windows discovery, landmark semantics and Review contrast |
+| Full development component suite | PASS: 6/6; final run-switch lock, readable List and raw-output behavior included |
+| Marketing captures and dense-canvas performance | PASS: 28 captures; 1 performance scenario |
+| Web lint, links, assets, build and browser tests | PASS: 172 links, 30 Desktop assets, 64 pages, 28/28 browser tests |
+| Release inventory and version tests | PASS: 27/27, including the candidate no-deployment boundary |
+| Silent film source, evidence and master validation | PASS: 56 s, 1920x1080, 60 fps, H.264/BT.709, no audio; full decode and normal-speed browser playback |
+
+Detailed local logs are under `apps/desktop/audit-shots/`; bounded Rust output is
+`D:/pytxo-target/astra-20261003-tests-bounded.log`.
+
+### Native evidence
+
+Run `313e35f2-a0ae-45c5-b048-fe73e811f721` used the guided example, Codex, Orbit,
+one worker at a time, and three ordered tasks. All workers exited 0; task and
+combined checks passed. Adding an unrelated `operator-note.txt` made the first
+package (`324c6c935fc08dbf7a86bdb6a863292f5c3a2e785155eb523582bcc83f783e82`)
+refuse as stale. Refresh produced
+`de8349e40c18b3e7aa305887e0489f3b64bb00d3c800f06c971e5d4546cec17b`.
+Apply wrote exactly README.md, `src/risk-policy.mjs` and
+`test/risk-policy.test.mjs`; the operator file survived. All eight post-state
+inventory hashes match the verified candidate; post-Apply tests passed 11/11.
+History records Completed and Apply recorded.
+
+Evidence: `D:/pytxo-native-acceptance/astra-20261003-final/native-receipt.json`,
+plus onboarding, plan, running, stale-refusal, applied and History PNGs. This run
+used unsigned MSI
+`F1D211C3F5D36B7D990C9312A30EE7E8ADB67C6452AD3706F4FEA23B33AC519C`, EXE
+`C8E9D0AEBF26B773C253402691263E18671D6EB39597DF6249113EE7201CFAFF`.
+It was an administrative extraction, not an installed upgrade, at actual Windows
+125% / 120 DPI and a 1280x800 logical viewport. This run predates the later
+List/Output refinements. Host-filesystem and network isolation remain advisory.
+
+### Last native-tested artifact
+
+Local MSI: `D:/pytxo-native-acceptance/astra-20261003-refined/Pytxo Desktop_1.2.2_x64_en-US.msi`.
+SHA-256 `75B64A70914A7AE266C92767A16203324F6B17294758AA502BFC28F3DAF44FF9`.
+Payload EXE SHA-256
+`A5FCFFD1283E6902F946053A3176EFBD0A6F1BD926385D8868AFA2872ED2A617`.
+Both are unsigned. `npm run build:msi` passed and verified all four current
+hashed JS/CSS assets in the executable; the 452 selected build-input hashes
+remained unchanged. `source-manifest.json` sits beside the staged MSI.
+
+The exact extracted payload reopened a copy of the previous isolated state.
+Native History retained the completed run and Apply record; List displayed the
+saved requests; readable output reconstructed `risk is found.` while Raw text
+still contained the original cursor escape and repeated character. The 1280x800
+logical viewport at actual 125% DPI had no horizontal overflow. Native window
+inspection and screenshots passed. See `ui-smoke-receipt.json`,
+`list-and-output.png` and `list-full.png` in that evidence directory.
+This is retained-state **extracted-payload** proof, not installed-upgrade proof
+or a fresh agent dispatch on the rebuilt artifact.
+
+The MSI runtime audit also passed: its one packaged PE has no unprovided
+versioned MSVC runtime imports (`runtime-audit/result.json`). This artifact
+predates the later dependency, accessibility and CI-boundary changes. Do not
+transfer its native evidence to the new frozen candidate. The private hosted
+build must establish its own artifact identity; installed updater acceptance
+remains separate even when a `.sig` exists.
+
+### Silent film
+
+`apps/demo-video/out/pytxo-beta-silent.mp4`, SHA-256
+`82B8894859B9253A673FF1135F30DF1C91536C8E7A54C0DB53485E42D589C931`.
+Editable source is `apps/demo-video/src/beta/`. The film uses large type,
+restrained movement and the recorded October 2 fleet. Its on-screen disclosure
+says edited sequence / native stills. Four concurrent workers followed by two
+ordered tasks are shown accurately, including the two no-change workers.
+It is not a fresh fleet run, continuous capture, a performance benchmark or a
+published-release announcement. Silence is Matt's explicit October 3 choice.
+
+### Remaining public-release gates
+
+1. Final-artifact mixed-CLI rehearsal. The new native onboarding reported five
+   agents ready, including OpenCode, but readiness is not proof of successful
+   edits. Claude quota is exhausted per Matt; no credentials or accounts were
+   changed to bypass it. Six tasks across five vendors in 4 -> 1 -> 1 steps must
+   not be described as six vendors or six simultaneous successful editors.
+2. Signed candidate, installed updater download/install/restart proof, and clean
+   install plus retained-data upgrade of that exact artifact.
+3. Actual native 150%/200% DPI acceptance. Browser viewport/text-zoom checks and
+   the 125% native run do not discharge this gate.
+4. Hosted CI on the frozen candidate. Private branch/PR and CI are authorized;
+   their run results must be verified before treating this gate as passed.
+5. Matching final-build launch footage and independent privacy/brand review.
+   The silent historical-stills film is a local delivery, not that footage gate.
+6. Exact publication/deployment approval. The approved private source PR and
+   private CI artifacts do not authorize a merge, deployment, tag or release.
+
 ## October 3 — positioning, Desktop and website polish, terminal quick start
 
 **Decision: release candidate pending native acceptance (below) and the

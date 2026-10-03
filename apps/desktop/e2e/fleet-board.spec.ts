@@ -17,7 +17,7 @@ test("a mixed-CLI run opens on the fleet board with each worker's vendor, output
   await expect(board.getByRole("log", { name: "Recent output from Claude Code" })).toContainText("Update(src/style.css)");
   await expect(board.getByRole("log", { name: "Recent output from OpenAI Codex" }).first()).toContainText("Task checks passed");
   await expect(board).toContainText("Shares src/app.js with Claude Code.");
-  await expect(board.locator(".facts")).toContainText("1 shared path ordered");
+  await expect(board.locator(".facts")).toContainText("1 task ordered for shared paths");
 
   await page.getByRole("button", { name: "Canvas" }).click();
   await expect(board).toHaveCount(0);

@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
+  import { onDestroy, untrack } from "svelte";
   import { agentState } from "../../lib/epistemic";
   import { eventLines } from "../../lib/terminal-text";
   import { adeDisplayName } from "../../lib/ade-status";
+  import { readFleetTail, type FleetTail } from "../../lib/fleet-events";
   import type { DesktopBackend } from "../../lib/desktop-backend";
-  import type { AgentDto, EventDto, RunDto, RunReviewDto } from "../../lib/types";
+  import type { AgentDto, RunDto, RunReviewDto } from "../../lib/types";
   import AdeIdentity from "./AdeIdentity.svelte";
 
   let {
@@ -16,7 +17,6 @@
   } = $props();
 
   type Task = RunReviewDto["plan"]["waves"][number][number];
-  type Tail = { cursor: number; events: EventDto[]; first: number | null; last: number | null };
 
   const waves = $derived((review?.plan.waves ?? []).filter((wave) => wave.length));
   const agentFor = (task: Task) => {
@@ -40,66 +40,76 @@
   const orderedShares = $derived(waves.flat().filter((task) => sharedOwner(task)).length);
   /** Tasks with prepared files; null until a candidate exists. A worker can pass its checks and change nothing. */
   const preparedTasks = $derived(review?.prepared_manifest ? new Set(review.prepared_manifest.files.map((file) => file.task_id)) : null);
+  const checkedTasks = $derived(waves.flat().filter((task) => task.verify.length > 0));
+  const passedTasks = $derived(checkedTasks.filter((task) => {
+    const agent = agentFor(task);
+    return agent?.status === "completed" && agent.exit_code === 0;
+  }).length);
 
-  let tails = $state<Record<string, Tail>>({});
+  let tails = $state<Record<string, FleetTail>>({});
+  let readErrors = $state<Record<string, boolean>>({});
   let now = $state(Date.now());
   let timer: ReturnType<typeof setInterval> | undefined;
-  let polling = false;
+  let pollingGeneration: number | null = null;
+  let generation = 0;
+  let scopeKey = "";
+  let disposed = false;
+  const currentAgents = $derived(agents.filter((agent) => agent.run_id === run.id && agent.domain_id === run.domain_id));
 
   function isLive(agent: AgentDto | undefined) {
     return !!agent && ["running", "starting", "pending"].includes(agent.status);
   }
 
   async function poll() {
-    if (!backend || polling) return;
-    polling = true;
+    const key = `${run.domain_id}:${run.id}`;
+    if (key !== scopeKey) {
+      scopeKey = key;
+      generation += 1;
+      tails = {};
+      readErrors = {};
+    }
+    if (!backend || pollingGeneration === generation || disposed) return;
+    const requestGeneration = generation;
+    pollingGeneration = requestGeneration;
+    const reader = backend;
+    const runId = run.id;
+    const belongs = () => !disposed && requestGeneration === generation && key === `${run.domain_id}:${run.id}`;
     try {
-      const current = agents.filter((agent) => agent.run_id === run.id && agent.domain_id === run.domain_id);
-      await Promise.all(current.map(async (agent) => {
+      await Promise.allSettled(currentAgents.map(async (agent) => {
         const tail = tails[agent.id];
-        // Settled workers are read once; live workers keep streaming from their cursor.
-        if (tail && !isLive(agent)) return;
-        let cursor = tail?.cursor ?? 0;
-        const collected = tail?.events ?? [];
-        let first = tail?.first ?? null;
-        let last = tail?.last ?? null;
-        for (let page = 0; page < 10; page += 1) {
-          const events = await backend!.readAgentEvents(run.id, agent.id, agent.domain_id, cursor, 200);
-          if (!events.length) break;
-          for (const event of events) {
-            const at = Date.parse(event.ts);
-            if (Number.isFinite(at)) { first ??= at; last = at; }
+        if (tail?.drained && !isLive(agent)) return;
+        try {
+          const next = await readFleetTail(tail, !isLive(agent), (cursor, limit) =>
+            reader.readAgentEvents(runId, agent.id, agent.domain_id, cursor, limit));
+          if (belongs()) {
+            tails[agent.id] = next;
+            delete readErrors[agent.id];
           }
-          collected.push(...events);
-          cursor = events[events.length - 1].id;
-          if (events.length < 200) break;
+        } catch {
+          if (belongs()) readErrors[agent.id] = true;
         }
-        // Keep the recent window only; the full record stays in the worker output dock.
-        tails[agent.id] = { cursor, events: collected.slice(-400), first, last };
       }));
-    } catch {
-      // A failed read keeps the last recorded lines; the dock shows the full error path.
     } finally {
-      polling = false;
-      now = Date.now();
+      if (pollingGeneration === requestGeneration) pollingGeneration = null;
+      if (belongs()) now = Date.now();
     }
   }
 
   $effect(() => {
     void `${run.domain_id}:${run.id}:${agents.map((agent) => `${agent.id}:${agent.status}`).join(",")}`;
-    void poll();
+    untrack(() => void poll());
   });
   $effect(() => {
-    timer = setInterval(() => { if (agents.some(isLive)) void poll(); else now = Date.now(); }, 1500);
+    timer = setInterval(() => { if (currentAgents.some(agent => isLive(agent) || !tails[agent.id]?.drained)) void poll(); }, 1500);
     return () => clearInterval(timer);
   });
-  onDestroy(() => clearInterval(timer));
+  onDestroy(() => { disposed = true; generation += 1; clearInterval(timer); });
 
   const span = $derived.by(() => {
     const starts = Object.values(tails).map((tail) => tail.first).filter((value): value is number => value !== null);
     const ends = Object.values(tails).map((tail) => tail.last).filter((value): value is number => value !== null);
     const start = starts.length ? Math.min(...starts) : Date.parse(run.started_at);
-    const end = Math.max(agents.some(isLive) ? now : 0, ...ends, start + 1000);
+    const end = Math.max(currentAgents.some(isLive) ? now : 0, ...ends, start + 1000);
     return { start, end };
   });
   function bar(agent: AgentDto | undefined) {
@@ -126,14 +136,14 @@
   <div class="lanes">
     {#each waves as wave, index}
       {@const columns = wave.length >= 3 ? 2 : 1}
-      <section class="lane" style={`--columns:${columns};flex:${columns}`} aria-label={`Step ${index + 1}`}>
+      <section class="lane" style={`--columns:${columns};--weight:${columns}`} aria-label={`Step ${index + 1}`}>
         <h3><span>Step {index + 1}</span><small>{wave.length > 1 ? `${wave.length} in parallel` : index === 0 ? "first" : "after its inputs"}</small></h3>
         <div class="cards">
           {#each wave as task (task.task_id)}
             {@const agent = agentFor(task)}
             {@const state = agent ? agentState(agent) : null}
             {@const share = sharedOwner(task)}
-            {@const lines = agent && tails[agent.id] ? eventLines(tails[agent.id].events).slice(-14) : []}
+            {@const lines = agent && tails[agent.id] ? eventLines(tails[agent.id].events).slice(-7) : []}
             {@const cli = cliOf(task, agent)}
             {@const vendor = vendorOf(task, agent)}
             {@const unchanged = tone(agent) === "done" && !!preparedTasks && !preparedTasks.has(task.task_id)}
@@ -141,11 +151,11 @@
               <button class="head" onclick={() => agent && onInspect(agent)} disabled={!agent} aria-label={`${vendor}: ${taskDescriptions[task.task_id] ?? task.task_id}. ${state?.label ?? "Not started"}. Open output.`}>
                 <span class="logo">{#if cli}<AdeIdentity id={cli} />{/if}</span>
                 <span class="who"><strong>{vendor}</strong><small title={taskDescriptions[task.task_id]}>{taskDescriptions[task.task_id] ?? task.task_id}</small></span>
-                <span class="state">{#if unchanged}No changes{:else if tone(agent) === "done"}<span class="wide">✓ Checks passed</span><span class="narrow">✓ Passed</span>{:else}{tone(agent) === "live" ? "● Working" : tone(agent) === "queued" ? (share ? "Next" : "Queued") : state?.label ?? "Settled"}{/if}</span>
+                <span class="state">{#if unchanged}No changes{:else if tone(agent) === "done"}{#if task.verify.length}<span class="wide">✓ Checks passed</span><span class="narrow">✓ Passed</span>{:else}Completed{/if}{:else}{tone(agent) === "live" ? "● Working" : tone(agent) === "queued" ? (share ? "Next" : "Queued") : state?.label ?? "Settled"}{/if}</span>
               </button>
               <div class="term" role="log" aria-label={`Recent output from ${vendor}`}>
                 {#if lines.length}
-                  {#each lines as line, lineIndex (lineIndex)}<div class:mark={line.startsWith("✓") || line.startsWith("✗") || line.startsWith("$ ")}>{line}</div>{/each}
+                  {#each lines as line, lineIndex (lineIndex)}<div class:mark={line.startsWith("✓") || line.startsWith("$ ")} class:failed={line.startsWith("✗")}>{line}</div>{/each}
                 {:else if share && !agent}
                   <div class="hint">Shares {share.path} with {vendorOf(share.owner, agentFor(share.owner))}.</div>
                   <div class="hint">Starts on its result, so neither overwrites the other.</div>
@@ -153,8 +163,9 @@
                   <div class="hint">{agent ? "No output recorded yet." : "Waits for its inputs."}</div>
                 {/if}
               </div>
+              {#if agent && readErrors[agent.id]}<p class="output-error" role="status">Output unavailable. Retrying...</p>{/if}
               <footer class="owns">
-                {#each task.paths as path}<span class:shared={share?.path === path}>{path}</span>{/each}
+                {#each task.paths as path}<span title={path} class:shared={share?.path === path}>{path}</span>{/each}
               </footer>
             </article>
           {/each}
@@ -163,25 +174,25 @@
     {/each}
   </div>
 
-  <section class="activity" aria-label="Worker activity from recorded events">
-    <h4><span>Activity</span><small>from recorded events · {clock(span.end - span.start)}</small></h4>
+  <p class="facts"><span><b>{currentAgents.length}</b> workers started</span><span><b>{orderedShares}</b> {orderedShares === 1 ? "task" : "tasks"} ordered for shared paths</span><span>{#if checkedTasks.length}<b>{passedTasks}/{checkedTasks.length}</b> task checks passed{:else}No task checks configured{/if}</span></p>
+  <details class="activity" aria-label="Worker activity from recorded events">
+    <summary><span>Activity timeline</span><small>Recorded events · {clock(span.end - span.start)}</small></summary>
     {#each waves.flat() as task (task.task_id)}
       {@const agent = agentFor(task)}
       {@const segment = bar(agent)}
       <div class="row"><span>{vendorOf(task, agent)}</span><div class="track">{#if segment}<i data-tone={tone(agent)} style={`left:${segment.left}%;width:${segment.width}%`}></i>{/if}</div></div>
     {/each}
-    <p class="facts"><span><b>{agents.filter((agent) => agent.run_id === run.id).length}</b> isolated workspaces</span><span><b>{orderedShares}</b> shared {orderedShares === 1 ? "path" : "paths"} ordered</span><span><b>{agents.filter((agent) => agent.status === "completed" && agent.exit_code === 0).length}/{waves.flat().length}</b> task checks passed</span></p>
-  </section>
+  </details>
 </div>
 
 <style>
-  .fleet { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; overflow: auto; }
-  .lanes { display: flex; flex: 1 0 auto; gap: 18px; }
-  .lane { display: flex; flex-direction: column; min-width: 0; }
-  .lane h3 { display: flex; justify-content: space-between; align-items: baseline; margin: 0 2px 10px; color: var(--pytxo-text-muted); font: 500 12px var(--pytxo-font-mono, "IBM Plex Mono", monospace); letter-spacing: .06em; text-transform: uppercase; }
+  .fleet { container: fleet / inline-size; position: absolute; inset: 0; display: flex; flex-direction: column; gap: 18px; padding: 18px 20px; overflow: auto; }
+  .lanes { display: flex; flex: none; gap: 20px; }
+  .lane { display: flex; flex: var(--weight); flex-direction: column; min-width: 0; }
+  .lane h3 { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 12px; color: var(--pytxo-text-strong); font: 600 13px var(--pytxo-font-ui); letter-spacing: 0; }
   .lane h3 small { color: var(--pytxo-text-soft); font: 13px var(--pytxo-font-ui); letter-spacing: 0; text-transform: none; }
-  .cards { display: grid; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); grid-auto-rows: minmax(184px, 1fr); gap: 14px; flex: 1 0 auto; }
-  .worker { container: worker / inline-size; display: flex; flex-direction: column; min-height: 0; overflow: hidden; border: 1px solid var(--pytxo-line); border-radius: 10px; background: var(--pytxo-surface-panel); }
+  .cards { display: grid; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); grid-auto-rows: auto; align-content: start; align-items: start; gap: 14px; }
+  .worker { container: worker / inline-size; display: flex; flex-direction: column; min-height: 0; overflow: hidden; border: 1px solid var(--pytxo-line); border-radius: 8px; background: var(--pytxo-surface-panel); }
   .worker[data-tone="live"] { border-color: color-mix(in srgb, var(--pytxo-activity) 55%, var(--pytxo-line)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--pytxo-activity) 18%, transparent); }
   .worker[data-tone="done"] { border-color: color-mix(in srgb, var(--state-verified) 40%, var(--pytxo-line)); }
   .worker[data-tone="failed"] { border-color: color-mix(in srgb, var(--state-refuted) 50%, var(--pytxo-line)); }
@@ -200,25 +211,31 @@
   .worker[data-tone="done"] .state { color: var(--state-verified); }
   .worker[data-unchanged] .state { color: var(--pytxo-text-muted); }
   .worker[data-tone="failed"] .state { color: var(--state-refuted); }
-  .term { display: flex; flex: 1; flex-direction: column; justify-content: flex-end; min-height: 90px; overflow: hidden; padding: 10px 14px; border-top: 1px solid var(--pytxo-line-soft); background: color-mix(in srgb, var(--pytxo-surface-shell) 70%, black); color: var(--pytxo-text-body); font: 13px/1.5 var(--pytxo-font-mono, "IBM Plex Mono", monospace); }
+  .term { display: flex; flex: none; flex-direction: column; justify-content: flex-end; height: 132px; overflow: hidden; padding: 10px 14px; border-top: 1px solid var(--pytxo-line-soft); background: var(--pytxo-code-surface); color: var(--pytxo-text-body); font: 13px/1.5 var(--pytxo-font-mono, "IBM Plex Mono", monospace); }
+  .worker[data-tone="queued"] .term { height: auto; }
   .term div { flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .term .mark { color: var(--state-verified); }
+  .term .failed { color: var(--state-refuted); }
   .term .hint { color: var(--pytxo-text-muted); white-space: normal; }
+  .output-error { margin: 0; padding: 8px 14px; color: var(--pytxo-text-soft); font-size: 12px; }
   .owns { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px 11px; border-top: 1px solid var(--pytxo-line-soft); }
-  .owns span { padding: 2px 7px; border: 1px solid var(--pytxo-line); border-radius: 5px; background: var(--pytxo-surface-raised); color: var(--pytxo-text-body); font: 12.5px var(--pytxo-font-mono, "IBM Plex Mono", monospace); }
+  .owns span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border: 1px solid var(--pytxo-line); border-radius: 4px; background: var(--pytxo-surface-raised); color: var(--pytxo-text-body); font: 12.5px var(--pytxo-font-mono, "IBM Plex Mono", monospace); }
   .owns span.shared { border-color: color-mix(in srgb, var(--pytxo-glyph-warm, #f3c64e) 55%, var(--pytxo-line)); color: var(--pytxo-glyph-warm, #f3c64e); }
   .state .narrow { display: none; }
   @container worker (max-width: 320px) { .state .wide { display: none; } .state .narrow { display: inline; } }
-  .activity { flex: none; padding: 12px 16px 10px; border: 1px solid var(--pytxo-line); border-radius: 10px; background: var(--pytxo-surface-panel); }
-  .activity h4 { display: flex; justify-content: space-between; margin: 0 0 10px; color: var(--pytxo-text-strong); font-size: 15px; font-weight: 600; }
-  .activity h4 small { color: var(--pytxo-text-muted); font-weight: 400; font-size: 13px; }
+  .activity { flex: none; padding: 0 0 12px; border-top: 1px solid var(--pytxo-line-soft); }
+  .activity summary { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 40px; color: var(--pytxo-text-strong); font-size: 13px; font-weight: 500; cursor: pointer; }
+  .activity summary::before { content: "+"; color: var(--pytxo-text-muted); }
+  .activity[open] summary::before { content: "−"; }
+  .activity summary small { margin-left: auto; color: var(--pytxo-text-muted); font-weight: 400; font-size: 12px; }
   .row { display: grid; grid-template-columns: 130px minmax(0, 1fr); align-items: center; gap: 12px; height: 22px; color: var(--pytxo-text-body); font-size: 13.5px; }
   .track { position: relative; height: 12px; border-radius: 6px; background: color-mix(in srgb, var(--pytxo-surface-raised) 80%, transparent); }
   .track i { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: var(--pytxo-text-muted); }
   .track i[data-tone="live"] { background: linear-gradient(90deg, color-mix(in srgb, var(--pytxo-activity) 35%, transparent), var(--pytxo-activity)); }
   .track i[data-tone="done"] { background: var(--state-verified); }
   .track i[data-tone="failed"] { background: var(--state-refuted); }
-  .facts { display: flex; flex-wrap: wrap; gap: 8px 26px; margin: 10px 0 0; color: var(--pytxo-text-soft); font-size: 14px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 26px; margin: 0; color: var(--pytxo-text-soft); font-size: 13px; }
   .facts b { margin-right: 5px; color: var(--pytxo-text-strong); font-size: 16px; }
-  @media (max-width: 900px) { .lanes { flex-direction: column; } .cards { grid-auto-rows: minmax(200px, auto); } }
+  @container fleet (max-width: 1050px) { .lanes { flex-wrap: wrap; }.lane:first-child { flex-basis: 100%; }.lane:not(:first-child) { flex: 1 1 240px; } }
+  @container fleet (max-width: 560px) { .lanes { flex-direction: column; }.lane:not(:first-child) { flex: none; }.cards { grid-template-columns: minmax(0, 1fr); }.activity summary { flex-wrap: wrap; gap: 8px; }.row { grid-template-columns: 110px minmax(0, 1fr); } }
 </style>

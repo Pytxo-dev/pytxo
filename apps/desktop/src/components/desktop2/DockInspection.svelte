@@ -8,7 +8,7 @@
   import StateChip from "./StateChip.svelte";
   import AdeIdentity from "./AdeIdentity.svelte";
   import { agentState } from "../../lib/epistemic";
-  import { createRecordedOutputReader } from "../../lib/recorded-output";
+  import { createRecordedOutputChunkReader, groupRecordedOutput, type RecordedOutputChunk } from "../../lib/recorded-output";
   import { readReviewRevision, reviewRevisionKey } from "../../lib/review-detail-cache";
 
   let { view, backend, snapshot, visible, onReview, onOpenApprovals, onOpenOutput = () => {}, contextual = false, taskDescription }: {
@@ -19,7 +19,7 @@
   let review = $state<RunReviewDto | null>(null);
   let error = $state("");
   let loading = $state(true);
-  let events = $state<(EventDto & { readable: string })[]>([]);
+  let events = $state<(EventDto & RecordedOutputChunk)[]>([]);
   let rawOutput = $state(false);
   let cursor = $state(0);
   let trimmed = $state(false);
@@ -31,7 +31,7 @@
   let followFrame = 0;
   let eventIds = new Set<number>();
   let loadedReviewKey = "";
-  const readOutput = createRecordedOutputReader();
+  const readOutput = createRecordedOutputChunkReader();
 
   const run = $derived(snapshot.runs.find(candidate => candidate.domain_id === view.domainId && candidate.id === view.runId) ?? null);
   const agent = $derived(snapshot.agents.find(candidate => candidate.domain_id === view.domainId && candidate.run_id === view.runId && candidate.id === view.agentId) ?? null);
@@ -43,6 +43,7 @@
   const visibleEvents = $derived(events.slice(-renderCount));
   const activity = $derived(visibleEvents.filter(event => event.kind !== "stdout" && event.kind !== "stderr"));
   const workerOutput = $derived(visibleEvents.filter(event => event.kind === "stdout" || event.kind === "stderr"));
+  const outputRows = $derived(groupRecordedOutput(workerOutput));
   const hasEarlier = $derived(events.length > renderCount || trimmed);
 
   function onOutputScroll() {
@@ -91,7 +92,7 @@
         if (page.length) {
           after = page[page.length - 1].id;
           cursor = after;
-          const fresh = page.filter(event => !eventIds.has(event.id)).map(event => ({ ...event, readable: readOutput(event.kind, event.payload) }));
+          const fresh = page.filter(event => !eventIds.has(event.id)).map(event => ({ ...event, ...readOutput(event.kind, event.payload) }));
           for (const event of fresh) eventIds.add(event.id);
           const merged = [...events, ...fresh];
           if (merged.length > 600) {
@@ -143,7 +144,11 @@
     {#if mode === "output"}
       <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
       <div class="output" bind:this={output} onscroll={onOutputScroll} tabindex="0" role="region" aria-label="Recorded agent output">
-        {#each workerOutput as event (event.id)}{#if rawOutput || event.readable.trim()}<div class="event"><small>{event.kind}</small><pre>{rawOutput ? event.payload : event.readable}</pre></div>{/if}{/each}
+        {#if rawOutput}
+          {#each workerOutput as event (event.id)}<div class="event"><small>{event.kind}</small><pre>{event.payload}</pre></div>{/each}
+        {:else}
+          {#each outputRows as row (row.id)}{#if row.readable.trim()}<div class="event"><small>{row.kind}</small><pre>{row.readable}</pre></div>{/if}{/each}
+        {/if}
         {#if !workerOutput.length && !loading && !error}<p>No recorded worker output yet.</p>{/if}
       </div>
       <footer class="follow-tools"><span>Latest {Math.min(events.length, renderCount)} of {events.length}{trimmed ? "+" : ""} loaded records</span><button aria-pressed={following} onclick={toggleFollowing}>{following ? "Pause following" : "Follow output"}</button></footer>
