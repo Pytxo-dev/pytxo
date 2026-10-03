@@ -26,10 +26,10 @@ function Find-Exe {
 function Use-Desktop([string]$Name, [string[]]$ProbeArgs) {
   $exe = Find-Exe
   Set-DesktopBrowserArguments "--remote-debugging-port=9340"
-  $app = Start-Process -FilePath $exe.FullName -PassThru
+  $app = Start-DesktopUnelevated $exe.FullName @{ WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS } $env:USERPROFILE $Evidence $Name
+  $summary.launched_via = $script:DesktopLaunchedVia
   try {
-    Wait-DesktopCdp $app $Evidence $Name
-    node (Join-Path $PSScriptRoot "probe.mjs") --cdp 9340 --out $Evidence --name $Name @ProbeArgs
+    node (Join-Path $PSScriptRoot "probe.mjs") --cdp 9340 --out $Evidence --name $Name @ProbeArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Probe $Name failed" }
   } finally {
     Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
