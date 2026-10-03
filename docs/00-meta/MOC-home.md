@@ -136,6 +136,7 @@ sequence without authorizing external writes.
 ### Product
 
 - [[product-vision]]
+- [[positioning]] — October 2026 market, wedge, message hierarchy, product language and allowed claims
 - [[pytxo-commit-layer-alignment]] — three-phase falsification, shadow, and gated-production plan
 - [[modular-projects]] — multi-path workspaces (Antigravity-style)
 - [[tiers-hobbyist-pro-max]] · [[token-arbitrage]]

@@ -12,7 +12,7 @@ partnership, or endorsement.
 | Pytxo id | Local asset | Source and adaptation |
 | --- | --- | --- |
 | `claude` | `anthropic.svg` | Simple Icons `anthropic.svg`, commit `4ba19240849175ab4b855a732ab98c0f87cfb714`, sourced there from Anthropic's official site. Rendered as a current-color mask. |
-| `agy` | `antigravity.png` | Exact `Icon — Full Color` PNG from Google Antigravity's official press page, retrieved 2026-09-15; SHA-256 `E0CD08CCD10CD8D08CCF0BA449823EE88495825C0841619618100D3AB089F51E`. The complete 540×540 transparent file and its clear space are preserved. This local review asset must be removed from a public build unless Google's required compatibility-use approval is recorded. |
+| `agy` | `antigravity.png` | Exact `Icon — Full Color` PNG from Google Antigravity's official press page, retrieved 2026-09-15; SHA-256 `E0CD08CCD10CD8D08CCF0BA449823EE88495825C0841619618100D3AB089F51E`. The complete 540×540 transparent file and its clear space are preserved. Matt directed its public use on 2026-10-02; see Publication boundary. |
 | `codex` | `openai-on-dark.svg`, `openai-on-light.svg` | Exact mono Blossom files from OpenAI's official `OpenAI-Logos-2025.zip`; archive SHA-256 `B2C4CD1E86BBE76BDC4946A72D014EFA455240C177F4878FD68CC9B88C71D2EC`. Theme variants are switched without recoloring or geometry changes. |
 | `cursor` | `cursor-on-dark.svg`, `cursor-on-light.svg` | Exact `CUBE_2D_DARK.svg` and `CUBE_2D_LIGHT.svg` from Cursor's official brand kit; archive SHA-256 `97488A7751914E60F9FF532BC33810CDEAEBDDDC017548ABE6CA2BC29BBC3928`. |
 | `opencode` | `opencode.svg` | `anomalyco/opencode`, commit `df23b7f9488a38e6f8064a0739d4f8cde86d7cfb`, `packages/console/app/src/asset/brand/opencode-logo-dark-square.svg`; MIT. |
@@ -34,10 +34,12 @@ visible tiles conflict with the transparent compatibility-mark treatment.
 
 The Aider and Grok files are narrow identifying uses with the full adjacent
 product name. Grok's files remain byte-exact as required by SpaceXAI's published
-brand terms. Google's current product-icon guidance requires a Partner Marketing
-Hub approval request for a compatibility use. `antigravity.png` is therefore a
-local review asset, not approved public-release artwork; remove it or record the
-approval before distributing a build that contains it. See
+brand terms. Google's current product-icon guidance asks for a Partner Marketing Hub
+approval request for a compatibility use. On 2026-10-02 Matt directed that
+Pytxo use `antigravity.png` publicly anyway (Desktop, website and demo film),
+beside the full Antigravity name; no Google approval is recorded. The same
+file, byte for byte, is published at `apps/web/public/brands/antigravity.png`
+and `apps/demo-video/public/fleet/logos/antigravity.png`. See
 `docs/01-projects/pytxo-final-three-harness-logo-research-2026-09-15.md`.
 
 Simple Icons publishes its collection under CC0-1.0 while explicitly warning
