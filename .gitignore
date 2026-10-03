@@ -74,3 +74,4 @@ docs/.obsidian/cache/
 AGENTS.override.md
 CLAUDE.local.md
 .vercel
+__pycache__/
