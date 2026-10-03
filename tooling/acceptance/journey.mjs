@@ -9,7 +9,8 @@
 //         clipped or overflowing layout at the launched device scale factor.
 // Every step is logged; any failure leaves a screenshot and the page text.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import http from "node:http";
 import { createRequire } from "node:module";
 import path from "node:path";
 
@@ -19,7 +20,7 @@ const { chromium } = require("@playwright/test");
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, index, all) => (value.startsWith("--") ? [...pairs, [value.slice(2), all[index + 1]]] : pairs), []));
 const out = path.resolve(args.out);
-mkdirSync(path.join(out, "frames"), { recursive: true });
+mkdirSync(out, { recursive: true });
 const started = Date.now();
 const receipt = { mode: args.mode, started: new Date(started).toISOString(), steps: [], checks: {} };
 const step = (label, extra = {}) => { receipt.steps.push({ t: Date.now() - started, label, ...extra }); console.log(`${((Date.now() - started) / 1000).toFixed(1)}s ${label}`); };
@@ -34,15 +35,30 @@ const page = browser.contexts().flatMap((context) => context.pages())[0];
 receipt.viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, devicePixelRatio }));
 step("connected", receipt.viewport);
 
-const frames = [];
-const cdp = await page.context().newCDPSession(page);
-cdp.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
-  const file = path.join(out, "frames", `${String(frames.length).padStart(6, "0")}.jpg`);
-  writeFileSync(file, Buffer.from(data, "base64"));
-  frames.push({ file: path.basename(file), t: metadata.timestamp * 1000 });
-  cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
-});
-if (args.mode === "full") await cdp.send("Page.startScreencast", { format: "jpeg", quality: 90, everyNthFrame: 1 });
+// Continuous capture: every compositor frame of a page, with an ffconcat list
+// that keeps real timing (frame times are wall-clock epoch milliseconds).
+async function record(target, dir) {
+  mkdirSync(path.join(out, dir), { recursive: true });
+  const frames = [];
+  const session = await target.context().newCDPSession(target);
+  session.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
+    const file = `${String(frames.length).padStart(6, "0")}.jpg`;
+    writeFileSync(path.join(out, dir, file), Buffer.from(data, "base64"));
+    frames.push({ file, t: metadata.timestamp * 1000 });
+    session.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
+  });
+  await session.send("Page.startScreencast", { format: "jpeg", quality: 92, everyNthFrame: 1 });
+  return async () => {
+    await session.send("Page.stopScreencast").catch(() => {});
+    if (!frames.length) return 0;
+    const entry = (frame) => `file '${dir}/${frame.file}'`;
+    const list = frames.map((frame, index) => `${entry(frame)}\nduration ${(((frames[index + 1]?.t ?? frame.t + 1000) - frame.t) / 1000).toFixed(3)}`);
+    writeFileSync(path.join(out, `${dir}.txt`), ["ffconcat version 1.0", ...list, entry(frames.at(-1)), ""].join("\n"));
+    writeFileSync(path.join(out, `${dir}.json`), `${JSON.stringify({ first: frames[0].t, last: frames.at(-1).t, count: frames.length })}\n`);
+    return frames.length;
+  };
+}
+const stopRecording = args.mode === "full" ? await record(page, "frames") : async () => 0;
 
 const shot = (name) => page.screenshot({ path: path.join(out, `${name}.png`) });
 /** Layout must fit: no horizontal page overflow, and named controls fully on screen. */
@@ -60,6 +76,22 @@ async function isInViewport(locator) {
   return !!box && box.x >= -1 && box.y >= -1 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1;
 }
 const button = (name, exact = true) => page.getByRole("button", { name, exact });
+// Pointer telemetry for the film: hover, settle, then click, so hover feedback is
+// on screen before each click. Times are epoch milliseconds, like frame times.
+receipt.pointer = [];
+async function press(locator, label, target = page) {
+  const surface = target === page ? "desktop" : "result";
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  if (box) receipt.pointer.push({ t: Date.now(), kind: "hover", label, surface, x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) });
+  await locator.hover();
+  await target.waitForTimeout(450);
+  receipt.pointer.push({ t: Date.now(), kind: "click", label, surface });
+  await locator.click();
+}
+// Epoch-timed marks the film cuts on, alongside the acceptance steps.
+receipt.marks = {};
+const mark = (name) => { receipt.marks[name] = Date.now(); };
 
 try {
   step("onboarding");
@@ -97,22 +129,26 @@ try {
   } else {
     const mission = readFileSync(path.resolve(args.mission), "utf8").replace(/\r/g, "").trim();
     const team = (args.team ?? "Claude Code,Cursor Agent,OpenCode,Antigravity").split(",").map((name) => name.trim()).filter(Boolean);
-    await button("New work").last().click();
+    await press(button("New work").last(), "New work");
     const request = page.getByLabel("What should Pytxo do?");
-    await request.click();
+    await press(request, "Request");
+    mark("typing");
     await request.pressSequentially(mission, { delay: 4 });
+    mark("typed");
     await page.getByLabel("Agent CLI", { exact: true }).selectOption("codex");
     for (const name of team) await page.getByRole("checkbox", { name }).check();
-    await page.getByRole("button", { name: "Build plan" }).first().click();
+    await press(page.getByRole("button", { name: "Build plan" }).first(), "Build plan");
     await page.getByRole("heading", { name: /Review plan|Plan blocked|Plan needs verification/ }).waitFor({ timeout: 180_000 });
     const planHeading = await page.getByRole("heading", { name: /Review plan|Plan blocked|Plan needs verification/ }).innerText();
     receipt.checks.plan = { heading: planHeading, summary: await page.locator(".plan-summary").innerText().catch(() => "") };
-    await page.waitForTimeout(1500);
+    mark("plan");
+    await page.waitForTimeout(2500);
     await fits("plan");
     if (planHeading !== "Review plan") throw new Error(`Plan not ready: ${planHeading}`);
     step("plan ready", receipt.checks.plan);
 
-    await page.getByRole("button", { name: /^Run/ }).last().click();
+    await press(page.getByRole("button", { name: /^Run/ }).last(), "Run");
+    mark("run");
     step("run");
     const deadline = Date.now() + 20 * 60_000;
     let last = "";
@@ -122,6 +158,7 @@ try {
       if (state !== last) { step(`work: ${state}`); last = state; }
       if (!/Starting|Running/i.test(state) && /Completed|Failed|Stopped|Needs|Ready|Decision/i.test(state)) break;
     }
+    mark("settled");
     await page.waitForTimeout(3000);
     receipt.checks.fleet = {
       workers: await page.locator("[data-testid=fleet-board] .worker").count(),
@@ -132,10 +169,21 @@ try {
     await shot("fleet");
     step("run settled", receipt.checks.fleet);
 
-    await page.getByRole("button", { name: "Review changes", exact: true }).first().click();
+    await press(page.getByRole("button", { name: "Review changes", exact: true }).first(), "Review changes");
     await page.locator("#run-review-title").waitFor({ timeout: 120_000 });
     await page.locator(".line-diff, .exact-diff").first().waitFor({ timeout: 60_000 });
-    await page.waitForTimeout(1500);
+    mark("review");
+    await page.waitForTimeout(2500);
+    // Read down the first file's changes, as a reviewer would.
+    const diffBox = await page.locator(".line-diff, .exact-diff").first().boundingBox();
+    if (diffBox) {
+      const x = Math.round(diffBox.x + diffBox.width * 0.6);
+      const y = Math.round(diffBox.y + Math.min(diffBox.height / 2, 240));
+      receipt.pointer.push({ t: Date.now(), kind: "hover", label: "Changes", surface: "desktop", x, y });
+      await page.mouse.move(x, y, { steps: 12 });
+      for (let tick = 0; tick < 4; tick++) { await page.mouse.wheel(0, 260); await page.waitForTimeout(650); }
+      mark("read");
+    }
     const reviewed = (await page.locator(".file-row").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label") ?? ""))).map((label) => label.replace(/^Inspect exact content for /, ""));
     receipt.checks.review = { files: reviewed, status: (await page.locator(".review-status").innerText()).replace(/\s+/g, " "), digest: (await page.locator(".package-identity code").textContent())?.trim() };
     await fits("review", [button("Apply reviewed changes")]);
@@ -144,22 +192,27 @@ try {
     // An unrelated file after review must make Apply refuse, with nothing written.
     const note = path.join(path.resolve(args.repo), "operator-note.txt");
     writeFileSync(note, "A file added after review.\n");
-    await button("Apply reviewed changes").click();
-    await button("Apply exact package").click();
+    mark("note");
+    await press(button("Apply reviewed changes"), "Apply reviewed changes");
+    await press(button("Apply exact package"), "Apply exact package");
     await page.waitForFunction(() => /stale/i.test(document.querySelector(".review-status")?.textContent ?? ""), null, { timeout: 120_000 });
-    await page.waitForTimeout(1500);
+    mark("stale");
+    await page.waitForTimeout(3000);
     await shot("stale");
     receipt.checks.stale = { status: (await page.locator(".review-status").innerText()).replace(/\s+/g, " ") };
     step("stale refused");
     unlinkSync(note);
 
-    await button("Refresh review").click();
+    await press(button("Refresh review"), "Refresh review");
     await page.waitForFunction(() => /Ready to Apply/i.test(document.querySelector(".review-status")?.textContent ?? ""), null, { timeout: 600_000 });
     receipt.checks.refreshedDigest = (await page.locator(".package-identity code").textContent())?.trim();
-    await button("Apply reviewed changes").click();
-    await button("Apply exact package").click();
+    mark("refreshed");
+    await page.waitForTimeout(1500);
+    await press(button("Apply reviewed changes"), "Apply reviewed changes");
+    await press(button("Apply exact package"), "Apply exact package");
     await page.waitForFunction(() => /Applied|failed|Recovery/i.test(document.querySelector(".review-status")?.textContent ?? ""), null, { timeout: 300_000 });
-    await page.waitForTimeout(2000);
+    mark("applied");
+    await page.waitForTimeout(3000);
     receipt.checks.apply = { status: (await page.locator(".review-status").innerText()).replace(/\s+/g, " ") };
     await shot("applied");
     step("apply", receipt.checks.apply);
@@ -168,6 +221,9 @@ try {
     await page.goto(page.url().replace(/#.*$/, "#/history"));
     await page.waitForTimeout(2000);
     await shot("history");
+    receipt.frames = await stopRecording();
+    receipt.checks.result = await resultApp(path.resolve(args.repo));
+    step("result app", receipt.checks.result);
   }
   receipt.result = "passed";
 } catch (error) {
@@ -177,14 +233,48 @@ try {
   writeFileSync(path.join(out, "failure-page.txt"), await page.locator("body").innerText().catch(() => ""));
   throw error;
 } finally {
-  await cdp.send("Page.stopScreencast").catch(() => {});
-  if (frames.length) {
-    const entry = (frame) => `file 'frames/${frame.file}'`;
-    const list = frames.map((frame, index) => `${entry(frame)}\nduration ${(((frames[index + 1]?.t ?? frame.t + 1000) - frame.t) / 1000).toFixed(3)}`);
-    writeFileSync(path.join(out, "frames.txt"), ["ffconcat version 1.0", ...list, entry(frames.at(-1)), ""].join("\n"));
-  }
-  receipt.frames = frames.length;
+  receipt.frames ??= await stopRecording();
   receipt.finished = new Date().toISOString();
   save();
   await browser.close().catch(() => {});
+}
+
+// The applied project, used as its own user would: served locally and opened in
+// Edge (preinstalled on Windows), with the system dark preference, then switched
+// to Spanish and given a task. Recorded like Desktop for the film.
+async function resultApp(root) {
+  const types = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".json": "application/json" };
+  const server = http.createServer((request, response) => {
+    const file = path.join(root, decodeURIComponent(new URL(request.url, "http://localhost").pathname));
+    if (!file.startsWith(root) || !existsSync(file) || !statSync(file).isFile()) { response.writeHead(404).end(); return; }
+    response.writeHead(200, { "content-type": types[path.extname(file)] ?? "application/octet-stream" }).end(readFileSync(file));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const edge = await chromium.launch({ channel: "msedge" });
+  try {
+    const app = await edge.newPage({ viewport: { width: 1600, height: 1000 }, colorScheme: "dark" });
+    const stop = await record(app, "result-frames");
+    await app.goto(`http://127.0.0.1:${server.address().port}/index.html`);
+    await app.locator("#tasks li").first().waitFor();
+    mark("result");
+    await app.waitForTimeout(1500);
+    await press(app.locator("#language-switch"), "Language", app);
+    await app.locator("#language-switch").selectOption("es");
+    await app.waitForFunction(() => document.documentElement.lang === "es");
+    await app.waitForTimeout(1200);
+    const input = app.locator("#new-task input");
+    await press(input, "New task", app);
+    await input.pressSequentially("Publicar la versión beta", { delay: 45 });
+    await press(app.locator("#new-task button"), "Add", app);
+    await app.waitForTimeout(800);
+    await press(app.locator("#tasks input[type=checkbox]").last(), "Done", app);
+    await app.waitForTimeout(1500);
+    await app.screenshot({ path: path.join(out, "result.png") });
+    const report = { lang: await app.evaluate(() => document.documentElement.lang), tasks: await app.locator("#tasks li").allInnerTexts() };
+    report.frames = await stop();
+    return report;
+  } finally {
+    await edge.close();
+    server.close();
+  }
 }

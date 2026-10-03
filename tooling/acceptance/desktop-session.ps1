@@ -39,7 +39,10 @@ function Test-DesktopCdp([int]$Port, [int]$Seconds) {
 
 # Starts Desktop as the tester with exactly $Environment (plus the tester's own
 # profile variables) and returns its process once the WebView answers on CDP.
-function Start-DesktopAsTester([string]$Exe, [hashtable]$Environment, [string]$WorkingDirectory, [string]$Evidence, [string]$Name, [int]$Port = 9340) {
+# The WebView picks its own debugging port (--remote-debugging-port=0): runners
+# reserve port ranges for Hyper-V, and a fixed port can silently fail to bind.
+# The chosen port, from the profile's DevToolsActivePort, is $script:DesktopCdpPort.
+function Start-DesktopAsTester([string]$Exe, [hashtable]$Environment, [string]$WorkingDirectory, [string]$Evidence, [string]$Name) {
   Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
   Start-Sleep -Seconds 2
   $launcher = Join-Path $env:RUNNER_TEMP "launch-$Name.cmd"
@@ -50,14 +53,24 @@ function Start-DesktopAsTester([string]$Exe, [hashtable]$Environment, [string]$W
   $lines += "start `"`" `"$Exe`""
   Set-Content -Encoding ascii -LiteralPath $launcher -Value $lines
   icacls $launcher /grant "*S-1-1-0:RX" | Out-Null
+  $since = (Get-Date).AddSeconds(-2)
   Start-Process -FilePath cmd.exe -ArgumentList "/d /c $launcher" -Credential (@(Get-DesktopTester) | Where-Object { $_ -is [pscredential] } | Select-Object -First 1) -LoadUserProfile -WorkingDirectory $env:SystemRoot -WindowStyle Hidden
-  $deadline = (Get-Date).AddSeconds(45)
-  do {
-    Start-Sleep -Milliseconds 500
-    $app = Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Select-Object -First 1
-  } while (-not $app -and (Get-Date) -lt $deadline)
-  if ($app -and (Test-DesktopCdp $Port 90)) { Write-Host "CDP ready for $Name"; return $app }
-  Wait-DesktopCdp $app $Evidence $Name $Port 5
+  $script:DesktopCdpPort = $null
+  $app = $null
+  $deadline = (Get-Date).AddSeconds(120)
+  while ((Get-Date) -lt $deadline -and -not $script:DesktopCdpPort) {
+    Start-Sleep -Seconds 2
+    if (-not $app) { $app = Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Select-Object -First 1 }
+    $testerProfile = Get-DesktopTesterProfile
+    $roots = @($Environment.WEBVIEW2_USER_DATA_FOLDER, $(if ($testerProfile) { Join-Path $testerProfile "AppData\Local" })) | Where-Object { $_ -and (Test-Path $_) }
+    $file = Get-ChildItem -Recurse -File -Filter DevToolsActivePort $roots -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $since } | Select-Object -First 1
+    if ($file) {
+      $port = [int](Get-Content -LiteralPath $file.FullName -TotalCount 1)
+      if (Test-DesktopCdp $port 10) { $script:DesktopCdpPort = $port }
+    }
+  }
+  if ($script:DesktopCdpPort) { Write-Host "CDP ready for $Name on port $script:DesktopCdpPort"; return $app }
+  Wait-DesktopCdp $app $Evidence $Name 9 5
 }
 
 
@@ -88,7 +101,9 @@ function Wait-DesktopCdp([System.Diagnostics.Process]$App, [string]$Evidence, [s
     webview_processes = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Id) session $($_.SessionId)" })
     listening = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -in @((Get-Process msedgewebview2, pytxo-desktop -ErrorAction SilentlyContinue).Id) } | ForEach-Object { "$($_.LocalAddress):$($_.LocalPort)" })
     webview_command_lines = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -notmatch '--type=' } | ForEach-Object { $_.CommandLine })
-    edge_policies = @("HKLM:\SOFTWARE\Policies\Microsoft\Edge", "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2", "HKCU:\SOFTWARE\Policies\Microsoft\Edge\WebView2") | ForEach-Object { if (Test-Path $_) { "$_ " + ((Get-ItemProperty $_ | Select-Object * -ExcludeProperty PS* | ConvertTo-Json -Compress)) } }
+    excluded_ports = (netsh int ipv4 show excludedportrange protocol=tcp | Out-String)
+    devtools_port_files = @(Get-ChildItem -Recurse -File -Filter DevToolsActivePort $env:RUNNER_TEMP, "C:\Users" -ErrorAction SilentlyContinue | ForEach-Object { "$($_.FullName) $($_.LastWriteTime.ToString('o'))" })
+    edge_policies = @("HKLM:\SOFTWARE\Policies\Microsoft\Edge", "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments") | ForEach-Object { if (Test-Path $_) { "$_ " + ((Get-ItemProperty $_ | Select-Object * -ExcludeProperty PS* | ConvertTo-Json -Compress)) } }
   } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 (Join-Path $dir "state.json")
   try {
     Add-Type -AssemblyName System.Windows.Forms, System.Drawing

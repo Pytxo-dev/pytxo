@@ -26,10 +26,10 @@ function Find-Exe {
 function Use-Desktop([string]$Name, [string[]]$ProbeArgs) {
   $exe = Find-Exe
   # Default data locations of the standard-user tester (see desktop-session.ps1).
-  Set-DesktopBrowserArguments "--remote-debugging-port=9340"
+  Set-DesktopBrowserArguments "--remote-debugging-port=0"
   $app = Start-DesktopAsTester $exe.FullName @{} $null $Evidence $Name
   try {
-    node (Join-Path $PSScriptRoot "probe.mjs") --cdp 9340 --out $Evidence --name $Name @ProbeArgs | Out-Host
+    node (Join-Path $PSScriptRoot "probe.mjs") --cdp $script:DesktopCdpPort --out $Evidence --name $Name @ProbeArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Probe $Name failed" }
   } finally {
     Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Stop-Process -Force

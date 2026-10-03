@@ -59,7 +59,7 @@ function Start-Desktop([string]$Name, [string]$Scale) {
   # The tester needs write access to this elevated runner's temp tree.
   icacls $env:RUNNER_TEMP /grant "*S-1-1-0:(OI)(CI)F" /T /C /Q | Out-Null
   $env:PYTXO_HOME = "$dir\home"
-  Set-DesktopBrowserArguments "--remote-debugging-port=9340 --force-device-scale-factor=$Scale"
+  Set-DesktopBrowserArguments "--remote-debugging-port=0 --force-device-scale-factor=$Scale"
   Start-DesktopAsTester $exe.FullName @{
     PYTXO_HOME = "$dir\home"
     WEBVIEW2_USER_DATA_FOLDER = "$dir\webview"
@@ -78,7 +78,7 @@ $fixture = Join-Path $env:RUNNER_TEMP "fleet\taskboard"
 $baselineTests = (& npm --prefix $fixture test 2>&1 | Out-String)
 $app = Start-Desktop "journey" "1"
 try {
-  node (Join-Path $PSScriptRoot "journey.mjs") --cdp 9340 --out (Join-Path $Evidence "journey") --mode full --repo $fixture --mission (Join-Path $root "docs\demo\fleet\mission.txt") --team "Claude Code,Cursor Agent,OpenCode,Antigravity"
+  node (Join-Path $PSScriptRoot "journey.mjs") --cdp $script:DesktopCdpPort --out (Join-Path $Evidence "journey") --mode full --repo $fixture --mission (Join-Path $root "docs\demo\fleet\mission.txt") --team "Claude Code,Cursor Agent,OpenCode,Antigravity"
   if ($LASTEXITCODE -ne 0) { throw "Journey failed" }
 } finally { Stop-Desktop $app }
 
@@ -107,7 +107,7 @@ $summary.layout = [ordered]@{}
 foreach ($scale in "1.5", "2") {
   $app = Start-Desktop "layout-$scale" $scale
   try {
-    node (Join-Path $PSScriptRoot "journey.mjs") --cdp 9340 --out (Join-Path $Evidence "layout-$scale") --mode layout
+    node (Join-Path $PSScriptRoot "journey.mjs") --cdp $script:DesktopCdpPort --out (Join-Path $Evidence "layout-$scale") --mode layout
     $summary.layout[$scale] = if ($LASTEXITCODE -eq 0) { "passed" } else { "failed" }
   } finally { Stop-Desktop $app }
 }

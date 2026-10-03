@@ -130,13 +130,17 @@ jobs:
           path: acceptance
       - name: Assemble the continuous journey recording
         run: |
-          [ -f acceptance/journey/frames.txt ] || { echo "No frames recorded"; exit 0; }
-          cd acceptance/journey
-          ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i frames.txt -vf "fps=30,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p" -c:v libx264 -crf 18 -y journey.mp4
-          ffprobe -v error -show_entries format=duration -of csv=p=0 journey.mp4
+          cd acceptance/journey 2>/dev/null || { echo "No journey recorded"; exit 0; }
+          for take in frames result-frames; do
+            [ -f "$take.txt" ] || continue
+            ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i "$take.txt" -vf "fps=60,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p" -c:v libx264 -crf 16 -y "$take.mp4"
+            echo "$take.mp4: $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$take.mp4")s"
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-acceptance-footage-${{ github.sha }}
-          path: acceptance/journey/journey.mp4
+          path: |
+            acceptance/journey/*.mp4
+            acceptance/journey/*.json
           if-no-files-found: ignore
           retention-days: 14
