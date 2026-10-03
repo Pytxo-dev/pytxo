@@ -410,11 +410,34 @@ test("@performance dense canvas gestures and successive selections avoid browser
   });
   const map = page.getByTestId("execution-map");
   const viewport = map.getByRole("application", { name: /Worker canvas/ });
-  const bounds = (await viewport.boundingBox())!;
-  await page.mouse.move(bounds.x + bounds.width * .72, bounds.y + bounds.height * .72);
+  const scene = map.locator(".scene");
+  const readCamera = () => scene.evaluate(element => {
+    const matrix = new DOMMatrixReadOnly((element as HTMLElement).style.transform);
+    return { x: matrix.m41, y: matrix.m42, scale: matrix.a };
+  });
+  const panStart = await viewport.evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    for (const [x, y] of [
+      [bounds.right - 16, bounds.bottom - 16],
+      [bounds.left + 16, bounds.bottom - 16],
+      [bounds.right - 16, bounds.top + 16],
+      [bounds.left + 16, bounds.top + 16],
+    ]) {
+      const target = document.elementFromPoint(x, y);
+      if (target && element.contains(target) && !target.closest("button, a, summary")) return { x, y };
+    }
+    throw new Error("No unobstructed canvas background point for the pan gesture");
+  });
+  await page.mouse.move(panStart.x, panStart.y);
   await page.mouse.down();
-  await page.mouse.move(bounds.x + bounds.width * .58, bounds.y + bounds.height * .62, { steps: 8 });
+  await expect(viewport).toHaveClass(/\bpanning\b/);
+  const beforePan = await readCamera();
+  await page.mouse.move(panStart.x - 120, panStart.y - 80, { steps: 8 });
   await page.mouse.up();
+  await expect(viewport).not.toHaveClass(/\bpanning\b/);
+  await expect.poll(async () => (await readCamera()).x).toBeCloseTo(beforePan.x - 120, 1);
+  await expect.poll(async () => (await readCamera()).y).toBeCloseTo(beforePan.y - 80, 1);
+  expect((await readCamera()).scale).toBeCloseTo(beforePan.scale, 5);
   await map.getByRole("button", { name: "Zoom in", exact: true }).click();
   // Panning deliberately moves the first wave outside the viewport. Reframe
   // before the selection sequence instead of clicking through the sidebar.

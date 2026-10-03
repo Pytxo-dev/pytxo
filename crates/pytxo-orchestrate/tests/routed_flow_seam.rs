@@ -82,9 +82,9 @@ fn routed_git_base_rejects_clean_transformed_checkout_before_staging() {
     let repo = normalized.path().join("checkout");
     let output = Command::new("git")
         .args([
-            "-c",
-            "core.autocrlf=true",
             "clone",
+            "--config",
+            "core.autocrlf=true",
             "--quiet",
             source.path().to_str().unwrap(),
             repo.to_str().unwrap(),
@@ -215,20 +215,38 @@ fn dead_owner_before_startup_is_settled_without_inventing_a_run() {
 fn dead_owner_with_stopped_prestart_claim_is_cancelled() {
     let (_repo, catalog, reviewed, run_id, store_path, mut child, _owner) =
         claimed_flow_with_child();
-    assert!(
-        request_stop_experimental_routed_flow(&catalog, &reviewed.draft_id, &run_id)
-            .unwrap()
-            .is_none()
-    );
+    let stop = request_stop_experimental_routed_flow(&catalog, &reviewed.draft_id, &run_id);
+    let stop_requested = catalog
+        .routed_flow_stop_requested(&reviewed.draft_id, &run_id)
+        .unwrap();
+    let before = catalog.get_flow_draft(&reviewed.draft_id).unwrap().unwrap();
     child.kill().unwrap();
     child.wait().unwrap();
+    let expected_status = if cfg!(windows) {
+        assert!(stop.unwrap().is_none());
+        assert_eq!(stop_requested, Some(true));
+        "cancelled"
+    } else {
+        let Err(error) = stop else {
+            panic!("Stop requires original Store pinning");
+        };
+        assert!(error.to_string().contains("cannot pin its original Store"));
+        assert_eq!(stop_requested, Some(false));
+        assert_eq!(before.status, "dispatching");
+        "failed"
+    };
     assert!(list_flow_drafts_with_routed_recovery(&catalog)
         .unwrap()
         .iter()
-        .any(|draft| draft.id == reviewed.draft_id && draft.status == "cancelled"));
-    assert!(PytxoStore::open(&store_path)
-        .unwrap()
-        .get_run(&run_id)
+        .any(|draft| draft.id == reviewed.draft_id && draft.status == expected_status));
+    let store = PytxoStore::open(&store_path).unwrap();
+    assert!(store.get_run(&run_id).unwrap().is_none());
+    assert!(store.list_agents_for_run(&run_id).unwrap().is_empty());
+    assert!(store
+        .routing_history(&RoutingScope {
+            domain_id: DomainId(reviewed.domain_id),
+            run_id: RunId(run_id),
+        })
         .unwrap()
         .is_none());
 }
@@ -465,6 +483,11 @@ fn dead_owner_registered_without_attempt_cancels_mission_before_run_settlement()
     )
     .unwrap();
     store.register_routing_mission(&registration).unwrap();
+    let scope = RoutingScope {
+        domain_id: DomainId(reviewed.domain_id.clone()),
+        run_id: RunId(run_id.clone()),
+    };
+    let history_before = store.routing_history(&scope).unwrap().unwrap();
     drop(store);
     child.kill().unwrap();
     child.wait().unwrap();
@@ -472,22 +495,37 @@ fn dead_owner_registered_without_attempt_cancels_mission_before_run_settlement()
     assert!(list_flow_drafts_with_routed_recovery(&catalog)
         .unwrap()
         .iter()
-        .any(|draft| draft.id == reviewed.draft_id && draft.status == "failed"));
+        .any(|draft| draft.id == reviewed.draft_id
+            && draft.status
+                == if cfg!(windows) {
+                    "failed"
+                } else {
+                    "recovery_required"
+                }));
     let store = PytxoStore::open(&store_path).unwrap();
     assert_eq!(
         store.get_run(&run_id).unwrap().unwrap().status,
-        "failed_startup"
+        if cfg!(windows) {
+            "failed_startup"
+        } else {
+            "starting"
+        }
     );
-    assert!(store
-        .routing_history(&RoutingScope {
-            domain_id: DomainId(reviewed.domain_id),
-            run_id: RunId(run_id),
-        })
-        .unwrap()
-        .is_some_and(|history| history.cancelled
-            && history.attempts.is_empty()
-            && history.events.len() == 2
-            && history.events[1].event_id == "controller.recovery.registered-no-attempt.v1"));
+    let history = store.routing_history(&scope).unwrap().unwrap();
+    assert!(history.attempts.is_empty());
+    assert!(store.list_agents_for_run(&run_id).unwrap().is_empty());
+    if cfg!(windows) {
+        assert!(history.cancelled);
+        assert_eq!(history.events.len(), 2);
+        assert_eq!(
+            history.events[1].event_id,
+            "controller.recovery.registered-no-attempt.v1"
+        );
+    } else {
+        assert!(!history.cancelled);
+        assert_eq!(history.events.len(), 1);
+        assert_eq!(history, history_before);
+    }
 }
 
 #[test]
@@ -520,6 +558,7 @@ fn registered_no_attempt_recovery_replays_its_exact_cancellation_only() {
             123,
         )
         .unwrap();
+    let history_before = store.routing_history(&scope).unwrap().unwrap();
     drop(store);
     child.kill().unwrap();
     child.wait().unwrap();
@@ -527,15 +566,30 @@ fn registered_no_attempt_recovery_replays_its_exact_cancellation_only() {
     assert!(list_flow_drafts_with_routed_recovery(&catalog)
         .unwrap()
         .iter()
-        .any(|draft| draft.id == reviewed.draft_id && draft.status == "failed"));
+        .any(|draft| draft.id == reviewed.draft_id
+            && draft.status
+                == if cfg!(windows) {
+                    "failed"
+                } else {
+                    "recovery_required"
+                }));
     let store = PytxoStore::open(&store_path).unwrap();
     assert_eq!(
         store.get_run(&run_id).unwrap().unwrap().status,
-        "failed_startup"
+        if cfg!(windows) {
+            "failed_startup"
+        } else {
+            "starting"
+        }
     );
     let history = store.routing_history(&scope).unwrap().unwrap();
     assert_eq!(history.events.len(), 2);
     assert!(history.cancelled);
+    assert!(history.attempts.is_empty());
+    assert!(store.list_agents_for_run(&run_id).unwrap().is_empty());
+    if !cfg!(windows) {
+        assert_eq!(history, history_before);
+    }
 }
 
 #[test]
@@ -789,18 +843,53 @@ fn exact_dead_owner_marker_after_start_bit_can_settle_unregistered_run() {
         .unwrap(),
     )
     .unwrap();
+    let marker_before = fs::read(&active_path).unwrap();
     child.kill().unwrap();
     child.wait().unwrap();
     assert!(list_flow_drafts_with_routed_recovery(&catalog)
         .unwrap()
         .iter()
-        .any(|draft| draft.id == reviewed.draft_id && draft.status == "failed"));
+        .any(|draft| draft.id == reviewed.draft_id
+            && draft.status
+                == if cfg!(windows) {
+                    "failed"
+                } else {
+                    "recovery_required"
+                }));
     assert_eq!(
         store.get_run(&run_id).unwrap().unwrap().status,
-        "failed_startup"
+        if cfg!(windows) {
+            "failed_startup"
+        } else {
+            "starting"
+        }
     );
-    assert!(!active_path.exists());
+    if cfg!(windows) {
+        assert!(!active_path.exists());
+    } else {
+        assert_eq!(fs::read(&active_path).unwrap(), marker_before);
+    }
     assert!(!reconcile_routed_flow_startup(&catalog, &reviewed.draft_id).unwrap());
+    assert!(store.list_agents_for_run(&run_id).unwrap().is_empty());
+    assert!(store
+        .routing_history(&RoutingScope {
+            domain_id: DomainId(reviewed.domain_id),
+            run_id: RunId(run_id.clone()),
+        })
+        .unwrap()
+        .is_none());
+    if !cfg!(windows) {
+        assert_eq!(fs::read(&active_path).unwrap(), marker_before);
+        assert_eq!(store.get_run(&run_id).unwrap().unwrap().status, "starting");
+        assert_eq!(
+            catalog
+                .get_flow_draft(&reviewed.draft_id)
+                .unwrap()
+                .unwrap()
+                .status,
+            "recovery_required"
+        );
+    }
 }
 
 #[test]
@@ -4082,7 +4171,17 @@ async fn routed_claim_failure_preserves_another_active_run() {
             .unwrap()
             .unwrap()
             .status,
-        "failed"
+        if cfg!(windows) {
+            "failed"
+        } else {
+            "recovery_required"
+        }
+    );
+    assert!(!reconcile_routed_flow_startup(&catalog, &plan.draft_id).unwrap());
+    assert_eq!(fs::read_to_string(&marker).unwrap(), other_marker);
+    assert_eq!(
+        store.get_run("other-run").unwrap().unwrap().status,
+        "starting"
     );
     assert!(store.list_agents_for_run(&routed_id).unwrap().is_empty());
     assert!(store
