@@ -10,7 +10,7 @@
 
 /* Brand boundaries are not evidence colors. Activity never means verified. */
 :root {
-  --pytxo-font-ui: "Satoshi", "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --pytxo-font-ui: "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --pytxo-glyph-cyan: #7ee1ed;
   --pytxo-glyph-periwinkle: #b4b9ff;
   --pytxo-glyph-violet: #bd9eef;
@@ -216,7 +216,7 @@ body {
 
 body {
   margin: 0;
-  font-family: "Satoshi", "Sora", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Sora", ui-sans-serif, system-ui, sans-serif;
   background: var(--background);
   color: var(--text);
 }

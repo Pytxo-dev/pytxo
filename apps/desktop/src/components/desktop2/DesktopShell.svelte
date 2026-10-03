@@ -1004,7 +1004,7 @@
     height: 100%;
     background: var(--pytxo-surface-shell);
     color: var(--pytxo-text-strong);
-    font-family: "Satoshi", "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   }
   .desktop2.sidebar-collapsed {
     grid-template-columns: 58px minmax(0, 1fr);
