@@ -1,0 +1,55 @@
+---
+title: One job, several agents
+description: Split one request across Codex, Claude Code, Cursor Agent, OpenCode and Antigravity, then review and apply one combined change.
+---
+
+**Version note:** mixed-agent runs arrive in the unpublished **v1.2.2** Desktop. Finish a [first mission](/docs/getting-started/first-mission) with one agent before this guide.
+
+Pytxo can give each task in a plan to a different agent CLI. Every task runs in its own isolated copy of your project, tasks that touch the same file run one after another, and you review all the changes together.
+
+## Before you start
+
+- At least two agents show **Ready** in **Setup → Agents & permissions**. Each one uses its own sign-in.
+- OpenCode needs a provider stored with `opencode auth login`. Agents start with a clean environment, so API keys exported in your shell do not reach them.
+- Your project has test or build commands Pytxo can run. Checks are what turn "the agent says it is done" into a result you can trust.
+
+## 1. Write a request with separate parts
+
+Splitting helps when a job has parts that do not depend on each other. Name the files for each part, for example:
+
+```text
+Add search and status filtering to src/model.mjs, with tests in test/model.test.mjs.
+Add a dark theme to src/style.css that follows the system setting.
+Translate every interface string to Spanish in src/i18n/es.json.
+In README.md, document the new features and how to run the tests.
+```
+
+A small fix is usually quicker with one agent.
+
+## 2. Choose the team
+
+In **New work**, pick the main agent under **Agent**. Then tick more agents under **Add agents to this job**, and set **At most at once** for how many tasks may run in parallel (up to 8). Choose **Build plan**.
+
+## 3. Check the plan
+
+Each step lists its tasks, the agent assigned to each and the files it owns. Change a task's agent with its menu or edit its prompt before you run. Tasks that share a file are placed in a later step, so the second agent starts from the first one's result.
+
+## 4. Watch the fleet
+
+Choose **Run**. Work opens the fleet board: one card per task with the agent, its recent output and the files it owns.
+
+| Card state | Meaning |
+|---|---|
+| Working | The agent is running in its own copy |
+| Checks passed | The agent finished and Pytxo's checks passed on its task |
+| No changes | The agent finished and passed its checks but changed no files |
+| Next / Queued | The task waits for a task it depends on |
+| Failed | The agent or its checks failed; open the card for its output |
+
+## 5. Review one change
+
+Choose **Review changes**. You get one list of changed files, each marked with the agent that wrote it, a line diff for each file, and the checks Pytxo ran on all the changes together.
+
+## 6. Apply
+
+**Apply reviewed changes** writes exactly the files you reviewed. If anything in the project changed after review, Apply refuses and writes nothing; choose **Refresh review**, look again, then Apply. See [Review and Apply](/docs/getting-started/review-and-apply) for interrupted attempts.

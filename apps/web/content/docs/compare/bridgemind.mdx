@@ -1,23 +1,23 @@
 ---
 title: Pytxo and BridgeMind
-description: A local commit layer compared with BridgeMind’s agent super-app.
+description: One planned job across agents, compared with BridgeMind’s agent super-app.
 ---
 
 [BridgeMind One](https://docs.bridgemind.ai/docs) documents itself as an **Agent Super App**: persistent AI teammates, agentic coding in project folders, sandboxed chat, routines, plugins, and dictation in one desktop. Work starts in Agent, Code, or Chat mode. Code mode launches supported coding-agent CLIs already installed on the machine; it does not bundle them.
 
-Pytxo is not a super-app. It does not host teammates, dictation, or a chat mode detached from a repository. It schedules those same kinds of CLIs, isolates overlapping writes, and prepares one exact package for Review → Apply.
+Pytxo is not a super-app. It does not host teammates, dictation, or a chat mode detached from a repository. It splits one request across those same kinds of CLIs, keeps tasks that share a file from running together, checks the combined result, and applies exactly the files you reviewed.
 
 ## Practical differences
 
 | | BridgeMind One | Pytxo |
 |---|----------------|-------|
-| Product shape | Agent / Code / Chat super-app | Local commit layer + optional Desktop |
+| Product shape | Agent / Code / Chat super-app | One job split across agents, then one reviewed Apply |
 | Agents | Launches installed CLIs; Claude Code and Codex as chat engines | Heterogeneous CLIs under one scheduler |
-| Review | Inspect changes in the app, then ship | Immutable byte package; Desktop Run Review |
+| Review | Per-file diffs in the app, then ship | One combined change with a line diff, the agent behind each file, and Pytxo-run checks |
 | Extra surfaces | Routines, plugins, dictation, persistent memory | Work, History, Setup, MCP, Hypervisor Shell |
-| Apply | Your judgement in the super-app | Journaled Apply of stored target blobs |
+| Apply | Your judgement in the super-app | Writes exactly the reviewed files; refuses if the project changed; journaled |
 
-BridgeMind’s first-party docs (as of this writing) list **macOS** as the available desktop, with Windows in development and Linux not supported. Marketing pages may claim more platforms; treat the docs table as the conservative source and re-check before you depend on a Windows or Linux build.
+As of 2 October 2026, [bridgemind.ai](https://www.bridgemind.ai) describes native desktop apps for macOS, Windows and Linux, plans from $20 to $200 a month, and terminal panes that run Claude Code, Codex, Cursor Agent, Gemini CLI, GitHub Copilot, Grok Build, Droid, OpenCode, Kimi Code, Amp, Antigravity and Aider. Check their site for current details.
 
 ## Choose BridgeMind when
 

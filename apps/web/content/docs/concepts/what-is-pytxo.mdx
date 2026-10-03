@@ -1,20 +1,20 @@
 ---
 title: What is Pytxo?
-description: A local place to run coding agents, inspect their work, and decide which changes reach your repository.
+description: Put the coding agents you already use on one job, check the combined result, and decide exactly what reaches your repository.
 ---
 
-Pytxo coordinates coding agents on your machine. Give it a task, check the plan, and review the result before applying changes to your project. You keep your editor and your agent's account.
+Pytxo coordinates coding agents on your machine. Describe a change once; Pytxo plans it into tasks, gives each task to an agent you chose, checks the combined result, and lets you review it before anything is applied. You keep your editor and your agents' accounts.
 
 The technical name is an **agent hypervisor**: a control layer around the agent tools you already use.
 
 ## What it adds
 
-- **A plan you can inspect:** which agent runs, which files it can change, and which commands check the result.
+- **A plan you can inspect:** which agent runs each task, which files it owns, and which commands check the result.
 - **Separate workspaces:** eligible runs prepare changes away from your working repository.
 - **A review step:** inspect the prepared files and recorded checks before Apply.
 - **A recorded outcome:** return to a run and see its execution and Apply status separately.
 
-Pytxo's scheduler can also separate tasks with overlapping file claims. Start with one worker before exploring [multi-agent scheduling](/docs/getting-started/first-three-agent-run).
+Tasks that claim the same file never run at the same time. Start with one agent, then put [several agents on one job](/docs/getting-started/multi-agent-run).
 
 ## Choose how to use it
 

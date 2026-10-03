@@ -9,7 +9,9 @@ Start with the exact message in Work, Review, or Setup. A failed check and a fai
 
 | Problem | Next step |
 |---|---|
-| Codex is missing or sign-in is unknown | Finish the agent's installation or sign-in, then recheck in Setup |
+| An agent is missing or its sign-in is unknown | Finish the agent's installation or sign-in, then recheck in Setup |
+| OpenCode reads "No OpenCode provider connected" | Store a provider with `opencode auth login`; agents do not receive API keys from your shell |
+| A worker card shows "No changes" | The agent finished and passed its checks without editing files. Make that task's prompt name the file and the change |
 | A plan cannot run | Read the blocker, fix its configuration, and build a fresh plan |
 | No verification command was found | Add a test or build command that works in this project |
 | Checks fail | Read the recorded command output; passing worker text is not a check result |

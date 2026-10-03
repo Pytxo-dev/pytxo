@@ -1,6 +1,6 @@
 ---
 title: Desktop setup
-description: Connect Codex, choose a repository, and get ready for your first task.
+description: Connect your coding agents, choose a repository, and get ready for your first task.
 ---
 
 **Version note:** the steps below describe the unpublished **v1.2.2 Desktop preview**. The public download is v1.2.1 and may look different. Check [Download](/download) before installing.
@@ -8,15 +8,15 @@ description: Connect Codex, choose a repository, and get ready for your first ta
 ## What you need
 
 - Windows x64 and Pytxo Desktop. The separate Pytxo CLI is optional.
-- Codex CLI installed and signed in through its own sign-in flow.
+- At least one agent CLI installed and signed in through its own sign-in flow: Codex, Claude Code, Cursor Agent, OpenCode or Antigravity.
 - A Git repository with its build and test dependencies installed.
 
-Local Core needs no Pytxo account. Codex access and usage costs belong to your agent account.
+Local Core needs no Pytxo account. Agent access and usage costs belong to your agent accounts.
 
 ## Complete the welcome steps
 
 1. **Welcome:** choose **Get started**.
-2. **Agent:** select Codex. Finish its sign-in if needed, then **Check again**. Opening the sign-in window alone does not confirm access.
+2. **Agent:** Pytxo lists the agents it found. Finish any sign-in, then **Check again**. Opening a sign-in window alone does not confirm access. OpenCode needs a provider stored with `opencode auth login`; agents do not receive API keys from your shell.
 3. **Project:** choose **Select folder**, or **Try the guided example**.
 4. **Ready:** choose **Enter Pytxo Desktop**.
 
@@ -24,9 +24,9 @@ You can skip agent or project setup and finish it later. Skipping does not make 
 
 ## Choose your repository
 
-If you skipped the folder step, choose **Add workspace**. Select your Git repository and review its requested permissions. The preview's first-run path uses **Orbit**, one Codex worker, one repository, and local PTY execution.
+If you skipped the folder step, choose **Add workspace**. Select your Git repository and review its requested permissions. New projects start in the **Orbit** permission profile with local PTY execution.
 
-Open **Setup → Agents & permissions** to recheck Codex. A detected installation and a working sign-in are separate checks.
+Open **Setup → Agents & permissions** to recheck your agents. A detected installation and a working sign-in are separate checks.
 
 Then open **Work → New work** and follow [First mission](/docs/getting-started/first-mission).
 
@@ -41,7 +41,7 @@ Then open **Work → New work** and follow [First mission](/docs/getting-started
 
 ## If you cannot run
 
-- **Codex missing:** follow its install guide, then recheck in Setup.
+- **Agent missing:** follow its install guide, then recheck in Setup.
 - **Sign-in required or unknown:** complete the vendor sign-in, then check again.
 - **Plan blocked:** read the reason beside Run. The preview requires Orbit and `execution_backend = "pty"`. After changing configuration, build a fresh plan.
 - **No checks found:** add a command that already works in your project under **Additional verification commands** before building the plan.

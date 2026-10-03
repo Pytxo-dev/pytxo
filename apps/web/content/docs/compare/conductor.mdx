@@ -1,32 +1,34 @@
 ---
 title: Pytxo and Conductor
-description: Exact-byte Apply compared with Conductor’s worktree, branch, and pull-request workspace.
+description: One job split across agents with one reviewed Apply, compared with Conductor's workspace-per-task model.
 ---
 
-[Conductor](https://www.conductor.build/docs/concepts/git-worktrees) is a desktop workflow around **Git worktrees**. Each workspace gets its own working tree, branch, commands, chats, and review path. The workspace branch is the unit you review, push, and turn into a pull request. Isolation is development isolation on the operator’s machine, not a security boundary.
+[Conductor](https://www.conductor.build/docs) runs Claude Code, Codex, Cursor and OpenCode in parallel. Each task gets its own workspace: a Git worktree with its own branch, files, terminal, diff and review path, usually ending in a pull request. As of 2 October 2026 Conductor also offers cloud workspaces and shared, multiplayer workspaces, and its [changelog](https://www.conductor.build/changelog) notes that merging from Conductor is blocked when the pull request changed on GitHub.
 
-Pytxo also uses isolated copies (worktrees by default). It does not treat a branch or GitHub pull request as the review unit. After an eligible run it stores an **immutable package of exact file bytes**. Desktop Run Review shows that package; Apply writes only those stored bytes.
+Pytxo starts from one request instead of one task per agent. It plans the request into tasks, gives each task to an agent you chose, keeps tasks that share a file from running at the same time, runs your checks on every task and on the combined change, and applies exactly the files you reviewed.
 
 ## Practical differences
 
 | | Conductor | Pytxo |
 |---|-----------|-------|
-| Isolation | Git worktree per workspace | Worktree or overlay workspace per agent/task |
-| Review unit | Workspace branch → pull request | Immutable byte package → Apply |
-| Agent model | Agents inside Conductor workspaces | Installed third-party CLIs under one scheduler |
-| Merge path | Push / PR / merge from the workspace | Apply the reviewed package, then your normal Git workflow |
-| Collision control | Separate worktrees; agents share a branch only when you keep them together | Race Shield waves before overlapping paths run |
+| Unit of work | One workspace and branch per task | One request, planned into tasks that own their files |
+| Agents | Claude Code, Codex, Cursor, OpenCode | Codex, Claude Code, Cursor Agent, OpenCode, Antigravity |
+| Shared files | Separate branches; overlaps surface when you merge | A task that shares a file waits for the task that owns it |
+| Checks | Your project's CI and PR checks | Pytxo runs your commands on each task and on the combined change |
+| Review | Each workspace's diff, then a pull request | One combined change, with the agent behind each file |
+| Landing | Push, PR and merge | Apply writes the reviewed files to your checkout; refused if the project changed |
+| Where it runs | macOS app and cloud workspaces | Windows Desktop, locally; CLI on macOS and Linux |
 
 ## Choose Conductor when
 
-- The branch and pull request *are* the review workflow.
-- You want setup scripts, workspace-local ports, and PR state attached to each worktree.
-- A worktree-per-task desktop on the Conductor model matches how you already ship.
+- Each task is separate and the branch and pull request are your review workflow.
+- You want cloud workspaces, shared sessions with teammates, or setup scripts and ports per workspace.
+- You work on macOS.
 
 ## Choose Pytxo when
 
-- Several vendor CLIs must share one ownership, wave, and Apply contract.
-- Review must show the exact bytes that Apply will write, not a live worktree.
-- Apply recovery for one repository root matters more than a built-in PR workspace.
+- Several agents should finish one job together without you merging their branches.
+- You want checks run on the exact combined change before anything lands.
+- You work on Windows, or want everything to stay on your machine.
 
-Pytxo does not replace GitHub pull requests. After Apply, you still use your existing Git process. Conductor’s docs are the source for its worktree and PR model; check [conductor.build](https://www.conductor.build/docs/concepts/workspaces-and-branches) for current platform availability.
+Pytxo does not replace pull requests. After Apply, you continue with your normal Git workflow.
