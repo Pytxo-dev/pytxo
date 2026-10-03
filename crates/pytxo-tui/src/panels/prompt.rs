@@ -82,7 +82,8 @@ impl Prompt {
         } else if hitl_pending {
             "Tab cycle · Ctrl+A approve · Ctrl+X deny · Ctrl+O fleet/output".to_string()
         } else {
-            "Enter submit · PgUp/PgDn run · Ctrl+O fleet/output · /help · Ctrl+Q quit".to_string()
+            "Enter submit · PgUp/PgDn select run · Ctrl+O fleet/output · /help · Ctrl+Q quit"
+                .to_string()
         };
         let inner = block.inner(area);
         frame.render_widget(Paragraph::new(prompt).block(block), area);

@@ -319,11 +319,13 @@ impl ShellApp {
         // With a fleet on screen the run list shrinks to a few rows and the panes take the rest.
         let board_height = match fleet_run {
             Some(_) => Constraint::Length(2 + 3 + self.snapshot.runs.len().clamp(1, 3) as u16 + 3),
+            // No runs: a one-line placeholder, so the quick start gets the room.
+            None if self.snapshot.runs.is_empty() => Constraint::Length(2 + 2 + 3),
             None => Constraint::Min(12),
         };
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([board_height, Constraint::Min(6), Constraint::Length(4)])
+            .constraints([board_height, Constraint::Fill(1), Constraint::Length(4)])
             .split(area);
         board::draw(
             frame,
@@ -560,6 +562,39 @@ mod tests {
         let result = std::panic::catch_unwind(run);
         assert!(result.is_ok());
         assert!(result.unwrap().is_ok());
+    }
+
+    /// A first launch with no runs gives the quick start the room, not an empty table.
+    #[test]
+    fn empty_shell_leads_with_the_quick_start() {
+        isolate_home();
+        let mut app = super::ShellApp::new().unwrap();
+        app.phase = super::AppPhase::Shell;
+        assert!(
+            app.snapshot.runs.is_empty(),
+            "isolated home starts with no runs"
+        );
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(110, 30)).unwrap();
+        terminal.draw(|frame| app.draw(frame)).unwrap();
+        let buffer = terminal.backend().buffer().clone();
+        let rows: Vec<String> = (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol().to_string())
+                    .collect()
+            })
+            .collect();
+        let row_of = |needle: &str| rows.iter().position(|row| row.contains(needle));
+        assert!(row_of("No runs yet").is_some(), "{rows:#?}");
+        assert!(
+            row_of("none waiting").is_some(),
+            "approvals line must stay visible: {rows:#?}"
+        );
+        assert!(
+            row_of("Type what you want changed").unwrap() < 12,
+            "{rows:#?}"
+        );
     }
 
     #[tokio::test]

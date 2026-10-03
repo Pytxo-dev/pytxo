@@ -32,7 +32,7 @@ pub fn draw(
         .direction(ratatui::layout::Direction::Vertical)
         .constraints([
             ratatui::layout::Constraint::Length(2),
-            ratatui::layout::Constraint::Min(4),
+            ratatui::layout::Constraint::Min(2),
             ratatui::layout::Constraint::Length(3),
         ])
         .split(area);
@@ -58,11 +58,11 @@ fn draw_header(
     let doctor_unknown = doctor.checks.is_empty();
     let doctor_ok = !doctor_unknown && doctor.all_ok();
     let doctor_label = if doctor_unknown {
-        "● …"
+        "● checking"
     } else if doctor_ok {
-        "● ok"
+        "● ready"
     } else {
-        "● fail"
+        "● needs attention · /doctor"
     };
     let doctor_style = if doctor_unknown {
         theme::muted()
@@ -72,7 +72,7 @@ fn draw_header(
         theme::err()
     };
     let active = active_run.map_or_else(
-        || "—".to_string(),
+        || "no active run".to_string(),
         |id| {
             let run = snapshot.runs.iter().find(|run| run.id == id);
             run.and_then(|run| run.title.clone())
@@ -80,7 +80,7 @@ fn draw_header(
         },
     );
     let agent_hint = if agents.is_empty() {
-        "generic".to_string()
+        "not set (/use)".to_string()
     } else {
         agents
             .iter()
@@ -115,11 +115,12 @@ fn draw_header(
         let status = Line::from(vec![
             Span::styled(" ", theme::muted()),
             Span::styled(doctor_label, doctor_style),
-            Span::styled(format!(" · run {active} · {agent_hint}"), theme::muted()),
+            Span::styled(format!(" · {active} · agents {agent_hint}"), theme::muted()),
             Span::styled(
                 format!(
-                    " · {} domain(s) · {} active",
+                    " · {} project{} · {} running",
                     snapshot.domains.len(),
+                    if snapshot.domains.len() == 1 { "" } else { "s" },
                     total_active
                 ),
                 theme::muted(),
@@ -168,6 +169,22 @@ fn draw_domains_strip(frame: &mut Frame, strip: Rect, snapshot: &DashboardSnapsh
 }
 
 fn draw_runs(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, selected: usize) {
+    let block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(theme::border())
+        .title(Span::styled(" runs ", theme::title()))
+        .style(theme::panel_bg());
+    if snapshot.runs.is_empty() {
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                "No runs yet. Type a request below to plan one.",
+                theme::muted(),
+            ))
+            .block(block),
+            area,
+        );
+        return;
+    }
     let header = Row::new(vec!["Request", "Status", "Project", "Workers", "Cost"])
         .style(theme::chroma_violet())
         .bottom_margin(1);
@@ -209,13 +226,7 @@ fn draw_runs(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, select
         ],
     )
     .header(header)
-    .block(
-        Block::default()
-            .borders(Borders::TOP)
-            .border_style(theme::border())
-            .title(Span::styled(" runs ", theme::title()))
-            .style(theme::panel_bg()),
-    )
+    .block(block)
     .row_highlight_style(theme::selection_bg().add_modifier(Modifier::BOLD));
     let mut state = TableState::default().with_selected(Some(selected));
     frame.render_stateful_widget(table, area, &mut state);
@@ -225,8 +236,11 @@ fn draw_hitl(frame: &mut Frame, area: Rect, snapshot: &DashboardSnapshot, select
     let pending = &snapshot.hitl_pending;
     let body = if pending.is_empty() {
         vec![Line::from(vec![
-            Span::styled("none pending", theme::muted()),
-            Span::styled(" · Tab · Ctrl+A · Ctrl+X when waiting", theme::muted()),
+            Span::styled("none waiting", theme::muted()),
+            Span::styled(
+                " · agents that ask for permission appear here",
+                theme::muted(),
+            ),
         ])]
     } else {
         let mut lines: Vec<Line> = pending
