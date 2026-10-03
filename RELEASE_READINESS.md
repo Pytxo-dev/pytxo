@@ -145,6 +145,17 @@ live, out-of-range and reaped PIDs plus permission-error classification. Scope i
 the existing owner-identity primitive for all profiles, exercised by Orbit
 single-repository recovery; no authority or execution domain is expanded.
 
+Later hosted execution exposed unreaped Unix children blocking Stop and a
+fast-command registration race when termination was conflated with identity.
+Creation-token capture now retains unreaped Unix identities; Stop and recovery
+separately require liveness. Only zombie state confirms termination on macOS/BSD;
+Linux also requires exactly one remaining thread in the same `/proc` snapshot.
+Darwin's halted/unclassified states remain possibly live, never confirmed absent.
+Windows behavior and Store recovery guards are unchanged. Local parser and
+dependency-outcome tests pass; native Unix execution remains a hosted-CI gate.
+The shell smoke now drains dry-run stdout, preventing early grep termination
+from breaking the CLI pipe without suppressing producer or assertion failures.
+
 A fresh Rust audit also identified RUSTSEC-2026-0285. The lock now uses rustls
 0.23.45 and its compatible webpki 0.103.15 dependency. Audit reports zero blocking
 vulnerabilities under the unchanged documented exceptions in `.cargo/audit.toml`;

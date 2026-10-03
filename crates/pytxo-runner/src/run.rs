@@ -2498,7 +2498,7 @@ fn terminate_registered_entries(
 fn stop_registry_entry(entry: &ProcessEntry) -> Result<()> {
     match (
         entry.start_identity.as_deref(),
-        crate::kill::process_start_identity(entry.pid)?,
+        crate::kill::live_process_start_identity(entry.pid)?,
     ) {
         (_, None) => Ok(()),
         (Some(expected), Some(actual)) if expected == actual => {

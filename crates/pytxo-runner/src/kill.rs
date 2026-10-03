@@ -114,10 +114,27 @@ impl FileIdentityGuard {
     }
 }
 
-/// Return an OS creation token for `pid`, or `None` when absent or terminated.
+/// Return an available OS creation token for `pid`.
 /// The token is persisted with the PID so a crashed supervisor cannot later
 /// signal an unrelated process that reused the same numeric PID.
+/// Unix retains the token until reaping, including for fast-exiting commands.
+/// Use `process_matches` when deciding whether that identity is still live.
 pub fn process_start_identity(pid: u32) -> Result<Option<String>> {
+    Ok(query_process_identity(pid)?.map(|identity| identity.start_token))
+}
+
+pub(crate) fn live_process_start_identity(pid: u32) -> Result<Option<String>> {
+    Ok(query_process_identity(pid)?
+        .filter(|identity| !identity.terminated)
+        .map(|identity| identity.start_token))
+}
+
+struct ProcessIdentity {
+    start_token: String,
+    terminated: bool,
+}
+
+fn query_process_identity(pid: u32) -> Result<Option<ProcessIdentity>> {
     if pid == 0 {
         return Ok(None);
     }
@@ -173,7 +190,10 @@ pub fn process_start_identity(pid: u32) -> Result<Option<String>> {
             )));
         }
         let token = ((creation.dwHighDateTime as u64) << 32) | creation.dwLowDateTime as u64;
-        return Ok(Some(format!("windows-filetime:{token}")));
+        return Ok(Some(ProcessIdentity {
+            start_token: format!("windows-filetime:{token}"),
+            terminated: false,
+        }));
     }
 
     #[cfg(target_os = "linux")]
@@ -194,10 +214,10 @@ pub fn process_start_identity(pid: u32) -> Result<Option<String>> {
         let token = after_name.split_whitespace().nth(19).ok_or_else(|| {
             PytxoError::Runner(format!("missing process start time for pid {pid}"))
         })?;
-        if linux_leader_is_terminated(after_name) {
-            return Ok(None);
-        }
-        return Ok(Some(format!("linux-start-ticks:{token}")));
+        return Ok(Some(ProcessIdentity {
+            start_token: format!("linux-start-ticks:{token}"),
+            terminated: linux_leader_is_terminated(after_name),
+        }));
     }
 
     #[cfg(all(unix, not(target_os = "linux")))]
@@ -224,7 +244,7 @@ pub fn process_start_identity(pid: u32) -> Result<Option<String>> {
                 "query process identity returned no start time for pid {pid}"
             )));
         }
-        return unix_ps_identity(&raw, pid);
+        return unix_ps_identity(&raw, pid).map(Some);
     }
 
     #[allow(unreachable_code)]
@@ -239,7 +259,7 @@ fn unix_state_is_terminated(state: &str) -> bool {
 }
 
 #[cfg(any(all(unix, not(target_os = "linux")), test))]
-fn unix_ps_identity(raw: &str, pid: u32) -> Result<Option<String>> {
+fn unix_ps_identity(raw: &str, pid: u32) -> Result<ProcessIdentity> {
     if raw.trim().lines().count() != 1 {
         return Err(PytxoError::Runner(format!(
             "invalid ps identity record for pid {pid}"
@@ -247,24 +267,26 @@ fn unix_ps_identity(raw: &str, pid: u32) -> Result<Option<String>> {
     }
     let mut fields = raw.trim().splitn(2, char::is_whitespace);
     let state = fields.next().unwrap_or_default();
-    if unix_state_is_terminated(state) {
-        return Ok(None);
-    }
     if !matches!(
         state.as_bytes().first(),
-        Some(b'I' | b'R' | b'S' | b'T' | b'U' | b'D' | b'W')
+        Some(b'I' | b'R' | b'S' | b'T' | b'U' | b'D' | b'W' | b'Z' | b'H' | b'?')
     ) {
         return Err(PytxoError::Runner(format!(
-            "unknown ps process state for pid {pid}"
+            "unknown ps process state {state:?} for pid {pid}"
         )));
     }
     let token = fields.next().unwrap_or_default().trim();
-    if token.is_empty() {
+    if token.is_empty() || token == "-" {
         return Err(PytxoError::Runner(format!(
             "missing ps start time for pid {pid}"
         )));
     }
-    Ok(Some(format!("unix-lstart:{token}")))
+    // Darwin can report H (halted) or ? (task inspection unavailable) during
+    // exit. Neither proves death; retain the separate BSD creation timestamp.
+    Ok(ProcessIdentity {
+        start_token: format!("unix-lstart:{token}"),
+        terminated: unix_state_is_terminated(state),
+    })
 }
 
 #[cfg(any(target_os = "linux", test))]
@@ -313,13 +335,13 @@ fn windows_pid_is_confirmed_missing(error: &std::io::Error) -> bool {
 }
 
 pub fn process_matches(pid: u32, expected_start_identity: &str) -> Result<bool> {
-    Ok(process_start_identity(pid)?.as_deref() == Some(expected_start_identity))
+    Ok(live_process_start_identity(pid)?.as_deref() == Some(expected_start_identity))
 }
 
 /// Terminate the process tree identified by both PID and creation token, then
 /// wait until the original process identity is no longer live.
 pub fn kill_process_tree(pid: u32, expected_start_identity: &str) -> Result<()> {
-    let Some(actual_start_identity) = process_start_identity(pid)? else {
+    let Some(actual_start_identity) = live_process_start_identity(pid)? else {
         // Stop is idempotent: an already-exited process is a confirmed safe outcome.
         return Ok(());
     };
@@ -407,7 +429,7 @@ fn unix_descendants(root_pid: u32) -> Result<Vec<u32>> {
 }
 
 pub fn kill_pid(pid: u32) -> Result<()> {
-    match process_start_identity(pid)? {
+    match live_process_start_identity(pid)? {
         Some(identity) => kill_process_tree(pid, &identity),
         None => Ok(()),
     }
@@ -478,16 +500,14 @@ mod process_state_tests {
     }
 
     #[test]
-    fn ps_state_parser_preserves_live_identity_and_rejects_uncertainty() {
+    fn ps_state_parser_separates_creation_identity_from_liveness() {
         let token = "Sat Oct  3 07:00:00 2026";
-        for state in ["S", "R+", "T", "I", "U"] {
-            assert_eq!(
-                super::unix_ps_identity(&format!("  {state}  {token}\n"), 123).unwrap(),
-                Some(format!("unix-lstart:{token}"))
-            );
+        for state in ["S", "R+", "T", "I", "U", "H", "?", "?E", "Z", "Z+"] {
+            let identity = super::unix_ps_identity(&format!("  {state}  {token}\n"), 123).unwrap();
+            assert_eq!(identity.start_token, format!("unix-lstart:{token}"));
+            assert_eq!(identity.terminated, state.starts_with('Z'));
         }
-        assert_eq!(super::unix_ps_identity("Z+ -", 123).unwrap(), None);
-        for raw in ["", "? timestamp", "S", "S time\nS other"] {
+        for raw in ["", "Q timestamp", "S", "S time\nS other", "Z -", "? -"] {
             assert!(super::unix_ps_identity(raw, 123).is_err());
         }
     }
@@ -512,35 +532,40 @@ mod process_state_tests {
         for state in ["Z", "Z+", "Zs"] {
             assert!(super::unix_state_is_terminated(state));
         }
-        for state in ["R", "S", "D", "T", "t", "I", "W", "U", "", "?"] {
+        for state in ["R", "S", "D", "T", "t", "I", "W", "U", "H", "", "?", "?E"] {
             assert!(!super::unix_state_is_terminated(state));
         }
     }
 
     #[cfg(unix)]
     #[test]
-    fn exited_unreaped_child_has_no_live_identity() {
+    fn exited_unreaped_child_keeps_creation_token_but_is_not_live() {
         let mut child = ChildGuard(
             std::process::Command::new("sh")
                 .args(["-c", "exit 0"])
                 .spawn()
                 .unwrap(),
         );
+        let pid = child.0.id();
+        let identity = super::process_start_identity(pid)
+            .unwrap()
+            .expect("unreaped child retains its creation token");
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         let observed = loop {
-            let observed = super::process_start_identity(child.0.id());
-            if !matches!(observed, Ok(Some(_))) || std::time::Instant::now() >= deadline {
+            let observed = super::process_matches(pid, &identity);
+            if !matches!(observed, Ok(true)) || std::time::Instant::now() >= deadline {
                 break observed;
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
         };
+        assert_eq!(super::process_start_identity(pid).unwrap(), Some(identity));
+        assert!(
+            !observed.unwrap(),
+            "exited child must not be live before reaping"
+        );
         let status = child.0.wait().unwrap();
         assert!(status.success());
-        assert_eq!(
-            observed.unwrap(),
-            None,
-            "exited child must be absent before reaping"
-        );
+        assert_eq!(super::process_start_identity(pid).unwrap(), None);
     }
 
     #[cfg(unix)]
@@ -580,7 +605,11 @@ mod process_state_tests {
             );
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        assert_eq!(super::process_start_identity(pid).unwrap(), Some(identity));
+        assert_eq!(
+            super::process_start_identity(pid).unwrap(),
+            Some(identity.clone())
+        );
+        assert!(super::process_matches(pid, &identity).unwrap());
     }
 }
 
