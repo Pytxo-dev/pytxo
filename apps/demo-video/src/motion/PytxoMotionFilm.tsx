@@ -8,7 +8,7 @@ import {C, EvidenceNote, type FilmProps} from "./design";
 import {Merge} from "./Merge";
 import {Opening} from "./Opening";
 
-export const PytxoMotionFilm = (props: FilmProps) => <AbsoluteFill style={{background: C.paper}}>
+export const PytxoMotionFilm = (props: FilmProps) => <AbsoluteFill style={{background: C.paper, fontFamily: "'Geist Variable', sans-serif", letterSpacing: 0}}>
   <Sequence name="Your agents, one workspace" from={0} durationInFrames={240}><Opening {...props} /></Sequence>
   <Sequence name="Split, run, hand off" from={240} durationInFrames={900}><Dispatch {...props} /></Sequence>
   <Sequence name="Converge into review" from={1140} durationInFrames={420}><Merge {...props} /></Sequence>

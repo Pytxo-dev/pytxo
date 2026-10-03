@@ -1,5 +1,17 @@
 # Pytxo product demo
 
+## Motion recut with CC0 audio - October 3
+
+Current direction: **`PytxoMotionFilm`**, a 50-second connected motion edit
+with real recorded music, sparse editorial sound effects and native evidence.
+See [MOTION-CUT.md](MOTION-CUT.md) for the edit, source provenance, audio
+rights and cloud-only rendering/QA. This supersedes the earlier silent-only
+direction below. The silent film is preserved as a separate historical cut.
+
+The private GitHub Actions workflow renders `out/pytxo-motion.mp4` and retains
+the master, review frames and audio measurements. No public release or
+Windows native acceptance is implied by a successful film render.
+
 ## Silent beta film - October 3
 
 `PytxoBetaFilm` is a 56-second, 1920x1080, 60 fps motion-graphics edit: large

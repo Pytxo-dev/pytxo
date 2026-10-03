@@ -30,7 +30,7 @@ const scan = run("ffmpeg", ["-hide_banner", "-i", master, "-vf", "blackdetect=d=
 assert.ok(!scan.includes("black_start:"), "Unexpected blank black interval");
 const holds = [...scan.matchAll(/freeze_start: ([0-9.]+)/g)].map(item => Number(item[1]));
 await mkdir(new URL("../out/motion-review/frames/", import.meta.url), {recursive: true});
-const samples = [0.8, 2.4, 5.5, 7.9, 10.4, 12.7, 14.8, 17.8, 20.4, 22.5, 24.7, 27.8, 29.8, 32.5, 35.5, 37.2, 39.6, 43.5, 45, 48];
+const samples = [0.8, 2.4, 5.5, 6.5, 7.9, 10.4, 12.7, 14.8, 17.8, 19.1, 20.4, 22.5, 23.7, 24.7, 27.8, 29.8, 32.5, 35.5, 37.2, 39.6, 43.5, 45, 48];
 for (const seconds of samples) run("ffmpeg", ["-v", "error", "-y", "-ss", String(seconds), "-i", master, "-frames:v", "1", `out/motion-review/frames/${seconds.toFixed(1).padStart(4, "0")}.png`]);
 const sha256 = createHash("sha256").update(await readFile(new URL(`../${master}`, import.meta.url))).digest("hex");
 await writeFile(new URL("../out/motion-review/master-qa.json", import.meta.url), JSON.stringify({sha256, duration: 50, frames: 3000, video, audio, loudness, silenceSegments, holdsOverTwoSeconds: holds, reviewedFrameSeconds: samples, evidence: "Edited native stills from October 2, not continuous or final-candidate native footage", environment: process.env.GITHUB_ACTIONS ? "GitHub Actions cloud runner" : "unspecified"}, null, 2));

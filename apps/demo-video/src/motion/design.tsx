@@ -26,9 +26,9 @@ export const Native = ({props, assetKey, x, y, cropWidth, width, height, style}:
   return <div style={{position: "relative", width, height, background: "#08090a", overflow: "hidden", ...style}}><Img src={staticFile(asset.path)} style={{position: "absolute", left: -x * scale, top: -y * scale, width: asset.width * scale, height: asset.height * scale, maxWidth: "none"}} /></div>;
 };
 
-export const Document = ({label, style, number}: {label: string; style?: CSSProperties; number?: number}) => <div style={{position: "absolute", width: 250, height: 190, background: "white", border: `2px solid ${C.ink}`, borderRadius: 4, padding: 24, boxSizing: "border-box", ...style}}>
-  <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24}}><div style={{width: 42, height: 3, background: C.ink}} /><span style={{fontSize: 28, color: C.muted}}>{number ? String(number).padStart(2, "0") : "M"}</span></div>
-  <div style={{fontSize: 32, lineHeight: 1.25, overflowWrap: "anywhere", fontWeight: 500}}>{label}</div>
+export const Document = ({label, style, number, contentOpacity = 1}: {label: string; style?: CSSProperties; number?: number; contentOpacity?: number}) => <div style={{position: "absolute", width: 250, height: 190, background: "white", border: `2px solid ${C.ink}`, borderRadius: 4, padding: 24, boxSizing: "border-box", ...style}}>
+  <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, opacity: contentOpacity}}><div style={{width: 42, height: 3, background: C.ink}} /><span style={{fontSize: 30, color: C.muted}}>{number ? String(number).padStart(2, "0") : "M"}</span></div>
+  <div style={{fontSize: 32, lineHeight: 1.25, overflowWrap: "anywhere", fontWeight: 500, opacity: contentOpacity}}>{label}</div>
 </div>;
 
 export const Package = ({style, refreshed = false}: {style?: CSSProperties; refreshed?: boolean}) => <div style={{position: "absolute", width: 680, height: 216, background: C.paper, border: `3px solid ${refreshed ? C.green : C.ink}`, borderRadius: 4, padding: "30px 36px", boxSizing: "border-box", ...style}}>

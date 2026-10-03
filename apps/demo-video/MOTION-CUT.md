@@ -45,7 +45,7 @@ real recorded live-bass music, not generated stock-style music.
 
 The `Demo motion film (private artifact)` GitHub Actions workflow performs
 type checking, source-hash/fact validation, audio mixing, Remotion rendering,
-and final encoded-master QA. It exports twenty full-size review frames,
+and final encoded-master QA. It exports twenty-three full-size review frames,
 the stereo mix, MP4 and machine-readable measurements as private artifacts.
 It has read-only repository permissions and no deployment, release or secret
 access. No new acceptance testing or rendering runs on Matt's PC.
