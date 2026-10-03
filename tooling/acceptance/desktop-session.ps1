@@ -1,18 +1,27 @@
-# WebView2 ignores WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS for this app on the
-# hosted image, so set the per-user WebView2 policy for its executable instead
-# (disposable runner only).
-function Set-DesktopBrowserArguments([string]$Arguments) {
-  $key = "HKCU:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
-  New-Item -Force $key | Out-Null
-  Set-ItemProperty -Path $key -Name "pytxo-desktop.exe" -Value $Arguments
-  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $Arguments
+# Hosted runners sign in as a full-token administrator, and WebView2 150+ drops
+# environment and registry browser arguments (so remote debugging) for elevated
+# hosts (MicrosoftEdge/WebView2Feedback#5639). Real users run Desktop as standard
+# users, so acceptance does too: a throwaway local account on the disposable
+# runner, with a random password that is never printed or stored.
+function Get-DesktopTester {
+  if ($script:DesktopTester) { return $script:DesktopTester }
+  $name = "pytxo-tester"
+  $plain = (-join ((65..90) + (97..122) + (48..57) | Get-Random -Count 28 | ForEach-Object { [char]$_ })) + "!a7Q"
+  $computer = [ADSI]"WinNT://$env:COMPUTERNAME,computer"
+  $user = $computer.Create("User", $name)
+  $user.SetPassword($plain)
+  $user.SetInfo()
+  try { ([ADSI]"WinNT://$env:COMPUTERNAME/Users,group").Add("WinNT://$env:COMPUTERNAME/$name,user") } catch { }
+  $script:DesktopTester = New-Object System.Management.Automation.PSCredential ("$env:COMPUTERNAME\$name", (ConvertTo-SecureString $plain -AsPlainText -Force))
+  $script:DesktopTester
 }
 
-# Hosted runners run elevated, and WebView2 150+ refuses remote debugging for
-# elevated hosts (MicrosoftEdge/WebView2Feedback#5639). Real users launch Desktop
-# unelevated, so do the same: a limited scheduled task first, then a Basic User
-# token, then the (unelevated) shell. The first launcher that yields CDP is kept.
-$script:DesktopLaunchers = @("task", "runas", "explorer")
+# The tester's profile folder (created by its first launch), for default data locations.
+function Get-DesktopTesterProfile {
+  $sid = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\pytxo-tester")).Translate([System.Security.Principal.SecurityIdentifier]).Value
+  (Get-CimInstance Win32_UserProfile | Where-Object { $_.SID -eq $sid }).LocalPath
+}
+
 function Test-DesktopCdp([int]$Port, [int]$Seconds) {
   $deadline = (Get-Date).AddSeconds($Seconds)
   while ((Get-Date) -lt $deadline) {
@@ -20,7 +29,12 @@ function Test-DesktopCdp([int]$Port, [int]$Seconds) {
   }
   $false
 }
-function Start-DesktopUnelevated([string]$Exe, [hashtable]$Environment, [string]$WorkingDirectory, [string]$Evidence, [string]$Name, [int]$Port = 9340) {
+
+# Starts Desktop as the tester with exactly $Environment (plus the tester's own
+# profile variables) and returns its process once the WebView answers on CDP.
+function Start-DesktopAsTester([string]$Exe, [hashtable]$Environment, [string]$WorkingDirectory, [string]$Evidence, [string]$Name, [int]$Port = 9340) {
+  Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
+  Start-Sleep -Seconds 2
   $launcher = Join-Path $env:RUNNER_TEMP "launch-$Name.cmd"
   if ($launcher -match '\s') { throw "Launcher path must not contain spaces: $launcher" }
   $lines = @("@echo off")
@@ -28,38 +42,17 @@ function Start-DesktopUnelevated([string]$Exe, [hashtable]$Environment, [string]
   if ($WorkingDirectory) { $lines += "cd /d `"$WorkingDirectory`"" }
   $lines += "start `"`" `"$Exe`""
   Set-Content -Encoding ascii -LiteralPath $launcher -Value $lines
-  $app = $null
-  foreach ($how in @($script:DesktopLaunchers)) {
-    Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
-    Start-Sleep -Seconds 2
-    Write-Host "Launching Desktop ($Name) via $how"
-    try {
-      switch ($how) {
-        "task" {
-          $task = "pytxo-acceptance-$Name"
-          $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/d /c $launcher"
-          $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-          Register-ScheduledTask -TaskName $task -Action $action -Principal $principal -Force | Out-Null
-          Start-ScheduledTask -TaskName $task
-        }
-        "runas" { & runas.exe /trustlevel:0x20000 "cmd.exe /d /c $launcher" | Out-Host }
-        "explorer" { & explorer.exe $launcher | Out-Host }
-      }
-    } catch { Write-Host "Launcher $how failed: $_"; continue }
-    $deadline = (Get-Date).AddSeconds(30)
-    do {
-      Start-Sleep -Milliseconds 500
-      $app = Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Select-Object -First 1
-    } while (-not $app -and (Get-Date) -lt $deadline)
-    if ($app -and (Test-DesktopCdp $Port 60)) {
-      Write-Host "CDP ready for $Name via $how"
-      $script:DesktopLaunchers = @($how) + @($script:DesktopLaunchers | Where-Object { $_ -ne $how })
-      $script:DesktopLaunchedVia = $how
-      return $app
-    }
-  }
+  icacls $launcher /grant "*S-1-1-0:RX" | Out-Null
+  Start-Process -FilePath cmd.exe -ArgumentList "/d /c $launcher" -Credential (Get-DesktopTester) -LoadUserProfile -WorkingDirectory $env:SystemRoot -WindowStyle Hidden
+  $deadline = (Get-Date).AddSeconds(45)
+  do {
+    Start-Sleep -Milliseconds 500
+    $app = Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Select-Object -First 1
+  } while (-not $app -and (Get-Date) -lt $deadline)
+  if ($app -and (Test-DesktopCdp $Port 90)) { Write-Host "CDP ready for $Name"; return $app }
   Wait-DesktopCdp $app $Evidence $Name $Port 5
 }
+
 
 # Shared helpers: wait for a launched Desktop to expose its WebView over CDP,
 # and, if it never does, record why (process, session, WebView2 runtime, the
@@ -83,7 +76,7 @@ function Wait-DesktopCdp([System.Diagnostics.Process]$App, [string]$Evidence, [s
     runner_session = (Get-Process -Id $PID).SessionId
     main_window = $(if ($App) { (Get-Process -Id $App.Id -ErrorAction SilentlyContinue).MainWindowHandle.ToInt64() })
     uac = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -ErrorAction SilentlyContinue | Select-Object EnableLUA, ConsentPromptBehaviorAdmin, FilterAdministratorToken
-    launchers_tried = $script:DesktopLaunchers
+    app_user = $(if ($App) { (Get-Process -Id $App.Id -IncludeUserName -ErrorAction SilentlyContinue).UserName })
     webview2_runtime = $runtime.pv
     webview_processes = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Id) session $($_.SessionId)" })
     listening = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -in @((Get-Process msedgewebview2, pytxo-desktop -ErrorAction SilentlyContinue).Id) } | ForEach-Object { "$($_.LocalAddress):$($_.LocalPort)" })

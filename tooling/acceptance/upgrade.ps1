@@ -25,9 +25,8 @@ function Find-Exe {
 }
 function Use-Desktop([string]$Name, [string[]]$ProbeArgs) {
   $exe = Find-Exe
-  Set-DesktopBrowserArguments "--remote-debugging-port=9340"
-  $app = Start-DesktopUnelevated $exe.FullName @{ WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS } $env:USERPROFILE $Evidence $Name
-  $summary.launched_via = $script:DesktopLaunchedVia
+  # Default data locations of the standard-user tester (see desktop-session.ps1).
+  $app = Start-DesktopAsTester $exe.FullName @{ WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9340" } $null $Evidence $Name
   try {
     node (Join-Path $PSScriptRoot "probe.mjs") --cdp 9340 --out $Evidence --name $Name @ProbeArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Probe $Name failed" }
@@ -38,7 +37,7 @@ function Use-Desktop([string]$Name, [string[]]$ProbeArgs) {
   $exe
 }
 function Snapshot-Data {
-  $dir = Join-Path $env:USERPROFILE ".pytxo"
+  $dir = Join-Path (Get-DesktopTesterProfile) ".pytxo"
   if (-not (Test-Path $dir)) { return @() }
   Get-ChildItem -Recurse -File $dir | ForEach-Object { [ordered]@{ path = $_.FullName.Substring($dir.Length + 1); bytes = $_.Length } }
 }

@@ -48,25 +48,22 @@ foreach ($cli in "codex", "claude", "cursor-agent", "opencode", "agy") {
 }
 $env:PATH = "$bin;$env:PATH"
 
-# Desktop runs unelevated (see desktop-session.ps1), so it needs write access to
-# the elevated runner's temp tree and must trust repositories created there.
-git config --global --add safe.directory "*"
-
 function Start-Desktop([string]$Name, [string]$Scale) {
   $dir = Join-Path $env:RUNNER_TEMP "pytxo-$Name"
   New-Item -ItemType Directory -Force "$dir\home", "$dir\webview" | Out-Null
+  # Desktop runs as the standard-user tester (see desktop-session.ps1): it needs
+  # write access to this elevated runner's temp tree and must trust its repositories.
   icacls $env:RUNNER_TEMP /grant "*S-1-1-0:(OI)(CI)F" /T /C /Q | Out-Null
   $env:PYTXO_HOME = "$dir\home"
-  $env:WEBVIEW2_USER_DATA_FOLDER = "$dir\webview"
-  Set-DesktopBrowserArguments "--remote-debugging-port=9340 --force-device-scale-factor=$Scale"
-  $app = Start-DesktopUnelevated $exe.FullName @{
-    PYTXO_HOME = $env:PYTXO_HOME
-    WEBVIEW2_USER_DATA_FOLDER = $env:WEBVIEW2_USER_DATA_FOLDER
-    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+  Start-DesktopAsTester $exe.FullName @{
+    PYTXO_HOME = "$dir\home"
+    WEBVIEW2_USER_DATA_FOLDER = "$dir\webview"
+    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9340 --force-device-scale-factor=$Scale"
+    GIT_CONFIG_COUNT = "1"
+    GIT_CONFIG_KEY_0 = "safe.directory"
+    GIT_CONFIG_VALUE_0 = "*"
     PATH = $env:PATH
   } "$dir\home" $Evidence $Name
-  $summary.launched_via = $script:DesktopLaunchedVia
-  $app
 }
 function Stop-Desktop($Process) {
   if ($Process -and -not $Process.HasExited) { Stop-Process -Id $Process.Id -Force; $Process.WaitForExit(15000) | Out-Null }
