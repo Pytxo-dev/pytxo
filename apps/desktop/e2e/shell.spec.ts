@@ -13,8 +13,8 @@ test.describe("Pytxo Desktop shell", () => {
   test("setup wizard renders on fresh profile", async ({ page }) => {
     await clearOnboarding(page);
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Your coding agents. One clear place to work.", exact: true })).toBeVisible();
-    await expect(page.getByText("Codex, Claude Code, Cursor Agent, OpenCode or Antigravity, with the accounts you already have.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Put your coding agents on one job.", exact: true })).toBeVisible();
+    await expect(page.getByText("Codex, Claude Code, Cursor Agent, OpenCode or Antigravity, signed in with your own accounts.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Get started" })).toBeVisible();
     await expect(page.getByLabel("Setup progress")).toBeVisible();
   });
@@ -41,7 +41,7 @@ test.describe("Pytxo Desktop shell", () => {
       { setupKey: SETUP_STORAGE_KEY },
     );
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Your coding agents. One clear place to work.", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Put your coding agents on one job.", exact: true })).toBeVisible();
   });
 
   test("onboarding can be replayed from Settings without losing the versioned flag afterwards", async ({ page }) => {
@@ -50,7 +50,7 @@ test.describe("Pytxo Desktop shell", () => {
     await page.getByRole("link", { name: "Setup" }).click();
     await page.getByRole("button", { name: "Account & billing" }).click();
     await page.getByRole("button", { name: "Run onboarding again" }).click();
-    await expect(page.getByRole("heading", { name: "Your coding agents. One clear place to work.", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Put your coding agents on one job.", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Get started" }).click();
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByRole("button", { name: "Skip for now" }).click();
@@ -115,7 +115,7 @@ test.describe("Pytxo Desktop shell", () => {
 
     await expect(page.getByRole("heading", { name: "Connect your coding agents" })).toBeVisible();
     await expect(page.getByText("ChatGPT connected", { exact: true })).toBeVisible();
-    await expect(page.getByText("This beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity", { exact: false })).toBeVisible();
+    await expect(page.getByText("Pytxo runs the coding CLIs you already use", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Continue" }).click();
 
     await expect(page.getByRole("heading", { name: "Choose your project" })).toBeVisible();
@@ -360,6 +360,7 @@ test.describe("Pytxo Desktop shell", () => {
     await page.goto("/#/flow");
     await page.locator(".voice-disclosure > summary").click();
     const voice = page.getByTestId("voice-capture");
+    await voice.scrollIntoViewIfNeeded();
     const box = await voice.boundingBox();
     expect(box).not.toBeNull();
     await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
@@ -509,7 +510,7 @@ test.describe("Pytxo Desktop shell", () => {
     await expect(inbox.locator("dl").getByText("desktop", { exact: true })).toBeVisible();
     await expect(inbox.locator("dl").getByText("pytxo", { exact: true })).toBeVisible();
     await expect(inbox.locator("dl").getByText("blast.flush", { exact: true })).toBeVisible();
-    await expect(inbox.getByText(/This legacy request cannot authorize an exact candidate/)).toBeVisible();
+    await expect(inbox.getByText(/Approving here does not write anything/)).toBeVisible();
     await expect(page.getByText("No secrets or permission escalation detected.")).toHaveCount(0);
 
     await page.keyboard.press("j");

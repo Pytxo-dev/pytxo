@@ -5,7 +5,7 @@ test('History separates outcomes and supports narrow list to detail with focus r
  await expect(page.locator('.history .row')).toHaveCount(2);
  await page.locator('.history .row[data-run-id="run-71ad"]').click();
  await expect(page.locator('.outcome-heading h2')).toHaveText('Work in signal-lab'); await expect(page.locator('.files-section')).toContainText('crates/pytxo-signal/src/lib.rs');
- await expect(page.locator('.outcome-heading')).toContainText('No confirmed Apply'); await expect(page.locator('.recorded-trace')).toContainText('No Apply record'); await expect(page.locator('.recorded-trace')).toContainText('not a complete timeline');
+ await expect(page.locator('.outcome-heading')).toContainText('No confirmed Apply'); await expect(page.locator('.recorded-trace')).toContainText('Not applied'); await expect(page.locator('.recorded-trace')).toContainText('not a full timeline');
  await expect(page.getByText('No saved request text. The repository name is used as a fallback.')).toHaveCount(0);
  for (const identity of await page.getByText('pkg-71ad-immutable').all()) await expect(identity).toBeHidden(); await page.getByText('Technical details',{exact:true}).click(); await expect(page.getByText('pkg-71ad-immutable').first()).toBeVisible();
  await page.getByLabel('Search work history').fill('absent-request'); await expect(page.getByText('No runs match')).toBeVisible(); await page.getByLabel('Search work history').fill('');

@@ -883,6 +883,46 @@
       </div>
       <p id="mission-guidance" class="mission-guidance">Name the file or folder if you know it, the expected behavior, and anything that must stay unchanged.</p>
       <textarea bind:this={missionInput} bind:value={mission} aria-label="What should Pytxo do?" aria-describedby="mission-guidance" placeholder="Fix the parser in src/parser.rs so empty input returns an error. Add a regression test. Keep the public API unchanged."></textarea>
+      <div class="ade-readiness">
+        <div class="readiness-summary" aria-live="polite">
+        {#if adeError}
+          <span class="error">Agent readiness could not be checked: {adeError}</span>
+        {:else if selectedAde === CLAUDE_ROUTE_CHOICE && experimentalClaudeAvailable}
+          <span>Claude proposal route: configured · account and model readiness pending Run</span>
+        {:else if selectedAde === CLAUDE_HOSTED_CHOICE && experimentalHostedAvailable}
+          <span>Hosted Routing review: configured · packet inspection only</span>
+        {:else if selectedAdeStatus}
+          <span class:ready={selectedAdeReady}>{selectedAdeStatus.display_name}: {adeLoading ? "checking…" : adeAvailabilityLabel(selectedAdeStatus)}</span>
+        {:else if !adeLoading}
+          <span class="error">Install and sign in to an agent CLI before building a plan.</span>
+        {/if}
+        <button class="quiet" onclick={loadAdeClis} disabled={adeLoading || planning || dispatching}>{adeLoading ? "Checking…" : "Check again"}</button>
+        </div>
+        {#if !routedChoice && selectedAde && teamCandidates.length}
+          <fieldset class="agent-team">
+            <legend>Add agents to this job</legend>
+            {#each teamCandidates as cli (cli.id)}
+              <label class="team-chip" class:on={teamAdes.includes(cli.id)}><input type="checkbox" checked={teamAdes.includes(cli.id)} onchange={() => toggleTeamAde(cli.id)} /><AdeIdentity id={cli.id} />{cli.display_name}</label>
+            {/each}
+          </fieldset>
+        {/if}
+        {#if !routedChoice}
+          <div class="workers-row">
+            <span id="workers-label">At most at once</span>
+            <div class="stepper" role="group" aria-labelledby="workers-label">
+              <button aria-label="Fewer workers at once" disabled={workers <= 1} onclick={() => stepWorkers(-1)}>−</button>
+              <output aria-live="polite">{workers}</output>
+              <button aria-label="More workers at once" disabled={workers >= DESKTOP_BETA_MAX_WORKERS} onclick={() => stepWorkers(1)}>+</button>
+            </div>
+            <small>Up to {DESKTOP_BETA_MAX_WORKERS}. Tasks that share files never run together.</small>
+          </div>
+        {/if}
+        <p>{selectedAde === CLAUDE_HOSTED_CHOICE ? "Review the redacted packet and optional account grant. This path cannot run an agent or send a Jev request." : selectedAde === CLAUDE_ROUTE_CHOICE ? "A Claude subscription worker proposes a one-file change. Run checks the account and both models before starting; these probes may consume quota." : team.length > 1 ? `${team.length} agents share the tasks. Each task runs in its own isolated copy of the project.` : "Each task runs in its own isolated copy of the project."}</p>
+        {#if selectedAde && !routedChoice && !isBetaAde(selectedAde)}<p>Your agent selection is preserved. Desktop Beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity; choose one of those to start a beta run.</p>{/if}
+        {#if unavailableAdes.length}
+          <details><summary>{unavailableAdes.length} other CLI{unavailableAdes.length === 1 ? "" : "s"} unavailable</summary><ul>{#each unavailableAdes as cli}<li>{cli.display_name} · {adeUnavailableReason(cli)}</li>{/each}</ul></details>
+        {/if}
+      </div>
       <div class="composer-command-bar"><span>{mission.trim() ? `${mission.trim().length} characters` : ""}</span><button class="primary" disabled={!!buildPlanDisabledReason} aria-describedby={buildPlanDisabledReason ? "build-plan-disabled-reason" : undefined} onclick={buildPlan}>{planning ? "Building…" : "Build plan"}</button>{#if buildPlanDisabledReason}<small id="build-plan-disabled-reason" class="action-reason">{buildPlanDisabledReason}</small>{/if}</div>
       <details class="checks-editor" open={!!runChecks}>
       <summary>Verification commands <span>{runChecks.trim() ? "Custom checks added" : "Use project checks or add your own"}</span></summary>
@@ -890,7 +930,7 @@
         <span>Additional verification commands</span>
         <textarea bind:value={runChecks} rows="2" aria-describedby="run-checks-help" placeholder="One command per line, for example: npm test"></textarea>
       </label>
-      <p id="run-checks-help" class="mission-guidance">Optional when Pytxo finds checks in your project. These commands are added to every task and checked again on the combined candidate. Changing them requires a new plan; your configuration stays unchanged.</p>
+      <p id="run-checks-help" class="mission-guidance">Optional when Pytxo finds checks in your project. These commands run after every task and again on the combined changes. Changing them requires a new plan; your configuration stays unchanged.</p>
       </details>
       {#if selectedAde === CLAUDE_ROUTE_CHOICE || selectedAde === CLAUDE_HOSTED_CHOICE}
         <details class="checks-editor" open>
@@ -981,46 +1021,7 @@
           {#if voiceSessionId}<button class="quiet" onclick={cancelVoice}>Cancel</button>{/if}
         </div></details>{/if}
       </div>
-      <div class="ade-readiness">
-        <div class="readiness-summary" aria-live="polite">
-        {#if adeError}
-          <span class="error">Agent readiness could not be checked: {adeError}</span>
-        {:else if selectedAde === CLAUDE_ROUTE_CHOICE && experimentalClaudeAvailable}
-          <span>Claude proposal route: configured · account and model readiness pending Run</span>
-        {:else if selectedAde === CLAUDE_HOSTED_CHOICE && experimentalHostedAvailable}
-          <span>Hosted Routing review: configured · packet inspection only</span>
-        {:else if selectedAdeStatus}
-          <span class:ready={selectedAdeReady}>{selectedAdeStatus.display_name}: {adeLoading ? "checking…" : adeAvailabilityLabel(selectedAdeStatus)}</span>
-        {:else if !adeLoading}
-          <span class="error">Install and sign in to an agent CLI before building a plan.</span>
-        {/if}
-        <button class="quiet" onclick={loadAdeClis} disabled={adeLoading || planning || dispatching}>{adeLoading ? "Checking…" : "Check again"}</button>
-        </div>
-        {#if !routedChoice && selectedAde && teamCandidates.length}
-          <fieldset class="agent-team">
-            <legend>Also put to work</legend>
-            {#each teamCandidates as cli (cli.id)}
-              <label class="team-chip" class:on={teamAdes.includes(cli.id)}><input type="checkbox" checked={teamAdes.includes(cli.id)} onchange={() => toggleTeamAde(cli.id)} /><AdeIdentity id={cli.id} />{cli.display_name}</label>
-            {/each}
-          </fieldset>
-        {/if}
-        {#if !routedChoice}
-          <div class="workers-row">
-            <span id="workers-label">At most at once</span>
-            <div class="stepper" role="group" aria-labelledby="workers-label">
-              <button aria-label="Fewer workers at once" disabled={workers <= 1} onclick={() => stepWorkers(-1)}>−</button>
-              <output aria-live="polite">{workers}</output>
-              <button aria-label="More workers at once" disabled={workers >= DESKTOP_BETA_MAX_WORKERS} onclick={() => stepWorkers(1)}>+</button>
-            </div>
-            <small>Up to {DESKTOP_BETA_MAX_WORKERS}. Tasks that share files never run together.</small>
-          </div>
-        {/if}
-        <p>{selectedAde === CLAUDE_HOSTED_CHOICE ? "Review the redacted packet and optional account grant. This path cannot run an agent or send a Jev request." : selectedAde === CLAUDE_ROUTE_CHOICE ? "A Claude subscription worker proposes a one-file change. Run checks the account and both models before starting; these probes may consume quota." : team.length > 1 ? `${team.length} agents share the tasks, each in its own isolated copy. Installed and signed in means ready to try; a successful run validates execution.` : "Each task runs in its own isolated copy. Installed and signed in means ready to try; a successful run validates execution."}</p>
-        {#if selectedAde && !routedChoice && !isBetaAde(selectedAde)}<p>Your agent selection is preserved. Desktop Beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity; choose one of those to start a beta run.</p>{/if}
-        {#if unavailableAdes.length}
-          <details><summary>{unavailableAdes.length} other CLI{unavailableAdes.length === 1 ? "" : "s"} unavailable</summary><ul>{#each unavailableAdes as cli}<li>{cli.display_name} · {adeUnavailableReason(cli)}</li>{/each}</ul></details>
-        {/if}
-      </div>
+
     </article>
 
     {#if showPlanPanel}
@@ -1038,11 +1039,10 @@
         {#if planning}<div class="planning-strip" aria-hidden="true"><span>&gt; . : + * = x &gt; . : + * = x</span></div>{/if}
         {#if plan}
           <p class="plan-summary">{planSummary}</p>
-          <p class="plan-explainer">Maximum concurrent workers: <strong>{plan.max_workers}</strong>. All {plan.tasks.length} approved tasks remain in scope.</p>
+          <p class="plan-explainer">Up to <strong>{plan.max_workers}</strong> {plan.max_workers === 1 ? "agent" : "agents"} at once. Edit any step before you run it.</p>
           {#if selectedAde === CLAUDE_ROUTE_CHOICE && plan.routing}
             <p class="plan-explainer">{#if plan.routing.authorization.limits.max_attempts === 2}This reviewed Rules route allows up to two Claude subscription worker calls: Haiku first, then one fresh Sonnet attempt only after an intact frozen-check failure. Each call can consume subscription quota; exact cost is unknown.{:else}This reviewed Rules route allows one Claude subscription worker call. Account and model probes can also consume quota; exact cost is unknown.{/if}</p>
           {/if}
-          <p class="plan-explainer">This is the work your agents will do. Review the steps before starting.</p>
           {#if !planMatchesInputs}
             <div class="plan-stale" role="status">
               <IconAlertTriangle size={15} />
@@ -1098,7 +1098,7 @@
               <strong>Per-task verification commands</strong>
               {#if verificationCommands.length}
                 <ul>{#each verificationCommands as command}<li><code>{command}</code></li>{/each}</ul>
-                <p>These checks run in each task's workspace. Passing task checks does not prove the combined candidate passes.</p>
+                <p>These checks run in each task's copy, then again on all the changes together before you can Apply.</p>
               {:else}<p class="unverified-copy">No verification commands were reported. Enter a command in Additional verification commands, then build the plan again. This plan cannot run without checks.</p>{/if}
             </div>
             <div class="contract-list" data-tone={plan.warnings.length ? "warning" : "quiet"}>

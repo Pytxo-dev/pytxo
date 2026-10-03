@@ -1,10 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import IconCopy from "@tabler/icons-svelte/icons/copy";
-  import IconWindowMaximize from "@tabler/icons-svelte/icons/window-maximize";
-  import IconWindowMinimize from "@tabler/icons-svelte/icons/window-minimize";
-  import IconX from "@tabler/icons-svelte/icons/x";
 
   let {
     title = "Pytxo Desktop",
@@ -65,8 +61,9 @@
     <span class="titlebar__name">{title}</span>
   </div>
   <div class="titlebar__controls">
+    <!-- Windows caption glyphs: 10px, 1px strokes, drawn rather than borrowed from an icon set. -->
     <button type="button" class="titlebar__btn" onclick={minimize} aria-label="Minimize">
-      <IconWindowMinimize size={15} stroke={1.75} />
+      <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5.5h10" /></svg>
     </button>
     <button
       type="button"
@@ -75,13 +72,13 @@
       aria-label={isMaximized ? "Restore" : "Maximize"}
     >
       {#if isMaximized}
-        <IconCopy size={14} stroke={1.75} />
+        <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 2.5V.5h7v7h-2M.5 2.5h7v7h-7z" /></svg>
       {:else}
-        <IconWindowMaximize size={14} stroke={1.75} />
+        <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M.5.5h9v9h-9z" /></svg>
       {/if}
     </button>
     <button type="button" class="titlebar__btn titlebar__btn--close" onclick={close} aria-label="Close">
-      <IconX size={16} stroke={1.75} />
+      <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M.5.5l9 9M9.5.5l-9 9" /></svg>
     </button>
   </div>
 </header>
@@ -140,6 +137,13 @@
     box-shadow: none;
     padding: 0;
     transition: background-color 150ms ease, color 150ms ease;
+  }
+  .titlebar__btn svg {
+    width: 10px;
+    height: 10px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1;
   }
   .titlebar__btn:hover {
     background: color-mix(in oklab, var(--foreground) 8%, transparent);

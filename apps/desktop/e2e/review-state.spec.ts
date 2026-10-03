@@ -144,9 +144,9 @@ test.describe("Run Review state contracts", () => {
       }),
     ).toMatchObject({
       state: "verification_required",
-      title: "Verify before Apply",
+      title: "Checks needed before Apply",
       primaryAction: "refresh",
-      primaryLabel: "Verify candidate",
+      primaryLabel: "Run checks",
       applyAllowed: false,
     });
     expect(

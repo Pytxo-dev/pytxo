@@ -152,12 +152,12 @@
   }
 
   function boundarySnapshot(label: string | undefined) {
-    if (label === "Apply recorded") return { title: "Canonical repository", detail: "Apply record found" };
-    if (label === "Outcome needs reconciliation") return { title: "Repository outcome", detail: "Reconciliation required" };
-    if (label === "Apply outcome unconfirmed") return { title: "Repository outcome", detail: "Apply still unconfirmed" };
-    if (label === "Rollback confirmed") return { title: "Repository outcome", detail: "Rollback recorded" };
-    if (label === "Preparation failed" || label === "Apply error recorded") return { title: "Repository outcome", detail: "Failure recorded" };
-    return { title: "Repository boundary", detail: "No Apply record" };
+    if (label === "Apply recorded") return { title: "Applied to the project", detail: "Apply recorded" };
+    if (label === "Outcome needs reconciliation") return { title: "Project state", detail: "Needs recovery" };
+    if (label === "Apply outcome unconfirmed") return { title: "Project state", detail: "Apply not confirmed" };
+    if (label === "Rollback confirmed") return { title: "Project state", detail: "Rollback recorded" };
+    if (label === "Preparation failed" || label === "Apply error recorded") return { title: "Project state", detail: "Failure recorded" };
+    return { title: "Project", detail: "Not applied" };
   }
 
   function displayAttempt(value: string) {
@@ -224,7 +224,7 @@
 </script>
 
 <section class="screen history">
-  <header class="history-heading"><div><h1>History</h1><p>Recorded work across all repositories</p></div>
+  <header class="history-heading"><div><h1>History</h1><p>Every run, across your projects</p></div>
     <div class="filters"><label><IconSearch size={14}/><input bind:value={query} placeholder="Search request or project" aria-label="Search work history" /></label><button class:active={onlyUnresolved} aria-pressed={onlyUnresolved} onclick={() => onlyUnresolved = !onlyUnresolved}>{onlyUnresolved ? "Unresolved only" : "All runs"}</button></div>
   </header>
   {#if snapshot.error}<p role="alert">Local service offline · {snapshot.error.message}</p>{:else}
@@ -245,16 +245,16 @@
     {#if selected}
       <article class="outcome-inspector" aria-label="Selected run workspace">
         <button class="back-runs" onclick={backToRuns}>Back to runs</button>
-        <header class="outcome-heading"><div><h2 bind:this={detailHeading} tabindex="-1">{requestLabel(selected)}</h2><p class="destination">Destination · {selected.repo_root}</p><div class="outcome-label"><span><small>Execution</small><strong>{runState(selected).label}</strong></span><span><small>Integration</small><StateChip tone={outcome?.tone ?? "unknown"} label={outcome?.label ?? "Outcome unavailable"}/></span></div></div><button class="outcome-action" disabled={reviewLoading || actionLoading || (!!reviewError && actionLabel !== "View run details")} onclick={openSelected}>{actionLoading ? "Refreshing record…" : actionLabel}</button></header>
+        <header class="outcome-heading"><div><h2 bind:this={detailHeading} tabindex="-1">{requestLabel(selected)}</h2><p class="destination">Project · {selected.repo_root}</p><div class="outcome-label"><span><small>Run</small><strong>{runState(selected).label}</strong></span><span><small>Apply</small><StateChip tone={outcome?.tone ?? "unknown"} label={outcome?.label ?? "Outcome unavailable"}/></span></div></div><button class="outcome-action" disabled={reviewLoading || actionLoading || (!!reviewError && actionLabel !== "View run details")} onclick={openSelected}>{actionLoading ? "Refreshing record…" : actionLabel}</button></header>
         {#if draftFor(selected)?.mission_text}<details class="request-text"><summary>Full recorded request</summary><p>{draftFor(selected)?.mission_text}</p></details>{/if}
         {#if reviewLoading}<p role="status">Loading this run’s evidence…</p>{/if}
         {#if reviewError}<p role="alert">Evidence unavailable: {reviewError} <button onclick={() => refresh++}>Reload evidence</button></p>{/if}
-        {#if needsAttention(selected) || outcome?.tone === "refuted"}<p class="recovery-notice" role="alert">{review?.last_apply_error?.message ?? selected.last_apply_error?.message ?? "The repository outcome needs inspection before further action."}</p>{/if}
+        {#if needsAttention(selected) || outcome?.tone === "refuted"}<p class="recovery-notice" role="alert">{review?.last_apply_error?.message ?? selected.last_apply_error?.message ?? "Check the project state before doing anything else."}</p>{/if}
         <section class="recorded-trace" aria-label="Recorded run snapshots">
-          <header><h3>Recorded state</h3><span>Snapshots, not a complete timeline</span></header>
-          <div class="trace-lane"><span class="lane-label">Execution</span><button onclick={() => inspectPart("technical")}><strong>{runState(selected).label}</strong><small>Started {startedAt(selected)}</small></button></div>
-          <div class="trace-lane integration"><span class="lane-label">Candidate</span><button onclick={() => inspectPart("candidate")}><strong>{review?.prepared_manifest ? `${review.prepared_manifest.files.length} prepared file${review.prepared_manifest.files.length === 1 ? "" : "s"}` : reviewLoading ? "Loading candidate" : "Candidate unavailable"}</strong><small>Speculative contents</small></button><button onclick={() => inspectPart("checks")}><strong>{review?.prepared_manifest?.candidate_verification?.checks.length ? (review.prepared_manifest.candidate_verification.checks.every(c => c.passed) ? "Recorded checks passed" : "Check failure recorded") : "Checks not recorded"}</strong><small>Candidate-bound evidence</small></button></div>{#if review?.prepared_manifest && (review?.applied_at || review?.apply_attempts.length)}<p class="identity-gap">Candidate-to-Apply correspondence is not established by this record.</p>{/if}<div class="trace-lane integration-record"><span class="lane-label">Apply record</span><span class="aperture" aria-hidden="true"></span><button class:confirmed={outcome?.label === "Apply recorded"} onclick={() => inspectPart("attempts")}><strong>{boundary.title}</strong><small>{boundary.detail}</small></button></div>
-          <details class="record-limits"><summary>What this record proves</summary><p>Only stored snapshots and attempts are shown; intermediate execution transitions and finish time are unavailable. {outcome?.label === "Apply recorded" ? "The Apply record is historical, not a live filesystem check." : "No confirmed Apply does not prove the repository is unchanged."} Historical checks do not authorize Apply now.</p></details>
+          <header><h3>What happened</h3><span>From saved records, not a full timeline</span></header>
+          <div class="trace-lane"><span class="lane-label">Run</span><button onclick={() => inspectPart("technical")}><strong>{runState(selected).label}</strong><small>Started {startedAt(selected)}</small></button></div>
+          <div class="trace-lane integration"><span class="lane-label">Changes</span><button onclick={() => inspectPart("candidate")}><strong>{review?.prepared_manifest ? `${review.prepared_manifest.files.length} prepared file${review.prepared_manifest.files.length === 1 ? "" : "s"}` : reviewLoading ? "Loading changes" : "No changes recorded"}</strong><small>Prepared, not applied by themselves</small></button><button onclick={() => inspectPart("checks")}><strong>{review?.prepared_manifest?.candidate_verification?.checks.length ? (review.prepared_manifest.candidate_verification.checks.every(c => c.passed) ? "Checks passed" : "A check failed") : "Checks not recorded"}</strong><small>On the combined changes</small></button></div>{#if review?.prepared_manifest && (review?.applied_at || review?.apply_attempts.length)}<p class="identity-gap">This record does not link these prepared changes to the Apply below.</p>{/if}<div class="trace-lane integration-record"><span class="lane-label">Apply</span><span class="aperture" aria-hidden="true"></span><button class:confirmed={outcome?.label === "Apply recorded"} onclick={() => inspectPart("attempts")}><strong>{boundary.title}</strong><small>{boundary.detail}</small></button></div>
+          <details class="record-limits"><summary>About this record</summary><p>Only saved snapshots and Apply attempts are shown, not every step of the run. {outcome?.label === "Apply recorded" ? "The Apply record shows what was written then, not what is on disk now." : "Having no recorded Apply does not prove the project is unchanged."} Old check results cannot be used to Apply now.</p></details>
         </section>
         {#if selectedRoutingIdentityUnknown}<p class="recovery-notice" role="alert">Routing identity could not be checked for this run. Worker attempt identity is unavailable until the run list is repaired.</p>{/if}
         {#if selected.routing_revision != null}<RoutingRunDetails run={selected} {backend} />{/if}
@@ -262,9 +262,9 @@
           <section bind:this={filesSection} tabindex="-1" class="files-section"><header><h3>{outcome?.label === "Apply recorded" && review?.apply_manifest && "changes" in review.apply_manifest ? "Recorded applied files" : "Prepared files"}</h3>{#if outcome?.label === "Apply recorded" && review?.apply_manifest && "changes" in review.apply_manifest}<span>{review.apply_manifest.changes.length}</span>{:else if review?.prepared_manifest}<span>{review.prepared_manifest.files.length}</span>{/if}</header>
             {#if outcome?.label === "Apply recorded" && review?.apply_manifest && "changes" in review.apply_manifest}
               {#each review.apply_manifest.changes as file}<div class="file"><code>{file.path}</code><span>{file.kind}</span></div>{/each}
-              {#if review.prepared_manifest}<details class="candidate-inventory" bind:this={candidateFiles} tabindex="-1"><summary>Prepared candidate inventory · {review.prepared_manifest.files.length} files</summary>{#each review.prepared_manifest.files as file}<div class="file"><code>{file.path}</code><span>{file.kind}</span></div>{/each}</details>{/if}
+              {#if review.prepared_manifest}<details class="candidate-inventory" bind:this={candidateFiles} tabindex="-1"><summary>All prepared files · {review.prepared_manifest.files.length}</summary>{#each review.prepared_manifest.files as file}<div class="file"><code>{file.path}</code><span>{file.kind}</span></div>{/each}</details>{/if}
             {:else if review?.prepared_manifest}
-              {#each review.prepared_manifest.files as file}<div class="file"><code>{file.path}</code><span>{file.kind}</span></div>{:else}<p>No files in this candidate.</p>{/each}
+              {#each review.prepared_manifest.files as file}<div class="file"><code>{file.path}</code><span>{file.kind}</span></div>{:else}<p>No files were changed.</p>{/each}
             {:else}<p class="subtle">No file inventory available.</p>{/if}
           </section>
           <section bind:this={checksSection} tabindex="-1"><h3>Recorded checks</h3>
@@ -279,7 +279,7 @@
             {#each review?.apply_attempts ?? [] as attempt}<div class="attempt"><strong>{displayAttempt(attempt.outcome)}</strong><time>{attempt.created_at ?? "Time not recorded"}</time>{#if attempt.error_message}<p>{attempt.error_message}</p>{/if}</div>{/each}
           </section>
         {/if}
-        <details bind:this={technical} bind:open={technicalOpen} tabindex="-1" class="technical"><summary>Technical details</summary><div class="technical-ids"><span>Run <code>{selected.id}</code></span><span>Domain <code>{selected.domain_id}</code></span>{#if review?.prepared_manifest}<span>Candidate <code>{review.prepared_manifest.package_digest}</code></span><span>Prepared <code>{review.prepared_manifest.prepared_at}</code></span>{/if}{#if review?.apply_manifest && "changes" in review.apply_manifest}<span>Apply transaction <code>{review.apply_manifest.transaction_id}</code></span>{/if}{#if review?.prepared_manifest?.candidate_verification}<span>Verified <code>{review.prepared_manifest.candidate_verification.verified_at}</code></span>{/if}{#each review?.apply_attempts ?? [] as attempt}<span>Attempt <code>{attempt.attempt_id}</code> · phase <code>{attempt.phase}</code></span>{/each}</div><p class="subtle">Attempt order is shown as returned. Candidate-to-attempt identity is not inferred where the record provides no link.</p><BoundaryPanel showReviewAction={false} run={selected} {review} {reviewError} loading={reviewLoading} approvals={[]} onOpenApprovals={() => {}} onReview={() => onOpenRun(selected.id,selected.domain_id)}/></details>
+        <details bind:this={technical} bind:open={technicalOpen} tabindex="-1" class="technical"><summary>Technical details</summary><div class="technical-ids"><span>Run <code>{selected.id}</code></span><span>Domain <code>{selected.domain_id}</code></span>{#if review?.prepared_manifest}<span>Change set <code>{review.prepared_manifest.package_digest}</code></span><span>Prepared <code>{review.prepared_manifest.prepared_at}</code></span>{/if}{#if review?.apply_manifest && "changes" in review.apply_manifest}<span>Apply transaction <code>{review.apply_manifest.transaction_id}</code></span>{/if}{#if review?.prepared_manifest?.candidate_verification}<span>Verified <code>{review.prepared_manifest.candidate_verification.verified_at}</code></span>{/if}{#each review?.apply_attempts ?? [] as attempt}<span>Attempt <code>{attempt.attempt_id}</code> · phase <code>{attempt.phase}</code></span>{/each}</div><p class="subtle">Attempts are listed as recorded. They are matched to a change set only where the record links them.</p><BoundaryPanel showReviewAction={false} run={selected} {review} {reviewError} loading={reviewLoading} approvals={[]} onOpenApprovals={() => {}} onReview={() => onOpenRun(selected.id,selected.domain_id)}/></details>
       </article>
     {:else}<div class="empty detail-empty"><strong>No run selected</strong><p>Choose a matching run to inspect its recorded outcome.</p></div>{/if}
   </div>

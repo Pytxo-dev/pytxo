@@ -24,6 +24,8 @@
   const MIN_SCALE = .55;
   const MAX_SCALE = 1.6;
   const FIT_PADDING = 48;
+  // A small plan may fit larger than 100% so three nodes do not float in an empty canvas.
+  const FIT_MAX_SCALE = 1.3;
   let viewportWidth = $state(0);
   let viewportHeight = $state(0);
   // Dock resizing changes the viewport frequently, but graph layout only
@@ -93,7 +95,7 @@
   function fit() {
     if (!viewportWidth || !viewportHeight) return;
     cameraMode = "fit";
-    camera.scale = Math.max(Number.EPSILON, Math.min(Math.max(1, viewportWidth - FIT_PADDING * 2) / topology.width, Math.max(1, viewportHeight - FIT_PADDING * 2) / topology.height, 1));
+    camera.scale = Math.max(Number.EPSILON, Math.min(Math.max(1, viewportWidth - FIT_PADDING * 2) / topology.width, Math.max(1, viewportHeight - FIT_PADDING * 2) / topology.height, FIT_MAX_SCALE));
     camera.x = (viewportWidth - topology.width * camera.scale) / 2;
     camera.y = (viewportHeight - topology.height * camera.scale) / 2;
     applyTransform();

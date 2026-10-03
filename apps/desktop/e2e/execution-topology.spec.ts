@@ -4,6 +4,8 @@ import { executionTopology } from "../src/lib/execution-topology";
 import type { AgentDto, RoutingDisplayAttempt, RoutingDisplaySummary, RunReviewDto } from "../src/lib/types";
 import { completeOnboarding } from "./helpers";
 
+const EXACT = { "pytxo-review-comparison-v1": "exact" };
+
 const task = (id: string, depends_on: string[] = []) => ({ task_id: id, depends_on, paths: [], agent: "codex", wave: 0, root: null, verify: [] });
 const run = { id: "run", domain_id: "repo" };
 const agent: AgentDto = { id: "worker", run_id: "run", domain_id: "repo", task_id: "a", wave: 0, status: "running", exit_code: null, root_id: null };
@@ -77,7 +79,7 @@ test("stable layouts preserve one worker, branches, and 20 to 24 task plans", ()
 
 for (const viewport of [{ width: 1920, height: 1080 }, { width: 1280, height: 720 }, { width: 860, height: 760 }, { width: 390, height: 760 }]) {
   test(`execution remains viewport locked at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
-    await completeOnboarding(page);
+    await completeOnboarding(page, EXACT);
     await page.setViewportSize(viewport);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/#/work");
@@ -111,7 +113,7 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1280, height: 72
 }
 
 test("canvas controls pan, zoom, fit, and switch to the complete list", async ({ page }) => {
-  await completeOnboarding(page);
+  await completeOnboarding(page, EXACT);
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto("/#/work");
   const map = page.getByTestId("execution-map");
@@ -144,7 +146,7 @@ test("canvas controls pan, zoom, fit, and switch to the complete list", async ({
 });
 
 test("Runs chooser stays clickable below the narrow command strip with a right dock", async ({ page }, testInfo) => {
-  await completeOnboarding(page);
+  await completeOnboarding(page, EXACT);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/#/work");
   await page.getByRole("button", { name: "Details", exact: true }).click();
@@ -169,7 +171,7 @@ test("Runs chooser stays clickable below the narrow command strip with a right d
 });
 
 test("returning from List restores the camera and wheel panning", async ({ page }) => {
-  await completeOnboarding(page);
+  await completeOnboarding(page, EXACT);
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto("/#/work");
   const map = page.getByTestId("execution-map");
@@ -190,7 +192,7 @@ test("returning from List restores the camera and wheel panning", async ({ page 
 
 for (const manual of [false, true]) {
   test(`delayed plan ${manual ? "preserves a manually positioned camera" : "automatically fits when it arrives"}`, async ({ page }) => {
-    await completeOnboarding(page, {
+    await completeOnboarding(page, { ...EXACT,
       "pytxo-preview-topology-v1": "24",
       "pytxo-preview-delayed-plan-v1": "1",
     });
@@ -214,7 +216,7 @@ for (const manual of [false, true]) {
 
 for (const width of [1280, 390]) {
   test(`minimap navigates dense recorded workers by pointer and keyboard at ${width}px`, async ({ page }, testInfo) => {
-    await completeOnboarding(page, { "pytxo-preview-topology-v1": "24" });
+    await completeOnboarding(page, { ...EXACT, "pytxo-preview-topology-v1": "24" });
     await page.setViewportSize({ width, height: 760 });
     await page.goto("/#/work");
     const map = page.getByTestId("execution-map");
@@ -245,7 +247,7 @@ for (const width of [1280, 390]) {
 
 for (const width of [1280, 390]) {
   test(`Fit exposes every dense node and preserves a panned overview at ${width}px`, async ({ page }) => {
-    await completeOnboarding(page, { "pytxo-preview-topology-v1": "24" });
+    await completeOnboarding(page, { ...EXACT, "pytxo-preview-topology-v1": "24" });
     await page.setViewportSize({ width, height: 760 });
     await page.goto("/#/work");
     const map = page.getByTestId("execution-map");
@@ -286,7 +288,7 @@ for (const width of [1280, 390]) {
 }
 
 test("dense output stays dormant until opened and mounts at most 120 rows", async ({ page }) => {
-  await completeOnboarding(page, {
+  await completeOnboarding(page, { ...EXACT,
     "pytxo-preview-topology-v1": "24",
     "pytxo-preview-output-events-v1": "600",
     "pytxo-preview-observe-polls-v1": "1",
@@ -320,7 +322,7 @@ test("dense output stays dormant until opened and mounts at most 120 rows", asyn
 });
 
 test("idle polling reloads the full snapshot only when the workspace catalog changes", async ({ page }) => {
-  await completeOnboarding(page, { "pytxo-preview-observe-polls-v1": "1" });
+  await completeOnboarding(page, { ...EXACT, "pytxo-preview-observe-polls-v1": "1" });
   await page.goto("/#/work");
   await expect(page.getByTestId("execution-map")).toBeVisible();
   await page.waitForTimeout(1000);
@@ -340,7 +342,7 @@ test("idle polling reloads the full snapshot only when the workspace catalog cha
 
 for (const viewport of [{ width: 1920, height: 1080 }, { width: 1280, height: 720 }, { width: 860, height: 760 }, { width: 390, height: 760 }]) {
   test(`New Work keeps draft and planned states inside ${viewport.width}x${viewport.height}`, async ({ page }) => {
-    await completeOnboarding(page, { "pytxo-preview-flow-history-v1": "long-mission" });
+    await completeOnboarding(page, { ...EXACT, "pytxo-preview-flow-history-v1": "long-mission" });
     await page.setViewportSize(viewport);
     await page.goto("/#/flow");
     const route = page.locator(".work-content");
@@ -357,7 +359,7 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1280, height: 72
 }
 
 test("New Work planning, blocked, and error states retain pane-owned scrolling", async ({ page }) => {
-  await completeOnboarding(page, { "pytxo-preview-flow-delay-v1": "1" });
+  await completeOnboarding(page, { ...EXACT, "pytxo-preview-flow-delay-v1": "1" });
   await page.setViewportSize({ width: 860, height: 760 });
   await page.goto("/#/flow");
   await page.getByLabel("What should Pytxo do?").fill("Exercise the fixed planning state.");
@@ -382,7 +384,7 @@ test("New Work planning, blocked, and error states retain pane-owned scrolling",
 });
 
 test("@performance dense canvas gestures and successive selections avoid browser long tasks", async ({ page }) => {
-  await completeOnboarding(page, { "pytxo-preview-topology-v1": "24", "pytxo-preview-observe-polls-v1": "1" });
+  await completeOnboarding(page, { ...EXACT, "pytxo-preview-topology-v1": "24", "pytxo-preview-observe-polls-v1": "1" });
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto("/#/work");
   await page.evaluate(() => {
@@ -432,7 +434,7 @@ test("@performance dense canvas gestures and successive selections avoid browser
 
 for (const state of ["stale", "recovery_required", "unavailable"]) {
   test(`the aperture does not imply Apply in ${state}`, async ({ page }, testInfo) => {
-    await completeOnboarding(page, { "pytxo-preview-review-state-v1": state, "pytxo-preview-candidate-check-v1": "passed" });
+    await completeOnboarding(page, { ...EXACT, "pytxo-preview-review-state-v1": state, "pytxo-preview-candidate-check-v1": "passed" });
     await page.setViewportSize({ width: 860, height: 560 });
     await page.goto("/#/run-review");
     await expect(page.locator("#run-review-title")).toBeVisible();
@@ -445,7 +447,7 @@ for (const state of ["stale", "recovery_required", "unavailable"]) {
 }
 
 test("light theme and the empty composer retain the same operational hierarchy", async ({ page }, testInfo) => {
-  await completeOnboarding(page, { "pytxo-deck-theme": "light", "pytxo-preview-review-state-v1": "ready", "pytxo-preview-candidate-check-v1": "passed" });
+  await completeOnboarding(page, { ...EXACT, "pytxo-deck-theme": "light", "pytxo-preview-review-state-v1": "ready", "pytxo-preview-candidate-check-v1": "passed" });
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   for (const route of ["flow", "work", "run-review", "history"]) {
@@ -458,16 +460,16 @@ test("light theme and the empty composer retain the same operational hierarchy",
 });
 
 test("an in-flight Apply is neither a confirmed outcome nor a recovery failure", async ({ page }) => {
-  await completeOnboarding(page, { "pytxo-preview-review-state-v1": "applying", "pytxo-preview-candidate-check-v1": "passed" });
+  await completeOnboarding(page, { ...EXACT, "pytxo-preview-review-state-v1": "applying", "pytxo-preview-candidate-check-v1": "passed" });
   await page.goto("/#/run-review");
-  await expect(page.locator(".repository-boundary")).toContainText("Apply in progress · outcome not confirmed");
+  await expect(page.locator(".repository-boundary")).toContainText("Applying · not finished");
   await expect(page.locator(".repository-boundary.confirmed")).toHaveCount(0);
   await expect(page.locator(".repository-boundary")).not.toContainText("needs reconciliation");
 });
 
 
 test("task selection highlights only recorded connections and survives Review", async ({ page }) => {
-  await completeOnboarding(page);
+  await completeOnboarding(page, EXACT);
   await page.goto("/#/work");
   const map = page.getByTestId("execution-map");
   await map.getByRole("button", { name: /^ui / }).click();
@@ -482,7 +484,7 @@ test("task selection highlights only recorded connections and survives Review", 
 });
 
 test("focused Review remembers its file and presents exact contents on neutral surfaces", async ({ page }) => {
-  await completeOnboarding(page, { "pytxo-preview-review-state-v1": "ready", "pytxo-preview-candidate-check-v1": "passed" });
+  await completeOnboarding(page, { ...EXACT, "pytxo-preview-review-state-v1": "ready", "pytxo-preview-candidate-check-v1": "passed" });
   await page.goto("/#/run-review");
   await expect(page.locator(".diff-side .text-content")).toHaveCount(2);
   const colors = await page.locator(".diff-side .text-content").evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));

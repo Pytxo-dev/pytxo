@@ -29,7 +29,7 @@ test("approval shortcut cannot authorize a legacy repository flush", async ({ pa
   await page.goto("/#/approvals");
   await expect(inbox.locator(".count")).toHaveText("2 open");
   await inbox.getByRole("button", { name: /Deny request/ }).click();
-  await expect(inbox.getByRole("status")).toContainText("The workspace flush will not proceed.");
+  await expect(inbox.getByRole("status")).toContainText("Request denied. Nothing was written to your project.");
   await expect(inbox.getByRole("heading", { name: "Allow network access" })).toBeVisible();
   await page.keyboard.press("Control+Enter");
   await expect(inbox.getByText("Inbox clear").first()).toBeVisible();

@@ -11,7 +11,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 860, height: 560 
     await page.setViewportSize(viewport);
     await page.goto("/");
     const welcome = page.locator(".setup-shell");
-    await expect(welcome).toContainText("Tell Pytxo what you want to build or fix");
+    await expect(welcome).toContainText("Describe a change once.");
     expect(await welcome.innerText()).not.toMatch(internalVocabulary);
     await expect(page.getByRole("button", { name: "Get started" })).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: info.outputPath("welcome.png") });

@@ -11,7 +11,7 @@ async function review(page: import("@playwright/test").Page) {
 for (const viewport of [{ width: 1280, height: 800 }, { width: 960, height: 640 }]) {
   test(`wheel reaches lower exact changes at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await completeOnboarding(page, { "pytxo-preview-review-substantial-v1": "true" });
+    await completeOnboarding(page, { "pytxo-review-comparison-v1": "exact", "pytxo-preview-review-substantial-v1": "true" });
     await review(page);
     const route = page.locator(".mission-content > .content");
     const content = page.locator(".review-scroll");
@@ -66,7 +66,7 @@ test("motion override persists, applies to the document and respects the OS pref
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("html")).toHaveAttribute("data-force-reduced-motion", "");
   await review(page);
-  await expect(page.getByLabel("Preparing immutable review")).toHaveCSS("animation-name", "none");
+  await expect(page.getByLabel("Preparing review")).toHaveCSS("animation-name", "none");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.getByRole("link", { name: "Setup", exact: true }).click();
   await page.getByRole("button", { name: "General", exact: true }).click();
@@ -74,7 +74,7 @@ test("motion override persists, applies to the document and respects the OS pref
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("html")).not.toHaveAttribute("data-force-reduced-motion", "");
   await review(page);
-  await expect(page.getByLabel("Preparing immutable review")).toHaveCSS("animation-name", "none");
+  await expect(page.getByLabel("Preparing review")).toHaveCSS("animation-name", "none");
 });
 
 test("display choices expose selection and respond to keyboard input", async ({ page }) => {

@@ -188,14 +188,14 @@
         </div>
         <div class="evidence">
           <div>
-            <strong>Run evidence</strong>
+            <strong>Run</strong>
             {#if selectedRun}
               <small>{selectedRun.id} · {selectedRun.status} · {selectedRun.permission_profile ?? "profile not reported"}</small>
-              <small>Exact run and agent: {selected.run_id} · {selected.agent_id ?? selected.agent_key}</small>
+              <small>Run {selected.run_id} · agent {selected.agent_id ?? selected.agent_key}</small>
             {:else if selected.run_id}
               <small>Run {selected.run_id} is not present in this partial snapshot. No substitute run is shown.</small>
             {:else}
-              <small>This legacy request has no causal run ID. Decide from the action and reason above; no substitute run is shown.</small>
+              <small>This request is not linked to a run. Decide from the action and reason above.</small>
             {/if}
           </div>
           {#if selectedRun}

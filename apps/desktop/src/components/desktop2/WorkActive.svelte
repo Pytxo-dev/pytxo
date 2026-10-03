@@ -355,7 +355,7 @@
       <div class="command-actions run-bar">
         <details class="run-reference"><summary>Runs</summary><div class="run-switch" role="tablist" aria-label="Runs in this snapshot">{#each runs.slice(0, 8) as run (run.id)}{@const chip = runState(run)}<button role="tab" aria-selected={run.id === focusRun?.id} data-tone={chip.tone} class:active={run.id === focusRun?.id} title={run.id} onclick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); onSelectRun(run.id); }}><i aria-hidden="true"></i>{displayRunId(run.id)}</button>{/each}</div></details>
         {#if onInspect}<button class="details-action" onclick={() => onInspect?.({ kind: "evidence", domainId: focusRun.domain_id, runId: focusRun.id, title: "Checks & details" }, "right")}>Details</button>{/if}
-        {#if runApprovals.length}<button class="attention-action" onclick={onOpenApprovals}><strong>Decision needed</strong><span>Open approval</span></button>{/if}
+        {#if runApprovals.length}<button class="attention-action" onclick={onOpenApprovals} aria-label="Decision needed: open approval"><i aria-hidden="true"></i><strong>Decision needed</strong></button>{/if}
         <button class="review-run" class:secondary={runApprovals.length > 0} disabled={!canReviewFocusRun} aria-describedby={!canReviewFocusRun ? "review-unavailable-reason" : undefined} onclick={() => canReviewFocusRun && onReviewRun(focusRun.id)}>Review changes<IconArrowRight size={15} /></button>
         <button class="stop-run" disabled={!canStopFocusRun} aria-describedby={!canStopFocusRun ? "stop-disabled-reason" : undefined} onclick={() => requestStop(focusRun)}><IconPlayerStop size={14} />Stop</button>
         {#if !canReviewFocusRun}<span id="review-unavailable-reason" class="sr-reason">Review is available when the agents prepare changes.</span>{/if}
@@ -449,8 +449,11 @@
   .review-run:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:3px}
   .review-run.secondary{background:transparent;color:var(--pytxo-text-strong)}
   .review-run.secondary:hover:not(:disabled){background:var(--pytxo-surface-raised)}
-  .attention-action{display:grid;min-height:40px;align-content:center;gap:1px;padding:5px 12px;border:1px solid #f5f5f7;border-radius:var(--pytxo-control-radius);background:#f5f5f7;color:#07090c;text-align:left;cursor:pointer}
-  .attention-action strong{font-size:12px}.attention-action span{font-size:10px;opacity:.72}.attention-action:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:3px}
+  /* Violet marks a waiting decision everywhere; the button carries it without becoming a second primary. */
+  .attention-action{display:flex;min-height:40px;align-items:center;gap:8px;padding:0 12px;border:1px solid color-mix(in srgb,var(--state-attention) 70%,var(--pytxo-line));border-radius:var(--pytxo-control-radius);background:color-mix(in srgb,var(--state-attention) 14%,var(--pytxo-surface-panel));color:var(--pytxo-text-strong);text-align:left;cursor:pointer}
+  .attention-action i{width:7px;height:7px;border-radius:50%;background:var(--state-attention);box-shadow:0 0 0 3px color-mix(in srgb,var(--state-attention) 25%,transparent)}
+  .attention-action:hover{background:color-mix(in srgb,var(--state-attention) 24%,var(--pytxo-surface-panel))}
+  .attention-action strong{font-size:12px;font-weight:600}.attention-action:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:3px}
   .run-switch{display:flex;min-width:0;flex-wrap:wrap;gap:6px}
   .run-switch button{display:flex;height:26px;align-items:center;gap:6px;padding:0 9px;border:1px solid var(--pytxo-line-soft);border-radius:4px;background:transparent;color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;cursor:pointer}
   .run-switch button i{width:6px;height:6px;border:1px solid var(--tone);border-radius:1px;background:var(--tone)}
@@ -511,10 +514,11 @@
   .command-actions>button:focus-visible,.run-reference>summary:focus-visible { outline:2px solid var(--pytxo-accent);outline-offset:2px; }
   .details-action:hover,.run-reference>summary:hover { background:var(--pytxo-surface-active);color:var(--pytxo-text-strong); }
   .command-actions .review-run { min-height:36px;border-color:var(--pytxo-text-strong);background:var(--pytxo-text-strong);color:var(--pytxo-surface-shell); }
-  .command-actions .review-run.secondary { background:transparent;color:var(--pytxo-text-strong); }
+  .command-actions .review-run.secondary { border-color:var(--pytxo-line);background:transparent;color:var(--pytxo-text-strong); }
   .command-actions .stop-run { min-height:36px; }
-  .command-actions .attention-action { min-height:36px;padding-inline:10px;border-color:#f5f5f7;background:#f5f5f7;color:#07090c; }
-  :global(html[data-chroma-theme="light"]) .command-actions .attention-action { border-color:#0f1419;background:#0f1419;color:#f8fafc; }
+  .command-actions .attention-action { min-height:36px;padding-inline:12px;border-color:color-mix(in srgb,var(--state-attention) 70%,var(--pytxo-line));background:color-mix(in srgb,var(--state-attention) 14%,var(--pytxo-surface-panel));color:var(--pytxo-text-strong); }
+  .command-actions .attention-action:hover { background:color-mix(in srgb,var(--state-attention) 24%,var(--pytxo-surface-panel)); }
+  
   .run-reference { position:relative;order:0;margin:0;font-size:11px; }
   .run-reference[open] { width:auto;flex-basis:auto;order:0; }
   .run-reference summary { display:grid;place-items:center;list-style:none; }

@@ -16,7 +16,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await expect(page.getByRole("button", { name: "Build plan", exact: true })).toBeEnabled();
       await page.getByRole("button", { name: "Check again", exact: true }).click();
       await expect(page.getByLabel("Agent CLI")).toHaveValue("codex");
-      await expect(page.getByText("Each task runs in its own isolated copy.", { exact: false })).toBeVisible();
+      await expect(page.getByText("Each task runs in its own isolated copy of the project.", { exact: false })).toBeVisible();
       expect((await rootOverflow(page)).horizontal).toBeLessThanOrEqual(1);
       await page.screenshot({ path: testInfo.outputPath("composer.png"), fullPage: true });
       await page.getByRole("button", { name: "Build plan", exact: true }).click();

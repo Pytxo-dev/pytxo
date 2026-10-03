@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { completeOnboarding, rootOverflow } from "./helpers";
 
+const EXACT = { "pytxo-review-comparison-v1": "exact" };
+
 const REVIEW_STATE_KEY = "pytxo-preview-review-state-v1";
 const APPLY_OUTCOME_KEY = "pytxo-preview-apply-outcome-v1";
 const AGENT_VERIFICATION_KEY = "pytxo-preview-agent-verification-v1";
@@ -15,7 +17,7 @@ async function openHistory(
   page: import("@playwright/test").Page,
   state: string = "ready",
 ) {
-  await completeOnboarding(page, {
+  await completeOnboarding(page, { ...EXACT,
     [REVIEW_STATE_KEY]: state,
     [CANDIDATE_CHECK_KEY]: "passed",
   });
@@ -35,13 +37,13 @@ test.describe("Review depth", () => {
     await openHistory(page);
     await openReview(page, "run-71ad");
     await page.getByRole("button", { name: "Apply reviewed changes", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Apply exact reviewed package?" });
+    const dialog = page.getByRole("dialog", { name: /^Apply these \d+ reviewed files?\?$/ });
     await expect(dialog).toContainText("pkg-71ad-immutable");
     const other = await context.newPage();
     await other.goto("/");
     await other.evaluate(() => localStorage.setItem("pytxo-preview-review-revision:run-71ad", "-B"));
     await expect(dialog).not.toBeVisible();
-    await expect(page.getByText("The candidate changed. Review the current changes and checks before Apply.")).toBeVisible();
+    await expect(page.getByText("The changes were updated. Review them again before Apply.")).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem("pytxo-preview-apply-count-v1"))).toBeNull();
     await page.getByRole("button", { name: "Apply reviewed changes", exact: true }).click();
     await expect(dialog).toContainText("pkg-71ad-immutable-B");
@@ -65,7 +67,7 @@ test.describe("Review depth", () => {
   });
 
   test("opening a pinned run replaces the current review package and evidence", async ({ page }, testInfo) => {
-    await completeOnboarding(page, { [REVIEW_STATE_KEY]: "ready" });
+    await completeOnboarding(page, { ...EXACT, [REVIEW_STATE_KEY]: "ready" });
     await page.setViewportSize({ width: 1600, height: 1000 });
     await page.goto("/#/work");
     await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
@@ -91,7 +93,7 @@ test.describe("Review depth", () => {
   });
 
   test("retired Runs and Run Review deep links resolve to History and Review", async ({ page }) => {
-    await completeOnboarding(page);
+    await completeOnboarding(page, EXACT);
     await page.goto("/#/runs");
     await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
 
@@ -107,7 +109,7 @@ test.describe("Review depth", () => {
     await openReview(page, "run-71ad");
 
     await expect(page.getByText("71ad8f2c4d90b6c6", { exact: true })).toBeVisible();
-    await page.getByText("Exact candidate", { exact: true }).click();
+    await page.getByText("Change set ID", { exact: true }).click();
     await expect(page.locator(".package-identity code")).toBeVisible();
     await expect(page.getByText(/Aug 1, 2026, .* UTC/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Inspect exact content for crates/pytxo-signal/src/lib.rs", exact: true })).toBeVisible();
@@ -127,7 +129,7 @@ test.describe("Review depth", () => {
     await expect(page.locator(".diff-side.before .text-content")).toContainText("legacy_raw_context");
     await expect(page.getByRole("button", { name: "Inspect exact content for assets/signal-mark.bin", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Inspect exact content for assets/signal-mark.bin" }).click();
-    await expect(page.getByText("Exact binary bytes · hexadecimal preview", { exact: true })).toBeVisible();
+    await expect(page.getByText("Binary file · first bytes in hex", { exact: true })).toBeVisible();
     await expect(page.locator(".binary-content")).toContainText("00 ff 50 4e 47");
     await expect(page.locator(".binary-content")).not.toContainText("de ad be ef");
     await page.getByRole("button", { name: "Show all loaded binary bytes" }).click();
@@ -203,7 +205,7 @@ test.describe("Review depth", () => {
   // Plan, watch, and read-the-package are three surfaces, not three tabs. A
   // dispatched run therefore lands on Work rather than on a pane switcher.
   test("a dispatched run lands on Work and its package is reached from History", async ({ page }) => {
-    await completeOnboarding(page);
+    await completeOnboarding(page, EXACT);
     await page.goto("/#/flow");
     await page.getByLabel("What should Pytxo do?").fill("Exercise the dispatch path");
     await page.getByRole("button", { name: "Build plan", exact: true }).click();
@@ -225,7 +227,7 @@ test.describe("Review depth", () => {
 
     const apply = page.getByRole("button", { name: "Apply reviewed changes" });
     await apply.click();
-    const applyDialog = page.getByRole("dialog", { name: "Apply exact reviewed package?" });
+    const applyDialog = page.getByRole("dialog", { name: /^Apply these \d+ reviewed files?\?$/ });
     await expect(applyDialog).toBeVisible();
     await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
     await page.keyboard.press("Escape");
@@ -233,9 +235,9 @@ test.describe("Review depth", () => {
     await expect(apply).toBeFocused();
 
     await page.getByRole("button", { name: "Discard review" }).click();
-    await expect(page.getByRole("dialog", { name: "Discard prepared review?" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Discard these changes?" })).toBeVisible();
     await page.getByRole("button", { name: "Keep review" }).click();
-    await expect(page.getByRole("dialog", { name: "Discard prepared review?" })).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Discard these changes?" })).toBeHidden();
   });
 
   test("retry prevents double Apply while request is in flight", async ({ page }) => {
@@ -246,7 +248,7 @@ test.describe("Review depth", () => {
     await page.getByRole("button", { name: "Apply exact package" }).dblclick();
     const appliedTitle = page.getByText("Applied successfully", { exact: true });
     const appliedDetail = page.getByText(
-      "The reviewed package was applied to the primary checkout.",
+      "The reviewed files were written to your project.",
       { exact: true },
     );
     await expect(appliedTitle).toBeVisible();
@@ -275,7 +277,7 @@ test.describe("Review depth", () => {
   });
 
   test("a failed Apply refreshes the review and the run list immediately", async ({ page }) => {
-    await completeOnboarding(page, {
+    await completeOnboarding(page, { ...EXACT,
       [REVIEW_STATE_KEY]: "ready",
       [APPLY_OUTCOME_KEY]: "stale",
       [CANDIDATE_CHECK_KEY]: "passed",
@@ -301,7 +303,7 @@ test.describe("Review depth", () => {
     await openReview(page, "run-71ad");
     await expect(page.getByRole("button", { name: "Apply reviewed changes", exact: true })).toBeDisabled();
     await expect(page.getByText(/Apply is blocked until recovery is reconciled/).first()).toBeVisible();
-    await page.getByRole("button", { name: "Reconcile recovery" }).click();
+    await page.getByRole("button", { name: "Recover" }).click();
     await expect(page.locator(".review-status")).toContainText("Recovered and ready");
     await expect(page.getByRole("button", { name: "Retry Apply" })).toBeEnabled();
   });
@@ -317,7 +319,7 @@ test.describe("Review depth", () => {
   });
 
   test("disabled Apply exposes a persistent agent-verification reason", async ({ page }) => {
-    await completeOnboarding(page, {
+    await completeOnboarding(page, { ...EXACT,
       [REVIEW_STATE_KEY]: "ready",
       [AGENT_VERIFICATION_KEY]: "missing",
       [CANDIDATE_CHECK_KEY]: "passed",
@@ -329,12 +331,12 @@ test.describe("Review depth", () => {
     const apply = page.getByRole("button", { name: "Apply reviewed changes" });
     await expect(apply).toBeDisabled();
     await expect(page.locator(".boundary-reason")).toBeVisible();
-    await expect(page.locator(".boundary-reason")).toHaveText("Every agent must exit successfully before Apply.");
+    await expect(page.locator(".boundary-reason")).toHaveText("Every agent must finish successfully before Apply.");
     await expect(apply).toHaveAttribute("aria-describedby", "apply-disabled-reason");
   });
 
   test("failed agent verification keeps the same visible Apply refusal", async ({ page }) => {
-    await completeOnboarding(page, {
+    await completeOnboarding(page, { ...EXACT,
       [REVIEW_STATE_KEY]: "ready",
       [AGENT_VERIFICATION_KEY]: "failed",
       [CANDIDATE_CHECK_KEY]: "passed",
@@ -345,7 +347,7 @@ test.describe("Review depth", () => {
 
     await expect(page.getByRole("button", { name: "Apply reviewed changes" })).toBeDisabled();
     await expect(page.locator(".boundary-reason")).toBeVisible();
-    await expect(page.locator(".boundary-reason")).toHaveText("Every agent must exit successfully before Apply.");
+    await expect(page.locator(".boundary-reason")).toHaveText("Every agent must finish successfully before Apply.");
   });
 
   test("discard confirmation traps focus, closes on Escape, and restores its trigger", async ({ page }) => {
@@ -363,7 +365,7 @@ test.describe("Review depth", () => {
     await page.keyboard.press("Tab");
     await expect(keep).toBeFocused();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Discard prepared review?" })).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Discard these changes?" })).toBeHidden();
     await expect(trigger).toBeFocused();
   });
 
@@ -371,7 +373,7 @@ test.describe("Review depth", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openHistory(page, "preparing");
     await openReview(page, "run-71ad");
-    const busy = page.getByLabel("Preparing immutable review");
+    const busy = page.getByLabel("Preparing review");
     await expect(busy).toBeVisible();
     await expect(busy).toHaveCSS("animation-name", "none");
   });

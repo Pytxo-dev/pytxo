@@ -180,12 +180,14 @@
   .lane { display: flex; flex-direction: column; min-width: 0; }
   .lane h3 { display: flex; justify-content: space-between; align-items: baseline; margin: 0 2px 10px; color: var(--pytxo-text-muted); font: 500 12px var(--pytxo-font-mono, "IBM Plex Mono", monospace); letter-spacing: .06em; text-transform: uppercase; }
   .lane h3 small { color: var(--pytxo-text-soft); font: 13px var(--pytxo-font-ui); letter-spacing: 0; text-transform: none; }
-  .cards { display: grid; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); grid-auto-rows: minmax(220px, 1fr); gap: 14px; flex: 1 0 auto; }
+  .cards { display: grid; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); grid-auto-rows: minmax(184px, 1fr); gap: 14px; flex: 1 0 auto; }
   .worker { container: worker / inline-size; display: flex; flex-direction: column; min-height: 0; overflow: hidden; border: 1px solid var(--pytxo-line); border-radius: 10px; background: var(--pytxo-surface-panel); }
   .worker[data-tone="live"] { border-color: color-mix(in srgb, var(--pytxo-activity) 55%, var(--pytxo-line)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--pytxo-activity) 18%, transparent); }
   .worker[data-tone="done"] { border-color: color-mix(in srgb, var(--state-verified) 40%, var(--pytxo-line)); }
   .worker[data-tone="failed"] { border-color: color-mix(in srgb, var(--state-refuted) 50%, var(--pytxo-line)); }
-  .worker[data-tone="queued"] { border-style: dashed; opacity: .78; }
+  /* A waiting worker has nothing to show yet: keep it compact at the top of its lane. */
+  .worker[data-tone="queued"] { align-self: start; border-style: dashed; opacity: .78; }
+  .worker[data-tone="queued"] .term { flex: none; min-height: 0; justify-content: flex-start; }
   .head { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; padding: 12px 14px 10px; border: 0; border-radius: 0; background: transparent; text-align: left; justify-content: stretch; }
   .head:hover:not(:disabled) { background: var(--pytxo-surface-hover); }
   .logo { grid-row: 1 / span 2; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--pytxo-surface-raised); }
@@ -207,10 +209,10 @@
   .owns span.shared { border-color: color-mix(in srgb, var(--pytxo-glyph-warm, #f3c64e) 55%, var(--pytxo-line)); color: var(--pytxo-glyph-warm, #f3c64e); }
   .state .narrow { display: none; }
   @container worker (max-width: 320px) { .state .wide { display: none; } .state .narrow { display: inline; } }
-  .activity { padding: 14px 16px 12px; border: 1px solid var(--pytxo-line); border-radius: 10px; background: var(--pytxo-surface-panel); }
+  .activity { flex: none; padding: 12px 16px 10px; border: 1px solid var(--pytxo-line); border-radius: 10px; background: var(--pytxo-surface-panel); }
   .activity h4 { display: flex; justify-content: space-between; margin: 0 0 10px; color: var(--pytxo-text-strong); font-size: 15px; font-weight: 600; }
   .activity h4 small { color: var(--pytxo-text-muted); font-weight: 400; font-size: 13px; }
-  .row { display: grid; grid-template-columns: 130px minmax(0, 1fr); align-items: center; gap: 12px; height: 26px; color: var(--pytxo-text-body); font-size: 13.5px; }
+  .row { display: grid; grid-template-columns: 130px minmax(0, 1fr); align-items: center; gap: 12px; height: 22px; color: var(--pytxo-text-body); font-size: 13.5px; }
   .track { position: relative; height: 12px; border-radius: 6px; background: color-mix(in srgb, var(--pytxo-surface-raised) 80%, transparent); }
   .track i { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: var(--pytxo-text-muted); }
   .track i[data-tone="live"] { background: linear-gradient(90deg, color-mix(in srgb, var(--pytxo-activity) 35%, transparent), var(--pytxo-activity)); }

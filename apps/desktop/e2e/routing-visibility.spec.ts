@@ -83,7 +83,7 @@ test("routed Work and History show durable attempts without confusing them with 
   await page.screenshot({ path: test.info().outputPath("routing-history-collapsed-860.png"), fullPage: true });
   await historyRecord.locator("summary").click();
   await expect(historyRecord).toContainText("Worker attempt 2");
-  await expect(page.locator(".recorded-trace")).toContainText("Apply record");
+  await expect(page.locator(".recorded-trace")).toContainText("Not applied");
   await page.screenshot({ path: test.info().outputPath("routing-history-860.png"), fullPage: true });
   await page.getByRole("button", { name: "Back to runs" }).click();
   await page.locator('.history .row[data-run-id="run-71ad"]').click();

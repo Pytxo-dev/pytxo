@@ -2,6 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { completeOnboarding } from "./helpers";
 
+const EXACT = { "pytxo-review-comparison-v1": "exact" };
+
 async function openReview(page: Page) {
   await page.goto("/#/history");
   await page.locator('.history .row[data-run-id="run-71ad"]').click();
@@ -10,7 +12,7 @@ async function openReview(page: Page) {
 }
 
 test("ownership identifies recorded workers instead of planned CLI labels", async ({ page }) => {
-  await completeOnboarding(page);
+  await completeOnboarding(page, EXACT);
   await openReview(page);
   await page.locator(".technical-evidence > summary").click();
   const ownership = page.locator(".task-list");
@@ -21,7 +23,7 @@ test("ownership identifies recorded workers instead of planned CLI labels", asyn
 });
 
 test("ownership stays unknown when worker records are missing", async ({ page }) => {
-  await completeOnboarding(page, { "pytxo-preview-agent-verification-v1": "missing" });
+  await completeOnboarding(page, { ...EXACT, "pytxo-preview-agent-verification-v1": "missing" });
   await openReview(page);
   const labels = page.locator(".task-list small");
   await expect(labels).toHaveCount(2);
@@ -30,35 +32,35 @@ test("ownership stays unknown when worker records are missing", async ({ page })
 });
 
 test("unverified combined changes make verification the next action", async ({ page }) => {
-  await completeOnboarding(page);
+  await completeOnboarding(page, EXACT);
   await openReview(page);
-  await expect(page.getByText("Verify before Apply", { exact: true })).toBeVisible();
-  const verify = page.getByRole("button", { name: "Verify candidate", exact: true });
+  await expect(page.getByText("Checks needed before Apply", { exact: true })).toBeVisible();
+  const verify = page.getByRole("button", { name: "Run checks", exact: true });
   await expect(verify).toBeEnabled();
   await expect(page.getByRole("button", { name: "Apply reviewed changes", exact: true })).toBeDisabled();
   await verify.click();
-  await expect(page.getByText("Combined checks: passed", { exact: true })).toBeVisible();
+  await expect(page.getByText("Checks passed", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Apply reviewed changes", exact: true })).toBeEnabled();
 });
 
 test("hierarchy acceptance keeps changes and verification in the first viewport", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await completeOnboarding(page);
+  await completeOnboarding(page, EXACT);
   await openReview(page);
   await expect(page.getByRole("heading", { name: "Prepared changes", exact: true })).toBeInViewport();
   await expect(page.locator(".diff-side.after .text-content")).toBeInViewport({ ratio: 1 });
   const decision = page.locator(".decision-bar");
-  await expect(page.locator(".candidate-overview")).toContainText("Verification not established");
+  await expect(page.locator(".candidate-overview")).toContainText("Not verified");
   await expect(decision.getByRole("button", { name: "Apply reviewed changes", exact: true })).toBeInViewport();
   const identity = decision.getByText("pkg-71ad-immutable", { exact: true });
   await expect(identity).toBeHidden();
-  await decision.getByText("Exact candidate", { exact: true }).click();
+  await decision.getByText("Change set ID", { exact: true }).click();
   await expect(identity).toBeInViewport();
 });
 
 test("hierarchy acceptance exposes the Work review action without scrolling", async ({ page }) => {
   await page.setViewportSize({ width: 960, height: 800 });
-  await completeOnboarding(page);
+  await completeOnboarding(page, EXACT);
   await page.goto("/#/work");
   const review = page.getByRole("region", { name: "Focused run" }).getByRole("button", { name: "Review changes", exact: true });
   await expect(review).toBeInViewport();
@@ -72,7 +74,7 @@ test("hierarchy acceptance exposes the Work review action without scrolling", as
 });
 
 test("History leads with the requested outcome and keeps the exact run as metadata", async ({ page }) => {
-  await completeOnboarding(page, { "pytxo-preview-flow-history-v1": "ready" });
+  await completeOnboarding(page, { ...EXACT, "pytxo-preview-flow-history-v1": "ready" });
   await page.goto("/#/history");
   const row = page.locator('.history .row[data-run-id="run-71ad"]');
   await expect(row.getByText("Fix the parser regression", { exact: true })).toBeVisible();
@@ -84,7 +86,7 @@ test("History leads with the requested outcome and keeps the exact run as metada
 
 test("Review starts focused while preserved evidence remains one click away", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await completeOnboarding(page);
+  await completeOnboarding(page, EXACT);
   await openReview(page);
   await page.getByRole("button", { name: "Inspection tools", exact: true }).click();
   await page.getByRole("button", { name: "Checks & details", exact: true }).click();
@@ -119,7 +121,7 @@ test("Review starts focused while preserved evidence remains one click away", as
 
 test("mobile review paths and ownership remain readable beside their action", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await completeOnboarding(page, { "pytxo-deck-theme": "light" });
+  await completeOnboarding(page, { ...EXACT, "pytxo-deck-theme": "light" });
   await openReview(page);
   const files = page.locator(".file-navigation .file-row");
   await expect(files).toHaveCount(4);
@@ -136,7 +138,7 @@ test("mobile review paths and ownership remain readable beside their action", as
 for (const width of [1280, 390]) {
   test(`supporting review evidence stays fully readable at ${width}`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 844 });
-    await completeOnboarding(page, { "pytxo-preview-candidate-check-v1": "passed" });
+    await completeOnboarding(page, { ...EXACT, "pytxo-preview-candidate-check-v1": "passed" });
     await openReview(page);
     const details = page.locator(".digest-details").first();
     await details.locator("summary").click();
@@ -168,14 +170,14 @@ for (const width of [1280, 390]) {
     await expect(enforcement.locator("p")).toHaveCount(4);
     await enforcement.scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath("enforcement.png") });
-    await page.getByRole("heading", { name: "Attempt history", exact: true }).scrollIntoViewIfNeeded();
+    await page.getByRole("heading", { name: "Apply attempts", exact: true }).scrollIntoViewIfNeeded();
     await expect(page.getByText("No Apply attempts yet", { exact: true })).toBeVisible();
     expect(await page.locator(".mission-content > .content").evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
   });
 
   test(`review remains reachable with 150 percent text at ${width}`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 844 });
-    await completeOnboarding(page, { "pytxo-preview-candidate-check-v1": "passed" });
+    await completeOnboarding(page, { ...EXACT, "pytxo-preview-candidate-check-v1": "passed" });
     await openReview(page);
     // Text-only enlargement exercises fixed-pixel typography independently of browser zoom.
     await page.evaluate(() => {
@@ -202,7 +204,7 @@ for (const width of [1280, 390]) {
     await expect(diff).toBeInViewport();
     await page.screenshot({ path: testInfo.outputPath("larger-text-content.png") });
     await apply.click();
-    const dialog = page.getByRole("dialog", { name: "Apply exact reviewed package?" });
+    const dialog = page.getByRole("dialog", { name: /^Apply these \d+ reviewed files?\?$/ });
     await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(apply).toBeFocused();
   });
@@ -213,7 +215,7 @@ for (const theme of ["void", "light"]) {
     test(`reference capture ${theme} ${viewport.width}`, async ({ page }, testInfo) => {
       await page.setViewportSize(viewport);
       await page.clock.setFixedTime(new Date("2026-09-10T01:00:00Z"));
-      await completeOnboarding(page, {
+      await completeOnboarding(page, { ...EXACT,
         "pytxo-deck-theme": theme,
         "pytxo-preview-candidate-check-v1": "passed",
       });
@@ -228,7 +230,7 @@ for (const theme of ["void", "light"]) {
       const overflow = await page.locator(".mission-content > .content").evaluate(el => el.scrollWidth - el.clientWidth);
       await writeFile(testInfo.outputPath("metrics.json"), JSON.stringify({ viewport, theme, data: "browser fixture", workReview, preparedChanges: heading, firstContent, overflow }, null, 2));
       await page.getByRole("button", { name: "Apply reviewed changes", exact: true }).click();
-      const dialog = page.getByRole("dialog", { name: "Apply exact reviewed package?" });
+      const dialog = page.getByRole("dialog", { name: /^Apply these \d+ reviewed files?\?$/ });
       await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
       await page.screenshot({ path: testInfo.outputPath("confirmation.png") });
       await page.keyboard.press("Escape");
@@ -240,7 +242,7 @@ for (const theme of ["void", "light"]) {
 for (const width of [1600, 960]) {
   test(`substantial Review stays readable at ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 1600 ? 1000 : 800 });
-    await completeOnboarding(page, {
+    await completeOnboarding(page, { ...EXACT,
       "pytxo-preview-review-substantial-v1": "true",
       "pytxo-preview-review-state-v1": "ready",
       "pytxo-preview-candidate-check-v1": "passed",
@@ -249,22 +251,22 @@ for (const width of [1600, 960]) {
     await openReview(page);
     await expect(page.getByRole("button", { name: "Back to Work", exact: true })).toHaveCount(1);
     await expect(page.locator(".review-destination")).toContainText("C:/dev/signal-lab");
-    await expect(page.locator(".verification-summary")).toHaveText("Combined checks: passed");
+    await expect(page.locator(".verification-summary")).toHaveText("Checks passed");
     const content = page.locator(".diff-side.after .text-content");
     await expect(content).toContainText("preserves_public_shape_35");
     expect(await content.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(13);
     expect(await content.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
     await expect(page.getByRole("button", { name: "Apply reviewed changes", exact: true })).toBeInViewport();
     await page.screenshot({ path: `../../target/spatial-workbench-20260917/finishing/review-substantial-${width}.png` });
-    if (!(await page.locator(".candidate-overview").evaluate(el => (el as HTMLDetailsElement).open))) await page.getByText("Show candidate map", { exact: true }).click();
+    if (!(await page.locator(".candidate-overview").evaluate(el => (el as HTMLDetailsElement).open))) await page.getByText("Show summary", { exact: true }).click();
     await expect(page.locator(".map-boundary")).toContainText("signal-lab");
-    await expect(page.locator(".candidate-context")).toContainText("1 recorded command");
+    await expect(page.locator(".candidate-context")).toContainText("1 command");
     // Resize round-trip forces a complete browser repaint after disclosure expansion.
     const size = page.viewportSize()!;
     await page.setViewportSize({ ...size, width: size.width + 1 });
     await page.setViewportSize(size);
     await page.screenshot({ path: `../../target/spatial-workbench-20260917/finishing/review-map-${width}.png`, animations: "disabled" });
-    await page.getByText("Focus on code", { exact: true }).click();
+    await page.getByText("Hide summary", { exact: true }).click();
     await expect(page.locator(".map-boundary")).toBeHidden();
     // Layout stress, not a backend path or authorization fixture.
     await page.locator(".review-destination strong").evaluate(el => {

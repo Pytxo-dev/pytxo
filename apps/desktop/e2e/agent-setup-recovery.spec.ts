@@ -28,7 +28,7 @@ test("onboarding can defer agent setup without claiming an agent is ready", asyn
   await page.getByRole("button", { name: "Get started" }).click();
   await expect(page.locator(".agent").first()).toContainText("OpenAI Codex");
   await expect(page.locator(".agent").first().getByRole("link", { name: "Install guide" })).toBeVisible();
-  await expect(page.locator(".summary[role=status]")).toContainText("0 installed · 0 available");
+  await expect(page.locator(".summary[role=status]")).toContainText("0 of 5 ready · 0 installed");
   const skip = page.getByRole("button", { name: "Set up agents later", exact: true });
   await expect(skip).toBeInViewport();
   await page.screenshot({ path: info.outputPath("no-agent-compact.png") });

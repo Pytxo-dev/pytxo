@@ -87,10 +87,10 @@ test('review keeps exact identity one interaction away without repeating its blo
   await expect(apply).toBeDisabled();
   await expect(apply).toHaveAccessibleDescription(/./);
   await expect(page.locator('.package-identity code')).toBeHidden();
-  await expect(page.locator('.verification-summary')).toHaveText('Verification not established');
+  await expect(page.locator('.verification-summary')).toHaveText('Not verified');
   await expect(page.getByRole('heading', { name: 'Prepared changes', exact: true })).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath('review-after-browser-1280x800.png') });
-  await page.getByText('Exact candidate', { exact: true }).click();
+  await page.getByText('Change set ID', { exact: true }).click();
   await expect(page.locator('.package-identity code')).toHaveText('pkg-71ad-immutable');
   await expect(apply).toBeDisabled();
 });

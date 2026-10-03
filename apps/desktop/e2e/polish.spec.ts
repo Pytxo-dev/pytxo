@@ -49,7 +49,7 @@ for (const theme of ["void", "light"]) {
       await openReview(page);
       const trigger = page.getByRole("button", { name: "Apply reviewed changes", exact: true });
       await trigger.click();
-      const dialog = page.getByRole("dialog", { name: "Apply exact reviewed package?" });
+      const dialog = page.getByRole("dialog", { name: /^Apply these \d+ reviewed files?\?$/ });
       await expect(dialog).toBeVisible();
       await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
       for (const button of await dialog.getByRole("button").all()) {

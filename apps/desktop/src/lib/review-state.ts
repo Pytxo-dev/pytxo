@@ -100,8 +100,8 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
     case "preparing":
       return {
         state: "preparing",
-        title: "Preparing immutable review",
-        detail: "Pytxo is packaging exact changes and ownership evidence.",
+        title: "Preparing review",
+        detail: "Pytxo is collecting the changed files and their check results.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -113,7 +113,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
         return {
           state: "nothing_to_apply",
           title: "Nothing to Apply",
-          detail: "The prepared package contains no file changes.",
+          detail: "The agents finished without changing any files.",
           primaryAction: null,
           primaryLabel: null,
           applyAllowed: false,
@@ -124,10 +124,10 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       if (!contract.candidate_verified) {
         return {
           state: "verification_required",
-          title: "Verify before Apply",
-          detail: "Run the approved checks against the exact combined candidate before Apply.",
+          title: "Checks needed before Apply",
+          detail: "The checks have not passed on the combined changes. Run them before Apply.",
           primaryAction: "refresh",
-          primaryLabel: "Verify candidate",
+          primaryLabel: "Run checks",
           applyAllowed: false,
           discardAllowed: true,
           busy: false,
@@ -136,7 +136,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "ready",
         title: "Ready to Apply",
-        detail: "The prepared package matches the reviewed base revision.",
+        detail: "Checks passed, and the project still matches what the agents started from.",
         primaryAction: "apply",
         primaryLabel: "Apply reviewed changes",
         applyAllowed: true,
@@ -159,8 +159,8 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
     case "applying":
       return {
         state: "applying",
-        title: "Applying reviewed changes",
-        detail: "One atomic Apply is in progress. A second Apply is blocked.",
+        title: "Applying changes",
+        detail: "Writing the reviewed files. Another Apply cannot start until this one finishes.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -171,7 +171,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "applied",
         title: "Applied successfully",
-        detail: "The reviewed package was applied to the primary checkout.",
+        detail: "The reviewed files were written to your project.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -181,10 +181,10 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
     case "review_failed":
       return {
         state: "review_failed",
-        title: "Review preparation failed",
+        title: "Could not prepare the review",
         detail:
           contract.last_apply_error?.message ??
-          "The immutable package could not be prepared or validated.",
+          "Pytxo could not collect or check the changed files.",
         primaryAction: "refresh",
         primaryLabel: "Retry preparation",
         applyAllowed: false,
@@ -197,9 +197,9 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
         title: "Recovery required",
         detail:
           contract.last_apply_error?.message ??
-          "Apply is blocked until recovery is reconciled.",
+          "An earlier Apply was interrupted. Recover before applying again.",
         primaryAction: "reconcile",
-        primaryLabel: "Reconcile recovery",
+        primaryLabel: "Recover",
         applyAllowed: false,
         discardAllowed: false,
         busy: false,
@@ -208,7 +208,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "discarded",
         title: "Review discarded",
-        detail: "The staged package and retained agent workspaces were removed.",
+        detail: "The prepared files and the agents' working copies were removed.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -219,7 +219,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "non_flushable",
         title: "Apply unavailable in DeepSpace",
-        detail: "This permission profile never flushes isolated changes to the host.",
+        detail: "DeepSpace runs never write to your project.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -230,7 +230,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "not_applicable",
         title: "Apply not applicable",
-        detail: "This run wrote directly to the host under its effective profile.",
+        detail: "This run wrote directly to your project, so there is nothing to Apply.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -241,7 +241,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "unsupported",
         title: "Review unsupported",
-        detail: "This run does not have a single-root immutable review package.",
+        detail: "This run cannot be reviewed as one set of changes.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -252,7 +252,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "unavailable",
         title: "Review unavailable",
-        detail: "No prepared review contract is available for this run.",
+        detail: "This run has no prepared changes to review.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,

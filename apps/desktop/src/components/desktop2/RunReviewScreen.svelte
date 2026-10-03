@@ -13,6 +13,7 @@
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import { workbenchSelection, rememberWorkbenchSelection } from "../../lib/workbench-selection";
   import { recordedCliFor, recordedWorkerLabel, reviewPresentation } from "../../lib/review-state";
+  import { diffLines, diffStats, foldUnchanged } from "../../lib/line-diff";
   import type {
     AgentDto,
     EnforcementSurface,
@@ -112,6 +113,33 @@
 
   const manifest = $derived(review?.prepared_manifest ?? null);
   const selectedPreparedFile = $derived(manifest?.files.find(file => file.path === selectedPreparedPath) ?? null);
+
+  // "changes" is a line diff computed from the same exact bytes; "exact" shows both sides whole.
+  type ComparisonMode = "changes" | "exact";
+  let comparisonMode = $state<ComparisonMode>("changes");
+  let openFolds = $state<string[]>([]);
+  function chooseComparison(mode: ComparisonMode) {
+    comparisonMode = mode;
+    try { localStorage.setItem("pytxo-review-comparison-v1", mode); } catch { /* Session choice still works without storage. */ }
+  }
+  const selectedDiff = $derived.by(() => {
+    const file = selectedPreparedFile;
+    if (!file) return null;
+    const before = file.before_sha256 ? preparedContent[contentKey(file, "before")] : undefined;
+    const after = file.after_sha256 ? preparedContent[contentKey(file, "after")] : undefined;
+    const sides = [before, after].filter((side) => side !== undefined);
+    if ((file.before_sha256 && !before) || (file.after_sha256 && !after) || sides.some((side) => side?.loading && !side.complete)) return { status: "loading" as const };
+    if (sides.some((side) => side?.error)) return { status: "error" as const };
+    if (sides.some((side) => side?.binary)) return { status: "binary" as const };
+    if (sides.some((side) => !side?.complete)) return { status: "partial" as const };
+    const lines = diffLines(before ? textContent(before) : "", after ? textContent(after) : "");
+    if (!lines) return { status: "too_large" as const };
+    return { status: "ready" as const, rows: foldUnchanged(lines), ...diffStats(lines) };
+  });
+  function loadWholeFile(file: PreparedRunFile) {
+    if (file.before_sha256) void loadPreparedContent(file, "before", true);
+    if (file.after_sha256) void loadPreparedContent(file, "after", true);
+  }
   const candidateEvidence = $derived(manifest?.candidate_verification);
   const candidatePassed = $derived(manifest?.version === 3 && candidateEvidence?.version === 1 && candidateEvidence.checks.length > 0 && candidateEvidence.checks.every((check) => check.passed));
   const presentation = $derived(
@@ -152,10 +180,10 @@
       ? "Another review action is in progress."
       : !presentation.applyAllowed
         ? presentation.state === "recovery_required"
-          ? "Apply is blocked until recovery is reconciled."
+          ? "An earlier Apply was interrupted. Recover before applying again."
           : presentation.detail
         : !allAgentsSucceeded
-          ? "Every agent must exit successfully before Apply."
+          ? "Every agent must finish successfully before Apply."
           : "",
   );
 
@@ -173,7 +201,7 @@
       if (invalidatedConfirmation) {
         confirmApply = false;
         confirmedPackageDigest = null;
-        notice = "The candidate changed. Review the current changes and checks before Apply.";
+        notice = "The changes were updated. Review them again before Apply.";
       }
       review = nextReview;
       agents = nextAgents;
@@ -212,13 +240,13 @@
     try {
       if (presentation.primaryAction === "refresh") {
         await backend.refreshRunReview(run.id, domainId);
-        notice = "Immutable review refreshed against the current checkout.";
+        notice = "Review refreshed against the current project files.";
       } else if (
         presentation.primaryAction === "apply" ||
         presentation.primaryAction === "retry"
       ) {
         if (!presentation.applyAllowed || !allAgentsSucceeded) return;
-        if (!expectedPackageDigest) throw new Error("Review and confirm the current candidate before Apply.");
+        if (!expectedPackageDigest) throw new Error("Review the current changes before Apply.");
         await backend.applyRunChanges(run.id, domainId, expectedPackageDigest);
       } else if (presentation.primaryAction === "reconcile") {
         const outcome = await backend.reconcileRunRecovery(run.id, domainId);
@@ -252,7 +280,7 @@
     ) {
       if (!presentation.applyAllowed || !allAgentsSucceeded || actionPending || loading) return;
       if (!review?.prepared_digest || review.run_id !== run.id || manifest?.run_id !== run.id || manifest.package_digest !== review.prepared_digest) {
-        error = "The displayed review identity is incomplete. Reload the review before Apply.";
+        error = "This review did not load completely. Reload it before Apply.";
         return;
       }
       confirmedPackageDigest = review.prepared_digest;
@@ -301,7 +329,7 @@
     try {
       await backend.discardRunReview(run.id, domainId);
       confirmDiscard = false;
-      notice = "Prepared review discarded.";
+      notice = "Changes discarded.";
       await onChanged();
       await loadReview();
     } catch (cause) {
@@ -495,7 +523,7 @@
           chunk.next_offset <= chunk.byte_count &&
           chunk.complete === (chunk.next_offset === chunk.byte_count);
         if (!identityMatches) {
-          throw new Error("Exact review content identity changed; refresh the prepared review.");
+          throw new Error("This file changed while loading. Refresh the review.");
         }
         if (selection !== contentSelection || selectedPreparedPath !== file.path) return;
         segments.push(decoded);
@@ -545,6 +573,7 @@
 
   onMount(() => {
     try { mapPreference = localStorage.getItem("pytxo-review-composition-v1"); } catch { /* Default follows content width. */ }
+    try { if (localStorage.getItem("pytxo-review-comparison-v1") === "exact") comparisonMode = "exact"; } catch { /* Default shows changes. */ }
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
     void backend.onDomainChanged((event) => {
@@ -575,7 +604,7 @@
       <span class="review-mode">Review changes</span>
       <h1 id="run-review-title">{missionTitle || `Changes in ${run.repo_root.split(/[\\/]/).pop()}`}</h1>
       <div class="review-context">
-        <span class="review-destination" title={run.repo_root}>Apply destination: <strong>{run.repo_root}</strong></span>
+        <span class="review-destination" title={run.repo_root}>Applies to <strong>{run.repo_root}</strong></span>
         <details class="run-details">
           <summary>Run details</summary>
           <code>{run.id}</code>
@@ -597,29 +626,29 @@
     <div class="candidate-workspace">
     <div class="speculative-workspace">
       <details class="candidate-overview" open={mapExpanded}>
-        <summary onclick={toggleCandidateMap}><span class="candidate-symbol" aria-hidden="true"><IconFileText size={18} /></span><strong>{mapExpanded ? "Focus on code" : "Show candidate map"}</strong><span>{manifest.files.length} prepared file{manifest.files.length === 1 ? "" : "s"} · one exact candidate</span><span class="verification-summary" class:checks-passed={candidatePassed}>{candidatePassed ? "Combined checks: passed" : "Verification not established"}</span></summary>
-        <div class="candidate-context" aria-label="Candidate relationships">
+        <summary onclick={toggleCandidateMap}><span class="candidate-symbol" aria-hidden="true"><IconFileText size={18} /></span><strong>{mapExpanded ? "Hide summary" : "Show summary"}</strong><span>{manifest.files.length} file{manifest.files.length === 1 ? "" : "s"} changed</span><span class="verification-summary" class:checks-passed={candidatePassed}>{candidatePassed ? "Checks passed" : "Not verified"}</span></summary>
+        <div class="candidate-context" aria-label="What this review contains">
           <div class="formation-files">
-            <span class="map-label">Prepared files</span>
+            <span class="map-label">Changed files</span>
             {#each manifest.files.slice(0, 3) as file}
               <button class:map-selected={selectedPreparedPath === file.path} aria-pressed={selectedPreparedPath === file.path} title={file.path} aria-label={`Compare ${file.path}`} onclick={() => void selectPreparedFile(file)}><span class="map-file-kind">{file.kind === "add" ? "A" : file.kind === "delete" ? "D" : "M"}</span><span>{file.path.split("/").pop()}</span></button>
             {/each}
-            {#if manifest.files.length > 3}<button class="more-files" onclick={revealFileList}>+{manifest.files.length - 3} more · Browse all files</button>{/if}
+            {#if manifest.files.length > 3}<button class="more-files" onclick={revealFileList}>+{manifest.files.length - 3} more</button>{/if}
           </div>
           <svg class="convergence" viewBox="0 0 80 120" preserveAspectRatio="none" aria-hidden="true">
             {#each manifest.files.slice(0, 3) as file, index}<path d={`M 0 ${20 + index * 40} C 40 ${20 + index * 40}, 35 60, 80 60`} class:selected={selectedPreparedPath === file.path} />{/each}
           </svg>
-          <details class="candidate-node"><summary><IconFileText size={20}/><span>Exact candidate<small class="identity-peek" title={review.prepared_digest ?? "Identity unavailable"}>{review.prepared_digest?.slice(0, 18) ?? "Identity unavailable"}</small><small>{presentation.state === "applied" ? "Apply recorded" : "No confirmed Apply"}</small></span></summary><code>{review.prepared_digest ?? "Identity unavailable"}</code></details>
+          <details class="candidate-node"><summary><IconFileText size={20}/><span>Change set<small class="identity-peek" title={review.prepared_digest ?? "ID unavailable"}>{review.prepared_digest?.slice(0, 18) ?? "ID unavailable"}</small><small>{presentation.state === "applied" ? "Applied" : "Not applied"}</small></span></summary><code>{review.prepared_digest ?? "ID unavailable"}</code></details>
           <span class="stage-connection" aria-hidden="true">→</span>
-          <button class="verification-node" onclick={() => void revealChecks()}><span class="map-label">Recorded verification</span><strong>{candidatePassed ? "Required checks passed" : "Verification not established"}</strong><span>{candidateEvidence?.checks.length ?? 0} recorded {(candidateEvidence?.checks.length ?? 0) === 1 ? "command" : "commands"} · View checks</span></button>
-          <div class="map-boundary"><span class="decision-aperture" aria-hidden="true"></span><details class="destination-node"><summary><span class="map-label">Apply destination</span><strong>{run.repo_root.split(/[\\/]/).pop()}</strong><span>Read-only target details</span></summary><code>{run.repo_root}</code><p>Apply uses this run's repository. Inspecting this target makes no changes.</p></details></div>
+          <button class="verification-node" onclick={() => void revealChecks()}><span class="map-label">Checks</span><strong>{candidatePassed ? "All checks passed" : "Not verified"}</strong><span>{candidateEvidence?.checks.length ?? 0} {(candidateEvidence?.checks.length ?? 0) === 1 ? "command" : "commands"} · View</span></button>
+          <div class="map-boundary"><span class="decision-aperture" aria-hidden="true"></span><details class="destination-node"><summary><span class="map-label">Applies to</span><strong>{run.repo_root.split(/[\\/]/).pop()}</strong><span>Show folder</span></summary><code>{run.repo_root}</code><p>Apply writes these files to this project folder. Viewing it changes nothing.</p></details></div>
         </div>
-        <div class="map-caption">Candidate relationships, not code dependencies.<button onclick={() => document.getElementById("review-apply-decision")?.scrollIntoView({ block: "nearest" })}>{presentation.state === "applied" ? "View recorded outcome" : "Review the decision at the Apply boundary"} ↓</button></div>
+        <div class="map-caption"><button onclick={() => document.getElementById("review-apply-decision")?.scrollIntoView({ block: "nearest" })}>{presentation.state === "applied" ? "View outcome" : "Go to Apply"} ↓</button></div>
       </details>
     <div class="review-grid">
       <article class="panel files-panel">
         <div class="panel-title files-title">
-          <div><p class="eyebrow">Exact package contents</p><h2>Prepared changes</h2></div>
+          <div><p class="eyebrow">Exact files to Apply</p><h2>Prepared changes</h2></div>
           <div class="summary">
             <span class="add">{manifest.summary.added} added</span>
             <span class="modify">{manifest.summary.modified} modified</span>
@@ -642,7 +671,38 @@
             {#if selectedPreparedFile}
               {@const file = selectedPreparedFile}
               {@const cli = recordedCliFor(agents, run, file.task_id)}
-              <div class="comparison-context"><strong>{file.path.split("/").pop()}</strong><span>{cli ? `Prepared by ${cli} · ` : ""}Exact-content comparison · no inferred line changes</span></div>
+              {@const diff = selectedDiff}
+              <div class="comparison-context">
+                <strong title={file.path}>{file.path}</strong>
+                {#if cli}<span>by {cli}</span>{/if}
+                {#if diff?.status === "ready"}<span class="diff-count"><b class="plus">+{diff.added}</b> <b class="minus">−{diff.removed}</b></span>{/if}
+                <div class="comparison-mode" role="group" aria-label="Comparison view">
+                  <button aria-pressed={comparisonMode === "changes"} onclick={() => chooseComparison("changes")}>Changes</button>
+                  <button aria-pressed={comparisonMode === "exact"} onclick={() => chooseComparison("exact")}>Before &amp; after</button>
+                </div>
+              </div>
+              {#if comparisonMode === "changes" && diff?.status === "ready"}
+                <div class="line-diff" role="region" aria-label={`Changes in ${file.path}`}>
+                  {#each diff.rows as row, index (`${file.path}:${index}`)}
+                    {#if row.kind === "fold" && !openFolds.includes(`${file.path}:${index}`)}
+                      <button class="diff-fold" onclick={() => (openFolds = [...openFolds, `${file.path}:${index}`])}>{row.count} unchanged lines</button>
+                    {:else}
+                      {#each row.kind === "fold" ? row.lines : [row] as line}
+                        <div class={`diff-line ${line.kind}`}><span class="ln">{line.kind === "add" ? "" : line.before}</span><span class="ln">{line.kind === "del" ? "" : line.after}</span><span class="mark" aria-hidden="true">{line.kind === "add" ? "+" : line.kind === "del" ? "−" : ""}</span><code>{line.text}</code></div>
+                      {/each}
+                    {/if}
+                  {:else}
+                    <p class="diff-note">The file content is unchanged; only its mode changed.</p>
+                  {/each}
+                </div>
+              {:else if comparisonMode === "changes" && diff && diff.status !== "binary" && diff.status !== "error"}
+                <p class="diff-note" role="status">
+                  {#if diff.status === "loading"}Loading changes…
+                  {:else if diff.status === "too_large"}Too many changed lines to compare here. Showing the exact files instead.
+                  {:else}This file is larger than the preview.<button onclick={() => loadWholeFile(file)}>Load the whole file to see changes</button>{/if}
+                </p>
+              {/if}
+              {#if comparisonMode === "exact" || !diff || diff.status === "binary" || diff.status === "error" || diff.status === "too_large" || diff.status === "partial"}
                 <div class="exact-diff" class:single={file.kind !== "modify"}>
                   {#each (["before", "after"] as ReviewSide[]) as side}
                     {@const exists = side === "before" ? !!file.before_sha256 : !!file.after_sha256}
@@ -656,7 +716,7 @@
                         {#if content?.error}
                           <p class="content-error" role="alert">{content.error}</p>
                         {:else if content?.binary}
-                          <p class="binary-label">Exact binary bytes · hexadecimal preview</p>
+                          <p class="binary-label">Binary file · first bytes in hex</p>
                           <pre class="binary-content">{hexContent(content)}{content.displayByteCount < content.loadedByteCount || !content.complete ? " …" : ""}</pre>
                           {#if content.displayByteCount < content.loadedByteCount}
                             <button class="expand-content" onclick={() => showAllLoadedBinary(file, side)}>
@@ -666,20 +726,21 @@
                         {:else if content}
                           <pre class="text-content">{textContent(content)}{content.complete ? "" : "\n… exact content continues"}</pre>
                         {:else}
-                          <p class="content-loading">Loading exact prepared content…</p>
+                          <p class="content-loading">Loading file…</p>
                         {/if}
                         {#if content && !content.complete}
                           <button class="expand-content" disabled={content.loading} onclick={() => loadPreparedContent(file, side, true)}>
-                            {content.loading ? "Loading exact content…" : "Load full exact content"}
+                            {content.loading ? "Loading…" : "Load the whole file"}
                           </button>
                         {/if}
                       </section>
                     {/if}
                   {/each}
                 </div>
+              {/if}
 
               <details class="digest-details">
-                <summary>Digests and mode metadata</summary>
+                <summary>File fingerprints</summary>
                 <p>{file.task_id} · {file.agent_id}</p>
                 <dl>
                   <div><dt>Before SHA-256</dt><dd>{file.before_sha256 ?? "—"}</dd></div>
@@ -700,23 +761,23 @@
     </div>
     </div>
     </div>
-    <details class="technical-evidence" bind:this={evidenceDisclosure}><summary>Commands, identity &amp; technical evidence</summary><aside class="review-support" aria-label="Review evidence and ownership">
+    <details class="technical-evidence" bind:this={evidenceDisclosure}><summary>Checks, plan &amp; technical details</summary><aside class="review-support" aria-label="Review evidence and ownership">
       <article class="panel evidence-panel">
-        <div class="panel-title"><p class="eyebrow">Immutable package</p><h2>Review evidence</h2></div>
+        <div class="panel-title"><p class="eyebrow">Technical details</p><h2>Review evidence</h2></div>
         <dl class="evidence-list">
           <div><dt><IconShieldCheck size={14} /> Root</dt><dd>{run.repo_root}</dd></div>
           <div><dt>Profile</dt><dd>{review.enforcement.run.effective_profile}</dd></div>
           <div><dt>Paths</dt><dd>{manifest.summary.added + manifest.summary.modified + manifest.summary.deleted} · {manifest.summary.added} added · {manifest.summary.modified} modified · {manifest.summary.deleted} deleted</dd></div>
           <div><dt>State</dt><dd>{presentation.state}</dd></div>
-          <div><dt>Combined candidate checks</dt><dd class="candidate-checks" tabindex="-1">
+          <div><dt>Checks on the combined changes</dt><dd class="candidate-checks" tabindex="-1">
             {#if candidatePassed && candidateEvidence}
-              Passed · {candidateEvidence.checks.length} command{candidateEvidence.checks.length === 1 ? "" : "s"} on this combined candidate. Verified {formatPreparedAt(candidateEvidence.verified_at)}.
+              Passed · {candidateEvidence.checks.length} command{candidateEvidence.checks.length === 1 ? "" : "s"} run by Pytxo on these exact files. Checked {formatPreparedAt(candidateEvidence.verified_at)}.
               <ul>{#each candidateEvidence.checks as check}<li><code>{check.command}</code> · {check.task_id}</li>{/each}</ul>
-              {#if candidateEvidence.exclusions.length}<span>Excluded from inventory: {candidateEvidence.exclusions.join(", ")}.</span>{/if}
+              {#if candidateEvidence.exclusions.length}<span>Not part of the change set: {candidateEvidence.exclusions.join(", ")}.</span>{/if}
             {:else if candidateEvidence}
-              Not verified. The combined candidate receipt is incomplete, unsupported, or includes a failed check.
+              Not verified. A check failed, did not finish, or is not supported on the combined changes.
             {:else}
-              Not verified. Task checks ran in separate workspaces; this package binds the reviewed bytes, not a passing combined check.
+              Not verified. Checks ran only in each agent's own copy, not on the combined changes.
             {/if}
           </dd></div>
           <div><dt>Base revision</dt><dd>{manifest.base_revision}</dd></div>
@@ -739,7 +800,7 @@
       </article>
 
       <article class="panel plan-panel">
-        <div class="panel-title"><p class="eyebrow">Plan / DAG</p><h2>Ownership path</h2></div>
+        <div class="panel-title"><p class="eyebrow">Plan</p><h2>Who changed what</h2></div>
         <div class="task-list">
           {#each tasks as task (task.task_id)}
             <div>
@@ -754,7 +815,7 @@
       </aside>
 
       <article class="panel attempts-panel">
-        <div class="panel-title"><p class="eyebrow">Apply audit</p><h2>Attempt history</h2></div>
+        <div class="panel-title"><p class="eyebrow">Apply</p><h2>Apply attempts</h2></div>
         {#each review.apply_attempts as attempt (attempt.attempt_id)}
           <div
             class="attempt"
@@ -799,7 +860,7 @@
         size={17}
         class="review-spinner"
         aria-label={presentation.state === "preparing"
-          ? "Preparing immutable review"
+          ? "Preparing review"
           : "Applying reviewed changes"}
       />
     {:else if presentation.state === "verification_required" || presentation.state === "stale" || presentation.state === "review_failed" || presentation.state === "recovery_required"}
@@ -816,14 +877,14 @@
   </div>
 
     <div class="decision-transition">
-      <details class="decision-identity package-identity"><summary>Exact candidate</summary><code>{review?.prepared_digest ?? "Identity unavailable"}</code></details>
+      <details class="decision-identity package-identity"><summary>Change set ID</summary><code>{review?.prepared_digest ?? "ID unavailable"}</code></details>
       <span class="decision-aperture" aria-hidden="true"></span>
-      <div><strong>Canonical repository · {run.repo_root.split(/[\\/]/).pop()}</strong><span>{presentation.state === "applied" ? "Apply recorded" : presentation.state === "applying" ? "Apply in progress · outcome not confirmed" : "No confirmed Apply"}</span></div>
+      <div><strong>Applies to {run.repo_root.split(/[\\/]/).pop()}</strong><span>{presentation.state === "applied" ? "Applied" : presentation.state === "applying" ? "Applying · not finished" : "Not applied yet"}</span></div>
       <!-- A blocked reason equal to the decision copy is already shown above; show any other reason once, beside Apply. -->
       {#if applyDisabledReason && applyDisabledReason !== presentation.detail}
         <p class="boundary-reason blocked" id="apply-disabled-reason">{applyDisabledReason}</p>
       {:else}
-        <p class="boundary-reason">{presentation.state === "applied" ? "Recorded outcome, not a live filesystem check." : "Apply writes this reviewed candidate to the destination."}</p>
+        <p class="boundary-reason">{presentation.state === "applied" ? "As recorded when Apply finished." : "Apply writes exactly these files, nothing else."}</p>
       {/if}
     </div>
     </div>
@@ -887,7 +948,7 @@
         bind:this={discardTrigger}
         class="danger-quiet"
         disabled={!presentation.discardAllowed || actionPending}
-        title={presentation.discardAllowed ? "Permanently remove the prepared package" : presentation.detail}
+        title={presentation.discardAllowed ? "Permanently remove the prepared changes" : presentation.detail}
         onclick={openDiscardDialog}
       >
         <IconTrash size={15} /> Discard review
@@ -901,11 +962,10 @@
     <div class="confirm-dialog apply-dialog" role="dialog" aria-modal="true" aria-labelledby="apply-title">
       <IconShieldCheck size={22} />
       <div>
-        <h2 id="apply-title">Apply exact reviewed package?</h2>
+        <h2 id="apply-title">Apply these {manifest?.files.length ?? 0} reviewed {manifest?.files.length === 1 ? "file" : "files"}?</h2>
         <p>
-          Pytxo will recheck and write {manifest?.files.length ?? 0} reviewed
-          {manifest?.files.length === 1 ? " path" : " paths"} to the primary checkout.
-          Unrelated paths are left alone.
+          Pytxo checks that your project still matches this review, then writes exactly
+          these files to {run.repo_root.split(/[\\/]/).pop()}. Other files are left alone.
         </p>
         {#if confirmedPackageDigest}
           <code>{confirmedPackageDigest}</code>
@@ -929,8 +989,8 @@
     <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="discard-title">
       <IconAlertTriangle size={22} />
       <div>
-        <h2 id="discard-title">Discard prepared review?</h2>
-        <p>This permanently removes the staged package and retained run workspaces. It does not change the primary checkout.</p>
+        <h2 id="discard-title">Discard these changes?</h2>
+        <p>This permanently removes the prepared files and the agents' working copies. Your project is not changed.</p>
       </div>
       <div class="dialog-actions">
         <button bind:this={keepReviewButton} onclick={closeDiscardDialog}>Keep review</button>
@@ -1299,7 +1359,7 @@
   .destination-node { min-width: 0; }
   .destination-node summary { display: grid; gap: 7px; cursor: pointer; font-size: 13px; }
   .destination-node summary>span:last-child,.destination-node p { font-size: 11px; color: var(--pytxo-text-soft); line-height: 1.5; }
-  .map-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--pytxo-text-muted); padding: 0 16px 10px; }
+  .map-caption { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; font-size: 11px; color: var(--pytxo-text-muted); padding: 0 16px 10px; }
   .map-caption button { border: 0; background: transparent; padding: 0; min-height: 24px; font-size: 11px; color: var(--pytxo-text-soft); text-underline-offset: 3px; }
   .candidate-context :is(button,summary):focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 3px; }
   @container run-review (max-width:899px) {
@@ -1411,4 +1471,31 @@
   .review-loading,.review-error,.review-unavailable{min-height:0;flex:1;overflow:auto}
   .decision-bar{position:relative;bottom:auto;flex:0 0 auto;margin:0;padding-block:8px;background:var(--pytxo-surface-shell)}
   @media(max-height:800px){.review-screen{gap:6px}.decision-bar{padding-block:2px}.convergence{height:44px}.candidate-node{padding:6px}.map-boundary .decision-aperture{min-height:44px}.diff-side .text-content{min-height:176px}}
+
+  /* Line diff: computed in the renderer from the same exact bytes as "Before & after". */
+  .comparison-context strong { min-width:0;overflow:hidden;color:var(--pytxo-text-strong);font:12px/1.4 "IBM Plex Mono",monospace;text-overflow:ellipsis;white-space:nowrap; }
+  .diff-count { font:12px/1.4 "IBM Plex Mono",monospace; }
+  .diff-count b { font-weight:500; }
+  .diff-count .plus { color:var(--state-verified); }
+  .diff-count .minus { color:var(--state-refuted); }
+  .comparison-mode { display:flex;margin:-3px 0 -3px auto;padding:1px;border:1px solid var(--pytxo-line);border-radius:5px;background:var(--pytxo-surface-input); }
+  .comparison-mode button { min-height:20px;padding:0 9px;border:0;border-radius:3px;background:transparent;color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui);cursor:pointer;transition:background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease),color var(--pytxo-motion-fast) var(--pytxo-motion-ease); }
+  .comparison-mode button:hover { color:var(--pytxo-text-strong); }
+  .comparison-mode button[aria-pressed="true"] { background:var(--pytxo-surface-active);color:var(--pytxo-text-strong); }
+  .comparison-mode button:focus-visible { outline:2px solid var(--pytxo-accent);outline-offset:1px; }
+  .line-diff { min-height:200px;max-height:52vh;overflow:auto;padding:6px 0;background:var(--pytxo-code-surface);font:12.5px/1.65 "IBM Plex Mono",monospace;tab-size:2; }
+  .diff-line { display:grid;grid-template-columns:4ch 4ch 2ch minmax(0,1fr);gap:0 8px;padding:0 12px 0 8px; }
+  .diff-line .ln { color:var(--pytxo-text-muted);opacity:.7;text-align:right;user-select:none;font-variant-numeric:tabular-nums; }
+  .diff-line .mark { text-align:center;user-select:none; }
+  .diff-line code { min-width:0;color:var(--pytxo-text-body);font:inherit;white-space:pre-wrap;overflow-wrap:anywhere; }
+  .diff-line.add { background:color-mix(in oklab,var(--state-verified) 13%,transparent); }
+  .diff-line.add .mark,.diff-line.add .ln { color:var(--state-verified);opacity:1; }
+  .diff-line.del { background:color-mix(in oklab,var(--state-refuted) 13%,transparent); }
+  .diff-line.del .mark,.diff-line.del .ln { color:var(--state-refuted);opacity:1; }
+  .diff-fold { display:block;width:100%;min-height:26px;margin:2px 0;padding:0 12px 0 calc(8ch + 24px);border:0;border-block:1px dashed var(--pytxo-line-soft);background:color-mix(in oklab,var(--pytxo-surface-raised) 60%,transparent);color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui);text-align:left;cursor:pointer; }
+  .diff-fold:hover { color:var(--pytxo-text-strong);background:var(--pytxo-surface-hover); }
+  .diff-fold:focus-visible { outline:2px solid var(--pytxo-accent);outline-offset:-2px; }
+  .diff-note { display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0;padding:12px 14px;border-bottom:1px solid var(--pytxo-line-soft);color:var(--pytxo-text-soft);font-size:12px; }
+  .diff-note button { min-height:28px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-strong);font:inherit;cursor:pointer; }
+  @media (prefers-reduced-motion: reduce) { .comparison-mode button { transition:none; } }
 </style>

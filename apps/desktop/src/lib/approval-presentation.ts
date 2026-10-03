@@ -22,7 +22,7 @@ const ACTION_PRESENTATIONS: Record<string, PendingApprovalPresentation> = {
     category: "Filesystem",
     approveLabel: "Approve action",
     denyLabel: "Deny action",
-    consequence: "This write targets a path outside the repository boundary.",
+    consequence: "This write targets a path outside the project folder.",
   },
   "fs.delete": {
     title: "Allow recursive delete",
@@ -111,9 +111,9 @@ export function approvalPresentation(approval: HitlDto): ApprovalPresentation {
       approveLabel: "Review changes",
       denyLabel: "Deny request",
       consequence:
-        "This legacy request cannot authorize an exact candidate. Open Review to inspect and verify the changes before Apply. Denying stops this request; it does not discard the workspace.",
-      approvedMessage: "Repository changes require a separate reviewed Apply.",
-      deniedMessage: "The workspace flush will not proceed.",
+        "Approving here does not write anything. Open Review to see the changes and their checks, then Apply from there. Deny stops this request and keeps the agents' work.",
+      approvedMessage: "Apply the changes from Review.",
+      deniedMessage: "Request denied. Nothing was written to your project.",
     };
   }
 

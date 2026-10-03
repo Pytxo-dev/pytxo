@@ -20,7 +20,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await page.getByRole("button", { name: "Build plan", exact: true }).first().click();
       await expect(page.getByRole("button", { name: "Run", exact: true })).toBeEnabled();
       await expect(page.locator(".plan-wave")).toHaveCount(3);
-      await expect(page.locator(".plan-explainer").first()).toHaveText("Maximum concurrent workers: 1. All 3 approved tasks remain in scope.");
+      await expect(page.locator(".plan-explainer").first()).toHaveText("Up to 1 agent at once. Edit any step before you run it.");
       await expect(page.locator(".contract-list code")).toContainText(["npm test"]);
       if (viewport.width < 1100) await page.getByRole("button", { name: "Request", exact: true }).click();
       await page.getByLabel("Additional verification commands", { exact: true }).fill("npm run test:integration");
@@ -33,14 +33,14 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await clearOnboarding(page);
       await page.goto("/");
       await page.getByRole("button", { name: "Get started" }).click();
-      await expect(page.getByText("This beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity", { exact: false })).toBeVisible();
-      await expect(page.getByRole("status")).toContainText("4 installed · 3 available");
+      await expect(page.getByText("Pytxo runs the coding CLIs you already use", { exact: false })).toBeVisible();
+      await expect(page.getByRole("status")).toContainText("3 of 5 ready · 4 installed");
       await page.getByRole("button", { name: "Connect an OpenCode provider" }).click();
       await expect(page.getByText("OpenCode sign-in opened. Finish the vendor flow, then recheck.")).toBeVisible();
       // Simulate a changed vendor-owned probe result, not a successful real login.
       await page.evaluate(() => localStorage.setItem("pytxo-preview-ade-state-v1", "codex-only"));
       await page.getByRole("button", { name: "Check again", exact: true }).click();
-      await expect(page.locator(".summary")).toContainText("1 installed · 1 available");
+      await expect(page.locator(".summary")).toContainText("1 of 5 ready · 1 installed");
       await expect(page.getByText("ChatGPT connected", { exact: true })).toBeVisible();
       await expect(page.getByText("OpenCode sign-in opened. Finish the vendor flow, then recheck.")).not.toBeVisible();
       await page.screenshot({ path: testInfo.outputPath("onboarding.png"), fullPage: true });
@@ -56,7 +56,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await page.getByRole("button", { name: "Build plan", exact: true }).click();
       await page.getByText("Permissions and technical details", { exact: true }).click();
       await expect(page.getByText("Per-task verification commands", { exact: true })).toBeVisible();
-      await expect(page.getByText("These checks run in each task's workspace. Passing task checks does not prove the combined candidate passes.")).toBeVisible();
+      await expect(page.getByText("These checks run in each task's copy, then again on all the changes together before you can Apply.")).toBeVisible();
       await page.getByText("Per-task verification commands", { exact: true }).scrollIntoViewIfNeeded();
       await page.screenshot({ path: testInfo.outputPath("flow-task-checks.png"), fullPage: true });
 
@@ -65,9 +65,9 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await page.getByRole("button", { name: /Review prepared changes/ }).click();
       await page.locator(".technical-evidence > summary").click();
       await expect(page.locator("#run-review-title")).toBeVisible();
-      await expect(page.getByText("Combined candidate checks", { exact: true })).toBeVisible();
-      await expect(page.getByText("Not verified. Task checks ran in separate workspaces; this package binds the reviewed bytes, not a passing combined check.")).toBeVisible();
-      await page.getByText("Combined candidate checks", { exact: true }).scrollIntoViewIfNeeded();
+      await expect(page.getByText("Checks on the combined changes", { exact: true })).toBeVisible();
+      await expect(page.getByText("Not verified. Checks ran only in each agent's own copy, not on the combined changes.")).toBeVisible();
+      await page.getByText("Checks on the combined changes", { exact: true }).scrollIntoViewIfNeeded();
       await page.screenshot({ path: testInfo.outputPath("review-candidate-checks.png"), fullPage: true });
     });
 
@@ -107,7 +107,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await page.locator('.history .row[data-run-id="run-71ad"]').click();
       await page.getByRole("button", { name: /Review prepared changes/ }).click();
       await page.locator(".technical-evidence > summary").click();
-      await expect(page.locator(".candidate-checks")).toContainText("Passed · 1 command on this combined candidate.");
+      await expect(page.locator(".candidate-checks")).toContainText("Passed · 1 command run by Pytxo on these exact files.");
       await expect(page.locator(".candidate-checks")).toContainText("npm run check");
       await page.locator(".candidate-checks").scrollIntoViewIfNeeded();
       await page.screenshot({ path: testInfo.outputPath("review-combined-passed.png"), fullPage: true });
@@ -119,7 +119,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
         await page.locator('.history .row[data-run-id="run-71ad"]').click();
         await page.getByRole("button", { name: /Review prepared changes/ }).click();
         await page.locator(".technical-evidence > summary").click();
-        await expect(page.locator(".candidate-checks")).toContainText("Not verified. The combined candidate receipt is incomplete, unsupported, or includes a failed check.");
+        await expect(page.locator(".candidate-checks")).toContainText("Not verified. A check failed, did not finish, or is not supported on the combined changes.");
       }
     });
   });

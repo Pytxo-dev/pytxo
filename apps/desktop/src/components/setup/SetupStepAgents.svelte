@@ -1,5 +1,6 @@
 <script lang="ts">
   import SetupStepFrame from "./SetupStepFrame.svelte";
+  import AdeIdentity from "../desktop2/AdeIdentity.svelte";
   import { onMount } from "svelte";
   import { betaAdesInOrder, isAdeRunnable, isAdeSessionConfirmed } from "../../lib/ade-status";
   import { createDesktopBackend } from "../../lib/desktop-backend";
@@ -69,7 +70,7 @@
 <SetupStepFrame>
   <h2 class="title">Connect your coding agents</h2>
   <p class="lead">
-    This beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity with the accounts you already have. Pytxo can open a tool's own sign-in if needed.
+    Pytxo runs the coding CLIs you already use, signed in with your own accounts. One is enough to start; connect more and they can share a job.
   </p>
 
   {#if loading}
@@ -78,6 +79,7 @@
     <div class="agents" aria-label="Detected agent CLIs">
       {#each usefulAgents as agent (agent.id)}
         <div class="agent">
+          <AdeIdentity id={agent.id} />
           <span>
             <strong>{agent.display_name}</strong>
             <small>{agent.installed ? agent.auth_label : "Not installed"}</small>
@@ -97,7 +99,7 @@
       {/each}
     </div>
     {#if agents.length}
-      <p class="summary" role="status">{installedCount} installed · {readyCount} available. Confirmed sessions are labeled Ready; vendor-managed sessions stay private.</p>
+      <p class="summary" role="status">{readyCount} of {usefulAgents.length} ready · {installedCount} installed. You can add more later in Setup.</p>
     {/if}
     {#if readyCount === 0 && !error}<p class="summary">Install an agent or finish sign-in, then check again. You can also finish Desktop setup and connect an agent later.</p>{/if}
   {/if}
@@ -143,8 +145,7 @@
   .agent {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
+    gap: 0.75rem;
     min-height: 48px;
     padding: 0.55rem 0.7rem;
     border-bottom: 1px solid var(--border);
@@ -154,6 +155,7 @@
     border-bottom: 0;
   }
   .agent > span {
+    flex: 1;
     display: grid;
     gap: 0.16rem;
     min-width: 0;
@@ -171,12 +173,22 @@
   }
   .agent b {
     color: var(--muted-foreground);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
   }
-  .agent b.ready,
+  .agent b.ready::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    vertical-align: 1px;
+  }
+  .agent b.ready {
+    color: var(--state-verified);
+  }
   .message {
     color: var(--primary);
   }
