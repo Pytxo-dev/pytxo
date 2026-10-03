@@ -21,9 +21,11 @@ use pytxo_core::routing::{
 };
 use pytxo_core::{ExecutionBackend, PermissionProfile, PytxoConfig, TaskId};
 use pytxo_planner::advisor::Advisor;
+#[cfg(any(windows, feature = "routed-test-faults"))]
+use pytxo_runner::owned_launch::run_owned_launch;
 use pytxo_runner::owned_launch::{
-    run_direct_owned_launch, run_owned_launch, DirectOwnedLaunchSpec, LaunchCallbacks, LaunchGuard,
-    LaunchIntent, OwnedLaunchReceipt, OwnedOutcome, OwnedProcess, PinnedFile,
+    run_direct_owned_launch, DirectOwnedLaunchSpec, LaunchCallbacks, LaunchGuard, LaunchIntent,
+    OwnedLaunchReceipt, OwnedOutcome, OwnedProcess, PinnedFile,
 };
 #[cfg(feature = "routed-test-faults")]
 use pytxo_runner::owned_launch::{OwnedLaunchSpec, OwnedTransport};

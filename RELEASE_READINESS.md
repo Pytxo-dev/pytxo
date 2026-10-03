@@ -118,6 +118,35 @@ ordered tasks are shown accurately, including the two no-change workers.
 It is not a fresh fleet run, continuous capture, a performance benchmark or a
 published-release announcement. Silence is Matt's explicit October 3 choice.
 
+### Private CI follow-up
+
+Private draft PR [#32](https://github.com/Pytxo-dev/pytxo/pull/32) was opened at
+`d2c7702`, with main unchanged at `9139a908`. Its first hosted run exposed the
+same unused Windows/test-only import on Linux and macOS. The import now matches
+the callers' `cfg` conditions; no runtime path, permission profile, execution
+domain or feature default changed. Scope is compilation of the existing Orbit
+local qualification code within one repository's execution domain, not a new
+execution authorization.
+
+A fresh Rust audit also identified RUSTSEC-2026-0285. The lock now uses rustls
+0.23.45 and its compatible webpki 0.103.15 dependency. Audit reports zero blocking
+vulnerabilities under the unchanged documented exceptions in `.cargo/audit.toml`;
+unmaintained/unsound/yanked warnings remain visible. Format and targeted
+orchestrate Clippy passed. The 1,100-test workspace result above predates this
+TLS lock update; match the patched rerun and hosted checks to the PR head before
+acceptance. The demo's fast-uri 3.1.8 and
+js-yaml 4.3.2 patches produce a clean full npm audit; source and evidence validation
+pass. The exported film's bytes are unchanged. These patches require a new
+candidate build; the first PR head and all older MSIs lack this new Rust lock.
+
+Independent review of eight decoded final film frames, current source, props and
+asset hashes found no visible private identifiers, unsupported counts or important
+text overlap. This does not grant publication or vendor approval. The default-main
+Dependabot inventory is not the candidate audit: all 12 critical default alerts
+are fixed/removed in candidate source. Retired `apps/docs` still has 26 listed
+high-severity alerts and is explicitly outside deployment; it must not be revived
+or deployed without remediation.
+
 ### Remaining public-release gates
 
 1. Final-artifact mixed-CLI rehearsal. The new native onboarding reported five
