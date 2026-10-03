@@ -9,9 +9,9 @@ function Get-DesktopTester {
   $plain = (-join ((65..90) + (97..122) + (48..57) | Get-Random -Count 28 | ForEach-Object { [char]$_ })) + "!a7Q"
   $computer = [ADSI]"WinNT://$env:COMPUTERNAME,computer"
   $user = $computer.Create("User", $name)
-  $user.SetPassword($plain)
-  $user.SetInfo()
-  try { ([ADSI]"WinNT://$env:COMPUTERNAME/Users,group").Add("WinNT://$env:COMPUTERNAME/$name,user") } catch { }
+  [void]$user.SetPassword($plain)
+  [void]$user.SetInfo()
+  try { [void]([ADSI]"WinNT://$env:COMPUTERNAME/Users,group").Add("WinNT://$env:COMPUTERNAME/$name,user") } catch { }
   $script:DesktopTester = New-Object System.Management.Automation.PSCredential ("$env:COMPUTERNAME\$name", (ConvertTo-SecureString $plain -AsPlainText -Force))
   $script:DesktopTester
 }
@@ -43,7 +43,7 @@ function Start-DesktopAsTester([string]$Exe, [hashtable]$Environment, [string]$W
   $lines += "start `"`" `"$Exe`""
   Set-Content -Encoding ascii -LiteralPath $launcher -Value $lines
   icacls $launcher /grant "*S-1-1-0:RX" | Out-Null
-  Start-Process -FilePath cmd.exe -ArgumentList "/d /c $launcher" -Credential (Get-DesktopTester) -LoadUserProfile -WorkingDirectory $env:SystemRoot -WindowStyle Hidden
+  Start-Process -FilePath cmd.exe -ArgumentList "/d /c $launcher" -Credential (@(Get-DesktopTester) | Where-Object { $_ -is [pscredential] } | Select-Object -First 1) -LoadUserProfile -WorkingDirectory $env:SystemRoot -WindowStyle Hidden
   $deadline = (Get-Date).AddSeconds(45)
   do {
     Start-Sleep -Milliseconds 500
