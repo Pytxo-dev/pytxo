@@ -6,6 +6,7 @@ param(
   [Parameter(Mandatory)] [string]$Evidence
 )
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "desktop-session.ps1")
 $root = Resolve-Path (Join-Path $PSScriptRoot "../..")
 New-Item -ItemType Directory -Force $Evidence | Out-Null
 $Evidence = (Resolve-Path $Evidence).Path
@@ -23,7 +24,8 @@ if ($install.ExitCode -ne 0) { throw "msiexec /i exited $($install.ExitCode)" }
 $uninstall = Get-ChildItem HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall, HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall -ErrorAction SilentlyContinue |
   Get-ItemProperty | Where-Object { $_.DisplayName -like "Pytxo Desktop*" } | Select-Object -First 1
 if (-not $uninstall) { throw "No uninstall entry for Pytxo Desktop" }
-$exe = Get-ChildItem -Recurse -File -Filter pytxo-desktop.exe -LiteralPath $uninstall.InstallLocation -ErrorAction SilentlyContinue | Select-Object -First 1
+$exe = $null
+if ($uninstall.InstallLocation) { $exe = Get-ChildItem -Recurse -File -Filter pytxo-desktop.exe -LiteralPath $uninstall.InstallLocation -ErrorAction SilentlyContinue | Select-Object -First 1 }
 if (-not $exe) { $exe = Get-ChildItem -Recurse -File -Filter pytxo-desktop.exe "C:\Program Files", "$env:LOCALAPPDATA\Programs" -ErrorAction SilentlyContinue | Select-Object -First 1 }
 if (-not $exe) { throw "Installed pytxo-desktop.exe not found" }
 $shortcut = Get-ChildItem -Recurse -File -Filter "*.lnk" "$env:ProgramData\Microsoft\Windows\Start Menu", "$env:APPDATA\Microsoft\Windows\Start Menu" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "Pytxo*" } | Select-Object -First 1
@@ -66,6 +68,7 @@ $fixture = Join-Path $env:RUNNER_TEMP "fleet\taskboard"
 $baselineTests = (& npm --prefix $fixture test 2>&1 | Out-String)
 $app = Start-Desktop "journey" "1"
 try {
+  Wait-DesktopCdp $app $Evidence "journey"
   node (Join-Path $PSScriptRoot "journey.mjs") --cdp 9340 --out (Join-Path $Evidence "journey") --mode full --repo $fixture --mission (Join-Path $root "docs\demo\fleet\mission.txt") --team "Claude Code,Cursor Agent,OpenCode,Antigravity"
   if ($LASTEXITCODE -ne 0) { throw "Journey failed" }
 } finally { Stop-Desktop $app }
@@ -92,6 +95,7 @@ $summary.layout = [ordered]@{}
 foreach ($scale in "1.5", "2") {
   $app = Start-Desktop "layout-$scale" $scale
   try {
+    Wait-DesktopCdp $app $Evidence "layout-$scale"
     node (Join-Path $PSScriptRoot "journey.mjs") --cdp 9340 --out (Join-Path $Evidence "layout-$scale") --mode layout
     $summary.layout[$scale] = if ($LASTEXITCODE -eq 0) { "passed" } else { "failed" }
   } finally { Stop-Desktop $app }

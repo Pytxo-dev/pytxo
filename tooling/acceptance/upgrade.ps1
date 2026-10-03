@@ -7,6 +7,7 @@ param(
   [string]$PreviousUrl = "https://github.com/Pytxo-dev/pytxo-releases/releases/download/v1.2.1/pytxo-desktop-windows-x64.msi"
 )
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "desktop-session.ps1")
 New-Item -ItemType Directory -Force $Evidence | Out-Null
 $Evidence = (Resolve-Path $Evidence).Path
 $summary = [ordered]@{ previous = $PreviousUrl; candidate_sha256 = (Get-FileHash -LiteralPath $Msi -Algorithm SHA256).Hash }
@@ -27,6 +28,7 @@ function Use-Desktop([string]$Name, [string[]]$ProbeArgs) {
   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9340"
   $app = Start-Process -FilePath $exe.FullName -PassThru
   try {
+    Wait-DesktopCdp $app $Evidence $Name
     node (Join-Path $PSScriptRoot "probe.mjs") --cdp 9340 --out $Evidence --name $Name @ProbeArgs
     if ($LASTEXITCODE -ne 0) { throw "Probe $Name failed" }
   } finally {

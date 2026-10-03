@@ -130,8 +130,8 @@ jobs:
           path: acceptance
       - name: Assemble the continuous journey recording
         run: |
+          [ -f acceptance/journey/frames.txt ] || { echo "No frames recorded"; exit 0; }
           cd acceptance/journey
-          test -f frames.txt || { echo "No frames recorded"; exit 0; }
           ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i frames.txt -vf "fps=30,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p" -c:v libx264 -crf 18 -y journey.mp4
           ffprobe -v error -show_entries format=duration -of csv=p=0 journey.mp4
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
