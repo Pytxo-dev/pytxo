@@ -35,6 +35,8 @@ parser.add_argument("--mission")
 parser.add_argument("--team", default="Claude Code,Cursor Agent,OpenCode,Antigravity")
 parser.add_argument("--name", default="probe")
 parser.add_argument("--onboard", action="store_true")
+# Film takes: 60 fps without the baked-in pointer (it is redrawn from receipt telemetry), plus a canvas drag.
+parser.add_argument("--film", action="store_true")
 args = parser.parse_args()
 
 out = Path(args.out)
@@ -218,8 +220,8 @@ def start_recording():
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
     target = out / "screen.mkv"
     recorder = subprocess.Popen(
-        [ffmpeg, "-hide_banner", "-loglevel", "error", "-use_wallclock_as_timestamps", "1", "-f", "gdigrab", "-framerate", "30", "-draw_mouse", "1", "-i", "desktop",
-         "-copyts", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "16", "-pix_fmt", "yuv420p", "-y", str(target)],
+        [ffmpeg, "-hide_banner", "-loglevel", "error", "-use_wallclock_as_timestamps", "1", "-f", "gdigrab", "-framerate", "60" if args.film else "30", "-draw_mouse", "0" if args.film else "1", "-i", "desktop",
+         "-copyts", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "12" if args.film else "16", "-pix_fmt", "yuv420p", "-y", str(target)],
         stdin=subprocess.PIPE,
     )
     spawned = now_ms()
@@ -333,6 +335,24 @@ try:
         run = wait_for(lambda: (row := latest_run()) and row != before and row, 120, what="the run to start")
         run_id = run[0]
         step("run", id=run_id)
+        if args.film:
+            # Let the fleet stream, then grab the worker canvas and move it, then return.
+            time.sleep(6)
+            mark("fleet")
+            canvas = spec("Canvas", control_type="Button", index=0)
+            if present(canvas, 10):
+                press(canvas, "Canvas")
+                time.sleep(1.5)
+                area = spec(title_re="^Worker canvas", index=0).wrapper_object().rectangle()
+                x, y = area.left + area.width() // 2, area.top + area.height() // 3
+                glide(x, y, 0.6)
+                receipt["pointer"].append({"t": now_ms(), "kind": "drag", "label": "Canvas", "x": x, "y": y, "surface": "desktop"})
+                mouse.press(coords=(x, y))
+                glide(x - 260, y + 90, 1.2)
+                mouse.release(coords=(x - 260, y + 90))
+                mark("dragged")
+                time.sleep(2)
+                press(spec("Fleet", control_type="Button", index=0), "Fleet")
         run = wait_for(lambda: (row := latest_run()) and row[2] and row, 20 * 60, interval=3, what="the run to finish")
         mark("settled")
         agents = ledger("select task_id, status, exit_code from agents where run_id = ? order by task_id", run_id)
