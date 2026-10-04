@@ -115,9 +115,9 @@
     </small>
 
   {:else}
-    <button type="button" class="drop" disabled={busy} onclick={pickFolder}>
+    <button type="button" class="drop" aria-label={busy && !creatingExample ? "Opening…" : "Select folder"} aria-describedby="drop-hint" disabled={busy} onclick={pickFolder}>
       <strong>{busy && !creatingExample ? "Opening…" : "Select folder"}</strong>
-      <span>Git repository recommended</span>
+      <span id="drop-hint">Git repository recommended</span>
     </button>
     <button type="button" class="example" disabled={busy} onclick={() => void createExample()}>
       <span class="glyph" aria-hidden="true">◇</span>

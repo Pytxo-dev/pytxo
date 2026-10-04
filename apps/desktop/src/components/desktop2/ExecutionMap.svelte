@@ -144,8 +144,11 @@
   }
   // Drags may start anywhere, including on a worker; a press that never moves stays a click.
   function beginPan(event: PointerEvent) {
-    if (event.button !== 0 || (event.target as HTMLElement).closest("a, summary, .minimap")) return;
-    gesture = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, originX: camera.x, originY: camera.y, started: false };
+    if (event.button !== 0 || (event.target as HTMLElement).closest("a, summary, .minimap button")) return;
+    // Background presses grab at once; a press on a worker waits for real movement.
+    const onWorker = !!(event.target as HTMLElement).closest("button");
+    gesture = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, originX: camera.x, originY: camera.y, started: !onWorker };
+    if (!onWorker) { cameraMode = "manual"; viewport?.setPointerCapture(event.pointerId); }
   }
   function pan(event: PointerEvent) {
     if (!gesture || gesture.pointerId !== event.pointerId) return;
