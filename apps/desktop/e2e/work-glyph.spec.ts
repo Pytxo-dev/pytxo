@@ -19,8 +19,10 @@ test("expanding eight native-length run IDs preserves readable Work heading", as
   await page.goto("/#/work");
   await page.getByText("Runs", { exact: true }).click();
   await expect(page.getByRole("tablist", { name: "Runs in this snapshot" }).getByRole("tab")).toHaveCount(8);
-  const heading = await page.locator(".work-heading h1").boundingBox();
-  expect(heading!.width).toBeGreaterThan(280);
+  // The compact header sizes the title to its text; readable means not cut off.
+  const heading = page.locator(".work-heading h1");
+  expect(await heading.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  expect((await heading.boundingBox())!.width).toBeGreaterThan(100);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: "../../target/beta-regression-repair-20260919/work-expanded-runs.png" });
 });

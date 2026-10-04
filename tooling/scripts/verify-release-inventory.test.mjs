@@ -228,7 +228,8 @@ test("candidate signing cannot publish a release or update channel", async () =>
   assert.match(workflow, /on:\s+workflow_dispatch:/);
   assert.match(workflow, /permissions:\s+contents: read/);
   assert.match(workflow, /persist-credentials: false/);
-  assert.match(workflow, /push:\s+branches: \[2ntt\/pytxo-beta-candidate-20261003\]/);
+  // Manual only: candidate builds spend billed Windows minutes, so no push trigger.
+  assert.doesNotMatch(workflow, /^\s+push:/m);
   assert.match(workflow, /if: github\.repository == 'Pytxo-dev\/pytxo' && github\.ref == 'refs\/heads\/2ntt\/pytxo-beta-candidate-20261003'/);
   assert.doesNotMatch(workflow, /^\s+(pull_request|pull_request_target|schedule|tags):/m);
   assert.doesNotMatch(workflow, /softprops\/action-gh-release|npm publish|git push|gh release/);
