@@ -49,7 +49,7 @@ jobs:
         if: inputs.mode == 'film'
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
-          npx remotion render src/index.ts PytxoFilm out/pytxo-film.render.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p --color-space=bt709 --audio-codec=aac --audio-bitrate=256k --sample-rate=48000 --concurrency=4 --overwrite
+          npx remotion render src/index.ts PytxoFilm out/pytxo-film.render.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p --color-space=bt709 --audio-codec=aac --audio-bitrate=256k --sample-rate=48000 --concurrency=2 --overwrite
           node scripts/finalize-master.mjs out/pytxo-film.render.mp4 out/pytxo-film.mp4
           node scripts/film-review.mjs --every 4
       - name: Retain private review artifacts
