@@ -1,5 +1,46 @@
 # Pytxo v1.2.2 release readiness
 
+## October 4 (later) - new Desktop UI, real DPI, in-app update proof
+
+**Decision (Matt): the beta ships without Windows Authenticode signing.** The
+install guide explains the SmartScreen prompt; in-app updates stay
+signature-verified.
+
+Desktop changes: compact Work header (title and state on one line, inspection
+tools folded to an icon), two-pane onboarding with a step rail, and the
+approved "live instrument" Work pass: a run status bar (working/done/failed/
+waiting from recorded agent states, time since start while running, review
+state), activity rails on working agents (activity, never progress), and
+handoff flow on canvas edges only when a completed task feeds a running one.
+All motion stops under OS or in-app reduced motion. Apply, verification and
+stale gates are unchanged.
+
+**Final head `cc0baa8`, candidate build 37186466601, acceptance run
+37186468707, all on GitHub-hosted Windows: passed.** MSI SHA-256
+`4290F365BCFE39ABEB77B541F5B114C4903ABB1822A6BEC9394354B8B51F8DED`
+(Authenticode: NotSigned, by decision).
+
+- Clean install and mixed-agent journey as a standard user through UI
+  Automation: changed files equal reviewed files, `npm test` passed after Apply,
+  7/7 files byte-identical to the recorded 2 October workers (stand-in replay).
+- **Real Windows display scaling** set live through DisplayConfig: 150%
+  (window DPI 144) and 175% (window DPI 168) passed. 200% is not offered by the
+  hosted display (maximum 175% at 1920x1080), so it remains a real-hardware check.
+- Retained-data upgrade from public v1.2.1: one 1.2.2 install, no data lost,
+  onboarding not shown again.
+- **In-app update from public v1.2.1 to this candidate: passed.** v1.2.1's own
+  updater fetched the feed, downloaded the candidate MSI, accepted its
+  production updater signature with v1.2.1's embedded key, installed it, and
+  relaunched as 1.2.2 with onboarding retained. The feed was a local HTTPS
+  stand-in reached through the runner's hosts file and a throwaway trusted
+  certificate; the real GitHub feed URL was not exercised, and Desktop ran as the
+  runner's administrator, so UAC consent was not exercised.
+
+Not established: live vendor agents on this artifact (stand-ins replay the 2
+October run; that run is the live multi-vendor evidence), true 200% DPI, UAC
+consent during update, publication. PytxoFilm v2 (camera push-in) is rendered
+privately for Matt's review.
+
 ## October 4 - cloud Windows acceptance, upgrade proof and PytxoFilm
 
 All checks ran on GitHub-hosted Windows runners (`desktop-acceptance.yml`,
