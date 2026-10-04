@@ -17,6 +17,7 @@
     onSkip: () => void;
   } = $props();
 
+  const COUNT_WORDS: Record<number, string> = { 2: "Two", 3: "Three", 4: "Four", 5: "Five" };
   const backend = createDesktopBackend();
   let agents = $state<AdeCliStatusDto[]>([]);
   let loading = $state(true);
@@ -68,13 +69,12 @@
 </script>
 
 <SetupStepFrame>
-  <h2 class="title">Connect your coding agents</h2>
-  <p class="lead">
-    Pytxo runs the coding CLIs you already use, signed in with your own accounts. One is enough to start; connect more and they can share a job.
-  </p>
+  <p class="kicker">Agents on this machine</p>
+  <h2 class="title">{loading ? "Looking for your agents…" : readyCount > 1 ? `${COUNT_WORDS[readyCount] ?? readyCount} agents are ready to work.` : readyCount === 1 ? "One agent is ready to work." : "Connect a coding agent."}</h2>
+  <p class="lead">Pytxo runs the CLIs you already use, signed in with your own accounts. Every ready agent can share a job.</p>
 
   {#if loading}
-    <p class="status">Finding your coding agents…</p>
+    <div class="agents" aria-hidden="true">{#each [0, 1, 2, 3, 4] as row}<div class="agent skeleton" style={`--row:${row}`}><i></i><span><i></i><i></i></span></div>{/each}</div>
   {:else}
     <div class="agents" aria-label="Detected agent CLIs">
       {#each usefulAgents as agent (agent.id)}
@@ -108,12 +108,12 @@
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 
   {#snippet actions()}
-    {#if onRuntimeTools}<Button variant="ghost" onclick={onRuntimeTools}>Terminal tools</Button>{/if}
+    {#if readyCount > 0}<Button disabled={loading || openingId !== null} onclick={onContinue}>{readyCount > 1 ? `Continue with ${readyCount} agents` : "Continue"}</Button>
+    {:else}<Button disabled={loading || openingId !== null} onclick={onSkip}>Set up agents later</Button>{/if}
     <Button variant="outline" disabled={loading || openingId !== null} onclick={() => void refresh()}>
       {loading ? "Checking…" : "Check again"}
     </Button>
-    {#if readyCount > 0}<Button disabled={loading || openingId !== null} onclick={onContinue}>Continue</Button>
-    {:else}<Button disabled={loading || openingId !== null} onclick={onSkip}>Set up agents later</Button>{/if}
+    {#if onRuntimeTools}<Button variant="ghost" onclick={onRuntimeTools}>Terminal tools</Button>{/if}
   {/snippet}
 </SetupStepFrame>
 
@@ -121,79 +121,26 @@
   .install-guide { display: inline-flex; align-items: center; min-height: 40px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); text-decoration: none; font-size: 13px; }
   .install-guide:hover { background: var(--accent); }
   .install-guide:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-  .title {
-    margin: 0;
-    font-weight: 650;
-    text-wrap: balance;
-  }
-  .lead {
-    max-width: 490px;
-    margin: 0;
-    color: var(--muted-foreground);
-    font-size: 0.9rem;
-    line-height: 1.5;
-    text-wrap: pretty;
-  }
-  .agents {
-    display: grid;
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: var(--panel-radius);
-    background: color-mix(in oklab, var(--card) 86%, transparent);
-    overflow: hidden;
-  }
-  .agent {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-height: 48px;
-    padding: 0.55rem 0.7rem;
-    border-bottom: 1px solid var(--border);
-    text-align: left;
-  }
-  .agent:last-child {
-    border-bottom: 0;
-  }
-  .agent > span {
-    flex: 1;
-    display: grid;
-    gap: 0.16rem;
-    min-width: 0;
-  }
-  .agent strong {
-    font-size: 0.82rem;
-  }
-  .agent small,
-  .summary,
-  .status,
-  .message,
-  .error {
-    color: var(--muted-foreground);
-    font-size: 0.72rem;
-  }
-  .agent b {
-    color: var(--muted-foreground);
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-  .agent b.ready::before {
-    content: "";
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    margin-right: 6px;
-    border-radius: 50%;
-    background: currentColor;
-    vertical-align: 1px;
-  }
-  .agent b.ready {
-    color: var(--state-verified);
-  }
+  .agents { display: grid; width: 100%; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in oklab, var(--card) 70%, transparent); overflow: hidden; text-align: left; }
+  .agent { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+  .agent:last-child { border-bottom: 0; }
+  .agent > span { flex: 1; display: grid; gap: 3px; min-width: 0; }
+  .agent strong { font-size: 14px; font-weight: 500; }
+  .agent small, .summary, .message, .error { color: var(--muted-foreground); font-size: 12px; }
+  .agent small { font-family: var(--font-mono, "IBM Plex Mono", monospace); }
+  .agent b { color: var(--muted-foreground); font: 500 12px var(--font-mono, "IBM Plex Mono", monospace); }
+  .agent b.ready::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
+  .agent b.ready { color: var(--state-verified); }
+  .skeleton i { display: block; border-radius: 6px; background: color-mix(in oklab, var(--foreground) 7%, transparent); animation: skeleton 1.2s ease-in-out calc(var(--row) * 90ms) infinite alternate; }
+  .skeleton > i { width: 26px; height: 26px; }
+  .skeleton span i { width: 40%; height: 10px; }
+  .skeleton span i + i { width: 24%; height: 8px; }
+  @keyframes skeleton { to { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .skeleton i { animation: none; } }
   .message {
     color: var(--primary);
   }
   .summary,
-  .status,
   .message,
   .error {
     margin: 0;

@@ -33,7 +33,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await clearOnboarding(page);
       await page.goto("/");
       await page.getByRole("button", { name: "Get started" }).click();
-      await expect(page.getByText("Pytxo runs the coding CLIs you already use", { exact: false })).toBeVisible();
+      await expect(page.getByText("Pytxo runs the CLIs you already use", { exact: false })).toBeVisible();
       await expect(page.getByRole("status")).toContainText("3 of 5 ready · 4 installed");
       await page.getByRole("button", { name: "Connect an OpenCode provider" }).click();
       await expect(page.getByText("OpenCode sign-in opened. Finish the vendor flow, then recheck.")).toBeVisible();
@@ -44,8 +44,8 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await expect(page.getByText("ChatGPT connected", { exact: true })).toBeVisible();
       await expect(page.getByText("OpenCode sign-in opened. Finish the vendor flow, then recheck.")).not.toBeVisible();
       await page.screenshot({ path: testInfo.outputPath("onboarding.png"), fullPage: true });
-      await page.getByRole("button", { name: "Continue", exact: true }).click();
-      await expect(page.getByRole("heading", { name: "Choose your project" })).toBeVisible();
+      await page.getByRole("button", { name: /^Continue/ }).click();
+      await expect(page.getByRole("heading", { name: "Where should they work?" })).toBeVisible();
     });
 
     test("Flow and Review distinguish task checks from candidate proof", async ({ page }, testInfo) => {
@@ -75,8 +75,8 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await clearOnboarding(page);
       await page.goto("/");
       await page.getByRole("button", { name: "Get started" }).click();
-      await page.getByRole("button", { name: "Continue", exact: true }).click();
-      await expect(page.getByText("Requires Git. Includes tests that use Node.js; no API key required.")).toBeVisible();
+      await page.getByRole("button", { name: /^Continue/ }).click();
+      await expect(page.getByText("A small app with tests. Requires Git and Node.js; no API key.")).toBeVisible();
       // Exercise UI error recovery with a preview backend response. The native
       // Rust regression separately checks a genuinely absent Git executable.
       await page.evaluate(() => localStorage.setItem("pytxo-preview-example-error-v1", "missing-git"));
@@ -86,17 +86,14 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await expect(page.getByRole("button", { name: "Skip for now" })).toBeEnabled();
       await page.getByRole("alert").scrollIntoViewIfNeeded();
       await page.screenshot({ path: testInfo.outputPath("missing-git.png"), fullPage: true });
-      await page.getByRole("button", { name: "Skip for now" }).click();
-      await expect(page.getByRole("heading", { name: "Desktop setup complete" })).toBeVisible();
-      await page.getByRole("button", { name: "Back", exact: true }).click();
       await page.getByRole("button", { name: "Try the guided example" }).click();
       await expect(page.getByRole("alert")).toContainText("Git was not found");
       await page.evaluate(() => localStorage.removeItem("pytxo-preview-example-error-v1"));
       await page.getByRole("button", { name: "Try the guided example" }).click();
       await expect(page.getByRole("alert")).toHaveCount(0);
-      await expect(page.getByText("Guided local Git example ready. Its baseline tests need no API key.")).toBeVisible();
-      await page.getByRole("button", { name: "Continue", exact: true }).click();
-      await expect(page.getByRole("heading", { name: "Desktop setup complete" })).toBeVisible();
+      await expect(page.getByText("A local Git example. Its baseline tests need no API key.")).toBeVisible();
+      await page.getByRole("button", { name: /Enter Pytxo Desktop/ }).click();
+      await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
     });
 
     test("Review reports the combined receipt without promoting failed or empty checks", async ({ page }, testInfo) => {

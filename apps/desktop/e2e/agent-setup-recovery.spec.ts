@@ -10,14 +10,14 @@ test("failed onboarding recheck withdraws previously reported readiness", async 
   await page.getByRole("button", { name: "Check again", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Agent detection failed");
   await expect(page.getByText("ChatGPT connected", { exact: true })).toBeHidden();
-  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeHidden();
+  await expect(page.getByRole("button", { name: /^Continue/ })).toBeHidden();
   await expect(page.getByRole("button", { name: "Set up agents later", exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("detection-error.png") });
   await page.evaluate(() => localStorage.setItem("pytxo-preview-ade-state-v1", "codex-only"));
   await page.getByRole("button", { name: "Check again", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByText("ChatGPT connected", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /^Continue/ })).toBeEnabled();
 });
 
 test("onboarding can defer agent setup without claiming an agent is ready", async ({ page }, info) => {

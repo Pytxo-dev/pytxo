@@ -164,12 +164,12 @@ def wait_for(predicate, timeout, interval=2.0, what="condition"):
 def onboard(example):
     press(spec("Get started", control_type="Button"), "Get started", timeout=120)
     try:
-        spec(title_re="Finding your coding agents.*").wait_not("exists", timeout=90)
+        spec(title_re="Looking for your agents.*").wait_not("exists", timeout=90)
     except Exception:
         pass
     time.sleep(1)
     shot("onboarding-agents")
-    press(spec("Continue", control_type="Button"), "Continue")
+    press(spec(title_re="^Continue", control_type="Button"), "Continue")
     if example:
         press(spec("Try the guided example", control_type="Button"), "Try the guided example")
     else:
@@ -187,8 +187,7 @@ def onboard(example):
                 break
             press(dialog.child_window(title="Select Folder", control_type="Button"), "Select Folder")
             time.sleep(2)
-        wait(spec(title_re="Workspace selected.*"), 60)
-    press(spec("Continue", control_type="Button"), "Continue")
+        wait(spec(title_re="Pytxo uses this folder.*"), 60)
     press(spec("Enter Pytxo Desktop", control_type="Button"), "Enter Pytxo Desktop")
     step("desktop entered")
     time.sleep(2)
@@ -249,15 +248,15 @@ try:
         if (args.onboard or args.mode == "update") and receipt["onboarding_shown"]:
             # Releases differ in their setup steps, so finish setup by whichever of
             # these each step offers, until no setup step remains.
-            choices = ["Get started", "Skip for now", "Try the guided example", "Continue", "Next", "Finish", "Enter Pytxo Desktop", "Open Pytxo Desktop"]
+            choices = ["Get started", "Enter Pytxo Desktop", "Open Pytxo Desktop", "Skip for now", "Set up agents later", "Try the guided example", "Continue", "Next", "Finish"]
             idle = 0
             while idle < 3 and len(receipt["pointer"]) < 60:
-                found = next((name for name in choices if present(spec(name, control_type="Button"), 2)), None)
+                found = next((name for name in choices if present(spec(title_re=f"^{name}", control_type="Button"), 2)), None)
                 if not found:
                     idle += 1
                     continue
                 idle = 0
-                press(spec(found, control_type="Button"), found)
+                press(spec(title_re=f"^{found}", control_type="Button"), found)
                 time.sleep(2.5)
             if not present(spec("Get started", control_type="Button"), 2) and not present(spec(title_re="^Setup progress$"), 2):
                 step("desktop entered")

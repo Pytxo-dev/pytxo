@@ -16,14 +16,14 @@ for (const [width, height] of [[1440, 900], [1024, 680]]) {
     await page.getByRole("button", { name: "Get started" }).waitFor();
     await page.screenshot({ path: `${OUT}/${at}-1-welcome.png` });
     await page.getByRole("button", { name: "Get started" }).click();
-    await page.getByRole("button", { name: "Continue", exact: true }).waitFor();
+    await page.getByRole("button", { name: /^Continue/ }).waitFor();
     await page.waitForTimeout(600);
     await page.screenshot({ path: `${OUT}/${at}-2-agents.png` });
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page.getByRole("button", { name: /^Continue/ }).click();
     await page.getByRole("button", { name: "Try the guided example" }).waitFor();
     await page.screenshot({ path: `${OUT}/${at}-3-project.png` });
     await page.getByRole("button", { name: "Try the guided example" }).click();
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page.getByRole("button", { name: /^Continue/ }).click();
     await page.getByRole("button", { name: "Enter Pytxo Desktop" }).waitFor();
     await page.screenshot({ path: `${OUT}/${at}-4-ready.png` });
   });
