@@ -79,7 +79,7 @@
         </span>
       {/each}
     </nav>
-    <p class="setup__assurance"><span>Describe → Agents work → Review → Apply</span>Your project changes only when you Apply.</p>
+    <p class="setup__assurance"><span>Describe → Work → Review → Apply</span>Your project changes only when you Apply.</p>
   </aside>
 
   <div class="setup__body">

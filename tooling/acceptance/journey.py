@@ -29,7 +29,7 @@ from pywinauto.keyboard import send_keys
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--out", required=True)
-parser.add_argument("--mode", choices=["full", "layout", "probe"], required=True)
+parser.add_argument("--mode", choices=["full", "layout", "probe", "update"], required=True)
 parser.add_argument("--repo")
 parser.add_argument("--mission")
 parser.add_argument("--team", default="Claude Code,Cursor Agent,OpenCode,Antigravity")
@@ -244,9 +244,9 @@ def start_recording():
 
 stop_recording = start_recording() if args.mode == "full" else None
 try:
-    if args.mode == "probe":
+    if args.mode in ("probe", "update"):
         receipt["onboarding_shown"] = present(spec("Get started", control_type="Button"), 20)
-        if args.onboard and receipt["onboarding_shown"]:
+        if (args.onboard or args.mode == "update") and receipt["onboarding_shown"]:
             # Releases differ in their setup steps, so finish setup by whichever of
             # these each step offers, until no setup step remains.
             choices = ["Get started", "Skip for now", "Try the guided example", "Continue", "Next", "Finish", "Enter Pytxo Desktop", "Open Pytxo Desktop"]
@@ -264,6 +264,26 @@ try:
         time.sleep(2)
         receipt["texts"] = sorted({element.window_text() for element in win.descendants(control_type="Text") if element.window_text().strip()})[:200]
         shot(args.name)
+        if args.mode == "update":
+            # Take the offered update the way a person would, through whichever
+            # labels this release uses, until the app exits to install it.
+            offer = re.compile(r"^(Restart to update|Download update|Install and restart|Restart Pytxo|Update now)$")
+            deadline = time.time() + 300
+            while time.time() < deadline:
+                try:
+                    if not win.exists(timeout=1):
+                        break
+                    button = next((element for element in win.descendants(control_type="Button") if offer.match(element.window_text())), None)
+                    if button and button.is_enabled():
+                        label = button.window_text()
+                        step(f"update: {label}")
+                        shot(f"{args.name}-{len(receipt['steps'])}")
+                        press(spec(label, control_type="Button"), label)
+                    time.sleep(2)
+                except Exception as error:
+                    step(f"window gone: {type(error).__name__}")
+                    break
+            step("app exited for the update" if not win.exists(timeout=1) else "app still open")
     elif args.mode == "layout":
         onboard(example=True)
         fits("work", [("New work", spec("New work", control_type="Button", index=0))])

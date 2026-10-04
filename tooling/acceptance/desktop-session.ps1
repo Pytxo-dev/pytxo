@@ -1,12 +1,5 @@
 # Shared by run-acceptance.ps1 and upgrade.ps1, on disposable cloud runners only.
 
-# Device scale for the layout passes. WebView2 150+ takes browser arguments for
-# this app only from the machine policy (MicrosoftEdge/WebView2Feedback#5640).
-function Set-DesktopBrowserArguments([string]$Arguments) {
-  $key = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
-  if (-not (Test-Path $key)) { New-Item -Force $key | Out-Null }
-  Set-ItemProperty -Path $key -Name "pytxo-desktop.exe" -Value $Arguments
-}
 # Hosted runners sign in as a full-token administrator; real users run Desktop as
 # standard users, so acceptance does too: a throwaway local account on the
 # disposable runner, with a random password that is never printed or stored.

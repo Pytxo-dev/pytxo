@@ -28,7 +28,12 @@
   {:else}
     <p class="lead">Choose a project and a ready coding agent to start. You can finish those steps in Setup.</p>
   {/if}
-  {#if onDisplay}<Button variant="outline" onclick={onDisplay}>Adjust display</Button>{/if}
+  <ol class="next">
+    <li><b>1</b>Describe a change in Work, in your own words.</li>
+    <li><b>2</b>Review the plan, then run it. Agents work in their own copies.</li>
+    <li><b>3</b>Read the changes and checks, then Apply. Nothing is written before that.</li>
+  </ol>
+  {#if onDisplay}<span class="display"><Button variant="outline" onclick={onDisplay}>Adjust display</Button></span>{/if}
   {#snippet actions()}<Button onclick={enter}>Enter Pytxo Desktop</Button>{/snippet}
 </SetupStepFrame>
 
@@ -45,6 +50,10 @@
     text-wrap: pretty;
     line-height: 1.5;
   }
+  .next { display: grid; gap: 0; margin: 4px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
+  .next li { display: flex; align-items: baseline; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; line-height: 1.5; }
+  .next b { font: 12px var(--font-mono, monospace); color: var(--muted-foreground); font-weight: 400; }
+  .display { align-self: flex-start; }
   .path {
     display: block;
     width: 100%;

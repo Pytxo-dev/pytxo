@@ -53,13 +53,12 @@ $env:PATH = "$bin;$env:PATH"
 # elevated runner created; Pytxo strips GIT_* variables, so trust them system-wide.
 git config --system --add safe.directory "*"
 
-function Start-Desktop([string]$Name, [string]$Scale) {
+function Start-Desktop([string]$Name) {
   $dir = Join-Path $env:RUNNER_TEMP "pytxo-$Name"
   New-Item -ItemType Directory -Force "$dir\home", "$dir\webview" | Out-Null
   # The tester needs write access to this elevated runner's temp tree.
   icacls $env:RUNNER_TEMP /grant "*S-1-1-0:(OI)(CI)F" /T /C /Q | Out-Null
   $env:PYTXO_HOME = "$dir\home"
-  Set-DesktopBrowserArguments "--force-device-scale-factor=$Scale"
   Start-DesktopAsTester $exe.FullName @{
     PYTXO_HOME = "$dir\home"
     WEBVIEW2_USER_DATA_FOLDER = "$dir\webview"
@@ -76,7 +75,7 @@ function Stop-Desktop($Process) {
 $fixture = Join-Path $env:RUNNER_TEMP "fleet\taskboard"
 & (Join-Path $root "docs\demo\fleet\setup.ps1") -Path $fixture
 $baselineTests = (& npm --prefix $fixture test 2>&1 | Out-String)
-$app = Start-Desktop "journey" "1"
+$app = Start-Desktop "journey"
 try {
   python (Join-Path $PSScriptRoot "journey.py") --out (Join-Path $Evidence "journey") --mode full --repo $fixture --mission (Join-Path $root "docs\demo\fleet\mission.txt") --team "Claude Code,Cursor Agent,OpenCode,Antigravity"
   if ($LASTEXITCODE -ne 0) { throw "Journey failed" }
@@ -105,17 +104,28 @@ $summary.journey.replayed_files = "{0}/{1}" -f @($recorded | Where-Object { (Get
 Set-Content -Encoding utf8 (Join-Path $Evidence "fixture-tests.txt") "--- before ---`n$baselineTests`n--- after Apply ---`n$tests"
 git -C $fixture diff > (Join-Path $Evidence "fixture-applied.diff")
 
-# --- Layout at 150% and 200% device scale (WebView emulation, not Windows display scaling). ---
-$summary.layout = [ordered]@{}
-foreach ($scale in "1.5", "2") {
-  $app = Start-Desktop "layout-$scale" $scale
+# --- Windows display scaling at 150% and 200%: the real per-monitor DPI, set live
+# as the Settings app does, with the DPI Desktop's window reports as evidence. ---
+. (Join-Path $PSScriptRoot "display-scale.ps1")
+$summary.display_scaling = [ordered]@{}
+foreach ($percent in 150, 200) {
+  $name = "dpi-$percent"
+  $entry = [ordered]@{}
   try {
-    python (Join-Path $PSScriptRoot "journey.py") --out (Join-Path $Evidence "layout-$scale") --mode layout
-    $summary.layout[$scale] = if ($LASTEXITCODE -eq 0) { "passed" } else { "failed" }
-  } finally { Stop-Desktop $app }
+    $entry.display = Set-DisplayScale $percent @("1920x1080", "2560x1600", "2560x1440", "2048x1536")
+    $entry.screen = "{0}x{1}" -f [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width, [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height
+    $app = Start-Desktop $name
+    try {
+      Start-Sleep -Seconds 2
+      $entry.window_dpi = [PytxoDisplayScale]::GetDpiForWindow((Get-Process -Id $app.Id).MainWindowHandle)
+      python (Join-Path $PSScriptRoot "journey.py") --out (Join-Path $Evidence $name) --mode layout
+      $entry.result = if ($LASTEXITCODE -ne 0) { "failed" } elseif ($entry.window_dpi -ne [math]::Round(96 * $percent / 100)) { "failed: window DPI $($entry.window_dpi)" } else { "passed" }
+    } finally { Stop-Desktop $app }
+  } catch { $entry.result = "failed: $_" }
+  $summary.display_scaling["$percent"] = $entry
 }
 
 $summary | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 (Join-Path $Evidence "acceptance.json")
 Get-Content (Join-Path $Evidence "acceptance.json")
-$failed = -not $summary.journey.changed_matches_reviewed -or $summary.journey.tests_after_apply -ne "passed" -or $summary.journey.operator_note_left -or ($summary.layout.Values -contains "failed")
+$failed = -not $summary.journey.changed_matches_reviewed -or $summary.journey.tests_after_apply -ne "passed" -or $summary.journey.operator_note_left -or @($summary.display_scaling.Values | Where-Object { $_.result -ne "passed" }).Count
 if ($failed) { throw "Acceptance checks failed; see acceptance.json" }

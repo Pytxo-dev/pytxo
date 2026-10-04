@@ -13,6 +13,10 @@ on:
         description: "Run the install, mixed-agent journey and layout passes (Windows minutes)"
         type: boolean
         default: true
+      update:
+        description: "Prove the in-app update from v1.2.1 to the candidate (Windows minutes)"
+        type: boolean
+        default: false
       upgrade:
         description: "Also run the v1.2.1 retained-data upgrade (Windows minutes)"
         type: boolean
@@ -127,6 +131,37 @@ jobs:
         with:
           name: desktop-upgrade-${{ github.sha }}
           path: upgrade/
+          if-no-files-found: warn
+          retention-days: 14
+
+  update:
+    needs: candidate
+    if: inputs.update
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - run: python -m pip install --disable-pip-version-check --quiet pywinauto==0.6.9 pillow
+      - name: Download the candidate MSI and its updater signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download ${{ needs.candidate.outputs.run_id }} -R $env:GITHUB_REPOSITORY -p "desktop-candidate-*" -D candidate
+      - name: In-app update from public v1.2.1 to the candidate
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem candidate -Recurse -File -Filter *.msi | Where-Object { $_.FullName -notmatch '\\payload\\' } | Select-Object -First 1
+          ./tooling/acceptance/update-proof.ps1 -Msi $msi.FullName -Evidence update-proof
+      - name: Upload update evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-update-${{ github.sha }}
+          path: update-proof/
           if-no-files-found: warn
           retention-days: 14
 
