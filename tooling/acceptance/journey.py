@@ -39,7 +39,6 @@ args = parser.parse_args()
 
 out = Path(args.out)
 out.mkdir(parents=True, exist_ok=True)
-here = Path(__file__).parent
 now_ms = lambda: round(time.time() * 1000)
 receipt = {"mode": args.mode, "started": now_ms(), "steps": [], "checks": {}, "pointer": [], "marks": {}}
 
@@ -175,7 +174,19 @@ def onboard(example):
         press(spec("Try the guided example", control_type="Button"), "Try the guided example")
     else:
         press(spec("Select folder", control_type="Button"), "Select folder")
-        subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(here / "pick-folder.ps1"), "-Folder", str(Path(args.repo).resolve())], check=True)
+        # The Windows folder dialog, answered like a person would: click the Folder
+        # box, type the path, choose Select Folder. (Desktop runs as another user,
+        # so UI Automation can find the controls but not set their values.)
+        dialog = Desktop(backend="uia").window(title="Select project workspace")
+        dialog.wait("visible", timeout=60)
+        press(dialog.child_window(auto_id="1152", found_index=0), "Folder")
+        send_keys("^a")
+        type_text(str(Path(args.repo).resolve()))
+        for _ in range(3):
+            if not present(dialog, 1):
+                break
+            press(dialog.child_window(title="Select Folder", control_type="Button"), "Select Folder")
+            time.sleep(2)
         wait(spec(title_re="Workspace selected.*"), 60)
     press(spec("Continue", control_type="Button"), "Continue")
     press(spec("Enter Pytxo Desktop", control_type="Button"), "Enter Pytxo Desktop")
