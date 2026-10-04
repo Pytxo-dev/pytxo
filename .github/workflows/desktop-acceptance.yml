@@ -8,6 +8,11 @@ name: Desktop acceptance (cloud Windows)
 # Manual only: Windows minutes are billed double; trigger when a candidate is ready.
 on:
   workflow_dispatch:
+    inputs:
+      upgrade:
+        description: "Also run the v1.2.1 retained-data upgrade (Windows minutes)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -90,6 +95,7 @@ jobs:
 
   upgrade:
     needs: candidate
+    if: inputs.upgrade
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
