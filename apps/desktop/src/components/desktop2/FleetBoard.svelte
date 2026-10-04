@@ -193,6 +193,12 @@
   .lane h3 small { color: var(--pytxo-text-soft); font: 13px var(--pytxo-font-ui); letter-spacing: 0; text-transform: none; }
   .cards { display: grid; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); grid-auto-rows: auto; align-content: start; align-items: start; gap: 14px; }
   .worker { container: worker / inline-size; display: flex; flex-direction: column; min-height: 0; overflow: hidden; border: 1px solid var(--pytxo-line); border-radius: 8px; background: var(--pytxo-surface-panel); }
+  /* An active worker carries an activity rail: it shows activity, never progress. */
+  .worker[data-tone="live"] { position: relative; }
+  .worker[data-tone="live"]::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--pytxo-aperture-horizontal); background-size: 200% 100%; animation: activity-rail 2.4s linear infinite; pointer-events: none; }
+  @keyframes activity-rail { to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .worker[data-tone="live"]::before { animation: none; } }
+  :global([data-force-reduced-motion]) .worker[data-tone="live"]::before { animation: none; }
   .worker[data-tone="live"] { border-color: color-mix(in srgb, var(--pytxo-activity) 55%, var(--pytxo-line)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--pytxo-activity) 18%, transparent); }
   .worker[data-tone="done"] { border-color: color-mix(in srgb, var(--state-verified) 40%, var(--pytxo-line)); }
   .worker[data-tone="failed"] { border-color: color-mix(in srgb, var(--state-refuted) 50%, var(--pytxo-line)); }

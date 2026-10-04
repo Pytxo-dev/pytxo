@@ -286,7 +286,7 @@
         {#if nodes.length}
           <div class="scene" class:overview={overviewMode} class:micro-overview={microOverviewMode} bind:this={scene} style={`width:${topology.width}px;height:${topology.height}px`}>
             <svg class="flowlines" viewBox={`0 0 ${topology.width} ${topology.height}`} aria-hidden="true">
-              {#each edges as edge}<path class:highlighted={edge.source.task.task_id === selected?.task.task_id || edge.target.task.task_id === selected?.task.task_id} d={topology.orientation === "vertical" ? `M ${edge.source.sceneX} ${edge.source.sceneY + 50} C ${edge.source.sceneX} ${(edge.source.sceneY + edge.target.sceneY) / 2}, ${edge.target.sceneX} ${(edge.source.sceneY + edge.target.sceneY) / 2}, ${edge.target.sceneX} ${edge.target.sceneY - 50}` : `M ${edge.source.sceneX + 112} ${edge.source.sceneY} C ${(edge.source.sceneX + edge.target.sceneX) / 2} ${edge.source.sceneY}, ${(edge.source.sceneX + edge.target.sceneX) / 2} ${edge.target.sceneY}, ${edge.target.sceneX - 112} ${edge.target.sceneY}`} />{/each}
+              {#each edges as edge}{@const handedOff = edge.source.agent?.status === "completed" && edge.source.agent.exit_code === 0}<path class:highlighted={edge.source.task.task_id === selected?.task.task_id || edge.target.task.task_id === selected?.task.task_id} class:flowing={handedOff && ["running", "starting", "pending"].includes(edge.target.agent?.status ?? "")} class:upstream={!routed && !handedOff} d={topology.orientation === "vertical" ? `M ${edge.source.sceneX} ${edge.source.sceneY + 50} C ${edge.source.sceneX} ${(edge.source.sceneY + edge.target.sceneY) / 2}, ${edge.target.sceneX} ${(edge.source.sceneY + edge.target.sceneY) / 2}, ${edge.target.sceneX} ${edge.target.sceneY - 50}` : `M ${edge.source.sceneX + 112} ${edge.source.sceneY} C ${(edge.source.sceneX + edge.target.sceneX) / 2} ${edge.source.sceneY}, ${(edge.source.sceneX + edge.target.sceneX) / 2} ${edge.target.sceneY}, ${edge.target.sceneX - 112} ${edge.target.sceneY}`} />{/each}
             </svg>
             {#each nodes as node (node.task.task_id)}
               {@const state = node.agent ? agentState(node.agent) : null}
@@ -337,8 +337,14 @@
   .minimap{position:absolute;right:10px;bottom:10px;width:140px;height:84px;padding:5px;border:1px solid var(--pytxo-line);border-radius:4px;background:color-mix(in srgb,var(--pytxo-surface-panel) 92%,transparent);box-shadow:0 8px 22px #0004}.minimap svg{width:100%;height:100%}.minimap line{stroke:var(--pytxo-line);stroke-width:3}.minimap rect{fill:var(--pytxo-text-muted);opacity:.48}.minimap rect.selected{fill:var(--pytxo-activity);opacity:1}
   .canvas-empty{position:absolute;inset:0;display:grid;place-content:center;gap:6px;color:var(--pytxo-text-muted);text-align:center}.canvas-empty strong{color:var(--pytxo-text-soft);font-size:13px}.canvas-empty span{font-size:11px}.list-view{position:absolute;inset:0;overflow:auto;padding:10px}.list-view :global(.ledger){min-height:100%;border-radius:4px}
   @keyframes worker-pulse{from{width:8px}to{width:54px}}
+  /* Live instrument: a handed-off result flows along its edge into the running task; edges still waiting on their input stay dashed. An active worker carries an activity rail (activity, not progress). */
+  .flowlines path.upstream{stroke-dasharray:3 6;opacity:.7}.flowlines path.flowing{stroke:var(--pytxo-activity);stroke-width:2;stroke-dasharray:7 7;animation:handoff 1.1s linear infinite}
+  @keyframes handoff{to{stroke-dashoffset:-14}}
+  .task-node.running::after{content:"";position:absolute;top:-1px;left:-1px;right:-1px;height:2px;border-radius:4px 4px 0 0;background:var(--pytxo-aperture-horizontal);background-size:200% 100%;animation:activity-rail 2.4s linear infinite;pointer-events:none}
+  @keyframes activity-rail{to{background-position:-200% 0}}
   .minimap button{display:block;width:100%;height:100%;padding:0;border:0;background:transparent;cursor:crosshair}.minimap .minimap-viewport{fill:transparent;stroke:var(--pytxo-text-strong);stroke-width:1;vector-effect:non-scaling-stroke;opacity:.8;pointer-events:none}
   @media(max-width:1100px){.relationship-strip{max-width:calc(100% - 138px)}.minimap{width:110px;height:66px}}
   @media(max-width:650px){.map-toolbar{flex-wrap:wrap}.map-toolbar>div:first-child{flex-basis:100%}.camera-tools{margin-left:auto}.relationship-strip{display:none}.map-body{min-height:150px}}
-  @media(prefers-reduced-motion:reduce){.worker-pulse{width:auto;animation:none;font-size:0}.worker-pulse::after{content:"●";font-size:10px}}
+  @media(prefers-reduced-motion:reduce){.worker-pulse{width:auto;animation:none;font-size:0}.worker-pulse::after{content:"●";font-size:10px}.flowlines path.flowing,.task-node.running::after{animation:none}}
+  :global([data-force-reduced-motion]) .flowlines path.flowing,:global([data-force-reduced-motion]) .task-node.running::after{animation:none}
 </style>

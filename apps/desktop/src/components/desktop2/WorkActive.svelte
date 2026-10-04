@@ -12,6 +12,7 @@
   import ApertureGlyph from "./ApertureGlyph.svelte";
   import { workActivity, hasCurrentApplyIssue } from "../../lib/work-activity";
   import ExecutionMap from "./ExecutionMap.svelte";
+  import RunStatusBar from "./RunStatusBar.svelte";
   import { exactAttemptAgent } from "../../lib/execution-topology";
   import RoutingRunDetails from "./RoutingRunDetails.svelte";
   import StateChip from "./StateChip.svelte";
@@ -397,6 +398,7 @@
       {#if currentApplyIssue}<div class="work-feedback error" role="alert">{(review?.apply_status ?? focusRun.apply_status) === "review_failed" ? "Package preparation failed. " : ""}{review?.last_apply_error?.message ?? focusRun.last_apply_error?.message ?? "Review the run’s preparation or recovery state before continuing."}<button onclick={() => onReviewRun(focusRun.id)}>Review recovery</button></div>{/if}
       {#if routingIdentityUnknown}<div class="work-feedback error" role="alert">Routing identity could not be checked for this run. Worker selection is unavailable until the run list is repaired.</div>{/if}
       <ExecutionMap {taskDescriptions} {taskClis} {backend} run={focusRun} {review} {agents} {selectedAgentId} routingSummary={currentRoutingRead?.summary ?? null} routingLoading={currentRoutingRead?.loading ?? currentRoutingRead == null} {routingIdentityUnknown} onSelect={(agentId) => selectedAgentId = agentId} onInspect={(reference, position) => onInspect?.(reference, position)} {onDismissInspect} />
+      <RunStatusBar run={focusRun} {agents} {review} />
       {#if focusRun.routing_revision != null}<RoutingRunDetails run={focusRun} {backend} record={{ summary: currentRoutingRead?.summary ?? null, error: currentRoutingRead?.error ?? null, loading: currentRoutingRead?.loading ?? currentRoutingRead == null }} onRetry={() => routingRetry += 1} />{/if}
       {#if !onInspect}
       <BoundaryPanel

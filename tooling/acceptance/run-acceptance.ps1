@@ -108,7 +108,9 @@ git -C $fixture diff > (Join-Path $Evidence "fixture-applied.diff")
 # as the Settings app does, with the DPI Desktop's window reports as evidence. ---
 . (Join-Path $PSScriptRoot "display-scale.ps1")
 $summary.display_scaling = [ordered]@{}
-foreach ($percent in 150, 200) {
+# 200% needs a larger display than hosted runners offer (their maximum is 175%);
+# it is recorded as unavailable there, not passed, and stays a real-hardware check.
+foreach ($percent in 150, 175, 200) {
   $name = "dpi-$percent"
   $entry = [ordered]@{}
   try {
@@ -121,11 +123,11 @@ foreach ($percent in 150, 200) {
       python (Join-Path $PSScriptRoot "journey.py") --out (Join-Path $Evidence $name) --mode layout
       $entry.result = if ($LASTEXITCODE -ne 0) { "failed" } elseif ($entry.window_dpi -ne [math]::Round(96 * $percent / 100)) { "failed: window DPI $($entry.window_dpi)" } else { "passed" }
     } finally { Stop-Desktop $app }
-  } catch { $entry.result = "failed: $_" }
+  } catch { $entry.result = if ("$_" -like "No listed resolution allows*") { "unavailable on this display" } else { "failed: $_" } }
   $summary.display_scaling["$percent"] = $entry
 }
 
 $summary | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 (Join-Path $Evidence "acceptance.json")
 Get-Content (Join-Path $Evidence "acceptance.json")
-$failed = -not $summary.journey.changed_matches_reviewed -or $summary.journey.tests_after_apply -ne "passed" -or $summary.journey.operator_note_left -or @($summary.display_scaling.Values | Where-Object { $_.result -ne "passed" }).Count
+$failed = -not $summary.journey.changed_matches_reviewed -or $summary.journey.tests_after_apply -ne "passed" -or $summary.journey.operator_note_left -or @($summary.display_scaling.Values | Where-Object { $_.result -ne "passed" -and $_.result -ne "unavailable on this display" }).Count -or $summary.display_scaling["150"].result -ne "passed" -or $summary.display_scaling["175"].result -ne "passed"
 if ($failed) { throw "Acceptance checks failed; see acceptance.json" }
