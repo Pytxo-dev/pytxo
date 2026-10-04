@@ -44,13 +44,18 @@
   let selectedId = $state<string | null>(null);
   // A run that put several CLIs to work opens on the fleet board; others keep the canvas.
   // A chosen view carries across runs while that view exists for the run.
-  const fleetRun = $derived(!routed && new Set(agents.filter(agent => agent.run_id === run.id && agent.launcher).map(agent => agent.launcher!.id)).size > 1);
+  const runAgents = $derived(agents.filter(agent => agent.run_id === run.id));
+  // Fleet is always reachable for recorded workers; it opens first when several agents share the run.
+  const fleetAvailable = $derived(!routed && runAgents.length > 0);
+  const fleetRun = $derived(fleetAvailable && new Set(runAgents.map(agent => agent.launcher?.id).filter(Boolean)).size > 1);
   let chosenView = $state<"fleet" | "canvas" | "list" | null>(null);
-  const viewMode = $derived(chosenView && (chosenView !== "fleet" || fleetRun) ? chosenView : fleetRun ? "fleet" : "canvas");
+  const viewMode = $derived(chosenView && (chosenView !== "fleet" || fleetAvailable) ? chosenView : fleetRun ? "fleet" : "canvas");
   let runKey = "";
   let camera: WorkbenchCamera = { x: FIT_PADDING, y: FIT_PADDING, scale: 1 };
   let cameraMode: "fit" | "manual" = "fit";
-  let gesture = $state<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
+  let gesture = $state<{ pointerId: number; x: number; y: number; originX: number; originY: number; started: boolean } | null>(null);
+  let suppressNodeClick = false;
+  let grid = $state<HTMLDivElement>();
   let transformFrame = 0;
   let inspectFrame = 0;
   let lastCompactLayout: boolean | null = null;
@@ -71,6 +76,12 @@
     if (scene) {
       scene.style.transform = `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.scale})`;
       scene.style.setProperty("--camera-inverse", String(1 / camera.scale));
+    }
+    // The dot grid travels with the scene so dragging reads as moving the canvas.
+    if (grid) {
+      const step = 24 * camera.scale;
+      grid.style.backgroundSize = `${step}px ${step}px`;
+      grid.style.backgroundPosition = `${camera.x}px ${camera.y}px`;
     }
     if (minimapViewport) {
       minimapViewport.setAttribute("x", String(-camera.x / camera.scale));
@@ -131,14 +142,19 @@
       rememberCamera();
     }
   }
+  // Drags may start anywhere, including on a worker; a press that never moves stays a click.
   function beginPan(event: PointerEvent) {
-    if (event.button !== 0 || (event.target as HTMLElement).closest("button, a, summary")) return;
-    viewport?.setPointerCapture(event.pointerId);
-    cameraMode = "manual";
-    gesture = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, originX: camera.x, originY: camera.y };
+    if (event.button !== 0 || (event.target as HTMLElement).closest("a, summary, .minimap")) return;
+    gesture = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, originX: camera.x, originY: camera.y, started: false };
   }
   function pan(event: PointerEvent) {
     if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (!gesture.started) {
+      if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < 4) return;
+      gesture.started = true;
+      cameraMode = "manual";
+      viewport?.setPointerCapture(event.pointerId);
+    }
     camera.x = gesture.originX + event.clientX - gesture.x;
     camera.y = gesture.originY + event.clientY - gesture.y;
     scheduleTransform();
@@ -146,8 +162,11 @@
   function endPan(event: PointerEvent) {
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     if (viewport?.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+    const moved = gesture.started;
     gesture = null;
-    cameraMode = "manual";
+    if (!moved) return;
+    suppressNodeClick = true;
+    setTimeout(() => { suppressNodeClick = false; }, 0);
     rememberCamera();
   }
   function handleCanvasKey(event: KeyboardEvent) {
@@ -268,7 +287,7 @@
   <header class="map-toolbar">
     <div><strong>Recorded workers</strong><span>{nodes.length} {nodes.length === 1 ? "task" : "tasks"} · {topology.waves.length} {topology.waves.length === 1 ? "step" : "steps"}</span></div>
     <div class="view-toggle" role="group" aria-label="Worker view">
-      {#if fleetRun}<button aria-pressed={viewMode === "fleet"} class:active={viewMode === "fleet"} onclick={() => chosenView = "fleet"}>Fleet</button>{/if}
+      {#if fleetAvailable}<button aria-pressed={viewMode === "fleet"} class:active={viewMode === "fleet"} onclick={() => chosenView = "fleet"}>Fleet</button>{/if}
       <button aria-pressed={viewMode === "canvas"} class:active={viewMode === "canvas"} onclick={() => chosenView = "canvas"}>Canvas</button>
       <button aria-pressed={viewMode === "list"} class:active={viewMode === "list"} onclick={() => chosenView = "list"}>List</button>
     </div>
@@ -281,8 +300,8 @@
     {:else if viewMode === "canvas"}
       <!-- Direct scene transforms keep pointer frames outside Svelte's render path. -->
       <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-      <div class="canvas-viewport" class:panning={!!gesture} bind:this={viewport} tabindex="0" role="application" aria-label="Worker canvas. Drag or use arrow keys to pan. Control plus wheel, plus, or minus zooms. F fits all tasks." onpointerdown={beginPan} onpointermove={pan} onpointerup={endPan} onpointercancel={endPan} onkeydown={handleCanvasKey}>
-        <div class="canvas-grid" aria-hidden="true"></div>
+      <div class="canvas-viewport" class:panning={!!gesture?.started} bind:this={viewport} tabindex="0" role="application" aria-label="Worker canvas. Drag or use arrow keys to pan. Control plus wheel, plus, or minus zooms. F fits all tasks." onpointerdown={beginPan} onpointermove={pan} onpointerup={endPan} onpointercancel={endPan} onkeydown={handleCanvasKey} onclickcapture={event => { if (suppressNodeClick) { event.preventDefault(); event.stopPropagation(); } }}>
+        <div class="canvas-grid" aria-hidden="true" bind:this={grid}></div>
         {#if nodes.length}
           <div class="scene" class:overview={overviewMode} class:micro-overview={microOverviewMode} bind:this={scene} style={`width:${topology.width}px;height:${topology.height}px`}>
             <svg class="flowlines" viewBox={`0 0 ${topology.width} ${topology.height}`} aria-hidden="true">
@@ -326,7 +345,7 @@
   .execution-map{display:flex;flex:1;min-width:0;min-height:0;flex-direction:column;overflow:hidden;border:1px solid var(--pytxo-line);border-radius:7px;background:var(--pytxo-work-canvas);font-family:var(--pytxo-font-ui)}
   .map-toolbar{display:flex;min-height:44px;flex:0 0 auto;align-items:center;gap:14px;padding:6px 10px;border-bottom:1px solid var(--pytxo-line);background:color-mix(in srgb,var(--pytxo-surface-panel) 88%,transparent)}.map-toolbar>div:first-child{display:flex;min-width:0;align-items:baseline;gap:9px;margin-right:auto}.map-toolbar strong{font-size:13px}.map-toolbar span{color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui)}
   .view-toggle,.camera-tools{display:flex;align-items:center;border:1px solid var(--pytxo-line);border-radius:4px;overflow:hidden}.view-toggle button,.camera-tools button{min-width:34px;height:30px;padding:0 9px;border:0;border-left:1px solid var(--pytxo-line);background:transparent;color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui);cursor:pointer}.view-toggle button:first-child,.camera-tools button:first-child{border-left:0}.view-toggle button.active,.camera-tools button:hover{background:var(--pytxo-surface-active);color:var(--pytxo-text-strong)}button:focus-visible,.canvas-viewport:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:-2px}
-  .map-body{position:relative;flex:1;min-height:0;overflow:hidden}.canvas-viewport{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab;outline:0}.canvas-viewport.panning{cursor:grabbing}.canvas-grid{position:absolute;inset:0;background-image:radial-gradient(color-mix(in srgb,var(--pytxo-text-muted) 24%,transparent) .7px,transparent .7px);background-size:22px 22px;opacity:.4;pointer-events:none}
+  .map-body{position:relative;flex:1;min-height:0;overflow:hidden}.canvas-viewport{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab;outline:0}.canvas-viewport.panning{cursor:grabbing}.canvas-grid{position:absolute;inset:0;background-image:radial-gradient(circle,color-mix(in srgb,var(--pytxo-text-muted) 62%,transparent) 1.1px,transparent 1.5px);background-size:24px 24px;pointer-events:none}.canvas-viewport.panning .task-node button{cursor:grabbing}
   .scene{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;contain:layout paint style}.flowlines{position:absolute;inset:0;width:100%;height:100%;overflow:visible}.flowlines path{fill:none;stroke:color-mix(in srgb,var(--pytxo-text-muted) 54%,transparent);stroke-width:1.3;vector-effect:non-scaling-stroke}.flowlines path.highlighted{stroke:var(--pytxo-activity);stroke-width:2.2}
   .task-node{position:absolute;width:224px;min-height:100px;transform:translate(-50%,-50%);border:1px solid var(--pytxo-line);border-radius:5px;background:color-mix(in srgb,var(--pytxo-work-node) 96%,transparent);box-shadow:0 12px 32px color-mix(in srgb,var(--pytxo-surface-shell) 62%,transparent)}.task-node.related:not(.chosen){border-color:color-mix(in srgb,var(--pytxo-activity) 36%,var(--pytxo-line))}.task-node.chosen{border-color:var(--pytxo-text-soft);box-shadow:0 0 0 2px color-mix(in srgb,var(--pytxo-text-strong) 12%,transparent),0 16px 36px color-mix(in srgb,var(--pytxo-surface-shell) 72%,transparent)}
   .node-kicker{display:flex;min-height:27px;align-items:center;justify-content:space-between;gap:8px;padding:4px 9px;border-bottom:1px solid var(--pytxo-line-soft)}.node-kicker span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--pytxo-text-muted);font:10px "IBM Plex Mono",monospace}.worker-pulse{width:54px;overflow:hidden;color:var(--pytxo-activity);font:10px "IBM Plex Mono",monospace;white-space:nowrap;animation:worker-pulse .8s steps(6,end) infinite}

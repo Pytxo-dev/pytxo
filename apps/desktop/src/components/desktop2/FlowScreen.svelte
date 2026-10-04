@@ -898,11 +898,13 @@
         {/if}
         <button class="quiet" onclick={loadAdeClis} disabled={adeLoading || planning || dispatching}>{adeLoading ? "Checking…" : "Check again"}</button>
         </div>
-        {#if !routedChoice && selectedAde && teamCandidates.length}
+        {#if !routedChoice && selectedAde && isBetaAde(selectedAde)}
           <fieldset class="agent-team">
-            <legend>Add agents to this job</legend>
-            {#each teamCandidates as cli (cli.id)}
-              <label class="team-chip" class:on={teamAdes.includes(cli.id)}><input type="checkbox" checked={teamAdes.includes(cli.id)} onchange={() => toggleTeamAde(cli.id)} /><AdeIdentity id={cli.id} />{cli.display_name}</label>
+            <legend>Agents on this job <span>{team.length} selected</span>{#if teamCandidates.length}<button type="button" class="quiet team-all" onclick={() => { const all = teamCandidates.map((cli) => cli.id); teamAdes = teamAdes.length === all.length ? [] : all; taskAdes = {}; if (!workersTouched) workers = Math.min(DESKTOP_BETA_MAX_WORKERS, 1 + teamAdes.length); }}>{teamAdes.length === teamCandidates.length ? "Lead only" : "Use every ready agent"}</button>{/if}</legend>
+            {#each betaAdesInOrder(adeClis) as cli (cli.id)}
+              {@const lead = cli.id === selectedAde}
+              {@const ready = isAdeReady(cli)}
+              <label class="team-chip" class:on={lead || teamAdes.includes(cli.id)} class:lead class:unavailable={!ready} title={ready ? (lead ? "Lead agent: plans the job and takes the first task" : "Shares tasks with the lead agent") : adeUnavailableReason(cli)}><input type="checkbox" checked={lead || teamAdes.includes(cli.id)} disabled={lead || !ready} onchange={() => toggleTeamAde(cli.id)} /><AdeIdentity id={cli.id} />{cli.display_name}{#if lead}<em>Lead</em>{:else if !ready}<em>{adeUnavailableReason(cli)}</em>{/if}</label>
             {/each}
           </fieldset>
         {/if}
@@ -1263,9 +1265,14 @@
     text-align: left;
   }
   .agent-team { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 0; border: 0; }
-  .agent-team legend { width: 100%; margin-bottom: 8px; color: var(--pytxo-text-muted); font: 500 11px var(--pytxo-font-mono, "IBM Plex Mono", monospace); letter-spacing: .06em; text-transform: uppercase; }
+  .agent-team legend { display: flex; width: 100%; align-items: center; gap: 10px; margin-bottom: 8px; color: var(--pytxo-text-muted); font: 500 11px var(--pytxo-font-mono, "IBM Plex Mono", monospace); letter-spacing: .06em; text-transform: uppercase; }
   .team-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px 0 10px; border: 1px solid var(--pytxo-line); border-radius: 8px; background: var(--pytxo-surface-panel); color: var(--pytxo-text-body); font-size: 13px; cursor: pointer; transition: border-color 140ms ease, background-color 140ms ease; }
-  .team-chip:hover { border-color: var(--pytxo-text-muted); }
+  .agent-team legend span { color: var(--pytxo-text-soft); letter-spacing: 0; text-transform: none; }
+  .agent-team .team-all { margin-left: auto; min-height: 28px; padding: 0 10px; font: 500 12px var(--pytxo-font-ui); letter-spacing: 0; text-transform: none; }
+  .team-chip em { margin-left: 2px; color: var(--pytxo-text-muted); font: 500 10px var(--pytxo-font-mono, "IBM Plex Mono", monospace); font-style: normal; letter-spacing: .04em; text-transform: uppercase; }
+  .team-chip.lead { cursor: default; }
+  .team-chip.unavailable { opacity: .5; cursor: not-allowed; }
+  .team-chip:not(.lead, .unavailable):hover { border-color: var(--pytxo-text-muted); }
   .team-chip.on { border-color: color-mix(in srgb, var(--pytxo-activity) 55%, var(--pytxo-line)); background: color-mix(in srgb, var(--pytxo-activity) 8%, var(--pytxo-surface-panel)); color: var(--pytxo-text-strong); }
   .team-chip input { width: 15px; height: 15px; margin: 0; accent-color: var(--pytxo-activity); }
   .team-chip:has(input:focus-visible) { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }

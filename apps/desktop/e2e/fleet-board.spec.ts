@@ -25,10 +25,27 @@ test("a mixed-CLI run opens on the fleet board with each worker's vendor, output
   await expect(page.getByTestId("fleet-board")).toBeVisible();
 });
 
-test("a single-CLI run keeps the canvas and offers no fleet board", async ({ page }) => {
+test("a single-CLI run opens on the canvas and still offers the fleet board", async ({ page }) => {
   await completeOnboarding(page);
   await page.goto("/#/work");
-  await expect(page.getByRole("button", { name: "Canvas" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Fleet" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Canvas" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("fleet-board")).toHaveCount(0);
+  await page.getByRole("button", { name: "Fleet" }).click();
+  await expect(page.getByTestId("fleet-board")).toBeVisible();
+});
+
+test("dragging from a worker pans the canvas without selecting it", async ({ page }) => {
+  await completeOnboarding(page);
+  await page.goto("/#/work");
+  const node = page.locator(".task-node").filter({ hasText: "tests" }).locator("button");
+  const scene = page.locator(".scene");
+  const before = await scene.evaluate((el) => (el as HTMLElement).style.transform);
+  const box = (await node.boundingBox())!;
+  await page.mouse.move(box.x + 20, box.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(box.x - 100, box.y + 40, { steps: 8 });
+  await page.mouse.up();
+  expect(await scene.evaluate((el) => (el as HTMLElement).style.transform)).not.toBe(before);
+  expect(await page.locator(".canvas-grid").evaluate((el) => (el as HTMLElement).style.backgroundPosition)).not.toBe("");
+  await expect(page.locator(".task-node.chosen")).not.toContainText("tests");
 });
