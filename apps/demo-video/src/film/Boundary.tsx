@@ -9,8 +9,8 @@ const SWITCH = 330, NOTE = 470, ATTEMPT = 530, REFRESH = 650, APPLY = 800, RESUL
 const CAMERA: CameraKey[] = [
   {at: 0, x: 960, y: 560, scale: 1}, {at: 120, x: 960, y: 560, scale: 1}, {at: 170, x: 960, y: 600, scale: 1.18},
   {at: 300, x: 960, y: 600, scale: 1.18}, {at: SWITCH + 30, x: 640, y: 580, scale: 1.35}, {at: NOTE - 30, x: 900, y: 560, scale: 1.25},
-  {at: ATTEMPT - 10, x: 960, y: 850, scale: 1.35}, {at: REFRESH - 10, x: 960, y: 850, scale: 1.35}, {at: REFRESH + 30, x: 1350, y: 560, scale: 1.3},
-  {at: REFRESH + 80, x: 1350, y: 560, scale: 1.3}, {at: APPLY - 20, x: 960, y: 850, scale: 1.35}, {at: APPLY + 40, x: 700, y: 600, scale: 1.25},
+  {at: ATTEMPT - 10, x: 960, y: 850, scale: 1.24}, {at: REFRESH - 10, x: 960, y: 850, scale: 1.24}, {at: REFRESH + 30, x: 1350, y: 560, scale: 1.3},
+  {at: REFRESH + 80, x: 1350, y: 560, scale: 1.3}, {at: APPLY - 20, x: 960, y: 850, scale: 1.24}, {at: APPLY + 40, x: 700, y: 600, scale: 1.25},
   {at: RESULT - 30, x: 700, y: 600, scale: 1.25}, {at: RESULT + 10, x: 960, y: 560, scale: 1},
 ];
 const WIN = {x: 200, y: 250, w: 1520, h: 740};
