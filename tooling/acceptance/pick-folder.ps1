@@ -20,7 +20,18 @@ if (-not $dialog) { throw "Folder dialog did not appear" }
 # 1152 is the common dialog's file-name edit ("Folder:"); 1 is the default button.
 $edit = $dialog.FindFirst($scope::Descendants, (& $condition $A::AutomationIdProperty "1152"))
 if (-not $edit) { throw "Folder box not found" }
-$edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($Folder)
+# On some builds 1152 is a combo box whose edit child holds the value pattern.
+$typed = $false
+$edits = $edit.FindAll($scope::Descendants, (& $condition $A::ControlTypeProperty ([System.Windows.Automation.ControlType]::Edit)))
+foreach ($candidate in @($edit) + @($edits)) {
+  $pattern = $null
+  if ($candidate.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) { $pattern.SetValue($Folder); $typed = $true; break }
+}
+if (-not $typed) {
+  Add-Type -AssemblyName System.Windows.Forms
+  $edit.SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait(($Folder -replace '([+^%~(){}\[\]])', '{$1}'))
+}
 $select = $dialog.FindFirst($scope::Descendants, (& $condition $A::AutomationIdProperty "1"))
 for ($attempt = 1; $attempt -le 3; $attempt++) {
   $select.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()

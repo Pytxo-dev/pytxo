@@ -20,6 +20,8 @@ function Get-DesktopTester {
   [void]$user.SetInfo()
   try { [void]([ADSI]"WinNT://$env:COMPUTERNAME/Users,group").Add("WinNT://$env:COMPUTERNAME/$name,user") } catch { }
   $script:DesktopTester = New-Object System.Management.Automation.PSCredential ("$env:COMPUTERNAME\$name", (ConvertTo-SecureString $plain -AsPlainText -Force))
+  # Create the tester's profile now, so its folders exist before Desktop starts.
+  Start-Process -FilePath cmd.exe -ArgumentList "/d /c exit" -Credential $script:DesktopTester -LoadUserProfile -WorkingDirectory $env:SystemRoot -WindowStyle Hidden -Wait
   $script:DesktopTester
 }
 
@@ -37,13 +39,22 @@ function Start-DesktopAsTester([string]$Exe, [hashtable]$Environment, [string]$W
   Start-Sleep -Seconds 2
   $launcher = Join-Path $env:RUNNER_TEMP "launch-$Name.cmd"
   if ($launcher -match '\s') { throw "Launcher path must not contain spaces: $launcher" }
+  # Start-Process -Credential hands the child this runner's environment, so point
+  # every per-user location at the tester's own profile first.
+  $tester = @(Get-DesktopTester) | Where-Object { $_ -is [pscredential] } | Select-Object -First 1
+  $testerHome = Get-DesktopTesterProfile
+  $own = [ordered]@{
+    USERNAME = "pytxo-tester"; USERPROFILE = $testerHome; HOME = $testerHome; HOMEDRIVE = $testerHome.Substring(0, 2); HOMEPATH = $testerHome.Substring(2)
+    APPDATA = "$testerHome\AppData\Roaming"; LOCALAPPDATA = "$testerHome\AppData\Local"; TEMP = "$testerHome\AppData\Local\Temp"; TMP = "$testerHome\AppData\Local\Temp"
+  }
   $lines = @("@echo off")
+  foreach ($key in $own.Keys) { $lines += "set `"$key=$($own[$key])`"" }
   foreach ($key in $Environment.Keys) { $lines += "set `"$key=$($Environment[$key])`"" }
   if ($WorkingDirectory) { $lines += "cd /d `"$WorkingDirectory`"" }
   $lines += "start `"`" `"$Exe`""
   Set-Content -Encoding ascii -LiteralPath $launcher -Value $lines
   icacls $launcher /grant "*S-1-1-0:RX" | Out-Null
-  Start-Process -FilePath cmd.exe -ArgumentList "/d /c $launcher" -Credential (@(Get-DesktopTester) | Where-Object { $_ -is [pscredential] } | Select-Object -First 1) -LoadUserProfile -WorkingDirectory $env:SystemRoot -WindowStyle Hidden
+  Start-Process -FilePath cmd.exe -ArgumentList "/d /c $launcher" -Credential $tester -LoadUserProfile -WorkingDirectory $env:SystemRoot -WindowStyle Hidden
   $deadline = (Get-Date).AddSeconds(90)
   do {
     Start-Sleep -Seconds 1

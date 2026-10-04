@@ -136,6 +136,7 @@ jobs:
         with:
           name: desktop-acceptance-${{ github.sha }}
           path: acceptance
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
       - name: Assemble the continuous journey recording
         run: |
           cd acceptance/journey 2>/dev/null || { echo "No journey recorded"; exit 0; }
