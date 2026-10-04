@@ -214,9 +214,12 @@ def fits(name, controls=()):
 
 
 def start_recording():
+    # imageio-ffmpeg ships a static ffmpeg on PyPI; package-manager installs are flaky on runners.
+    import imageio_ffmpeg
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
     target = out / "screen.mkv"
     recorder = subprocess.Popen(
-        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-use_wallclock_as_timestamps", "1", "-f", "gdigrab", "-framerate", "30", "-draw_mouse", "1", "-i", "desktop",
+        [ffmpeg, "-hide_banner", "-loglevel", "error", "-use_wallclock_as_timestamps", "1", "-f", "gdigrab", "-framerate", "30", "-draw_mouse", "1", "-i", "desktop",
          "-copyts", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "16", "-pix_fmt", "yuv420p", "-y", str(target)],
         stdin=subprocess.PIPE,
     )
@@ -229,11 +232,11 @@ def start_recording():
         except Exception:
             recorder.kill()
         first = spawned
-        try:
-            probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=start_time", "-of", "csv=p=0", str(target)], capture_output=True, text=True, check=True)
-            first = round(float(probe.stdout.strip()) * 1000)
-        except Exception:
-            pass
+        # The recording keeps wall-clock timestamps; its start is the first frame's epoch time.
+        info = subprocess.run([ffmpeg, "-hide_banner", "-i", str(target)], capture_output=True, text=True).stderr
+        start = re.search(r"start: ([0-9.]+)", info)
+        if start:
+            first = round(float(start.group(1)) * 1000)
         (out / "screen.json").write_text(json.dumps({"first": first, "spawned": spawned}) + "\n", encoding="utf-8")
 
     return stop
