@@ -9,6 +9,10 @@ name: Desktop acceptance (cloud Windows)
 on:
   workflow_dispatch:
     inputs:
+      journey:
+        description: "Run the install, mixed-agent journey and layout passes (Windows minutes)"
+        type: boolean
+        default: true
       upgrade:
         description: "Also run the v1.2.1 retained-data upgrade (Windows minutes)"
         type: boolean
@@ -59,6 +63,7 @@ jobs:
 
   install-and-journey:
     needs: candidate
+    if: inputs.journey
     runs-on: windows-latest
     timeout-minutes: 75
     steps:
