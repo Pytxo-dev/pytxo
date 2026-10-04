@@ -33,7 +33,7 @@ const Composer = () => {
           <Logo cli={cli} size={30} /><span style={{fontSize: 16, color: T.soft, fontWeight: 500}}>{vendorOf(cli)}</span>
         </span>;
       })}
-      <span style={{marginLeft: "auto", padding: "12px 22px", borderRadius: 10, background: T.ink, color: "#fff", fontSize: 18, fontWeight: 600, transform: `scale(${press})`}}>Build plan</span>
+      <span style={{marginLeft: "auto", padding: "12px 22px", borderRadius: 10, background: T.ink, color: "#fff", fontSize: 18, fontWeight: 600, whiteSpace: "nowrap", transform: `scale(${press})`}}>Build plan</span>
     </div>
   </Window>;
 };
@@ -70,7 +70,7 @@ const TaskCard = ({worker, index}: {worker: Worker; index: number}) => {
       </div>
       <div style={{marginLeft: "auto"}}>{running ? <Status worker={worker} seconds={seconds} /> : <Chip tone="muted">Planned</Chip>}</div>
     </div>
-    <div style={{height: 44, marginTop: 10, fontFamily: mono, fontSize: 15, lineHeight: "22px", color: T.muted, overflow: "hidden"}}>
+    <div style={{height: 44, marginTop: 10, fontFamily: mono, fontSize: 16, lineHeight: "22px", color: T.muted, overflow: "hidden"}}>
       {shown.map((line, key) => <div key={key} style={{whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: line.startsWith("+") ? T.green : T.muted}}>{line}</div>)}
     </div>
     <div style={{display: "flex", gap: 8, flexWrap: "nowrap", overflow: "hidden"}}>
@@ -133,7 +133,7 @@ export const Plan = () => {
     <Caption step="04 · Shared files take turns" text="Two tasks own filter-bar.js. Pytxo orders them." at={ORDER_FROM + 14} out={RUN_TO + 10} />
     <Caption step="05 · Pytxo runs the checks" text="Each task is checked before review." at={RUN_TO + 24} out={PLAN_FRAMES + 30} />
     <Composer />
-    {[0, 1, 2].map((wave) => <div key={wave} style={{position: "absolute", ...columnHeader(wave), fontFamily: sans, fontSize: 17, fontWeight: 500, color: T.muted, opacity: headers}}>{waveLabel[wave]}</div>)}
+    {[0, 1, 2].map((wave) => <div key={wave} style={{position: "absolute", left: columnHeader(wave).x, top: columnHeader(wave).y, fontFamily: sans, fontSize: 17, fontWeight: 500, color: T.muted, opacity: headers}}>{waveLabel[wave]}</div>)}
     <Links />
     {workers.map((worker, index) => <TaskCard key={worker.taskId} worker={worker} index={index} />)}
     <Clock />
