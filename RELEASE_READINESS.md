@@ -29,6 +29,12 @@ candidate build must repeat these runs before release.
   this app from any channel (environment, HKCU or HKLM policy, elevated or
   standard user), so CDP-driven acceptance is not possible there.
 
+**Final head `7de9dc8` (candidate build 37179601528, acceptance run
+37179603560): all passed** on its own MSI, SHA-256
+`90006BAD28309BEB4E973DF9F4E180C30A9478C12E8D77EEB3688F7B8747A486`: clean
+install, journey (changed files = reviewed files, tests passed, 7/7 replayed),
+150%/200% layout, and the v1.2.1 retained-data upgrade.
+
 PytxoFilm (`apps/demo-video/src/film`, rendered by `demo-motion.yml`): 51.5 s,
 1080p60, CC0 audio. The interface is recreated in motion graphics from the
 recorded 2 October ledger; the end card states this and that time is
