@@ -1,5 +1,46 @@
 # Pytxo v1.2.2 release readiness
 
+## October 4 - cloud Windows acceptance, upgrade proof and PytxoFilm
+
+All checks ran on GitHub-hosted Windows runners (`desktop-acceptance.yml`,
+manual); nothing ran on a developer machine. Artifact: the unsigned candidate
+MSI from build run 37114184513 (source `926cc1f`), SHA-256
+`22BF155A600B20E7935CD931E2883129ECAEAFB555687ED451282852E695E6C7`.
+Later commits change only acceptance tooling, the film and the UI font stack
+(Satoshi removed so every machine renders the bundled Sora), so a fresh
+candidate build must repeat these runs before release.
+
+- **Clean install and mixed-agent journey (run 37169676357): passed.** Installed
+  per machine; Desktop ran as a standard-user account, driven through Windows UI
+  Automation with the real pointer and keyboard. Onboarding, real folder dialog,
+  six-task plan across Codex, Claude Code, Cursor Agent, OpenCode and Antigravity
+  stand-ins, 6/6 workers completed, Review, stale Apply refused after an added
+  file, Refresh, Apply. Afterwards git status matched the reviewed files exactly,
+  the fixture's `npm test` passed 10/10, and the applied task board ran in Edge
+  (Spanish switch, new task). Stand-ins replayed the recorded 2 October workers'
+  output and files: 7/7 applied files byte-identical to that run.
+- **Layout at 150% and 200% WebView scale: passed** (controls inside the window,
+  no horizontal page scroll). This is `--force-device-scale-factor`, not Windows
+  display scaling; gate 3 below stays open for true per-monitor DPI.
+- **Retained-data upgrade from public v1.2.1 (run 37179034172): passed.** One
+  install of 1.2.2 afterwards, no data files lost, and onboarding finished in
+  v1.2.1 was not shown again (WebView storage retained).
+- Why UI Automation: WebView2 153 on hosted runners starts no DevTools server for
+  this app from any channel (environment, HKCU or HKLM policy, elevated or
+  standard user), so CDP-driven acceptance is not possible there.
+
+PytxoFilm (`apps/demo-video/src/film`, rendered by `demo-motion.yml`): 51.5 s,
+1080p60, CC0 audio. The interface is recreated in motion graphics from the
+recorded 2 October ledger; the end card states this and that time is
+compressed. Footage of the final build exists in the acceptance artifacts
+(native screen recording with the real pointer) for a later edit.
+
+Still open: Authenticode/updater signing and an installed updater
+download/install/restart proof; true Windows 150%/200% DPI; real vendor agents
+(not stand-ins) on the final artifact; acceptance on a fresh build of the final
+head; privacy/brand review of the film and publication. None of these were
+attempted here.
+
 ## October 3 - Codex continuation, silent film and native safety acceptance
 
 **Decision: NOT READY for public Beta.** Continued Claude's latest implementation
