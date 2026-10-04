@@ -6,7 +6,7 @@ name: Desktop UI review (screenshots)
 on:
   push:
     branches: [2ntt/pytxo-beta-candidate-20261003]
-    paths: ["apps/desktop/src/**", "apps/desktop/e2e/zz-ui-review.spec.ts"]
+    paths: ["apps/desktop/src/**", "apps/desktop/e2e/zz-ui-review.spec.ts", ".github/workflows/desktop-ui-review.yml"]
   workflow_dispatch:
     inputs:
       e2e:
