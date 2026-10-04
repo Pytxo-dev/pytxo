@@ -207,7 +207,7 @@ def fits(name, controls=()):
         sideways = bool(spec(control_type="Document").wrapper_object().iface_scroll.CurrentHorizontallyScrollable)
     except Exception:
         pass
-    receipt["checks"][name] = {"outside": outside, "sideways": sideways}
+    receipt["checks"].setdefault("fit", {})[name] = {"outside": outside, "sideways": sideways}
     shot(name)
     if outside or sideways:
         raise AssertionError(f"{name} does not fit: outside {outside}, horizontal scroll {sideways}")
