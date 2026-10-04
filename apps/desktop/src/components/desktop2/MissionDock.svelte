@@ -6,6 +6,7 @@
   import type { RunDto } from "../../lib/types";
   import { DOCK_STORAGE_KEY, clamp, closeDockView, defaultDockLayout, dockId, moveDockView, openDockView, restoreDockLayout, type DockPosition, type DockReference, type DockView } from "../../lib/dock-layout";
   import DockInspection from "./DockInspection.svelte";
+  import IconLayoutSidebarRight from "@tabler/icons-svelte/icons/layout-sidebar-right";
   import LocalPreview from "./LocalPreview.svelte";
   import { previewMenu, withPreviewsHidden } from "../../lib/preview-overlay";
   import { workspaceTerminal, hasNativeTerminal, type TerminalInfo } from "../../lib/workspace-terminal";
@@ -423,7 +424,7 @@
 
 <div class="dock-workspace" class:compact class:drag-active={!!dragging} class:inspection-focused={!!effectiveFocusId || (compact && bottomOpen)} bind:this={host}>
   {#if contextualTools}<div class="workspace-tools" class:tools-folded={!toolsExpanded} aria-label="Task views">
-    {#if contextualTools}<button class="tools-toggle" aria-expanded={toolsExpanded} onclick={() => toolsExpanded = !toolsExpanded}>Inspection tools</button>{/if}
+    {#if contextualTools}<button class="tools-toggle" aria-label="Inspection tools" title="Inspection tools" aria-expanded={toolsExpanded} onclick={() => toolsExpanded = !toolsExpanded}><IconLayoutSidebarRight size={16} /><span class="tools-label">Inspection tools</span></button>{/if}
     <span>Inspect</span>
     {#if focusId || (compact && bottomOpen)}<button onclick={() => { focusId = null; if (compact) narrowHidden = true; }}>Return to task</button>{/if}
     {#each ["evidence", "files", "diagram"] as kind}
@@ -574,7 +575,11 @@
   .layout-options-footer { flex: none; display: flex; padding: 6px; border-top: 1px solid var(--pytxo-line); }
   .layout-options-footer button:first-child { flex: none; }
   .layout-options-footer button { white-space: nowrap; justify-content: center; width: auto; flex: 1; }
-  .workspace-tools.tools-folded { position: absolute; top: 8px; right: 12px; z-index: 3; min-height: 28px; padding: 0; border: 0; justify-content: flex-end; }
+  /* Folded, the tools are one icon beside the Work header actions, not a row of their own. */
+  .workspace-tools.tools-folded { position: absolute; top: 15px; right: 12px; z-index: 3; min-height: 28px; padding: 0; border: 0; justify-content: flex-end; }
+  .workspace-tools.tools-folded .tools-label, .workspace-tools.tools-folded>.tools-toggle::after { display: none; }
+  .workspace-tools.tools-folded>.tools-toggle { width: 34px; min-height: 34px; justify-content: center; border: 1px solid var(--pytxo-line); border-radius: 4px; }
+  .workspace-tools.tools-folded ~ .dock-grid .mission-content :global(.command-strip:not(.idle)) { padding-right: 44px; }
   .workspace-tools.tools-folded>:not(.tools-toggle) { display: none; }
   .workspace-tools>.tools-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; font-size: 11px; color: var(--pytxo-text-muted); }
   .workspace-tools>.tools-toggle:hover { color: var(--foreground); }

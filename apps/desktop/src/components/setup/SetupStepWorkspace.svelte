@@ -156,7 +156,7 @@
 <style>
   .title {
     margin: 0;
-    font-size: 1.35rem;
+    font-weight: 650;
     text-wrap: balance;
   }
   .lead {

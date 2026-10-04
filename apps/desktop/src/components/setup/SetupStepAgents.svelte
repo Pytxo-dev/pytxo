@@ -123,7 +123,7 @@
   .install-guide:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   .title {
     margin: 0;
-    font-size: 1.35rem;
+    font-weight: 650;
     text-wrap: balance;
   }
   .lead {

@@ -26,7 +26,8 @@
   .setup-step__actions { margin-top: auto; padding: 16px 4px 0; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; flex: none; }
   .setup-back { margin-right: auto; }
   .step-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; min-width: 0; }
-  .setup-step__content :global(.title) { text-align: left; font-size: 24px; line-height: 1.25; letter-spacing: -0.025em; }
+  .setup-step__content :global(.title) { text-align: left; font-size: 28px; line-height: 1.2; letter-spacing: -0.03em; }
+  @media (max-width: 860px), (max-height: 600px) { .setup-step__content :global(.title) { font-size: 22px; } }
   .setup-step__content :global(.lead) { text-align: left; max-width: 56ch; font-size: 14px; line-height: 1.6; }
   .setup-step__content :global(h1[tabindex="-1"]:focus), .setup-step__content :global(h2[tabindex="-1"]:focus) { outline: none; }
   .setup-step__actions :global(button) { min-height: 40px; }

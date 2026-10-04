@@ -28,7 +28,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 860, height: 560 
     // exposes an Evidence tab without promoting recorded output into proof.
     expect(await work.locator(".work-heading").innerText()).not.toMatch(internalVocabulary);
     expect(await work.innerText()).not.toContain("run-8f2c");
-    expect(await work.locator("h1").evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(20);
+    // The task title leads, in a compact header that leaves the page to the work itself.
+    expect(await work.locator("h1").evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
+    if (viewport.width >= 1280) expect((await work.locator(".work-heading").boundingBox())!.height).toBeLessThanOrEqual(76);
     await expect(work.getByRole("button", { name: "Stop", exact: true })).toBeInViewport({ ratio: 1 });
     await expect(work.getByRole("button", { name: "Review changes", exact: true })).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: info.outputPath("active-task.png") });

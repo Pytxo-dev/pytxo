@@ -19,6 +19,14 @@
     display: "Display",
     done: "Ready",
   };
+  const STEP_HINTS: Record<Step, string> = {
+    welcome: "How Pytxo works",
+    cli: "Optional terminal tools",
+    agents: "Connect your coding CLIs",
+    workspace: "Choose a folder or the example",
+    display: "Text size and theme",
+    done: "Start your first job",
+  };
 
   let {
     onComplete,
@@ -59,15 +67,19 @@
   const activeStage = $derived(step === "cli" ? "agents" : step === "display" ? "done" : step);
 </script>
 
-<SetupShell height={step === "agents" || step === "workspace" ? 640 : step === "welcome" ? 570 : 500}>
+<SetupShell>
   <aside class="setup__navigation">
+    <div class="setup__brand"><strong>Pytxo</strong><span>Desktop · beta</span></div>
     <nav class="setup__progress" aria-label="Setup progress">
       {#each STEPS as s, i}
-        <span class="setup__step" class:active={activeStage === s} aria-current={activeStage === s ? "step" : undefined}>
-          <span class="setup__number">{i + 1}</span>{STEP_LABELS[s]}
+        {@const done = i < STEPS.indexOf(activeStage)}
+        <span class="setup__step" class:active={activeStage === s} class:done aria-current={activeStage === s ? "step" : undefined}>
+          <span class="setup__number" aria-hidden={done ? "true" : undefined}>{#if done}<svg viewBox="0 0 16 16" width="12" height="12"><path d="M3 8.5 6.5 12 13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>{:else}{i + 1}{/if}</span>
+          <span class="setup__label">{STEP_LABELS[s]}<small>{s === "workspace" && workspacePath ? workspacePath.split(/[\\/]/).pop() : STEP_HINTS[s]}</small></span>
         </span>
       {/each}
     </nav>
+    <p class="setup__assurance"><span>Describe → Agents work → Review → Apply</span>Your project changes only when you Apply.</p>
   </aside>
 
   <div class="setup__body">
@@ -99,16 +111,36 @@
 </SetupShell>
 
 <style>
-  .setup__navigation { padding: 16px 28px 0; border-bottom: 1px solid var(--border); }
-  .setup__progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-  .setup__step { display: flex; align-items: center; gap: 8px; min-height: 44px; padding-bottom: 12px; font-size: 13px; color: var(--muted-foreground); border-bottom: 2px solid transparent; }
-  .setup__step.active { border-bottom-color: var(--foreground); color: var(--foreground); font-weight: 600; }
-  .setup__number { font-size: 11px; font-variant-numeric: tabular-nums; opacity: .7; }
-  .setup__body { min-width: 0; min-height: 0; padding: 24px 28px; }
-  @media (max-width: 700px), (max-height: 650px) {
-    .setup__navigation { padding: 8px 16px 0; }
+  .setup__navigation { display: flex; flex-direction: column; gap: 26px; min-height: 0; padding: 28px 22px 24px; border-right: 1px solid var(--border); background: color-mix(in oklab, var(--card) 55%, var(--background)); }
+  .setup__brand { display: grid; gap: 3px; padding: 0 8px; }
+  .setup__brand strong { position: relative; width: max-content; font-size: 17px; font-weight: 650; letter-spacing: -0.02em; }
+  .setup__brand strong::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 2px; border-radius: 2px; background: var(--pytxo-aperture-horizontal); }
+  .setup__brand span { margin-top: 6px; font-size: 12px; color: var(--muted-foreground); }
+  .setup__progress { display: grid; gap: 4px; }
+  .setup__step { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 52px; padding: 7px 10px; border-radius: 8px; color: var(--muted-foreground); transition: background-color 160ms ease, color 160ms ease; }
+  .setup__step.active { background: color-mix(in oklab, var(--foreground) 7%, transparent); color: var(--foreground); }
+  .setup__step.active::before { content: ""; position: absolute; left: -22px; top: 10px; bottom: 10px; width: 2px; border-radius: 2px; background: var(--pytxo-aperture); }
+  .setup__step.done { color: var(--foreground); }
+  .setup__number { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .setup__step.active .setup__number { border-color: var(--foreground); background: var(--foreground); color: var(--background); font-weight: 650; }
+  .setup__step.done .setup__number { border-color: color-mix(in oklab, var(--state-verified) 60%, var(--border)); color: var(--state-verified); }
+  .setup__label { display: grid; gap: 2px; min-width: 0; font-size: 13px; font-weight: 600; }
+  .setup__label small { overflow: hidden; font-size: 12px; font-weight: 400; color: var(--muted-foreground); text-overflow: ellipsis; white-space: nowrap; }
+  .setup__assurance { display: grid; gap: 6px; margin: auto 0 0; padding: 14px 8px 0; border-top: 1px solid var(--border); font-size: 12px; line-height: 1.45; color: var(--muted-foreground); }
+  .setup__assurance span { font: 11px var(--font-mono, ui-monospace, monospace); color: var(--foreground); opacity: .8; }
+  .setup__body { min-width: 0; min-height: 0; padding: 34px 40px 26px; }
+  @media (prefers-reduced-motion: reduce) { .setup__step { transition: none; } }
+  /* Small windows: the rail folds into a row of tabs above the step. */
+  @media (max-width: 860px), (max-height: 600px) {
+    .setup__navigation { gap: 0; padding: 8px 16px 0; border-right: 0; border-bottom: 1px solid var(--border); background: transparent; }
+    .setup__brand, .setup__assurance, .setup__label small { display: none; }
+    .setup__progress { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .setup__step { grid-template-columns: auto minmax(0, 1fr); gap: 6px; min-height: 40px; padding: 0 0 10px; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; font-size: 12px; }
+    .setup__step.active { border-bottom-color: var(--foreground); background: transparent; }
+    .setup__step.active::before { display: none; }
+    .setup__number { width: auto; height: auto; border: 0; opacity: .7; }
+    .setup__step.active .setup__number { background: transparent; color: inherit; }
+    .setup__label { font-size: 12px; }
     .setup__body { padding: 16px; }
-    .setup__progress { gap: 8px; }
-    .setup__step { gap: 6px; font-size: 12px; }
   }
 </style>

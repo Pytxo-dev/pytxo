@@ -346,10 +346,15 @@
   <section class="command-strip work-heading" class:idle={!focusRun} aria-label={focusRun ? "Focused run" : undefined}>
     {#if focusRun}<ApertureGlyph active={activity.active} tone={activity.tone} />{/if}
     <div class="command-copy" bind:this={heading} tabindex="-1">
-      <h1>{focusRun ? (displayMissionTitle ?? `Work in ${focusRun.repo_root.split(/[\\/]/).pop() || "selected repository"}`) : "Work"}</h1>
-      <div class="heading-meta">{#if activeDomainLabel}<span class="scope">{activeDomainLabel}</span>{/if}{#if focusState}<StateChip tone={focusState.tone} label={focusState.label} />{/if}</div>
-      {#if focusRun}<p class="work-summary" class:wraps={!!failureHint} role="status">{workSummary}</p>{/if}
-      {#if missionText}{#key `${focusRun?.domain_id}:${focusRun?.id}`}<details class="mission-outcome"><summary>Full request</summary><p>{missionText}</p></details>{/key}{/if}
+      <div class="title-row">
+        <h1>{focusRun ? (displayMissionTitle ?? `Work in ${focusRun.repo_root.split(/[\\/]/).pop() || "selected repository"}`) : "Work"}</h1>
+        {#if focusState}<StateChip tone={focusState.tone} label={focusState.label} />{/if}
+      </div>
+      <div class="heading-meta">
+        {#if activeDomainLabel}<span class="scope">{activeDomainLabel}</span>{/if}
+        {#if focusRun}<p class="work-summary" class:wraps={!!failureHint} role="status">{workSummary}</p>{/if}
+        {#if missionText}{#key `${focusRun?.domain_id}:${focusRun?.id}`}<details class="mission-outcome"><summary>Full request</summary><p>{missionText}</p></details>{/key}{/if}
+      </div>
     </div>
     {#if focusRun}
       <div class="command-actions run-bar">
@@ -488,26 +493,33 @@
     position:relative;
     z-index:2;
     display:grid;
-    grid-template-columns:64px minmax(0,1fr) auto;
-    min-height:92px;
+    grid-template-columns:34px minmax(0,1fr) auto;
+    min-height:58px;
     flex:0 0 auto;
     align-items:center;
     gap:12px;
-    padding:7px 0 9px;
+    padding:4px 0 10px;
     border-bottom:1px solid var(--pytxo-line);
   }
+  /* The glyph stays a live state signal, at the size of a list avatar. */
+  .command-strip :global(.aperture-glyph) { width:34px;height:34px;flex-basis:34px; }
   /* No focused run means no glyph or actions: the heading owns the full row. */
   .command-strip.idle { grid-template-columns:minmax(0,1fr); }
   .command-copy { min-width:0; outline:0; }
   .command-copy:focus-visible { outline:2px solid var(--pytxo-accent); outline-offset:3px; }
-  .command-copy h1 { display:block;max-width:46ch;margin:0;overflow:hidden;font-size:clamp(19px,1.7vw,25px);font-weight:650;line-height:1.2;letter-spacing:-.035em;text-overflow:ellipsis;white-space:nowrap; }
-  .heading-meta { display:flex;align-items:center;gap:8px;margin-top:5px; }
-  .heading-meta .scope { overflow:hidden;color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui);text-overflow:ellipsis;white-space:nowrap; }
-  .work-summary { max-width:72ch;margin:5px 0 0;overflow:hidden;color:var(--pytxo-text-soft);font-size:12px;line-height:1.35;text-overflow:ellipsis;white-space:nowrap; }
+  .title-row { display:flex;align-items:center;gap:10px;min-width:0; }
+  .command-copy h1 { display:block;min-width:0;max-width:60ch;margin:0;overflow:hidden;font-size:18px;font-weight:640;line-height:1.25;letter-spacing:-.02em;text-overflow:ellipsis;white-space:nowrap; }
+  .title-row :global(.state-chip) { flex:none; }
+  .heading-meta { display:flex;align-items:baseline;gap:8px;min-width:0;margin-top:3px;font-size:12px;line-height:1.35; }
+  .heading-meta .scope { flex:none;color:var(--pytxo-text-muted);font:12px var(--pytxo-font-ui);white-space:nowrap; }
+  .heading-meta .scope::after { content:"·";margin-left:8px;color:var(--pytxo-text-muted); }
+  .work-summary { min-width:0;margin:0;overflow:hidden;color:var(--pytxo-text-soft);font-size:12px;line-height:1.35;text-overflow:ellipsis;white-space:nowrap; }
   /* A failure cause is the next action's input; show it whole (bounded at 240 chars by Core). */
   .work-summary.wraps { max-width:96ch;white-space:normal;overflow-wrap:anywhere; }
-  .mission-outcome { position:relative;display:inline-block;margin-top:2px;font-size:10px;line-height:1.4; }
-  .mission-outcome summary { min-height:18px;color:var(--pytxo-text-muted);cursor:pointer; }
+  .mission-outcome { position:relative;flex:none;display:inline-block;font-size:12px;line-height:1.35; }
+  .mission-outcome summary { color:var(--pytxo-text-muted);text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer;list-style:none; }
+  .mission-outcome summary::-webkit-details-marker { display:none; }
+  .mission-outcome summary:hover { color:var(--pytxo-text-strong); }
   .mission-outcome p { position:absolute;z-index:12;top:100%;left:0;width:min(620px,70vw);max-height:240px;margin:4px 0 0;padding:12px;overflow:auto;border:1px solid var(--pytxo-line);border-radius:5px;background:var(--pytxo-surface-raised);box-shadow:0 16px 40px #0008;color:var(--pytxo-text-body);white-space:pre-wrap; }
   .command-actions { display:flex;align-items:center;justify-content:flex-end;gap:7px; }
   .command-actions>button,.run-reference>summary { min-height:34px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-soft);font:11px var(--pytxo-font-ui);cursor:pointer; }
@@ -535,15 +547,14 @@
   .empty-work { margin:auto;padding:20px; }
 
   @container mission (max-width:880px) {
-    .command-strip { grid-template-columns:52px minmax(0,1fr);min-height:112px;align-content:center; }
+    .command-strip { grid-template-columns:34px minmax(0,1fr);min-height:96px;align-content:center;row-gap:8px; }
     .command-actions { grid-column:1 / -1;justify-content:flex-start;flex-wrap:wrap;padding-bottom:2px; }
     .run-reference .run-switch { right:auto;left:0; }
-    .command-copy h1 { font-size:20px; }
     .work-summary { max-width:100%; }
   }
   @container mission (max-width:520px) {
     .screen.work { padding:8px; }
-    .command-strip { grid-template-columns:minmax(0,1fr);min-height:126px;gap:5px; }
+    .command-strip { grid-template-columns:minmax(0,1fr);min-height:104px;gap:5px; }
     .command-strip :global(.aperture-glyph) { display:none; }
     .command-actions { gap:5px; }
     .command-actions>button,.run-reference>summary { padding-inline:8px;white-space:nowrap; }
