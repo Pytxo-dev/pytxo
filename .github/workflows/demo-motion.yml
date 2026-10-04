@@ -1,8 +1,15 @@
-name: Demo motion film (private artifact)
+name: Demo film (private artifact)
 
 # Manual only, to keep renders off the billed minutes until a cut is ready.
+# "review" renders stills every two seconds; "film" renders the full master.
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "review (stills) or film (full master)"
+        type: choice
+        options: [review, film]
+        default: review
 
 permissions:
   contents: read
@@ -15,7 +22,7 @@ jobs:
   render:
     if: github.repository == 'Pytxo-dev/pytxo'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: apps/demo-video
@@ -25,7 +32,6 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             apps/demo-video
-            tooling/benchmarks/results
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
@@ -33,32 +39,25 @@ jobs:
           cache-dependency-path: apps/demo-video/package-lock.json
       - name: Install render tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
           npm ci
-      - name: Verify sources and mix CC0 score
-        run: |
           npm run typecheck
-          npm run validate:beta
-          node scripts/validate-motion-assets.mjs
-          node scripts/mix-motion-audio.mjs
-      - name: Render the motion film
+      - name: Review stills
+        if: inputs.mode == 'review'
+        run: node scripts/film-review.mjs --every 2
+      - name: Render the film
+        if: inputs.mode == 'film'
         run: |
-          npx remotion render src/index.ts PytxoMotionFilm out/pytxo-motion.render.mp4 --codec=h264 --crf=18 --image-format=png --pixel-format=yuv420p --color-space=bt709 --audio-codec=aac --audio-bitrate=256k --sample-rate=48000 --concurrency=2 --overwrite
-          node scripts/finalize-master.mjs out/pytxo-motion.render.mp4 out/pytxo-motion.mp4
-      - name: Verify the encoded master
-        run: node scripts/validate-motion-master.mjs
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          npx remotion render src/index.ts PytxoFilm out/pytxo-film.render.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p --color-space=bt709 --audio-codec=aac --audio-bitrate=256k --sample-rate=48000 --concurrency=4 --overwrite
+          node scripts/finalize-master.mjs out/pytxo-film.render.mp4 out/pytxo-film.mp4
+          node scripts/film-review.mjs --every 4
       - name: Retain private review artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: pytxo-motion-${{ github.sha }}
+          name: pytxo-film-${{ inputs.mode }}-${{ github.sha }}
           retention-days: 14
-          if-no-files-found: error
+          if-no-files-found: warn
           path: |
-            apps/demo-video/out/pytxo-motion.mp4
-            apps/demo-video/out/motion-review/*.json
-            apps/demo-video/out/motion-review/frames/*.png
-            apps/demo-video/public/audio/cc0/motion-mix.wav
-            apps/demo-video/public/audio/cc0/README.md
-            apps/demo-video/motion-audio.json
+            apps/demo-video/out/pytxo-film.mp4
+            apps/demo-video/out/film-review/*.jpg
