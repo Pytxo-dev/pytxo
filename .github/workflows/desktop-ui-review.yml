@@ -1,8 +1,12 @@
 name: Desktop UI review (screenshots)
 
 # Manual and Linux-only (the cheapest runner): the Desktop frontend in its
-# browser preview, with the full e2e suite and screenshots of the main journeys.
+# browser preview, with screenshots of the main journeys (and optionally the
+# full e2e suite, which PR CI already runs). Pushes run screenshots only.
 on:
+  push:
+    branches: [2ntt/pytxo-beta-candidate-20261003]
+    paths: ["apps/desktop/src/**", "apps/desktop/e2e/zz-ui-review.spec.ts"]
   workflow_dispatch:
     inputs:
       e2e:
