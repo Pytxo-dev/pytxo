@@ -1,11 +1,18 @@
 // The prepared files converge into one change set, the stale Apply is refused,
 // the review is refreshed and the exact package is applied. Local frames.
 import {AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame} from "remotion";
-import {Caption, Check, Chip, Cursor, Logo, Window, changes, fade, ledger, mix, mono, ramp, sans, short, T, useSettle} from "./kit";
+import {Camera, type CameraKey, Caption, Check, Chip, Cursor, Logo, Window, changes, fade, ledger, mix, mono, ramp, sans, short, T, useSettle} from "./kit";
 import {cardBox, CARD_H, TASK_TITLE, workers} from "./layout";
 
 export const BOUNDARY_FRAMES = 1200;
 const SWITCH = 330, NOTE = 470, ATTEMPT = 530, REFRESH = 650, APPLY = 800, RESULT = 990;
+const CAMERA: CameraKey[] = [
+  {at: 0, x: 960, y: 560, scale: 1}, {at: 120, x: 960, y: 560, scale: 1}, {at: 170, x: 960, y: 600, scale: 1.18},
+  {at: 300, x: 960, y: 600, scale: 1.18}, {at: SWITCH + 30, x: 640, y: 580, scale: 1.35}, {at: NOTE - 30, x: 900, y: 560, scale: 1.25},
+  {at: ATTEMPT - 10, x: 1250, y: 840, scale: 1.35}, {at: REFRESH - 10, x: 1250, y: 840, scale: 1.35}, {at: REFRESH + 30, x: 1350, y: 560, scale: 1.3},
+  {at: REFRESH + 80, x: 1350, y: 560, scale: 1.3}, {at: APPLY - 20, x: 1250, y: 840, scale: 1.35}, {at: APPLY + 40, x: 700, y: 600, scale: 1.25},
+  {at: RESULT - 30, x: 700, y: 600, scale: 1.25}, {at: RESULT + 10, x: 960, y: 560, scale: 1},
+];
 const WIN = {x: 200, y: 250, w: 1520, h: 740};
 const LIST = {x: WIN.x + 24, y: WIN.y + 48 + 84, row: 58, w: 440};
 const files = changes.files;
@@ -133,6 +140,7 @@ export const Boundary = () => {
     <Caption step="07 · The boundary holds" text="The project moved, so Apply refused." at={NOTE + 16} out={APPLY - 30} />
     <Caption step="08 · Apply what you reviewed" text="Exactly these seven files. Nothing else." at={APPLY - 14} out={RESULT + 10} />
     <Caption step="09 · The result" text="The task board, applied and running." at={RESULT + 24} out={BOUNDARY_FRAMES + 30} />
+    <Camera keys={CAMERA}>
     <div style={{position: "absolute", inset: 0, transform: `translate(${-toResult * 330}px, ${toResult * 60}px) scale(${1 - toResult * 0.34})`, transformOrigin: "200px 620px", opacity: 1 - ramp(frame, RESULT + 120, RESULT + 170) * 0.6}}>
       <Window style={{left: WIN.x, top: WIN.y + (1 - open) * 50, width: WIN.w, height: WIN.h, opacity: open}} title="Review changes">
         <div style={{height: 84, display: "flex", alignItems: "center", gap: 12, padding: "0 28px", fontFamily: sans, borderBottom: `1px solid ${T.rule}`}}>
@@ -148,6 +156,7 @@ export const Boundary = () => {
       <div style={{opacity: open}}><Footer /></div>
     </div>
     <Note />
+    </Camera>
     <Window title="localhost · Task board" style={{left: mix(1980, 920, result), top: 250, width: 880, height: 600, opacity: result}}>
       <Img src={staticFile("fleet/result.png")} style={{width: 880, height: 550, objectFit: "cover", objectPosition: "50% 0%"}} />
     </Window>
@@ -155,7 +164,7 @@ export const Boundary = () => {
       <Chip tone="green" style={{fontSize: 19, padding: "8px 16px"}}><Check />npm test · 10 of 10 passed</Chip>
       <Chip style={{fontSize: 19, padding: "8px 16px"}}>English · Español</Chip>
     </div>
-    <Cursor visibleFrom={140} visibleTo={RESULT + 20} keys={[
+    <Camera keys={CAMERA}><Cursor visibleFrom={140} visibleTo={RESULT + 20} keys={[
       {at: 140, x: 1500, y: 960},
       {at: 300, x: LIST.x + 200, y: LIST.y + secondFile * LIST.row + 24},
       {at: SWITCH, x: LIST.x + 200, y: LIST.y + secondFile * LIST.row + 24, click: true},
@@ -163,6 +172,6 @@ export const Boundary = () => {
       {at: REFRESH, x: 1600, y: WIN.y + WIN.h - 46, click: true},
       {at: APPLY, x: 1580, y: WIN.y + WIN.h - 46, click: true},
       {at: RESULT, x: 1620, y: 900},
-    ]} />
+    ]} /></Camera>
   </AbsoluteFill>;
 };

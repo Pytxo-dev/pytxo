@@ -1,7 +1,7 @@
 // One request becomes six tasks for five agents, which then run in parallel
 // on the recorded clock. Local frames; see PytxoFilm for placement.
 import {AbsoluteFill, interpolate, useCurrentFrame} from "remotion";
-import {Caption, Check, Chip, Cursor, Logo, Window, fade, ledger, mix, mono, ramp, sans, T, useSettle, usePop, vendorOf} from "./kit";
+import {Camera, Caption, Check, Chip, Cursor, Logo, Window, fade, ledger, mix, mono, ramp, sans, T, useSettle, usePop, vendorOf} from "./kit";
 import {cardBox, CARD_H, columnHeader, endOf, printed, RUN_SECONDS, startOf, TASK_TITLE, workers, type Box, type Worker} from "./layout";
 
 export const PLAN_FRAMES = 1420;
@@ -105,7 +105,7 @@ const Clock = () => {
   const seconds = interpolate(frame, [RUN_FROM, RUN_TO], [0, RUN_SECONDS], {extrapolateLeft: "clamp", extrapolateRight: "clamp"});
   const visible = fade(frame, RUN_FROM - 10, PLAN_FRAMES, 20);
   const clock = `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
-  return <div style={{position: "absolute", right: 120, top: 104, textAlign: "right", opacity: visible, fontFamily: sans}}>
+  return <div style={{position: "absolute", right: 96, top: 80, textAlign: "right", opacity: visible, fontFamily: sans, zIndex: 40, padding: "16px 24px", borderRadius: 18, background: "rgba(247,246,243,.92)", boxShadow: "0 10px 40px rgba(25,25,24,.08)"}}>
     <div style={{fontFamily: mono, fontSize: 44, fontWeight: 500, color: T.ink, fontVariantNumeric: "tabular-nums"}}>{clock}</div>
     <div style={{fontSize: 16, color: T.muted, marginTop: 4}}>recorded run · {Math.round(RUN_SECONDS / 60)} minutes, shown in {Math.round((RUN_TO - RUN_FROM) / 60)} s</div>
   </div>;
@@ -132,12 +132,17 @@ export const Plan = () => {
     <Caption step="03 · Every agent in its own copy" text="They work in parallel, never on your files." at={RUN_FROM + 56} out={ORDER_FROM} />
     <Caption step="04 · Shared files take turns" text="Two tasks own filter-bar.js. Pytxo orders them." at={ORDER_FROM + 14} out={RUN_TO + 10} />
     <Caption step="05 · Pytxo runs the checks" text="Each task is checked before review." at={RUN_TO + 24} out={PLAN_FRAMES + 30} />
+    <Camera keys={[
+      {at: 0, x: 960, y: 560, scale: 1}, {at: 50, x: 960, y: 520, scale: 1.32}, {at: 290, x: 960, y: 560, scale: 1.32},
+      {at: 340, x: 1100, y: 760, scale: 1.4}, {at: SPLIT, x: 1100, y: 760, scale: 1.4}, {at: SPLIT + 70, x: 960, y: 640, scale: 1},
+      {at: RUN_FROM, x: 960, y: 640, scale: 1}, {at: RUN_FROM + 50, x: 520, y: 640, scale: 1.32}, {at: ORDER_FROM - 10, x: 520, y: 640, scale: 1.32},
+      {at: ORDER_FROM + 30, x: 760, y: 650, scale: 1.25}, {at: ORDER_TO - 10, x: 760, y: 650, scale: 1.25}, {at: ORDER_TO + 40, x: 1300, y: 520, scale: 1.25},
+      {at: RUN_TO, x: 1300, y: 520, scale: 1.25}, {at: RUN_TO + 60, x: 960, y: 640, scale: 1},
+    ]}>
     <Composer />
     {[0, 1, 2].map((wave) => <div key={wave} style={{position: "absolute", left: columnHeader(wave).x, top: columnHeader(wave).y, fontFamily: sans, fontSize: 17, fontWeight: 500, color: T.muted, opacity: headers}}>{waveLabel[wave]}</div>)}
     <Links />
     {workers.map((worker, index) => <TaskCard key={worker.taskId} worker={worker} index={index} />)}
-    <Clock />
-    <Tally />
     <Cursor visibleFrom={34} visibleTo={SPLIT + 10} keys={[
       {at: 34, x: 1240, y: 900},
       {at: 62, x: 760, y: 420, click: true},
@@ -145,5 +150,8 @@ export const Plan = () => {
       {at: BUILD, x: 1440, y: 778, click: true},
       {at: SPLIT + 10, x: 1460, y: 800},
     ]} />
+    </Camera>
+    <Clock />
+    <Tally />
   </AbsoluteFill>;
 };

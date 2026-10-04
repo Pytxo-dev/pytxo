@@ -78,12 +78,26 @@ export const Rise = ({text, at, size, weight = 600, color = T.ink, stagger = 4, 
   </div>;
 };
 
+/** A slow, eased camera: each key frames point (x, y) at the center at `scale`. */
+export type CameraKey = {at: number; x: number; y: number; scale: number};
+export const Camera = ({keys, children}: {keys: CameraKey[]; children: ReactNode}) => {
+  const frame = useCurrentFrame();
+  let {x, y, scale} = keys[0];
+  for (let index = 1; index < keys.length; index++) {
+    const from = keys[index - 1], to = keys[index];
+    if (frame <= from.at) break;
+    const t = ramp(frame, from.at, to.at);
+    x = mix(from.x, to.x, t); y = mix(from.y, to.y, t); scale = mix(from.scale, to.scale, t);
+  }
+  return <div style={{position: "absolute", inset: 0, transformOrigin: "0 0", transform: `translate(960px, 540px) scale(${scale}) translate(${-x}px, ${-y}px)`}}>{children}</div>;
+};
+
 /** Short captions in the corner of a scene: a muted step label and one line. */
 export const Caption = ({step, text, at, out}: {step: string; text: string; at: number; out: number}) => {
   const frame = useCurrentFrame();
   const visible = fade(frame, at, out, 16);
-  return <div style={{position: "absolute", left: 120, top: 92, opacity: visible}}>
-    <div style={{fontFamily: mono, fontSize: 20, color: T.muted, letterSpacing: "0.02em", marginBottom: 14}}>{step}</div>
+  return <div style={{position: "absolute", left: 96, top: 72, opacity: visible, zIndex: 40, padding: "20px 28px 22px", borderRadius: 18, background: "rgba(247,246,243,.92)", boxShadow: "0 10px 40px rgba(25,25,24,.08)", backdropFilter: "blur(8px)"}}>
+    <div style={{fontFamily: mono, fontSize: 20, color: T.muted, letterSpacing: "0.02em", marginBottom: 12}}>{step}</div>
     <Rise text={text} at={at} size={50} stagger={3} />
   </div>;
 };
