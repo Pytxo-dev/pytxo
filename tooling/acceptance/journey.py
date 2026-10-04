@@ -247,7 +247,20 @@ try:
     if args.mode == "probe":
         receipt["onboarding_shown"] = present(spec("Get started", control_type="Button"), 20)
         if args.onboard and receipt["onboarding_shown"]:
-            onboard(example=True)
+            # Releases differ in their setup steps, so finish setup by whichever of
+            # these each step offers, until no setup step remains.
+            choices = ["Get started", "Skip for now", "Try the guided example", "Continue", "Next", "Finish", "Enter Pytxo Desktop", "Open Pytxo Desktop"]
+            idle = 0
+            while idle < 3 and len(receipt["pointer"]) < 60:
+                found = next((name for name in choices if present(spec(name, control_type="Button"), 2)), None)
+                if not found:
+                    idle += 1
+                    continue
+                idle = 0
+                press(spec(found, control_type="Button"), found)
+                time.sleep(2.5)
+            if not present(spec("Get started", control_type="Button"), 2) and not present(spec(title_re="^Setup progress$"), 2):
+                step("desktop entered")
         time.sleep(2)
         receipt["texts"] = sorted({element.window_text() for element in win.descendants(control_type="Text") if element.window_text().strip()})[:200]
         shot(args.name)
