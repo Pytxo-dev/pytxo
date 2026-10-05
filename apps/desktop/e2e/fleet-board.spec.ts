@@ -10,9 +10,9 @@ test("a mixed-CLI run opens on the fleet board with each worker's vendor, output
   await expect(page.getByRole("button", { name: "Fleet" })).toHaveAttribute("aria-pressed", "true");
 
   for (const vendor of ["Claude Code", "Cursor Agent", "OpenCode", "Antigravity"]) {
-    await expect(board.locator(".worker strong", { hasText: vendor })).toHaveCount(1);
+    await expect(board.locator(".worker .who small", { hasText: vendor })).toHaveCount(1);
   }
-  await expect(board.locator(".worker strong", { hasText: "OpenAI Codex" })).toHaveCount(2);
+  await expect(board.locator(".worker .who small", { hasText: "OpenAI Codex" })).toHaveCount(2);
 
   await expect(board.getByRole("log", { name: "Recent output from Claude Code" })).toContainText("Update(src/style.css)");
   await expect(board.getByRole("log", { name: "Recent output from OpenAI Codex" }).first()).toContainText("Task checks passed");

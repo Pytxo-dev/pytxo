@@ -7,6 +7,7 @@
   import IconSettings from "@tabler/icons-svelte/icons/settings";
   import IconTarget from "@tabler/icons-svelte/icons/target";
   import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
+  import type { AgentDto, RunDto } from "../../lib/types";
   import type { ComposerDraft } from "../../lib/composer-draft";
   import { SETTINGS_SECTIONS } from "../../lib/settings-catalog";
   import {
@@ -167,6 +168,37 @@
   const activeCommandRuns = $derived(commandRuns.filter((r) =>
       ["starting", "running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
   ));
+  // Sidebar: the focused (or newest) job in this project with its agents, and a few recent jobs.
+  let requestTitles = $state<Record<string, string>>({});
+  $effect(() => {
+    void snapshot.runs.length;
+    void backend.flowHistory().then((records) => {
+      const next: Record<string, string> = {};
+      for (const record of records) if (record.dispatched_run_id) next[`${record.domain_id}:${record.dispatched_run_id}`] = record.title.trim() || record.mission_text.trim();
+      requestTitles = next;
+    }).catch(() => {});
+  });
+  const runTitle = (run: RunDto) => requestTitles[`${run.domain_id}:${run.id}`] || `Work in ${run.repo_root.split(/[\\/]/).pop()}`;
+  const toneOf = (agent: AgentDto): "live" | "done" | "failed" | "queued" | "settled" =>
+    ["running", "starting", "pending"].includes(agent.status) ? "live"
+      : agent.status === "completed" && agent.exit_code === 0 ? "done"
+      : ["failed", "blocked_by_dependency", "verify_failed"].includes(agent.status) ? "failed" : "settled";
+  const sidebarJob = $derived.by(() => {
+    const run = commandRuns.find((r) => r.id === focusRunId) ?? commandRuns[0];
+    if (!run) return null;
+    const agents = snapshot.agents.filter((agent) => agent.run_id === run.id && agent.domain_id === run.domain_id);
+    return {
+      runId: run.id,
+      title: runTitle(run),
+      live: ["starting", "running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
+      agents: agents.map((agent) => ({ id: agent.id, label: agent.task_id, vendor: agent.launcher?.display_name ?? "Agent", cli: agent.launcher?.id ?? null, tone: toneOf(agent) })),
+    };
+  });
+  const sidebarRecent = $derived(commandRuns.filter((run) => run.id !== sidebarJob?.runId).slice(0, 4).map((run) => ({
+    runId: run.id,
+    title: runTitle(run),
+    meta: run.apply_status === "applied" ? "applied" : run.status.toLowerCase(),
+  })));
   const activeCommandRun = $derived(activeCommandRuns.find((r) => r.id === focusRunId) ?? activeCommandRuns[0] ?? null);
   const latestReviewRun = $derived(
     commandRuns.find(
@@ -839,6 +871,9 @@
     activeRunsCount={activeCommandRuns.length}
     workspaceLabel={activeDomain?.repo_root.split(/[\\/]/).pop() ?? "Workspace"}
     onOpenWorkspace={() => navigate("setup", "workspaces")}
+    job={sidebarJob}
+    recentJobs={sidebarRecent}
+    onOpenRun={(runId) => { focusRun(runId); navigate("work"); }}
   />
 
   <main>

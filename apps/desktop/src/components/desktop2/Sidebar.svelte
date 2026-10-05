@@ -6,6 +6,11 @@
   import IconUserCircle from "@tabler/icons-svelte/icons/user-circle";
   import type { CanonicalRoute, WorkspaceRecent } from "../../lib/navigation.svelte";
   import { MOD_KEY } from "../../lib/platform";
+  import AdeIdentity from "./AdeIdentity.svelte";
+
+  export type SidebarAgent = { id: string; label: string; vendor: string; cli: string | null; tone: "live" | "done" | "failed" | "queued" | "settled" };
+  export type SidebarJob = { runId: string; title: string; live: boolean; agents: SidebarAgent[] };
+  export type SidebarRecent = { runId: string; title: string; meta: string };
 
   type NavItem = { route: CanonicalRoute; label: string; icon: typeof IconSearch };
 
@@ -28,6 +33,9 @@
     activeRunsCount = 0,
     workspaceLabel = "Workspace",
     onOpenWorkspace = () => {},
+    job = null,
+    recentJobs = [],
+    onOpenRun = () => {},
   }: {
     route: CanonicalRoute;
     primary: NavItem[];
@@ -47,7 +55,11 @@
     activeRunsCount?: number;
     workspaceLabel?: string;
     onOpenWorkspace?: () => void;
+    job?: SidebarJob | null;
+    recentJobs?: SidebarRecent[];
+    onOpenRun?: (runId: string) => void;
   } = $props();
+  const finished = $derived(job ? job.agents.filter((agent) => agent.tone === "done").length : 0);
 
   const shortcutHint = MOD_KEY === "⌘" ? "⌘K" : "Ctrl K";
 
@@ -110,6 +122,32 @@
       </a>
     {/each}
   </nav>
+
+  {#if job && !collapsed}
+    <section class="now" aria-label={job.live ? "Running now" : "Latest work"}>
+      <p class="section-label">{job.live ? "Now" : "Latest"}</p>
+      <button class="job" onclick={() => onOpenRun(job.runId)} title={job.title}>
+        <span class="job-title"><i class="dot" data-tone={job.live ? "live" : "settled"}></i><span>{job.title}</span>{#if job.agents.length}<em>{finished}/{job.agents.length}</em>{/if}</span>
+        {#if job.agents.length}<span class="job-bar" aria-hidden="true"><i style={`width:${(finished / job.agents.length) * 100}%`}></i></span>{/if}
+      </button>
+      {#if job.agents.length}
+        <ul class="job-agents" aria-label="Agents on this job">
+          {#each job.agents as agent (agent.id)}
+            <li><button onclick={() => onOpenRun(job.runId)} title={`${agent.label} · ${agent.vendor}`}><span class="agent-logo">{#if agent.cli}<AdeIdentity id={agent.cli} />{/if}</span><span class="agent-label">{agent.label}</span><i class="dot" data-tone={agent.tone} aria-label={agent.tone === "live" ? "working" : agent.tone}></i></button></li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
+  {/if}
+
+  {#if recentJobs.length && !collapsed}
+    <section class="recent-jobs" aria-label="Recent work">
+      <p class="section-label">Recent</p>
+      {#each recentJobs.slice(0, 4) as recent (recent.runId)}
+        <button onclick={() => onOpenRun(recent.runId)} title={recent.title}><span>{recent.title}</span><small>{recent.meta}</small></button>
+      {/each}
+    </section>
+  {/if}
 
   {#if recents.length && !collapsed}
     <div class="recents">
@@ -297,6 +335,30 @@
     flex-direction: column;
     width: 100%;
   }
+  .section-label { margin: 14px 8px 6px; color: var(--pytxo-text-muted); font: 500 10px var(--pytxo-font-mono, "IBM Plex Mono", monospace); letter-spacing: .12em; text-transform: uppercase; }
+  .now, .recent-jobs { display: grid; }
+  .job { display: grid; gap: 8px; width: 100%; padding: 9px 10px; border: 1px solid var(--pytxo-line); border-radius: 8px; background: var(--pytxo-surface-raised); color: var(--pytxo-text-strong); text-align: left; cursor: pointer; }
+  .job:hover { border-color: var(--pytxo-text-muted); }
+  .job-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; font-weight: 600; }
+  .job-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job-title em { margin-left: auto; color: var(--pytxo-activity); font: 500 11px var(--pytxo-font-mono, "IBM Plex Mono", monospace); font-style: normal; }
+  .job-bar { height: 3px; overflow: hidden; border-radius: 3px; background: var(--pytxo-line); }
+  .job-bar i { display: block; height: 100%; background: var(--pytxo-aperture-horizontal); transition: width 400ms ease; }
+  .job-agents { display: grid; gap: 1px; margin: 4px 0 0; padding: 0; list-style: none; }
+  .job-agents button { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; min-height: 30px; padding: 0 8px 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--pytxo-text-soft); font-size: 12.5px; text-align: left; cursor: pointer; }
+  .job-agents button:hover { background: var(--pytxo-surface-hover); color: var(--pytxo-text-strong); }
+  .agent-logo { display: grid; place-items: center; width: 18px; height: 18px; }
+  .agent-logo :global(svg), .agent-logo :global(img) { width: 14px; height: 14px; }
+  .agent-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--pytxo-line); }
+  .dot[data-tone="live"] { background: var(--pytxo-activity); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pytxo-activity) 18%, transparent); }
+  .dot[data-tone="done"] { background: var(--state-verified); }
+  .dot[data-tone="failed"] { background: var(--state-refuted); }
+  .recent-jobs button { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-height: 30px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--pytxo-text-soft); font-size: 12.5px; text-align: left; cursor: pointer; }
+  .recent-jobs button:hover { background: var(--pytxo-surface-hover); color: var(--pytxo-text-strong); }
+  .recent-jobs span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recent-jobs small { flex: none; color: var(--pytxo-text-muted); font: 11px var(--pytxo-font-mono, "IBM Plex Mono", monospace); }
+  .job:focus-visible, .job-agents button:focus-visible, .recent-jobs button:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 1px; }
   nav,
   .recents {
     margin-top: 16px;
