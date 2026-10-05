@@ -5,9 +5,9 @@
   "result": "live/result.mp4",
   "shots": [
     {
-      "start": 46.739,
+      "start": 48.417,
       "end": 60.417,
-      "speed": 2.0432500000000005,
+      "speed": 4,
       "kicker": "01 · Describe",
       "title": "Say what you want, once.",
       "focus": {
@@ -19,9 +19,9 @@
       "clip": "live/shot0.mp4"
     },
     {
-      "start": 68.49,
+      "start": 75.203,
       "end": 86.003,
-      "speed": 1.6,
+      "speed": 2.999999999999999,
       "kicker": "02 · Choose agents",
       "title": "Put every agent you use on the job.",
       "focus": {
@@ -35,7 +35,7 @@
     {
       "start": 89.458,
       "end": 97.07,
-      "speed": 1.4,
+      "speed": 2.5373333333333314,
       "kicker": "03 · Plan",
       "title": "See the plan before anything runs.",
       "focus": null,
@@ -51,9 +51,9 @@
       "clip": "live/shot3.mp4"
     },
     {
-      "start": 118.713,
+      "start": 134.242,
       "end": 172.642,
-      "speed": 8.654833333333334,
+      "speed": 12,
       "kicker": "04 · Fleet",
       "title": "They work side by side, in isolated copies.",
       "focus": null,
@@ -61,9 +61,9 @@
       "clip": "live/shot4.mp4"
     },
     {
-      "start": 175.775,
+      "start": 179.803,
       "end": 188.803,
-      "speed": 1.2,
+      "speed": 2.5,
       "kicker": "05 · Review",
       "title": "Read every change and its checks.",
       "focus": null,
@@ -72,16 +72,16 @@
     {
       "start": 193.106,
       "end": 200.74099999999999,
-      "speed": 1,
+      "speed": 1.7352272727272706,
       "kicker": "06 · Stale",
       "title": "Something changed? Apply refuses.",
       "focus": null,
       "clip": "live/shot6.mp4"
     },
     {
-      "start": 203.465,
+      "start": 204.53999999999996,
       "end": 229.73999999999998,
-      "speed": 3.382142857142855,
+      "speed": 6,
       "kicker": "07 · Apply",
       "title": "Refresh, then Apply the exact reviewed bytes.",
       "focus": null,

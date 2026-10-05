@@ -45,13 +45,21 @@ const shots = [
   {start: review.t - 0.4, end: (m.read ?? m.review + 3) + 0.8, speed: 1.2, kicker: "05 · Review", title: "Read every change and its checks.", focus: null},
   {start: apply1.t - 0.4, end: m.stale + 2.6, speed: 1, kicker: "06 · Stale", title: "Something changed? Apply refuses.", focus: null},
   {start: refresh.t - 0.4, end: m.applied + 2.2, speed: Math.max(1, (m.applied - refresh.t) / 7), kicker: "07 · Apply", title: "Refresh, then Apply the exact reviewed bytes.", focus: null, sped: m.applied - refresh.t > 9},
-].map((s) => ({...s, start: Math.max(0, s.start)}));
+].map((s) => ({...s, start: Math.max(0, s.start)}))
+  // Pace: each shot lasts about its voice line plus a beat. Interactive shots are
+  // capped in speed and lose their earliest moments instead, keeping the payoff.
+  .map((s, i) => {
+    const target = [3.0, 3.6, 3.0, 3.8, 3.2, 3.6, 4.4, 4.2][i] ?? 4;
+    const cap = [4, 3, 3, 1.5, 12, 2.5, 2.2, 6][i] ?? 3;
+    const start = Math.max(s.start, s.end - target * cap);
+    return {...s, start, speed: Math.min(cap, Math.max(1, (s.end - start) / target))};
+  });
 for (const s of shots) if (!(s.end > s.start)) throw new Error(`Empty shot: ${s.title}`);
 
 execFileSync("ffmpeg", ["-v", "error", "-y", "-i", path.join(dir, "screen.mkv"), "-vf", "setpts=PTS-STARTPTS,fps=60", "-c:v", "libx264", "-preset", "slow", "-crf", "14", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-g", "30", path.join(out, "screen.mp4")]);
 // Each shot also gets its own short clip, already at its cut speed (keyframe every 10 frames), so renders never seek the long take.
 shots.forEach((s, i) => {
-  execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", s.start.toFixed(3), "-to", s.end.toFixed(3), "-i", path.join(out, "screen.mp4"), "-an", "-vf", `setpts=(PTS-STARTPTS)/${s.speed.toFixed(4)},fps=60`, "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-g", "10", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path.join(out, `shot${i}.mp4`)]);
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", s.start.toFixed(3), "-to", s.end.toFixed(3), "-i", path.join(out, "screen.mp4"), "-an", "-vf", `setpts=(PTS-STARTPTS)/${s.speed.toFixed(4)},fps=60,tpad=stop_mode=clone:stop_duration=0.5`, "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-g", "10", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path.join(out, `shot${i}.mp4`)]);
   s.clip = `live/shot${i}.mp4`;
 });
 let result = null;

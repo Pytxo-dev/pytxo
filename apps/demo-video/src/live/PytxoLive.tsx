@@ -7,9 +7,9 @@ import {useFilmFonts} from "../film/kit";
 import cut from "../../live-cut.json";
 
 export const LIVE_FPS = 60;
-const INTRO = 180;
-const OUTRO = 240;
-const RESULT = 270;
+const INTRO = 150;
+const OUTRO = 210;
+const RESULT = 210;
 const W = 1920, H = 1080;
 
 type Rect = {x: number; y: number; w: number; h: number};
@@ -44,7 +44,7 @@ const raw = cut.shots as Shot[];
 const shots = raw.map((s, i) => {
   const beat = BEATS[i];
   const firstOfBeat = BEATS.indexOf(beat) === i;
-  const need = firstOfBeat ? VO[beat][1] - VO[beat][0] + 0.9 : 0;
+  const need = firstOfBeat ? VO[beat][1] - VO[beat][0] + 0.5 : 0;
   const speed = need ? Math.max(1, Math.min(s.speed, (s.end - s.start) / need)) : s.speed;
   return {...s, speed, cutSpeed: s.speed, beat, firstOfBeat};
 });
