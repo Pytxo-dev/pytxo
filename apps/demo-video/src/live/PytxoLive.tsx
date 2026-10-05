@@ -172,23 +172,25 @@ const voCues = (Object.keys(VO) as Beat[]).map((beat) => ({
   at: beat === "intro" ? 24 : beat === "outro" ? LIVE_FRAMES - OUTRO + 30 : starts[BEATS.indexOf(beat)] + 12,
   len: Math.round((VO[beat][1] - VO[beat][0]) * LIVE_FPS),
 }));
-const speaking = (f: number) => voCues.some((v) => f >= v.at - 10 && f <= v.at + v.len + 10);
+// 0..1: how far the music is ducked, ramping over 12 frames around each line.
+const duck = (f: number) => Math.max(0, ...voCues.map((v) => Math.min(1, (f - v.at + 14) / 12, (v.at + v.len + 14 - f) / 12)));
 
 const Sound = () => (
   <>
     <Audio src={staticFile("live/audio/music.mp3")} trimBefore={MUSIC_FROM} volume={(f) => {
       const fade = Math.max(0, Math.min(1, f / 45, (LIVE_FRAMES - f) / 120));
-      return fade * (speaking(f) ? 0.22 : 0.5);
+      // Music (-7 LUFS master) sits well under the -15 LUFS voice: about -25 LUFS alone, -34 under speech.
+      return fade * (0.12 - 0.085 * duck(f));
     }} />
     {voCues.map((v) => (
       <Sequence key={v.beat} from={v.at} durationInFrames={v.len + 6}>
-        <Audio src={staticFile("live/audio/vo.mp3")} trimBefore={Math.round(VO[v.beat][0] * LIVE_FPS)} />
+        <Audio src={staticFile("live/audio/vo.wav")} trimBefore={Math.round(VO[v.beat][0] * LIVE_FPS)} />
       </Sequence>
     ))}
-    {clickFrames.map((f, i) => <Sequence key={`c${i}`} from={f} durationInFrames={20}><Audio src={staticFile("live/audio/click.wav")} volume={0.55} /></Sequence>)}
-    {starts.slice(1).map((f, i) => <Sequence key={`w${i}`} from={f - 8} durationInFrames={70}><Audio src={staticFile("live/audio/whoosh.mp3")} volume={0.25} /></Sequence>)}
-    {staleFrame !== null && <Sequence from={staleFrame} durationInFrames={60}><Audio src={staticFile("live/audio/thud.mp3")} volume={0.7} /></Sequence>}
-    {appliedFrame !== null && <Sequence from={appliedFrame} durationInFrames={120}><Audio src={staticFile("live/audio/chime.mp3")} volume={0.6} /></Sequence>}
+    {clickFrames.map((f, i) => <Sequence key={`c${i}`} from={f} durationInFrames={20}><Audio src={staticFile("live/audio/click.wav")} volume={0.45} /></Sequence>)}
+    {starts.slice(1).map((f, i) => <Sequence key={`w${i}`} from={f - 8} durationInFrames={70}><Audio src={staticFile("live/audio/whoosh.wav")} volume={0.3} /></Sequence>)}
+    {staleFrame !== null && <Sequence from={staleFrame} durationInFrames={60}><Audio src={staticFile("live/audio/thud.wav")} volume={0.9} /></Sequence>}
+    {appliedFrame !== null && <Sequence from={appliedFrame} durationInFrames={120}><Audio src={staticFile("live/audio/chime.wav")} volume={0.7} /></Sequence>}
   </>
 );
 
