@@ -23,7 +23,6 @@ for (const [width, height] of [[1440, 900], [1024, 680]]) {
     await page.getByRole("button", { name: "Try the guided example" }).waitFor();
     await page.screenshot({ path: `${OUT}/${at}-3-project.png` });
     await page.getByRole("button", { name: "Try the guided example" }).click();
-    await page.getByRole("button", { name: /^Continue/ }).click();
     await page.getByRole("button", { name: "Enter Pytxo Desktop" }).waitFor();
     await page.screenshot({ path: `${OUT}/${at}-4-ready.png` });
   });
