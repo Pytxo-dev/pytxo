@@ -2875,3 +2875,13 @@ the exact private/public inventories, checksums, embedded versions, updater
 signature, and npm install. If those checks pass, the appropriate final rating
 is **READY WITH KNOWN RISKS**, limited by absent Authenticode/Git signing,
 licensed narration, and the documented runtime boundaries above.
+
+## October 5: local native pass, new onboarding, film v3
+
+- Onboarding is three screens (welcome, agents, project), keyboard-first; theme and text size live in Settings.
+- The worker canvas drags from anywhere, including from a worker, and its dot grid moves with it.
+- New work lists every beta agent as a toggle with a lead; "Use every ready agent" selects all.
+- Fleet is always reachable and opens first for a multi-agent run, from the moment it starts.
+- Local native journey on the developer's Windows 11 PC (125% scale), release build from this branch, stand-in agents replaying the 2 October run, isolated `PYTXO_HOME` and WebView profile (`tooling/acceptance/run-local.ps1`): 6 workers completed, 7 files reviewed and applied, Apply refused while stale, refreshed review applied, fixture tests 10/10.
+- Film v3 (`PytxoLive`) is cut from that recording; waits are sped up and labelled. The raw take stays out of git.
+- Not done: live vendor-agent run, code signing, release and deployment.
