@@ -125,7 +125,8 @@ const Typed = ({text, at, perChar = 2.2, style}: {text: string; at: number; perC
   const frame = useCurrentFrame();
   const n = Math.max(0, Math.min(text.length, Math.floor((frame - at) / perChar)));
   const typing = n < text.length && frame >= at;
-  return <div style={style}>{text.slice(0, n)}<span style={{opacity: typing || Math.floor(frame / 20) % 2 ? 1 : 0, color: "#45dccb"}}>▍</span></div>;
+  // The cursor hangs outside the text box so the words stay truly centred.
+  return <div style={style}><span style={{position: "relative"}}>{text.slice(0, n)}<span style={{position: "absolute", left: "100%", opacity: typing || Math.floor(frame / 20) % 2 ? 1 : 0, color: "#45dccb"}}>▍</span></span></div>;
 };
 
 /** One quiet caption: a small dark pill near the bottom. */
