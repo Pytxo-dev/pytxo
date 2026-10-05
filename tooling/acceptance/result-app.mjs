@@ -25,7 +25,7 @@ const server = http.createServer((request, response) => {
   response.writeHead(200, { "content-type": types[path.extname(file)] ?? "application/octet-stream" }).end(readFileSync(file));
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const edge = await chromium.launch({ channel: "msedge" });
+const edge = await chromium.launch({ channel: "msedge" }).catch(() => chromium.launch());
 const page = await edge.newPage({ viewport: { width: 1600, height: 1000 }, colorScheme: "dark" });
 
 // Every compositor frame, with frame times in epoch milliseconds.

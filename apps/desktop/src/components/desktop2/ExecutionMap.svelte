@@ -46,8 +46,10 @@
   // A chosen view carries across runs while that view exists for the run.
   const runAgents = $derived(agents.filter(agent => agent.run_id === run.id));
   // Fleet is always reachable for recorded workers; it opens first when several agents share the run.
-  const fleetAvailable = $derived(!routed && runAgents.length > 0);
-  const fleetRun = $derived(fleetAvailable && new Set(runAgents.map(agent => agent.launcher?.id).filter(Boolean)).size > 1);
+  // A planned multi-CLI run counts before its first worker starts, so Fleet opens with the run.
+  const plannedClis = $derived(new Set(Object.values(taskClis)).size);
+  const fleetAvailable = $derived(!routed && (runAgents.length > 0 || plannedClis > 1));
+  const fleetRun = $derived(fleetAvailable && (plannedClis > 1 || new Set(runAgents.map(agent => agent.launcher?.id).filter(Boolean)).size > 1));
   let chosenView = $state<"fleet" | "canvas" | "list" | null>(null);
   const viewMode = $derived(chosenView && (chosenView !== "fleet" || fleetAvailable) ? chosenView : fleetRun ? "fleet" : "canvas");
   let runKey = "";

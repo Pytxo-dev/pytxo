@@ -39,7 +39,9 @@ try {
   $journey = @((Join-Path $PSScriptRoot "journey.py"), "--out", (Join-Path $Evidence "journey"), "--mode", "full", "--repo", $fixture,
     "--mission", (Join-Path $root "docs\demo\fleet\mission.txt"), "--team", "Claude Code,Cursor Agent,OpenCode,Antigravity")
   if ($Film) { $journey += "--film" }
+  $ErrorActionPreference = "Continue"
   & $Python @journey
+  $ErrorActionPreference = "Stop"
   $journeyExit = $LASTEXITCODE
 } finally {
   if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force; $app.WaitForExit(15000) | Out-Null }

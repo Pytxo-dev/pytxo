@@ -101,12 +101,13 @@ def cursor():
 def glide(x, y, seconds=0.5):
     """Moves the real pointer to (x, y) along an eased path, as a person would."""
     x0, y0 = cursor()
-    steps = max(10, int(seconds * 90))
-    for index in range(1, steps + 1):
-        t = index / steps
+    # SetCursorPos keeps the glide on schedule; pywinauto's move waits after every step.
+    start = time.perf_counter()
+    while (t := min(1.0, (time.perf_counter() - start) / seconds)) < 1.0:
         eased = t * t * (3 - 2 * t)
-        mouse.move(coords=(round(x0 + (x - x0) * eased), round(y0 + (y - y0) * eased)))
-        time.sleep(seconds / steps)
+        ctypes.windll.user32.SetCursorPos(round(x0 + (x - x0) * eased), round(y0 + (y - y0) * eased))
+        time.sleep(1 / 120)
+    ctypes.windll.user32.SetCursorPos(round(x), round(y))
 
 
 def press(target, label, timeout=60, settle=0.4, surface="desktop"):
@@ -164,7 +165,7 @@ def wait_for(predicate, timeout, interval=2.0, what="condition"):
 
 
 def onboard(example):
-    press(spec("Get started", control_type="Button"), "Get started", timeout=120)
+    press(spec(title_re="^Get started", control_type="Button"), "Get started", timeout=120)
     try:
         spec(title_re="Looking for your agents.*").wait_not("exists", timeout=90)
     except Exception:
@@ -190,7 +191,7 @@ def onboard(example):
             press(dialog.child_window(title="Select Folder", control_type="Button"), "Select Folder")
             time.sleep(2)
         wait(spec(title_re="Pytxo uses this folder.*"), 60)
-    press(spec("Enter Pytxo Desktop", control_type="Button"), "Enter Pytxo Desktop")
+    press(spec(title_re="^Enter Pytxo Desktop", control_type="Button"), "Enter Pytxo Desktop")
     step("desktop entered")
     time.sleep(2)
 
@@ -246,7 +247,7 @@ def start_recording():
 stop_recording = start_recording() if args.mode == "full" else None
 try:
     if args.mode in ("probe", "update"):
-        receipt["onboarding_shown"] = present(spec("Get started", control_type="Button"), 20)
+        receipt["onboarding_shown"] = present(spec(title_re="^Get started", control_type="Button"), 20)
         if (args.onboard or args.mode == "update") and receipt["onboarding_shown"]:
             # Releases differ in their setup steps, so finish setup by whichever of
             # these each step offers, until no setup step remains.
@@ -260,7 +261,7 @@ try:
                 idle = 0
                 press(spec(title_re=f"^{found}", control_type="Button"), found)
                 time.sleep(2.5)
-            if not present(spec("Get started", control_type="Button"), 2) and not present(spec(title_re="^Setup progress$"), 2):
+            if not present(spec(title_re="^Get started", control_type="Button"), 2) and not present(spec(title_re="^Setup progress$"), 2):
                 step("desktop entered")
         time.sleep(2)
         receipt["texts"] = sorted({element.window_text() for element in win.descendants(control_type="Text") if element.window_text().strip()})[:200]
