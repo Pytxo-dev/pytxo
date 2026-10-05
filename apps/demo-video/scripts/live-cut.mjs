@@ -49,7 +49,7 @@ const shots = [
   // Pace: each shot lasts about its voice line plus a beat. Interactive shots are
   // capped in speed and lose their earliest moments instead, keeping the payoff.
   .map((s, i) => {
-    const target = [3.0, 3.6, 3.0, 3.8, 3.2, 3.6, 4.4, 4.2][i] ?? 4;
+    const target = [4.2, 4.6, 4.0, 4.6, 4.4, 4.6, 5.4, 5.0][i] ?? 4.5;
     const cap = [4, 3, 3, 1.5, 12, 2.5, 2.2, 6][i] ?? 3;
     const start = Math.max(s.start, s.end - target * cap);
     return {...s, start, speed: Math.min(cap, Math.max(1, (s.end - start) / target))};

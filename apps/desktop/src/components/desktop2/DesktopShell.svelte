@@ -170,12 +170,24 @@
   ));
   // Sidebar: the focused (or newest) job in this project with its agents, and a few recent jobs.
   let requestTitles = $state<Record<string, string>>({});
+  /** Saved plan prose per run and task: presentation only, like Work's task copy. */
+  let taskCopy = $state<Record<string, Record<string, string>>>({});
   $effect(() => {
     void snapshot.runs.length;
     void backend.flowHistory().then((records) => {
       const next: Record<string, string> = {};
-      for (const record of records) if (record.dispatched_run_id) next[`${record.domain_id}:${record.dispatched_run_id}`] = record.title.trim() || record.mission_text.trim();
+      const copy: Record<string, Record<string, string>> = {};
+      for (const record of records) {
+        if (!record.dispatched_run_id) continue;
+        const key = `${record.domain_id}:${record.dispatched_run_id}`;
+        next[key] = record.title.trim() || record.mission_text.trim();
+        try {
+          const plan = JSON.parse(record.plan_json ?? "{}");
+          if (Array.isArray(plan.tasks)) copy[key] = Object.fromEntries(plan.tasks.filter((task: { id?: unknown; prompt?: unknown }) => typeof task.id === "string" && typeof task.prompt === "string").map((task: { id: string; prompt: string }) => [task.id, task.prompt.trim()]));
+        } catch { /* a draft without a readable plan keeps task IDs */ }
+      }
       requestTitles = next;
+      taskCopy = copy;
     }).catch(() => {});
   });
   const runTitle = (run: RunDto) => requestTitles[`${run.domain_id}:${run.id}`] || `Work in ${run.repo_root.split(/[\\/]/).pop()}`;
@@ -191,7 +203,7 @@
       runId: run.id,
       title: runTitle(run),
       live: ["starting", "running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
-      agents: agents.map((agent) => ({ id: agent.id, label: agent.task_id, vendor: agent.launcher?.display_name ?? "Agent", cli: agent.launcher?.id ?? null, tone: toneOf(agent) })),
+      agents: agents.map((agent) => ({ id: agent.id, label: taskCopy[`${run.domain_id}:${run.id}`]?.[agent.task_id] || agent.task_id, vendor: agent.launcher?.display_name ?? "Agent", cli: agent.launcher?.id ?? null, tone: toneOf(agent) })),
     };
   });
   const sidebarRecent = $derived(commandRuns.filter((run) => run.id !== sidebarJob?.runId).slice(0, 4).map((run) => ({

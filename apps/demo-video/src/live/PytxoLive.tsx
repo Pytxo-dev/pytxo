@@ -7,9 +7,10 @@ import {useFilmFonts} from "../film/kit";
 import cut from "../../live-cut.json";
 
 export const LIVE_FPS = 60;
-const INTRO = 150;
-const OUTRO = 210;
-const RESULT = 210;
+// The intro and outro each hold their whole line plus a breath.
+const INTRO = 300;
+const OUTRO = 300;
+const RESULT = 240;
 const W = 1920, H = 1080;
 
 type Rect = {x: number; y: number; w: number; h: number};
@@ -17,15 +18,15 @@ type Shot = {start: number; end: number; speed: number; kicker: string; title: s
 
 // Voiceover lines (seconds in vo.mp3) and the caption shown with each.
 const VO = {
-  intro: [0, 2.98],
-  describe: [3.87, 5.4],
-  agents: [6.18, 8.1],
-  plan: [8.98, 10.88],
-  fleet: [11.56, 15.02],
-  review: [15.96, 18.2],
-  stale: [18.97, 22.47],
-  apply: [22.85, 25.7],
-  outro: [26.14, 28.79],
+  intro: [0, 2.85],
+  describe: [3.72, 5.24],
+  agents: [6.13, 8.16],
+  plan: [8.83, 10.7],
+  fleet: [11.44, 14.92],
+  review: [15.45, 17.62],
+  stale: [18.38, 21.6],
+  apply: [22.38, 25.3],
+  outro: [25.77, 28.42],
 } as const;
 type Beat = keyof typeof VO;
 const BEATS: Beat[] = ["describe", "agents", "plan", "fleet", "fleet", "review", "stale", "apply"];
@@ -81,14 +82,60 @@ const Glyph = ({size, phase}: {size: number; phase: number}) => {
   );
 };
 
+/** Deterministic pseudo-random for frame-stable ASCII. */
+const hash = (a: number, b: number) => { const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return x - Math.floor(x); };
+const CHARS = ".:+*=x";
+
+/** A full-frame field of mono glyphs that breathes, then clears around the centre. */
+const AsciiField = ({frame, fade}: {frame: number; fade: number}) => {
+  const cols = 64, rows = 30;
+  const cells = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const dx = (c - cols / 2) / (cols / 2), dy = (r - rows / 2) / (rows / 2);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const wave = Math.sin(dist * 9 - frame / 9 + hash(c, r) * 6.28);
+    const o = Math.max(0, wave) * .22 * fade * Math.min(1, dist * 1.4);
+    if (o < .02) continue;
+    cells.push(<text key={r * cols + c} x={c * 30 + 15} y={r * 36 + 20} opacity={o} fill={dist < .55 ? "#45dccb" : "#8b93ff"}>{CHARS[Math.floor(hash(c + Math.floor(frame / 6), r) * 6)]}</text>);
+  }
+  return <svg width={W} height={H} style={{position: "absolute", inset: 0, font: `500 18px ${mono}`}}>{cells}</svg>;
+};
+
+/** A short ASCII scan that sweeps across a cut. */
+const AsciiWipe = ({at}: {at: number}) => {
+  const frame = useCurrentFrame();
+  const t = (frame - at + 10) / 22;
+  if (t <= 0 || t >= 1) return null;
+  const x = -200 + t * (W + 400);
+  const cols = [];
+  for (let i = 0; i < 9; i++) for (let r = 0; r < 30; r++) {
+    const o = (1 - Math.abs(i - 4) / 5) * (.35 + .65 * hash(i + frame, r));
+    cols.push(<text key={i * 30 + r} x={x + i * 22} y={r * 36 + 22} opacity={o} fill={i % 3 ? "#45dccb" : "#b98cff"}>{CHARS[Math.floor(hash(i * 7 + frame, r) * 6)]}</text>);
+  }
+  return (
+    <svg width={W} height={H} style={{position: "absolute", inset: 0, font: `600 22px ${mono}`, pointerEvents: "none"}}>
+      <rect x={x - 60} y={0} width={260} height={H} fill="rgba(9,9,11,.55)" />
+      {cols}
+    </svg>
+  );
+};
+
+/** Types text out one glyph at a time, with a block cursor while it types. */
+const Typed = ({text, at, perChar = 2.2, style}: {text: string; at: number; perChar?: number; style: React.CSSProperties}) => {
+  const frame = useCurrentFrame();
+  const n = Math.max(0, Math.min(text.length, Math.floor((frame - at) / perChar)));
+  const typing = n < text.length && frame >= at;
+  return <div style={style}>{text.slice(0, n)}<span style={{opacity: typing || Math.floor(frame / 20) % 2 ? 1 : 0, color: "#45dccb"}}>▍</span></div>;
+};
+
 /** One quiet caption: a small dark pill near the bottom. */
 const Caption = ({text, at, out}: {text: string; at: number; out: number}) => {
   const frame = useCurrentFrame();
   const p = interpolate(frame, [at, at + 18, out - 14, out], [0, 1, 1, 0], {extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(.2, .8, .2, 1)});
   if (p <= 0) return null;
   return (
-    <div style={{position: "absolute", left: 0, right: 0, bottom: 64, display: "flex", justifyContent: "center", opacity: p, transform: `translateY(${(1 - p) * 8}px)`}}>
-      <div style={{padding: "14px 26px", borderRadius: 999, background: "rgba(9,9,11,.8)", border: "1px solid rgba(255,255,255,.1)", boxShadow: "0 18px 50px rgba(0,0,0,.45)", font: `500 34px ${sans}`, letterSpacing: "-.015em", color: ink}}>{text}</div>
+    <div style={{position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center", opacity: p, transform: `translateY(${(1 - p) * 8}px)`}}>
+      <div style={{padding: "18px 34px", borderRadius: 999, background: "rgba(9,9,11,.86)", border: "1px solid rgba(255,255,255,.12)", boxShadow: "0 24px 60px rgba(0,0,0,.5)", font: `600 46px ${sans}`, letterSpacing: "-.015em", color: ink}}>{text}</div>
     </div>
   );
 };
@@ -169,7 +216,7 @@ const FLEET_START = starts[BEATS.indexOf("fleet")];
 const MUSIC_FROM = Math.max(0, 74 * LIVE_FPS - FLEET_START);
 const voCues = (Object.keys(VO) as Beat[]).map((beat) => ({
   beat,
-  at: beat === "intro" ? 24 : beat === "outro" ? LIVE_FRAMES - OUTRO + 30 : starts[BEATS.indexOf(beat)] + 12,
+  at: beat === "intro" ? 70 : beat === "outro" ? LIVE_FRAMES - OUTRO + 50 : starts[BEATS.indexOf(beat)] + 12,
   len: Math.round((VO[beat][1] - VO[beat][0]) * LIVE_FPS),
 }));
 // 0..1: how far the music is ducked, ramping over 12 frames around each line.
@@ -200,9 +247,12 @@ export const PytxoLive = () => {
   return (
     <AbsoluteFill style={{background: bg, overflow: "hidden"}}>
       <Sequence durationInFrames={INTRO}>
-        <AbsoluteFill style={{display: "grid", placeContent: "center", justifyItems: "center", gap: 34, opacity: interpolate(frame, [INTRO - 16, INTRO], [1, 0], {extrapolateLeft: "clamp"})}}>
-          <div style={{opacity: interpolate(frame, [0, 20], [0, 1], {extrapolateRight: "clamp"})}}><Glyph size={300} phase={frame / 60 * .5} /></div>
-          <div style={{font: `600 72px ${sans}`, letterSpacing: "-.03em", color: ink, opacity: interpolate(frame, [18, 42], [0, 1], {extrapolateLeft: "clamp", extrapolateRight: "clamp"})}}>Many agents. One reviewed change.</div>
+        <AbsoluteFill style={{opacity: interpolate(frame, [INTRO - 18, INTRO], [1, 0], {extrapolateLeft: "clamp"})}}>
+          <AsciiField frame={frame} fade={interpolate(frame, [0, 40, INTRO - 60, INTRO], [0, 1, 1, .3], {extrapolateRight: "clamp"})} />
+          <AbsoluteFill style={{display: "grid", placeContent: "center", justifyItems: "center", gap: 40}}>
+            <div style={{transform: `scale(${spring({frame: frame - 6, fps: 60, config: {damping: 18, mass: .9}})})`}}><Glyph size={320} phase={frame / 60 * .7} /></div>
+            <Typed text="Many agents. One reviewed change." at={62} perChar={2.4} style={{font: `600 76px ${sans}`, letterSpacing: "-.03em", color: ink}} />
+          </AbsoluteFill>
         </AbsoluteFill>
       </Sequence>
       {shots.map((_shot, i) => (
@@ -210,6 +260,8 @@ export const PytxoLive = () => {
           <ShotView index={i} />
         </Sequence>
       ))}
+      {starts.slice(1).map((at) => <AsciiWipe key={`wipe${at}`} at={at} />)}
+      {cut.result && <AsciiWipe at={SHOTS_END} />}
       {shots.map((shot, i) => {
         if (!shot.firstOfBeat) return null;
         let j = i;
@@ -225,11 +277,14 @@ export const PytxoLive = () => {
         </Sequence>
       )}
       <Sequence from={LIVE_FRAMES - OUTRO}>
-        <AbsoluteFill style={{display: "grid", placeContent: "center", justifyItems: "center", gap: 26, background: bg, opacity: interpolate(frame - (LIVE_FRAMES - OUTRO), [0, 18], [0, 1], {extrapolateRight: "clamp"})}}>
-          <Glyph size={200} phase={frame / 60 * .5} />
-          <div style={{font: `600 64px ${sans}`, letterSpacing: "-.03em", color: ink}}>pytxo</div>
-          <div style={{font: `400 26px ${sans}`, color: muted}}>Free Windows beta · pytxo.com</div>
-          <div style={{marginTop: 30, font: `500 14px ${mono}`, color: "#5b5b63", letterSpacing: ".08em"}}>RECORDED IN PYTXO DESKTOP · STAND-IN AGENTS REPLAY A REAL RUN · WAITS SHORTENED</div>
+        <AbsoluteFill style={{background: bg, opacity: interpolate(frame - (LIVE_FRAMES - OUTRO), [0, 18], [0, 1], {extrapolateRight: "clamp"})}}>
+          <AsciiField frame={frame} fade={interpolate(frame - (LIVE_FRAMES - OUTRO), [0, 40], [0, .8], {extrapolateRight: "clamp"})} />
+        </AbsoluteFill>
+        <AbsoluteFill style={{display: "grid", placeContent: "center", justifyItems: "center", gap: 28, opacity: interpolate(frame - (LIVE_FRAMES - OUTRO), [0, 18], [0, 1], {extrapolateRight: "clamp"})}}>
+          <Glyph size={240} phase={frame / 60 * .7} />
+          <Typed text="pytxo" at={24} perChar={5} style={{font: `600 96px ${sans}`, letterSpacing: "-.035em", color: ink}} />
+          <div style={{font: `400 32px ${sans}`, color: muted, opacity: interpolate(frame - (LIVE_FRAMES - OUTRO), [70, 95], [0, 1], {extrapolateLeft: "clamp", extrapolateRight: "clamp"})}}>Free Windows beta · pytxo.com</div>
+          <div style={{marginTop: 30, font: `500 17px ${mono}`, color: "#6b6b74", letterSpacing: ".08em"}}>RECORDED IN PYTXO DESKTOP · STAND-IN AGENTS REPLAY A REAL RUN · WAITS SHORTENED</div>
         </AbsoluteFill>
       </Sequence>
       <Sound />
