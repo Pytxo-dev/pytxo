@@ -15,7 +15,8 @@
         "y": 211,
         "w": 1100,
         "h": 620
-      }
+      },
+      "clip": "live/shot0.mp4"
     },
     {
       "start": 68.49,
@@ -28,7 +29,8 @@
         "y": 514,
         "w": 900,
         "h": 506
-      }
+      },
+      "clip": "live/shot1.mp4"
     },
     {
       "start": 89.458,
@@ -36,7 +38,8 @@
       "speed": 1.4,
       "kicker": "03 · Plan",
       "title": "See the plan before anything runs.",
-      "focus": null
+      "focus": null,
+      "clip": "live/shot2.mp4"
     },
     {
       "start": 113.113,
@@ -44,7 +47,8 @@
       "speed": 1,
       "kicker": "04 · Fleet",
       "title": "Every worker, on one canvas you can move.",
-      "focus": null
+      "focus": null,
+      "clip": "live/shot3.mp4"
     },
     {
       "start": 118.713,
@@ -53,7 +57,8 @@
       "kicker": "04 · Fleet",
       "title": "They work side by side, in isolated copies.",
       "focus": null,
-      "sped": true
+      "sped": true,
+      "clip": "live/shot4.mp4"
     },
     {
       "start": 175.775,
@@ -61,7 +66,8 @@
       "speed": 1.2,
       "kicker": "05 · Review",
       "title": "Read every change and its checks.",
-      "focus": null
+      "focus": null,
+      "clip": "live/shot5.mp4"
     },
     {
       "start": 193.106,
@@ -69,7 +75,8 @@
       "speed": 1,
       "kicker": "06 · Stale",
       "title": "Something changed? Apply refuses.",
-      "focus": null
+      "focus": null,
+      "clip": "live/shot6.mp4"
     },
     {
       "start": 203.465,
@@ -78,7 +85,8 @@
       "kicker": "07 · Apply",
       "title": "Refresh, then Apply the exact reviewed bytes.",
       "focus": null,
-      "sped": true
+      "sped": true,
+      "clip": "live/shot7.mp4"
     }
   ],
   "pointer": [

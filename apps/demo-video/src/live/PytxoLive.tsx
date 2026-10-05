@@ -1,19 +1,54 @@
 // PytxoLive: the real Pytxo Desktop, recorded natively during one journey take,
-// cut down and framed in a quiet dark stage. The pointer is redrawn from the
-// take's own telemetry; nothing on the app window is re-created or animated.
-import {AbsoluteFill, Easing, interpolate, OffthreadVideo, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig} from "remotion";
+// shown full-bleed with one quiet caption per beat, an ElevenLabs voiceover and
+// sound effects, and the music's drop landing as the agents start work. The
+// pointer is redrawn from the take's own telemetry; the app is never re-created.
+import {AbsoluteFill, Audio, Easing, interpolate, OffthreadVideo, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig} from "remotion";
 import {useFilmFonts} from "../film/kit";
 import cut from "../../live-cut.json";
 
 export const LIVE_FPS = 60;
-const INTRO = 150;
-const OUTRO = 210;
-const RESULT = 300;
+const INTRO = 180;
+const OUTRO = 240;
+const RESULT = 270;
+const W = 1920, H = 1080;
 
 type Rect = {x: number; y: number; w: number; h: number};
-type Shot = {start: number; end: number; speed: number; kicker: string; title: string; focus: Rect | null; sped?: boolean};
-const shots = cut.shots as Shot[];
-const frames = (s: Shot) => Math.round(((s.end - s.start) / s.speed) * LIVE_FPS);
+type Shot = {start: number; end: number; speed: number; kicker: string; title: string; focus: Rect | null; clip: string};
+
+// Voiceover lines (seconds in vo.mp3) and the caption shown with each.
+const VO = {
+  intro: [0, 2.98],
+  describe: [3.87, 5.4],
+  agents: [6.18, 8.1],
+  plan: [8.98, 10.88],
+  fleet: [11.56, 15.02],
+  review: [15.96, 18.2],
+  stale: [18.97, 22.47],
+  apply: [22.85, 25.7],
+  outro: [26.14, 28.79],
+} as const;
+type Beat = keyof typeof VO;
+const BEATS: Beat[] = ["describe", "agents", "plan", "fleet", "fleet", "review", "stale", "apply"];
+const CAPTION: Partial<Record<Beat, string>> = {
+  describe: "Describe it once.",
+  agents: "Pick every agent you use.",
+  plan: "See the plan first.",
+  fleet: "They work side by side, isolated.",
+  review: "Read every change and check.",
+  stale: "Something changed? Apply refuses.",
+  apply: "Apply exactly what you reviewed.",
+};
+
+// Each shot lasts at least as long as its line plus a breath.
+const raw = cut.shots as Shot[];
+const shots = raw.map((s, i) => {
+  const beat = BEATS[i];
+  const firstOfBeat = BEATS.indexOf(beat) === i;
+  const need = firstOfBeat ? VO[beat][1] - VO[beat][0] + 0.9 : 0;
+  const speed = need ? Math.max(1, Math.min(s.speed, (s.end - s.start) / need)) : s.speed;
+  return {...s, speed, cutSpeed: s.speed, beat, firstOfBeat};
+});
+const frames = (s: {start: number; end: number; speed: number}) => Math.round(((s.end - s.start) / s.speed) * LIVE_FPS);
 const starts = shots.reduce<number[]>((list, _s, i) => [...list, i ? list[i - 1] + frames(shots[i - 1]) : INTRO], []);
 const SHOTS_END = starts.at(-1)! + frames(shots.at(-1)!);
 export const LIVE_FRAMES = SHOTS_END + (cut.result ? RESULT : 0) + OUTRO;
@@ -24,14 +59,10 @@ const bg = "#09090B";
 const sans = "'Sora', system-ui, sans-serif";
 const mono = "'IBM Plex Mono', ui-monospace, monospace";
 
-// The stage: a 1600-wide window under a headline band.
-const STAGE = {x: 160, y: 168, w: 1600};
-const scale0 = STAGE.w / cut.width;
-const stageH = cut.height * scale0;
-
-const Dots = () => (
-  <AbsoluteFill style={{backgroundImage: "radial-gradient(circle, rgba(255,255,255,.07) 1.2px, transparent 1.6px)", backgroundSize: "28px 28px", maskImage: "radial-gradient(ellipse 75% 70% at 50% 45%, #000 35%, transparent 85%)"}} />
-);
+// The take (1920 wide, taskbar cropped) is scaled to cover the frame.
+const cover = Math.max(W / cut.width, H / cut.height);
+// Anchored left: the sidebar stays whole; only window chrome on the right trims.
+const offX = 0;
 
 const Glyph = ({size, phase}: {size: number; phase: number}) => {
   const shell = Array.from({length: 340}, (_, n) => {
@@ -50,36 +81,34 @@ const Glyph = ({size, phase}: {size: number; phase: number}) => {
   );
 };
 
-const Title = ({kicker, title, at, out}: {kicker: string; title: string; at: number; out?: number}) => {
+/** One quiet caption: a small dark pill near the bottom. */
+const Caption = ({text, at, out}: {text: string; at: number; out: number}) => {
   const frame = useCurrentFrame();
-  const inP = interpolate(frame, [at, at + 24], [0, 1], {extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(.2, .8, .2, 1)});
-  const outP = out === undefined ? 1 : interpolate(frame, [out - 14, out], [1, 0], {extrapolateLeft: "clamp", extrapolateRight: "clamp"});
+  const p = interpolate(frame, [at, at + 18, out - 14, out], [0, 1, 1, 0], {extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(.2, .8, .2, 1)});
+  if (p <= 0) return null;
   return (
-    <div style={{position: "absolute", left: 0, right: 0, top: 46, textAlign: "center", opacity: inP * outP, transform: `translateY(${(1 - inP) * 10}px)`}}>
-      <div style={{font: `500 17px ${mono}`, letterSpacing: ".14em", textTransform: "uppercase", color: muted}}>{kicker}</div>
-      <div style={{marginTop: 12, font: `600 46px ${sans}`, letterSpacing: "-.025em", color: ink}}>{title}</div>
+    <div style={{position: "absolute", left: 0, right: 0, bottom: 64, display: "flex", justifyContent: "center", opacity: p, transform: `translateY(${(1 - p) * 8}px)`}}>
+      <div style={{padding: "14px 26px", borderRadius: 999, background: "rgba(9,9,11,.8)", border: "1px solid rgba(255,255,255,.1)", boxShadow: "0 18px 50px rgba(0,0,0,.45)", font: `500 34px ${sans}`, letterSpacing: "-.015em", color: ink}}>{text}</div>
     </div>
   );
 };
 
-/** Camera for a shot: identity, or a push-in that centres the focus rect in the stage. */
 const cameraFor = (s: Shot) => {
   if (!s.focus) return {s: 1, x: 0, y: 0};
-  const zoom = Math.min(1.7, Math.max(1.15, Math.min(cut.width / s.focus.w, cut.height / s.focus.h) * .8));
-  const cx = (s.focus.x + s.focus.w / 2) * scale0, cy = (s.focus.y + s.focus.h / 2) * scale0;
-  const x = Math.min(0, Math.max(STAGE.w - STAGE.w * zoom, STAGE.w / 2 - cx * zoom));
-  const y = Math.min(0, Math.max(stageH - stageH * zoom, stageH / 2 - cy * zoom));
+  const zoom = Math.min(1.6, Math.max(1.15, Math.min(cut.width / s.focus.w, cut.height / s.focus.h) * .8));
+  const cx = offX + (s.focus.x + s.focus.w / 2) * cover, cy = (s.focus.y + s.focus.h / 2) * cover;
+  const x = Math.min(0, Math.max(W - W * zoom, W / 2 - cx * zoom));
+  const y = Math.min(0, Math.max(H - H * zoom, H / 2 - cy * zoom));
   return {s: zoom, x, y};
 };
 
-/** Video-time pointer position, gliding from the previous hover the way the driver moved it. */
+type Move = {t: number; x: number; y: number; kind: string};
+const moves = cut.pointer.filter((p) => p.x !== undefined && p.x !== null) as Move[];
 const pointerAt = (t: number) => {
-  const moves = cut.pointer.filter((p) => p.x !== undefined && p.x !== null) as {t: number; x: number; y: number; kind: string}[];
   let prev = moves[0], next = moves[0];
   for (const p of moves) { if (p.t <= t) { prev = next; next = p; } else break; }
   if (!next) return null;
-  const glideSec = next.kind === "drag" ? 0.6 : 0.5;
-  const k = Math.min(1, Math.max(0, (t - next.t) / glideSec));
+  const k = Math.min(1, Math.max(0, (t - next.t) / (next.kind === "drag" ? 1.2 : 0.5)));
   const e = k * k * (3 - 2 * k);
   return {x: prev.x + (next.x - prev.x) * e, y: prev.y + (next.y - prev.y) * e};
 };
@@ -90,24 +119,19 @@ const Cursor = ({t}: {t: number}) => {
   const click = cut.pointer.filter((q) => q.kind === "click" && q.t <= t && t - q.t < .45).at(-1);
   const ring = click ? (t - click.t) / .45 : 0;
   return (
-    <div style={{position: "absolute", left: p.x * scale0, top: p.y * scale0, pointerEvents: "none"}}>
+    <div style={{position: "absolute", left: offX + p.x * cover, top: p.y * cover}}>
       {click && <div style={{position: "absolute", left: -22 - ring * 10, top: -22 - ring * 10, width: 44 + ring * 20, height: 44 + ring * 20, borderRadius: "50%", border: "2px solid rgba(255,255,255,.7)", opacity: 1 - ring}} />}
-      <svg width="26" height="30" viewBox="0 0 26 30" style={{position: "absolute", left: -3, top: -2, filter: "drop-shadow(0 3px 6px rgba(0,0,0,.5))", transform: `scale(${click ? 1 - .12 * Math.sin(ring * Math.PI) : 1})`, transformOrigin: "3px 2px"}}>
+      <svg width="30" height="34" viewBox="0 0 26 30" style={{position: "absolute", left: -3, top: -2, filter: "drop-shadow(0 3px 6px rgba(0,0,0,.5))", transform: `scale(${click ? 1 - .12 * Math.sin(ring * Math.PI) : 1})`, transformOrigin: "3px 2px"}}>
         <path d="M3 2 L3 24 L9 18.5 L13 27 L17 25.2 L13 16.8 L21 16.8 Z" fill="#fff" stroke="#111" strokeWidth="1.6" strokeLinejoin="round" />
       </svg>
     </div>
   );
 };
 
-const Window = ({children, cam}: {children: React.ReactNode; cam: {s: number; x: number; y: number}}) => (
-  <div style={{position: "absolute", left: STAGE.x, top: STAGE.y, width: STAGE.w, height: stageH, borderRadius: 14, overflow: "hidden", border: "1px solid rgba(255,255,255,.09)", boxShadow: "0 40px 120px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.6)", background: "#000"}}>
-    <div style={{position: "absolute", inset: 0, transformOrigin: "0 0", transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`}}>{children}</div>
-  </div>
-);
-
-const ShotView = ({shot, index}: {shot: Shot; index: number}) => {
+const ShotView = ({index}: {index: number}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
+  const shot = shots[index];
   const t = shot.start + (frame / fps) * shot.speed;
   const previous = index ? cameraFor(shots[index - 1]) : {s: 1, x: 0, y: 0};
   const target = cameraFor(shot);
@@ -118,46 +142,84 @@ const ShotView = ({shot, index}: {shot: Shot; index: number}) => {
   const mid = {s: lerp(previous.s, target.s, k), x: lerp(previous.x, target.x, k), y: lerp(previous.y, target.y, k)};
   const cam = {s: lerp(mid.s, nextCam.s, settle), x: lerp(mid.x, nextCam.x, settle), y: lerp(mid.y, nextCam.y, settle)};
   return (
-    <>
-      <Window cam={cam}>
-        <OffthreadVideo src={staticFile(cut.video)} trimBefore={Math.round(shot.start * fps)} playbackRate={shot.speed} muted style={{width: STAGE.w, display: "block"}} />
+    <AbsoluteFill style={{overflow: "hidden", background: "#000", opacity: interpolate(frame, [0, 10], [0, 1], {extrapolateRight: "clamp"})}}>
+      <div style={{position: "absolute", inset: 0, transformOrigin: "0 0", transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`}}>
+        <OffthreadVideo src={staticFile(shot.clip)} playbackRate={shot.speed / shot.cutSpeed} muted style={{position: "absolute", left: offX, top: 0, width: cut.width * cover}} />
         <Cursor t={t} />
-      </Window>
-      {shot.speed > 1.05 && (
-        <div style={{position: "absolute", right: STAGE.x + 18, top: STAGE.y + stageH + 18, font: `500 15px ${mono}`, color: muted, letterSpacing: ".08em"}}>SPED UP {shot.speed.toFixed(1)}×</div>
-      )}
-    </>
+      </div>
+    </AbsoluteFill>
   );
 };
+
+/** Video-time → film frame for a moment inside a shot (or null when cut away). */
+const filmFrame = (t: number) => {
+  for (let i = 0; i < shots.length; i++) {
+    const s = shots[i];
+    if (t >= s.start && t < s.end) return starts[i] + Math.round(((t - s.start) / s.speed) * LIVE_FPS);
+  }
+  return null;
+};
+const marks = cut.marks as Record<string, number>;
+const clickFrames = cut.pointer.filter((p) => p.kind === "click").map((p) => filmFrame(p.t)).filter((f): f is number => f !== null);
+const staleFrame = filmFrame(marks.stale);
+const appliedFrame = filmFrame(marks.applied);
+
+// The song's second drop (74 s) lands when the fleet starts working.
+const FLEET_START = starts[BEATS.indexOf("fleet")];
+const MUSIC_FROM = Math.max(0, 74 * LIVE_FPS - FLEET_START);
+const voCues = (Object.keys(VO) as Beat[]).map((beat) => ({
+  beat,
+  at: beat === "intro" ? 24 : beat === "outro" ? LIVE_FRAMES - OUTRO + 30 : starts[BEATS.indexOf(beat)] + 12,
+  len: Math.round((VO[beat][1] - VO[beat][0]) * LIVE_FPS),
+}));
+const speaking = (f: number) => voCues.some((v) => f >= v.at - 10 && f <= v.at + v.len + 10);
+
+const Sound = () => (
+  <>
+    <Audio src={staticFile("live/audio/music.mp3")} trimBefore={MUSIC_FROM} volume={(f) => {
+      const fade = Math.max(0, Math.min(1, f / 45, (LIVE_FRAMES - f) / 120));
+      return fade * (speaking(f) ? 0.22 : 0.5);
+    }} />
+    {voCues.map((v) => (
+      <Sequence key={v.beat} from={v.at} durationInFrames={v.len + 6}>
+        <Audio src={staticFile("live/audio/vo.mp3")} trimBefore={Math.round(VO[v.beat][0] * LIVE_FPS)} />
+      </Sequence>
+    ))}
+    {clickFrames.map((f, i) => <Sequence key={`c${i}`} from={f} durationInFrames={20}><Audio src={staticFile("live/audio/click.wav")} volume={0.55} /></Sequence>)}
+    {starts.slice(1).map((f, i) => <Sequence key={`w${i}`} from={f - 8} durationInFrames={70}><Audio src={staticFile("live/audio/whoosh.mp3")} volume={0.25} /></Sequence>)}
+    {staleFrame !== null && <Sequence from={staleFrame} durationInFrames={60}><Audio src={staticFile("live/audio/thud.mp3")} volume={0.7} /></Sequence>}
+    {appliedFrame !== null && <Sequence from={appliedFrame} durationInFrames={120}><Audio src={staticFile("live/audio/chime.mp3")} volume={0.6} /></Sequence>}
+  </>
+);
 
 export const PytxoLive = () => {
   useFilmFonts();
   const frame = useCurrentFrame();
-  const titleKey = (i: number) => shots[i].title;
   return (
-    <AbsoluteFill style={{background: `radial-gradient(1400px 700px at 50% -10%, #17171c, ${bg} 70%)`, overflow: "hidden"}}>
-      <Dots />
-      {/* Intro: the aperture mark and the promise. */}
+    <AbsoluteFill style={{background: bg, overflow: "hidden"}}>
       <Sequence durationInFrames={INTRO}>
         <AbsoluteFill style={{display: "grid", placeContent: "center", justifyItems: "center", gap: 34, opacity: interpolate(frame, [INTRO - 16, INTRO], [1, 0], {extrapolateLeft: "clamp"})}}>
           <div style={{opacity: interpolate(frame, [0, 20], [0, 1], {extrapolateRight: "clamp"})}}><Glyph size={300} phase={frame / 60 * .5} /></div>
           <div style={{font: `600 72px ${sans}`, letterSpacing: "-.03em", color: ink, opacity: interpolate(frame, [18, 42], [0, 1], {extrapolateLeft: "clamp", extrapolateRight: "clamp"})}}>Many agents. One reviewed change.</div>
         </AbsoluteFill>
       </Sequence>
-      {shots.map((shot, i) => (
-        <Sequence key={i} from={starts[i]} durationInFrames={frames(shot)}>
-          <ShotView shot={shot} index={i} />
+      {shots.map((_shot, i) => (
+        <Sequence key={i} from={starts[i]} durationInFrames={frames(shots[i])}>
+          <ShotView index={i} />
         </Sequence>
       ))}
-      {shots.map((shot, i) => (i && titleKey(i) === titleKey(i - 1) ? null : (
-        <Title key={`t${i}`} kicker={shot.kicker} title={shot.title} at={starts[i]} out={(() => { let j = i; while (j + 1 < shots.length && titleKey(j + 1) === titleKey(i)) j++; return starts[j] + frames(shots[j]); })()} />
-      )))}
+      {shots.map((shot, i) => {
+        if (!shot.firstOfBeat) return null;
+        let j = i;
+        while (j + 1 < shots.length && shots[j + 1].beat === shot.beat) j++;
+        return <Caption key={`c${i}`} text={CAPTION[shot.beat]!} at={starts[i] + 6} out={starts[j] + frames(shots[j])} />;
+      })}
       {cut.result && (
         <Sequence from={SHOTS_END} durationInFrames={RESULT}>
-          <Title kicker="08 · Result" title="The applied app, running." at={0} out={RESULT} />
-          <div style={{position: "absolute", left: STAGE.x + 100, top: STAGE.y, width: STAGE.w - 200, borderRadius: 14, overflow: "hidden", border: "1px solid rgba(255,255,255,.09)", boxShadow: "0 40px 120px rgba(0,0,0,.55)"}}>
-            <OffthreadVideo src={staticFile(cut.result)} muted style={{width: "100%", display: "block"}} />
-          </div>
+          <AbsoluteFill style={{background: "#000"}}>
+            <OffthreadVideo src={staticFile(cut.result)} muted style={{width: W, height: H, objectFit: "cover"}} />
+          </AbsoluteFill>
+          <Caption text="The result, running." at={6} out={RESULT} />
         </Sequence>
       )}
       <Sequence from={LIVE_FRAMES - OUTRO}>
@@ -168,6 +230,7 @@ export const PytxoLive = () => {
           <div style={{marginTop: 30, font: `500 14px ${mono}`, color: "#5b5b63", letterSpacing: ".08em"}}>RECORDED IN PYTXO DESKTOP · STAND-IN AGENTS REPLAY A REAL RUN · WAITS SHORTENED</div>
         </AbsoluteFill>
       </Sequence>
+      <Sound />
     </AbsoluteFill>
   );
 };

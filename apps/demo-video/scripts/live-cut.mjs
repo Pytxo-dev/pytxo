@@ -48,7 +48,12 @@ const shots = [
 ].map((s) => ({...s, start: Math.max(0, s.start)}));
 for (const s of shots) if (!(s.end > s.start)) throw new Error(`Empty shot: ${s.title}`);
 
-execFileSync("ffmpeg", ["-v", "error", "-y", "-i", path.join(dir, "screen.mkv"), "-c:v", "libx264", "-preset", "slow", "-crf", "14", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-g", "30", path.join(out, "screen.mp4")]);
+execFileSync("ffmpeg", ["-v", "error", "-y", "-i", path.join(dir, "screen.mkv"), "-vf", "setpts=PTS-STARTPTS,fps=60", "-c:v", "libx264", "-preset", "slow", "-crf", "14", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-g", "30", path.join(out, "screen.mp4")]);
+// Each shot also gets its own short clip, already at its cut speed (keyframe every 10 frames), so renders never seek the long take.
+shots.forEach((s, i) => {
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", s.start.toFixed(3), "-to", s.end.toFixed(3), "-i", path.join(out, "screen.mp4"), "-an", "-vf", `setpts=(PTS-STARTPTS)/${s.speed.toFixed(4)},fps=60`, "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-g", "10", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path.join(out, `shot${i}.mp4`)]);
+  s.clip = `live/shot${i}.mp4`;
+});
 let result = null;
 if (existsSync(path.join(dir, "result-frames.txt"))) {
   execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "result-frames.txt", "-vf", "fps=60,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p", "-c:v", "libx264", "-crf", "14", "-movflags", "+faststart", path.join(out, "result.mp4")], {cwd: dir});
