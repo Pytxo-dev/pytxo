@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{bail, Context};
-use pytxo_core::{ade_on_path, all_ade_clis, PermissionProfile};
+use pytxo_core::{ade_can_dispatch, ade_on_path, all_ade_clis, PermissionProfile};
 use pytxo_orchestrate::flow::{
     dispatch_flow, preview_flow, save_reviewed_flow_plan, FlowDraftInput, FlowPlan, FlowSource,
     FlowStatus,
@@ -32,7 +32,10 @@ pub async fn run_mission(opts: MissionOptions) -> anyhow::Result<()> {
         trust_repo(&repo, PermissionProfile::Orbit)?;
     }
 
-    let installed: Vec<_> = all_ade_clis().iter().filter(|s| ade_on_path(s)).collect();
+    let installed: Vec<_> = all_ade_clis()
+        .iter()
+        .filter(|s| ade_can_dispatch(s) && ade_on_path(s))
+        .collect();
     if installed.is_empty() {
         bail!("No coding agent CLIs found on PATH. Install Claude Code, Codex, or OpenCode, then retry.");
     }
@@ -55,6 +58,10 @@ pub async fn run_mission(opts: MissionOptions) -> anyhow::Result<()> {
         domain_id: Some(repo.to_string_lossy().into_owned()),
         project_id: None,
         ade_id: opts.ade.clone(),
+        ade_ids: Vec::new(),
+        task_ades: Default::default(),
+        max_workers: None,
+        verification_commands: vec![],
     };
 
     let mut plan = preview_flow(&catalog, input)?;
@@ -101,13 +108,16 @@ pub async fn run_mission(opts: MissionOptions) -> anyhow::Result<()> {
         let snap = status_json(None, Some(repo.clone()), 20)?;
         if let Some(run) = snap.runs.iter().find(|r| r.id == run_id) {
             let state = run.status.as_str();
-            if state == "completed" || state == "failed" || state == "stopped" {
+            if matches!(
+                state,
+                "completed" | "failed" | "failed_startup" | "stopped" | "cancelled"
+            ) {
                 print_mission_report(&run_id, run, &plan);
-                if state == "failed" {
+                if state != "completed" {
                     bail!("Mission run {run_id} finished with status={state}");
                 }
                 eprintln!(
-                    "The prepared changes are waiting for review. Open Desktop, then Flow > History > Run Review to inspect and Apply them.\nGalaxy approval queue: pytxo hitl list"
+                    "Open Desktop > History > Run Review to inspect the run, its task checks, and any prepared changes before Apply.\nGalaxy approval queue: pytxo hitl list"
                 );
                 return Ok(());
             }

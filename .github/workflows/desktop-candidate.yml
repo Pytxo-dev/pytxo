@@ -1,0 +1,101 @@
+name: Desktop candidate (build only)
+
+# Manual only: Windows minutes are billed double; trigger when a candidate is ready.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    if: github.repository == 'Pytxo-dev/pytxo'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Verify version and install dependencies
+        run: |
+          node tooling/scripts/verify-release-version.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci --prefix tooling
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tooling/scripts/generate-deck-icons.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci --prefix apps/desktop
+
+      - name: Check Desktop
+        run: npm run check --prefix apps/desktop
+
+      - name: Require updater signing and enable signed artifacts
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw 'The updater signing key is required for candidate acceptance.'
+          }
+          node -e "const fs=require('node:fs'); const p='apps/desktop/src-tauri/tauri.conf.json'; const c=JSON.parse(fs.readFileSync(p,'utf8')); c.bundle.createUpdaterArtifacts=true; fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n');"
+
+      # No tag/release arguments: this action builds only. Updater signing does
+      # not establish Windows Authenticode signing or native acceptance.
+      - name: Build signed updater candidate
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/desktop
+          args: --target x86_64-pc-windows-msvc --bundles msi --features voice-whisper -- --locked --config "${{ github.workspace }}/.cargo/windows-msvc.toml"
+
+      - name: Verify package and capture candidate identity
+        run: |
+          $installers = @(Get-ChildItem target/x86_64-pc-windows-msvc/release/bundle -Recurse -File -Filter '*.msi')
+          if ($installers.Count -ne 1) { throw 'Expected exactly one candidate MSI.' }
+          $installer = $installers[0]
+          $signature = $installer.FullName + '.sig'
+          if (!(Test-Path -LiteralPath $signature) -or (Get-Item -LiteralPath $signature).Length -eq 0) { throw 'Missing updater signature.' }
+          ./tooling/scripts/verify-windows-msi.ps1 -InstallerPath $installer.FullName -EvidenceDirectory candidate-evidence
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $payloads = @(Get-ChildItem candidate-evidence/payload -Recurse -File -Filter 'pytxo-desktop.exe')
+          if ($payloads.Count -ne 1) { throw 'Expected exactly one packaged Desktop executable.' }
+          $payload = $payloads[0]
+          node tooling/scripts/verify-desktop-embedded-assets.mjs $payload.FullName apps/desktop/dist
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item -LiteralPath $installer.FullName -Destination candidate-evidence
+          Copy-Item -LiteralPath $signature -Destination candidate-evidence
+          [ordered]@{
+            source_commit = $env:GITHUB_SHA
+            workflow_run = $env:GITHUB_RUN_ID
+            installer_sha256 = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash
+            payload_sha256 = (Get-FileHash -LiteralPath $payload.FullName -Algorithm SHA256).Hash
+            authenticode = (Get-AuthenticodeSignature -LiteralPath $installer.FullName).Status.ToString()
+            native_update_acceptance = 'not performed'
+            publication = 'not performed'
+          } | ConvertTo-Json | Set-Content candidate-evidence/candidate.json -Encoding utf8
+
+      - name: Upload private candidate evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-candidate-${{ github.sha }}
+          path: candidate-evidence/
+          if-no-files-found: error
+          retention-days: 14

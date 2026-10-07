@@ -2,6 +2,11 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum PytxoError {
+    #[error(
+        "The reviewed candidate changed. Reload and review the current candidate before Apply."
+    )]
+    StaleReview,
+
     #[error("configuration: {0}")]
     Config(String),
 
@@ -10,6 +15,10 @@ pub enum PytxoError {
 
     #[error("runner: {0}")]
     Runner(String),
+
+    /// An explicit Stop boundary, not a process or verification failure.
+    #[error("runner: {0} cancelled by Stop")]
+    Cancelled(String),
 
     #[error("store: {0}")]
     Store(String),

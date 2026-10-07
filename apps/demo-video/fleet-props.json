@@ -1,0 +1,382 @@
+{
+  "schemaVersion": 1,
+  "kind": "fleet-film",
+  "candidate": {
+    "version": "1.2.2",
+    "msiSha256": "0D20D3B8EB5EFB8D5C28A8060F6EE55E0CE9289106FEFD4FB5E3095CDCCECF29",
+    "executableSha256": "40BB45D26175882C184DFF2B7E676320D240CFB9BDAA0EEE810A6D700B1171D4"
+  },
+  "run": {
+    "id": "348fcee9-e6d8-4888-b7e8-14c215b59ce9",
+    "title": "Add search and status filtering to `src/model.mjs`, with tests in…",
+    "status": "completed",
+    "durationSeconds": 868,
+    "packageDigest": "2c6b6cac7b14f0467b17cc562079fcf84dc8ff7aa701b17106dd48766dda957b",
+    "staleDigest": "6e4c2cf610c1c6eb2d51ea18583f77a882ab545b28a6a8bf4320c4c26d78786f",
+    "applyStatus": "applied",
+    "appliedAt": "2026-10-01T23:00:11.538419700+00:00"
+  },
+  "waves": [
+    4,
+    1,
+    1
+  ],
+  "vendors": [
+    "OpenAI Codex",
+    "Claude Code",
+    "Cursor Agent",
+    "OpenCode",
+    "Antigravity"
+  ],
+  "workers": [
+    {
+      "taskId": "mission-0",
+      "wave": 0,
+      "request": "Add search and status filtering to `src/model.mjs`, with tests in `test/model.test.mjs`",
+      "cli": "codex",
+      "vendor": "OpenAI Codex",
+      "paths": [
+        "src/model.mjs",
+        "test/model.test.mjs"
+      ],
+      "dependsOn": [],
+      "status": "completed",
+      "exitCode": 0,
+      "startedAt": "2026-10-01T22:31:25.940067300+00:00",
+      "endedAt": "2026-10-01T22:35:14.194793100+00:00",
+      "filesPrepared": [
+        "src/model.mjs",
+        "test/model.test.mjs"
+      ],
+      "output": [
+        "import { addTask, sampleTasks, toggleTask } from \"../src/model.mjs\";",
+        "+import { addTask, filterTasks, sampleTasks, toggleTask } from \"../src/model.mjs\";",
+        "+test(\"filtering defaults to all tasks\", () => {",
+        "+  const tasks = filterTasks(sampleTasks);",
+        "+  assert.deepEqual(tasks, sampleTasks);",
+        "+  assert.notEqual(tasks, sampleTasks);",
+        "+});",
+        "+test(\"search matches title substrings without regard to case\", () => {",
+        "+  assert.deepEqual(filterTasks(sampleTasks, \"REDIR\"), [sampleTasks[1]]);",
+        "+});",
+        "+test(\"search trims surrounding whitespace and treats a blank query as no search\", () =…",
+        "+  assert.deepEqual(filterTasks(sampleTasks, \"  ReLeAsE\\t\"), [sampleTasks[0]]);",
+        "+  assert.deepEqual(filterTasks(sampleTasks, \"\"), sampleTasks);",
+        "+  assert.deepEqual(filterTasks(sampleTasks, \" \\t\\n\"), sampleTasks);",
+        "+});",
+        "+test(\"status filtering supports open, done, and all tasks\", () => {",
+        "+  assert.deepEqual(filterTasks(sampleTasks, \"\", \"open\"), [sampleTasks[0], sampleTasks[…",
+        "+  assert.deepEqual(filterTasks(sampleTasks, \"\", \"done\"), [sampleTasks[1], sampleTasks[…",
+        "+  assert.deepEqual(filterTasks(sampleTasks, \"\", \"all\"), sampleTasks);",
+        "+});",
+        "+test(\"search and status filters must both match\", () => {",
+        "+  assert.deepEqual(filterTasks(sampleTasks, \"THE\", \"done\"), [sampleTasks[1]]);",
+        "+  assert.deepEqual(filterTasks(sampleTasks, \"release\", \"done\"), []);",
+        "+});",
+        "+test(\"filtering handles no matches and empty task lists\", () => {",
+        "+  assert.deepEqual(filterTasks(sampleTasks, \"missing task\"), []);",
+        "+  assert.deepEqual(filterTasks([]), []);",
+        "+  assert.deepEqual(filterTasks([], \"release\", \"open\"), []);",
+        "+});",
+        "+test(\"filtering preserves task order and identity without changing the input\", () => {",
+        "+  const input = Object.freeze(sampleTasks.map((task) => Object.freeze({ ...task })));",
+        "+  const tasks = filterTasks(input, \"the\", \"open\");",
+        "+  assert.deepEqual(tasks, [input[0], input[2]]);",
+        "+  assert.equal(tasks[0], input[0]);",
+        "+  assert.equal(tasks[1], input[2]);",
+        "+  assert.deepEqual(input, sampleTasks);",
+        "+});",
+        "import { addTask, filterTasks, sampleTasks, toggleTask } from \"../src/model.mjs\";",
+        "SyntaxError: The requested module '../src/model.mjs' does not provide an export named '…",
+        "+import { addTask, filterTasks, sampleTasks, toggleTask } from \"../src/model.mjs\";",
+        "+test(\"filtering defaults to all tasks\", () => {",
+        "+  const tasks = filterTasks(sampleTasks);",
+        "+  assert.deepEqual(tasks, sampleTasks);",
+        "+  assert.notEqual(tasks, sampleTasks);",
+        "+});",
+        "+test(\"search matches title substrings without regard to case\", () => {",
+        "+  assert.deepEqual(filterTasks(sampleTasks, \"REDIR\"), [sampleTasks[1]]);",
+        "+});"
+      ]
+    },
+    {
+      "taskId": "mission-1",
+      "wave": 0,
+      "request": "Add a dark theme to `src/style.css` that follows the system setting, with a theme toggle in `src/theme.js`",
+      "cli": "claude",
+      "vendor": "Claude Code",
+      "paths": [
+        "src/style.css",
+        "src/theme.js"
+      ],
+      "dependsOn": [],
+      "status": "completed",
+      "exitCode": 0,
+      "startedAt": "2026-10-01T22:31:25.933700800+00:00",
+      "endedAt": "2026-10-01T22:32:18.847750400+00:00",
+      "filesPrepared": [
+        "src/style.css",
+        "src/theme.js"
+      ],
+      "output": [
+        "npm test needs your approval to run — want me to proceed?Done: `src/style.css` adds `pr…",
+        "$ npm test",
+        "✓ Task checks passed"
+      ]
+    },
+    {
+      "taskId": "mission-2",
+      "wave": 0,
+      "request": "Translate every interface string to Spanish in `src/i18n/es.json` and add a language switch to `index.html`",
+      "cli": "cursor",
+      "vendor": "Cursor Agent",
+      "paths": [
+        "src/i18n/es.json",
+        "index.html"
+      ],
+      "dependsOn": [],
+      "status": "completed",
+      "exitCode": 0,
+      "startedAt": "2026-10-01T22:31:25.937084400+00:00",
+      "endedAt": "2026-10-01T22:41:53.061006800+00:00",
+      "filesPrepared": [
+        "index.html",
+        "src/i18n/es.json"
+      ],
+      "output": [
+        "Spanish copy for the task board is in `src/i18n/es.json`, and `index.html` now has a la…",
+        "$ npm test",
+        "✓ Task checks passed"
+      ]
+    },
+    {
+      "taskId": "mission-3",
+      "wave": 0,
+      "request": "Build a filter bar with status chips and an empty state in `src/components/filter-bar.js`",
+      "cli": "opencode",
+      "vendor": "OpenCode",
+      "paths": [
+        "src/components/filter-bar.js"
+      ],
+      "dependsOn": [],
+      "status": "completed",
+      "exitCode": 0,
+      "startedAt": "2026-10-01T22:31:25.931412900+00:00",
+      "endedAt": "2026-10-01T22:31:36.105351500+00:00",
+      "filesPrepared": [],
+      "output": [
+        "$ npm test",
+        "✓ Task checks passed"
+      ]
+    },
+    {
+      "taskId": "mission-4",
+      "wave": 1,
+      "request": "Reject blank task titles and mount the filter bar from `src/components/filter-bar.js` in `src/app.js`, with tests in `test/validation.test.mjs`",
+      "cli": "agy",
+      "vendor": "Antigravity",
+      "paths": [
+        "src/components/filter-bar.js",
+        "src/app.js",
+        "test/validation.test.mjs"
+      ],
+      "dependsOn": [
+        "mission-0"
+      ],
+      "status": "completed",
+      "exitCode": 0,
+      "startedAt": "2026-10-01T22:41:53.063781+00:00",
+      "endedAt": "2026-10-01T22:42:16.180915100+00:00",
+      "filesPrepared": [],
+      "output": [
+        "$ npm test",
+        "✓ Task checks passed"
+      ]
+    },
+    {
+      "taskId": "mission-5",
+      "wave": 2,
+      "request": "In `README.md`, document the combined features and how to run the tests",
+      "cli": "codex",
+      "vendor": "OpenAI Codex",
+      "paths": [
+        "README.md"
+      ],
+      "dependsOn": [
+        "mission-0",
+        "mission-1",
+        "mission-2",
+        "mission-3",
+        "mission-4"
+      ],
+      "status": "completed",
+      "exitCode": 0,
+      "startedAt": "2026-10-01T22:42:16.183540300+00:00",
+      "endedAt": "2026-10-01T22:45:43.857670500+00:00",
+      "filesPrepared": [
+        "README.md"
+      ],
+      "output": [
+        "I’ll check the combined features and test setup, update only `README.md`, and run `npm …",
+        "README.md",
+        "README.md",
+        "+## Features",
+        "+- Start with four sample tasks, add tasks with sequential IDs and an `open`",
+        "+  status, and use checkboxes to switch tasks between `open` and `done`.",
+        "+  Completed task titles are crossed out.",
+        "+- Switch the interface between English and Spanish. The language selector",
+        "+  translates the page title, heading, form labels, and accessible labels.",
+        "+  It remembers the choice in local storage when available; task titles stay",
+        "+  as entered.",
+        "+- Follow the system's light or dark color preference automatically.",
+        "+- Filter tasks through `filterTasks(tasks, query, status)` in",
+        "+  [`src/model.mjs`](src/model.mjs). Search matches title substrings without",
+        "+  regard to case and trims surrounding query whitespace. Status accepts",
+        "+  `all` (the default), `open`, or `done`; search and status conditions must",
+        "+  both match. Results preserve task order without changing the input list.",
+        "+### Current limitations",
+        "+  and completion changes are not saved.",
+        "+- Filtering is available in the model only. The page has no search or status",
+        "+  controls, and `src/components/filter-bar.js` is a placeholder.",
+        "+- `src/theme.js` provides `initTheme()` and a stored system/light/dark toggle,",
+        "+  but the page does not call the initializer or include a `theme-toggle`",
+        "+  button. Only automatic system theming is active in the page.",
+        "+- Task titles are accepted as entered, including empty or whitespace-only",
+        "+  titles. Title validation is not implemented.",
+        "+## Run locally",
+        "+Serve the repository root through a static HTTP server and open `index.html`",
+        "+in a browser. For example, with Python installed, run:",
+        "+```sh",
+        "+python -m http.server 8000 --bind 127.0.0.1",
+        "+```",
+        "+Then open <http://127.0.0.1:8000/>. Use HTTP rather than opening the file",
+        "+directly so JavaScript modules and the Spanish JSON catalog can load.",
+        "+No dependency installation or build step is required.",
+        "+## Run tests",
+        "+Install Node.js with npm and support for the built-in Node test runner, then",
+        "+run this command from the repository root:",
+        "+```sh",
+        "+npm test",
+        "+```",
+        "+The package script runs `node --test`; it does not need a running web server",
+        "+or any third-party packages. Tests in [`test/model.test.mjs`](test/model.test.mjs)",
+        "+cover task IDs and initial status, completion toggling, case-insensitive",
+        "+search, query whitespace, status filtering, combined filters, empty results,",
+        "+and preservation of input data and task order.",
+        "+[`test/validation.test.mjs`](test/validation.test.mjs) is currently a placeholder",
+        "+with no assertions. Node counts that file as a passing test, which does not"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "kind": "modify",
+      "taskId": "mission-5",
+      "vendor": "OpenAI Codex"
+    },
+    {
+      "path": "index.html",
+      "kind": "modify",
+      "taskId": "mission-2",
+      "vendor": "Cursor Agent"
+    },
+    {
+      "path": "src/i18n/es.json",
+      "kind": "modify",
+      "taskId": "mission-2",
+      "vendor": "Cursor Agent"
+    },
+    {
+      "path": "src/model.mjs",
+      "kind": "modify",
+      "taskId": "mission-0",
+      "vendor": "OpenAI Codex"
+    },
+    {
+      "path": "src/style.css",
+      "kind": "modify",
+      "taskId": "mission-1",
+      "vendor": "Claude Code"
+    },
+    {
+      "path": "src/theme.js",
+      "kind": "modify",
+      "taskId": "mission-1",
+      "vendor": "Claude Code"
+    },
+    {
+      "path": "test/model.test.mjs",
+      "kind": "modify",
+      "taskId": "mission-0",
+      "vendor": "OpenAI Codex"
+    }
+  ],
+  "checks": {
+    "recorded": 6,
+    "passed": 6
+  },
+  "evidenceBoundary": {
+    "continuousFootage": false,
+    "pointerMotion": false,
+    "label": "Recorded native run · time compressed · native stills, continuous capture pending"
+  },
+  "assets": [
+    {
+      "key": "board-1",
+      "path": "fleet/board-1.png",
+      "sha256": "4fc08deead9d4503357f6417ff107bf10dd521e9708bd61b1b9304f1435091f7",
+      "width": 1600,
+      "height": 1000
+    },
+    {
+      "key": "board-2",
+      "path": "fleet/board-2.png",
+      "sha256": "83726203235bcdde0311cece72c6be21be87b99a8d8d41c10e1b8abbbb14bc20",
+      "width": 1600,
+      "height": 1000
+    },
+    {
+      "key": "board-3",
+      "path": "fleet/board-3.png",
+      "sha256": "8f0492ac5cabced6331c4a58121437c83eedfbb5f4f35c01ced14a45fb9b0476",
+      "width": 1600,
+      "height": 1000
+    },
+    {
+      "key": "board-4",
+      "path": "fleet/board-4.png",
+      "sha256": "c628a4ce2c9d6a43ae71c0b03f24535c330fd27d0aabe3b09474d26ffb86694f",
+      "width": 1920,
+      "height": 1020
+    },
+    {
+      "key": "review",
+      "path": "fleet/review.png",
+      "sha256": "44e2e40d3526532b9b210bc14fe503403098d3b0ae24bfa4480106109374b0f2",
+      "width": 1920,
+      "height": 1020
+    },
+    {
+      "key": "stale",
+      "path": "fleet/stale.png",
+      "sha256": "0dafe2c8332ca21252800b64b8922ef244416b08aeb6aa2cecc6ed046c038eb8",
+      "width": 1920,
+      "height": 1020
+    },
+    {
+      "key": "applied",
+      "path": "fleet/applied.png",
+      "sha256": "b6c56561034ed14d6e3cff7b827302076194e845f1f3475203032c23bae597a5",
+      "width": 1920,
+      "height": 1020
+    },
+    {
+      "key": "result",
+      "path": "fleet/result.png",
+      "sha256": "c141f92b428d8d0185e39dac57f589ad65aca6e14766494392b792636f86992e",
+      "width": 1920,
+      "height": 1200
+    }
+  ]
+}

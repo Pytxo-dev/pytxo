@@ -33,7 +33,7 @@ fn windows_wfp_opt_in() -> bool {
 /// Probe whether the named advfirewall rule already exists.
 #[cfg(target_os = "windows")]
 fn windows_wfp_rule_present() -> bool {
-    let output = std::process::Command::new("netsh")
+    let output = windows_background_probe("netsh")
         .args([
             "advfirewall",
             "firewall",
@@ -43,6 +43,17 @@ fn windows_wfp_rule_present() -> bool {
         ])
         .output();
     matches!(output, Ok(o) if o.status.success() && !String::from_utf8_lossy(&o.stdout).contains("No rules match"))
+}
+
+#[cfg(target_os = "windows")]
+fn windows_background_probe(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut command = std::process::Command::new(program);
+    // Receipt queries run before agent startup, including from the windowed
+    // Desktop host. Their output is captured; they need no interactive console.
+    command.creation_flags(CREATE_NO_WINDOW);
+    command
 }
 
 /// Attempt to install a program-scoped outbound block via netsh (requires elevation).
@@ -378,6 +389,64 @@ fn shell_quote(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn background_probe_stays_console_free_from_detached_desktop() {
+        use std::os::windows::process::CommandExt;
+        use std::process::Command;
+
+        const ROLE: &str = "PYTXO_WFP_CONSOLE_TEST_ROLE";
+        const TEST: &str =
+            "network_isolation::tests::background_probe_stays_console_free_from_detached_desktop";
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn FreeConsole() -> i32;
+            fn GetConsoleWindow() -> *mut std::ffi::c_void;
+        }
+
+        match std::env::var(ROLE).as_deref() {
+            Ok("probe") => {
+                assert!(
+                    unsafe { GetConsoleWindow() }.is_null(),
+                    "background probe created a console from a console-free parent"
+                );
+                println!("background-probe-stdout");
+                eprintln!("background-probe-stderr");
+            }
+            Ok("driver") => {
+                // Detach only this dedicated child, never the shared test host.
+                unsafe { FreeConsole() };
+                assert!(unsafe { GetConsoleWindow() }.is_null());
+                let output = windows_background_probe(std::env::current_exe().unwrap())
+                    .args(["--exact", TEST, "--nocapture", "--test-threads=1"])
+                    .env(ROLE, "probe")
+                    .output()
+                    .expect("spawn controlled background probe");
+                assert!(
+                    output.status.success(),
+                    "probe failed: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                assert!(String::from_utf8_lossy(&output.stdout).contains("background-probe-stdout"));
+                assert!(String::from_utf8_lossy(&output.stderr).contains("background-probe-stderr"));
+            }
+            _ => {
+                const DETACHED_PROCESS: u32 = 0x0000_0008;
+                let output = Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", TEST, "--nocapture", "--test-threads=1"])
+                    .env(ROLE, "driver")
+                    .creation_flags(DETACHED_PROCESS)
+                    .output()
+                    .expect("spawn detached test driver");
+                assert!(
+                    output.status.success(),
+                    "detached driver failed: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+        }
+    }
 
     #[test]
     fn wrap_preserves_simple_cmd() {

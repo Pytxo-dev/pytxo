@@ -1,482 +1,117 @@
 import type {ReactNode} from "react";
 import {Audio} from "@remotion/media";
-import {
-  AbsoluteFill,
-  Easing,
-  Img,
-  Sequence,
-  interpolate,
-  staticFile,
-  useCurrentFrame,
-} from "remotion";
+import {AbsoluteFill, Img, Sequence, interpolate, staticFile, useCurrentFrame} from "remotion";
+import evidence from "../../../tooling/benchmarks/results/astra-final-native-2026-09-08.json";
 
-export type PytxoLaunchDemoProps = {
-  includeAudio: boolean;
-};
-
+export type PytxoLaunchDemoProps = {includeAudio: boolean};
 export const FPS = 30;
 export const TOTAL_FRAMES = 52 * FPS;
-
-const WORK_START = 4 * FPS;
-const REVIEW_START = 13 * FPS;
-const APPLY_START = 27 * FPS;
-const OUTCOME_START = 39 * FPS;
-const END_START = 47 * FPS;
-const CONTEXT_DISSOLVE_FRAMES = 8;
-
-const colors = {
-  canvas: "#050608",
-  text: "#f5f7fa",
-  muted: "#a5afb9",
-  mint: "#38d6bd",
-};
-
-const clamp = {
-  extrapolateLeft: "clamp" as const,
-  extrapolateRight: "clamp" as const,
-};
-const ease = Easing.bezier(0.16, 1, 0.3, 1);
-
-const ProductShot = ({
-  src,
-  cropAt,
-  cropTo = 1,
-  origin = "50% 50%",
-}: {
-  src: string;
-  cropAt?: number;
-  cropTo?: number;
-  origin?: string;
-}) => {
-  const frame = useCurrentFrame();
-  return (
-    <AbsoluteFill style={{backgroundColor: colors.canvas, overflow: "hidden"}}>
-      <Img
-        src={staticFile(src)}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          transformOrigin: origin,
-          scale:
-            cropAt === undefined
-              ? cropTo
-              : interpolate(frame, [cropAt, cropAt + 20], [1, cropTo], {
-                  ...clamp,
-                  easing: ease,
-                  output: "perceptual-scale",
-                }),
-        }}
-      />
-    </AbsoluteFill>
-  );
-};
-
+const colors = {canvas: "#080b0e", text: "#f5f7fa", muted: "#a5afb9", mint: "#38d6bd"};
+const clamp = {extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as const};
 const Logo = () => (
-  <div
-    style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 18,
-      color: colors.text,
-      fontSize: 36,
-      fontWeight: 650,
-      letterSpacing: "-0.035em",
-    }}
-  >
-    <Img
-      src={staticFile("logo-mark.png")}
-      style={{width: 42, height: 42, objectFit: "contain"}}
-    />
-    Pytxo
+  <div style={{display: "flex", alignItems: "center", gap: 16, fontSize: 34, fontWeight: 650}}>
+    <Img src={staticFile("logo-mark.png")} style={{width: 40, height: 40}} />Pytxo
   </div>
 );
-
-const SceneCopy = ({
-  children,
-  detail,
-  position = "left",
-}: {
-  children: ReactNode;
-  detail?: ReactNode;
-  position?: "left" | "right";
-}) => {
+const Frame = ({children, label}: {children: ReactNode; label: string}) => {
   const frame = useCurrentFrame();
   return (
-    <div
-      style={{
-        position: "absolute",
-        zIndex: 4,
-        left: position === "left" ? 304 : undefined,
-        right: position === "right" ? 82 : undefined,
-        bottom: 62,
-        maxWidth: 1050,
-        color: colors.text,
-        opacity: interpolate(frame, [8, 20], [0, 1], {
-          ...clamp,
-          easing: ease,
-        }),
-        translate: `0 ${interpolate(frame, [8, 20], [18, 0], {
-          ...clamp,
-          easing: ease,
-        })}px`,
-        textAlign: position,
-        textShadow: "0 3px 18px rgba(0,0,0,.98), 0 1px 2px #000",
-      }}
-    >
-      <div
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 14,
-          fontSize: 47,
-          lineHeight: 1.08,
-          fontWeight: 660,
-          letterSpacing: "-0.038em",
-        }}
-      >
-        <span
-          style={{
-            display: "inline-block",
-            width: 32,
-            height: 3,
-            backgroundColor: colors.mint,
-          }}
-        />
-        {children}
-      </div>
-      {detail ? (
-        <div
-          style={{
-            marginTop: 13,
-            color: colors.muted,
-            fontSize: 25,
-            lineHeight: 1.3,
-            fontWeight: 540,
-          }}
-        >
-          {detail}
-        </div>
-      ) : null}
-    </div>
-  );
-};
-
-const Intro = () => {
-  const frame = useCurrentFrame();
-  return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: colors.canvas,
-        color: colors.text,
-        fontFamily: "Geist Variable, Geist, sans-serif",
-        opacity: interpolate(
-          frame,
-          [WORK_START - CONTEXT_DISSOLVE_FRAMES, WORK_START],
-          [1, 0],
-          clamp,
-        ),
-      }}
-    >
-      <ProductShot src="product/work-1920x1080.png" cropTo={1.04} />
-      <AbsoluteFill style={{backgroundColor: "rgba(2,4,6,.82)"}} />
-      <div
-        style={{
-          position: "absolute",
-          left: 144,
-          top: 122,
-          opacity: interpolate(frame, [0, 14], [0, 1], {
-            ...clamp,
-            easing: ease,
-          }),
-        }}
-      >
-        <Logo />
-      </div>
-      <div
-        style={{
-          position: "absolute",
-          left: 144,
-          right: 144,
-          top: 322,
-          color: colors.text,
-          fontSize: 100,
-          lineHeight: 0.98,
-          fontWeight: 680,
-          letterSpacing: "-0.062em",
-          opacity: interpolate(frame, [6, 24], [0, 1], {
-            ...clamp,
-            easing: ease,
-          }),
-          translate: `0 ${interpolate(frame, [6, 24], [24, 0], {
-            ...clamp,
-            easing: ease,
-          })}px`,
-          textShadow: "0 4px 30px rgba(0,0,0,.9)",
-        }}
-      >
-        One mission.
-        <br />
-        Multiple agents.
-        <br />
-        <span style={{color: colors.mint}}>One reviewed result.</span>
-      </div>
+    <AbsoluteFill style={{backgroundColor: colors.canvas, color: colors.text, fontFamily: "Geist Variable, Geist, sans-serif"}}>
+      <div style={{position: "absolute", left: 90, top: 65}}><Logo /></div>
+      <div style={{position: "absolute", right: 90, top: 78, fontSize: 22, color: colors.muted}}>Edited native captures · 8 September 2026</div>
+      <div style={{position: "absolute", left: 90, top: 165, fontSize: 22, color: colors.mint, letterSpacing: "0.08em", textTransform: "uppercase"}}>{label}</div>
+      <AbsoluteFill style={{opacity: interpolate(frame, [0, 12], [0, 1], clamp), translate: `0 ${interpolate(frame, [0, 16], [12, 0], clamp)}px`}}>{children}</AbsoluteFill>
+      <div style={{position: "absolute", left: 90, bottom: 35, color: colors.muted, fontSize: 19}}>Run {evidence.run_id.slice(0, 8)} · MSI {evidence.msi_sha256.slice(0, 12)} · Codex 0.153.4</div>
     </AbsoluteFill>
   );
 };
-
-const ActiveWork = () => {
-  const frame = useCurrentFrame();
-  return (
-    <AbsoluteFill
-      style={{
-        fontFamily: "Geist Variable, Geist, sans-serif",
-        opacity: interpolate(frame, [0, CONTEXT_DISSOLVE_FRAMES - 1], [0, 1], clamp),
-      }}
-    >
-      <ProductShot
-        src="product/work-1920x1080.png"
-        cropAt={3 * FPS}
-        cropTo={1.14}
-        origin="74% 50%"
-      />
-      <SceneCopy>Track ownership while agents run.</SceneCopy>
-    </AbsoluteFill>
-  );
-};
-
-const Review = () => (
-  <AbsoluteFill style={{fontFamily: "Geist Variable, Geist, sans-serif"}}>
-    <ProductShot
-      src="product/run-review-ready-1920x1080.png"
-      cropAt={3 * FPS}
-      cropTo={1.12}
-      origin="70% 40%"
-    />
-    <SceneCopy>Review what Pytxo will enforce.</SceneCopy>
-  </AbsoluteFill>
+const Copy = ({title, children}: {title: ReactNode; children?: ReactNode}) => (
+  <div style={{position: "absolute", left: 90, top: 265, width: 930}}>
+    <h1 style={{fontSize: 83, lineHeight: 1.04, letterSpacing: "-0.045em", fontWeight: 640, margin: 0}}>{title}</h1>
+    {children ? <div style={{marginTop: 38, fontSize: 31, lineHeight: 1.45, color: colors.muted}}>{children}</div> : null}
+  </div>
 );
-
-const Cursor = () => {
-  const frame = useCurrentFrame();
-  const clickProgress = interpolate(frame, [98, 104, 110], [1, 0.84, 1], clamp);
-  return (
-    <>
-      <div
-        style={{
-          position: "absolute",
-          zIndex: 7,
-          left: interpolate(frame, [48, 96], [1150, 1532], {
-            ...clamp,
-            easing: ease,
-          }),
-          top: interpolate(frame, [48, 96], [300, 91], {
-            ...clamp,
-            easing: ease,
-          }),
-          opacity: interpolate(frame, [42, 52, 112, 118], [0, 1, 1, 0], clamp),
-          scale: clickProgress,
-          filter: "drop-shadow(0 3px 5px rgba(0,0,0,.75))",
-        }}
-      >
-        <svg width="42" height="52" viewBox="0 0 42 52" aria-hidden="true">
-          <path
-            d="M4 3L36 29H22L30 47L21 51L13 32L4 41V3Z"
-            fill="#f8fafc"
-            stroke="#060708"
-            strokeWidth="3"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </div>
-      <div
-        style={{
-          position: "absolute",
-          zIndex: 6,
-          left: 1494,
-          top: 65,
-          width: 86,
-          height: 86,
-          border: `3px solid ${colors.mint}`,
-          borderRadius: "50%",
-          opacity: interpolate(frame, [100, 104, 114], [0, 0.9, 0], clamp),
-          scale: interpolate(frame, [100, 114], [0.55, 1.25], {
-            ...clamp,
-            easing: ease,
-            output: "perceptual-scale",
-          }),
-        }}
-      />
-    </>
-  );
-};
-
+// Unmodified element captures from the native rehearsal, not UI mockups.
+const Receipt = () => (
+  <div style={{position: "absolute", right: 100, top: 185, width: 600, display: "grid", gap: 28}}>
+    <Img src={staticFile("product/astra-final-native-checks.png")} style={{width: "100%"}} />
+    <Img src={staticFile("product/astra-final-native-boundaries.png")} style={{width: "100%"}} />
+  </div>
+);
+const Intro = () => (
+  <Frame label="One observed mission">
+    <div style={{position: "absolute", left: 90, top: 290, fontSize: 108, lineHeight: 1.08, fontWeight: 650, letterSpacing: "-0.05em"}}>
+      One harness.<br />Three scoped tasks.<br /><span style={{color: colors.mint}}>One reviewed result.</span>
+    </div>
+  </Frame>
+);
+const Mission = () => (
+  <Frame label="The recorded task">
+    <Copy title={<>Code. Tests. Docs.<br />One plan.</>}>
+      Require review for credentials paths.<br />Two tasks first. The dependent test task follows.
+      <div style={{marginTop: 50, paddingTop: 30, borderTop: "1px solid #293139", color: colors.text}}>{evidence.planned_tasks} tasks · {evidence.waves} waves · up to {evidence.max_concurrent_workers} workers</div>
+      <div style={{fontSize: 25, marginTop: 15}}>The primary checkout stayed unchanged before Apply.</div>
+    </Copy>
+    <Img src={staticFile("product/astra-final-native-plan.png")} style={{position: "absolute", right: 80, top: 345, width: 750, height: "auto"}} />
+  </Frame>
+);
+const Review = () => (
+  <Frame label="Combined candidate verification">
+    <Copy title={<>Check the exact<br />combined result.</>}>
+      Pytxo reran each task’s <span style={{color: colors.text}}>npm test</span><br />on the frozen combined candidate.
+      <div style={{marginTop: 35}}>The receipt shows both enforced<br />and advisory boundaries.</div>
+      <div style={{marginTop: 55, fontSize: 25}}>Included source is bound to this package.<br />Excluded dependencies and toolchains are not attested.</div>
+    </Copy>
+    <Receipt />
+  </Frame>
+);
 const Apply = () => {
   const frame = useCurrentFrame();
-  const applied = frame >= 112;
+  const applied = frame >= 6 * FPS;
   return (
-    <AbsoluteFill style={{fontFamily: "Geist Variable, Geist, sans-serif"}}>
-      <ProductShot
-        src={
-          applied
-            ? "product/run-review-applied-1920x1080.png"
-            : "product/run-review-ready-1920x1080.png"
-        }
-        cropTo={1.12}
-        origin="70% 40%"
-      />
-      <SceneCopy>Apply only the reviewed change set.</SceneCopy>
-      {!applied ? <Cursor /> : null}
-    </AbsoluteFill>
+    <Frame label={applied ? "Recorded result" : "Explicit confirmation"}>
+      <Copy title={applied ? <>The reviewed<br />package applied.</> : <>Review the changes.<br />Confirm Apply.</>}>
+        {applied ? "The receipt now records the package as applied." : "All three exact diffs were inspected in the native UI rehearsal."}
+        <div style={{marginTop: 40, fontSize: 25}}>The native UI was operated by test automation.<br />The edit does not reproduce its elapsed time.</div>
+      </Copy>
+      {applied ? <Img src={staticFile("product/astra-final-native-applied.png")} style={{position: "absolute", right: 80, top: 380, width: 670, height: "auto"}} /> : <Img src={staticFile("product/astra-final-native-apply-confirm.png")}
+        style={{position: "absolute", right: 80, top: 365, width: 670, height: "auto"}} />}
+    </Frame>
   );
 };
-
-const Outcome = () => {
-  return (
-    <AbsoluteFill style={{fontFamily: "Geist Variable, Geist, sans-serif"}}>
-      <ProductShot
-        src="product/work-1920x1080.png"
-        cropAt={2 * FPS}
-        cropTo={1.12}
-        origin="75% 54%"
-      />
-      <SceneCopy detail="Signal Core · structure first">See decisions, not terminal noise.</SceneCopy>
-    </AbsoluteFill>
-  );
-};
-
-const End = () => {
-  const frame = useCurrentFrame();
-  return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: colors.canvas,
-        color: colors.text,
-        fontFamily: "Geist Variable, Geist, sans-serif",
-        opacity: interpolate(frame, [0, CONTEXT_DISSOLVE_FRAMES - 1], [0, 1], clamp),
-      }}
-    >
-      <ProductShot src="product/work-1920x1080.png" cropTo={1.04} />
-      <AbsoluteFill style={{backgroundColor: "rgba(2,4,6,.84)"}} />
-      <div style={{position: "absolute", left: 144, top: 122}}>
-        <Logo />
-      </div>
-      <div
-        style={{
-          position: "absolute",
-          left: 144,
-          right: 144,
-          top: 358,
-          textAlign: "center",
-          color: colors.text,
-          fontSize: 101,
-          lineHeight: 1.02,
-          fontWeight: 680,
-          letterSpacing: "-0.058em",
-          opacity: interpolate(frame, [8, 24], [0, 1], {
-            ...clamp,
-            easing: ease,
-          }),
-          translate: `0 ${interpolate(frame, [8, 24], [22, 0], {
-            ...clamp,
-            easing: ease,
-          })}px`,
-          textShadow: "0 4px 30px rgba(0,0,0,.9)",
-        }}
-      >
-        Keep your agents. <span style={{color: colors.mint}}>Add Pytxo.</span>
-      </div>
-      <div
-        style={{
-          position: "absolute",
-          left: 144,
-          right: 144,
-          top: 576,
-          color: colors.muted,
-          fontSize: 43,
-          fontWeight: 560,
-          letterSpacing: "-0.02em",
-          textAlign: "center",
-          opacity: interpolate(frame, [22, 38], [0, 1], {
-            ...clamp,
-            easing: ease,
-          }),
-        }}
-      >
-        pytxo.com
-      </div>
-    </AbsoluteFill>
-  );
-};
-
+const Outcome = () => (
+  <Frame label="Observed post-state">
+    <div style={{position: "absolute", left: 90, top: 245}}>
+      <h1 style={{fontSize: 87, fontWeight: 640, letterSpacing: "-0.045em", margin: 0}}>Three matching file hashes.<br /><span style={{color: colors.mint}}>{evidence.native_apply.independent_acceptance.post_apply_passed} independent checks.</span></h1>
+      <p style={{fontSize: 29, lineHeight: 1.45, color: colors.muted, marginTop: 30}}>{evidence.native_apply.post_apply_tests_passed} repository tests also passed. Applied bytes matched the package; the receipt survived restart.</p>
+    </div>
+    <Img src={staticFile("product/astra-final-native-journal.png")} style={{position: "absolute", left: 90, top: 610, width: 1500, height: "auto"}} />
+    <div style={{position: "absolute", left: 90, bottom: 105, fontSize: 25, color: colors.muted}}>One run. No comparative speed claim. No OS-wide sandbox guarantee.</div>
+  </Frame>
+);
+const End = () => (
+  <Frame label="Pytxo Beta source candidate">
+    <div style={{position: "absolute", left: 90, top: 330, fontSize: 106, fontWeight: 640, lineHeight: 1.1, letterSpacing: "-0.05em"}}>
+      Keep your agent.<br /><span style={{color: colors.mint}}>Add Pytxo.</span>
+      <div style={{marginTop: 48, fontSize: 35, color: colors.muted, letterSpacing: "-0.01em"}}>pytxo.com · Evidence and limitations in DEMO.md</div>
+    </div>
+  </Frame>
+);
 const GlobalAudio = () => (
   <>
     <Audio src={staticFile("audio/narration/pytxo-demo-narration.mp3")} volume={1} />
-    <Audio
-      src={staticFile("audio/music/modern-chillout-future-calm.mp3")}
-      loop
-      loopVolumeCurveBehavior="extend"
-      volume={(frame) =>
-        interpolate(
-          frame,
-          [0, FPS, TOTAL_FRAMES - FPS, TOTAL_FRAMES],
-          [0, 0.1, 0.1, 0],
-          clamp,
-        )
-      }
-    />
-    <Sequence from={11 * FPS} layout="none">
-      <Audio src={staticFile("audio/sfx/plan-ready.wav")} volume={0.2} />
-    </Sequence>
-    <Sequence from={APPLY_START + 104} layout="none">
-      <Audio src={staticFile("audio/sfx/apply-click.wav")} volume={0.22} />
-    </Sequence>
-    <Sequence from={APPLY_START + 112} layout="none">
-      <Audio src={staticFile("audio/sfx/applied-confirmation.wav")} volume={0.18} />
-    </Sequence>
+    <Audio src={staticFile("audio/music/modern-chillout-future-calm.mp3")} loop loopVolumeCurveBehavior="extend"
+      volume={(frame) => interpolate(frame, [0, FPS, TOTAL_FRAMES - FPS, TOTAL_FRAMES], [0, 0.1, 0.1, 0], clamp)} />
   </>
 );
-
 export const PytxoLaunchDemo = ({includeAudio}: PytxoLaunchDemoProps) => (
   <AbsoluteFill style={{backgroundColor: colors.canvas}}>
-    <Sequence from={0} durationInFrames={WORK_START} name="00–04 · Mission">
-      <Intro />
-    </Sequence>
-    <Sequence
-      from={WORK_START - CONTEXT_DISSOLVE_FRAMES}
-      durationInFrames={REVIEW_START - WORK_START + CONTEXT_DISSOLVE_FRAMES}
-      name="04–13 · Work ownership"
-    >
-      <ActiveWork />
-    </Sequence>
-    <Sequence
-      from={REVIEW_START}
-      durationInFrames={APPLY_START - REVIEW_START}
-      name="13–27 · Run Review"
-    >
-      <Review />
-    </Sequence>
-    <Sequence
-      from={APPLY_START}
-      durationInFrames={OUTCOME_START - APPLY_START}
-      name="27–39 · Apply"
-    >
-      <Apply />
-    </Sequence>
-    <Sequence
-      from={OUTCOME_START}
-      durationInFrames={END_START - OUTCOME_START}
-      name="39–47 · Outcome"
-    >
-      <Outcome />
-    </Sequence>
-    <Sequence
-      from={END_START - CONTEXT_DISSOLVE_FRAMES}
-      durationInFrames={TOTAL_FRAMES - END_START + CONTEXT_DISSOLVE_FRAMES}
-      name="47–52 · End"
-    >
-      <End />
-    </Sequence>
+    <Sequence from={0} durationInFrames={4 * FPS} name="00–04 · One harness"><Intro /></Sequence>
+    <Sequence from={4 * FPS} durationInFrames={9 * FPS} name="04–13 · Recorded mission"><Mission /></Sequence>
+    <Sequence from={13 * FPS} durationInFrames={14 * FPS} name="13–27 · Candidate receipt"><Review /></Sequence>
+    <Sequence from={27 * FPS} durationInFrames={12 * FPS} name="27–39 · Confirmation and Apply"><Apply /></Sequence>
+    <Sequence from={39 * FPS} durationInFrames={8 * FPS} name="39–47 · Post-state"><Outcome /></Sequence>
+    <Sequence from={47 * FPS} durationInFrames={5 * FPS} name="47–52 · End"><End /></Sequence>
     {includeAudio ? <GlobalAudio /> : null}
   </AbsoluteFill>
 );

@@ -1,9 +1,21 @@
 /** Public distribution repo (binaries + install scripts). */
 export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
-export const PYTXO_VERSION = "1.2.1";
+
+/**
+ * Latest published GitHub/npm tag. Download URLs, install commands, and
+ * "current release" copy must use this — never the unpublished workspace
+ * candidate.
+ */
+export const PUBLISHED_VERSION = "1.2.1";
+/** In-repo / changelog candidate. Not for public download URLs. */
+export const CANDIDATE_VERSION = "1.2.2";
+/** True once the candidate is the public release; "coming in" copy switches on this. */
+export const CANDIDATE_PUBLISHED = (PUBLISHED_VERSION as string) === CANDIDATE_VERSION;
+/** Alias for published tag used by download UI. */
+export const PYTXO_VERSION = PUBLISHED_VERSION;
 
 export const DESKTOP_RELEASE_BASE =
-  `https://github.com/${DISTRIBUTION_REPO}/releases/download/v${PYTXO_VERSION}`;
+  `https://github.com/${DISTRIBUTION_REPO}/releases/download/v${PUBLISHED_VERSION}`;
 
 /** Display name for the optional desktop app. */
 export const DESKTOP_PRODUCT_NAME = "Pytxo Desktop";
@@ -18,10 +30,12 @@ export const DESKTOP_DOWNLOADS = {
 
 export const GITHUB_URL = `https://github.com/${DISTRIBUTION_REPO}`;
 export const RELEASES_URL = `${GITHUB_URL}/releases`;
+/** MIT-licensed product source. */
+export const SOURCE_URL = "https://github.com/Pytxo-dev/pytxo";
 /** Community Discord invite (canonical). */
 export const DISCORD_URL = "https://discord.gg/AUFRPFjSYv";
 export const NPM_URL = "https://www.npmjs.com/package/pytxo";
-export const NPM_INSTALL = "npm i -g pytxo";
+export const NPM_INSTALL = `npm i -g pytxo@${PUBLISHED_VERSION}`;
 
 export const INSTALL_SH_URL = `https://raw.githubusercontent.com/${DISTRIBUTION_REPO}/main/install.sh`;
 export const INSTALL_PS1_URL = `https://raw.githubusercontent.com/${DISTRIBUTION_REPO}/main/install.ps1`;
@@ -36,8 +50,9 @@ export type NavLink = {
 };
 
 export const NAV_LINKS: NavLink[] = [
-  { href: "/docs", label: "Docs" },
+  { href: "/#how", label: "How it works" },
   { href: "/evidence", label: "Evidence" },
-  { href: "/plans", label: "Plans" },
+  { href: "/docs", label: "Docs" },
+  { href: DISCORD_URL, label: "Support" },
   { href: "/download", label: "Download" },
 ];

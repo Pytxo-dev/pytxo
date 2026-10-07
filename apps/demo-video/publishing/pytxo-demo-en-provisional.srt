@@ -1,57 +1,59 @@
 1
 00:00:00,000 --> 00:00:04,000
-One mission can involve several coding agents.
+One harness. Three
+scoped tasks.
 
 2
-00:00:04,000 --> 00:00:08,500
-Pytxo plans who owns each path, maps dependencies,
+00:00:04,000 --> 00:00:09,000
+This recorded Codex job changed code,
+tests, and documentation in two waves.
 
 3
-00:00:08,500 --> 00:00:13,000
-and starts work in isolated workspaces.
+00:00:09,000 --> 00:00:13,000
+Pytxo kept the primary checkout
+unchanged while workers ran.
 
 4
 00:00:13,000 --> 00:00:18,000
-Before anything reaches your repository,
-Run Review shows the base revision, execution plan,
+It reran the checks on the
+exact combined candidate.
 
 5
-00:00:18,000 --> 00:00:22,500
-permission profile, enforcement evidence,
+00:00:18,000 --> 00:00:23,000
+The receipt distinguishes enforced
+boundaries from advisory controls.
 
 6
-00:00:22,500 --> 00:00:27,000
-and every addition, edit, and deletion
-prepared for Apply.
+00:00:23,000 --> 00:00:28,000
+Every diff was inspected in the native
+app, and Apply was explicitly confirmed.
 
 7
-00:00:27,000 --> 00:00:32,000
-Reviewed Apply is limited to Orbit and Galaxy,
-inside one execution domain and one repository root.
+00:00:28,000 --> 00:00:31,000
+The journal recorded
+a committed attempt.
 
 8
-00:00:32,000 --> 00:00:36,000
-Approve once, and Pytxo applies
-that reviewed change set
+00:00:31,000 --> 00:00:36,000
+All three applied file hashes matched the
+reviewed package, and the repository tests passed.
 
 9
-00:00:36,000 --> 00:00:39,000
-as one crash-recoverable operation.
+00:00:36,000 --> 00:00:40,000
+These are edited captures
+from the packaged Windows app.
 
 10
-00:00:39,000 --> 00:00:43,000
-If the checkout moves, Pytxo stops
-and asks you to review again.
+00:00:40,000 --> 00:00:46,000
+The Bench record also retains an earlier
+refused run and a direct worktree comparison.
 
 11
-00:00:43,000 --> 00:00:47,000
-Work shows the decision,
-ownership, and outcome,
+00:00:46,000 --> 00:00:49,000
+No speed win or OS-wide
+sandbox is claimed.
 
 12
-00:00:47,000 --> 00:00:49,500
-not a wall of terminal noise.
-
-13
-00:00:49,500 --> 00:00:52,000
-Keep the agents you already use. Add Pytxo.
+00:00:49,000 --> 00:00:52,000
+Keep your agent.
+Add Pytxo.

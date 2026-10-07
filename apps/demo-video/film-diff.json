@@ -1,0 +1,2019 @@
+{
+  "source": "Recorded native fleet run, 2 October 2026 (run 348fcee9); applied fixture files",
+  "packageDigest": "2c6b6cac7b14f0467b17cc562079fcf84dc8ff7aa701b17106dd48766dda957b",
+  "files": [
+    {
+      "path": "README.md",
+      "task": "mission-5",
+      "cli": "codex",
+      "added": 61,
+      "removed": 1,
+      "lines": [
+        {
+          "kind": "hunk"
+        },
+        {
+          "kind": "same",
+          "text": "A small task board used by the Pytxo fleet demo.",
+          "before": 3,
+          "after": 3
+        },
+        {
+          "kind": "same",
+          "text": "",
+          "before": 4,
+          "after": 4
+        },
+        {
+          "kind": "del",
+          "text": "Open `index.html` through any static file server. Run the tests with `npm test`.",
+          "before": 5,
+          "after": null
+        },
+        {
+          "kind": "add",
+          "text": "## Features",
+          "before": null,
+          "after": 5
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 6
+        },
+        {
+          "kind": "add",
+          "text": "- Start with four sample tasks, add tasks with sequential IDs and an `open`",
+          "before": null,
+          "after": 7
+        },
+        {
+          "kind": "add",
+          "text": "  status, and use checkboxes to switch tasks between `open` and `done`.",
+          "before": null,
+          "after": 8
+        },
+        {
+          "kind": "add",
+          "text": "  Completed task titles are crossed out.",
+          "before": null,
+          "after": 9
+        },
+        {
+          "kind": "add",
+          "text": "- Switch the interface between English and Spanish. The language selector",
+          "before": null,
+          "after": 10
+        },
+        {
+          "kind": "add",
+          "text": "  translates the page title, heading, form labels, and accessible labels.",
+          "before": null,
+          "after": 11
+        },
+        {
+          "kind": "add",
+          "text": "  It remembers the choice in local storage when available; task titles stay",
+          "before": null,
+          "after": 12
+        },
+        {
+          "kind": "add",
+          "text": "  as entered.",
+          "before": null,
+          "after": 13
+        },
+        {
+          "kind": "add",
+          "text": "- Follow the system's light or dark color preference automatically.",
+          "before": null,
+          "after": 14
+        },
+        {
+          "kind": "add",
+          "text": "- Filter tasks through `filterTasks(tasks, query, status)` in",
+          "before": null,
+          "after": 15
+        },
+        {
+          "kind": "add",
+          "text": "  [`src/model.mjs`](src/model.mjs). Search matches title substrings without",
+          "before": null,
+          "after": 16
+        },
+        {
+          "kind": "add",
+          "text": "  regard to case and trims surrounding query whitespace. Status accepts",
+          "before": null,
+          "after": 17
+        },
+        {
+          "kind": "add",
+          "text": "  `all` (the default), `open`, or `done`; search and status conditions must",
+          "before": null,
+          "after": 18
+        },
+        {
+          "kind": "add",
+          "text": "  both match. Results preserve task order without changing the input list.",
+          "before": null,
+          "after": 19
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 20
+        },
+        {
+          "kind": "add",
+          "text": "### Current limitations",
+          "before": null,
+          "after": 21
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 22
+        },
+        {
+          "kind": "add",
+          "text": "- Tasks live in memory. Reloading restores the sample tasks, so additions",
+          "before": null,
+          "after": 23
+        },
+        {
+          "kind": "add",
+          "text": "  and completion changes are not saved.",
+          "before": null,
+          "after": 24
+        },
+        {
+          "kind": "add",
+          "text": "- Filtering is available in the model only. The page has no search or status",
+          "before": null,
+          "after": 25
+        },
+        {
+          "kind": "add",
+          "text": "  controls, and `src/components/filter-bar.js` is a placeholder.",
+          "before": null,
+          "after": 26
+        },
+        {
+          "kind": "add",
+          "text": "- `src/theme.js` provides `initTheme()` and a stored system/light/dark toggle,",
+          "before": null,
+          "after": 27
+        },
+        {
+          "kind": "add",
+          "text": "  but the page does not call the initializer or include a `theme-toggle`",
+          "before": null,
+          "after": 28
+        },
+        {
+          "kind": "add",
+          "text": "  button. Only automatic system theming is active in the page.",
+          "before": null,
+          "after": 29
+        },
+        {
+          "kind": "add",
+          "text": "- Task titles are accepted as entered, including empty or whitespace-only",
+          "before": null,
+          "after": 30
+        },
+        {
+          "kind": "add",
+          "text": "  titles. Title validation is not implemented.",
+          "before": null,
+          "after": 31
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 32
+        },
+        {
+          "kind": "add",
+          "text": "## Run locally",
+          "before": null,
+          "after": 33
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 34
+        },
+        {
+          "kind": "add",
+          "text": "Serve the repository root through a static HTTP server and open `index.html`",
+          "before": null,
+          "after": 35
+        },
+        {
+          "kind": "add",
+          "text": "in a browser. For example, with Python installed, run:",
+          "before": null,
+          "after": 36
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 37
+        },
+        {
+          "kind": "add",
+          "text": "```sh",
+          "before": null,
+          "after": 38
+        },
+        {
+          "kind": "add",
+          "text": "python -m http.server 8000 --bind 127.0.0.1",
+          "before": null,
+          "after": 39
+        },
+        {
+          "kind": "add",
+          "text": "```",
+          "before": null,
+          "after": 40
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 41
+        },
+        {
+          "kind": "add",
+          "text": "Then open <http://127.0.0.1:8000/>. Use HTTP rather than opening the file",
+          "before": null,
+          "after": 42
+        },
+        {
+          "kind": "add",
+          "text": "directly so JavaScript modules and the Spanish JSON catalog can load.",
+          "before": null,
+          "after": 43
+        },
+        {
+          "kind": "add",
+          "text": "No dependency installation or build step is required.",
+          "before": null,
+          "after": 44
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 45
+        },
+        {
+          "kind": "add",
+          "text": "## Run tests",
+          "before": null,
+          "after": 46
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 47
+        },
+        {
+          "kind": "add",
+          "text": "Install Node.js with npm and support for the built-in Node test runner, then",
+          "before": null,
+          "after": 48
+        },
+        {
+          "kind": "add",
+          "text": "run this command from the repository root:",
+          "before": null,
+          "after": 49
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 50
+        },
+        {
+          "kind": "add",
+          "text": "```sh",
+          "before": null,
+          "after": 51
+        },
+        {
+          "kind": "add",
+          "text": "npm test",
+          "before": null,
+          "after": 52
+        },
+        {
+          "kind": "add",
+          "text": "```",
+          "before": null,
+          "after": 53
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 54
+        },
+        {
+          "kind": "add",
+          "text": "The package script runs `node --test`; it does not need a running web server",
+          "before": null,
+          "after": 55
+        },
+        {
+          "kind": "add",
+          "text": "or any third-party packages. Tests in [`test/model.test.mjs`](test/model.test.mjs)",
+          "before": null,
+          "after": 56
+        },
+        {
+          "kind": "add",
+          "text": "cover task IDs and initial status, completion toggling, case-insensitive",
+          "before": null,
+          "after": 57
+        },
+        {
+          "kind": "add",
+          "text": "search, query whitespace, status filtering, combined filters, empty results,",
+          "before": null,
+          "after": 58
+        },
+        {
+          "kind": "add",
+          "text": "and preservation of input data and task order.",
+          "before": null,
+          "after": 59
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 60
+        },
+        {
+          "kind": "add",
+          "text": "[`test/validation.test.mjs`](test/validation.test.mjs) is currently a placeholder",
+          "before": null,
+          "after": 61
+        },
+        {
+          "kind": "add",
+          "text": "with no assertions. Node counts that file as a passing test, which does not",
+          "before": null,
+          "after": 62
+        },
+        {
+          "kind": "add",
+          "text": "establish title-validation coverage. The suite does not exercise the browser",
+          "before": null,
+          "after": 63
+        },
+        {
+          "kind": "add",
+          "text": "UI, language switching, or theme behavior. Local test results are separate",
+          "before": null,
+          "after": 64
+        },
+        {
+          "kind": "add",
+          "text": "from Pytxo's recorded verification for the task.",
+          "before": null,
+          "after": 65
+        }
+      ]
+    },
+    {
+      "path": "index.html",
+      "task": "mission-2",
+      "cli": "cursor",
+      "added": 81,
+      "removed": 4,
+      "lines": [
+        {
+          "kind": "hunk"
+        },
+        {
+          "kind": "same",
+          "text": "  <meta charset=\"utf-8\">",
+          "before": 4,
+          "after": 4
+        },
+        {
+          "kind": "same",
+          "text": "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
+          "before": 5,
+          "after": 5
+        },
+        {
+          "kind": "del",
+          "text": "  <title>Task board</title>",
+          "before": 6,
+          "after": null
+        },
+        {
+          "kind": "add",
+          "text": "  <title data-i18n=\"Task board\">Task board</title>",
+          "before": null,
+          "after": 6
+        },
+        {
+          "kind": "same",
+          "text": "  <link rel=\"stylesheet\" href=\"src/style.css\">",
+          "before": 7,
+          "after": 7
+        },
+        {
+          "kind": "same",
+          "text": "</head>",
+          "before": 8,
+          "after": 8
+        },
+        {
+          "kind": "same",
+          "text": "<body>",
+          "before": 9,
+          "after": 9
+        },
+        {
+          "kind": "same",
+          "text": "  <main>",
+          "before": 10,
+          "after": 10
+        },
+        {
+          "kind": "del",
+          "text": "    <h1>Task board</h1>",
+          "before": 11,
+          "after": null
+        },
+        {
+          "kind": "add",
+          "text": "    <h1 data-i18n=\"Task board\">Task board</h1>",
+          "before": null,
+          "after": 11
+        },
+        {
+          "kind": "add",
+          "text": "    <div class=\"language-switch\">",
+          "before": null,
+          "after": 12
+        },
+        {
+          "kind": "add",
+          "text": "      <label for=\"language-switch\" data-i18n=\"Language\">Language</label>",
+          "before": null,
+          "after": 13
+        },
+        {
+          "kind": "add",
+          "text": "      <select id=\"language-switch\" aria-label=\"Language\" data-i18n-aria-label=\"Language\">",
+          "before": null,
+          "after": 14
+        },
+        {
+          "kind": "add",
+          "text": "        <option value=\"en\" lang=\"en\">English</option>",
+          "before": null,
+          "after": 15
+        },
+        {
+          "kind": "add",
+          "text": "        <option value=\"es\" lang=\"es\">Español</option>",
+          "before": null,
+          "after": 16
+        },
+        {
+          "kind": "add",
+          "text": "      </select>",
+          "before": null,
+          "after": 17
+        },
+        {
+          "kind": "add",
+          "text": "    </div>",
+          "before": null,
+          "after": 18
+        },
+        {
+          "kind": "same",
+          "text": "    <form id=\"new-task\">",
+          "before": 12,
+          "after": 19
+        },
+        {
+          "kind": "del",
+          "text": "      <input name=\"title\" placeholder=\"New task\" aria-label=\"New task\">",
+          "before": 13,
+          "after": null
+        },
+        {
+          "kind": "del",
+          "text": "      <button>Add</button>",
+          "before": 14,
+          "after": null
+        },
+        {
+          "kind": "add",
+          "text": "      <input name=\"title\" placeholder=\"New task\" aria-label=\"New task\" data-i18n-placeholder=\"New task\" data-i18n-aria-label=\"New task\">",
+          "before": null,
+          "after": 20
+        },
+        {
+          "kind": "add",
+          "text": "      <button data-i18n=\"Add\">Add</button>",
+          "before": null,
+          "after": 21
+        },
+        {
+          "kind": "same",
+          "text": "    </form>",
+          "before": 15,
+          "after": 22
+        },
+        {
+          "kind": "same",
+          "text": "    <ul id=\"tasks\"></ul>",
+          "before": 16,
+          "after": 23
+        },
+        {
+          "kind": "hunk"
+        },
+        {
+          "kind": "same",
+          "text": "  <script type=\"module\" src=\"src/app.js\"></script>",
+          "before": 18,
+          "after": 25
+        },
+        {
+          "kind": "same",
+          "text": "  <script type=\"module\" src=\"src/theme.js\"></script>",
+          "before": 19,
+          "after": 26
+        },
+        {
+          "kind": "add",
+          "text": "  <script type=\"module\">",
+          "before": null,
+          "after": 27
+        },
+        {
+          "kind": "add",
+          "text": "    const languageSwitch = document.querySelector(\"#language-switch\");",
+          "before": null,
+          "after": 28
+        },
+        {
+          "kind": "add",
+          "text": "    const storageKey = \"taskboard-language\";",
+          "before": null,
+          "after": 29
+        },
+        {
+          "kind": "add",
+          "text": "    let spanishCatalog = null;",
+          "before": null,
+          "after": 30
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 31
+        },
+        {
+          "kind": "add",
+          "text": "    function readStoredLanguage() {",
+          "before": null,
+          "after": 32
+        },
+        {
+          "kind": "add",
+          "text": "      try {",
+          "before": null,
+          "after": 33
+        },
+        {
+          "kind": "add",
+          "text": "        return localStorage.getItem(storageKey);",
+          "before": null,
+          "after": 34
+        },
+        {
+          "kind": "add",
+          "text": "      } catch {",
+          "before": null,
+          "after": 35
+        },
+        {
+          "kind": "add",
+          "text": "        return null;",
+          "before": null,
+          "after": 36
+        },
+        {
+          "kind": "add",
+          "text": "      }",
+          "before": null,
+          "after": 37
+        },
+        {
+          "kind": "add",
+          "text": "    }",
+          "before": null,
+          "after": 38
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 39
+        },
+        {
+          "kind": "add",
+          "text": "    function storeLanguage(language) {",
+          "before": null,
+          "after": 40
+        },
+        {
+          "kind": "add",
+          "text": "      try {",
+          "before": null,
+          "after": 41
+        },
+        {
+          "kind": "add",
+          "text": "        localStorage.setItem(storageKey, language);",
+          "before": null,
+          "after": 42
+        },
+        {
+          "kind": "add",
+          "text": "      } catch {",
+          "before": null,
+          "after": 43
+        },
+        {
+          "kind": "add",
+          "text": "        // Storage can be unavailable; the switch still applies for this view.",
+          "before": null,
+          "after": 44
+        },
+        {
+          "kind": "add",
+          "text": "      }",
+          "before": null,
+          "after": 45
+        },
+        {
+          "kind": "add",
+          "text": "    }",
+          "before": null,
+          "after": 46
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 47
+        },
+        {
+          "kind": "add",
+          "text": "    async function loadSpanishCatalog() {",
+          "before": null,
+          "after": 48
+        },
+        {
+          "kind": "add",
+          "text": "      if (!spanishCatalog) {",
+          "before": null,
+          "after": 49
+        },
+        {
+          "kind": "add",
+          "text": "        const response = await fetch(new URL(\"src/i18n/es.json\", import.meta.url));",
+          "before": null,
+          "after": 50
+        },
+        {
+          "kind": "add",
+          "text": "        spanishCatalog = await response.json();",
+          "before": null,
+          "after": 51
+        },
+        {
+          "kind": "add",
+          "text": "      }",
+          "before": null,
+          "after": 52
+        },
+        {
+          "kind": "add",
+          "text": "      return spanishCatalog;",
+          "before": null,
+          "after": 53
+        },
+        {
+          "kind": "add",
+          "text": "    }",
+          "before": null,
+          "after": 54
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 55
+        },
+        {
+          "kind": "add",
+          "text": "    function translate(catalog, key) {",
+          "before": null,
+          "after": 56
+        },
+        {
+          "kind": "add",
+          "text": "      if (catalog && Object.hasOwn(catalog, key)) return catalog[key];",
+          "before": null,
+          "after": 57
+        },
+        {
+          "kind": "add",
+          "text": "      return key;",
+          "before": null,
+          "after": 58
+        },
+        {
+          "kind": "add",
+          "text": "    }",
+          "before": null,
+          "after": 59
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 60
+        },
+        {
+          "kind": "add",
+          "text": "    function applyCatalog(catalog) {",
+          "before": null,
+          "after": 61
+        },
+        {
+          "kind": "add",
+          "text": "      document.documentElement.lang = languageSwitch.value === \"es\" ? \"es\" : \"en\";",
+          "before": null,
+          "after": 62
+        },
+        {
+          "kind": "add",
+          "text": "      for (const element of document.querySelectorAll(\"[data-i18n]\")) {",
+          "before": null,
+          "after": 63
+        },
+        {
+          "kind": "add",
+          "text": "        const value = translate(catalog, element.dataset.i18n);",
+          "before": null,
+          "after": 64
+        },
+        {
+          "kind": "add",
+          "text": "        element.textContent = value;",
+          "before": null,
+          "after": 65
+        },
+        {
+          "kind": "add",
+          "text": "        if (element.tagName === \"TITLE\") document.title = value;",
+          "before": null,
+          "after": 66
+        },
+        {
+          "kind": "add",
+          "text": "      }",
+          "before": null,
+          "after": 67
+        },
+        {
+          "kind": "add",
+          "text": "      for (const element of document.querySelectorAll(\"[data-i18n-placeholder]\")) {",
+          "before": null,
+          "after": 68
+        },
+        {
+          "kind": "add",
+          "text": "        element.placeholder = translate(catalog, element.dataset.i18nPlaceholder);",
+          "before": null,
+          "after": 69
+        },
+        {
+          "kind": "add",
+          "text": "      }",
+          "before": null,
+          "after": 70
+        },
+        {
+          "kind": "add",
+          "text": "      for (const element of document.querySelectorAll(\"[data-i18n-aria-label]\")) {",
+          "before": null,
+          "after": 71
+        },
+        {
+          "kind": "add",
+          "text": "        element.setAttribute(\"aria-label\", translate(catalog, element.dataset.i18nAriaLabel));",
+          "before": null,
+          "after": 72
+        },
+        {
+          "kind": "add",
+          "text": "      }",
+          "before": null,
+          "after": 73
+        },
+        {
+          "kind": "add",
+          "text": "    }",
+          "before": null,
+          "after": 74
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 75
+        },
+        {
+          "kind": "add",
+          "text": "    async function useLanguage(language) {",
+          "before": null,
+          "after": 76
+        },
+        {
+          "kind": "add",
+          "text": "      languageSwitch.value = language === \"es\" ? \"es\" : \"en\";",
+          "before": null,
+          "after": 77
+        },
+        {
+          "kind": "add",
+          "text": "      storeLanguage(languageSwitch.value);",
+          "before": null,
+          "after": 78
+        },
+        {
+          "kind": "add",
+          "text": "      applyCatalog(languageSwitch.value === \"es\" ? await loadSpanishCatalog() : null);",
+          "before": null,
+          "after": 79
+        },
+        {
+          "kind": "add",
+          "text": "    }",
+          "before": null,
+          "after": 80
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 81
+        },
+        {
+          "kind": "add",
+          "text": "    languageSwitch.addEventListener(\"change\", () => {",
+          "before": null,
+          "after": 82
+        },
+        {
+          "kind": "add",
+          "text": "      useLanguage(languageSwitch.value).catch(() => {",
+          "before": null,
+          "after": 83
+        },
+        {
+          "kind": "add",
+          "text": "        languageSwitch.value = \"en\";",
+          "before": null,
+          "after": 84
+        },
+        {
+          "kind": "add",
+          "text": "        applyCatalog(null);",
+          "before": null,
+          "after": 85
+        },
+        {
+          "kind": "add",
+          "text": "      });",
+          "before": null,
+          "after": 86
+        },
+        {
+          "kind": "add",
+          "text": "    });",
+          "before": null,
+          "after": 87
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 88
+        },
+        {
+          "kind": "add",
+          "text": "    const stored = readStoredLanguage();",
+          "before": null,
+          "after": 89
+        },
+        {
+          "kind": "add",
+          "text": "    if (stored === \"es\") {",
+          "before": null,
+          "after": 90
+        },
+        {
+          "kind": "add",
+          "text": "      useLanguage(\"es\").catch(() => {",
+          "before": null,
+          "after": 91
+        },
+        {
+          "kind": "add",
+          "text": "        languageSwitch.value = \"en\";",
+          "before": null,
+          "after": 92
+        },
+        {
+          "kind": "add",
+          "text": "        applyCatalog(null);",
+          "before": null,
+          "after": 93
+        },
+        {
+          "kind": "add",
+          "text": "      });",
+          "before": null,
+          "after": 94
+        },
+        {
+          "kind": "add",
+          "text": "    }",
+          "before": null,
+          "after": 95
+        },
+        {
+          "kind": "add",
+          "text": "  </script>",
+          "before": null,
+          "after": 96
+        },
+        {
+          "kind": "same",
+          "text": "</body>",
+          "before": 20,
+          "after": 97
+        },
+        {
+          "kind": "same",
+          "text": "</html>",
+          "before": 21,
+          "after": 98
+        }
+      ]
+    },
+    {
+      "path": "src/i18n/es.json",
+      "task": "mission-2",
+      "cli": "cursor",
+      "added": 6,
+      "removed": 1,
+      "lines": [
+        {
+          "kind": "hunk"
+        },
+        {
+          "kind": "del",
+          "text": "{}",
+          "before": 1,
+          "after": null
+        },
+        {
+          "kind": "add",
+          "text": "{",
+          "before": null,
+          "after": 1
+        },
+        {
+          "kind": "add",
+          "text": "  \"Task board\": \"Tablero de tareas\",",
+          "before": null,
+          "after": 2
+        },
+        {
+          "kind": "add",
+          "text": "  \"New task\": \"Nueva tarea\",",
+          "before": null,
+          "after": 3
+        },
+        {
+          "kind": "add",
+          "text": "  \"Add\": \"A\\u00f1adir\",",
+          "before": null,
+          "after": 4
+        },
+        {
+          "kind": "add",
+          "text": "  \"Language\": \"Idioma\"",
+          "before": null,
+          "after": 5
+        },
+        {
+          "kind": "add",
+          "text": "}",
+          "before": null,
+          "after": 6
+        }
+      ]
+    },
+    {
+      "path": "src/model.mjs",
+      "task": "mission-0",
+      "cli": "codex",
+      "added": 7,
+      "removed": 0,
+      "lines": [
+        {
+          "kind": "hunk"
+        },
+        {
+          "kind": "same",
+          "text": "];",
+          "before": 9,
+          "after": 9
+        },
+        {
+          "kind": "same",
+          "text": "",
+          "before": 10,
+          "after": 10
+        },
+        {
+          "kind": "add",
+          "text": "export function filterTasks(tasks, query = \"\", status = \"all\") {",
+          "before": null,
+          "after": 11
+        },
+        {
+          "kind": "add",
+          "text": "  const search = query.trim().toLowerCase();",
+          "before": null,
+          "after": 12
+        },
+        {
+          "kind": "add",
+          "text": "  return tasks.filter((task) =>",
+          "before": null,
+          "after": 13
+        },
+        {
+          "kind": "add",
+          "text": "    (status === \"all\" || task.status === status) && task.title.toLowerCase().includes(search),",
+          "before": null,
+          "after": 14
+        },
+        {
+          "kind": "add",
+          "text": "  );",
+          "before": null,
+          "after": 15
+        },
+        {
+          "kind": "add",
+          "text": "}",
+          "before": null,
+          "after": 16
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 17
+        },
+        {
+          "kind": "same",
+          "text": "export function addTask(tasks, title) {",
+          "before": 11,
+          "after": 18
+        },
+        {
+          "kind": "same",
+          "text": "  const id = Math.max(0, ...tasks.map((task) => task.id)) + 1;",
+          "before": 12,
+          "after": 19
+        }
+      ]
+    },
+    {
+      "path": "src/style.css",
+      "task": "mission-1",
+      "cli": "claude",
+      "added": 44,
+      "removed": 4,
+      "lines": [
+        {
+          "kind": "hunk"
+        },
+        {
+          "kind": "add",
+          "text": ":root {",
+          "before": null,
+          "after": 1
+        },
+        {
+          "kind": "add",
+          "text": "  --fg: #1d1d1f;",
+          "before": null,
+          "after": 2
+        },
+        {
+          "kind": "add",
+          "text": "  --bg: #f5f5f7;",
+          "before": null,
+          "after": 3
+        },
+        {
+          "kind": "add",
+          "text": "  --border: #d2d2d7;",
+          "before": null,
+          "after": 4
+        },
+        {
+          "kind": "add",
+          "text": "  --muted: #6e6e73;",
+          "before": null,
+          "after": 5
+        },
+        {
+          "kind": "add",
+          "text": "}",
+          "before": null,
+          "after": 6
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 7
+        },
+        {
+          "kind": "add",
+          "text": "@media (prefers-color-scheme: dark) {",
+          "before": null,
+          "after": 8
+        },
+        {
+          "kind": "add",
+          "text": "  :root {",
+          "before": null,
+          "after": 9
+        },
+        {
+          "kind": "add",
+          "text": "    --fg: #f5f5f7;",
+          "before": null,
+          "after": 10
+        },
+        {
+          "kind": "add",
+          "text": "    --bg: #1d1d1f;",
+          "before": null,
+          "after": 11
+        },
+        {
+          "kind": "add",
+          "text": "    --border: #3a3a3c;",
+          "before": null,
+          "after": 12
+        },
+        {
+          "kind": "add",
+          "text": "    --muted: #98989d;",
+          "before": null,
+          "after": 13
+        },
+        {
+          "kind": "add",
+          "text": "  }",
+          "before": null,
+          "after": 14
+        },
+        {
+          "kind": "add",
+          "text": "}",
+          "before": null,
+          "after": 15
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 16
+        },
+        {
+          "kind": "add",
+          "text": ":root[data-theme=\"light\"] {",
+          "before": null,
+          "after": 17
+        },
+        {
+          "kind": "add",
+          "text": "  --fg: #1d1d1f;",
+          "before": null,
+          "after": 18
+        },
+        {
+          "kind": "add",
+          "text": "  --bg: #f5f5f7;",
+          "before": null,
+          "after": 19
+        },
+        {
+          "kind": "add",
+          "text": "  --border: #d2d2d7;",
+          "before": null,
+          "after": 20
+        },
+        {
+          "kind": "add",
+          "text": "  --muted: #6e6e73;",
+          "before": null,
+          "after": 21
+        },
+        {
+          "kind": "add",
+          "text": "}",
+          "before": null,
+          "after": 22
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 23
+        },
+        {
+          "kind": "add",
+          "text": ":root[data-theme=\"dark\"] {",
+          "before": null,
+          "after": 24
+        },
+        {
+          "kind": "add",
+          "text": "  --fg: #f5f5f7;",
+          "before": null,
+          "after": 25
+        },
+        {
+          "kind": "add",
+          "text": "  --bg: #1d1d1f;",
+          "before": null,
+          "after": 26
+        },
+        {
+          "kind": "add",
+          "text": "  --border: #3a3a3c;",
+          "before": null,
+          "after": 27
+        },
+        {
+          "kind": "add",
+          "text": "  --muted: #98989d;",
+          "before": null,
+          "after": 28
+        },
+        {
+          "kind": "add",
+          "text": "}",
+          "before": null,
+          "after": 29
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 30
+        },
+        {
+          "kind": "same",
+          "text": "body {",
+          "before": 1,
+          "after": 31
+        },
+        {
+          "kind": "same",
+          "text": "  margin: 0;",
+          "before": 2,
+          "after": 32
+        },
+        {
+          "kind": "same",
+          "text": "  font: 16px/1.5 system-ui, sans-serif;",
+          "before": 3,
+          "after": 33
+        },
+        {
+          "kind": "del",
+          "text": "  color: #1d1d1f;",
+          "before": 4,
+          "after": null
+        },
+        {
+          "kind": "del",
+          "text": "  background: #f5f5f7;",
+          "before": 5,
+          "after": null
+        },
+        {
+          "kind": "add",
+          "text": "  color: var(--fg);",
+          "before": null,
+          "after": 34
+        },
+        {
+          "kind": "add",
+          "text": "  background: var(--bg);",
+          "before": null,
+          "after": 35
+        },
+        {
+          "kind": "same",
+          "text": "}",
+          "before": 6,
+          "after": 36
+        },
+        {
+          "kind": "same",
+          "text": "",
+          "before": 7,
+          "after": 37
+        },
+        {
+          "kind": "hunk"
+        },
+        {
+          "kind": "same",
+          "text": "  gap: 10px;",
+          "before": 31,
+          "after": 61
+        },
+        {
+          "kind": "same",
+          "text": "  padding: 10px 0;",
+          "before": 32,
+          "after": 62
+        },
+        {
+          "kind": "del",
+          "text": "  border-bottom: 1px solid #d2d2d7;",
+          "before": 33,
+          "after": null
+        },
+        {
+          "kind": "add",
+          "text": "  border-bottom: 1px solid var(--border);",
+          "before": null,
+          "after": 63
+        },
+        {
+          "kind": "same",
+          "text": "}",
+          "before": 34,
+          "after": 64
+        },
+        {
+          "kind": "same",
+          "text": "",
+          "before": 35,
+          "after": 65
+        },
+        {
+          "kind": "same",
+          "text": "li.done span {",
+          "before": 36,
+          "after": 66
+        },
+        {
+          "kind": "del",
+          "text": "  color: #6e6e73;",
+          "before": 37,
+          "after": null
+        },
+        {
+          "kind": "add",
+          "text": "  color: var(--muted);",
+          "before": null,
+          "after": 67
+        },
+        {
+          "kind": "same",
+          "text": "  text-decoration: line-through;",
+          "before": 38,
+          "after": 68
+        },
+        {
+          "kind": "same",
+          "text": "}",
+          "before": 39,
+          "after": 69
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 70
+        },
+        {
+          "kind": "add",
+          "text": "#theme-toggle {",
+          "before": null,
+          "after": 71
+        },
+        {
+          "kind": "add",
+          "text": "  margin-left: auto;",
+          "before": null,
+          "after": 72
+        },
+        {
+          "kind": "add",
+          "text": "  background: none;",
+          "before": null,
+          "after": 73
+        },
+        {
+          "kind": "add",
+          "text": "  border: 1px solid var(--border);",
+          "before": null,
+          "after": 74
+        },
+        {
+          "kind": "add",
+          "text": "  color: var(--fg);",
+          "before": null,
+          "after": 75
+        },
+        {
+          "kind": "add",
+          "text": "  border-radius: 6px;",
+          "before": null,
+          "after": 76
+        },
+        {
+          "kind": "add",
+          "text": "  padding: 4px 8px;",
+          "before": null,
+          "after": 77
+        },
+        {
+          "kind": "add",
+          "text": "  cursor: pointer;",
+          "before": null,
+          "after": 78
+        },
+        {
+          "kind": "add",
+          "text": "}",
+          "before": null,
+          "after": 79
+        }
+      ]
+    },
+    {
+      "path": "src/theme.js",
+      "task": "mission-1",
+      "cli": "claude",
+      "added": 28,
+      "removed": 1,
+      "lines": [
+        {
+          "kind": "hunk"
+        },
+        {
+          "kind": "same",
+          "text": "// Theme toggle for the task board.",
+          "before": 1,
+          "after": 1
+        },
+        {
+          "kind": "del",
+          "text": "export {};",
+          "before": 2,
+          "after": null
+        },
+        {
+          "kind": "add",
+          "text": "const KEY = \"theme\";",
+          "before": null,
+          "after": 2
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 3
+        },
+        {
+          "kind": "add",
+          "text": "function apply(theme) {",
+          "before": null,
+          "after": 4
+        },
+        {
+          "kind": "add",
+          "text": "  if (theme) {",
+          "before": null,
+          "after": 5
+        },
+        {
+          "kind": "add",
+          "text": "    document.documentElement.setAttribute(\"data-theme\", theme);",
+          "before": null,
+          "after": 6
+        },
+        {
+          "kind": "add",
+          "text": "  } else {",
+          "before": null,
+          "after": 7
+        },
+        {
+          "kind": "add",
+          "text": "    document.documentElement.removeAttribute(\"data-theme\");",
+          "before": null,
+          "after": 8
+        },
+        {
+          "kind": "add",
+          "text": "  }",
+          "before": null,
+          "after": 9
+        },
+        {
+          "kind": "add",
+          "text": "  const btn = document.getElementById(\"theme-toggle\");",
+          "before": null,
+          "after": 10
+        },
+        {
+          "kind": "add",
+          "text": "  if (btn) btn.textContent = theme === \"dark\" ? \"\\u{1F319}\" : theme === \"light\" ? \"☀️\" : \"\\u{1F5A5}️\";",
+          "before": null,
+          "after": 11
+        },
+        {
+          "kind": "add",
+          "text": "}",
+          "before": null,
+          "after": 12
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 13
+        },
+        {
+          "kind": "add",
+          "text": "function cycle() {",
+          "before": null,
+          "after": 14
+        },
+        {
+          "kind": "add",
+          "text": "  const current = localStorage.getItem(KEY);",
+          "before": null,
+          "after": 15
+        },
+        {
+          "kind": "add",
+          "text": "  const next = current === null ? \"light\" : current === \"light\" ? \"dark\" : null;",
+          "before": null,
+          "after": 16
+        },
+        {
+          "kind": "add",
+          "text": "  if (next === null) {",
+          "before": null,
+          "after": 17
+        },
+        {
+          "kind": "add",
+          "text": "    localStorage.removeItem(KEY);",
+          "before": null,
+          "after": 18
+        },
+        {
+          "kind": "add",
+          "text": "  } else {",
+          "before": null,
+          "after": 19
+        },
+        {
+          "kind": "add",
+          "text": "    localStorage.setItem(KEY, next);",
+          "before": null,
+          "after": 20
+        },
+        {
+          "kind": "add",
+          "text": "  }",
+          "before": null,
+          "after": 21
+        },
+        {
+          "kind": "add",
+          "text": "  apply(next);",
+          "before": null,
+          "after": 22
+        },
+        {
+          "kind": "add",
+          "text": "}",
+          "before": null,
+          "after": 23
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 24
+        },
+        {
+          "kind": "add",
+          "text": "export function initTheme() {",
+          "before": null,
+          "after": 25
+        },
+        {
+          "kind": "add",
+          "text": "  apply(localStorage.getItem(KEY));",
+          "before": null,
+          "after": 26
+        },
+        {
+          "kind": "add",
+          "text": "  const btn = document.getElementById(\"theme-toggle\");",
+          "before": null,
+          "after": 27
+        },
+        {
+          "kind": "add",
+          "text": "  if (btn) btn.addEventListener(\"click\", cycle);",
+          "before": null,
+          "after": 28
+        },
+        {
+          "kind": "add",
+          "text": "}",
+          "before": null,
+          "after": 29
+        }
+      ]
+    },
+    {
+      "path": "test/model.test.mjs",
+      "task": "mission-0",
+      "cli": "codex",
+      "added": 43,
+      "removed": 1,
+      "lines": [
+        {
+          "kind": "hunk"
+        },
+        {
+          "kind": "same",
+          "text": "import assert from \"node:assert/strict\";",
+          "before": 1,
+          "after": 1
+        },
+        {
+          "kind": "same",
+          "text": "import test from \"node:test\";",
+          "before": 2,
+          "after": 2
+        },
+        {
+          "kind": "del",
+          "text": "import { addTask, sampleTasks, toggleTask } from \"../src/model.mjs\";",
+          "before": 3,
+          "after": null
+        },
+        {
+          "kind": "add",
+          "text": "import { addTask, filterTasks, sampleTasks, toggleTask } from \"../src/model.mjs\";",
+          "before": null,
+          "after": 3
+        },
+        {
+          "kind": "same",
+          "text": "",
+          "before": 4,
+          "after": 4
+        },
+        {
+          "kind": "same",
+          "text": "test(\"adding a task gives it the next id and an open status\", () => {",
+          "before": 5,
+          "after": 5
+        },
+        {
+          "kind": "hunk"
+        },
+        {
+          "kind": "same",
+          "text": "  assert.equal(sampleTasks[0].status, \"open\");",
+          "before": 13,
+          "after": 13
+        },
+        {
+          "kind": "same",
+          "text": "});",
+          "before": 14,
+          "after": 14
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 15
+        },
+        {
+          "kind": "add",
+          "text": "test(\"filtering defaults to all tasks\", () => {",
+          "before": null,
+          "after": 16
+        },
+        {
+          "kind": "add",
+          "text": "  const tasks = filterTasks(sampleTasks);",
+          "before": null,
+          "after": 17
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(tasks, sampleTasks);",
+          "before": null,
+          "after": 18
+        },
+        {
+          "kind": "add",
+          "text": "  assert.notEqual(tasks, sampleTasks);",
+          "before": null,
+          "after": 19
+        },
+        {
+          "kind": "add",
+          "text": "});",
+          "before": null,
+          "after": 20
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 21
+        },
+        {
+          "kind": "add",
+          "text": "test(\"search matches title substrings without regard to case\", () => {",
+          "before": null,
+          "after": 22
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks(sampleTasks, \"REDIR\"), [sampleTasks[1]]);",
+          "before": null,
+          "after": 23
+        },
+        {
+          "kind": "add",
+          "text": "});",
+          "before": null,
+          "after": 24
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 25
+        },
+        {
+          "kind": "add",
+          "text": "test(\"search trims surrounding whitespace and treats a blank query as no search\", () => {",
+          "before": null,
+          "after": 26
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks(sampleTasks, \"  ReLeAsE\\t\"), [sampleTasks[0]]);",
+          "before": null,
+          "after": 27
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks(sampleTasks, \"\"), sampleTasks);",
+          "before": null,
+          "after": 28
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks(sampleTasks, \" \\t\\n\"), sampleTasks);",
+          "before": null,
+          "after": 29
+        },
+        {
+          "kind": "add",
+          "text": "});",
+          "before": null,
+          "after": 30
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 31
+        },
+        {
+          "kind": "add",
+          "text": "test(\"status filtering supports open, done, and all tasks\", () => {",
+          "before": null,
+          "after": 32
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks(sampleTasks, \"\", \"open\"), [sampleTasks[0], sampleTasks[2]]);",
+          "before": null,
+          "after": 33
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks(sampleTasks, \"\", \"done\"), [sampleTasks[1], sampleTasks[3]]);",
+          "before": null,
+          "after": 34
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks(sampleTasks, \"\", \"all\"), sampleTasks);",
+          "before": null,
+          "after": 35
+        },
+        {
+          "kind": "add",
+          "text": "});",
+          "before": null,
+          "after": 36
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 37
+        },
+        {
+          "kind": "add",
+          "text": "test(\"search and status filters must both match\", () => {",
+          "before": null,
+          "after": 38
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks(sampleTasks, \"THE\", \"done\"), [sampleTasks[1]]);",
+          "before": null,
+          "after": 39
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks(sampleTasks, \"release\", \"done\"), []);",
+          "before": null,
+          "after": 40
+        },
+        {
+          "kind": "add",
+          "text": "});",
+          "before": null,
+          "after": 41
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 42
+        },
+        {
+          "kind": "add",
+          "text": "test(\"filtering handles no matches and empty task lists\", () => {",
+          "before": null,
+          "after": 43
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks(sampleTasks, \"missing task\"), []);",
+          "before": null,
+          "after": 44
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks([]), []);",
+          "before": null,
+          "after": 45
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(filterTasks([], \"release\", \"open\"), []);",
+          "before": null,
+          "after": 46
+        },
+        {
+          "kind": "add",
+          "text": "});",
+          "before": null,
+          "after": 47
+        },
+        {
+          "kind": "add",
+          "text": "",
+          "before": null,
+          "after": 48
+        },
+        {
+          "kind": "add",
+          "text": "test(\"filtering preserves task order and identity without changing the input\", () => {",
+          "before": null,
+          "after": 49
+        },
+        {
+          "kind": "add",
+          "text": "  const input = Object.freeze(sampleTasks.map((task) => Object.freeze({ ...task })));",
+          "before": null,
+          "after": 50
+        },
+        {
+          "kind": "add",
+          "text": "  const tasks = filterTasks(input, \"the\", \"open\");",
+          "before": null,
+          "after": 51
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(tasks, [input[0], input[2]]);",
+          "before": null,
+          "after": 52
+        },
+        {
+          "kind": "add",
+          "text": "  assert.equal(tasks[0], input[0]);",
+          "before": null,
+          "after": 53
+        },
+        {
+          "kind": "add",
+          "text": "  assert.equal(tasks[1], input[2]);",
+          "before": null,
+          "after": 54
+        },
+        {
+          "kind": "add",
+          "text": "  assert.deepEqual(input, sampleTasks);",
+          "before": null,
+          "after": 55
+        },
+        {
+          "kind": "add",
+          "text": "});",
+          "before": null,
+          "after": 56
+        }
+      ]
+    }
+  ]
+}

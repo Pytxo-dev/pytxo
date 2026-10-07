@@ -173,6 +173,9 @@ pub struct ModelRoute {
     pub provider_label: Option<String>,
 }
 
+/// Resolves the configured worker model for an existing agent profile. Despite
+/// the historical name, this is a deterministic config lookup, not the future
+/// advisory task Routing system described by `RouteProposal`.
 pub trait ModelRouter: Send + Sync {
     fn route(&self, agent_name: &str, cfg: &PytxoConfig) -> ModelRoute;
 }

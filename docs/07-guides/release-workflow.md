@@ -12,7 +12,9 @@ The **pytxo** monorepo is **private**. Public installs use [Pytxo-dev/pytxo-rele
 
 1. Open **Actions → Release → Run workflow** on the private `pytxo` repo.
 2. Enter **version** without a `v` prefix (e.g. `1.0.1`).
-3. Leave **Publish npm** and **Mirror public** enabled unless you only want a private draft.
+3. Leave **Publish npm** and **Mirror public** enabled for an approved public release.
+   Disabling both publishes only to the private source repository; it does not
+   create a draft.
 4. Leave **Sign Desktop installers** disabled unless the Apple and Windows signing
    secrets have been validated for this run. Unsigned installers are supported;
    the updater channel still requires `TAURI_SIGNING_PRIVATE_KEY`.
@@ -37,7 +39,7 @@ The workflow will:
 | `APPLE_CERTIFICATE*`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_*` | Optional Apple signing/notarization credentials; only used when **Sign Desktop installers** is enabled |
 | `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` | Optional Windows signing credentials; only used when **Sign Desktop installers** is enabled |
 
-Without `TAURI_SIGNING_PRIVATE_KEY`, Desktop installers still publish, but the updater channel (`latest.json`) is skipped.
+Without `TAURI_SIGNING_PRIVATE_KEY`, Desktop installers still publish, but no new updater manifest is produced. The public mirror keeps the last signed `latest.json` on its stable branch channel instead of replacing or deleting it.
 
 ## CLI release (alternative)
 
@@ -56,8 +58,16 @@ failure is not a reason to bypass CI.
 1. Run the complete local gate from `AGENTS.md`, including Desktop browser
    tests, native build, web lint/build/E2E, demo typecheck/render, and secret
    scan.
-2. Build the fresh host CLI and Desktop installers. Do not rename a prior binary
-   and claim it is current.
+2. Build the fresh host CLI and Desktop installer. `npm run build:native` builds
+   the release executable only. From `apps/desktop`, build the Windows MSI with
+   `npm run build:msi`. This passes the explicit Windows
+   target and `.cargo/windows-msvc.toml` to Cargo, including Whisper/GGML in
+   the static CRT policy. The Release workflow uses the same policy. After
+   local bundling, run `tooling/scripts/verify-windows-msi.ps1 -InstallerPath`
+   with the new MSI's path from the repository root. This extracts and checks
+   the actual MSI's executables/DLLs for unprovided MSVC runtime imports;
+   `build:msi` itself only builds. Hosted Release runs this check before upload.
+   Do not rename a prior binary and claim it is current.
 3. If other operating systems cannot be built, either omit them or mirror the
    last complete matrix with an explicit compatibility label in release notes
    and public install docs. A mirrored binary keeps its embedded old version.
@@ -69,9 +79,14 @@ failure is not a reason to bypass CI.
 7. Verify downloaded checksums, `pytxo --version`, `npm i -g`, the Windows
    installer, website `/download`, and current-version documentation.
 
-Without a Tauri signing key, publish manual installers only. Do not replace
-`latest.json`; the updater channel must continue pointing to the last signed
-manifest.
+Without a Tauri signing key, only manual installers can be published. Desktop
+checks the branch-backed stable `latest.json` first and retains the GitHub Latest
+release URL as a migration fallback. A signed release copies its validated
+manifest to the stable channel only after the referenced release assets exist;
+an unsigned release leaves the prior signed channel unchanged. Before
+publication, verify the stable manifest, its referenced asset, and the fallback
+URL. Do not advertise working auto-update until a packaged older build has
+installed the new signed release and confirmed its running version after restart.
 
 ## After release
 

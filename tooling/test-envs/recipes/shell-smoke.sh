@@ -24,7 +24,8 @@ model_count=$("$PYTXO_BIN" models list --provider deepseek --json | jq 'length')
 test "$model_count" -ge 1
 
 echo "== shell smoke: dry-run =="
-"$PYTXO_BIN" run --dry-run --agents 2 | grep -q waves
+# Drain stdout so an early match cannot close the CLI's pipe mid-write.
+"$PYTXO_BIN" run --dry-run --agents 2 | grep waves > /dev/null
 
 echo "== shell smoke: run echo =="
 "$PYTXO_BIN" run --agents 1 --cmd "echo pytxo-shell-smoke"

@@ -1,0 +1,411 @@
+{
+  "width": 1920,
+  "height": 1020,
+  "video": "live/screen.mp4",
+  "result": "live/result.mp4",
+  "shots": [
+    {
+      "start": 42.004,
+      "end": 55.315,
+      "speed": 3.169285714285714,
+      "kicker": "01 · Describe",
+      "title": "Say what you want, once.",
+      "focus": {
+        "x": 179,
+        "y": 211,
+        "w": 1100,
+        "h": 620
+      },
+      "clip": "live/shot0.mp4"
+    },
+    {
+      "start": 67.25,
+      "end": 81.05,
+      "speed": 2.9999999999999996,
+      "kicker": "02 · Choose agents",
+      "title": "Put every agent you use on the job.",
+      "focus": {
+        "x": 122,
+        "y": 514,
+        "w": 900,
+        "h": 506
+      },
+      "clip": "live/shot1.mp4"
+    },
+    {
+      "start": 84.396,
+      "end": 91.68,
+      "speed": 1.8210000000000015,
+      "kicker": "03 · Plan",
+      "title": "See the plan before anything runs.",
+      "focus": null,
+      "clip": "live/shot2.mp4"
+    },
+    {
+      "start": 108.248,
+      "end": 112.048,
+      "speed": 1,
+      "kicker": "04 · Fleet",
+      "title": "Every worker, on one canvas you can move.",
+      "focus": null,
+      "clip": "live/shot3.mp4"
+    },
+    {
+      "start": 113.848,
+      "end": 164.795,
+      "speed": 11.578863636363632,
+      "kicker": "04 · Fleet",
+      "title": "They work side by side, in isolated copies.",
+      "focus": null,
+      "sped": true,
+      "clip": "live/shot4.mp4"
+    },
+    {
+      "start": 169.82600000000002,
+      "end": 181.32600000000002,
+      "speed": 2.5,
+      "kicker": "05 · Review",
+      "title": "Read every change and its checks.",
+      "focus": null,
+      "clip": "live/shot5.mp4"
+    },
+    {
+      "start": 185.972,
+      "end": 193.638,
+      "speed": 1.419629629629629,
+      "kicker": "06 · Stale",
+      "title": "Something changed? Apply refuses.",
+      "focus": null,
+      "clip": "live/shot6.mp4"
+    },
+    {
+      "start": 196.162,
+      "end": 222.414,
+      "speed": 5.250399999999996,
+      "kicker": "07 · Apply",
+      "title": "Refresh, then Apply the exact reviewed bytes.",
+      "focus": null,
+      "sped": true,
+      "clip": "live/shot7.mp4"
+    }
+  ],
+  "pointer": [
+    {
+      "t": 4.897,
+      "kind": "hover",
+      "x": 960,
+      "y": 794,
+      "label": "Get started"
+    },
+    {
+      "t": 5.803,
+      "kind": "click",
+      "label": "Get started"
+    },
+    {
+      "t": 11.009,
+      "kind": "hover",
+      "x": 736,
+      "y": 858,
+      "label": "Continue"
+    },
+    {
+      "t": 11.913,
+      "kind": "click",
+      "label": "Continue"
+    },
+    {
+      "t": 14.382,
+      "kind": "hover",
+      "x": 960,
+      "y": 526,
+      "label": "Select folder"
+    },
+    {
+      "t": 15.287,
+      "kind": "click",
+      "label": "Select folder"
+    },
+    {
+      "t": 21.71,
+      "kind": "hover",
+      "x": 569,
+      "y": 515,
+      "label": "Folder"
+    },
+    {
+      "t": 22.618,
+      "kind": "click",
+      "label": "Folder"
+    },
+    {
+      "t": 28.62,
+      "kind": "hover",
+      "x": 738,
+      "y": 553,
+      "label": "Select Folder"
+    },
+    {
+      "t": 29.529,
+      "kind": "click",
+      "label": "Select Folder"
+    },
+    {
+      "t": 36.937,
+      "kind": "hover",
+      "x": 737,
+      "y": 698,
+      "label": "Enter Pytxo Desktop"
+    },
+    {
+      "t": 37.843,
+      "kind": "click",
+      "label": "Enter Pytxo Desktop"
+    },
+    {
+      "t": 42.604,
+      "kind": "hover",
+      "x": 832,
+      "y": 477,
+      "label": "New work"
+    },
+    {
+      "t": 43.513,
+      "kind": "click",
+      "label": "New work"
+    },
+    {
+      "t": 46.243,
+      "kind": "hover",
+      "x": 729,
+      "y": 521,
+      "label": "Request"
+    },
+    {
+      "t": 47.148,
+      "kind": "click",
+      "label": "Request"
+    },
+    {
+      "t": 59.069,
+      "kind": "hover",
+      "x": 1724,
+      "y": 172,
+      "label": "Agent CLI"
+    },
+    {
+      "t": 59.978,
+      "kind": "click",
+      "label": "Agent CLI"
+    },
+    {
+      "t": 63.847,
+      "kind": "hover",
+      "x": 572,
+      "y": 813,
+      "label": "Claude Code"
+    },
+    {
+      "t": 64.553,
+      "kind": "click",
+      "label": "Claude Code"
+    },
+    {
+      "t": 68.399,
+      "kind": "hover",
+      "x": 788,
+      "y": 813,
+      "label": "Cursor Agent"
+    },
+    {
+      "t": 69.103,
+      "kind": "click",
+      "label": "Cursor Agent"
+    },
+    {
+      "t": 72.798,
+      "kind": "hover",
+      "x": 1006,
+      "y": 813,
+      "label": "OpenCode"
+    },
+    {
+      "t": 73.507,
+      "kind": "click",
+      "label": "OpenCode"
+    },
+    {
+      "t": 77.241,
+      "kind": "hover",
+      "x": 299,
+      "y": 868,
+      "label": "Antigravity"
+    },
+    {
+      "t": 77.946,
+      "kind": "click",
+      "label": "Antigravity"
+    },
+    {
+      "t": 80.25,
+      "kind": "hover",
+      "x": 1124,
+      "y": 906,
+      "label": "Build plan"
+    },
+    {
+      "t": 81.157,
+      "kind": "click",
+      "label": "Build plan"
+    },
+    {
+      "t": 90.68,
+      "kind": "hover",
+      "x": 1808,
+      "y": 424,
+      "label": "Run"
+    },
+    {
+      "t": 91.587,
+      "kind": "click",
+      "label": "Run"
+    },
+    {
+      "t": 104.775,
+      "kind": "hover",
+      "x": 1802,
+      "y": 236,
+      "label": "Canvas"
+    },
+    {
+      "t": 105.681,
+      "kind": "click",
+      "label": "Canvas"
+    },
+    {
+      "t": 109.428,
+      "kind": "drag",
+      "x": 1075,
+      "y": 495,
+      "label": "Canvas"
+    },
+    {
+      "t": 116.663,
+      "kind": "hover",
+      "x": 1538,
+      "y": 236,
+      "label": "Fleet"
+    },
+    {
+      "t": 117.569,
+      "kind": "click",
+      "label": "Fleet"
+    },
+    {
+      "t": 168.674,
+      "kind": "hover",
+      "x": 1669,
+      "y": 156,
+      "label": "Review changes"
+    },
+    {
+      "t": 169.579,
+      "kind": "click",
+      "label": "Review changes"
+    },
+    {
+      "t": 176.809,
+      "kind": "hover",
+      "x": 1212,
+      "y": 789,
+      "label": "Changes"
+    },
+    {
+      "t": 186.372,
+      "kind": "hover",
+      "x": 1567,
+      "y": 968,
+      "label": "Apply reviewed changes"
+    },
+    {
+      "t": 187.277,
+      "kind": "click",
+      "label": "Apply reviewed changes"
+    },
+    {
+      "t": 189.996,
+      "kind": "hover",
+      "x": 1116,
+      "y": 597,
+      "label": "Apply exact package"
+    },
+    {
+      "t": 190.903,
+      "kind": "click",
+      "label": "Apply exact package"
+    },
+    {
+      "t": 196.562,
+      "kind": "hover",
+      "x": 1349,
+      "y": 911,
+      "label": "Refresh review"
+    },
+    {
+      "t": 197.47,
+      "kind": "click",
+      "label": "Refresh review"
+    },
+    {
+      "t": 213.763,
+      "kind": "hover",
+      "x": 1567,
+      "y": 968,
+      "label": "Apply reviewed changes"
+    },
+    {
+      "t": 214.665,
+      "kind": "click",
+      "label": "Apply reviewed changes"
+    },
+    {
+      "t": 217.169,
+      "kind": "hover",
+      "x": 1116,
+      "y": 597,
+      "label": "Apply exact package"
+    },
+    {
+      "t": 218.075,
+      "kind": "click",
+      "label": "Apply exact package"
+    },
+    {
+      "t": 226.523,
+      "kind": "hover",
+      "x": 114,
+      "y": 336,
+      "label": "History"
+    },
+    {
+      "t": 227.429,
+      "kind": "click",
+      "label": "History"
+    }
+  ],
+  "marks": {
+    "typing": 47.264,
+    "typed": 54.915,
+    "plan": 84.596,
+    "run": 91.716,
+    "fleet": 99.741,
+    "dragged": 110.848,
+    "settled": 162.795,
+    "review": 171.304,
+    "read": 180.526,
+    "note": 183.938,
+    "stale": 191.038,
+    "refreshed": 209.66,
+    "applied": 220.214
+  }
+}

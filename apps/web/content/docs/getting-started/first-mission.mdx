@@ -1,79 +1,52 @@
 ---
 title: First mission
-description: Run one natural-language mission without hand-writing [[task]] rows.
+description: Give one agent one small task, check the plan, and review the result in Desktop.
 ---
 
-You do not need to hand-write `[[task]]` rows to try Pytxo. One mission becomes
-an owned task plan, isolated agent work, and an immutable package for review.
+**Version note:** this Desktop walkthrough describes the unpublished **v1.2.2 preview**, not the current v1.2.1 download. Complete [Desktop setup](/docs/getting-started/desktop-setup) first.
 
-## Who this is for
+Start with one bug fix or one test in a repository you know, and one agent you already use: Codex, Claude Code, Cursor Agent, OpenCode or Antigravity. Once that works, try [one job with several agents](/docs/getting-started/multi-agent-run).
 
-You already run **more than one** coding agent on a real repo and care about write collisions, unsafe merges, or scattered logs. If you only ever use a single agent session, start with [Install](/docs/getting-started/install) and skip ahead only when that pain appears.
+## 1. Describe the result
 
-## Prerequisites
+Open **Work → New work**. Confirm the project and the agent, then enter a concrete request. For example, replace these paths with files that exist in your project:
 
-- `pytxo` on `PATH` (`npm i -g pytxo@1.2.1` or a release binary)
-- At least one coding agent CLI on `PATH` (Claude Code, Codex, Cursor CLI, or OpenCode)
-- A git repo you are willing to trust at Orbit (or higher)
-
-```bash
-cd my-project
-pytxo trust orbit
-pytxo agents
+```text
+Add input validation in src/api.ts.
+Reject an empty name and cover it in test/api.test.ts.
 ```
 
-## Run a mission
+Name the expected behavior and the files the agent may change. If Pytxo cannot determine the file scope, make the request more specific.
 
-```bash
-pytxo mission "Add input validation to the public API and update unit tests"
-```
+## 2. Check the plan
 
-Pytxo will:
+Choose **Build plan**, then inspect:
 
-1. Detect available agents
-2. Propose tasks, paths, and execution stages (waves)
-3. Show predicted path overlaps and isolation mode in plain language
-4. Ask `Approve mission? [Y/n]` (use `--yes` to skip)
-5. Run agents in **isolated copies** of the repo (Blast)
-6. Keep overlapping path claims in **separate waves** (Race)
-7. Run any suggested verify commands
-8. Persist the run contract and prepare an immutable review package
+- **Agent:** the agent you chose is installed and signed in.
+- **Files:** the allowed paths cover the task without including unrelated work.
+- **Checks:** the test or build commands are appropriate for the requested change.
+- **Blockers:** resolve anything shown before starting.
 
-Preview only (no dispatch):
+If no checks are detected, add a known working command under **Additional verification commands** and build the plan again. Do the same after changing the agent or configuration.
 
-```bash
-pytxo mission "…" --json
-```
+Local planning does not call a model provider by default. Running an agent uses its own account and may incur provider charges. A missing cost estimate does not mean a run is free.
 
-## After the run
+## 3. Run the task
 
-Open **Pytxo Desktop → History**, select the run, and **Review package**. Run
-Review is the reviewed-package Apply surface for Orbit and Galaxy. It shows the
-exact prepared additions, modifications, and deletions. Before Apply, Pytxo
-checks the current preimage of every affected path; unrelated dirty files are
-allowed. A changed affected path marks the review stale.
+Choose **Run**. Follow the task on **Work**. Select a worker to inspect its status or open its output. A worker saying it is finished is not a passing test result or a confirmed Apply.
 
-The `hitl` command manages Galaxy approval requests only:
+## 4. Review the result
 
-```bash
-pytxo hitl list
-pytxo hitl approve <id>
-# or use Pytxo Desktop → History → Review package → Apply
-```
+Choose **Review changes** from Work, or open the run from History.
 
-These commands do not initiate Apply. Orbit has no Galaxy HITL step; Orbit
-users review and Apply the prepared package in Run Review.
+Read the prepared file changes and the checks recorded for the combined result. Checks run in a separate snapshot; dependencies, build outputs, or Git history may be excluded. A check that needs an excluded file must be addressed before treating the result as verified.
 
-Reviewed Apply covers Orbit and Galaxy in one execution domain and one
-repository root. DeepSpace is non-flushable. Supernova writes directly to the
-host tree.
+Choose **Apply** only when you accept the changes. If the project has changed since review, Apply refuses; refresh the review and inspect the new result. Read [Review and Apply](/docs/getting-started/review-and-apply) for blocked or interrupted attempts.
 
-## Without agent CLIs
+## Try another task
 
-Prove scheduling and isolation with the [collision demo](/docs/getting-started/first-three-agent-run) using `--cmd` echo (no paid model keys).
+Use **New work** for the next request. Saved requests can provide a starting point, but always confirm the repository, agent, paths, and new plan. Earlier checks and approvals do not carry over.
 
-## Learn more
+## Prefer the terminal?
 
-- [Collision demo](/docs/getting-started/first-three-agent-run)
-- [CLI reference](/docs/reference/cli)
-- [Three moats](/docs/concepts/three-moats)
+The [CLI reference](/docs/reference/cli) covers `pytxo mission`, previewing a plan, and running explicit tasks. The CLI has no Apply command. For a scheduling example without a model account, try the [collision demo](/docs/getting-started/first-three-agent-run).

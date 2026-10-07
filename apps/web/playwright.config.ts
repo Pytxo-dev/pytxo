@@ -6,11 +6,12 @@ export default defineConfig({
   workers: 1,
   reporter: "line",
   use: {
-    baseURL: "http://127.0.0.1:3101",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3101",
+    storageState: process.env.PLAYWRIGHT_STORAGE_STATE || undefined,
     channel: process.env.PLAYWRIGHT_CHANNEL || "chromium",
     trace: "retain-on-failure",
   },
-  webServer: {
+  webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : {
     command: "npx next start -H 0.0.0.0 -p 3101",
     url: "http://127.0.0.1:3101",
     reuseExistingServer: !process.env.CI,

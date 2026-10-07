@@ -1,0 +1,181 @@
+{
+  "evidence": {
+    "runId": "16dab199-72fa-4596-b6fd-610e7c0ebb4c",
+    "buildLabel": "1.2.2 recorded checkpoint",
+    "executableSha256": "c77b8418cf0d2a5f3303f10220ac484fd804909cb5dd314cffb06b559bc88d43",
+    "capturedAt": "2026-09-08",
+    "harness": "Codex",
+    "harnessVersion": "0.153.4",
+    "evidenceLocation": "tooling/benchmarks/results/astra-aperture-native-2026-09-08.json",
+    "evidenceLocationLabel": "Bench record · astra-aperture-native-2026-09-08.json",
+    "plannedTasks": 3,
+    "waves": 2,
+    "maxConcurrentWorkers": 2,
+    "combinedChecksPassed": 3,
+    "independentChecksPassed": 26,
+    "repositoryTestsPassed": 11,
+    "changedFilesMatchingPackage": 3,
+    "primaryUnchangedBeforeApply": true,
+    "applyCommitted": true,
+    "receiptSurvivedRestart": true,
+    "applyPackageId": "ceee5c50c2add38a852bca21569773ca08073dba1ae38624b0a89f6804cda1d0",
+    "scopePaths": {
+      "code": "src/risk-policy.mjs",
+      "docs": "README.md",
+      "tests": "test/risk-policy.test.mjs"
+    },
+    "dependencyEvidence": {
+      "artifact": "tooling/benchmarks/results/astra-aperture-plan-2026-09-08.json",
+      "sha256": "906b6f99d344d6b8b6535627db2beb804fdd08d84ab45b7eb3753ccff4b96adc",
+      "tasks": {
+        "code": {
+          "id": "mission-0",
+          "dependsOn": []
+        },
+        "docs": {
+          "id": "mission-2",
+          "dependsOn": []
+        },
+        "tests": {
+          "id": "mission-1",
+          "dependsOn": [
+            "mission-0"
+          ]
+        }
+      }
+    },
+    "recordingMethod": "renderer capture; OS chrome/cursor omitted"
+  },
+  "clips": {
+    "review": {
+      "src": "product/aperture/review.mp4",
+      "sha256": "22121da8711eb8345514f9b728d4d950312d790c5b3247873c8fed40074f602e",
+      "width": 1600,
+      "height": 1000,
+      "sourceFps": 60,
+      "sourceDurationSeconds": 13,
+      "trimStartSeconds": 0,
+      "playbackRate": 1,
+      "cuts": [
+        {
+          "atSeconds": 9,
+          "omittedSeconds": 41
+        }
+      ],
+      "focus": {
+        "x": 0.58,
+        "y": 0.49,
+        "zoom": 1.35
+      }
+    },
+    "apply": {
+      "src": "product/aperture/apply.mp4",
+      "sha256": "e76031ed25d9d1bcb310dc50489e7322ef6036ecd96a9f29c922409160c52edb",
+      "width": 1600,
+      "height": 1000,
+      "sourceFps": 60,
+      "sourceDurationSeconds": 11,
+      "trimStartSeconds": 0,
+      "playbackRate": 1,
+      "focus": {
+        "x": 0.54,
+        "y": 0.38,
+        "zoom": 1.7
+      }
+    },
+    "result": {
+      "src": "product/aperture/result.mp4",
+      "sha256": "1b414af0a0cb927dcbd6b0f8a05b764b682abdcf2bb0d70f63c3254f2ee12e05",
+      "width": 1600,
+      "height": 1000,
+      "sourceFps": 60,
+      "sourceDurationSeconds": 8,
+      "trimStartSeconds": 0,
+      "playbackRate": 1,
+      "focus": {
+        "x": 0.52,
+        "y": 0.42,
+        "zoom": 1.5
+      }
+    }
+  },
+  "privacyEdits": {
+    "review": {
+      "sourceSha256": "22121da8711eb8345514f9b728d4d950312d790c5b3247873c8fed40074f602e",
+      "regions": []
+    },
+    "apply": {
+      "sourceSha256": "e76031ed25d9d1bcb310dc50489e7322ef6036ecd96a9f29c922409160c52edb",
+      "regions": [
+        {
+          "fromFrame": 0,
+          "untilFrame": 231,
+          "x": 512,
+          "y": 958,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        },
+        {
+          "fromFrame": 231,
+          "untilFrame": 264,
+          "x": 512,
+          "y": 531,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        },
+        {
+          "fromFrame": 231,
+          "untilFrame": 264,
+          "x": 512,
+          "y": 982,
+          "width": 320,
+          "height": 18,
+          "label": "Host path redacted"
+        },
+        {
+          "fromFrame": 273,
+          "untilFrame": 660,
+          "x": 512,
+          "y": 500,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        },
+        {
+          "fromFrame": 273,
+          "untilFrame": 660,
+          "x": 512,
+          "y": 958,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        }
+      ]
+    },
+    "result": {
+      "sourceSha256": "1b414af0a0cb927dcbd6b0f8a05b764b682abdcf2bb0d70f63c3254f2ee12e05",
+      "regions": [
+        {
+          "fromFrame": 0,
+          "untilFrame": 480,
+          "x": 512,
+          "y": 500,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        },
+        {
+          "fromFrame": 0,
+          "untilFrame": 480,
+          "x": 512,
+          "y": 958,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        }
+      ]
+    }
+  }
+}

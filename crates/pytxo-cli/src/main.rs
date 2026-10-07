@@ -314,8 +314,23 @@ enum ProjectAction {
     },
 }
 
+#[cfg(windows)]
+fn is_attempt_host_request(first_arg: Option<&std::ffi::OsStr>) -> bool {
+    first_arg == Some(std::ffi::OsStr::new("pytxo-attempt-host/1"))
+}
+
+fn main() -> anyhow::Result<()> {
+    #[cfg(windows)]
+    if is_attempt_host_request(std::env::args_os().nth(1).as_deref()) {
+        // The owned host must enter its barrier before CLI parsing, logging,
+        // Tokio initialization, or any normal Pytxo startup code runs.
+        std::process::exit(pytxo_runner::owned_launch::attempt_host_main());
+    }
+    run_cli()
+}
+
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn run_cli() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .init();
@@ -368,6 +383,11 @@ async fn main() -> anyhow::Result<()> {
                     let spec = pytxo_core::resolve_ade(ade_id).ok_or_else(|| {
                         anyhow::anyhow!("unknown ADE {ade_id} — try `pytxo agents`")
                     })?;
+                    if !pytxo_core::ade_can_dispatch(spec) {
+                        return Err(anyhow::anyhow!(
+                            "ADE {ade_id} is detection-only until its permission model is mapped"
+                        ));
+                    }
                     cmd = spec.default_cmd.to_string();
                 }
             }
@@ -726,6 +746,25 @@ async fn run_project(action: ProjectAction) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn attempt_host_marker_is_exact_and_ordinary_cli_arguments_are_untouched() {
+        use std::ffi::OsStr;
+
+        assert!(is_attempt_host_request(Some(OsStr::new(
+            "pytxo-attempt-host/1"
+        ))));
+        for arg in [
+            "--help",
+            "run",
+            "pytxo-attempt-host",
+            "PYTXO-ATTEMPT-HOST/1",
+        ] {
+            assert!(!is_attempt_host_request(Some(OsStr::new(arg))));
+        }
+        assert!(!is_attempt_host_request(None));
+    }
 
     #[test]
     fn help_uses_the_same_product_language_as_desktop() {

@@ -1,77 +1,48 @@
 import Image from "next/image";
 import Link from "next/link";
-
 import { Button } from "@/components/ui/button";
+import { CANDIDATE_PUBLISHED, CANDIDATE_VERSION, PUBLISHED_VERSION } from "@/lib/site";
+
+// Each mark sits beside its full product name and implies no partnership.
+const AGENTS = [
+  { name: "Codex", mark: "/brands/openai-on-dark.svg" },
+  { name: "Claude Code", mask: "/brands/anthropic.svg" },
+  { name: "Cursor", mark: "/brands/cursor-on-dark.svg" },
+  { name: "OpenCode", mark: "/brands/opencode.svg" },
+  { name: "Antigravity", mark: "/brands/antigravity.png" },
+] as const;
 
 export function Hero() {
-  return (
-    <section className="aperture-grid relative overflow-hidden border-b border-white/[0.06]" data-testid="marketing-hero">
-      <div className="pointer-events-none absolute inset-x-[7%] top-[-30%] h-[70%] bg-[radial-gradient(ellipse_at_center,rgba(240,77,163,0.09),rgba(69,220,203,0.04)_35%,transparent_70%)]" />
-      <div className="relative mx-auto grid min-h-[calc(100dvh-4rem)] max-w-[92rem] items-center gap-14 px-4 py-20 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(36rem,1.04fr)] lg:px-10 lg:py-24">
-        <div className="flex w-full min-w-0 flex-col items-start text-left">
-          {/*
-            The headline is sized to fit inside its own grid column. It must never
-            be allowed to size to its own content, or it overflows the column and
-            renders underneath the product frame in the next column.
-          */}
-          <h1 className="max-w-full text-pretty text-[clamp(2.5rem,3.6vw,3.4rem)] font-medium leading-[1.02] tracking-[-0.05em]">
-            <span className="block">Coordinate coding agents.</span>
-            <span className="block">Review one result.</span>
-          </h1>
-          <p className="mt-7 max-w-[38rem] text-base leading-relaxed text-[#a9a9b2] sm:text-lg">
-            Pytxo runs the agent CLIs you already have in isolated workspaces, keeps
-            them off each other&apos;s files, and prepares one reviewable package. In Orbit
-            and Galaxy, prepared changes reach your repository only through explicit Apply.
-          </p>
-          <div className="mt-9 flex w-full flex-col items-start gap-4 sm:w-auto sm:flex-row sm:items-center sm:gap-6">
-            <Button size="lg" className="h-11 w-full rounded-[4px] bg-white px-6 text-black hover:bg-white/85 sm:w-auto sm:min-w-[11rem]" asChild>
-              <Link href="/download">Download Pytxo</Link>
-            </Button>
-            <Link href="/docs" className="aperture-link text-sm text-[#a9a9b2] transition-colors hover:text-white">
-              Read the docs
-            </Link>
-          </div>
-          <p className="mt-8 font-mono text-[12px] leading-relaxed text-[#6f6f79]">
-            Local-first. Your agent accounts and keys. Desktop ships for Windows today.
-          </p>
+  return <section className="border-b border-white/10" data-testid="marketing-hero">
+    <div className="mx-auto max-w-[92rem] px-4 pb-14 pt-16 sm:px-6 lg:px-10 lg:pt-24">
+      <div className="mx-auto max-w-[84rem] text-center">
+        <p className="text-sm font-medium tracking-[0.01em] text-[#aaaab3]">The agent hypervisor for your repository</p>
+        <h1 className="mt-5 text-[clamp(2.75rem,7.4vw,6.75rem)] font-semibold leading-[1.02] tracking-[-0.045em]">
+          Many agents.<br /><span className="chroma-text">One verified change.</span>
+        </h1>
+        <p className="mx-auto mt-7 max-w-[58ch] text-lg leading-relaxed text-[#c4c4cc] sm:text-xl">Describe a change once. Pytxo splits it across the coding agents you choose, keeps them off each other&apos;s files, runs your checks on the combined result, and applies exactly what you reviewed.</p>
+        <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
+          <Button size="lg" className="h-12 rounded-[6px] bg-white px-7 text-base text-black hover:bg-white/85" asChild><Link href="/download">Download for Windows</Link></Button>
+          <Link href="#how" className="aperture-link text-base text-[#c4c4cc]">See how it works ↓</Link>
         </div>
-
-        <div className="group relative lg:translate-x-8">
-          <div className="pointer-events-none absolute -inset-16 bg-[radial-gradient(circle_at_55%_45%,rgba(255,106,74,0.085),rgba(69,220,203,0.045)_35%,transparent_68%)] opacity-80" />
-          {/*
-            A deliberate crop at 1:1, not a shrunken window. Fitting the whole
-            1600x1000 capture into this column renders its 11px operator text
-            around 4px, which is a picture of an interface rather than an
-            interface. The pixel offsets place the commit boundary panel at the
-            frame's top-left, so what the hero shows is actually readable; the
-            product section below carries the entire screen.
-          */}
-          <div className="relative overflow-hidden rounded-[6px] border border-white/15 bg-[#09090b] shadow-[0_32px_100px_rgba(0,0,0,0.48)]">
-            <div className="flex h-10 items-center justify-between border-b border-white/[0.08] px-4 font-mono text-[11px] text-[#7d7d87]">
-              <span>PYTXO DESKTOP / WORK &mdash; COMMIT BOUNDARY</span>
-              <span className="flex items-center gap-2">
-                <i className="size-1.5 rounded-full bg-[var(--state-verified)]" />LOCAL
-              </span>
-            </div>
-            <div data-testid="hero-product" className="relative aspect-[16/10] overflow-hidden bg-card">
-              <Image
-                src="/product/work-1600x1000.png"
-                alt="The commit boundary panel in Pytxo Desktop: the candidate outcome for run-8f2c and an enforcement receipt reporting workspace isolation enforced, host filesystem and network advisory only, and apply boundary enforced"
-                width={1600}
-                height={1000}
-                className="absolute left-[-940px] top-[-196px] w-[1600px] max-w-none"
-                sizes="1600px"
-                priority
-              />
-            </div>
-            {/*
-              The only spectrum on the site. It is the brand signature, not a
-              state indicator, so it is static and appears exactly once.
-            */}
-            <div className="execution-trace absolute inset-x-0 bottom-0" aria-hidden />
-          </div>
-        </div>
+        {!CANDIDATE_PUBLISHED && <p className="mt-4 text-sm text-[#aaaab3]">Mixed-agent runs arrive in v{CANDIDATE_VERSION}. Today&apos;s download, v{PUBLISHED_VERSION}, runs Codex.</p>}
       </div>
-    </section>
-  );
+
+      <ul className="mx-auto mt-10 flex max-w-5xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-base text-[#d4d4da]" aria-label="Agent CLIs Pytxo runs">
+        <li className="text-[#aaaab3]">With the CLIs you already pay for</li>
+        {AGENTS.map((agent) => <li key={agent.name} className="flex items-center gap-2">
+          {"mark" in agent && <Image src={agent.mark} alt="" width={20} height={20} className="h-5 w-5 object-contain" />}
+          {"mask" in agent && <span aria-hidden className="h-5 w-5 bg-current" style={{ mask: `url(${agent.mask}) center / contain no-repeat` }} />}
+          {agent.name}
+        </li>)}
+      </ul>
+
+      <figure className="mx-auto mt-12 max-w-[78rem]" data-testid="hero-fleet">
+        <div className="overflow-hidden rounded-xl border border-white/10 shadow-[0_40px_120px_-40px_rgba(62,224,208,0.25)]">
+          <Image src="/product/fleet-1600x1000.png" alt="Pytxo Work view of one request split across agents: Codex, Claude Code, Cursor Agent and OpenCode working in parallel, a second Codex task waiting on a file Claude Code owns, and Antigravity queued for the README" width={1600} height={1000} sizes="(min-width: 1280px) 78rem, 100vw" priority className="h-auto w-full" />
+        </div>
+        <figcaption className="mt-3 text-center text-sm text-[#aaaab3]">One request, five agents, each in its own copy of the project. A task that shares a file waits for the agent that owns it. Preview capture.</figcaption>
+      </figure>
+    </div>
+  </section>;
 }

@@ -67,6 +67,9 @@ async fn dispatch_persists_starting_run_before_returning_id() {
     trust_repo(repo.path(), PermissionProfile::Orbit).unwrap();
 
     let (_, run_id) = dispatch(run_opts(repo.path())).expect("dispatch run");
+    // The detached supervisor must retain admission after dispatch returns,
+    // including before this current-thread runtime first polls the worker.
+    assert!(pytxo_core::UpgradeGuard::upgrade().is_err());
 
     let store = PytxoStore::open(&PytxoConfig::default().db_path_at(repo.path())).unwrap();
     let row = store

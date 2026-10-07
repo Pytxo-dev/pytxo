@@ -8,6 +8,8 @@ const channel = process.env.PLAYWRIGHT_CHANNEL || "chrome";
 module.exports = {
   ...base,
   rootDir: path.resolve(__dirname, ".."),
+  // Storybook can emit mixed separators for Windows worktrees inside .claude.
+  testMatch: base.testMatch.map((pattern) => pattern.replace(/\\/g, "/")),
   testEnvironmentOptions: {
     ...base.testEnvironmentOptions,
     "jest-playwright": {

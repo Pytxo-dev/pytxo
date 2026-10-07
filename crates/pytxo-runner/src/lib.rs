@@ -2,6 +2,7 @@
 
 mod arbitrage;
 mod blast;
+mod candidate_verification;
 mod change_set;
 mod context;
 mod enforcement;
@@ -18,6 +19,7 @@ mod overlay_fuse_linux;
 mod overlay_fuse_macos;
 #[cfg(target_os = "windows")]
 mod overlay_projfs;
+pub mod owned_launch;
 mod process;
 mod process_registry_file;
 mod pty;
@@ -28,6 +30,9 @@ pub use arbitrage::ArbitrageProfiler;
 pub use blast::{
     effective_isolation_mode, isolation_backend_label, isolation_for_mode, OverlayIsolation,
     WorktreeIsolation,
+};
+pub use candidate_verification::{
+    refresh_frozen_review_package, require_candidate_verification, CandidateVerification,
 };
 pub use change_set::{
     apply_attempt_ids, apply_prepared_review, apply_prepared_review_under_lease,
@@ -47,13 +52,25 @@ pub use enforcement::{
     VerificationEnforcementReceipt,
 };
 pub use failure::implicated_paths;
-pub use git::{branch_name, create_worktree, merge_agent_branch, remove_worktree};
+pub use git::{
+    branch_name, capture_reviewed_inputs, capture_sealed_output,
+    capture_sealed_output_after_dependency, create_plain_verification_view, create_worktree,
+    materialize_dependency_output, materialize_reviewed_inputs, materialize_sealed_output,
+    merge_agent_branch, prepare_reviewed_worktree, read_reviewed_claim_text,
+    remove_reviewed_worktree_if_owned, remove_routed_verification_views, remove_worktree,
+    require_exact_reviewed_checkout, seal_one_existing_claimed_text_proposal,
+    verify_materialized_dependency_output, verify_materialized_reviewed_inputs,
+    verify_sealed_output_view, ReviewedInputFile, ReviewedInputManifest, SealedOutputFile,
+    SealedOutputSnapshot,
+};
 pub use hitl::{HitlDecision, HitlQueue, HitlRequest};
 pub use hitl_gate::{
     classify_mcp_proxy, classify_risky_command, gate_hitl_action, gate_mcp_proxy,
     gate_spawn_command, workspace_writes_outside_root,
 };
-pub use kill::{kill_pid, process_matches, process_start_identity};
+pub use kill::{
+    file_identity, kill_pid, process_matches, process_start_identity, FileIdentityGuard,
+};
 pub use mcp_hub::{spawn_test_mcp_child, ChildMcpSession, McpHub};
 pub use network_isolation::{
     isolate_deepspace_network, isolation_mechanism, wrap_deepspace_shell_cmd,
@@ -106,6 +123,8 @@ pub fn doctor_overlay_probe() -> pytxo_core::Result<String> {
 }
 pub use race::SwarmRegistry;
 pub use run::{
-    cleanup_worktrees, commit_workspace, execute_plan, stop_all, stop_run, AgentRunOutcome,
-    AgentRunResult, EventCallback, RootExec, RunContext,
+    cleanup_worktrees, commit_workspace, execute_plan, publish_run_cancellation,
+    run_candidate_check, stop_all, stop_run, terminate_published_run, AgentRunOutcome,
+    AgentRunResult, CandidateCheckContext, EventCallback, PublishedRunCancellation, RootExec,
+    RunContext, TaskCommand, TaskCommandTemplate,
 };

@@ -54,9 +54,9 @@ async fn failing_run_retries_only_implicated_file() {
     // Emit a diagnostic mentioning src/bad.rs, then fail. Avoid `>` so Windows
     // cmd does not treat the text as a redirection.
     let fail_cmd = if cfg!(windows) {
-        "echo error at src/bad.rs:1:1 & exit 1"
+        "echo %PYTXO_CONTEXT_DIR% & echo error at src/bad.rs:1:1 & exit 1"
     } else {
-        "echo 'error at src/bad.rs:1:1'; exit 1"
+        "printf '%s\n' \"$PYTXO_CONTEXT_DIR\"; echo 'error at src/bad.rs:1:1'; exit 1"
     };
 
     let plan = ExecutionPlan {
@@ -126,12 +126,10 @@ async fn failing_run_retries_only_implicated_file() {
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].exit_code, Some(1));
 
-    // The retry overwrote the manifest with only the implicated file at High.
-    let manifest = data_dir
-        .join("context")
-        .join(&run_id.0)
-        .join("agent-0")
-        .join("manifest.json");
+    // The retry received a fresh context with only the implicated file at High.
+    let retry_context = std::path::Path::new(results[0].stdout.lines().next().unwrap().trim());
+    assert!(retry_context.to_string_lossy().contains("retry-"));
+    let manifest = retry_context.join("manifest.json");
     let body = std::fs::read_to_string(&manifest).unwrap();
     assert!(
         body.contains("src/bad.rs"),

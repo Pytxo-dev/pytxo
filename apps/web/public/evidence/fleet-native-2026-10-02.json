@@ -1,0 +1,42 @@
+{
+  "schema": "pytxo-evidence-v1",
+  "record": "fleet-native-2026-10-02",
+  "summary": "One request planned into six tasks and run across five agent CLIs by the packaged Windows 1.2.2 candidate, then reviewed, refused once as stale, refreshed and applied.",
+  "candidate": "Pytxo Desktop 1.2.2 candidate, unsigned",
+  "msi_sha256": "0d20d3b8eb5efb8d5c28a8060f6ee55e0ce9289106fefd4fb5e3095cdccecf29",
+  "host": "Windows 11 development host; MSI extracted with msiexec /a, isolated Pytxo state, trust store and WebView2 profile; the project folder chosen through the real Windows folder dialog",
+  "fixture": "docs/demo/fleet (task board app; request in docs/demo/fleet/mission.txt at the time of the run)",
+  "run_status": "completed",
+  "run_started": "2026-10-01T22:31:23Z",
+  "run_finished": "2026-10-01T22:45:51Z",
+  "run_seconds": 868,
+  "plan": { "tasks": 6, "waves": [4, 1, 1], "max_workers": 4 },
+  "workers": [
+    { "task": "mission-0", "cli": "OpenAI Codex", "wave": 1, "exit_code": 0, "task_checks": "passed", "files_prepared": ["src/model.mjs", "test/model.test.mjs"] },
+    { "task": "mission-1", "cli": "Claude Code", "wave": 1, "exit_code": 0, "task_checks": "passed", "files_prepared": ["src/style.css", "src/theme.js"] },
+    { "task": "mission-2", "cli": "Cursor Agent", "wave": 1, "exit_code": 0, "task_checks": "passed", "files_prepared": ["index.html", "src/i18n/es.json"] },
+    { "task": "mission-3", "cli": "OpenCode", "wave": 1, "exit_code": 0, "task_checks": "passed", "files_prepared": [] },
+    { "task": "mission-4", "cli": "Antigravity", "wave": 2, "exit_code": 0, "task_checks": "passed", "files_prepared": [] },
+    { "task": "mission-5", "cli": "OpenAI Codex", "wave": 3, "exit_code": 0, "task_checks": "passed", "files_prepared": ["README.md"] }
+  ],
+  "combined_checks": { "recorded": 6, "passed": 6 },
+  "review": { "files": 7, "files_by_cli": { "OpenAI Codex": 3, "Claude Code": 2, "Cursor Agent": 2 } },
+  "stale_refusal": {
+    "cause": "an untracked operator-note.txt was added to the project after the review was prepared",
+    "refused_digest_prefix": "6e4c2cf6",
+    "files_written": 0
+  },
+  "apply": {
+    "status": "applied",
+    "digest": "2c6b6cac7b14f0467b17cc562079fcf84dc8ff7aa701b17106dd48766dda957b",
+    "applied_at": "2026-10-01T23:00:11Z",
+    "files_written": 7
+  },
+  "fixture_tests_after_apply": { "command": "npm test", "passed": 10, "failed": 0, "baseline_passed": 3 },
+  "limits": [
+    "OpenCode and Antigravity exited 0 with passing task checks but changed no files. OpenCode could not reach its model because workers do not receive host environment keys; Antigravity's headless mode denied a command and stopped. Both causes were addressed after this run and have not yet been re-run natively.",
+    "One run on one development host; not a speed, cost or code-quality comparison with running the same agents directly.",
+    "The candidate was unsigned and run from an extracted payload; clean installation and signed updates are verified separately.",
+    "Host filesystem and network controls were advisory in this Orbit run; Apply wrote only the seven reviewed files."
+  ]
+}

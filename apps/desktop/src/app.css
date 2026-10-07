@@ -8,6 +8,23 @@
 @import "../../../packages/chroma/utilities.css";
 @import "./deck-scroll.css";
 
+/* Brand boundaries are not evidence colors. Activity never means verified. */
+:root {
+  --pytxo-font-ui: "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --pytxo-glyph-cyan: #7ee1ed;
+  --pytxo-glyph-periwinkle: #b4b9ff;
+  --pytxo-glyph-violet: #bd9eef;
+  --pytxo-glyph-warm: #e9bb91;
+  --pytxo-work-canvas: var(--pytxo-surface-shell);
+  --pytxo-work-node: color-mix(in srgb, var(--pytxo-surface-panel) 97%, #e9bb91);
+  --pytxo-work-inspector: var(--pytxo-surface-panel);
+  --pytxo-code-surface: color-mix(in srgb, var(--pytxo-surface-input) 96%, #7188a7);
+  --pytxo-activity: var(--cyan, #45dccb);
+  --pytxo-aperture: linear-gradient(180deg, #b764ed, #45dccb 42%, #f3c64e 72%, #f04da3);
+  --pytxo-aperture-horizontal: linear-gradient(90deg, #b764ed, #45dccb 42%, #f3c64e 72%, #f04da3);
+}
+html[data-chroma-theme="light"] { --pytxo-activity: #11675f; --pytxo-glyph-cyan: #176773; --pytxo-glyph-periwinkle: #5054a4; --pytxo-glyph-violet: #7844a6; --pytxo-glyph-warm: #9a592b; }
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -66,8 +83,8 @@
   --pytxo-surface-shell: var(--pytxo-obsidian);
   --pytxo-surface-panel: var(--pytxo-graphite-1);
   --pytxo-surface-raised: var(--pytxo-graphite-2);
-  --pytxo-surface-hover: #0d0d0f;
-  --pytxo-surface-active: #151518;
+  --pytxo-surface-hover: #18181c;
+  --pytxo-surface-active: #202025;
   --pytxo-surface-input: #09090b;
   --pytxo-text-body: #c7c7ce;
   --pytxo-text-muted: #898993;
@@ -76,12 +93,15 @@
   --pytxo-success: var(--live);
   --pytxo-success-bright: var(--live);
   /* Accent-driven chrome (overridden by data-pytxo-accent) */
-  --pytxo-accent: var(--ink);
-  --pytxo-accent-soft: color-mix(in oklab, var(--ink) 14%, transparent);
+  --pytxo-accent: var(--pytxo-text-strong);
+  --pytxo-accent-soft: color-mix(in oklab, var(--pytxo-text-strong) 14%, transparent);
   --pytxo-accent-ink: var(--void);
   --pytxo-hairline: var(--pytxo-line);
-  --pytxo-control-radius: 4px;
-  --pytxo-panel-radius: 6px;
+  --pytxo-control-radius: 6px;
+  --pytxo-panel-radius: 10px;
+  --pytxo-control-height: 40px;
+  --pytxo-motion-fast: 140ms;
+  --pytxo-motion-ease: cubic-bezier(.2, 0, 0, 1);
 }
 
 html[data-chroma-theme="light"] {
@@ -100,7 +120,7 @@ html[data-chroma-theme="light"] {
   --pytxo-surface-panel: #ffffff;
   --pytxo-surface-raised: #eef1f5;
   --pytxo-surface-hover: #e8ebef;
-  --pytxo-surface-active: #e0f2ef;
+  --pytxo-surface-active: #e4e8ee;
   --pytxo-surface-input: #ffffff;
   --pytxo-text-body: #17202b;
   --pytxo-text-muted: #64748b;
@@ -119,8 +139,8 @@ html[data-pytxo-accent="custom"] {
 }
 
 html[data-pytxo-accent="teal"] {
-  --pytxo-accent: var(--ink);
-  --pytxo-accent-soft: color-mix(in oklab, var(--ink) 14%, transparent);
+  --pytxo-accent: var(--pytxo-text-strong);
+  --pytxo-accent-soft: color-mix(in oklab, var(--pytxo-text-strong) 14%, transparent);
   --pytxo-hairline: var(--pytxo-line);
 }
 
@@ -196,17 +216,29 @@ body {
 
 body {
   margin: 0;
-  font-family: "Satoshi", "Sora", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Sora", ui-sans-serif, system-ui, sans-serif;
   background: var(--background);
   color: var(--text);
 }
 
-/* Explicit in-app override set from Settings → Appearance; layered on top of
-   the OS-level `prefers-reduced-motion` media query used elsewhere. */
-html[data-force-reduced-motion] * {
-  animation-duration: 0.01ms !important;
-  transition-duration: 0.01ms !important;
+/* Settings → General can reduce motion even when the OS does not. Stop
+   infinite loaders as well as transitions, including decorative pseudo-elements. */
+html[data-force-reduced-motion] *,
+html[data-force-reduced-motion] *::before,
+html[data-force-reduced-motion] *::after {
+  animation: none !important;
+  transition: none !important;
   scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Shared panel header — prefer shadcn primitives for new controls */

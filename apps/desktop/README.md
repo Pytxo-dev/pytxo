@@ -1,18 +1,21 @@
 # Pytxo Desktop
 
-Passive telemetry UI for Pytxo: run list, wave agents, xterm log stream, and per-agent git diff.
+Pytxo's optional control UI for preparing delegated work, observing runs,
+reviewing combined candidates and applying approved repository changes.
+Its three destinations are Work, History and Setup.
 
 **Location:** `apps/desktop` in the [pytxo](https://github.com/Pytxo-dev/pytxo) monorepo.
 
-**Requires:** in-tree `pytxo` crates (`pytxo-core`, `pytxo-store`, `pytxo-orchestrate` v0.1.x) via path dependencies.
+**Requires:** the in-tree Pytxo workspace crates via path dependencies.
 
 ## Prerequisites
 
 - Node.js 22+
-- Rust 1.85+ (repo root workspace)
+- Rust 1.88+ (repo root workspace)
 - Tauri system deps on Linux (see root CI workflow)
 
-Run the UI from the **same git repository** where you execute `pytxo run`.
+Choose project folders inside Desktop. The separately installed Pytxo CLI is
+optional for Desktop use.
 
 ## Build
 
@@ -25,12 +28,88 @@ npm run check
 npm run build:native
 ```
 
-The self-contained executable is written to the root workspace's
-`target/release` directory.
+The native development executable is written to the root workspace's
+`target/release` directory. For the Windows distribution MSI, use
+`npm run build:msi` from this directory. It builds voice support and passes the
+shared `.cargo/windows-msvc.toml` policy explicitly to Cargo, so the packaged
+app does not depend on separately installed Visual C++ runtime DLLs. Verify
+the actual package with `tooling/scripts/verify-windows-msi.ps1` and complete
+the clean-machine acceptance in the [release guide](../../docs/07-guides/release-workflow.md).
+
+## Mission workspace and docks
+
+Work keeps the mission, progress, Stop and review actions together. Select an
+agent to inspect its recorded output; Evidence, Files and Dependencies open
+context for the selected run. Agent output is read only. Its default plain-text
+view removes terminal formatting without replaying cursor redraws. Open Source
+details to switch to raw event text; stored records remain unchanged. Files show the frozen
+before/after contents of a prepared package; use the full review to authorize
+Apply. Missing records and failed verification remain visible.
+
+Drag tabs between the right and bottom docks, or use View options to move,
+reorder, pin and focus them. Separators support arrow keys, Shift for larger
+steps, Home/End and Escape to cancel. Layout saves named arrangements and
+resets placement without stopping work. Narrow windows remember their own
+tab order, visibility and height; expanding restores the wide arrangement.
+
+In native Desktop, Sessions → New workspace terminal explicitly starts your
+own shell in the selected project folder. Check its workspace and enable input
+before typing. These commands write directly to your workspace, outside reviewed
+Apply; repository drift still requires a fresh review. Closing or hiding its
+view leaves the shell running. Reopen it from Sessions, or use End session to
+stop it. Desktop warns before a full exit with live sessions. Detached commands
+may continue independently; sessions do not survive a full application exit.
+Restored tabs never restart a shell or restore permission to send input.
+
+Built-in dependency views use recorded plan data. On Windows, Preview opens a
+local server address you explicitly enter. It uses separate browser storage and
+has no Pytxo command connection. Navigation, frames and filtered resource requests
+stay on the selected server; external assets and services may be blocked. This is
+not a general network sandbox or evidence that the displayed page is correct.
+F6 returns keyboard focus to Pytxo. Pause or Close affects the view, not your server.
+If a page fails to load, Retry closes that renderer before reopening the same
+explicitly selected address. A failed close leaves the existing view in place
+and reports the error; it cannot create a second renderer.
+Opening a menu or decision hides the page; saved layouts restore an empty preview
+reference without opening a URL. A shared WebView2 storage override causes refusal
+before navigation. Interactive agent TUIs remain deferred.
 
 ## Architecture
 
-- Tauri IPC calls `pytxo-orchestrate` and `pytxo-store` only.
+- Tauri IPC connects the UI to the local Pytxo orchestration and evidence services.
 - Presentation layer has no direct filesystem access (ADR-0001).
 
 Export artifacts and release staging: see [`../desktop-export/README.md`](../desktop-export/README.md).
+
+
+### Experimental owned-attempt host (development only)
+
+`npm run build:native` includes the `pytxo-attempt-host/1` entry point in the
+Desktop executable. A routed launch must still supply an exact absolute
+SHA-256 pin for that executable; the runner never searches PATH or substitutes
+a shell. The separate `npm run build:attempt-host` debug binary remains useful
+in CI, but is not required by the embedded-host path. Adapter qualification
+must bind the host bytes, protocol, argument lowering, and complete worker
+dependency chain before enabling an adapter. Merely finding either executable
+is not qualification.
+
+From the repository root, run the Windows fixtures in PowerShell after the
+workspace dependencies are cached. The pin applies only to this terminal session:
+
+```powershell
+cargo build -p pytxo-cli --bin pytxo --locked --offline -j1
+if ($LASTEXITCODE -ne 0) { throw "Embedded attempt host build failed" }
+$env:PYTXO_TEST_ATTEMPT_HOST = (Resolve-Path target/debug/pytxo.exe).Path
+$env:PYTXO_TEST_ATTEMPT_HOST_SHA256 = (Get-FileHash -LiteralPath $env:PYTXO_TEST_ATTEMPT_HOST -Algorithm SHA256).Hash.ToLowerInvariant()
+cargo test -p pytxo-runner --locked --offline -j1 -- --test-threads=1
+```
+
+The Windows CI Rust job currently uses the separate debug host with the same
+protocol and pin checks. A missing or changed host fails the tests; they never
+launch a recursive Cargo build or silently substitute another executable.
+
+This opt-in runner primitive is not connected to production routing. The
+embedded entry point removes the need to stage an experimental Tauri sidecar,
+but the installed Desktop package and an actual Codex profile pair still need
+separate native qualification. Current packages must not advertise live Jev
+routing. A local source build does not establish installed-package behavior.

@@ -7,21 +7,8 @@ pub async fn connect(database_url: &str) -> Result<PgPool, sqlx::Error> {
         .connect(database_url)
         .await?;
     let migrator = sqlx::migrate!("./migrations");
-    loop {
-        match migrator.run(&pool).await {
-            Ok(()) => break,
-            Err(sqlx::migrate::MigrateError::VersionMismatch(version)) => {
-                tracing::warn!(
-                    version,
-                    "migration checksum mismatch; repairing row and re-running"
-                );
-                sqlx::query("DELETE FROM _sqlx_migrations WHERE version = $1")
-                    .bind(version)
-                    .execute(&pool)
-                    .await?;
-            }
-            Err(e) => return Err(e.into()),
-        }
-    }
+    // Migration history is evidence. Never delete a checksum mismatch and
+    // silently replay changed SQL, especially across entitlement tables.
+    migrator.run(&pool).await?;
     Ok(pool)
 }

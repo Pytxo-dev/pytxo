@@ -6,14 +6,34 @@ tags: [moc, meta]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-08-29
+updated: 2026-09-22
 related: [[MOC-home]], [[architecture-index]], [[product-vision]], [[commit-layer]], [[permission-profile-engine]], [[execution-domains]], [[modular-projects]], [[pytxo-improvement-research]], [[pytxo-architecture-research]], [[mission-loop]], [[pytxo-commit-layer-alignment]], [[v1-1-architecture]], [[pytxo-v1-1-trustworthy-mission-control]], [[chroma-aperture-identity]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]], [[ADR-0036-effect-contract-commit-boundary]], [[ADR-0037-chroma-aperture-visual-contract]], [[ADR-0038-epistemic-state-contract]], [[ADR-0039-evidence-ledger-visual-contract]], [[ADR-0040-mbcz-merchant-of-record-boundary]], [[dodo-mor-integration]]
 ---
 
 # Pytxo documentation home
 
-**Pytxo** — commit layer for autonomous work; shipping first as a reviewed
-repository boundary for coding agents ([pytxo.com](https://pytxo.com)).
+Approved Desktop implementation: [[astra-flat-desktop-02]] — flat identities,
+four-stage onboarding and the remaining mission/workflow verification sequence.
+
+Current Desktop feedback: [[astra-ui-feedback-2026-09-13]] — dock dragging,
+folder grouping, compact review/setup controls and evidence boundaries.
+Current reassessment: [[desktop-interaction-audit-2026-09-13]] defines the
+truthful core-loop repair; [[modular-project-safety-contract-2026-09-13]]
+separates folder grouping and execution primitives from safe multi-root Apply.
+Current interface-tool research: [[pytxo-interface-upstream-research-2026-09-13]]
+records the verified Motion, Anime.js, Kokonut UI, Bklit UI, and developer-tool
+references behind the reusable Pytxo Desktop interface workflow.
+Website design proposal: [[website-ascii-motion-and-clarity-plan-2026-09-24]]
+records the product-first ASCII motion and content-reduction plan; no site code is changed.
+Versioned implementation contract: [[pytxo-interface-engineering]]; current
+presentation references: [[pytxo-presentation-references-2026-09-14]].
+Local source/capture status: [[pytxo-presentation-acceptance-2026-09-14]];
+repeatable single-repository scenario: [real demo runbook](../demo/README.md).
+Harness identity source and release constraints:
+[[pytxo-final-three-harness-logo-research-2026-09-15]].
+
+**Pytxo** — agent hypervisor for delegated work, with a reviewed repository
+Apply boundary shipping first ([pytxo.com](https://pytxo.com)).
 
 **Thesis:** Let any agent propose; Pytxo controls what may become real, verifies
 the resulting state, and records an honest recovery path ([[product-vision]],
@@ -34,6 +54,17 @@ product thesis.
 repository contract. [[pytxo-commit-layer-alignment]] gates the proposed
 production-effect expansion. [[pytxo-improvement-research]] remains the earlier
 research ledger.
+
+**Current improvement cycle:** [[astra-execution-2026-09-07]] records scoped
+research decisions, implementation ownership, acceptance evidence, and release gates.
+[[astra-local-preview-boundary-2026-09-13]] prepares the isolated local-preview renderer decision; it is not enabled.
+[[astra-evidence-2026-09-07]] retains actual checks and unsuccessful native attempts.
+[[astra-desktop-polish-2026-09-08]] records the current layout details and appearance-persistence repair.
+[[astra-desktop-menus-2026-09-09]] records the subsequent menu, sidebar, draft and keyboard workflow improvements.
+[[reference-led-review-2026-09-10]] records public workflow references and the verified Work → Review → Apply hierarchy pilot.
+[[astra-native-finish-2026-09-10]] records its real native mission, ownership/Git repairs, current package and remaining acceptance gates.
+[[astra-release-proposal-2026-09-07]] prepares the owner actions and publication
+sequence without authorizing external writes.
 
 ---
 
@@ -63,6 +94,10 @@ research ledger.
 
 ### Architecture
 
+- [[2026-09-22-jev-routing-design]] — revised Jev proposal with exact profiles, attempt state machine, handoff/service contracts and rollout; design only
+- [[2026-09-22-jev-routing-stress-review]] — source-backed integration findings and required versus preserved changes
+- [[2026-09-22-jev-routing-benchmark]] — frozen rules-versus-Jev comparison, quality/cost gates and power limits; not yet run
+- [[experimental-claude-proposal-route]] — gated local Desktop route for one reviewed Claude subscription proposal; no Jev send
 - [[architecture-index]] — [[three-tier-model]], [[context-diagram]], [[c4-container]]
 - [[commit-layer]] — effect contracts, prepare/commit, independent verification, evidence, and recovery
 - [[v1-1-architecture]] — immutable review bytes, execution-domain serialization, journaled Apply, and exact limits
@@ -101,6 +136,7 @@ research ledger.
 ### Product
 
 - [[product-vision]]
+- [[positioning]] — October 2026 market, wedge, message hierarchy, product language and allowed claims
 - [[pytxo-commit-layer-alignment]] — three-phase falsification, shadow, and gated-production plan
 - [[modular-projects]] — multi-path workspaces (Antigravity-style)
 - [[tiers-hobbyist-pro-max]] · [[token-arbitrage]]
@@ -122,6 +158,10 @@ research ledger.
 - [[ADR-0036-effect-contract-commit-boundary]] — proposed effect-contract expansion beyond repository Apply
 - [[ADR-0037-chroma-aperture-visual-contract]] — shared website and Desktop presentation contract
 - [[competitive-landscape-2026-07]] — primary-source competitor map + GTM compare priorities (2026-07)
+- [[beta-competitor-research-2026-09-05]] — fresh competitor evidence, single-harness value, and testable Beta differentiation
+- [[beta-ux-audit-2026-09-05]] — single-harness onboarding, task evidence, and remaining Beta proof gaps
+- [[beta-core-audit-2026-09-05]] — verifier Stop ownership, durable cancellation, and remaining core proof gaps
+- [[beta-dependency-audit-2026-09-06]] — current lockfile fixes and retained dependency warnings
 
 ### ADRs
 

@@ -1,5 +1,6 @@
 ---
 title: Blast Shield
+description: How Pytxo isolates agent writes, prepares immutable packages, and gates reviewed Apply.
 ---
 
 **Blast Shield** keeps eligible agent writes outside your primary repository
@@ -39,8 +40,9 @@ workspace.
 ## Drift, retry, and recovery
 
 Before mutation, Pytxo compares each affected path with its recorded preimage.
-Unrelated dirty checkout files are allowed. Drift on an affected path marks
-the review stale; Refresh prepares a new package.
+The v1.2.2 preview also checks the included source inventory bound to combined
+verification. Changes to included files, even outside the edited paths, can
+make the review stale. Refresh prepares and checks a new candidate.
 
 Every attempt records backups, operations, temporary paths, progress, and phase
 under `.pytxo/data/apply/<run-id>/<attempt-id>/`. Pytxo reconciles an
@@ -56,8 +58,8 @@ keeping the manifest and audit history.
 
 ## Permission profiles and limits
 
-DeepSpace is non-flushable. Supernova writes directly to the host tree and has
-no reviewed Apply step.
+DeepSpace is **Apply denied** (not eligible; internally non-flushable).
+Supernova writes directly to the host tree and has no reviewed Apply step.
 
 v1.1 does not provide cross-root transactions or partial-file acceptance. The
 journal supports automatic process-crash recovery; it is not a power-loss ACID
@@ -67,4 +69,4 @@ boundary.
 
 Run `pytxo doctor` and check `overlay_isolation` if you use overlay mode.
 
-Back: [Three moats](/docs/concepts/three-moats)
+Back: [Safety and coordination model](/docs/concepts/three-moats) · [Review and Apply](/docs/getting-started/review-and-apply)

@@ -1,13 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { DISCORD_URL, GITHUB_URL } from "@/lib/site";
+import { DISCORD_URL, GITHUB_URL, SOURCE_URL } from "@/lib/site";
 
 const PRODUCT_LINKS = [
   { href: "/download", label: "Download" },
   { href: "/evidence", label: "Evidence" },
   { href: "/plans", label: "Plans" },
-  { href: "/account", label: "Account" },
 ] as const;
 
 const DOCS_LINKS = [
@@ -17,7 +16,8 @@ const DOCS_LINKS = [
 ] as const;
 
 const RESOURCE_LINKS = [
-  { href: GITHUB_URL, label: "GitHub", external: true },
+  { href: SOURCE_URL, label: "Source on GitHub", external: true },
+  { href: GITHUB_URL, label: "Binaries on GitHub", external: true },
   { href: DISCORD_URL, label: "Discord", external: true },
   { href: "/docs/reference/cli", label: "CLI reference" },
 ] as const;
@@ -33,7 +33,7 @@ export function SiteFooter() {
               <p className="font-semibold tracking-tight">Pytxo</p>
             </div>
             <p className="text-sm leading-relaxed text-[#7d7d87]">
-              The local commit layer for coding agents. Open-source Rust core with optional Desktop operations.
+              The agent hypervisor for your repository. Many coding agents, one verified change.
             </p>
           </div>
 

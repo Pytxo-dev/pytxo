@@ -1,0 +1,191 @@
+name: Desktop acceptance (cloud Windows)
+
+# Native acceptance of the candidate MSI on disposable GitHub-hosted Windows
+# runners: clean install, the full mixed-agent journey with deterministic
+# stand-in agent CLIs, 150%/200% layout passes, and a retained-data upgrade from
+# the public v1.2.1. Nothing here runs on a developer machine, signs, tags or
+# publishes. Stand-in agents prove Pytxo's own behavior, not vendor agents.
+# Manual only: Windows minutes are billed double; trigger when a candidate is ready.
+on:
+  workflow_dispatch:
+    inputs:
+      journey:
+        description: "Run the install, mixed-agent journey and layout passes (Windows minutes)"
+        type: boolean
+        default: true
+      update:
+        description: "Prove the in-app update from v1.2.1 to the candidate (Windows minutes)"
+        type: boolean
+        default: false
+      upgrade:
+        description: "Also run the v1.2.1 retained-data upgrade (Windows minutes)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: desktop-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate:
+    if: github.repository == 'Pytxo-dev/pytxo'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      run_id: ${{ steps.find.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # A pinned run id reuses an already built candidate while acceptance
+      # scripts change; otherwise use this exact commit's finished build-only
+      # run. Run desktop-candidate.yml first: waiting here would bill a Linux
+      # runner for the whole Windows build.
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pinned="$(tr -d '[:space:]' < tooling/acceptance/candidate-run.txt 2>/dev/null || true)"
+          if [ -n "$pinned" ]; then
+            echo "Using pinned candidate run $pinned"
+            echo "run_id=$pinned" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          row="$(gh run list -R "$GITHUB_REPOSITORY" --workflow desktop-candidate.yml --commit "$GITHUB_SHA" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          [ -n "$row" ] || { echo "::error::No successful desktop-candidate.yml run for $GITHUB_SHA. Run it first, then this workflow."; exit 1; }
+          echo "run_id=$row" >> "$GITHUB_OUTPUT"
+
+  install-and-journey:
+    needs: candidate
+    if: inputs.journey
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Install UI Automation, screen recording and the Edge driver
+        run: |
+          python -m pip install --disable-pip-version-check --quiet pywinauto==0.6.9 pillow imageio-ffmpeg
+          npm ci --prefix apps/desktop
+      - name: Download the candidate MSI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download ${{ needs.candidate.outputs.run_id }} -R $env:GITHUB_REPOSITORY -p "desktop-candidate-*" -D candidate
+      - name: Clean install, mixed-agent journey, 150% and 200% layout
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem candidate -Recurse -File -Filter *.msi | Where-Object { $_.FullName -notmatch '\\payload\\' } | Select-Object -First 1
+          ./tooling/acceptance/run-acceptance.ps1 -Msi $msi.FullName -Evidence acceptance
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-acceptance-${{ github.sha }}
+          path: acceptance/
+          if-no-files-found: warn
+          retention-days: 14
+
+  upgrade:
+    needs: candidate
+    if: inputs.upgrade
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - run: python -m pip install --disable-pip-version-check --quiet pywinauto==0.6.9 pillow
+      - name: Download the candidate MSI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download ${{ needs.candidate.outputs.run_id }} -R $env:GITHUB_REPOSITORY -p "desktop-candidate-*" -D candidate
+      - name: Upgrade from public v1.2.1 with retained data
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem candidate -Recurse -File -Filter *.msi | Where-Object { $_.FullName -notmatch '\\payload\\' } | Select-Object -First 1
+          ./tooling/acceptance/upgrade.ps1 -Msi $msi.FullName -Evidence upgrade
+      - name: Upload upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-upgrade-${{ github.sha }}
+          path: upgrade/
+          if-no-files-found: warn
+          retention-days: 14
+
+  update:
+    needs: candidate
+    if: inputs.update
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - run: python -m pip install --disable-pip-version-check --quiet pywinauto==0.6.9 pillow
+      - name: Download the candidate MSI and its updater signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download ${{ needs.candidate.outputs.run_id }} -R $env:GITHUB_REPOSITORY -p "desktop-candidate-*" -D candidate
+      - name: In-app update from public v1.2.1 to the candidate
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem candidate -Recurse -File -Filter *.msi | Where-Object { $_.FullName -notmatch '\\payload\\' } | Select-Object -First 1
+          ./tooling/acceptance/update-proof.ps1 -Msi $msi.FullName -Evidence update-proof
+      - name: Upload update evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-update-${{ github.sha }}
+          path: update-proof/
+          if-no-files-found: warn
+          retention-days: 14
+
+  footage:
+    needs: install-and-journey
+    if: always() && needs.install-and-journey.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: desktop-acceptance-${{ github.sha }}
+          path: acceptance
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+      - name: Assemble the continuous journey recording
+        run: |
+          cd acceptance/journey 2>/dev/null || { echo "No journey recorded"; exit 0; }
+          # The native screen recording keeps wall-clock timestamps; start it at zero.
+          if [ -f screen.mkv ]; then
+            ffmpeg -hide_banner -loglevel error -i screen.mkv -vf "setpts=PTS-STARTPTS,format=yuv420p" -r 30 -c:v libx264 -crf 16 -movflags +faststart -y screen.mp4
+          fi
+          if [ -f result-frames.txt ]; then
+            ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i result-frames.txt -vf "fps=60,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p" -c:v libx264 -crf 16 -movflags +faststart -y result-frames.mp4
+          fi
+          for take in *.mp4; do echo "$take: $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$take")s"; done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-acceptance-footage-${{ github.sha }}
+          path: |
+            acceptance/journey/*.mp4
+            acceptance/journey/*.json
+          if-no-files-found: ignore
+          retention-days: 14

@@ -6,11 +6,30 @@ tags: [meta]
 audience: [human]
 layer: meta
 created: 2026-06-02
-updated: 2026-08-29
+updated: 2026-09-06
 related: [[MOC-home]]
 ---
 
 # Documentation changelog
+
+## 2026-09-06 (unreleased Beta source candidate)
+
+- [fixed] Candidate refresh preserves missing-event failures and runs outside
+  Desktop's event thread; approvals require a saved audit for the originating
+  actor. [[beta-candidate-audit-2026-09-05]] records the independent review.
+- [changed] Recut the 52-second demo around real single-worker v3 native evidence;
+  source capture hashes, silent-master checks and inspected final frames are recorded.
+- [fixed] Updated web/Desktop development dependencies and the demo's URI parser;
+  [[beta-dependency-audit-2026-09-06]] records both web lockfiles, remaining
+  Storybook development findings and existing Rust exceptions.
+- [added] [[beta-readiness-plan-2026-09-05]] and independent competitor, core,
+  UX and combined-candidate audit notes, with real one-worker Codex and native
+  Review/Apply evidence under `tooling/benchmarks/results/` and `docs/_attachments/`.
+- [changed] First-mission instructions, `DEMO.md` and benchmark notes explain
+  version 3 combined verification, source-inventory drift, explicit refresh,
+  local-only telemetry and unmeasured comparative results.
+- [fixed] Replaced obsolete checkpoint/release assumptions with current source
+  gates and clearly separated native executable proof from installer readiness.
 
 ## 2026-08-29 (v1.2.0)
 

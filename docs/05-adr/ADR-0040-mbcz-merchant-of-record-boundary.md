@@ -7,7 +7,7 @@ tags: [adr, billing, commercial, security]
 audience: [human, agent]
 layer: cloud
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-15
 related: [[ADR-0021-billing-source-of-truth]], [[ADR-0009-ultra-managed-metering]], [[dodo-mor-integration]]
 ---
 
@@ -15,8 +15,9 @@ related: [[ADR-0021-billing-source-of-truth]], [[ADR-0009-ultra-managed-metering
 
 ## Status
 
-Proposed. This does not change the v1.2.1 runtime or authorize a live billing
-cutover.
+Proposed. Provider-neutral reconciliation and a dark Dodo ingress now exist as
+foundational source code. This does not authorize test-mode activation, a live
+billing cutover, or deployment.
 
 ## Context
 
@@ -50,15 +51,18 @@ The browser never supplies a tier that Link treats as authority.
 Dodo sends webhooks to a Pytxo-domain endpoint. Pytxo Web forwards the raw body
 and the `webhook-id`, `webhook-signature`, and `webhook-timestamp` headers to a
 Dodo adapter in Link. Link verifies the provider signature and freshness,
-applies business, brand, product, and price allowlists, then persists the event,
+applies business, brand, and product allowlists, then persists the event,
 customer binding, per-subscription grant, and effective entitlement in one
 transaction. The normalized event contract contains:
 
-- issuer, schema version, event ID, provider occurrence time, and lifecycle state;
-- Pytxo user or organization identity established during checkout;
-- provider, merchant brand ID, customer ID, and subscription ID;
-- canonical plan key and lifecycle state;
-- original provider event reference for audit, without raw payment data.
+- provider, event ID and type, provider occurrence time, and lifecycle state;
+- customer and subscription IDs plus the Pytxo principal established at checkout;
+- canonical plan key and optional end of paid access;
+- no raw provider payload or payment details.
+
+Business and brand identity are verified in the Dodo adapter before this
+provider-neutral boundary. The product ID is accepted only through Link's
+server-side product-to-plan catalog.
 
 Link owns the canonical mapping from plan key to Pytxo capabilities. Payment
 events may lower or restore a commercial entitlement, but can never bypass
@@ -69,16 +73,18 @@ domains, or reviewed Apply.
 
 Event IDs are unique. Duplicate delivery returns success without repeating the
 entitlement effect. Link must not assume Dodo supplies a monotonic sequence.
-It uses documented event/object timestamps, lifecycle precedence, and, where
-ambiguity remains, a current-subscription lookup before changing access. Unknown
-or stale events never upgrade access.
+It uses documented event/object timestamps and lifecycle state. Ambiguous,
+unknown, or stale events do not upgrade access. A future repair/reconciliation
+job may use provider reads, but webhook acknowledgement does not depend on a
+second network call.
 
 Each provider subscription produces its own grant. Link recomputes the effective
 user or organization tier across active grants, so cancelling a legacy Paddle
-subscription cannot revoke a valid Dodo subscription. Scheduled cancellation,
-on-hold, recovery, expiry, refund, and dispute states have explicit policies;
-`subscription.cancelled` is not treated as immediate loss when service remains
-valid through the paid period. Logs carry opaque IDs and outcomes, never billing
+subscription cannot revoke a valid Dodo subscription. Explicit Link admin
+provisioning remains a higher-priority Pytxo-owned override. Scheduled cancellation,
+on-hold, recovery, and expiry have explicit conservative policies. Refund and
+dispute signals need a documented normalized policy before cutover; unsupported
+event shapes fail closed. Logs carry opaque IDs and outcomes, never billing
 payloads or personal data.
 
 Paddle and Dodo can coexist during migration, but both adapters must call the

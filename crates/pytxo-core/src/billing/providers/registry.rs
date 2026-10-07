@@ -192,7 +192,12 @@ static PROVIDERS: &[ProviderSpec] = &[
         openai_base_url: Some("https://api.deepseek.com/v1"),
         models_url: Some("https://api.deepseek.com/models"),
         openai_compatible: true,
-        static_models: &["deepseek-chat", "deepseek-reasoner"],
+        static_models: &[
+            "deepseek-flash",
+            "deepseek-v4-pro",
+            "deepseek-chat",
+            "deepseek-reasoner",
+        ],
     },
     ProviderSpec {
         id: ProviderId::Mistral,

@@ -1,8 +1,40 @@
-import type { RunApplyError } from "./types";
+import type { AgentDto, RunApplyError, RunDto, RunReviewDto } from "./types";
+
+/** Planned agent labels are not runtime identities: dispatch may reorder tasks. */
+/**
+ * The CLI whose recorded worker prepared a task's files, when the run put more
+ * than one CLI to work. Single-CLI runs and unknown launchers name nobody.
+ */
+export function recordedCliFor(
+  agents: AgentDto[],
+  run: Pick<RunDto, "id" | "domain_id">,
+  taskId: string,
+): string | null {
+  const recorded = agents.filter((agent) => agent.domain_id === run.domain_id && agent.run_id === run.id);
+  if (new Set(recorded.map((agent) => agent.launcher?.id).filter(Boolean)).size < 2) return null;
+  const owners = recorded.filter((agent) => agent.task_id === taskId);
+  return owners.length === 1 ? owners[0].launcher?.display_name ?? null : null;
+}
+
+export function recordedWorkerLabel(
+  agents: AgentDto[],
+  run: Pick<RunDto, "id" | "domain_id">,
+  taskId: string,
+): string {
+  const recorded = agents.filter((agent) =>
+    agent.domain_id === run.domain_id && agent.run_id === run.id && agent.task_id === taskId,
+  );
+  if (recorded.length !== 1 || !recorded[0].id) return "Worker not recorded";
+  const { id } = recorded[0];
+  const prefix = `${run.id}:`;
+  return (id.startsWith(prefix) ? id.slice(prefix.length) : id) || "Worker not recorded";
+}
 
 export type ReviewSurfaceState =
   | "preparing"
   | "ready"
+  | "verification_required"
+  | "nothing_to_apply"
   | "stale"
   | "retryable_failure"
   | "applying"
@@ -27,6 +59,8 @@ export type ReviewContractState = {
   apply_status: string;
   recovery_state: string | null;
   last_apply_error: RunApplyError | null;
+  candidate_verified: boolean;
+  prepared_file_count: number | null;
 };
 
 export type ReviewPresentation = {
@@ -66,8 +100,8 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
     case "preparing":
       return {
         state: "preparing",
-        title: "Preparing immutable review",
-        detail: "Pytxo is packaging exact changes and ownership evidence.",
+        title: "Preparing review",
+        detail: "Pytxo is collecting the changed files and their check results.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -75,10 +109,34 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
         busy: true,
       };
     case "ready":
+      if (contract.prepared_file_count === 0) {
+        return {
+          state: "nothing_to_apply",
+          title: "Nothing to Apply",
+          detail: "The agents finished without changing any files.",
+          primaryAction: null,
+          primaryLabel: null,
+          applyAllowed: false,
+          discardAllowed: true,
+          busy: false,
+        };
+      }
+      if (!contract.candidate_verified) {
+        return {
+          state: "verification_required",
+          title: "Checks needed before Apply",
+          detail: "The checks have not passed on the combined changes. Run them before Apply.",
+          primaryAction: "refresh",
+          primaryLabel: "Run checks",
+          applyAllowed: false,
+          discardAllowed: true,
+          busy: false,
+        };
+      }
       return {
         state: "ready",
         title: "Ready to Apply",
-        detail: "The prepared package matches the reviewed base revision.",
+        detail: "Checks passed, and the project still matches what the agents started from.",
         primaryAction: "apply",
         primaryLabel: "Apply reviewed changes",
         applyAllowed: true,
@@ -89,7 +147,9 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "stale",
         title: "Review is stale",
-        detail: "Affected checkout paths changed after this package was prepared.",
+        // Freshness covers the whole project, not only the reviewed paths: any
+        // added or edited file can change what the recorded checks proved.
+        detail: "Project files changed after this package was prepared. Refresh to recheck it against the current files.",
         primaryAction: "refresh",
         primaryLabel: "Refresh review",
         applyAllowed: false,
@@ -99,8 +159,8 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
     case "applying":
       return {
         state: "applying",
-        title: "Applying reviewed changes",
-        detail: "One atomic Apply is in progress. A second Apply is blocked.",
+        title: "Applying changes",
+        detail: "Writing the reviewed files. Another Apply cannot start until this one finishes.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -111,7 +171,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "applied",
         title: "Applied successfully",
-        detail: "The reviewed package was applied to the primary checkout.",
+        detail: "The reviewed files were written to your project.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -121,10 +181,10 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
     case "review_failed":
       return {
         state: "review_failed",
-        title: "Review preparation failed",
+        title: "Could not prepare the review",
         detail:
           contract.last_apply_error?.message ??
-          "The immutable package could not be prepared or validated.",
+          "Pytxo could not collect or check the changed files.",
         primaryAction: "refresh",
         primaryLabel: "Retry preparation",
         applyAllowed: false,
@@ -137,9 +197,9 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
         title: "Recovery required",
         detail:
           contract.last_apply_error?.message ??
-          "Apply is blocked until recovery is reconciled.",
+          "An earlier Apply was interrupted. Recover before applying again.",
         primaryAction: "reconcile",
-        primaryLabel: "Reconcile recovery",
+        primaryLabel: "Recover",
         applyAllowed: false,
         discardAllowed: false,
         busy: false,
@@ -148,7 +208,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "discarded",
         title: "Review discarded",
-        detail: "The staged package and retained agent workspaces were removed.",
+        detail: "The prepared files and the agents' working copies were removed.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -159,7 +219,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "non_flushable",
         title: "Apply unavailable in DeepSpace",
-        detail: "This permission profile never flushes isolated changes to the host.",
+        detail: "DeepSpace runs never write to your project.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -170,7 +230,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "not_applicable",
         title: "Apply not applicable",
-        detail: "This run wrote directly to the host under its effective profile.",
+        detail: "This run wrote directly to your project, so there is nothing to Apply.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -181,7 +241,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "unsupported",
         title: "Review unsupported",
-        detail: "This run does not have a single-root immutable review package.",
+        detail: "This run cannot be reviewed as one set of changes.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -192,7 +252,7 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
       return {
         state: "unavailable",
         title: "Review unavailable",
-        detail: "No prepared review contract is available for this run.",
+        detail: "This run has no prepared changes to review.",
         primaryAction: null,
         primaryLabel: null,
         applyAllowed: false,
@@ -227,4 +287,14 @@ export function advanceDomainCursor(
     needsSnapshot: page.cursor_gap,
     continueCatchUp: page.has_more,
   };
+}
+
+/** Presentation availability only; opening a review never authorizes Apply. */
+export function canOpenRunReview(run: RunDto | null, providedReview: RunReviewDto | null = null): boolean {
+  if (!run) return false;
+  const review = providedReview?.run_id === run.id ? providedReview : null;
+  return !!run.prepared_digest || !!review?.prepared_digest || !!review?.prepared_manifest ||
+    ["ready", "stale", "applied", "applying", "recovery_required", "discarded"].includes(
+      (review?.apply_status ?? run.apply_status ?? "").toLowerCase(),
+    );
 }

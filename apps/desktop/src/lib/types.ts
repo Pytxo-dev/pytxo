@@ -17,6 +17,66 @@ export type RunDto = {
   prepared_at: string | null;
   last_apply_error: RunApplyError | null;
   recovery_state: string | null;
+  /** Durable routed journal revision; null for legacy runs. */
+  routing_revision: string | null;
+};
+
+export type RoutingDisplayRole = "everyday" | "strong";
+export type RoutingDisplayTaskState = "waiting_dependencies" | "ready" | "waiting_input" | "active" | "succeeded" | "failed" | "blocked_dependency" | "cancelled" | "recovery_required";
+export type RoutingDisplayAttemptState = "admitted" | "preparing" | "launching" | "running" | "sealing" | "verifying" | "passed" | "failed" | "failed_no_launch" | "cancelled" | "recovery_required";
+export type RoutingDisplayReason = "blocked" | "manual" | "required" | "mechanical_everyday" | "strong_default" | "advice_everyday" | "strong_repair";
+export type RoutingDisplayBlocker = "disabled" | "cancelled" | "scope_drift" | "failed_prerequisite" | "ownership_unresolved" | "budget_exhausted" | "preferred_unavailable" | "invalid_policy" | "stale_catalog" | "invalid_contract" | "capacity_unavailable" | "conflicting_requirement" | "repair_not_allowed";
+export type RoutingDisplaySelection =
+  | { kind: "selected"; role: RoutingDisplayRole }
+  | { kind: "wait_for_capacity"; role: RoutingDisplayRole }
+  | { kind: "blocked"; code: RoutingDisplayBlocker };
+export type RoutingDisplayDecision = {
+  selection: RoutingDisplaySelection;
+  reason: RoutingDisplayReason;
+  advice_status: "not_used" | "invalid_or_stale" | "shadow_recorded" | "applied" | "rules_fallback";
+};
+export type RoutingDisplayAttempt = {
+  attempt_id: string;
+  agent_id: string;
+  ordinal: number;
+  predecessor_id: string | null;
+  state: RoutingDisplayAttemptState;
+  role: RoutingDisplayRole;
+  decision: RoutingDisplayDecision;
+  profile_id: string;
+  harness_id: string;
+  billing_mode: "subscription" | "api" | "local" | "managed";
+  handoff_referenced: boolean;
+  sealed_output_recorded: boolean;
+  checks_receipt_recorded: boolean;
+  usage_status: "unreported" | "known" | "estimated" | "unknown";
+  ownership_released: boolean;
+  admitted_at_ms: string;
+  updated_at_ms: string;
+};
+export type RoutingDisplayTask = {
+  task_id: string;
+  state: RoutingDisplayTaskState;
+  dependency_task_ids: string[];
+  current_attempt_id: string | null;
+  winning_attempt_id: string | null;
+  last_decision: RoutingDisplayDecision | null;
+  pre_admission: {
+    ordinal: number;
+    decision: RoutingDisplayDecision;
+    outcome:
+      | { kind: "pending" }
+      | { kind: "not_admitted"; stage: "capacity_unavailable" | "admission_rejected" | "cancelled" | "superseded" | "unknown" };
+  } | null;
+  attempts: RoutingDisplayAttempt[];
+};
+export type RoutingDisplaySummary = {
+  domain_id: string;
+  run_id: string;
+  routing_revision: string;
+  mode: "disabled" | "rules" | "shadow" | "live";
+  cancelled: boolean;
+  tasks: RoutingDisplayTask[];
 };
 
 export type AgentDto = {
@@ -29,6 +89,10 @@ export type AgentDto = {
   status: string;
   exit_code: number | null;
   root_id: string | null;
+  /** Exact saved registry command match; never inferred from a task alias. */
+  launcher?: { id: string; display_name: string } | null;
+  /** Persisted agent worktree/review source; not a live cwd or existence check. */
+  workspace_path?: string | null;
 };
 
 export type RunApplyManifest = {
@@ -116,6 +180,14 @@ export type PreparedRunManifest = {
   package_digest: string;
   summary: PreparedRunSummary;
   files: PreparedRunFile[];
+  candidate_verification?: {
+    version: number;
+    verified_at: string;
+    exclusions: string[];
+    base_inventory: { path: string; sha256: string; mode: number | null }[];
+    candidate_inventory: { path: string; sha256: string; mode: number | null }[];
+    checks: { task_id: string; command: string; effective_profile: string; passed: boolean; enforcement: unknown }[];
+  } | null;
 };
 
 export type DomainChangeDto = {
@@ -219,7 +291,7 @@ export type AdeCliStatusDto = {
   display_name: string;
   default_cmd: string;
   installed: boolean;
-  auth_state: "signed_in" | "signed_out" | "unknown" | "not_applicable" | "not_installed";
+  auth_state: "signed_in" | "signed_out" | "unknown" | "vendor_managed" | "detected_only" | "not_applicable" | "not_installed";
   auth_label: string;
   auth_owner: string;
   login_supported: boolean;
@@ -303,9 +375,16 @@ export type PytxoIpcError = {
 };
 
 export type FlowStatus = "draft" | "transcribing" | "planning" | "ready" | "blocked" | "dispatching" | "dispatched" | "failed";
-export type FlowDraftInput = { id: string; title: string; mission_text: string; source: "text" | "voice"; domain_id: string | null; project_id: string | null; ade_id: string | null };
+export type FlowDraftInput = { id: string; title: string; mission_text: string; source: "text" | "voice"; domain_id: string | null; project_id: string | null; ade_id: string | null; ade_ids?: string[]; task_ades?: Record<string, string>; max_workers?: number; verification_commands?: string[] };
+export type ReviewedDemandFacts = { task_kind: "documentation" | "formatting" | "rename" | "local_transformation" | "diagnosis" | "architecture" | "other"; context_complete: boolean; cross_component_requirement: boolean | null; repeatable_symptom_supplied: boolean | null; specific_cause_hypothesis_supplied: boolean | null };
 export type FlowDraftRecord = { id: string; title: string; mission_text: string; source: string; domain_id: string | null; project_id: string | null; status: string; plan_json: string | null; dispatched_run_id: string | null; created_at: string; updated_at: string };
-export type FlowPlan = { draft_id: string; domain_id: string; project_id: string | null; status: "ready" | "blocked"; tasks: { id: string; agent: string; prompt: string; paths: string[]; dependencies: string[]; root: string | null; verify?: string[] }[]; waves: string[][]; permission_profile: string; isolation_mode: string; isolation_backend_intent: string; execution_backend: string; ade: { requested: string | null; available: boolean; installed: string[]; command: string | null }; warnings: { code: string; message: string }[]; blocked_reasons: unknown[]; estimated_tokens: number | null; estimated_cost_usd: number | null; previewed_at: string };
+export type RoutedAdvisorPacketPreview = { domain_id: string; run_id: string; task_id: string; reviewed_consent_revision: number; recipient_identity: string; packet_digest: string; request_digest: string; request_body: number[] };
+export type ProposedHostedAdvisorPacketPreview = { domain_id: string; run_id: string; task_id: string; source_review_recipient_identity: string; recipient_identity: string; scope_digest: string; packet_digest: string; wire_schema_version: number; decision_kind: string; question_set_version: string; packet_body: number[] };
+export type ReviewedHostedAdvisorPacketPreview = { domain_id: string; store_db_file_identity: string; run_id: string; task_id: string; reviewed_consent_revision: number; recipient_identity: string; scope_digest: string; packet_digest: string; request_digest: string; wire_schema_version: number; decision_kind: string; question_set_version: string; packet_body: number[]; recordable_shadow_context: boolean };
+export type RoutingHostedGrantStatus = { domain_id: string; workspace_id: string; account_id: string; link_origin: string; recipient_identity: string; scope_digest: string; state: "grant_pending" | "enabled" | "revoke_pending" | "revoked"; remote_revision: number | null };
+export type RoutedFlowReviewSummary = { authorization: { run_id: string; limits: { max_attempts: number } }; mission_digest: string };
+export type RoutedAdvisorConsentStatus = { domain_id: string; revision: number; enabled: boolean; current_scope: boolean; recipient_identity: string; updated_at_ms: number };
+export type FlowPlan = { draft_id: string; domain_id: string; project_id: string | null; status: "ready" | "review_only" | "blocked"; tasks: { id: string; agent: string; prompt: string; paths: string[]; dependencies: string[]; root: string | null; verify?: string[]; ade_id?: string | null }[]; waves: string[][]; max_workers: number; permission_profile: string; isolation_mode: string; isolation_backend_intent: string; execution_backend: string; ade: { requested: string | null; available: boolean; installed: string[]; command: string | null }; warnings: { code: string; message: string }[]; blocked_reasons: unknown[]; estimated_tokens: number | null; estimated_cost_usd: number | null; previewed_at: string; routing?: RoutedFlowReviewSummary | null };
 export type VoiceState = "idle" | "recording" | "paused" | "transcribing" | "ready" | "cancelled" | "failed";
 export type VoiceSessionDto = { session_id: string; device: string; language: string; state: VoiceState; elapsed_ms: number; buffered_samples: number; confidence: number | null; transcript_segments: { text: string; confidence: number; uncertain: boolean }[]; error: string | null };
 export type VoiceProgressEvent =
@@ -314,3 +393,14 @@ export type VoiceProgressEvent =
   | { kind: "transcription_progress"; session_id: string; progress: number }
   | { kind: "partial_transcript"; session_id: string; text: string; confidence: number };
 export type VoiceModel = { id: string; url: string; sha256: string; multilingual: boolean };
+
+/** Read-only agent proposal for splitting one request into owned tasks. */
+export interface SplitDraft {
+  ade_id: string;
+  tasks: { text: string; files: string[] }[];
+  /** One `<task> | files: a, b` line per task, ready for Build plan. */
+  mission_text: string;
+  /** null when the project is not a Git repository and could not be compared. */
+  project_changed: boolean | null;
+  elapsed_ms: number;
+}

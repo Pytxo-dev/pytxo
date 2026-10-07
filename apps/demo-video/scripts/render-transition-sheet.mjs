@@ -5,7 +5,7 @@ import {fileURLToPath} from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(here, "..");
-const frames = [112, 119, 120, 389, 390, 809, 810, 914, 922, 1169, 1170, 1402, 1409];
+const frames = [119, 120, 389, 390, 809, 810, 989, 990, 1169, 1170, 1409, 1410, 1559];
 const selection = frames.map((frame) => `eq(n\\,${frame})`).join("+");
 
 const result = spawnSync(

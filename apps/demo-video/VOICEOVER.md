@@ -5,7 +5,7 @@ paragraph as one continuous track. Do not split it into scene clips, paraphrase 
 spoken calls to action. Pronounce **Pytxo** as “PIT-so”.
 
 <!-- NARRATION_START -->
-One mission can involve several coding agents. Pytxo plans who owns each path, maps dependencies, and starts work in isolated workspaces. Before anything reaches your repository, Run Review shows the base revision, execution plan, permission profile, enforcement evidence, and every addition, edit, and deletion prepared for Apply. Reviewed Apply is limited to Orbit and Galaxy, inside one execution domain and one repository root. Approve once, and Pytxo applies that reviewed change set as one crash-recoverable operation. If the checkout moves, Pytxo stops and asks you to review again. Work shows the decision, ownership, and outcome, not a wall of terminal noise. Keep the agents you already use. Add Pytxo.
+One harness. Three scoped tasks. This recorded Codex job changed code, tests, and documentation in two waves. Pytxo kept the primary checkout unchanged while workers ran. It reran the checks on the exact combined candidate. The receipt distinguishes enforced boundaries from advisory controls. Every diff was inspected in the native app, and Apply was explicitly confirmed. The journal recorded a committed attempt. All three applied file hashes matched the reviewed package, and the repository tests passed. These are edited captures from the packaged Windows app. The Bench record also retains an earlier refused run and a direct worktree comparison. No speed win or OS-wide sandbox is claimed. Keep your agent. Add Pytxo.
 <!-- NARRATION_END -->
 
 The generation script reads the exact text between the markers and writes one ignored file:

@@ -3,7 +3,7 @@ title: Compare
 description: Choose between Pytxo and other ways to coordinate coding agents.
 ---
 
-These products solve overlapping problems from different starting points. Pytxo is designed for teams that want to coordinate several installed agent CLIs under one local execution, ownership, review, and Apply contract. It is not the best choice for every workflow.
+These products solve overlapping problems from different starting points. Running several coding agents at once is now common; Pytxo is for one job that several agents finish together, checked and applied as one change. It is not the best choice for every workflow.
 
 | Guide | Strongest fit |
 |-------|---------------|
@@ -13,9 +13,18 @@ These products solve overlapping problems from different starting points. Pytxo 
 | [ADE / virtual workspaces](/docs/compare/ade-virtual-workspaces) | A visual workroom with terminals, editors, and agent sessions together. **Emdash** is the closest OSS ADE; choose it when you want tiled terminals, an in-app browser, and 30+ CLIs in one room |
 | [Warp Oz](/docs/compare/warp-oz) | Local and cloud agents, automation, integrations, and fleet operations in one platform |
 | [Devin / Amp](/docs/compare/devin-amp) | Managed or durable remote agents with strong web, mobile, and cloud workflows |
+| [Conductor](/docs/compare/conductor) | One workspace and branch per task, pull-request review, cloud and shared workspaces |
+| [Factory](/docs/compare/factory) | Org software factory across the delivery lifecycle |
+| [BridgeMind](/docs/compare/bridgemind) | Agent super-app: teammates, coding workspace, and chat in one desktop |
 
 ## Where Pytxo differs
 
-Pytxo coordinates the coding-agent CLIs you already use. For Orbit and Galaxy runs within one repository root and one execution domain, it can isolate work, prepare an immutable review package, show exact file bytes, detect affected-path drift, and Apply the reviewed package through a crash-recoverable journal.
+Pytxo coordinates the coding-agent CLIs you already use. It plans one request into tasks that own their files, runs each in an isolated copy, checks every task and the combined change with your commands, shows the exact files and lines it will write, and applies them through a journal that survives a crash. If the project changed after review, Apply refuses.
 
-That scope is deliberately narrower than a hosted agent platform. Pytxo does not currently provide a managed remote engineer, a collaborative terminal room, or a transaction spanning multiple repository roots. Choose the product whose operating model matches the work.
+That scope is deliberately narrower than a hosted agent platform or an org-wide software factory. Pytxo does not currently provide a managed remote engineer, a collaborative terminal room, or a transaction spanning multiple repository roots. Choose the product whose operating model matches the work.
+
+| | Typical neighbour | Pytxo |
+|---|-------------------|-------|
+| Conductor | One worktree, branch and PR per task | One request across agents, one checked Apply |
+| Factory | SDLC automations across intake, validate, ship | Local control layer for the CLIs you install |
+| BridgeMind | Agent / Code / Chat super-app | Scheduler and Review → Apply, not a super-app |

@@ -84,6 +84,19 @@ impl ProjectManifest {
                 "only one root may be marked primary".into(),
             ));
         }
+        for root in &self.roots {
+            let label = root.effective_label();
+            let normalized = label.replace('\\', "/");
+            if normalized.contains(':')
+                || normalized
+                    .split('/')
+                    .any(|part| part.is_empty() || part == "." || part == "..")
+            {
+                return Err(PytxoError::Config(format!(
+                    "root label must be a safe relative context path: {label}"
+                )));
+            }
+        }
         Ok(())
     }
 
@@ -141,8 +154,10 @@ impl ProjectManifest {
     }
 }
 
+/// Same precedence as the catalog: `PYTXO_HOME` isolates project state too.
 fn dirs_home() -> Option<PathBuf> {
-    std::env::var_os("HOME")
+    std::env::var_os("PYTXO_HOME")
+        .or_else(|| std::env::var_os("HOME"))
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
 }
@@ -210,5 +225,33 @@ path = "/b"
 primary = true
 "#;
         assert!(ProjectManifest::parse(bad).is_err());
+    }
+
+    #[test]
+    fn context_boundary_rejects_escaping_root_labels() {
+        for label in [
+            "../escape",
+            "/absolute",
+            "C:/escape",
+            "\\\\server\\share",
+            "safe/../escape",
+            "safe\\..\\escape",
+        ] {
+            let mut manifest = ProjectManifest::parse(SAMPLE).unwrap();
+            manifest.roots[2].label = Some(label.into());
+            let raw = toml::to_string(&manifest).unwrap();
+            assert!(
+                ProjectManifest::parse(&raw).is_err(),
+                "unsafe context root label accepted: {label}"
+            );
+        }
+    }
+
+    #[test]
+    fn context_boundary_preserves_safe_nested_root_labels() {
+        let mut manifest = ProjectManifest::parse(SAMPLE).unwrap();
+        manifest.roots[2].label = Some("shared/protos".into());
+        let parsed = ProjectManifest::parse(&toml::to_string(&manifest).unwrap()).unwrap();
+        assert_eq!(parsed.roots[2].effective_label(), "shared/protos");
     }
 }

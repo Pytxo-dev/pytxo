@@ -1,0 +1,37 @@
+import assert from "node:assert/strict";
+import {createHash} from "node:crypto";
+import {readFile, mkdir, writeFile} from "node:fs/promises";
+import {spawnSync} from "node:child_process";
+import {fileURLToPath} from "node:url";
+import {evaluateAudioQa, parseLoudnorm, parseSilenceDetect} from "./audio-qa.mjs";
+
+const root = fileURLToPath(new URL("../", import.meta.url));
+const master = "out/pytxo-motion.mp4";
+const run = (tool, args) => {
+  const result = spawnSync(tool, args, {cwd: root, encoding: "utf8", maxBuffer: 24 * 1024 * 1024});
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`${tool}: ${result.stderr}`);
+  return result;
+};
+const metadata = JSON.parse(run("ffprobe", ["-v", "error", "-show_streams", "-show_format", "-of", "json", master]).stdout);
+const video = metadata.streams.find(s => s.codec_type === "video");
+const audio = metadata.streams.find(s => s.codec_type === "audio");
+assert.ok(video && audio);
+for (const [key, value] of Object.entries({codec_name: "h264", width: 1920, height: 1080, r_frame_rate: "60/1", pix_fmt: "yuv420p", color_space: "bt709", color_transfer: "bt709", color_primaries: "bt709"})) assert.equal(video[key], value, key);
+assert.equal(Number(video.nb_frames), 3000);
+assert.ok(Math.abs(Number(metadata.format.duration) - 50) < 0.05);
+assert.equal(audio.codec_name, "aac");
+assert.equal(audio.sample_rate, "48000");
+assert.equal(audio.channels, 2);
+const loudness = parseLoudnorm(run("ffmpeg", ["-hide_banner", "-i", master, "-map", "0:a", "-af", "loudnorm=I=-16:TP=-1:LRA=11:print_format=json", "-f", "null", "-"]).stderr);
+const silenceSegments = parseSilenceDetect(run("ffmpeg", ["-hide_banner", "-i", master, "-map", "0:a", "-af", "silencedetect=noise=-45dB:d=0.3", "-f", "null", "-"]).stderr, 50);
+assert.deepEqual(evaluateAudioQa({loudness, silenceSegments, durationSeconds: 50}), []);
+const scan = run("ffmpeg", ["-hide_banner", "-i", master, "-vf", "blackdetect=d=0.1:pix_th=0.005:pic_th=0.995,freezedetect=n=-55dB:d=2", "-an", "-f", "null", "-"]).stderr;
+assert.ok(!scan.includes("black_start:"), "Unexpected blank black interval");
+const holds = [...scan.matchAll(/freeze_start: ([0-9.]+)/g)].map(item => Number(item[1]));
+await mkdir(new URL("../out/motion-review/frames/", import.meta.url), {recursive: true});
+const samples = [0.8, 2.4, 5.5, 6.5, 7.9, 10.4, 12.7, 14.8, 17.8, 19.1, 20.4, 22.5, 23.7, 24.7, 27.8, 29.8, 32.5, 35.5, 37.2, 39.6, 43.5, 45, 48];
+for (const seconds of samples) run("ffmpeg", ["-v", "error", "-y", "-ss", String(seconds), "-i", master, "-frames:v", "1", `out/motion-review/frames/${seconds.toFixed(1).padStart(4, "0")}.png`]);
+const sha256 = createHash("sha256").update(await readFile(new URL(`../${master}`, import.meta.url))).digest("hex");
+await writeFile(new URL("../out/motion-review/master-qa.json", import.meta.url), JSON.stringify({sha256, duration: 50, frames: 3000, video, audio, loudness, silenceSegments, holdsOverTwoSeconds: holds, reviewedFrameSeconds: samples, evidence: "Edited native stills from October 2, not continuous or final-candidate native footage", environment: process.env.GITHUB_ACTIONS ? "GitHub Actions cloud runner" : "unspecified"}, null, 2));
+console.log(JSON.stringify({sha256, loudness, silenceSegments, holdsOverTwoSeconds: holds, frames: samples.length}, null, 2));

@@ -11,7 +11,10 @@
 
 Please **do not** open a public GitHub issue for security-sensitive reports.
 
-Email security concerns to the maintainers via GitHub private vulnerability reporting on [Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo/security/advisories/new), or contact the org owners directly.
+Report it privately through the
+[security advisory form](https://github.com/Pytxo-dev/pytxo/security/advisories/new).
+Include the version, platform, steps to reproduce and impact. Do not include
+live credentials.
 
 We aim to acknowledge reports within 72 hours.
 

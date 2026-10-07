@@ -81,12 +81,12 @@ test("postinstall verifies staged bytes and fails closed on checksum mismatch", 
   const asset = getAssetName();
   let checksum = sha256(bytes);
   const server = http.createServer((request, response) => {
-    if (request.url === `/v1.2.1/${asset}`) {
+    if (request.url === `/v1.2.2/${asset}`) {
       response.writeHead(200, { "content-type": "application/octet-stream" });
       response.end(bytes);
       return;
     }
-    if (request.url === "/v1.2.1/SHA256SUMS.txt") {
+    if (request.url === "/v1.2.2/SHA256SUMS.txt") {
       response.writeHead(200, { "content-type": "text/plain" });
       response.end(`${checksum}  ${asset}\n`);
       return;
@@ -101,7 +101,7 @@ test("postinstall verifies staged bytes and fails closed on checksum mismatch", 
     const installed = await runInstaller({
       PYTXO_RELEASE_BASE_URL: base,
       PYTXO_VENDOR_DIR: vendor,
-      PYTXO_VERSION: "1.2.1",
+      PYTXO_VERSION: "1.2.2",
     });
     assert.equal(installed.code, 0, installed.stderr);
     const destination = path.join(vendor, process.platform === "win32" ? "pytxo.exe" : "pytxo");
@@ -112,7 +112,7 @@ test("postinstall verifies staged bytes and fails closed on checksum mismatch", 
     const rejected = await runInstaller({
       PYTXO_RELEASE_BASE_URL: base,
       PYTXO_VENDOR_DIR: vendor,
-      PYTXO_VERSION: "1.2.1",
+      PYTXO_VERSION: "1.2.2",
     });
     assert.notEqual(rejected.code, 0);
     assert.match(rejected.stderr, /SHA-256 mismatch/);

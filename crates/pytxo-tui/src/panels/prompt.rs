@@ -80,9 +80,10 @@ impl Prompt {
         } else if trust_phase {
             "↑↓ select · Enter trust · q quit".to_string()
         } else if hitl_pending {
-            "Tab cycle · a approve · x deny · Ctrl+↑/↓ scroll".to_string()
+            "Tab cycle · Ctrl+A approve · Ctrl+X deny · Ctrl+O fleet/output".to_string()
         } else {
-            "Enter submit · Ctrl+↑/↓ scroll · /help · q quit".to_string()
+            "Enter submit · PgUp/PgDn select run · Ctrl+O fleet/output · /help · Ctrl+Q quit"
+                .to_string()
         };
         let inner = block.inner(area);
         frame.render_widget(Paragraph::new(prompt).block(block), area);

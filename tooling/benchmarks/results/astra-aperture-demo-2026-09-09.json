@@ -1,0 +1,291 @@
+{
+  "schema_version": 1,
+  "verified_at_utc": "2026-09-08T17:18:34.520Z",
+  "mode": "silent",
+  "status": "reviewed_local_checkpoint_film",
+  "source_run_id": "16dab199-72fa-4596-b6fd-610e7c0ebb4c",
+  "source_record": "tooling/benchmarks/results/astra-aperture-native-2026-09-08.json",
+  "recorded_msi_sha256": "475f7f9125c84f2f3fd2ca092533005f915a080bc3f4e73676d32df977795f5c",
+  "recorded_executable_sha256": "c77b8418cf0d2a5f3303f10220ac484fd804909cb5dd314cffb06b559bc88d43",
+  "package_digest": "ceee5c50c2add38a852bca21569773ca08073dba1ae38624b0a89f6804cda1d0",
+  "newer_polished_executable_sha256": "7abe2097b8c886aaccbd27cb35882bbf0f28f81e3d9b435975082c6ff6183947",
+  "newer_polished_executable_captured": false,
+  "duration_seconds": 58,
+  "format": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video",
+        "width": 1920,
+        "height": 1080,
+        "pix_fmt": "yuv420p",
+        "color_space": "bt709",
+        "color_transfer": "bt709",
+        "color_primaries": "bt709",
+        "r_frame_rate": "60/1",
+        "nb_frames": "3480"
+      }
+    ],
+    "format": {
+      "duration": "58.000000",
+      "size": "7696333"
+    }
+  },
+  "master": {
+    "path": "apps/demo-video/out/pytxo-aperture-native.mp4",
+    "bytes": 7696333,
+    "sha256": "925ddfcf60d94f83c75d3ec86755cdc765036d3899b08410a5dfce6a734400e2"
+  },
+  "source_inputs_manifest": {
+    "path": "target/astra-polish-20260908/film-privacy/film-source-inputs.json",
+    "bytes": 4172,
+    "sha256": "a016cf33d30c87582f8ddb31b1ea94077e9fb79eca10b0d97c105586a340a621"
+  },
+  "props": {
+    "path": "apps/demo-video/aperture-props.json",
+    "bytes": 4756,
+    "sha256": "4436badb9c79a1ca294c1b7383a237d6f9a61e5427cd5e148276e3731450fbfe"
+  },
+  "clips": {
+    "review": {
+      "src": "product/aperture/review.mp4",
+      "sha256": "22121da8711eb8345514f9b728d4d950312d790c5b3247873c8fed40074f602e",
+      "width": 1600,
+      "height": 1000,
+      "sourceFps": 60,
+      "sourceDurationSeconds": 13,
+      "trimStartSeconds": 0,
+      "playbackRate": 1,
+      "cuts": [
+        {
+          "atSeconds": 9,
+          "omittedSeconds": 41
+        }
+      ],
+      "focus": {
+        "x": 0.58,
+        "y": 0.49,
+        "zoom": 1.35
+      }
+    },
+    "apply": {
+      "src": "product/aperture/apply.mp4",
+      "sha256": "e76031ed25d9d1bcb310dc50489e7322ef6036ecd96a9f29c922409160c52edb",
+      "width": 1600,
+      "height": 1000,
+      "sourceFps": 60,
+      "sourceDurationSeconds": 11,
+      "trimStartSeconds": 0,
+      "playbackRate": 1,
+      "focus": {
+        "x": 0.54,
+        "y": 0.38,
+        "zoom": 1.7
+      }
+    },
+    "result": {
+      "src": "product/aperture/result.mp4",
+      "sha256": "1b414af0a0cb927dcbd6b0f8a05b764b682abdcf2bb0d70f63c3254f2ee12e05",
+      "width": 1600,
+      "height": 1000,
+      "sourceFps": 60,
+      "sourceDurationSeconds": 8,
+      "trimStartSeconds": 0,
+      "playbackRate": 1,
+      "focus": {
+        "x": 0.52,
+        "y": 0.42,
+        "zoom": 1.5
+      }
+    }
+  },
+  "privacy_edits": {
+    "review": {
+      "sourceSha256": "22121da8711eb8345514f9b728d4d950312d790c5b3247873c8fed40074f602e",
+      "regions": []
+    },
+    "apply": {
+      "sourceSha256": "e76031ed25d9d1bcb310dc50489e7322ef6036ecd96a9f29c922409160c52edb",
+      "regions": [
+        {
+          "fromFrame": 0,
+          "untilFrame": 231,
+          "x": 512,
+          "y": 958,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        },
+        {
+          "fromFrame": 231,
+          "untilFrame": 264,
+          "x": 512,
+          "y": 531,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        },
+        {
+          "fromFrame": 231,
+          "untilFrame": 264,
+          "x": 512,
+          "y": 982,
+          "width": 320,
+          "height": 18,
+          "label": "Host path redacted"
+        },
+        {
+          "fromFrame": 273,
+          "untilFrame": 660,
+          "x": 512,
+          "y": 500,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        },
+        {
+          "fromFrame": 273,
+          "untilFrame": 660,
+          "x": 512,
+          "y": 958,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        }
+      ]
+    },
+    "result": {
+      "sourceSha256": "1b414af0a0cb927dcbd6b0f8a05b764b682abdcf2bb0d70f63c3254f2ee12e05",
+      "regions": [
+        {
+          "fromFrame": 0,
+          "untilFrame": 480,
+          "x": 512,
+          "y": 500,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        },
+        {
+          "fromFrame": 0,
+          "untilFrame": 480,
+          "x": 512,
+          "y": 958,
+          "width": 320,
+          "height": 30,
+          "label": "Host path redacted"
+        }
+      ]
+    }
+  },
+  "raw_sources_private": true,
+  "original_master_preserved": {
+    "path": "target/astra-polish-20260908/film-privacy/original-unredacted-master.mp4",
+    "sha256": "c1d8f262d9e74b80f9ecb19610c6af0de7860d5494ac7a88e40388e4e5db3a5d"
+  },
+  "validation": {
+    "typecheck": "passed",
+    "raw_asset_identity_and_bench_consistency": "passed",
+    "privacy_contract_rejections_passed": 14,
+    "format_and_black_scan": "passed",
+    "decoded_source_frame_count": 1920,
+    "original_capture_hashes_verified": 29,
+    "encoded_stills_inspected": 26,
+    "root_boundary_frames": [
+      2270,
+      2271,
+      2303,
+      2304,
+      2312,
+      2313,
+      2699,
+      2700
+    ],
+    "independent_reviewer_frames": [
+      0,
+      60,
+      300,
+      600,
+      1000,
+      1259,
+      1260,
+      1440,
+      1799,
+      1800,
+      2039,
+      2040,
+      2220,
+      2940,
+      3179,
+      3180,
+      3300,
+      3479
+    ],
+    "hold_intervals": [
+      {
+        "start_seconds": 7.55,
+        "end_seconds": 12
+      },
+      {
+        "start_seconds": 13.533333,
+        "end_seconds": 15.55
+      },
+      {
+        "start_seconds": 21,
+        "end_seconds": 23.583333
+      },
+      {
+        "start_seconds": 25.166667,
+        "end_seconds": 27.883333
+      },
+      {
+        "start_seconds": 27.916667,
+        "end_seconds": 30
+      },
+      {
+        "start_seconds": 30.366667,
+        "end_seconds": 33.5
+      },
+      {
+        "start_seconds": 34,
+        "end_seconds": 37.85
+      },
+      {
+        "start_seconds": 38.55,
+        "end_seconds": 45
+      },
+      {
+        "start_seconds": 47.166667,
+        "end_seconds": 53
+      }
+    ],
+    "continuous_machine_playback": {
+      "ended": true,
+      "playback_rate": 1,
+      "final_seconds": 58,
+      "total_frames": 3480,
+      "dropped_frames": 10,
+      "corrupted_frames": 0,
+      "media_error": null,
+      "startup_wait_ms": 331.7,
+      "subsequent_wait_events": 0,
+      "seek_events": 0,
+      "method": "Isolated headless Chrome, local HTTP MP4, one complete 1x playback; not a human full-film watch or native app performance benchmark"
+    },
+    "continuous_human_watch": false,
+    "source_review": "target/astra-polish-20260908/film-privacy/source-review.md",
+    "encoded_visual_review": "target/astra-polish-20260908/film-privacy/encoded-review.md",
+    "local_qa_directory": "target/astra-polish-20260908/film-privacy/"
+  },
+  "limitations": [
+    "Historical c77 build recording; new e775 MSI / 7abe payload still requires native testing and recording.",
+    "Renderer capture excludes OS chrome and cursor. Encoded 60 fps does not establish native 60 fps.",
+    "Review omits 41 seconds at clip second 9, labeled on screen. Apply is a continuous 11-second 1x interval; elapsed waits are omitted between scenes.",
+    "Opaque labeled host-path masks are editorial overlays; source footage and native Bench record remain unchanged.",
+    "Privacy coverage is reviewed for these exact zero-trim 60fps 1x clips; future source, trim or camera edits require review.",
+    "No comparative speed, cost, customer usability or OS-wide sandbox claim.",
+    "No narration, public publication, exact-current-source CI, clean-Windows acceptance or public-download certification."
+  ]
+}

@@ -1,78 +1,66 @@
 ---
 title: Install
-description: Install the Pytxo CLI on Windows, macOS, and Linux.
+description: Choose the Windows Desktop app or the CLI for Windows, macOS, and Linux.
 ---
 
-Current release: **1.2.1**.
+The current public release is **v1.2.1**. The v1.2.2 Desktop preview is not yet available as a public download.
 
-## npm (recommended)
+## Windows: install Desktop
 
-Requires Node.js 18+.
+1. Open [Download](/download) and download the Windows x64 MSI.
+2. Run the installer and open **Pytxo Desktop**. The beta installer is not code-signed yet, so Windows SmartScreen may say it does not recognize the app: choose **More info**, check that the file came from pytxo.com, then **Run anyway**. Updates inside the app are signed and verified before they install.
+3. Install and sign in to your coding agents separately. The v1.2.2 Desktop runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity.
+
+Desktop includes its local Pytxo core. You do **not** need to install the Pytxo CLI unless you want terminal commands, MCP, or `pytxo doctor`.
+
+Continue with [Desktop setup](/docs/getting-started/desktop-setup). There is no current macOS or Linux Desktop installer.
+
+## Install the CLI
+
+For Windows, macOS, or Linux with Node.js 18 or newer:
 
 ```bash
 npm i -g pytxo@1.2.1
+pytxo --version
 pytxo doctor
 ```
 
-The npm package downloads the matching prebuilt binary from [Pytxo-dev/pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases) on install.
+The npm package downloads the matching native binary. You still need your own coding agent; Pytxo does not include a model subscription.
 
-## Install scripts
+### Without Node.js
 
-**Windows (PowerShell)** is a first-class path:
+**Windows (PowerShell):**
 
 ```powershell
 irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 | iex
 ```
 
-**macOS / Linux:**
+**macOS or Linux:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
 ```
 
-Pin a release:
+To pin the shell installer to v1.2.1, pass the version to `bash`:
 
 ```bash
-PYTXO_VERSION=v1.2.1 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | PYTXO_VERSION=v1.2.1 bash
 ```
 
-## Prebuilt binaries
+You can also download a binary from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases/tag/v1.2.1), place it on your `PATH`, and run `pytxo --version`.
 
-| Platform | Asset |
-|----------|--------|
-| Linux x64 | `pytxo-linux-x64` |
-| Linux arm64 | `pytxo-linux-arm64` |
+| Platform | CLI binary |
+|---|---|
+| Windows x64 | `pytxo-windows-x64.exe` |
 | macOS Apple Silicon | `pytxo-darwin-arm64` |
 | macOS Intel | `pytxo-darwin-x64` |
-| Windows x64 | `pytxo-windows-x64.exe` |
+| Linux x64 | `pytxo-linux-x64` |
+| Linux arm64 | `pytxo-linux-arm64` |
 
-Download from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases/tag/v1.2.1). Put the binary on your `PATH`, then run `pytxo doctor`.
+## Before your first run
 
-**Windows-first note:** Pytxo Desktop v1.2.1 is distributed for Windows x64. The CLI release remains gated on all five advertised OS and architecture assets. A release is not published when that matrix is incomplete.
+Use a Git repository with working build or test commands. Review [folder trust](/docs/getting-started/folder-trust) before allowing execution.
 
-Community help: [Discord](https://discord.gg/AUFRPFjSYv).
+The CLI can plan and run work, but there is **no `pytxo apply`**. Reviewed Apply is in Windows Desktop. On macOS and Linux, you can inspect prepared files, but cannot complete that Desktop workflow.
 
-## Default TUI
-
-Running `pytxo` with no subcommand opens the [Hypervisor Shell](/docs/getting-started/hypervisor-shell). For scripts:
-
-```bash
-pytxo run --dry-run --config pytxo.toml
-PYTXO_NO_TUI=1 pytxo   # print help instead of TUI
-```
-
-## Initialize a project
-
-```bash
-pytxo trust orbit
-pytxo init
-pytxo doctor
-```
-
-## Next steps
-
-- [First mission](/docs/getting-started/first-mission) — natural language, no hand-written tasks
-- [Collision demo](/docs/getting-started/first-three-agent-run) — prove overlapping paths wait
-- [Desktop setup](/docs/getting-started/desktop-setup)
-- [Folder trust](/docs/getting-started/folder-trust)
-- [Troubleshooting](/docs/troubleshooting)
+Next: [First mission](/docs/getting-started/first-mission) · [Troubleshooting](/docs/troubleshooting)

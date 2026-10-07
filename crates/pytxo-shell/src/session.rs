@@ -143,8 +143,19 @@ impl ShellSession {
                 agents,
                 cmd,
                 keep_worktrees,
-                ..
-            } => self.dispatch_run(agents, cmd, keep_worktrees).await,
+                ade,
+            } => {
+                if let Some(id) = ade {
+                    if let Some(spec) = pytxo_core::resolve_ade(&id) {
+                        if !pytxo_core::ade_can_dispatch(spec) {
+                            return vec![ShellEvent::Error(format!(
+                                "ADE {id} is detection-only until its permission model is mapped"
+                            ))];
+                        }
+                    }
+                }
+                self.dispatch_run(agents, cmd, keep_worktrees).await
+            }
             SlashCommand::Logs { agent, tail } => {
                 match logs(
                     self.config_path.clone(),
@@ -194,6 +205,9 @@ impl ShellSession {
 
     fn handle_use(&mut self, ade: &str) -> Vec<ShellEvent> {
         match pytxo_core::resolve_ade(ade) {
+            Some(spec) if !pytxo_core::ade_can_dispatch(spec) => vec![ShellEvent::Error(format!(
+                "ADE {ade} is detection-only until its permission model is mapped"
+            ))],
             Some(spec) => {
                 self.default_cmd = spec.default_cmd.to_string();
                 vec![ShellEvent::Output(format!(
@@ -349,7 +363,20 @@ mod tests {
     use super::*;
     use crate::command::parse_line;
 
+    /// Trust and catalog writes go to one throwaway home per test process,
+    /// never the developer's real `~/.pytxo`.
+    fn isolate_home() {
+        static HOME: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+        HOME.get_or_init(|| {
+            let home = std::env::temp_dir().join(format!("pytxo-test-home-{}", std::process::id()));
+            std::fs::create_dir_all(&home).expect("isolated PYTXO_HOME");
+            std::env::set_var("PYTXO_HOME", &home);
+            home
+        });
+    }
+
     fn trust_cwd(session: &mut ShellSession) {
+        isolate_home();
         let _ = pytxo_orchestrate::trust_repo(&session.repo, pytxo_core::PermissionProfile::Orbit);
     }
 
@@ -385,10 +412,24 @@ mod tests {
         assert!(use_cursor
             .iter()
             .any(|e| { matches!(e, ShellEvent::Output(s) if s.contains("cursor-agent")) }));
-        assert_eq!(session.default_cmd, "cursor-agent -p --trust");
+        assert_eq!(
+            session.default_cmd,
+            "cursor-agent -p --trust --output-format text"
+        );
         let dry = session.handle(parse_line("/dry-run")).await;
         assert!(dry
             .iter()
             .any(|e| matches!(e, ShellEvent::PlanPreview(s) if s.contains("waves"))));
+    }
+
+    #[test]
+    fn detection_only_harness_cannot_become_the_default() {
+        let mut session = ShellSession::new(None, Some(std::env::current_dir().unwrap())).unwrap();
+        let previous = session.default_cmd.clone();
+        let events = session.handle_use("qwen");
+        assert!(events.iter().any(
+            |event| matches!(event, ShellEvent::Error(message) if message.contains("detection-only"))
+        ));
+        assert_eq!(session.default_cmd, previous);
     }
 }

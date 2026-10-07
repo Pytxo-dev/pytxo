@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-06",
+  "base_commit": "f21acfb",
+  "scope": "Dependency follow-up to the Beta source candidate; no release publication",
+  "audits": {
+    "web_npm_full": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "web_npm_production": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "web_pnpm_full": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0
+    },
+    "desktop_full": {
+      "info": 0,
+      "low": 0,
+      "moderate": 5,
+      "high": 0,
+      "critical": 0,
+      "total": 5
+    },
+    "desktop_production": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "demo_full": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "demo_production": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "tooling_full": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  },
+  "retained_desktop_advisory": "https://github.com/advisories/GHSA-w5hq-g745-h8pq",
+  "desktop_frontend_files_unchanged": 37,
+  "cargo": {
+    "unignored_vulnerabilities": 0,
+    "existing_ignored_advisories": [
+      "RUSTSEC-2026-0194",
+      "RUSTSEC-2026-0195",
+      "RUSTSEC-2023-0071"
+    ],
+    "unmaintained_warnings": 17,
+    "unsound_warnings": 1,
+    "yanked_warnings": 1
+  },
+  "lockfiles": {
+    "apps/web/package-lock.json": "0b80ca0b59cd3a8262e8e50adc88bade39e063cab35f4b4a22b196c27d494e53",
+    "apps/web/pnpm-lock.yaml": "68cdacd3b550f22edb5b6cc806a8ab981586b940e23f1507a3768ed18d8c427a",
+    "apps/desktop/package-lock.json": "b357781f54951e36648e7daf25fbf0c97154ffaadfef8149f9c5d960fb4c4a03",
+    "apps/demo-video/package-lock.json": "37577998255851c75ea33ca167fc1c3328dafec3e789159547a72a6f49b58722",
+    "tooling/package-lock.json": "9a9240d160b6adf18165aa0f8e3558e6ae593fa6844e69e75a536c730747b1be"
+  }
+}

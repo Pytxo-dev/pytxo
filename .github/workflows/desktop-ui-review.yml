@@ -1,0 +1,61 @@
+name: Desktop UI review (screenshots)
+
+# Manual and Linux-only (the cheapest runner): the Desktop frontend in its
+# browser preview, with screenshots of the main journeys (and optionally the
+# full e2e suite, which PR CI already runs).
+on:
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: "Run one e2e spec with a trace (e.g. e2e/workspace-fit.spec.ts)"
+        type: string
+        default: ""
+      e2e:
+        description: "Also run the full Playwright e2e suite"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Install
+        run: |
+          npm ci --prefix ../../tooling
+          node ../../tooling/scripts/generate-deck-icons.mjs
+          npm ci
+          npx playwright install chromium
+          npm run check
+      - name: Screenshots
+        run: UI_REVIEW=1 UI_REVIEW_OUT=ui-review npx playwright test e2e/zz-ui-review.spec.ts --workers=2
+      - name: One spec with a trace
+        if: inputs.spec != ''
+        run: npx playwright test ${{ inputs.spec }} --trace on --retries 0
+      - name: Full e2e
+        if: inputs.e2e && inputs.spec == ''
+        run: npm run e2e
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: desktop-ui-review-${{ github.sha }}
+          retention-days: 14
+          path: |
+            apps/desktop/ui-review/*.png
+            apps/desktop/test-results/**/*.png
+            apps/desktop/test-results/**/trace.zip
+          if-no-files-found: warn

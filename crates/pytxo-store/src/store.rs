@@ -3,9 +3,15 @@ use std::path::Path;
 use chrono::{DateTime, Utc};
 use pytxo_core::{PreparedRunManifest, PytxoError, Result, RunApplyError};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::migrate::apply_migrations;
+
+// Separate scalar aggregates let SQLite seek both rowid endpoints. Combining
+// MIN and MAX in one aggregate scans the entire ledger on every idle poll.
+// One statement retains a single SQLite read snapshot for the two bounds.
+const CHANGE_BOUNDS_SQL: &str = "SELECT (SELECT MIN(sequence) FROM domain_changes),
+            (SELECT MAX(sequence) FROM domain_changes)";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct RunRecord {
@@ -67,6 +73,15 @@ pub struct AgentRecord {
     pub root_id: Option<String>,
 }
 
+/// Filesystem `.git` identity observed before routed launch. This detects
+/// ordinary replacement at the same path and commit; file IDs can be reused.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RoutedWorktreeInstance {
+    pub path: String,
+    pub git_file_identity: String,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct EventRecord {
     pub id: i64,
@@ -90,6 +105,41 @@ pub struct PytxoStore {
 }
 
 impl PytxoStore {
+    /// Inspect an existing store without creating it or applying migrations.
+    /// Safety preflights must surface a missing/incompatible store, not turn it
+    /// into an apparently idle new database.
+    pub fn open_existing_read_only(path: &Path) -> Result<Self> {
+        let conn = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(store_error)?;
+        Ok(Self { conn })
+    }
+
+    /// Recovery may need an exact CAS on an existing run. Never create a new
+    /// Store or migrate a replacement while deciding whether old ownership is
+    /// absent.
+    pub fn open_existing_read_write(path: &Path) -> Result<Self> {
+        let conn = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)
+            .map_err(store_error)?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))
+            .map_err(store_error)?;
+        Ok(Self { conn })
+    }
+
+    /// Unbounded observation of work that must settle before Desktop exits for
+    /// an upgrade. This is a preflight observation, not an execution lease.
+    pub fn update_blocking_work_count(&self) -> Result<usize> {
+        self.conn
+            .query_row(
+                "SELECT COUNT(*) FROM runs r LEFT JOIN run_contracts c ON c.run_id = r.id
+             WHERE r.status IN ('starting', 'running')
+                OR c.apply_status IN ('preparing', 'applying', 'recovery_required')",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|count| count as usize)
+            .map_err(store_error)
+    }
+
     pub fn open(path: &Path) -> Result<Self> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(PytxoError::Io)?;
@@ -251,6 +301,67 @@ impl PytxoStore {
         )
     }
 
+    /// Bind a routed run to its initial review authority without the legacy
+    /// UPSERT path, which may replace an already prepared or applied contract.
+    /// An exact unprepared replay is inert; any changed payload fails closed.
+    pub fn insert_run_contract_once(
+        &self,
+        run_id: &str,
+        base_revision: &str,
+        plan_json: &str,
+        enforcement_json: &str,
+    ) -> Result<()> {
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let inserted = tx
+            .execute(
+                "INSERT INTO run_contracts (
+                    run_id, base_revision, plan_json, apply_status, enforcement_json
+                 ) SELECT ?1, ?2, ?3, 'pending', ?4
+                   WHERE EXISTS (SELECT 1 FROM runs WHERE id = ?1 AND status = 'starting')
+                 ON CONFLICT(run_id) DO NOTHING",
+                params![run_id, base_revision, plan_json, enforcement_json],
+            )
+            .map_err(store_error)?;
+        if inserted == 0 {
+            let existing = tx
+                .query_row(
+                    "SELECT base_revision, plan_json, apply_status, enforcement_json,
+                            prepared_digest, apply_manifest_json
+                       FROM run_contracts WHERE run_id = ?1",
+                    params![run_id],
+                    |row| {
+                        Ok((
+                            row.get::<_, Option<String>>(0)?,
+                            row.get::<_, Option<String>>(1)?,
+                            row.get::<_, String>(2)?,
+                            row.get::<_, Option<String>>(3)?,
+                            row.get::<_, Option<String>>(4)?,
+                            row.get::<_, Option<String>>(5)?,
+                        ))
+                    },
+                )
+                .optional()
+                .map_err(store_error)?;
+            if !existing.is_some_and(|(base, plan, status, enforcement, prepared, applied)| {
+                base.as_deref() == Some(base_revision)
+                    && plan.as_deref() == Some(plan_json)
+                    && status == "pending"
+                    && enforcement.as_deref() == Some(enforcement_json)
+                    && prepared.is_none()
+                    && applied.is_none()
+            }) {
+                return Err(PytxoError::Store(
+                    "routed run contract already exists with different or advanced authority"
+                        .into(),
+                ));
+            }
+        } else {
+            append_domain_change(&tx, "contract", run_id)?;
+        }
+        tx.commit().map_err(store_error)?;
+        Ok(())
+    }
+
     pub fn save_run_contract_with_status(
         &self,
         run_id: &str,
@@ -268,26 +379,34 @@ impl PytxoStore {
             )));
         }
         let tx = self.conn.unchecked_transaction().map_err(store_error)?;
-        tx.execute(
-            "INSERT INTO run_contracts (
+        let changed = tx
+            .execute(
+                "INSERT INTO run_contracts (
                     run_id, base_revision, plan_json, apply_status, enforcement_json
-                 ) VALUES (?1, ?2, ?3, ?4, ?5)
+                 ) SELECT ?1, ?2, ?3, ?4, ?5
+                   WHERE NOT EXISTS (SELECT 1 FROM routing_missions WHERE run_id=?1)
                  ON CONFLICT(run_id) DO UPDATE SET
                     base_revision = excluded.base_revision,
                     plan_json = excluded.plan_json,
                     apply_status = excluded.apply_status,
                     apply_manifest_json = NULL,
                     applied_at = NULL,
-                    enforcement_json = excluded.enforcement_json",
-            params![
-                run_id,
-                base_revision,
-                plan_json,
-                apply_status,
-                enforcement_json
-            ],
-        )
-        .map_err(store_error)?;
+                    enforcement_json = excluded.enforcement_json
+                   WHERE NOT EXISTS (SELECT 1 FROM routing_missions WHERE run_id=?1)",
+                params![
+                    run_id,
+                    base_revision,
+                    plan_json,
+                    apply_status,
+                    enforcement_json
+                ],
+            )
+            .map_err(store_error)?;
+        if changed != 1 {
+            return Err(PytxoError::Store(
+                "legacy contract update cannot replace a registered routed mission".into(),
+            ));
+        }
         append_domain_change(&tx, "contract", run_id)?;
         tx.commit().map_err(store_error)?;
         Ok(())
@@ -362,7 +481,8 @@ impl PytxoStore {
                  SET apply_status='ready', prepared_manifest_json=?1,
                      prepared_digest=?2, prepared_at=?3,
                      base_revision=?4, last_apply_error_json=NULL, recovery_state=NULL
-                 WHERE run_id=?5 AND apply_status='preparing'",
+                 WHERE run_id=?5 AND apply_status='preparing'
+                   AND NOT EXISTS (SELECT 1 FROM routing_missions WHERE run_id=?5)",
                 params![
                     manifest_json,
                     manifest.package_digest,
@@ -378,6 +498,70 @@ impl PytxoStore {
             )));
         }
         append_domain_change(&tx, "contract", run_id)?;
+        tx.commit().map_err(store_error)?;
+        Ok(())
+    }
+
+    /// Publish a routed candidate and its terminal run state together. A crash
+    /// cannot leave a ready routed package attached to a failed/starting run.
+    pub fn finish_routed_review_and_run(
+        &self,
+        run_id: &str,
+        manifest: &PreparedRunManifest,
+        expected_run_status: &str,
+    ) -> Result<()> {
+        if manifest.run_id != run_id
+            || !matches!(expected_run_status, "starting" | "failed" | "completed")
+        {
+            return Err(PytxoError::Store(
+                "routed Review identity or run state is invalid".into(),
+            ));
+        }
+        let manifest_json = serde_json::to_string(manifest)
+            .map_err(|error| PytxoError::Store(error.to_string()))?;
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        crate::routing::require_routed_review_publishable(&tx, run_id, manifest)?;
+        let changed = tx
+            .execute(
+                "UPDATE run_contracts
+                SET apply_status='ready', prepared_manifest_json=?1,
+                    prepared_digest=?2, prepared_at=?3, base_revision=?4,
+                    last_apply_error_json=NULL, recovery_state=NULL
+              WHERE run_id=?5 AND apply_status='preparing'
+                AND EXISTS (SELECT 1 FROM runs WHERE id=?5 AND status=?6)",
+                params![
+                    manifest_json,
+                    manifest.package_digest,
+                    manifest.prepared_at,
+                    manifest.base_revision,
+                    run_id,
+                    expected_run_status
+                ],
+            )
+            .map_err(store_error)?;
+        if changed != 1 {
+            return Err(PytxoError::Store(
+                "routed Review or run state changed before publication".into(),
+            ));
+        }
+        let finished_at = Utc::now().to_rfc3339();
+        let changed = tx
+            .execute(
+                "UPDATE runs SET status='completed',
+                finished_at=CASE WHEN ?2='completed' THEN finished_at ELSE ?3 END
+              WHERE id=?1 AND status=?2",
+                params![run_id, expected_run_status, finished_at],
+            )
+            .map_err(store_error)?;
+        if changed != 1 {
+            return Err(PytxoError::Store(
+                "routed run changed before Review publication".into(),
+            ));
+        }
+        append_domain_change(&tx, "contract", run_id)?;
+        if expected_run_status != "completed" {
+            append_domain_change(&tx, "run", run_id)?;
+        }
         tx.commit().map_err(store_error)?;
         Ok(())
     }
@@ -505,11 +689,7 @@ impl PytxoStore {
         let limit = limit.clamp(1, 1_000);
         let (oldest, newest): (Option<i64>, Option<i64>) = self
             .conn
-            .query_row(
-                "SELECT MIN(sequence), MAX(sequence) FROM domain_changes",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
+            .query_row(CHANGE_BOUNDS_SQL, [], |row| Ok((row.get(0)?, row.get(1)?)))
             .map_err(store_error)?;
         let boundary = newest.unwrap_or(0);
         let cursor_gap =
@@ -595,7 +775,9 @@ impl PytxoStore {
         let changed = tx
             .execute(
                 "UPDATE run_contracts
-                 SET apply_status = ?1, apply_manifest_json = ?2, applied_at = ?3
+                 SET apply_status = ?1, apply_manifest_json = ?2, applied_at = ?3,
+                     last_apply_error_json = CASE WHEN ?1 = 'applied' THEN NULL ELSE last_apply_error_json END,
+                     recovery_state = CASE WHEN ?1 = 'applied' THEN NULL ELSE recovery_state END
                  WHERE run_id = ?4 AND apply_status = 'applying'",
                 params![apply_status, manifest_json, applied_at, run_id],
             )
@@ -688,6 +870,213 @@ impl PytxoStore {
         append_domain_change(&tx, "agent", id)?;
         tx.commit().map_err(store_error)?;
         Ok(())
+    }
+
+    pub fn set_agent_workspace(&self, id: &str, workspace: Option<&str>) -> Result<()> {
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        tx.execute(
+            "UPDATE agents SET worktree_path = ?1 WHERE id = ?2",
+            params![workspace, id],
+        )
+        .map_err(store_error)?;
+        append_domain_change(&tx, "agent", id)?;
+        tx.commit().map_err(store_error)?;
+        Ok(())
+    }
+
+    /// Project a passed routed actor to the retained winner view exactly once.
+    /// The legacy workspace setter is intentionally not used at this boundary.
+    pub fn promote_routed_winner_workspace(
+        &self,
+        id: &str,
+        run_id: &str,
+        task_id: &str,
+        original: &str,
+        sealed_view: &str,
+    ) -> Result<()> {
+        if original.is_empty() || sealed_view.is_empty() || original == sealed_view {
+            return Err(PytxoError::Store(
+                "invalid routed winner workspace projection".into(),
+            ));
+        }
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let recorded_original = routed_original_worktree_event(&tx, id)?;
+        let changed = tx
+            .execute(
+                "UPDATE agents SET worktree_path = ?1
+                   WHERE id = ?2 AND run_id = ?3 AND task_id = ?4
+                     AND worktree_path = ?5
+                     AND (status = 'running' OR (status = 'completed' AND exit_code = 0))",
+                params![sealed_view, id, run_id, task_id, original],
+            )
+            .map_err(store_error)?;
+        if changed == 0 {
+            let exact = tx
+                .query_row(
+                    "SELECT 1 FROM agents
+                      WHERE id = ?1 AND run_id = ?2 AND task_id = ?3
+                        AND worktree_path = ?4 AND status IN ('running', 'completed')",
+                    params![id, run_id, task_id, sealed_view],
+                    |row| row.get::<_, i64>(0),
+                )
+                .optional()
+                .map_err(store_error)?
+                .is_some();
+            if !exact || recorded_original.as_deref() != Some(original) {
+                return Err(PytxoError::Store(
+                    "routed winner actor or original workspace changed".into(),
+                ));
+            }
+        } else {
+            if recorded_original.is_some() {
+                return Err(PytxoError::Store(
+                    "routed original workspace was already recorded".into(),
+                ));
+            }
+            tx.execute(
+                "INSERT INTO events(agent_id,ts,kind,payload) VALUES (?1,?2,'routed-original-worktree',?3)",
+                params![id, Utc::now().to_rfc3339(), original],
+            ).map_err(store_error)?;
+            append_domain_change(&tx, "agent", id)?;
+        }
+        tx.commit().map_err(store_error)?;
+        Ok(())
+    }
+
+    /// Move an actor projection after a fresh Store-retained winner refresh.
+    /// The original path is recorded only if the initial projection never ran.
+    pub fn refresh_routed_winner_workspace(
+        &self,
+        id: &str,
+        run_id: &str,
+        task_id: &str,
+        expected_current: &str,
+        verified_view: &str,
+    ) -> Result<()> {
+        if expected_current.is_empty()
+            || verified_view.is_empty()
+            || expected_current == verified_view
+        {
+            return Err(PytxoError::Store(
+                "invalid routed refreshed workspace projection".into(),
+            ));
+        }
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let original = routed_original_worktree_event(&tx, id)?;
+        let changed = tx
+            .execute(
+                "UPDATE agents SET worktree_path=?1
+              WHERE id=?2 AND run_id=?3 AND task_id=?4 AND worktree_path=?5
+                AND status='completed' AND exit_code=0
+                AND EXISTS (SELECT 1 FROM run_contracts
+                            WHERE run_id=?3 AND apply_status='preparing')",
+                params![verified_view, id, run_id, task_id, expected_current],
+            )
+            .map_err(store_error)?;
+        if changed != 1 {
+            return Err(PytxoError::Store(
+                "routed refreshed workspace or Review state changed".into(),
+            ));
+        }
+        if original.is_none() {
+            tx.execute(
+                "INSERT INTO events(agent_id,ts,kind,payload) VALUES (?1,?2,'routed-original-worktree',?3)",
+                params![id, Utc::now().to_rfc3339(), expected_current],
+            ).map_err(store_error)?;
+        }
+        append_domain_change(&tx, "agent", id)?;
+        tx.commit().map_err(store_error)?;
+        Ok(())
+    }
+
+    pub fn routed_original_worktree(&self, id: &str, run_id: &str) -> Result<Option<String>> {
+        let belongs = self
+            .conn
+            .query_row(
+                "SELECT 1 FROM agents WHERE id=?1 AND run_id=?2",
+                params![id, run_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()
+            .map_err(store_error)?
+            .is_some();
+        if !belongs {
+            return Err(PytxoError::Store("routed actor identity changed".into()));
+        }
+        routed_original_worktree_event(&self.conn, id)
+    }
+
+    /// Record one origin identity after the actor is inserted and before launch.
+    /// A crash before this record leaves the worktree for manual inspection;
+    /// cleanup must never infer ownership from path and commit alone.
+    pub fn record_routed_worktree_instance(
+        &self,
+        id: &str,
+        run_id: &str,
+        task_id: &str,
+        instance: &RoutedWorktreeInstance,
+    ) -> Result<()> {
+        if instance.path.is_empty() || instance.git_file_identity.is_empty() {
+            return Err(PytxoError::Store("invalid routed worktree instance".into()));
+        }
+        let tx = self.conn.unchecked_transaction().map_err(store_error)?;
+        let actor_path: Option<String> = tx
+            .query_row(
+                "SELECT worktree_path FROM agents
+                  WHERE id=?1 AND run_id=?2 AND task_id=?3 AND status='running'",
+                params![id, run_id, task_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(store_error)?
+            .flatten();
+        if actor_path.as_deref() != Some(instance.path.as_str()) {
+            return Err(PytxoError::Store(
+                "routed worktree actor or origin path changed".into(),
+            ));
+        }
+        match routed_worktree_instance_event(&tx, id)? {
+            Some(existing) if existing == *instance => return Ok(()),
+            Some(_) => {
+                return Err(PytxoError::Store(
+                    "routed worktree instance was already recorded".into(),
+                ));
+            }
+            None => {}
+        }
+        let payload = serde_json::to_string(instance)
+            .map_err(|error| PytxoError::Store(error.to_string()))?;
+        tx.execute(
+            "INSERT INTO events(agent_id,ts,kind,payload)
+             VALUES (?1,?2,'routed-worktree-instance',?3)",
+            params![id, Utc::now().to_rfc3339(), payload],
+        )
+        .map_err(store_error)?;
+        append_domain_change(&tx, "agent", id)?;
+        tx.commit().map_err(store_error)?;
+        Ok(())
+    }
+
+    pub fn routed_worktree_instance(
+        &self,
+        id: &str,
+        run_id: &str,
+        task_id: &str,
+    ) -> Result<Option<RoutedWorktreeInstance>> {
+        let belongs = self
+            .conn
+            .query_row(
+                "SELECT 1 FROM agents WHERE id=?1 AND run_id=?2 AND task_id=?3",
+                params![id, run_id, task_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()
+            .map_err(store_error)?
+            .is_some();
+        if !belongs {
+            return Err(PytxoError::Store("routed actor identity changed".into()));
+        }
+        routed_worktree_instance_event(&self.conn, id)
     }
 
     pub fn append_event(&self, agent_id: &str, kind: &str, payload: &str) -> Result<()> {
@@ -1040,11 +1429,72 @@ impl PytxoStore {
     }
 }
 
+fn routed_original_worktree_event(
+    conn: &rusqlite::Connection,
+    agent_id: &str,
+) -> Result<Option<String>> {
+    let (count, path): (i64, Option<String>) = conn
+        .query_row(
+            "SELECT COUNT(*), MIN(payload) FROM events
+              WHERE agent_id=?1 AND kind='routed-original-worktree'",
+            params![agent_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(store_error)?;
+    match count {
+        0 => Ok(None),
+        1 => path
+            .filter(|path| !path.is_empty())
+            .map(Some)
+            .ok_or_else(|| PytxoError::Store("routed original workspace is empty".into())),
+        _ => Err(PytxoError::Store(
+            "routed original workspace is ambiguous".into(),
+        )),
+    }
+}
+
+fn routed_worktree_instance_event(
+    conn: &rusqlite::Connection,
+    agent_id: &str,
+) -> Result<Option<RoutedWorktreeInstance>> {
+    let (count, payload): (i64, Option<String>) = conn
+        .query_row(
+            "SELECT COUNT(*), MIN(payload) FROM events
+              WHERE agent_id=?1 AND kind='routed-worktree-instance'",
+            params![agent_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(store_error)?;
+    match count {
+        0 => Ok(None),
+        1 => {
+            let instance: RoutedWorktreeInstance =
+                serde_json::from_str(payload.as_deref().ok_or_else(|| {
+                    PytxoError::Store("routed worktree instance is empty".into())
+                })?)
+                .map_err(|_| PytxoError::Store("routed worktree instance is malformed".into()))?;
+            if instance.path.is_empty() || instance.git_file_identity.is_empty() {
+                return Err(PytxoError::Store(
+                    "routed worktree instance is incomplete".into(),
+                ));
+            }
+            Ok(Some(instance))
+        }
+        _ => Err(PytxoError::Store(
+            "routed worktree instance is ambiguous".into(),
+        )),
+    }
+}
+
 fn store_error(error: rusqlite::Error) -> PytxoError {
     PytxoError::Store(error.to_string())
 }
 
-fn append_domain_change(tx: &Transaction<'_>, entity_kind: &str, entity_id: &str) -> Result<()> {
+pub(crate) fn append_domain_change(
+    tx: &Transaction<'_>,
+    entity_kind: &str,
+    entity_id: &str,
+) -> Result<()> {
     tx.execute(
         "INSERT INTO domain_changes(entity_kind, entity_id, changed_at) VALUES (?1, ?2, ?3)",
         params![entity_kind, entity_id, Utc::now().to_rfc3339()],
@@ -1062,6 +1512,143 @@ fn parse_dt(s: String) -> DateTime<Utc> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn change_bounds_use_index_endpoints_instead_of_scanning_the_ledger() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = PytxoStore::open(&dir.path().join("bounds.db")).unwrap();
+        store
+            .conn
+            .execute_batch(
+                "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<10000)
+             INSERT INTO domain_changes(entity_kind, entity_id, changed_at)
+             SELECT 'run', CAST(x AS TEXT), '2026-09-21T00:00:00Z' FROM n;",
+            )
+            .unwrap();
+        let bounds: (i64, i64) = store
+            .conn
+            .query_row(CHANGE_BOUNDS_SQL, [], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap();
+        assert_eq!(bounds, (1, 10000));
+        let mut statement = store
+            .conn
+            .prepare(&format!("EXPLAIN QUERY PLAN {CHANGE_BOUNDS_SQL}"))
+            .unwrap();
+        let plan = statement
+            .query_map([], |row| row.get::<_, String>(3))
+            .unwrap()
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(
+            !plan.iter().any(|step| step.contains("SCAN domain_changes")),
+            "ledger bounds must use index endpoints: {plan:?}"
+        );
+        let page = store.changes_since(10000, 200).unwrap();
+        assert!(page.changes.is_empty());
+        assert_eq!(page.next_cursor, 10000);
+        assert!(!page.cursor_gap);
+    }
+
+    #[test]
+    fn read_only_change_poll_observes_writes_without_initializing_stores() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("state.db");
+        assert!(PytxoStore::open_existing_read_only(&path).is_err());
+        assert!(!path.exists());
+        let writer = PytxoStore::open(&path).unwrap();
+        let reader = PytxoStore::open_existing_read_only(&path).unwrap();
+        let cursor = reader.changes_since(0, 200).unwrap().next_cursor;
+        writer.insert_run("observed", "/repo").unwrap();
+        let page = reader.changes_since(cursor, 200).unwrap();
+        assert!(page
+            .changes
+            .iter()
+            .any(|change| change.entity_id == "observed"));
+        assert!(reader.insert_run("forbidden", "/repo").is_err());
+
+        let incompatible = dir.path().join("incompatible.db");
+        Connection::open(&incompatible).unwrap();
+        let reader = PytxoStore::open_existing_read_only(&incompatible).unwrap();
+        assert!(reader.changes_since(0, 200).is_err());
+        let tables: i64 = reader
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            tables, 0,
+            "observation must not migrate an incompatible store"
+        );
+    }
+
+    #[test]
+    fn recovery_write_open_requires_an_existing_store_without_migrating_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("missing.db");
+        assert!(PytxoStore::open_existing_read_write(&missing).is_err());
+        assert!(!missing.exists());
+
+        let incompatible = dir.path().join("incompatible.db");
+        Connection::open(&incompatible).unwrap();
+        let recovery = PytxoStore::open_existing_read_write(&incompatible).unwrap();
+        assert!(recovery.get_run("unknown").is_err());
+        drop(recovery);
+        let tables: i64 = Connection::open(&incompatible)
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tables, 0);
+
+        let actual = dir.path().join("actual.db");
+        PytxoStore::open(&actual)
+            .unwrap()
+            .insert_starting_run_with_profile("exact", "/repo", Some("orbit"))
+            .unwrap();
+        let recovery = PytxoStore::open_existing_read_write(&actual).unwrap();
+        assert!(recovery
+            .finish_run_if_status("exact", "starting", "failed_startup")
+            .unwrap());
+    }
+
+    #[test]
+    fn update_preflight_covers_repository_transitions_and_is_read_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("state.db");
+        let store = PytxoStore::open(&path).unwrap();
+        store.insert_run("run", "/repo").unwrap();
+        store.finish_run("run", "completed").unwrap();
+        store.save_run_contract("run", "base", "{}", "{}").unwrap();
+        let observer = PytxoStore::open_existing_read_only(&path).unwrap();
+        assert!(observer.insert_run("forbidden", "/repo").is_err());
+        for (status, expected) in [
+            ("preparing", 1),
+            ("applying", 1),
+            ("recovery_required", 1),
+            ("ready", 0),
+            ("applied", 0),
+            ("discarded", 0),
+        ] {
+            store
+                .conn
+                .execute(
+                    "UPDATE run_contracts SET apply_status=?1 WHERE run_id='run'",
+                    [status],
+                )
+                .unwrap();
+            assert_eq!(
+                observer.update_blocking_work_count().unwrap(),
+                expected,
+                "{status}"
+            );
+        }
+    }
 
     #[test]
     fn round_trip_run_and_agent() {
@@ -1127,6 +1714,7 @@ mod tests {
             .finish_run_preparation(
                 "run-1",
                 &PreparedRunManifest {
+                    candidate_verification: None,
                     version: 1,
                     run_id: "run-1".into(),
                     base_revision: "abc123".into(),
@@ -1180,6 +1768,7 @@ mod tests {
             .unwrap();
 
         let manifest = pytxo_core::PreparedRunManifest {
+            candidate_verification: None,
             version: 1,
             run_id: "run-delta".into(),
             base_revision: "abc123".into(),
@@ -1223,6 +1812,7 @@ mod tests {
             .finish_run_preparation(
                 "run-race",
                 &PreparedRunManifest {
+                    candidate_verification: None,
                     version: 1,
                     run_id: "run-race".into(),
                     base_revision: "base".into(),
@@ -1281,6 +1871,67 @@ mod tests {
     }
 
     #[test]
+    fn successful_apply_retry_clears_resolved_recovery_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pytxo.db");
+        let store = PytxoStore::open(&path).unwrap();
+        let run_id = "retry-after-rollback";
+        store.insert_run(run_id, "/tmp/repo").unwrap();
+        store.save_run_contract(run_id, "base", "{}", "{}").unwrap();
+        assert!(store.begin_run_preparation(run_id).unwrap());
+        store
+            .finish_run_preparation(
+                run_id,
+                &PreparedRunManifest {
+                    candidate_verification: None,
+                    version: 1,
+                    run_id: run_id.into(),
+                    base_revision: "base".into(),
+                    prepared_at: "2026-09-20T00:00:00Z".into(),
+                    package_digest: "digest".into(),
+                    summary: Default::default(),
+                    files: vec![],
+                },
+            )
+            .unwrap();
+        store.finish_run(run_id, "completed").unwrap();
+        assert!(store.claim_run_apply(run_id).unwrap());
+        store
+            .finish_run_apply_error(
+                run_id,
+                "ready",
+                &RunApplyError {
+                    at: "2026-09-20T00:01:00Z".into(),
+                    code: "interrupted_apply".into(),
+                    message: "interrupted Apply was rolled back".into(),
+                    attempt_id: Some("previous-attempt".into()),
+                    rollback_confirmed: true,
+                },
+                Some("rolled_back"),
+            )
+            .unwrap();
+        assert!(store
+            .get_run_contract(run_id)
+            .unwrap()
+            .unwrap()
+            .last_apply_error
+            .is_some());
+        assert!(store.claim_run_apply(run_id).unwrap());
+        let manifest = r#"{"transaction_id":"retry-attempt","changes":[]}"#;
+        store
+            .finish_run_apply(run_id, "applied", Some(manifest))
+            .unwrap();
+        drop(store);
+        let reopened = PytxoStore::open(&path).unwrap();
+        let contract = reopened.get_run_contract(run_id).unwrap().unwrap();
+        assert_eq!(contract.apply_status, "applied");
+        assert_eq!(contract.apply_manifest_json.as_deref(), Some(manifest));
+        assert!(contract.applied_at.is_some());
+        assert!(contract.last_apply_error.is_none());
+        assert!(contract.recovery_state.is_none());
+    }
+
+    #[test]
     fn explicit_recovery_transitions_are_authoritative_and_audited() {
         let dir = tempfile::tempdir().unwrap();
         let store = PytxoStore::open(&dir.path().join("pytxo.db")).unwrap();
@@ -1292,6 +1943,7 @@ mod tests {
             .finish_run_preparation(
                 run_id,
                 &PreparedRunManifest {
+                    candidate_verification: None,
                     version: 1,
                     run_id: run_id.into(),
                     base_revision: "base".into(),

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "run_id": "374bf178-942b-4afd-b589-d22bf2837544",
+  "permission_profile": "orbit",
+  "execution_domain": "C:\\pytxo\\target\\release-demo\\commit-boundary-20260906-203719-247",
+  "adapter": "deterministic-demo-adapter",
+  "native_executable_sha256": "c5d72f4ed76883400a141afdbf8ce7e52635071ad6bfd324fad633ee0ef91dca",
+  "cli_sha256": "abe5548ed177f5b8a2d15ad310f79dd37d450dcfb9b259348ca84dfd5ab6645e",
+  "initial_package_digest": "87280e0f423831743cf439163bcf84e663826473e9e12ee7603619269044d918",
+  "refreshed_package_digest": "a355782444b72f09edfaa9059cdf98fa3264b6b220271ca164bed1ded99d0d46",
+  "verified_at": "2026-09-06T14:03:14.221464800+00:00",
+  "verification_command": "npm test",
+  "controlled_delay_ms": 20000,
+  "native_window_response_after_refresh_ms": 1437,
+  "refresh_pending_before_and_after_native_window_response": true,
+  "viewport_before": [
+    1280,
+    800
+  ],
+  "viewport_after": [
+    1536,
+    816
+  ],
+  "fresh_check_passed": true,
+  "prepared_paths": [
+    "README.md",
+    "src/risk-policy.mjs",
+    "test/risk-policy.test.mjs"
+  ],
+  "primary_changed_paths": [
+    "package.json"
+  ],
+  "primary_candidate_effects_applied": false,
+  "ui_operated_by": "test automation",
+  "clean_install_proof": false,
+  "captures": [
+    "docs/_attachments/beta-2026-09-06/beta-native-refresh-responsive.png",
+    "docs/_attachments/beta-2026-09-06/beta-native-refresh-complete.png"
+  ],
+  "verification_logs": [
+    "target/beta-review-final-workspace-2.log",
+    "target/beta-review-final-clippy-2.log",
+    "target/beta-review-final-debug.log",
+    "target/beta-review-final-cli-mcp.log",
+    "target/beta-review-final-native.log",
+    "target/beta-review-final-msi.log",
+    "target/beta-review-native-responsive-2.log"
+  ],
+  "limits": [
+    "Window-response evidence verifies native event processing during a delayed Orbit refresh; Galaxy approval persistence is covered separately by the fault-injection regression.",
+    "No clean elevated installation or external-user usability study."
+  ]
+}

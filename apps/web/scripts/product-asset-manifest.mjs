@@ -6,6 +6,7 @@
  */
 export const REFERENCE_ROUTES = [
   "work",
+  "fleet",
   "history",
   "flow",
   "approvals",
@@ -26,6 +27,6 @@ export const VIEWPORTS = [
  * The homepage now leads with one large, legible Work capture instead of a wall
  * of thumbnails, so only the routes actually published are mirrored.
  */
-export const MARKETING_ROUTES = ["work", "history", "approvals", "run-review", "run-applied"];
+export const MARKETING_ROUTES = ["work", "fleet", "flow", "history", "approvals", "run-review", "run-applied"];
 
 export const MARKETING_VIEWPORTS = VIEWPORTS.filter(({ slug }) => slug !== "1280x800");

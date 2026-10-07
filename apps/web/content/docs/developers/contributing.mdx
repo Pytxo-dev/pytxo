@@ -1,9 +1,9 @@
 ---
 title: Contributing
-description: Build Pytxo from source and open pull requests.
+description: Build Pytxo from source and send a change.
 ---
 
-Pytxo is open source under the **MIT License**. Contributions welcome via GitHub pull requests.
+Pytxo is **MIT-licensed** and its source is at [`Pytxo-dev/pytxo`](https://github.com/Pytxo-dev/pytxo). Installers and CLI binaries ship from [`Pytxo-dev/pytxo-releases`](https://github.com/Pytxo-dev/pytxo-releases); to use Pytxo rather than change it, start with [Install](/docs/getting-started/install).
 
 ## Development setup
 
@@ -42,16 +42,11 @@ Edit MDX under `apps/web/content/docs`. Preview with `pnpm --dir apps/web dev` a
 
 ## Guidelines
 
-- Route orchestration changes through the three moats where applicable
+- Route orchestration changes through the [safety and coordination model](/docs/concepts/three-moats) where applicable
 - Add tests for scheduling, worktree, and store behavior
 - Update public docs when user-facing behavior changes
 - Follow existing Rust formatting (`cargo fmt`) and CI
 
 ## Pull requests
 
-1. Fork and branch from `main`
-2. Keep commits focused
-3. Ensure `cargo test` and CI pass
-4. Link related issues or ADRs in the PR description
-
-Full policy: [CONTRIBUTING.md](https://github.com/Pytxo-dev/pytxo/blob/main/CONTRIBUTING.md) on GitHub.
+Branch from `main`, keep commits focused, make sure `cargo test` and CI pass, and link related issues or ADRs. For anything larger than a fix, open an issue first so we can agree on the approach. Report security problems privately, as described in `SECURITY.md`.

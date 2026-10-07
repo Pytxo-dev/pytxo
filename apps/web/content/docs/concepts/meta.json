@@ -1,7 +1,8 @@
 {
-  "title": "Concepts",
+  "title": "Understand",
   "pages": [
     "what-is-pytxo",
+    "desktop",
     "three-moats",
     "signal-core",
     "blast-shield",
@@ -9,7 +10,6 @@
     "execution-domains",
     "modular-projects",
     "fleet-runs",
-    "galaxy-approvals",
-    "desktop"
+    "galaxy-approvals"
   ]
 }

@@ -230,6 +230,8 @@ Press `N` to skip deploy — copy the three keys somewhere safe.
 |----------|------|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Tracing |
 | `SENTRY_DSN` | Error reporting |
+| `DODO_WEBHOOK_SECRET`, `DODO_BUSINESS_ID`, `DODO_BRAND_ID` | Enable signed Dodo test ingress; configure all together |
+| `DODO_PRODUCT_PRO`, `DODO_PRODUCT_MAX`, `DODO_PRODUCT_ULTRA` | Allowlist the Dodo products actually sold; at least one is required |
 
 **Raw Editor example** (replace secrets with your values):
 
@@ -245,6 +247,11 @@ PADDLE_PRICE_PRO=pri_<paste>
 PADDLE_PRICE_MAX=pri_<paste>
 PADDLE_PRICE_ULTRA=pri_<paste>
 ```
+
+For Dodo test mode, add the six `DODO_*` values separately. Do not replace the
+Paddle variables or switch the MBCZ checkout catalog until the shadow/cutover
+gate in [the Dodo integration record](../../docs/01-projects/dodo-mor-integration.md)
+is complete.
 
 ### Step 6: Deploy Link
 
@@ -389,6 +396,12 @@ Redeploy Vercel after changes (`vercel deploy --prod` from `apps/web`).
 | `PADDLE_PRICE_PRO` | yes when Pro is sold | Paddle catalog |
 | `PADDLE_PRICE_MAX` | yes when Max is sold | Paddle catalog |
 | `PADDLE_PRICE_ULTRA` | yes when Ultra is sold | Paddle catalog |
+| `DODO_WEBHOOK_SECRET` | Dodo test ingress only | Dodo webhook settings |
+| `DODO_BUSINESS_ID` | Dodo test ingress only | Dodo business |
+| `DODO_BRAND_ID` | Dodo test ingress only | approved Pytxo brand |
+| `DODO_PRODUCT_PRO` | when Pro is mapped in Dodo | Dodo catalog |
+| `DODO_PRODUCT_MAX` | when Max is mapped in Dodo | Dodo catalog |
+| `DODO_PRODUCT_ULTRA` | when Ultra is mapped in Dodo | Dodo catalog |
 
 ### Railway `pytxo-cloud-sandbox`
 

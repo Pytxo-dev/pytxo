@@ -12,10 +12,29 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(here, "..");
 const master = process.argv[2];
 const mode = process.argv[3] ?? "silent";
+const profile = process.argv[4] ?? "launch";
+const resolution = process.argv[5] ?? "1080p";
+const expected = profile === "beta"
+  ? {seconds: 56, fps: 60}
+  : profile === "aperture"
+  ? {seconds: 58, fps: 60}
+  : profile === "r3-storyboard"
+    ? {seconds: 24, fps: 30}
+    : profile === "r6-cockpit"
+      ? {seconds: 12, fps: 30}
+    : {seconds: 52, fps: 30};
+const frameSize = resolution === "2160p"
+  ? {width: 3840, height: 2160}
+  : {width: 1920, height: 1080};
 
-if (!master || !["silent", "narrated"].includes(mode)) {
+if (
+  !master
+  || !["silent", "narrated"].includes(mode)
+  || !["launch", "aperture", "r3-storyboard", "r6-cockpit", "beta"].includes(profile)
+  || !["1080p", "2160p"].includes(resolution)
+) {
   throw new Error(
-    "Usage: node scripts/validate-master.mjs <master.mp4> [silent|narrated]",
+    "Usage: node scripts/validate-master.mjs <master.mp4> [silent|narrated] [launch|aperture|r3-storyboard|r6-cockpit|beta] [1080p|2160p]",
   );
 }
 
@@ -70,16 +89,16 @@ if (!video) {
   errors.push("video stream: missing");
 } else {
   expectEqual("codec", video.codec_name, "h264");
-  expectEqual("width", video.width, 1920);
-  expectEqual("height", video.height, 1080);
-  expectEqual("fps", video.r_frame_rate, "30/1");
+  expectEqual("width", video.width, frameSize.width);
+  expectEqual("height", video.height, frameSize.height);
+  expectEqual("fps", video.r_frame_rate, `${expected.fps}/1`);
   expectEqual("pixel format", video.pix_fmt, "yuv420p");
   expectEqual("color space", video.color_space, "bt709");
   expectEqual("color transfer", video.color_transfer, "bt709");
   expectEqual("color primaries", video.color_primaries, "bt709");
 }
-if (Math.abs(duration - 52) > 0.02) {
-  errors.push(`duration: expected 52.000 seconds, received ${duration}`);
+if (!Number.isFinite(duration) || Math.abs(duration - expected.seconds) > 0.02) {
+  errors.push(`duration: expected ${expected.seconds}.000 seconds, received ${duration}`);
 }
 
 if (mode === "silent") {
@@ -182,5 +201,5 @@ if (errors.length > 0) {
 }
 
 process.stdout.write(
-  `Master validation passed: ${mode}, ${duration.toFixed(3)}s, 1920x1080 at 30 fps.\n`,
+  `Master validation passed: ${profile}, ${mode}, ${duration.toFixed(3)}s, ${frameSize.width}x${frameSize.height} at ${expected.fps} fps.\n`,
 );

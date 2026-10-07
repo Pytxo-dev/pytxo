@@ -1,5 +1,6 @@
 ---
 title: Signal Core
+description: Send structural code scaffolds on read and interpret Pytxo's measured byte-reduction evidence honestly.
 ---
 
 **Signal Core** compresses context before agents read your code. It sends **structural skeletons** (signatures, types, imports) instead of full file dumps. Savings depend on how your files are shaped: small stubs save less; large source files with long bodies save more.
@@ -14,7 +15,7 @@ title: Signal Core
 
 ## Measured evidence
 
-On 2026-07-31, `real-repo-signal.ps1` measured **82.9% weighted
+On 2026-07-30 UTC, `real-repo-signal.ps1` measured **82.9% weighted
 scaffold-byte reduction** across 185 tracked production Rust, TypeScript, and
 JavaScript files in the Pytxo monorepo (1,253,675 bytes to 213,847 bytes).
 
@@ -36,4 +37,4 @@ Signal fidelity is a **context tier**, separate from [permission tiers](/docs/re
 
 Tools `pytxo_read` and `pytxo_read_scaffolded` return skeletons instead of raw files when Signal Core is on. Useful from Cursor without dumping a full checkout.
 
-Back: [Three moats](/docs/concepts/three-moats) · [Pytxo Desktop](/docs/concepts/desktop)
+Back: [Safety and coordination model](/docs/concepts/three-moats) · [Pytxo Desktop](/docs/concepts/desktop)

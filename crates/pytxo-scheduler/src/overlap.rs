@@ -5,6 +5,25 @@ use pytxo_core::{ConflictPair, Task};
 pub fn paths_overlap(a: &str, b: &str) -> bool {
     let a = normalize_pattern(a);
     let b = normalize_pattern(b);
+    // Win32 path equality is case-insensitive by default. Its non-ASCII
+    // upcase table is not Rust's Unicode case fold. Dot-only components and
+    // possible short-name aliases also need filesystem resolution, so these
+    // uncertain claims cannot share a wave.
+    #[cfg(windows)]
+    if [a.as_str(), b.as_str()].iter().any(|path| {
+        !path.is_ascii()
+            || path.split('/').any(|segment| {
+                segment.is_empty()
+                    || segment.contains(':')
+                    || segment.trim_end_matches(['.', ' ']).is_empty()
+                    || segment
+                        .as_bytes()
+                        .windows(2)
+                        .any(|pair| pair[0] == b'~' && pair[1].is_ascii_digit())
+            })
+    }) {
+        return true;
+    }
     if a == b {
         return true;
     }
@@ -18,7 +37,20 @@ pub fn paths_overlap(a: &str, b: &str) -> bool {
 }
 
 fn normalize_pattern(p: &str) -> String {
-    p.replace('\\', "/").trim_start_matches("./").to_string()
+    let normalized = p.replace('\\', "/");
+    let normalized = normalized.trim_start_matches("./");
+    #[cfg(windows)]
+    {
+        normalized
+            .split('/')
+            .map(|segment| segment.trim_end_matches(['.', ' ']).to_ascii_lowercase())
+            .collect::<Vec<_>>()
+            .join("/")
+    }
+    #[cfg(not(windows))]
+    {
+        normalized.to_string()
+    }
 }
 
 fn strip_glob(p: &str) -> String {
@@ -124,5 +156,25 @@ mod tests {
         let a = task("a", &["src/a.ts"]);
         let b = task("b", &["src/b.ts"]);
         assert!(!tasks_overlap(&a, &b));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn windows_case_aliases_cannot_share_a_wave() {
+        let a = task("a", &["src/Foo.rs"]);
+        let b = task("b", &["src/foo.rs"]);
+        assert!(tasks_overlap(&a, &b));
+        assert!(paths_overlap("./SRC\\Foo.rs", "src/foo.rs"));
+        assert!(paths_overlap("src/Foo.rs.", "src/foo.rs"));
+        assert!(paths_overlap("src/Dir.\\file.rs", "src/dir/file.rs"));
+        assert!(paths_overlap("src/Dir \\file.rs", "src/dir/file.rs"));
+        assert!(paths_overlap("src/./foo.rs", "src/foo.rs"));
+        assert!(paths_overlap("C:src\\foo.rs", "src/foo.rs"));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn unresolved_unicode_claims_do_not_run_concurrently() {
+        assert!(paths_overlap("src/Ä.rs", "docs/readme.md"));
     }
 }

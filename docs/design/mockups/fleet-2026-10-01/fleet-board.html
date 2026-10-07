@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pytxo fleet board — mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #050507; --shell: #08080a; --panel: #101012; --raised: #161619; --line: #27272a; --line-soft: #1c1c20;
+    --strong: #f5f5f7; --body: #c7c7ce; --soft: #aaaab3; --muted: #898993;
+    --cyan: #45dccb; --violet: #b764ed; --amber: #f3c64e; --pink: #f04da3;
+    --ok: #5bbf8a; --bad: #e0674c; --attn: #8b7cf0;
+    --aperture: linear-gradient(180deg, #b764ed, #45dccb 42%, #f3c64e 72%, #f04da3);
+    --aperture-h: linear-gradient(90deg, #b764ed, #45dccb 42%, #f3c64e 72%, #f04da3);
+    --ui: "Sora", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1920px; height: 1080px; background: var(--void); color: var(--body); font: 15px/1.4 var(--ui); overflow: hidden; }
+  .titlebar { height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 18px; border-bottom: 1px solid var(--line-soft); color: var(--soft); font-size: 14px; }
+  .titlebar::after { content: ""; position: absolute; left: 0; right: 0; top: 40px; height: 1px; background: var(--aperture-h); opacity: .55; }
+  .app { display: grid; grid-template-columns: 64px 1fr; height: 1040px; }
+  .rail { border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 18px 0; }
+  .rail i { width: 36px; height: 36px; border-radius: 9px; background: var(--raised); display: block; }
+  .rail i.on { background: #1f1f24; box-shadow: inset 2px 0 var(--cyan); }
+  main { display: grid; grid-template-rows: auto 1fr auto; min-width: 0; }
+  /* Command strip */
+  .command { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 24px; padding: 22px 32px 18px; border-bottom: 1px solid var(--line-soft); }
+  .command h1 { color: var(--strong); font-size: 30px; font-weight: 650; letter-spacing: -.03em; }
+  .meta { display: flex; gap: 22px; margin-top: 8px; font-size: 16px; color: var(--soft); align-items: center; }
+  .live { display: inline-flex; align-items: center; gap: 8px; color: var(--cyan); font-weight: 600; }
+  .live::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 4px rgba(69,220,203,.16); }
+  .meta b { color: var(--strong); font-weight: 600; }
+  .actions { display: flex; gap: 10px; }
+  .btn { height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 8px; display: inline-flex; align-items: center; font-size: 15px; color: var(--body); background: var(--panel); }
+  .btn.primary { background: var(--strong); color: var(--void); border-color: var(--strong); font-weight: 600; }
+  .btn.dim { opacity: .45; }
+  /* Board */
+  .board { display: grid; grid-template-columns: 1fr 420px; min-height: 0; }
+  .canvas { position: relative; padding: 22px 28px; background:
+      radial-gradient(circle at 1px 1px, rgba(137,137,147,.12) 1px, transparent 1.4px) 0 0 / 24px 24px, var(--shell); }
+  .lanes { position: absolute; inset: 22px 28px; display: grid; grid-template-columns: 2.05fr .95fr .8fr; gap: 30px; }
+  .lane { border-radius: 12px; display: flex; flex-direction: column; min-height: 0; } .lane:first-child .stack { flex: 1; grid-template-rows: 1fr 1fr; }
+  .lane h3 { font: 500 13px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 2px 4px 12px; display: flex; justify-content: space-between; }
+  .lane h3 span { color: var(--soft); text-transform: none; letter-spacing: 0; font-family: var(--ui); font-size: 14px; }
+  .stack { display: grid; gap: 16px; } .stack.two { grid-template-columns: 1fr 1fr; }
+  .worker { display: flex; flex-direction: column; position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .worker.active { border-color: color-mix(in srgb, var(--cyan) 55%, var(--line)); box-shadow: 0 0 0 1px rgba(69,220,203,.18), 0 18px 40px rgba(0,0,0,.45); }
+  .worker.done { border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+  .worker.queued { opacity: .62; border-style: dashed; }
+  .whead { display: grid; grid-template-columns: 30px 1fr auto; gap: 12px; align-items: center; padding: 13px 15px 10px; }
+  .logo { width: 30px; height: 30px; border-radius: 8px; background: #fff1; display: grid; place-items: center; }
+  .logo img { width: 20px; height: 20px; }
+  .vendor { color: var(--strong); font-size: 17px; font-weight: 600; }
+  .task { color: var(--soft); font-size: 15px; margin-top: 1px; }
+  .state { font-size: 14px; font-weight: 600; display: inline-flex; gap: 7px; align-items: center; }
+  .state.run { color: var(--cyan); } .state.ok { color: var(--ok); } .state.wait { color: var(--muted); } .state.lock { color: var(--amber); }
+  .term { font: 13.5px/1.55 var(--mono); color: #b9b9c2; background: #0a0a0c; border-top: 1px solid var(--line-soft); padding: 12px 15px; flex: 1; min-height: 116px; overflow: hidden; }
+  .term .p { color: var(--cyan); } .term .g { color: var(--ok); } .term .d { color: #6f6f78; } .term .y { color: var(--amber); }
+  .term .cursor { display: inline-block; width: 8px; height: 15px; background: var(--cyan); vertical-align: -2px; }
+  .owns { display: flex; gap: 7px; flex-wrap: wrap; padding: 9px 15px 12px; border-top: 1px solid var(--line-soft); }
+  .chip { font: 13px var(--mono); color: var(--body); background: var(--raised); border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; }
+  .chip.lock { color: var(--amber); border-color: rgba(243,198,78,.45); background: rgba(243,198,78,.08); }
+  svg.edges { position: absolute; inset: 0; pointer-events: none; }
+  /* Collision callout */
+  .callout { position: absolute; width: 330px; background: #17140a; border: 1px solid rgba(243,198,78,.5); border-radius: 10px; padding: 12px 14px; font-size: 14.5px; color: #eadcb0; box-shadow: 0 14px 30px rgba(0,0,0,.5); }
+  .callout b { color: var(--amber); display: block; font-size: 15px; margin-bottom: 4px; }
+  /* Boundary */
+  .boundary { border-left: 1px solid var(--line-soft); background: var(--panel); display: grid; grid-template-rows: auto 1fr auto; position: relative; }
+  .boundary::before { content: ""; position: absolute; left: -1px; top: 0; bottom: 0; width: 3px; background: var(--aperture); opacity: .9; }
+  .bhead { padding: 22px 24px 14px; border-bottom: 1px solid var(--line-soft); }
+  .bhead h2 { color: var(--strong); font-size: 21px; font-weight: 650; letter-spacing: -.02em; }
+  .bhead p { margin-top: 6px; color: var(--soft); font-size: 15px; }
+  .files { padding: 14px 24px; display: grid; gap: 9px; align-content: start; }
+  .file { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--raised); border: 1px solid var(--line); }
+  .file .k { font: 600 13px var(--mono); color: var(--ok); text-align: center; }
+  .file .n { font: 14.5px var(--mono); color: var(--strong); }
+  .file .by { font-size: 13.5px; color: var(--muted); }
+  .file.pending { background: transparent; border-style: dashed; }
+  .file.pending .n, .file.pending .k { color: var(--muted); }
+  .gate { padding: 18px 24px 22px; border-top: 1px solid var(--line-soft); display: grid; gap: 12px; }
+  .gate .row { display: flex; justify-content: space-between; font-size: 15px; }
+  .gate .row b { color: var(--strong); font-weight: 600; }
+  .gate .bar { height: 6px; border-radius: 3px; background: #1d1d22; overflow: hidden; }
+  .gate .bar i { display: block; height: 100%; width: 34%; background: var(--aperture-h); }
+  /* Footer rail */
+  .footer { display: flex; gap: 34px; align-items: center; padding: 14px 32px; border-top: 1px solid var(--line-soft); font-size: 15.5px; color: var(--soft); }
+  .footer b { color: var(--strong); font-weight: 600; font-size: 17px; margin-right: 6px; }
+  .footer .sep { width: 1px; height: 22px; background: var(--line); }
+  .tag { position: fixed; right: 18px; bottom: 12px; font: 12px var(--mono); color: #55555d; }
+.lane:not(:first-child) .term { flex: none; height: 118px; }
+.swim { position: absolute; right: 28px; bottom: 22px; width: 636px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px 14px; }
+.swim h4 { display: flex; justify-content: space-between; color: var(--strong); font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+.swim h4 span { color: var(--muted); font-weight: 400; font-size: 14px; }
+.lane-row { display: grid; grid-template-columns: 118px 1fr; align-items: center; gap: 12px; height: 30px; }
+.lane-row .who { font-size: 14.5px; color: var(--body); }
+.track { position: relative; height: 14px; border-radius: 7px; background: #141418; }
+.track i { position: absolute; top: 0; bottom: 0; border-radius: 7px; }
+.track i.run { background: linear-gradient(90deg, rgba(69,220,203,.35), #45dccb); }
+.track i.ok { background: #5bbf8a; }
+.track i.wait { background: repeating-linear-gradient(90deg, #3b3320 0 6px, #2a2416 6px 12px); }
+.now { position: absolute; top: 40px; bottom: 12px; width: 2px; background: var(--strong); opacity: .7; }
+.axis { display: grid; grid-template-columns: 118px 1fr; gap: 12px; margin-top: 6px; font: 12.5px var(--mono); color: var(--muted); }
+.axis div { display: flex; justify-content: space-between; }</style>
+</head>
+<body>
+<div class="titlebar"><span style="color:#f5f5f7;font-weight:600">Pytxo</span><span>taskboard</span><span style="margin-left:auto">Local · Orbit</span></div>
+<div class="app">
+  <nav class="rail"><i class="on"></i><i></i><i></i><i style="margin-top:auto"></i></nav>
+  <main>
+    <header class="command">
+      <div>
+        <h1>Search, filters, dark mode and Spanish for the task board</h1>
+        <div class="meta"><span class="live">Running</span><span><b>6</b> agents from 6 vendors</span><span><b>4</b> working now</span><span><b>3</b> waves</span><span>Repository <b>taskboard</b></span><span>Started <b>2m 14s</b> ago</span></div>
+      </div>
+      <div class="actions"><span class="btn">Pause new waves</span><span class="btn">Stop</span><span class="btn dim">Review changes</span></div>
+    </header>
+
+    <section class="board">
+      <div class="canvas">
+        <svg class="edges"></svg>
+        <div class="lanes">
+          <div class="lane">
+            <h3>Wave 1 <span>4 vendors in parallel</span></h3>
+            <div class="stack two">
+              <article class="worker done">
+                <div class="whead"><span class="logo"><img src="../../../../apps/desktop/public/ade/openai-on-dark.svg" alt=""></span><div><div class="vendor">Codex</div><div class="task">Search + status filter model</div></div><span class="state ok">✓ Checks passed</span></div>
+                <div class="term"><div><span class="d">$</span> node --test test/model.test.mjs</div><div><span class="g">✔</span> filters by status (2.1ms)</div><div><span class="g">✔</span> search is case-insensitive (0.9ms)</div><div><span class="g">✔</span> composes search and status (1.2ms)</div><div><span class="g">✔</span> keeps the four sample tasks (0.4ms)</div><div><span class="g">✔</span> never mutates the input list (0.3ms)</div><div class="d">  …5 more</div><div class="g">ℹ pass 11 · fail 0 · 48ms</div><div class="d">Codex: task done, exit 0</div></div>
+                <div class="owns"><span class="chip">src/model.mjs</span><span class="chip">test/model.test.mjs</span></div>
+              </article>
+              <article class="worker active">
+                <div class="whead"><span class="logo"><img src="../../../../apps/desktop/public/ade/anthropic.svg" alt=""></span><div><div class="vendor">Claude Code</div><div class="task">Dark mode with system preference</div></div><span class="state run">● Editing</span></div>
+                <div class="term"><div><span class="p">●</span> Update(src/style.css)</div><div class="d">  ⎿ Added 38 lines: :root[data-theme="dark"] tokens</div><div><span class="p">●</span> Update(src/app.js)</div><div class="d">  ⎿ Reads prefers-color-scheme, persists choice</div><div><span class="p">●</span> Update(src/index.html)</div><div class="d">  ⎿ Theme toggle with aria-pressed</div><div><span class="p">●</span> Bash(node --test)</div><div class="d">  ⎿ 11 passed</div><div><span class="p">●</span> Checking contrast of muted text <span class="cursor"></span></div></div>
+                <div class="owns"><span class="chip">src/style.css</span><span class="chip lock">src/app.js · owner</span></div>
+              </article>
+              <article class="worker active">
+                <div class="whead"><span class="logo"><img src="../../../../apps/desktop/public/ade/gemini.svg" alt=""></span><div><div class="vendor">Gemini CLI</div><div class="task">Spanish translations</div></div><span class="state run">● Writing</span></div>
+                <div class="term"><div><span class="y">✦</span> Creating src/i18n/es.json</div><div class="d">  48 strings · "No tasks match" → "Ninguna tarea coincide"</div><div><span class="y">✦</span> Wiring t() in src/index.html</div><div class="d">  12 labels replaced</div><div><span class="y">✦</span> Adding language switch es / en</div><div class="d">  persists in localStorage</div><div><span class="y">✦</span> Validating JSON keys match en.json <span class="cursor"></span></div></div>
+                <div class="owns"><span class="chip">src/i18n/</span><span class="chip">src/index.html</span></div>
+              </article>
+              <article class="worker active">
+                <div class="whead"><span class="logo"><img src="../../../../apps/desktop/public/ade/cursor-on-dark.svg" alt=""></span><div><div class="vendor">Cursor Agent</div><div class="task">Filter bar component</div></div><span class="state run">● Editing</span></div>
+                <div class="term"><div class="d">Contract: filter(tasks, query, status)</div><div><span class="p">→</span> src/components/filter-bar.js</div><div><span class="p">→</span> empty state + "Clear filters"</div><div class="d">  keyboard: / focuses search</div><div><span class="p">→</span> status chips: All · Open · Done</div><div><span class="p">→</span> aria-live result count</div><div class="d">  writing test/filter-bar.test.mjs <span class="cursor"></span></div></div>
+                <div class="owns"><span class="chip">src/components/</span></div>
+              </article>
+            </div>
+          </div>
+          <div class="lane">
+            <h3>Wave 2 <span>after its inputs</span></h3>
+            <div class="stack">
+              <article class="worker" style="border-color: rgba(243,198,78,.5)">
+                <div class="whead"><span class="logo"><img src="../../../../apps/desktop/public/ade/opencode.svg" alt=""></span><div><div class="vendor">OpenCode</div><div class="task">Blank-title validation</div></div><span class="state lock">⏸ Scheduled after Claude</span></div>
+                <div class="term"><div class="d">Also claims src/app.js</div><div><span class="y">⏸</span> Claude Code owns it in wave 1</div><div class="d">Starts on Claude's result,</div><div class="d">so neither overwrites the other.</div></div>
+                <div class="owns"><span class="chip lock">src/app.js · next</span><span class="chip">test/validation.test.mjs</span></div>
+              </article>
+            </div>
+          </div>
+          <div class="lane">
+            <h3>Wave 3 <span>after all</span></h3>
+            <div class="stack">
+              <article class="worker queued">
+                <div class="whead"><span class="logo"><img src="../../../../apps/desktop/public/ade/antigravity.png" alt=""></span><div><div class="vendor">Antigravity</div><div class="task">README and screenshots</div></div><span class="state wait">Queued</span></div>
+                <div class="term"><div class="d">Waits for waves 1 and 2</div><div class="d">so the docs describe the</div><div class="d">combined result.</div></div>
+                <div class="owns"><span class="chip">README.md</span></div>
+              </article>
+            </div>
+          </div>
+        </div>
+        <div class="swim">
+  <h4>Activity <span>from recorded events</span></h4>
+  <div class="lane-row"><span class="who">Codex</span><div class="track"><i class="ok" style="left:0;width:58%"></i></div></div>
+  <div class="lane-row"><span class="who">Claude Code</span><div class="track"><i class="run" style="left:0;width:86%"></i></div></div>
+  <div class="lane-row"><span class="who">Gemini CLI</span><div class="track"><i class="run" style="left:2%;width:84%"></i></div></div>
+  <div class="lane-row"><span class="who">Cursor Agent</span><div class="track"><i class="run" style="left:4%;width:82%"></i></div></div>
+  <div class="lane-row"><span class="who">OpenCode</span><div class="track"><i class="wait" style="left:0;width:86%"></i></div></div>
+  <div class="lane-row"><span class="who">Antigravity</span><div class="track"><i class="wait" style="left:0;width:86%"></i></div></div>
+  <div class="axis"><span></span><div><span>0:00</span><span>1:00</span><span>2:14 now</span></div></div>
+</div><div class="callout"><b>Overlap caught before start</b>Claude Code and OpenCode both claim <span style="font-family:var(--mono)">src/app.js</span>. Pytxo runs them in order, so neither can overwrite the other.</div>
+      </div>
+
+      <aside class="boundary">
+        <div class="bhead"><h2>Commit boundary</h2><p>Nothing reaches <b style="color:#f5f5f7">taskboard</b> until you review one exact package.</p></div>
+        <div class="files">
+          <div class="file"><span class="k">M</span><span class="n">src/model.mjs</span><span class="by">Codex</span></div>
+          <div class="file"><span class="k">M</span><span class="n">test/model.test.mjs</span><span class="by">Codex</span></div>
+          <div class="file pending"><span class="k">·</span><span class="n">src/style.css</span><span class="by">Claude Code</span></div>
+          <div class="file pending"><span class="k">·</span><span class="n">src/app.js</span><span class="by">Claude Code</span></div>
+          <div class="file pending"><span class="k">·</span><span class="n">src/i18n/es.json</span><span class="by">Gemini CLI</span></div>
+          <div class="file pending"><span class="k">·</span><span class="n">src/components/filter-bar.js</span><span class="by">Cursor</span></div>
+          <div class="file pending"><span class="k">·</span><span class="n">README.md</span><span class="by">Antigravity</span></div>
+        </div>
+        <div class="gate">
+          <div class="row"><span>Candidate</span><b>2 of 7 files prepared</b></div>
+          <div class="bar"><i></i></div>
+          <div class="row"><span>Combined checks</span><b style="color:#898993">After all waves</b></div>
+          <div class="row"><span>Apply</span><b style="color:#898993">Locked until review</b></div>
+        </div>
+      </aside>
+    </section>
+
+    <footer class="footer"><span><b>0</b>overwrites</span><span class="sep"></span><span><b>1</b>shared path ordered</span><span class="sep"></span><span><b>6</b>isolated workspaces · projfs</span><span class="sep"></span><span><b>11/11</b>task checks passing so far</span></footer>
+  </main>
+</div>
+<div class="tag">Mockup · illustrative fixture, not a recorded run</div>
+<script>
+  const card = (vendor) => [...document.querySelectorAll('.worker')].find(w => w.querySelector('.vendor').textContent === vendor);
+  const svg = document.querySelector('svg.edges'), canvas = document.querySelector('.canvas');
+  const box = canvas.getBoundingClientRect();
+  svg.setAttribute('width', box.width); svg.setAttribute('height', box.height);
+  const edge = (from, to, style) => {
+    const a = card(from).getBoundingClientRect(), b = card(to).getBoundingClientRect();
+    const x1 = a.right - box.left, y1 = a.top - box.top + 34, x2 = b.left - box.left, y2 = b.top - box.top + 34;
+    const mx = (x1 + x2) / 2;
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', `M${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`);
+    p.setAttribute('fill', 'none'); p.setAttribute('stroke-width', style.w ?? 2);
+    p.setAttribute('stroke', style.c); if (style.dash) p.setAttribute('stroke-dasharray', style.dash);
+    svg.appendChild(p);
+  };
+  edge('Claude Code', 'OpenCode', { c: '#f3c64e', w: 2.4 });
+  for (const v of ['Codex', 'Cursor Agent', 'Gemini CLI', 'OpenCode']) edge(v, 'Antigravity', { c: '#3d3d46', dash: '6 7' });
+  const o = card('OpenCode').getBoundingClientRect(), call = document.querySelector('.callout');
+  call.style.left = (o.left - box.left - 40) + 'px'; call.style.top = (o.bottom - box.top + 18) + 'px';
+</script></body>
+</html>

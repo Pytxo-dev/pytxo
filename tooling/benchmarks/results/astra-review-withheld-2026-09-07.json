@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-09-07T03:39:25.069Z",
+  "scenario": "Three-task native candidate withheld after semantic review",
+  "run_id": "55a36c03-e0f7-4b92-bec2-53df36f17541",
+  "run_status": "completed",
+  "package_status": "ready",
+  "package_digest": "2c7b893f6b2c3d7ba9b9c12861653e8445d336422d32cf374db64ffeb575fd04",
+  "msi_sha256": "dfacd548f58ea149d84271de50c038288f6b19894f1496dde65916a4a67d20d3",
+  "packaged_executable_sha256": "9d99646c9ac59c4504a5f4bd7133b1bd84d3327a59a25ccb7dd75926abd9e603",
+  "source_inputs_sha256": "9b9079cb25fc5dc01e749c14ffaccfc67895cbce60f6bbdef12dff671de39858",
+  "mission_sha256": "72b71997a748884d306b4760cc184b745b719cccd4c4fbb7d2606f60c11e97ab",
+  "planned_tasks": 3,
+  "waves": 2,
+  "worker_outcomes": [
+    {
+      "task_id": "mission-0",
+      "wave": 0,
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-2",
+      "wave": 0,
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-1",
+      "wave": 1,
+      "status": "completed",
+      "exit_code": 0
+    }
+  ],
+  "candidate_checks": [
+    {
+      "task_id": "mission-0",
+      "command": "npm test",
+      "passed": true
+    },
+    {
+      "task_id": "mission-2",
+      "command": "npm test",
+      "passed": true
+    },
+    {
+      "task_id": "mission-1",
+      "command": "npm test",
+      "passed": true
+    }
+  ],
+  "review_decision": "Apply withheld; package retained for inspection",
+  "reason": "README described secrets/ as still unimplemented, contradicting the correctly changed combined implementation. Passing code tests did not validate prose consistency.",
+  "inspected_paths": [
+    "README.md",
+    "src/risk-policy.mjs",
+    "test/risk-policy.test.mjs"
+  ],
+  "primary_source_files": [
+    {
+      "path": ".gitignore",
+      "sha256": "437aa5d95044ff0309464d6e7e70ecd691e26c8027eb8da71128935a50797587"
+    },
+    {
+      "path": "README.md",
+      "sha256": "adb51340f3e459072cc348481ea0000d645ba792c62c7d6edfbc3350fa7add33"
+    },
+    {
+      "path": "package.json",
+      "sha256": "a7cf37fbfe5020a3efc8b12964713d62d8d9a61c80ee8ce36f51f6255d74a3dd"
+    },
+    {
+      "path": "pytxo.toml",
+      "sha256": "885af7a41a2083a37db7fe21cb3e5c805e60b0dc375706c8a2323d9499365353"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "sha256": "836b60237482a56e3db4fcc676fb0aa557bd19046376d8331c401b312c12f8e7"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "sha256": "1d59c81a61299fb8a9798d2d365ba3d05122332b72c95c80bc07fd8f850abcf1"
+    }
+  ],
+  "primary_source_unchanged": true,
+  "primary_inventory_exclusions": [
+    ".git/**",
+    ".pytxo/**"
+  ],
+  "apply_attempted": false,
+  "review_operator": "Test automation and agent review, not an external human participant",
+  "next_attempt": "New plan with explicit final-state guidance in the editable documentation task prompt; retain the same file scopes and frozen MSI",
+  "non_claims": [
+    "A passing test suite does not establish documentation correctness",
+    "The product did not automatically detect or reject this semantic error",
+    "No reliability rate or controlled speed/cost comparison",
+    "No clean-install, public-download or external-user proof"
+  ]
+}

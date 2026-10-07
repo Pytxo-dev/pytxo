@@ -1,13 +1,18 @@
-//! Pytxo Link — billing reconcile, entitlements, and Paddle webhooks.
+//! Pytxo Link — optional account/control API and provider-neutral commerce reconciliation.
 
 mod audit;
 mod auth;
+mod commerce;
 mod db;
+mod dodo;
 mod entitlements;
 mod inference;
 mod jwt;
 mod limits;
 mod paddle;
+mod routing;
+mod routing_admission;
+mod routing_desktop;
 mod runs;
 mod seats;
 mod state;
@@ -397,20 +402,71 @@ async fn paddle_webhook(
         Ok(v) => v,
         Err(_) => return StatusCode::BAD_REQUEST,
     };
-    let (Some(events), Some(prices)) = (state.paddle_events.as_ref(), state.paddle_prices.as_ref())
+    let (Some(commerce), Some(prices)) = (state.commerce.as_ref(), state.paddle_prices.as_ref())
     else {
         return StatusCode::SERVICE_UNAVAILABLE;
     };
-    match paddle::handle_paddle_webhook(events, &state.entitlements, prices, &parsed).await {
-        Ok(paddle::PaddleWebhookOutcome::Applied) => StatusCode::OK,
-        // Paddle retries deliveries. A durable duplicate is an idempotent
-        // success, not a signal to retry the already-applied side effect.
-        Ok(paddle::PaddleWebhookOutcome::Duplicate) => StatusCode::OK,
-        Ok(paddle::PaddleWebhookOutcome::Rejected) => StatusCode::BAD_REQUEST,
+    match paddle::handle_paddle_webhook(commerce, &state.entitlements, prices, &parsed).await {
+        Ok(outcome) => commerce_webhook_status(outcome),
         Err(error) => {
             tracing::error!(error = %error, event_id = %parsed.event_id, "paddle webhook transaction failed");
             StatusCode::INTERNAL_SERVER_ERROR
         }
+    }
+}
+
+async fn dodo_webhook(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> StatusCode {
+    let Some(secret) = state.dodo_webhook_secret.as_deref() else {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    };
+    let webhook_id = header_value(&headers, "webhook-id");
+    let webhook_timestamp = header_value(&headers, "webhook-timestamp");
+    let webhook_signature = header_value(&headers, "webhook-signature");
+    if !dodo::verify_dodo_signature(
+        &body,
+        webhook_id,
+        webhook_timestamp,
+        webhook_signature,
+        secret,
+    ) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let parsed: dodo::DodoWebhook = match serde_json::from_slice(&body) {
+        Ok(value) => value,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
+    let (Some(commerce), Some(products)) = (state.commerce.as_ref(), state.dodo_products.as_ref())
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    };
+    match dodo::handle_dodo_webhook(commerce, &state.entitlements, products, webhook_id, &parsed)
+        .await
+    {
+        Ok(outcome) => commerce_webhook_status(outcome),
+        Err(error) => {
+            tracing::error!(error = %error, event_id = webhook_id, "dodo webhook transaction failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
+
+fn header_value<'a>(headers: &'a HeaderMap, name: &str) -> &'a str {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+}
+
+fn commerce_webhook_status(outcome: commerce::ReconcileOutcome) -> StatusCode {
+    match outcome {
+        commerce::ReconcileOutcome::Applied
+        | commerce::ReconcileOutcome::Duplicate
+        | commerce::ReconcileOutcome::IgnoredStale => StatusCode::OK,
+        commerce::ReconcileOutcome::Rejected => StatusCode::BAD_REQUEST,
     }
 }
 
@@ -442,13 +498,20 @@ async fn openapi() -> Json<Value> {
 
             "/v1/runs/end": { "post": { "summary": "Reconcile run end with usage" } },
 
+            "/v1/routing/tokens": {
+                "post": { "summary": "Experimental signed-session routing token; disabled by default" },
+                "delete": { "summary": "Revoke experimental routing token" }
+            },
+
             "/v1/inference/usage": { "post": { "summary": "Proxy-reported provider token usage" } },
 
             "/v1/wallet/balance": { "get": { "summary": "Ultra wallet balance (microcredits)" } },
 
             "/v1/orgs/{org_id}/audit": { "get": { "summary": "Org audit log" } },
 
-            "/v1/webhooks/paddle": { "post": { "summary": "Paddle subscription webhooks" } }
+            "/v1/webhooks/paddle": { "post": { "summary": "Paddle subscription webhooks" } },
+
+            "/v1/webhooks/dodo": { "post": { "summary": "Dodo subscription webhooks" } }
 
         }
 
@@ -464,15 +527,14 @@ async fn main() {
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .ok();
 
-    let (entitlements, db, runs, paddle_events) = if let Ok(url) = std::env::var("DATABASE_URL") {
+    let (entitlements, db, runs, commerce) = if let Ok(url) = std::env::var("DATABASE_URL") {
         if !url.is_empty() {
             let pool = db::connect(&url).await.expect("postgres connect");
-            let pool_clone = pool.clone();
             (
                 EntitlementStore::postgres(pool.clone()),
-                Some(pool_clone),
+                Some(pool.clone()),
                 state::RunLedger::postgres(pool.clone()),
-                Some(paddle::PaddleEventStore::postgres(pool)),
+                Some(commerce::CommerceStore::postgres(pool)),
             )
         } else {
             (
@@ -504,6 +566,18 @@ async fn main() {
 
     let api_key = std::env::var("LINK_API_KEY").ok().filter(|s| !s.is_empty());
     let require_auth = require_auth_override.unwrap_or(api_key.is_some() || jwks.is_some());
+    let routing_token_experiment =
+        std::env::var("LINK_ROUTING_TOKEN_EXPERIMENT").is_ok_and(|value| value == "1");
+    let routing_grant_experiment =
+        std::env::var("LINK_ROUTING_GRANT_EXPERIMENT").is_ok_and(|value| value == "1");
+    let routing_admission_experiment =
+        std::env::var("LINK_ROUTING_ADMISSION_EXPERIMENT").is_ok_and(|value| value == "1");
+    if routing_admission_experiment && !routing_token_experiment {
+        panic!("routing admission requires LINK_ROUTING_TOKEN_EXPERIMENT=1");
+    }
+    if routing_grant_experiment && !routing_token_experiment {
+        panic!("routing grants require LINK_ROUTING_TOKEN_EXPERIMENT=1");
+    }
 
     let state = AppState {
         api_key,
@@ -516,19 +590,39 @@ async fn main() {
 
         jwks,
 
+        routing_token_audience: if routing_token_experiment {
+            std::env::var("ROUTING_CLERK_AUDIENCE")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        } else {
+            None
+        },
+        routing_grant_experiment,
+
+        routing_admission: routing_admission::RoutingAdmissionConfig::from_env(
+            routing_admission_experiment,
+        )
+        .expect("refusing incomplete experimental routing admission configuration"),
+
         entitlements,
 
         db,
 
         runs,
 
+        commerce,
+
         paddle_webhook_secret: std::env::var("PADDLE_WEBHOOK_SECRET")
             .ok()
             .filter(|value| !value.is_empty()),
 
-        paddle_events,
-
         paddle_prices: paddle::PaddlePriceCatalog::from_env(),
+
+        dodo_webhook_secret: std::env::var("DODO_WEBHOOK_SECRET")
+            .ok()
+            .filter(|value| !value.is_empty()),
+
+        dodo_products: dodo::DodoProductCatalog::from_env(),
     };
 
     let addr = listen_addr();
@@ -538,6 +632,25 @@ async fn main() {
         state.api_key.is_some() || state.jwks.is_some(),
     )
     .expect("refusing insecure Pytxo Link startup");
+    validate_routing_token_startup(routing_token_experiment, &state)
+        .expect("refusing incomplete experimental routing token configuration");
+
+    // Liabilities from an earlier enabled pilot still need reconciliation if
+    // new admission is switched off during an incident or after a restart.
+    if let Some(pool) = state.db.clone() {
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(30));
+            loop {
+                tick.tick().await;
+                if routing_admission::reconcile_stale(&pool).await.is_err() {
+                    tracing::warn!("routing admission reconciliation unavailable");
+                }
+                if routing_desktop::prune_expired(&pool).await.is_err() {
+                    tracing::warn!("routing Desktop credential retention unavailable");
+                }
+            }
+        });
+    }
 
     let app = apply_service_layers(build_router(state));
 
@@ -583,6 +696,22 @@ fn validate_startup_security(
     Ok(())
 }
 
+fn validate_routing_token_startup(enabled: bool, state: &AppState) -> Result<(), &'static str> {
+    if enabled
+        && (state.db.is_none()
+            || !state
+                .jwks
+                .as_ref()
+                .is_some_and(|jwks| jwks.routing_source_secure())
+            || state.routing_token_audience.is_none())
+    {
+        return Err(
+            "routing tokens require DATABASE_URL, HTTPS Clerk JWKS/issuer and routing audience",
+        );
+    }
+    Ok(())
+}
+
 fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
@@ -603,7 +732,52 @@ fn build_router(state: AppState) -> Router {
         .route("/v1/wallet/balance", get(wallet_balance))
         .route("/v1/runs/start", post(runs_start))
         .route("/v1/runs/end", post(runs_end))
+        .route(
+            "/v1/routing/tokens",
+            post(routing::issue_token).delete(routing::revoke_token),
+        )
+        .route(
+            "/v1/routing/workspace-grants",
+            post(routing::enable_workspace_grant).delete(routing::revoke_workspace_grant),
+        )
+        .route(
+            "/v1/routing/workspace-grants/{workspace_id}",
+            get(routing::workspace_grant_status),
+        )
+        .route(
+            "/v1/routing/desktop-authorizations",
+            post(routing_desktop::authorize),
+        )
+        .route(
+            "/v1/routing/desktop-exchange",
+            post(routing_desktop::exchange),
+        )
+        .route(
+            "/v1/routing/desktop-session",
+            get(routing_desktop::session_status).delete(routing_desktop::revoke_session),
+        )
+        .route(
+            "/v1/routing/desktop-sessions",
+            axum::routing::delete(routing_desktop::revoke_all),
+        )
+        .route(
+            "/internal/routing/reserve",
+            post(routing_admission::reserve_route),
+        )
+        .route(
+            "/internal/routing/claim",
+            post(routing_admission::claim_route),
+        )
+        .route(
+            "/internal/routing/uncertain",
+            post(routing_admission::uncertain_route),
+        )
+        .route(
+            "/internal/routing/settle",
+            post(routing_admission::settle_route),
+        )
         .route("/v1/webhooks/paddle", post(paddle_webhook))
+        .route("/v1/webhooks/dodo", post(dodo_webhook))
         .with_state(state)
 }
 
@@ -622,6 +796,8 @@ mod contract_tests {
     use super::*;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
     use hmac::{Hmac, Mac};
     use http_body_util::BodyExt;
     use serde_json::Value;
@@ -640,18 +816,32 @@ mod contract_tests {
         assert!(validate_startup_security("0.0.0.0:8787", true, false).is_err());
     }
 
-    fn test_state() -> AppState {
+    #[test]
+    fn routing_token_experiment_requires_separate_complete_configuration() {
+        let mut state = test_state();
+        assert!(validate_routing_token_startup(false, &state).is_ok());
+        assert!(validate_routing_token_startup(true, &state).is_err());
+        state.routing_token_audience = Some("pytxo-routing".into());
+        assert!(validate_routing_token_startup(true, &state).is_err());
+    }
+
+    pub(crate) fn test_state() -> AppState {
         AppState {
             api_key: None,
             admin_key: Some("test-admin".into()),
             require_auth: false,
             jwks: None,
+            routing_token_audience: None,
+            routing_grant_experiment: false,
+            routing_admission: None,
             entitlements: EntitlementStore::memory(),
             db: None,
             runs: state::RunLedger::memory(),
+            commerce: Some(commerce::CommerceStore::memory()),
             paddle_webhook_secret: None,
-            paddle_events: Some(paddle::PaddleEventStore::memory()),
             paddle_prices: Some(paddle::PaddlePriceCatalog::test()),
+            dodo_webhook_secret: None,
+            dodo_products: Some(dodo::DodoProductCatalog::test()),
         }
     }
 
@@ -660,6 +850,17 @@ mod contract_tests {
             paddle_webhook_secret: Some(TEST_PADDLE_SECRET.into()),
             ..test_state()
         }
+    }
+
+    fn dodo_state() -> AppState {
+        AppState {
+            dodo_webhook_secret: Some(test_dodo_secret()),
+            ..test_state()
+        }
+    }
+
+    fn test_dodo_secret() -> String {
+        format!("whsec_{}", STANDARD.encode(b"test-dodo-signing-key"))
     }
 
     fn signed_paddle_request(body: &'static str) -> Request<Body> {
@@ -680,6 +881,27 @@ mod contract_tests {
             .header("content-type", "application/json")
             .header("paddle-signature", signature)
             .body(Body::from(body))
+            .unwrap()
+    }
+
+    fn signed_dodo_request(body: &str, webhook_id: &str) -> Request<Body> {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let mut payload = format!("{webhook_id}.{timestamp}.").into_bytes();
+        payload.extend_from_slice(body.as_bytes());
+        let mut mac = Hmac::<Sha256>::new_from_slice(b"test-dodo-signing-key").unwrap();
+        mac.update(&payload);
+        let signature = format!("v1,{}", STANDARD.encode(mac.finalize().into_bytes()));
+        Request::builder()
+            .method("POST")
+            .uri("/v1/webhooks/dodo")
+            .header("content-type", "application/json")
+            .header("webhook-id", webhook_id)
+            .header("webhook-timestamp", timestamp)
+            .header("webhook-signature", signature)
+            .body(Body::from(body.to_string()))
             .unwrap()
     }
 
@@ -729,8 +951,10 @@ mod contract_tests {
             "/v1/orgs/{org_id}/audit",
             "/v1/runs/start",
             "/v1/runs/end",
+            "/v1/routing/tokens",
             "/v1/wallet/balance",
             "/v1/webhooks/paddle",
+            "/v1/webhooks/dodo",
         ] {
             assert!(paths.contains_key(path), "missing path {path}");
         }
@@ -1007,5 +1231,68 @@ mod contract_tests {
         assert_eq!(created_response.status(), StatusCode::OK);
         assert_eq!(canceled_response.status(), StatusCode::OK);
         assert_eq!(entitlements.get("user-cancel").await.tier, Tier::Core);
+    }
+
+    #[tokio::test]
+    async fn dodo_webhook_requires_configuration() {
+        let body = r#"{"business_id":"business-test","timestamp":"2026-09-15T10:00:00Z","type":"subscription.active","data":{"payload_type":"Subscription","subscription_id":"sub-1","brand_id":"brand-pytxo","product_id":"product-pro","customer":{"customer_id":"customer-1"},"metadata":{"user_id":"user-1"},"status":"active","next_billing_date":"2026-10-15T10:00:00Z","cancel_at_next_billing_date":false}}"#;
+        let response = build_router(test_state())
+            .oneshot(signed_dodo_request(body, "msg-missing-secret"))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn dodo_webhook_reconciles_replay_and_terminal_state() {
+        let state = dodo_state();
+        let entitlements = state.entitlements.clone();
+        let app = build_router(state);
+        let active = r#"{"business_id":"business-test","timestamp":"2026-09-15T10:00:00Z","type":"subscription.active","data":{"payload_type":"Subscription","subscription_id":"sub-dodo","brand_id":"brand-pytxo","product_id":"product-pro","customer":{"customer_id":"customer-dodo"},"metadata":{"user_id":"user-dodo"},"status":"active","next_billing_date":"2026-10-15T10:00:00Z","cancel_at_next_billing_date":false}}"#;
+        let cancelled = r#"{"business_id":"business-test","timestamp":"2026-09-15T11:00:00Z","type":"subscription.cancelled","data":{"payload_type":"Subscription","subscription_id":"sub-dodo","brand_id":"brand-pytxo","product_id":"product-pro","customer":{"customer_id":"customer-dodo"},"metadata":{},"status":"cancelled","next_billing_date":"2026-10-15T10:00:00Z","cancel_at_next_billing_date":false}}"#;
+
+        let first = app
+            .clone()
+            .oneshot(signed_dodo_request(active, "msg-active"))
+            .await
+            .unwrap();
+        let replay = app
+            .clone()
+            .oneshot(signed_dodo_request(active, "msg-active"))
+            .await
+            .unwrap();
+        assert_eq!(first.status(), StatusCode::OK);
+        assert_eq!(replay.status(), StatusCode::OK);
+        assert_eq!(entitlements.get("user-dodo").await.tier, Tier::Pro);
+
+        let ended = app
+            .oneshot(signed_dodo_request(cancelled, "msg-cancelled"))
+            .await
+            .unwrap();
+        assert_eq!(ended.status(), StatusCode::OK);
+        assert_eq!(entitlements.get("user-dodo").await.tier, Tier::Core);
+    }
+
+    #[tokio::test]
+    async fn dodo_webhook_rejects_unmapped_product_despite_metadata() {
+        let body = r#"{"business_id":"business-test","timestamp":"2026-09-15T10:00:00Z","type":"subscription.active","data":{"payload_type":"Subscription","subscription_id":"sub-unknown","brand_id":"brand-pytxo","product_id":"product-attacker","customer":{"customer_id":"customer-attacker"},"metadata":{"user_id":"attacker","tier":"ultra"},"status":"active","next_billing_date":"2026-10-15T10:00:00Z","cancel_at_next_billing_date":false}}"#;
+        let response = build_router(dodo_state())
+            .oneshot(signed_dodo_request(body, "msg-unknown-product"))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn dodo_webhook_rejects_a_different_brand() {
+        let body = r#"{"business_id":"business-test","timestamp":"2026-09-15T10:00:00Z","type":"subscription.active","data":{"payload_type":"Subscription","subscription_id":"sub-wrong-brand","brand_id":"brand-other","product_id":"product-pro","customer":{"customer_id":"customer-other"},"metadata":{"user_id":"user-other"},"status":"active","next_billing_date":"2026-10-15T10:00:00Z","cancel_at_next_billing_date":false}}"#;
+        let response = build_router(dodo_state())
+            .oneshot(signed_dodo_request(body, "msg-wrong-brand"))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 }

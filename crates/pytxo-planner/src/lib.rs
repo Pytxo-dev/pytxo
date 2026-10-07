@@ -3,11 +3,16 @@
 //! Disabled by default. Enable with `PYTXO_PLANNER=1` or `[planner] enabled = true` in `pytxo.toml`.
 //! Use `PYTXO_PLANNER=signal` or `[planner] mode = "signal"]` for Signal Core graph inference.
 
+pub mod advisor;
+
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path};
 
 use anyhow::{bail, Context};
-use pytxo_core::{PytxoConfig, Task, TaskId};
+use pytxo_core::{
+    find_custom_provider, get_provider, resolve_openai_base_url, CoordinatorTransport, ProviderId,
+    PytxoConfig, Task, TaskId,
+};
 use pytxo_signal::build_structural_graph;
 use serde::Deserialize;
 
@@ -59,6 +64,9 @@ pub fn planner_enabled(config: &PytxoConfig) -> bool {
 }
 
 fn planner_mode(config: &PytxoConfig) -> PlannerMode {
+    if let Some(mode) = explicit_local_planner_mode() {
+        return mode;
+    }
     if llm_planner_enabled(config) {
         return PlannerMode::Llm;
     }
@@ -74,31 +82,25 @@ fn planner_mode(config: &PytxoConfig) -> PlannerMode {
     }
 }
 
-/// LLM planner: Ultra managed proxy **or** BYOK OpenAI-compatible providers.
+/// Cloud planning requires explicit process opt-in. A provider credential is
+/// transport configuration, never consent to disclose mission/repository context.
 pub fn llm_planner_enabled(config: &PytxoConfig) -> bool {
-    if !planner_enabled(config) && !mission_planner_unlocked() {
-        // Mission path unlocks BYOK even when [planner] is off.
-        if byok_scout_endpoint().is_some() {
-            return true;
-        }
-        return false;
-    }
-    if byok_scout_endpoint().is_some() {
-        return true;
-    }
-    if !ultra_billing_active(config) {
-        return false;
-    }
-    std::env::var("PYTXO_PLANNER_LLM")
-        .ok()
-        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    explicit_local_planner_mode().is_none()
+        && llm_planner_flag()
+        && coordinator_endpoint(config).is_ok()
 }
 
-/// Mission CLI/Flow always plan (ADR-0031); shell slash-run still respects planner flag.
-fn mission_planner_unlocked() -> bool {
-    std::env::var("PYTXO_MISSION_PLAN")
-        .ok()
-        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+fn explicit_local_planner_mode() -> Option<PlannerMode> {
+    match std::env::var("PYTXO_PLANNER")
+        .ok()?
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "heuristic" => Some(PlannerMode::Heuristic),
+        // Flow always supports local planning; 0/false still disable legacy shell planning.
+        "signal" | "0" | "false" => Some(PlannerMode::Signal),
+        _ => None,
+    }
 }
 
 fn ultra_billing_active(config: &PytxoConfig) -> bool {
@@ -136,6 +138,15 @@ fn split_mission_chunks(text: &str) -> Vec<&str> {
     }
 }
 
+/// The comma-separated list after a trailing `| files:` marker, if present.
+fn explicit_file_list(chunk: &str) -> Option<&str> {
+    let (_, tail) = chunk.rsplit_once('|')?;
+    let tail = tail.trim_start();
+    tail.get(..6)
+        .filter(|head| head.eq_ignore_ascii_case("files:"))
+        .map(|_| &tail[6..])
+}
+
 /// Heuristic v1: one synthetic task per sentence chunk (testing / demos only).
 pub struct HeuristicPlanner;
 
@@ -150,15 +161,16 @@ impl MissionPlanner for HeuristicPlanner {
             bail!("mission text is empty");
         }
         let parts = split_mission_chunks(text);
-        let n = parts.len().min(ctx.config.max_agents.max(1));
+        let n = parts.len();
         let mut tasks = Vec::with_capacity(n);
         let mut task_prompts = HashMap::new();
-        for (i, part) in parts.into_iter().take(n).enumerate() {
+        for (i, part) in parts.into_iter().enumerate() {
             let id = TaskId(format!("mission-{i}"));
             let paths = infer_paths_from_chunk(part, ctx.repo);
             if paths.is_empty() {
                 bail!(
-                    "planner could not determine safe ownership paths for task {id}: {part}. Name a repo-relative file or directory"
+                    "planner could not determine safe ownership paths for task {id}: {}. Name a repo-relative file or directory.",
+                    part.trim_end_matches('.')
                 );
             }
             task_prompts.insert(id.0.clone(), part.to_string());
@@ -182,7 +194,8 @@ impl MissionPlanner for HeuristicPlanner {
     }
 }
 
-/// Ultra LLM planner: decompose mission via managed inference proxy DeepSeek route.
+/// Advisory model coordinator used for mission decomposition. The returned
+/// tasks still pass through Pytxo's deterministic plan validation.
 pub struct LlmPlanner;
 
 #[derive(Debug, Deserialize)]
@@ -203,64 +216,32 @@ struct LlmPlanResponse {
 }
 
 impl LlmPlanner {
-    fn proxy_base(config: &PytxoConfig) -> String {
-        config
-            .billing
-            .inference_proxy_url
-            .trim_end_matches('/')
-            .to_string()
-    }
-
-    fn planner_model() -> String {
-        std::env::var("PYTXO_PLANNER_MODEL").unwrap_or_else(|_| "deepseek-chat".into())
-    }
-
     fn call_proxy(mission: &str, ctx: &PlannerContext<'_>) -> anyhow::Result<LlmPlanResponse> {
+        if !llm_planner_enabled(ctx.config) {
+            bail!("model coordinator is not enabled: explicitly set PYTXO_PLANNER_LLM=1 and configure its direct, local, or managed transport; local planner selections take precedence");
+        }
+        let endpoint = coordinator_endpoint(ctx.config)?;
         let system = "Decompose the mission into parallel-safe coding tasks. Return JSON: {\"tasks\":[{\"id\":\"task-a\",\"agent\":\"agent-0\",\"paths\":[\"src/foo.ts\"],\"depends_on\":[],\"prompt\":\"...\",\"verify\":[\"npm test\"]}]}. Use explicit repo-relative ownership paths from the supplied repository brief. Never use \".\", absolute paths, parent traversal, or glob patterns. If ownership is unclear, return no tasks. Dependencies must reference unique task ids. Suggest verify commands only when they are supported by the supplied manifests.";
         let repository = repository_brief(ctx.repo);
         let user = format!("Mission:\n{mission}\n\n{repository}");
-        let body_for = |model: &str| {
-            serde_json::json!({
-                "model": model,
-                "response_format": { "type": "json_object" },
-                "messages": [
-                    { "role": "system", "content": system },
-                    { "role": "user", "content": user }
-                ]
-            })
-        };
+        let body = serde_json::json!({
+            "model": endpoint.model,
+            "response_format": { "type": "json_object" },
+            "messages": [
+                { "role": "system", "content": system },
+                { "role": "user", "content": user }
+            ]
+        });
 
-        // Prefer BYOK OpenAI-compatible scout (ADR-0031).
-        if let Some((base, key, model)) = byok_scout_endpoint() {
-            let url = format!("{}/chat/completions", base.trim_end_matches('/'));
-            let resp = ureq::post(&url)
-                .set("Content-Type", "application/json")
-                .set("Authorization", &format!("Bearer {key}"))
-                .send_json(body_for(&model))
-                .map_err(|e| anyhow::anyhow!("byok scout request failed: {e}"))?;
-            if !(200..300).contains(&resp.status()) {
-                bail!("byok scout returned HTTP {}", resp.status());
-            }
-            return Self::parse_chat_response(resp);
+        let mut request = ureq::post(&endpoint.url).set("Content-Type", "application/json");
+        if let Some(token) = endpoint.bearer {
+            request = request.set("Authorization", &format!("Bearer {token}"));
         }
-
-        // Ultra managed proxy fallback.
-        let url = format!(
-            "{}/deepseek/v1/chat/completions",
-            Self::proxy_base(ctx.config)
-        );
-        let model = Self::planner_model();
-        let mut req = ureq::post(&url).set("Content-Type", "application/json");
-        if let Ok(token) = std::env::var("PYTXO_ULTRA_SESSION") {
-            if !token.trim().is_empty() {
-                req = req.set("Authorization", &format!("Bearer {token}"));
-            }
-        }
-        let resp = req
-            .send_json(body_for(&model))
-            .map_err(|e| anyhow::anyhow!("llm planner proxy request failed: {e}"))?;
+        let resp = request
+            .send_json(body)
+            .map_err(|e| anyhow::anyhow!("coordinator request failed: {e}"))?;
         if !(200..300).contains(&resp.status()) {
-            bail!("llm planner proxy returned HTTP {}", resp.status());
+            bail!("coordinator returned HTTP {}", resp.status());
         }
         Self::parse_chat_response(resp)
     }
@@ -287,10 +268,9 @@ impl MissionPlanner for LlmPlanner {
             bail!("mission text is empty");
         }
         let parsed = Self::call_proxy(text, ctx)?;
-        let n = ctx.config.max_agents.max(1);
         let mut tasks = Vec::new();
         let mut task_prompts = HashMap::new();
-        for row in parsed.tasks.into_iter().take(n) {
+        for row in parsed.tasks {
             task_prompts.insert(row.id.clone(), row.prompt);
             tasks.push(Task {
                 id: TaskId(row.id),
@@ -334,10 +314,10 @@ impl MissionPlanner for SignalBackedPlanner {
             bail!("mission text is empty and pytxo.toml has no [[task]] entries");
         }
         let parts = split_mission_chunks(text);
-        let n = parts.len().min(ctx.config.max_agents.max(1));
+        // max_agents limits concurrent workers in the scheduler, not mission scope.
+        let n = parts.len();
         let chunk_paths: Vec<Vec<String>> = parts
             .iter()
-            .take(n)
             .map(|part| infer_paths_from_chunk(part, ctx.repo))
             .collect();
 
@@ -356,15 +336,30 @@ impl MissionPlanner for SignalBackedPlanner {
         let mut task_prompts = HashMap::new();
         let task_ids: Vec<TaskId> = (0..n).map(|i| TaskId(format!("mission-{i}"))).collect();
 
-        for (i, part) in parts.into_iter().take(n).enumerate() {
+        for (i, part) in parts.into_iter().enumerate() {
             let paths = chunk_paths[i].clone();
             if paths.is_empty() {
                 bail!(
-                    "planner could not determine safe ownership paths for task {}: {part}. Name a repo-relative file or directory",
-                    task_ids[i].0
+                    "planner could not determine safe ownership paths for task {}: {}. Name a repo-relative file or directory.",
+                    task_ids[i].0,
+                    part.trim_end_matches('.')
                 );
             }
-            let depends_on = infer_depends_on(i, &paths, &chunk_paths, &graph.edges, &task_ids);
+            let mut depends_on = infer_depends_on(i, &paths, &chunk_paths, &graph.edges, &task_ids);
+            // Documentation of the result consumes earlier implementation/test
+            // outcomes even though Markdown has no structural import edges.
+            // Only infer backward edges; explicit manifest plans are untouched.
+            if describes_result(part, &paths) {
+                depends_on.extend(
+                    chunk_paths[..i]
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, paths)| !documentation_paths(paths))
+                        .map(|(index, _)| task_ids[index].0.clone()),
+                );
+                depends_on.sort();
+                depends_on.dedup();
+            }
             // Unknown/broad ownership stays conservative. Explicit, unrelated
             // files remain parallel so Race Shield can build the widest safe
             // wave instead of serializing every natural-language chunk.
@@ -397,9 +392,6 @@ fn enrich_config_tasks(
     mission: &MissionSpec,
     ctx: &PlannerContext<'_>,
 ) -> anyhow::Result<MissionPlan> {
-    let n = config_tasks.len().min(ctx.config.max_agents.max(1));
-    let config_tasks: Vec<Task> = config_tasks.into_iter().take(n).collect();
-
     let edited: Vec<(String, String, Option<String>)> = config_tasks
         .iter()
         .flat_map(|t| {
@@ -423,11 +415,21 @@ fn enrich_config_tasks(
                 task.depends_on = inferred;
             }
         }
-        let prompt = mission_chunks
-            .get(i)
-            .filter(|prompt| !prompt.trim().is_empty())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("Execute task {}", task.id.0));
+        let prompt = if mission_chunks.len() == task_ids.len() {
+            mission_chunks[i].to_string()
+        } else {
+            format!(
+                "Mission: {}\nYour task: {}. Work only within these ownership paths: {}.",
+                mission.text.trim(),
+                task.id.0,
+                task.paths.join(", ")
+            )
+        };
+        let prompt = if prompt.trim().is_empty() {
+            format!("Execute task {}", task.id.0)
+        } else {
+            prompt
+        };
         task_prompts.insert(task.id.0.clone(), prompt);
         tasks.push(task);
     }
@@ -444,15 +446,35 @@ fn enrich_config_tasks(
 fn infer_paths_from_chunk(chunk: &str, repo: &Path) -> Vec<String> {
     let mut out = Vec::new();
     let mut seen = HashSet::new();
+    // `<task> | files: a, b` states ownership exactly; prose mentions of other
+    // files in the task sentence must not widen it.
+    if let Some(list) = explicit_file_list(chunk) {
+        for item in list.split(',') {
+            let item = item
+                .trim()
+                .trim_end_matches('.')
+                .trim_matches(|c: char| matches!(c, '`' | '"' | '\''))
+                .trim_end_matches('.')
+                .trim_start_matches("./");
+            if let Ok(rel) = validate_planner_path(repo, item) {
+                if seen.insert(rel.clone()) {
+                    out.push(rel);
+                }
+            }
+        }
+        return out;
+    }
     for token in chunk.split_whitespace() {
-        let cleaned = token.trim_matches(|c: char| {
-            !c.is_alphanumeric() && c != '.' && c != '/' && c != '-' && c != '_'
-        });
-        // A sentence-ending period is prose punctuation, not part of a path.
-        // This matters on Windows, where `README.md.` resolves to `README.md`
-        // and would otherwise survive the existence check with the wrong
-        // reader-facing claim.
-        let cleaned = cleaned.trim_end_matches('.');
+        // Keep a leading `.` for dotfiles, but treat any trailing `.` as prose
+        // punctuation in whatever order it follows quotes or backticks
+        // (`README.md`. or "README.md."). This matters on Windows, where
+        // `README.md.` resolves to `README.md` and would otherwise survive the
+        // existence check with the wrong reader-facing claim.
+        let cleaned = token
+            .trim_start_matches(|c: char| {
+                !c.is_alphanumeric() && !matches!(c, '.' | '/' | '-' | '_')
+            })
+            .trim_end_matches(|c: char| !c.is_alphanumeric() && !matches!(c, '/' | '-' | '_'));
         if cleaned.len() < 3 {
             continue;
         }
@@ -472,7 +494,10 @@ fn resolve_path_hint(repo: &Path, hint: &str) -> Option<String> {
         return Some(normalize_rel(&hint));
     }
     if hint.contains('/') {
-        return None;
+        // A file path under an existing directory may name a file the task creates.
+        return Path::new(&hint)
+            .extension()
+            .and_then(|_| validate_planner_path(repo, hint.trim_start_matches("./")).ok());
     }
     if hint.contains('.') {
         let mut matches = Vec::new();
@@ -507,6 +532,30 @@ fn walk_repo_for_filename(repo: &Path, dir: &Path, name: &str, out: &mut Vec<Str
 
 fn normalize_rel(path: &str) -> String {
     path.replace('\\', "/").trim_start_matches("./").to_string()
+}
+
+fn documentation_paths(paths: &[String]) -> bool {
+    !paths.is_empty()
+        && paths.iter().all(|path| {
+            Path::new(path)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| {
+                    matches!(ext.to_ascii_lowercase().as_str(), "md" | "mdx" | "rst")
+                })
+        })
+}
+
+fn describes_result(chunk: &str, paths: &[String]) -> bool {
+    documentation_paths(paths)
+        && chunk.split_whitespace().any(|word| {
+            // Trim sentence punctuation without splitting paths such as docs/explain.md.
+            let word = word.trim_matches(|c: char| !c.is_alphabetic());
+            matches!(
+                word.to_ascii_lowercase().as_str(),
+                "document" | "describe" | "explain" | "summarize"
+            )
+        })
 }
 
 fn infer_depends_on(
@@ -548,19 +597,23 @@ pub fn default_planner(config: &PytxoConfig) -> Box<dyn MissionPlanner> {
     }
 }
 
-/// Planner for Flow / `pytxo mission` — always on (ADR-0031). Prefer BYOK scout LLM,
-/// then Signal-backed, then heuristic when explicitly requested.
+/// Planner for Flow / `pytxo mission` — always on (ADR-0031), local by default.
 pub fn default_mission_planner(config: &PytxoConfig) -> Box<dyn MissionPlanner> {
-    if byok_scout_endpoint().is_some() || (ultra_billing_active(config) && llm_planner_flag()) {
-        return Box::new(LlmPlanner);
+    match mission_planner_mode(config) {
+        PlannerMode::Llm => Box::new(LlmPlanner),
+        PlannerMode::Heuristic => Box::new(HeuristicPlanner),
+        PlannerMode::Signal => Box::new(SignalBackedPlanner),
     }
-    if std::env::var("PYTXO_PLANNER")
-        .ok()
-        .is_some_and(|v| v.eq_ignore_ascii_case("heuristic"))
-    {
-        return Box::new(HeuristicPlanner);
-    }
-    Box::new(SignalBackedPlanner)
+}
+
+fn mission_planner_mode(config: &PytxoConfig) -> PlannerMode {
+    explicit_local_planner_mode().unwrap_or_else(|| {
+        if llm_planner_enabled(config) {
+            PlannerMode::Llm
+        } else {
+            PlannerMode::Signal
+        }
+    })
 }
 
 fn llm_planner_flag() -> bool {
@@ -569,39 +622,103 @@ fn llm_planner_flag() -> bool {
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
-/// OpenAI-compatible BYOK scout: (base_url, api_key, model).
-fn byok_scout_endpoint() -> Option<(String, String, String)> {
-    let candidates = [
-        (
-            "DEEPSEEK_API_KEY",
-            "https://api.deepseek.com/v1",
-            "deepseek-chat",
-        ),
-        (
-            "OPENAI_API_KEY",
-            "https://api.openai.com/v1",
-            "gpt-4.1-mini",
-        ),
-        (
-            "OPENROUTER_API_KEY",
-            "https://openrouter.ai/api/v1",
-            "openai/gpt-4.1-mini",
-        ),
-        (
-            "MISTRAL_API_KEY",
-            "https://api.mistral.ai/v1",
-            "mistral-small-latest",
-        ),
-    ];
-    for (env, base, model) in candidates {
-        if let Ok(key) = std::env::var(env) {
-            if !key.trim().is_empty() {
-                let model = std::env::var("PYTXO_PLANNER_MODEL").unwrap_or_else(|_| model.into());
-                return Some((base.into(), key, model));
+#[derive(Debug)]
+struct CoordinatorEndpoint {
+    url: String,
+    bearer: Option<String>,
+    model: String,
+}
+
+/// Resolve one explicit OpenAI-compatible coordinator profile. This deliberately
+/// does not scan ambient provider keys and choose a provider by accident.
+fn coordinator_endpoint(config: &PytxoConfig) -> anyhow::Result<CoordinatorEndpoint> {
+    let profile = config.coordinator.profile().map_err(anyhow::Error::msg)?;
+    let model = std::env::var("PYTXO_PLANNER_MODEL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| profile.model.as_str().to_string());
+
+    let provider_spec = get_provider(profile.provider);
+    let custom_spec = find_custom_provider(&profile.provider_label);
+    let openai_compatible = custom_spec
+        .as_ref()
+        .map(|spec| spec.openai_compatible)
+        .or_else(|| provider_spec.map(|spec| spec.openai_compatible))
+        .unwrap_or(false);
+    if !openai_compatible {
+        bail!(
+            "coordinator provider {} has no OpenAI-compatible adapter",
+            profile.provider_label
+        );
+    }
+
+    match profile.transport {
+        CoordinatorTransport::Direct => {
+            let base =
+                resolve_openai_base_url(profile.provider, Some(profile.provider_label.as_str()))
+                    .with_context(|| {
+                        format!(
+                            "coordinator provider {} has no configured base URL",
+                            profile.provider_label
+                        )
+                    })?;
+            let key_env = custom_spec
+                .as_ref()
+                .map(|spec| spec.api_key_env.as_str())
+                .or_else(|| provider_spec.map(|spec| spec.api_key_env))
+                .unwrap_or("");
+            let bearer = if key_env.is_empty() {
+                None
+            } else {
+                Some(
+                    std::env::var(key_env)
+                        .ok()
+                        .filter(|value| !value.trim().is_empty())
+                        .with_context(|| {
+                            format!(
+                                "coordinator provider {} requires {key_env}",
+                                profile.provider_label
+                            )
+                        })?,
+                )
+            };
+            Ok(CoordinatorEndpoint {
+                url: format!("{}/chat/completions", base.trim_end_matches('/')),
+                bearer,
+                model,
+            })
+        }
+        CoordinatorTransport::Managed => {
+            if !ultra_billing_active(config) {
+                bail!("managed coordinator transport requires an active managed entitlement");
             }
+            if !matches!(
+                profile.provider,
+                ProviderId::Openai | ProviderId::Deepseek | ProviderId::Openrouter
+            ) {
+                bail!(
+                    "managed coordinator transport does not expose provider {}",
+                    profile.provider_label
+                );
+            }
+            let base = config.billing.inference_proxy_base_url();
+            if base.is_empty() {
+                bail!("managed coordinator transport requires inference_proxy_url");
+            }
+            let bearer = std::env::var("PYTXO_ULTRA_SESSION")
+                .ok()
+                .filter(|value| !value.trim().is_empty());
+            Ok(CoordinatorEndpoint {
+                url: format!(
+                    "{}/{}/v1/chat/completions",
+                    base.trim_end_matches('/'),
+                    profile.provider.as_str()
+                ),
+                bearer,
+                model,
+            })
         }
     }
-    None
 }
 
 fn suggest_verify_commands(repo: &Path) -> Vec<String> {
@@ -612,7 +729,17 @@ fn suggest_verify_commands(repo: &Path) -> Vec<String> {
     if repo.join("package.json").is_file() {
         // Prefer npm test when present; do not invent scripts.
         if let Ok(raw) = std::fs::read_to_string(repo.join("package.json")) {
-            if raw.contains("\"test\"") {
+            if serde_json::from_str::<serde_json::Value>(&raw)
+                .ok()
+                .and_then(|value| {
+                    value
+                        .get("scripts")?
+                        .get("test")?
+                        .as_str()
+                        .map(str::to_owned)
+                })
+                .is_some_and(|script| !script.trim().is_empty())
+            {
                 cmds.push("npm test".into());
             }
         }
@@ -622,6 +749,16 @@ fn suggest_verify_commands(repo: &Path) -> Vec<String> {
     }
     if repo.join("go.mod").is_file() {
         cmds.push("go test ./...".into());
+    }
+    if repo.join("build.gradle").is_file() || repo.join("build.gradle.kts").is_file() {
+        #[cfg(windows)]
+        if repo.join("gradlew.bat").is_file() {
+            cmds.push(".\\gradlew.bat test build".into());
+        }
+        #[cfg(not(windows))]
+        if repo.join("gradlew").is_file() {
+            cmds.push("./gradlew test build".into());
+        }
     }
     cmds
 }
@@ -704,7 +841,8 @@ fn validate_mission_plan(mut plan: MissionPlan, repo: &Path) -> anyhow::Result<M
     Ok(plan)
 }
 
-fn validate_planner_path(repo: &Path, path: &str) -> anyhow::Result<String> {
+/// A safe repository-relative ownership path that exists or sits in an existing directory.
+pub fn validate_planner_path(repo: &Path, path: &str) -> anyhow::Result<String> {
     let normalized = path
         .replace('\\', "/")
         .trim()
@@ -902,6 +1040,206 @@ mod tests {
     }
 
     #[test]
+    fn ambient_provider_key_does_not_authorize_cloud_planning() {
+        let _guard = planner_env_guard();
+        let _env = PlannerTestEnv::new();
+        std::env::set_var("OPENAI_API_KEY", "test-only-not-a-real-key");
+        let config = PytxoConfig::default();
+        assert!(
+            !llm_planner_enabled(&config),
+            "an inherited key is not planner consent"
+        );
+        assert_ne!(planner_mode(&config), PlannerMode::Llm);
+        assert_eq!(mission_planner_mode(&config), PlannerMode::Signal);
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("lib.rs"), "pub fn example() {}\n").unwrap();
+        let context = PlannerContext {
+            repo: dir.path(),
+            config: &config,
+        };
+        let mission = MissionSpec {
+            text: "Improve lib.rs".into(),
+        };
+        let plan = default_mission_planner(&config)
+            .decompose(&mission, &context)
+            .unwrap();
+        assert_eq!(plan.tasks.len(), 1);
+        assert!(LlmPlanner
+            .decompose(&mission, &context)
+            .unwrap_err()
+            .to_string()
+            .contains("model coordinator is not enabled"));
+    }
+
+    #[test]
+    fn explicit_local_planner_wins_over_cloud_flag_and_key() {
+        let _guard = planner_env_guard();
+        let _env = PlannerTestEnv::new();
+        std::env::set_var("OPENAI_API_KEY", "test-only-not-a-real-key");
+        std::env::set_var("PYTXO_PLANNER_LLM", "1");
+        for mode in ["heuristic", "signal", "0", "false"] {
+            std::env::set_var("PYTXO_PLANNER", mode);
+            assert!(
+                !llm_planner_enabled(&PytxoConfig::default()),
+                "explicit {mode} must remain local"
+            );
+            let expected = if mode == "heuristic" {
+                PlannerMode::Heuristic
+            } else {
+                PlannerMode::Signal
+            };
+            assert_eq!(mission_planner_mode(&PytxoConfig::default()), expected);
+            assert_eq!(planner_mode(&PytxoConfig::default()), expected);
+        }
+    }
+
+    #[test]
+    fn cloud_planner_requires_explicit_flag_and_available_transport() {
+        let _guard = planner_env_guard();
+        let _env = PlannerTestEnv::new();
+        std::env::set_var("PYTXO_PLANNER_LLM", "1");
+        assert!(!llm_planner_enabled(&PytxoConfig::default()));
+        std::env::set_var("OPENAI_API_KEY", "test-only-not-a-real-key");
+        assert!(
+            !llm_planner_enabled(&PytxoConfig::default()),
+            "an unrelated provider key must not change the configured coordinator"
+        );
+        std::env::set_var("DEEPSEEK_API_KEY", "test-only-not-a-real-key");
+        assert!(llm_planner_enabled(&PytxoConfig::default()));
+        assert_eq!(
+            mission_planner_mode(&PytxoConfig::default()),
+            PlannerMode::Llm
+        );
+        std::env::remove_var("DEEPSEEK_API_KEY");
+        let mut managed = PytxoConfig::default();
+        managed.coordinator.transport = CoordinatorTransport::Managed;
+        std::env::set_var("PYTXO_LINK_TIER", "ultra");
+        assert!(llm_planner_enabled(&managed));
+        assert_eq!(mission_planner_mode(&managed), PlannerMode::Llm);
+        std::env::remove_var("PYTXO_PLANNER_LLM");
+        assert!(!llm_planner_enabled(&PytxoConfig::default()));
+    }
+
+    #[test]
+    fn local_openai_compatible_coordinator_needs_no_cloud_or_key() {
+        let _guard = planner_env_guard();
+        let _env = PlannerTestEnv::new();
+        std::env::set_var("PYTXO_PLANNER_LLM", "1");
+        let mut config = PytxoConfig::default();
+        config.coordinator.provider = "ollama".into();
+        config.coordinator.model = "qwen3:8b".into();
+
+        assert!(llm_planner_enabled(&config));
+        let endpoint = coordinator_endpoint(&config).unwrap();
+        assert_eq!(endpoint.url, "http://127.0.0.1:11434/v1/chat/completions");
+        assert_eq!(endpoint.model, "qwen3:8b");
+        assert!(endpoint.bearer.is_none());
+    }
+
+    // Restore even after an assertion fails; never send a request with these keys.
+    struct PlannerTestEnv(Vec<(&'static str, Option<std::ffi::OsString>)>);
+
+    impl PlannerTestEnv {
+        fn new() -> Self {
+            Self(
+                [
+                    "PYTXO_PLANNER",
+                    "PYTXO_PLANNER_LLM",
+                    "PYTXO_MISSION_PLAN",
+                    "PYTXO_LINK_TIER",
+                    "PYTXO_PLANNER_MODEL",
+                    "PYTXO_ULTRA_SESSION",
+                    "DEEPSEEK_API_KEY",
+                    "OPENAI_API_KEY",
+                    "OPENROUTER_API_KEY",
+                    "MISTRAL_API_KEY",
+                ]
+                .into_iter()
+                .map(|name| {
+                    let previous = std::env::var_os(name);
+                    std::env::remove_var(name);
+                    (name, previous)
+                })
+                .collect(),
+            )
+        }
+    }
+
+    impl Drop for PlannerTestEnv {
+        fn drop(&mut self) {
+            for (name, previous) in &self.0 {
+                match previous {
+                    Some(value) => std::env::set_var(name, value),
+                    None => std::env::remove_var(name),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn one_worker_preserves_every_requested_task() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["one.rs", "two.rs", "three.rs"] {
+            std::fs::write(dir.path().join(name), "pub fn example() {}\n").unwrap();
+        }
+        let config = PytxoConfig {
+            max_agents: 1,
+            ..PytxoConfig::default()
+        };
+        let context = PlannerContext {
+            repo: dir.path(),
+            config: &config,
+        };
+        let mission = MissionSpec {
+            text: "fix one.rs; fix two.rs; fix three.rs".into(),
+        };
+        for planner in [
+            &SignalBackedPlanner as &dyn MissionPlanner,
+            &HeuristicPlanner,
+        ] {
+            let plan = planner.decompose(&mission, &context).unwrap();
+            assert_eq!(
+                plan.tasks.len(),
+                3,
+                "concurrency must not truncate mission scope"
+            );
+            assert_eq!(plan.task_prompts["mission-2"], "fix three.rs");
+        }
+    }
+
+    #[test]
+    fn npm_verification_requires_an_actual_nonempty_script() {
+        let dir = tempfile::tempdir().unwrap();
+        for manifest in [
+            r#"{"name":"test"}"#,
+            r#"{"scripts":{"test":""}}"#,
+            r#"{"scripts":{"test":true}}"#,
+        ] {
+            std::fs::write(dir.path().join("package.json"), manifest).unwrap();
+            assert!(suggest_verify_commands(dir.path()).is_empty());
+        }
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"scripts":{"test":"node --test"}}"#,
+        )
+        .unwrap();
+        assert_eq!(suggest_verify_commands(dir.path()), vec!["npm test"]);
+    }
+
+    #[test]
+    fn gradle_verification_uses_the_repository_wrapper() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("build.gradle.kts"), "plugins {}\n").unwrap();
+        assert!(suggest_verify_commands(dir.path()).is_empty());
+        #[cfg(windows)]
+        let (wrapper, command) = ("gradlew.bat", ".\\gradlew.bat test build");
+        #[cfg(not(windows))]
+        let (wrapper, command) = ("gradlew", "./gradlew test build");
+        std::fs::write(dir.path().join(wrapper), "").unwrap();
+        assert_eq!(suggest_verify_commands(dir.path()), vec![command]);
+    }
+
+    #[test]
     fn stub_errors_when_disabled() {
         let _guard = planner_env_guard();
         let prev = std::env::var("PYTXO_PLANNER").ok();
@@ -940,6 +1278,43 @@ mod tests {
             Some(v) => std::env::set_var("PYTXO_PLANNER", v),
             None => std::env::remove_var("PYTXO_PLANNER"),
         }
+    }
+
+    #[test]
+    fn explicit_file_lists_own_exactly_and_allow_new_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path();
+        std::fs::create_dir_all(repo.join("src")).unwrap();
+        std::fs::create_dir_all(repo.join("test")).unwrap();
+        std::fs::write(repo.join("src/model.mjs"), "export {}\n").unwrap();
+        std::fs::write(repo.join("README.md"), "# x\n").unwrap();
+
+        // Prose mentions of README.md do not widen explicit ownership.
+        assert_eq!(
+            infer_paths_from_chunk(
+                "Add filters, then mention them in README.md | files: `src/model.mjs`, test/model.test.mjs",
+                repo
+            ),
+            vec!["src/model.mjs", "test/model.test.mjs"]
+        );
+        // New root files are allowed in an explicit list; unsafe paths are not.
+        assert_eq!(
+            infer_paths_from_chunk(
+                "Write notes | Files: ./CHANGES.md, ../escape.md, C:/x.md",
+                repo
+            ),
+            vec!["CHANGES.md"]
+        );
+        // Prose may name a new file under an existing directory, not under a missing one.
+        assert_eq!(
+            infer_paths_from_chunk("Create src/filter-bar.js and lib/missing.js", repo),
+            vec!["src/filter-bar.js"]
+        );
+        // Without the marker, a pipe is ordinary prose.
+        assert_eq!(
+            infer_paths_from_chunk("Pipe a | b into src/model.mjs", repo),
+            vec!["src/model.mjs"]
+        );
     }
 
     #[test]
@@ -1066,7 +1441,7 @@ paths = ["src/app.ts"]
         cfg.planner.mode = "signal".into();
         cfg.max_agents = 3;
 
-        let plan = plan_mission("update src/a.ts; document it in README.md.", repo, &cfg).unwrap();
+        let plan = plan_mission("update src/a.ts; fix a typo in README.md.", repo, &cfg).unwrap();
         assert_eq!(plan.tasks[1].paths, vec!["README.md"]);
         assert!(
             plan.tasks.iter().all(|task| task.depends_on.is_empty()),
@@ -1077,6 +1452,69 @@ paths = ["src/app.ts"]
             Some(v) => std::env::set_var("PYTXO_PLANNER", v),
             None => std::env::remove_var("PYTXO_PLANNER"),
         }
+    }
+
+    #[test]
+    fn guided_example_mission_resolves_backticked_paths_before_sentence_periods() {
+        // The exact first mission shipped in examples/pytxo-first-mission/README.md.
+        let dir = tempfile::tempdir().unwrap();
+        for file in [
+            "src/risk-policy.mjs",
+            "test/risk-policy.test.mjs",
+            "README.md",
+        ] {
+            let path = dir.path().join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "// fixture\n").unwrap();
+        }
+        let cfg = PytxoConfig::default();
+        let plan = SignalBackedPlanner.decompose(&MissionSpec { text:
+            "Add concise risk summaries for network and destructive command changes in `src/risk-policy.mjs`; add regression tests in `test/risk-policy.test.mjs`; document two examples in `README.md`. Keep the existing `classifyChange` API.".into()
+        }, &PlannerContext { repo: dir.path(), config: &cfg }).unwrap();
+        let paths: Vec<_> = plan.tasks.iter().map(|task| task.paths.clone()).collect();
+        assert_eq!(
+            paths,
+            vec![
+                vec!["src/risk-policy.mjs".to_string()],
+                vec!["test/risk-policy.test.mjs".to_string()],
+                vec!["README.md".to_string()],
+            ]
+        );
+    }
+
+    #[test]
+    fn documentation_of_combined_results_waits_for_earlier_code_and_tests() {
+        let dir = tempfile::tempdir().unwrap();
+        for file in ["src/a.mjs", "test/a.test.mjs", "README.md"] {
+            let path = dir.path().join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "// fixture\n").unwrap();
+        }
+        let cfg = PytxoConfig::default();
+        let plan = SignalBackedPlanner.decompose(&MissionSpec { text:
+            "update src/a.mjs; add regressions in test/a.test.mjs; in README.md, document the final combined behavior".into()
+        }, &PlannerContext { repo: dir.path(), config: &cfg }).unwrap();
+        assert_eq!(plan.tasks[2].depends_on, vec!["mission-0", "mission-1"]);
+        assert!(plan.tasks[0].depends_on.is_empty());
+        assert!(plan.tasks[1].depends_on.is_empty());
+        let doc = dir.path().join("docs/explain.md");
+        std::fs::create_dir_all(doc.parent().unwrap()).unwrap();
+        std::fs::write(doc, "typo\n").unwrap();
+        let independent = SignalBackedPlanner
+            .decompose(
+                &MissionSpec {
+                    text: "update src/a.mjs; fix a typo in docs/explain.md".into(),
+                },
+                &PlannerContext {
+                    repo: dir.path(),
+                    config: &cfg,
+                },
+            )
+            .unwrap();
+        assert!(independent
+            .tasks
+            .iter()
+            .all(|task| task.depends_on.is_empty()));
     }
 
     #[test]

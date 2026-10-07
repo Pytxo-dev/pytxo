@@ -5,12 +5,42 @@ use pytxo_core::{
     DomainId, ExecutionPlan, IsolationMode, PermissionProfile, PreparedRunManifest, ScheduledTask,
     TaskId,
 };
-use pytxo_orchestrate::{apply_run_changes, discard_run_review, refresh_run_review};
+use pytxo_orchestrate::{
+    apply_run_changes as apply_reviewed_run_changes, discard_run_review, refresh_run_review,
+};
 use pytxo_runner::{
     apply_prepared_review, permission_enforcement_receipt, prepare_review_package,
-    AgentWorkspaceInput, RunApplyManifest,
+    run_candidate_check, AgentWorkspaceInput, CandidateCheckContext, CandidateVerification,
+    RunApplyManifest, SwarmRegistry,
 };
 use pytxo_store::PytxoStore;
+
+/// Apply registers its execution domain in the default hypervisor catalog.
+/// Point that catalog at one temp home for this test process so test
+/// repositories never appear in the developer's real `~/.pytxo`.
+fn isolate_home() {
+    static HOME: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+    HOME.get_or_init(|| {
+        let home = tempfile::tempdir().expect("isolated PYTXO_HOME");
+        std::env::set_var("PYTXO_HOME", home.path());
+        home
+    });
+}
+
+// Existing integrity/recovery tests explicitly review the current persisted
+// snapshot. Stale-client tests below retain their original digest instead.
+fn apply_run_changes(
+    config: Option<std::path::PathBuf>,
+    repo: Option<std::path::PathBuf>,
+    run_id: &str,
+) -> anyhow::Result<RunApplyManifest> {
+    let store = PytxoStore::open(&repo.as_ref().unwrap().join(".pytxo/data/pytxo.db"))?;
+    let digest = store
+        .get_run_contract(run_id)?
+        .and_then(|contract| contract.prepared_digest)
+        .unwrap_or_default();
+    apply_reviewed_run_changes(config, repo, run_id, &digest)
+}
 
 fn git(repo: &Path, args: &[&str]) -> String {
     let output = Command::new("git")
@@ -32,6 +62,51 @@ fn write(path: &Path, contents: &str) {
     std::fs::write(path, contents).expect("write fixture");
 }
 
+fn check_contents(path: &str, expected: &str) -> String {
+    if cfg!(windows) {
+        format!("powershell -NoProfile -NonInteractive -Command \"if ((Get-Content -Raw '{path}').Trim() -ne '{expected}') {{ exit 1 }}\"")
+    } else {
+        format!("grep -qx '{expected}' '{path}'")
+    }
+}
+
+fn attest(
+    repo: &Path,
+    data: &Path,
+    manifest: PreparedRunManifest,
+    command: &str,
+) -> PreparedRunManifest {
+    let candidate = CandidateVerification::prepare(repo, data, &manifest, &[]).unwrap();
+    let receipt = run_candidate_check(
+        &CandidateCheckContext {
+            cwd: candidate.workspace_root().into(),
+            run_id: manifest.run_id.clone(),
+            agent_key: format!("{}:candidate", manifest.run_id),
+            repo_root: repo.into(),
+            data_dir: data.into(),
+            profile: PermissionProfile::Orbit,
+            domain_id: DomainId::from_repo_root(repo).unwrap(),
+            execution_backend: pytxo_core::ExecutionBackend::Subprocess,
+            workspace_isolated: true,
+            hitl: None,
+            swarm: SwarmRegistry::new(),
+            on_event: None,
+        },
+        command,
+    )
+    .unwrap();
+    candidate.check_unchanged().unwrap();
+    candidate
+        .finish(vec![pytxo_core::CandidateCheckEvidence {
+            task_id: "implement".into(),
+            command: command.into(),
+            effective_profile: "orbit".into(),
+            passed: true,
+            enforcement: serde_json::to_value(receipt).unwrap(),
+        }])
+        .unwrap()
+}
+
 struct PreparedFixture {
     _temp: tempfile::TempDir,
     repo: std::path::PathBuf,
@@ -43,6 +118,7 @@ struct PreparedFixture {
 }
 
 fn prepared_fixture(run_id: &str) -> PreparedFixture {
+    isolate_home();
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path().join("repo");
     std::fs::create_dir_all(&repo).unwrap();
@@ -64,7 +140,7 @@ fn prepared_fixture(run_id: &str) -> PreparedFixture {
             wave: 0,
             root: None,
             signal_fidelity: None,
-            verify: vec![],
+            verify: vec![check_contents("value.txt", "after")],
         }]],
         conflicts: vec![],
         max_agents: 1,
@@ -80,7 +156,7 @@ fn prepared_fixture(run_id: &str) -> PreparedFixture {
     .unwrap();
     let enforcement = serde_json::json!({
         "run": receipt,
-        "agents": { "codex": receipt }
+        "agents": { "codex": receipt, "agent-0": receipt }
     });
     let data_dir = repo.join(".pytxo/data");
     let db_path = data_dir.join("pytxo.db");
@@ -125,6 +201,7 @@ fn prepared_fixture(run_id: &str) -> PreparedFixture {
         &[],
     )
     .unwrap();
+    let prepared = attest(&repo, &data_dir, prepared, &plan.waves[0][0].verify[0]);
     store.finish_run_preparation(run_id, &prepared).unwrap();
     store.finish_run(run_id, "completed").unwrap();
     drop(store);
@@ -137,6 +214,206 @@ fn prepared_fixture(run_id: &str) -> PreparedFixture {
         run_id: run_id.into(),
         prepared,
     }
+}
+
+#[test]
+fn stale_client_cannot_authorize_a_refreshed_candidate_for_the_same_run() {
+    assert_stale_client_rejected(false);
+}
+
+#[test]
+fn fresh_check_evidence_alone_invalidates_the_previous_authorization() {
+    assert_stale_client_rejected(true);
+}
+
+fn assert_stale_client_rejected(evidence_only: bool) {
+    let fixture = prepared_fixture("two-client-review");
+    let reviewed_a = fixture.prepared.package_digest.clone();
+    // Client one keeps A open. An operator edits the primary; client two's
+    // Apply detects drift and explicitly refreshes the same run against it.
+    write(&fixture.repo.join("value.txt"), "operator-edit\n");
+    assert!(apply_run_changes(None, Some(fixture.repo.clone()), &fixture.run_id).is_err());
+    if evidence_only {
+        write(&fixture.repo.join("value.txt"), "before\n");
+    }
+    let reviewed_b = refresh_run_review(None, Some(fixture.repo.clone()), &fixture.run_id)
+        .expect("legitimate refresh after drift");
+    assert_ne!(reviewed_a, reviewed_b.package_digest);
+    assert_eq!(
+        fixture.prepared.files[0].after_sha256,
+        reviewed_b.files[0].after_sha256
+    );
+    if evidence_only {
+        assert_eq!(fixture.prepared.files, reviewed_b.files);
+    }
+
+    let stale = apply_reviewed_run_changes(
+        None,
+        Some(fixture.repo.clone()),
+        &fixture.run_id,
+        &reviewed_a,
+    );
+    assert!(
+        stale.is_err(),
+        "client one's review of A must not authorize B"
+    );
+    assert!(matches!(
+        stale.unwrap_err().downcast_ref::<pytxo_core::PytxoError>(),
+        Some(pytxo_core::PytxoError::StaleReview)
+    ));
+    assert_eq!(
+        std::fs::read_to_string(fixture.repo.join("value.txt")).unwrap(),
+        if evidence_only {
+            "before\n"
+        } else {
+            "operator-edit\n"
+        }
+    );
+    let store = PytxoStore::open(&fixture.db_path).unwrap();
+    assert_eq!(
+        store
+            .get_run_contract(&fixture.run_id)
+            .unwrap()
+            .unwrap()
+            .apply_status,
+        "ready"
+    );
+    assert!(store
+        .list_events(&format!("{}:agent-0", fixture.run_id), 100)
+        .unwrap()
+        .iter()
+        .any(|event| event.kind == "review-authorization-refused"));
+    drop(store);
+    apply_reviewed_run_changes(
+        None,
+        Some(fixture.repo.clone()),
+        &fixture.run_id,
+        &reviewed_b.package_digest,
+    )
+    .expect("freshly reviewed B applies");
+    assert_eq!(
+        std::fs::read_to_string(fixture.repo.join("value.txt")).unwrap(),
+        "after\n"
+    );
+}
+
+#[test]
+fn missing_or_wrong_review_identity_refuses_without_claiming_apply() {
+    let fixture = prepared_fixture("missing-review-identity");
+    for digest in ["", "another-runs-digest"] {
+        let error =
+            apply_reviewed_run_changes(None, Some(fixture.repo.clone()), &fixture.run_id, digest)
+                .unwrap_err();
+        assert!(matches!(
+            error.downcast_ref::<pytxo_core::PytxoError>(),
+            Some(pytxo_core::PytxoError::StaleReview)
+        ));
+    }
+    assert!(
+        pytxo_runner::apply_attempt_ids(&fixture.data_dir, &fixture.run_id)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        std::fs::read_to_string(fixture.repo.join("value.txt")).unwrap(),
+        "before\n"
+    );
+    assert_eq!(
+        PytxoStore::open(&fixture.db_path)
+            .unwrap()
+            .get_run_contract(&fixture.run_id)
+            .unwrap()
+            .unwrap()
+            .apply_status,
+        "ready"
+    );
+}
+
+#[test]
+fn concurrent_clients_cannot_apply_the_review_twice() {
+    let fixture = prepared_fixture("concurrent-reviewed-apply");
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let clients: Vec<_> = (0..2)
+        .map(|_| {
+            let repo = fixture.repo.clone();
+            let run_id = fixture.run_id.clone();
+            let digest = fixture.prepared.package_digest.clone();
+            let barrier = barrier.clone();
+            std::thread::spawn(move || {
+                barrier.wait();
+                apply_reviewed_run_changes(None, Some(repo), &run_id, &digest)
+            })
+        })
+        .collect();
+    let successes = clients
+        .into_iter()
+        .filter_map(|client| client.join().unwrap().ok())
+        .count();
+    assert_eq!(successes, 1);
+    assert_eq!(
+        pytxo_runner::apply_attempt_ids(&fixture.data_dir, &fixture.run_id)
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+fn assert_apply_runtime_receipt_rejected(missing: bool) {
+    let fixture = prepared_fixture(if missing {
+        "missing-runtime-receipt"
+    } else {
+        "wrong-runtime-domain"
+    });
+    let store = PytxoStore::open(&fixture.db_path).unwrap();
+    let contract = store.get_run_contract(&fixture.run_id).unwrap().unwrap();
+    let mut enforcement: serde_json::Value =
+        serde_json::from_str(contract.enforcement_json.as_deref().unwrap()).unwrap();
+    if missing {
+        enforcement["agents"]
+            .as_object_mut()
+            .unwrap()
+            .remove("agent-0");
+    } else {
+        let mut receipt = enforcement["agents"]["codex"].clone();
+        receipt["execution_domain"] = "another-domain".into();
+        enforcement["agents"]["agent-0"] = receipt;
+    }
+    store
+        .save_run_contract(
+            &fixture.run_id,
+            contract.base_revision.as_deref().unwrap(),
+            contract.plan_json.as_deref().unwrap(),
+            &enforcement.to_string(),
+        )
+        .unwrap();
+    assert!(store.begin_run_preparation(&fixture.run_id).unwrap());
+    store
+        .finish_run_preparation(&fixture.run_id, &fixture.prepared)
+        .unwrap();
+    let error = apply_run_changes(None, Some(fixture.repo.clone()), &fixture.run_id)
+        .expect_err("Apply accepted an invalid runtime receipt");
+    assert!(
+        error.to_string().contains(if missing {
+            "no runtime enforcement receipt"
+        } else {
+            "another execution domain"
+        }),
+        "unexpected refusal: {error}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(fixture.repo.join("value.txt")).unwrap(),
+        "before\n"
+    );
+}
+
+#[test]
+fn apply_runtime_receipt_missing_actor_fails_closed() {
+    assert_apply_runtime_receipt_rejected(true);
+}
+
+#[test]
+fn apply_runtime_receipt_wrong_domain_fails_closed() {
+    assert_apply_runtime_receipt_rejected(false);
 }
 
 #[test]
@@ -270,9 +547,9 @@ fn version_one_review_package_becomes_visible_refreshable_upgrade_state() {
 
     let refreshed = refresh_run_review(None, Some(fixture.repo.clone()), &fixture.run_id)
         .expect("review_failed v1 package exposes a working refresh path");
-    assert_eq!(refreshed.version, 2);
+    assert_eq!(refreshed.version, 3);
     apply_run_changes(None, Some(fixture.repo.clone()), &fixture.run_id)
-        .expect("refreshed v2 package remains applicable");
+        .expect("refreshed v3 package has passing candidate evidence");
 }
 
 #[test]
@@ -367,6 +644,7 @@ fn review_manifest_persistence_failure_settles_contract_and_keeps_original_error
 
 #[test]
 fn applies_a_completed_single_domain_run_once() {
+    isolate_home();
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path().join("repo");
     std::fs::create_dir_all(&repo).expect("create repo");
@@ -391,7 +669,7 @@ fn applies_a_completed_single_domain_run_once() {
             wave: 0,
             root: None,
             signal_fidelity: None,
-            verify: vec![],
+            verify: vec![check_contents("src/value.txt", "after")],
         }]],
         conflicts: vec![],
         max_agents: 1,
@@ -411,6 +689,7 @@ fn applies_a_completed_single_domain_run_once() {
         "run": receipt,
         "agents": {
             "codex": receipt,
+            "agent-0": receipt,
         }
     });
     store
@@ -453,6 +732,12 @@ fn applies_a_completed_single_domain_run_once() {
         &[],
     )
     .unwrap();
+    let prepared = attest(
+        &repo,
+        &repo.join(".pytxo/data"),
+        prepared,
+        &plan.waves[0][0].verify[0],
+    );
     store.finish_run_preparation(run_id, &prepared).unwrap();
     store.finish_run(run_id, "completed").expect("finish run");
     drop(store);
@@ -461,6 +746,11 @@ fn applies_a_completed_single_domain_run_once() {
         &repo.join("unrelated-local-note.txt"),
         "must not block apply\n",
     );
+
+    apply_run_changes(None, Some(repo.clone()), run_id)
+        .expect_err("new source must invalidate candidate evidence");
+    refresh_run_review(None, Some(repo.clone()), run_id)
+        .expect("recheck includes and preserves the operator note");
 
     let manifest =
         apply_run_changes(None, Some(repo.clone()), run_id).expect("apply completed run");
@@ -491,6 +781,7 @@ fn applies_a_completed_single_domain_run_once() {
 
 #[test]
 fn rejects_affected_primary_edits_made_after_review() {
+    isolate_home();
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path().join("repo");
     std::fs::create_dir_all(&repo).expect("create repo");
@@ -514,7 +805,7 @@ fn rejects_affected_primary_edits_made_after_review() {
             wave: 0,
             root: None,
             signal_fidelity: None,
-            verify: vec![],
+            verify: vec![check_contents("src/value.txt", "agent-result")],
         }]],
         conflicts: vec![],
         max_agents: 1,
@@ -530,7 +821,7 @@ fn rejects_affected_primary_edits_made_after_review() {
     .expect("enforcement receipt");
     let enforcement = serde_json::json!({
         "run": receipt,
-        "agents": { "codex": receipt }
+        "agents": { "codex": receipt, "agent-0": receipt }
     });
     let db_path = repo.join(".pytxo/data/pytxo.db");
     let store = PytxoStore::open(&db_path).expect("open store");
@@ -574,6 +865,12 @@ fn rejects_affected_primary_edits_made_after_review() {
         &[],
     )
     .unwrap();
+    let prepared = attest(
+        &repo,
+        &repo.join(".pytxo/data"),
+        prepared,
+        &plan.waves[0][0].verify[0],
+    );
     store.finish_run_preparation(run_id, &prepared).unwrap();
     store.finish_run(run_id, "completed").expect("finish run");
     drop(store);
@@ -602,6 +899,7 @@ fn rejects_affected_primary_edits_made_after_review() {
 
 #[test]
 fn recovered_commit_persists_the_normal_apply_audit_schema_and_attempt_id() {
+    isolate_home();
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path().join("repo");
     std::fs::create_dir_all(&repo).unwrap();
@@ -640,7 +938,7 @@ fn recovered_commit_persists_the_normal_apply_audit_schema_and_attempt_id() {
     .unwrap();
     let enforcement = serde_json::json!({
         "run": receipt,
-        "agents": { "codex": receipt }
+        "agents": { "codex": receipt, "agent-0": receipt }
     });
     let data_dir = repo.join(".pytxo/data");
     let db_path = data_dir.join("pytxo.db");

@@ -1,78 +1,24 @@
 import Link from "next/link";
-
-import { InstallSnippet } from "@/components/site/install-snippet";
-import { StateChip, type StateTone } from "@/components/site/state-chip";
 import { Button } from "@/components/ui/button";
-import { NPM_INSTALL } from "@/lib/site";
+import { CANDIDATE_PUBLISHED, DISCORD_URL, PUBLISHED_VERSION } from "@/lib/site";
 
-/**
- * Availability is stated the same way the product states enforcement: shipped,
- * partial, or not yet, never rounded up to a promise.
- */
-const AVAILABILITY = [
-  { label: "CLI, all platforms", tone: "verified" as StateTone, status: "Available" },
-  { label: "Desktop, Windows", tone: "verified" as StateTone, status: "Available" },
-  { label: "Desktop, macOS and Linux", tone: "unknown" as StateTone, status: "Not built yet" },
-  { label: "Managed cloud execution", tone: "claimed" as StateTone, status: "Configured deployments only" },
+const LINKS = [
+  ["First mission", "/docs/getting-started/first-mission", "Setup, plan, run, Review and Apply, step by step."],
+  ["Troubleshooting", "/docs/troubleshooting", "Agent sign-in, failed checks and recovery."],
+  ["Ask for help", DISCORD_URL, "Share the problem and a redacted run report."],
 ] as const;
 
 export function GetItSection() {
-  return (
-    <section className="border-t border-[var(--aperture-line)]" aria-labelledby="get-it-title" data-testid="get-it-section">
-      <div className="section-pad mx-auto max-w-[92rem] lg:px-10">
-        <div className="grid gap-14 lg:grid-cols-[1fr_0.85fr] lg:gap-20">
-          <div>
-            <h2
-              id="get-it-title"
-              className="max-w-[20ch] text-[clamp(2.25rem,4vw,4rem)] leading-[1.02] tracking-[-0.05em]"
-            >
-              Start with the CLI. Add Desktop when you want the boundary on screen.
-            </h2>
-            <p className="mt-8 max-w-[38rem] text-base leading-relaxed text-[#a9a9b2] sm:text-lg">
-              The CLI does the orchestration: planning, waves, isolation, and Apply.
-              Pytxo Desktop is an optional control surface over the same local core, so
-              installing it never changes what a run is allowed to do.
-            </p>
-            <InstallSnippet className="mt-9 max-w-md">{NPM_INSTALL}</InstallSnippet>
-            <div className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
-              <Button size="lg" className="h-11 w-full rounded-[4px] bg-white px-6 text-black hover:bg-white/85 sm:w-auto" asChild>
-                <Link href="/download">Download Pytxo</Link>
-              </Button>
-              <Link
-                href="/docs/getting-started/first-three-agent-run"
-                className="aperture-link text-sm text-[#a9a9b2] transition-colors hover:text-white"
-              >
-                Your first three-agent run
-              </Link>
-            </div>
-          </div>
-
-          <div className="aperture-panel h-fit p-7 sm:p-9">
-            <h3 className="font-mono text-[12px] uppercase tracking-[0.05em] text-[#7d7d87]">
-              What ships today
-            </h3>
-            <ul className="mt-6 divide-y divide-[var(--aperture-line)]">
-              {AVAILABILITY.map((row) => (
-                <li key={row.label} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-4 first:pt-0 last:pb-0">
-                  <span className="text-[15px] text-[#f5f5f7]">{row.label}</span>
-                  <StateChip tone={row.tone} label={row.status} />
-                </li>
-              ))}
-            </ul>
-            <p className="mt-7 border-t border-[var(--aperture-line)] pt-6 text-sm leading-relaxed text-[#8d8d96]">
-              Longer term, Pytxo aims to be the commit layer for autonomous work: typed
-              effect contracts at the boundary to systems beyond a repository. That is a
-              stated direction, not a shipped feature.
-            </p>
-            <Link
-              href="/plans"
-              className="aperture-link mt-6 inline-block text-sm text-[#a9a9b2] transition-colors hover:text-white"
-            >
-              Plans and availability
-            </Link>
-          </div>
-        </div>
+  return <section className="border-t border-white/15" aria-labelledby="get-it-title" data-testid="get-it-section">
+    <div className="mx-auto grid max-w-[92rem] gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:px-10 lg:py-24">
+      <div>
+        <h2 id="get-it-title" className="text-[clamp(2rem,3.4vw,3.25rem)] leading-[1.06] tracking-[-0.04em]">Start with one agent<br />and a real fix.</h2>
+        <p className="mt-6 max-w-[42ch] text-base leading-relaxed text-[#b4b4bd]">Pick a small bug with a test you can run. Once you trust the loop, add agents and give them a bigger job.</p>
+        <Button asChild className="mt-8 h-11 rounded-[4px] bg-white px-6 text-black hover:bg-white/85"><Link href="/download">{CANDIDATE_PUBLISHED ? "Download for Windows" : `Download current v${PUBLISHED_VERSION}`}</Link></Button>
       </div>
-    </section>
-  );
+      <nav aria-label="Start and support" className="divide-y divide-white/15 border-y border-white/15">
+        {LINKS.map(([title, href, detail]) => <Link key={title} href={href} className="block py-5 focus-visible:outline-2 focus-visible:outline-[#a59bff]"><span className="text-base">{title} →</span><span className="mt-2 block text-sm text-[#aaaab3]">{detail}</span></Link>)}
+      </nav>
+    </div>
+  </section>;
 }

@@ -2,19 +2,17 @@
   "title": "Docs",
   "pages": [
     "index",
-    "---Getting started---",
+    "---Get started---",
     "...getting-started",
-    "---Concepts---",
-    "...concepts",
-    "---Reference---",
-    "...reference",
-    "---Plans---",
-    "...plans",
-    "---Compare---",
-    "...compare",
-    "---Troubleshooting---",
+    "---Get help---",
     "...troubleshooting",
-    "---Developers---",
+    "---Understand Pytxo---",
+    "...concepts",
+    "---Look it up---",
+    "...reference",
+    "---More about Pytxo---",
+    "...compare",
+    "...plans",
     "...developers"
   ]
 }

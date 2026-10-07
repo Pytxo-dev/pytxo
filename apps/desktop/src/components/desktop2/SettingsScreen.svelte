@@ -1,17 +1,17 @@
 <script lang="ts">
+  import ProfileIcon from "./ProfileIcon.svelte";
+  import { withPreviewsHidden } from "../../lib/preview-overlay";
   import { onMount, type Snippet } from "svelte";
-  import {
-    IconBell,
-    IconFolder,
-    IconKey,
-    IconKeyboard,
-    IconMicrophone,
-    IconPalette,
-    IconSearch,
-    IconSettings,
-    IconShieldLock,
-    IconUserCircle,
-  } from "@tabler/icons-svelte";
+  import IconBell from "@tabler/icons-svelte/icons/bell";
+  import IconFolder from "@tabler/icons-svelte/icons/folder";
+  import IconKey from "@tabler/icons-svelte/icons/key";
+  import IconKeyboard from "@tabler/icons-svelte/icons/keyboard";
+  import IconMicrophone from "@tabler/icons-svelte/icons/microphone";
+  import IconPalette from "@tabler/icons-svelte/icons/palette";
+  import IconSearch from "@tabler/icons-svelte/icons/search";
+  import IconSettings from "@tabler/icons-svelte/icons/settings";
+  import IconShieldLock from "@tabler/icons-svelte/icons/shield-lock";
+  import IconUserCircle from "@tabler/icons-svelte/icons/user-circle";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { CatalogEntryStatus, ProviderStatusDto } from "../../lib/types";
   import {
@@ -34,35 +34,33 @@
     persistSettingsSection,
     type SettingsSectionId,
   } from "../../lib/navigation.svelte";
+  import { SETTINGS_GROUPS, SETTINGS_SECTIONS, settingsSectionMatches } from "../../lib/settings-catalog";
   import { setReducedMotion, setUiDensity, setUiScale, UI_SCALES, uiPrefs } from "../../lib/ui-prefs.svelte";
-  import { ipc } from "../../lib/ipc";
-  import { check, type Update } from "@tauri-apps/plugin-updater";
-  import { relaunch } from "@tauri-apps/plugin-process";
+  import { ipc, onAuthChanged } from "../../lib/ipc";
+  import { MOD_KEY } from "../../lib/platform";
+  import UpdateControls from "../shell/UpdateControls.svelte";
 
   const VOICE_CAPTURE_KEY = "pytxo-desktop-voice-capture-v1";
   const VOICE_CONSENT_KEY = "pytxo-desktop-voice-cloud-consent-v1";
   const DEFAULT_PROFILE_KEY = "pytxo-default-permission-profile-v1";
   const OPEN_BEHAVIOR_KEY = "pytxo-workspace-open-behavior-v1";
 
-  const SECTIONS: {
-    id: SettingsSectionId;
-    label: string;
-    icon: typeof IconSettings;
-  }[] = [
-    { id: "general", label: "General", icon: IconSettings },
-    { id: "appearance", label: "Appearance", icon: IconPalette },
-    { id: "keyboard", label: "Keyboard", icon: IconKeyboard },
-    { id: "providers", label: "Providers", icon: IconKey },
-    { id: "workspaces", label: "Workspaces", icon: IconFolder },
-    { id: "agents", label: "Agents & permissions", icon: IconShieldLock },
-    { id: "voice", label: "Voice", icon: IconMicrophone },
-    { id: "privacy", label: "Privacy", icon: IconBell },
-    { id: "account", label: "Account & billing", icon: IconUserCircle },
-  ];
+  const SECTION_ICONS: Record<SettingsSectionId, typeof IconSettings> = {
+    general: IconSettings,
+    appearance: IconPalette,
+    keyboard: IconKeyboard,
+    workspaces: IconFolder,
+    agents: IconShieldLock,
+    providers: IconKey,
+    voice: IconMicrophone,
+    privacy: IconBell,
+    account: IconUserCircle,
+  };
+  const SECTIONS = SETTINGS_SECTIONS.map((item) => ({ ...item, icon: SECTION_ICONS[item.id] }));
 
   const PROFILES = [
     { id: "deep_space", label: "DeepSpace", hint: "Air-gapped cwd reads" },
-    { id: "orbit", label: "Orbit", hint: "Default; approve-to-flush" },
+    { id: "orbit", label: "Orbit", hint: "Review before Apply" },
     { id: "galaxy", label: "Galaxy", hint: "Host tools + HITL" },
     { id: "supernova", label: "Supernova", hint: "Full host privileges" },
   ] as const;
@@ -107,7 +105,12 @@
   } = $props();
 
   let search = $state("");
+  let searchInput: HTMLInputElement | undefined = $state();
   let section = $state<SettingsSectionId>(loadSettingsSection());
+  let settingsHeading: HTMLElement | undefined = $state();
+  $effect(() => {
+    if (section && settingsHeading) settingsHeading.closest<HTMLElement>(".settings-main")?.scrollTo({ top: 0, behavior: "instant" });
+  });
   let theme = $state<DeckTheme>(loadTheme());
   let accent = $state<AccentPreset>(loadAccent());
   let customAccent = $state(loadCustomAccent());
@@ -115,26 +118,35 @@
   let voiceCapture = $state<"both" | "hold" | "click">("both");
   let voiceConsentNoted = $state(false);
   let showCloudConsent = $state(false);
+  let consentDialog: HTMLDialogElement | undefined = $state();
+  let cancelConsent: HTMLButtonElement | undefined = $state();
+  $effect(() => {
+    if (showCloudConsent && consentDialog && !consentDialog.open) {
+      void withPreviewsHidden(() => { if (showCloudConsent && consentDialog?.isConnected) { if (!consentDialog.open) consentDialog.showModal(); cancelConsent?.focus(); } });
+    }
+  });
   let defaultProfile = $state<string>("orbit");
   let openBehavior = $state<"last" | "picker">("last");
-  let updateChecking = $state(false);
-  let updateInstalling = $state(false);
-  let pendingUpdate = $state<Update | null>(null);
-  let updateMessage = $state("");
   let closeToTray = $state(true);
   let providers = $state<ProviderStatusDto[]>([]);
   let providersLoading = $state(false);
   let providersError = $state("");
   let showAllProviders = $state(false);
   let copiedProviderEnv = $state("");
+  let routingCredentialPresent = $state(false);
+  let routingBridgeAvailable = $state(false);
+  let routingAccountId = $state<string | null>(null);
+  let routingRemoteStatus = $state<"absent" | "verified" | "unverified" | "revoked">("absent");
+  let routingRecoveryOnly = $state(false);
+  let routingAccountMessage = $state("");
 
-  const filteredSections = $derived(
-    SECTIONS.filter((s) => {
-      if (!search.trim()) return true;
-      const q = search.toLowerCase();
-      return s.label.toLowerCase().includes(q) || s.id.includes(q);
-    }),
+  const searchQuery = $derived(search.trim());
+  const filteredSections = $derived(SECTIONS.filter((item) => settingsSectionMatches(item, search)));
+  const sectionGroups = $derived(
+    SETTINGS_GROUPS.map((label) => ({ label, items: filteredSections.filter((item) => item.group === label) }))
+      .filter((group) => group.items.length > 0),
   );
+  const currentSection = $derived(SECTIONS.find((item) => item.id === section) ?? SECTIONS[0]!);
   const configuredProviderCount = $derived(providers.filter((provider) => provider.key_configured).length);
   const visibleProviders = $derived.by(() => {
     const featured = ["deepseek", "openrouter", "openai", "anthropic"];
@@ -159,6 +171,14 @@
   });
 
   onMount(() => {
+    let active = true;
+    let unlisten: (() => void) | null = null;
+    const verifyTimer = setInterval(() => void refreshRoutingAccount(), 30_000);
+    void refreshRoutingAccount();
+    void onAuthChanged(() => void refreshRoutingAccount()).then((stop) => {
+      if (active) unlisten = stop;
+      else stop();
+    });
     if (typeof localStorage === "undefined") return;
     const capture = localStorage.getItem(VOICE_CAPTURE_KEY);
     if (capture === "both" || capture === "hold" || capture === "click") voiceCapture = capture;
@@ -171,7 +191,42 @@
       closeToTray = v;
     });
     void refreshProviders();
+    return () => { active = false; unlisten?.(); clearInterval(verifyTimer); };
   });
+
+  async function refreshRoutingAccount() {
+    const status = await ipc.routingAccountStatus().catch(() => null);
+    routingCredentialPresent = status?.credential_present ?? false;
+    routingBridgeAvailable = status?.bridge_available ?? false;
+    routingAccountId = status?.account_id ?? null;
+    routingRemoteStatus = status?.remote_status ?? "absent";
+    routingRecoveryOnly = status?.recovery_only ?? false;
+  }
+
+  async function connectRoutingAccount() {
+    routingAccountMessage = "";
+    try {
+      await ipc.routingAccountConnect();
+    } catch {
+      routingAccountMessage = "Could not open the account connection. Try again.";
+    }
+  }
+
+  async function disconnectRoutingAccount() {
+    if (!window.confirm("Revoke all Routing access for this account? This disconnects every Desktop and disables all hosted workspace grants and evaluation tokens.")) return;
+    routingAccountMessage = "";
+    try {
+      const result = await ipc.routingAccountDisconnect();
+      await refreshRoutingAccount();
+      routingAccountMessage = result.remote_revoked
+        ? "Routing access revoked for this account."
+        : "Local credential cleared. Remote revocation could not be confirmed; use your web account to revoke all routing access.";
+    } catch (cause) {
+      routingAccountMessage = cause && typeof cause === "object" && "message" in cause
+        ? String(cause.message)
+        : "Could not revoke this account's Routing access.";
+    }
+  }
 
   async function refreshProviders() {
     providersLoading = true;
@@ -219,6 +274,11 @@
   function selectSection(id: SettingsSectionId) {
     section = id;
     persistSettingsSection(id);
+  }
+
+  function clearSearch() {
+    search = "";
+    searchInput?.focus();
   }
 
   function setTheme(next: DeckTheme) {
@@ -282,100 +342,64 @@
     onAuthChange();
   }
 
-  function isBenignUpdaterError(message: string): boolean {
-    const lower = message.toLowerCase();
-    return (
-      lower.includes("release json") ||
-      lower.includes("could not fetch") ||
-      lower.includes("network") ||
-      lower.includes("404") ||
-      lower.includes("not found") ||
-      lower.includes("disabled")
-    );
-  }
-
-  async function checkForUpdates() {
-    updateChecking = true;
-    updateMessage = "";
-    pendingUpdate = null;
-    try {
-      const found = await check();
-      if (found) {
-        pendingUpdate = found;
-        updateMessage = `Update available: v${found.version}`;
-      } else {
-        updateMessage = "You're on the latest version.";
-      }
-    } catch (e) {
-      const msg = String(e);
-      updateMessage = isBenignUpdaterError(msg)
-        ? "No update channel available yet."
-        : msg;
-    } finally {
-      updateChecking = false;
-    }
-  }
-
-  async function installPendingUpdate() {
-    if (!pendingUpdate) return;
-    updateInstalling = true;
-    try {
-      await pendingUpdate.downloadAndInstall();
-      await relaunch();
-    } catch (e) {
-      updateMessage = String(e);
-      updateInstalling = false;
-    }
-  }
 </script>
 
+<div class="settings-viewport">
 <section class="settings-screen">
   <div class="settings-rail">
-    <label class="search">
-      <IconSearch size={14} />
-      <input bind:value={search} placeholder="Search settings" aria-label="Search settings" />
+    <div class="search">
+      <IconSearch size={14} aria-hidden="true" />
+      <input bind:this={searchInput} bind:value={search} placeholder="Search settings" aria-label="Search settings" />
+      {#if search}<button class="search-clear" aria-label="Clear settings search" onclick={clearSearch}>Clear</button>{/if}
+    </div>
+    {#if searchQuery}
+      <p class="search-summary" role="status">
+        {filteredSections.length ? `${filteredSections.length} ${filteredSections.length === 1 ? "section matches" : "sections match"}` : "No settings found"}
+        <span>“{searchQuery}”</span>
+      </p>
+      {#if !filteredSections.length}<p class="search-help">Try a control name, such as scale, updates, or microphone.</p>{/if}
+    {/if}
+    <label class="compact-section">
+      <span>Section</span>
+      <select aria-label="Settings section" value={section} onchange={event => selectSection(event.currentTarget.value as SettingsSectionId)}>
+        {#each sectionGroups as group (group.label)}
+          <optgroup label={group.label}>
+            {#each group.items as item (item.id)}<option value={item.id}>{item.label}</option>{/each}
+          </optgroup>
+        {/each}
+      </select>
     </label>
     <nav aria-label="Settings sections">
-      {#each filteredSections as item (item.id)}
-        <button class:active={section === item.id} onclick={() => selectSection(item.id)}>
-          <item.icon size={16} stroke={1.7} />
-          <span>{item.label}</span>
-        </button>
+      {#each sectionGroups as group (group.label)}
+        <div class="nav-group" role="group" aria-label={group.label}>
+          <p class="nav-group-label">{group.label}</p>
+          {#each group.items as item (item.id)}
+            <button class:active={section === item.id} aria-current={section === item.id ? "page" : undefined} aria-label={item.label} aria-describedby={searchQuery ? `settings-match-${item.id}` : undefined} onclick={() => selectSection(item.id)}>
+              <item.icon size={16} stroke={1.7} aria-hidden="true" />
+              <span class="nav-copy">
+                <span>{item.label}</span>
+                {#if searchQuery}<small id={`settings-match-${item.id}`}>{item.description}</small>{/if}
+              </span>
+            </button>
+          {/each}
+        </div>
       {/each}
     </nav>
   </div>
 
   <div class="settings-main">
-    <header class="screen-heading compact">
+    <div class="settings-content">
+    <header class="settings-heading" bind:this={settingsHeading}>
       <div>
-        <!-- The page title is the destination, so a nav label always equals the
-             title it leads to. The section is a subtitle inside it. -->
         <h1>Setup</h1>
-        <h2 class="section-title">{SECTIONS.find((s) => s.id === section)?.label ?? "General"}</h2>
-        <p>
-          {#if section === "appearance"}Void, Light, scale, and density.
-          {:else if section === "keyboard"}Chords for Work, Approvals, and the command palette.
-          {:else if section === "providers"}Direct API access for selected runs. Agent subscription sessions live under Agents.
-          {:else if section === "workspaces"}Trusted folders, defaults, and the active workspace.
-          {:else if section === "agents"}Installed agent CLIs and the permission ladder default.
-          {:else if section === "voice"}Local Whisper capture and optional cloud consent.
-          {:else if section === "privacy"}What Pytxo stores and sanitizes locally.
-          {:else if section === "account"}Account, tier, and onboarding.
-          {:else}Startup density and motion preferences.{/if}
-        </p>
+        <h2 class="section-title">{currentSection.label}</h2>
+        <p>{currentSection.description}</p>
       </div>
     </header>
 
     {#if section === "general"}
       <article class="settings-group">
-        <h2>Startup</h2>
-        <div class="setting-row">
-          <div><strong>Density</strong><small>Compact fits more per screen; comfortable adds breathing room.</small></div>
-          <div class="segmented">
-            <button class:active={uiPrefs.density === "compact"} onclick={() => setUiDensity("compact")}>Compact</button>
-            <button class:active={uiPrefs.density === "comfortable"} onclick={() => setUiDensity("comfortable")}>Comfortable</button>
-          </div>
-        </div>
+        <h2>Window & motion</h2>
         <div class="setting-row">
           <div><strong>Reduced motion</strong><small>Force off transitions and animations, regardless of OS setting.</small></div>
           <button class="toggle" class:active={uiPrefs.reducedMotion} aria-pressed={uiPrefs.reducedMotion} aria-label="Reduced motion" onclick={() => setReducedMotion(!uiPrefs.reducedMotion)}><i></i></button>
@@ -391,11 +415,15 @@
           ><i></i></button>
         </div>
       </article>
+      <article class="settings-group">
+        <h2>Desktop updates</h2>
+        <div class="updater-settings"><UpdateControls /></div>
+      </article>
     {:else if section === "appearance"}
       <article class="settings-group">
         <h2>Theme</h2>
         <div class="setting-row">
-          <div><strong>Match system</strong><small>Follow OS light/dark. Uses Void and Light only.</small></div>
+          <div><strong>Match system</strong><small>Follow your computer’s light or dark appearance.</small></div>
           <button
             class="toggle"
             class:active={matchSystem}
@@ -405,7 +433,7 @@
           ><i></i></button>
         </div>
         <div class="setting-row stack">
-          <div><strong>Skin</strong><small>Void is canonical. Light is the other skin.</small></div>
+          <div><strong>Theme</strong><small>Choose a dark or light workspace.</small></div>
           <div class="theme-previews" role="group" aria-label="Theme skin">
             {#each DECK_THEMES as opt (opt.id)}
               <button
@@ -453,6 +481,7 @@
             >
               <input
                 type="color"
+                aria-label="Custom accent color"
                 value={customAccent}
                 oninput={(e) => setCustomAccent((e.currentTarget as HTMLInputElement).value)}
               />
@@ -463,28 +492,28 @@
       <article class="settings-group">
         <h2>Display</h2>
         <div class="setting-row">
-          <div><strong>Scale</strong><small>Zooms the whole webview via Tauri, not just CSS.</small></div>
+          <div><strong>Scale</strong><small>Adjust the size of text, icons, and controls together.</small></div>
           <div class="segmented">
             {#each UI_SCALES as opt (opt.value)}
-              <button class:active={uiPrefs.scale === opt.value} onclick={() => setUiScale(opt.value)}>{opt.label}</button>
+              <button class:active={uiPrefs.scale === opt.value} aria-pressed={uiPrefs.scale === opt.value} onclick={() => setUiScale(opt.value)}>{opt.label}</button>
             {/each}
           </div>
         </div>
         <div class="setting-row">
           <div><strong>Density</strong><small>Compact fits more per screen; comfortable adds breathing room.</small></div>
           <div class="segmented">
-            <button class:active={uiPrefs.density === "compact"} onclick={() => setUiDensity("compact")}>Compact</button>
-            <button class:active={uiPrefs.density === "comfortable"} onclick={() => setUiDensity("comfortable")}>Comfortable</button>
+            <button class:active={uiPrefs.density === "compact"} aria-pressed={uiPrefs.density === "compact"} onclick={() => setUiDensity("compact")}>Compact</button>
+            <button class:active={uiPrefs.density === "comfortable"} aria-pressed={uiPrefs.density === "comfortable"} onclick={() => setUiDensity("comfortable")}>Comfortable</button>
           </div>
         </div>
       </article>
     {:else if section === "keyboard"}
       <article class="settings-group">
         <h2>Shortcuts</h2>
-        <div class="setting-row"><div><strong>Command palette</strong><small>Search destinations and New mission.</small></div><kbd>Ctrl/⌘ K</kbd></div>
-        <div class="setting-row"><div><strong>Focus Operations</strong><small>Jump to today and the first running mission.</small></div><kbd>Ctrl/⌘ Shift O</kbd></div>
+        <div class="setting-row"><div><strong>Command palette</strong><small>Find actions, destinations, and settings.</small></div><kbd>{MOD_KEY} K</kbd></div>
+        <div class="setting-row"><div><strong>Focus Work</strong><small>Open Work and focus the active run.</small></div><kbd>{MOD_KEY} Shift O</kbd></div>
         <div class="setting-row"><div><strong>Approvals</strong><small>J and K move. Modifier Enter approves. Modifier Backspace denies.</small></div><kbd>J K</kbd></div>
-        <div class="setting-row"><div><strong>Stop run</strong><small>From a focused running row. Confirmation is required.</small></div><kbd>Ctrl/⌘ Shift ⌫</kbd></div>
+        <div class="setting-row"><div><strong>Stop run</strong><small>From a focused running row. Confirmation is required.</small></div><kbd>{MOD_KEY} Shift ⌫</kbd></div>
       </article>
     {:else if section === "providers"}
       <article class="settings-group">
@@ -538,8 +567,8 @@
         <div class="setting-row">
           <div><strong>On launch</strong><small>Restore the last active workspace or prompt to pick one.</small></div>
           <div class="segmented">
-            <button class:active={openBehavior === "last"} onclick={() => setOpenBehavior("last")}>Last used</button>
-            <button class:active={openBehavior === "picker"} onclick={() => setOpenBehavior("picker")}>Catalog</button>
+            <button class:active={openBehavior === "last"} aria-pressed={openBehavior === "last"} onclick={() => setOpenBehavior("last")}>Last used</button>
+            <button class:active={openBehavior === "picker"} aria-pressed={openBehavior === "picker"} onclick={() => setOpenBehavior("picker")}>Catalog</button>
           </div>
         </div>
       </article>
@@ -562,17 +591,20 @@
     {:else if section === "agents"}
       {#if agentsCatalog}<div class="embedded-catalog">{@render agentsCatalog()}</div>{/if}
       <article class="settings-group">
-        <h2>Permission profile</h2>
+        <h2>Default permissions</h2>
         <div class="setting-row stack">
-          <div><strong>Default for newly trusted folders</strong><small>Applied when you trust a workspace. Galaxy queues high-risk actions for HITL approval.</small></div>
+          <div><strong>{PROFILES.find(p => p.id === defaultProfile)?.label ?? "Orbit"} for new folders</strong><small>Orbit is the beta starting point. Existing workspace permissions stay unchanged.</small></div>
+          <details class="permission-options">
+            <summary>Change default permissions</summary>
           <div class="profile-grid">
             {#each PROFILES as p (p.id)}
-              <button class:active={defaultProfile === p.id} onclick={() => setDefaultProfile(p.id)}>
-                <strong>{p.label}</strong>
+              <button class:active={defaultProfile === p.id} aria-pressed={defaultProfile === p.id} onclick={() => setDefaultProfile(p.id)}>
+                <ProfileIcon profile={p.id} /><strong>{p.label}</strong>
                 <small>{p.hint}</small>
               </button>
             {/each}
           </div>
+          </details>
         </div>
       </article>
     {:else if section === "voice"}
@@ -613,6 +645,11 @@
             <strong>Local Core</strong>
           {/if}
         </div>
+        <div class="setting-row">
+          <div><strong>Experimental Routing account</strong><small>{routingRecoveryOnly ? "Recovery connection: inspect and revoke existing hosted grants in Work. New grants are unavailable through this connection." : !routingBridgeAvailable ? routingCredentialPresent ? "New account connections are off. Revoking here affects every Desktop and hosted workspace grant on this account." : "The account bridge is off in this build. Local Core remains available." : routingRemoteStatus === "verified" ? `Routing-only connection verified for ${routingAccountId ?? "this account"}. Hosted packets still require a separate workspace opt-in.` : routingRemoteStatus === "revoked" ? "This Routing credential was revoked. Revoke any saved hosted grants in Work before reconnecting." : routingCredentialPresent ? "A Routing credential is stored locally, but Link could not verify it. Hosted Routing is unavailable until verification succeeds." : "Connect your Pytxo account in the browser for a routing-only credential. Agent and Ultra billing remain separate."}</small></div>
+          <button class="quiet" disabled={!routingBridgeAvailable && !routingCredentialPresent} onclick={() => void (routingRecoveryOnly && routingBridgeAvailable ? connectRoutingAccount() : routingCredentialPresent ? disconnectRoutingAccount() : connectRoutingAccount())}>{routingRecoveryOnly && routingBridgeAvailable ? "Reconnect full Routing access" : routingCredentialPresent ? "Revoke all Routing access" : "Connect"}</button>
+        </div>
+        {#if routingAccountMessage}<p role="status">{routingAccountMessage}</p>{/if}
         <div class="setting-row"><div><strong>Tier</strong><small>Controls concurrent agent limits and cloud features.</small></div><strong class="mono">{tier}</strong></div>
         {#if signedIn && subscriptionPortalUrl}
           <div class="setting-row"><div><strong>Billing portal</strong><small>Manage plan, payment method, and invoices.</small></div><a class="quiet" href={subscriptionPortalUrl} target="_blank" rel="noopener noreferrer">Open portal</a></div>
@@ -620,30 +657,21 @@
         {#if cliMissing}
           <div class="setting-row"><div><strong>Pytxo CLI</strong><small>Not detected on PATH. Terminal parity and MCP tools need it.</small></div><strong>Missing</strong></div>
         {/if}
-        <div class="setting-row">
-          <div>
-            <strong>Updates</strong>
-            <small>{updateMessage || "Check GitHub releases for a newer Desktop build."}</small>
-          </div>
-          <div class="row-actions">
-            <button class="quiet" disabled={updateChecking || updateInstalling} onclick={() => void checkForUpdates()}>
-              {updateChecking ? "Checking…" : "Check for updates"}
-            </button>
-            {#if pendingUpdate}
-              <button class="quiet" disabled={updateInstalling} onclick={() => void installPendingUpdate()}>
-                {updateInstalling ? "Installing…" : "Restart to update"}
-              </button>
-            {/if}
-          </div>
-        </div>
         <div class="setting-row"><div><strong>Onboarding</strong><small>Replay the welcome flow, including CLI, account, and workspace checks.</small></div><button class="quiet" onclick={onReplayOnboarding}>Run onboarding again</button></div>
         <div class="setting-row"><div><strong>Community</strong><small>Ask questions, report issues, and follow releases with other Pytxo users.</small></div><a class="quiet" href="https://discord.gg/AUFRPFjSYv" target="_blank" rel="noopener noreferrer">Open Discord</a></div>
       </article>
     {/if}
+    </div>
   </div>
 
   {#if showCloudConsent}
-    <div class="consent-sheet" role="dialog" aria-label="Cloud transcription consent">
+    <dialog bind:this={consentDialog} class="consent-sheet" aria-label="Cloud transcription consent"
+      onclose={() => (showCloudConsent = false)} onkeydown={(event) => {
+        if (event.key !== "Tab" || !consentDialog) return;
+        const buttons = Array.from(consentDialog.querySelectorAll<HTMLButtonElement>("button"));
+        event.preventDefault();
+        buttons[(buttons.indexOf(document.activeElement as HTMLButtonElement) + 1) % buttons.length]?.focus();
+      }}>
       <p class="eyebrow">Per-session consent</p>
       <h2>Cloud transcription fallback</h2>
       <dl>
@@ -652,22 +680,32 @@
         <div><dt>Retention</dt><dd>Zero data retention where supported</dd></div>
       </dl>
       <p>Raw audio must be sent to the named provider for transcription. The returned transcript is sanitized before any later cloud planning. Local Whisper remains the default path.</p>
-      <div>
-        <button class="deny" onclick={() => (showCloudConsent = false)}>Cancel</button>
+      <div class="consent-actions">
+        <button bind:this={cancelConsent} class="quiet" onclick={() => consentDialog?.close()}>Cancel</button>
         <button class="primary" onclick={consentCloudFallback}>Consent for next session</button>
       </div>
-    </div>
+    </dialog>
   {/if}
 </section>
+</div>
 
 <style>
+  .settings-viewport { container-type: inline-size; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
+  .compact-section { display: none; }
   .settings-screen {
     display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
-    min-height: 100%;
+    /* Wide enough that "Agents & permissions" stays on one line. */
+    grid-template-columns: 212px minmax(0, 1fr);
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
     position: relative;
   }
   .settings-rail {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    box-sizing: border-box;
     border-right: 1px solid var(--pytxo-line, #1e2026);
     padding: 16px 12px;
     display: flex;
@@ -680,6 +718,9 @@
   .embedded-catalog {
     display: contents;
   }
+  .embedded-catalog + .settings-group {
+    margin-top: 14px;
+  }
   .search {
     display: flex;
     align-items: center;
@@ -687,22 +728,60 @@
     border: 1px solid var(--pytxo-line, #1e2026);
     border-radius: 7px;
     padding: 0 10px;
-    background: #0a0b0e;
-    color: #6b7280;
+    background: var(--pytxo-surface-input);
+    color: var(--pytxo-text-muted);
   }
   .search input {
     flex: 1;
     border: 0;
     background: transparent;
-    color: #d5d9df;
+    color: var(--pytxo-text-strong);
     font-size: 12px;
-    height: 32px;
+    height: 40px;
+    min-width: 0;
     outline: none;
+  }
+  .search-clear {
+    flex: none;
+    min-height: 40px;
+    border: 0;
+    padding: 0 2px;
+    background: transparent;
+    color: var(--pytxo-text-body);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .search-clear:hover { color: var(--pytxo-text-strong); }
+  .search-summary,
+  .search-help {
+    margin: 0;
+    color: var(--pytxo-text-muted);
+    font-size: 11px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .search-summary span {
+    display: block;
+    color: var(--pytxo-text-body);
   }
   .settings-rail nav {
     display: flex;
     flex-direction: column;
+    gap: 16px;
+  }
+  .nav-group {
+    display: flex;
+    flex-direction: column;
     gap: 2px;
+    min-width: 0;
+  }
+  .nav-group-label {
+    margin: 0 10px 4px;
+    color: var(--pytxo-text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
   .settings-rail nav button {
     display: flex;
@@ -710,49 +789,83 @@
     gap: 10px;
     border: 0;
     background: transparent;
-    color: #8b929c;
+    color: var(--pytxo-text-soft);
     font-size: 12.5px;
     padding: 8px 10px;
     border-radius: 7px;
     cursor: pointer;
     text-align: left;
+    min-height: 40px;
+    transition: background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease), color var(--pytxo-motion-fast) var(--pytxo-motion-ease);
+  }
+  .settings-rail nav button :global(svg) { flex: none; }
+  .nav-copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .nav-copy small {
+    color: var(--pytxo-text-muted);
+    font-size: 11px;
+    line-height: 1.5;
   }
   .settings-rail nav button:hover {
-    background: #12141a;
-    color: #d7dbe1;
+    background: var(--pytxo-surface-hover);
+    color: var(--pytxo-text-strong);
   }
   .settings-rail nav button.active {
-    background: color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 14%, #12141a);
-    color: #f1f3f5;
+    background: var(--pytxo-surface-active);
+    color: var(--pytxo-text-strong);
+    box-shadow: inset 2px 0 var(--pytxo-text-strong);
+    font-weight: 600;
   }
   .settings-main {
-    padding: 22px 28px 40px;
-    max-width: 760px;
+    container-type: inline-size;
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scroll-padding-block: 24px;
   }
-  .screen-heading.compact {
+  .settings-content {
+    width: 100%;
+    max-width: 960px;
+    box-sizing: border-box;
+    padding: 24px 12px 32px clamp(16px, 3cqi, 32px);
+  }
+  .settings-heading {
     margin-bottom: 18px;
   }
-  .screen-heading.compact h1 {
+  .settings-heading h1 {
     margin: 0;
-    font-size: 22px;
+    color: var(--pytxo-text-muted);
+    font-size: 11px;
     font-weight: 600;
-    letter-spacing: -0.02em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
-  .screen-heading.compact .section-title {
-    margin: 4px 0 0;
+  .settings-heading .section-title {
+    margin: 6px 0 0;
     color: var(--pytxo-text-strong, #f4f5f7);
-    font-size: 14px;
+    font-size: 24px;
     font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.25;
   }
-  .screen-heading.compact p {
+  .settings-heading p {
     margin: 4px 0 0;
-    color: #7a828e;
+    color: var(--pytxo-text-muted);
     font-size: 13px;
+    line-height: 1.5;
   }
   .settings-group {
     border: 1px solid var(--pytxo-line, #1e2026);
-    border-radius: 10px;
-    background: color-mix(in oklab, var(--pytxo-graphite-1, #0d0f13) 70%, transparent);
+    border-radius: 8px;
+    background: var(--pytxo-surface-panel);
     margin-bottom: 14px;
     overflow: hidden;
   }
@@ -763,7 +876,7 @@
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #79828f;
+    color: var(--pytxo-text-muted);
   }
   .setting-row {
     display: flex;
@@ -773,73 +886,76 @@
     padding: 12px 16px;
     border-top: 1px solid color-mix(in oklab, var(--pytxo-line, #1e2026) 80%, transparent);
   }
+  .updater-settings { padding: 12px 16px; border-top: 1px solid var(--pytxo-line); }
   .setting-row.stack {
     flex-direction: column;
     align-items: stretch;
   }
+  .permission-options { width: 100%; }
+  .permission-options > summary { cursor: pointer; padding: 8px 0; font-size: 13px; color: var(--pytxo-text-soft); }
   .setting-row strong {
     display: block;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 550;
-    color: #e8eaed;
+    color: var(--pytxo-text-strong);
   }
   .setting-row small {
     display: block;
     margin-top: 3px;
-    color: #79828f;
-    font-size: 11.5px;
-    line-height: 1.4;
+    color: var(--pytxo-text-muted);
+    font-size: 13px;
+    line-height: 1.55;
   }
-  .row-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: flex-end;
-  }
-  .segmented {
+  .settings-screen .segmented {
     display: inline-flex;
     gap: 2px;
-    padding: 2px;
-    border-radius: 7px;
-    background: #0a0b0e;
+    padding: 3px;
+    border-radius: 9px;
+    background: var(--pytxo-surface-input);
+    flex: none;
     border: 1px solid var(--pytxo-line, #1e2026);
   }
-  .segmented button {
+  .settings-screen .segmented button {
     border: 0;
     background: transparent;
-    color: #8b929c;
-    font-size: 11.5px;
-    padding: 6px 10px;
-    border-radius: 5px;
+    color: var(--pytxo-text-muted);
+    font-size: 12px;
+    min-height: 40px;
+    padding: 0 10px;
+    border-radius: 6px;
     cursor: pointer;
+    transition: background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease), color var(--pytxo-motion-fast) var(--pytxo-motion-ease);
   }
-  .segmented button.active {
-    background: color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 18%, #161920);
-    color: #f3f5f7;
+  .settings-screen .segmented button.active {
+    background: var(--pytxo-surface-active);
+    color: var(--pytxo-text-strong);
   }
   .accent-swatches {
     display: flex;
     gap: 8px;
+    flex: none;
   }
   .swatch {
-    width: 22px;
-    height: 22px;
+    width: 40px;
+    height: 40px;
     border-radius: 999px;
     border: 2px solid transparent;
     cursor: pointer;
-    padding: 0;
+    padding: 7px;
+    background-clip: content-box;
   }
   .swatch[data-accent="teal"] {
-    background: var(--brand-teal);
+    background-color: var(--pytxo-text-strong);
   }
   .swatch.active {
     box-shadow: 0 0 0 2px color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 50%, transparent);
-    border-color: #0a0b0e;
+    border-color: var(--pytxo-text-muted);
   }
   .custom-swatch {
     position: relative;
     overflow: hidden;
     background: conic-gradient(from 90deg, #f43f5e, #fbbf24, #22c55e, #22d3ee, #a78bfa, #f43f5e);
+    background-clip: content-box;
   }
   .custom-swatch input {
     position: absolute;
@@ -880,16 +996,20 @@
   }
   .theme-preview-swatch {
     display: block;
-    height: 28px;
+    position: relative;
+    height: 64px;
     border-radius: 5px;
     border: 1px solid color-mix(in oklab, var(--pytxo-line) 80%, transparent);
   }
   .theme-preview[data-skin="void"] .theme-preview-swatch {
-    background: linear-gradient(135deg, #020205, #0d0f13 55%, #2dd4bf);
+    background: linear-gradient(90deg, #17171b 0 22%, transparent 22%), linear-gradient(#17171b 0 10px, #08080a 10px);
+    color: #595961;
   }
   .theme-preview[data-skin="light"] .theme-preview-swatch {
-    background: linear-gradient(135deg, #f4f6f8, #ffffff 55%, #0d9488);
+    background: linear-gradient(90deg, #e8ebef 0 22%, transparent 22%), linear-gradient(#e8ebef 0 10px, #fff 10px);
+    color: #abb1bb;
   }
+  .theme-preview-swatch::after{content:"";position:absolute;left:30%;top:23px;width:50%;height:3px;background:currentColor;border-radius:2px;box-shadow:0 9px 0 currentColor,0 18px 0 currentColor;opacity:.5}
   .theme-preview-label {
     font-size: 11px;
     text-align: left;
@@ -907,7 +1027,7 @@
   .providers-docs,
   .providers-empty,
   .providers-error {
-    margin: 0 0 12px;
+    margin: 0 16px 12px;
     font-size: 12px;
     line-height: 1.5;
     color: var(--pytxo-text-muted, #8b929d);
@@ -957,12 +1077,12 @@
     padding: 0;
     border: 0;
     background: transparent;
-    color: #7e8792;
-    font-size: 11px;
+    color: var(--pytxo-text-soft);
+    font-size: 12px;
     cursor: pointer;
   }
   .provider-env:hover:not(:disabled) {
-    color: #a4eee0;
+    color: var(--pytxo-text-strong);
   }
   .provider-env:focus-visible {
     outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
@@ -998,93 +1118,123 @@
   .profile-grid button {
     text-align: left;
     border: 1px solid var(--pytxo-line, #1e2026);
-    background: #0a0b0e;
+    background: var(--pytxo-surface-input);
     border-radius: 8px;
     padding: 10px 12px;
     cursor: pointer;
-    color: #c5cad1;
+    color: var(--pytxo-text-body);
   }
   .profile-grid button.active {
     border-color: color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 45%, transparent);
-    background: color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 10%, #0a0b0e);
+    background: var(--pytxo-surface-active);
   }
   .profile-grid strong {
     font-size: 12.5px;
   }
   .profile-grid small {
     margin-top: 4px;
-    color: #79828f;
+    color: var(--pytxo-text-muted);
     font-size: 11px;
   }
-  .toggle {
-    width: 36px;
-    height: 20px;
-    border-radius: 999px;
+  .settings-screen .toggle {
+    width: 44px;
+    height: 40px;
+    flex: none;
+    border-radius: 6px;
     border: 0;
-    background: #2a2e36;
+    background: transparent;
     position: relative;
     cursor: pointer;
     padding: 0;
   }
-  .toggle i {
+  .toggle::before{content:"";position:absolute;inset:10px 4px;border-radius:10px;background:var(--pytxo-line);transition:background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease)}
+  .settings-screen .toggle i {
     position: absolute;
-    top: 2px;
-    left: 2px;
+    top: 12px;
+    left: 6px;
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: #c5cad1;
-    transition: transform 120ms ease;
+    background: var(--pytxo-text-muted);
+    transition: transform var(--pytxo-motion-fast) var(--pytxo-motion-ease), background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease);
   }
-  .toggle.active {
-    background: color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 70%, #1a3a34);
+  .settings-screen .toggle.active {
+    background: transparent;
   }
-  .toggle.active i {
+  .settings-screen .toggle:hover,
+  .settings-screen .toggle.active:hover { background: transparent; }
+  .settings-screen .toggle:hover::before { background: color-mix(in oklab, var(--pytxo-line) 75%, var(--pytxo-text-muted)); }
+  .settings-screen .toggle.active:hover::before { background: var(--pytxo-text-body); }
+  .settings-screen .toggle.active::before{background:var(--pytxo-text-strong)}
+  .settings-screen .toggle.active i {
     transform: translateX(16px);
-    background: #fff;
+    background: var(--pytxo-surface-shell);
   }
+  .search:focus-within,
+  .custom-swatch:focus-within { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }
+  button:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }
+  .segmented button:hover:not(.active) { background: var(--pytxo-surface-hover); color: var(--pytxo-text-strong); }
   .quiet,
   a.quiet {
     border: 1px solid var(--pytxo-line, #1e2026);
-    background: #12141a;
-    color: #c5cad1;
+    background: var(--pytxo-surface-raised);
+    color: var(--pytxo-text-strong);
     border-radius: 6px;
     padding: 6px 10px;
     font-size: 12px;
     text-decoration: none;
     cursor: pointer;
+    min-height: 40px;
   }
   .mono {
     font-family: "IBM Plex Mono", ui-monospace, monospace;
   }
   select {
     border: 1px solid var(--pytxo-line, #1e2026);
-    background: #0a0b0e;
-    color: #d5d9df;
+    background: var(--pytxo-surface-input);
+    color: var(--pytxo-text-strong);
     border-radius: 6px;
     padding: 6px 8px;
     font-size: 12px;
   }
   .consent-sheet {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    background: color-mix(in oklab, #07080b 88%, transparent);
-    backdrop-filter: blur(8px);
-    display: grid;
-    place-content: center;
+    width: min(480px, calc(100vw - 32px));
+    box-sizing: border-box;
+    max-height: calc(100dvh - 48px);
+    overflow: auto;
+    margin: auto;
+    border: 1px solid var(--pytxo-line);
+    border-radius: 12px;
+    color: var(--pytxo-text-strong);
+    background: var(--pytxo-surface-panel);
     padding: 24px;
+    box-shadow: 0 24px 80px -24px #0009;
   }
+  .consent-sheet::backdrop { background: #0008; }
+  .consent-sheet h2 { margin: 0 0 20px; font-size: 20px; letter-spacing: -.025em; }
+  .consent-sheet dl { margin: 0; }
+  .consent-sheet dl > div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--pytxo-line-soft); font-size: 12px; line-height: 1.5; }
+  .consent-sheet dt { color: var(--pytxo-text-muted); }
+  .consent-sheet dd { margin: 0; }
+  .consent-sheet p { color: var(--pytxo-text-muted); font-size: 13px; line-height: 1.6; }
+  .consent-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+  .consent-actions button { min-height: 40px; }
   .consent-sheet > :global(*) {
     max-width: 420px;
   }
-  @media (max-width: 860px) {
-    .settings-screen {
-      grid-template-columns: 1fr;
-    }
-    .settings-rail {
-      border-right: 0;
-      border-bottom: 1px solid var(--pytxo-line, #1e2026);
-    }
+  @container (max-width: 720px) {
+    .settings-screen { grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr); }
+    .settings-rail { position: static; height: auto; display: grid; grid-template-columns: minmax(0,1fr) minmax(160px,1fr); align-items: end; border-right: 0; border-bottom: 1px solid var(--pytxo-line); padding: 12px 16px; }
+    .settings-rail nav { display: none; }
+    .compact-section { display: flex; flex-direction: column; gap: 4px; color: var(--pytxo-text-muted); font-size: 11px; min-width: 0; }
+    .compact-section select { min-width: 0; width: 100%; min-height: 40px; padding: 0 28px 0 10px; border: 1px solid var(--pytxo-line); border-radius: 6px; background-color: var(--pytxo-surface-input); color: var(--pytxo-text-strong); font: inherit; font-size: 13px; }
+    .search-summary, .search-help { grid-column: 1/-1; }
+    .settings-content { padding: 20px 16px; }
+  }
+  @container (max-width: 440px) {
+    .setting-row { flex-wrap: wrap; gap: 10px; }
+    .setting-row > div:first-child { flex: 1 1 180px; min-width: 0; }
+    .settings-group .segmented { flex-wrap: wrap; max-width: 100%; }
+    .accent-swatches { flex-wrap: wrap; }
   }
 </style>

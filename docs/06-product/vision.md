@@ -6,20 +6,23 @@ tags: [product, vision, architecture]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-08-27
+updated: 2026-09-07
 related: [[commit-layer]], [[mission-loop]], [[signal-core]], [[blast-shield]], [[race-shield]], [[permission-profile-engine]], [[execution-domains]], [[pytxo-commit-layer-alignment]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0036-effect-contract-commit-boundary]]
 ---
 
 # Product vision
 
-**Pytxo is the commit layer for autonomous work.** It turns an agent proposal
-into an authorized, verifiable, and recoverable change to a real system.
+**Pytxo is an agent hypervisor.** It prepares missions, manages existing agent
+instances and their resources, observes execution, verifies candidate results,
+and controls their authorized integration. Agents do the work; Pytxo controls
+what becomes real within the boundaries it actually mediates.
 
-The shipping beachhead is narrower: Pytxo coordinates the coding-agent CLIs a
+The shipping beachhead is repository work: Pytxo coordinates the coding-agent CLIs a
 developer already uses, runs their work in isolated spaces, verifies the run,
-and prepares exact repository bytes for review and Apply. That local agent
-hypervisor remains the execution yard. It is no longer the whole company
-thesis.
+and prepares exact repository bytes for review and Apply. One harness and one
+worker are first-class. The commit boundary is an important hypervisor primitive,
+not its entire identity. Generalized production effects remain a proposed
+expansion, not a requirement for the next release or a capability claim.
 
 ## The control point
 
@@ -40,7 +43,7 @@ observe -> propose -> prepare -> authorize -> commit -> verify -> receipt
                                       failure -> compensate or contain -> re-verify
 ```
 
-An [[commit-layer|effect contract]] describes the intended state transition:
+The proposed generalized [[commit-layer|effect contract]] describes a state transition:
 principal and delegation lineage, resources, preconditions, allowed effects,
 budgets, commit policy, postconditions, evidence, and recovery class. Authority
 is short-lived and bound to that exact effect. Verification observes the

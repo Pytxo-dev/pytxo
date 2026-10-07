@@ -26,7 +26,7 @@ export const SIGNAL_BENCHMARK = {
   caveats: [
     "The measured worktree was dirty at capture time, so the corpus reflects working state rather than a clean checkout of the recorded commit.",
     "Files below 1 KiB and languages without a Signal grammar are excluded, which raises the weighted figure relative to a whole-repository read.",
-    "TypeScript reduced least in this corpus at 58.7%; Rust reduced most at 88.0%. A repository weighted toward TypeScript should expect a lower number.",
+    "TypeScript reduced 58.7% in this corpus; Rust reduced 88.0%. The aggregate depends on file shape and language mix and does not predict your repository's result.",
   ],
   sourcePath: "tooling/benchmarks/results/signal-real-repo.json",
   sourceUrl:

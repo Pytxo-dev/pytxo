@@ -6,7 +6,7 @@ tags: [product, orchestration, workspace]
 audience: [human, agent]
 layer: product
 created: 2026-06-04
-updated: 2026-07-10
+updated: 2026-09-13
 related: [[product-vision]], [[execution-domains]], [[permission-profile-engine]], [[race-shield]], [[blast-shield]], [[desktop-visual-system]], [[pytxo-toml]]
 ---
 
@@ -24,7 +24,9 @@ Pytxo’s **projects system** is **modular**: you define a **project** once, the
 | Telemetry | Runs tagged with `project_id` + `root_id` (store migration 004) | Project-scoped catalog DB |
 | Pytxo Desktop | Workspace Home + folder tabs | Multi-root Workspace settings (`ProjectPathPanel`) |
 
-**v1 shipped:** a project groups multiple folders; `pytxo project run` executes **one coordinated run** on the primary domain with `task.root` routing and `agents.root_id` telemetry. Read-only roots can be merged into agent context. Single-repo users are unaffected — no manifest means behavior is identical to `pytxo run`.
+**Execution primitives shipped:** a project groups multiple folders; `pytxo project run` executes **one coordinated run** on the primary domain with `task.root` routing and `agents.root_id` telemetry. Read-only roots can be merged into agent context. Single-repo users are unaffected — no manifest means behavior is identical to `pytxo run`.
+
+**End-to-end modular missions have not shipped.** Desktop Flow rejects labeled-root tasks, combined-candidate verification supports one repository root, and reviewed Apply rejects multi-root runs. Folder grouping and coordinated agent execution are not proof of safe multi-root review or integration. The required contract is tracked in [[modular-project-safety-contract-2026-09-13]].
 
 **v2 shipped (Phase 66 + Desktop Workspaces):** `project_roots` in hypervisor catalog; Desktop Workspace Home lists projects/domains; multi-root tabs open via `list_projects` + `ProjectPathPanel` add/remove; cross-project fleet DAG via `pytxo fleet` (Phase 23). In the UI, a modular project is called a **Workspace**.
 

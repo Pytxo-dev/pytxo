@@ -25,6 +25,14 @@ tier_max_agents = 3
 # [planner]
 # enabled = true
 
+# Advisory model for planning, future route ranking, and diagnosis. Model egress
+# remains disabled unless the caller explicitly sets PYTXO_PLANNER_LLM=1.
+# [coordinator]
+# provider = "deepseek"
+# model = "deepseek-flash"
+# transport = "direct"   # direct | managed
+# Local replacement: provider = "ollama", model = "qwen3:8b", transport = "direct"
+
 # Pytxo Ultra local wallet + optional managed transport.
 # Managed inference and Link reconciliation require configured services.
 # [billing]
@@ -52,7 +60,7 @@ tier_max_agents = 3
 [[agent]]
 name = "builder"
 paths = ["src/**"]
-# Ultra / BYOK example (DeepSeek recommended for Ultra):
+# Worker-model example (separate from the coordinator profile):
 # model = "deepseek-chat"
 # provider = "deepseek"
 # cli_adapter = "generic"

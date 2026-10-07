@@ -1,5 +1,6 @@
 ---
 title: Race Shield
+description: Schedule overlapping path claims into safe waves and route live-agent input without collisions.
 ---
 
 **Race Shield** stops cross-agent write collisions and stdin races. It uses a write registry (separate locks for path claims and stdin) and buffered stdin handling.
@@ -31,4 +32,4 @@ Use `pytxo run --dry-run` to inspect waves before execution.
 
 Race Shield decides **when** agents run. [Galaxy approvals](/docs/concepts/galaxy-approvals) decide **which risky commands** may run once an agent is live.
 
-Back: [Three moats](/docs/concepts/three-moats)
+Back: [Safety and coordination model](/docs/concepts/three-moats)

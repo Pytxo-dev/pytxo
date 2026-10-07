@@ -3,12 +3,14 @@ title: CLI reference
 description: pytxo subcommands, flags, and environment variables.
 ---
 
-Binary: `pytxo` (keep aligned with site version **0.7.0**).
+Binary: `pytxo` (keep aligned with the **published** site version **1.2.1**). Workspace 1.2.2 is unpublished.
+
+There is **no `pytxo apply`**. Apply is Desktop **History → Run Review** (and the same `apply_run_changes` path over IPC). `pytxo hitl` is the **Galaxy approval queue**, not Apply.
 
 ## Default behavior
 
 ```bash
-pytxo          # interactive Hypervisor Shell
+pytxo          # interactive Hypervisor Shell (TUI)
 pytxo --help   # subcommand list
 ```
 
@@ -21,13 +23,16 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the shell.
 | `pytxo init` | Create `.pytxo/` dirs and gitignore hint |
 | `pytxo doctor` | Verify git, PTY, approvals persistence, billing/cloud when enabled |
 | `pytxo run` | Schedule and execute agents in isolated copies |
+| `pytxo mission` | Natural-language mission: plan → approve → isolated run → review package |
+| `pytxo agents` | List registered agent CLIs and PATH detection |
+| `pytxo shell` | One-shot shell without the TUI (`--eval`) |
 | `pytxo status` | List runs and agents from SQLite |
 | `pytxo logs --agent <id>` | Tail stored stdout/stderr events |
 | `pytxo stop` | Stop active run or all tracked processes |
 | `pytxo domains` | List registered execution domains |
 | `pytxo project` | Multi-root modular project manifest |
 | `pytxo fleet` | Cross-repo fleet DAG |
-| `pytxo hitl` | Human-in-the-loop approval queue |
+| `pytxo hitl` | Galaxy human-in-the-loop **approval queue** (risky commands; not Apply) |
 | `pytxo trust [tier]` | Trust repo folder (`orbit`, `galaxy`, ...) |
 | `pytxo providers` | Provider registry + key configured (boolean) |
 | `pytxo models` | List, search, or refresh model catalog |
@@ -37,8 +42,31 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the shell.
 | Flag | Commands | Description |
 |------|----------|-------------|
 | `--repo` | most | Git repository root (default: cwd) |
-| `--config` | `run`, `status`, `logs`, `stop` | Path to `pytxo.toml` |
-| `--json` | `doctor`, `status`, `domains` | Machine-readable output |
+| `--config` | `run`, `status`, `logs`, `stop`, `shell` | Path to `pytxo.toml` |
+| `--json` | `doctor`, `status`, `domains`, `mission`, `agents` | Machine-readable output |
+
+## `pytxo mission`
+
+```bash
+pytxo mission "Add input validation in src/api.ts"
+pytxo mission "…" --yes          # skip interactive plan approve
+pytxo mission "…" --json         # print plan JSON; no dispatch
+pytxo mission "…" --ade claude   # preferred ADE id
+```
+
+`--plan-file` writes plan JSON before the approve step. After a successful Orbit or Galaxy run, review and Apply in Desktop — not with a CLI apply subcommand. See [Review and Apply](/docs/getting-started/review-and-apply).
+
+## `pytxo agents`
+
+Lists ADE CLIs from the registry and whether they are on `PATH`. `--json` for scripts.
+
+## `pytxo shell`
+
+One-shot command without the Hypervisor Shell:
+
+```bash
+pytxo shell --eval "/dry-run"
+```
 
 ## `pytxo run` flags
 
@@ -49,6 +77,7 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the shell.
 | `--dry-run` | off | Print JSON execution plan |
 | `--keep-worktrees` | off | Do not remove isolated copies after run |
 | `--execution` | from config | Override `pty`, `subprocess`, or `cloud` |
+| `--ade` | unset | Registry ADE id (e.g. `cursor`, `claude`) |
 
 ## `pytxo project` subcommands
 
@@ -73,11 +102,15 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the shell.
 
 ## `pytxo hitl` subcommands
 
+Galaxy's approval queue for risky host actions. Approving a HITL request is **not** repository Apply.
+
 | Subcommand | Description |
 |------------|-------------|
 | `list` | Pending approval requests |
 | `approve <id>` | Approve a request |
 | `deny <id>` | Deny a request |
+
+See [Galaxy approvals](/docs/concepts/galaxy-approvals) and [Review and Apply](/docs/getting-started/review-and-apply).
 
 ## `pytxo trust`
 
@@ -109,4 +142,4 @@ Provider API keys stay in their usual env vars (`ANTHROPIC_API_KEY`, `OPENAI_API
 
 Format: `{run_uuid}:agent-N`. Use with `pytxo logs --agent`.
 
-See also: [`pytxo.toml`](/docs/reference/pytxo-toml) · [Fleet runs](/docs/concepts/fleet-runs) · [Galaxy approvals](/docs/concepts/galaxy-approvals)
+See also: [`pytxo.toml`](/docs/reference/pytxo-toml) · [Fleet runs](/docs/concepts/fleet-runs) · [Galaxy approvals](/docs/concepts/galaxy-approvals) · [Review and Apply](/docs/getting-started/review-and-apply)

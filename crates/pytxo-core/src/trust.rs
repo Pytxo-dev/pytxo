@@ -201,7 +201,12 @@ pub fn default_trust_path() -> crate::Result<PathBuf> {
     Ok(home.join(".pytxo").join("trusted-domains.json"))
 }
 
+/// `PYTXO_HOME` isolates every Pytxo store (catalog, projects, trust), so an
+/// isolated home can never trust folders in the operator's real store.
 fn dirs_home() -> Option<PathBuf> {
+    if let Some(home) = std::env::var_os("PYTXO_HOME") {
+        return Some(PathBuf::from(home));
+    }
     if let Ok(h) = std::env::var("USERPROFILE") {
         return Some(PathBuf::from(h));
     }

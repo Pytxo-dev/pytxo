@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { IconFolderPlus, IconTrash, IconX } from "@tabler/icons-svelte";
+  import ProfileIcon from "./ProfileIcon.svelte";
+  import { withPreviewsHidden } from "../../lib/preview-overlay";
+  import IconFolderPlus from "@tabler/icons-svelte/icons/folder-plus";
+  import IconTrash from "@tabler/icons-svelte/icons/trash";
+  import IconX from "@tabler/icons-svelte/icons/x";
+  import { onMount } from "svelte";
   import { ipc } from "../../lib/ipc";
   import type { CatalogEntryStatus, ProjectRootDto } from "../../lib/types";
 
@@ -31,6 +36,24 @@
   let error = $state<string | null>(null);
   let forgetting = $state(false);
   let addingRoot = $state(false);
+  let dialog: HTMLDialogElement | undefined = $state();
+  let closeButton: HTMLButtonElement | undefined = $state();
+  onMount(() => {
+    void withPreviewsHidden(() => { if (dialog?.isConnected) { dialog.showModal(); closeButton?.focus(); } });
+  });
+
+  function containFocus(event: KeyboardEvent) {
+    if (event.key !== "Tab" || !dialog) return;
+    const controls = Array.from(dialog.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), [tabindex="0"]'))
+      .filter((element) => element.getClientRects().length > 0);
+    const first = controls[0];
+    const last = controls.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault(); last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault(); first?.focus();
+    }
+  }
 
   const title = $derived(domain.repo_root.split(/[\\/]/).pop() ?? domain.domain_id);
 
@@ -71,13 +94,19 @@
   }
 
   async function addRoot() {
-    if (!projectId || addingRoot) return;
+    if (addingRoot) return;
     addingRoot = true;
     error = null;
     try {
       const picked = await ipc.pickWorkspaceFolder();
       if (!picked) return;
-      roots = await ipc.projectAddRoot(projectId, picked, false);
+      if (!projectId) {
+        const project = await ipc.projectCreate(domain.domain_id, picked);
+        projectId = project.id;
+        roots = await ipc.projectRoots(projectId);
+      } else {
+        roots = await ipc.projectAddRoot(projectId, picked, false);
+      }
       await onChanged?.();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -87,7 +116,8 @@
   }
 
   async function removeRoot(label: string) {
-    if (!projectId) return;
+    if (!projectId || addingRoot) return;
+    addingRoot = true;
     error = null;
     try {
       roots = await ipc.projectRemoveRoot(projectId, label);
@@ -95,6 +125,7 @@
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
+    finally { addingRoot = false; }
   }
 
   async function forget() {
@@ -117,7 +148,7 @@
   });
 </script>
 
-<div class="ws-settings" role="dialog" aria-label={`Workspace settings · ${title}`}>
+<dialog bind:this={dialog} class="ws-settings" aria-label={`Workspace settings · ${title}`} onclose={onClose} onkeydown={containFocus}>
   <div class="sheet">
     <header>
       <div>
@@ -125,9 +156,10 @@
         <h2>{title}</h2>
         <p class="path mono">{domain.repo_root}</p>
       </div>
-      <button class="icon" onclick={onClose} aria-label="Close"><IconX size={16} /></button>
+      <button bind:this={closeButton} class="icon" onclick={() => dialog?.close()} aria-label="Close"><IconX size={16} /></button>
     </header>
 
+    <div class="sheet-body">
     {#if loading}
       <p class="muted">Loading trust and folders…</p>
     {:else}
@@ -136,8 +168,8 @@
         <p class="hint">{trusted ? "Trusted on this machine." : "Not trusted yet. Choosing a profile trusts this folder for dispatch."}</p>
         <div class="profile-grid">
           {#each PROFILES as p (p.id)}
-            <button class:active={profile === p.id} disabled={saving} onclick={() => saveProfile(p.id)}>
-              <strong>{p.label}</strong>
+            <button class:active={profile === p.id} aria-pressed={profile === p.id} disabled={saving} onclick={() => saveProfile(p.id)}>
+              <ProfileIcon profile={p.id} /><strong>{p.label}</strong>
               <small>{p.hint}</small>
             </button>
           {/each}
@@ -147,14 +179,12 @@
       <section>
         <div class="row-head">
           <h3>Folders</h3>
-          {#if projectId}
             <button class="quiet" disabled={addingRoot} onclick={addRoot}>
-              <IconFolderPlus size={14} /> {addingRoot ? "Picking…" : "Add folder"}
+              <IconFolderPlus size={14} /> {addingRoot ? "Updating…" : "Add folder"}
             </button>
-          {/if}
         </div>
+        <p class="hint">Group folders into a modular project. Adding a folder does not trust it. Desktop missions currently run in the primary folder; coordinated multi-folder runs use the project CLI.</p>
         {#if !projectId}
-          <p class="hint">Single-root workspace. Create a modular project (multi-root) via the CLI to attach additional folders.</p>
           <div class="root-row">
             <div>
               <strong>Primary</strong>
@@ -173,7 +203,7 @@
                 {#if root.primary}<span class="badge">primary</span>{/if}
                 {#if root.read_only}<span class="badge">read-only</span>{/if}
                 {#if !root.primary}
-                  <button class="icon danger" aria-label={`Remove ${root.label}`} onclick={() => removeRoot(root.label)}>
+                  <button class="icon danger" disabled={addingRoot} aria-label={`Remove ${root.label}`} onclick={() => removeRoot(root.label)}>
                     <IconTrash size={14} />
                   </button>
                 {/if}
@@ -203,43 +233,50 @@
       </section>
     {/if}
 
-    {#if error}<p class="error">{error}</p>{/if}
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
+    </div>
   </div>
-</div>
+</dialog>
 
 <style>
   .ws-settings {
     position: fixed;
     inset: 0;
     z-index: 40;
-    background: color-mix(in oklab, #050608 72%, transparent);
-    backdrop-filter: blur(6px);
+    width: 100%; height: 100%; max-width: none; max-height: none;
+    margin: 0; border: 0; box-sizing: border-box; color: inherit;
+    background: transparent;
     display: grid;
     place-items: center;
     padding: 24px;
   }
+  .ws-settings:not([open]) { display: none; }
+  .ws-settings::backdrop { background: #0008; }
+  button:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }
   .sheet {
-    width: min(560px, 100%);
-    max-height: min(86vh, 720px);
-    overflow: auto;
+    width: min(640px, 100%);
+    max-height: min(calc(100dvh - 48px), 720px);
+    display: flex; flex-direction: column; overflow: hidden;
     border: 1px solid var(--pytxo-line, #1e2026);
     border-radius: 12px;
-    background: #0c0e13;
-    padding: 18px 18px 20px;
+    background: var(--pytxo-surface-panel);
+    padding: 0;
     box-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.65);
   }
+  .sheet-body { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 24px 24px; scrollbar-gutter: stable; }
   header {
+    flex: none; padding: 20px 24px 16px; border-bottom: 1px solid var(--pytxo-line-soft);
     display: flex;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 16px;
+    margin-bottom: 0;
   }
   .eyebrow {
     margin: 0;
     font-size: 11px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #7d8591;
+    color: var(--pytxo-text-muted);
   }
   h2 {
     margin: 4px 0 0;
@@ -248,7 +285,8 @@
   }
   .path {
     margin: 4px 0 0;
-    color: #7d8591;
+    color: var(--pytxo-text-muted);
+    overflow-wrap: anywhere;
     font-size: 11px;
   }
   section {
@@ -260,12 +298,12 @@
     margin: 0 0 6px;
     font-size: 12px;
     font-weight: 600;
-    color: #c5cad1;
+    color: var(--pytxo-text-strong);
   }
   .hint,
   .muted {
     margin: 0 0 10px;
-    color: #7d8591;
+    color: var(--pytxo-text-muted);
     font-size: 12px;
     line-height: 1.4;
   }
@@ -277,24 +315,24 @@
   .profile-grid button {
     text-align: left;
     border: 1px solid var(--pytxo-line, #1e2026);
-    background: #0a0b0e;
+    background: var(--pytxo-surface-input);
     border-radius: 8px;
     padding: 10px 12px;
     cursor: pointer;
-    color: #c5cad1;
+    color: var(--pytxo-text-body);
   }
   .profile-grid button.active {
     border-color: color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 45%, transparent);
-    background: color-mix(in oklab, var(--pytxo-accent, var(--pytxo-teal)) 10%, #0a0b0e);
+    background: var(--pytxo-surface-active);
   }
   .profile-grid strong {
     display: block;
-    font-size: 12.5px;
+    font-size: 13px;
   }
   .profile-grid small {
     display: block;
     margin-top: 4px;
-    color: #7d8591;
+    color: var(--pytxo-text-muted);
     font-size: 11px;
   }
   .row-head {
@@ -317,11 +355,17 @@
     font-size: 12.5px;
   }
   .root-row small {
+    overflow-wrap: anywhere;
     display: block;
     margin-top: 3px;
-    color: #7d8591;
+    color: var(--pytxo-text-muted);
     font-size: 11px;
   }
+  .root-row > div:first-child { min-width: 0; }
+  .root-row > button, .root-meta, .icon { flex: none; }
+  .profile-grid button { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 2px 10px; align-items: center; }
+  .profile-grid button :global(svg) { grid-row: span 2; }
+  .profile-grid small { grid-column: 2; line-height: 1.5; }
   .root-meta {
     display: flex;
     align-items: center;
@@ -332,14 +376,15 @@
     padding: 2px 6px;
     border-radius: 999px;
     border: 1px solid var(--pytxo-line, #1e2026);
-    color: #8b929c;
+    color: var(--pytxo-text-muted);
   }
   .quiet,
   .deny,
   .icon {
     border: 1px solid var(--pytxo-line, #1e2026);
-    background: #12141a;
-    color: #c5cad1;
+    min-height: 40px;
+    background: var(--pytxo-surface-raised);
+    color: var(--pytxo-text-strong);
     border-radius: 6px;
     padding: 6px 10px;
     font-size: 12px;
@@ -349,8 +394,8 @@
     gap: 6px;
   }
   .icon {
-    width: 30px;
-    height: 30px;
+    width: 40px;
+    height: 40px;
     padding: 0;
     justify-content: center;
   }
@@ -379,4 +424,5 @@
   .danger h3 {
     color: #d98994;
   }
+  @media(max-width:520px){.ws-settings{padding:12px}.sheet{max-height:calc(100dvh - 24px)}header{padding:16px}.sheet-body{padding:0 16px 16px}.profile-grid{grid-template-columns:1fr}.root-row{flex-wrap:wrap}}
 </style>

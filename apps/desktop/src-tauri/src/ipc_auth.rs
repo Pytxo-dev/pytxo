@@ -89,6 +89,19 @@ pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
         trimmed.split(':').next().unwrap_or("unknown")
     );
 
+    if is_routing_callback(trimmed) {
+        let result = crate::ipc_routing_account::handle_callback(app, trimmed);
+        if let Err(error) = &result {
+            let _ = app.emit(
+                AUTH_ERROR_EVENT,
+                AuthErrorPayload {
+                    message: error.message.clone(),
+                },
+            );
+        }
+        focus_main_window(app);
+        return result;
+    }
     if let Some(token) = extract_auth_token(trimmed) {
         eprintln!("deck deep link: auth token present (len={})", token.len());
         match store_session_token(&token) {
@@ -143,6 +156,15 @@ pub fn focus_main_window(app: &AppHandle) {
     crate::tray::show_main_window(app);
 }
 
+fn is_routing_callback(url: &str) -> bool {
+    tauri::Url::parse(url).is_ok_and(|parsed| {
+        parsed.scheme() == "pytxo-deck"
+            && parsed.host_str() == Some("auth")
+            && parsed
+                .query_pairs()
+                .any(|(key, _)| key == "code" || key == "state")
+    })
+}
 fn is_auth_callback_without_token(url: &str) -> bool {
     let lower = url.to_ascii_lowercase();
     (lower.starts_with("pytxo-deck://auth") || lower.starts_with("pytxo://auth"))
@@ -229,6 +251,12 @@ pub fn validate_session_jwt(token: &str) -> IpcResult<()> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn routing_return_is_separate_from_legacy_account_callback() {
+        assert!(is_routing_callback("pytxo-deck://auth?state=s&code=c"));
+        assert!(!is_routing_callback("pytxo-deck://auth?token=legacy"));
+        assert!(!is_routing_callback("pytxo-deck://evil?state=s&code=c"));
+    }
     #[test]
     fn extract_token_from_pytxo_deck() {
         let t = extract_auth_token("pytxo-deck://auth?token=abc.def.ghi").unwrap();

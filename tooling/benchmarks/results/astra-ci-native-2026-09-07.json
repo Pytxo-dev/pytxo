@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-09-07T09:28:31.656Z",
+  "scenario": "Current-build follow-up: add credentials/ review classification, tests and documentation",
+  "runtime": "OpenAI Codex 0.153.4",
+  "reported_model": "gpt-6-astra",
+  "reported_reasoning_effort": "xhigh",
+  "mission_sha256": "139ff38b44d6d88d1c744d095487bb0e595a8e7cbe8cf0b20bc8663040a50f31",
+  "fixture_baseline_revision": "f7cc2ce46dd8a1067e758f8f59c2ff84242a5860",
+  "source_head": "2964d5ad2ad677dec014d32ae227635de8dfea5b",
+  "source_has_uncommitted_changes": true,
+  "source_inputs_sha256": "d54be69068c39cf8b14ce58bbad84a77a274ae878a7874d796c9da2644db8e4a",
+  "msi_sha256": "614d44e2d47eeeea2e62c0689b3146183daea30816f4d4341be0333d7b8948b3",
+  "msi_bytes": 10625024,
+  "packaged_executable_sha256": "2d0124917fad349f340cc210780de8dfee5162d2694eeabb15e7b54a71d30b5f",
+  "app_version": "1.2.2",
+  "build_features": [
+    "custom-protocol",
+    "voice-whisper"
+  ],
+  "run_id": "53728815-a282-44f8-8be7-05f224e91223",
+  "run_status": "completed",
+  "started_at": "2026-09-07T09:07:57.722897500+00:00",
+  "candidate_verified_at": "2026-09-07T09:11:42.426777400+00:00",
+  "seconds_start_to_candidate_verification": 224.704,
+  "planned_tasks": 3,
+  "waves": 2,
+  "max_concurrent_workers": 2,
+  "worker_outcomes": [
+    {
+      "task_id": "mission-0",
+      "wave": 0,
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-2",
+      "wave": 0,
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-1",
+      "wave": 1,
+      "status": "completed",
+      "exit_code": 0
+    }
+  ],
+  "package_version": 3,
+  "package_digest": "c01b2215f9f083565e56043c8147e483cfcffc12666bfdd893c83ef468bb3756",
+  "changed_files": [
+    {
+      "path": "README.md",
+      "kind": "modify",
+      "before_sha256": "ba5554e0f4ea3d941289626c7cacd23ddc0b4be0119c803eb3206ed8865efda7",
+      "after_sha256": "7b3ef172eb362e45710c01269588667f4d4caf41a6f95e86e8fe4da94f25a4cc"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "kind": "modify",
+      "before_sha256": "8fa4f3d2d98daa4ddb3879fba5d3839d12dab56a061eb97898b13c6e768d2a33",
+      "after_sha256": "bd65285021be23d6809e81a4b0806e68dc66e5ae3e4baa18300a5224a5d2e8e1"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "kind": "modify",
+      "before_sha256": "c97734269272bdb5f1d4203f6b87891d8de2c903a4072e137b3ab52419f8af7b",
+      "after_sha256": "c0f3e1e74328e09156ca10a1410b80e14f193c51cd506f3232e931cc1ca33793"
+    }
+  ],
+  "candidate_checks": [
+    {
+      "task_id": "mission-0",
+      "command": "npm test",
+      "effective_profile": "orbit",
+      "passed": true
+    },
+    {
+      "task_id": "mission-2",
+      "command": "npm test",
+      "effective_profile": "orbit",
+      "passed": true
+    },
+    {
+      "task_id": "mission-1",
+      "command": "npm test",
+      "effective_profile": "orbit",
+      "passed": true
+    }
+  ],
+  "included_input_files": 6,
+  "inventory_exclusions": [
+    ".git",
+    ".pytxo",
+    "build",
+    "dist",
+    "node_modules",
+    "target"
+  ],
+  "enforcement": {
+    "workspace_isolation": {
+      "status": "enforced",
+      "mechanism": "projfs-sparse-copy-v2"
+    },
+    "host_filesystem_boundary": {
+      "status": "advisory",
+      "mechanism": "child-cwd-and-policy-gates"
+    },
+    "network": {
+      "status": "advisory",
+      "mechanism": "spawn-command-policy"
+    },
+    "apply_boundary": {
+      "status": "enforced",
+      "mechanism": "reviewed-run-atomic-apply"
+    }
+  },
+  "primary_baseline_files": [
+    {
+      "path": ".gitignore",
+      "sha256": "437aa5d95044ff0309464d6e7e70ecd691e26c8027eb8da71128935a50797587"
+    },
+    {
+      "path": "README.md",
+      "sha256": "ba5554e0f4ea3d941289626c7cacd23ddc0b4be0119c803eb3206ed8865efda7"
+    },
+    {
+      "path": "package.json",
+      "sha256": "a7cf37fbfe5020a3efc8b12964713d62d8d9a61c80ee8ce36f51f6255d74a3dd"
+    },
+    {
+      "path": "pytxo.toml",
+      "sha256": "885af7a41a2083a37db7fe21cb3e5c805e60b0dc375706c8a2323d9499365353"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "sha256": "8fa4f3d2d98daa4ddb3879fba5d3839d12dab56a061eb97898b13c6e768d2a33"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "sha256": "c97734269272bdb5f1d4203f6b87891d8de2c903a4072e137b3ab52419f8af7b"
+    }
+  ],
+  "primary_inventory_exclusions": [
+    ".git/**",
+    ".pytxo/**"
+  ],
+  "primary_files_unchanged_before_apply": true,
+  "native_apply": {
+    "attempt_id": "c825edfe-6f09-4dd8-b660-7f9dcbabc7b0",
+    "phase": "committed",
+    "applied_files_match_frozen_digests": true,
+    "unrelated_files_unchanged": true,
+    "persisted_after_native_restart": true,
+    "post_apply_tests_passed": 11,
+    "interaction": "Computer Use prepared the mission and ran it. After inconsistent native helper state, the same MSI payload was relaunched; normal WebView button clicks reviewed all three exact diffs and explicitly confirmed Apply.",
+    "captures": [
+      {
+        "file": "astra-ci-native-plan.png",
+        "width": 608,
+        "height": 431,
+        "sha256": "5275d54c2cd0323286cfd57880233a21c800b17eb4980f791c8cde083051e282",
+        "selector": ".review-screen .plan-panel",
+        "scale": "css",
+        "captured_at_utc": "2026-09-07T09:26:41.802Z",
+        "state": "after native process restart; applied receipt"
+      },
+      {
+        "file": "astra-ci-native-checks.png",
+        "width": 380,
+        "height": 168,
+        "sha256": "ee4a9065917e18396af42f29ce54fcf58016ea4d44e88b0ed2be4696f7965d0a",
+        "selector": ".evidence-list > div:has(dt:text-is(\"Combined candidate checks\"))",
+        "scale": "css",
+        "captured_at_utc": "2026-09-07T09:26:41.935Z",
+        "state": "after native process restart; applied receipt"
+      },
+      {
+        "file": "astra-ci-native-boundaries.png",
+        "width": 380,
+        "height": 284,
+        "sha256": "f1e68a2a0391ea2c1369a1c165a410bf99afe75c179c5d944013a60b8f4e1dd8",
+        "selector": ".receipt-grid",
+        "scale": "css",
+        "captured_at_utc": "2026-09-07T09:26:42.093Z",
+        "state": "after native process restart; applied receipt"
+      },
+      {
+        "file": "astra-ci-native-journal.png",
+        "width": 1024,
+        "height": 182,
+        "sha256": "52f7dd687aa873c31f21409577d8e78117ce98bb3254fed4a1d5514f1b65e16b",
+        "selector": ".attempts-panel",
+        "scale": "css",
+        "captured_at_utc": "2026-09-07T09:26:42.233Z",
+        "state": "after native process restart; applied receipt"
+      },
+      {
+        "file": "astra-ci-native-apply-confirm.png",
+        "width": 440,
+        "height": 182,
+        "sha256": "5d71d5c0459511d27f67099126f9455b7bfbb738ae7d3dc306beedc281acfceb",
+        "selector": ".apply-dialog",
+        "scale": "css",
+        "state": "before explicit Apply"
+      },
+      {
+        "file": "astra-ci-native-applied.png",
+        "width": 385,
+        "height": 88,
+        "sha256": "6e50eb8685d9c1a4259846e467e06f5bc55a3d54724f6e3c2034c7dfb278483e",
+        "selector": ".boundary .attempts",
+        "scale": "css",
+        "state": "after native restart"
+      }
+    ],
+    "post_apply_check": {
+      "command": "npm test",
+      "exit_code": 0,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "log_sha256": "63cfdd1de3174c3fbd4bf8e4b6c881a9d7dbcb976a2423d5cd8f7481e7b64484"
+    },
+    "independent_acceptance": {
+      "command": "node --test independent-policy.test.mjs",
+      "authored_before_apply": true,
+      "baseline_passed": 21,
+      "baseline_failed": 5,
+      "post_apply_passed": 26,
+      "post_apply_failed": 0,
+      "post_apply_skipped": 0,
+      "test_source_sha256": "5fc7d78fcc8766a2f01984c07bb8337298748dcde79b8b4ae78c2d785b7633ad",
+      "baseline_log_sha256": "26bb18902012892ba27155828cc3fdb32f1c24f6d0df428f8bf001e46c20f64d",
+      "post_apply_log_sha256": "6761a2e36e791b2421bf9151ff1ff4621a477cfe98470ecb3a972432151d0f9b"
+    }
+  },
+  "cost_usd": null,
+  "cli_reported_tokens_used": null,
+  "setup_time_seconds": null,
+  "review_time_seconds": null,
+  "reviewed_task_prompt_overrides": [
+    {
+      "task_id": "mission-2",
+      "reviewed_prompt": "In README.md, document the final requested combined behavior: deploy/, billing/, .github/workflows/, secrets/ and credentials/ are all review-required prefixes. A separate implementation task in this same run adds credentials/ support. Describe that target behavior, not the temporary baseline or an implementation gap. Include two exact classifyChange input/output examples, one routine and one requiring review. Preserve case-insensitive matching and Windows separator normalization in the description. Modify only README.md.",
+      "reviewed_prompt_sha256": "b49e1456d2a7b584e5be6c8edfd944ce59b18a7eeed3eab66cb677b8ab809ce2",
+      "observed_in_worker_input": true,
+      "reason": "Explicitly documents the requested final combined behavior while implementation runs in parallel"
+    }
+  ],
+  "related_observations": [
+    "astra-native-codex-2026-09-07.json",
+    "astra-direct-codex-2026-09-07.json",
+    "astra-review-withheld-2026-09-07.json",
+    "astra-transport-failure-2026-09-07.json",
+    "astra-refused-run-2026-09-07.json"
+  ],
+  "non_claims": [
+    "One successful follow-up on a synthetic fixture, not a reliability-rate estimate or customer study",
+    "Different task and baseline from the earlier direct comparison; no comparative speed, cost or quality inference",
+    "Development-host MSI extraction and payload execution, not clean Windows installation or public-download proof",
+    "No OS-wide host filesystem or network sandbox guarantee",
+    "Edited native captures are not a continuous recording or elapsed-time reproduction",
+    "Source-input identity excludes toolchains and dependency installation state",
+    "CLI model and effort are reported by the workers; they are not inherited from the coordinating task by assumption",
+    "No public publication was performed"
+  ]
+}

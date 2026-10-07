@@ -1,0 +1,54 @@
+---
+title: Review and Apply
+description: Inspect the prepared changes and their checks, then decide whether to write them to your repository.
+---
+
+**Review** shows the exact files an eligible run prepared. **Apply** writes those reviewed changes to your repository. Finishing a task, passing a check, and applying changes are separate events.
+
+**Version note:** the combined-check requirements and workflow below describe the unpublished **v1.2.2 Desktop preview**. Older packages without those checks appear as unverified.
+
+## Review a result
+
+1. In **Work**, choose **Review changes**, or open a recorded run from **History**.
+2. Read the additions, modifications, and deletions.
+3. Inspect the commands and results under the combined candidate's checks.
+4. Confirm the destination repository, then choose **Apply** or **Discard**.
+
+Passing checks prove only that the listed commands passed on that candidate. They do not prove every behavior works. Read the diff even when checks pass.
+
+Discarding a package does not undo an earlier Apply or other agent side effects.
+
+## Why Apply might be unavailable
+
+| State | What to do |
+|---|---|
+| Work is still running | Wait for it to finish or stop it before reviewing |
+| No prepared changes | Inspect the worker output; there is nothing to apply |
+| Missing or failed combined checks | Read the check output and address the failure |
+| Source changed after preparation | Refresh, rerun checks, and review the updated candidate |
+| Recovery is unresolved | Follow the recorded recovery instructions before another attempt |
+
+Freshness includes the source files covered by verification, not only files the agent edited. A new or changed included file can require a fresh review.
+
+## After Apply
+
+Check the recorded Apply outcome in **History**. A saved run or completed worker does not by itself mean changes reached the repository. Use your normal Git review and commit workflow afterward.
+
+If Apply is interrupted, Pytxo records the attempt and whether rollback was confirmed. When it cannot confirm recovery, your working tree may be partially modified. Inspect the recorded details before retrying; do not assume everything was restored.
+
+## Scope and permissions
+
+Reviewed Apply covers **one repository root**. It does not govern every host command or network request. Inspect the enforcement receipt for the protections that were actually active.
+
+The Desktop preview starts new runs under **Orbit**. Other existing run types have different behavior:
+
+| Profile | Repository behavior |
+|---|---|
+| Orbit | Isolated work, followed by reviewed Apply |
+| Galaxy | Reviewed Apply plus a separate runtime approval queue |
+| DeepSpace | Apply is not allowed |
+| Supernova | Direct host writes; no reviewed Apply step |
+
+There is **no `pytxo apply`**. `pytxo hitl` handles Galaxy runtime approvals and does not apply a package. Windows Desktop is the Apply interface; macOS and Linux CLI users can inspect prepared packages but cannot complete that Desktop step.
+
+Next: [Troubleshooting](/docs/troubleshooting) · [Permission profiles](/docs/reference/permission-tiers)

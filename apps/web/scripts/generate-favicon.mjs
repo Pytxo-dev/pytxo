@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import sharp from "sharp";
-import toIco from "to-ico";
+import { encodePngIco } from "../../../tooling/scripts/encode-png-ico.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const logoPath = path.join(root, "public/logo.png");
@@ -25,7 +25,7 @@ async function main() {
   const png32 = await logo.clone().resize(32, 32, { fit: "contain", background: "#020205" }).png().toBuffer();
   const png48 = await logo.clone().resize(48, 48, { fit: "contain", background: "#020205" }).png().toBuffer();
 
-  const ico = await toIco([png16, png32, png48]);
+  const ico = encodePngIco([png16, png32, png48]);
   fs.writeFileSync(path.join(appDir, "favicon.ico"), ico);
   fs.writeFileSync(path.join(publicDir, "favicon.ico"), ico);
 

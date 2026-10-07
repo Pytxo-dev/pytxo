@@ -13,7 +13,8 @@ npm test
 
 ## First mission
 
-Paste this into Pytxo Desktop → Flow:
+Paste this into Pytxo Desktop → New work. One installed, signed-in coding
+agent CLI is enough; the same CLI can run every task:
 
 > Add concise risk summaries for network and destructive command changes in `src/risk-policy.mjs`;
 > add regression tests in `test/risk-policy.test.mjs`;

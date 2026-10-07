@@ -6,7 +6,7 @@ tags: [desktop, flow, voice, architecture]
 audience: [human, agent]
 layer: presentation
 created: 2026-07-12
-updated: 2026-08-29
+updated: 2026-09-21
 related: [[desktop-visual-system]], [[presentation-passive-telemetry]], [[dag-flow-engine]], [[permission-profile-engine]], [[execution-domains]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[ADR-0035-desktop-2-quiet-instrument-ia]], [[ADR-0038-epistemic-state-contract]], [[ADR-0039-evidence-ledger-visual-contract]]
 ---
 
@@ -35,6 +35,12 @@ the monotonic `domain_changes` cursor. A full snapshot is reserved for initial
 load, domain switch, reconnect or cursor reset, and an infrequent integrity
 refresh. Cursor gaps establish a canonical reset boundary before the next
 delta is consumed.
+
+Change polling opens an existing domain store read-only, without creating or
+migrating it. Missing stores and incompatible change-ledger schemas remain
+errors. SQLite polling and full snapshot loading execute on blocking workers
+instead of the native event loop. This scheduling boundary does not change
+Apply authority or turn observation into a write operation.
 
 ## Voice boundary
 

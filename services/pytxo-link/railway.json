@@ -44,6 +44,12 @@
   ],
   "optionalEnv": [
     "LINK_BIND",
+    "DODO_WEBHOOK_SECRET",
+    "DODO_BUSINESS_ID",
+    "DODO_BRAND_ID",
+    "DODO_PRODUCT_PRO",
+    "DODO_PRODUCT_MAX",
+    "DODO_PRODUCT_ULTRA",
     "OTEL_EXPORTER_OTLP_ENDPOINT",
     "SENTRY_DSN"
   ],

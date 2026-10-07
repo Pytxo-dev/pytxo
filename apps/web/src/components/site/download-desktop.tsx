@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DESKTOP_DOWNLOADS, DESKTOP_PRODUCT_NAME, PYTXO_VERSION } from "@/lib/site";
+import { DESKTOP_DOWNLOADS, DESKTOP_PRODUCT_NAME, PUBLISHED_VERSION } from "@/lib/site";
 import { AppleIcon, detectOs, LinuxIcon, WindowsIcon, type DetectedOs } from "@/components/site/os-icons";
 import { cn } from "@/lib/utils";
 
@@ -65,12 +65,12 @@ export function DownloadDesktop() {
               variant="outline"
               className="border-border font-mono text-[10px] text-muted-foreground"
             >
-              v{PYTXO_VERSION}
+              v{PUBLISHED_VERSION}
             </Badge>
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Control surface for runs, structure, approvals, and diffs. Requires the CLI for
-            orchestration.
+            Work, History, and Setup with the local orchestration core built in.
+            Install a supported agent CLI separately; the Pytxo CLI is optional for Desktop.
           </p>
         </div>
         {os !== "unknown" ? (
@@ -80,7 +80,7 @@ export function DownloadDesktop() {
         ) : null}
       </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PLATFORMS.map((platform) => {
           const suggested = platform.available && platform.match(os);
           const Icon = platform.Icon;
@@ -97,7 +97,7 @@ export function DownloadDesktop() {
                 <Icon className="size-5" />
               </span>
               <span className="min-w-0 flex-1 text-left">
-                <span className="flex items-center gap-2">
+                <span className="flex flex-wrap items-center gap-x-2">
                   <span className="font-medium">{platform.label}</span>
                   {suggested ? (
                     <span className="text-[10px] font-medium uppercase tracking-wide text-primary">

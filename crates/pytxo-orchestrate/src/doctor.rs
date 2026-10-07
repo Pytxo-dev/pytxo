@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::process::Command;
 
 use pytxo_core::{HttpBillingReconciler, PytxoConfig};
 use serde::Serialize;
@@ -61,7 +60,10 @@ pub fn run_doctor_with_tier(repo: Option<&Path>, tier: DoctorTier) -> anyhow::Re
 }
 
 fn check_git_installed() -> DoctorCheck {
-    match Command::new("git").arg("--version").output() {
+    match pytxo_core::background_command("git")
+        .arg("--version")
+        .output()
+    {
         Ok(o) if o.status.success() => DoctorCheck {
             name: "git_installed".into(),
             ok: true,
@@ -93,7 +95,7 @@ fn check_inside_git_repo(repo: &Path) -> DoctorCheck {
 }
 
 fn check_head_exists(repo: &Path) -> DoctorCheck {
-    match Command::new("git")
+    match pytxo_core::background_command("git")
         .args(["rev-parse", "HEAD"])
         .current_dir(repo)
         .output()
@@ -144,7 +146,11 @@ fn check_pytxo_dirs_writable(repo: &Path) -> DoctorCheck {
 }
 
 fn git_ok(name: &str, repo: &Path, args: &[&str], fail_msg: &str) -> DoctorCheck {
-    match Command::new("git").args(args).current_dir(repo).output() {
+    match pytxo_core::background_command("git")
+        .args(args)
+        .current_dir(repo)
+        .output()
+    {
         Ok(o) if o.status.success() => DoctorCheck {
             name: name.into(),
             ok: true,

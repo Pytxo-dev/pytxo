@@ -1,29 +1,37 @@
 ---
 title: Troubleshooting
-description: Fix common Pytxo install, trust, doctor, and MCP failures.
+description: Find the reason a task is blocked and the next step to fix it.
 ---
 
-Start with `pytxo doctor` in the repo you care about. It checks git, writable data dirs, terminal support, approvals persistence, and (when enabled) cloud or billing connectivity.
+Start with the exact message in Work, Review, or Setup. A failed check and a failed Apply need different fixes.
 
-| Symptom | Where to look |
-|---------|----------------|
-| Doctor failures | [Doctor checks](/docs/troubleshooting/doctor) |
-| Trust / spawn blocked | [Common failures](/docs/troubleshooting/common-failures) |
-| MCP path or version mismatch | [Common failures](/docs/troubleshooting/common-failures) |
-| HITL stuck | [Galaxy approvals](/docs/concepts/galaxy-approvals) |
+## Common problems
 
-## Quick checks
+| Problem | Next step |
+|---|---|
+| An agent is missing or its sign-in is unknown | Finish the agent's installation or sign-in, then recheck in Setup |
+| OpenCode reads "No OpenCode provider connected" | Store a provider with `opencode auth login`; agents do not receive API keys from your shell |
+| A worker card shows "No changes" | The agent finished and passed its checks without editing files. Make that task's prompt name the file and the change |
+| A plan cannot run | Read the blocker, fix its configuration, and build a fresh plan |
+| No verification command was found | Add a test or build command that works in this project |
+| Checks fail | Read the recorded command output; passing worker text is not a check result |
+| Review is stale | Refresh the candidate and review the new files and checks |
+| Apply was interrupted | Read the recorded recovery state before retrying |
+| The installed app looks different | Check its version; this site's new Desktop workflow previews unpublished v1.2.2 |
 
-```bash
-pytxo doctor
-pytxo doctor --json
-pytxo trust orbit
-```
+For Desktop setup issues, see [Desktop setup](/docs/getting-started/desktop-setup). For stale, blocked, or interrupted Apply, see [Review and Apply](/docs/getting-started/review-and-apply).
 
-If the Hypervisor Shell will not open in CI or pipes, set `PYTXO_NO_TUI=1` and use explicit subcommands.
+## CLI and editor issues
 
-## Still stuck?
+Run `pytxo doctor` if you have the CLI installed. It checks local setup; it does not prove a task or Apply succeeded.
 
-- [Install](/docs/getting-started/install)
+- [Doctor checks](/docs/troubleshooting/doctor)
+- [Common CLI failures](/docs/troubleshooting/common-failures)
 - [Folder trust](/docs/getting-started/folder-trust)
-- [Discord](https://discord.gg/AUFRPFjSYv)
+- [MCP setup](/docs/getting-started/mcp-from-cursor)
+
+## Ask for help
+
+Include your Pytxo version, operating system, the action you tried, and the exact error. Remove keys, tokens, and private repository content from anything you share.
+
+[Get help on Discord](https://discord.gg/AUFRPFjSYv).

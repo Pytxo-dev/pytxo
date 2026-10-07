@@ -8,18 +8,176 @@ use std::sync::OnceLock;
 
 static TEST_ADE_DIR: OnceLock<tempfile::TempDir> = OnceLock::new();
 
+#[test]
+fn desktop_beta_admission_blocks_unsupported_plans_without_changing_config() {
+    for (config, expected) in [
+        ("permission_profile = \"galaxy\"\n", "requires Orbit"),
+        ("permission_profile = \"deep_space\"\n", "requires Orbit"),
+        ("execution_backend = \"subprocess\"\n", "local PTY"),
+        ("execution_backend = \"cloud\"\n", "local PTY"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        seed_mission_path(dir.path());
+        std::fs::write(dir.path().join("pytxo.toml"), config).unwrap();
+        let mut request = input(dir.path());
+        request.max_workers = Some(1);
+        let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+        let plan = pytxo_orchestrate::preview_desktop_beta_flow(&catalog, request).unwrap();
+        assert_eq!(plan.status, FlowStatus::Blocked);
+        assert!(
+            plan.blocked_reasons.iter().any(|reason| matches!(reason,
+                FlowBlockedReason::PermissionViolation { message } if message.contains(expected)
+            )),
+            "{:#?}",
+            plan.blocked_reasons
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("pytxo.toml")).unwrap(),
+            config
+        );
+        assert!(pytxo_orchestrate::dispatch_desktop_beta_flow(&catalog, "flow-1").is_err());
+        assert_eq!(
+            catalog.get_flow_draft("flow-1").unwrap().unwrap().status,
+            "blocked"
+        );
+    }
+}
+
+#[test]
+fn desktop_beta_rechecks_general_ready_plans_before_claiming_dispatch() {
+    for (config, workers, expected) in [
+        ("permission_profile = \"galaxy\"\n", 1, "requires Orbit"),
+        ("execution_backend = \"subprocess\"\n", 1, "local PTY"),
+        ("tier_max_agents = 9\n", 9, "one to eight workers"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        seed_mission_path(dir.path());
+        std::fs::write(dir.path().join("pytxo.toml"), config).unwrap();
+        let mut request = input(dir.path());
+        request.max_workers = Some(workers);
+        let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+        let plan = preview_flow(&catalog, request).unwrap();
+        assert_eq!(
+            plan.status,
+            FlowStatus::Ready,
+            "{:#?}",
+            plan.blocked_reasons
+        );
+        let error = pytxo_orchestrate::dispatch_desktop_beta_flow(&catalog, "flow-1").unwrap_err();
+        assert!(error.to_string().contains(expected), "{error:#}");
+        let retained = catalog.get_flow_draft("flow-1").unwrap().unwrap();
+        assert_eq!(retained.status, "ready");
+        assert!(retained.dispatched_run_id.is_none());
+    }
+}
+
+#[test]
+fn desktop_beta_accepts_the_scoped_codex_preview() {
+    let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
+    let mut request = input(dir.path());
+    request.max_workers = Some(1);
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let plan = pytxo_orchestrate::preview_desktop_beta_flow(&catalog, request).unwrap();
+    assert_eq!(
+        plan.status,
+        FlowStatus::Ready,
+        "{:#?}",
+        plan.blocked_reasons
+    );
+    assert_eq!(plan.max_workers, 1);
+    assert_eq!(plan.permission_profile, "orbit");
+    assert_eq!(plan.execution_backend, "pty");
+}
+
+#[test]
+fn desktop_beta_accepts_a_mixed_cli_fleet_with_one_reviewed_cli_per_task() {
+    let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
+    std::fs::write(dir.path().join("src/main.rs"), "fn main() {}\n").unwrap();
+    let mut request = input(dir.path());
+    request.mission_text = "Update src/lib.rs; update src/main.rs".into();
+    request.ade_ids = vec!["codex".into(), "claude".into()];
+    request.max_workers = Some(2);
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let plan = pytxo_orchestrate::preview_desktop_beta_flow(&catalog, request).unwrap();
+    assert_eq!(
+        plan.status,
+        FlowStatus::Ready,
+        "{:#?}",
+        plan.blocked_reasons
+    );
+    assert_eq!(plan.max_workers, 2);
+    let clis: Vec<_> = plan
+        .tasks
+        .iter()
+        .map(|task| task.ade_id.as_deref())
+        .collect();
+    assert_eq!(clis, [Some("codex"), Some("claude")]);
+}
+
+#[test]
+fn the_fleet_demo_fixture_plans_six_tasks_in_three_waves_across_five_clis() {
+    let dir = tempfile::tempdir().unwrap();
+    let demo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/demo/fleet");
+    copy_dir(&demo.join("template"), dir.path());
+    let mut request = input(dir.path());
+    request.mission_text = std::fs::read_to_string(demo.join("mission.txt")).unwrap();
+    request.ade_ids = ["codex", "claude", "cursor", "opencode", "agy"]
+        .map(String::from)
+        .to_vec();
+    request.max_workers = Some(4);
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let plan = pytxo_orchestrate::preview_desktop_beta_flow(&catalog, request).unwrap();
+    assert_eq!(
+        plan.status,
+        FlowStatus::Ready,
+        "{:#?}",
+        plan.blocked_reasons
+    );
+    // Four independent tasks, then the task that shares src/app.js and the
+    // filter bar, then the README that documents the combined result.
+    let waves: Vec<usize> = plan.waves.iter().map(Vec::len).collect();
+    assert_eq!(waves, [4, 1, 1], "{:#?}", plan.waves);
+    let clis: Vec<_> = plan
+        .tasks
+        .iter()
+        .map(|task| task.ade_id.as_deref().unwrap())
+        .collect();
+    assert_eq!(
+        clis,
+        ["codex", "claude", "cursor", "opencode", "agy", "codex"]
+    );
+}
+
+fn copy_dir(from: &std::path::Path, to: &std::path::Path) {
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            std::fs::create_dir_all(&target).unwrap();
+            copy_dir(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
 fn ensure_test_ade() {
     TEST_ADE_DIR.get_or_init(|| {
         let dir = tempfile::tempdir().unwrap();
-        #[cfg(windows)]
-        std::fs::write(dir.path().join("codex.cmd"), "@exit /b 0\r\n").unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
+        for cli in ["codex", "claude", "cursor-agent", "opencode", "agy"] {
+            #[cfg(windows)]
+            std::fs::write(dir.path().join(format!("{cli}.cmd")), "@exit /b 0\r\n").unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
 
-            let executable = dir.path().join("codex");
-            std::fs::write(&executable, "#!/bin/sh\nexit 0\n").unwrap();
-            std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+                let executable = dir.path().join(cli);
+                std::fs::write(&executable, "#!/bin/sh\nexit 0\n").unwrap();
+                std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755))
+                    .unwrap();
+            }
         }
 
         let mut paths = vec![dir.path().to_path_buf()];
@@ -33,6 +191,28 @@ fn ensure_test_ade() {
 
 fn input(repo: &std::path::Path) -> FlowDraftInput {
     ensure_test_ade();
+    // Ready plans now check the same repository prerequisites as dispatch.
+    // Keep the catalog outside the product-file cleanliness check.
+    if !repo.join(".git").exists() {
+        git(repo, &["init", "-q"]);
+        std::fs::write(repo.join(".git/info/exclude"), "catalog.db*\n").unwrap();
+        git(repo, &["add", "."]);
+        git(
+            repo,
+            &[
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@pytxo.local",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--allow-empty",
+                "-qm",
+                "fixture",
+            ],
+        );
+    }
     FlowDraftInput {
         id: "flow-1".into(),
         title: "Ship it".into(),
@@ -41,7 +221,55 @@ fn input(repo: &std::path::Path) -> FlowDraftInput {
         domain_id: Some(repo.to_string_lossy().into_owned()),
         project_id: None,
         ade_id: Some("codex".into()),
+        ade_ids: Vec::new(),
+        task_ades: Default::default(),
+        max_workers: None,
+        verification_commands: vec![],
     }
+}
+
+fn git(repo: &std::path::Path, args: &[&str]) {
+    let result = std::process::Command::new("git")
+        .args(args)
+        .current_dir(repo)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[test]
+fn dirty_checkout_blocks_preview_and_late_edits_block_dispatch_without_claiming() {
+    let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
+    let request = input(dir.path());
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let ready = preview_flow(&catalog, request.clone()).unwrap();
+    assert_eq!(ready.status, FlowStatus::Ready);
+    let edited = "pub fn user_work() {}\n";
+    std::fs::write(dir.path().join("src/lib.rs"), edited).unwrap();
+    let error = dispatch_flow(&catalog, "flow-1").unwrap_err();
+    assert!(
+        error.to_string().contains("uncommitted changes"),
+        "{error:#}"
+    );
+    assert_eq!(
+        catalog.get_flow_draft("flow-1").unwrap().unwrap().status,
+        "ready"
+    );
+    assert!(!dir.path().join(".pytxo/data/active_run.json").exists());
+    let blocked = preview_flow(&catalog, request).unwrap();
+    assert_eq!(blocked.status, FlowStatus::Blocked);
+    assert!(serde_json::to_string(&blocked.blocked_reasons)
+        .unwrap()
+        .contains("src/lib.rs"));
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("src/lib.rs")).unwrap(),
+        edited
+    );
 }
 
 fn seed_mission_path(repo: &std::path::Path) {
@@ -239,4 +467,65 @@ fn reviewed_plan_cannot_change_execution_structure() {
 
     let error = save_reviewed_flow_plan(&catalog, reviewed).unwrap_err();
     assert!(error.to_string().contains("structure changed"));
+}
+
+#[test]
+fn reviewed_plan_cannot_silently_change_verification() {
+    let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let mut reviewed = preview_flow(&catalog, input(dir.path())).unwrap();
+    reviewed.tasks[0].verify = vec!["different-check".into()];
+    let error = save_reviewed_flow_plan(&catalog, reviewed).unwrap_err();
+    assert!(error.to_string().contains("structure changed"));
+}
+
+#[test]
+fn run_checks_require_fresh_preview_and_do_not_modify_config() {
+    let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
+    let mut request = input(dir.path());
+    request.max_workers = Some(1);
+    request.verification_commands = vec!["test-command --assert".into()];
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let plan = preview_flow(&catalog, request.clone()).unwrap();
+    assert_eq!(plan.max_workers, 1);
+    assert!(plan
+        .tasks
+        .iter()
+        .all(|task| task.verify == ["test-command --assert"]));
+    assert!(!dir.path().join("pytxo.toml").exists());
+    let mut changed = plan.clone();
+    changed.max_workers = 2;
+    assert!(save_reviewed_flow_plan(&catalog, changed).is_err());
+    request.verification_commands = vec!["replacement-check".into()];
+    let replacement = preview_flow(&catalog, request.clone()).unwrap();
+    assert!(replacement
+        .tasks
+        .iter()
+        .all(|task| task.verify == ["replacement-check"]));
+    assert!(save_reviewed_flow_plan(&catalog, plan).is_err());
+    request.verification_commands = vec!["first\nsecond".into()];
+    assert!(preview_flow(&catalog, request).is_err());
+}
+
+#[test]
+fn legacy_preview_without_worker_authority_requires_repreview() {
+    let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    preview_flow(&catalog, input(dir.path())).unwrap();
+    let draft = catalog.get_flow_draft("flow-1").unwrap().unwrap();
+    let original = draft.plan_json.unwrap();
+    let mut legacy: serde_json::Value = serde_json::from_str(&original).unwrap();
+    legacy.as_object_mut().unwrap().remove("max_workers");
+    assert!(catalog
+        .replace_ready_flow_plan("flow-1", &original, &legacy.to_string())
+        .unwrap());
+    let error = dispatch_flow(&catalog, "flow-1").unwrap_err();
+    assert!(error.to_string().contains("worker limit"));
+    assert_eq!(
+        catalog.get_flow_draft("flow-1").unwrap().unwrap().status,
+        "ready"
+    );
 }

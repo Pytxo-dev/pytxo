@@ -1,60 +1,41 @@
 ---
 title: Introduction
-description: Pytxo is a reviewed commit layer for the coding agents you already use.
+description: Set up Pytxo, give your coding agents one job, and review the combined change before applying it.
 ---
 
-**Pytxo** is a reviewed commit layer for developers who already run multiple
-coding agents on substantial repos and are hitting collisions, unsafe writes,
-or vendor fragmentation.
+Pytxo splits one coding request across the agent CLIs you already use (Codex, Claude Code, Cursor Agent, OpenCode and Antigravity), runs each task in its own copy of your project, checks the combined result, and applies exactly the changes you review. Keep your editor and your existing agent accounts.
 
-It schedules the agents you already use (Claude Code, Codex, Cursor CLI, or any shell command). Overlapping path claims wait for a later wave. Eligible Orbit and Galaxy runs prepare isolated changes for Run Review before Apply.
+**Start here:** [Install Pytxo](/docs/getting-started/install), then [set up Desktop](/docs/getting-started/desktop-setup).
 
-Pytxo is not an IDE or a managed cloud workspace. Keep your editor. Connect through the local MCP hub, or use **Pytxo Desktop** for Work, History, and Setup.
+## Which version are you using?
 
-Today the commit boundary is one repository root: Pytxo prepares exact bytes,
-checks affected-path state, and journals Apply. The longer-term direction is to
-extend the same contract to production effects with effect-bound authority,
-independent verification, and explicit recovery. Production API enforcement is
-not currently shipped.
+The public download is **v1.2.1**. The **v1.2.2 Desktop preview** shown on this site is not published yet. Guides that describe its new workflow are labeled at the top; your installed version may look different.
 
-## The sixty-second story
+Desktop is available for **Windows x64**. The CLI also runs on macOS and Linux, but it has no Apply command.
 
-1. Three agents start one feature.
-2. Two would edit overlapping paths.
-3. Pytxo detects the conflict **before** execution.
-4. Independent work runs together in isolated copies.
-5. The conflicting task waits for the next wave.
-6. Pytxo prepares the exact changed bytes for review.
-7. You Apply that package, or refresh it if an affected path has moved.
+## Your first workflow
 
-## At a glance
+1. **Describe a small change.** Name the files and the result you want.
+2. **Check the plan.** See which agent runs each task, the files it owns, and the test commands.
+3. **Run and review.** Inspect the prepared changes and their check results.
+4. **Apply when ready.** Write the reviewed changes to your repository, or discard them.
 
-- Isolated copies until you approve (Blast)
-- Overlapping path claims wait in later waves (Race)
-- Structural code skeletons instead of whole files when Signal is on (fewer tokens; savings vary by repo)
-- Mixed CLIs under one local scheduler (BYOK)
-- Optional Desktop: what is running, what needs you, what is sandboxed
+Local Core does not require a Pytxo account. Your agent's sign-in and usage costs are separate.
 
-## Who this is for
+## Find what you need
 
-| You want to... | Start here |
-|--------------|------------|
-| Install, then run one natural-language mission | [Install](/docs/getting-started/install) → [First mission](/docs/getting-started/first-mission) |
-| Apply a prepared package | [Desktop setup](/docs/getting-started/desktop-setup) → Run Review |
-| Fix doctor / trust / MCP issues | [Troubleshooting](/docs/troubleshooting) |
-| Prove collisions are detected before agents run | [Collision demo](/docs/getting-started/first-three-agent-run) |
-| Review and approve from a desktop UI | [Desktop setup](/docs/getting-started/desktop-setup) → History → Run Review |
-| Drive Pytxo from Cursor later | [MCP from Cursor](/docs/getting-started/mcp-from-cursor) |
-| Look up commands and config | [CLI reference](/docs/reference/cli), [`pytxo.toml`](/docs/reference/pytxo-toml) |
+| I want to… | Guide |
+|---|---|
+| Install the app or CLI | [Install](/docs/getting-started/install) |
+| Connect an agent and project | [Desktop setup](/docs/getting-started/desktop-setup) |
+| Try one small task | [First mission](/docs/getting-started/first-mission) |
+| Put several agents on one job | [One job, several agents](/docs/getting-started/multi-agent-run) |
+| Understand checks and apply changes | [Review and Apply](/docs/getting-started/review-and-apply) |
+| Fix a blocked run | [Troubleshooting](/docs/troubleshooting) |
+| Use Pytxo from a terminal or editor | [CLI reference](/docs/reference/cli) · [MCP setup](/docs/getting-started/mcp-from-cursor) |
 
-Secondary surfaces (workspaces, fleets, Hypervisor Shell TUI) stay available once the mission loop is clear. Start with mission → collision dry-run → approve.
+## What the protection covers
 
-## Quick mental model
+Reviewed Apply controls changes to **one repository**. It does not control every command, network request, or file access an agent can make. The run's enforcement receipt shows which protections were active. Passing tests mean those tests passed, not that every behavior is correct.
 
-```text
-Mission or pytxo.toml  →  wave plan (Race)  →  agents in isolated copies (Blast)
-                                                      ↓
-                                         you approve → flush to real repo
-```
-
-Read [What is Pytxo?](/docs/concepts/what-is-pytxo) for the full picture, or jump to [Install](/docs/getting-started/install).
+Learn more in [What is Pytxo?](/docs/concepts/what-is-pytxo).

@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "includes_final_review_fixes": true,
+  "msi_sha256": "0ef5e098953aba2bb9c51cfe605fd865262dde9a09fdd58d7ecd73038cc59f41",
+  "payload_sha256": "6439c54f4011d49d4460c62598cc071e24a8d3e9f0a3a70004ae91c05fae1cb1",
+  "payload_diff": "Only the Tauri UNK -> MSI bundle marker differs from the built executable",
+  "administrative_extraction_exit": 0,
+  "clean_elevated_install_verified": false
+}

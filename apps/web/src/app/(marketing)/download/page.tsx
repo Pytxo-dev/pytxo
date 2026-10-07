@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { pageMetadata } from "@/lib/page-metadata";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,14 +11,18 @@ import {
   INSTALL_SH_CMD,
   NPM_INSTALL,
   NPM_URL,
-  PYTXO_VERSION,
+  CANDIDATE_PUBLISHED,
+  CANDIDATE_VERSION,
+  PUBLISHED_VERSION,
   RELEASES_URL,
+  SOURCE_URL,
 } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "Download",
-  description: "Install Pytxo Desktop and the CLI for local multi-agent orchestration.",
-};
+export const metadata = pageMetadata(
+  "/download",
+  "Download · Pytxo",
+  "Windows: Pytxo Desktop plus an agent CLI you already use. macOS and Linux: the Pytxo CLI.",
+);
 
 export default function DownloadPage() {
   return (
@@ -30,13 +34,18 @@ export default function DownloadPage() {
             variant="outline"
             className="border-primary/30 bg-primary/10 font-mono text-xs text-primary"
           >
-            v{PYTXO_VERSION}
+            v{PUBLISHED_VERSION}
           </Badge>
         </div>
         <p className="max-w-2xl text-lg text-muted-foreground">
-          Start with Pytxo Desktop for runs, approvals, and diffs. Add the CLI when you also want
-          terminal workflows, MCP tools, or doctor checks.
+          On Windows, install Pytxo Desktop and at least one agent CLI you already use: Codex,
+          Claude Code, Cursor Agent, OpenCode or Antigravity. On macOS and Linux, start with the
+          Pytxo CLI; Desktop for them is not built yet.
         </p>
+        {!CANDIDATE_PUBLISHED && <p className="max-w-2xl text-sm text-muted-foreground">
+          The homepage shows the upcoming v{CANDIDATE_VERSION}, which adds mixed-agent runs. The
+          download below installs the current public v{PUBLISHED_VERSION}, which runs Codex.
+        </p>}
       </div>
 
       <div className="mt-10 flex flex-col gap-10">
@@ -45,11 +54,13 @@ export default function DownloadPage() {
         <section className="border-t border-border pt-10">
           <div className="flex flex-wrap items-baseline gap-2">
             <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">CLI</h2>
-            <span className="text-sm text-muted-foreground">Optional companion to Desktop</span>
+            <span className="text-sm text-muted-foreground">
+              Required on macOS and Linux; optional on Windows with Desktop
+            </span>
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Entry point for terminal-run jobs, doctor checks, and MCP. Desktop runs through its
-            packaged native app and can guide an optional matching CLI install.
+            Terminal missions, doctor checks, and MCP. Desktop on Windows already includes the
+            local core. The CLI does not Apply repository changes; Apply stays in Desktop Review.
           </p>
 
           <div className="mt-6 flex flex-col gap-6">
@@ -67,7 +78,7 @@ export default function DownloadPage() {
                 </h3>
                 <span className="text-xs text-muted-foreground">Node 18+</span>
               </div>
-              <InstallSnippet className="mt-3">{`${NPM_INSTALL}\npytxo doctor`}</InstallSnippet>
+              <InstallSnippet className="mt-3" copyLabel="Copy npm setup commands">{`${NPM_INSTALL}\npytxo doctor`}</InstallSnippet>
             </div>
 
             <div>
@@ -75,9 +86,18 @@ export default function DownloadPage() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Windows PowerShell is first-class. macOS and Linux scripts are also available. No Node required.
               </p>
-              <InstallSnippet className="mt-3">{`# Windows PowerShell\n${INSTALL_PS1_CMD}\n\n# macOS / Linux\n${INSTALL_SH_CMD}`}</InstallSnippet>
+              <div className="mt-4 grid gap-4">
+                <div>
+                  <h4 className="text-sm font-medium">Windows PowerShell</h4>
+                  <InstallSnippet className="mt-2" copyLabel="Copy Windows PowerShell install command">{INSTALL_PS1_CMD}</InstallSnippet>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium">macOS / Linux</h4>
+                  <InstallSnippet className="mt-2" copyLabel="Copy macOS and Linux install command">{INSTALL_SH_CMD}</InstallSnippet>
+                </div>
+              </div>
               <p className="mt-3 text-sm text-muted-foreground">
-                Scripts live in the public{" "}
+                Binaries and scripts live in the public{" "}
                 <a
                   href={GITHUB_URL}
                   target="_blank"
@@ -86,7 +106,16 @@ export default function DownloadPage() {
                 >
                   pytxo-releases
                 </a>{" "}
-                repository.
+                repository. The MIT-licensed source is at{" "}
+                <a
+                  href={SOURCE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Pytxo-dev/pytxo
+                </a>
+                .
               </p>
             </div>
 
@@ -110,7 +139,10 @@ export default function DownloadPage() {
           <h2 className="text-lg font-semibold tracking-tight">Next steps</h2>
           <div className="mt-4 grid gap-1 sm:grid-cols-2">
             {[
-              { href: "/docs/getting-started/first-three-agent-run", label: "First three-agent run" },
+              { href: "/docs/getting-started/install", label: "Install by platform" },
+              { href: "/docs/getting-started/first-mission", label: "First mission" },
+              { href: "/docs/getting-started/review-and-apply", label: "Review and Apply" },
+              { href: "/docs/getting-started/first-three-agent-run", label: "Collision demo" },
               { href: "/docs/getting-started/mcp-from-cursor", label: "Wire Cursor MCP" },
               { href: "/docs/getting-started/folder-trust", label: "Folder trust" },
               { href: "/docs/concepts/desktop", label: "Pytxo Desktop overview" },

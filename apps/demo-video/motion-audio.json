@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "durationSeconds": 50,
+  "music": {
+    "file": "holizna-breath.mp3",
+    "title": "Breath",
+    "artist": "HoliznaCC0",
+    "source": "https://opengameart.org/content/funk-collection",
+    "download": "https://opengameart.org/sites/default/files/funk_collection_.zip",
+    "archiveEntry": "Funk ( Collection )/03 HoliznaCC0 - Breath.mp3",
+    "license": "CC0-1.0",
+    "sha256": "c62b118aca01295b962c910db262a202b6a1c35371024c79ec1f8dd8a4a89af3",
+    "trimStartSeconds": 8,
+    "gain": 0.75
+  },
+  "sfx": [
+    {"file": "click_003.ogg", "sha256": "2fa929138bc3a0f432696588f66eac94b8f6d463905ec8808c6461ce4b054292"},
+    {"file": "drop_002.ogg", "sha256": "4ac4d1cef7e936965cbf795852ca2020300b9e2ba7daa59f2bf4f1f7bf416218"},
+    {"file": "switch_002.ogg", "sha256": "6fc395be2ad1f99ce318a5d28f98fb76dbeb676d83a0b28239d8c1fb90736180"},
+    {"file": "confirmation_001.ogg", "sha256": "063564703b6094d70718a3e787a55cc9141611e4ecd6b6637f8828f79b4a8c3a"}
+  ],
+  "cues": [
+    {"seconds": 0.7, "file": "drop_002.ogg", "gain": 0.14, "meaning": "Brand settles"},
+    {"seconds": 5.65, "file": "switch_002.ogg", "gain": 0.10, "meaning": "Request splits"},
+    {"seconds": 8.7, "file": "drop_002.ogg", "gain": 0.12, "meaning": "Lanes align"},
+    {"seconds": 10.2, "file": "click_003.ogg", "gain": 0.13, "meaning": "First wave"},
+    {"seconds": 13.57, "file": "click_003.ogg", "gain": 0.13, "meaning": "Second wave"},
+    {"seconds": 15.9, "file": "click_003.ogg", "gain": 0.13, "meaning": "Third wave"},
+    {"seconds": 22.7, "file": "drop_002.ogg", "gain": 0.20, "meaning": "Files converge"},
+    {"seconds": 28.13, "file": "drop_002.ogg", "gain": 0.24, "meaning": "Stale package stops"},
+    {"seconds": 36.75, "file": "switch_002.ogg", "gain": 0.12, "meaning": "Reviewed boundary opens"},
+    {"seconds": 38.6, "file": "confirmation_001.ogg", "gain": 0.10, "meaning": "Recorded Apply receipt"},
+    {"seconds": 46.65, "file": "drop_002.ogg", "gain": 0.13, "meaning": "Closing mark settles"}
+  ]
+}

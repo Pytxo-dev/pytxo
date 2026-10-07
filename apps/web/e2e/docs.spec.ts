@@ -9,6 +9,10 @@ test("docs home and getting-started pages load", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Install" })).toBeVisible();
   await expect(page.getByText("Windows (PowerShell)", { exact: false })).toBeVisible();
 
+  await page.goto("/docs/getting-started/review-and-apply");
+  await expect(page.getByRole("heading", { level: 1, name: "Review and Apply" })).toBeVisible();
+  await expect(page.getByText(/no pytxo apply/i)).toBeVisible();
+
   await page.goto("/docs/getting-started/first-mission");
   await expect(page.getByRole("heading", { level: 1, name: /First mission/i })).toBeVisible();
 });
@@ -32,8 +36,27 @@ test("docs search indexes pytxo.toml", async ({ request, page }) => {
 test("docs compare and changelog are reachable", async ({ page }) => {
   await page.goto("/docs/compare");
   await expect(page.getByRole("heading", { level: 1, name: "Compare" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Conductor", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Factory", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "BridgeMind", exact: true })).toBeVisible();
+  await page.goto("/docs/compare/conductor");
+  await expect(page.getByRole("heading", { level: 1, name: "Pytxo and Conductor" })).toBeVisible();
   await page.goto("/docs/reference/changelog");
   await expect(page.getByRole("heading", { level: 1, name: "Changelog" })).toBeVisible();
+  await expect(page.getByText("1.2.2 is not yet published")).toBeVisible();
+});
+
+test("desktop setup docs follow the wizard before Add workspace", async ({ page }) => {
+  await page.goto("/docs/getting-started/desktop-setup");
+  await expect(page.getByRole("heading", { level: 1, name: "Desktop setup" })).toBeVisible();
+  const body = page.locator("article, main").first();
+  await expect(body).toContainText("Welcome");
+  await expect(body).toContainText("Get started");
+  await expect(body).toContainText("Select folder");
+  await expect(body).toContainText("Enter Pytxo Desktop");
+  await expect(body).toContainText("Add workspace");
+  const text = await body.innerText();
+  expect(text.indexOf("Get started")).toBeLessThan(text.indexOf("Add workspace"));
 });
 
 test("Desktop docs describe Work History and Setup, not the retired destinations", async ({ page }) => {

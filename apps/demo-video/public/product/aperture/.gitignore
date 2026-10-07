@@ -1,0 +1,5 @@
+# Unmodified local capture inputs can contain host paths. Retain them privately;
+# distribute only the explicitly redacted rendered master after approval.
+/review.mp4
+/apply.mp4
+/result.mp4

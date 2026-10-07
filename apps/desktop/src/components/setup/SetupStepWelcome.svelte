@@ -1,48 +1,22 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
-
+  import ApertureGlyph from "../desktop2/ApertureGlyph.svelte";
+  import SetupStepFrame from "./SetupStepFrame.svelte";
   let { onContinue }: { onContinue: () => void } = $props();
 </script>
 
-<div class="step">
-  <img class="logo" src="/logo-mark.png" alt="Pytxo" width="72" height="72" />
-  <h1 class="title">Pytxo</h1>
-  <p class="lead">
-    Run and supervise coding agents locally — structure, spend, and approvals — without a wall of
-    terminals.
-  </p>
-  <Button class="continue" onclick={onContinue}>Get started</Button>
-</div>
+<SetupStepFrame centered>
+  <div class="mark"><ApertureGlyph tone="settled" /></div>
+  <h1 class="title">Many agents. One reviewed change.</h1>
+  <p class="lead">Pytxo runs your coding agents side by side in isolated copies of your project, checks what they did, and changes nothing until you Apply.</p>
+  {#snippet actions()}<Button onclick={onContinue}>Get started <kbd aria-hidden="true">↵</kbd></Button>{/snippet}
+</SetupStepFrame>
 
 <style>
-  .step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 1rem;
-    max-width: 420px;
-    margin: 0 auto;
-  }
-  .logo {
-    border-radius: 12px;
-    border: 1px solid var(--border);
-  }
-  .title {
-    margin: 0;
-    font-size: 1.75rem;
-    font-weight: 600;
-    text-wrap: balance;
-  }
-  .lead {
-    margin: 0;
-    color: var(--muted-foreground);
-    font-size: 0.95rem;
-    text-wrap: pretty;
-    line-height: 1.5;
-  }
-  :global(.continue) {
-    margin-top: 0.5rem;
-    min-width: 220px;
-  }
+  .mark { width: 200px; height: 200px; margin-bottom: 6px; }
+  .mark :global(.aperture-glyph) { width: 100%; height: 100%; flex-basis: auto; }
+  .title { font-size: 40px !important; }
+  kbd { margin-left: 8px; font: 500 11px var(--font-mono, monospace); opacity: .55; }
+  @media (max-height: 640px) { .mark { width: 120px; height: 120px; } .title { font-size: 28px !important; } }
+  @media (max-height: 430px) { .mark { display: none; } }
 </style>

@@ -88,4 +88,13 @@ mod tests {
         let wave0_len = plan.waves[0].len();
         assert!((1..=2).contains(&wave0_len));
     }
+
+    #[test]
+    #[cfg(windows)]
+    fn windows_case_aliases_are_not_scheduled_as_parallel_siblings() {
+        let tasks = vec![task("a", &["src/Foo.rs"]), task("b", &["src/foo.rs"])];
+        let plan = build_execution_plan(&tasks, 2);
+        assert_eq!(plan.waves.len(), 2);
+        assert_eq!(plan.conflicts.len(), 1);
+    }
 }

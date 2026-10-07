@@ -1,11 +1,14 @@
 {
-  "title": "Getting started",
+  "title": "Get started",
   "pages": [
     "install",
-    "first-mission",
-    "first-three-agent-run",
     "desktop-setup",
+    "first-mission",
+    "multi-agent-run",
+    "review-and-apply",
     "folder-trust",
+    "---Terminal and editor---",
+    "first-three-agent-run",
     "hypervisor-shell",
     "mcp-from-cursor"
   ]

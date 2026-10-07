@@ -1,136 +1,57 @@
 ---
 title: Pytxo Desktop
+description: Find your tasks, inspect changes, and manage your local setup.
 ---
 
-**Pytxo Desktop** is an optional control UI for planning a run, watching it
-execute, reading the exact package it prepared, and deciding whether to Apply.
+Desktop is the Windows interface for Pytxo. It includes the local core; installing the separate Pytxo CLI is optional.
 
-Download installers from [pytxo.com/download](https://pytxo.com/download).
+**Version note:** this page describes the unpublished **v1.2.2 preview**. The current [public download](/download) is v1.2.1.
 
 ## Three destinations
 
-| Destination | What you see |
-|-------------|--------------|
-| Work | The focused run: agent tasks grouped by wave, and the commit boundary panel with its enforcement receipt |
-| History | Every run in the workspace with its outcome and Apply state, plus the boundary panel for the selected run |
-| Setup | General, Appearance, Keyboard, Providers, Workspaces, Agents, Voice, Privacy, and Account |
+| Destination | What you do here |
+|---|---|
+| **Work** | Describe a task, check its plan, follow workers, and review changes |
+| **History** | Find earlier runs and inspect their results and Apply status |
+| **Setup** | Manage agents, workspaces, preferences, and updates |
 
-Two things deliberately sit outside that list:
+Use the title-bar workspace switcher to choose your project. **Approvals** opens runtime permission requests. Approving one does not apply repository changes.
 
-- **Workspace** is global context, not a destination. It lives in the title bar,
-  because every screen is already scoped to one execution domain.
-- **Approvals** is an overlay, reachable from the title bar, the boundary panel,
-  or the `A` key. A short decision queue does not earn a screen, and a decision
-  should be reachable from wherever you already are.
+## Start work
 
-Older hashes still resolve: `#/operations` and `#/approvals` open Work,
-`#/runs` and `#/missions` open History, `#/flow` opens the composer,
-`#/run-review` and `#/topology-focus` open Run Review, and `#/settings`,
-`#/workspaces`, and `#/integrations` open the matching Setup section.
+Choose **New work**, enter a clear outcome, and build a plan. Confirm the files, agent, and test commands before Run. Every ready agent starts on the job; untick any you do not want, or describe the whole job and let Codex or Claude Code split it; each task runs in its own isolated copy, using Orbit and local PTY execution.
 
-## Work
+See [First mission](/docs/getting-started/first-mission) for a complete walkthrough.
 
-Work answers one question: what is happening, and what am I about to authorise.
+## Follow a run
 
-The left side is the run ledger. Each row is one agent task under the wave that
-scheduled it, with the state the orchestrator actually reported — Completed,
-Running, Queued, or Failed — its exit code, and the paths it claimed. There is
-no per-agent progress bar, because the orchestrator does not compute per-agent
-progress. Wave completion is shown as a count, which it can.
+Select a worker to inspect its status, files, and checks. **Open output** shows its recorded console output. Switch to **List** if you prefer a row-based view of workers.
 
-The right side is the commit boundary. It stays on screen for the whole run and
-carries the candidate outcome, the enforcement receipt, and the Apply decision,
-so approving is never a surprise.
+On the canvas, drag the background to pan and use the zoom controls or **Fit** to bring tasks into view. Dependency lines show recorded task relationships.
 
-## Enforcement receipt
+The animated character glyph is decorative. Use the written status to judge a run; movement does not prove execution or success. Reduced motion keeps the same information visible.
 
-Every run records how each isolation surface was actually held, per run and per
-agent, across four surfaces: workspace isolation, host filesystem boundary,
-network, and apply boundary. Each surface reports one of four states, and the
-interface never renders one as stronger than its evidence:
+## Review changes
 
-| State | Meaning |
-|-------|---------|
-| Enforced | A mechanism held it |
-| Advisory only | Pytxo asked, but the platform did not guarantee it |
-| Unavailable | Nothing was measured. Absence of evidence, not a warning and not a pass |
-| Bypassed | It was deliberately turned off |
+Open **Review changes** from Work or select a run in History. Inspect the exact prepared files and combined checks before Apply. If the result is stale or recovery is unresolved, follow the displayed next step.
 
-Advisory and unavailable are not rendered as a pass. A run whose network
-isolation was never measured says so, on the same screen where you decide
-whether to Apply it.
+See [Review and Apply](/docs/getting-started/review-and-apply) for what each state means.
 
-## New run
+## Understand the protection receipt
 
-**New run** is the outcome-to-plan workflow. Enter an outcome, select one
-execution domain, and review the resulting tasks, waves, path claims, agent CLI
-assignments, permissions, isolation, cost estimates, warnings, and blockers
-before **Run**.
+A run reports its workspace, host filesystem, network, and Apply protections:
 
-Desktop sends intent; the orchestrator enforces Signal Core, Race Shield, Blast
-Shield, permission ceilings, and execution-domain validation before a plan can
-run. There is no quick-run path: every run must be previewed first.
+| Status | Meaning |
+|---|---|
+| Enforced | A mechanism held this boundary |
+| Advisory only | The boundary was requested but not guaranteed |
+| Unavailable | There is no verified protection result |
+| Bypassed | The protection was deliberately disabled |
 
-## Run Review
+Advisory or unavailable protection is not a pass.
 
-Run Review reads the persisted immutable manifest and exact diff content. It
-shows the full base revision and package digest, ownership DAG, requested and
-effective permission profile, enforcement receipt, verification result, and
-each addition, modification, and deletion.
+## Voice and updates
 
-Orbit and Galaxy expose a guarded **Apply** action only when the package is
-ready. Pytxo validates the current preimage of each affected path and applies
-only the stored package to that repository root. Unrelated dirty files are
-allowed. A changed affected path marks the review stale.
+Voice turns speech into an editable request. It does not approve or start work automatically. Review the transcript and plan before running.
 
-The view also covers preparation failure, retry after confirmed rollback,
-active Apply, recovered state, applied state, discard, and manual recovery.
-When a rollback was not confirmed, Desktop states plainly that the working tree
-may be partially modified and offers the concrete recovery step.
-
-## History
-
-History is the run inventory: run ID, workspace, outcome, Apply state, and start
-time, searchable and filterable to unresolved runs. Selecting a run shows its
-boundary panel; opening it goes to Run Review. Receipts are shown as of decision
-time and are not recomputed against current state.
-
-## Updates and reconnects
-
-Desktop receives immediate events for native mutations and catches up CLI or
-external changes through a monotonic domain cursor. Full snapshots are used
-for initial load, domain changes, reconnect or cursor reset, and an infrequent
-integrity refresh. When the cursor gap flag is set, derived boundary checks
-downgrade to unavailable rather than showing last-known-good values.
-
-## Pytxo Voice
-
-Voice captures speech and turns the transcript into an editable outcome.
-Transcription runs locally with an on-demand model. Raw microphone audio remains
-in bounded memory and is cleared on completion, cancellation, device loss, or
-shutdown; it is never stored in Pytxo's catalog, logs, events, or diagnostics.
-
-Voice can create run text only. It cannot navigate Desktop, approve actions,
-stop runs, or dispatch work automatically.
-
-## Design principles
-
-- Near-black monochrome, with hue reserved for state
-- Density that serves prolonged reading of machine output
-- No element renders a quantity the orchestrator does not compute
-- No direct filesystem access from the UI; all data comes through local IPC
-- Plan preview before dispatch
-- Keyboard-accessible capture, navigation, and decisions
-
-## What it is not
-
-- Not a replacement for your IDE
-- Not the primary place to read agent stdout (logs are supporting panels)
-- Not a 3D topology viewer. The AST topology view is a legacy shell, not a
-  default destination
-
-## Requirements
-
-Install the Pytxo CLI first. Desktop talks to the same orchestrator and SQLite stores as `pytxo run`.
-
-Back: [What is Pytxo?](/docs/concepts/what-is-pytxo) · [Galaxy approvals](/docs/concepts/galaxy-approvals)
+Use **Setup → General** for update checks, and verify the running version after an install. See [Desktop setup](/docs/getting-started/desktop-setup) for requirements and update guidance.

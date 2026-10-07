@@ -6,7 +6,7 @@ tags: [project, billing, dodo, mbcz]
 audience: [human, agent]
 layer: cloud
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-15
 related: [[ADR-0040-mbcz-merchant-of-record-boundary]], [[ADR-0021-billing-source-of-truth]], [[pytxo-link-service]]
 ---
 
@@ -46,18 +46,23 @@ Pytxo Plans
   -> MBCZ /api/checkout/sessions
   -> current merchant checkout
 
-current Paddle webhook
-  -> pytxo.com proxy
-  -> Link /v1/webhooks/paddle
-  -> Paddle signature + price allowlist + identity binding
-  -> Postgres entitlement
+Dodo or Paddle webhook
+  -> pytxo.com raw-body/header proxy
+  -> provider adapter in Link
+  -> generic event + subscription + grant reconciliation
+  -> projected Postgres entitlement
   -> CLI/Desktop /v1/entitlements/status
 ```
 
-The checkout side is already MBCZ-shaped. The coupling is inside Link:
-`src/paddle.rs`, `AppState` Paddle fields, the Paddle route, three price
-variables, and migration 007. The entitlement record and client status contract
-are provider-neutral and should remain stable.
+The checkout side remains MBCZ-shaped. Link now has provider-neutral commerce
+tables and reconciliation, while Paddle and Dodo keep separate signature and
+catalog adapters. The entitlement record and client status contract remain
+stable. Dodo ingress is unavailable unless durable Postgres storage and every
+required business/brand/webhook setting are configured.
+
+This is source-level foundation, not test-mode or production activation. No
+Dodo credentials, brand approval, products, live checkout, deployment, or
+provider cutover are evidenced by the repository implementation.
 
 ## Target flow
 
@@ -110,7 +115,7 @@ Extract Paddle's transaction logic into a provider-neutral reconciler. Keep the
 existing Paddle parser and signature verifier as one adapter. Add tests before
 changing production behavior.
 
-Exit evidence: the existing 22 Link tests pass against the generic service,
+Exit evidence: the Link test suite passes against the generic service,
 schema migration upgrades production-shaped fixtures, and replay or out-of-order
 events cannot grant the wrong tier.
 
@@ -118,9 +123,11 @@ events cannot grant the wrong tier.
 
 Add a Pytxo web route that proxies the unmodified request body plus
 `webhook-id`, `webhook-signature`, and `webhook-timestamp` to
-`POST /v1/webhooks/dodo` in Link. Link uses the official SDK or a maintained
-Standard Webhooks library, timestamp tolerance, constant-time verification,
-business/brand/product/price allowlists, maximum body size, and event uniqueness.
+`POST /v1/webhooks/dodo` in Link. Link verifies the Standard Webhooks signing
+contract over the exact bytes with timestamp tolerance and constant-time
+comparison, then applies business/brand/product allowlists, maximum body size,
+and event uniqueness. Validate compatibility with official test-mode deliveries
+before activation.
 Rotate Dodo webhook credentials independently from Link admin access.
 
 Link maps allowlisted external IDs to a canonical Pytxo plan. The proxy does not
@@ -174,11 +181,11 @@ chargebacks, cancellations, and historical support no longer need them.
 
 ## Release decision
 
-Do not put the provider cutover in v1.2.1. That release already changes the
-entitlement security boundary and must ship from the verified candidate. This
-document and the proposed ADR may ship as an honest design record. Runtime work
-starts after Dodo test credentials, approved brand and product IDs, webhook
-ownership, legal/pricing pages, and a migration window are available.
+Do not fold the provider cutover into an unrelated release candidate. The
+generic reconciler, Dodo adapter, and raw proxy can ship dark because missing
+configuration fails closed. Test-mode activation and any checkout cutover still
+require Dodo credentials, an approved brand and product IDs, webhook ownership,
+legal/pricing pages, a migration window, and fresh end-to-end evidence.
 
 ## Official references
 

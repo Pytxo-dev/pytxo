@@ -1,0 +1,82 @@
+# Shared by run-acceptance.ps1 and upgrade.ps1, on disposable cloud runners only.
+
+# Hosted runners sign in as a full-token administrator; real users run Desktop as
+# standard users, so acceptance does too: a throwaway local account on the
+# disposable runner, with a random password that is never printed or stored.
+function Get-DesktopTester {
+  if ($script:DesktopTester) { return $script:DesktopTester }
+  $name = "pytxo-tester"
+  $plain = (-join ((65..90) + (97..122) + (48..57) | Get-Random -Count 28 | ForEach-Object { [char]$_ })) + "!a7Q"
+  $computer = [ADSI]"WinNT://$env:COMPUTERNAME,computer"
+  $user = $computer.Create("User", $name)
+  [void]$user.SetPassword($plain)
+  [void]$user.SetInfo()
+  try { [void]([ADSI]"WinNT://$env:COMPUTERNAME/Users,group").Add("WinNT://$env:COMPUTERNAME/$name,user") } catch { }
+  $script:DesktopTester = New-Object System.Management.Automation.PSCredential ("$env:COMPUTERNAME\$name", (ConvertTo-SecureString $plain -AsPlainText -Force))
+  # Create the tester's profile now, so its folders exist before Desktop starts.
+  Start-Process -FilePath cmd.exe -ArgumentList "/d /c exit" -Credential $script:DesktopTester -LoadUserProfile -WorkingDirectory $env:SystemRoot -WindowStyle Hidden -Wait
+  $script:DesktopTester
+}
+
+# The tester's profile folder (created by its first launch), for default data locations.
+function Get-DesktopTesterProfile {
+  $sid = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\pytxo-tester")).Translate([System.Security.Principal.SecurityIdentifier]).Value
+  (Get-CimInstance Win32_UserProfile | Where-Object { $_.SID -eq $sid }).LocalPath
+}
+
+# Starts Desktop as the tester with $Environment on top of the tester's own
+# profile variables, and returns its process once its window is up. If no window
+# appears, records why (session, WebView2 runtime, the screen, Pytxo's logs).
+function Start-DesktopAsTester([string]$Exe, [hashtable]$Environment, [string]$WorkingDirectory, [string]$Evidence, [string]$Name) {
+  Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
+  Start-Sleep -Seconds 2
+  $launcher = Join-Path $env:RUNNER_TEMP "launch-$Name.cmd"
+  if ($launcher -match '\s') { throw "Launcher path must not contain spaces: $launcher" }
+  # Start-Process -Credential hands the child this runner's environment, so point
+  # every per-user location at the tester's own profile first.
+  $tester = @(Get-DesktopTester) | Where-Object { $_ -is [pscredential] } | Select-Object -First 1
+  $testerHome = Get-DesktopTesterProfile
+  $own = [ordered]@{
+    USERNAME = "pytxo-tester"; USERPROFILE = $testerHome; HOME = $testerHome; HOMEDRIVE = $testerHome.Substring(0, 2); HOMEPATH = $testerHome.Substring(2)
+    APPDATA = "$testerHome\AppData\Roaming"; LOCALAPPDATA = "$testerHome\AppData\Local"; TEMP = "$testerHome\AppData\Local\Temp"; TMP = "$testerHome\AppData\Local\Temp"
+  }
+  $lines = @("@echo off")
+  foreach ($key in $own.Keys) { $lines += "set `"$key=$($own[$key])`"" }
+  foreach ($key in $Environment.Keys) { $lines += "set `"$key=$($Environment[$key])`"" }
+  if ($WorkingDirectory) { $lines += "cd /d `"$WorkingDirectory`"" }
+  $lines += "start `"`" `"$Exe`""
+  Set-Content -Encoding ascii -LiteralPath $launcher -Value $lines
+  icacls $launcher /grant "*S-1-1-0:RX" | Out-Null
+  Start-Process -FilePath cmd.exe -ArgumentList "/d /c $launcher" -Credential $tester -LoadUserProfile -WorkingDirectory $env:SystemRoot -WindowStyle Hidden
+  $deadline = (Get-Date).AddSeconds(90)
+  do {
+    Start-Sleep -Seconds 1
+    $app = Get-Process pytxo-desktop -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  } while (-not $app -and (Get-Date) -lt $deadline)
+  if ($app) { Write-Host "Desktop window up for $Name"; return $app }
+  Save-DesktopDiagnostics $Evidence $Name
+  throw "Desktop ($Name) never showed a window; see diagnostics-$Name"
+}
+
+function Save-DesktopDiagnostics([string]$Evidence, [string]$Name) {
+  $dir = Join-Path $Evidence "diagnostics-$Name"
+  New-Item -ItemType Directory -Force $dir | Out-Null
+  $runtime = Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}", "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -ErrorAction SilentlyContinue | Select-Object -First 1
+  [ordered]@{
+    runner_session = (Get-Process -Id $PID).SessionId
+    desktop = @(Get-Process pytxo-desktop -IncludeUserName -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Id) session $($_.SessionId) $($_.UserName) window $($_.MainWindowHandle)" })
+    webview2_runtime = $runtime.pv
+    webview_command_lines = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -notmatch '--type=' } | ForEach-Object { $_.CommandLine })
+  } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 (Join-Path $dir "state.json")
+  try {
+    Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+    $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $bitmap = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+    [System.Drawing.Graphics]::FromImage($bitmap).CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+    $bitmap.Save((Join-Path $dir "screen.png"))
+  } catch { Set-Content (Join-Path $dir "screen-error.txt") "$_" }
+  if ($env:PYTXO_HOME -and (Test-Path $env:PYTXO_HOME)) {
+    Get-ChildItem -Recurse -File $env:PYTXO_HOME | Where-Object { $_.Extension -in ".log", ".txt", ".json" } | Select-Object -First 20 | Copy-Item -Destination $dir -ErrorAction SilentlyContinue
+  }
+  Get-Content (Join-Path $dir "state.json")
+}

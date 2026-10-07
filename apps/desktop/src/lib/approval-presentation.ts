@@ -1,6 +1,7 @@
 import type { HitlDto } from "./types";
 
 export type ApprovalPresentation = {
+  requiresCandidateReview: boolean;
   title: string;
   category: string;
   approveLabel: string;
@@ -12,7 +13,7 @@ export type ApprovalPresentation = {
 
 type PendingApprovalPresentation = Omit<
   ApprovalPresentation,
-  "approvedMessage" | "deniedMessage"
+  "approvedMessage" | "deniedMessage" | "requiresCandidateReview"
 >;
 
 const ACTION_PRESENTATIONS: Record<string, PendingApprovalPresentation> = {
@@ -21,7 +22,7 @@ const ACTION_PRESENTATIONS: Record<string, PendingApprovalPresentation> = {
     category: "Filesystem",
     approveLabel: "Approve action",
     denyLabel: "Deny action",
-    consequence: "This write targets a path outside the repository boundary.",
+    consequence: "This write targets a path outside the project folder.",
   },
   "fs.delete": {
     title: "Allow recursive delete",
@@ -104,14 +105,15 @@ export function approvalPresentation(approval: HitlDto): ApprovalPresentation {
   const action = approval.action.trim().toLowerCase();
   if (action === "blast.flush" || action.includes("flush blast shield")) {
     return {
-      title: "Apply reviewed workspace changes",
-      category: "Sandbox",
-      approveLabel: "Approve and apply",
-      denyLabel: "Deny and discard",
+      requiresCandidateReview: true,
+      title: "Review repository changes",
+      category: "Repository",
+      approveLabel: "Review changes",
+      denyLabel: "Deny request",
       consequence:
-        "Approving writes the isolated workspace changes into the repository. Denying discards them.",
-      approvedMessage: "Reviewed workspace changes can be applied.",
-      deniedMessage: "Isolated changes will be discarded.",
+        "Approving here does not write anything. Open Review to see the changes and their checks, then Apply from there. Deny stops this request and keeps the agents' work.",
+      approvedMessage: "Apply the changes from Review.",
+      deniedMessage: "Request denied. Nothing was written to your project.",
     };
   }
 
@@ -125,6 +127,7 @@ export function approvalPresentation(approval: HitlDto): ApprovalPresentation {
   };
   return {
     ...matched,
+    requiresCandidateReview: false,
     approvedMessage: "The blocked action can proceed.",
     deniedMessage: "The blocked action will not run.",
   };

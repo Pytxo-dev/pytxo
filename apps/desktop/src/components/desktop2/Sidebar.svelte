@@ -1,6 +1,16 @@
 <script lang="ts">
-  import { IconChevronsLeft, IconChevronsRight, IconSearch, IconSettings, IconUserCircle } from "@tabler/icons-svelte";
+  import IconChevronsLeft from "@tabler/icons-svelte/icons/chevrons-left";
+  import IconChevronsRight from "@tabler/icons-svelte/icons/chevrons-right";
+  import IconPlus from "@tabler/icons-svelte/icons/plus";
+  import IconSearch from "@tabler/icons-svelte/icons/search";
+  import IconUserCircle from "@tabler/icons-svelte/icons/user-circle";
   import type { CanonicalRoute, WorkspaceRecent } from "../../lib/navigation.svelte";
+  import { MOD_KEY } from "../../lib/platform";
+  import AdeIdentity from "./AdeIdentity.svelte";
+
+  export type SidebarAgent = { id: string; label: string; vendor: string; cli: string | null; tone: "live" | "done" | "failed" | "queued" | "settled" };
+  export type SidebarJob = { runId: string; title: string; live: boolean; agents: SidebarAgent[] };
+  export type SidebarRecent = { runId: string; title: string; meta: string };
 
   type NavItem = { route: CanonicalRoute; label: string; icon: typeof IconSearch };
 
@@ -10,6 +20,7 @@
     system,
     recents,
     collapsed,
+    autoCollapsed = false,
     tier,
     signedIn,
     onNavigate,
@@ -17,12 +28,21 @@
     onOpenCommand,
     onOpenRecent,
     onAccountClick,
+    onNewRun = null,
+    hasDraft = false,
+    activeRunsCount = 0,
+    workspaceLabel = "Workspace",
+    onOpenWorkspace = () => {},
+    job = null,
+    recentJobs = [],
+    onOpenRun = () => {},
   }: {
     route: CanonicalRoute;
     primary: NavItem[];
     system: NavItem[];
     recents: WorkspaceRecent[];
     collapsed: boolean;
+    autoCollapsed?: boolean;
     tier: string;
     signedIn: boolean;
     onNavigate: (route: CanonicalRoute) => void;
@@ -30,10 +50,18 @@
     onOpenCommand: () => void;
     onOpenRecent: (recent: WorkspaceRecent) => void;
     onAccountClick: () => void;
+    onNewRun?: (() => void) | null;
+    hasDraft?: boolean;
+    activeRunsCount?: number;
+    workspaceLabel?: string;
+    onOpenWorkspace?: () => void;
+    job?: SidebarJob | null;
+    recentJobs?: SidebarRecent[];
+    onOpenRun?: (runId: string) => void;
   } = $props();
+  const finished = $derived(job ? job.agents.filter((agent) => agent.tone === "done").length : 0);
 
-  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPod|iPad/.test(navigator.userAgent);
-  const shortcutHint = isMac ? "⌘K" : "Ctrl K";
+  const shortcutHint = MOD_KEY === "⌘" ? "⌘K" : "Ctrl K";
 
   function go(next: CanonicalRoute) {
     return (event: MouseEvent) => {
@@ -42,23 +70,30 @@
     };
   }
 
-  const accountLabel = $derived(signedIn ? `${tier.charAt(0).toUpperCase()}${tier.slice(1)} tier` : "Not signed in");
-  const accountSub = $derived(signedIn ? "Account & billing" : "Local Core · optional sign-in");
+  const accountLabel = $derived(signedIn ? `${tier.charAt(0).toUpperCase()}${tier.slice(1)} tier` : "Local Core");
+  const accountSub = $derived(signedIn ? "Account & billing" : "Account settings");
 </script>
 
 <aside class="sidebar" class:collapsed aria-label="Primary sidebar">
   <div class="brand">
-    <img class="brand-mark" src="/logo-mark.png" alt="" width="22" height="22" />
-    {#if !collapsed}<div class="brand-copy"><strong>Pytxo</strong><span>Desktop</span></div>{/if}
+    {#if !collapsed}<button class="workspace-heading" onclick={onOpenWorkspace} title={workspaceLabel}>{workspaceLabel}</button>{/if}
     <button
       class="collapse-btn"
+      disabled={autoCollapsed}
       onclick={onToggleCollapse}
-      aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-      title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      aria-label={autoCollapsed ? "Sidebar compact at this width" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      title={autoCollapsed ? "Widen the window or reduce text zoom to expand the sidebar" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
     >
       {#if collapsed}<IconChevronsRight size={15} />{:else}<IconChevronsLeft size={15} />{/if}
     </button>
   </div>
+
+  {#if onNewRun}
+    <button class="compose-trigger" onclick={onNewRun} aria-label={hasDraft ? "Continue draft" : "New work from sidebar"} title={hasDraft ? "Continue your draft in this window" : "Create a new run"}>
+      <IconPlus size={16} /><span>{hasDraft ? "Continue draft" : "New work"}</span>
+      {#if hasDraft}<i aria-hidden="true"></i>{/if}
+    </button>
+  {/if}
 
   <button
     class="command-trigger"
@@ -67,7 +102,7 @@
     title={collapsed ? `Search or command (${shortcutHint})` : undefined}
   >
     <IconSearch size={15} />
-    {#if !collapsed}<span>Search or command</span><kbd>{shortcutHint}</kbd>{/if}
+    {#if !collapsed}<span>Search</span><kbd>{shortcutHint}</kbd>{/if}
   </button>
 
   <div class="sidebar-scroll">
@@ -77,18 +112,46 @@
         href={`#/${item.route}`}
         class:active={route === item.route}
         onclick={go(item.route)}
-        title={collapsed ? item.label : undefined}
+        aria-label={item.label}
+        title={item.label}
         aria-current={route === item.route ? "page" : undefined}
       >
         <item.icon size={17} stroke={1.7} />
         {#if !collapsed}<span>{item.label}</span>{/if}
+        {#if item.route === "work" && activeRunsCount && !collapsed}<b class="nav-count" aria-hidden="true" title={`${activeRunsCount} active runs`}>{activeRunsCount}</b>{/if}
       </a>
     {/each}
   </nav>
 
+  {#if job && !collapsed}
+    <section class="now" aria-label={job.live ? "Running now" : "Latest work"}>
+      <p class="section-label">{job.live ? "Now" : "Latest"}</p>
+      <button class="job" onclick={() => onOpenRun(job.runId)} title={job.title}>
+        <span class="job-title"><i class="dot" data-tone={job.live ? "live" : "settled"}></i><span>{job.title}</span>{#if job.agents.length}<em>{finished}/{job.agents.length}</em>{/if}</span>
+        {#if job.agents.length}<span class="job-bar" aria-hidden="true"><i style={`width:${(finished / job.agents.length) * 100}%`}></i></span>{/if}
+      </button>
+      {#if job.agents.length}
+        <ul class="job-agents" aria-label="Agents on this job">
+          {#each job.agents as agent (agent.id)}
+            <li><button onclick={() => onOpenRun(job.runId)} title={`${agent.label} · ${agent.vendor}`}><span class="agent-logo">{#if agent.cli}<AdeIdentity id={agent.cli} />{/if}</span><span class="agent-label">{agent.label}</span><i class="dot" data-tone={agent.tone} aria-label={agent.tone === "live" ? "working" : agent.tone}></i></button></li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
+  {/if}
+
+  {#if recentJobs.length && !collapsed}
+    <section class="recent-jobs" aria-label="Recent work">
+      <p class="section-label">Recent</p>
+      {#each recentJobs.slice(0, 4) as recent (recent.runId)}
+        <button onclick={() => onOpenRun(recent.runId)} title={recent.title}><span>{recent.title}</span><small>{recent.meta}</small></button>
+      {/each}
+    </section>
+  {/if}
+
   {#if recents.length && !collapsed}
     <div class="recents">
-      <p>Recent</p>
+      <p>Recent workspaces</p>
       {#each recents.slice(0, 4) as recent (recent.id)}
         <button onclick={() => onOpenRecent(recent)} title={recent.label}><i></i><span>{recent.label}</span></button>
       {/each}
@@ -102,7 +165,8 @@
         href={`#/${item.route}`}
         class:active={route === item.route}
         onclick={go(item.route)}
-        title={collapsed ? item.label : undefined}
+        aria-label={item.label}
+        title={item.label}
         aria-current={route === item.route ? "page" : undefined}
       >
         <item.icon size={17} stroke={1.7} />
@@ -118,7 +182,6 @@
       <span class="avatar"><IconUserCircle size={18} /></span>
       {#if !collapsed}
         <span class="account-copy"><strong>{accountLabel}</strong><small>{accountSub}</small></span>
-        <IconSettings size={15} />
       {/if}
     </button>
   </div>
@@ -134,7 +197,6 @@
     background: var(--pytxo-surface-shell);
     border-right: 1px solid var(--pytxo-line);
     padding: 12px 10px 10px;
-    transition: padding 140ms ease;
   }
   .sidebar.collapsed {
     padding: 14px 8px 12px;
@@ -142,7 +204,7 @@
   }
   .brand {
     position: relative;
-    height: 42px;
+    height: 52px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -173,37 +235,33 @@
     justify-content: center;
     padding-inline: 0;
   }
-  .brand-mark {
-    width: 24px;
-    height: 24px;
-    flex-shrink: 0;
-    border-radius: 2px;
+  .workspace-heading{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 0;border:0;background:transparent;color:var(--pytxo-text-strong);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:left}
+  .compose-trigger {
+    display: flex; align-items: center; gap: 9px; flex: none;
+    width: 100%; min-height: 40px; margin: 0 0 8px; padding: 0 10px;
+    border: 1px solid var(--pytxo-line); border-radius: var(--pytxo-control-radius);
+    color: var(--pytxo-text-strong); background: var(--pytxo-surface-raised);
+    font: inherit; font-size: 13px; font-weight: 550; cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease;
   }
-  .brand-copy {
-    display: flex;
-    align-items: baseline;
-    gap: 5px;
-    min-width: 0;
-  }
-  .brand strong {
-    font-size: 14px;
-    letter-spacing: -0.02em;
-  }
-  .brand span {
-    font-size: 11px;
-    color: var(--pytxo-text-muted);
-  }
+  .compose-trigger:hover { background: var(--pytxo-surface-hover); border-color: var(--pytxo-text-muted); }
+  .compose-trigger:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 1px; }
+  .compose-trigger i { width: 5px; height: 5px; border-radius: 50%; background: var(--pytxo-accent); margin-left: auto; }
+  .sidebar.collapsed .compose-trigger { justify-content: center; padding: 0; width: 40px; }
+  .sidebar.collapsed .compose-trigger span, .sidebar.collapsed .compose-trigger i { display: none; }
+  .nav-count { margin-left: auto; font-size: 11px; font-weight: 500; color: var(--pytxo-text-muted); font-variant-numeric: tabular-nums; }
   .collapse-btn {
     margin-left: auto;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 40px;
+    flex: none;
     border: 0;
     border-radius: 5px;
     background: none;
-    color: #6b7280;
+    color: var(--pytxo-text-muted);
     cursor: pointer;
     transition: background-color 150ms ease, color 150ms ease;
   }
@@ -211,8 +269,8 @@
     margin-left: 0;
   }
   .collapse-btn:hover {
-    background: #14161c;
-    color: #d9dde2;
+    background: var(--pytxo-surface-hover);
+    color: var(--pytxo-text-strong);
   }
   .collapse-btn:focus-visible {
     outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
@@ -226,25 +284,26 @@
     align-items: center;
     width: 100%;
     gap: 8px;
-    height: 36px;
+    height: 40px;
+    flex: none;
     border: 1px solid var(--pytxo-line);
     border-radius: 6px;
     background: var(--pytxo-surface-input);
     padding: 0 9px;
-    color: #89909d;
-    font-size: 11px;
+    color: var(--pytxo-text-soft);
+    font-size: 12px;
     cursor: pointer;
     transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
   }
   .sidebar.collapsed .command-trigger {
     justify-content: center;
     padding: 0;
-    width: 34px;
+    width: 40px;
   }
   .command-trigger:hover {
-    border-color: #35524e;
-    color: #d9fff8;
-    background: #101816;
+    border-color: var(--pytxo-text-muted);
+    color: var(--pytxo-text-strong);
+    background: var(--pytxo-surface-hover);
   }
   .command-trigger:focus-visible {
     outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
@@ -252,26 +311,57 @@
   }
   .command-trigger span {
     flex: 1;
+    min-width: 0;
     text-align: left;
+    white-space: nowrap;
   }
   .command-trigger kbd {
     font: 11px "IBM Plex Mono", monospace;
+    flex: none;
+    white-space: nowrap;
     color: var(--pytxo-text-muted);
-    border: 1px solid #2b2e37;
+    border: 1px solid var(--pytxo-line);
     border-radius: 4px;
     padding: 2px 4px;
+    background: var(--pytxo-surface-panel);
+    box-shadow: none;
   }
   .sidebar-scroll {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    scrollbar-width: thin;
-    scrollbar-color: var(--pytxo-line) transparent;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
   }
+  .section-label { margin: 14px 8px 6px; color: var(--pytxo-text-muted); font: 500 10px var(--pytxo-font-mono, "IBM Plex Mono", monospace); letter-spacing: .12em; text-transform: uppercase; }
+  .now, .recent-jobs { display: grid; }
+  .job { display: grid; gap: 8px; width: 100%; padding: 9px 10px; border: 1px solid var(--pytxo-line); border-radius: 8px; background: var(--pytxo-surface-raised); color: var(--pytxo-text-strong); text-align: left; cursor: pointer; }
+  .job:hover { border-color: var(--pytxo-text-muted); }
+  .job-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; font-weight: 600; }
+  .job-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job-title em { margin-left: auto; color: var(--pytxo-activity); font: 500 11px var(--pytxo-font-mono, "IBM Plex Mono", monospace); font-style: normal; }
+  .job-bar { height: 3px; overflow: hidden; border-radius: 3px; background: var(--pytxo-line); }
+  .job-bar i { display: block; height: 100%; background: var(--pytxo-aperture-horizontal); transition: width 400ms ease; }
+  .job-agents { display: grid; gap: 1px; margin: 4px 0 0; padding: 0; list-style: none; }
+  .job-agents button { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; min-height: 30px; padding: 0 8px 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--pytxo-text-soft); font-size: 12.5px; text-align: left; cursor: pointer; }
+  .job-agents button:hover { background: var(--pytxo-surface-hover); color: var(--pytxo-text-strong); }
+  .agent-logo { display: grid; place-items: center; width: 18px; height: 18px; }
+  .agent-logo :global(svg), .agent-logo :global(img) { width: 14px; height: 14px; }
+  .agent-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--pytxo-line); }
+  .dot[data-tone="live"] { background: var(--pytxo-activity); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pytxo-activity) 18%, transparent); }
+  .dot[data-tone="done"] { background: var(--state-verified); }
+  .dot[data-tone="failed"] { background: var(--state-refuted); }
+  .recent-jobs button { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-height: 30px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--pytxo-text-soft); font-size: 12.5px; text-align: left; cursor: pointer; }
+  .recent-jobs button:hover { background: var(--pytxo-surface-hover); color: var(--pytxo-text-strong); }
+  .recent-jobs span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recent-jobs small { flex: none; color: var(--pytxo-text-muted); font: 11px var(--pytxo-font-mono, "IBM Plex Mono", monospace); }
+  .job:focus-visible, .job-agents button:focus-visible, .recent-jobs button:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 1px; }
   nav,
   .recents {
-    margin-top: 20px;
+    margin-top: 16px;
     width: 100%;
   }
   .recents p {
@@ -285,12 +375,12 @@
     position: relative;
     display: flex;
     align-items: center;
-    height: 36px;
+    height: 40px;
     gap: 10px;
     padding: 0 9px;
     margin: 2px 0;
-    border-radius: 4px;
-    color: #858c98;
+    border-radius: var(--pytxo-control-radius);
+    color: var(--pytxo-text-soft);
     text-decoration: none;
     font-size: 13px;
     transition: background-color 140ms ease, color 140ms ease;
@@ -300,8 +390,8 @@
     padding: 0;
   }
   nav a:hover {
-    background: #14161c;
-    color: #d9dde2;
+    background: var(--pytxo-surface-hover);
+    color: var(--pytxo-text-strong);
   }
   nav a:focus-visible {
     outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
@@ -330,7 +420,7 @@
     align-items: center;
     gap: 9px;
     width: 100%;
-    height: 29px;
+    height: 40px;
     padding: 0 9px;
     border: 0;
     background: none;
@@ -341,8 +431,8 @@
     transition: color 140ms ease, background-color 140ms ease;
   }
   .recents button:hover {
-    color: #d8dce2;
-    background: #12141a;
+    color: var(--pytxo-text-strong);
+    background: var(--pytxo-surface-hover);
   }
   .recents button:focus-visible {
     outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
@@ -362,6 +452,7 @@
   }
   .system-nav {
     margin-top: auto;
+    padding-top: 20px;
   }
   .sidebar-footer {
     border-top: 1px solid var(--pytxo-line);
@@ -375,6 +466,7 @@
     align-items: center;
     gap: 9px;
     padding: 5px 4px;
+    min-height: 44px;
     cursor: pointer;
     border: 0;
     background: none;
@@ -386,7 +478,7 @@
     justify-content: center;
   }
   .sidebar-footer button:hover {
-    background: #14161c;
+    background: var(--pytxo-surface-hover);
   }
   .sidebar-footer button:focus-visible {
     outline: 2px solid var(--pytxo-accent, var(--pytxo-teal));
@@ -399,8 +491,8 @@
     height: 28px;
     flex-shrink: 0;
     border-radius: 7px;
-    background: #242833;
-    color: #cdd2da;
+    background: var(--pytxo-surface-raised);
+    color: var(--pytxo-text-soft);
   }
   .account-copy {
     display: flex;
@@ -419,14 +511,20 @@
     font-size: 11px;
     color: var(--pytxo-text-muted);
     margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  @media (max-width: 760px) {
+  @media (max-width: 1279px) {
     .sidebar:not(.collapsed) {
       padding-inline: 8px;
       align-items: center;
     }
-    .sidebar:not(.collapsed) .brand-copy,
+    .sidebar:not(.collapsed) .workspace-heading,
+    .sidebar:not(.collapsed) .compose-trigger span,
+    .sidebar:not(.collapsed) .compose-trigger i,
+    .sidebar:not(.collapsed) .nav-count,
     .sidebar:not(.collapsed) .collapse-btn,
     .sidebar:not(.collapsed) .command-trigger span,
     .sidebar:not(.collapsed) .command-trigger kbd,
@@ -441,9 +539,10 @@
     }
     .sidebar:not(.collapsed) .command-trigger {
       justify-content: center;
-      width: 34px;
+      width: 40px;
       padding: 0;
     }
+    .sidebar:not(.collapsed) .compose-trigger { justify-content: center; width: 40px; padding: 0; }
     .sidebar:not(.collapsed) nav a {
       justify-content: center;
       padding: 0;

@@ -1,8 +1,13 @@
 <script lang="ts">
-  import { IconCheck, IconChevronRight, IconShieldLock, IconX } from "@tabler/icons-svelte";
+  import { withPreviewsHidden } from "../../lib/preview-overlay";
+  import IconCheck from "@tabler/icons-svelte/icons/check";
+  import IconChevronRight from "@tabler/icons-svelte/icons/chevron-right";
+  import IconShieldLock from "@tabler/icons-svelte/icons/shield-lock";
+  import IconX from "@tabler/icons-svelte/icons/x";
   import { approvalPresentation } from "../../lib/approval-presentation";
   import type { DesktopBackend, DesktopSnapshot } from "../../lib/desktop-backend";
   import type { HitlDto } from "../../lib/types";
+  import { MOD_KEY } from "../../lib/platform";
 
   let {
     open = false,
@@ -48,7 +53,7 @@
    */
   $effect(() => {
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) void withPreviewsHidden(() => { if (open && dialog?.isConnected && !dialog.open) dialog.showModal(); });
     if (!open && dialog.open) dialog.close();
   });
 
@@ -103,6 +108,9 @@
     if (!selected || deciding) return;
     const resolved = selected;
     const shown = approvalPresentation(resolved);
+    // A queue response carries no reviewed candidate digest. Neither the
+    // button nor its keyboard shortcut may authorize a repository flush.
+    if (approve && shown.requiresCandidateReview) return;
     deciding = true;
     decisionMessage = null;
     decisionMessageTone = null;
@@ -124,9 +132,9 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<dialog bind:this={dialog} class="inbox-dialog" aria-label="Approvals inbox" onclose={onClose}>
+<dialog bind:this={dialog} class="inbox-dialog" class:clear={!openApprovals.length} aria-label="Approvals inbox" onclose={onClose}>
   <header>
-    <div><p>Waiting on you</p><h2>Approvals</h2></div>
+    <h2>Approvals</h2>
     <span class="count">{openApprovals.length} open</span>
     <button class="close" onclick={onClose} aria-label="Close approvals"><IconX size={16} /></button>
   </header>
@@ -139,7 +147,7 @@
     >{decisionMessage}</p>
   {/if}
 
-  <div class="inbox-layout">
+  <div class="inbox-layout" class:clear={!openApprovals.length}>
     <div class="queue">
       {#if openApprovals.length}
         {#each openApprovals as approval (approval.id)}
@@ -156,13 +164,12 @@
             <IconChevronRight size={15} />
           </button>
         {/each}
-      {:else}
-        <div class="empty"><strong>Inbox clear</strong><span>Requests appear here when an agent waits on you.</span></div>
       {/if}
     </div>
 
     <div class="detail">
       {#if selected && presentation}
+        <div class="detail-body">
         <div class="detail-title">
           <div><span>{presentation.category}</span><h3>{presentation.title}</h3></div>
           <span class="position" aria-live="polite">{selectedIndex + 1} of {openApprovals.length}</span>
@@ -181,14 +188,14 @@
         </div>
         <div class="evidence">
           <div>
-            <strong>Run evidence</strong>
+            <strong>Run</strong>
             {#if selectedRun}
               <small>{selectedRun.id} · {selectedRun.status} · {selectedRun.permission_profile ?? "profile not reported"}</small>
-              <small>Exact run and agent: {selected.run_id} · {selected.agent_id ?? selected.agent_key}</small>
+              <small>Run {selected.run_id} · agent {selected.agent_id ?? selected.agent_key}</small>
             {:else if selected.run_id}
               <small>Run {selected.run_id} is not present in this partial snapshot. No substitute run is shown.</small>
             {:else}
-              <small>This legacy request has no causal run ID. Decide from the action and reason above; no substitute run is shown.</small>
+              <small>This request is not linked to a run. Decide from the action and reason above.</small>
             {/if}
           </div>
           {#if selectedRun}
@@ -197,76 +204,92 @@
             </button>
           {/if}
         </div>
+        </div>
         <div class="actions">
           <button class="deny" disabled={deciding} onclick={() => resolve(false)}>
-            {presentation.denyLabel}<kbd aria-hidden="true">Ctrl/⌘ ⌫</kbd>
+            {presentation.denyLabel}<kbd aria-hidden="true">{MOD_KEY} ⌫</kbd>
           </button>
+          {#if presentation.requiresCandidateReview}
+            <button class="primary" disabled={deciding || !selectedRun} onclick={() => {
+              if (selectedRun) { onReviewRun(selectedRun.id); onClose(); }
+            }}>
+              <IconChevronRight size={16} /> {presentation.approveLabel}
+            </button>
+          {:else}
           <button class="primary" disabled={deciding} onclick={() => resolve(true)}>
-            <IconCheck size={16} /> {presentation.approveLabel}<kbd aria-hidden="true">Ctrl/⌘ ↵</kbd>
+            <IconCheck size={16} /> {presentation.approveLabel}<kbd aria-hidden="true">{MOD_KEY} ↵</kbd>
           </button>
+          {/if}
         </div>
       {:else}
-        <div class="empty"><strong>Inbox clear</strong><span>All decisions have been resolved.</span></div>
+        <div class="empty"><strong>Inbox clear</strong><span>No agents are waiting for a decision. Requests will appear here.</span></div>
       {/if}
     </div>
   </div>
 </dialog>
 
 <style>
-  .inbox-dialog{position:fixed;inset:0;width:min(940px,92vw);max-width:none;max-height:82dvh;margin:auto;padding:0;border:1px solid var(--pytxo-line);border-radius:8px;background:var(--pytxo-surface-panel);color:var(--pytxo-text-strong);box-shadow:0 24px 80px color-mix(in oklab,var(--pytxo-surface-shell) 82%,transparent);overflow:hidden}
-  .inbox-dialog::backdrop{background:color-mix(in oklab,black 62%,transparent)}
-  header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--pytxo-line-soft)}
-  header p{margin:0 0 4px;color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.07em}
+  .inbox-dialog{position:fixed;inset:0 0 0 auto;width:min(560px,100vw);max-width:100vw;margin:0;padding:0;border:0;border-left:1px solid var(--pytxo-line);border-radius:0;background:var(--pytxo-surface-panel);color:var(--pytxo-text-strong);box-shadow:-12px 0 40px color-mix(in oklab,var(--pytxo-surface-shell) 35%,transparent);overflow:hidden}
+  .inbox-dialog[open]{display:flex;flex-direction:column;height:100dvh;max-height:100dvh}
+  .inbox-dialog[open].clear{height:min(300px,calc(100dvh - 48px));width:min(560px,92vw);inset:0;margin:auto;border:1px solid var(--pytxo-line);border-radius:8px}
+  .inbox-layout.clear{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+  .inbox-layout.clear .queue{display:none}
+  .clear .detail .empty{flex:1;min-height:0}
+  .inbox-dialog::backdrop{background:color-mix(in oklab,black 24%,transparent)}
+  header{flex:none;display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--pytxo-line-soft)}
   header h2{margin:0;font-size:16px;font-weight:640;letter-spacing:-.02em}
   .count{margin-left:auto;padding:3px 8px;border:1px solid var(--state-attention);border-radius:3px;color:var(--state-attention);font:11px "IBM Plex Mono",monospace}
-  .close{display:grid;width:28px;height:28px;place-items:center;border:1px solid var(--pytxo-line-soft);border-radius:4px;background:transparent;color:var(--pytxo-text-muted);cursor:pointer}
+  .close{display:grid;width:40px;height:40px;place-items:center;border:1px solid var(--pytxo-line-soft);border-radius:4px;background:transparent;color:var(--pytxo-text-muted);cursor:pointer}
   .close:hover{color:var(--pytxo-text-strong)}
 
-  .decision-message{margin:0;padding:9px 16px;border-bottom:1px solid var(--pytxo-line-soft);color:var(--state-verified);font-size:12px}
+  .decision-message{flex:none;max-height:90px;overflow:auto;margin:0;padding:9px 16px;border-bottom:1px solid var(--pytxo-line-soft);color:var(--state-verified);font-size:12px}
   .decision-message.error{color:var(--state-refuted)}
 
-  .inbox-layout{display:grid;grid-template-columns:minmax(230px,300px) minmax(0,1fr);min-height:0;max-height:calc(82dvh - 62px)}
-  .queue{display:flex;flex-direction:column;overflow:auto;border-right:1px solid var(--pytxo-line-soft)}
+  .inbox-layout{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);min-height:0;flex:1;overflow:hidden}
+  .queue{display:flex;flex-direction:column;max-height:132px;overflow:auto;border-bottom:1px solid var(--pytxo-line-soft)}
   .queue-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;padding:10px 14px;border:0;border-bottom:1px solid var(--pytxo-line-soft);border-left:2px solid transparent;background:transparent;color:inherit;cursor:pointer;font-family:inherit;text-align:left}
   .queue-row:hover{background:color-mix(in oklab,var(--pytxo-surface-raised) 55%,transparent)}
   .queue-row.active{border-left-color:var(--state-attention);background:var(--pytxo-surface-active)}
   .queue-row:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:-2px}
-  .queue-row .risk{grid-column:1/-1;color:var(--pytxo-gold);font:11px "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.05em}
-  .queue-row strong{overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
-  .queue-row small{grid-column:1/-1;overflow:hidden;color:var(--pytxo-text-muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
-  .queue-row>:global(svg){align-self:center;color:var(--pytxo-text-muted)}
+  .queue-row .risk{grid-column:2;grid-row:1;align-self:center;padding:0;background:transparent;color:var(--pytxo-text-soft);font-size:11px}
+  .queue-row strong{grid-column:1;grid-row:1;overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}
+  .queue-row small{grid-column:1;grid-row:2;overflow:hidden;color:var(--pytxo-text-muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+  .queue-row>:global(svg){grid-column:2;grid-row:2;justify-self:end;align-self:center;color:var(--pytxo-text-muted)}
 
-  .detail{display:flex;flex-direction:column;gap:13px;overflow:auto;padding:16px}
+  .detail{display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+  .detail-body{display:flex;flex-direction:column;gap:16px;overflow:auto;overscroll-behavior:contain;min-height:0;padding:20px;scrollbar-gutter:stable}
+  .detail-body > * { flex-shrink: 0; }
   .detail-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
   .detail-title span{color:var(--pytxo-text-muted);font:11px "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.05em}
   .detail-title h3{margin:5px 0 0;font-size:16px;font-weight:620;letter-spacing:-.02em}
   .position{flex:none;color:var(--pytxo-text-muted);font-size:11px}
-  .reason{margin:0;color:var(--pytxo-text-soft);font-size:12px;line-height:1.55}
+  .reason{margin:0;color:var(--pytxo-text-soft);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
   dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:0;border:1px solid var(--pytxo-line-soft);border-radius:4px;background:var(--pytxo-line-soft);overflow:hidden}
   dl>div{padding:8px 10px;background:var(--pytxo-surface-input)}
   dt{color:var(--pytxo-text-muted);font-size:11px}
-  dd{overflow:hidden;margin:3px 0 0;font:11px "IBM Plex Mono",monospace;text-overflow:ellipsis;white-space:nowrap}
+  dd{margin:4px 0 0;font:12px "IBM Plex Mono",monospace;overflow-wrap:anywhere}
 
-  .consequence{display:flex;flex-direction:column;gap:5px;padding:11px;border:1px solid var(--pytxo-line-soft);border-left:2px solid var(--state-attention);border-radius:4px}
+  .consequence{display:flex;flex-direction:column;gap:8px;padding:12px 0;border-block:1px solid var(--pytxo-line-soft)}
   .consequence span{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600}
   .consequence span>:global(svg){color:var(--state-attention)}
-  .consequence small,.evidence small{color:var(--pytxo-text-muted);font-size:11px;line-height:1.45}
+  .consequence small,.evidence small{color:var(--pytxo-text-soft);font-size:12px;line-height:1.5}
 
-  .evidence{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:11px;border:1px solid var(--pytxo-line-soft);border-radius:4px}
+  .evidence{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:0}
   .evidence div{display:flex;min-width:0;flex-direction:column;gap:3px}
   .evidence strong{font-size:12px}
 
-  .actions{display:flex;gap:9px;margin-top:auto;padding-top:4px}
-  .actions button{display:flex;height:38px;flex:1;align-items:center;justify-content:center;gap:8px;border-radius:4px;font-size:12px;font-weight:620;cursor:pointer}
+  .actions{display:flex;flex:none;flex-wrap:wrap;gap:8px;margin-top:auto;padding:12px 20px;border-top:1px solid var(--pytxo-line-soft);background:var(--pytxo-surface-panel)}
+  .actions button{display:flex;min-height:40px;padding:8px 10px;flex:1;align-items:center;justify-content:center;gap:8px;border-radius:4px;font-size:12px;font-weight:620;cursor:pointer}
   .actions .deny{border:1px solid var(--pytxo-line);background:transparent;color:var(--pytxo-text-soft)}
   .actions .deny:hover:not(:disabled){border-color:var(--state-refuted);color:var(--state-refuted)}
   .actions .primary{border:1px solid transparent;background:var(--pytxo-text-strong);color:var(--pytxo-surface-shell)}
   .actions button:disabled{cursor:not-allowed;opacity:.4}
   kbd{padding:1px 5px;border:1px solid currentColor;border-radius:3px;font:11px "IBM Plex Mono",monospace}
-  .quiet{height:28px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-soft);font-size:11px;cursor:pointer}
+  .quiet{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:40px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-soft);font-size:11px;cursor:pointer}
 
   .empty{display:flex;min-height:180px;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:20px;color:var(--pytxo-text-muted);text-align:center}
   .empty strong{color:var(--pytxo-text-soft);font-size:13px}
   .empty span{max-width:280px;font-size:12px;line-height:1.5}
-  @media(max-width:820px){.inbox-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}.queue{max-height:180px;border-right:0;border-bottom:1px solid var(--pytxo-line-soft)}}
+  @media(max-width:900px){.actions kbd{display:none}}
+  @media(max-width:680px){.queue{max-height:110px}.detail-body{padding:16px}.actions{padding:12px 16px}.evidence{flex-wrap:wrap}}
 </style>

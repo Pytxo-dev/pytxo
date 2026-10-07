@@ -1,10 +1,12 @@
 //! Shared domain types and configuration for Pytxo.
 
 mod ade_registry;
+mod background_process;
 mod billing;
 mod child_env;
 mod cloud;
 mod config;
+mod coordinator;
 mod error;
 mod execution;
 mod fleet;
@@ -14,13 +16,18 @@ mod path_util;
 mod plan;
 mod project;
 mod review;
+pub mod routing;
 mod service_health;
 mod task;
 mod trust;
+mod upgrade_guard;
+pub use upgrade_guard::UpgradeGuard;
 
 pub use ade_registry::{
-    ade_on_path, all_ade_clis, detect_on_path, format_agents_list, resolve_ade, AdeCliSpec,
+    ade_can_dispatch, ade_on_path, all_ade_clis, detect_on_path, format_agents_list, resolve_ade,
+    AdeAuthPolicy, AdeCliSpec, AdeDispatchPolicy,
 };
+pub use background_process::background_command;
 pub use billing::{
     all_byok_key_envs, all_providers, default_token_estimator, find_custom_provider, get_provider,
     inject_byok_env, key_configured, key_env_configured, list_provider_status, list_static_models,
@@ -42,6 +49,11 @@ pub use cloud::{
     OverlayDelta, StartSandboxRequest, StartSandboxResponse, SyncFile,
 };
 pub use config::{BlastConfig, PytxoConfig};
+pub use coordinator::{
+    validate_route_proposal, CoordinatorConfig, CoordinatorIntent, CoordinatorProfile,
+    CoordinatorTransport, RouteConstraintViolation, RouteModel, RouteProposal,
+    RoutingCatalogSnapshot, DEFAULT_COORDINATOR_MODEL, DEFAULT_COORDINATOR_PROVIDER,
+};
 pub use error::{PytxoError, Result};
 pub use execution::ExecutionBackend;
 pub use fleet::{FleetManifest, FleetMeta, FleetNode, FleetPlan, FleetWave};
@@ -56,8 +68,9 @@ pub use path_util::{canonical_repo_root, strip_extended_path};
 pub use plan::{AgentAssignment, ConflictPair, ExecutionPlan, ScheduledTask};
 pub use project::{ProjectManifest, ProjectMeta, ProjectRoot};
 pub use review::{
-    PreparedBlobChunk, PreparedRunFile, PreparedRunFileKind, PreparedRunManifest,
-    PreparedRunSummary, RunApplyError,
+    prepared_manifest_digest, require_candidate_verification_contract, CandidateCheckEvidence,
+    CandidateInventoryFile, CandidateVerificationEvidence, PreparedBlobChunk, PreparedRunFile,
+    PreparedRunFileKind, PreparedRunManifest, PreparedRunSummary, RunApplyError,
 };
 pub use service_health::response_ok as service_health_ok;
 pub use service_health::{health_lists_provider, providers_configured};

@@ -13,7 +13,7 @@ Workspaces remain available until dependent waves finish and the package is dura
 
 ## A recoverable Apply lifecycle
 
-Apply validates only affected checkout paths. Unrelated dirty files are allowed; drift on a reviewed path makes the package stale.
+In v1.1, Apply validated affected checkout paths. The v1.2.2 preview adds freshness checks for the included source inventory bound to combined verification; changes outside edited paths can also require a refresh.
 
 Before changing the repository, Pytxo claims the execution domain and persists an Apply journal with backups, operations, temporary paths, directory ownership, and phase progress. Reconciliation runs before another mutation in that domain after a process interruption. It can confirm the Apply, prove a rollback and return the package to `ready`, classify source drift as `stale`, or stop at `recovery_required` when the tree cannot be proven safe.
 
@@ -25,6 +25,6 @@ Desktop, CLI, and MCP consume the same persisted run contract. Domain events and
 
 ## Boundaries
 
-Reviewed Apply covers Orbit and Galaxy within one execution domain and one repository root. DeepSpace is non-flushable and Supernova writes directly. It is process-crash recovery, not power-loss ACID behavior, a cross-root transaction, partial-file acceptance, or kernel-grade isolation.
+Reviewed Apply covers Orbit and Galaxy within one execution domain and one repository root. DeepSpace is Apply denied (internally non-flushable) and Supernova writes directly. It is process-crash recovery, not power-loss ACID behavior, a cross-root transaction, partial-file acceptance, or kernel-grade isolation. There is no `pytxo apply` command; Apply is Desktop Run Review.
 
 Read the [architecture overview](/docs/developers/architecture) for the full component map.

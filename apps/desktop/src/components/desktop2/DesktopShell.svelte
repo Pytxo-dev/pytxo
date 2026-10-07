@@ -1,18 +1,21 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
-  import {
-    IconActivity,
-    IconChecks,
-    IconHistory,
-    IconPlayerStop,
-    IconSettings,
-    IconTarget,
-  } from "@tabler/icons-svelte";
+  import { onMount, tick, untrack } from "svelte";
+  import IconActivity from "@tabler/icons-svelte/icons/activity";
+  import IconChecks from "@tabler/icons-svelte/icons/checks";
+  import IconHistory from "@tabler/icons-svelte/icons/history";
+  import IconPlayerStop from "@tabler/icons-svelte/icons/player-stop";
+  import IconSettings from "@tabler/icons-svelte/icons/settings";
+  import IconTarget from "@tabler/icons-svelte/icons/target";
   import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
+  import type { AgentDto, RunDto } from "../../lib/types";
+  import type { ComposerDraft } from "../../lib/composer-draft";
+  import { SETTINGS_SECTIONS } from "../../lib/settings-catalog";
   import {
     consumeDomainChanges,
     fingerprintDesktopSnapshot,
+    incrementalDomainBatchSize,
     loadConsistentDesktopSnapshot,
+    selectIncrementalDomainBatch,
   } from "../../lib/desktop-sync";
   import {
     addWorkspaceRecent,
@@ -35,6 +38,9 @@
   import AppBar from "./AppBar.svelte";
   import CommandPalette from "./CommandPalette.svelte";
   import WorkActive from "./WorkActive.svelte";
+  import MissionDock from "./MissionDock.svelte";
+  import { selectMissionRun, restoreSelectedWork, SELECTED_WORK_KEY } from "../../lib/mission-selection";
+  import type { DockPosition, DockReference } from "../../lib/dock-layout";
   import HistoryScreen from "./HistoryScreen.svelte";
   import MissionsScreen from "./MissionsScreen.svelte";
   import WorkspacesScreen from "./WorkspacesScreen.svelte";
@@ -47,7 +53,7 @@
 
   const DOMAIN_DELTA_ACTIVE_MS = 2500;
   const DOMAIN_DELTA_IDLE_MS = 8000;
-  const INTEGRITY_REFRESH_MS = 60_000;
+  const RECOVERY_AUDIT_MS = 5 * 60_000;
   const OPEN_BEHAVIOR_KEY = "pytxo-workspace-open-behavior-v1";
   const DEFAULT_PROFILE_KEY = "pytxo-default-permission-profile-v1";
 
@@ -96,6 +102,9 @@
   let workspaceError = $state("");
   let recents = $state<WorkspaceRecent[]>([]);
   let collapsed = $state(readSidebarCollapsed());
+  let shellElement: HTMLDivElement | undefined = $state();
+  let autoCollapsed = $state(false);
+  const sidebarCollapsed = $derived(collapsed || autoCollapsed);
   let focusRunId = $state<string | null>(null);
   let focusDomainId = $state<string | null>(null);
   let activeDomainId = $state<string | null>(null);
@@ -108,7 +117,20 @@
   let snapshotLoadedAt = $state<number | null>(null);
   let cursorGap = $state(false);
   let nowMs = $state(Date.now());
-  let workScreen = $state<{ focusActiveRun: () => void } | null>(null);
+  let workScreen = $state<{ focusActiveRun: () => void; requestStopRun: (id: string) => void } | null>(null);
+  let composerDraft = $state<ComposerDraft | null>(null);
+  const workspaceDrafts = new Map<string, ComposerDraft>();
+
+  function retainComposerDraft(draft: ComposerDraft | null) {
+    if (composerDraft) workspaceDrafts.delete(composerDraft.domainId);
+    if (draft) workspaceDrafts.set(draft.domainId, draft);
+    composerDraft = draft;
+    preferredAdeId = null;
+  }
+  let preferredAdeId = $state<string | null>(null);
+  let contentElement = $state<HTMLDivElement | null>(null);
+  let missionDock = $state<{ open: (ref: DockReference, position?: DockPosition) => void; leaveFocus: () => void; dismiss: (position?: DockPosition) => void } | null>(null);
+  const dockRun = $derived(selectMissionRun(snapshot.runs, activeDomainId, focusRunId));
 
   const activeDomain = $derived(
     snapshot.domains.find((d) => d.domain_id === activeDomainId) ?? null,
@@ -135,30 +157,84 @@
   ];
   const system = [{ route: "setup" as const, label: "Setup", icon: IconSettings }];
   const domainCursors = new Map<string, number>();
+  let catalogFingerprint: string | null = null;
+  let dormantDomainPollOffset = 0;
   const hasActiveRuns = $derived(
     snapshot.runs.some((r) =>
-      ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+      ["starting", "running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
     ),
   );
-  const activeCommandRun = $derived(
-    snapshot.runs.find((r) =>
-      ["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
-    ) ?? null,
-  );
+  const commandRuns = $derived(snapshot.runs.filter((r) => r.domain_id === activeDomainId));
+  const activeCommandRuns = $derived(commandRuns.filter((r) =>
+      ["starting", "running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+  ));
+  // Sidebar: the focused (or newest) job in this project with its agents, and a few recent jobs.
+  let requestTitles = $state<Record<string, string>>({});
+  /** Saved plan prose per run and task: presentation only, like Work's task copy. */
+  let taskCopy = $state<Record<string, Record<string, string>>>({});
+  $effect(() => {
+    void snapshot.runs.length;
+    void backend.flowHistory().then((records) => {
+      const next: Record<string, string> = {};
+      const copy: Record<string, Record<string, string>> = {};
+      for (const record of records) {
+        if (!record.dispatched_run_id) continue;
+        const key = `${record.domain_id}:${record.dispatched_run_id}`;
+        next[key] = record.title.trim() || record.mission_text.trim();
+        try {
+          const plan = JSON.parse(record.plan_json ?? "{}");
+          if (Array.isArray(plan.tasks)) copy[key] = Object.fromEntries(plan.tasks.filter((task: { id?: unknown; prompt?: unknown }) => typeof task.id === "string" && typeof task.prompt === "string").map((task: { id: string; prompt: string }) => [task.id, task.prompt.trim()]));
+        } catch { /* a draft without a readable plan keeps task IDs */ }
+      }
+      requestTitles = next;
+      taskCopy = copy;
+    }).catch(() => {});
+  });
+  const runTitle = (run: RunDto) => requestTitles[`${run.domain_id}:${run.id}`] || `Work in ${run.repo_root.split(/[\\/]/).pop()}`;
+  const toneOf = (agent: AgentDto): "live" | "done" | "failed" | "queued" | "settled" =>
+    ["running", "starting", "pending"].includes(agent.status) ? "live"
+      : agent.status === "completed" && agent.exit_code === 0 ? "done"
+      : ["failed", "blocked_by_dependency", "verify_failed"].includes(agent.status) ? "failed" : "settled";
+  const sidebarJob = $derived.by(() => {
+    const run = commandRuns.find((r) => r.id === focusRunId) ?? commandRuns[0];
+    if (!run) return null;
+    const agents = snapshot.agents.filter((agent) => agent.run_id === run.id && agent.domain_id === run.domain_id);
+    return {
+      runId: run.id,
+      title: runTitle(run),
+      live: ["starting", "running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
+      agents: agents.map((agent) => ({ id: agent.id, label: taskCopy[`${run.domain_id}:${run.id}`]?.[agent.task_id] || agent.task_id, vendor: agent.launcher?.display_name ?? "Agent", cli: agent.launcher?.id ?? null, tone: toneOf(agent) })),
+    };
+  });
+  const sidebarRecent = $derived(commandRuns.filter((run) => run.id !== sidebarJob?.runId).slice(0, 4).map((run) => ({
+    runId: run.id,
+    title: runTitle(run),
+    meta: run.apply_status === "applied" ? "applied" : run.status.toLowerCase(),
+  })));
+  const activeCommandRun = $derived(activeCommandRuns.find((r) => r.id === focusRunId) ?? activeCommandRuns[0] ?? null);
   const latestReviewRun = $derived(
-    snapshot.runs.find(
+    commandRuns.find(
       (r) =>
         Boolean(r.prepared_digest) ||
         r.apply_status === "ready" ||
         r.apply_status === "waiting" ||
         r.apply_status === "prepared",
     ) ??
-      snapshot.runs.find(
-        (r) => !["running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
+      commandRuns.find(
+        (r) => !["starting", "running", "pending", "dispatching", "active"].includes(r.status.toLowerCase()),
       ) ??
       null,
   );
   const commandItems = $derived([
+    ...SETTINGS_SECTIONS.map((section) => ({
+      id: `settings-${section.id}`,
+      label: section.label,
+      icon: IconSettings,
+      group: "Settings" as const,
+      aliases: [...section.keywords, "settings", "setup"],
+      hint: section.description,
+      run: () => navigate("setup", section.id),
+    })),
     ...[...primary, ...system].map((item) => ({
       id: item.route,
       route: item.route,
@@ -168,11 +244,11 @@
     })),
     {
       id: "flow",
-      route: "flow" as const,
-      label: "New run",
+      label: "New work",
       icon: IconTarget,
       aliases: ["flow", "compose", "mission"],
-      group: "Navigate" as const,
+      group: "Actions" as const,
+      run: () => openCompose(),
     },
     {
       id: "approvals",
@@ -192,13 +268,11 @@
       aliases: ["stop", "kill"],
       group: "Actions" as const,
       disabled: !activeCommandRun,
-      hint: activeCommandRun?.id,
+      hint: activeCommandRun?.id ?? "No active run in this workspace",
       run: () => {
         const run = activeCommandRun;
         if (!run) return;
-        const domainId = domainIdForRun(run.id);
-        if (!domainId) return;
-        void stopRunFromOps(run.id, domainId);
+        void requestCommandStop(run.id, run.domain_id);
       },
     },
     {
@@ -267,7 +341,26 @@
   }
 
   function openCompose() {
+    missionDock?.leaveFocus();
+    composerDraft ??= workspaceDrafts.get(activeDomainId ?? "") ?? null;
+    const draftDomain = composerDraft?.domainId;
+    if (draftDomain && snapshot.domains.some((d) => d.domain_id === draftDomain)) {
+      activeDomainId = draftDomain;
+    }
     navigate("flow");
+  }
+
+  function composeWithAgent(adeId: string) {
+    preferredAdeId = adeId;
+    openCompose();
+  }
+
+  async function requestCommandStop(runId: string, domainId: string) {
+    if (domainId !== activeDomainId) return;
+    focusRun(runId);
+    navigate("work");
+    await tick();
+    if (domainId === activeDomainId) workScreen?.requestStopRun(runId);
   }
 
   /**
@@ -275,22 +368,35 @@
    * ledger, a finished one lands on the review pane. History is for finding a
    * run, not for reading one.
    */
-  function openMission(runId: string, pane?: MissionPane) {
+  function openMission(runId: string, pane?: MissionPane, requestedDomainId?: string) {
     focusRunId = runId;
-    focusDomainId = domainIdForRun(runId);
-    const found = snapshot.runs.find((r) => r.id === runId);
-    const running = !!found && ["running", "pending", "dispatching", "active"].includes(found.status.toLowerCase());
+    focusDomainId = requestedDomainId ?? domainIdForRun(runId);
+    const found = snapshot.runs.find((r) => r.id === runId && r.domain_id === focusDomainId);
+    if (found) activeDomainId = found.domain_id;
+    if (found) rememberSelectedWork(found.id, found.domain_id);
+    const running = !!found && ["starting", "running", "pending", "dispatching", "active"].includes(found.status.toLowerCase());
     const resolvedPane = pane ?? (running ? "live" : "review");
     route = "work";
     missionView = "detail";
     missionPane = resolvedPane;
     workPane = resolvedPane === "live" ? "active" : "review";
     persistRoute("work");
+    void tick().then(() => {
+      if (route === "work" && focusRunId === runId) {
+        contentElement?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      }
+    });
   }
 
   function focusRun(runId: string) {
     focusRunId = runId;
-    focusDomainId = domainIdForRun(runId);
+    focusDomainId = snapshot.runs.find(run => run.id === runId && run.domain_id === activeDomainId)?.domain_id ?? null;
+    if (focusDomainId) rememberSelectedWork(runId, focusDomainId);
+  }
+
+  function rememberSelectedWork(runId: string | null, domainId: string) {
+    try { localStorage.setItem(SELECTED_WORK_KEY, JSON.stringify({ runId, domainId })); }
+    catch { /* Storage is optional; navigation still works. */ }
   }
 
   function toggleSidebar() {
@@ -316,20 +422,26 @@
     }
     return (
       runs.find((run) =>
-        ["running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
+        ["starting", "running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
       ) ??
       runs[0] ??
       null
     );
   }
 
-  async function refreshSnapshot(opts: { silent?: boolean; primeCursors?: boolean } = {}) {
+  let snapshotRequest = 0;
+  async function refreshSnapshot(opts: { silent?: boolean; primeCursors?: boolean } = {}): Promise<boolean> {
+    const request = ++snapshotRequest;
+    // Cursor progress belongs to the snapshot we publish, never a discarded read.
+    const nextCursors = new Map(domainCursors);
     try {
       const opsHeavy = route === "work";
       const documentHidden =
         typeof document !== "undefined" && document.visibilityState === "hidden";
       const idleChrome = !windowFocused || documentHidden || route === "setup";
-      const includeAgents = opsHeavy && !idleChrome;
+      // Work still renders worker identity and evidence while unfocused.
+      // Throttle background polling, but never publish an incomplete Work snapshot.
+      const includeAgents = opsHeavy;
       const load = () => backend.loadSnapshot({
         includeAgents,
         runLimit: idleChrome && !opsHeavy ? 12 : 30,
@@ -340,8 +452,15 @@
         : await loadConsistentDesktopSnapshot(
             load,
             (domainId, cursor, limit) => backend.domainChanges(domainId, cursor, limit),
-            domainCursors,
+            nextCursors,
+            backend.domainChangesBatch?.bind(backend),
           );
+      // A late lightweight read must not erase worker rows after entering Work.
+      if (request !== snapshotRequest || (!includeAgents && route === "work")) return false;
+      if (opts.primeCursors !== false) {
+        domainCursors.clear();
+        for (const [domain, cursor] of nextCursors) domainCursors.set(domain, cursor);
+      }
       const nextFp = fingerprintDesktopSnapshot(next);
       if (nextFp !== snapshotFingerprint) {
         snapshot = next;
@@ -364,16 +483,68 @@
       } else if (!next.error && loadMessage && previewState === "default") {
         loadMessage = "";
       }
+      return next.error === null;
     } catch {
       /* keep last snapshot */
+      return false;
     }
   }
 
+  function openWorkspaceCompose() {
+    // New work belongs to the visible workspace. Only Continue draft may
+    // deliberately return to a different workspace's unfinished request.
+    composerDraft = workspaceDrafts.get(activeDomainId ?? "") ?? null;
+    openCompose();
+  }
+
+  let previousSnapshotRoute: CanonicalRoute = "work";
+  $effect(() => {
+    const nextRoute = route;
+    const enteredWork = nextRoute === "work" && previousSnapshotRoute !== "work";
+    previousSnapshotRoute = nextRoute;
+    // Setup/History snapshots intentionally omit agents. Route changes do not
+    // produce backend events, so fetch the full Work snapshot immediately.
+    if (enteredWork) untrack(() => { void refreshSnapshot({ silent: true }); });
+  });
+
   async function catchUpDomainChanges() {
+    const observedCatalog = await backend.catalogFingerprint().catch(() => null);
+    if (observedCatalog !== null && (catalogFingerprint === null || observedCatalog !== catalogFingerprint)) {
+      // Capture before loading. A catalog write racing this snapshot changes
+      // the next fingerprint, so the following poll refreshes again.
+      const refreshed = await refreshSnapshot({ silent: true });
+      if (refreshed) catalogFingerprint = observedCatalog;
+      nowMs = Date.now();
+      return;
+    }
+    const urgentDomainIds = new Set<string>();
+    if (activeDomainId) urgentDomainIds.add(activeDomainId);
+    for (const domain of snapshot.domains) {
+      if (domain.active_runs > 0 || domain.hitl_pending > 0) urgentDomainIds.add(domain.domain_id);
+    }
+    for (const run of snapshot.runs) {
+      if (["starting", "running", "pending", "dispatching", "active"].includes(run.status.toLowerCase())) {
+        urgentDomainIds.add(run.domain_id);
+      }
+    }
+    for (const approval of snapshot.approvals) urgentDomainIds.add(approval.domain_id);
+    const interval = deltaIntervalMs();
+    const documentHidden =
+      typeof document !== "undefined" && document.visibilityState === "hidden";
+    const coverageMs = !windowFocused || documentHidden ? RECOVERY_AUDIT_MS : 60_000;
+    const selected = selectIncrementalDomainBatch(
+      snapshot.domains.map(domain => domain.domain_id),
+      urgentDomainIds,
+      dormantDomainPollOffset,
+      incrementalDomainBatchSize(snapshot.domains.length, interval, coverageMs),
+    );
+    dormantDomainPollOffset = selected.nextDormantOffset;
     const result = await consumeDomainChanges(
-      snapshot.domains.map((domain) => domain.domain_id),
+      selected.domainIds,
       domainCursors,
       (domainId, cursor, limit) => backend.domainChanges(domainId, cursor, limit),
+      200,
+      backend.domainChangesBatch?.bind(backend),
     );
     // A cursor gap means the change log dropped entries between polls, so this
     // view may have missed events. The operator is told rather than left to
@@ -397,6 +568,8 @@
     if (!domain) return;
     activeDomainId = domainId;
     focusDomainId = domainId;
+    focusRunId = selectMissionRun(snapshot.runs, domainId, null)?.id ?? null;
+    rememberSelectedWork(focusRunId, domainId);
     const label = domain.repo_root.split(/[\\/]/).pop() ?? domain.domain_id;
     recents = addWorkspaceRecent({ id: domain.domain_id, label, domainId: domain.domain_id });
     try {
@@ -504,6 +677,8 @@
   }
 
   function onGlobalKeydown(event: KeyboardEvent) {
+    if (event.target instanceof Element && event.target.closest("[data-workspace-terminal]")) return;
+    if (document.querySelector('dialog[open], .workspace-switcher [role="dialog"]')) return;
     const modifier = event.metaKey || event.ctrlKey;
     const plain =
       !event.defaultPrevented && !event.repeat && !modifier && !event.altKey && !event.shiftKey && !isEditableTarget(event.target);
@@ -535,6 +710,9 @@
 
   onMount(() => {
     let disposed = false;
+    // Content width accounts for text zoom; viewport media queries alone do not.
+    const shellSize = new ResizeObserver(entries => autoCollapsed = entries[0].contentRect.width < 1280);
+    if (shellElement) shellSize.observe(shellElement);
     let deepLinkUnlisten: (() => void) | null = null;
     let domainChangedUnlisten: (() => void) | null = null;
     let deltaTimer: ReturnType<typeof setTimeout> | null = null;
@@ -585,6 +763,7 @@
 
     const cleanup = () => {
       disposed = true;
+      shellSize.disconnect();
       window.removeEventListener("hashchange", onHashChange);
       window.removeEventListener("pytxo-deep-link", onBrowserDeepLink);
       window.removeEventListener("keydown", onGlobalKeydown);
@@ -610,7 +789,9 @@
     }
     void (async () => {
       try {
-        await refreshSnapshot();
+        const observedCatalog = await backend.catalogFingerprint().catch(() => null);
+        const refreshed = await refreshSnapshot();
+        if (refreshed && observedCatalog !== null) catalogFingerprint = observedCatalog;
         const openBehavior =
           typeof localStorage !== "undefined" &&
           localStorage.getItem(OPEN_BEHAVIOR_KEY) === "picker"
@@ -619,7 +800,17 @@
         if (openBehavior === "picker") {
           if (!routeOverride && route === "work") navigate("setup", "workspaces");
         } else if (!activeDomainId) {
+          // Restore only a reference validated against the new snapshot. Never
+          // restore processes, input permission, a plan, or freshness authority.
+          let remembered = null;
+          try { remembered = !routeOverride ? restoreSelectedWork(localStorage.getItem(SELECTED_WORK_KEY), snapshot.runs) : null; }
+          catch { /* Storage may be unavailable. */ }
+          if (remembered) {
+            focusRunId = remembered.id;
+            focusDomainId = remembered.domain_id;
+          }
           const preferred =
+            (remembered && snapshot.domains.some(d => d.domain_id === remembered.domain_id) ? remembered.domain_id : null) ??
             recents.find((r) => snapshot.domains.some((d) => d.domain_id === r.domainId))
               ?.domainId ?? snapshot.domains[0]?.domain_id;
           if (preferred) {
@@ -643,7 +834,7 @@
         scheduleDelta();
         integrityTimer = setInterval(
           () => void refreshSnapshot({ silent: true }),
-          INTEGRITY_REFRESH_MS,
+          RECOVERY_AUDIT_MS,
         );
       }
       try {
@@ -672,13 +863,14 @@
   });
 </script>
 
-<div class="desktop2" class:sidebar-collapsed={collapsed}>
+<div class="desktop2 deck-scroll" bind:this={shellElement} class:sidebar-collapsed={sidebarCollapsed}>
   <Sidebar
     {route}
     {primary}
     {system}
     {recents}
-    {collapsed}
+    collapsed={sidebarCollapsed}
+    {autoCollapsed}
     {tier}
     {signedIn}
     onNavigate={(next) => navigate(next)}
@@ -686,6 +878,14 @@
     onOpenCommand={() => (commandOpen = true)}
     onOpenRecent={openRecent}
     onAccountClick={() => navigate("setup", "account")}
+    onNewRun={openCompose}
+    hasDraft={!!(composerDraft ?? workspaceDrafts.get(activeDomainId ?? ""))?.mission.trim()}
+    activeRunsCount={activeCommandRuns.length}
+    workspaceLabel={activeDomain?.repo_root.split(/[\\/]/).pop() ?? "Workspace"}
+    onOpenWorkspace={() => navigate("setup", "workspaces")}
+    job={sidebarJob}
+    recentJobs={sidebarRecent}
+    onOpenRun={(runId) => { focusRun(runId); navigate("work"); }}
   />
 
   <main>
@@ -705,10 +905,14 @@
       onOpenApprovals={() => (approvalsOpen = true)}
       onDismissGap={() => (cursorGap = false)}
     />
-    <div class="content">
+    <MissionDock bind:this={missionDock} {backend} {snapshot} {activeDomainId} run={dockRun}
+      surface={route === "work" && workPane === "active" ? "run" : route === "work" && workPane === "review" ? "review" : "other"}
+      previewAllowed={route === "work" && !approvalsOpen && !editingWorkspaceId}
+      onReview={(runId, domainId) => openMission(runId, "review", domainId)} onOpenApprovals={() => approvalsOpen = true}>
+    <div class="content" class:work-content={route === "work"} class:history-content={route === "history"} class:setup-content={route === "setup"} bind:this={contentElement}>
       {#if authErrorMessage}<div class="status-banner error-banner">{authErrorMessage}</div>{/if}
       {#if workspaceError}<div class="status-banner error-banner">{workspaceError}</div>{/if}
-      {#if workspaceMessage}<div class="status-banner">{workspaceMessage}</div>{/if}
+      {#if workspaceMessage}<div class="status-banner" role="status"><span>{workspaceMessage}</span><button aria-label="Dismiss workspace message" onclick={() => workspaceMessage = ""}>×</button></div>{/if}
       {#if loadMessage}<div class:error-banner={previewState === "error" || !!snapshot.error} class="status-banner">{loadMessage}</div>{/if}
       {#if snapshot.diagnostics.length}
         <div class="status-banner error-banner" role="status">
@@ -724,7 +928,12 @@
         </div>
       {/if}
       {#if loading}
-        <div class="loading-state"><div></div><div></div><div></div></div>
+        <div class="loading-state" role="status" aria-label="Loading workspace">
+          <span>Loading workspace…</span>
+          <div class="loading-summary" aria-hidden="true"></div>
+          <div class="loading-tasks" aria-hidden="true"></div>
+          <div class="loading-boundary" aria-hidden="true"></div>
+        </div>
       {:else if route === "work" && workPane === "active"}
         <WorkActive
           bind:this={workScreen}
@@ -733,11 +942,13 @@
           activeDomainLabel={activeDomain ? (activeDomain.repo_root.split(/[\\/]/).pop() ?? null) : null}
           {activeDomainId}
           {focusRunId}
-          onNewRun={openCompose}
+          onNewRun={openWorkspaceCompose}
           onOpenApprovals={() => (approvalsOpen = true)}
           onReviewRun={(runId) => openMission(runId, "review")}
           onStopRun={stopRunFromOps}
           onSelectRun={focusRun}
+          onInspect={(ref, position) => missionDock?.open(ref, position)}
+          onDismissInspect={() => missionDock?.dismiss("right")}
         />
       {:else if route === "history"}
         <HistoryScreen
@@ -745,8 +956,8 @@
           {backend}
           {activeDomainId}
           {focusRunId}
-          onOpenRun={(runId) => openMission(runId, "review")}
-          onSelectRun={focusRun}
+          onOpenRun={(runId, domainId) => openMission(runId, "review", domainId)}
+          onSelectRun={(runId, domainId) => { focusRunId = runId; focusDomainId = domainId ?? null; }}
         />
       {:else if route === "work"}
         <MissionsScreen
@@ -770,6 +981,9 @@
           onOpenMission={openMission}
           onAddWorkspace={addWorkspace}
           {onRunCompleted}
+          {composerDraft}
+          {preferredAdeId}
+          onDraftChange={retainComposerDraft}
         />
       {:else}
         <SettingsScreen
@@ -801,11 +1015,12 @@
             />
           {/snippet}
           {#snippet agentsCatalog()}
-            <AgentsScreen embedded {backend} onUseInMission={openCompose} />
+            <AgentsScreen embedded {backend} onUseInMission={composeWithAgent} />
           {/snippet}
         </SettingsScreen>
       {/if}
     </div>
+    </MissionDock>
   </main>
 
   <CommandPalette open={commandOpen} items={commandItems} onNavigate={navigate} onClose={() => (commandOpen = false)} />
@@ -816,7 +1031,7 @@
     {backend}
     onClose={() => (approvalsOpen = false)}
     onReviewRun={(runId) => openMission(runId, "review")}
-    onApprovalsChanged={refreshSnapshot}
+    onApprovalsChanged={async () => { await refreshSnapshot(); }}
   />
 
   {#if editingDomain}
@@ -824,7 +1039,7 @@
       domain={editingDomain}
       onClose={() => (editingWorkspaceId = null)}
       onForgotten={onDomainForgotten}
-      onChanged={refreshSnapshot}
+      onChanged={async () => { await refreshSnapshot(); }}
     />
   {/if}
 </div>
@@ -832,18 +1047,18 @@
 <style>
   .desktop2 {
     display: grid;
-    grid-template-columns: 208px minmax(0, 1fr);
+    grid-template-columns: 184px minmax(0, 1fr);
     height: 100%;
     background: var(--pytxo-surface-shell);
     color: var(--pytxo-text-strong);
-    font-family: "Satoshi", "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-    transition: grid-template-columns 140ms ease;
+    font-family: "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   }
   .desktop2.sidebar-collapsed {
     grid-template-columns: 58px minmax(0, 1fr);
   }
   main {
     min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     background: var(--pytxo-surface-shell);
@@ -852,23 +1067,35 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
+    scrollbar-gutter: stable;
+    scroll-padding-block: 20px;
   }
+  .history-content { display: flex; flex-direction: column; container: history-viewport / inline-size; }
+  /* Work owns a viewport. Canvas, plan, details, and output own their own scroll. */
+  .content.work-content { display:flex;min-height:0;flex-direction:column;overflow:hidden;scrollbar-gutter:auto; }
+  .work-content > .status-banner { flex-shrink:0; }
+  /* Setup owns two sibling scroll areas; shell chrome must not scroll with them. */
+  .content.setup-content { display: flex; flex-direction: column; overflow: hidden; scrollbar-gutter: auto; }
+  .setup-content > .status-banner { flex-shrink: 0; }
+  .history-content > .status-banner { flex-shrink: 0; }
   .loading-state {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
     gap: 12px;
-    padding: 80px 32px;
+    padding: 30px 32px;
   }
+  .loading-state > span { grid-column: 1 / -1; color: var(--pytxo-text-muted); font-size: 13px; }
   .loading-state div {
-    height: 130px;
-    border-radius: 6px;
-    background: linear-gradient(90deg, #0f1116, #161920, #0f1116);
-    background-size: 200%;
-    animation: pulse 1.5s infinite;
+    height: 240px;
+    border: 1px solid var(--pytxo-line-soft);
+    border-radius: var(--pytxo-panel-radius);
+    background: var(--pytxo-surface-panel);
+    animation: pulse 1.5s ease-in-out infinite alternate;
   }
+  .loading-state .loading-summary { grid-column: 1 / -1; height: 80px; }
   @keyframes pulse {
     to {
-      background-position: -200% 0;
+      opacity: .45;
     }
   }
   .status-banner {
@@ -886,15 +1113,16 @@
     color: #d98a96;
   }
 
-  @media (max-width: 1050px) {
+  @media (max-width: 1279px) {
     .desktop2:not(.sidebar-collapsed) {
-      grid-template-columns: 188px minmax(0, 1fr);
+      grid-template-columns: 60px minmax(0, 1fr);
     }
   }
   @media (max-width: 760px) {
     .desktop2:not(.sidebar-collapsed) {
       grid-template-columns: 60px minmax(0, 1fr);
     }
+    .loading-state { grid-template-columns: 1fr; padding: 24px 16px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .desktop2 {

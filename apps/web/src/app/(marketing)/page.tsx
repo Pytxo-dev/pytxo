@@ -4,75 +4,86 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { BoundarySection } from "@/components/site/boundary-section";
+import { CompareSection } from "@/components/site/compare-section";
 import { CompatibilitySection } from "@/components/site/compatibility-section";
 import { GetItSection } from "@/components/site/get-it-section";
 import { Hero } from "@/components/site/hero";
-import { MeasuredEvidence } from "@/components/site/measured-evidence";
-import { ProductSection } from "@/components/site/product-section";
-import { SituationSection } from "@/components/site/situation-section";
+import { HowItWorks } from "@/components/site/how-it-works";
+import { ProofSection } from "@/components/site/proof-section";
+import { pageMetadata } from "@/lib/page-metadata";
+import { PUBLISHED_VERSION } from "@/lib/site";
+
+export const metadata = pageMetadata(
+  "/",
+  "Pytxo: many coding agents, one verified change",
+  "Split one coding request across Codex, Claude Code, Cursor, OpenCode and Antigravity. Pytxo keeps them off each other's files, runs your checks on the combined result, and applies exactly what you reviewed.",
+);
+
+const STRUCTURED_DATA = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://pytxo.com/#website",
+      name: "Pytxo",
+      url: "https://pytxo.com",
+      description: "The agent hypervisor for your repository: many coding agents, one verified change.",
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://pytxo.com/#software",
+      name: "Pytxo",
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Windows, macOS, Linux",
+      softwareVersion: PUBLISHED_VERSION,
+      url: "https://pytxo.com",
+      downloadUrl: "https://pytxo.com/download",
+      image: "https://pytxo.com/product/fleet-1600x1000.png",
+      description:
+        "Runs the coding-agent CLIs you already use on one planned job, checks the combined result, and applies exactly the reviewed repository changes.",
+    },
+  ],
+} as const;
 
 const FAQ = [
-  {
-    q: "Is Pytxo an IDE or a cloud workspace?",
-    a: "Neither. Pytxo runs the terminal agents you already use, assigns path ownership and dependencies, records what changed, and prepares one result for review. Your editor stays your editor.",
-  },
-  {
-    q: "Which agents are supported?",
-    a: "Any command you can run in a terminal: Claude Code, Codex, Antigravity CLI (agy), Cursor Agent, OpenCode, Gemini CLI, Copilot CLI, Aider, or custom scripts via pytxo run --cmd. Editors connect through the local MCP hub instead.",
-  },
-  {
-    q: "What is Pytxo Desktop?",
-    a: "An optional native control surface for Work, History, and Setup, including approvals and applying eligible Orbit or Galaxy runs to one repository root. It reads the same local core the CLI uses, so it grants no extra authority.",
-  },
-  {
-    q: "What does 'advisory only' mean on a receipt?",
-    a: "Pytxo constrained the child process but the platform did not guarantee the constraint. It is recorded separately from enforced because it is weaker evidence, and it is never coloured as a pass.",
-  },
-  {
-    q: "What happens if an Apply fails halfway?",
-    a: "The run records the attempt, its outcome, and whether rollback was confirmed. If rollback was not confirmed, Pytxo says the working tree may be partially modified and offers the reconcile step rather than claiming a clean state.",
-  },
-  {
-    q: "What are Workspaces and fleet runs?",
-    a: "A Workspace coordinates work across folders. Fleet runs order steps across separate Git roots. Each repository root keeps its own Apply boundary; a fleet is not a cross-root transaction.",
-  },
-  {
-    q: "How do I test with Antigravity (agy)?",
-    a: "Install pytxo via npm, scaffold a test repo with tooling/test-envs, set cli_adapter = \"agy\" in pytxo.toml, and run pytxo run --cmd \"agy …\". See the docs guide for testing terminal agent CLIs.",
-  },
-  {
-    q: "What are Signal Core, Blast Shield, and Race Shield?",
-    a: "Signal Core starts reads with AST structure. Blast Shield isolates writes, stores the reviewed target blobs, and journals single-root Apply. Race Shield turns path ownership and dependencies into ordered waves.",
-  },
-  {
-    q: "Where are the docs?",
-    a: "Guides live at pytxo.com/docs: install, tutorials, CLI reference, Workspaces, fleet runs, and approval gates. ptyxo.com is unrelated.",
-  },
+  { q: "Which agents does Pytxo run?", a: "The Desktop beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity. One installed and signed-in agent is enough to start; with more, Pytxo can give each task to a different one." },
+  { q: "Do I need API keys or a Pytxo account?", a: "No Pytxo account for local work. Each agent uses its own sign-in, the same way it does in your terminal. Agents run with a clean environment, so API keys set in your shell are not passed to them." },
+  { q: "How do agents avoid overwriting each other?", a: "Every task runs in its own isolated copy of your project, and the plan says which files each task owns. Tasks that share a file run one after another, so the later one starts from the earlier one's result." },
+  { q: "What do the checks prove?", a: "Pytxo runs the commands you approve on each task and again on all the changes together. Passing means those commands passed on the exact files you are about to apply. It does not mean the code is right in every way." },
+  { q: "What if my project changes after I review?", a: "Apply refuses and nothing is written. Refresh the review to recheck the changes against your current files, then Apply again." },
+  { q: "What if Apply is interrupted?", a: "Pytxo journals every Apply. On restart it reconciles the attempt: confirmed as applied, rolled back, or flagged as needing recovery. It never reports a restore it could not confirm." },
+  { q: "Does Pytxo sandbox everything an agent does?", a: "No. Pytxo controls what reaches your repository. It does not contain every file or network action an agent takes on your machine; each run's details list which protections were enforced and which were advisory." },
+  { q: "Is it faster than one agent?", a: "Sometimes. Splitting helps when a job has parts that can run at once. A small fix is often quicker with one agent, and Pytxo works fine with one." },
 ] as const;
 
 export default function HomePage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(STRUCTURED_DATA).replace(/</g, "\\u003c"),
+        }}
+      />
       <Hero />
-      <SituationSection />
-      <ProductSection />
-      <BoundarySection />
+      <HowItWorks />
+      <CompareSection />
+      <ProofSection />
       <CompatibilitySection />
-      <MeasuredEvidence />
       <section
-        className="section-pad mx-auto grid max-w-[92rem] gap-12 lg:grid-cols-[0.72fr_1.28fr] lg:px-10"
+        className="mx-auto grid max-w-[92rem] gap-12 border-t border-white/10 px-4 py-[clamp(4.5rem,7vw,7.5rem)] sm:px-6 lg:grid-cols-[0.72fr_1.28fr] lg:px-10"
         aria-labelledby="faq-title"
+        data-testid="faq-section"
       >
         <div>
           <h2
             id="faq-title"
             className="max-w-md text-[clamp(2rem,3.4vw,3.25rem)] leading-[1.06] tracking-[-0.04em]"
           >
-            Questions with exact answers.
+            Questions
           </h2>
-          <p className="mt-6 max-w-sm text-sm leading-relaxed text-[#85858f]">
-            Pytxo is local-first orchestration, not another editor or opaque agent cloud.
+          <p className="mt-6 max-w-sm text-sm leading-relaxed text-[#8d8d96]">
+            Your agents write the code. You decide what lands.
           </p>
         </div>
         <Accordion type="single" collapsible className="w-full border-t border-white/10">
@@ -81,7 +92,7 @@ export default function HomePage() {
               <AccordionTrigger className="py-5 text-left text-base hover:no-underline sm:text-lg">
                 {item.q}
               </AccordionTrigger>
-              <AccordionContent className="max-w-3xl pb-6 text-sm leading-relaxed text-[#8d8d96] sm:text-base">
+              <AccordionContent className="max-w-3xl pb-6 text-sm leading-relaxed text-[#a9a9b2] sm:text-base">
                 {item.a}
               </AccordionContent>
             </AccordionItem>

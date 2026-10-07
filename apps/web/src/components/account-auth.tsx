@@ -7,6 +7,7 @@ import { SignedIn, SignedOut, SignUpButton, UserButton } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
+import { desktopAccountUrl, desktopBridgeAllowed, desktopBridgeParams, desktopSignInUrl } from "@/lib/desktop-bridge";
 
 type OrgPolicy = {
   default_permission_profile?: string | null;
@@ -35,6 +36,57 @@ function ConfiguredAccountAuth() {
   const searchParams = useSearchParams();
   const deckCallback = searchParams.get("deck_callback");
   const wantsDesktopReturn = deckCallback === "pytxo-deck";
+  const bridge = desktopBridgeParams(searchParams);
+  const bridgeEnabled = process.env.NEXT_PUBLIC_ROUTING_BRIDGE_EXPERIMENT === "1";
+  const bridgeAllowed = desktopBridgeAllowed(bridge, bridgeEnabled);
+  const [returnPending, setReturnPending] = useState(false);
+  const [returnError, setReturnError] = useState<string | null>(null);
+  const [revokePending, setRevokePending] = useState(false);
+  const [revokeMessage, setRevokeMessage] = useState<string | null>(null);
+
+  async function revokeAllRouting() {
+    if (revokePending || !window.confirm("Revoke every hosted Routing workspace grant and Desktop routing connection for this account?")) return;
+    setRevokePending(true);
+    setRevokeMessage(null);
+    try {
+      const result = await fetch("/api/routing/revoke-all", { method: "DELETE", cache: "no-store" });
+      if (!result.ok) throw new Error("unavailable");
+      setRevokeMessage("Hosted Routing access revoked. Desktop must reconnect before requesting another grant.");
+    } catch {
+      setRevokeMessage("Could not confirm revocation. Try again later.");
+    } finally {
+      setRevokePending(false);
+    }
+  }
+
+  async function connectDesktop() {
+    if (!bridge || returnPending) return;
+    setReturnPending(true);
+    setReturnError(null);
+    try {
+      const result = await fetch("/api/routing/desktop-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          state: bridge.state,
+          code_challenge: bridge.codeChallenge,
+          ...(bridge.recoveryOnly ? { recovery_only: true } : {}),
+        }),
+        cache: "no-store",
+      });
+      if (!result.ok) throw new Error("Account return is unavailable. Try again later.");
+      const payload = (await result.json()) as { code?: unknown };
+      if (typeof payload.code !== "string" || !/^pdc1_[A-Za-z0-9_-]{43}$/.test(payload.code)) {
+        throw new Error("Account return is unavailable. Try again later.");
+      }
+      const params = new URLSearchParams({ state: bridge.state, code: payload.code });
+      window.location.assign(`pytxo-deck://auth?${params}`);
+    } catch {
+      setReturnError("Account return is unavailable. Try again later.");
+    } finally {
+      setReturnPending(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -69,29 +121,21 @@ function ConfiguredAccountAuth() {
         <div className="flex flex-wrap gap-2">
           <Button asChild>
             <Link
-              href={
-                wantsDesktopReturn
-                  ? "/sign-in?deck_callback=pytxo-deck"
-                  : "/sign-in"
-              }
+              href={desktopSignInUrl(bridge)}
             >
               Sign in
             </Link>
           </Button>
           <SignUpButton
             mode="redirect"
-            forceRedirectUrl={
-              wantsDesktopReturn
-                ? "/account?deck_callback=pytxo-deck"
-                : "/account"
-            }
+            forceRedirectUrl={desktopAccountUrl(bridge)}
           >
             <Button variant="outline">Sign up</Button>
           </SignUpButton>
         </div>
         <p className="text-sm text-muted-foreground">
-          Core (local CLI and Desktop) works without an account. Sign in to sync Pro, Max, or Ultra
-          entitlements.
+          Core (local CLI and Desktop) works without an account. Sign in only when
+          this deployment provides Cloud or Teams entitlements.
         </p>
         <Link href="/plans" className="text-sm text-primary hover:underline">
           Compare plans
@@ -104,16 +148,35 @@ function ConfiguredAccountAuth() {
             Signed in. Entitlements sync via Pytxo Link.
           </span>
         </div>
-        {wantsDesktopReturn && (
+        {wantsDesktopReturn && bridge && bridgeAllowed ? (
           <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3">
-            <p className="font-medium">Desktop account return is unavailable in v1.2.</p>
+            <p className="font-medium">{bridge.recoveryOnly ? "Reconnect Pytxo Desktop to revoke existing access" : "Connect Pytxo Desktop for experimental routing"}</p>
             <p className="text-muted-foreground">
-              Pytxo will not place a reusable session token in a custom app link. Close this page
-              and continue in Desktop with local Core features; account return will resume after
-              one-time authorization codes are implemented.
+              {bridge.recoveryOnly
+                ? "Sign in with the original account for this workspace. Desktop will only accept that account, and new hosted grants remain controlled by its experimental switches."
+                : "This connects your Pytxo account to Desktop. Hosted Jev routing stays off until you separately allow a reviewed workspace packet in Desktop."}
+            </p>
+            <Button onClick={() => void connectDesktop()} disabled={returnPending}>
+              {returnPending ? "Connecting…" : "Return to Desktop"}
+            </Button>
+            {returnError && <p role="alert" className="text-destructive">{returnError}</p>}
+          </div>
+        ) : wantsDesktopReturn && (
+          <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3">
+            <p className="font-medium">Desktop account return is unavailable here.</p>
+            <p className="text-muted-foreground">
+              Start sign-in from Desktop to create a fresh one-time request. Local Core features remain available without an account.
             </p>
           </div>
         )}
+        <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3">
+            <p className="font-medium">Hosted Routing access</p>
+            <p className="text-muted-foreground">If you used experimental Routing and a Desktop is lost, revoke all Routing credentials, workspace grants, and evaluation tokens here. This affects every connected Desktop.</p>
+            <Button variant="outline" onClick={() => void revokeAllRouting()} disabled={revokePending}>
+              {revokePending ? "Revoking…" : "Revoke all Routing access"}
+            </Button>
+            {revokeMessage && <p role="status">{revokeMessage}</p>}
+          </div>
         {loading && (
           <p className="text-sm text-muted-foreground">Loading entitlements…</p>
         )}
@@ -176,8 +239,8 @@ function ConfiguredAccountAuth() {
           </div>
         )}
         <p className="text-sm text-muted-foreground">
-          Subscription self-service is not connected yet. Use the support contact
-          on your payment receipt for plan changes or cancellation.
+          Billing self-service is not connected. Use the support contact on your
+          payment receipt for changes or cancellation.
         </p>
       </SignedIn>
     </div>

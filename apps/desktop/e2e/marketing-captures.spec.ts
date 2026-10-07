@@ -5,6 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 import { completeOnboarding } from "./helpers";
+import { MARKETING_ROUTES, MARKETING_VIEWPORTS } from "../../web/scripts/product-asset-manifest.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const DESKTOP_ROOT = fileURLToPath(new URL("../", import.meta.url));
@@ -27,13 +28,14 @@ const VIEWPORTS = [
  */
 const ROUTES = [
   { route: "work", heading: "Work", marketing: true },
+  { route: "fleet", heading: "Work", marketing: true },
   { route: "history", heading: "History", marketing: true },
-  { route: "flow", heading: "New run", marketing: true },
+  { route: "flow", heading: "New work", marketing: true },
   { route: "approvals", heading: "Approvals", marketing: true },
   { route: "setup", heading: "Appearance", marketing: false },
   { route: "integrations", heading: "Agents & permissions", marketing: true },
   { route: "workspaces", heading: "Workspaces", marketing: false },
-  { route: "run-review", heading: "Run Review", marketing: true },
+  { route: "run-review", heading: "Review changes", marketing: true },
 ] as const;
 
 const RETRYABLE_WRITE_CODES = new Set(["EACCES", "EBUSY", "EPERM", "UNKNOWN"]);
@@ -64,24 +66,38 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
   await completeOnboarding(
     page,
     route.route === "run-review"
-      ? { "pytxo-preview-review-state-v1": "ready" }
-      : undefined,
+      ? {
+          "pytxo-preview-review-state-v1": "ready",
+          "pytxo-preview-candidate-check-v1": "passed",
+          "pytxo-preview-flow-history-v1": "ready",
+        }
+      : route.route === "fleet"
+        ? { "pytxo-preview-fleet-v1": "1" }
+        : route.route === "flow"
+          ? { "pytxo-preview-split-delay-v1": "50" }
+          : undefined,
   );
   await page.clock.install({ time: new Date("2026-01-15T10:00:00.000Z") });
-  await page.goto(`/#/${route.route}`);
-  await expect(page.getByRole("heading", { name: route.heading, exact: true })).toBeVisible();
+  // The fleet capture is the Work view of a mixed-CLI run.
+  await page.goto(`/#/${route.route === "fleet" ? "work" : route.route}`);
+  if (route.route === "fleet") await expect(page.getByTestId("fleet-board").getByRole("log", { name: "Recent output from Claude Code" })).toContainText("Update(");
+  else if (route.route === "work") await expect(page.getByRole("region", { name: "Work", exact: true }).getByRole("heading", { level: 1 })).toBeVisible();
+  else await expect(route.route === "run-review" ? page.locator("#run-review-title") : page.getByRole("heading", { name: route.heading, exact: true })).toBeVisible();
 
   if (route.route === "flow") {
+    // One plain request, split by an agent into owned task lines, then planned.
     await page
-      .getByLabel("Mission outcome")
-      .fill("Ship the approval workflow with isolated changes and verification");
+      .getByLabel("What should Pytxo do?")
+      .fill("Add search and status filtering with tests, a dark theme that follows the system, and a Spanish translation with a language switch.");
+    await page.getByRole("button", { name: "Split with OpenAI Codex" }).click();
+    await expect(page.getByText("OpenAI Codex proposed 4 tasks")).toBeVisible();
     await page.getByRole("button", { name: "Build plan", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review plan" })).toBeVisible();
   }
 
   if (route.route === "approvals") {
     await expect(
-      page.getByRole("heading", { name: "Apply reviewed workspace changes" }),
+      page.getByRole("heading", { name: "Review repository changes" }),
     ).toBeVisible();
   }
 
@@ -117,8 +133,8 @@ test.describe("@marketing-capture current Desktop product captures", () => {
         await writeCapture(path.join(DOCS_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`), png);
 
         if (
-          route.marketing &&
-          (viewport.slug === "1600x1000" || viewport.slug === "960x640")
+          MARKETING_ROUTES.includes(route.route) &&
+          MARKETING_VIEWPORTS.some((size: { slug: string }) => size.slug === viewport.slug)
         ) {
           await writeCapture(
             path.join(WEB_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`),

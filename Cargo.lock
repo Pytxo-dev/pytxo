@@ -4541,7 +4541,7 @@ checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
 name = "pytxo-catalog"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4554,13 +4554,14 @@ dependencies = [
 
 [[package]]
 name = "pytxo-cli"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "anyhow",
  "clap",
  "pytxo-catalog",
  "pytxo-core",
  "pytxo-orchestrate",
+ "pytxo-runner",
  "pytxo-shell",
  "pytxo-store",
  "pytxo-tui",
@@ -4590,7 +4591,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-core"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "chrono",
  "fs2",
@@ -4609,20 +4610,26 @@ dependencies = [
 
 [[package]]
 name = "pytxo-desktop"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
+ "axum",
  "base64 0.22.1",
  "chrono",
+ "getrandom 0.2.17",
  "keyring",
+ "portable-pty",
  "pytxo-core",
  "pytxo-orchestrate",
+ "pytxo-planner",
  "pytxo-runner",
  "pytxo-signal",
  "pytxo-store",
  "pytxo-voice",
+ "reqwest 0.12.28",
  "rfd",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-deep-link",
@@ -4634,9 +4641,13 @@ dependencies = [
  "tauri-plugin-updater",
  "tempfile",
  "tokio",
+ "toml 0.8.2",
  "ureq",
  "uuid",
+ "webview2-com",
+ "windows-core 0.61.2",
  "winreg 0.52.0",
+ "wry",
 ]
 
 [[package]]
@@ -4646,12 +4657,16 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "chrono",
+ "getrandom 0.2.17",
  "hex",
  "hmac",
  "http-body-util",
  "hyper",
  "jsonwebtoken",
+ "pytxo-planner",
+ "rand 0.8.6",
  "reqwest 0.12.28",
+ "rsa",
  "serde",
  "serde_json",
  "sha2",
@@ -4664,7 +4679,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-mcp"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -4679,7 +4694,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-orchestrate"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4701,20 +4716,24 @@ dependencies = [
  "toml 0.8.2",
  "tracing",
  "ureq",
+ "uuid",
 ]
 
 [[package]]
 name = "pytxo-planner"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "anyhow",
  "pytxo-core",
  "pytxo-sanitize",
  "pytxo-signal",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
  "ureq",
+ "uuid",
 ]
 
 [[package]]
@@ -4722,14 +4741,20 @@ name = "pytxo-proxy"
 version = "0.3.3"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "bytes",
  "futures-util",
+ "hex",
  "http-body-util",
  "pytxo-core",
+ "pytxo-planner",
  "reqwest 0.12.28",
+ "ring",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
+ "tower",
  "tower-http",
  "tracing",
  "tracing-subscriber",
@@ -4737,13 +4762,15 @@ dependencies = [
 
 [[package]]
 name = "pytxo-runner"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "chrono",
  "fs2",
  "fuser",
  "glob",
+ "libc",
  "portable-pty",
  "pytxo-core",
  "pytxo-signal",
@@ -4759,7 +4786,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-sanitize"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "pytxo-core",
  "regex",
@@ -4768,7 +4795,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-scheduler"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "glob",
  "pytxo-core",
@@ -4776,7 +4803,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-shell"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "anyhow",
  "pytxo-catalog",
@@ -4789,7 +4816,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-signal"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -4809,19 +4836,21 @@ dependencies = [
 
 [[package]]
 name = "pytxo-store"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "chrono",
+ "getrandom 0.2.17",
  "pytxo-core",
  "rusqlite",
  "serde",
  "serde_json",
  "tempfile",
+ "uuid",
 ]
 
 [[package]]
 name = "pytxo-tui"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -4835,7 +4864,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-voice"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "cpal",
  "serde",
@@ -5405,9 +5434,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.40"
+version = "0.23.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef86cd5876211988985292b91c96a8f2d298df24e75989a43a3c73f2d4d8168b"
+checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
 dependencies = [
  "log",
  "once_cell",
@@ -5469,9 +5498,9 @@ checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.13"
+version = "0.103.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
+checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
 dependencies = [
  "ring",
  "rustls-pki-types",

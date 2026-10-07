@@ -1,0 +1,5 @@
+# Distribution builds pass this file explicitly with Cargo --config and an
+# explicit --target. Ordinary developer commands retain Cargo's host defaults.
+# cc/cmake inherit this CRT selection for native dependencies (Whisper/GGML).
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

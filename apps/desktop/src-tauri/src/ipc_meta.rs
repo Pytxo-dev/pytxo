@@ -99,72 +99,97 @@ struct AuthMeta {
 }
 
 fn auth_meta(id: &str, installed: bool) -> AuthMeta {
+    let spec = pytxo_core::resolve_ade(id).expect("auth metadata requires a registered agent CLI");
     let mut meta = match id {
         "codex" => AuthMeta {
             state: "unknown",
             label: "Checking Codex session".into(),
-            owner: "Codex",
+            owner: spec.auth_owner,
             login_label: Some("Connect with ChatGPT"),
-            docs_url: "https://developers.openai.com/codex/auth",
-            detail: "Codex owns the browser session, token storage, and refresh.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "claude" => AuthMeta {
             state: "unknown",
             label: "Checking Claude Code session".into(),
-            owner: "Claude Code",
+            owner: spec.auth_owner,
             login_label: Some("Open Claude Code sign-in"),
-            docs_url: "https://code.claude.com/docs/en/authentication",
-            detail: "Pytxo opens Claude Code's official sign-in and never receives its token.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "cursor" => AuthMeta {
             state: "unknown",
             label: "Checking Cursor session".into(),
-            owner: "Cursor Agent",
+            owner: spec.auth_owner,
             login_label: Some("Open Cursor sign-in"),
-            docs_url: "https://docs.cursor.com/en/cli/reference/authentication",
-            detail: "Cursor Agent keeps its account credential outside Pytxo.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "opencode" => AuthMeta {
             state: "unknown",
             label: "Checking OpenCode providers".into(),
-            owner: "OpenCode",
+            owner: spec.auth_owner,
             login_label: Some("Connect an OpenCode provider"),
-            docs_url: "https://opencode.ai/docs/providers/",
-            detail: "Provider-specific credentials remain owned by OpenCode.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "gemini" => AuthMeta {
-            state: "unknown",
-            label: "Check authentication in Gemini CLI".into(),
-            owner: "Gemini CLI",
+            state: "vendor_managed",
+            label: "Authentication managed by Gemini CLI".into(),
+            owner: spec.auth_owner,
             login_label: Some("Open Gemini authentication"),
-            docs_url: "https://geminicli.com/docs/get-started/authentication/",
-            detail: "Gemini CLI owns Google OAuth; Pytxo does not reuse its cached token.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "copilot" => AuthMeta {
-            state: "unknown",
-            label: "Check authentication in Copilot CLI".into(),
-            owner: "Copilot CLI",
+            state: "vendor_managed",
+            label: "Authentication managed by Copilot CLI".into(),
+            owner: spec.auth_owner,
             login_label: Some("Open GitHub sign-in"),
-            docs_url: "https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli",
-            detail: "Copilot CLI owns the GitHub device flow and stores its token in the OS keychain.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         "aider" => AuthMeta {
             state: "not_applicable",
             label: "Uses the selected API provider".into(),
-            owner: "Pytxo run policy",
+            owner: spec.auth_owner,
             login_label: None,
-            docs_url: "https://aider.chat/docs/config/api-keys.html",
-            detail: "Choose one explicit BYOK credential for the run; unrelated keys stay hidden.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
         _ => AuthMeta {
-            state: "unknown",
-            label: "Authentication managed by this CLI".into(),
-            owner: "Vendor CLI",
+            state: if !pytxo_core::ade_can_dispatch(spec) {
+                "detected_only"
+            } else {
+                match spec.auth_policy {
+                    pytxo_core::AdeAuthPolicy::ProviderManaged => "not_applicable",
+                    pytxo_core::AdeAuthPolicy::VendorManaged => "vendor_managed",
+                    pytxo_core::AdeAuthPolicy::VerifiedSession => "unknown",
+                }
+            },
+            label: if !pytxo_core::ade_can_dispatch(spec) {
+                "Detected; write mode not mapped yet".into()
+            } else {
+                match spec.auth_policy {
+                    pytxo_core::AdeAuthPolicy::ProviderManaged => {
+                        "Uses the selected API provider".into()
+                    }
+                    _ => format!("Authentication managed by {}", spec.display_name),
+                }
+            },
+            owner: spec.auth_owner,
             login_label: None,
-            docs_url: "https://pytxo.com/docs/reference/providers-byok",
-            detail: "Pytxo detects the executable without reading vendor credential stores.",
+            docs_url: spec.docs_url,
+            detail: spec.detail,
         },
     };
+
+    match id {
+        "cline" => meta.login_label = Some("Open Cline authentication"),
+        "grok" => meta.login_label = Some("Open Grok Build sign-in"),
+        "kimi" => meta.login_label = Some("Open Kimi device sign-in"),
+        _ => {}
+    }
 
     if !installed {
         meta.state = "not_installed";
@@ -196,7 +221,17 @@ struct ProbeResult {
 }
 
 fn run_auth_probe(executable: &str, args: &[&str]) -> Option<ProbeResult> {
-    let mut command = host_command(executable, args);
+    run_probe_command(host_command(executable, args))
+}
+
+fn run_probe_command(mut command: Command) -> Option<ProbeResult> {
+    // Readiness checks run in the background; only an explicit sign-in opens a terminal.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
     let mut child = command
         .current_dir(host_auth_dir())
         .stdin(Stdio::null())
@@ -253,13 +288,27 @@ fn apply_probe_result(id: &str, probe: &ProbeResult, meta: &mut AuthMeta) {
                 meta.label = "Claude Code is not signed in".into();
             }
         }
+        "cursor" if lower.contains("unable to fetch") => {
+            meta.state = "unknown";
+            meta.label =
+                "Cursor session could not be confirmed; check Cursor authentication".into();
+        }
         "cursor" if probe.success && lower.contains("logged in") => {
             meta.state = "signed_in";
             meta.label = "Cursor account connected".into();
         }
+        // Workers get no host environment keys, so only stored credentials count.
         "opencode" if probe.success && !lower.contains("0 credentials") => {
             meta.state = "signed_in";
-            meta.label = "OpenCode provider connected".into();
+            meta.label = if lower.contains("environment variable") {
+                "OpenCode provider connected · environment keys stay outside workers".into()
+            } else {
+                "OpenCode provider connected".into()
+            };
+        }
+        "opencode" if probe.success && lower.contains("environment variable") => {
+            meta.state = "signed_out";
+            meta.label = "OpenCode has only environment keys, which workers do not receive. Store a provider with opencode auth login".into();
         }
         "opencode" if probe.success => {
             meta.state = "signed_out";
@@ -339,6 +388,21 @@ pub fn start_ade_login(id: String) -> IpcResult<AdeLoginLaunchDto> {
             "copilot",
             vec!["login"],
             "GitHub Copilot sign-in opened. Finish the device flow, then recheck.",
+        ),
+        "cline" => (
+            "cline",
+            vec!["auth"],
+            "Cline authentication opened. Finish in the vendor terminal, then recheck.",
+        ),
+        "grok" => (
+            "grok",
+            vec!["login"],
+            "Grok Build sign-in opened. Finish the vendor flow, then recheck.",
+        ),
+        "kimi" => (
+            "kimi",
+            vec!["login"],
+            "Kimi Code device sign-in opened. Finish the vendor flow, then recheck.",
         ),
         _ => {
             return Err(PytxoIpcError::new(
@@ -456,6 +520,103 @@ mod tests {
     use super::*;
 
     #[test]
+    fn opencode_counts_stored_credentials_not_environment_keys() {
+        let probe = |output: &str| {
+            let mut meta = auth_meta("opencode", true);
+            apply_probe_result(
+                "opencode",
+                &ProbeResult {
+                    success: true,
+                    output: output.into(),
+                },
+                &mut meta,
+            );
+            (meta.state, meta.label)
+        };
+        let env_only = probe(
+            "Credentials
+0 credentials
+Environment
+OpenRouter OPENROUTER_API_KEY
+1 environment variable",
+        );
+        assert_eq!(env_only.0, "signed_out");
+        assert!(env_only.1.contains("workers do not receive"));
+        let stored = probe(
+            "Credentials
+OpenCode Zen api
+1 credentials
+Environment
+1 environment variable",
+        );
+        assert_eq!(stored.0, "signed_in");
+        assert!(stored.1.contains("stay outside workers"));
+        assert_eq!(
+            probe(
+                "Credentials
+1 credentials"
+            )
+            .1,
+            "OpenCode provider connected"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn background_probe_has_no_console_and_preserves_output_and_status() {
+        let executable = std::env::current_exe().unwrap();
+        let inherited_path = std::env::var_os("PATH").unwrap_or_default();
+        let probe_path = std::env::join_paths(
+            std::iter::once(executable.parent().unwrap().to_path_buf())
+                .chain(std::env::split_paths(&inherited_path)),
+        )
+        .unwrap();
+        for expected_success in [true, false] {
+            let mut command = host_command(
+                executable.file_name().unwrap().to_str().unwrap(),
+                &[
+                    "--exact",
+                    "ipc_meta::tests::background_probe_child",
+                    "--nocapture",
+                ],
+            );
+            command.env("PATH", &probe_path);
+            command.env(
+                "PYTXO_PROBE_TEST_CHILD",
+                if expected_success {
+                    "success"
+                } else {
+                    "failure"
+                },
+            );
+            let probe = run_probe_command(command).expect("controlled child probe must finish");
+            assert_eq!(probe.success, expected_success, "{}", probe.output);
+            assert!(probe.output.contains("probe-console=0"), "{}", probe.output);
+            assert!(probe.output.contains("probe-stdout"), "{}", probe.output);
+            assert!(probe.output.contains("probe-stderr"), "{}", probe.output);
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn background_probe_child() {
+        let Ok(mode) = std::env::var("PYTXO_PROBE_TEST_CHILD") else {
+            return;
+        };
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn GetConsoleWindow() -> isize;
+        }
+        // Query only: the test neither opens nor manipulates a console window.
+        println!("probe-console={}", unsafe { GetConsoleWindow() });
+        println!("probe-stdout");
+        eprintln!("probe-stderr");
+        if mode == "failure" {
+            std::process::exit(7);
+        }
+    }
+
+    #[test]
     fn ipc_version_matches_crate() {
         assert_eq!(ipc_version(), env!("CARGO_PKG_VERSION"));
     }
@@ -474,6 +635,21 @@ mod tests {
         assert_eq!(meta.state, "signed_in");
         assert_eq!(meta.label, "Cursor account connected");
         assert!(!meta.label.contains('@'));
+    }
+
+    #[test]
+    fn cursor_inconclusive_account_probe_is_not_ready() {
+        let mut meta = auth_meta("cursor", false);
+        apply_probe_result(
+            "cursor",
+            &ProbeResult {
+                success: true,
+                output: "Logged in (unable to fetch user details)".into(),
+            },
+            &mut meta,
+        );
+        assert_eq!(meta.state, "unknown");
+        assert!(meta.label.contains("could not be confirmed"));
     }
 
     #[test]
@@ -504,5 +680,20 @@ mod tests {
             &mut meta,
         );
         assert_eq!(meta.state, "signed_out");
+    }
+
+    #[test]
+    fn vendor_managed_harness_is_available_without_claiming_a_session() {
+        let meta = auth_meta("grok", true);
+        assert_eq!(meta.state, "vendor_managed");
+        assert_eq!(meta.label, "Authentication managed by Grok Build");
+        assert_eq!(meta.login_label, Some("Open Grok Build sign-in"));
+    }
+
+    #[test]
+    fn detection_only_harness_is_not_presented_as_write_ready() {
+        let meta = auth_meta("qwen", true);
+        assert_eq!(meta.state, "detected_only");
+        assert_eq!(meta.label, "Detected; write mode not mapped yet");
     }
 }

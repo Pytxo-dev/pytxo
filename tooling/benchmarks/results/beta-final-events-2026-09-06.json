@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "scenario": "Final deterministic adapter control-boundary rehearsal; no model claims",
+  "cli_sha256": "8fcceba538a4a29e4df3b195dab5cfdfbece65b1b842ee4f453d3f8e2639cec3",
+  "run_id": "044cdc97-7bae-48ba-8ced-51fdd2f69b2e",
+  "status": "completed",
+  "started_at": "2026-09-06T12:23:31.567805500+00:00",
+  "finished_at": "2026-09-06T12:24:06.851858900+00:00",
+  "event_counts": {
+    "signal-fallback": 1,
+    "stdout": 2,
+    "verify": 1,
+    "verify-boundary": 1,
+    "verify-ok": 1,
+    "verify-stdout": 1
+  },
+  "package_version": 3,
+  "package_digest": "c815486389b3906ba524b38ca40cd024959fb1a81eb88420abeb30e793493af0",
+  "combined_checks": [
+    {
+      "task_id": "risk-policy",
+      "command": "npm test",
+      "passed": true
+    }
+  ],
+  "apply_observed": false
+}

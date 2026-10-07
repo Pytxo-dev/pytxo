@@ -1,0 +1,30 @@
+max_agents = 2
+worktree_dir = ".pytxo/worktrees"
+data_dir = ".pytxo/data"
+permission_profile = "orbit"
+isolation = "worktree"
+execution_backend = "pty"
+signal_core = true
+
+[[agent]]
+name = "task-model"
+paths = ["src/model.mjs", "test/model.test.mjs"]
+cli_adapter = "generic"
+
+[[agent]]
+name = "task-interface"
+paths = ["src/app.js", "src/index.html", "src/style.css"]
+cli_adapter = "generic"
+
+[[task]]
+id = "search-filter-and-title-validation"
+agent = "task-model"
+paths = ["src/model.mjs", "test/model.test.mjs"]
+verify = ["node --test"]
+
+[[task]]
+id = "wire-search-status-and-empty-states"
+agent = "task-interface"
+paths = ["src/app.js", "src/index.html", "src/style.css"]
+depends_on = ["search-filter-and-title-validation"]
+verify = ["node --test"]

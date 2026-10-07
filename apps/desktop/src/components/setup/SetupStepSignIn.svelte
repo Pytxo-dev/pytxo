@@ -12,6 +12,10 @@
   } = $props();
 
   let signedIn = $state(false);
+  let routingLinked = $state(false);
+  let bridgeAvailable = $state(false);
+  let routingCredentialPresent = $state(false);
+  let routingRemoteStatus = $state<"absent" | "verified" | "unverified" | "revoked">("absent");
   let waiting = $state(false);
   let timedOut = $state(false);
   let polling: ReturnType<typeof setInterval> | null = null;
@@ -19,9 +23,22 @@
   let unlisten: (() => void) | null = null;
 
   async function refresh(autoAdvance = false) {
-    const auth = await ipc.authStatus();
+    const [auth, routing] = await Promise.all([
+      ipc.authStatus(),
+      ipc.routingAccountStatus().catch(() => ({
+        bridge_available: false,
+        credential_present: false,
+        account_id: null,
+        expires_at: null,
+        remote_status: "absent" as const,
+      })),
+    ]);
     signedIn = auth.signed_in;
-    if (signedIn) {
+    bridgeAvailable = routing.bridge_available;
+    routingCredentialPresent = routing.credential_present;
+    routingRemoteStatus = routing.remote_status;
+    routingLinked = routing.remote_status === "verified";
+    if (routingLinked || signedIn) {
       waiting = false;
       timedOut = false;
       if (autoAdvance) onContinue();
@@ -33,15 +50,21 @@
     timedOut = false;
     if (waitTimer) clearTimeout(waitTimer);
     waitTimer = setTimeout(() => {
-      if (!signedIn) timedOut = true;
+      if (!signedIn && !routingLinked) timedOut = true;
     }, 90_000);
     await ipc.authOpenSignIn();
+  }
+
+  async function resetAndSignIn() {
+    await ipc.routingAccountDisconnect();
+    await refresh();
+    await signIn();
   }
 
   onMount(async () => {
     await refresh(true);
     unlisten = await onAuthChanged(() => refresh(true));
-    polling = setInterval(() => refresh(false), 2000);
+    polling = setInterval(() => refresh(false), 15_000);
   });
 
   onDestroy(() => {
@@ -54,29 +77,37 @@
 <div class="step">
   <h2 class="title">Sign in to Pytxo</h2>
   <p class="lead">
-    Optional. Local Core runs work without an account. Sign in for Ultra billing, cloud runs, and
-    org policy. Completes in your browser, then returns here.
+    Optional. Local Core runs work without an account. Browser sign-in connects
+    experimental hosted Routing only; it does not change agent or Ultra billing.
   </p>
 
-  {#if signedIn}
-    <p class="ok">Signed in</p>
+  {#if signedIn || routingLinked}
+    <p class="ok">{routingLinked ? "Routing account linked" : "Existing account session present"}</p>
     <Button class="signin-cta" onclick={onContinue}>Continue</Button>
   {:else}
+    {#if !bridgeAvailable}
+      <p class="warn" role="status">Experimental Routing account connection is off. Continue with Local Core.</p>
+    {:else if routingRemoteStatus === "revoked"}
+      <p class="warn" role="status">This Routing connection was revoked. Connect again to use hosted Routing.</p>
+      <Button class="signin-cta" onclick={resetAndSignIn}>Reconnect Routing</Button>
+    {:else if routingCredentialPresent}
+      <p class="warn" role="status">The stored Routing credential could not be verified. Check your connection and try again.</p>
+      <Button class="signin-cta" onclick={() => refresh()}>Retry verification</Button>
+    {:else}
     {#if waiting}
       <p class="waiting" role="status">Waiting for browser sign-in…</p>
     {/if}
     {#if timedOut}
       <p class="warn" role="alert">
-        No callback yet. Finish sign-in in the browser, or skip and continue with Core.
+        No account return yet. Finish in the browser, or skip and continue with Core.
       </p>
-      <a class="link" href="https://pytxo.com/account?deck_callback=pytxo-deck" target="_blank" rel="noopener noreferrer">
-        Open account help
-      </a>
+      <a class="link" href="https://pytxo.com/account" target="_blank" rel="noopener noreferrer">Open account help</a>
       <a class="link" href="https://discord.gg/AUFRPFjSYv" target="_blank" rel="noopener noreferrer">
         Discord
       </a>
     {/if}
     <Button class="signin-cta" onclick={signIn}>{waiting ? "Open sign-in again" : "Sign in with Pytxo"}</Button>
+    {/if}
     <Button class="signin-cta" variant="ghost" onclick={onSkip}>Skip for now</Button>
   {/if}
 </div>
@@ -93,7 +124,7 @@
   }
   .title {
     margin: 0;
-    font-size: 1.35rem;
+    font-weight: 650;
     text-wrap: balance;
   }
   .lead {

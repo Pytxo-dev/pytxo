@@ -24,7 +24,8 @@ export const DECK_THEMES: { id: DeckTheme; label: string; hint: string }[] = [
 ];
 
 export const ACCENT_PRESETS: { id: Exclude<AccentPreset, "custom">; label: string }[] = [
-  { id: "teal", label: "Teal" },
+  // Keep the persisted key while naming the neutral chrome it now represents.
+  { id: "teal", label: "Neutral" },
 ];
 
 const DEFAULT_CUSTOM_ACCENT = "#2dd4bf";

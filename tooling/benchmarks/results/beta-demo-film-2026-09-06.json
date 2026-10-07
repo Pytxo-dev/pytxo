@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-06",
+  "scenario": "52-second edited evidence film of the real single-worker Codex mission",
+  "run_id": "cb21abee-360a-42a8-8f3d-9166828bd66c",
+  "source_record": "tooling/benchmarks/results/beta-single-codex-2026-09-06.json",
+  "presentation": "Unmodified native element captures composed with explanatory text; review and confirmation operated by test automation",
+  "duration_seconds": 52,
+  "frames": 1560,
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "video_codec": "h264",
+  "pixel_format": "yuv420p",
+  "color_space": "bt709",
+  "audio_streams": 0,
+  "master_path": "apps/demo-video/out/pytxo-demo-silent.mp4",
+  "master_sha256": "53a4483740f9ee4a3d2a8a9fae062850c0c44f9100938a17bec7be1b3bc9bc28",
+  "validation": [
+    "TypeScript typecheck passed",
+    "Native source capture dimensions and hashes matched",
+    "Transcript and ten provisional caption cues matched canonical narration",
+    "Silent master format, duration, no-audio and black-frame checks passed",
+    "Seven intentional static reading holds inspected",
+    "Final contact sheet and boundary frames visually inspected"
+  ],
+  "narrated_master": "Not rendered: requires new approved narration and licensed music with its certificate",
+  "non_claims": [
+    "Not a live screen recording or real-time duration",
+    "Not a human usability study",
+    "Not comparative speed or quality evidence",
+    "Not installer proof or public Beta availability"
+  ],
+  "captures": {
+    "apps/demo-video/public/product/beta-v3-native-receipt.png": "fd39947f63c1f1a927284a7a6468f7f5c43ec6d593db8ef11dd04234ebadd0e2",
+    "apps/demo-video/public/product/beta-v3-native-applied.png": "f4bf17bbe590121f25468cbb5c709c62562feaf384499b43eabbcbe0f42afa94",
+    "apps/demo-video/public/product/beta-v3-native-apply-confirm.png": "1146f0e39cf918763b6f724580913f5331c799e930f6dc3b4ee51bc9c213b8d9",
+    "apps/demo-video/public/product/beta-v3-native-journal.png": "5944cc8784275ef819e9f93d9b8a6001473aa70f3a8c19f09cf19e400eb2d696"
+  }
+}

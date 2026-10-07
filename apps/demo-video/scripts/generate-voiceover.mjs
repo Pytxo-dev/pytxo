@@ -2,6 +2,7 @@ import {mkdir, readFile, writeFile} from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import {fileURLToPath} from "node:url";
+import {createHash} from "node:crypto";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(here, "..");
@@ -68,7 +69,10 @@ if (!response.ok) {
 }
 
 const target = path.join(outputDir, "pytxo-demo-narration.mp3");
-await writeFile(target, Buffer.from(await response.arrayBuffer()));
+const audio = Buffer.from(await response.arrayBuffer());
+await writeFile(target, audio);
+const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+await writeFile(path.join(outputDir, "identity.json"), JSON.stringify({script_sha256: hash(narration), audio_sha256: hash(audio)}, null, 2) + "\n");
 process.stdout.write(`generated ${path.relative(appRoot, target)}\n`);
 process.stdout.write(
   "Review the continuous track, then run `npm run render:narrated`; the asset gate will verify the full audio set.\n",

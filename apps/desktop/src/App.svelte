@@ -38,8 +38,11 @@
     (window.location.hash.includes("flow-standalone") ||
       window.location.hash === "#/flow-standalone");
 
+  // Resolve persisted/system appearance before children read it. A default
+  // theme effect must never overwrite the user's choice during startup.
+  initThemeChrome();
   let showSetup = $state(!isSetupComplete());
-  let deckTheme = $state<DeckTheme>("void");
+  let deckTheme = $state<DeckTheme>(loadTheme());
   let showHome = $state(false);
 
   let tabs = $state<WorkspaceTab[]>([]);
@@ -102,6 +105,7 @@
   );
 
   $effect(() => {
+    if (!useLegacyShell) return;
     applyDeckTheme(deckTheme);
     applyTerminalTheme();
   });
@@ -405,8 +409,7 @@
 
   async function doCommit() {
     if (!activeTab?.selectedRunId) return;
-    await ipc.applyRunChanges(activeTab.selectedRunId, activeTab.domainId);
-    await loadDiff();
+    diffText = "Apply requires the exact prepared candidate. Open this run in Desktop History and choose Review changes before Apply. This legacy live-diff view cannot authorize a package.";
   }
 
   async function loadEntitlements() {
@@ -508,10 +511,6 @@
   }
 
   onMount(async () => {
-    deckTheme = loadTheme();
-    initThemeChrome();
-    applyDeckTheme(deckTheme);
-
     authUnlisten = await onAuthChanged(() => {
       authErrorMessage = null;
       loadEntitlements();

@@ -32,7 +32,7 @@ export function agentState(agent: AgentDto): StateDescriptor {
 
   switch (agent.status) {
     case "running":
-      return { tone: "active", label: "Running", detail: "Process active, no result reported yet" };
+      return { tone: "active", label: "Awaiting result", detail: "Task started; its final result has not been recorded yet" };
     case "queued":
     case "pending":
       return { tone: "queued", label: "Queued", detail: "Not started yet" };
@@ -40,9 +40,9 @@ export function agentState(agent: AgentDto): StateDescriptor {
       return { tone: "queued", label: "Blocked", detail: "Waiting for an earlier wave to finish" };
     case "completed":
       return {
-        tone: "verified",
+        tone: exit === 0 ? "verified" : exit === null ? "unknown" : "refuted",
         label: "Completed",
-        detail: exitDetail ? `Verify passed, ${exitDetail}` : "Reported complete without an exit code",
+        detail: exitDetail ? `Process ${exitDetail}; task checks are separate evidence` : "Reported complete without an exit code",
       };
     case "verify_failed":
       return {
@@ -173,12 +173,16 @@ export function isTerminalAgent(agent: AgentDto): boolean {
 /** Run-level status values from `pytxo-store::is_terminal_run_status` plus `stopped`. */
 export function runState(run: RunDto): StateDescriptor {
   switch (run.status) {
+    case "starting":
+      return { tone: "active", label: "Starting", detail: "Preparing the run before agent execution" };
     case "running":
       return { tone: "active", label: "Running", detail: "Agents are executing" };
     case "completed":
       return { tone: "verified", label: "Completed", detail: "All agents reported a result" };
     case "failed":
       return { tone: "refuted", label: "Failed", detail: "At least one agent or the review step failed" };
+    case "failed_startup":
+      return { tone: "refuted", label: "Could not start", detail: "The run failed before agent execution. Build a fresh plan to check workspace prerequisites." };
     case "cancelled":
     case "stopped":
       return { tone: "unknown", label: "Stopped", detail: "Stopped before every agent reported" };

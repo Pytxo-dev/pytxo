@@ -204,6 +204,8 @@ pub fn voice_start_session(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> IpcResult<VoiceSessionDto> {
+    let _upgrade_guard = pytxo_core::UpgradeGuard::work()
+        .map_err(|error| PytxoIpcError::from_err("update_busy", error))?;
     let mut session = VoiceSession::new(device.clone(), language, MAX_CAPTURE_SAMPLES);
     session
         .start()
@@ -347,6 +349,8 @@ pub fn voice_resume_session(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> IpcResult<VoiceSessionDto> {
+    let _upgrade_guard = pytxo_core::UpgradeGuard::work()
+        .map_err(|error| PytxoIpcError::from_err("update_busy", error))?;
     let id = parse_session_id(&session_id)?;
     state
         .voice_captures
@@ -375,6 +379,8 @@ pub async fn voice_finish_session(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> IpcResult<VoiceSessionDto> {
+    let _upgrade_guard = pytxo_core::UpgradeGuard::work()
+        .map_err(|error| PytxoIpcError::from_err("update_busy", error))?;
     let id = parse_session_id(&session_id)?;
     if let Some(mut capture) = state
         .voice_captures

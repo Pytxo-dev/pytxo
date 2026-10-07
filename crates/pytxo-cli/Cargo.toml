@@ -1,5 +1,6 @@
 [package]
 name = "pytxo-cli"
+default-run = "pytxo"
 description = "Pytxo command-line control plane"
 version.workspace = true
 edition.workspace = true
@@ -10,11 +11,24 @@ license.workspace = true
 name = "pytxo"
 path = "src/main.rs"
 
+[[bin]]
+name = "pytxo-attempt-host"
+path = "src/bin/pytxo-attempt-host.rs"
+
+[[bin]]
+name = "experimental-routing-trace-export"
+path = "src/bin/experimental-routing-trace-export.rs"
+required-features = ["experimental-routing-benchmark"]
+
+[features]
+experimental-routing-benchmark = []
+
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }
 pytxo-catalog = { workspace = true }
 pytxo-core = { workspace = true }
+pytxo-runner = { workspace = true }
 pytxo-orchestrate = { path = "../pytxo-orchestrate", features = ["sanitize", "link-http", "cloud-http"] }
 pytxo-shell = { path = "../pytxo-shell" }
 pytxo-store = { workspace = true }

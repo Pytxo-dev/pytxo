@@ -14,6 +14,39 @@ mod link_http {
     use pytxo_store::SharedStore;
     use tempfile::TempDir;
 
+    fn read_http_request(stream: &mut std::net::TcpStream) -> String {
+        stream.set_nonblocking(false).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .unwrap();
+        let mut request = Vec::new();
+        loop {
+            let mut chunk = [0u8; 4096];
+            let n = stream.read(&mut chunk).unwrap();
+            if n == 0 {
+                break;
+            }
+            request.extend_from_slice(&chunk[..n]);
+            let Some(header_end) = request.windows(4).position(|part| part == b"\r\n\r\n") else {
+                continue;
+            };
+            let headers = String::from_utf8_lossy(&request[..header_end]);
+            let content_length = headers
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())
+                        .flatten()
+                })
+                .unwrap_or(0);
+            if request.len() >= header_end + 4 + content_length {
+                break;
+            }
+        }
+        String::from_utf8(request).unwrap()
+    }
+
     #[test]
     fn ultra_run_start_hits_link_http() {
         let hits = Arc::new(AtomicUsize::new(0));
@@ -27,21 +60,17 @@ mod link_http {
             let deadline = Instant::now() + Duration::from_secs(3);
             while Instant::now() < deadline && hits2.load(Ordering::SeqCst) == 0 {
                 if let Ok((mut stream, _)) = listener.accept() {
-                    let mut buf = vec![0u8; 8192];
-                    let n = stream.read(&mut buf).unwrap_or(0);
-                    if n > 0 {
-                        let req = String::from_utf8_lossy(&buf[..n]);
-                        if req.contains("runs/start") {
-                            hits2.fetch_add(1, Ordering::SeqCst);
-                        }
-                        let resp = if req.contains("/health") {
-                            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"
-                        } else {
-                            "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
-                        };
-                        let _ = stream.write_all(resp.as_bytes());
-                        let _ = stream.flush();
+                    let req = read_http_request(&mut stream);
+                    if req.contains("runs/start") {
+                        hits2.fetch_add(1, Ordering::SeqCst);
                     }
+                    let resp = if req.contains("/health") {
+                        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
+                    } else {
+                        "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    };
+                    stream.write_all(resp.as_bytes()).unwrap();
+                    stream.flush().unwrap();
                 } else {
                     thread::sleep(Duration::from_millis(10));
                 }

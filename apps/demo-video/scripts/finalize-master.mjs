@@ -25,6 +25,9 @@ const result = spawnSync(
     "0",
     "-c",
     "copy",
+    // Set H.264 VUI as well as container tags so decoders agree on BT.709.
+    "-bsf:v",
+    "h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1",
     "-color_primaries",
     "bt709",
     "-color_trc",

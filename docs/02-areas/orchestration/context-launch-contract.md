@@ -6,7 +6,7 @@ tags: [orchestration, context, signal-core, agent-interface]
 audience: [human, agent]
 layer: orchestration
 created: 2026-06-05
-updated: 2026-06-05
+updated: 2026-09-07
 related: [[signal-core]], [[closed-loop-fidelity]], [[ADR-0011-modular-project-manifest]], [[permission-profile-engine]]
 ---
 
@@ -23,7 +23,9 @@ Before spawning an agent, the runner calls `prepare_agent_context`
 ([context.rs](../../../crates/pytxo-runner/src/context.rs)). For an agent whose task
 has `paths` (unioned with its `[[agent]].paths`), it:
 
-1. Globs each path under the run's `repo_root`.
+1. Resolves declared paths against the worker's actual workspace after successful
+   dependency outputs have been composed. Read-policy checks retain the declared
+   repository root as their authority scope.
 2. Scaffolds every matched file through [[signal-core]] at the effective
    [[#Fidelity|fidelity tier]].
 3. Writes scaffolded copies under `.pytxo/data/context/{run_id}/{agent_id}/`,
@@ -77,17 +79,51 @@ A JSON array; one object per materialized file:
 | `bytes_scaffolded` | number | Byte length of the scaffolded copy. |
 
 The schema is append-only; consumers must ignore unknown fields. On a failed run,
-the closed loop ([[closed-loop-fidelity]]) rewrites the manifest with only the
-**implicated** files at `fidelity: "high"`.
+the closed loop ([[closed-loop-fidelity]]) creates a fresh `retry-UUID` directory
+under the run/agent context container. The retry receives that directory through
+`PYTXO_CONTEXT_DIR`, containing current implicated files and graph neighbors from
+its actual workspace, or all declared context when no implicated paths are found.
+Previous context remains available for diagnosis; deleted source is not carried
+into the new attempt. Fidelity still respects the profile ceiling.
 
 ## Fidelity
 
 The effective tier is `min(config signal_fidelity, PermissionEngine::max_fidelity)`
 ([[permission-profile-engine]]): `DeepSpace` caps to `Low`. **Low/Medium** emit AST
 skeletons; **High** copies full file bytes. On a failed run, the closed loop
-re-materializes at High and re-spawns ([[closed-loop-fidelity]]).
+requests High and clamps it to the same permission ceiling. It retries only when
+that effective tier exceeds the current tier; DeepSpace cannot escalate past Low
+([[closed-loop-fidelity]]).
+
+Materialization rejects traversal and source/destination links that escape their
+declared roots. Generated context ancestry is anchored below the configured
+data directory; atomic file replacement preserves outside hardlink aliases.
+These checks protect this write path, not arbitrary child filesystem access or
+all filesystem races on the host.
 
 ## Agent responsibilities
+
+For a non-empty task prompt, the runner preserves the original text and appends
+the reviewed task ID, owned paths, dependency IDs and verification commands as
+encoded lists. Windows uses a single line with explicit UTF-16 escapes for special
+metadata characters; other platforms use JSON lists. PTY and subprocess receive
+the handoff through the existing child environment. Empty or absent prompts
+remain unchanged. Workers are told to report required outside-scope edits rather
+than expand ownership when a generic skill recommends additional files.
+
+This is task guidance, not a sandbox or approval. Actual controls remain those
+in the run's enforcement receipt. A worker's own check output cannot replace
+recorded verification. The `task_handoff` integration tests exercise the runner's
+environment handoff on both backends.
+
+Windows Flow's Codex adapter uses the documented `codex exec -` input route.
+The wrapper resolves one installed application, retains the static flags and
+working directory, writes the exact UTF-8 prompt to stdin without a BOM, and
+propagates the child exit code. Real CMD-shim tests cover literal quotes, Unicode,
+line breaks, native failure and Stop on both backends. No profile or execution
+domain authority changes. The other adapters retain their existing transport;
+passing environment tests alone does not establish arbitrary quoted/multiline
+argument compatibility through their Windows CMD shims.
 
 - Treat `PYTXO_CONTEXT_DIR` as **read-only** pre-fetched context; edits still happen
   in the worktree cwd.

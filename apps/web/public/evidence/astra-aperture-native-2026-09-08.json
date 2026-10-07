@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-09-08T15:13:51.854Z",
+  "scenario": "Aperture motion candidate: actual native host mission and recorded reviewed Apply",
+  "source_head": "eb5f73d9dc21ffbcc6e51306db071fddbe0b8d78",
+  "source_has_uncommitted_changes": true,
+  "source_inputs_sha256": "c75246603cca1c2947a80f3d405a3ba932bf6961c58d23c019a7e98f0c52fa90",
+  "msi_sha256": "475f7f9125c84f2f3fd2ca092533005f915a080bc3f4e73676d32df977795f5c",
+  "packaged_executable_sha256": "c77b8418cf0d2a5f3303f10220ac484fd804909cb5dd314cffb06b559bc88d43",
+  "app_version": "1.2.2",
+  "run_id": "16dab199-72fa-4596-b6fd-610e7c0ebb4c",
+  "run_status": "completed",
+  "runtime": "OpenAI Codex 0.153.4",
+  "fixture_baseline_revision": "861560c251738a13ad0288c1383e7beaff875187",
+  "planned_tasks": 3,
+  "waves": 2,
+  "max_concurrent_workers": 2,
+  "plan": {
+    "waves": [
+      [
+        {
+          "task_id": "mission-0",
+          "agent": "agent-0",
+          "paths": [
+            "src/risk-policy.mjs"
+          ],
+          "depends_on": [],
+          "wave": 0,
+          "root": null,
+          "signal_fidelity": null,
+          "verify": [
+            "npm test"
+          ]
+        },
+        {
+          "task_id": "mission-2",
+          "agent": "agent-2",
+          "paths": [
+            "README.md"
+          ],
+          "depends_on": [],
+          "wave": 0,
+          "root": null,
+          "signal_fidelity": null,
+          "verify": [
+            "npm test"
+          ]
+        }
+      ],
+      [
+        {
+          "task_id": "mission-1",
+          "agent": "agent-1",
+          "paths": [
+            "test/risk-policy.test.mjs"
+          ],
+          "depends_on": [
+            "mission-0"
+          ],
+          "wave": 1,
+          "root": null,
+          "signal_fidelity": null,
+          "verify": [
+            "npm test"
+          ]
+        }
+      ]
+    ],
+    "conflicts": [],
+    "max_agents": 2,
+    "warnings": []
+  },
+  "plan_sha256": "906b6f99d344d6b8b6535627db2beb804fdd08d84ab45b7eb3753ccff4b96adc",
+  "worker_outcomes": [
+    {
+      "task_id": "mission-0",
+      "wave": 0,
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-2",
+      "wave": 0,
+      "status": "completed",
+      "exit_code": 0
+    },
+    {
+      "task_id": "mission-1",
+      "wave": 1,
+      "status": "completed",
+      "exit_code": 0
+    }
+  ],
+  "package_digest": "ceee5c50c2add38a852bca21569773ca08073dba1ae38624b0a89f6804cda1d0",
+  "changed_files": [
+    {
+      "path": "README.md",
+      "kind": "modify",
+      "before_sha256": "ba5554e0f4ea3d941289626c7cacd23ddc0b4be0119c803eb3206ed8865efda7",
+      "after_sha256": "e93e79cd1d1bf1c42fcf5acb8f4f0a5fb300906728a81993fb0650ada83cd59b"
+    },
+    {
+      "path": "src/risk-policy.mjs",
+      "kind": "modify",
+      "before_sha256": "8fa4f3d2d98daa4ddb3879fba5d3839d12dab56a061eb97898b13c6e768d2a33",
+      "after_sha256": "bd65285021be23d6809e81a4b0806e68dc66e5ae3e4baa18300a5224a5d2e8e1"
+    },
+    {
+      "path": "test/risk-policy.test.mjs",
+      "kind": "modify",
+      "before_sha256": "c97734269272bdb5f1d4203f6b87891d8de2c903a4072e137b3ab52419f8af7b",
+      "after_sha256": "9a62b0582604acb2a78d7c5154d857191f913b500ff5d17f555bda3e0d83a6f0"
+    }
+  ],
+  "candidate_checks": [
+    {
+      "task_id": "mission-0",
+      "command": "npm test",
+      "passed": true
+    },
+    {
+      "task_id": "mission-2",
+      "command": "npm test",
+      "passed": true
+    },
+    {
+      "task_id": "mission-1",
+      "command": "npm test",
+      "passed": true
+    }
+  ],
+  "primary_before_apply": {
+    "baseline_files_unchanged": 6,
+    "inventory_matches": true,
+    "inventory_exclusions": [
+      ".git",
+      ".pytxo"
+    ],
+    "cancel_left_unchanged": true,
+    "cancel_created_apply_attempt": false
+  },
+  "apply": {
+    "state": "committed",
+    "attempt_id": "adef4a39-9515-41d5-b1ce-7d6da31426d3",
+    "applied_at": "2026-09-08T15:12:18.467171+00:00",
+    "changed_hashes_match": 3,
+    "other_baseline_hashes_match": 3,
+    "repository_tests_passed": 11,
+    "independent_tests_passed": 26,
+    "receipt_survived_restart": true
+  },
+  "native_ui": {
+    "method": "Native Computer Use inputs in exact extracted MSI payload; CDP read-only geometry and renderer capture",
+    "folder_picker": "passed",
+    "onboarding": "passed",
+    "lower_diff_wheel_reachability": "passed",
+    "css_viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "renderer_pixels": {
+      "width": 1600,
+      "height": 1000
+    },
+    "temporary_css_injection": false
+  },
+  "clips": {
+    "review": {
+      "src": "product/aperture/review.mp4",
+      "sha256": "22121da8711eb8345514f9b728d4d950312d790c5b3247873c8fed40074f602e",
+      "width": 1600,
+      "height": 1000,
+      "sourceFps": 60,
+      "sourceDurationSeconds": 13,
+      "trimStartSeconds": 0,
+      "playbackRate": 1,
+      "cuts": [
+        {
+          "atSeconds": 9,
+          "omittedSeconds": 41
+        }
+      ],
+      "focus": {
+        "x": 0.58,
+        "y": 0.49,
+        "zoom": 1.35
+      }
+    },
+    "apply": {
+      "src": "product/aperture/apply.mp4",
+      "sha256": "e76031ed25d9d1bcb310dc50489e7322ef6036ecd96a9f29c922409160c52edb",
+      "width": 1600,
+      "height": 1000,
+      "sourceFps": 60,
+      "sourceDurationSeconds": 11,
+      "trimStartSeconds": 0,
+      "playbackRate": 1,
+      "focus": {
+        "x": 0.54,
+        "y": 0.38,
+        "zoom": 1.7
+      }
+    },
+    "result": {
+      "src": "product/aperture/result.mp4",
+      "sha256": "1b414af0a0cb927dcbd6b0f8a05b764b682abdcf2bb0d70f63c3254f2ee12e05",
+      "width": 1600,
+      "height": 1000,
+      "sourceFps": 60,
+      "sourceDurationSeconds": 8,
+      "trimStartSeconds": 0,
+      "playbackRate": 1,
+      "focus": {
+        "x": 0.52,
+        "y": 0.42,
+        "zoom": 1.5
+      }
+    }
+  },
+  "limitations": [
+    "Host rehearsal using an existing authorized Codex session; not a clean Windows install.",
+    "Current local native source has focused browser verification but has not run in GitHub Actions; the prior 12-job CI result belongs to earlier source.",
+    "Native recordings preserve observed frame timing at 60 encoded fps; this is not an application performance measurement.",
+    "Review contains a labeled 41-second source time cut at 9 seconds; Apply is one continuous 11-second interval at 1x.",
+    "Workspace and reviewed Apply are enforced; host filesystem and network are advisory. No OS-wide containment claim.",
+    "One bounded example; no comparative speed, cost, reliability or general undo claim.",
+    "Unsigned local installer; no publication or public-download gate is closed."
+  ],
+  "private_evidence_directory": "target/astra-motion-20260908/native-run",
+  "post_apply_verification": {
+    "repository": {
+      "command": "node --test (exact package.json test script)",
+      "started_at": "2026-09-08T15:30:56.243Z",
+      "finished_at": "2026-09-08T15:30:56.818Z",
+      "exit_code": 0,
+      "signal": null,
+      "log": "target/astra-motion-20260908/native-run/post-apply-repository-recorded.log",
+      "log_sha256": "a1ba74df02fcc2f8883e2a0d067af241255e00c13d9625428b5221395fec47df",
+      "node_version": "v25.8.2"
+    },
+    "independent": {
+      "command": "node --test independent-policy.test.mjs",
+      "started_at": "2026-09-08T15:30:56.819Z",
+      "finished_at": "2026-09-08T15:30:57.347Z",
+      "exit_code": 0,
+      "signal": null,
+      "log": "target/astra-motion-20260908/native-run/post-apply-independent-recorded.log",
+      "log_sha256": "587de9bfc9757064c6e672b75297e1dd0dff51f97eb03027522532e9f3cca74e",
+      "node_version": "v25.8.2",
+      "verifier": "target/astra-motion-20260908/native-run/independent-policy.test.mjs",
+      "verifier_sha256": "1e68c5416305990093c28c04186fc48a504058c2a92fd6c6294044b4dab65795"
+    }
+  },
+  "capture_date": "2026-09-08"
+}

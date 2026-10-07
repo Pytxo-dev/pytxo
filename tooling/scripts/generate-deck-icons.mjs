@@ -17,7 +17,7 @@ import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import sharp from "sharp";
-import toIco from "to-ico";
+import { encodePngIco } from "./encode-png-ico.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const logoPath = path.join(root, "apps/web/public/logo.png");
@@ -174,7 +174,7 @@ async function main() {
     await assertIconQuality(buf, size, label);
   }
 
-  const ico = await toIco([png16, png32, png48, png64, png128, png256]);
+  const ico = encodePngIco([png16, png32, png48, png64, png128, png256]);
   fs.writeFileSync(path.join(iconsDir, "icon.ico"), ico);
   fs.writeFileSync(path.join(iconsDir, "icon.png"), png256);
 

@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -62,7 +63,31 @@ pub enum EntitlementStore {
 
 #[derive(Clone, Default)]
 pub struct MemoryStore {
-    inner: Arc<Mutex<HashMap<String, EntitlementRecord>>>,
+    inner: Arc<Mutex<MemoryEntitlementState>>,
+}
+
+#[derive(Default)]
+struct MemoryEntitlementState {
+    records: HashMap<String, EntitlementRecord>,
+    grants: HashMap<(String, String), EntitlementGrant>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EntitlementGrant {
+    pub source: String,
+    pub grant_id: String,
+    pub user_id: String,
+    pub tier: Tier,
+    pub max_agents: usize,
+    pub cloud_enabled: bool,
+    pub active: bool,
+    pub valid_until: Option<DateTime<Utc>>,
+}
+
+impl EntitlementGrant {
+    fn active_at(&self, now: DateTime<Utc>) -> bool {
+        self.active && self.valid_until.is_none_or(|valid_until| valid_until > now)
+    }
 }
 
 impl EntitlementStore {
@@ -92,23 +117,100 @@ impl EntitlementStore {
             Self::Postgres(pool) => upsert_postgres(pool, &record).await,
         }
     }
+
+    #[cfg(test)]
+    pub async fn apply_grant(&self, grant: EntitlementGrant) -> Result<(), sqlx::Error> {
+        match self {
+            Self::Memory(store) => {
+                store.apply_grant(grant);
+                Ok(())
+            }
+            Self::Postgres(pool) => {
+                let mut transaction = pool.begin().await?;
+                upsert_grant_in_transaction(&mut transaction, &grant).await?;
+                recompute_entitlement_in_transaction(&mut transaction, &grant.user_id).await?;
+                transaction.commit().await?;
+                Ok(())
+            }
+        }
+    }
 }
 
 impl MemoryStore {
     pub fn get(&self, user_id: &str) -> EntitlementRecord {
-        self.inner
-            .lock()
-            .unwrap()
+        let mut state = self.inner.lock().unwrap();
+        recompute_memory_entitlement(&mut state, user_id);
+        state
+            .records
             .get(user_id)
             .cloned()
             .unwrap_or_else(|| default_record(user_id))
     }
 
     pub fn upsert(&self, record: EntitlementRecord) {
-        self.inner
-            .lock()
-            .unwrap()
-            .insert(record.user_id.clone(), record);
+        let grant = EntitlementGrant {
+            source: "admin".into(),
+            grant_id: record.user_id.clone(),
+            user_id: record.user_id.clone(),
+            tier: record.tier,
+            max_agents: record.max_agents,
+            cloud_enabled: record.cloud_enabled,
+            active: true,
+            valid_until: None,
+        };
+        let user_id = grant.user_id.clone();
+        let mut state = self.inner.lock().unwrap();
+        state.records.insert(record.user_id.clone(), record);
+        state
+            .grants
+            .insert((grant.source.clone(), grant.grant_id.clone()), grant);
+        recompute_memory_entitlement(&mut state, &user_id);
+    }
+
+    #[cfg(test)]
+    pub fn apply_grant(&self, grant: EntitlementGrant) {
+        let mut state = self.inner.lock().unwrap();
+        state
+            .records
+            .entry(grant.user_id.clone())
+            .or_insert_with(|| default_record(&grant.user_id));
+        let user_id = grant.user_id.clone();
+        state
+            .grants
+            .insert((grant.source.clone(), grant.grant_id.clone()), grant);
+        recompute_memory_entitlement(&mut state, &user_id);
+    }
+}
+
+fn recompute_memory_entitlement(state: &mut MemoryEntitlementState, user_id: &str) {
+    let now = Utc::now();
+    let selected = state
+        .grants
+        .values()
+        .filter(|grant| grant.user_id == user_id && grant.active_at(now))
+        .max_by_key(|grant| (grant.source == "admin", tier_rank(grant.tier)))
+        .cloned();
+    let record = state
+        .records
+        .entry(user_id.to_string())
+        .or_insert_with(|| default_record(user_id));
+    if let Some(grant) = selected {
+        record.tier = grant.tier;
+        record.max_agents = grant.max_agents;
+        record.cloud_enabled = grant.cloud_enabled;
+    } else {
+        record.tier = Tier::Core;
+        record.max_agents = Tier::Core.max_agents();
+        record.cloud_enabled = false;
+    }
+}
+
+fn tier_rank(tier: Tier) -> u8 {
+    match tier {
+        Tier::Core => 0,
+        Tier::Pro => 1,
+        Tier::Max => 2,
+        Tier::Ultra => 3,
     }
 }
 
@@ -126,8 +228,28 @@ fn default_record(user_id: &str) -> EntitlementRecord {
 async fn fetch_postgres(pool: &PgPool, user_id: &str) -> Option<EntitlementRecord> {
     sqlx::query_as::<_, EntitlementRow>(
         r#"
-        SELECT user_id, clerk_user_id, org_id, tier, max_agents, cloud_enabled
-        FROM entitlements WHERE user_id = $1
+        SELECT entitlements.user_id, entitlements.clerk_user_id, entitlements.org_id,
+               COALESCE(selected.tier, 'core') AS tier,
+               COALESCE(selected.max_agents, 3) AS max_agents,
+               COALESCE(selected.cloud_enabled, FALSE) AS cloud_enabled
+        FROM entitlements
+        LEFT JOIN LATERAL (
+            SELECT tier, max_agents, cloud_enabled
+            FROM entitlement_grants
+            WHERE entitlement_grants.user_id = entitlements.user_id
+              AND active = TRUE
+              AND (valid_until IS NULL OR valid_until > now())
+            ORDER BY CASE WHEN source = 'admin' THEN 1 ELSE 0 END DESC,
+            CASE tier
+                WHEN 'ultra' THEN 3
+                WHEN 'max' THEN 2
+                WHEN 'pro' THEN 1
+                ELSE 0
+            END DESC,
+            updated_at DESC
+            LIMIT 1
+        ) AS selected ON TRUE
+        WHERE entitlements.user_id = $1
         "#,
     )
     .bind(user_id)
@@ -139,6 +261,7 @@ async fn fetch_postgres(pool: &PgPool, user_id: &str) -> Option<EntitlementRecor
 }
 
 async fn upsert_postgres(pool: &PgPool, record: &EntitlementRecord) -> Result<(), sqlx::Error> {
+    let mut transaction = pool.begin().await?;
     sqlx::query(
         r#"
         INSERT INTO entitlements (user_id, clerk_user_id, org_id, tier, max_agents, cloud_enabled, updated_at)
@@ -146,9 +269,6 @@ async fn upsert_postgres(pool: &PgPool, record: &EntitlementRecord) -> Result<()
         ON CONFLICT (user_id) DO UPDATE SET
             clerk_user_id = EXCLUDED.clerk_user_id,
             org_id = EXCLUDED.org_id,
-            tier = EXCLUDED.tier,
-            max_agents = EXCLUDED.max_agents,
-            cloud_enabled = EXCLUDED.cloud_enabled,
             updated_at = now()
         "#,
     )
@@ -158,7 +278,134 @@ async fn upsert_postgres(pool: &PgPool, record: &EntitlementRecord) -> Result<()
     .bind(record.tier.as_str())
     .bind(record.max_agents as i32)
     .bind(record.cloud_enabled)
-    .execute(pool)
+    .execute(&mut *transaction)
+    .await?;
+
+    let grant = EntitlementGrant {
+        source: "admin".into(),
+        grant_id: record.user_id.clone(),
+        user_id: record.user_id.clone(),
+        tier: record.tier,
+        max_agents: record.max_agents,
+        cloud_enabled: record.cloud_enabled,
+        active: true,
+        valid_until: None,
+    };
+    upsert_grant_in_transaction(&mut transaction, &grant).await?;
+    recompute_entitlement_in_transaction(&mut transaction, &record.user_id).await?;
+    transaction.commit().await?;
+    Ok(())
+}
+
+pub(crate) async fn upsert_grant_in_transaction(
+    transaction: &mut Transaction<'_, Postgres>,
+    grant: &EntitlementGrant,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO entitlement_grants
+            (source, grant_id, user_id, tier, max_agents, cloud_enabled, active, valid_until, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+        ON CONFLICT (source, grant_id) DO UPDATE SET
+            user_id = EXCLUDED.user_id,
+            tier = EXCLUDED.tier,
+            max_agents = EXCLUDED.max_agents,
+            cloud_enabled = EXCLUDED.cloud_enabled,
+            active = EXCLUDED.active,
+            valid_until = EXCLUDED.valid_until,
+            updated_at = now()
+        "#,
+    )
+    .bind(&grant.source)
+    .bind(&grant.grant_id)
+    .bind(&grant.user_id)
+    .bind(grant.tier.as_str())
+    .bind(grant.max_agents as i32)
+    .bind(grant.cloud_enabled)
+    .bind(grant.active)
+    .bind(grant.valid_until)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(())
+}
+
+/// Serialize grant projection for one principal. Provider subscriptions have
+/// independent row locks, so without this guard two concurrent providers could
+/// each project a snapshot that does not yet include the other's committed
+/// grant and leave the materialized entitlement row stale.
+pub(crate) async fn lock_entitlement_in_transaction(
+    transaction: &mut Transaction<'_, Postgres>,
+    user_id: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO entitlements (user_id, tier, max_agents, cloud_enabled, updated_at)
+        VALUES ($1, 'core', 3, FALSE, now())
+        ON CONFLICT (user_id) DO NOTHING
+        "#,
+    )
+    .bind(user_id)
+    .execute(&mut **transaction)
+    .await?;
+    sqlx::query("SELECT user_id FROM entitlements WHERE user_id = $1 FOR UPDATE")
+        .bind(user_id)
+        .fetch_one(&mut **transaction)
+        .await?;
+    Ok(())
+}
+
+#[derive(sqlx::FromRow)]
+struct GrantProjectionRow {
+    tier: String,
+    max_agents: i32,
+    cloud_enabled: bool,
+}
+
+pub(crate) async fn recompute_entitlement_in_transaction(
+    transaction: &mut Transaction<'_, Postgres>,
+    user_id: &str,
+) -> Result<(), sqlx::Error> {
+    let selected = sqlx::query_as::<_, GrantProjectionRow>(
+        r#"
+        SELECT tier, max_agents, cloud_enabled
+        FROM entitlement_grants
+        WHERE user_id = $1
+          AND active = TRUE
+          AND (valid_until IS NULL OR valid_until > now())
+        ORDER BY CASE WHEN source = 'admin' THEN 1 ELSE 0 END DESC,
+        CASE tier
+            WHEN 'ultra' THEN 3
+            WHEN 'max' THEN 2
+            WHEN 'pro' THEN 1
+            ELSE 0
+        END DESC,
+        updated_at DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(user_id)
+    .fetch_optional(&mut **transaction)
+    .await?;
+
+    let (tier, max_agents, cloud_enabled) = selected
+        .map(|row| (Tier::parse(&row.tier), row.max_agents, row.cloud_enabled))
+        .unwrap_or((Tier::Core, Tier::Core.max_agents() as i32, false));
+    sqlx::query(
+        r#"
+        INSERT INTO entitlements (user_id, tier, max_agents, cloud_enabled, updated_at)
+        VALUES ($1, $2, $3, $4, now())
+        ON CONFLICT (user_id) DO UPDATE SET
+            tier = EXCLUDED.tier,
+            max_agents = EXCLUDED.max_agents,
+            cloud_enabled = EXCLUDED.cloud_enabled,
+            updated_at = now()
+        "#,
+    )
+    .bind(user_id)
+    .bind(tier.as_str())
+    .bind(max_agents)
+    .bind(cloud_enabled)
+    .execute(&mut **transaction)
     .await?;
     Ok(())
 }
@@ -310,6 +557,105 @@ mod tests {
         let ent = store.get("user-1").await;
         assert_eq!(ent.tier, Tier::Core);
         assert_eq!(ent.max_agents, 3);
+    }
+
+    #[tokio::test]
+    async fn independent_grants_recompute_without_cross_provider_revocation() {
+        let store = EntitlementStore::memory();
+        store
+            .apply_grant(EntitlementGrant {
+                source: "paddle".into(),
+                grant_id: "sub-paddle".into(),
+                user_id: "user-1".into(),
+                tier: Tier::Pro,
+                max_agents: Tier::Pro.max_agents(),
+                cloud_enabled: false,
+                active: true,
+                valid_until: None,
+            })
+            .await
+            .unwrap();
+        store
+            .apply_grant(EntitlementGrant {
+                source: "dodo".into(),
+                grant_id: "sub-dodo".into(),
+                user_id: "user-1".into(),
+                tier: Tier::Ultra,
+                max_agents: Tier::Ultra.max_agents(),
+                cloud_enabled: true,
+                active: true,
+                valid_until: None,
+            })
+            .await
+            .unwrap();
+        store
+            .apply_grant(EntitlementGrant {
+                source: "dodo".into(),
+                grant_id: "sub-dodo".into(),
+                user_id: "user-1".into(),
+                tier: Tier::Ultra,
+                max_agents: Tier::Ultra.max_agents(),
+                cloud_enabled: true,
+                active: false,
+                valid_until: None,
+            })
+            .await
+            .unwrap();
+
+        let entitlement = store.get("user-1").await;
+        assert_eq!(entitlement.tier, Tier::Pro);
+        assert!(!entitlement.cloud_enabled);
+    }
+
+    #[tokio::test]
+    async fn expired_grace_grant_is_not_returned_as_current_access() {
+        let store = EntitlementStore::memory();
+        store
+            .apply_grant(EntitlementGrant {
+                source: "dodo".into(),
+                grant_id: "sub-grace".into(),
+                user_id: "user-grace".into(),
+                tier: Tier::Pro,
+                max_agents: Tier::Pro.max_agents(),
+                cloud_enabled: false,
+                active: true,
+                valid_until: Some(Utc::now() - chrono::Duration::seconds(1)),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(store.get("user-grace").await.tier, Tier::Core);
+    }
+
+    #[tokio::test]
+    async fn explicit_admin_record_remains_an_override() {
+        let store = EntitlementStore::memory();
+        store
+            .apply_grant(EntitlementGrant {
+                source: "dodo".into(),
+                grant_id: "sub-paid".into(),
+                user_id: "user-override".into(),
+                tier: Tier::Ultra,
+                max_agents: Tier::Ultra.max_agents(),
+                cloud_enabled: true,
+                active: true,
+                valid_until: None,
+            })
+            .await
+            .unwrap();
+        store
+            .upsert(EntitlementRecord {
+                user_id: "user-override".into(),
+                clerk_user_id: None,
+                org_id: None,
+                tier: Tier::Core,
+                max_agents: Tier::Core.max_agents(),
+                cloud_enabled: false,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(store.get("user-override").await.tier, Tier::Core);
     }
 
     #[test]
