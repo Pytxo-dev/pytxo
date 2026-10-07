@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   candidate:
-    if: github.repository == 'Pytxo-dev/pytxo' && github.ref == 'refs/heads/2ntt/pytxo-beta-candidate-20261003'
+    if: github.repository == 'Pytxo-dev/pytxo'
     runs-on: windows-latest
     timeout-minutes: 90
     steps:

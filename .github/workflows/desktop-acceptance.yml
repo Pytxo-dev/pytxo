@@ -34,7 +34,7 @@ jobs:
   candidate:
     if: github.repository == 'Pytxo-dev/pytxo'
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 10
     outputs:
       run_id: ${{ steps.find.outputs.run_id }}
     steps:
@@ -42,7 +42,9 @@ jobs:
         with:
           persist-credentials: false
       # A pinned run id reuses an already built candidate while acceptance
-      # scripts change; otherwise wait for this exact commit's build-only run.
+      # scripts change; otherwise use this exact commit's finished build-only
+      # run. Run desktop-candidate.yml first: waiting here would bill a Linux
+      # runner for the whole Windows build.
       - id: find
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,17 +55,9 @@ jobs:
             echo "run_id=$pinned" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          for attempt in $(seq 1 140); do
-            row="$(gh run list -R "$GITHUB_REPOSITORY" --workflow desktop-candidate.yml --commit "$GITHUB_SHA" --limit 1 --json databaseId,status,conclusion --jq '.[0] // empty | "\(.databaseId) \(.status) \(.conclusion)"')"
-            set -- $row
-            if [ "${2:-}" = completed ]; then
-              [ "${3:-}" = success ] || { echo "Candidate build $1 concluded ${3:-unknown}"; exit 1; }
-              echo "run_id=$1" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            sleep 30
-          done
-          echo "Candidate build for $GITHUB_SHA did not finish in time"; exit 1
+          row="$(gh run list -R "$GITHUB_REPOSITORY" --workflow desktop-candidate.yml --commit "$GITHUB_SHA" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          [ -n "$row" ] || { echo "::error::No successful desktop-candidate.yml run for $GITHUB_SHA. Run it first, then this workflow."; exit 1; }
+          echo "run_id=$row" >> "$GITHUB_OUTPUT"
 
   install-and-journey:
     needs: candidate

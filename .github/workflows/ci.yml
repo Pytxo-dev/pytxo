@@ -13,23 +13,75 @@ concurrency:
   group: pytxo-ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Lean debug builds: no incremental state or debug info to compile, link or cache.
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+
 jobs:
+  # Pull requests run only the jobs their files can affect. Main pushes and the
+  # release gate (workflow_call) run everything, including macOS.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.scope.outputs.full }}
+      rust: ${{ steps.scope.outputs.rust }}
+      desktop: ${{ steps.scope.outputs.desktop }}
+      web: ${{ steps.scope.outputs.web }}
+    steps:
+      # The PR merge commit's first parent is the base, so depth 2 is enough.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - id: scope
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            printf 'full=true\nrust=true\ndesktop=true\nweb=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only HEAD^1 HEAD)
+          printf '%s\n' "$files"
+          has() { printf '%s\n' "$files" | grep -qE "$1|^\.github/workflows/ci\.yml$" && echo true || echo false; }
+          {
+            echo "full=false"
+            echo "rust=$(has '^(Cargo\.(toml|lock)|crates/|services/|apps/desktop/src-tauri/|packages/pytxo/|tooling/|\.cargo/|rust-toolchain)')"
+            echo "desktop=$(has '^(apps/desktop/|tooling/)')"
+            echo "web=$(has '^(apps/web/|packages/chroma/)')"
+          } | tee -a "$GITHUB_OUTPUT"
+
   rust:
-    # The last successful Windows job took 36 minutes; retain cold-build margin.
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    # A cold Windows build took 36 minutes before caching; retain that margin.
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        # macOS minutes cost 10x; the beta candidate PR checks Linux and Windows only.
-        os: ${{ fromJSON(github.head_ref == '2ntt/pytxo-beta-candidate-20261003' && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        # macOS minutes cost ~10x Linux: main pushes and the release gate only.
+        os: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest","windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Full workspace test binaries nearly fill the hosted Linux disk. Dropping
+      # unused preinstalled SDKs leaves room for the feature matrix below.
+      - name: Free Linux runner disk
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h .
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
         with:
           components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
@@ -41,19 +93,11 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
-            libasound2-dev
+            libasound2-dev \
+            libfuse3-dev
 
       - name: cargo fmt
         run: cargo fmt --all -- --check
-
-      - name: Bound Linux test build storage
-        if: runner.os == 'Linux'
-        run: |
-          # Full workspace test binaries exceed the ephemeral disk with symbols
-          # and incremental copies. Keep debug assertions and every test enabled.
-          echo "CARGO_INCREMENTAL=0" >> "$GITHUB_ENV"
-          echo "CARGO_PROFILE_DEV_DEBUG=0" >> "$GITHUB_ENV"
-          echo "CARGO_PROFILE_TEST_DEBUG=0" >> "$GITHUB_ENV"
 
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
@@ -76,18 +120,52 @@ jobs:
         if: runner.os == 'Linux'
         run: cargo test -p pytxo-runner --test run_change_set unix_
 
+      # Smokes and benchmarks reuse the debug CLI the tests just built instead of
+      # compiling it again in separate jobs.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: runner.os == 'Linux'
+        with:
+          node-version: "22"
+
+      - name: Release metadata, npm wrapper, agent-environment smokes and benchmarks (Linux)
+        if: runner.os == 'Linux'
+        env:
+          PYTXO_BIN: ${{ github.workspace }}/target/debug/pytxo
+        run: |
+          node tooling/scripts/verify-release-version.mjs
+          node --test tooling/scripts/encode-png-ico.test.mjs tooling/scripts/verify-release-version.test.mjs tooling/scripts/verify-release-inventory.test.mjs tooling/scripts/verify-windows-runtime.test.mjs
+          cargo build -p pytxo-cli
+          mkdir -p packages/pytxo/vendor
+          cp "$PYTXO_BIN" packages/pytxo/vendor/pytxo
+          PYTXO_SKIP_DOWNLOAD=1 node packages/pytxo/bin/pytxo.js --version
+          bash tooling/test-envs/ci-smoke.sh
+          bash tooling/test-envs/shell-smoke.sh
+          bash tooling/benchmarks/three-agent-preflight.sh
+          bash tooling/benchmarks/overlay-vs-worktree.sh
+          bash tooling/benchmarks/multi-agent-ram.sh
+
+      - name: Agent preflight and overlay benchmark (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cargo build -p pytxo-cli
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          tooling/benchmarks/three-agent-preflight.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          tooling/benchmarks/overlay-vs-worktree.ps1
+
+      # Advisories depend on Cargo.lock, not the OS. rust-cache keeps the binary.
       - name: cargo audit
-        shell: bash
+        if: runner.os == 'Linux'
         run: |
           cargo install cargo-audit --locked 2>/dev/null || true
           cargo audit
 
-      # The workspace clippy/test pass can consume nearly the full hosted Linux
-      # runner disk. Rebuild the smaller feature matrix from a clean target so
-      # later links fail on code, not on an exhausted ephemeral filesystem.
-      - name: Reclaim Linux disk before feature matrix
+      - name: Reclaim Linux disk before feature matrix if needed
         if: runner.os == 'Linux'
-        run: cargo clean
+        run: |
+          df -h .
+          [ "$(df --output=avail -k . | tail -1)" -gt 15000000 ] || cargo clean
 
       - name: Link HTTP reconciler (feature)
         run: |
@@ -97,8 +175,6 @@ jobs:
       - name: Overlay layer POC (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libfuse3-dev
           cargo test -p pytxo-runner --features overlay-fuse overlay_layer
           # kernel_overlay_smoke needs CAP_SYS_ADMIN; compile-only on CI.
           cargo test -p pytxo-runner --features overlay-fuse-kernel --lib --no-run
@@ -120,93 +196,9 @@ jobs:
           cargo test -p pytxo-orchestrate --test cloud_sandbox
           cargo test -p pytxo-orchestrate --test mcp_proxy
 
-  benchmarks:
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-
-      - name: Build pytxo CLI
-        run: cargo build -p pytxo-cli
-
-      - name: Three-agent preflight (Linux)
-        if: runner.os == 'Linux'
-        run: bash tooling/benchmarks/three-agent-preflight.sh
-
-      - name: Three-agent preflight (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: tooling/benchmarks/three-agent-preflight.ps1
-
-      - name: Overlay vs worktree benchmark (Linux)
-        if: runner.os == 'Linux'
-        run: bash tooling/benchmarks/overlay-vs-worktree.sh
-
-      - name: Overlay vs worktree benchmark (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: tooling/benchmarks/overlay-vs-worktree.ps1
-
-      - name: Overlay layer compile (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libfuse3-dev
-          cargo test -p pytxo-runner --features overlay-fuse overlay_layer --lib --no-run
-
-      - name: Multi-agent RAM sample (Linux)
-        if: runner.os == 'Linux'
-        run: bash tooling/benchmarks/multi-agent-ram.sh
-
-  npm-cli:
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: "22"
-      - name: Verify shared release version
-        run: |
-          node tooling/scripts/verify-release-version.mjs
-          node --test tooling/scripts/encode-png-ico.test.mjs tooling/scripts/verify-release-version.test.mjs tooling/scripts/verify-release-inventory.test.mjs tooling/scripts/verify-windows-runtime.test.mjs
-      # Reject metadata errors before spending minutes compiling the CLI.
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - name: Build pytxo binary
-        run: cargo build -p pytxo-cli --release
-      - name: Smoke npm wrapper with local binary
-        run: |
-          mkdir -p packages/pytxo/vendor
-          cp target/release/pytxo packages/pytxo/vendor/pytxo
-          chmod +x packages/pytxo/vendor/pytxo
-          PYTXO_SKIP_DOWNLOAD=1 node packages/pytxo/bin/pytxo.js --version
-
-  test-env-smoke:
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - name: Build pytxo binary
-        run: cargo build -p pytxo-cli --release
-      - name: ADE test env smoke (echo profile)
-        run: bash tooling/test-envs/ci-smoke.sh
-
-      - name: Hypervisor shell smoke (echo profile)
-        run: bash tooling/test-envs/shell-smoke.sh
-
   web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
@@ -232,6 +224,8 @@ jobs:
           npm run e2e
 
   desktop-frontend:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
@@ -260,9 +254,12 @@ jobs:
           npm run storybook:build
           npm run storybook:test:ci
 
+  # Desktop ships for Windows only; this Linux release build guards main and
+  # the release gate. The rust job already runs pytxo-desktop's tests.
   desktop-tauri:
     timeout-minutes: 60
-    needs: desktop-frontend
+    needs: [changes, desktop-frontend]
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -298,27 +295,3 @@ jobs:
         working-directory: apps/desktop
         run: npm run build:native
 
-      - name: cargo test pytxo-desktop
-        run: cargo test -p pytxo-desktop
-
-  pytxo-link:
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - name: cargo test pytxo-link
-        run: cargo test -p pytxo-link
-      - name: cargo build pytxo-link
-        run: cargo build -p pytxo-link --release
-
-  pytxo-cloud-sandbox:
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - name: cargo build pytxo-cloud-sandbox
-        run: cargo build -p pytxo-cloud-sandbox --release
