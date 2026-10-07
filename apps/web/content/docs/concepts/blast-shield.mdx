@@ -40,7 +40,7 @@ workspace.
 ## Drift, retry, and recovery
 
 Before mutation, Pytxo compares each affected path with its recorded preimage.
-The v1.2.2 preview also checks the included source inventory bound to combined
+v1.2.2 also checks the included source inventory bound to combined
 verification. Changes to included files, even outside the edited paths, can
 make the review stale. Refresh prepares and checks a new candidate.
 

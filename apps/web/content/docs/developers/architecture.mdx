@@ -44,7 +44,7 @@ effect architecture is intentionally not presented here as current behavior.
 8. Each attempt writes a durable journal. Reconciliation settles an
    interrupted process before another run or Apply in the execution domain
 
-The v1.2.2 preview validates the included source inventory bound to combined
+v1.2.2 validates the included source inventory bound to combined
 verification as well as affected-path preimages. Drift in either requires
 a fresh candidate and review. DeepSpace is Apply denied (internally
 non-flushable), and Supernova writes directly to the host tree.

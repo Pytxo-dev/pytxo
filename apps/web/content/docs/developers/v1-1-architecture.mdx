@@ -13,7 +13,7 @@ Workspaces remain available until dependent waves finish and the package is dura
 
 ## A recoverable Apply lifecycle
 
-In v1.1, Apply validated affected checkout paths. The v1.2.2 preview adds freshness checks for the included source inventory bound to combined verification; changes outside edited paths can also require a refresh.
+In v1.1, Apply validated affected checkout paths. v1.2.2 adds freshness checks for the included source inventory bound to combined verification; changes outside edited paths can also require a refresh.
 
 Before changing the repository, Pytxo claims the execution domain and persists an Apply journal with backups, operations, temporary paths, directory ownership, and phase progress. Reconciliation runs before another mutation in that domain after a process interruption. It can confirm the Apply, prove a rollback and return the package to `ready`, classify source drift as `stale`, or stop at `recovery_required` when the tree cannot be proven safe.
 
