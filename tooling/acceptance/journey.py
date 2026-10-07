@@ -110,7 +110,7 @@ def glide(x, y, seconds=0.5):
     ctypes.windll.user32.SetCursorPos(round(x), round(y))
 
 
-def press(target, label, timeout=60, settle=0.4, surface="desktop"):
+def press(target, label, timeout=60, settle=0.4, surface="desktop", click=True):
     element = target.wait("visible enabled", timeout=timeout)
     try:
         element.iface_scroll_item.ScrollIntoView()
@@ -121,8 +121,9 @@ def press(target, label, timeout=60, settle=0.4, surface="desktop"):
     receipt["pointer"].append({"t": now_ms(), "kind": "hover", "label": label, "x": middle.x, "y": middle.y, "surface": surface})
     glide(middle.x, middle.y)
     time.sleep(settle)
-    receipt["pointer"].append({"t": now_ms(), "kind": "click", "label": label, "surface": surface})
-    mouse.click(coords=(middle.x, middle.y))
+    if click:
+        receipt["pointer"].append({"t": now_ms(), "kind": "click", "label": label, "surface": surface})
+        mouse.click(coords=(middle.x, middle.y))
     return element
 
 
@@ -316,10 +317,10 @@ try:
             press(agent, "Agent CLI")
             type_text("OpenAI Codex")
             send_keys("{ENTER}")
+        # New work starts with every ready agent on the team: point at each, tick only the missing ones.
         for name in [entry.strip() for entry in args.team.split(",") if entry.strip()]:
             box = spec(name, control_type="CheckBox")
-            if box.wait("visible", timeout=30).get_toggle_state() != 1:
-                press(box, name, settle=0.2)
+            press(box, name, settle=0.2, click=box.wait("visible", timeout=30).get_toggle_state() != 1)
         press(spec("Build plan", control_type="Button"), "Build plan")
         heading = wait(spec(title_re="^(Review plan|Plan blocked|Plan needs verification)$"), 180).window_text()
         mark("plan")
