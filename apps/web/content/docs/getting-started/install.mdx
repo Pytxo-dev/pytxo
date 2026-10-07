@@ -3,13 +3,13 @@ title: Install
 description: Choose the Windows Desktop app or the CLI for Windows, macOS, and Linux.
 ---
 
-The current public release is **v1.2.1**. The v1.2.2 Desktop preview is not yet available as a public download.
+The current public release is **v1.2.2**.
 
 ## Windows: install Desktop
 
 1. Open [Download](/download) and download the Windows x64 MSI.
 2. Run the installer and open **Pytxo Desktop**. The beta installer is not code-signed yet, so Windows SmartScreen may say it does not recognize the app: choose **More info**, check that the file came from pytxo.com, then **Run anyway**. Updates inside the app are signed and verified before they install.
-3. Install and sign in to your coding agents separately. The v1.2.2 Desktop runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity.
+3. Install and sign in to your coding agents separately. Desktop runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity.
 
 Desktop includes its local Pytxo core. You do **not** need to install the Pytxo CLI unless you want terminal commands, MCP, or `pytxo doctor`.
 
@@ -20,7 +20,7 @@ Continue with [Desktop setup](/docs/getting-started/desktop-setup). There is no 
 For Windows, macOS, or Linux with Node.js 18 or newer:
 
 ```bash
-npm i -g pytxo@1.2.1
+npm i -g pytxo@1.2.2
 pytxo --version
 pytxo doctor
 ```
@@ -41,13 +41,13 @@ irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 
 curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
 ```
 
-To pin the shell installer to v1.2.1, pass the version to `bash`:
+To pin the shell installer to v1.2.2, pass the version to `bash`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | PYTXO_VERSION=v1.2.1 bash
+curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | PYTXO_VERSION=v1.2.2 bash
 ```
 
-You can also download a binary from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases/tag/v1.2.1), place it on your `PATH`, and run `pytxo --version`.
+You can also download a binary from [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases/tag/v1.2.2), place it on your `PATH`, and run `pytxo --version`.
 
 | Platform | CLI binary |
 |---|---|

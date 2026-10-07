@@ -31,7 +31,7 @@ for (const width of [390, 768, 1280, 1440, 1920]) {
     await page.screenshot({ path: testInfo.outputPath(`fleet-home-${width}.png`), fullPage: true });
     await page.goto('/docs/getting-started/first-mission');
     await expect(page.getByRole('heading', { level: 1, name: 'First mission' })).toBeVisible();
-    await expect(page.locator('article')).toContainText('unpublished');
+    await expect(page.locator('article')).not.toContainText('unpublished');
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     await page.screenshot({ path: testInfo.outputPath(`first-mission-${width}.png`), fullPage: true });
   });
