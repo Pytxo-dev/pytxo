@@ -3,7 +3,7 @@ import Image from "next/image";
 const STEPS = [
   {
     title: "Describe it once. Get a plan.",
-    body: "Pytxo turns your request into tasks, gives each task the files it owns, and orders anything that shares a file. Choose which agents take part and edit any step before it runs.",
+    body: "Describe the whole job and let Codex or Claude Code read your project and split it, or write one task per line yourself. Each task owns its files, anything that shares a file runs in order, and you can edit any step before it runs.",
     image: "flow",
     alt: "Pytxo New work screen with a request on the left and the reviewed plan on the right: three steps, each with its task and assigned agent",
   },
