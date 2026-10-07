@@ -80,7 +80,7 @@ export function DownloadDesktop() {
         ) : null}
       </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PLATFORMS.map((platform) => {
           const suggested = platform.available && platform.match(os);
           const Icon = platform.Icon;
@@ -97,7 +97,7 @@ export function DownloadDesktop() {
                 <Icon className="size-5" />
               </span>
               <span className="min-w-0 flex-1 text-left">
-                <span className="flex items-center gap-2">
+                <span className="flex flex-wrap items-center gap-x-2">
                   <span className="font-medium">{platform.label}</span>
                   {suggested ? (
                     <span className="text-[10px] font-medium uppercase tracking-wide text-primary">
