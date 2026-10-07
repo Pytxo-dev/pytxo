@@ -46,7 +46,9 @@ jobs:
           fi
           files=$(git diff --name-only HEAD^1 HEAD)
           printf '%s\n' "$files"
-          has() { printf '%s\n' "$files" | grep -qE "$1|^\.github/workflows/ci\.yml$" && echo true || echo false; }
+          # A here-string, not a pipe: grep -q exits early, and pipefail would turn
+          # printf's broken pipe into a false "no match".
+          has() { grep -qE "$1|^\.github/workflows/ci\.yml$" <<< "$files" && echo true || echo false; }
           {
             echo "full=false"
             echo "rust=$(has '^(Cargo\.(toml|lock)|crates/|services/|apps/desktop/src-tauri/|packages/pytxo/|tooling/|\.cargo/|rust-toolchain)')"

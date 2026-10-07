@@ -119,9 +119,9 @@
       <strong>{busy && !creatingExample ? "Opening…" : "Select folder"}</strong>
       <span id="drop-hint">Git repository recommended</span>
     </button>
-    <button type="button" class="example" disabled={busy} onclick={() => void createExample()}>
+    <button type="button" class="example" aria-label={creatingExample ? "Creating example…" : "Try the guided example"} aria-describedby="example-hint" disabled={busy} onclick={() => void createExample()}>
       <span class="glyph" aria-hidden="true">◇</span>
-      <span><strong>{creatingExample ? "Creating example…" : "Try the guided example"}</strong><small>A small app with tests. Requires Git and Node.js; no API key.</small></span>
+      <span><strong>{creatingExample ? "Creating example…" : "Try the guided example"}</strong><small id="example-hint">A small app with tests. Requires Git and Node.js; no API key.</small></span>
     </button>
   {/if}
 
