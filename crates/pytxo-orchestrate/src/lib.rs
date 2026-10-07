@@ -50,6 +50,7 @@ mod routed_fixture;
     reason = "hosted Shadow controller is staged behind review-only dispatch"
 )]
 mod routed_hosted_shadow;
+pub mod split;
 #[doc(hidden)]
 pub use routed_hosted_shadow::{HostedClientFuture, HostedEvaluationRequest, HostedShadowClient};
 pub mod routed_prompt;

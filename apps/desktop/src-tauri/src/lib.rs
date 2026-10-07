@@ -41,7 +41,7 @@ use ipc_flow::{
     flow_hosted_consent_enable, flow_hosted_consent_revoke, flow_hosted_consent_status,
     flow_preview, flow_preview_experimental_claude, flow_preview_experimental_claude_hosted,
     flow_proposed_hosted_packet_preview, flow_reviewed_hosted_packet_preview, flow_save_draft,
-    flow_save_reviewed_plan, flow_stop_routed,
+    flow_save_reviewed_plan, flow_split_cancel, flow_split_request, flow_stop_routed,
 };
 use ipc_install::{
     create_example_workspace, install_pytxo_cli, install_pytxo_cli_status, pick_workspace_folder,
@@ -223,6 +223,8 @@ pub fn run() {
             routing_hosted_grant_revoke,
             flow_save_draft,
             flow_preview,
+            flow_split_request,
+            flow_split_cancel,
             flow_experimental_claude_available,
             flow_experimental_hosted_review_available,
             flow_preview_experimental_claude,

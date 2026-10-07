@@ -73,7 +73,9 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
         }
       : route.route === "fleet"
         ? { "pytxo-preview-fleet-v1": "1" }
-        : undefined,
+        : route.route === "flow"
+          ? { "pytxo-preview-split-delay-v1": "50" }
+          : undefined,
   );
   await page.clock.install({ time: new Date("2026-01-15T10:00:00.000Z") });
   // The fleet capture is the Work view of a mixed-CLI run.
@@ -83,9 +85,12 @@ async function prepareRoute(page: Page, route: (typeof ROUTES)[number]) {
   else await expect(route.route === "run-review" ? page.locator("#run-review-title") : page.getByRole("heading", { name: route.heading, exact: true })).toBeVisible();
 
   if (route.route === "flow") {
+    // One plain request, split by an agent into owned task lines, then planned.
     await page
       .getByLabel("What should Pytxo do?")
-      .fill("Improve reviewed mission handling in apps/desktop/src/components/desktop2/FlowScreen.svelte and crates/pytxo-orchestrate/src/flow.rs, with regression coverage in crates/pytxo-orchestrate/tests/flow_mission.rs.");
+      .fill("Add search and status filtering with tests, a dark theme that follows the system, and a Spanish translation with a language switch.");
+    await page.getByRole("button", { name: "Split with OpenAI Codex" }).click();
+    await expect(page.getByText("OpenAI Codex proposed 4 tasks")).toBeVisible();
     await page.getByRole("button", { name: "Build plan", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review plan" })).toBeVisible();
   }

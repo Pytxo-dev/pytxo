@@ -290,7 +290,7 @@
 
 <section class="execution-map" aria-label="Recorded worker canvas" data-testid="execution-map">
   <header class="map-toolbar">
-    <div><strong>Recorded workers</strong><span>{nodes.length} {nodes.length === 1 ? "task" : "tasks"} · {topology.waves.length} {topology.waves.length === 1 ? "step" : "steps"}</span></div>
+    <div><strong>Agents on this run</strong><span>{nodes.length} {nodes.length === 1 ? "task" : "tasks"} · {topology.waves.length} {topology.waves.length === 1 ? "step" : "steps"}</span></div>
     <div class="view-toggle" role="group" aria-label="Worker view">
       {#if fleetAvailable}<button aria-pressed={viewMode === "fleet"} class:active={viewMode === "fleet"} onclick={() => chosenView = "fleet"}>Fleet</button>{/if}
       <button aria-pressed={viewMode === "canvas"} class:active={viewMode === "canvas"} onclick={() => chosenView = "canvas"}>Canvas</button>
@@ -319,7 +319,7 @@
                 ? "Routing identity unavailable"
                 : attemptLabel ?? (routed
                   ? routingLoading ? "Routing record loading" : routingSummary ? "No worker attempt recorded" : "Routing record unavailable"
-                  : node.agent?.status === "completed" && node.agent.exit_code === 0 ? "Completed · checks separate" : state?.label ?? "Worker not recorded")}
+                  : node.agent?.status === "completed" && node.agent.exit_code === 0 ? "Agent says done" : state?.label ?? "Worker not recorded")}
               {@const running = routed ? node.routingAttempt?.state === "running" : node.agent?.status === "running"}
               <article class="task-node" class:running={running} class:chosen={node.task.task_id === selected?.task.task_id} class:related={!!selected && related(node.task.task_id)} data-state={node.routingAttempt?.state === "passed" ? "completed" : node.routingAttempt?.state ?? node.agent?.status ?? "unreported"} style={`left:${node.sceneX}px;top:${node.sceneY}px`}>
                 <div class="node-kicker"><span>{routed && node.routingAttempt ? `Attempt ${node.routingAttempt.ordinal} of ${node.attemptCount} · ${label(node.routingAttempt.role)}` : running ? "Active worker" : node.agent?.launcher?.display_name ?? `Step ${node.task.wave + 1}`}</span>{#if running}<i class="worker-pulse" aria-hidden="true">. : + * = x</i>{/if}</div>
@@ -337,7 +337,7 @@
           </div>
           {#if selected}<section class="relationship-strip" aria-label="Selected task relationships"><strong>{selected.task.task_id}</strong><span>Needs {selected.task.depends_on.length ? selected.task.depends_on.join(", ") : "none"}</span><span>Unblocks {dependents.length ? dependents.map(node => node.task.task_id).join(", ") : "none"}</span></section>{/if}
           {#if showMinimap}<aside class="minimap" aria-label="Canvas minimap"><button aria-label="Navigate canvas minimap. Arrow keys pan; Enter centers selected worker; F fits." title="Click to navigate · Arrow keys to pan · Enter to center selected worker · F to fit" onclick={navigateMinimap} onkeydown={handleMinimapKey}><svg viewBox={`0 0 ${topology.width} ${topology.height}`} aria-hidden="true">{#each edges as edge}<line x1={edge.source.sceneX} y1={edge.source.sceneY} x2={edge.target.sceneX} y2={edge.target.sceneY} />{/each}{#each nodes as node}<rect class:selected={node.task.task_id === selected?.task.task_id} x={node.sceneX - 38} y={node.sceneY - 14} width="76" height="28" rx="3" />{/each}<rect class="minimap-viewport" bind:this={minimapViewport} /></svg></button></aside>{/if}
-        {:else}<div class="canvas-empty"><strong>Task relationships unavailable</strong><span>Recorded workers remain available in List.</span></div>{/if}
+        {:else}<div class="canvas-empty"><strong>Task relationships unavailable</strong><span>Every task is still listed in List.</span></div>{/if}
       </div>
     {:else}
       <div class="list-view"><RunLedger {agents} {taskDescriptions} plan={review?.plan ?? null} agentReceipts={review?.enforcement?.agents ?? null} {selectedAgentId} inlineInspector={false} onSelect={(agentId) => { const agent = agents.find(candidate => candidate.id === agentId); if (agent) inspectAgent(agent); }} /></div>

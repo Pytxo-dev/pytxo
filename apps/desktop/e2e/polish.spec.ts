@@ -22,7 +22,7 @@ for (const theme of ["void", "light"]) {
       });
       await page.goto("/#/work");
       await expect(page.locator("html")).toHaveAttribute("data-chroma-theme", theme);
-      await expect(page.getByTestId("execution-map").getByText("Recorded workers", { exact: true })).toBeVisible();
+      await expect(page.getByTestId("execution-map").getByText("Agents on this run", { exact: true })).toBeVisible();
       const command = page.getByRole("button", { name: "Open command palette" });
       await expect(command).toBeInViewport();
       expect(await command.evaluate(e => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(1);

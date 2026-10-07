@@ -1,6 +1,6 @@
 import { ipc } from "./ipc";
 import type { AdeCliStatusDto, AgentArbitrageDto, AgentDto, CatalogEntryStatus, DesktopChangedEvent, DomainChangesPageDto, FleetRunDto, HitlDto, PreparedContentChunkDto, PreparedRunManifest, ProviderStatusDto, RoutingDisplaySummary, RunApplyManifest, RunDto, RunReviewDto, StructuralGraphDto } from "./types";
-import type { FlowDraftInput, FlowDraftRecord, FlowPlan, ProposedHostedAdvisorPacketPreview, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, VoiceProgressEvent, VoiceSessionDto } from "./types";
+import type { FlowDraftInput, FlowDraftRecord, FlowPlan, SplitDraft, ProposedHostedAdvisorPacketPreview, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, VoiceProgressEvent, VoiceSessionDto } from "./types";
 import { PreviewDesktopBackend } from "./desktop-backend.preview";
 
 export type DesktopSnapshotError = { kind: "hypervisor-unavailable"; message: string };
@@ -42,6 +42,8 @@ export interface DesktopBackend {
   startAdeLogin(id: string): Promise<{ id: string; message: string }>;
   listProviders(): Promise<ProviderStatusDto[]>;
   previewFlow(input: FlowDraftInput): Promise<FlowPlan>;
+  splitRequest(domainId: string, request: string, adeId: string): Promise<SplitDraft>;
+  cancelSplit(): Promise<void>;
   experimentalClaudeRoutingAvailable(): Promise<boolean>;
   experimentalHostedReviewAvailable(): Promise<boolean>;
   previewExperimentalClaudeFlow(input: FlowDraftInput, facts: ReviewedDemandFacts): Promise<FlowPlan>;
@@ -150,6 +152,8 @@ class TauriDesktopBackend implements DesktopBackend {
     return ipc.listProviders();
   }
   async previewFlow(input: FlowDraftInput) { return ipc.flowPreview(input); }
+  async splitRequest(domainId: string, request: string, adeId: string) { return ipc.flowSplitRequest(domainId, request, adeId); }
+  async cancelSplit() { return ipc.flowSplitCancel(); }
   async experimentalClaudeRoutingAvailable() { return ipc.flowExperimentalClaudeAvailable(); }
   async experimentalHostedReviewAvailable() { return ipc.flowExperimentalHostedReviewAvailable(); }
   async previewExperimentalClaudeFlow(input: FlowDraftInput, facts: ReviewedDemandFacts) { return ipc.flowPreviewExperimentalClaude(input, facts); }

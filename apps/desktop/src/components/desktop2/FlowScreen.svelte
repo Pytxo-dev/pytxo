@@ -124,6 +124,16 @@
   let taskAdes = $state<Record<string, string>>({});
   let workers = $state(1);
   let workersTouched = false;
+  let teamInitialized = false;
+  /** Agent-drafted split: a ready CLI proposes owned task lines in its read-only mode. */
+  const SPLIT_ADES = ["claude", "codex"];
+  let splitting = $state(false);
+  let splitStartedAt = $state(0);
+  let splitNow = $state(0);
+  let splitNotice = $state("");
+  let splitWarning = $state("");
+  let splitError = $state("");
+  let missionBeforeSplit = $state<string | null>(null);
 
   const currentInputKey = $derived(
     JSON.stringify({
@@ -149,6 +159,45 @@
     teamAdes = teamAdes.includes(id) ? teamAdes.filter((other) => other !== id) : [...teamAdes, id];
     taskAdes = {};
     if (!workersTouched) workers = Math.min(DESKTOP_BETA_MAX_WORKERS, 1 + teamAdes.filter((other) => other !== selectedAde).length);
+  }
+  const splitAde = $derived(routedChoice ? null : team.find((id) => SPLIT_ADES.includes(id) && adeClis.some((cli) => cli.id === id && isAdeReady(cli))) ?? null);
+  const splitDisabledReason = $derived.by(() => {
+    if (planning) return "Plan construction is in progress.";
+    if (!mission.trim()) return "Describe the job before splitting it.";
+    if (!selectedDomainId) return "Select a project before splitting.";
+    return null;
+  });
+  const splitElapsed = $derived(Math.max(0, Math.floor((splitNow - splitStartedAt) / 1000)));
+  async function splitWithAgent() {
+    if (!splitAde || splitting || splitDisabledReason) return;
+    const before = mission;
+    const ade = splitAde;
+    splitting = true;
+    splitStartedAt = splitNow = Date.now();
+    splitNotice = ""; splitWarning = ""; splitError = "";
+    const tick = setInterval(() => (splitNow = Date.now()), 1000);
+    try {
+      const draft = await backend.splitRequest(selectedDomainId, before, ade);
+      const name = adeName(draft.ade_id);
+      missionBeforeSplit = before;
+      mission = draft.mission_text;
+      missionSource = "text";
+      splitNotice = `${name} proposed ${draft.tasks.length} task${draft.tasks.length === 1 ? "" : "s"}, each owning its files. Edit any line, then Build plan.`;
+      if (draft.project_changed) splitWarning = `Your project changed while ${name} was reading it. Check your folder before you run.`;
+      if (!workersTouched) workers = Math.min(DESKTOP_BETA_MAX_WORKERS, Math.max(1, Math.min(team.length, draft.tasks.length)));
+    } catch (cause) {
+      splitError = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      clearInterval(tick);
+      splitting = false;
+    }
+  }
+  function undoSplit() {
+    if (missionBeforeSplit === null) return;
+    mission = missionBeforeSplit;
+    missionBeforeSplit = null;
+    splitNotice = ""; splitWarning = "";
+    missionInput?.focus();
   }
   function stepWorkers(delta: number) {
     workersTouched = true;
@@ -439,6 +488,12 @@
         : savedReady ?? currentReady ?? adeClis.find((cli) => cli.id === "codex" && isAdeReady(cli))?.id ?? "";
       if (requested && !selectedAde) adeError = "The chosen agent is no longer ready. Recheck it or choose another agent explicitly.";
       adeSelectionInitialized = true;
+      // First load: every ready beta agent joins the job; the user can narrow it.
+      if (!teamInitialized && selectedAde && isBetaAde(selectedAde)) {
+        teamInitialized = true;
+        teamAdes = betaAdesInOrder(adeClis).filter((cli) => isAdeReady(cli) && cli.id !== selectedAde).map((cli) => cli.id);
+        if (!workersTouched) workers = Math.min(DESKTOP_BETA_MAX_WORKERS, 1 + teamAdes.length);
+      }
     } catch (cause) {
       adeClis = [];
       experimentalClaudeAvailable = false;
@@ -855,7 +910,7 @@
     {#if domains.length}
       <div class="composer-context">
         <label><span>Project</span><select bind:value={selectedDomainId} aria-label="Project">{#if !selectedDomainId}<option value="" disabled>Select a project</option>{/if}{#each domains as domain}<option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}{domain.project_id ? " · primary folder" : ""}</option>{/each}</select></label>
-        <label><span>Agent</span><select value={selectedAde} onchange={(event) => chooseAde(event.currentTarget.value)} aria-label="Agent CLI" disabled={adeLoading || (!adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable)}>{#if adeLoading}<option value="">Checking detected CLIs…</option>{:else if !adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable}<option value="">No ready CLI detected</option>{:else}{#if !selectedAde}<option value="" disabled>Select a ready CLI</option>{/if}<optgroup label="Beta agents">{#each betaAdesInOrder(adeClis) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup><optgroup label="Additional agents">{#each adeClis.filter(cli => !isBetaAde(cli.id)) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup>{#if experimentalClaudeAvailable || experimentalHostedAvailable}<optgroup label="Experimental">{#if experimentalClaudeAvailable}<option value={CLAUDE_ROUTE_CHOICE}>Claude proposal route · subscription</option>{/if}{#if experimentalHostedAvailable}<option value={CLAUDE_HOSTED_CHOICE}>Hosted Routing packet review · no run</option>{/if}</optgroup>{/if}{/if}</select></label>
+        <label><span>Lead agent</span><select value={selectedAde} onchange={(event) => chooseAde(event.currentTarget.value)} aria-label="Agent CLI" disabled={adeLoading || (!adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable)}>{#if adeLoading}<option value="">Checking detected CLIs…</option>{:else if !adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable}<option value="">No ready CLI detected</option>{:else}{#if !selectedAde}<option value="" disabled>Select a ready CLI</option>{/if}<optgroup label="Beta agents">{#each betaAdesInOrder(adeClis) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup><optgroup label="Additional agents">{#each adeClis.filter(cli => !isBetaAde(cli.id)) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup>{#if experimentalClaudeAvailable || experimentalHostedAvailable}<optgroup label="Experimental">{#if experimentalClaudeAvailable}<option value={CLAUDE_ROUTE_CHOICE}>Claude proposal route · subscription</option>{/if}{#if experimentalHostedAvailable}<option value={CLAUDE_HOSTED_CHOICE}>Hosted Routing packet review · no run</option>{/if}</optgroup>{/if}{/if}</select></label>
       </div>
     {/if}
   </header>
@@ -881,8 +936,23 @@
           <h2>Describe the job</h2>
         </div>
       </div>
-      <p id="mission-guidance" class="mission-guidance">Name the file or folder if you know it, the expected behavior, and anything that must stay unchanged.</p>
-      <textarea bind:this={missionInput} bind:value={mission} aria-label="What should Pytxo do?" aria-describedby="mission-guidance" placeholder="Fix the parser in src/parser.rs so empty input returns an error. Add a regression test. Keep the public API unchanged."></textarea>
+      <p id="mission-guidance" class="mission-guidance">One task per line, each naming the files it owns. Or describe the whole job{splitAde ? ` and let ${adeName(splitAde)} split it` : ""}.</p>
+      <textarea bind:this={missionInput} bind:value={mission} readonly={splitting} aria-busy={splitting} aria-label="What should Pytxo do?" aria-describedby="mission-guidance" placeholder="Fix the parser in src/parser.rs so empty input returns an error. Add a regression test. Keep the public API unchanged."></textarea>
+      {#if splitting || splitNotice || splitError}
+        <div class="split-status" role="status" aria-live="polite">
+          {#if splitting}
+            <span><span class="split-pulse" aria-hidden="true"></span>{adeName(splitAde)} is reading the project to split this job · {Math.floor(splitElapsed / 60)}:{String(splitElapsed % 60).padStart(2, "0")}</span>
+            <button type="button" class="quiet" onclick={() => void backend.cancelSplit()}>Cancel</button>
+          {:else if splitError}
+            <span class="error" role="alert">{splitError}</span>
+            <button type="button" class="quiet" onclick={() => (splitError = "")}>Dismiss</button>
+          {:else}
+            <span class="ready">{splitNotice}</span>
+            {#if missionBeforeSplit !== null}<button type="button" class="quiet" onclick={undoSplit}>Undo</button>{/if}
+          {/if}
+          {#if splitWarning}<span class="error">{splitWarning}</span>{/if}
+        </div>
+      {/if}
       <div class="ade-readiness">
         <div class="readiness-summary" aria-live="polite">
         {#if adeError}
@@ -925,7 +995,7 @@
           <details><summary>{unavailableAdes.length} other CLI{unavailableAdes.length === 1 ? "" : "s"} unavailable</summary><ul>{#each unavailableAdes as cli}<li>{cli.display_name} · {adeUnavailableReason(cli)}</li>{/each}</ul></details>
         {/if}
       </div>
-      <div class="composer-command-bar"><span>{mission.trim() ? `${mission.trim().length} characters` : ""}</span><button class="primary" disabled={!!buildPlanDisabledReason} aria-describedby={buildPlanDisabledReason ? "build-plan-disabled-reason" : undefined} onclick={buildPlan}>{planning ? "Building…" : "Build plan"}</button>{#if buildPlanDisabledReason}<small id="build-plan-disabled-reason" class="action-reason">{buildPlanDisabledReason}</small>{/if}</div>
+      <div class="composer-command-bar"><span>{mission.trim() ? `${mission.trim().length} characters` : ""}</span>{#if splitAde}<button type="button" class="quiet split-action" disabled={splitting || !!splitDisabledReason} title={splitDisabledReason ?? `${adeName(splitAde)} reads the project in its read-only mode and proposes one task per line with the files each owns.`} onclick={() => void splitWithAgent()}>{splitting ? "Splitting…" : `Split with ${adeName(splitAde)}`}</button>{/if}<button class="primary" disabled={!!buildPlanDisabledReason || splitting} aria-describedby={buildPlanDisabledReason ? "build-plan-disabled-reason" : undefined} onclick={buildPlan}>{planning ? "Building…" : "Build plan"}</button>{#if buildPlanDisabledReason}<small id="build-plan-disabled-reason" class="action-reason">{buildPlanDisabledReason}</small>{/if}</div>
       <details class="checks-editor" open={!!runChecks}>
       <summary>Verification commands <span>{runChecks.trim() ? "Custom checks added" : "Use project checks or add your own"}</span></summary>
       <label class="run-checks">
@@ -1069,7 +1139,7 @@
                   <div>
                     <b>{String(plan.tasks.findIndex(item => item.id === taskId) + 1).padStart(2, "0")}</b>
                     <div class="plan-task">
-                      <label><span>{task.id} · {task.agent}</span><textarea aria-label={`Task ${task.id} prompt`} rows="2" value={task.prompt || task.id} readonly={!!plan.routing} oninput={(event) => editTask(task.id, event.currentTarget.value)}></textarea></label>
+                      <label><span>{task.id}</span><textarea aria-label={`Task ${task.id} prompt`} rows="2" value={task.prompt || task.id} readonly={!!plan.routing} oninput={(event) => editTask(task.id, event.currentTarget.value)}></textarea></label>
                       {#if !plan.routing}
                         {@const taskAde = task.ade_id ?? plan.ade.requested}
                         <div class="task-agent">
@@ -1117,7 +1187,10 @@
           <div class="plan-empty">
             <strong role={error ? "alert" : undefined} aria-live={error ? "assertive" : undefined}>{error || "No plan yet"}</strong>
             <p>{error ? "The previous plan was cleared. Fix the issue, then build a new matching plan." : "Write an outcome, then Build plan."}</p>
-            {#if mission.trim() && selectedAdeReady}
+            {#if error && splitAde && !splitting && mission.trim()}
+              <p>{adeName(splitAde)} can read the project and propose tasks that each own their files.</p>
+              <button class="primary" onclick={() => void splitWithAgent()}>Split with {adeName(splitAde)}</button>
+            {:else if mission.trim() && selectedAdeReady}
               <button class="primary" onclick={buildPlan} disabled={planning}>Build plan</button>
             {/if}
             {#if error}<button class="primary" disabled aria-describedby="empty-run-disabled-reason">Run <IconArrowRight size={16} /></button><small id="empty-run-disabled-reason" class="action-reason">Build a new matching plan before starting a run.</small>{/if}
@@ -1244,7 +1317,7 @@
   .compact-pane-switch{display:none;flex:0 0 auto;margin-bottom:8px;border:1px solid var(--pytxo-line);border-radius:4px;overflow:hidden}.compact-pane-switch button{flex:1;min-height:34px;border:0;background:transparent;color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui)}.compact-pane-switch button.active{background:var(--pytxo-surface-active);color:var(--pytxo-text-strong)}
   .flow-history{position:absolute;z-index:20;right:18px;bottom:16px;width:min(420px,calc(100% - 36px));max-height:min(430px,70%);margin:0;overflow:auto;border:1px solid var(--pytxo-line);border-radius:5px;background:var(--pytxo-surface-raised);box-shadow:0 16px 44px #0009}.flow-history:not([open]){width:auto;overflow:hidden}.flow-history>summary{min-height:34px;padding:8px 12px}.flow-history[open]>summary{position:sticky;top:0;z-index:1;background:var(--pytxo-surface-raised)}
   @keyframes planning-scan{from{transform:translateX(-7%)}to{transform:translateX(7%)}}
-  @media(max-width:1100px){.flow-screen .flow-layout{grid-template-columns:minmax(0,1fr);max-width:none}.flow-screen .plan-panel{padding:0 16px 18px;border:1px solid var(--pytxo-line)}.compact-pane-switch{display:flex}.flow-screen .compact-hidden{display:none}.flow-screen .flow-layout--solo .composer-panel{display:block}}
+  @media(max-width:1100px){.flow-screen>.screen-heading{flex-wrap:wrap;gap:14px}.flow-screen .composer-context{width:100%;margin-left:0}.flow-screen .flow-layout{grid-template-columns:minmax(0,1fr);max-width:none}.flow-screen .plan-panel{padding:0 16px 18px;border:1px solid var(--pytxo-line)}.compact-pane-switch{display:flex}.flow-screen .compact-hidden{display:none}.flow-screen .flow-layout--solo .composer-panel{display:block}}
   @media(max-width:700px){.flow-screen{padding:10px}.flow-screen>.screen-heading{align-items:flex-start}.flow-screen>.screen-heading p.mission-intro{display:none}.composer-context{grid-template-columns:1fr;width:auto}.composer-context label{grid-template-columns:58px minmax(0,1fr)}.flow-history{right:10px;bottom:10px;width:calc(100% - 20px)}.flow-screen .composer-panel,.flow-screen .plan-panel{padding-inline:12px}.flow-screen .composer-panel .panel-head,.flow-screen .plan-panel .panel-head{margin-inline:-12px;padding-inline:12px}}
   @media(prefers-reduced-motion:reduce){.planning-strip span{left:0;animation:none}}
   @media (max-width: 700px) {
@@ -1284,4 +1357,13 @@
   .stepper output { display: grid; place-items: center; min-width: 40px; border-inline: 1px solid var(--pytxo-line); color: var(--pytxo-text-strong); font-weight: 600; font-variant-numeric: tabular-nums; }
   .task-agent { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: var(--pytxo-text-strong); font-size: 13px; font-weight: 600; }
   .task-agent select { min-height: 30px; font-size: 13px; }
+  .composer-command-bar .split-action { height: 34px; padding: 0 12px; font-size: 12px; font-weight: 600; }
+  .split-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 10px 0 0; padding: 9px 12px; border: 1px solid var(--pytxo-line); border-radius: 6px; background: var(--pytxo-surface-raised); color: var(--pytxo-text-body); font-size: 12px; line-height: 1.45; }
+  .split-status > span { flex: 1 1 260px; }
+  .split-status .ready { color: var(--state-verified); font-size: 12px; }
+  .split-status .error { color: var(--state-refuted); }
+  .split-pulse { display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: var(--pytxo-activity); vertical-align: 1px; animation: split-pulse 1.2s ease-in-out infinite; }
+  @keyframes split-pulse { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { .split-pulse { animation: none; } }
+  textarea[readonly] { opacity: .7; }
 </style>

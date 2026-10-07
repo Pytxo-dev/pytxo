@@ -393,3 +393,14 @@ export type VoiceProgressEvent =
   | { kind: "transcription_progress"; session_id: string; progress: number }
   | { kind: "partial_transcript"; session_id: string; text: string; confidence: number };
 export type VoiceModel = { id: string; url: string; sha256: string; multilingual: boolean };
+
+/** Read-only agent proposal for splitting one request into owned tasks. */
+export interface SplitDraft {
+  ade_id: string;
+  tasks: { text: string; files: string[] }[];
+  /** One `<task> | files: a, b` line per task, ready for Build plan. */
+  mission_text: string;
+  /** null when the project is not a Git repository and could not be compared. */
+  project_changed: boolean | null;
+  elapsed_ms: number;
+}

@@ -23,6 +23,12 @@
     RunReviewDto,
   } from "../../lib/types";
 
+  /** Last two folders of a deep path; the full path stays in the title and Show folder. */
+  const compactPath = (path: string) => {
+    const parts = path.split(/[\\/]/).filter(Boolean);
+    return parts.length > 3 ? `…/${parts.slice(-2).join("/")}` : path;
+  };
+
   let {
     backend,
     run,
@@ -604,7 +610,7 @@
       <span class="review-mode">Review changes</span>
       <h1 id="run-review-title">{missionTitle || `Changes in ${run.repo_root.split(/[\\/]/).pop()}`}</h1>
       <div class="review-context">
-        <span class="review-destination" title={run.repo_root}>Applies to <strong>{run.repo_root}</strong></span>
+        <span class="review-destination" title={run.repo_root}>Applies to <strong>{compactPath(run.repo_root)}</strong></span>
         <details class="run-details">
           <summary>Run details</summary>
           <code>{run.id}</code>

@@ -138,6 +138,15 @@ fn split_mission_chunks(text: &str) -> Vec<&str> {
     }
 }
 
+/// The comma-separated list after a trailing `| files:` marker, if present.
+fn explicit_file_list(chunk: &str) -> Option<&str> {
+    let (_, tail) = chunk.rsplit_once('|')?;
+    let tail = tail.trim_start();
+    tail.get(..6)
+        .filter(|head| head.eq_ignore_ascii_case("files:"))
+        .map(|_| &tail[6..])
+}
+
 /// Heuristic v1: one synthetic task per sentence chunk (testing / demos only).
 pub struct HeuristicPlanner;
 
@@ -437,6 +446,24 @@ fn enrich_config_tasks(
 fn infer_paths_from_chunk(chunk: &str, repo: &Path) -> Vec<String> {
     let mut out = Vec::new();
     let mut seen = HashSet::new();
+    // `<task> | files: a, b` states ownership exactly; prose mentions of other
+    // files in the task sentence must not widen it.
+    if let Some(list) = explicit_file_list(chunk) {
+        for item in list.split(',') {
+            let item = item
+                .trim()
+                .trim_end_matches('.')
+                .trim_matches(|c: char| matches!(c, '`' | '"' | '\''))
+                .trim_end_matches('.')
+                .trim_start_matches("./");
+            if let Ok(rel) = validate_planner_path(repo, item) {
+                if seen.insert(rel.clone()) {
+                    out.push(rel);
+                }
+            }
+        }
+        return out;
+    }
     for token in chunk.split_whitespace() {
         // Keep a leading `.` for dotfiles, but treat any trailing `.` as prose
         // punctuation in whatever order it follows quotes or backticks
@@ -467,7 +494,10 @@ fn resolve_path_hint(repo: &Path, hint: &str) -> Option<String> {
         return Some(normalize_rel(&hint));
     }
     if hint.contains('/') {
-        return None;
+        // A file path under an existing directory may name a file the task creates.
+        return Path::new(&hint)
+            .extension()
+            .and_then(|_| validate_planner_path(repo, hint.trim_start_matches("./")).ok());
     }
     if hint.contains('.') {
         let mut matches = Vec::new();
@@ -811,7 +841,8 @@ fn validate_mission_plan(mut plan: MissionPlan, repo: &Path) -> anyhow::Result<M
     Ok(plan)
 }
 
-fn validate_planner_path(repo: &Path, path: &str) -> anyhow::Result<String> {
+/// A safe repository-relative ownership path that exists or sits in an existing directory.
+pub fn validate_planner_path(repo: &Path, path: &str) -> anyhow::Result<String> {
     let normalized = path
         .replace('\\', "/")
         .trim()
@@ -1247,6 +1278,43 @@ mod tests {
             Some(v) => std::env::set_var("PYTXO_PLANNER", v),
             None => std::env::remove_var("PYTXO_PLANNER"),
         }
+    }
+
+    #[test]
+    fn explicit_file_lists_own_exactly_and_allow_new_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path();
+        std::fs::create_dir_all(repo.join("src")).unwrap();
+        std::fs::create_dir_all(repo.join("test")).unwrap();
+        std::fs::write(repo.join("src/model.mjs"), "export {}\n").unwrap();
+        std::fs::write(repo.join("README.md"), "# x\n").unwrap();
+
+        // Prose mentions of README.md do not widen explicit ownership.
+        assert_eq!(
+            infer_paths_from_chunk(
+                "Add filters, then mention them in README.md | files: `src/model.mjs`, test/model.test.mjs",
+                repo
+            ),
+            vec!["src/model.mjs", "test/model.test.mjs"]
+        );
+        // New root files are allowed in an explicit list; unsafe paths are not.
+        assert_eq!(
+            infer_paths_from_chunk(
+                "Write notes | Files: ./CHANGES.md, ../escape.md, C:/x.md",
+                repo
+            ),
+            vec!["CHANGES.md"]
+        );
+        // Prose may name a new file under an existing directory, not under a missing one.
+        assert_eq!(
+            infer_paths_from_chunk("Create src/filter-bar.js and lib/missing.js", repo),
+            vec!["src/filter-bar.js"]
+        );
+        // Without the marker, a pipe is ordinary prose.
+        assert_eq!(
+            infer_paths_from_chunk("Pipe a | b into src/model.mjs", repo),
+            vec!["src/model.mjs"]
+        );
     }
 
     #[test]

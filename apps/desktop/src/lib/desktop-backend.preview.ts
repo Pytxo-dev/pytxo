@@ -7,7 +7,7 @@
  */
 import type { DesktopBackend, DesktopSnapshot } from "./desktop-backend";
 import { DESKTOP_BETA_MAX_WORKERS, isBetaAde } from "./ade-status";
-import type { AdeCliStatusDto, DesktopChangedEvent, DomainChangeDto, FlowDraftInput, FlowDraftRecord, FlowPlan, PermissionEnforcementReceipt, PreparedContentChunkDto, PreparedRunManifest, ProposedHostedAdvisorPacketPreview, ProviderStatusDto, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RoutingDisplaySummary, RunApplyError, RunApplyManifest, RunReviewDto, VoiceProgressEvent, VoiceSessionDto } from "./types";
+import type { AdeCliStatusDto, DesktopChangedEvent, SplitDraft, DomainChangeDto, FlowDraftInput, FlowDraftRecord, FlowPlan, PermissionEnforcementReceipt, PreparedContentChunkDto, PreparedRunManifest, ProposedHostedAdvisorPacketPreview, ProviderStatusDto, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RoutingDisplaySummary, RunApplyError, RunApplyManifest, RunReviewDto, VoiceProgressEvent, VoiceSessionDto } from "./types";
 
 const previewSignalMark = Uint8Array.from({ length: 300 }, (_, index) => index % 251);
 previewSignalMark.set([0x00, 0xff, 0x50, 0x4e, 0x47], 0);
@@ -481,6 +481,34 @@ export class PreviewDesktopBackend implements DesktopBackend {
   async listProviders() {
     return structuredClone(previewProviders);
   }
+  private splitTimer: ReturnType<typeof setTimeout> | null = null;
+  private splitReject: ((reason: Error) => void) | null = null;
+  async splitRequest(_domainId: string, request: string, adeId: string): Promise<SplitDraft> {
+    if (!request.trim()) throw new Error("Describe the job before asking an agent to split it.");
+    if (adeId !== "codex" && adeId !== "claude") throw new Error("Splitting a request is available with Codex and Claude Code.");
+    const failure = typeof localStorage !== "undefined" ? localStorage.getItem("pytxo-preview-split-error-v1") : null;
+    const delay = Number((typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-split-delay-v1")) || 1200);
+    await new Promise<void>((resolve, reject) => {
+      this.splitReject = reject;
+      this.splitTimer = setTimeout(resolve, delay);
+    });
+    this.splitTimer = null;
+    this.splitReject = null;
+    if (failure) throw new Error(failure);
+    const tasks = [
+      { text: "Add search and status filtering to the task model without changing its existing exports.", files: ["src/model.mjs"] },
+      { text: "Cover search and status filtering with regression tests.", files: ["test/model.test.mjs"] },
+      { text: "Add a dark theme that follows the system setting, with a toggle button.", files: ["src/style.css", "src/theme.js"] },
+      { text: "Translate every interface string to Spanish and add a language switch.", files: ["src/i18n/es.json", "index.html"] },
+    ];
+    return { ade_id: adeId, tasks, mission_text: tasks.map((task) => `${task.text} | files: ${task.files.join(", ")}`).join("\n"), project_changed: false, elapsed_ms: delay };
+  }
+  async cancelSplit(): Promise<void> {
+    if (this.splitTimer) clearTimeout(this.splitTimer);
+    this.splitTimer = null;
+    this.splitReject?.(new Error("Split cancelled. Your request was not changed."));
+    this.splitReject = null;
+  }
   async previewFlow(input: FlowDraftInput): Promise<FlowPlan> {
     if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-flow-delay-v1") === "1") {
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -492,12 +520,23 @@ export class PreviewDesktopBackend implements DesktopBackend {
     const requested = detected.find((cli) => cli.id === input.ade_id) ?? null;
     const available = !!requested && requested.installed && ["signed_in", "vendor_managed", "not_applicable"].includes(requested.auth_state);
     const omitVerification = typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-flow-verification-v1") === "none";
-    const tasks = [
-      { id: "desktop-flow", agent: input.ade_id ?? "codex", prompt: `Implement the Desktop slice of: ${input.mission_text}`, paths: ["apps/desktop/src/components/desktop2/FlowScreen.svelte"], dependencies: [], root: null, verify: ["npm run check"] },
-      { id: "orchestration-flow", agent: "codex", prompt: `Implement the orchestration slice of: ${input.mission_text}`, paths: ["crates/pytxo-orchestrate/src/flow.rs"], dependencies: [], root: null, verify: ["cargo test -p pytxo-orchestrate"] },
-      { id: "contract-tests", agent: "codex", prompt: `Verify the reviewed Flow contract for: ${input.mission_text}`, paths: ["crates/pytxo-orchestrate/tests/flow_mission.rs"], dependencies: ["desktop-flow", "orchestration-flow"], root: null, verify: ["cargo test -p pytxo-orchestrate"] },
-    ];
+    // Mirrors the Core planner's explicit ownership: every line ending in `| files: a, b` becomes one task.
+    const lines = input.mission_text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const owned = lines.map((line) => line.match(/^(.*)\|\s*files:\s*(.+)$/i));
+    const tasks = owned.length && owned.every(Boolean)
+      ? owned.map((match, index) => {
+        const paths = match![2].split(",").map((path) => path.trim()).filter(Boolean);
+        return { id: `${paths[0].split("/").pop()!.replace(/\.[^.]+$/, "").replace(/\W+/g, "-")}-${index + 1}`, agent: input.ade_id ?? "codex", prompt: match![1].trim(), paths, dependencies: [] as string[], root: null, verify: ["npm test"] };
+      })
+      : [
+        { id: "desktop-flow", agent: input.ade_id ?? "codex", prompt: `Implement the Desktop slice of: ${input.mission_text}`, paths: ["apps/desktop/src/components/desktop2/FlowScreen.svelte"], dependencies: [], root: null, verify: ["npm run check"] },
+        { id: "orchestration-flow", agent: "codex", prompt: `Implement the orchestration slice of: ${input.mission_text}`, paths: ["crates/pytxo-orchestrate/src/flow.rs"], dependencies: [], root: null, verify: ["cargo test -p pytxo-orchestrate"] },
+        { id: "contract-tests", agent: "codex", prompt: `Verify the reviewed Flow contract for: ${input.mission_text}`, paths: ["crates/pytxo-orchestrate/tests/flow_mission.rs"], dependencies: ["desktop-flow", "orchestration-flow"], root: null, verify: ["cargo test -p pytxo-orchestrate"] },
+      ];
     const max_workers = input.max_workers ?? 1;
+    const waves = max_workers === 1 ? tasks.map((task) => [task.id])
+      : tasks.some((task) => task.dependencies.length) ? [tasks.filter((task) => !task.dependencies.length).map((task) => task.id), tasks.filter((task) => task.dependencies.length).map((task) => task.id)]
+      : Array.from({ length: Math.ceil(tasks.length / max_workers) }, (_, wave) => tasks.slice(wave * max_workers, (wave + 1) * max_workers).map((task) => task.id));
     // Mirrors Core: round-robin over the selected CLIs, explicit per-task choices win.
     const selected = input.ade_ids?.length ? input.ade_ids : input.ade_id ? [input.ade_id] : [];
     const mixed = selected.length > 1 || Object.keys(input.task_ades ?? {}).length > 0;
@@ -506,7 +545,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
     const used = mixed ? tasks.map((task, index) => assigned(task.id, index)) : [input.ade_id];
     if (!used.length || used.some((id) => !id || !isBetaAde(id))) blocked_reasons.push({ kind: "permission_violation", message: "Desktop Beta runs Codex, Claude Code, Cursor Agent, OpenCode and Antigravity. Choose from those agents and build a new plan." });
     if (max_workers < 1 || max_workers > DESKTOP_BETA_MAX_WORKERS) blocked_reasons.push({ kind: "permission_violation", message: "Desktop Beta runs one to eight workers at once. Build a new plan within that limit." });
-    return { draft_id: input.id, domain_id: input.domain_id ?? "pytxo", project_id: input.project_id, status: blocked_reasons.length ? "blocked" : "ready", tasks: tasks.map((task, index) => ({ ...task, verify: [...new Set([...(omitVerification ? [] : task.verify), ...(input.verification_commands ?? [])])], ...(mixed ? { ade_id: assigned(task.id, index) } : {}) })), max_workers, waves: max_workers === 1 ? tasks.map((task) => [task.id]) : [["desktop-flow", "orchestration-flow"], ["contract-tests"]], permission_profile: "orbit", isolation_mode: "copy_on_write", isolation_backend_intent: "projfs", execution_backend: "pty", ade: { requested: input.ade_id ?? null, available, installed: detected.filter((cli) => cli.installed).map((cli) => cli.id), command: requested?.default_cmd ?? null }, warnings: [{ code: "preview_fixture", message: "Browser preview uses a contract-valid Pytxo fixture; native preview reads the selected repository." }], blocked_reasons, estimated_tokens: null, estimated_cost_usd: null, previewed_at: new Date().toISOString() };
+    return { draft_id: input.id, domain_id: input.domain_id ?? "pytxo", project_id: input.project_id, status: blocked_reasons.length ? "blocked" : "ready", tasks: tasks.map((task, index) => ({ ...task, verify: [...new Set([...(omitVerification ? [] : task.verify), ...(input.verification_commands ?? [])])], ...(mixed ? { ade_id: assigned(task.id, index) } : {}) })), max_workers, waves, permission_profile: "orbit", isolation_mode: "copy_on_write", isolation_backend_intent: "projfs", execution_backend: "pty", ade: { requested: input.ade_id ?? null, available, installed: detected.filter((cli) => cli.installed).map((cli) => cli.id), command: requested?.default_cmd ?? null }, warnings: [{ code: "preview_fixture", message: "Browser preview uses a contract-valid Pytxo fixture; native preview reads the selected repository." }], blocked_reasons, estimated_tokens: null, estimated_cost_usd: null, previewed_at: new Date().toISOString() };
   }
   async experimentalClaudeRoutingAvailable() {
     return typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-claude-route-v1") === "1";

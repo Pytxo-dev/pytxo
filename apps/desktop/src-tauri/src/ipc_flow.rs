@@ -18,7 +18,7 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::ipc::emit_domain_changed;
-use crate::ipc_error::{map_orch_err, map_store_err, IpcResult};
+use crate::ipc_error::{map_orch_err, map_store_err, IpcResult, PytxoIpcError};
 
 #[tauri::command]
 pub fn flow_save_draft(input: FlowDraftInput) -> IpcResult<FlowDraftRecord> {
@@ -370,4 +370,64 @@ pub fn flow_delete(draft_id: String) -> IpcResult<()> {
     Catalog::open_default()
         .and_then(|catalog| catalog.delete_flow_draft(&draft_id))
         .map_err(map_store_err)
+}
+
+/// The one in-flight split; a new request or Cancel stops the previous agent.
+static SPLIT_CANCEL: std::sync::LazyLock<
+    std::sync::Mutex<Option<std::sync::Arc<std::sync::atomic::AtomicBool>>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(None));
+
+/// Ask the lead agent CLI, in its read-only mode, to split a free-form request
+/// into owned tasks. Scope: one execution domain's repository root; no run,
+/// registry entry, package or Apply is created.
+#[tauri::command]
+pub async fn flow_split_request(
+    domain_id: String,
+    request: String,
+    ade_id: String,
+) -> IpcResult<pytxo_orchestrate::split::SplitDraft> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    let cancel = Arc::new(AtomicBool::new(false));
+    if let Some(previous) = SPLIT_CANCEL
+        .lock()
+        .map_err(|error| PytxoIpcError::new("lock", error.to_string()))?
+        .replace(cancel.clone())
+    {
+        previous.store(true, Ordering::Relaxed);
+    }
+    let flag = cancel.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let repo = pytxo_orchestrate::resolve_repo_root(Some(std::path::Path::new(&domain_id)))?;
+        pytxo_orchestrate::split::split_request(
+            &repo,
+            &request,
+            &ade_id,
+            std::time::Duration::from_secs(300),
+            &flag,
+        )
+    })
+    .await
+    .map_err(|error| PytxoIpcError::new("orchestrate", error.to_string()))?;
+    if let Ok(mut slot) = SPLIT_CANCEL.lock() {
+        if slot
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, &cancel))
+        {
+            *slot = None;
+        }
+    }
+    result.map_err(map_orch_err)
+}
+
+#[tauri::command]
+pub fn flow_split_cancel() -> IpcResult<()> {
+    if let Some(cancel) = SPLIT_CANCEL
+        .lock()
+        .map_err(|error| PytxoIpcError::new("lock", error.to_string()))?
+        .take()
+    {
+        cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    Ok(())
 }

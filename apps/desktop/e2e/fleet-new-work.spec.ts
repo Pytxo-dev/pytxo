@@ -6,7 +6,9 @@ test("New work assigns tasks across a mixed CLI team and requires a fresh plan a
   await page.goto("/#/flow");
   await page.getByLabel("What should Pytxo do?").fill("Update the Desktop flow and orchestration, then verify the contract");
 
-  await page.getByRole("checkbox", { name: "Claude Code" }).check();
+  // Every ready agent joins by default; narrow the team to Codex + Claude Code.
+  await expect(page.locator(".stepper output")).toHaveText("3");
+  await page.getByRole("checkbox", { name: "Cursor Agent" }).uncheck();
   await expect(page.locator(".stepper output")).toHaveText("2");
 
   await page.getByRole("button", { name: "Build plan" }).click();
@@ -24,6 +26,7 @@ test("New work assigns tasks across a mixed CLI team and requires a fresh plan a
 test("the worker stepper stays within one to eight", async ({ page }) => {
   await completeOnboarding(page);
   await page.goto("/#/flow");
+  await page.getByRole("button", { name: "Lead only" }).click();
   const fewer = page.getByRole("button", { name: "Fewer workers at once" });
   const more = page.getByRole("button", { name: "More workers at once" });
   await expect(fewer).toBeDisabled();
