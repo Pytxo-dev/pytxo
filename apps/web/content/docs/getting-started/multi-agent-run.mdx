@@ -13,22 +13,26 @@ Pytxo can give each task in a plan to a different agent CLI. Every task runs in 
 - OpenCode needs a provider stored with `opencode auth login`. Agents start with a clean environment, so API keys exported in your shell do not reach them.
 - Your project has test or build commands Pytxo can run. Checks are what turn "the agent says it is done" into a result you can trust.
 
-## 1. Write a request with separate parts
+## 1. Describe the job
 
-Splitting helps when a job has parts that do not depend on each other. Name the files for each part, for example:
+Splitting helps when a job has parts that do not depend on each other. You can split it yourself or let an agent do it.
+
+**Let an agent split it.** Describe the whole job in plain words, then choose **Split with OpenAI Codex** (or **Split with Claude Code**). The agent reads your project in its read-only mode and replaces your request with one task per line, each naming the files it owns. Edit any line, or choose **Undo** to get your words back. Pytxo checks the project before and after and warns you if anything changed while the agent was reading.
+
+**Or write the tasks yourself**, one per line, naming the files for each part. End a line with `| files:` to say exactly which files that task owns, including new ones:
 
 ```text
-Add search and status filtering to src/model.mjs, with tests in test/model.test.mjs.
-Add a dark theme to src/style.css that follows the system setting.
-Translate every interface string to Spanish in src/i18n/es.json.
-In README.md, document the new features and how to run the tests.
+Add search and status filtering, with tests | files: src/model.mjs, test/model.test.mjs
+Add a dark theme that follows the system setting | files: src/style.css
+Translate every interface string to Spanish | files: src/i18n/es.json
+In README.md, document the new features and how to run the tests
 ```
 
 A small fix is usually quicker with one agent.
 
 ## 2. Choose the team
 
-In **New work**, pick the main agent under **Agent**. Then tick more agents under **Add agents to this job**, and set **At most at once** for how many tasks may run in parallel (up to 8). Choose **Build plan**.
+In **New work**, the **Lead agent** plans the job and takes the first task. Every other ready agent starts under **Agents on this job**; untick any you do not want. **At most at once** sets how many tasks may run in parallel (up to 8). Choose **Build plan**.
 
 ## 3. Check the plan
 

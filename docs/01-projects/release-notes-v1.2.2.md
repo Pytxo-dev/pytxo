@@ -22,11 +22,15 @@ approval of that exact payload. Claims match `RELEASE_READINESS.md`.
 
 Pytxo v1.2.2 is a beta candidate that puts several coding-agent CLIs on one job.
 
-**One request, several agents.** In New work, pick a main agent and add more
-under *Add agents to this job*: Codex, Claude Code, Cursor Agent, OpenCode and
-Antigravity. Pytxo plans the request into tasks that own their files, gives each
-task to an agent (change any assignment before you run), and runs up to eight at
-once. Tasks that share a file run one after another.
+**One request, several agents.** New work starts with every ready agent on the
+job: Codex, Claude Code, Cursor Agent, OpenCode and Antigravity. Pytxo plans the
+request into tasks that own their files, gives each task to an agent (change any
+assignment before you run), and runs up to eight at once. Tasks that share a file
+run one after another.
+
+**Let an agent split it.** Describe the whole job and choose *Split with Codex*
+or *Split with Claude Code*. The agent reads your project read-only and proposes
+one task per line, each naming the files it owns. Edit any line, or Undo.
 
 **Watch the fleet.** Work shows one card per task: the agent, its recent output,
 the files it owns, and whether it is working, waiting, passed its checks,
