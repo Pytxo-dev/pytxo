@@ -21,7 +21,7 @@ parallel-agent crowd complains about: "10 agents = 10 branches to read".
 | 1 | Hosted CI / candidate MSI / cloud acceptance | **Blocked** — GitHub Actions jobs refuse to start: "recent account payments have failed or your spending limit needs to be increased" (run 37344182755, 2026-10-05) | Matt fixes Billing & plans for `Pytxo-dev`, or approves the documented local Windows build fallback |
 | 2 | Fresh candidate after Oct 5–6 UI changes | Open — last accepted MSI is `cc0baa8` (Oct 4); onboarding, sidebar and Fleet changed since | Rebuild + rerun acceptance (needs gate 1 or local fallback) |
 | 3 | Live vendor agents on the final artifact | Open — Oct 2 run was live; later acceptance used stand-in replays | One native run with real CLIs on the final build |
-| 4 | Source visibility | **Decision** — `Pytxo-dev/pytxo` is private (README claims MIT); the public GitHub face is `pytxo-releases` | Matt: open-source for launch (recommended for HN/GitHub trust) or keep private and lead with the releases repo |
+| 4 | Source visibility | **Decided: public (MIT)** — copy updated on the branch; gitleaks over all remote history + this branch: only false positives. Public also makes standard Actions runners free | Flip `Pytxo-dev/pytxo` to public before merging the branch |
 | 5 | Publication | Approval-gated — merge, tag, GitHub release, Vercel deploy, posts | Matt approves each exact action |
 
 ## Work log
@@ -70,6 +70,12 @@ parallel-agent crowd complains about: "10 agents = 10 branches to read".
   the film cut lost its agent beat (`live-cut.mjs` reads that hover). It now
   points at each team agent and ticks only missing ones. Next film take needs
   the final MSI (gates 1–3) and takes over the screen while recording.
+- 2026-10-07 — Actions cost: Oct 1–7 used 1,304 Windows + 1,450 Linux min
+  ($10 over the free 2,000), almost all PR CI (Rust on Windows ~17 min/run,
+  compiled cold — no cache). CI now scopes PR jobs to the files changed,
+  caches Rust, folds six jobs that each recompiled the CLI into the Rust job,
+  and keeps macOS + the Linux Desktop release build for main/release.
+  Acceptance no longer bills Linux while waiting for the Windows build.
 - Still open: film re-record on the final build (v7 shows the old UI and a dev
   path); root README version (1.2.1) bumps at release; site deploy before the
   releases README sync (its screenshot URL 404s on the live site).
