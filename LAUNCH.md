@@ -61,6 +61,15 @@ parallel-agent crowd complains about: "10 agents = 10 branches to read".
   `D:/marketing/campaigns/pytxo-public-beta-launch/` — fact sheet with sources
   and do-not-claim list, Product Hunt fields + maker comment, X drafts, HN /
   Reddit research only (Matt writes all HN and Reddit wording).
+- 2026-10-07 — Website verified locally: `pnpm lint` clean, `pnpm build` OK,
+  web e2e 28/28 (Chrome channel; the pinned Playwright Chromium isn't
+  installed). Fixed: Download cards overflowed a 390 px screen by 10 px.
+  Guides (`multi-agent-run`, `desktop`) and v1.2.2 notes now describe Split,
+  `| files:` ownership and the default team.
+- 2026-10-07 — Acceptance journey: with agents pre-ticked it clicked none, so
+  the film cut lost its agent beat (`live-cut.mjs` reads that hover). It now
+  points at each team agent and ticks only missing ones. Next film take needs
+  the final MSI (gates 1–3) and takes over the screen while recording.
 - Still open: film re-record on the final build (v7 shows the old UI and a dev
   path); root README version (1.2.1) bumps at release; site deploy before the
   releases README sync (its screenshot URL 404s on the live site).
