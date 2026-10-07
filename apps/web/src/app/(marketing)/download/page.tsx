@@ -15,6 +15,7 @@ import {
   CANDIDATE_VERSION,
   PUBLISHED_VERSION,
   RELEASES_URL,
+  SOURCE_URL,
 } from "@/lib/site";
 
 export const metadata = pageMetadata(
@@ -105,7 +106,16 @@ export default function DownloadPage() {
                 >
                   pytxo-releases
                 </a>{" "}
-                repository. The product source repository is currently private.
+                repository. The MIT-licensed source is at{" "}
+                <a
+                  href={SOURCE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Pytxo-dev/pytxo
+                </a>
+                .
               </p>
             </div>
 

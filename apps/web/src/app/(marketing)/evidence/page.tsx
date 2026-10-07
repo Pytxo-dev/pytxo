@@ -275,9 +275,8 @@ export default function EvidencePage() {
         </h2>
         <p className="mt-6 max-w-[52rem] text-sm leading-relaxed text-[#a9a9b2]">
           The raw result, including the per-file table for every one of the{" "}
-          {SIGNAL_BENCHMARK.files} files, is committed in the private source repository.
-          The source link requires repository access. This public summary is not an
-          independent reproduction of that private corpus.
+          {SIGNAL_BENCHMARK.files} files, is committed in the public source repository.
+          This summary is not an independent reproduction of that corpus.
         </p>
         <div className="mt-8 flex flex-col gap-4">
           <Link

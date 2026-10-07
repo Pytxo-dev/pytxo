@@ -11,12 +11,10 @@
 
 Please **do not** open a public GitHub issue for security-sensitive reports.
 
-Private vulnerability reporting is not currently enabled on the public
-distribution repository. Request a private reporting route from a maintainer
-through [Pytxo-dev/pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases)
-without including vulnerability details, credentials, or exploit code in the
-public request. Maintainers with the required repository security permissions
-can use the [source advisory form](https://github.com/Pytxo-dev/pytxo/security/advisories/new).
+Report it privately through the
+[security advisory form](https://github.com/Pytxo-dev/pytxo/security/advisories/new).
+Include the version, platform, steps to reproduce and impact. Do not include
+live credentials.
 
 We aim to acknowledge reports within 72 hours.
 

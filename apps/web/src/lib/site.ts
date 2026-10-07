@@ -30,6 +30,8 @@ export const DESKTOP_DOWNLOADS = {
 
 export const GITHUB_URL = `https://github.com/${DISTRIBUTION_REPO}`;
 export const RELEASES_URL = `${GITHUB_URL}/releases`;
+/** MIT-licensed product source. */
+export const SOURCE_URL = "https://github.com/Pytxo-dev/pytxo";
 /** Community Discord invite (canonical). */
 export const DISCORD_URL = "https://discord.gg/AUFRPFjSYv";
 export const NPM_URL = "https://www.npmjs.com/package/pytxo";

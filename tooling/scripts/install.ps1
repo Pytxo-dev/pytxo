@@ -1,7 +1,7 @@
 # Install pytxo CLI from GitHub Releases into %LOCALAPPDATA%\Programs\pytxo
 $ErrorActionPreference = "Stop"
 
-# Public binaries: Pytxo-dev/pytxo-releases (main monorepo is private).
+# Public binaries: Pytxo-dev/pytxo-releases (source: Pytxo-dev/pytxo).
 $Repo = if ($env:PYTXO_REPO) { $env:PYTXO_REPO } else { "Pytxo-dev/pytxo-releases" }
 $InstallDir = if ($env:PYTXO_INSTALL_DIR) { $env:PYTXO_INSTALL_DIR } else { "$env:LOCALAPPDATA\Programs\pytxo" }
 $Asset = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "pytxo-windows-arm64.exe" } else { "pytxo-windows-x64.exe" }

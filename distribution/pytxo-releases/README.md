@@ -11,6 +11,7 @@ the files you reviewed.
 ![One request split across five agents in Pytxo Desktop](https://pytxo.com/product/fleet-1600x1000.png)
 
 [Download](https://pytxo.com/download) · [Docs](https://pytxo.com/docs) ·
+[Source (MIT)](https://github.com/Pytxo-dev/pytxo) ·
 [Discord](https://discord.gg/AUFRPFjSYv) · [pytxo.com](https://pytxo.com)
 
 ## Why

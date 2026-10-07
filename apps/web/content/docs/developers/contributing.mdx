@@ -1,17 +1,14 @@
 ---
 title: Contributing
-description: Build Pytxo from source when you already have repository access.
+description: Build Pytxo from source and send a change.
 ---
 
-The local Rust core is **MIT-licensed**. That is a license, not a public source dump. The product repository (`Pytxo-dev/pytxo`) is **not public**. Installers and CLI binaries ship from [`Pytxo-dev/pytxo-releases`](https://github.com/Pytxo-dev/pytxo-releases).
-
-Do not `git clone https://github.com/Pytxo-dev/pytxo.git` expecting a public checkout. If you do not already have source access, use [Install](/docs/getting-started/install) and [Download](/download).
+Pytxo is **MIT-licensed** and its source is at [`Pytxo-dev/pytxo`](https://github.com/Pytxo-dev/pytxo). Installers and CLI binaries ship from [`Pytxo-dev/pytxo-releases`](https://github.com/Pytxo-dev/pytxo-releases); to use Pytxo rather than change it, start with [Install](/docs/getting-started/install).
 
 ## Development setup
 
-These commands assume a local clone you already have:
-
 ```bash
+git clone https://github.com/Pytxo-dev/pytxo.git
 cd pytxo
 cargo build --workspace
 ```
@@ -52,4 +49,4 @@ Edit MDX under `apps/web/content/docs`. Preview with `pnpm --dir apps/web dev` a
 
 ## Pull requests
 
-Internal contributors with source access: branch from `main`, keep commits focused, ensure `cargo test` and CI pass, and link related issues or ADRs. There is no public contribution inbox on GitHub for the private source repo.
+Branch from `main`, keep commits focused, make sure `cargo test` and CI pass, and link related issues or ADRs. For anything larger than a fix, open an issue first so we can agree on the approach. Report security problems privately, as described in `SECURITY.md`.

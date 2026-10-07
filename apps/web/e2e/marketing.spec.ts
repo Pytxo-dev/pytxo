@@ -46,7 +46,7 @@ for (const width of [1440, 390]) {
     await hero.getByRole("link", { name: "Download for Windows" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Download" })).toBeVisible();
     await expect(page.getByText(/download below installs the current public v1\.2\.1, which runs Codex/)).toBeVisible();
-    await expect(page.getByText("The product source repository is currently private.")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Pytxo-dev/pytxo" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
     await expect(page.getByRole("button", { name: "Not yet" })).toHaveCount(2);
     await expect(page.getByText("The CLI does not Apply repository changes")).toBeVisible();
     await expect(page.getByText("planning, waves, isolation, and Apply")).toHaveCount(0);
@@ -110,7 +110,7 @@ test("the evidence page states the corpus, caveats, and source access limit", as
   await expect(page.getByRole("heading", { name: "What it does not claim" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Caveats that weaken the number" })).toBeVisible();
   await expect(page.getByText(/worktree was dirty at capture time/)).toBeVisible();
-  await expect(page.getByText(/The source link requires repository access/)).toBeVisible();
+  await expect(page.getByText(/committed in the public source repository/)).toBeVisible();
   await expect(
     page.getByRole("link", { name: "tooling/benchmarks/results/signal-real-repo.json" }).first(),
   ).toBeVisible();

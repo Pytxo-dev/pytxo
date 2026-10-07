@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { DISCORD_URL, GITHUB_URL } from "@/lib/site";
+import { DISCORD_URL, GITHUB_URL, SOURCE_URL } from "@/lib/site";
 
 const PRODUCT_LINKS = [
   { href: "/download", label: "Download" },
@@ -16,6 +16,7 @@ const DOCS_LINKS = [
 ] as const;
 
 const RESOURCE_LINKS = [
+  { href: SOURCE_URL, label: "Source on GitHub", external: true },
   { href: GITHUB_URL, label: "Binaries on GitHub", external: true },
   { href: DISCORD_URL, label: "Discord", external: true },
   { href: "/docs/reference/cli", label: "CLI reference" },
