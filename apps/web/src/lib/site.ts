@@ -8,9 +8,7 @@ export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
  */
 export const PUBLISHED_VERSION = "1.2.2";
 /** In-repo / changelog candidate. Not for public download URLs. */
-export const CANDIDATE_VERSION = "1.2.2";
-/** True once the candidate is the public release; "coming in" copy switches on this. */
-export const CANDIDATE_PUBLISHED = (PUBLISHED_VERSION as string) === CANDIDATE_VERSION;
+export const CANDIDATE_VERSION = "1.2.3";
 /** Alias for published tag used by download UI. */
 export const PYTXO_VERSION = PUBLISHED_VERSION;
 

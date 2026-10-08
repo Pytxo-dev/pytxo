@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { CANDIDATE_PUBLISHED, CANDIDATE_VERSION, PUBLISHED_VERSION } from "@/lib/site";
 
 // Each mark sits beside its full product name and implies no partnership.
 const AGENTS = [
@@ -25,7 +24,6 @@ export function Hero() {
           <Button size="lg" className="h-12 rounded-[6px] bg-white px-7 text-base text-black hover:bg-white/85" asChild><Link href="/download">Download for Windows</Link></Button>
           <Link href="#how" className="aperture-link text-base text-[#c4c4cc]">See how it works ↓</Link>
         </div>
-        {!CANDIDATE_PUBLISHED && <p className="mt-4 text-sm text-[#aaaab3]">Mixed-agent runs arrive in v{CANDIDATE_VERSION}. Today&apos;s download, v{PUBLISHED_VERSION}, runs Codex.</p>}
       </div>
 
       <ul className="mx-auto mt-10 flex max-w-5xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-base text-[#d4d4da]" aria-label="Agent CLIs Pytxo runs">

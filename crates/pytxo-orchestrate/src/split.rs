@@ -70,8 +70,10 @@ fn split_args(ade_id: &str, last_message: &Path) -> Option<(&'static str, Vec<St
             "claude",
             [
                 "-p",
+                // dontAsk denies every tool not listed below. Plan mode sometimes
+                // ends on its plan-exit step and prints no text at all.
                 "--permission-mode",
-                "plan",
+                "dontAsk",
                 "--allowedTools",
                 "Read,Glob,Grep",
                 "--output-format",
@@ -250,7 +252,11 @@ fn run_split(
             if cancelled {
                 bail!("Split cancelled. Your request was not changed.");
             }
-            let label = if name == "codex" { "OpenAI Codex" } else { "Claude Code" };
+            let label = if name == "codex" {
+                "OpenAI Codex"
+            } else {
+                "Claude Code"
+            };
             bail!(
                 "{label} did not finish within {} minutes. Your request was not changed.",
                 timeout.as_secs() / 60
@@ -453,7 +459,10 @@ mod tests {
         let (_, claude) = split_args("claude", Path::new("m.txt")).unwrap();
         assert!(claude
             .windows(2)
-            .any(|pair| pair == ["--permission-mode", "plan"]));
+            .any(|pair| pair == ["--permission-mode", "dontAsk"]));
+        assert!(claude
+            .windows(2)
+            .any(|pair| pair == ["--allowedTools", "Read,Glob,Grep"]));
         assert!(!claude
             .iter()
             .any(|arg| arg.contains("Edit") || arg.contains("Bash")));
@@ -466,7 +475,7 @@ mod tests {
         let ade = std::env::var("PYTXO_SPLIT_LIVE_ADE").unwrap();
         let draft = split_request(
             &repo,
-            "Make risky changes easier to review: summarize network and destructive command risks, cover them with tests, and document examples.",
+            &std::env::var("PYTXO_SPLIT_LIVE_REQUEST").unwrap_or_else(|_| "Make risky changes easier to review: summarize network and destructive command risks, cover them with tests, and document examples.".to_owned()),
             &ade,
             Duration::from_secs(300),
             &AtomicBool::new(false),

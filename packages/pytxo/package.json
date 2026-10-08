@@ -1,6 +1,6 @@
 {
   "name": "pytxo",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Pytxo agent hypervisor CLI — local-first PTY orchestration",
   "license": "MIT",
   "repository": {
