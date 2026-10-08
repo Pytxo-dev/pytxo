@@ -43,7 +43,7 @@ test("docs compare and changelog are reachable", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Pytxo and Conductor" })).toBeVisible();
   await page.goto("/docs/reference/changelog");
   await expect(page.getByRole("heading", { level: 1, name: "Changelog" })).toBeVisible();
-  await expect(page.getByText(/latest public GitHub and npm release \(the public beta\)/)).toBeVisible();
+  await expect(page.getByText(/latest public GitHub and npm release is/)).toBeVisible();
 });
 
 test("desktop setup docs follow the wizard before Add workspace", async ({ page }) => {
