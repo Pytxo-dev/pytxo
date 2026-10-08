@@ -523,11 +523,13 @@
   .mission-outcome summary:hover { color:var(--pytxo-text-strong); }
   .mission-outcome p { position:absolute;z-index:12;top:100%;left:0;width:min(620px,70vw);max-height:240px;margin:4px 0 0;padding:12px;overflow:auto;border:1px solid var(--pytxo-line);border-radius:5px;background:var(--pytxo-surface-raised);box-shadow:0 16px 40px #0008;color:var(--pytxo-text-body);white-space:pre-wrap; }
   .command-actions { display:flex;align-items:center;justify-content:flex-end;gap:7px; }
-  .command-actions>button,.run-reference>summary { min-height:34px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-soft);font:11px var(--pytxo-font-ui);cursor:pointer; }
+  .command-actions>button,.run-reference>summary { min-height:36px;padding:0 12px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-soft);font:500 12px var(--pytxo-font-ui);cursor:pointer; }
   .command-actions>button:focus-visible,.run-reference>summary:focus-visible { outline:2px solid var(--pytxo-accent);outline-offset:2px; }
   .run-reference>summary:hover { background:var(--pytxo-surface-active);color:var(--pytxo-text-strong); }
   .command-actions .review-run { min-height:36px;border-color:var(--pytxo-text-strong);background:var(--pytxo-text-strong);color:var(--pytxo-surface-shell); }
   .command-actions .review-run.secondary { border-color:var(--pytxo-line);background:transparent;color:var(--pytxo-text-strong); }
+  /* Not yet available reads as an outline, never as a dimmed primary that looks pressable. */
+  .command-actions .review-run:disabled { border-color:var(--pytxo-line);background:transparent;color:var(--pytxo-text-muted);opacity:1; }
   .command-actions .stop-run { min-height:36px; }
   .command-actions .attention-action { min-height:36px;padding-inline:12px;border-color:color-mix(in srgb,var(--state-attention) 70%,var(--pytxo-line));background:color-mix(in srgb,var(--state-attention) 14%,var(--pytxo-surface-panel));color:var(--pytxo-text-strong); }
   .command-actions .attention-action:hover { background:color-mix(in srgb,var(--state-attention) 24%,var(--pytxo-surface-panel)); }

@@ -10,8 +10,8 @@ const STEPS = [
   {
     title: "Agents work side by side.",
     body: "Each task runs in its own isolated copy of your project with the CLI you assigned. When a task finishes, Pytxo runs your checks on it. An agent saying “done” is not a pass.",
-    image: "work",
-    alt: "Pytxo Work view with the run's tasks laid out by step: a finished plan task, an active worker and a queued test task that waits for it",
+    image: "fleet",
+    alt: "Pytxo Work view of one run: Codex, Claude Code, Cursor Agent and OpenCode each working their own task with live output, and the tasks that share a file queued after them",
   },
   {
     title: "Review one change. Apply exactly that.",

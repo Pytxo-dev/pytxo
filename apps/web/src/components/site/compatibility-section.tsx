@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { SOURCE_URL } from "@/lib/site";
+
 const FACTS = [
   ["Desktop", "Windows x64. macOS and Linux have the Pytxo CLI today; Desktop for them is not built yet."],
   ["Agents", "Codex, Claude Code, Cursor Agent, OpenCode and Antigravity. One is enough to start."],
@@ -7,6 +9,7 @@ const FACTS = [
   ["Keys", "Agents run with a clean environment: your shell's API keys are not passed to them."],
   ["Project", "A Git repository with the tools its build and tests need."],
   ["Cost", "No Pytxo charge for local work. Your agent subscriptions bill as usual."],
+  ["Source", "Open source under the MIT license, on GitHub."],
 ] as const;
 
 export function CompatibilitySection() {
@@ -18,7 +21,7 @@ export function CompatibilitySection() {
     </div>
     <dl className="divide-y divide-white/15 border-y border-white/15">
       {FACTS.map(([term, value]) => <div key={term} className="grid grid-cols-[6.5rem_1fr] gap-5 py-4 text-sm sm:text-base">
-        <dt className="text-[#aaaab3]">{term}</dt><dd className="leading-relaxed">{value}</dd>
+        <dt className="text-[#aaaab3]">{term}</dt><dd className="leading-relaxed">{term === "Source" ? <>Open source under the MIT license, <a className="aperture-link" href={SOURCE_URL}>on GitHub</a>.</> : value}</dd>
       </div>)}
     </dl>
   </section>;
