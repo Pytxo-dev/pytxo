@@ -23,13 +23,20 @@ export const AUTH_ERROR_EVENT = "deck-auth-error";
 export const DEEP_LINK_EVENT = "pytxo-deep-link";
 export const DOMAIN_CHANGED_EVENT = "pytxo://domain-changed";
 
+/** A backend error: the message is for people; the code stays on the error for logic and logs. */
+export class IpcError extends Error {
+  constructor(readonly code: string | undefined, message: string) {
+    super(message);
+    this.name = "IpcError";
+  }
+}
+
 export function normalizeIpcError(cause: unknown): Error {
   if (cause instanceof Error) return cause;
   if (cause && typeof cause === "object") {
     const payload = cause as Record<string, unknown>;
     if (typeof payload.message === "string") {
-      const code = typeof payload.code === "string" ? `[${payload.code}] ` : "";
-      return new Error(`${code}${payload.message}`);
+      return new IpcError(typeof payload.code === "string" ? payload.code : undefined, payload.message);
     }
     if (typeof payload.error === "string") return new Error(payload.error);
     try {
@@ -56,7 +63,7 @@ function unwrap<T>(result: T | PytxoIpcError): T {
     !("domain_id" in result)
   ) {
     const err = result as PytxoIpcError;
-    throw new Error(`[${err.code}] ${err.message}`);
+    throw new IpcError(err.code, err.message);
   }
   return result as T;
 }

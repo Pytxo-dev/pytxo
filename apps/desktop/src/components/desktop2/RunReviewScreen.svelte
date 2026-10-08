@@ -644,7 +644,7 @@
           <svg class="convergence" viewBox="0 0 80 120" preserveAspectRatio="none" aria-hidden="true">
             {#each manifest.files.slice(0, 3) as file, index}<path d={`M 0 ${20 + index * 40} C 40 ${20 + index * 40}, 35 60, 80 60`} class:selected={selectedPreparedPath === file.path} />{/each}
           </svg>
-          <details class="candidate-node"><summary><IconFileText size={20}/><span>Change set<small class="identity-peek" title={review.prepared_digest ?? "ID unavailable"}>{review.prepared_digest?.slice(0, 18) ?? "ID unavailable"}</small><small>{presentation.state === "applied" ? "Applied" : "Not applied"}</small></span></summary><code>{review.prepared_digest ?? "ID unavailable"}</code></details>
+          <details class="candidate-node"><summary><IconFileText size={20}/><span>Prepared change<small class="identity-peek" title={review.prepared_digest ?? "ID unavailable"}>{review.prepared_digest?.slice(0, 18) ?? "ID unavailable"}</small><small>{presentation.state === "applied" ? "Applied" : "Not applied"}</small></span></summary><code>{review.prepared_digest ?? "ID unavailable"}</code></details>
           <span class="stage-connection" aria-hidden="true">→</span>
           <button class="verification-node" onclick={() => void revealChecks()}><span class="map-label">Checks</span><strong>{candidatePassed ? "All checks passed" : "Not verified"}</strong><span>{candidateEvidence?.checks.length ?? 0} {(candidateEvidence?.checks.length ?? 0) === 1 ? "command" : "commands"} · View</span></button>
           <div class="map-boundary"><span class="decision-aperture" aria-hidden="true"></span><details class="destination-node"><summary><span class="map-label">Applies to</span><strong>{run.repo_root.split(/[\\/]/).pop()}</strong><span>Show folder</span></summary><code>{run.repo_root}</code><p>Apply writes these files to this project folder. Viewing it changes nothing.</p></details></div>
@@ -883,7 +883,7 @@
   </div>
 
     <div class="decision-transition">
-      <details class="decision-identity package-identity"><summary>Change set ID</summary><code>{review?.prepared_digest ?? "ID unavailable"}</code></details>
+      <details class="decision-identity package-identity"><summary>Prepared change ID</summary><code>{review?.prepared_digest ?? "ID unavailable"}</code></details>
       <span class="decision-aperture" aria-hidden="true"></span>
       <div><strong>Applies to {run.repo_root.split(/[\\/]/).pop()}</strong><span>{presentation.state === "applied" ? "Applied" : presentation.state === "applying" ? "Applying · not finished" : "Not applied yet"}</span></div>
       <!-- A blocked reason equal to the decision copy is already shown above; show any other reason once, beside Apply. -->

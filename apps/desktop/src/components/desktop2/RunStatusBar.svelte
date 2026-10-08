@@ -43,7 +43,6 @@
   {#if waiting}<span class="count"><b>{waiting}</b> waiting</span>{/if}
   <span class="clock">{#if running}<span class="sr">Running for </span>{elapsed}{:else if startedAt}Started {startedAt}{/if}</span>
   <span class="review" data-tone={reviewState.tone}>{reviewState.text}</span>
-  <span class="hint"><kbd>Ctrl</kbd><kbd>K</kbd> Search</span>
 </footer>
 
 <style>
@@ -60,11 +59,9 @@
   .review[data-tone="attention"] { color: var(--state-attention); }
   .review[data-tone="failed"] { color: var(--state-refuted); }
   .review[data-tone="live"] { color: var(--pytxo-activity); }
-  .hint { display: inline-flex; align-items: center; gap: 3px; color: var(--pytxo-text-muted); }
-  kbd { padding: 0 4px; border: 1px solid var(--pytxo-line); border-radius: 3px; font: 10px "IBM Plex Mono", monospace; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
   @keyframes beat { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--pytxo-activity) 8%, transparent); } }
   @media (prefers-reduced-motion: reduce) { .count[data-tone="live"] i { animation: none; } }
   :global([data-force-reduced-motion]) .count[data-tone="live"] i { animation: none; }
-  @container mission (max-width: 640px) { .hint, .clock { display: none; } .run-status { gap: 10px; } }
+  @container mission (max-width: 640px) { .clock { display: none; } .run-status { gap: 10px; } }
 </style>

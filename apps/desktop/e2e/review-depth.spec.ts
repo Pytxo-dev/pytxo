@@ -109,7 +109,7 @@ test.describe("Review depth", () => {
     await openReview(page, "run-71ad");
 
     await expect(page.getByText("71ad8f2c4d90b6c6", { exact: true })).toBeVisible();
-    await page.getByText("Change set ID", { exact: true }).click();
+    await page.getByText("Prepared change ID", { exact: true }).click();
     await expect(page.locator(".package-identity code")).toBeVisible();
     await expect(page.getByText(/Aug 1, 2026, .* UTC/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Inspect exact content for crates/pytxo-signal/src/lib.rs", exact: true })).toBeVisible();

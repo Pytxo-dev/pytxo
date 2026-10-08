@@ -359,8 +359,7 @@
     </div>
     {#if focusRun}
       <div class="command-actions run-bar">
-        <details class="run-reference"><summary>Runs</summary><div class="run-switch" role="tablist" aria-label="Runs in this snapshot">{#each runs.slice(0, 8) as run (run.id)}{@const chip = runState(run)}<button role="tab" aria-selected={run.id === focusRun?.id} data-tone={chip.tone} class:active={run.id === focusRun?.id} title={run.id} onclick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); onSelectRun(run.id); }}><i aria-hidden="true"></i>{displayRunId(run.id)}</button>{/each}</div></details>
-        {#if onInspect}<button class="details-action" onclick={() => onInspect?.({ kind: "evidence", domainId: focusRun.domain_id, runId: focusRun.id, title: "Checks & details" }, "right")}>Details</button>{/if}
+        <details class="run-reference"><summary>Runs</summary><div class="run-switch"><div class="run-tabs" role="tablist" aria-label="Runs in this snapshot">{#each runs.slice(0, 8) as run (run.id)}{@const chip = runState(run)}<button role="tab" aria-selected={run.id === focusRun?.id} data-tone={chip.tone} class:active={run.id === focusRun?.id} title={run.id} onclick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); onSelectRun(run.id); }}><i aria-hidden="true"></i>{displayRunId(run.id)}</button>{/each}</div>{#if onInspect}<button class="run-details" onclick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); onInspect?.({ kind: "evidence", domainId: focusRun.domain_id, runId: focusRun.id, title: "Checks & details" }, "right"); }}>Checks &amp; details</button>{/if}</div></details>
         {#if runApprovals.length}<button class="attention-action" onclick={onOpenApprovals} aria-label="Decision needed: open approval"><i aria-hidden="true"></i><strong>Decision needed</strong></button>{/if}
         <button class="review-run" class:secondary={runApprovals.length > 0} disabled={!canReviewFocusRun} aria-describedby={!canReviewFocusRun ? "review-unavailable-reason" : undefined} onclick={() => canReviewFocusRun && onReviewRun(focusRun.id)}>Review changes<IconArrowRight size={15} /></button>
         <button class="stop-run" disabled={!canStopFocusRun} aria-describedby={!canStopFocusRun ? "stop-disabled-reason" : undefined} onclick={() => requestStop(focusRun)}><IconPlayerStop size={14} />Stop</button>
@@ -526,7 +525,7 @@
   .command-actions { display:flex;align-items:center;justify-content:flex-end;gap:7px; }
   .command-actions>button,.run-reference>summary { min-height:34px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-soft);font:11px var(--pytxo-font-ui);cursor:pointer; }
   .command-actions>button:focus-visible,.run-reference>summary:focus-visible { outline:2px solid var(--pytxo-accent);outline-offset:2px; }
-  .details-action:hover,.run-reference>summary:hover { background:var(--pytxo-surface-active);color:var(--pytxo-text-strong); }
+  .run-reference>summary:hover { background:var(--pytxo-surface-active);color:var(--pytxo-text-strong); }
   .command-actions .review-run { min-height:36px;border-color:var(--pytxo-text-strong);background:var(--pytxo-text-strong);color:var(--pytxo-surface-shell); }
   .command-actions .review-run.secondary { border-color:var(--pytxo-line);background:transparent;color:var(--pytxo-text-strong); }
   .command-actions .stop-run { min-height:36px; }
@@ -538,6 +537,8 @@
   .run-reference summary { display:grid;place-items:center;list-style:none; }
   .run-reference .run-switch { position:absolute;z-index:12;top:calc(100% + 6px);right:0;display:grid;width:220px;padding:6px;border:1px solid var(--pytxo-line);border-radius:5px;background:var(--pytxo-surface-raised);box-shadow:0 16px 40px #0008; }
   .run-switch button { width:100%;justify-content:flex-start; }
+  .run-tabs { display:grid; }
+  .run-switch .run-details { margin-top:4px;padding-top:6px;border-top:1px solid var(--pytxo-line-soft);color:var(--pytxo-text-soft); }
   .sr-reason { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap; }
   .work-layout { display:flex;flex:1;min-height:0;flex-direction:column;gap:8px;overflow:hidden;container:work-space / inline-size; }
   .work-layout>.work-feedback { flex:0 0 auto;order:0;margin:0; }
@@ -562,6 +563,6 @@
     .command-strip :global(.aperture-glyph) { display:none; }
     .command-actions { gap:5px; }
     .command-actions>button,.run-reference>summary { padding-inline:8px;white-space:nowrap; }
-    .details-action,.run-reference,.attention-action { display:none; }
+    .run-reference,.attention-action { display:none; }
   }
 </style>

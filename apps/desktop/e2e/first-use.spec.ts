@@ -34,7 +34,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 860, height: 560 
     await expect(work.getByRole("button", { name: "Stop", exact: true })).toBeInViewport({ ratio: 1 });
     await expect(work.getByRole("button", { name: "Review changes", exact: true })).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: info.outputPath("active-task.png") });
-    await work.getByRole("button", { name: "Details", exact: true }).click();
+    await work.locator(".run-reference summary").click();
+    await work.getByRole("button", { name: "Checks & details", exact: true }).click();
     const detail = page.locator(".dock-panel:visible");
     await expect(detail).toContainText("pkg-8f2c-immutable");
     await expect(detail).toContainText("Combined candidate verification has not been recorded.");
