@@ -32,6 +32,7 @@ parser.add_argument("--out", required=True)
 parser.add_argument("--mode", choices=["full", "layout", "probe", "update"], required=True)
 parser.add_argument("--repo")
 parser.add_argument("--mission")
+parser.add_argument("--lead", default="OpenAI Codex")
 parser.add_argument("--team", default="Claude Code,Cursor Agent,OpenCode,Antigravity")
 parser.add_argument("--name", default="probe")
 parser.add_argument("--onboard", action="store_true")
@@ -315,12 +316,13 @@ try:
         type_text(mission)
         mark("typed")
         agent = spec("Agent CLI", control_type="ComboBox")
-        if "OpenAI Codex" not in agent.wait("visible enabled", timeout=60).window_text():
+        receipt["lead"] = args.lead
+        if args.lead not in agent.wait("visible enabled", timeout=60).window_text():
             press(agent, "Agent CLI")
-            type_text("OpenAI Codex")
+            type_text(args.lead)
             send_keys("{ENTER}")
         if args.split:
-            # Codex reads the project read-only and rewrites the request as owned tasks.
+            # The lead reads the project read-only and rewrites the request as owned tasks.
             press(spec(title_re="^Split with ", control_type="Button"), "Split")
             mark("split_start")
             wait(spec(title_re=r".* proposed \d+ tasks?, each owning its files.*"), 600)

@@ -12,6 +12,7 @@ param(
   [switch]$Film,
   [switch]$Live,
   [switch]$Split,
+  [string]$Lead = "OpenAI Codex",
   [string]$Team = "Claude Code,Cursor Agent,OpenCode,Antigravity"
 )
 $ErrorActionPreference = "Stop"
@@ -45,7 +46,7 @@ $env:WEBVIEW2_USER_DATA_FOLDER = "$work\webview"
 $app = Start-Process -FilePath $Exe -WorkingDirectory "$work\home" -PassThru
 try {
   $journey = @((Join-Path $PSScriptRoot "journey.py"), "--out", (Join-Path $Evidence "journey"), "--mode", "full", "--repo", $fixture,
-    "--mission", $mission, "--team", $Team)
+    "--mission", $mission, "--lead", $Lead, "--team", $Team)
   if ($Film) { $journey += "--film" }
   if ($Split) { $journey += "--split" }
   $ErrorActionPreference = "Continue"

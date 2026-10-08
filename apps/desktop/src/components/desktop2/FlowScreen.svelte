@@ -186,7 +186,8 @@
       if (draft.project_changed) splitWarning = `Your project changed while ${name} was reading it. Check your folder before you run.`;
       if (!workersTouched) workers = Math.min(DESKTOP_BETA_MAX_WORKERS, Math.max(1, Math.min(team.length, draft.tasks.length)));
     } catch (cause) {
-      splitError = cause instanceof Error ? cause.message : String(cause);
+      // IPC errors carry a "[code] " prefix meant for logs, not for this notice.
+      splitError = (cause instanceof Error ? cause.message : String(cause)).replace(/^\[[\w-]+\] /, "");
     } finally {
       clearInterval(tick);
       splitting = false;

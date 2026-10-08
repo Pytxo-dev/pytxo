@@ -41,7 +41,7 @@ const split = hoverOf("Split");
 // the shot may run. Interactive shots lose their earliest moments instead of speeding up.
 const shots = [
   {start: newWork.t - 0.6, end: m.typed + 0.4, kicker: "Describe", title: "Say what you want, once.", focus: focus(request, 1100, 620), target: 4.2, cap: 4},
-  ...(m.split ? [{start: split.t - 0.4, end: m.split + 2.4, kicker: "Split", title: "Codex reads the project and splits the job.", focus: null, sped: true, target: 4.4, cap: 60}] : []),
+  ...(m.split ? [{start: split.t - 0.4, end: m.split + 2.4, kicker: "Split", title: `${receipt.lead ?? "The lead agent"} reads the project and splits the job.`, focus: null, sped: true, target: 4.4, cap: 60}] : []),
   {start: firstAgent.t - 0.4, end: build.t + 0.8, kicker: "Choose agents", title: "Put every agent you use on the job.", focus: focus(firstAgent, 900, 506), target: 4.6, cap: 3},
   {start: m.plan - 0.2, end: run.t + 1.0, kicker: "Plan", title: "See the plan before anything runs.", focus: null, target: 4.0, cap: 3},
   ...(m.dragged ? [{start: m.dragged - 2.6, end: m.dragged + 1.2, kicker: "Fleet", title: "Every worker, on one canvas you can move.", focus: null, target: 4.6, cap: 1.5}] : []),
@@ -72,5 +72,5 @@ if (existsSync(path.join(dir, "result-frames.txt"))) {
 }
 
 const pointer = clicks.filter((p) => p.x !== undefined || p.kind === "click").map(({t, kind, x, y, label}) => ({t, kind, x, y, label}));
-writeFileSync("live-cut.json", JSON.stringify({width: W, height: H, video: "live/screen.mp4", result, shots, pointer, marks: m}, null, 2) + "\n");
+writeFileSync("live-cut.json", JSON.stringify({width: W, height: H, video: "live/screen.mp4", result, lead: receipt.lead ?? null, shots, pointer, marks: m}, null, 2) + "\n");
 console.log(`${shots.length} shots from a ${W}x${H} take; ${pointer.length} pointer events`);

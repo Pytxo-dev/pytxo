@@ -49,6 +49,10 @@ fn split_args(ade_id: &str, last_message: &Path) -> Option<(&'static str, Vec<St
             "codex",
             [
                 "exec",
+                // A split is a short planning read; a user default such as
+                // "max" effort would outrun the split timeout.
+                "-c",
+                "model_reasoning_effort=\"medium\"",
                 "--sandbox",
                 "read-only",
                 "--skip-git-repo-check",
@@ -246,8 +250,9 @@ fn run_split(
             if cancelled {
                 bail!("Split cancelled. Your request was not changed.");
             }
+            let label = if name == "codex" { "OpenAI Codex" } else { "Claude Code" };
             bail!(
-                "{name} did not finish within {} minutes. Your request was not changed.",
+                "{label} did not finish within {} minutes. Your request was not changed.",
                 timeout.as_secs() / 60
             );
         }
@@ -442,6 +447,9 @@ mod tests {
         assert!(codex
             .windows(2)
             .any(|pair| pair == ["--sandbox", "read-only"]));
+        assert!(codex
+            .windows(2)
+            .any(|pair| pair == ["-c", "model_reasoning_effort=\"medium\""]));
         let (_, claude) = split_args("claude", Path::new("m.txt")).unwrap();
         assert!(claude
             .windows(2)

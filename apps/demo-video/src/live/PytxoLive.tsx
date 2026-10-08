@@ -33,7 +33,7 @@ type Beat = keyof typeof VO;
 const BEAT_OF: Record<string, Beat> = {Describe: "describe", Split: "describe", "Choose agents": "agents", Plan: "plan", Fleet: "fleet", Review: "review", Stale: "stale", Apply: "apply"};
 const hasSplit = (cut.shots as Shot[]).some((s) => s.kicker.endsWith("Split"));
 const CAPTION: Partial<Record<Beat, string>> = {
-  describe: hasSplit ? "Describe it once. Codex splits it." : "Describe it once.",
+  describe: hasSplit ? `Describe it once. ${(cut as {lead?: string | null}).lead ?? "An agent"} splits it.` : "Describe it once.",
   agents: "Pick every agent you use.",
   plan: "See the plan first.",
   fleet: "They work side by side, isolated.",
