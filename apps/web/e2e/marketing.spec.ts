@@ -40,13 +40,13 @@ for (const width of [1440, 390]) {
     await expect(how.getByRole("listitem")).toHaveCount(3);
     // Step images load lazily; each must load once it is scrolled into view.
     for (const image of await how.getByRole("img").all()) { await image.scrollIntoViewIfNeeded(); await expect(image).toHaveJSProperty("naturalWidth", 1600); }
-    await expect(how).toContainText("Screens are captures of the v1.2.2 Desktop");
+    await expect(how).toContainText("Screens are captures of Pytxo Desktop with sample data");
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: testInfo.outputPath(`launch-home-${width}.png`), fullPage: true });
     await hero.getByRole("link", { name: "Download for Windows" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Download" })).toBeVisible();
     await expect(page.getByText(/download below installs the current public/)).toHaveCount(0);
-    await expect(page.getByText("v1.2.2").first()).toBeVisible();
+    await expect(page.getByText(/^v\d+\.\d+\.\d+$/).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Pytxo-dev/pytxo" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
     await expect(page.getByRole("button", { name: "Not yet" })).toHaveCount(2);
     await expect(page.getByText("The CLI does not Apply repository changes")).toBeVisible();
