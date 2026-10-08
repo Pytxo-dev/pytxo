@@ -18,11 +18,11 @@ parallel-agent crowd complains about: "10 agents = 10 branches to read".
 
 | # | Gate | State | Unblock |
 |---|------|-------|---------|
-| 1 | Hosted CI / candidate MSI / cloud acceptance | **Blocked** — GitHub Actions jobs refuse to start: "recent account payments have failed or your spending limit needs to be increased" (run 37344182755, 2026-10-05) | Matt fixes Billing & plans for `Pytxo-dev`, or approves the documented local Windows build fallback |
-| 2 | Fresh candidate after Oct 5–6 UI changes | Open — last accepted MSI is `cc0baa8` (Oct 4); onboarding, sidebar and Fleet changed since | Rebuild + rerun acceptance (needs gate 1 or local fallback) |
-| 3 | Live vendor agents on the final artifact | Open — Oct 2 run was live; later acceptance used stand-in replays | One native run with real CLIs on the final build |
-| 4 | Source visibility | **Decided: public (MIT)** — copy updated on the branch; gitleaks over all remote history + this branch: only false positives. Public also makes standard Actions runners free | Flip `Pytxo-dev/pytxo` to public before merging the branch |
-| 5 | Publication | Approval-gated — merge, tag, GitHub release, Vercel deploy, posts | Matt approves each exact action |
+| 1 | Hosted CI / candidate MSI / cloud acceptance | **Done** — repo public 2026-10-07, so standard runners are free and unblocked. PR #33: CI green, candidate MSI built, cloud acceptance (install, mixed-agent journey, stale refusal, Apply, 150/175% layout) passed | — |
+| 2 | Fresh candidate after Oct 5–6 UI changes | **Done** — candidate run 37651799067 at `15758b7`, acceptance 37652820730 passed | — |
+| 3 | Live vendor agents on the final artifact | **Open** — cloud acceptance uses stand-in agents; no live Codex/Claude run on the v1.2.2 MSI yet, including Split | One local run of the released MSI with real CLIs |
+| 4 | Source visibility | **Done: public (MIT)** — gitleaks clean; private vulnerability reporting, secret scanning + push protection, Dependabot alerts and fork-PR approval on | — |
+| 5 | Publication | **Done** — v1.2.2 tagged at `63b5785`; GitHub release + `pytxo-releases` mirror (checksums verified, CLI reports 1.2.2); npm `latest` 1.2.2; pytxo.com deployed 2026-10-08 | Film re-record and launch posts remain (Matt writes HN/Reddit) |
 
 ## Work log
 
@@ -76,6 +76,12 @@ parallel-agent crowd complains about: "10 agents = 10 branches to read".
   caches Rust, folds six jobs that each recompiled the CLI into the Rust job,
   and keeps macOS + the Linux Desktop release build for main/release.
   Acceptance no longer bills Linux while waiting for the Windows build.
+- 2026-10-08 — Released v1.2.2. Fixes found on the way: npm audit advisories
+  (sharp, source-map-js), CI scope pipe bug, a guided-example button without a
+  stable accessible name (broke acceptance layout passes), an expired then
+  2FA-blocked `NPM_TOKEN`, and `.vercelignore` hiding the favicon encoder from
+  production builds (site deploys use the Vercel CLI; the deploy-web workflow
+  has no Vercel secrets).
 - Still open: film re-record on the final build (v7 shows the old UI and a dev
   path); root README version (1.2.1) bumps at release; site deploy before the
   releases README sync (its screenshot URL 404s on the live site).
