@@ -210,7 +210,8 @@
   .head:hover:not(:disabled) { background: var(--pytxo-surface-hover); }
   .logo { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--pytxo-surface-raised); }
   .who { display: grid; gap: 2px; min-width: 0; }
-  .who strong { overflow: hidden; color: var(--pytxo-text-strong); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+  /* Task titles are the request's own words: two lines before they clip. */
+  .who strong { display: -webkit-box; overflow: hidden; color: var(--pytxo-text-strong); font-size: 14px; font-weight: 600; line-height: 1.3; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .who small { overflow: hidden; color: var(--pytxo-text-muted); font: 11.5px var(--pytxo-font-mono, "IBM Plex Mono", monospace); text-overflow: ellipsis; white-space: nowrap; }
   .state { align-self: start; margin-top: 2px; color: var(--pytxo-text-muted); font: 500 11.5px var(--pytxo-font-mono, "IBM Plex Mono", monospace); white-space: nowrap; }
   .worker[data-tone="live"] .state { color: var(--pytxo-activity); }
@@ -219,6 +220,8 @@
   .worker[data-tone="failed"] .state { color: var(--state-refuted); }
   .term { display: flex; flex-direction: column; justify-content: flex-end; min-height: 0; overflow: hidden; padding: 8px 14px; border-top: 1px solid var(--pytxo-line-soft); background: var(--pytxo-code-surface); color: var(--pytxo-text-body); font: 12px/1.6 var(--pytxo-font-mono, "IBM Plex Mono", monospace); }
   .term div { flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Newest lines sit at the bottom; older ones fade out at the top instead of being cut mid-line. */
+  .term { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px); mask-image: linear-gradient(to bottom, transparent 0, #000 22px); }
   .term .mark { color: var(--state-verified); }
   .term .failed { color: var(--state-refuted); }
   .term .hint { color: var(--pytxo-text-muted); white-space: normal; }

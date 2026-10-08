@@ -688,6 +688,19 @@ export class PreviewDesktopBackend implements DesktopBackend {
   async voiceAvailable() { return true; }
   async flowHistory(): Promise<FlowDraftRecord[]> {
     const fixture = typeof localStorage === "undefined" ? null : localStorage.getItem("pytxo-preview-flow-history-v1");
+    if (!fixture && typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-fleet-v1") === "1") {
+      // The fleet run's saved request, so Work and the sidebar show the job, not "Work in pytxo".
+      const run = this.snapshot.runs[0];
+      const prompts: Record<string, string> = {
+        model: "Add search and status filtering to the task model",
+        "dark-mode": "Add a dark theme that follows the system setting",
+        spanish: "Translate the interface to Spanish",
+        "filter-bar": "Build the filter bar with an empty state",
+        validation: "Reject blank titles and mount the filter bar",
+        readme: "Document the new features in the README",
+      };
+      return [{ id: "draft-fleet", title: "Search, dark theme and Spanish for the task board", mission_text: Object.values(prompts).join("\n"), source: "text", domain_id: run.domain_id, project_id: null, status: "completed", plan_json: JSON.stringify({ tasks: fleetTasks.map((task) => ({ id: task.task_id, prompt: prompts[task.task_id] })) }), dispatched_run_id: run.id, created_at: "2026-09-06T12:00:00Z", updated_at: "2026-09-06T12:00:00Z" }];
+    }
     if (!fixture) return [];
     if (fixture.startsWith("advisor-")) {
       return [{ id: "advisor-review", title: "Reviewed routing task", mission_text: "Browser fixture for a reviewed task", source: "text", domain_id: "signal-lab", project_id: null, status: "ready", plan_json: JSON.stringify({ status: "ready", routing: { authorization: { run_id: "browser-fixture-run" } } }), dispatched_run_id: null, created_at: "2026-09-06T12:00:00Z", updated_at: "2026-09-06T12:00:00Z" }];

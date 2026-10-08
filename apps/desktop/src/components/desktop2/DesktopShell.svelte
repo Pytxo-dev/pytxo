@@ -881,8 +881,6 @@
     onNewRun={openCompose}
     hasDraft={!!(composerDraft ?? workspaceDrafts.get(activeDomainId ?? ""))?.mission.trim()}
     activeRunsCount={activeCommandRuns.length}
-    workspaceLabel={activeDomain?.repo_root.split(/[\\/]/).pop() ?? "Workspace"}
-    onOpenWorkspace={() => navigate("setup", "workspaces")}
     job={sidebarJob}
     recentJobs={sidebarRecent}
     onOpenRun={(runId) => { focusRun(runId); navigate("work"); }}
