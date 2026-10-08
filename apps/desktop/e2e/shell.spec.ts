@@ -322,7 +322,9 @@ test.describe("Pytxo Desktop shell", () => {
     await page.goto("/#/flow");
 
     await expect(page.getByLabel("Agent CLI")).toHaveValue("codex");
-    await expect(page.getByText("OpenAI Codex: ready")).toBeVisible();
+    // Once the lead is ready the team row shows it; there is no separate "ready" line.
+    await expect(page.locator(".team-chip.lead")).toContainText("OpenAI Codex");
+    await expect(page.getByText("OpenAI Codex: ready")).toHaveCount(0);
     await expect(page.getByText("Claude Code · not installed", { exact: true })).not.toBeVisible();
     await page.getByText("13 other CLIs unavailable", { exact: true }).click();
     await expect(page.getByText("Claude Code · not installed", { exact: true })).toBeVisible();

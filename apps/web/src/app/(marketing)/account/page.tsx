@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 const QUICK_LINKS = [
-  { href: "/plans", label: "Availability", detail: "Local Core and configured Cloud / Teams" },
+  { href: "/plans", label: "Plans", detail: "What is free today and what is coming" },
   { href: "/download", label: "Download", detail: "CLI and Desktop installers" },
   { href: "/docs", label: "Docs", detail: "Install, tutorials, reference" },
   { href: "/docs/getting-started/mcp-from-cursor", label: "MCP setup", detail: "Connect Cursor or VS Code" },
@@ -26,16 +26,16 @@ export default function AccountPage() {
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Account</h1>
         <p className="max-w-2xl text-muted-foreground">
           {SITE_AUTH_ENABLED
-            ? "Sign in to view entitlements provided by this deployment. Local Core works without an account."
-            : "Local Core works without an account. Account and paid-entitlement sync will appear here when production authentication is configured."}
+            ? "Pytxo runs on your machine without an account. Sign in to link Pytxo Desktop to hosted features, such as experimental Routing, and to see what your account includes."
+            : "Pytxo runs on your machine without an account. Account features will appear here when sign-in is available."}
         </p>
       </div>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:gap-12">
         <Card className="border-border bg-card/30">
           <CardHeader>
-            <CardTitle>Account access</CardTitle>
-            <CardDescription>Deployment-provided entitlements, agent limits, and organization policy.</CardDescription>
+            <CardTitle>Your account</CardTitle>
+            <CardDescription>Your plan, agent limits and linked Desktop.</CardDescription>
           </CardHeader>
           <CardContent>
             <Suspense fallback={<p className="text-sm text-muted-foreground">Loading account…</p>}>

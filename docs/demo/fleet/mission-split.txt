@@ -1,0 +1,1 @@
+Add search and status filtering to the task list with a filter bar and an empty state, reject blank task titles, add a dark theme that follows the system setting with a toggle button, translate the interface to Spanish with a language switch, cover the new behaviour with tests, and document it all in the README.

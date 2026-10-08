@@ -13,7 +13,15 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <ClerkProvider
-      appearance={{ theme: shadcn, cssLayerName: "clerk" }}
+      appearance={{
+        theme: shadcn,
+        cssLayerName: "clerk",
+        variables: { borderRadius: "6px", fontFamily: "inherit" },
+      }}
+      localization={{
+        signIn: { start: { title: "Sign in to Pytxo", subtitle: "Link Pytxo Desktop and see what your account includes." } },
+        signUp: { start: { title: "Create your Pytxo account", subtitle: "Pytxo runs locally without one. An account links Desktop to hosted features." } },
+      }}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
       signInFallbackRedirectUrl="/account"

@@ -149,7 +149,8 @@ test("Runs chooser stays clickable below the narrow command strip with a right d
   await completeOnboarding(page, EXACT);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/#/work");
-  await page.getByRole("button", { name: "Details", exact: true }).click();
+  await page.locator(".run-reference summary").click();
+  await page.getByRole("button", { name: "Checks & details", exact: true }).click();
   const chooser = page.locator(".run-reference");
   await chooser.locator("summary").click();
   const item = chooser.getByRole("tab").first();

@@ -5,7 +5,7 @@ $Repo = if ($env:PYTXO_REPO) { $env:PYTXO_REPO } else { "Pytxo-dev/pytxo-release
 $InstallDir = if ($env:PYTXO_INSTALL_DIR) { $env:PYTXO_INSTALL_DIR } else { "$env:LOCALAPPDATA\Programs\pytxo" }
 $Architecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 if ($Architecture -ne "X64") {
-    throw "Unsupported Pytxo Windows release architecture: $Architecture (v1.2.2 provides Windows x64)"
+    throw "Unsupported Pytxo Windows release architecture: $Architecture (v1.2.3 provides Windows x64)"
 }
 $Asset = "pytxo-windows-x64.exe"
 

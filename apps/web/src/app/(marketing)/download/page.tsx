@@ -11,8 +11,6 @@ import {
   INSTALL_SH_CMD,
   NPM_INSTALL,
   NPM_URL,
-  CANDIDATE_PUBLISHED,
-  CANDIDATE_VERSION,
   PUBLISHED_VERSION,
   RELEASES_URL,
   SOURCE_URL,
@@ -42,10 +40,6 @@ export default function DownloadPage() {
           Claude Code, Cursor Agent, OpenCode or Antigravity. On macOS and Linux, start with the
           Pytxo CLI; Desktop for them is not built yet.
         </p>
-        {!CANDIDATE_PUBLISHED && <p className="max-w-2xl text-sm text-muted-foreground">
-          The homepage shows the upcoming v{CANDIDATE_VERSION}, which adds mixed-agent runs. The
-          download below installs the current public v{PUBLISHED_VERSION}, which runs Codex.
-        </p>}
       </div>
 
       <div className="mt-10 flex flex-col gap-10">

@@ -36,24 +36,27 @@ const review = hoverOf("Review changes");
 const apply1 = hoverOf("Apply reviewed changes", m.read ?? m.review);
 const refresh = hoverOf("Refresh review");
 
+const split = hoverOf("Split");
+// target: seconds on screen (about the voice line plus a beat); cap: the fastest
+// the shot may run. Interactive shots lose their earliest moments instead of speeding up.
 const shots = [
-  {start: newWork.t - 0.6, end: m.typed + 0.4, speed: Math.max(1, (m.typed - m.typing) / 4), kicker: "01 · Describe", title: "Say what you want, once.", focus: focus(request, 1100, 620)},
-  {start: firstAgent.t - 0.4, end: build.t + 0.8, speed: 1.6, kicker: "02 · Choose agents", title: "Put every agent you use on the job.", focus: focus(firstAgent, 900, 506)},
-  {start: m.plan - 0.2, end: run.t + 1.0, speed: 1.4, kicker: "03 · Plan", title: "See the plan before anything runs.", focus: null},
-  ...(m.dragged ? [{start: m.dragged - 2.6, end: m.dragged + 1.2, speed: 1, kicker: "04 · Fleet", title: "Every worker, on one canvas you can move.", focus: null}] : []),
-  {start: (m.dragged ?? m.fleet ?? m.run) + 3, end: m.settled + 2, speed: Math.max(1, (m.settled - (m.dragged ?? m.run) - 3) / 6), kicker: "04 · Fleet", title: "They work side by side, in isolated copies.", focus: null, sped: true},
-  {start: review.t - 0.4, end: (m.read ?? m.review + 3) + 0.8, speed: 1.2, kicker: "05 · Review", title: "Read every change and its checks.", focus: null},
-  {start: apply1.t - 0.4, end: m.stale + 2.6, speed: 1, kicker: "06 · Stale", title: "Something changed? Apply refuses.", focus: null},
-  {start: refresh.t - 0.4, end: m.applied + 2.2, speed: Math.max(1, (m.applied - refresh.t) / 7), kicker: "07 · Apply", title: "Refresh, then Apply the exact reviewed bytes.", focus: null, sped: m.applied - refresh.t > 9},
-].map((s) => ({...s, start: Math.max(0, s.start)}))
-  // Pace: each shot lasts about its voice line plus a beat. Interactive shots are
-  // capped in speed and lose their earliest moments instead, keeping the payoff.
-  .map((s, i) => {
-    const target = [4.2, 4.6, 4.0, 4.6, 4.4, 4.6, 5.4, 5.0][i] ?? 4.5;
-    const cap = [4, 3, 3, 1.5, 12, 2.5, 2.2, 6][i] ?? 3;
-    const start = Math.max(s.start, s.end - target * cap);
-    return {...s, start, speed: Math.min(cap, Math.max(1, (s.end - start) / target))};
-  });
+  {start: newWork.t - 0.6, end: m.typed + 0.4, kicker: "Describe", title: "Say what you want, once.", focus: focus(request, 1100, 620), target: 4.2, cap: 4},
+  ...(m.split ? [{start: split.t - 0.4, end: m.split + 2.4, kicker: "Split", title: `${receipt.lead ?? "The lead agent"} reads the project and splits the job.`, focus: null, sped: true, target: 4.4, cap: 60}] : []),
+  {start: firstAgent.t - 0.4, end: build.t + 0.8, kicker: "Choose agents", title: "Put every agent you use on the job.", focus: focus(firstAgent, 900, 506), target: 4.6, cap: 3},
+  {start: m.plan - 0.2, end: run.t + 1.0, kicker: "Plan", title: "See the plan before anything runs.", focus: null, target: 4.0, cap: 3},
+  ...(m.dragged ? [{start: m.dragged - 2.6, end: m.dragged + 1.2, kicker: "Fleet", title: "Every worker, on one canvas you can move.", focus: null, target: 4.6, cap: 1.5}] : []),
+  {start: (m.dragged ?? m.fleet ?? m.run) + 3, end: m.settled + 2, kicker: "Fleet", title: "They work side by side, in isolated copies.", focus: null, sped: true, target: 4.4, cap: 12},
+  {start: review.t - 0.4, end: (m.read ?? m.review + 3) + 0.8, kicker: "Review", title: "Read every change and its checks.", focus: null, target: 4.6, cap: 2.5},
+  {start: apply1.t - 0.4, end: m.stale + 2.6, kicker: "Stale", title: "Something changed? Apply refuses.", focus: null, target: 5.4, cap: 2.2},
+  {start: refresh.t - 0.4, end: m.applied + 2.2, kicker: "Apply", title: "Refresh, then Apply the exact reviewed bytes.", focus: null, sped: m.applied - refresh.t > 9, target: 5.0, cap: 6},
+].map(({target, cap, ...s}) => {
+  const from = Math.max(0, s.start, s.end - target * cap);
+  return {...s, start: from, speed: Math.min(cap, Math.max(1, (s.end - from) / target))};
+}).map((s, i, all) => {
+  // Number beats, not shots: consecutive shots of one beat share a number.
+  const beat = all.slice(0, i + 1).filter((x, j) => j === 0 || x.kicker !== all[j - 1].kicker).length;
+  return {...s, kicker: `${String(beat).padStart(2, "0")} · ${s.kicker}`};
+});
 for (const s of shots) if (!(s.end > s.start)) throw new Error(`Empty shot: ${s.title}`);
 
 execFileSync("ffmpeg", ["-v", "error", "-y", "-i", path.join(dir, "screen.mkv"), "-vf", "setpts=PTS-STARTPTS,fps=60", "-c:v", "libx264", "-preset", "slow", "-crf", "14", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-g", "30", path.join(out, "screen.mp4")]);
@@ -69,5 +72,5 @@ if (existsSync(path.join(dir, "result-frames.txt"))) {
 }
 
 const pointer = clicks.filter((p) => p.x !== undefined || p.kind === "click").map(({t, kind, x, y, label}) => ({t, kind, x, y, label}));
-writeFileSync("live-cut.json", JSON.stringify({width: W, height: H, video: "live/screen.mp4", result, shots, pointer, marks: m}, null, 2) + "\n");
+writeFileSync("live-cut.json", JSON.stringify({width: W, height: H, video: "live/screen.mp4", result, lead: receipt.lead ?? null, shots, pointer, marks: m}, null, 2) + "\n");
 console.log(`${shots.length} shots from a ${W}x${H} take; ${pointer.length} pointer events`);

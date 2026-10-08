@@ -1,13 +1,19 @@
 # Local native journey on a developer machine: the given Desktop build runs the
-# mixed-agent journey with stand-in agent CLIs, isolated from the machine's own
-# Pytxo data (PYTXO_HOME) and WebView profile. Real agent CLIs are never called.
+# mixed-agent journey isolated from the machine's own Pytxo data (PYTXO_HOME)
+# and WebView profile. By default the agents are stand-ins that replay a recorded
+# run; -Live uses the real agent CLIs on PATH, signed in as they already are.
+# -Split types the paragraph mission and lets the lead agent split it first.
 # The journey drives the real pointer and keyboard, so leave the machine alone
 # while it runs. -Film records 60 fps without the pointer for the demo edit.
 param(
   [Parameter(Mandatory)] [string]$Exe,
   [Parameter(Mandatory)] [string]$Evidence,
   [string]$Python = "python",
-  [switch]$Film
+  [switch]$Film,
+  [switch]$Live,
+  [switch]$Split,
+  [string]$Lead = "OpenAI Codex",
+  [string]$Team = "Claude Code,Cursor Agent,OpenCode,Antigravity"
 )
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "../..")
@@ -20,11 +26,14 @@ $work = Join-Path $Evidence "sandbox"
 $bin = Join-Path $work "bin"
 New-Item -ItemType Directory -Force $bin, "$work\home", "$work\webview" | Out-Null
 
-Copy-Item (Join-Path $PSScriptRoot "stand-in-agent.mjs") $bin
-Copy-Item (Join-Path $PSScriptRoot "replay-20261002.json") (Join-Path $bin "replay.json")
-foreach ($cli in "codex", "claude", "cursor-agent", "opencode", "agy") {
-  Set-Content -Encoding ascii (Join-Path $bin "$cli.cmd") "@node `"%~dp0stand-in-agent.mjs`" $cli %*"
+if (-not $Live) {
+  Copy-Item (Join-Path $PSScriptRoot "stand-in-agent.mjs") $bin
+  Copy-Item (Join-Path $PSScriptRoot "replay-20261002.json") (Join-Path $bin "replay.json")
+  foreach ($cli in "codex", "claude", "cursor-agent", "opencode", "agy") {
+    Set-Content -Encoding ascii (Join-Path $bin "$cli.cmd") "@node `"%~dp0stand-in-agent.mjs`" $cli %*"
+  }
 }
+$mission = Join-Path $root ("docs\demo\fleet\" + $(if ($Split) { "mission-split.txt" } else { "mission.txt" }))
 
 $fixture = Join-Path $work "fleet\taskboard"
 & (Join-Path $root "docs\demo\fleet\setup.ps1") -Path $fixture
@@ -37,8 +46,9 @@ $env:WEBVIEW2_USER_DATA_FOLDER = "$work\webview"
 $app = Start-Process -FilePath $Exe -WorkingDirectory "$work\home" -PassThru
 try {
   $journey = @((Join-Path $PSScriptRoot "journey.py"), "--out", (Join-Path $Evidence "journey"), "--mode", "full", "--repo", $fixture,
-    "--mission", (Join-Path $root "docs\demo\fleet\mission.txt"), "--team", "Claude Code,Cursor Agent,OpenCode,Antigravity")
+    "--mission", $mission, "--lead", $Lead, "--team", $Team)
   if ($Film) { $journey += "--film" }
+  if ($Split) { $journey += "--split" }
   $ErrorActionPreference = "Continue"
   & $Python @journey
   $ErrorActionPreference = "Stop"
@@ -54,6 +64,7 @@ $receipt = Get-Content -Raw (Join-Path $Evidence "journey\receipt.json") | Conve
 $tests = & npm --prefix $fixture test 2>&1 | Out-String
 $recorded = @((Get-Content (Join-Path $PSScriptRoot "replay-20261002.json") -Raw | ConvertFrom-Json).tasks.PSObject.Properties.Value | ForEach-Object { $_.files.PSObject.Properties })
 $summary = [ordered]@{
+  agents = $(if ($Live) { "live" } else { "stand-in replay" })
   exe = $Exe
   exe_sha256 = (Get-FileHash -LiteralPath $Exe -Algorithm SHA256).Hash
   journey = $receipt.result
@@ -61,7 +72,7 @@ $summary = [ordered]@{
   changed_files = $changed
   reviewed_files = @($receipt.checks.review.files) | Sort-Object
   tests_after_apply = [bool]($LASTEXITCODE -eq 0)
-  replayed_files = "{0}/{1}" -f @($recorded | Where-Object { (Get-Content -Raw -LiteralPath (Join-Path $fixture $_.Name) -ErrorAction SilentlyContinue) -ceq $_.Value }).Count, $recorded.Count
+  replayed_files = $(if ($Live) { "n/a" } else { "{0}/{1}" -f @($recorded | Where-Object { (Get-Content -Raw -LiteralPath (Join-Path $fixture $_.Name) -ErrorAction SilentlyContinue) -ceq $_.Value }).Count, $recorded.Count })
 }
 Set-Content -Encoding utf8 (Join-Path $Evidence "fixture-tests.txt") "--- before ---`n$baselineTests`n--- after Apply ---`n$tests"
 git -C $fixture diff > (Join-Path $Evidence "fixture-applied.diff")

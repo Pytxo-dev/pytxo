@@ -29,9 +29,11 @@ const VO = {
   outro: [25.77, 28.42],
 } as const;
 type Beat = keyof typeof VO;
-const BEATS: Beat[] = ["describe", "agents", "plan", "fleet", "fleet", "review", "stale", "apply"];
+// A shot's beat follows its kicker ("02 · Split"); Split shares Describe's line.
+const BEAT_OF: Record<string, Beat> = {Describe: "describe", Split: "describe", "Choose agents": "agents", Plan: "plan", Fleet: "fleet", Review: "review", Stale: "stale", Apply: "apply"};
+const hasSplit = (cut.shots as Shot[]).some((s) => s.kicker.endsWith("Split"));
 const CAPTION: Partial<Record<Beat, string>> = {
-  describe: "Describe it once.",
+  describe: hasSplit ? `Describe it once. ${(cut as {lead?: string | null}).lead ?? "An agent"} splits it.` : "Describe it once.",
   agents: "Pick every agent you use.",
   plan: "See the plan first.",
   fleet: "They work side by side, isolated.",
@@ -42,6 +44,7 @@ const CAPTION: Partial<Record<Beat, string>> = {
 
 // Each shot lasts at least as long as its line plus a breath.
 const raw = cut.shots as Shot[];
+const BEATS: Beat[] = raw.map((s) => BEAT_OF[s.kicker.split(" · ")[1]]);
 const shots = raw.map((s, i) => {
   const beat = BEATS[i];
   const firstOfBeat = BEATS.indexOf(beat) === i;

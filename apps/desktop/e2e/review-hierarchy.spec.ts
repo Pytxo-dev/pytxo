@@ -54,7 +54,7 @@ test("hierarchy acceptance keeps changes and verification in the first viewport"
   await expect(decision.getByRole("button", { name: "Apply reviewed changes", exact: true })).toBeInViewport();
   const identity = decision.getByText("pkg-71ad-immutable", { exact: true });
   await expect(identity).toBeHidden();
-  await decision.getByText("Change set ID", { exact: true }).click();
+  await decision.getByText("Prepared change ID", { exact: true }).click();
   await expect(identity).toBeInViewport();
 });
 

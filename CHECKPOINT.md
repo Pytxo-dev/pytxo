@@ -1,3 +1,102 @@
+# CHECKPOINT — Pytxo — 2026-10-08 (redesign handoff)
+
+Topic switch: public-beta launch work is paused at a stable point. Next topic is
+a full UI/UX redesign of Pytxo Desktop and pytxo.com in parallel, a Clerk audit,
+and backend improvements, before the demo film. **Major-redesign approval gate
+applies:** the next session audits and proposes; nothing is implemented until
+Matt approves the proposal.
+
+## Branch / commit
+
+- Worktree `C:/pytxo/.claude/worktrees/pytxo-branches-worktrees-org-b29c20`,
+  branch `mbcz/film-v8-live-split` (this checkpoint is committed here).
+- `main` = `614fcaf` (v1.2.2 + launch log + `.vercelignore` fix).
+- PR [#37](https://github.com/Pytxo-dev/pytxo/pull/37) open and **held by Matt**:
+  v1.2.3 = Split fixes, Next.js 16.3.8 security patch, film tooling.
+
+## Completed (Oct 7–8)
+
+- **v1.2.2 released**: tag `v1.2.2` @ `63b5785`; GitHub release + `pytxo-releases`
+  mirror (checksums verified, CLI reports 1.2.2); npm `latest` 1.2.2; pytxo.com
+  deployed via Vercel CLI from the repo root (`.vercelignore` fix, PR #35).
+- **Repo public (MIT)**; private vulnerability reporting, secret scanning + push
+  protection, Dependabot alerts, fork-PR workflow approval on. gitleaks clean.
+- **Actions cost**: PR jobs scoped by changed files, Rust cached, six jobs folded,
+  macOS on main/release only; acceptance no longer bills while waiting.
+  Public repo ⇒ standard runners free and no longer billing-blocked.
+- **Split (PR #37)**: Codex pinned to medium reasoning effort (a "max" default
+  timed out at 5 min; now 71 s live); Claude Code uses `dontAsk` + Read/Glob/Grep
+  instead of plan mode (plan mode sometimes printed nothing; now 6 owned tasks in
+  83 s live). Errors name the agent and drop the IPC `[orchestrate]` prefix.
+- **Film tooling (PR #37)**: `tooling/acceptance/run-local.ps1 -Live -Split
+  -Lead -Team -Film`; `docs/demo/fleet/mission-split.txt`; `live-cut.mjs` per-shot
+  pacing + Split shot; `PytxoLive.tsx` beats from kickers, caption names the lead.
+  Journey venv: `D:/pyvenv-journey` (pywinauto 0.6.9, pillow, imageio-ffmpeg).
+- Launch kit (local drafts, nothing posted):
+  `D:/marketing/campaigns/pytxo-public-beta-launch/` (fact sheet updated to
+  "released", PH listing, X drafts, HN/Reddit research — Matt writes HN/Reddit).
+
+## Not done
+
+1. **Redesign** (new topic, see next prompt). Matt's answers: Desktop and website
+   **in parallel**, one proposal; **Clerk: "not sure — audit it"**; backend:
+   unspecified, audit for concrete wins.
+2. **v1.2.3 release** — held. Note: pytxo.com runs Next 16.3.6, which is affected
+   by high advisories incl. GHSA-cjq9-62q9-8jv4 (image optimization SSRF).
+   PR #37 has the 16.3.8 patch. Raise this again when the redesign plan is agreed.
+3. **Gate 3 (live agents on the final MSI)** — not passed. Takes 1–2 failed at
+   Split (v1.2.2 bugs, fixed in #37); take 3 on the v1.2.3 candidate
+   (`D:/pytxo-native-acceptance/v123-msi`) was stopped by Matt to redesign first.
+4. **Film** — re-record after the redesign with the live tooling above.
+5. Post-1.2.3 site flip: set `PUBLISHED_VERSION` and `CANDIDATE_VERSION` to the
+   same released version, README npm line, install docs pins, changelog row.
+
+## Tests last run (Oct 8)
+
+- PR #37 CI: rust Linux + Windows pass, desktop-frontend pass; web failed on
+  one changelog expectation → fixed locally (docs + marketing specs 18/18) in the
+  checkpoint commit; not yet pushed.
+- Split unit tests 5/5; live Codex split 71 s, live Claude split 83 s / 6 tasks.
+- Web: lint clean, `tsc` clean, build OK on Next 16.3.8; npm + pnpm prod audits clean.
+- Desktop: svelte-check 0 errors; release version check passes at 1.2.3.
+
+## Blockers / notes
+
+- Secrets: none stored. `NPM_TOKEN` renewed Oct 8 with 2FA bypass; Vercel CLI
+  login refreshed Oct 8. The deploy-web workflow has no Vercel secrets; deploy
+  with `npx vercel deploy --prod --yes` from the repo root (project `mbcz/pytxo`,
+  root `apps/web`).
+- Approval gates unchanged: major redesign; publishing/releases/deploys need
+  Matt's explicit go; HN/Reddit wording is Matt's.
+
+## Next prompt (paste below)
+
+```txt
+Pytxo redesign — proposal only, no implementation yet (major-redesign gate).
+
+Read CHECKPOINT.md (top section, 2026-10-08) and LAUNCH.md in
+C:/pytxo/.claude/worktrees/pytxo-branches-worktrees-org-b29c20 (branch
+mbcz/film-v8-live-split), plus AGENTS.md and docs/06-product/vision.md.
+
+Goal: make Pytxo Desktop and pytxo.com feel excellent together before we film
+the demo. Audit, then propose:
+1. Desktop (Work / History / Setup, New work + Split, Fleet, Review/Apply):
+   hierarchy, density, states, motion, copy. Use the pytxo-interface skill.
+2. Website (home, download, plans, docs, evidence, account): first impression,
+   clarity in 60 seconds, consistency with Desktop.
+3. Clerk: walk the real sign-in/sign-up/account/Desktop-link flows on pytxo.com
+   and locally; list what is broken, off-brand or confusing.
+4. Backend: concrete reliability/latency/UX wins in orchestrate, runner, IPC
+   (e.g. error copy, split/plan timing, recovery), each with evidence.
+
+Deliver one proposal artifact: findings with screenshots, the proposed design
+direction, concrete changes per surface ranked by impact/effort, and an
+implementation plan in phases. Stop for my approval before changing code.
+Keep PR #37 (v1.2.3, held) untouched unless I say ship.
+```
+
+---
+
 # CHECKPOINT — ASTRA product improvement — 2026-09-09
 
 ## September 20 — UI refinement built; native motion verified; VM host install needs elevation

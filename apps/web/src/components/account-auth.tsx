@@ -134,8 +134,8 @@ function ConfiguredAccountAuth() {
           </SignUpButton>
         </div>
         <p className="text-sm text-muted-foreground">
-          Core (local CLI and Desktop) works without an account. Sign in only when
-          this deployment provides Cloud or Teams entitlements.
+          The CLI and Desktop work without an account. Sign in when you want to
+          link Desktop to hosted features or a team plan.
         </p>
         <Link href="/plans" className="text-sm text-primary hover:underline">
           Compare plans

@@ -205,6 +205,8 @@
   }
   const selectedAdeStatus = $derived(adeClis.find((cli) => cli.id === selectedAde) ?? null);
   const selectedAdeReady = $derived(selectedAde === CLAUDE_ROUTE_CHOICE ? experimentalClaudeAvailable : selectedAde === CLAUDE_HOSTED_CHOICE ? experimentalHostedAvailable : !!selectedAdeStatus && isAdeReady(selectedAdeStatus));
+  /** The team row already shows the lead; a separate "ready" line would repeat it. */
+  const leadReadyInTeam = $derived(!routedChoice && !!selectedAde && isBetaAde(selectedAde) && selectedAdeReady && !adeError);
   const unavailableAdes = $derived(adeClis.filter((cli) => !isAdeReady(cli)));
   const verificationCommands = $derived(
     verificationCommandsFor(plan),
@@ -907,12 +909,6 @@
       <h1>New work</h1>
       <p class="mission-intro">Tell Pytxo what to build or fix. You’ll see the plan before any agent starts.</p>
     </div>
-    {#if domains.length}
-      <div class="composer-context">
-        <label><span>Project</span><select bind:value={selectedDomainId} aria-label="Project">{#if !selectedDomainId}<option value="" disabled>Select a project</option>{/if}{#each domains as domain}<option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}{domain.project_id ? " · primary folder" : ""}</option>{/each}</select></label>
-        <label><span>Lead agent</span><select value={selectedAde} onchange={(event) => chooseAde(event.currentTarget.value)} aria-label="Agent CLI" disabled={adeLoading || (!adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable)}>{#if adeLoading}<option value="">Checking detected CLIs…</option>{:else if !adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable}<option value="">No ready CLI detected</option>{:else}{#if !selectedAde}<option value="" disabled>Select a ready CLI</option>{/if}<optgroup label="Beta agents">{#each betaAdesInOrder(adeClis) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup><optgroup label="Additional agents">{#each adeClis.filter(cli => !isBetaAde(cli.id)) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup>{#if experimentalClaudeAvailable || experimentalHostedAvailable}<optgroup label="Experimental">{#if experimentalClaudeAvailable}<option value={CLAUDE_ROUTE_CHOICE}>Claude proposal route · subscription</option>{/if}{#if experimentalHostedAvailable}<option value={CLAUDE_HOSTED_CHOICE}>Hosted Routing packet review · no run</option>{/if}</optgroup>{/if}{/if}</select></label>
-      </div>
-    {/if}
   </header>
 
   {#if !domains.length}
@@ -928,6 +924,10 @@
       </div>
     </div>
   {:else}
+  <div class="composer-context">
+        <label><span>Project</span><select bind:value={selectedDomainId} aria-label="Project">{#if !selectedDomainId}<option value="" disabled>Select a project</option>{/if}{#each domains as domain}<option value={domain.domain_id}>{domain.repo_root.split(/[\\/]/).pop()}{domain.project_id ? " · primary folder" : ""}</option>{/each}</select></label>
+        <label><span>Lead agent</span><select value={selectedAde} onchange={(event) => chooseAde(event.currentTarget.value)} aria-label="Agent CLI" disabled={adeLoading || (!adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable)}>{#if adeLoading}<option value="">Checking detected CLIs…</option>{:else if !adeClis.length && !experimentalClaudeAvailable && !experimentalHostedAvailable}<option value="">No ready CLI detected</option>{:else}{#if !selectedAde}<option value="" disabled>Select a ready CLI</option>{/if}<optgroup label="Beta agents">{#each betaAdesInOrder(adeClis) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup><optgroup label="Additional agents">{#each adeClis.filter(cli => !isBetaAde(cli.id)) as cli (cli.id)}<option value={cli.id} disabled={!isAdeReady(cli)}>{cli.display_name}{isAdeReady(cli) ? "" : ` — ${adeUnavailableReason(cli)}`}</option>{/each}</optgroup>{#if experimentalClaudeAvailable || experimentalHostedAvailable}<optgroup label="Experimental">{#if experimentalClaudeAvailable}<option value={CLAUDE_ROUTE_CHOICE}>Claude proposal route · subscription</option>{/if}{#if experimentalHostedAvailable}<option value={CLAUDE_HOSTED_CHOICE}>Hosted Routing packet review · no run</option>{/if}</optgroup>{/if}{/if}</select></label>
+      </div>
   {#if showPlanPanel}<div class="compact-pane-switch" role="group" aria-label="New work pane"><button class:active={compactPane === "request"} aria-pressed={compactPane === "request"} onclick={() => compactPane = "request"}>Request</button><button class:active={compactPane === "plan"} aria-pressed={compactPane === "plan"} onclick={() => compactPane = "plan"}>Plan</button></div>{/if}
   <div class="flow-layout" class:flow-layout--solo={!showPlanPanel}>
     <article class="panel composer-panel" class:compact-hidden={showPlanPanel && compactPane !== "request"}>
@@ -954,6 +954,7 @@
         </div>
       {/if}
       <div class="ade-readiness">
+        {#if !leadReadyInTeam}
         <div class="readiness-summary" aria-live="polite">
         {#if adeError}
           <span class="error">Agent readiness could not be checked: {adeError}</span>
@@ -968,9 +969,10 @@
         {/if}
         <button class="quiet" onclick={loadAdeClis} disabled={adeLoading || planning || dispatching}>{adeLoading ? "Checking…" : "Check again"}</button>
         </div>
+        {/if}
         {#if !routedChoice && selectedAde && isBetaAde(selectedAde)}
           <fieldset class="agent-team">
-            <legend>Agents on this job <span>{team.length} selected</span>{#if teamCandidates.length}<button type="button" class="quiet team-all" onclick={() => { const all = teamCandidates.map((cli) => cli.id); teamAdes = teamAdes.length === all.length ? [] : all; taskAdes = {}; if (!workersTouched) workers = Math.min(DESKTOP_BETA_MAX_WORKERS, 1 + teamAdes.length); }}>{teamAdes.length === teamCandidates.length ? "Lead only" : "Use every ready agent"}</button>{/if}</legend>
+            <legend>Agents on this job <span>{team.length} selected</span>{#if teamCandidates.length}<button type="button" class="quiet team-all" onclick={() => { const all = teamCandidates.map((cli) => cli.id); teamAdes = teamAdes.length === all.length ? [] : all; taskAdes = {}; if (!workersTouched) workers = Math.min(DESKTOP_BETA_MAX_WORKERS, 1 + teamAdes.length); }}>{teamAdes.length === teamCandidates.length ? "Lead only" : "Use every ready agent"}</button>{/if}{#if leadReadyInTeam}<button type="button" class="quiet team-recheck" onclick={loadAdeClis} disabled={adeLoading || planning || dispatching}>{adeLoading ? "Checking…" : "Check again"}</button>{/if}</legend>
             {#each betaAdesInOrder(adeClis) as cli (cli.id)}
               {@const lead = cli.id === selectedAde}
               {@const ready = isAdeReady(cli)}
@@ -1298,7 +1300,7 @@
   .advisor-packet-meta{margin:8px 0 4px;font:11px "IBM Plex Mono",monospace;overflow-wrap:anywhere}
   .advisor-packet-entry pre{max-height:180px;margin:6px 0;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid var(--pytxo-line);border-radius:4px;padding:8px;background:var(--pytxo-surface-input);color:var(--pytxo-text-strong);font:12px/1.5 "IBM Plex Mono",monospace}
   .advisor-workspace-grants{margin:16px 0;padding:12px;border:1px solid var(--pytxo-line);border-radius:4px;color:var(--pytxo-text-soft);font-size:11px}.advisor-workspace-grants>strong{display:block;margin-bottom:8px;color:var(--pytxo-text-strong)}.advisor-workspace-grants>div{display:flex;align-items:center;justify-content:space-between;gap:12px}.advisor-workspace-grants>div>span{overflow-wrap:anywhere}.advisor-workspace-grants p{margin:8px 0 0}
-  .flow-screen .plan-panel{border-radius:0;border:0;border-left:1px solid var(--pytxo-line);padding-left:22px;background:transparent}.flow-screen .plan-wave{position:relative;border-left:1px solid var(--pytxo-line);padding-left:16px;margin-left:12px}.flow-screen .plan-wave>span{background:var(--pytxo-surface-shell);padding-block:8px}.flow-screen .plan-task textarea{min-height:80px}.flow-screen .composer-actions{padding-inline:0}.flow-screen .ade-readiness{padding-inline:0}
+  .flow-screen .plan-panel{border-radius:0;border:0;border-left:1px solid var(--pytxo-line);padding-left:22px;background:transparent}.flow-screen .plan-wave{position:relative;border-left:1px solid var(--pytxo-line);padding-left:16px;margin-left:12px}.flow-screen .plan-wave>span{background:transparent;padding-block:6px;color:var(--pytxo-text-muted);font:500 11px var(--pytxo-font-mono,"IBM Plex Mono",monospace);letter-spacing:.06em;text-transform:uppercase}.flow-screen .plan-task textarea{min-height:0;field-sizing:content;resize:none}.flow-screen .composer-actions{padding-inline:0}.flow-screen .ade-readiness{padding-inline:0}
   @media(max-width:1100px){.flow-screen .flow-layout{grid-template-columns:1fr;max-width:850px}.flow-screen .plan-panel{border-left:0;border-top:1px solid var(--pytxo-line);padding:20px 0 0}}
   .composer-panel .run-checks { display: block; margin: 17px; color: var(--pytxo-text-soft); font-size: 12px; font-weight: 600; }
   .composer-panel .run-checks textarea { width: 100%; min-height: 76px; margin: 8px 0 0; padding: 10px; border: 1px solid var(--pytxo-line); border-radius: 4px; background: var(--pytxo-surface-input); resize: vertical; }
@@ -1307,8 +1309,8 @@
   .plan-technical > summary:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: -2px; }
 
   .flow-screen{position:relative;display:flex;width:100%;max-width:none;height:100%;min-height:0;box-sizing:border-box;flex-direction:column;padding:14px 18px 16px;overflow:hidden}
-  .flow-screen>.screen-heading{display:flex;min-height:54px;flex:0 0 auto;align-items:center;gap:20px;margin:0 0 10px}.flow-screen>.screen-heading>div:first-child{min-width:180px}.flow-screen>.screen-heading h1{margin:0;font-size:20px}.flow-screen>.screen-heading p.mission-intro{display:block;margin:4px 0 0;color:var(--pytxo-text-muted);font-size:11px!important;white-space:nowrap}
-  .composer-context{display:grid;grid-template-columns:minmax(150px,1fr) minmax(150px,1fr);gap:8px;width:min(620px,64vw);margin-left:auto;padding:0;border:0}.composer-context label{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:7px}.composer-context label>span{color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui)}.composer-context select{width:100%;min-width:0;min-height:34px;padding:5px 8px;font-size:11px}
+  .flow-screen>.screen-heading{display:flex;min-height:54px;flex:0 0 auto;align-items:center;gap:20px;margin:0 0 10px}.flow-screen>.screen-heading>div:first-child{min-width:180px}.flow-screen>.screen-heading h1{margin:0;font-size:20px}.flow-screen>.screen-heading p.mission-intro{display:block;margin:4px 0 0;color:var(--pytxo-text-muted);font-size:12px!important;white-space:nowrap}
+  .composer-context{display:grid;flex:0 0 auto;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px;width:min(640px,100%);margin:0 0 12px;padding:0;border:0}.composer-context label{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:7px}.composer-context label>span{color:var(--pytxo-text-muted);font:12px var(--pytxo-font-ui)}.composer-context select{width:100%;min-width:0;min-height:36px;padding:5px 8px;font-size:12px}
   .flow-screen .flow-layout{display:grid;grid-template-columns:minmax(0,44fr) minmax(0,56fr);flex:1;min-height:0;max-width:none;gap:12px;align-items:stretch;overflow:hidden}.flow-screen .flow-layout--solo{grid-template-columns:minmax(0,760px);max-width:none}
   .flow-screen .composer-panel,.flow-screen .plan-panel{min-height:0;padding:0 16px 18px;overflow:auto;overscroll-behavior:contain;border:1px solid var(--pytxo-line);border-radius:6px;background:var(--pytxo-surface-panel);scrollbar-gutter:stable}.flow-screen .plan-panel{padding-left:16px}.flow-screen .composer-panel .panel-head,.flow-screen .plan-panel .panel-head{position:sticky;z-index:4;top:0;margin-inline:-16px;padding:12px 16px;background:color-mix(in srgb,var(--pytxo-surface-panel) 96%,transparent);backdrop-filter:blur(10px)}
   .flow-screen .composer-panel>textarea{width:100%;min-height:clamp(150px,29vh,270px);box-sizing:border-box;margin:0;padding:14px;border:1px solid var(--pytxo-line);border-radius:4px;background:var(--pytxo-surface-input);font-size:14px;line-height:1.65;resize:none}
@@ -1341,7 +1343,8 @@
   .agent-team legend { display: flex; width: 100%; align-items: center; gap: 10px; margin-bottom: 8px; color: var(--pytxo-text-muted); font: 500 11px var(--pytxo-font-mono, "IBM Plex Mono", monospace); letter-spacing: .06em; text-transform: uppercase; }
   .team-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px 0 10px; border: 1px solid var(--pytxo-line); border-radius: 8px; background: var(--pytxo-surface-panel); color: var(--pytxo-text-body); font-size: 13px; cursor: pointer; transition: border-color 140ms ease, background-color 140ms ease; }
   .agent-team legend span { color: var(--pytxo-text-soft); letter-spacing: 0; text-transform: none; }
-  .agent-team .team-all { margin-left: auto; min-height: 28px; padding: 0 10px; font: 500 12px var(--pytxo-font-ui); letter-spacing: 0; text-transform: none; }
+  .agent-team .team-all, .agent-team .team-recheck { min-height: 28px; padding: 0 10px; font: 500 12px var(--pytxo-font-ui); letter-spacing: 0; text-transform: none; }
+  .agent-team .team-all { margin-left: auto; }
   .team-chip em { margin-left: 2px; color: var(--pytxo-text-muted); font: 500 10px var(--pytxo-font-mono, "IBM Plex Mono", monospace); font-style: normal; letter-spacing: .04em; text-transform: uppercase; }
   .team-chip.lead { cursor: default; }
   .team-chip.unavailable { opacity: .5; cursor: not-allowed; }

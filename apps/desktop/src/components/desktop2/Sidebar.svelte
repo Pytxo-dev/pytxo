@@ -31,8 +31,6 @@
     onNewRun = null,
     hasDraft = false,
     activeRunsCount = 0,
-    workspaceLabel = "Workspace",
-    onOpenWorkspace = () => {},
     job = null,
     recentJobs = [],
     onOpenRun = () => {},
@@ -53,8 +51,6 @@
     onNewRun?: (() => void) | null;
     hasDraft?: boolean;
     activeRunsCount?: number;
-    workspaceLabel?: string;
-    onOpenWorkspace?: () => void;
     job?: SidebarJob | null;
     recentJobs?: SidebarRecent[];
     onOpenRun?: (runId: string) => void;
@@ -76,7 +72,6 @@
 
 <aside class="sidebar" class:collapsed aria-label="Primary sidebar">
   <div class="brand">
-    {#if !collapsed}<button class="workspace-heading" onclick={onOpenWorkspace} title={workspaceLabel}>{workspaceLabel}</button>{/if}
     <button
       class="collapse-btn"
       disabled={autoCollapsed}
@@ -235,7 +230,6 @@
     justify-content: center;
     padding-inline: 0;
   }
-  .workspace-heading{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 0;border:0;background:transparent;color:var(--pytxo-text-strong);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:left}
   .compose-trigger {
     display: flex; align-items: center; gap: 9px; flex: none;
     width: 100%; min-height: 40px; margin: 0 0 8px; padding: 0 10px;
@@ -521,7 +515,6 @@
       padding-inline: 8px;
       align-items: center;
     }
-    .sidebar:not(.collapsed) .workspace-heading,
     .sidebar:not(.collapsed) .compose-trigger span,
     .sidebar:not(.collapsed) .compose-trigger i,
     .sidebar:not(.collapsed) .nav-count,
