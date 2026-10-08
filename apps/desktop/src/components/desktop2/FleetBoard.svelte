@@ -180,9 +180,9 @@
 </script>
 
 <div class="fleet" data-testid="fleet-board" data-live={anyLive || undefined} style={`--cols:${columns}`}>
-  <section class="monitor tui" aria-label="Fleet monitor">
-    <span class="legend"><b>fleet</b><span>{counts.live} working · {counts.done} done · {counts.waiting} waiting</span></span>
-    <span class="legend right"><span class="pulse" class:on={anyLive} aria-hidden="true"></span>{anyLive ? "live" : "settled"} <time>{clock(span.end - span.start)}</time></span>
+  <section class="monitor tui-pane" aria-label="Fleet monitor">
+    <span class="tui-legend"><b>fleet</b><span>{counts.live} working · {counts.done} done · {counts.waiting} waiting</span></span>
+    <span class="tui-legend right"><span class="pulse" class:on={anyLive} aria-hidden="true"></span>{anyLive ? "live" : "settled"} <time>{clock(span.end - span.start)}</time></span>
     <div class="scope"><FleetRadar {blips} rings={waves.length} /></div>
     <div class="rows">
       <ol aria-label="Worker activity from recorded events" bind:clientWidth={rowsWidth}>
@@ -195,7 +195,7 @@
               <span class="cli">{cliOf(task, agent) ?? "agent"}</span>
               <span class="task" title={taskDescriptions[task.task_id]}>{task.task_id}</span>
               <span class="spark" aria-hidden="true"><i>{spark?.lead}</i>{spark?.body}<i>{spark?.tail}</i></span>
-              <span class="status">{#if tone(agent) === "live"}<span class="spin" aria-hidden="true"><span>.:+*=x</span></span>{/if}{status(task, agent)}</span>
+              <span class="status">{#if tone(agent) === "live"}<span class="tui-spin" aria-hidden="true"><span>.:+*=x</span></span>{/if}{status(task, agent)}</span>
               <time>{elapsed(agent) || "—"}</time>
             </button>
           </li>
@@ -221,9 +221,9 @@
             {@const vendor = vendorOf(task, agent)}
             {@const number = tasks.indexOf(task) + 1}
             {@const compact = !agent}
-            <article class="worker tui" class:compact data-tone={tone(agent)} data-unchanged={status(task, agent) === "no changes" || undefined} style={compact ? `grid-column:span ${Math.min(2, columns)}` : undefined}>
-              <span class="legend"><span class="logo">{#if cli}<AdeIdentity id={cli} />{/if}</span><span class="vendor">{vendor}</span><span class="num">{number}</span></span>
-              <span class="legend right state">{#if tone(agent) === "live"}<span class="spin" aria-hidden="true"><span>.:+*=x</span></span>{:else if tone(agent) === "done"}<span aria-hidden="true">{status(task, agent) === "no changes" ? "○" : "✓"}</span>{:else if tone(agent) === "failed"}<span aria-hidden="true">✗</span>{/if}{status(task, agent)}{#if elapsed(agent)}<time>{elapsed(agent)}</time>{/if}</span>
+            <article class="worker tui-pane" class:compact data-tone={tone(agent)} data-unchanged={status(task, agent) === "no changes" || undefined} style={compact ? `grid-column:span ${Math.min(2, columns)}` : undefined}>
+              <span class="tui-legend"><span class="logo">{#if cli}<AdeIdentity id={cli} />{/if}</span><span class="vendor">{vendor}</span><span class="num">{number}</span></span>
+              <span class="tui-legend right state">{#if tone(agent) === "live"}<span class="tui-spin" aria-hidden="true"><span>.:+*=x</span></span>{:else if tone(agent) === "done"}<span aria-hidden="true">{status(task, agent) === "no changes" ? "○" : "✓"}</span>{:else if tone(agent) === "failed"}<span aria-hidden="true">✗</span>{/if}{status(task, agent)}{#if elapsed(agent)}<time>{elapsed(agent)}</time>{/if}</span>
               <button class="head" onclick={() => agent && onInspect(agent)} disabled={!agent} aria-label={`${vendor}: ${taskDescriptions[task.task_id] ?? task.task_id}. ${agent ? agentState(agent).label : "Not started"}. Open output.`}>
                 <strong title={taskDescriptions[task.task_id]}>{taskDescriptions[task.task_id] ?? task.task_id}</strong>
                 {#if compact}<small>{#if share}Shares {share.path} with {vendorOf(share.owner, agentFor(share.owner))}. Starts on its result.{:else}{waitsOn(task)}{/if}</small>{/if}
@@ -251,17 +251,10 @@
 
 <style>
   .fleet {
-    --fleet-bg: var(--pytxo-work-canvas);
-    --mono: var(--pytxo-font-mono, "IBM Plex Mono"), "Cascadia Mono", Consolas, monospace;
-    container: fleet / inline-size; position: absolute; inset: 0; display: flex; flex-direction: column; gap: 22px; padding: 22px 24px 24px; overflow: auto; background: var(--fleet-bg);
+    --tui-bg: var(--pytxo-work-canvas);
+    --mono: var(--pytxo-font-mono);
+    container: fleet / inline-size; position: absolute; inset: 0; display: flex; flex-direction: column; gap: 22px; padding: 22px 24px 24px; overflow: auto; background: var(--tui-bg);
   }
-  /* TUI panes: a hairline frame with its title cut into the top border. */
-  .tui { position: relative; border: 1px solid var(--pytxo-line); border-radius: 6px; }
-  .legend { position: absolute; top: -9px; left: 12px; z-index: 1; display: flex; align-items: center; gap: 7px; max-width: calc(100% - 140px); height: 18px; padding: 0 7px; background: var(--fleet-bg); color: var(--pytxo-text-soft); font: 500 11.5px var(--mono); white-space: nowrap; }
-  .legend.right { left: auto; right: 12px; max-width: none; }
-  .legend b { color: var(--pytxo-text-strong); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
-  .legend time { margin-left: 4px; color: var(--pytxo-text-muted); font-variant-numeric: tabular-nums; }
-
   /* Monitor: scope on the left, one activity row per task on the right. */
   .monitor { flex: none; display: grid; grid-template-columns: 440px minmax(0, 1fr); gap: 12px; padding: 12px 16px 8px 4px; }
   .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--pytxo-text-muted); }
@@ -289,10 +282,6 @@
   .facts { display: flex; flex-wrap: wrap; gap: 4px 22px; margin: 2px 0 0; padding: 6px 8px 0; border-top: 1px dashed var(--pytxo-line-soft); color: var(--pytxo-text-muted); font: 11.5px var(--mono); }
   .facts b { margin-right: 5px; color: var(--pytxo-text-strong); font-weight: 600; }
 
-  /* The working spinner is the aperture's own character ramp. */
-  .spin { display: inline-block; width: 1ch; overflow: hidden; vertical-align: bottom; font-family: var(--mono); }
-  .spin span { display: inline-block; animation: spin .9s steps(6) infinite; }
-  @keyframes spin { to { transform: translateX(-6ch); } }
 
   .lanes { display: grid; flex: none; gap: 26px; }
   .lane { position: relative; display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 14px; }
@@ -307,11 +296,11 @@
 
   .worker { container: worker / inline-size; display: grid; grid-template-rows: auto 1fr auto; height: 206px; padding-top: 8px; transition: border-color .3s, background-color .3s; }
   .worker.compact { grid-template-rows: auto auto; height: auto; border-style: dashed; }
-  .worker .legend .logo { display: grid; place-items: center; width: 16px; height: 16px; }
-  .worker .legend .logo :global(.ade-identity) { transform: scale(.66); }
-  .worker .legend .vendor { overflow: hidden; color: var(--pytxo-text-strong); text-overflow: ellipsis; }
-  .worker .legend .num { color: var(--pytxo-text-muted); }
-  .worker .legend .num::before { content: "#"; }
+  .worker .tui-legend .logo { display: grid; place-items: center; width: 16px; height: 16px; }
+  .worker .tui-legend .logo :global(.ade-identity) { transform: scale(.66); }
+  .worker .tui-legend .vendor { overflow: hidden; color: var(--pytxo-text-strong); text-overflow: ellipsis; }
+  .worker .tui-legend .num { color: var(--pytxo-text-muted); }
+  .worker .tui-legend .num::before { content: "#"; }
   .worker .state { gap: 6px; color: var(--pytxo-text-muted); }
   .worker[data-tone="live"] { border-color: color-mix(in srgb, var(--pytxo-activity) 55%, var(--pytxo-line)); background: color-mix(in srgb, var(--pytxo-activity) 3%, transparent); }
   .worker[data-tone="live"] .state { color: var(--pytxo-activity); }
@@ -349,8 +338,8 @@
   .owns span.shared::before { content: "⇄ "; color: inherit; }
   .compact .owns { padding-top: 0; }
 
-  @media (prefers-reduced-motion: reduce) { .pulse.on, .spin span, .lane.feeding::before, .term .line, .cursor { animation: none; } }
-  :global([data-force-reduced-motion]) .pulse.on, :global([data-force-reduced-motion]) .spin span, :global([data-force-reduced-motion]) .lane.feeding::before, :global([data-force-reduced-motion]) .term .line, :global([data-force-reduced-motion]) .cursor { animation: none; }
+  @media (prefers-reduced-motion: reduce) { .pulse.on, .lane.feeding::before, .term .line, .cursor { animation: none; } }
+  :global([data-force-reduced-motion]) .pulse.on, :global([data-force-reduced-motion]) .lane.feeding::before, :global([data-force-reduced-motion]) .term .line, :global([data-force-reduced-motion]) .cursor { animation: none; }
 
   @container fleet (max-width: 1240px) { .monitor { grid-template-columns: 330px minmax(0, 1fr); } .scope :global(.fleet-radar) { width: 330px; height: 153px; } }
   @container fleet (max-width: 1100px) { .cards { grid-template-columns: repeat(min(var(--cols), 2), minmax(0, 1fr)); } }

@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  export type Blip = { id: string; mark: string; tone: "live" | "done" | "failed" | "queued" | "settled"; ring: number };
+  export type Blip = { id: string; mark: string; tone: "live" | "done" | "failed" | "queued" | "settled" | "ready"; ring: number };
 </script>
 
 <script lang="ts">
@@ -67,6 +67,7 @@
       done: token("--state-verified", "#5fd08a"),
       failed: token("--state-refuted", "#f07a7a"),
       queued: token("--pytxo-text-soft", "#b6bac2"),
+      ready: token("--pytxo-text-strong", "#f2f3f5"),
       glyph: ["--pytxo-glyph-cyan", "--pytxo-glyph-periwinkle", "--pytxo-glyph-violet", "--pytxo-glyph-warm"].map((name) => token(name, "#b4b9ff")),
     };
     const ratio = window.devicePixelRatio || 1;
