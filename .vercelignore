@@ -24,8 +24,15 @@ apps/desktop-export/
 apps/demo-video/
 apps/docs/
 
-# Tooling / benchmarks
-tooling/
+# Tooling / benchmarks. tooling/scripts stays: the site's favicon build
+# imports its ICO encoder.
+tooling/acceptance/
+tooling/benchmarks/
+tooling/demos/
+tooling/test-envs/
+tooling/node_modules/
+tooling/package.json
+tooling/package-lock.json
 
 # Tests & fixtures
 tests/
