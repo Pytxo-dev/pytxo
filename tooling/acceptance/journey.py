@@ -37,6 +37,8 @@ parser.add_argument("--name", default="probe")
 parser.add_argument("--onboard", action="store_true")
 # Film takes: 60 fps without the baked-in pointer (it is redrawn from receipt telemetry), plus a canvas drag.
 parser.add_argument("--film", action="store_true")
+# Type the mission as one paragraph and let the lead agent split it before planning.
+parser.add_argument("--split", action="store_true")
 args = parser.parse_args()
 
 out = Path(args.out)
@@ -317,6 +319,14 @@ try:
             press(agent, "Agent CLI")
             type_text("OpenAI Codex")
             send_keys("{ENTER}")
+        if args.split:
+            # Codex reads the project read-only and rewrites the request as owned tasks.
+            press(spec(title_re="^Split with ", control_type="Button"), "Split")
+            mark("split_start")
+            wait(spec(title_re=r".* proposed \d+ tasks?, each owning its files.*"), 600)
+            mark("split")
+            step("split")
+            time.sleep(2.5)
         # New work starts with every ready agent on the team: point at each, tick only the missing ones.
         for name in [entry.strip() for entry in args.team.split(",") if entry.strip()]:
             box = spec(name, control_type="CheckBox")
