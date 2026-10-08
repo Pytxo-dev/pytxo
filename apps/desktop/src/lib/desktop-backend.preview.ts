@@ -170,11 +170,12 @@ const previewRoutingSummary: RoutingDisplaySummary = {
 };
 
 /** Browser fixture for a mixed-CLI fleet run (`pytxo-preview-fleet-v1`). Illustrative, not a recorded run. */
+const fleetEpoch = Date.now();
 const fleetTasks = [
-  { task_id: "model", cli: "codex", name: "OpenAI Codex", paths: ["src/model.mjs", "test/model.test.mjs"], wave: 0, depends_on: [] as string[], status: "completed", lines: ["$ node --test test/model.test.mjs", "filters by status (2.1ms)", "search is case-insensitive (0.9ms)", "composes search and status (1.2ms)", "pass 11 · fail 0"] },
-  { task_id: "dark-mode", cli: "claude", name: "Claude Code", paths: ["src/style.css", "src/app.js"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Update(src/style.css) · 38 lines of dark tokens", "Update(src/app.js) · follows prefers-color-scheme", "Update(src/index.html) · theme toggle with aria-pressed", "Checking contrast of muted text"] },
-  { task_id: "spanish", cli: "cursor", name: "Cursor Agent", paths: ["src/i18n/", "src/index.html"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Creating src/i18n/es.json · 48 strings", "Wiring t() in src/index.html · 12 labels", "Adding language switch es / en"] },
-  { task_id: "filter-bar", cli: "opencode", name: "OpenCode", paths: ["src/components/"], wave: 0, depends_on: [] as string[], status: "running", lines: ["src/components/filter-bar.js", "Empty state with Clear filters", "Status chips: All · Open · Done"] },
+  { task_id: "model", cli: "codex", name: "OpenAI Codex", paths: ["src/model.mjs", "test/model.test.mjs"], wave: 0, depends_on: [] as string[], status: "completed", lines: ["Reading src/model.mjs and test/", "Plan: status filter, case-insensitive search, compose both", "apply_patch src/model.mjs (+34 -6)", "apply_patch test/model.test.mjs (+58)", "Exporting filterTasks(tasks, { query, status })", "Keeping the existing sort stable", "$ node --test test/model.test.mjs", "filters by status (2.1ms)", "search is case-insensitive (0.9ms)", "composes search and status (1.2ms)", "pass 11 · fail 0"] },
+  { task_id: "dark-mode", cli: "claude", name: "Claude Code", paths: ["src/style.css", "src/app.js"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Read(src/style.css)", "Read(src/app.js)", "Read(src/index.html)", "Update(src/style.css) · 38 lines of dark tokens", "  ⎿ :root[data-theme=dark] { --bg: #0d1117 }", "Update(src/app.js) · follows prefers-color-scheme", "Bash(npx stylelint src/style.css)", "  ⎿ 0 problems", "Update(src/index.html) · theme toggle with aria-pressed", "Checking contrast of muted text · 4.1:1", "Update(src/style.css) · raise --muted to #9aa4b2", "Contrast of muted text now 4.8:1", "Update(src/app.js) · remember the choice in localStorage"] },
+  { task_id: "spanish", cli: "cursor", name: "Cursor Agent", paths: ["src/i18n/", "src/index.html"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Scanning src/index.html for visible strings", "Found 48 strings in 3 files", "Creating src/i18n/en.json · 48 strings", "Creating src/i18n/es.json · 48 strings", "Wiring t() in src/index.html · 12 labels", "Wiring t() in src/app.js · 9 messages", "Adding language switch es / en", "Plural rules for \"1 tarea\" / \"3 tareas\"", "Checking for untranslated keys · 0 missing"] },
+  { task_id: "filter-bar", cli: "opencode", name: "OpenCode", paths: ["src/components/"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Listing src/components/", "Write src/components/filter-bar.js", "Status chips: All · Open · Done", "Write src/components/empty-state.js", "Empty state with Clear filters", "Keyboard: arrow keys move between chips", "Edit src/components/filter-bar.js · aria-pressed on chips"] },
   { task_id: "validation", cli: "codex", name: "OpenAI Codex", paths: ["src/app.js", "test/validation.test.mjs"], wave: 1, depends_on: ["dark-mode"], status: null, lines: [] as string[] },
   { task_id: "readme", cli: "agy", name: "Antigravity", paths: ["README.md"], wave: 2, depends_on: ["model", "dark-mode", "spanish", "filter-bar", "validation"], status: null, lines: [] as string[] },
 ];
@@ -722,11 +723,16 @@ export class PreviewDesktopBackend implements DesktopBackend {
     }
     const fleetTask = localStorage.getItem("pytxo-preview-fleet-v1") === "1" ? fleetTasks.find(task => agentId.endsWith(`:fleet-${task.task_id}`)) : undefined;
     if (fleetTask) {
-      const start = Date.now() - 140_000 + fleetTask.wave * 40_000;
-      return fleetTask.lines.map((payload, index) => ({ id: index + 1, agent_id: agentId, kind: index === 0 && payload.startsWith("$ ") ? "verify" : "stdout", payload: index === 0 && payload.startsWith("$ ") ? payload.slice(2) : `${payload}
-`, ts: new Date(start + index * 9_000).toISOString() }))
-        .concat(fleetTask.status === "completed" ? [{ id: fleetTask.lines.length + 1, agent_id: agentId, kind: "verify-ok", payload: "", ts: new Date(start + 58_000).toISOString() }] : [])
-        .filter(e => e.id > after).slice(0, limit);
+      // A finished worker's output is all in the past; a working one keeps
+      // printing its last lines over the first half minute after load.
+      const live = fleetTask.status !== "completed";
+      const step = live ? 120_000 / (fleetTask.lines.length + 2) : 9_000;
+      const start = fleetEpoch - (live ? 75_000 : 140_000) + [0, 3_000, 6_500, 1_500][fleetTasks.indexOf(fleetTask) % 4];
+      const times = fleetTask.lines.map((_, index) => start + index * step + (index % 3) * 1_700);
+      return fleetTask.lines.map((payload, index) => ({ id: index + 1, agent_id: agentId, kind: payload.startsWith("$ ") ? "verify" : "stdout", payload: payload.startsWith("$ ") ? payload.slice(2) : `${payload}
+`, ts: new Date(times[index]).toISOString() }))
+        .concat(fleetTask.status === "completed" ? [{ id: fleetTask.lines.length + 1, agent_id: agentId, kind: "verify-ok", payload: "", ts: new Date(start + 102_000).toISOString() }] : [])
+        .filter(e => e.id > after && Date.parse(e.ts) <= Date.now()).slice(0, limit);
     }
     if (localStorage.getItem("pytxo-preview-output-events-v1") === "600") {
       return Array.from({ length: 600 }, (_, index) => ({ id: index + 1, agent_id: agentId,

@@ -10,14 +10,22 @@ test("a mixed-CLI run opens on the fleet board with each worker's vendor, output
   await expect(page.getByRole("button", { name: "Fleet" })).toHaveAttribute("aria-pressed", "true");
 
   for (const vendor of ["Claude Code", "Cursor Agent", "OpenCode", "Antigravity"]) {
-    await expect(board.locator(".worker .who small", { hasText: vendor })).toHaveCount(1);
+    await expect(board.locator(".worker .vendor", { hasText: vendor })).toHaveCount(1);
   }
-  await expect(board.locator(".worker .who small", { hasText: "OpenAI Codex" })).toHaveCount(2);
+  await expect(board.locator(".worker .vendor", { hasText: "OpenAI Codex" })).toHaveCount(2);
 
-  await expect(board.getByRole("log", { name: "Recent output from Claude Code" })).toContainText("Update(src/style.css)");
+  await expect(board.getByRole("log", { name: "Recent output from Claude Code" })).toContainText("Update(");
   await expect(board.getByRole("log", { name: "Recent output from OpenAI Codex" }).first()).toContainText("Task checks passed");
   await expect(board).toContainText("Shares src/app.js with Claude Code.");
   await expect(board.locator(".facts")).toContainText("1 task ordered for shared paths");
+
+  // The monitor lists every task with its CLI and state; queued tasks have no output pane yet.
+  const monitor = board.getByRole("list", { name: "Worker activity from recorded events" });
+  await expect(monitor.getByRole("listitem")).toHaveCount(6);
+  await expect(monitor.getByRole("button", { name: /^1\. OpenAI Codex, model: passed/ })).toBeEnabled();
+  await expect(monitor.getByRole("button", { name: /^6\. Antigravity, readme: queued/ })).toBeDisabled();
+  await expect(board.locator(".worker.compact")).toHaveCount(2);
+  await expect(board.getByRole("log")).toHaveCount(4);
 
   await page.getByRole("button", { name: "Canvas" }).click();
   await expect(board).toHaveCount(0);
