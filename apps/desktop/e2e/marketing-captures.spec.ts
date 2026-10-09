@@ -120,6 +120,8 @@ test.describe("@marketing-capture current Desktop product captures", () => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
         await page.emulateMedia({ reducedMotion: "reduce" });
         await prepareRoute(page, route);
+        // Screen entry moves focus for keyboard users; a still has no keyboard, so drop the ring.
+        await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 
         const png = await page.screenshot({
           animations: "disabled",
@@ -128,7 +130,9 @@ test.describe("@marketing-capture current Desktop product captures", () => {
           scale: "css",
         });
 
-        expect(png.byteLength).toBeGreaterThan(40_000);
+        // A shell with an empty screen encodes to about 17 KB at 960x640; the
+        // sparsest real screen (History's run list in mono) is about 39 KB.
+        expect(png.byteLength).toBeGreaterThan(28_000);
         await writeCapture(path.join(CAPTURE_DIR, `${route.route}-${viewport.slug}.png`), png);
         await writeCapture(path.join(DOCS_CAPTURE_DIR, `${route.route}-${viewport.slug}.png`), png);
 

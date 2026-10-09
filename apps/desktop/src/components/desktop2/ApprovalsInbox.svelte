@@ -266,6 +266,7 @@
   .reason{margin:0;color:var(--pytxo-text-soft);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
   dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:0;border:1px solid var(--pytxo-line-soft);border-radius:4px;background:var(--pytxo-line-soft);overflow:hidden}
   dl>div{padding:8px 10px;background:var(--pytxo-surface-input)}
+  dl>div:last-child:nth-child(odd){grid-column:1 / -1}
   dt{color:var(--pytxo-text-muted);font-size:11px}
   dd{margin:4px 0 0;font:12px "IBM Plex Mono",monospace;overflow-wrap:anywhere}
 
