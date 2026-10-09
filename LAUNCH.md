@@ -36,7 +36,10 @@ parallel-agent crowd complains about: "10 agents = 10 branches to read".
   refused Run shown as a stale plan; a store migration race on a newly added
   project ("duplicate column name", "database is locked") plus a repair for
   stores it had already broken. Branch `mbcz/fleet-ascii-redesign`; not merged
-  or released.
+  or released. Second pass the same day: Review shows the Apply gate as a
+  terminal pipeline; Canvas, History and Setup take the terminal language; a
+  background run-finished notification; 1–9 worker jump keys; the site's
+  comparison section plays an Apply gate illustration.
 
 - 2026-10-07 — Audit: candidate branch, release readiness, live site (still
   v1.2.1 copy), film v7, CI state, public repos.

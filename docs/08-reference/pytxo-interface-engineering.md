@@ -54,6 +54,14 @@ pytxo.com share a terminal vocabulary on top of Chroma Aperture:
   orbit per step and one numbered blip per task. Live blips travel and the sweep
   turns only while something is live. It is decoration over real state; the
   rows beside it carry the text and the accessible names.
+- **Apply gate** (`RunReviewScreen.svelte`): agents → prepared change → checks
+  on the combined change → project → destination. One glyph per stage: `✓`
+  recorded, `○` not known yet (for the project: checked again at Apply), `✗`
+  refuted, `·` or the spinner while running. Wires carry signal only while Apply
+  is available; the destination flashes once when Apply lands. The gate never
+  shows `✓` for anything Pytxo has not recorded.
+- **Glyph ledger**: Canvas nodes and History rows use the same glyphs for their
+  recorded state; Setup groups are panes. 1–9 jump to a fleet worker's pane.
 - Mono text uses `--pytxo-font-mono`, which falls back to Cascadia Mono or
   Consolas for box-drawing and block glyphs that IBM Plex Mono lacks.
 - Glow is limited to live activity marks. Every animation stops under OS or

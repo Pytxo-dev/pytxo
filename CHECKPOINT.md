@@ -26,6 +26,18 @@ make sure it looks good, demoable, and something people would use daily."
   the session scratchpad only.
 - Next: Matt reviews → merge → v1.2.4 release + site deploy → film on the
   released build (gate 3).
+- Second pass (same day, "keep polishing"): Review Apply gate
+  (`RunReviewScreen.svelte`: agents → prepared change → combined checks →
+  project, ✓/○/✗/· glyphs, live wires, landing flash; code view fills to the
+  decision), Canvas panes/square wires (`ExecutionMap.svelte`), History ledger,
+  Setup panes, background run-finished notification (`DesktopShell.svelte`,
+  `hitl-notify.ts`), 1–9 worker jump keys (`FleetBoard.svelte`), site Apply gate
+  illustration (`apply-gate.tsx` in the comparison section), docs for both.
+  Marketing captures blur the entry focus before shooting; blank-capture floor
+  28 KB (measured: empty shell 17 KB, sparsest real screen 39 KB).
+- Viability read given to Matt 2026-10-09: crowded, free category (Conductor,
+  Codex app, VS Code, Agent HQ, T3 Code); wedge = verified combined change; launch
+  and measure repeat users before more building.
 
 # CHECKPOINT — Pytxo — 2026-10-08 (redesign handoff)
 
