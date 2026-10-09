@@ -862,22 +862,28 @@
     font-size: 13px;
     line-height: 1.5;
   }
+  /* Each group is a terminal pane with its name cut into the top border. */
   .settings-group {
+    position: relative;
     border: 1px solid var(--pytxo-line, #1e2026);
-    border-radius: 8px;
-    background: var(--pytxo-surface-panel);
-    margin-bottom: 14px;
-    overflow: hidden;
+    border-radius: 6px;
+    background: transparent;
+    margin: 22px 0 14px;
+    padding-top: 6px;
   }
   .settings-group h2 {
+    position: absolute;
+    top: -9px;
+    left: 12px;
     margin: 0;
-    padding: 12px 16px 8px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
+    padding: 0 7px;
+    background: var(--pytxo-surface-shell);
+    font: 600 11px/18px var(--pytxo-font-mono);
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--pytxo-text-muted);
+    color: var(--pytxo-text-soft);
   }
+  .settings-group > h2 + * { border-top: 0; }
   .setting-row {
     display: flex;
     align-items: center;
