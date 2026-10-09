@@ -182,21 +182,39 @@ pub fn apply_migrations(conn: &Connection) -> Result<()> {
     if version < 13 {
         apply_migration_013(conn, MIGRATION_013)?;
     }
+    // Steps 14 and 15 check their source schema under the step's lock: another
+    // connection may have moved the store past it since `version` was read.
     if version < 14 {
-        verify_v13_schema(conn)?;
         apply_migration_014(conn, MIGRATION_014)?;
         version = 14;
     }
     if version < 15 {
-        verify_v14_schema(conn)?;
         apply_migration_015(conn, MIGRATION_015)?;
     }
     verify_latest_schema(conn)
 }
 
-fn apply_migration_008(conn: &Connection, sql: &str) -> Result<()> {
+/// Opens one migration step's write transaction. Two connections can open a new
+/// store at once and both read an old `user_version` before either migrates; the
+/// immediate lock serializes them, and the step is skipped when the version read
+/// under that lock shows another connection already applied it.
+fn begin_step(conn: &Connection, target_version: i32) -> Result<Option<rusqlite::Transaction<'_>>> {
     let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)
         .map_err(store_error)?;
+    let current: i32 = tx
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .map_err(store_error)?;
+    if current >= target_version {
+        tx.commit().map_err(store_error)?;
+        return Ok(None);
+    }
+    Ok(Some(tx))
+}
+
+fn apply_migration_008(conn: &Connection, sql: &str) -> Result<()> {
+    let Some(tx) = begin_step(conn, 8)? else {
+        return Ok(());
+    };
     tx.execute_batch(sql).map_err(store_error)?;
     verify_previous_schema(&tx)?;
     verify_routing_schema(&tx)?;
@@ -206,8 +224,9 @@ fn apply_migration_008(conn: &Connection, sql: &str) -> Result<()> {
 }
 
 fn apply_migration_009(conn: &Connection, sql: &str) -> Result<()> {
-    let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)
-        .map_err(store_error)?;
+    let Some(tx) = begin_step(conn, 9)? else {
+        return Ok(());
+    };
     tx.execute_batch(sql).map_err(store_error)?;
     verify_v9_schema(&tx)?;
     tx.pragma_update(None, "user_version", 9)
@@ -216,8 +235,9 @@ fn apply_migration_009(conn: &Connection, sql: &str) -> Result<()> {
 }
 
 fn apply_migration_010(conn: &Connection, sql: &str) -> Result<()> {
-    let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)
-        .map_err(store_error)?;
+    let Some(tx) = begin_step(conn, 10)? else {
+        return Ok(());
+    };
     tx.execute_batch(sql).map_err(store_error)?;
     verify_v10_schema(&tx)?;
     tx.pragma_update(None, "user_version", 10)
@@ -226,8 +246,9 @@ fn apply_migration_010(conn: &Connection, sql: &str) -> Result<()> {
 }
 
 fn apply_migration_011(conn: &Connection, sql: &str) -> Result<()> {
-    let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)
-        .map_err(store_error)?;
+    let Some(tx) = begin_step(conn, 11)? else {
+        return Ok(());
+    };
     tx.execute_batch(sql).map_err(store_error)?;
     verify_v11_schema(&tx)?;
     tx.pragma_update(None, "user_version", 11)
@@ -236,8 +257,9 @@ fn apply_migration_011(conn: &Connection, sql: &str) -> Result<()> {
 }
 
 fn apply_migration_012(conn: &Connection, sql: &str) -> Result<()> {
-    let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)
-        .map_err(store_error)?;
+    let Some(tx) = begin_step(conn, 12)? else {
+        return Ok(());
+    };
     tx.execute_batch(sql).map_err(store_error)?;
     verify_v12_schema(&tx)?;
     tx.pragma_update(None, "user_version", 12)
@@ -246,8 +268,9 @@ fn apply_migration_012(conn: &Connection, sql: &str) -> Result<()> {
 }
 
 fn apply_migration_013(conn: &Connection, sql: &str) -> Result<()> {
-    let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)
-        .map_err(store_error)?;
+    let Some(tx) = begin_step(conn, 13)? else {
+        return Ok(());
+    };
     tx.execute_batch(sql).map_err(store_error)?;
     verify_v13_schema(&tx)?;
     tx.pragma_update(None, "user_version", 13)
@@ -256,8 +279,10 @@ fn apply_migration_013(conn: &Connection, sql: &str) -> Result<()> {
 }
 
 fn apply_migration_014(conn: &Connection, sql: &str) -> Result<()> {
-    let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)
-        .map_err(store_error)?;
+    let Some(tx) = begin_step(conn, 14)? else {
+        return Ok(());
+    };
+    verify_v13_schema(&tx)?;
     tx.execute_batch(sql).map_err(store_error)?;
     verify_v14_schema(&tx)?;
     tx.pragma_update(None, "user_version", 14)
@@ -266,8 +291,10 @@ fn apply_migration_014(conn: &Connection, sql: &str) -> Result<()> {
 }
 
 fn apply_migration_015(conn: &Connection, sql: &str) -> Result<()> {
-    let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)
-        .map_err(store_error)?;
+    let Some(tx) = begin_step(conn, 15)? else {
+        return Ok(());
+    };
+    verify_v14_schema(&tx)?;
     tx.execute_batch(sql).map_err(store_error)?;
     verify_latest_schema(&tx)?;
     tx.pragma_update(None, "user_version", 15)
@@ -410,7 +437,9 @@ fn apply_batch_migration(
     sql: &str,
     required_schema: &[(&str, &[&str])],
 ) -> Result<()> {
-    let transaction = conn.unchecked_transaction().map_err(store_error)?;
+    let Some(transaction) = begin_step(conn, target_version)? else {
+        return Ok(());
+    };
     transaction.execute_batch(sql).map_err(store_error)?;
     verify_schema(&transaction, required_schema)?;
     transaction
@@ -421,7 +450,9 @@ fn apply_batch_migration(
 
 fn apply_column_migration(conn: &Connection, target_version: i32, sql: &str) -> Result<()> {
     let columns = parse_add_columns(target_version, sql)?;
-    let transaction = conn.unchecked_transaction().map_err(store_error)?;
+    let Some(transaction) = begin_step(conn, target_version)? else {
+        return Ok(());
+    };
     for (table, column, definition) in &columns {
         if !table_exists(&transaction, table)? {
             return Err(PytxoError::Store(format!(

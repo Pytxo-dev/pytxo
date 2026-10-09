@@ -145,8 +145,25 @@ impl PytxoStore {
             std::fs::create_dir_all(parent).map_err(PytxoError::Io)?;
         }
         let conn = Connection::open(path).map_err(|e| PytxoError::Store(e.to_string()))?;
-        conn.execute_batch("PRAGMA journal_mode=WAL;")
+        // Another connection may be creating or migrating this store right now.
+        conn.busy_timeout(std::time::Duration::from_secs(5))
             .map_err(|e| PytxoError::Store(e.to_string()))?;
+        // Switching a brand-new file to WAL can report busy without waiting while
+        // another opener switches it first, so that one statement is retried.
+        // ponytail: fixed 40 × 25 ms budget; make it configurable if stores ever open slower.
+        let mut attempts = 0;
+        loop {
+            match conn.execute_batch("PRAGMA journal_mode=WAL;") {
+                Ok(()) => break,
+                Err(rusqlite::Error::SqliteFailure(error, _))
+                    if error.code == rusqlite::ErrorCode::DatabaseBusy && attempts < 40 =>
+                {
+                    attempts += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                }
+                Err(error) => return Err(PytxoError::Store(error.to_string())),
+            }
+        }
         apply_migrations(&conn)?;
         Ok(Self { conn })
     }
@@ -1512,6 +1529,31 @@ fn parse_dt(s: String) -> DateTime<Utc> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn concurrent_first_opens_of_a_new_store_all_succeed() {
+        // Desktop opens a freshly added project's store from several commands at once.
+        for round in 0..8 {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("store.db");
+            let barrier = std::sync::Arc::new(std::sync::Barrier::new(6));
+            let openers: Vec<_> = (0..6)
+                .map(|_| {
+                    let (path, barrier) = (path.clone(), barrier.clone());
+                    std::thread::spawn(move || {
+                        barrier.wait();
+                        PytxoStore::open(&path).map(|_| ())
+                    })
+                })
+                .collect();
+            for opener in openers {
+                opener
+                    .join()
+                    .unwrap()
+                    .unwrap_or_else(|error| panic!("round {round}: {error}"));
+            }
+        }
+    }
 
     #[test]
     fn change_bounds_use_index_endpoints_instead_of_scanning_the_ledger() {
