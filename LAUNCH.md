@@ -22,10 +22,15 @@ parallel-agent crowd complains about: "10 agents = 10 branches to read".
 | 2 | Fresh candidate after Oct 5–6 UI changes | **Done** — candidate run 37651799067 at `15758b7`, acceptance 37652820730 passed | — |
 | 3 | Live vendor agents on the final artifact | **Open** — cloud acceptance uses stand-in agents; no live Codex/Claude run on a released MSI yet, including Split. 2026-10-09: the redesign branch ran natively with stand-in agents (fresh store, full fleet, no errors) | One local run of the released MSI with real CLIs (the film take) |
 | 4 | Source visibility | **Done: public (MIT)** — gitleaks clean; private vulnerability reporting, secret scanning + push protection, Dependabot alerts and fork-PR approval on | — |
-| 5 | Publication | **Done** — v1.2.2 tagged at `63b5785`; GitHub release + `pytxo-releases` mirror (checksums verified, CLI reports 1.2.2); npm `latest` 1.2.2; pytxo.com deployed 2026-10-08 | Film re-record and launch posts remain (Matt writes HN/Reddit) |
+| 5 | Publication | **Done** — v1.2.4 tagged at `ca214bb` (PR #39); release run 37935040667 green; `pytxo-releases` mirror v1.2.4 (MSI + CLI checksums verified, CLI reports 1.2.4); npm `latest` 1.2.4. v1.2.3 and v1.2.2 before it | Site deploy of the 1.2.4 docs flip; film re-record and launch posts (Matt writes HN/Reddit) |
 
 ## Work log
 
+- 2026-10-09 — v1.2.4 published: terminal fleet monitor, Review Apply gate,
+  background run-finished notification, 1–9 worker keys, store open fix. PR #39
+  CI green (incl. Windows Rust), merged as `ca214bb`, tagged, release green,
+  mirror checksums and npm verified. Gate 3 (live CLIs on the released MSI)
+  still open.
 - 2026-10-09 — Terminal fleet redesign (approved: "go all in", "add your own UI
   style"). Desktop: fleet monitor (ASCII scope, activity sparklines, TUI worker
   panes, auto-follow, converge finale), New work fleet preview and compact plan
