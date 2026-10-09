@@ -7,7 +7,7 @@ released v1.2.4 Desktop (live take 2, `D:/pytxo-native-acceptance/film-124-live2
 Claude Code splits a one-paragraph request into 7 owned tasks; Claude Code,
 Codex and Cursor Agent run them; Review, stale refusal, refresh and Apply are
 the real recorded UI. The pointer is redrawn from the take's telemetry. Waits
-are shortened and labelled "sped up"; the fleet beat is a time-lapse of the
+are shortened and each shortened shot shows "sped up N×"; the fleet beat is a time-lapse of the
 whole 11-minute run. The result-app segment is left out (`--no-result`): the
 applied app has integration bugs that the agents' tests did not catch.
 

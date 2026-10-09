@@ -198,6 +198,8 @@ const ShotView = ({index}: {index: number}) => {
         <OffthreadVideo src={staticFile(shot.clip)} playbackRate={shot.speed / shot.cutSpeed} muted style={{position: "absolute", left: offX, top: 0, width: cut.width * cover}} />
         <Cursor t={t} />
       </div>
+      {/* Shortened waits say so on screen, with the factor. */}
+      {shot.speed >= 4 && <div style={{position: "absolute", top: 28, right: 32, padding: "6px 12px", borderRadius: 4, background: "rgba(5,5,7,.78)", border: "1px solid #27272a", font: `500 18px ${mono}`, color: "#c7c7ce", letterSpacing: ".04em"}}>{`sped up ${Math.round(shot.speed)}×`}</div>}
     </AbsoluteFill>
   );
 };
@@ -288,7 +290,7 @@ export const PytxoLive = () => {
           <Glyph size={240} phase={frame / 60 * .7} />
           <Typed text="pytxo" at={24} perChar={5} style={{font: `600 96px ${sans}`, letterSpacing: "-.035em", color: ink}} />
           <div style={{font: `400 32px ${sans}`, color: muted, opacity: interpolate(frame - (LIVE_FRAMES - OUTRO), [70, 95], [0, 1], {extrapolateLeft: "clamp", extrapolateRight: "clamp"})}}>Free Windows beta · pytxo.com</div>
-          <div style={{marginTop: 30, font: `500 17px ${mono}`, color: "#6b6b74", letterSpacing: ".08em"}}>RECORDED IN PYTXO DESKTOP · STAND-IN AGENTS REPLAY A REAL RUN · WAITS SHORTENED</div>
+          <div style={{marginTop: 30, font: `500 17px ${mono}`, color: "#6b6b74", letterSpacing: ".08em"}}>RECORDED IN PYTXO DESKTOP 1.2.4 · LIVE CLAUDE CODE, CODEX AND CURSOR AGENT · WAITS SHORTENED</div>
         </AbsoluteFill>
       </Sequence>
       <Sound />
