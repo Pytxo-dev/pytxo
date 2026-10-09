@@ -172,21 +172,26 @@
   });
 
   // Follow work as it starts: a worker that leaves the queue scrolls into view,
-  // unless the viewer moved the board themselves in the last few seconds.
+  // and when the last one reports the board returns to the monitor. Neither
+  // happens if the viewer moved the board themselves in the last few seconds.
   let board: HTMLDivElement | undefined = $state();
   let touched = 0;
   const seenTones = new Map<string, Tone>();
   $effect(() => {
+    const wasLive = [...seenTones.values()].includes("live");
     const started = tasks.filter((task) => {
       const next = tone(agentFor(task));
       const before = seenTones.get(task.task_id);
       seenTones.set(task.task_id, next);
       return before === "queued" && next === "live";
     });
-    if (!started.length || !board || Date.now() - touched < 8_000) return;
-    const pane = board.querySelector<HTMLElement>(`[data-task="${CSS.escape(started[0].task_id)}"]`);
-    const still = matchMedia("(prefers-reduced-motion: reduce)").matches || !!document.querySelector("[data-force-reduced-motion]");
-    requestAnimationFrame(() => pane?.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" }));
+    const finished = wasLive && tasks.length > 0 && tasks.every((task) => tone(agentFor(task)) === "done");
+    if ((!started.length && !finished) || !board || Date.now() - touched < 8_000) return;
+    const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches || document.querySelector("[data-force-reduced-motion]") ? "auto" : "smooth";
+    const target = board;
+    if (finished) { requestAnimationFrame(() => target.scrollTo({ top: 0, behavior })); return; }
+    const pane = target.querySelector<HTMLElement>(`[data-task="${CSS.escape(started[0].task_id)}"]`);
+    requestAnimationFrame(() => pane?.scrollIntoView({ block: "nearest", behavior }));
   });
 
   const blips = $derived<Blip[]>(tasks.map((task, index) => ({ id: task.task_id, mark: String(index + 1), tone: tone(agentFor(task)), ring: task.wave })));
