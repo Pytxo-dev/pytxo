@@ -70,3 +70,34 @@ svelte-check clean; full Desktop e2e green with updated expectations;
 regenerated captures inspected at 1280 and 1600; web lint, build and e2e
 green; before/after screenshots in `D:/pytxo-native-acceptance/audit-20261008`.
 Demo film is re-recorded after these land.
+
+## Phase 3: terminal fleet (2026-10-09)
+
+Matt asked to go further on Desktop and pytxo.com, "especially the fleet UI",
+with ASCII art and a UI style of my choosing, as long as it stays good to use
+every day. The vocabulary is recorded in [[pytxo-interface-engineering]]
+under Terminal language.
+
+Desktop
+
+- Fleet: a monitor pane (ASCII scope plus one activity row per task with CLI,
+  sparkline, state and clock) above TUI worker panes. Queued tasks render as
+  compact panes and open into terminals when their worker starts; the board
+  follows a newly started worker unless the viewer just scrolled. The activity
+  timeline disclosure is gone; the sparklines replace it.
+- New work: a fleet preview (selected agents on the scope, lead first, and the
+  describe → plan → work → verify → apply loop) fills the empty right side;
+  plan tasks are compact TUI panes, so a four-task plan fits on one screen.
+- Status line and sidebar: mono status segments, a `| / - \` spinner for live
+  workers, an ASCII meter for finished agents.
+
+Website
+
+- Hero: an ASCII aperture sphere with the five agent CLIs on an orbit behind
+  the headline (pointer-reactive, still under reduced motion), and a clip of
+  Desktop playing the scripted sample run over the hero capture.
+- Footer: the wordmark rasterised into the aperture ramp. Step kickers and
+  the run record use the same terminal framing.
+
+Safety meanings are unchanged; the sparkline and scope are activity, not
+progress or verification.
