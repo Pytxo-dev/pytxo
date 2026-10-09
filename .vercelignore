@@ -52,3 +52,6 @@ apps/web/.docs-vault/
 apps/web/test-results/
 apps/web/.playwright-cli/
 apps/web/output/
+
+# Local agent and editor configuration
+.claude/
