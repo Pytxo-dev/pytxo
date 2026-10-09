@@ -28,7 +28,7 @@ export function HowItWorks() {
       <ol className="mt-14 grid gap-16 lg:gap-24">
         {STEPS.map((step, index) => <li key={step.image} className={`grid items-center gap-8 lg:gap-14 ${index % 2 ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)]" : "lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.6fr)]"}`}>
           <div className={index % 2 ? "lg:order-2" : undefined}>
-            <span className="font-mono text-sm text-[#8d8d96]">0{index + 1}</span>
+            <span className="flex items-center gap-3 font-mono text-xs uppercase tracking-[0.14em] text-[#8d8d96]">step 0{index + 1}<i aria-hidden className="h-px w-16 bg-[linear-gradient(90deg,#45dccb,transparent)]" /></span>
             <h3 className="mt-3 text-2xl leading-tight tracking-[-0.03em] sm:text-3xl">{step.title}</h3>
             <p className="mt-5 max-w-[44ch] text-base leading-relaxed text-[#b4b4bd]">{step.body}</p>
           </div>

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { AsciiAperture } from "@/components/site/ascii-art";
 
 // Each mark sits beside its full product name and implies no partnership.
 const AGENTS = [
@@ -12,8 +13,9 @@ const AGENTS = [
 ] as const;
 
 export function Hero() {
-  return <section className="border-b border-white/10" data-testid="marketing-hero">
-    <div className="mx-auto max-w-[92rem] px-4 pb-14 pt-16 sm:px-6 lg:px-10 lg:pt-24">
+  return <section className="relative overflow-hidden border-b border-white/10" data-testid="marketing-hero">
+    <AsciiAperture className="pointer-events-none absolute inset-x-0 top-0 h-[min(860px,100svh)] w-full opacity-80 [mask-image:radial-gradient(ellipse_70%_75%_at_50%_45%,#000_35%,transparent_80%)]" />
+    <div className="relative mx-auto max-w-[92rem] px-4 pb-14 pt-16 sm:px-6 lg:px-10 lg:pt-24">
       <div className="mx-auto max-w-[84rem] text-center">
         <p className="text-sm font-medium tracking-[0.01em] text-[#aaaab3]">The agent hypervisor for your repository</p>
         <h1 className="mt-5 text-[clamp(2.75rem,7.4vw,6.75rem)] font-semibold leading-[1.02] tracking-[-0.045em]">
