@@ -310,7 +310,7 @@
         {#if nodes.length}
           <div class="scene" class:overview={overviewMode} class:micro-overview={microOverviewMode} bind:this={scene} style={`width:${topology.width}px;height:${topology.height}px`}>
             <svg class="flowlines" viewBox={`0 0 ${topology.width} ${topology.height}`} aria-hidden="true">
-              {#each edges as edge}{@const handedOff = edge.source.agent?.status === "completed" && edge.source.agent.exit_code === 0}<path class:highlighted={edge.source.task.task_id === selected?.task.task_id || edge.target.task.task_id === selected?.task.task_id} class:flowing={handedOff && ["running", "starting", "pending"].includes(edge.target.agent?.status ?? "")} class:upstream={!routed && !handedOff} d={topology.orientation === "vertical" ? `M ${edge.source.sceneX} ${edge.source.sceneY + 50} C ${edge.source.sceneX} ${(edge.source.sceneY + edge.target.sceneY) / 2}, ${edge.target.sceneX} ${(edge.source.sceneY + edge.target.sceneY) / 2}, ${edge.target.sceneX} ${edge.target.sceneY - 50}` : `M ${edge.source.sceneX + 112} ${edge.source.sceneY} C ${(edge.source.sceneX + edge.target.sceneX) / 2} ${edge.source.sceneY}, ${(edge.source.sceneX + edge.target.sceneX) / 2} ${edge.target.sceneY}, ${edge.target.sceneX - 112} ${edge.target.sceneY}`} />{/each}
+              {#each edges as edge}{@const handedOff = edge.source.agent?.status === "completed" && edge.source.agent.exit_code === 0}<path class:highlighted={edge.source.task.task_id === selected?.task.task_id || edge.target.task.task_id === selected?.task.task_id} class:flowing={handedOff && ["running", "starting", "pending"].includes(edge.target.agent?.status ?? "")} class:upstream={!routed && !handedOff} d={topology.orientation === "vertical" ? `M ${edge.source.sceneX} ${edge.source.sceneY + 50} V ${(edge.source.sceneY + edge.target.sceneY) / 2} H ${edge.target.sceneX} V ${edge.target.sceneY - 50}` : `M ${edge.source.sceneX + 112} ${edge.source.sceneY} H ${(edge.source.sceneX + edge.target.sceneX) / 2} V ${edge.target.sceneY} H ${edge.target.sceneX - 112}`} />{/each}
             </svg>
             {#each nodes as node (node.task.task_id)}
               {@const state = node.agent ? agentState(node.agent) : null}
@@ -329,7 +329,7 @@
                     <strong>{node.task.task_id}</strong>
                     <span>{routed ? mainLabel : node.agent?.launcher?.display_name ?? state?.label ?? "Unassigned"}</span>
                   </span>
-                  <span class="node-copy"><strong title={taskDescriptions[node.task.task_id]}>{taskDescriptions[node.task.task_id] ?? node.task.task_id}</strong><span>{mainLabel}</span>{#if routed && node.routingAttempt && !node.agent}<span>Worker not recorded</span>{/if}</span>
+                  <span class="node-copy"><strong title={taskDescriptions[node.task.task_id]}>{taskDescriptions[node.task.task_id] ?? node.task.task_id}</strong><span class="node-state">{#if running}<span class="tui-spin node-glyph" aria-hidden="true"><span>|/-\</span></span>{:else}<i class="node-glyph" aria-hidden="true">{node.agent?.status === "completed" && node.agent.exit_code === 0 ? "✓" : node.agent?.status === "failed" || (node.agent?.exit_code ?? 0) !== 0 ? "✗" : "○"}</i>{/if}{mainLabel}</span>{#if routed && node.routingAttempt && !node.agent}<span>Worker not recorded</span>{/if}</span>
                 </button>
                 <small>{node.task.depends_on.length ? `Requires ${node.task.depends_on.join(", ")}` : "No task prerequisites"}</small>
               </article>
@@ -371,4 +371,26 @@
   @media(max-width:650px){.map-toolbar{flex-wrap:wrap}.map-toolbar>div:first-child{flex-basis:100%}.camera-tools{margin-left:auto}.relationship-strip{display:none}.map-body{min-height:150px}}
   @media(prefers-reduced-motion:reduce){.worker-pulse{width:auto;animation:none;font-size:0}.worker-pulse::after{content:"●";font-size:10px}.flowlines path.flowing,.task-node.running::after{animation:none}}
   :global([data-force-reduced-motion]) .flowlines path.flowing,:global([data-force-reduced-motion]) .task-node.running::after{animation:none}
+
+  /* Terminal language, same as the fleet: crosshair grid, square wires, and each
+     task a pane with its worker cut into the top border. */
+  .canvas-grid{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M12 10v4M10 12h4' stroke='%23888' stroke-opacity='.32'/%3E%3C/svg%3E")}
+  .flowlines path{stroke-linejoin:miter}
+  .task-node{border-radius:6px;background:var(--pytxo-work-canvas);box-shadow:none}
+  .task-node[data-state="running"]{border-color:color-mix(in srgb,var(--pytxo-activity) 60%,var(--pytxo-line))}
+  .task-node[data-state="completed"]{border-color:color-mix(in srgb,var(--state-verified) 38%,var(--pytxo-line))}
+  .task-node[data-state="failed"]{border-color:color-mix(in srgb,var(--state-refuted) 50%,var(--pytxo-line))}
+  .task-node.chosen{border-color:var(--pytxo-text-soft);box-shadow:0 0 0 2px color-mix(in srgb,var(--pytxo-text-strong) 10%,transparent)}
+  .task-node.running::after{content:none}
+  .node-kicker{position:absolute;top:-9px;left:10px;max-width:calc(100% - 20px);min-height:18px;padding:0 6px;border:0;background:var(--pytxo-work-canvas);gap:8px}
+  .node-kicker span{color:var(--pytxo-text-soft);font:500 10.5px var(--pytxo-font-mono)}
+  .task-node button{padding-top:15px}
+  .node-copy>strong{font-size:13px}
+  .node-state{display:flex;align-items:center;gap:6px;color:var(--pytxo-text-soft);font:11px var(--pytxo-font-mono)}
+  .node-glyph{flex:none;font-style:normal;color:var(--state-unknown)}
+  .task-node[data-state="completed"] .node-glyph{color:var(--state-verified)}
+  .task-node[data-state="failed"] .node-glyph{color:var(--state-refuted)}
+  .task-node[data-state="running"] .node-glyph{color:var(--live)}
+  .task-node small{padding-top:2px;border-top:1px dashed var(--pytxo-line-soft);margin:0 9px;padding:6px 0 8px}
+  .relationship-strip{border-radius:4px;font:10.5px var(--pytxo-font-mono);box-shadow:none}
 </style>
