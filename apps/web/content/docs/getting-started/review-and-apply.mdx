@@ -16,6 +16,19 @@ Passing checks prove only that the listed commands passed on that candidate. The
 
 Discarding a package does not undo an earlier Apply or other agent side effects.
 
+## Read the Apply gate
+
+The top of Review is the Apply gate: the changed files feed one prepared change, which has to clear each condition before it reaches your project.
+
+| Stage | ✓ means | Otherwise |
+|---|---|---|
+| **agents** | Every agent finished successfully | `·` still running, `✗` an agent failed |
+| **Prepared change** | There are files to apply | `✗` nothing to apply |
+| **Checks** | Pytxo's checks passed on the combined change | `○` not run on the combined change, `✗` a check failed |
+| **project** | Apply matched your project and wrote the files | `○` checked again when you choose Apply, `✗` the project changed since review |
+
+The wires between stages light up only while Apply is available. Choose **Checks** to read the commands and their results.
+
 ## Why Apply might be unavailable
 
 | State | What to do |
