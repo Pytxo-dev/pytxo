@@ -155,9 +155,9 @@
     return task.depends_on.length === 1 ? `after ${task.depends_on[0]}` : `after ${task.depends_on.length} tasks`;
   }
 
-  /** Sparkline cells follow the rendered width of the activity column (the row minus its fixed columns). */
+  /** Sparkline cells follow the rendered width of the activity column: 1.6 of the row's 2.6 flexible parts. */
   let rowsWidth = $state(0);
-  const buckets = $derived(Math.max(12, Math.min(120, Math.floor((rowsWidth - 430) / 6.1))));
+  const buckets = $derived(Math.max(12, Math.min(120, Math.floor(((rowsWidth - 314) * 1.6) / 2.6 / 6.1))));
   const activity = $derived.by(() => {
     const rows = tasks.map((task) => {
       const agent = agentFor(task);
@@ -213,10 +213,10 @@
           {@const agent = agentFor(task)}
           {@const spark = activity.get(task.task_id)}
           <li data-tone={tone(agent)}>
-            <button disabled={!agent} onclick={() => agent && onInspect(agent)} aria-label={`${index + 1}. ${vendorOf(task, agent)}, ${task.task_id}: ${status(task, agent)}${elapsed(agent) ? `, ${elapsed(agent)}` : ""}. Open output.`}>
+            <button disabled={!agent} onclick={() => agent && onInspect(agent)} aria-label={`${index + 1}. ${vendorOf(task, agent)}, ${taskDescriptions[task.task_id] ?? task.task_id}: ${status(task, agent)}${elapsed(agent) ? `, ${elapsed(agent)}` : ""}. Open output.`}>
               <span class="num">{index + 1}</span>
               <span class="cli">{cliOf(task, agent) ?? "agent"}</span>
-              <span class="task" title={taskDescriptions[task.task_id]}>{task.task_id}</span>
+              <span class="task" title={taskDescriptions[task.task_id] ?? task.task_id}>{taskDescriptions[task.task_id] ?? task.task_id}</span>
               <span class="spark" aria-hidden="true"><i>{spark?.lead}</i>{spark?.body}<i>{spark?.tail}</i></span>
               <span class="status">{#if tone(agent) === "live"}<span class="tui-spin" aria-hidden="true"><span>|/-\</span></span>{/if}{status(task, agent)}</span>
               <time>{elapsed(agent) || "—"}</time>
@@ -286,7 +286,7 @@
   .scope { display: grid; place-items: center; }
   .rows { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 6px; }
   .rows ol { display: grid; margin: 0; padding: 0; list-style: none; max-height: 196px; overflow: auto; }
-  .rows button { display: grid; grid-template-columns: 20px 68px 116px minmax(0, 1fr) 118px 42px; align-items: center; gap: 10px; width: 100%; height: 24px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: var(--pytxo-text-body); font: 12px var(--mono); text-align: left; }
+  .rows button { display: grid; grid-template-columns: 20px 68px minmax(0, 1fr) minmax(0, 1.6fr) 118px 42px; align-items: center; gap: 10px; width: 100%; height: 24px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: var(--pytxo-text-body); font: 12px var(--mono); text-align: left; }
   .rows button:hover:not(:disabled) { background: var(--pytxo-surface-hover); }
   .rows button:disabled { cursor: default; }
   .rows .num { color: var(--pytxo-text-muted); }

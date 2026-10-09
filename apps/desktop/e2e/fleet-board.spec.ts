@@ -22,8 +22,8 @@ test("a mixed-CLI run opens on the fleet board with each worker's vendor, output
   // The monitor lists every task with its CLI and state; queued tasks have no output pane yet.
   const monitor = board.getByRole("list", { name: "Worker activity from recorded events" });
   await expect(monitor.getByRole("listitem")).toHaveCount(6);
-  await expect(monitor.getByRole("button", { name: /^1\. OpenAI Codex, model: passed/ })).toBeEnabled();
-  await expect(monitor.getByRole("button", { name: /^6\. Antigravity, readme: queued/ })).toBeDisabled();
+  await expect(monitor.getByRole("button", { name: /^1\. OpenAI Codex, Add search and status filtering.*: passed/ })).toBeEnabled();
+  await expect(monitor.getByRole("button", { name: /^6\. Antigravity, Document the new features.*: queued/ })).toBeDisabled();
   await expect(board.locator(".worker.compact")).toHaveCount(2);
   await expect(board.getByRole("log")).toHaveCount(4);
 
