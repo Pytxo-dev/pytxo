@@ -128,7 +128,7 @@
       {#if job.agents.length}
         <ul class="job-agents" aria-label="Agents on this job">
           {#each job.agents as agent (agent.id)}
-            <li><button onclick={() => onOpenRun(job.runId)} title={`${agent.label} · ${agent.vendor}`}><span class="agent-logo">{#if agent.cli}<AdeIdentity id={agent.cli} />{/if}</span><span class="agent-label">{agent.label}</span>{#if agent.tone === "live"}<span class="tui-spin agent-spin" role="img" aria-label="working"><span aria-hidden="true">.:+*=x</span></span>{:else}<i class="dot" data-tone={agent.tone} aria-label={agent.tone}></i>{/if}</button></li>
+            <li><button onclick={() => onOpenRun(job.runId)} title={`${agent.label} · ${agent.vendor}`}><span class="agent-logo">{#if agent.cli}<AdeIdentity id={agent.cli} />{/if}</span><span class="agent-label">{agent.label}</span>{#if agent.tone === "live"}<span class="tui-spin agent-spin" role="img" aria-label="working"><span aria-hidden="true">|/-\</span></span>{:else}<i class="dot" data-tone={agent.tone} aria-label={agent.tone}></i>{/if}</button></li>
           {/each}
         </ul>
       {/if}

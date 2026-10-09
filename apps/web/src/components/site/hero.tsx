@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AsciiAperture } from "@/components/site/ascii-art";
+import { HeroFleet } from "@/components/site/hero-fleet";
 
 // Each mark sits beside its full product name and implies no partnership.
 const AGENTS = [
@@ -39,9 +40,9 @@ export function Hero() {
 
       <figure className="mx-auto mt-12 max-w-[78rem]" data-testid="hero-fleet">
         <div className="overflow-hidden rounded-xl border border-white/10 shadow-[0_40px_120px_-40px_rgba(62,224,208,0.25)]">
-          <Image src="/product/fleet-1600x1000.png" alt="Pytxo Work view of one request split across agents: Codex, Claude Code, Cursor Agent and OpenCode working in parallel, a second Codex task waiting on a file Claude Code owns, and Antigravity queued for the README" width={1600} height={1000} sizes="(min-width: 1280px) 78rem, 100vw" priority className="h-auto w-full" />
+          <HeroFleet alt="Pytxo Work view of one request split across agents: a fleet monitor with an ASCII scope and activity lines, Codex, Claude Code, Cursor Agent and OpenCode working in parallel, a second Codex task waiting on a file Claude Code owns, and Antigravity queued for the README" />
         </div>
-        <figcaption className="mt-3 text-center text-sm text-[#aaaab3]">One request, five agents, each in its own copy of the project. A task that shares a file waits for the agent that owns it. Preview capture.</figcaption>
+        <figcaption className="mt-3 text-center text-sm text-[#aaaab3]">One request, five agents, each in its own copy of the project. A task that shares a file waits for the agent that owns it. Pytxo Desktop playing a sample run; real runs take minutes.</figcaption>
       </figure>
     </div>
   </section>;

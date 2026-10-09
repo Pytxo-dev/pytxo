@@ -37,7 +37,7 @@
 </script>
 
 <footer class="run-status" aria-label="Run status">
-  <span class="count" data-tone={working ? "live" : "idle"}>{#if working}<span class="tui-spin" aria-hidden="true"><span>.:+*=x</span></span>{:else}<i aria-hidden="true"></i>{/if}<b>{working}</b> working</span>
+  <span class="count" data-tone={working ? "live" : "idle"}>{#if working}<span class="tui-spin" aria-hidden="true"><span>|/-\</span></span>{:else}<i aria-hidden="true"></i>{/if}<b>{working}</b> working</span>
   <span class="count" data-tone="done"><b>{done}</b> done</span>
   {#if failed}<span class="count" data-tone="failed"><b>{failed}</b> failed</span>{/if}
   {#if waiting}<span class="count"><b>{waiting}</b> waiting</span>{/if}

@@ -21,7 +21,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await page.screenshot({ path: testInfo.outputPath("composer.png"), fullPage: true });
       await page.getByRole("button", { name: "Build plan", exact: true }).click();
       await expect(page.getByLabel("Task desktop-flow prompt")).toHaveJSProperty("tagName", "TEXTAREA");
-      await expect(page.getByText("After desktop-flow, orchestration-flow", { exact: true })).toBeVisible();
+      await expect(page.getByText("after desktop-flow, orchestration-flow", { exact: true })).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath("plan.png"), fullPage: true });
     });
 

@@ -171,6 +171,24 @@
       : sparkline(counts, peak, null, null)]));
   });
 
+  // Follow work as it starts: a worker that leaves the queue scrolls into view,
+  // unless the viewer moved the board themselves in the last few seconds.
+  let board: HTMLDivElement | undefined = $state();
+  let touched = 0;
+  const seenTones = new Map<string, Tone>();
+  $effect(() => {
+    const started = tasks.filter((task) => {
+      const next = tone(agentFor(task));
+      const before = seenTones.get(task.task_id);
+      seenTones.set(task.task_id, next);
+      return before === "queued" && next === "live";
+    });
+    if (!started.length || !board || Date.now() - touched < 8_000) return;
+    const pane = board.querySelector<HTMLElement>(`[data-task="${CSS.escape(started[0].task_id)}"]`);
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches || !!document.querySelector("[data-force-reduced-motion]");
+    requestAnimationFrame(() => pane?.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" }));
+  });
+
   const blips = $derived<Blip[]>(tasks.map((task, index) => ({ id: task.task_id, mark: String(index + 1), tone: tone(agentFor(task)), ring: task.wave })));
   const counts = $derived({
     live: tasks.filter((task) => tone(agentFor(task)) === "live").length,
@@ -179,7 +197,7 @@
   });
 </script>
 
-<div class="fleet" data-testid="fleet-board" data-live={anyLive || undefined} style={`--cols:${columns}`}>
+<div class="fleet" data-testid="fleet-board" data-live={anyLive || undefined} style={`--cols:${columns}`} bind:this={board} onwheel={() => (touched = Date.now())} ontouchmove={() => (touched = Date.now())} onkeydown={() => (touched = Date.now())} role="presentation">
   <section class="monitor tui-pane" aria-label="Fleet monitor">
     <span class="tui-legend"><b>fleet</b><span>{counts.live} working · {counts.done} done · {counts.waiting} waiting</span></span>
     <span class="tui-legend right"><span class="pulse" class:on={anyLive} aria-hidden="true"></span>{anyLive ? "live" : "settled"} <time>{clock(span.end - span.start)}</time></span>
@@ -195,7 +213,7 @@
               <span class="cli">{cliOf(task, agent) ?? "agent"}</span>
               <span class="task" title={taskDescriptions[task.task_id]}>{task.task_id}</span>
               <span class="spark" aria-hidden="true"><i>{spark?.lead}</i>{spark?.body}<i>{spark?.tail}</i></span>
-              <span class="status">{#if tone(agent) === "live"}<span class="tui-spin" aria-hidden="true"><span>.:+*=x</span></span>{/if}{status(task, agent)}</span>
+              <span class="status">{#if tone(agent) === "live"}<span class="tui-spin" aria-hidden="true"><span>|/-\</span></span>{/if}{status(task, agent)}</span>
               <time>{elapsed(agent) || "—"}</time>
             </button>
           </li>
@@ -221,9 +239,9 @@
             {@const vendor = vendorOf(task, agent)}
             {@const number = tasks.indexOf(task) + 1}
             {@const compact = !agent}
-            <article class="worker tui-pane" class:compact data-tone={tone(agent)} data-unchanged={status(task, agent) === "no changes" || undefined} style={compact ? `grid-column:span ${Math.min(2, columns)}` : undefined}>
+            <article class="worker tui-pane" data-task={task.task_id} class:compact data-tone={tone(agent)} data-unchanged={status(task, agent) === "no changes" || undefined} style={compact ? `grid-column:span ${Math.min(2, columns)}` : undefined}>
               <span class="tui-legend"><span class="logo">{#if cli}<AdeIdentity id={cli} />{/if}</span><span class="vendor">{vendor}</span><span class="num">{number}</span></span>
-              <span class="tui-legend right state">{#if tone(agent) === "live"}<span class="tui-spin" aria-hidden="true"><span>.:+*=x</span></span>{:else if tone(agent) === "done"}<span aria-hidden="true">{status(task, agent) === "no changes" ? "○" : "✓"}</span>{:else if tone(agent) === "failed"}<span aria-hidden="true">✗</span>{/if}{status(task, agent)}{#if elapsed(agent)}<time>{elapsed(agent)}</time>{/if}</span>
+              <span class="tui-legend right state">{#if tone(agent) === "live"}<span class="tui-spin" aria-hidden="true"><span>|/-\</span></span>{:else if tone(agent) === "done"}<span aria-hidden="true">{status(task, agent) === "no changes" ? "○" : "✓"}</span>{:else if tone(agent) === "failed"}<span aria-hidden="true">✗</span>{/if}{status(task, agent)}{#if elapsed(agent)}<time>{elapsed(agent)}</time>{/if}</span>
               <button class="head" onclick={() => agent && onInspect(agent)} disabled={!agent} aria-label={`${vendor}: ${taskDescriptions[task.task_id] ?? task.task_id}. ${agent ? agentState(agent).label : "Not started"}. Open output.`}>
                 <strong title={taskDescriptions[task.task_id]}>{taskDescriptions[task.task_id] ?? task.task_id}</strong>
                 {#if compact}<small>{#if share}Shares {share.path} with {vendorOf(share.owner, agentFor(share.owner))}. Starts on its result.{:else}{waitsOn(task)}{/if}</small>{/if}

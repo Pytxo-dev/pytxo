@@ -263,9 +263,9 @@ html[data-force-reduced-motion] *::after {
 .tui-legend.right { left: auto; right: 12px; max-width: none; }
 .tui-legend b { color: var(--pytxo-text-strong); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .tui-legend time { margin-left: 4px; color: var(--pytxo-text-muted); font-variant-numeric: tabular-nums; }
-/* The working spinner is the aperture's own character ramp: `.:+*=x`. */
+/* The terminal spinner: every frame is a visible character, so a still capture never shows a blank. */
 .tui-spin { display: inline-block; width: 1ch; overflow: hidden; vertical-align: bottom; font-family: var(--pytxo-font-mono); }
-.tui-spin > span { display: inline-block; animation: tui-spin .9s steps(6) infinite; }
-@keyframes tui-spin { to { transform: translateX(-6ch); } }
+.tui-spin > span { display: inline-block; white-space: pre; animation: tui-spin .6s steps(4) infinite; }
+@keyframes tui-spin { to { transform: translateX(-4ch); } }
 @media (prefers-reduced-motion: reduce) { .tui-spin > span { animation: none; } }
 [data-force-reduced-motion] .tui-spin > span { animation: none; }
