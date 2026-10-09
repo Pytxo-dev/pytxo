@@ -21,7 +21,7 @@
     : applyStatus === "applying" ? { text: "Applying", tone: "live" }
     : applyStatus === "recovery_required" ? { text: "Recovery needed", tone: "failed" }
     : running ? { text: "Review after agents finish", tone: "muted" }
-    : { text: "No change set yet", tone: "muted" },
+    : { text: "No prepared change yet", tone: "muted" },
   );
 
   let now = $state(Date.now());
@@ -37,7 +37,7 @@
 </script>
 
 <footer class="run-status" aria-label="Run status">
-  <span class="count" data-tone={working ? "live" : "idle"}><i aria-hidden="true"></i><b>{working}</b> working</span>
+  <span class="count" data-tone={working ? "live" : "idle"}>{#if working}<span class="tui-spin" aria-hidden="true"><span>.:+*=x</span></span>{:else}<i aria-hidden="true"></i>{/if}<b>{working}</b> working</span>
   <span class="count" data-tone="done"><b>{done}</b> done</span>
   {#if failed}<span class="count" data-tone="failed"><b>{failed}</b> failed</span>{/if}
   {#if waiting}<span class="count"><b>{waiting}</b> waiting</span>{/if}
@@ -46,22 +46,21 @@
 </footer>
 
 <style>
-  .run-status { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; min-height: 30px; padding: 0 12px; overflow: hidden; border: 1px solid var(--pytxo-line); border-radius: 6px; background: var(--pytxo-surface-panel); color: var(--pytxo-text-soft); font: 12px var(--pytxo-font-ui); white-space: nowrap; }
-  .count { display: inline-flex; align-items: center; gap: 5px; }
-  .count b { color: var(--pytxo-text-strong); font: 500 12px "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+  /* A terminal status line: mono segments split by hairlines. */
+  .run-status { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; min-height: 30px; padding: 0 12px; overflow: hidden; border: 1px solid var(--pytxo-line); border-radius: 6px; background: var(--pytxo-surface-panel); color: var(--pytxo-text-soft); font: 12px var(--pytxo-font-mono); white-space: nowrap; }
+  .run-status > span:not(.review) + span:not(.review)::before { content: "│"; margin-right: 14px; color: var(--pytxo-line); }
+  .count { display: inline-flex; align-items: center; gap: 6px; }
+  .count b { color: var(--pytxo-text-strong); font-weight: 500; font-variant-numeric: tabular-nums; }
   .count i { width: 7px; height: 7px; border-radius: 50%; background: var(--pytxo-text-muted); }
-  .count[data-tone="live"] i { background: var(--pytxo-activity); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pytxo-activity) 22%, transparent); animation: beat 1.6s ease-in-out infinite; }
+  .count[data-tone="live"], .count[data-tone="live"] b { color: var(--pytxo-activity); }
   .count[data-tone="done"] b { color: var(--state-verified); }
   .count[data-tone="failed"] b { color: var(--state-refuted); }
-  .clock { color: var(--pytxo-text-strong); font: 500 12px "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+  .clock { color: var(--pytxo-text-strong); font-weight: 500; font-variant-numeric: tabular-nums; }
   .review { margin-left: auto; padding: 2px 8px; border-radius: 4px; background: var(--pytxo-surface-raised); }
   .review[data-tone="ready"], .review[data-tone="done"] { color: var(--state-verified); }
   .review[data-tone="attention"] { color: var(--state-attention); }
   .review[data-tone="failed"] { color: var(--state-refuted); }
   .review[data-tone="live"] { color: var(--pytxo-activity); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
-  @keyframes beat { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--pytxo-activity) 8%, transparent); } }
-  @media (prefers-reduced-motion: reduce) { .count[data-tone="live"] i { animation: none; } }
-  :global([data-force-reduced-motion]) .count[data-tone="live"] i { animation: none; }
   @container mission (max-width: 640px) { .clock { display: none; } .run-status { gap: 10px; } }
 </style>

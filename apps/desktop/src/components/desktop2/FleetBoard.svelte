@@ -294,7 +294,10 @@
   .lane h3 small { color: var(--pytxo-text-muted); font: 11px var(--mono); }
   .cards { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 22px 14px; }
 
-  .worker { container: worker / inline-size; display: grid; grid-template-rows: auto 1fr auto; height: 206px; padding-top: 8px; transition: border-color .3s, background-color .3s; }
+  /* A queued pane opens into a terminal when its worker starts; a finished one settles with one ring. */
+  .worker { container: worker / inline-size; display: grid; grid-template-rows: auto 1fr auto; height: 206px; padding-top: 8px; interpolate-size: allow-keywords; transition: height .35s cubic-bezier(.2, 0, 0, 1), border-color .3s, background-color .3s; }
+  .worker[data-tone="done"]:not([data-unchanged]) { animation: settle 1s ease-out 1; }
+  @keyframes settle { from { box-shadow: 0 0 0 3px color-mix(in srgb, var(--state-verified) 40%, transparent); } }
   .worker.compact { grid-template-rows: auto auto; height: auto; border-style: dashed; }
   .worker .tui-legend .logo { display: grid; place-items: center; width: 16px; height: 16px; }
   .worker .tui-legend .logo :global(.ade-identity) { transform: scale(.66); }
@@ -338,8 +341,8 @@
   .owns span.shared::before { content: "⇄ "; color: inherit; }
   .compact .owns { padding-top: 0; }
 
-  @media (prefers-reduced-motion: reduce) { .pulse.on, .lane.feeding::before, .term .line, .cursor { animation: none; } }
-  :global([data-force-reduced-motion]) .pulse.on, :global([data-force-reduced-motion]) .lane.feeding::before, :global([data-force-reduced-motion]) .term .line, :global([data-force-reduced-motion]) .cursor { animation: none; }
+  @media (prefers-reduced-motion: reduce) { .pulse.on, .lane.feeding::before, .term .line, .cursor, .worker { animation: none; transition: none; } }
+  :global([data-force-reduced-motion]) .pulse.on, :global([data-force-reduced-motion]) .lane.feeding::before, :global([data-force-reduced-motion]) .term .line, :global([data-force-reduced-motion]) .cursor, :global([data-force-reduced-motion]) .worker { animation: none; transition: none; }
 
   @container fleet (max-width: 1240px) { .monitor { grid-template-columns: 330px minmax(0, 1fr); } .scope :global(.fleet-radar) { width: 330px; height: 153px; } }
   @container fleet (max-width: 1100px) { .cards { grid-template-columns: repeat(min(var(--cols), 2), minmax(0, 1fr)); } }
