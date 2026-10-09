@@ -511,6 +511,7 @@
       <article class="settings-group">
         <h2>Shortcuts</h2>
         <div class="setting-row"><div><strong>Command palette</strong><small>Find actions, destinations, and settings.</small></div><kbd>{MOD_KEY} K</kbd></div>
+        <div class="setting-row"><div><strong>Jump to a worker</strong><small>On the fleet board, the worker's number opens its pane.</small></div><kbd>1 – 9</kbd></div>
         <div class="setting-row"><div><strong>Focus Work</strong><small>Open Work and focus the active run.</small></div><kbd>{MOD_KEY} Shift O</kbd></div>
         <div class="setting-row"><div><strong>Approvals</strong><small>J and K move. Modifier Enter approves. Modifier Backspace denies.</small></div><kbd>J K</kbd></div>
         <div class="setting-row"><div><strong>Stop run</strong><small>From a focused running row. Confirmation is required.</small></div><kbd>{MOD_KEY} Shift ⌫</kbd></div>

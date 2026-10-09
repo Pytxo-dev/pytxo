@@ -57,3 +57,26 @@ test("dragging from a worker pans the canvas without selecting it", async ({ pag
   expect(await page.locator(".canvas-grid").evaluate((el) => (el as HTMLElement).style.backgroundPosition)).not.toBe("");
   await expect(page.locator(".task-node.chosen")).not.toContainText("tests");
 });
+
+test("number keys jump to that worker's pane and leave text fields alone", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await completeOnboarding(page, { "pytxo-preview-fleet-v1": "1" });
+  await page.goto("/#/work");
+  const board = page.getByTestId("fleet-board");
+  await expect(board).toBeVisible();
+  await expect(board.getByRole("button", { name: /^6\. Antigravity/ })).toHaveAttribute("aria-keyshortcuts", "6");
+
+  await page.keyboard.press("6");
+  const queued = board.locator(".worker").last();
+  await expect(queued).toHaveClass(/jumped/);
+  await expect(queued).toBeInViewport();
+
+  await page.keyboard.press("1");
+  await expect(board.locator(".worker").first().locator("button.head")).toBeFocused();
+
+  await page.keyboard.press("Control+k");
+  const field = page.getByRole("combobox", { name: "Command search" });
+  await field.pressSequentially("3");
+  await expect(field).toHaveValue("3");
+  await expect(board.locator(".worker.jumped")).toHaveCount(1);
+});

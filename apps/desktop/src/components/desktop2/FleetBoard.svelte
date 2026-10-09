@@ -194,6 +194,23 @@
     requestAnimationFrame(() => pane?.scrollIntoView({ block: "nearest", behavior }));
   });
 
+  /** 1–9 jump to that worker's pane: the same numbers as the monitor rows and the scope. */
+  function jumpToWorker(event: KeyboardEvent) {
+    if (!/^[1-9]$/.test(event.key) || event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
+    if ((event.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable]") || document.querySelector("[aria-modal='true'], dialog[open]")) return;
+    const task = tasks[Number(event.key) - 1];
+    const pane = task && board?.querySelector<HTMLElement>(`[data-task="${CSS.escape(task.task_id)}"]`);
+    if (!pane) return;
+    event.preventDefault();
+    touched = Date.now();
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches || !!document.querySelector("[data-force-reduced-motion]");
+    pane.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
+    pane.querySelector<HTMLButtonElement>("button.head:not(:disabled)")?.focus({ preventScroll: true });
+    board?.querySelectorAll(".jumped").forEach((element) => element.classList.remove("jumped"));
+    void pane.offsetWidth;
+    pane.classList.add("jumped");
+  }
+
   const blips = $derived<Blip[]>(tasks.map((task, index) => ({ id: task.task_id, mark: String(index + 1), tone: tone(agentFor(task)), ring: task.wave })));
   const counts = $derived({
     live: tasks.filter((task) => tone(agentFor(task)) === "live").length,
@@ -202,6 +219,7 @@
   });
 </script>
 
+<svelte:window onkeydown={jumpToWorker} />
 <div class="fleet" data-testid="fleet-board" data-live={anyLive || undefined} style={`--cols:${columns}`} bind:this={board} onwheel={() => (touched = Date.now())} ontouchmove={() => (touched = Date.now())} onkeydown={() => (touched = Date.now())} role="presentation">
   <section class="monitor tui-pane" aria-label="Fleet monitor">
     <span class="tui-legend"><b>fleet</b><span>{counts.live} working · {counts.done} done · {counts.waiting} waiting</span></span>
@@ -213,7 +231,7 @@
           {@const agent = agentFor(task)}
           {@const spark = activity.get(task.task_id)}
           <li data-tone={tone(agent)}>
-            <button disabled={!agent} onclick={() => agent && onInspect(agent)} aria-label={`${index + 1}. ${vendorOf(task, agent)}, ${taskDescriptions[task.task_id] ?? task.task_id}: ${status(task, agent)}${elapsed(agent) ? `, ${elapsed(agent)}` : ""}. Open output.`}>
+            <button disabled={!agent} onclick={() => agent && onInspect(agent)} aria-keyshortcuts={index < 9 ? String(index + 1) : undefined} aria-label={`${index + 1}. ${vendorOf(task, agent)}, ${taskDescriptions[task.task_id] ?? task.task_id}: ${status(task, agent)}${elapsed(agent) ? `, ${elapsed(agent)}` : ""}. Open output.`}>
               <span class="num">{index + 1}</span>
               <span class="cli">{cliOf(task, agent) ?? "agent"}</span>
               <span class="task" title={taskDescriptions[task.task_id] ?? task.task_id}>{taskDescriptions[task.task_id] ?? task.task_id}</span>
@@ -375,4 +393,7 @@
     .cards { grid-template-columns: minmax(0, 1fr); } .worker.compact { grid-column: auto !important; }
     .rows button { grid-template-columns: 18px 60px minmax(0, 1fr) 96px 40px; } .rows .spark { display: none; }
   }
+  .worker:global(.jumped) { animation: pane-jump .9s ease-out; }
+  @keyframes pane-jump { 0%, 30% { border-color: var(--pytxo-activity); box-shadow: 0 0 0 2px color-mix(in srgb, var(--pytxo-activity) 30%, transparent); } }
+  @media (prefers-reduced-motion: reduce) { .worker:global(.jumped) { animation: none; } }
 </style>
