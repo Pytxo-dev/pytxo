@@ -33,7 +33,7 @@ export function HeroFleet({ alt }: { alt: string }) {
     <video
       ref={video}
       className={`absolute inset-0 h-full w-full transition-opacity duration-500 ${playing ? "opacity-100" : "opacity-0"}`}
-      src="/product/fleet-run-1600x1000.mp4"
+      src="/media/fleet-run-1600x1000.mp4"
       muted
       playsInline
       preload="none"

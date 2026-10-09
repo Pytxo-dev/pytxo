@@ -21,12 +21,16 @@ export function ProofSection() {
           <p className="mt-4 max-w-[44ch] text-sm leading-relaxed text-[#8d8d96]">In this run OpenCode and Antigravity finished their tasks without changing files. Both causes are fixed; a repeat run is pending.</p>
           <Link href="/evidence#fleet" className="aperture-link mt-6 inline-block text-sm">Read the run record →</Link>
         </div>
-        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-white/10 bg-white/10 sm:grid-cols-3">
-          {STATS.map(([value, label]) => <div key={label} className="flex flex-col-reverse bg-[#09090b] p-5 sm:p-6">
-            <dt className="mt-2 text-sm leading-snug text-[#aaaab3]">{label}</dt>
-            <dd className="m-0 text-3xl font-semibold tabular-nums tracking-[-0.03em] text-[#f5f5f7] sm:text-4xl">{value}</dd>
-          </div>)}
-        </dl>
+        {/* A terminal pane: the record's name is cut into the frame, as in Pytxo Desktop. */}
+        <div className="relative self-start rounded-md border border-white/15 p-2 pt-4">
+          <span className="absolute -top-2.5 left-4 bg-background px-2 font-mono text-xs text-[#7d7d87]"><b className="font-semibold uppercase tracking-[0.12em] text-[#f5f5f7]">run record</b> · 2026-10-02 · {minutes(record.run_seconds)}</span>
+          <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[4px] bg-white/10 sm:grid-cols-3">
+            {STATS.map(([value, label]) => <div key={label} className="flex flex-col-reverse bg-[#09090b] p-5 sm:p-6">
+              <dt className="mt-2 font-mono text-xs leading-snug text-[#aaaab3]">{label}</dt>
+              <dd className="m-0 text-3xl font-semibold tabular-nums tracking-[-0.03em] text-[#f5f5f7] sm:text-4xl">{value}</dd>
+            </div>)}
+          </dl>
+        </div>
       </div>
     </div>
   </section>;
