@@ -1384,11 +1384,16 @@
   @keyframes split-pulse { 50% { opacity: .25; } }
   @media (prefers-reduced-motion: reduce) { .split-pulse { animation: none; } }
   textarea[readonly] { opacity: .7; }
-  .flow-screen .flow-layout--solo:has(.fleet-preview) { grid-template-columns: minmax(0, 760px) minmax(0, 1fr); gap: 28px; }
-  .fleet-preview { --tui-bg: var(--pytxo-surface-shell); align-self: start; display: grid; gap: 14px; margin-top: 10px; padding: 18px 18px 14px; }
-  .preview-scope { display: grid; place-items: center; overflow: hidden; }
+  .flow-screen { container: flow / inline-size; }
+  .flow-screen .flow-layout--solo:has(.fleet-preview) { grid-template-columns: minmax(0, 760px) minmax(340px, 480px); gap: 24px; }
+  .fleet-preview { --tui-bg: var(--pytxo-surface-shell); align-self: start; display: grid; min-width: 0; gap: 14px; margin-top: 10px; padding: 18px 16px 14px; }
+  .fleet-preview > .tui-legend { max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+  .preview-scope { display: grid; place-items: center; min-width: 0; overflow: hidden; }
+  .preview-scope :global(.fleet-radar) { width: 100%; max-width: 440px; height: auto; aspect-ratio: 440 / 204; }
   .preview-team { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
   .preview-team li { display: grid; grid-template-columns: 18px 22px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 30px; font: 12.5px var(--pytxo-font-mono); color: var(--pytxo-text-strong); }
+  .preview-team .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .preview-team .role { white-space: nowrap; }
   .preview-team li :global(.ade-identity) { transform: scale(.8); }
   .preview-team .num { color: var(--pytxo-text-muted); }
   .preview-team .role { color: var(--pytxo-text-muted); }
@@ -1413,5 +1418,5 @@
   .flow-screen .plan-item .task-paths { display: flex; flex-wrap: wrap; gap: 2px 12px; color: var(--pytxo-text-soft); font: 11.5px var(--pytxo-font-mono); }
   .flow-screen .plan-item .task-paths span::before { content: "▸ "; color: var(--pytxo-text-muted); }
   .flow-screen .plan-item .task-dependencies { color: var(--pytxo-text-muted); font: 11.5px var(--pytxo-font-mono); }
-  @media (max-width: 1100px) { .fleet-preview { display: none; } .flow-screen .flow-layout--solo:has(.fleet-preview) { grid-template-columns: minmax(0, 1fr); } }
+  @container flow (max-width: 1000px) { .fleet-preview { display: none; } .flow-screen .flow-layout--solo:has(.fleet-preview) { grid-template-columns: minmax(0, 760px); } }
 </style>

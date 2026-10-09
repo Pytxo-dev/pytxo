@@ -10,6 +10,7 @@
   import type { RoutingDisplaySummary, RunDto, RunReviewDto } from "../../lib/types";
   import BoundaryPanel from "./BoundaryPanel.svelte";
   import ApertureGlyph from "./ApertureGlyph.svelte";
+  import FleetRadar from "./FleetRadar.svelte";
   import { workActivity, hasCurrentApplyIssue } from "../../lib/work-activity";
   import ExecutionMap from "./ExecutionMap.svelte";
   import RunStatusBar from "./RunStatusBar.svelte";
@@ -384,7 +385,7 @@
     </div>
   {:else if !focusRun}
     <section class="empty-work" aria-labelledby="empty-work-title">
-      <span class="empty-mark" aria-hidden="true"><IconPlus size={22} stroke={1.4} /></span>
+      <div class="empty-scope" aria-hidden="true"><FleetRadar blips={[]} rings={3} /></div>
       <h2 id="empty-work-title">What would you like to build?</h2>
       <p>Pytxo puts coding agents to work on your project. Describe a change, follow the work, and review the result before saving it.</p>
       <button class="new-run" onclick={onNewRun}><IconPlus size={15} />New work</button>
@@ -434,8 +435,8 @@
   .new-run{display:flex;min-height:var(--pytxo-control-height);align-items:center;gap:7px;padding:0 14px;border:1px solid transparent;border-radius:var(--pytxo-control-radius);background:var(--pytxo-text-strong);color:var(--pytxo-surface-shell);font-size:12px;font-weight:620;cursor:pointer;transition:background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease)}
   .new-run:hover{background:var(--pytxo-text-soft)}
   .new-run:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:3px}
-  .empty-work{display:flex;flex-direction:column;align-items:flex-start;max-width:640px;margin:48px auto;padding:32px;gap:16px}
-  .empty-mark{display:grid;place-items:center;width:48px;height:48px;border:1px solid var(--pytxo-line);border-radius:12px;background:var(--pytxo-surface-panel);color:var(--pytxo-text-soft)}
+  .empty-work{display:flex;flex-direction:column;align-items:center;max-width:640px;margin:48px auto;padding:32px;gap:16px;text-align:center}
+  .empty-scope{margin:-8px 0 4px;opacity:.95}
   .empty-work h2{margin:0;font-size:24px;font-weight:600;letter-spacing:-.035em;text-wrap:balance}
   .empty-work p{max-width:52ch;margin:0;color:var(--pytxo-text-soft);font-size:13px;line-height:1.7;text-wrap:pretty}
   .empty-work ol{display:flex;flex-wrap:wrap;gap:10px 24px;margin:12px 0 0;padding:0;list-style:none;counter-reset:step}
