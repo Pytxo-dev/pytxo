@@ -226,8 +226,11 @@
     if (!selectedAdeReady) return "Select an installed, signed-in agent CLI before building a plan.";
     return null;
   });
+  /** A refused Run spends the reviewed plan; say why it stopped instead of calling the plan stale. */
+  let runRefusal = $state<string | null>(null);
   const runDisabledReason = $derived.by(() => {
     if (!plan) return "Build and review a plan before starting the run.";
+    if (runRefusal && !planMatchesInputs) return "Run did not start. Build the plan again to retry.";
     if (!planMatchesInputs) return "The plan no longer matches the outcome, workspace, or agent CLI. Build it again.";
     if (plan.status === "review_only") return "This hosted Shadow draft is for packet review only; it cannot start a run.";
     if (plan.status !== "ready" || plan.blocked_reasons.length) return plan.blocked_reasons.length
@@ -535,7 +538,7 @@
   async function buildPlan() {
     if (buildPlanDisabledReason) return;
     const requestedInputKey = currentInputKey;
-    planning = true; error = "";
+    planning = true; error = ""; runRefusal = null;
     compactPane = "plan";
     planAttempted = true;
     // A new preview request revokes the previous dispatch authority immediately.
@@ -598,6 +601,7 @@
       error = routedStopRequested
         ? "Stop was requested. Check the saved request for the final state before trying again."
         : cause instanceof Error ? cause.message : String(cause);
+      runRefusal = routedStopRequested ? null : /[.!?]$/.test(error) ? error : `${error}.`;
       // Dispatch can fail after its single-use claim. Refresh durable status
       // and require a new preview if the status read is unavailable.
       planInputKey = null;
@@ -1117,11 +1121,11 @@
       <article class="panel plan-panel" class:compact-hidden={compactPane !== "plan"} aria-busy={planning}>
         <div class="panel-head">
           <div>
-          <h2>{planning ? "Building plan…" : plan ? (!planMatchesInputs ? "Review needs a new plan" : plan.status === "review_only" ? "Review-only routing packet" : plan.status === "ready" ? (planHasVerification ? "Review plan" : "Plan needs verification") : "Plan blocked") : "Plan"}</h2>
+          <h2>{planning ? "Building plan…" : plan ? (!planMatchesInputs ? (runRefusal ? "Run did not start" : "Review needs a new plan") : plan.status === "review_only" ? "Review-only routing packet" : plan.status === "ready" ? (planHasVerification ? "Review plan" : "Plan needs verification") : "Plan blocked") : "Plan"}</h2>
           </div>
           {#if plan}
             <span class:ready={planMatchesInputs && plan.status === "ready" && planHasVerification} class="plan-state" data-tone={!planMatchesInputs ? "unknown" : plan.status !== "ready" ? "blocked" : planHasVerification ? "ready" : "unknown"} role="status" aria-live="polite" aria-atomic="true">
-              {!planMatchesInputs ? "Stale" : plan.status === "review_only" ? "Review only" : plan.status !== "ready" ? "Blocked" : planHasVerification ? "Ready" : "Unverified"}
+              {!planMatchesInputs ? (runRefusal ? "Not started" : "Stale") : plan.status === "review_only" ? "Review only" : plan.status !== "ready" ? "Blocked" : planHasVerification ? "Ready" : "Unverified"}
             </span>
           {/if}
         </div>
@@ -1135,7 +1139,7 @@
           {#if !planMatchesInputs}
             <div class="plan-stale" role="status">
               <IconAlertTriangle size={15} />
-              <span><strong>Plan is stale</strong><small>The outcome, workspace, agent CLI, or checks changed. Build a matching plan before Run is available.</small></span>
+              {#if runRefusal}<span><strong>Run did not start</strong><small>{runRefusal} This plan was used up; build it again to retry.</small></span>{:else}<span><strong>Plan is stale</strong><small>The outcome, workspace, agent CLI, or checks changed. Build a matching plan before Run is available.</small></span>{/if}
             </div>
           {/if}
           <div class="plan-command-bar">
@@ -1197,7 +1201,7 @@
               {:else}<p>No warnings reported.</p>{/if}
             </div>
           </section>
-          {#if error}<p class="voice-state-message error" role="alert" aria-live="assertive">{error}</p>{/if}
+          {#if error && !runRefusal}<p class="voice-state-message error" role="alert" aria-live="assertive">{error}</p>{/if}
         {:else if planning}
           <div class="plan-empty" role="status" aria-live="polite" aria-atomic="true"><strong>Building plan</strong><p>Checking paths, permissions, and agent CLI availability.</p></div>
         {:else}
