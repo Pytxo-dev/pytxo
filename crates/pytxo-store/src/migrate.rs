@@ -126,6 +126,23 @@ pub fn apply_migrations(conn: &Connection) -> Result<()> {
         )));
     }
 
+    // Before the per-step locks, a racing opener could stamp a fully migrated
+    // store back down to an old version. Its schema is already the latest, so it
+    // is restamped instead of re-running DDL that would fail on existing columns.
+    if version > 0 && version < 15 && has_latest_schema(conn) {
+        if let Some(tx) = begin_step(conn, 15)? {
+            if !has_latest_schema(&tx) {
+                return Err(PytxoError::Store(
+                    "store schema changed while repairing its version".into(),
+                ));
+            }
+            tx.pragma_update(None, "user_version", 15)
+                .map_err(store_error)?;
+            tx.commit().map_err(store_error)?;
+        }
+        return verify_latest_schema(conn);
+    }
+
     if version < 1 {
         apply_batch_migration(conn, 1, MIGRATION_001, SCHEMA_001)?;
         version = 1;
@@ -531,6 +548,14 @@ fn verify_schema(conn: &Connection, required_schema: &[(&str, &[&str])]) -> Resu
     Ok(())
 }
 
+fn has_latest_schema(conn: &Connection) -> bool {
+    [SCHEMA_001, SCHEMA_003, SCHEMA_006, SCHEMA_007]
+        .iter()
+        .all(|schema| verify_schema(conn, schema).is_ok())
+        && verify_routing_schema(conn).is_ok()
+        && verify_latest_schema(conn).is_ok()
+}
+
 fn verify_latest_schema(conn: &Connection) -> Result<()> {
     verify_v12_schema(conn)?;
     verify_advisor_schema(conn, true, true)
@@ -770,6 +795,21 @@ mod tests {
             verify_checker_ownership_schema(&conn).unwrap();
             verify_advisor_schema(&conn, true, true).unwrap();
         }
+    }
+
+    #[test]
+    fn a_latest_store_stamped_back_down_is_restamped_not_remigrated() {
+        let conn = released_schema_fixture(0);
+        apply_migrations(&conn).unwrap();
+        // The old migration race left fully migrated stores at version 6.
+        set_version(&conn, 6);
+
+        apply_migrations(&conn).expect("repair instead of duplicate-column failure");
+
+        let version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 15);
     }
 
     #[test]
