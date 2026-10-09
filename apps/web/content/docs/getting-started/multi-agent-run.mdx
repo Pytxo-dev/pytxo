@@ -38,15 +38,19 @@ Each step lists its tasks, the agent assigned to each and the files it owns. Cha
 
 ## 4. Watch the fleet
 
-Choose **Run**. Work opens the fleet board: one card per task with the agent, its recent output and the files it owns.
+Choose **Run**. Work opens the fleet board. At the top, the fleet monitor lists every task with its agent, a line of its output activity over time and how long it has run; the scope beside it shows one orbit per step and one numbered mark per task. Below, each task has a pane with its agent, its recent output and the files it owns. A queued task opens into a full pane when its agent starts, and the board scrolls to it.
 
-| Card state | Meaning |
+The activity line shows how much an agent printed, not how far along it is. A working agent that has printed nothing for 45 seconds shows **quiet**; it may be thinking or stuck.
+
+You do not have to watch. If Pytxo is in the background when the run stops, it sends one system notification with how many agents finished and how many failed. That is what the agents reported; Review shows whether the combined change passed its checks.
+
+| State | Meaning |
 |---|---|
 | Working | The agent is running in its own copy |
-| Checks passed | The agent finished and Pytxo's checks passed on its task |
+| Passed | The agent finished and Pytxo's checks passed on its task |
 | No changes | The agent finished and passed its checks but changed no files |
 | Next / Queued | The task waits for a task it depends on |
-| Failed | The agent or its checks failed; open the card for its output |
+| Failed | The agent or its checks failed; open the pane for its output |
 
 ## 5. Review one change
 

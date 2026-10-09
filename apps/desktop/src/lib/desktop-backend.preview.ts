@@ -170,14 +170,191 @@ const previewRoutingSummary: RoutingDisplaySummary = {
 };
 
 /** Browser fixture for a mixed-CLI fleet run (`pytxo-preview-fleet-v1`). Illustrative, not a recorded run. */
+const fleetEpoch = Date.now();
 const fleetTasks = [
-  { task_id: "model", cli: "codex", name: "OpenAI Codex", paths: ["src/model.mjs", "test/model.test.mjs"], wave: 0, depends_on: [] as string[], status: "completed", lines: ["$ node --test test/model.test.mjs", "filters by status (2.1ms)", "search is case-insensitive (0.9ms)", "composes search and status (1.2ms)", "pass 11 · fail 0"] },
-  { task_id: "dark-mode", cli: "claude", name: "Claude Code", paths: ["src/style.css", "src/app.js"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Update(src/style.css) · 38 lines of dark tokens", "Update(src/app.js) · follows prefers-color-scheme", "Update(src/index.html) · theme toggle with aria-pressed", "Checking contrast of muted text"] },
-  { task_id: "spanish", cli: "cursor", name: "Cursor Agent", paths: ["src/i18n/", "src/index.html"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Creating src/i18n/es.json · 48 strings", "Wiring t() in src/index.html · 12 labels", "Adding language switch es / en"] },
-  { task_id: "filter-bar", cli: "opencode", name: "OpenCode", paths: ["src/components/"], wave: 0, depends_on: [] as string[], status: "running", lines: ["src/components/filter-bar.js", "Empty state with Clear filters", "Status chips: All · Open · Done"] },
-  { task_id: "validation", cli: "codex", name: "OpenAI Codex", paths: ["src/app.js", "test/validation.test.mjs"], wave: 1, depends_on: ["dark-mode"], status: null, lines: [] as string[] },
-  { task_id: "readme", cli: "agy", name: "Antigravity", paths: ["README.md"], wave: 2, depends_on: ["model", "dark-mode", "spanish", "filter-bar", "validation"], status: null, lines: [] as string[] },
+  { task_id: "model", cli: "codex", name: "OpenAI Codex", paths: ["src/model.mjs", "test/model.test.mjs"], wave: 0, depends_on: [] as string[], status: "completed", lines: ["Reading src/model.mjs and test/", "Plan: status filter, case-insensitive search, compose both", "apply_patch src/model.mjs (+34 -6)", "apply_patch test/model.test.mjs (+58)", "Exporting filterTasks(tasks, { query, status })", "Keeping the existing sort stable", "$ node --test test/model.test.mjs", "filters by status (2.1ms)", "search is case-insensitive (0.9ms)", "composes search and status (1.2ms)", "pass 11 · fail 0"] },
+  { task_id: "dark-mode", cli: "claude", name: "Claude Code", paths: ["src/style.css", "src/app.js"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Read(src/style.css)", "Read(src/app.js)", "Read(src/index.html)", "Update(src/style.css) · 38 lines of dark tokens", "  ⎿ :root[data-theme=dark] { --bg: #0d1117 }", "Update(src/app.js) · follows prefers-color-scheme", "Bash(npx stylelint src/style.css)", "  ⎿ 0 problems", "Update(src/index.html) · theme toggle with aria-pressed", "Checking contrast of muted text · 4.1:1", "Update(src/style.css) · raise --muted to #9aa4b2", "Contrast of muted text now 4.8:1", "Update(src/app.js) · remember the choice in localStorage"] },
+  { task_id: "spanish", cli: "cursor", name: "Cursor Agent", paths: ["src/i18n/", "src/index.html"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Scanning src/index.html for visible strings", "Found 48 strings in 3 files", "Creating src/i18n/en.json · 48 strings", "Creating src/i18n/es.json · 48 strings", "Wiring t() in src/index.html · 12 labels", "Wiring t() in src/app.js · 9 messages", "Adding language switch es / en", "Plural rules for \"1 tarea\" / \"3 tareas\"", "Checking for untranslated keys · 0 missing"] },
+  { task_id: "filter-bar", cli: "opencode", name: "OpenCode", paths: ["src/components/"], wave: 0, depends_on: [] as string[], status: "running", lines: ["Listing src/components/", "Write src/components/filter-bar.js", "Status chips: All · Open · Done", "Write src/components/empty-state.js", "Empty state with Clear filters", "Keyboard: arrow keys move between chips", "Edit src/components/filter-bar.js · aria-pressed on chips"] },
+  { task_id: "validation", cli: "codex", name: "OpenAI Codex", paths: ["src/app.js", "test/validation.test.mjs"], wave: 1, depends_on: ["dark-mode"], status: null, lines: ["Reading src/app.js after Claude Code's theme change", "Plan: reject blank titles, mount the filter bar", "apply_patch src/app.js (+18 -3)", "apply_patch test/validation.test.mjs (+41)", "Blank and whitespace-only titles show an inline error", "Mounting the filter bar above the task list"] },
+  { task_id: "readme", cli: "agy", name: "Antigravity", paths: ["README.md"], wave: 2, depends_on: ["model", "dark-mode", "spanish", "filter-bar", "validation"], status: null, lines: ["Reading README.md", "Adding a Search and filters section", "Adding a Dark theme section", "Adding a Language section · es / en", "Listing the new keyboard shortcuts"] },
 ];
+
+/**
+ * Opt-in timeline (`pytxo-preview-fleet-script-v1`): the same fleet plays a
+ * whole run in about half a minute, milliseconds from page load. Illustrative
+ * browser fixture for demos and recordings, not a recorded run.
+ */
+const fleetScript: Record<string, { start: number; end: number }> = {
+  model: { start: -140_000, end: -38_000 },
+  "dark-mode": { start: -75_000, end: 10_000 },
+  spanish: { start: -72_000, end: 16_000 },
+  "filter-bar": { start: -73_500, end: 20_000 },
+  validation: { start: 11_500, end: 24_000 },
+  readme: { start: 25_000, end: 33_000 },
+};
+const fleetScripted = () => typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-fleet-v1") === "1" && localStorage.getItem("pytxo-preview-fleet-script-v1") === "1";
+const fleetScriptEnd = Math.max(...Object.values(fleetScript).map((step) => step.end));
+/** Once every scripted worker has reported, the run carries a combined change to review. */
+const fleetScriptDone = () => fleetScripted() && Date.now() - fleetEpoch >= fleetScriptEnd + 1_500;
+const FLEET_PACKAGE = "pkg-taskboard-fleet";
+const fleetReviewContent: Record<string, { task: string; before: string | null; after: string }> = {
+  "src/model.mjs": {
+    task: "model",
+    before: `export const tasks = [
+  { id: 1, title: "Sketch the board", status: "open" },
+  { id: 2, title: "Wire up storage", status: "open" },
+  { id: 3, title: "Ship the first release", status: "done" },
+];
+
+export function addTask(title) {
+  const id = Math.max(0, ...tasks.map((task) => task.id)) + 1;
+  tasks.push({ id, title, status: "open" });
+  return id;
+}
+`,
+    after: `export const tasks = [
+  { id: 1, title: "Sketch the board", status: "open" },
+  { id: 2, title: "Wire up storage", status: "open" },
+  { id: 3, title: "Ship the first release", status: "done" },
+];
+
+export function addTask(title) {
+  const id = Math.max(0, ...tasks.map((task) => task.id)) + 1;
+  tasks.push({ id, title, status: "open" });
+  return id;
+}
+
+/** Tasks matching a status ("all", "open", "done") and a case-insensitive search. */
+export function filterTasks(list, { status = "all", query = "" } = {}) {
+  const needle = query.trim().toLowerCase();
+  return list.filter((task) =>
+    (status === "all" || task.status === status) &&
+    (!needle || task.title.toLowerCase().includes(needle)));
+}
+`,
+  },
+  "test/model.test.mjs": {
+    task: "model",
+    before: null,
+    after: `import { test } from "node:test";
+import assert from "node:assert/strict";
+import { filterTasks, tasks } from "../src/model.mjs";
+
+test("filters by status", () => {
+  assert.deepEqual(filterTasks(tasks, { status: "done" }).map((task) => task.id), [3]);
+});
+
+test("search ignores case", () => {
+  assert.equal(filterTasks(tasks, { query: "BOARD" }).length, 1);
+});
+`,
+  },
+  "src/style.css": {
+    task: "dark-mode",
+    before: `:root { --bg: #ffffff; --ink: #1d1d1f; --line: #e2e2e6; }
+body { background: var(--bg); color: var(--ink); }
+`,
+    after: `:root { --bg: #ffffff; --ink: #1d1d1f; --line: #e2e2e6; }
+:root[data-theme="dark"] { --bg: #111114; --ink: #ececf1; --line: #2a2a31; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #111114; --ink: #ececf1; --line: #2a2a31; }
+}
+body { background: var(--bg); color: var(--ink); }
+`,
+  },
+  "src/app.js": {
+    task: "validation",
+    before: `import { addTask, tasks } from "./model.mjs";
+
+export function submit(title) {
+  addTask(title);
+  render(tasks);
+}
+`,
+    after: `import { addTask, tasks } from "./model.mjs";
+import { mountFilterBar } from "./components/filter-bar.js";
+
+export function submit(title) {
+  if (!title.trim()) return showError("Give the task a title.");
+  addTask(title.trim());
+  render(tasks);
+}
+
+mountFilterBar(document.querySelector("#filters"), render);
+`,
+  },
+  "src/i18n/es.json": {
+    task: "spanish",
+    before: null,
+    after: `{
+  "title": "Tablero de tareas",
+  "add": "Añadir tarea",
+  "search": "Buscar",
+  "filter.all": "Todas",
+  "filter.open": "Abiertas",
+  "filter.done": "Hechas",
+  "empty": "No hay tareas que coincidan"
+}
+`,
+  },
+  "src/index.html": {
+    task: "spanish",
+    before: `<header><h1>Task board</h1></header>
+<main id="board"></main>
+`,
+    after: `<header><h1 data-i18n="title">Task board</h1>
+  <select id="language" aria-label="Language"><option value="en">English</option><option value="es">Español</option></select>
+</header>
+<nav id="filters"></nav>
+<main id="board"></main>
+`,
+  },
+  "src/components/filter-bar.js": {
+    task: "filter-bar",
+    before: null,
+    after: `const STATUSES = ["all", "open", "done"];
+
+export function mountFilterBar(root, onChange) {
+  root.innerHTML = STATUSES.map((status) =>
+    \`<button data-status="\${status}" aria-pressed="\${status === "all"}">\${status}</button>\`).join("");
+  root.addEventListener("click", (event) => {
+    const status = event.target.closest("button")?.dataset.status;
+    if (status) onChange({ status });
+  });
+}
+`,
+  },
+  "test/validation.test.mjs": {
+    task: "validation",
+    before: null,
+    after: `import { test } from "node:test";
+import assert from "node:assert/strict";
+
+test("a blank title is rejected", async () => {
+  const { validTitle } = await import("../src/app.js");
+  assert.equal(validTitle("   "), false);
+});
+`,
+  },
+  "README.md": {
+    task: "readme",
+    before: `# Task board
+
+A small task board used by the Pytxo fleet demo.
+`,
+    after: `# Task board
+
+A small task board used by the Pytxo fleet demo.
+
+## Features
+
+- Search tasks and filter them by status.
+- A dark theme that follows your system setting.
+- English and Spanish.
+`,
+  },
+};
 
 const previewAdeClis: AdeCliStatusDto[] = [
   { id: "codex", display_name: "OpenAI Codex", default_cmd: "codex exec --sandbox workspace-write", installed: true, auth_state: "signed_in", auth_label: "ChatGPT connected", auth_owner: "Codex", login_supported: true, login_label: "Connect with ChatGPT", docs_url: "https://developers.openai.com/codex/auth", detail: "Codex owns the browser session, token storage, and refresh." },
@@ -372,7 +549,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
       this.snapshot.approvals = this.snapshot.approvals.filter(item => item.run_id !== run.id);
       this.snapshot.agents = [
         ...this.snapshot.agents.filter(agent => agent.run_id !== run.id),
-        ...fleetTasks.filter(task => task.status).map(task => ({ id: `${run.id}:fleet-${task.task_id}`, domain_id: run.domain_id, run_id: run.id, task_id: task.task_id, wave: task.wave, status: task.status!, exit_code: task.status === "completed" ? 0 : null, root_id: null, launcher: { id: task.cli, display_name: task.name } })),
+        ...this.fleetAgentRows(run),
       ];
     }
     if (localStorage.getItem("pytxo-preview-agent-identity-v1") === "1") {
@@ -387,6 +564,60 @@ export class PreviewDesktopBackend implements DesktopBackend {
       reviewRun.apply_status =
         requested === "recovered" ? "ready" : requested;
     }
+  }
+
+  private fleetAgentRows(run: { id: string; domain_id: string }) {
+    const at = Date.now() - fleetEpoch;
+    return fleetTasks.flatMap((task) => {
+      const script = fleetScripted() ? fleetScript[task.task_id] : null;
+      const status = script ? (at < script.start ? null : at < script.end ? "running" : "completed") : task.status;
+      return status ? [{ id: `${run.id}:fleet-${task.task_id}`, domain_id: run.domain_id, run_id: run.id, task_id: task.task_id, wave: task.wave, status, exit_code: status === "completed" ? 0 : null, root_id: null, launcher: { id: task.cli, display_name: task.name } }] : [];
+    });
+  }
+
+  /** Moves the scripted fleet forward and announces it like the native change feed. */
+  private advanceFleetScript() {
+    if (!fleetScripted()) return;
+    const run = this.snapshot.runs[0];
+    if (fleetScriptDone() && !run.prepared_digest) {
+      run.status = "completed";
+      run.apply_status = "ready";
+      run.prepared_digest = FLEET_PACKAGE;
+      this.emitChange(run.domain_id, "contract", run.id);
+    }
+    const next = this.fleetAgentRows(run);
+    const signature = (rows: { id: string; status: string }[]) => rows.map((row) => `${row.id}:${row.status}`).join(",");
+    if (signature(next) === signature(this.snapshot.agents.filter((agent) => agent.run_id === run.id))) return;
+    this.snapshot.agents = [...this.snapshot.agents.filter((agent) => agent.run_id !== run.id), ...next];
+    this.emitChange(run.domain_id, "agent", run.id);
+  }
+
+  /** The scripted fleet's combined change, once every worker has reported. Illustrative, like the script. */
+  private fleetManifest(runId: string): PreparedRunManifest {
+    const files = Object.entries(fleetReviewContent).map(([path, file], index) => {
+      const before = file.before == null ? 0 : previewBytes(file.before).length;
+      const after = previewBytes(file.after).length;
+      return {
+        path, kind: file.before == null ? "add" as const : "modify" as const,
+        before_sha256: file.before == null ? null : `fleet-${index}-before`, after_sha256: `fleet-${index}-after`,
+        byte_count: after, task_id: file.task, agent_id: `${runId}:fleet-${file.task}`, blob_digest: `fleet-${index}-after`,
+        before_mode: null, after_mode: null, before_byte_count: before, after_byte_count: after,
+        before_is_binary: file.before == null ? null : false, after_is_binary: false,
+        before_chunks: file.before == null ? [] : [{ offset: 0, length: before, sha256: `fleet-${index}-before-chunk` }],
+        after_chunks: [{ offset: 0, length: after, sha256: `fleet-${index}-after-chunk` }],
+      };
+    });
+    const at = new Date(fleetEpoch + fleetScriptEnd).toISOString();
+    return {
+      version: 3, run_id: runId, base_revision: "5b1e0c7a2f4d9e31", prepared_at: at,
+      package_digest: FLEET_PACKAGE,
+      summary: { added: files.filter((file) => file.kind === "add").length, modified: files.filter((file) => file.kind === "modify").length, deleted: 0, bytes: files.reduce((sum, file) => sum + file.after_byte_count, 0) },
+      files,
+      candidate_verification: {
+        version: 1, verified_at: at, base_inventory: [], candidate_inventory: [], exclusions: [".git", "node_modules"],
+        checks: [{ task_id: "readme", command: "node --test", effective_profile: "orbit", passed: true, enforcement: {} }],
+      },
+    };
   }
 
   private emitChange(domainId: string, entityKind: string, entityId: string) {
@@ -414,6 +645,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
   }
 
   async loadSnapshot(opts: { includeAgents?: boolean } = {}) {
+    this.advanceFleetScript();
     if (localStorage.getItem("pytxo-preview-observe-polls-v1") === "1") {
       const reads = Number(localStorage.getItem("pytxo-preview-snapshot-reads-v1") ?? "0");
       localStorage.setItem("pytxo-preview-snapshot-reads-v1", String(reads + 1));
@@ -721,12 +953,29 @@ export class PreviewDesktopBackend implements DesktopBackend {
       localStorage.setItem("pytxo-preview-agent-event-reads-v1", String(reads + 1));
     }
     const fleetTask = localStorage.getItem("pytxo-preview-fleet-v1") === "1" ? fleetTasks.find(task => agentId.endsWith(`:fleet-${task.task_id}`)) : undefined;
+    const script = fleetTask && fleetScripted() ? fleetScript[fleetTask.task_id] : null;
+    if (fleetTask && script) {
+      const from = fleetEpoch + script.start, to = fleetEpoch + script.end;
+      const step = (to - 3_000 - from) / Math.max(1, fleetTask.lines.length);
+      const ownCheck = fleetTask.lines.some((line) => line.startsWith("$ "));
+      return [
+        ...fleetTask.lines.map((payload, index) => ({ kind: payload.startsWith("$ ") ? "verify" : "stdout", payload: payload.startsWith("$ ") ? payload.slice(2) : `${payload}\n`, ts: from + index * step + (index % 3) * 700 })),
+        ...(ownCheck ? [] : [{ kind: "verify", payload: "node --test", ts: to - 2_000 }]),
+        { kind: "verify-ok", payload: "", ts: to },
+      ].map((event, index) => ({ id: index + 1, agent_id: agentId, kind: event.kind, payload: event.payload, ts: new Date(event.ts).toISOString() }))
+        .filter(e => e.id > after && Date.parse(e.ts) <= Date.now()).slice(0, limit);
+    }
     if (fleetTask) {
-      const start = Date.now() - 140_000 + fleetTask.wave * 40_000;
-      return fleetTask.lines.map((payload, index) => ({ id: index + 1, agent_id: agentId, kind: index === 0 && payload.startsWith("$ ") ? "verify" : "stdout", payload: index === 0 && payload.startsWith("$ ") ? payload.slice(2) : `${payload}
-`, ts: new Date(start + index * 9_000).toISOString() }))
-        .concat(fleetTask.status === "completed" ? [{ id: fleetTask.lines.length + 1, agent_id: agentId, kind: "verify-ok", payload: "", ts: new Date(start + 58_000).toISOString() }] : [])
-        .filter(e => e.id > after).slice(0, limit);
+      // A finished worker's output is all in the past; a working one keeps
+      // printing its last lines over the first half minute after load.
+      const live = fleetTask.status !== "completed";
+      const step = live ? 120_000 / (fleetTask.lines.length + 2) : 9_000;
+      const start = fleetEpoch - (live ? 75_000 : 140_000) + [0, 3_000, 6_500, 1_500][fleetTasks.indexOf(fleetTask) % 4];
+      const times = fleetTask.lines.map((_, index) => start + index * step + (index % 3) * 1_700);
+      return fleetTask.lines.map((payload, index) => ({ id: index + 1, agent_id: agentId, kind: payload.startsWith("$ ") ? "verify" : "stdout", payload: payload.startsWith("$ ") ? payload.slice(2) : `${payload}
+`, ts: new Date(times[index]).toISOString() }))
+        .concat(fleetTask.status === "completed" ? [{ id: fleetTask.lines.length + 1, agent_id: agentId, kind: "verify-ok", payload: "", ts: new Date(start + 102_000).toISOString() }] : [])
+        .filter(e => e.id > after && Date.parse(e.ts) <= Date.now()).slice(0, limit);
     }
     if (localStorage.getItem("pytxo-preview-output-events-v1") === "600") {
       return Array.from({ length: 600 }, (_, index) => ({ id: index + 1, agent_id: agentId,
@@ -1090,6 +1339,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
         : []),
     ];
     const receipt = stateMatrixRequested() || delayedOtherRun ? previewMatrixReceipt : previewReceipt;
+    const fleetChange = fleet && fleetScriptDone() ? this.fleetManifest(runId) : null;
     return {
       run_id: runId,
       base_revision: isSignalRun ? "71ad8f2c4d90b6c6" : "8f2cc9814fc10e31",
@@ -1103,10 +1353,12 @@ export class PreviewDesktopBackend implements DesktopBackend {
             .map((agent) => [agent.id.startsWith(`${runId}:`) ? agent.id.slice(runId.length + 1) : agent.id, structuredClone(receipt)]),
         ),
       },
-      apply_manifest: appliedManifest,
-      prepared_manifest: fleet || run.apply_status === "review_failed" ? null : preparedManifest,
-      prepared_digest: fleet || run.apply_status === "review_failed" ? null : preparedManifest.package_digest,
-      prepared_at: fleet || run.apply_status === "review_failed" ? null : preparedManifest.prepared_at,
+      apply_manifest: fleetChange && run.apply_status === "applied"
+        ? { transaction_id: `apply-${runId}`, changes: fleetChange.files.map((file) => ({ path: file.path, kind: file.kind, source_agent_id: file.agent_id, source_task_id: file.task_id, base_digest: file.before_sha256, result_digest: file.after_sha256 })) }
+        : appliedManifest,
+      prepared_manifest: fleetChange ?? (fleet || run.apply_status === "review_failed" ? null : preparedManifest),
+      prepared_digest: fleetChange?.package_digest ?? (fleet || run.apply_status === "review_failed" ? null : preparedManifest.package_digest),
+      prepared_at: fleetChange?.prepared_at ?? (fleet || run.apply_status === "review_failed" ? null : preparedManifest.prepared_at),
       last_apply_error: run.last_apply_error ?? lastError,
       recovery_state: recovered
         ? "rolled_back"
@@ -1125,7 +1377,8 @@ export class PreviewDesktopBackend implements DesktopBackend {
     offset: number,
     limit: number,
   ): Promise<PreparedContentChunkDto> {
-    const value = reviewContentFixture()[path]?.[side];
+    const fleetFile = fleetScriptDone() && runId === this.snapshot.runs[0]?.id ? fleetReviewContent[path] : undefined;
+    const value = fleetFile ? fleetFile[side] : reviewContentFixture()[path]?.[side];
     if (value == null) throw new Error(`${side} content does not exist for ${path}`);
     const review = await this.runReview(runId);
     const file = review.prepared_manifest?.files.find((candidate) => candidate.path === path);
@@ -1192,6 +1445,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
     return { outcome: "rolled_back", attempt_id: "attempt-preview-2" };
   }
   async domainChanges(_domainId: string, cursor: number, limit = 200) {
+    this.advanceFleetScript();
     if (cursor > this.sequence) {
       return {
         changes: [],

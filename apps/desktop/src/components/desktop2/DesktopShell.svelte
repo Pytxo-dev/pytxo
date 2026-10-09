@@ -6,7 +6,7 @@
   import IconPlayerStop from "@tabler/icons-svelte/icons/player-stop";
   import IconSettings from "@tabler/icons-svelte/icons/settings";
   import IconTarget from "@tabler/icons-svelte/icons/target";
-  import { createDesktopBackend, type DesktopSnapshot } from "../../lib/desktop-backend";
+  import { createDesktopBackend, isTauriRuntime, type DesktopSnapshot } from "../../lib/desktop-backend";
   import type { AgentDto, RunDto } from "../../lib/types";
   import type { ComposerDraft } from "../../lib/composer-draft";
   import { SETTINGS_SECTIONS } from "../../lib/settings-catalog";
@@ -205,6 +205,22 @@
       live: ["starting", "running", "pending", "dispatching", "active"].includes(run.status.toLowerCase()),
       agents: agents.map((agent) => ({ id: agent.id, label: taskCopy[`${run.domain_id}:${run.id}`]?.[agent.task_id] || agent.task_id, vendor: agent.launcher?.display_name ?? "Agent", cli: agent.launcher?.id ?? null, tone: toneOf(agent) })),
     };
+  });
+  // A run that goes quiet while Pytxo is in the background says so once, with
+  // what its agents reported. It never says the changes are verified.
+  let liveRuns = new Set<string>();
+  $effect(() => {
+    const job = sidebarJob;
+    if (!job) return;
+    if (job.live) { liveRuns.add(job.runId); return; }
+    if (!liveRuns.delete(job.runId) || !isTauriRuntime()) return;
+    if (windowFocused && document.visibilityState === "visible") return;
+    const done = job.agents.filter((agent) => agent.tone === "done").length;
+    const failed = job.agents.filter((agent) => agent.tone === "failed").length;
+    const body = job.agents.length
+      ? `${done} of ${job.agents.length} agent${job.agents.length === 1 ? "" : "s"} finished${failed ? `, ${failed} failed` : ""}. Open Pytxo to review.`
+      : "The run stopped. Open Pytxo to see what its agents reported.";
+    void import("../../lib/hitl-notify").then(({ notifyRunFinished }) => notifyRunFinished(`Pytxo: ${job.title}`, body)).catch(() => {});
   });
   const sidebarRecent = $derived(commandRuns.filter((run) => run.id !== sidebarJob?.runId).slice(0, 4).map((run) => ({
     runId: run.id,

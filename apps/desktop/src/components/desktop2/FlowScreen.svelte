@@ -8,6 +8,7 @@
   import { onDestroy, onMount, untrack } from "svelte";
   import HostedRoutingReview from "./HostedRoutingReview.svelte";
   import AdeIdentity from "./AdeIdentity.svelte";
+  import FleetRadar from "./FleetRadar.svelte";
   import type { ComposerDraft } from "../../lib/composer-draft";
   import { adeAvailabilityLabel, betaAdesInOrder, DESKTOP_BETA_MAX_WORKERS, isAdeRunnable, isBetaAde } from "../../lib/ade-status";
   import { draftTitle } from "../../lib/draft-title";
@@ -225,8 +226,11 @@
     if (!selectedAdeReady) return "Select an installed, signed-in agent CLI before building a plan.";
     return null;
   });
+  /** A refused Run spends the reviewed plan; say why it stopped instead of calling the plan stale. */
+  let runRefusal = $state<string | null>(null);
   const runDisabledReason = $derived.by(() => {
     if (!plan) return "Build and review a plan before starting the run.";
+    if (runRefusal && !planMatchesInputs) return "Run did not start. Build the plan again to retry.";
     if (!planMatchesInputs) return "The plan no longer matches the outcome, workspace, or agent CLI. Build it again.";
     if (plan.status === "review_only") return "This hosted Shadow draft is for packet review only; it cannot start a run.";
     if (plan.status !== "ready" || plan.blocked_reasons.length) return plan.blocked_reasons.length
@@ -534,7 +538,7 @@
   async function buildPlan() {
     if (buildPlanDisabledReason) return;
     const requestedInputKey = currentInputKey;
-    planning = true; error = "";
+    planning = true; error = ""; runRefusal = null;
     compactPane = "plan";
     planAttempted = true;
     // A new preview request revokes the previous dispatch authority immediately.
@@ -597,6 +601,7 @@
       error = routedStopRequested
         ? "Stop was requested. Check the saved request for the final state before trying again."
         : cause instanceof Error ? cause.message : String(cause);
+      runRefusal = routedStopRequested ? null : /[.!?]$/.test(error) ? error : `${error}.`;
       // Dispatch can fail after its single-use claim. Refresh durable status
       // and require a new preview if the status read is unavailable.
       planInputKey = null;
@@ -1098,15 +1103,29 @@
 
     </article>
 
+    {#if !showPlanPanel && team.length}
+      <!-- The agents this job will use, before there is a plan: real selection, no invented work. -->
+      <aside class="fleet-preview tui-pane" aria-label="Agents on this job">
+        <span class="tui-legend"><b>your fleet</b><span>{team.length} {team.length === 1 ? "agent" : "agents"} · up to {workers} at once</span></span>
+        <div class="preview-scope"><FleetRadar blips={team.map((id, index) => ({ id, mark: String(index + 1), tone: "ready" as const, ring: 0 }))} rings={1} /></div>
+        <ol class="preview-team">
+          {#each team as id, index (id)}
+            <li><span class="num">{index + 1}</span><AdeIdentity {id} /><span class="name">{adeName(id)}</span><span class="role">{index === 0 ? "lead · plans the job" : "takes tasks"}</span></li>
+          {/each}
+        </ol>
+        <p class="preview-loop"><b>describe</b><i aria-hidden="true">─▸</i>plan<i aria-hidden="true">─▸</i>agents work<i aria-hidden="true">─▸</i>verify<i aria-hidden="true">─▸</i>apply</p>
+      </aside>
+    {/if}
+
     {#if showPlanPanel}
       <article class="panel plan-panel" class:compact-hidden={compactPane !== "plan"} aria-busy={planning}>
         <div class="panel-head">
           <div>
-          <h2>{planning ? "Building plan…" : plan ? (!planMatchesInputs ? "Review needs a new plan" : plan.status === "review_only" ? "Review-only routing packet" : plan.status === "ready" ? (planHasVerification ? "Review plan" : "Plan needs verification") : "Plan blocked") : "Plan"}</h2>
+          <h2>{planning ? "Building plan…" : plan ? (!planMatchesInputs ? (runRefusal ? "Run did not start" : "Review needs a new plan") : plan.status === "review_only" ? "Review-only routing packet" : plan.status === "ready" ? (planHasVerification ? "Review plan" : "Plan needs verification") : "Plan blocked") : "Plan"}</h2>
           </div>
           {#if plan}
             <span class:ready={planMatchesInputs && plan.status === "ready" && planHasVerification} class="plan-state" data-tone={!planMatchesInputs ? "unknown" : plan.status !== "ready" ? "blocked" : planHasVerification ? "ready" : "unknown"} role="status" aria-live="polite" aria-atomic="true">
-              {!planMatchesInputs ? "Stale" : plan.status === "review_only" ? "Review only" : plan.status !== "ready" ? "Blocked" : planHasVerification ? "Ready" : "Unverified"}
+              {!planMatchesInputs ? (runRefusal ? "Not started" : "Stale") : plan.status === "review_only" ? "Review only" : plan.status !== "ready" ? "Blocked" : planHasVerification ? "Ready" : "Unverified"}
             </span>
           {/if}
         </div>
@@ -1120,7 +1139,7 @@
           {#if !planMatchesInputs}
             <div class="plan-stale" role="status">
               <IconAlertTriangle size={15} />
-              <span><strong>Plan is stale</strong><small>The outcome, workspace, agent CLI, or checks changed. Build a matching plan before Run is available.</small></span>
+              {#if runRefusal}<span><strong>Run did not start</strong><small>{runRefusal} This plan was used up; build it again to retry.</small></span>{:else}<span><strong>Plan is stale</strong><small>The outcome, workspace, agent CLI, or checks changed. Build a matching plan before Run is available.</small></span>{/if}
             </div>
           {/if}
           <div class="plan-command-bar">
@@ -1134,27 +1153,27 @@
           {#if routedStopNotice}<p class="action-reason" role="status">{routedStopNotice}</p>{/if}
           {#each plan.waves as wave, waveIndex}
             <div class="plan-wave">
-              <span>Step {waveIndex + 1}</span>
+              <span>Step {String(waveIndex + 1).padStart(2, "0")}<small>{wave.length > 1 ? `${wave.length} in parallel` : waveIndex === 0 ? "first" : "after its inputs"}</small></span>
               {#each wave as taskId}
                 {@const task = plan.tasks.find((item) => item.id === taskId)}
                 {#if task}
-                  <div>
-                    <b>{String(plan.tasks.findIndex(item => item.id === taskId) + 1).padStart(2, "0")}</b>
-                    <div class="plan-task">
-                      <label><span>{task.id}</span><textarea aria-label={`Task ${task.id} prompt`} rows="2" value={task.prompt || task.id} readonly={!!plan.routing} oninput={(event) => editTask(task.id, event.currentTarget.value)}></textarea></label>
-                      {#if !plan.routing}
-                        {@const taskAde = task.ade_id ?? plan.ade.requested}
-                        <div class="task-agent">
-                          {#if taskAde}<AdeIdentity id={taskAde} />{/if}
-                          {#if team.length > 1}
-                            <select aria-label={`Agent for ${task.id}`} value={taskAdes[task.id] ?? taskAde} onchange={(event) => taskAdes = { ...taskAdes, [task.id]: event.currentTarget.value }}>{#each team as id}<option value={id}>{adeName(id)}</option>{/each}</select>
-                          {:else}<span>{adeName(taskAde)}</span>{/if}
-                        </div>
-                      {/if}
-                      <small class="task-paths">{task.paths.join(", ") || "No ownership paths reported"}</small>
-                      <small class="task-dependencies">{task.dependencies.length ? `After ${task.dependencies.join(", ")}` : "No task dependencies"}</small>
+                  <article class="plan-item tui-pane">
+                    <span class="tui-legend"><b>#{String(plan.tasks.findIndex(item => item.id === taskId) + 1).padStart(2, "0")}</b><span>{task.id}</span></span>
+                    {#if !plan.routing}
+                      {@const taskAde = taskAdes[task.id] ?? task.ade_id ?? plan.ade.requested}
+                      <span class="tui-legend right task-agent">
+                        {#if taskAde}<AdeIdentity id={taskAde} />{/if}
+                        {#if team.length > 1}
+                          <select aria-label={`Agent for ${task.id}`} value={taskAde} onchange={(event) => taskAdes = { ...taskAdes, [task.id]: event.currentTarget.value }}>{#each team as id}<option value={id}>{adeName(id)}</option>{/each}</select>
+                        {:else}<span>{adeName(taskAde)}</span>{/if}
+                      </span>
+                    {/if}
+                    <textarea aria-label={`Task ${task.id} prompt`} rows="1" value={task.prompt || task.id} readonly={!!plan.routing} oninput={(event) => editTask(task.id, event.currentTarget.value)}></textarea>
+                    <div class="plan-item-meta">
+                      <small class="task-paths">{#each task.paths as path}<span>{path}</span>{:else}No ownership paths reported{/each}</small>
+                      <small class="task-dependencies">{task.dependencies.length ? `after ${task.dependencies.join(", ")}` : "no dependencies"}</small>
                     </div>
-                  </div>
+                  </article>
                 {/if}
               {/each}
             </div>
@@ -1182,7 +1201,7 @@
               {:else}<p>No warnings reported.</p>{/if}
             </div>
           </section>
-          {#if error}<p class="voice-state-message error" role="alert" aria-live="assertive">{error}</p>{/if}
+          {#if error && !runRefusal}<p class="voice-state-message error" role="alert" aria-live="assertive">{error}</p>{/if}
         {:else if planning}
           <div class="plan-empty" role="status" aria-live="polite" aria-atomic="true"><strong>Building plan</strong><p>Checking paths, permissions, and agent CLI availability.</p></div>
         {:else}
@@ -1300,7 +1319,7 @@
   .advisor-packet-meta{margin:8px 0 4px;font:11px "IBM Plex Mono",monospace;overflow-wrap:anywhere}
   .advisor-packet-entry pre{max-height:180px;margin:6px 0;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid var(--pytxo-line);border-radius:4px;padding:8px;background:var(--pytxo-surface-input);color:var(--pytxo-text-strong);font:12px/1.5 "IBM Plex Mono",monospace}
   .advisor-workspace-grants{margin:16px 0;padding:12px;border:1px solid var(--pytxo-line);border-radius:4px;color:var(--pytxo-text-soft);font-size:11px}.advisor-workspace-grants>strong{display:block;margin-bottom:8px;color:var(--pytxo-text-strong)}.advisor-workspace-grants>div{display:flex;align-items:center;justify-content:space-between;gap:12px}.advisor-workspace-grants>div>span{overflow-wrap:anywhere}.advisor-workspace-grants p{margin:8px 0 0}
-  .flow-screen .plan-panel{border-radius:0;border:0;border-left:1px solid var(--pytxo-line);padding-left:22px;background:transparent}.flow-screen .plan-wave{position:relative;border-left:1px solid var(--pytxo-line);padding-left:16px;margin-left:12px}.flow-screen .plan-wave>span{background:transparent;padding-block:6px;color:var(--pytxo-text-muted);font:500 11px var(--pytxo-font-mono,"IBM Plex Mono",monospace);letter-spacing:.06em;text-transform:uppercase}.flow-screen .plan-task textarea{min-height:0;field-sizing:content;resize:none}.flow-screen .composer-actions{padding-inline:0}.flow-screen .ade-readiness{padding-inline:0}
+  .flow-screen .plan-panel{border-radius:0;border:0;border-left:1px solid var(--pytxo-line);padding-left:22px;background:transparent}.flow-screen .plan-wave{position:relative;border-left:1px solid var(--pytxo-line);padding-left:16px;margin-left:12px}.flow-screen .plan-wave>span{background:transparent;padding-block:6px;color:var(--pytxo-text-muted);font:500 11px var(--pytxo-font-mono,"IBM Plex Mono",monospace);letter-spacing:.06em;text-transform:uppercase}.flow-screen .composer-actions{padding-inline:0}.flow-screen .ade-readiness{padding-inline:0}
   @media(max-width:1100px){.flow-screen .flow-layout{grid-template-columns:1fr;max-width:850px}.flow-screen .plan-panel{border-left:0;border-top:1px solid var(--pytxo-line);padding:20px 0 0}}
   .composer-panel .run-checks { display: block; margin: 17px; color: var(--pytxo-text-soft); font-size: 12px; font-weight: 600; }
   .composer-panel .run-checks textarea { width: 100%; min-height: 76px; margin: 8px 0 0; padding: 10px; border: 1px solid var(--pytxo-line); border-radius: 4px; background: var(--pytxo-surface-input); resize: vertical; }
@@ -1314,7 +1333,7 @@
   .flow-screen .flow-layout{display:grid;grid-template-columns:minmax(0,44fr) minmax(0,56fr);flex:1;min-height:0;max-width:none;gap:12px;align-items:stretch;overflow:hidden}.flow-screen .flow-layout--solo{grid-template-columns:minmax(0,760px);max-width:none}
   .flow-screen .composer-panel,.flow-screen .plan-panel{min-height:0;padding:0 16px 18px;overflow:auto;overscroll-behavior:contain;border:1px solid var(--pytxo-line);border-radius:6px;background:var(--pytxo-surface-panel);scrollbar-gutter:stable}.flow-screen .plan-panel{padding-left:16px}.flow-screen .composer-panel .panel-head,.flow-screen .plan-panel .panel-head{position:sticky;z-index:4;top:0;margin-inline:-16px;padding:12px 16px;background:color-mix(in srgb,var(--pytxo-surface-panel) 96%,transparent);backdrop-filter:blur(10px)}
   .flow-screen .composer-panel>textarea{width:100%;min-height:clamp(150px,29vh,270px);box-sizing:border-box;margin:0;padding:14px;border:1px solid var(--pytxo-line);border-radius:4px;background:var(--pytxo-surface-input);font-size:14px;line-height:1.65;resize:none}
-  .composer-command-bar,.plan-command-bar{position:sticky;z-index:5;bottom:0;display:flex;align-items:center;gap:8px;margin:10px -8px 0;padding:8px;border:1px solid var(--pytxo-line);border-radius:5px;background:color-mix(in srgb,var(--pytxo-surface-raised) 96%,transparent);box-shadow:0 -8px 28px color-mix(in srgb,var(--pytxo-surface-shell) 52%,transparent);backdrop-filter:blur(12px)}.composer-command-bar>span,.plan-command-bar>span{margin-right:auto;color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui)}.composer-command-bar small,.plan-command-bar small{position:absolute;right:8px;top:calc(100% + 3px);max-width:360px;color:var(--pytxo-text-muted);font-size:10px;text-align:right}.plan-command-bar{top:49px;bottom:auto;margin-bottom:12px}.plan-command-bar .primary{min-width:84px}
+  .composer-command-bar,.plan-command-bar{position:sticky;z-index:5;bottom:0;display:flex;align-items:center;gap:8px;margin:10px -8px 0;padding:8px;border:1px solid var(--pytxo-line);border-radius:5px;background:color-mix(in srgb,var(--pytxo-surface-raised) 96%,transparent);box-shadow:0 -8px 28px color-mix(in srgb,var(--pytxo-surface-shell) 52%,transparent);backdrop-filter:blur(12px)}.composer-command-bar>span,.plan-command-bar>span{margin-right:auto;color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui)}.composer-command-bar small,.plan-command-bar small{position:absolute;right:8px;top:calc(100% + 3px);max-width:360px;color:var(--pytxo-text-muted);font-size:10px;text-align:right}.composer-command-bar{flex-wrap:wrap}.composer-command-bar .action-reason{position:static;flex-basis:100%;max-width:none;font-size:11px}.plan-command-bar{top:49px;bottom:auto;margin-bottom:12px}.plan-command-bar .primary{min-width:84px}
   .planning-strip{position:sticky;z-index:6;top:49px;height:3px;margin-inline:-16px;overflow:hidden;background:var(--pytxo-line)}.planning-strip span{position:absolute;top:-7px;left:-20%;width:140%;color:var(--pytxo-activity);font:12px "IBM Plex Mono",monospace;word-spacing:18px;white-space:nowrap;animation:planning-scan 1.2s steps(12,end) infinite}
   .compact-pane-switch{display:none;flex:0 0 auto;margin-bottom:8px;border:1px solid var(--pytxo-line);border-radius:4px;overflow:hidden}.compact-pane-switch button{flex:1;min-height:34px;border:0;background:transparent;color:var(--pytxo-text-muted);font:11px var(--pytxo-font-ui)}.compact-pane-switch button.active{background:var(--pytxo-surface-active);color:var(--pytxo-text-strong)}
   .flow-history{position:absolute;z-index:20;right:18px;bottom:16px;width:min(420px,calc(100% - 36px));max-height:min(430px,70%);margin:0;overflow:auto;border:1px solid var(--pytxo-line);border-radius:5px;background:var(--pytxo-surface-raised);box-shadow:0 16px 44px #0009}.flow-history:not([open]){width:auto;overflow:hidden}.flow-history>summary{min-height:34px;padding:8px 12px}.flow-history[open]>summary{position:sticky;top:0;z-index:1;background:var(--pytxo-surface-raised)}
@@ -1369,4 +1388,39 @@
   @keyframes split-pulse { 50% { opacity: .25; } }
   @media (prefers-reduced-motion: reduce) { .split-pulse { animation: none; } }
   textarea[readonly] { opacity: .7; }
+  .flow-screen { container: flow / inline-size; }
+  .flow-screen .flow-layout--solo:has(.fleet-preview) { grid-template-columns: minmax(0, 760px) minmax(340px, 480px); gap: 24px; }
+  .fleet-preview { --tui-bg: var(--pytxo-surface-shell); align-self: start; display: grid; min-width: 0; gap: 14px; margin-top: 10px; padding: 18px 16px 14px; }
+  .fleet-preview > .tui-legend { max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+  .preview-scope { display: grid; place-items: center; min-width: 0; overflow: hidden; }
+  .preview-scope :global(.fleet-radar) { width: 100%; max-width: 440px; height: auto; aspect-ratio: 440 / 204; }
+  .preview-team { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  .preview-team li { display: grid; grid-template-columns: 18px 22px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 30px; font: 12.5px var(--pytxo-font-mono); color: var(--pytxo-text-strong); }
+  .preview-team .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .preview-team .role { white-space: nowrap; }
+  .preview-team li :global(.ade-identity) { transform: scale(.8); }
+  .preview-team .num { color: var(--pytxo-text-muted); }
+  .preview-team .role { color: var(--pytxo-text-muted); }
+  .preview-loop { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; padding-top: 12px; border-top: 1px dashed var(--pytxo-line-soft); color: var(--pytxo-text-muted); font: 11.5px var(--pytxo-font-mono); }
+  .preview-loop b { color: var(--pytxo-activity); font-weight: 500; }
+  .preview-loop i { font-style: normal; opacity: .6; }
+  /* Plan steps read like the fleet they become: one framed pane per task. */
+  .flow-screen .plan-wave { --tui-bg: var(--pytxo-surface-panel); display: grid; gap: 18px; margin: 18px 0 0 12px; padding: 0 0 4px 16px; border-left: 1px dashed var(--pytxo-line); }
+  .flow-screen .plan-wave > span { display: flex; align-items: baseline; gap: 10px; padding: 0; color: var(--pytxo-text-strong); font: 600 11.5px var(--pytxo-font-mono); letter-spacing: .1em; text-transform: uppercase; }
+  .flow-screen .plan-wave > span small { color: var(--pytxo-text-muted); font: 400 11px var(--pytxo-font-mono); letter-spacing: 0; text-transform: none; }
+  .flow-screen .plan-item { display: grid; gap: 6px; padding: 14px 12px 10px; }
+  .flow-screen .plan-item .tui-legend b { color: var(--pytxo-text-muted); font: 500 11.5px var(--pytxo-font-mono); letter-spacing: 0; text-transform: none; }
+  .flow-screen .plan-item .tui-legend > span { color: var(--pytxo-text-strong); }
+  .flow-screen .plan-item .task-agent { gap: 4px; height: 22px; top: -11px; margin: 0; padding: 0 4px 0 6px; font-weight: 500; }
+  .flow-screen .plan-item .task-agent :global(.ade-identity) { transform: scale(.66); width: 18px; }
+  .flow-screen .plan-item .task-agent select { min-height: 22px; height: 22px; padding: 0 4px; border: 0; background: transparent; color: var(--pytxo-text-strong); font: 500 11.5px var(--pytxo-font-mono); cursor: pointer; }
+  .flow-screen .plan-item .task-agent select:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 0; border-radius: 3px; }
+  .flow-screen .plan-item textarea { display: block; box-sizing: border-box; width: 100%; min-height: 0; max-height: 220px; padding: 4px 4px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--pytxo-text-strong); font: 500 13.5px/1.5 var(--pytxo-font-ui); field-sizing: content; resize: none; }
+  .flow-screen .plan-item textarea:hover:not([readonly]) { border-color: var(--pytxo-line-soft); }
+  .flow-screen .plan-item textarea:focus-visible { border-color: var(--pytxo-line); background: var(--pytxo-surface-input); outline: 2px solid var(--pytxo-accent); outline-offset: 1px; }
+  .flow-screen .plan-item-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 14px; padding: 0 4px; }
+  .flow-screen .plan-item .task-paths { display: flex; flex-wrap: wrap; gap: 2px 12px; color: var(--pytxo-text-soft); font: 11.5px var(--pytxo-font-mono); }
+  .flow-screen .plan-item .task-paths span::before { content: "▸ "; color: var(--pytxo-text-muted); }
+  .flow-screen .plan-item .task-dependencies { color: var(--pytxo-text-muted); font: 11.5px var(--pytxo-font-mono); }
+  @container flow (max-width: 1000px) { .fleet-preview { display: none; } .flow-screen .flow-layout--solo:has(.fleet-preview) { grid-template-columns: minmax(0, 760px); } }
 </style>

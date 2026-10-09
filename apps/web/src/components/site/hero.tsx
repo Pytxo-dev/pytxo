@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { AsciiAperture } from "@/components/site/ascii-art";
+import { HeroFleet } from "@/components/site/hero-fleet";
 
 // Each mark sits beside its full product name and implies no partnership.
 const AGENTS = [
@@ -12,8 +14,9 @@ const AGENTS = [
 ] as const;
 
 export function Hero() {
-  return <section className="border-b border-white/10" data-testid="marketing-hero">
-    <div className="mx-auto max-w-[92rem] px-4 pb-14 pt-16 sm:px-6 lg:px-10 lg:pt-24">
+  return <section className="relative overflow-hidden border-b border-white/10" data-testid="marketing-hero">
+    <AsciiAperture className="pointer-events-none absolute inset-x-0 top-0 h-[min(860px,100svh)] w-full opacity-80 [mask-image:radial-gradient(ellipse_70%_75%_at_50%_45%,#000_35%,transparent_80%)]" />
+    <div className="relative mx-auto max-w-[92rem] px-4 pb-14 pt-16 sm:px-6 lg:px-10 lg:pt-24">
       <div className="mx-auto max-w-[84rem] text-center">
         <p className="text-sm font-medium tracking-[0.01em] text-[#aaaab3]">The agent hypervisor for your repository</p>
         <h1 className="mt-5 text-[clamp(2.75rem,7.4vw,6.75rem)] font-semibold leading-[1.02] tracking-[-0.045em]">
@@ -37,9 +40,9 @@ export function Hero() {
 
       <figure className="mx-auto mt-12 max-w-[78rem]" data-testid="hero-fleet">
         <div className="overflow-hidden rounded-xl border border-white/10 shadow-[0_40px_120px_-40px_rgba(62,224,208,0.25)]">
-          <Image src="/product/fleet-1600x1000.png" alt="Pytxo Work view of one request split across agents: Codex, Claude Code, Cursor Agent and OpenCode working in parallel, a second Codex task waiting on a file Claude Code owns, and Antigravity queued for the README" width={1600} height={1000} sizes="(min-width: 1280px) 78rem, 100vw" priority className="h-auto w-full" />
+          <HeroFleet alt="Pytxo Work view of one request split across agents: a fleet monitor with an ASCII scope and activity lines, Codex, Claude Code, Cursor Agent and OpenCode working in parallel, a second Codex task waiting on a file Claude Code owns, and Antigravity queued for the README" />
         </div>
-        <figcaption className="mt-3 text-center text-sm text-[#aaaab3]">One request, five agents, each in its own copy of the project. A task that shares a file waits for the agent that owns it. Preview capture.</figcaption>
+        <figcaption className="mt-3 text-center text-sm text-[#aaaab3]">One request, five agents, each in its own copy of the project. A task that shares a file waits for the agent that owns it; the combined change is checked, reviewed and applied. Pytxo Desktop playing a sample run; real runs take minutes.</figcaption>
       </figure>
     </div>
   </section>;

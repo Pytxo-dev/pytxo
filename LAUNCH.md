@@ -20,11 +20,26 @@ parallel-agent crowd complains about: "10 agents = 10 branches to read".
 |---|------|-------|---------|
 | 1 | Hosted CI / candidate MSI / cloud acceptance | **Done** — repo public 2026-10-07, so standard runners are free and unblocked. PR #33: CI green, candidate MSI built, cloud acceptance (install, mixed-agent journey, stale refusal, Apply, 150/175% layout) passed | — |
 | 2 | Fresh candidate after Oct 5–6 UI changes | **Done** — candidate run 37651799067 at `15758b7`, acceptance 37652820730 passed | — |
-| 3 | Live vendor agents on the final artifact | **Open** — cloud acceptance uses stand-in agents; no live Codex/Claude run on the v1.2.2 MSI yet, including Split | One local run of the released MSI with real CLIs |
+| 3 | Live vendor agents on the final artifact | **Open** — cloud acceptance uses stand-in agents; no live Codex/Claude run on a released MSI yet, including Split. 2026-10-09: the redesign branch ran natively with stand-in agents (fresh store, full fleet, no errors) | One local run of the released MSI with real CLIs (the film take) |
 | 4 | Source visibility | **Done: public (MIT)** — gitleaks clean; private vulnerability reporting, secret scanning + push protection, Dependabot alerts and fork-PR approval on | — |
 | 5 | Publication | **Done** — v1.2.2 tagged at `63b5785`; GitHub release + `pytxo-releases` mirror (checksums verified, CLI reports 1.2.2); npm `latest` 1.2.2; pytxo.com deployed 2026-10-08 | Film re-record and launch posts remain (Matt writes HN/Reddit) |
 
 ## Work log
+
+- 2026-10-09 — Terminal fleet redesign (approved: "go all in", "add your own UI
+  style"). Desktop: fleet monitor (ASCII scope, activity sparklines, TUI worker
+  panes, auto-follow, converge finale), New work fleet preview and compact plan
+  panes, terminal status line, ASCII empty state. Site: ASCII aperture hero with
+  orbiting agents, hero clip of Desktop playing a sample run, ASCII wordmark
+  footer. Native check over WebView2 remote debugging (no pointer takeover)
+  found and fixed: the fleet preview clipping at the default 1280 px window; a
+  refused Run shown as a stale plan; a store migration race on a newly added
+  project ("duplicate column name", "database is locked") plus a repair for
+  stores it had already broken. Branch `mbcz/fleet-ascii-redesign`; not merged
+  or released. Second pass the same day: Review shows the Apply gate as a
+  terminal pipeline; Canvas, History and Setup take the terminal language; a
+  background run-finished notification; 1–9 worker jump keys; the site's
+  comparison section plays an Apply gate illustration.
 
 - 2026-10-07 — Audit: candidate branch, release readiness, live site (still
   v1.2.1 copy), film v7, CI state, public repos.

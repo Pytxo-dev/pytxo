@@ -123,12 +123,12 @@
       <p class="section-label">{job.live ? "Now" : "Latest"}</p>
       <button class="job" onclick={() => onOpenRun(job.runId)} title={job.title}>
         <span class="job-title"><i class="dot" data-tone={job.live ? "live" : "settled"}></i><span>{job.title}</span>{#if job.agents.length}<em>{finished}/{job.agents.length}</em>{/if}</span>
-        {#if job.agents.length}<span class="job-bar" aria-hidden="true"><i style={`width:${(finished / job.agents.length) * 100}%`}></i></span>{/if}
+        {#if job.agents.length}<span class="job-meter" aria-hidden="true"><b>{"█".repeat(Math.round((finished / job.agents.length) * 24))}</b>{"░".repeat(24 - Math.round((finished / job.agents.length) * 24))}</span>{/if}
       </button>
       {#if job.agents.length}
         <ul class="job-agents" aria-label="Agents on this job">
           {#each job.agents as agent (agent.id)}
-            <li><button onclick={() => onOpenRun(job.runId)} title={`${agent.label} · ${agent.vendor}`}><span class="agent-logo">{#if agent.cli}<AdeIdentity id={agent.cli} />{/if}</span><span class="agent-label">{agent.label}</span><i class="dot" data-tone={agent.tone} aria-label={agent.tone === "live" ? "working" : agent.tone}></i></button></li>
+            <li><button onclick={() => onOpenRun(job.runId)} title={`${agent.label} · ${agent.vendor}`}><span class="agent-logo">{#if agent.cli}<AdeIdentity id={agent.cli} />{/if}</span><span class="agent-label">{agent.label}</span>{#if agent.tone === "live"}<span class="tui-spin agent-spin" role="img" aria-label="working"><span aria-hidden="true">|/-\</span></span>{:else}<i class="dot" data-tone={agent.tone} aria-label={agent.tone}></i>{/if}</button></li>
           {/each}
         </ul>
       {/if}
@@ -336,8 +336,6 @@
   .job-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; font-weight: 600; }
   .job-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .job-title em { margin-left: auto; color: var(--pytxo-activity); font: 500 11px var(--pytxo-font-mono, "IBM Plex Mono", monospace); font-style: normal; }
-  .job-bar { height: 3px; overflow: hidden; border-radius: 3px; background: var(--pytxo-line); }
-  .job-bar i { display: block; height: 100%; background: var(--pytxo-aperture-horizontal); transition: width 400ms ease; }
   .job-agents { display: grid; gap: 1px; margin: 4px 0 0; padding: 0; list-style: none; }
   .job-agents button { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; min-height: 30px; padding: 0 8px 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--pytxo-text-soft); font-size: 12.5px; text-align: left; cursor: pointer; }
   .job-agents button:hover { background: var(--pytxo-surface-hover); color: var(--pytxo-text-strong); }
@@ -345,6 +343,9 @@
   .agent-logo :global(svg), .agent-logo :global(img) { width: 14px; height: 14px; }
   .agent-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--pytxo-line); }
+  .agent-spin { color: var(--pytxo-activity); font-size: 12px; }
+  .job-meter { display: block; margin-top: 6px; overflow: hidden; color: color-mix(in srgb, var(--pytxo-text-muted) 55%, transparent); font: 8px/1 var(--pytxo-font-mono); white-space: nowrap; }
+  .job-meter b { color: var(--state-verified); font-weight: 400; }
   .dot[data-tone="live"] { background: var(--pytxo-activity); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pytxo-activity) 18%, transparent); }
   .dot[data-tone="done"] { background: var(--state-verified); }
   .dot[data-tone="failed"] { background: var(--state-refuted); }

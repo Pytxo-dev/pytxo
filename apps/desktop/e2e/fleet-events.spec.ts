@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { readFleetTail } from "../src/lib/fleet-events";
+import { activityLevels, clock, readFleetTail, sparkline, SPARK } from "../src/lib/fleet-events";
 import type { EventDto } from "../src/lib/types";
 
 const events = (count: number) => Array.from({ length: count }, (_, i) => ({
@@ -43,4 +43,29 @@ test("a failed page leaves the cached tail unchanged for an exact retry", async 
   const recovered = await readFleetTail(before, true, async (cursor, limit) => log.filter(e => e.id > cursor).slice(0, limit));
   expect(recovered.cursor).toBe(402);
   expect(new Set(recovered.events.map(e => e.id)).size).toBe(400);
+});
+
+test("activity rises with output and fades between bursts", () => {
+  const levels = activityLevels([0, 100, 200, 30_000], 0, 60_000, 30);
+  expect(levels[0]).toBe(3);
+  expect(levels[5]).toBeLessThan(.2);
+  expect(levels[15]).toBeGreaterThanOrEqual(1);
+  expect(levels.every((level) => level >= 0)).toBe(true);
+});
+
+test("a sparkline marks time outside the worker's window and scales to the fleet peak", () => {
+  const line = sparkline([0, 4, 0, 1, 0, 0], 4, 1, 3);
+  expect(line.lead).toBe("·");
+  expect(line.body).toBe(`${SPARK[7]}${SPARK[0]}${SPARK[2]}`);
+  expect(line.tail).toBe("··");
+  expect(sparkline([0, 0, 0], 1, null, null)).toEqual({ lead: "···", body: "", tail: "" });
+  expect(clock(125_400)).toBe("2:05");
+});
+
+test("event times accumulate across reads for the activity line", async () => {
+  const log = events(450);
+  const first = await readFleetTail(undefined, false, async (cursor, limit) => log.filter(e => e.id > cursor).slice(0, Math.min(limit, 300 - cursor)));
+  const next = await readFleetTail(first, true, async (cursor, limit) => log.filter(e => e.id > cursor).slice(0, limit));
+  expect(next.times).toHaveLength(450);
+  expect(next.events).toHaveLength(400);
 });

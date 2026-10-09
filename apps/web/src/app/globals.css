@@ -203,3 +203,10 @@
   border-radius: 1px;
   background: var(--aperture-ink);
 }
+
+/* Apply gate illustration: each line types in left to right; the caret blinks. */
+@keyframes gate-line { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes gate-caret { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-[gate-"] { animation: none !important; }
+}

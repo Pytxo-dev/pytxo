@@ -35,7 +35,9 @@ function entriesFor(directory, routes, viewports) {
 }
 
 function inspectPng(buffer, file, expected) {
-  if (buffer.byteLength < 40_000) {
+  // Same floor as the Desktop capture spec: an empty shell is about 17 KB at
+  // 960x640, the sparsest real screen (History's run list) about 39 KB.
+  if (buffer.byteLength < 28_000) {
     throw new Error(`${file} is unexpectedly small (${buffer.byteLength} bytes)`);
   }
   if (!buffer.subarray(0, 8).equals(PNG_SIGNATURE)) {

@@ -11,6 +11,8 @@
 /* Brand boundaries are not evidence colors. Activity never means verified. */
 :root {
   --pytxo-font-ui: "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  /* Box-drawing, block and braille glyphs fall back to the system mono, never a proportional face. */
+  --pytxo-font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
   --pytxo-glyph-cyan: #7ee1ed;
   --pytxo-glyph-periwinkle: #b4b9ff;
   --pytxo-glyph-violet: #bd9eef;
@@ -253,3 +255,17 @@ html[data-force-reduced-motion] *::after {
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* TUI panes: a hairline frame with its title cut into the top border. Set
+   --tui-bg to the surface behind the pane so the legend masks the line. */
+.tui-pane { position: relative; border: 1px solid var(--pytxo-line); border-radius: 6px; }
+.tui-legend { position: absolute; top: -9px; left: 12px; z-index: 1; display: flex; align-items: center; gap: 7px; max-width: calc(100% - 140px); height: 18px; padding: 0 7px; background: var(--tui-bg, var(--pytxo-surface-shell)); color: var(--pytxo-text-soft); font: 500 11.5px var(--pytxo-font-mono); white-space: nowrap; }
+.tui-legend.right { left: auto; right: 12px; max-width: none; }
+.tui-legend b { color: var(--pytxo-text-strong); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.tui-legend time { margin-left: 4px; color: var(--pytxo-text-muted); font-variant-numeric: tabular-nums; }
+/* The terminal spinner: every frame is a visible character, so a still capture never shows a blank. */
+.tui-spin { display: inline-block; width: 1ch; overflow: hidden; vertical-align: bottom; font-family: var(--pytxo-font-mono); }
+.tui-spin > span { display: inline-block; white-space: pre; animation: tui-spin .6s steps(4) infinite; }
+@keyframes tui-spin { to { transform: translateX(-4ch); } }
+@media (prefers-reduced-motion: reduce) { .tui-spin > span { animation: none; } }
+[data-force-reduced-motion] .tui-spin > span { animation: none; }

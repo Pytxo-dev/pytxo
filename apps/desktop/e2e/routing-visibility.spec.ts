@@ -392,6 +392,9 @@ test("a dispatch error refreshes durable status before offering another run", as
   await expect(runButton).toBeEnabled();
   await runButton.click();
   await expect(page.getByText("Browser fixture: routed startup requires recovery")).toBeVisible();
+  // A refused Run says so; it is not presented as a stale plan.
+  await expect(page.getByRole("heading", { name: "Run did not start" })).toBeVisible();
+  await expect(page.getByText("Plan is stale")).toHaveCount(0);
   await expect(runButton).toBeDisabled();
   await page.locator(".flow-history > summary").click();
   await expect(page.locator(".flow-history")).toContainText("Run needs recovery");

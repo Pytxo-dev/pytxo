@@ -6,7 +6,7 @@ tags: [reference, desktop, website, accessibility, motion]
 audience: [agent, human]
 layer: presentation
 created: 2026-09-14
-updated: 2026-09-14
+updated: 2026-10-09
 related: [[desktop-interaction-audit-2026-09-13]], [[modular-project-safety-contract-2026-09-13]], [[pytxo-presentation-references-2026-09-14]]
 ---
 
@@ -33,6 +33,42 @@ Use empty space to establish hierarchy, not to stretch every control. Avoid
 glowing cards, gratuitous gradients, giant rounded panels, and ornamental motion.
 Website copy should explain the same product without pretending receipts are
 security guarantees or folder attachment is coordinated modular Apply.
+
+## Terminal language
+
+Approved by Matt on 2026-10-09 ("add your own UI style"). Pytxo Desktop and
+pytxo.com share a terminal vocabulary on top of Chroma Aperture:
+
+- **Panes** (`.tui-pane`, `.tui-legend` in `apps/desktop/src/app.css`): a
+  hairline frame with its title cut into the top border. Set `--tui-bg` to the
+  surface behind the pane. Fleet workers, the fleet monitor, plan tasks and the
+  New work fleet preview use them; the website run record mirrors the look.
+- **Spinner** (`.tui-spin`): `| / - \`, four visible frames so a still capture
+  never shows a blank. It marks a live worker, never progress.
+- **Fleet monitor** (`FleetBoard.svelte`): one row per task with its CLI, an
+  activity sparkline and an elapsed clock. The sparkline is output volume per
+  time slice with a few seconds' decay on one fleet-wide scale; it is not
+  progress and must never be read as percent complete. A live worker silent for
+  45 s reads **quiet**, because Pytxo cannot tell quiet from stuck.
+- **ASCII scope** (`FleetRadar.svelte`): the aperture as an ASCII sphere, one
+  orbit per step and one numbered blip per task. Live blips travel and the sweep
+  turns only while something is live. It is decoration over real state; the
+  rows beside it carry the text and the accessible names.
+- **Apply gate** (`RunReviewScreen.svelte`): agents → prepared change → checks
+  on the combined change → project → destination. One glyph per stage: `✓`
+  recorded, `○` not known yet (for the project: checked again at Apply), `✗`
+  refuted, `·` or the spinner while running. Wires carry signal only while Apply
+  is available; the destination flashes once when Apply lands. The gate never
+  shows `✓` for anything Pytxo has not recorded.
+- **Glyph ledger**: Canvas nodes and History rows use the same glyphs for their
+  recorded state; Setup groups are panes. 1–9 jump to a fleet worker's pane.
+- Mono text uses `--pytxo-font-mono`, which falls back to Cascadia Mono or
+  Consolas for box-drawing and block glyphs that IBM Plex Mono lacks.
+- Glow is limited to live activity marks. Every animation stops under OS or
+  in-app reduced motion, and canvases pause when hidden or off screen.
+
+The browser preview can play a whole fleet run (`pytxo-preview-fleet-script-v1`)
+for demos and the website clip. It is an illustrative fixture, never evidence.
 
 ## State is authoritative
 

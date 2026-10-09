@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { AsciiWordmark } from "@/components/site/ascii-art";
 import { DISCORD_URL, GITHUB_URL, SOURCE_URL } from "@/lib/site";
 
 const PRODUCT_LINKS = [
@@ -88,7 +89,9 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <div className="mt-14 flex items-center justify-between border-t border-white/[0.08] pt-6">
+        <AsciiWordmark className="mt-14 block h-[clamp(96px,16vw,230px)] w-full" />
+
+        <div className="mt-6 flex items-center justify-between border-t border-white/[0.08] pt-6">
           <p className="font-mono text-[10px] text-[#66666f]">
             © {new Date().getFullYear()} Pytxo. MIT License.
           </p>

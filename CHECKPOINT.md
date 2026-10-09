@@ -1,3 +1,44 @@
+# CHECKPOINT — Pytxo — 2026-10-09 (terminal fleet redesign)
+
+Approved by Matt 2026-10-09: "go all in on the UI/UX on the desktop app and
+website, especially the fleet UI … crazy ascii art … add your own UI style, just
+make sure it looks good, demoable, and something people would use daily."
+
+- Branch `mbcz/fleet-ascii-redesign` from `main` @ `2ca1d2a` (v1.2.3). Not merged,
+  released or deployed; those need Matt's go.
+- Desktop: `FleetBoard.svelte` (monitor + TUI panes + auto-follow), new
+  `FleetRadar.svelte` (ASCII scope, converge finale), `fleet-events.ts`
+  (`activityLevels`, `sparkline`, `clock`, event `times`), New work fleet
+  preview + plan panes (`FlowScreen.svelte`), `RunStatusBar`/`Sidebar` terminal
+  touches, empty Work scope (`WorkActive.svelte`), `.tui-pane`/`.tui-legend`/
+  `.tui-spin` in `app.css`. Preview fixture: streaming fleet output and an
+  opt-in scripted run (`pytxo-preview-fleet-script-v1`).
+- Fixes found natively: fleet preview clipped at 1280 px; refused Run shown as a
+  stale plan; store migration race on first open of a new project + repair of
+  stores it broke (`crates/pytxo-store/src/migrate.rs`, `store.rs`).
+- Site: `ascii-art.tsx` (hero aperture + footer wordmark), `hero-fleet.tsx` with
+  `public/media/fleet-run-1600x1000.mp4` (preview fixture recording, labelled),
+  run record pane, step kickers.
+- Docs: Terminal language in `docs/08-reference/pytxo-interface-engineering.md`;
+  Phase 3 in `docs/01-projects/redesign-2026-10.md`; LAUNCH.md log.
+- Native evidence: release exe driven over WebView2 `--remote-debugging-port`
+  with isolated `PYTXO_HOME`/WebView profile and stand-in agents; screenshots in
+  the session scratchpad only.
+- Next: Matt reviews → merge → v1.2.4 release + site deploy → film on the
+  released build (gate 3).
+- Second pass (same day, "keep polishing"): Review Apply gate
+  (`RunReviewScreen.svelte`: agents → prepared change → combined checks →
+  project, ✓/○/✗/· glyphs, live wires, landing flash; code view fills to the
+  decision), Canvas panes/square wires (`ExecutionMap.svelte`), History ledger,
+  Setup panes, background run-finished notification (`DesktopShell.svelte`,
+  `hitl-notify.ts`), 1–9 worker jump keys (`FleetBoard.svelte`), site Apply gate
+  illustration (`apply-gate.tsx` in the comparison section), docs for both.
+  Marketing captures blur the entry focus before shooting; blank-capture floor
+  28 KB (measured: empty shell 17 KB, sparsest real screen 39 KB).
+- Viability read given to Matt 2026-10-09: crowded, free category (Conductor,
+  Codex app, VS Code, Agent HQ, T3 Code); wedge = verified combined change; launch
+  and measure repeat users before more building.
+
 # CHECKPOINT — Pytxo — 2026-10-08 (redesign handoff)
 
 Topic switch: public-beta launch work is paused at a stable point. Next topic is

@@ -171,6 +171,39 @@
   const allAgentsSucceeded = $derived(
     agents.length > 0 && agents.every((agent) => agent.exit_code === 0),
   );
+
+  // The Apply gate, left to right: each condition Apply waits on, in the order
+  // it holds. ✓ is recorded, ○ is not known yet, ✗ is refuted, · is still running.
+  type GateMark = "ok" | "open" | "fail" | "wait";
+  const GATE_GLYPH: Record<GateMark, string> = { ok: "✓", open: "○", fail: "✗", wait: "·" };
+  const agentsGate = $derived<GateMark>(allAgentsSucceeded ? "ok"
+    : agents.some((agent) => agent.exit_code !== null && agent.exit_code !== 0) ? "fail" : "wait");
+  const changeGate = $derived<GateMark>((manifest?.files.length ?? 0) > 0 ? "ok" : "fail");
+  const checksGate = $derived<GateMark>(candidatePassed ? "ok" : candidateEvidence?.checks.some((check) => !check.passed) ? "fail" : "open");
+  const projectGate = $derived<GateMark>(
+    presentation.state === "applied" ? "ok"
+    : presentation.state === "applying" ? "wait"
+    : ["stale", "recovery_required", "retryable_failure", "review_failed"].includes(presentation.state) ? "fail"
+    : "open");
+  const projectGateText = $derived(
+    presentation.state === "applied" ? "matched, written"
+    : presentation.state === "applying" ? "writing…"
+    : presentation.state === "stale" ? "changed since review"
+    : projectGate === "fail" ? "Apply interrupted"
+    : "checked again at Apply");
+  const gateMarks = $derived([agentsGate, changeGate, checksGate, projectGate]);
+  /** Signal flows through the wires only while Apply is actually available. */
+  const gateOpen = $derived(presentation.state === "ready" && gateMarks.slice(0, 3).every((mark) => mark === "ok"));
+  let landed = $state(false);
+  let lastGateState: string | null = null;
+  $effect(() => {
+    const state = presentation.state;
+    if (state === "applied" && lastGateState !== null && lastGateState !== "applied") {
+      landed = true;
+      setTimeout(() => (landed = false), 1800);
+    }
+    lastGateState = state;
+  });
   const terminalWithoutAction = $derived(
     presentation.primaryAction === null &&
       (presentation.state === "applied" ||
@@ -632,22 +665,29 @@
     <div class="candidate-workspace">
     <div class="speculative-workspace">
       <details class="candidate-overview" open={mapExpanded}>
-        <summary onclick={toggleCandidateMap}><span class="candidate-symbol" aria-hidden="true"><IconFileText size={18} /></span><strong>{mapExpanded ? "Hide summary" : "Show summary"}</strong><span>{manifest.files.length} file{manifest.files.length === 1 ? "" : "s"} changed</span><span class="verification-summary" class:checks-passed={candidatePassed}>{candidatePassed ? "Checks passed" : "Not verified"}</span></summary>
-        <div class="candidate-context" aria-label="What this review contains">
+        <summary onclick={toggleCandidateMap}><span class="candidate-symbol" aria-hidden="true">▣</span><strong>{mapExpanded ? "Hide summary" : "Show summary"}</strong><span>{manifest.files.length} file{manifest.files.length === 1 ? "" : "s"} changed</span><span class="gate-mini" aria-hidden="true">{#each gateMarks as mark}<i class={mark}>{GATE_GLYPH[mark]}</i>{/each}</span><span class="verification-summary" class:checks-passed={candidatePassed}>{candidatePassed ? "Checks passed" : "Not verified"}</span></summary>
+        <div class="candidate-context" class:gate-open={gateOpen} class:landed aria-label="What this review contains">
           <div class="formation-files">
-            <span class="map-label">Changed files</span>
+            <span class="map-label">changed files</span>
             {#each manifest.files.slice(0, 3) as file}
-              <button class:map-selected={selectedPreparedPath === file.path} aria-pressed={selectedPreparedPath === file.path} title={file.path} aria-label={`Compare ${file.path}`} onclick={() => void selectPreparedFile(file)}><span class="map-file-kind">{file.kind === "add" ? "A" : file.kind === "delete" ? "D" : "M"}</span><span>{file.path.split("/").pop()}</span></button>
+              <button class:map-selected={selectedPreparedPath === file.path} aria-pressed={selectedPreparedPath === file.path} title={file.path} aria-label={`Compare ${file.path}`} onclick={() => void selectPreparedFile(file)}><span class={`map-file-kind ${file.kind}`}>{file.kind === "add" ? "A" : file.kind === "delete" ? "D" : "M"}</span><span>{file.path.split("/").pop()}</span></button>
             {/each}
             {#if manifest.files.length > 3}<button class="more-files" onclick={revealFileList}>+{manifest.files.length - 3} more</button>{/if}
           </div>
-          <svg class="convergence" viewBox="0 0 80 120" preserveAspectRatio="none" aria-hidden="true">
-            {#each manifest.files.slice(0, 3) as file, index}<path d={`M 0 ${20 + index * 40} C 40 ${20 + index * 40}, 35 60, 80 60`} class:selected={selectedPreparedPath === file.path} />{/each}
+          <svg class="convergence" viewBox="0 0 48 120" preserveAspectRatio="none" aria-hidden="true">
+            {#each manifest.files.slice(0, 3) as file, index}<path d={`M 0 ${20 + index * 40} H 22 V 60 H 48`} class:selected={selectedPreparedPath === file.path} />{/each}
           </svg>
-          <details class="candidate-node"><summary><IconFileText size={20}/><span>Prepared change<small class="identity-peek" title={review.prepared_digest ?? "ID unavailable"}>{review.prepared_digest?.slice(0, 18) ?? "ID unavailable"}</small><small>{presentation.state === "applied" ? "Applied" : "Not applied"}</small></span></summary><code>{review.prepared_digest ?? "ID unavailable"}</code></details>
-          <span class="stage-connection" aria-hidden="true">→</span>
-          <button class="verification-node" onclick={() => void revealChecks()}><span class="map-label">Checks</span><strong>{candidatePassed ? "All checks passed" : "Not verified"}</strong><span>{candidateEvidence?.checks.length ?? 0} {(candidateEvidence?.checks.length ?? 0) === 1 ? "command" : "commands"} · View</span></button>
-          <div class="map-boundary"><span class="decision-aperture" aria-hidden="true"></span><details class="destination-node"><summary><span class="map-label">Applies to</span><strong>{run.repo_root.split(/[\\/]/).pop()}</strong><span>Show folder</span></summary><code>{run.repo_root}</code><p>Apply writes these files to this project folder. Viewing it changes nothing.</p></details></div>
+          <div class="gate" role="group" aria-label="Apply gate">
+            <div class={`stage ${agentsGate}`}><span class="mark" aria-hidden="true">{GATE_GLYPH[agentsGate]}</span><span class="stage-text"><span class="map-label">agents</span><strong>{agents.filter((agent) => agent.exit_code === 0).length}/{agents.length} finished</strong></span></div>
+            <span class="wire" class:lit={agentsGate === "ok"} aria-hidden="true"></span>
+            <details class={`stage candidate-node ${changeGate}`}><summary><span class="mark" aria-hidden="true">{GATE_GLYPH[changeGate]}</span><span class="stage-text"><span class="map-label">Prepared change</span><strong>{manifest.files.length} file{manifest.files.length === 1 ? "" : "s"}</strong><small class="identity-peek" title={review.prepared_digest ?? "ID unavailable"}>{review.prepared_digest?.slice(0, 14) ?? "ID unavailable"}</small></span></summary><div class="node-pop"><code>{review.prepared_digest ?? "ID unavailable"}</code></div></details>
+            <span class="wire" class:lit={changeGate === "ok"} aria-hidden="true"></span>
+            <button class={`stage verification-node ${checksGate}`} onclick={() => void revealChecks()}><span class="mark" aria-hidden="true">{GATE_GLYPH[checksGate]}</span><span class="stage-text"><span class="map-label">Checks</span><strong>{candidatePassed ? "All checks passed" : "Not verified"}</strong><small>{candidateEvidence?.checks.length ?? 0} {(candidateEvidence?.checks.length ?? 0) === 1 ? "command" : "commands"} · View</small></span></button>
+            <span class="wire" class:lit={checksGate === "ok"} aria-hidden="true"></span>
+            <div class={`stage project-stage ${projectGate}`}>{#if projectGate === "wait"}<span class="mark" role="img" aria-label="writing"><span class="tui-spin"><span>|/-\</span></span></span>{:else}<span class="mark" aria-hidden="true">{GATE_GLYPH[projectGate]}</span>{/if}<span class="stage-text"><span class="map-label">project</span><strong>{projectGateText}</strong></span></div>
+            <span class="wire last" class:lit={projectGate === "ok" || gateOpen} aria-hidden="true"></span>
+            <div class="map-boundary" class:applied={presentation.state === "applied"}><span class="decision-aperture" aria-hidden="true"></span><details class="destination-node"><summary><span class="map-label">Applies to</span><strong>{run.repo_root.split(/[\\/]/).pop()}</strong><span>{presentation.state === "applied" ? "Applied · show folder" : "Show folder"}</span></summary><div class="node-pop"><code>{run.repo_root}</code><p>Apply writes these files to this project folder. Viewing it changes nothing.</p></div></details></div>
+          </div>
         </div>
         <div class="map-caption"><button onclick={() => document.getElementById("review-apply-decision")?.scrollIntoView({ block: "nearest" })}>{presentation.state === "applied" ? "View outcome" : "Go to Apply"} ↓</button></div>
       </details>
@@ -854,7 +894,8 @@
       <div><h2>Prepared package unavailable</h2><p>{error || "This run has no immutable review manifest."}</p></div>
     </article>
   {/if}
-  <footer id="review-apply-decision" class:ready-decision={presentation.state === "ready" && !applyDisabledReason} class="decision-bar repository-boundary" class:confirmed={presentation.state === "applied"} aria-label="Decision">
+  <footer id="review-apply-decision" class:ready-decision={presentation.state === "ready" && !applyDisabledReason} class="decision-bar repository-boundary tui-pane" class:confirmed={presentation.state === "applied"} aria-label="Decision">
+    <span class="tui-legend" aria-hidden="true"><b>apply</b>{#if manifest}<span class="gate-mini">{#each gateMarks as mark}<i class={mark}>{GATE_GLYPH[mark]}</i>{/each}</span>{/if}<span>→ {run.repo_root.split(/[\\/]/).pop()}</span></span>
     <div class="decision-main">
   <div
     class={`review-status state-${presentation.state}`}
@@ -1342,51 +1383,10 @@
   .review-mode { display: none; }
   .review-header h1 { margin: 4px 0; }
   .candidate-overview>summary { padding: 9px 16px; }
-  .candidate-context { display: grid; grid-template-columns: minmax(150px,1.1fr) 56px minmax(150px,1fr) 28px minmax(170px,1fr) minmax(180px,1fr); align-items: center; padding: 12px 16px; gap: 0; }
-  .map-label { color: var(--pytxo-text-muted); font-size: 11px; font-weight: 500; white-space: nowrap; }
-  .formation-files { display: grid; gap: 5px; min-width: 0; }
-  .formation-files button { display: flex; justify-content: flex-start; gap: 8px; min-height: 28px; padding: 4px 8px; border: 1px solid var(--pytxo-line); border-radius: 3px; background: var(--pytxo-surface-panel); color: var(--pytxo-text-body); font-size: 12px; text-align: left; }
-  .formation-files button>span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .formation-files .map-selected { border-color: var(--pytxo-activity); background: var(--pytxo-surface-active); }
-  .map-file-kind { font: 10px "IBM Plex Mono",monospace; color: var(--pytxo-activity); }
-  .formation-files .more-files { border-color: transparent; background: transparent; color: var(--pytxo-text-soft); font-size: 11px; }
-  .convergence { width: 100%; height: 112px; fill: none; stroke: var(--pytxo-line); stroke-width: 1.5; }
-  .convergence path.selected { stroke: var(--pytxo-activity); }
-  .candidate-node { border: 1px solid var(--pytxo-line); background: var(--pytxo-surface-panel); border-radius: 4px; padding: 12px; min-width: 0; }
-  .candidate-node summary { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; }
-  .candidate-node small { display: block; color: var(--pytxo-text-muted); margin-top: 6px; font-size: 11px; }
-  .candidate-node code,.destination-node code { display: block; overflow-wrap: anywhere; margin-top: 10px; font-size: 11px; }
-  .stage-connection { text-align: center; color: var(--pytxo-text-muted); }
-  .candidate-context .verification-node { grid-template-columns: 1fr; align-items: start; min-width: 0; display: grid; gap: 7px; text-align: left; justify-content: start; padding: 12px; border: 0; border-radius: 0; background: transparent; color: var(--pytxo-text-body); }
-  .verification-node strong { font-size: 13px; font-weight: 500; }
-  .verification-node>span:last-child { font-size: 11px; color: var(--pytxo-text-soft); }
-  .map-boundary { display: flex; gap: 14px; align-items: stretch; min-width: 0; margin-left: 12px; }
-  .map-boundary .decision-aperture { height: auto; min-height: 84px; }
-  .destination-node { min-width: 0; }
-  .destination-node summary { display: grid; gap: 7px; cursor: pointer; font-size: 13px; }
-  .destination-node summary>span:last-child,.destination-node p { font-size: 11px; color: var(--pytxo-text-soft); line-height: 1.5; }
-  .map-caption { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; font-size: 11px; color: var(--pytxo-text-muted); padding: 0 16px 10px; }
-  .map-caption button { border: 0; background: transparent; padding: 0; min-height: 24px; font-size: 11px; color: var(--pytxo-text-soft); text-underline-offset: 3px; }
-  .candidate-context :is(button,summary):focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 3px; }
-  @container run-review (max-width:899px) {
-    .candidate-context { grid-template-columns: 1fr 1fr; gap: 16px; }
-    .convergence,.stage-connection { display: none; }
-    .map-boundary { margin: 0; }
-  }
-  @container run-review (max-width:480px) { .candidate-context { grid-template-columns: 1fr; } }
   .review-screen { padding-top:8px; gap:8px; }
   .review-decision { padding-bottom:0; }
   .review-header h1 { margin-block:4px; }
   .review-mode { display:inline; margin-left:12px; }
-  .candidate-overview>summary { padding:6px 12px; gap:8px; }
-  .candidate-context { padding:4px 12px; }
-  .formation-files { gap:3px; }
-  .formation-files button { min-height:24px; padding:2px 6px; }
-  .convergence { height:88px; }
-  .candidate-node { padding:8px; }
-  .candidate-context .verification-node { padding:8px; gap:4px; }
-  .map-caption { padding-bottom:4px; }
-  .map-boundary .decision-aperture { min-height:64px; }
   .files-title { padding:8px 12px; }
   .files-title .eyebrow { display:none; }
   .comparison-context { padding:6px 12px; }
@@ -1405,40 +1405,14 @@
   .ready-decision .review-status { min-height:0; flex:none; }
   .ready-decision .decision-transition { flex:1; }
   .ready-decision .decision-transition>div { gap:2px; }
-  .formation-files { grid-template-columns:minmax(0,1fr) auto; }
-  .formation-files .map-label { grid-column:1; grid-row:1; }
-  .formation-files .more-files { grid-column:2; grid-row:1; padding:0; min-height:20px; font-size:11px; }
-  .formation-files button:not(.more-files) { grid-column:1 / -1; }
-  .map-caption { padding:0 12px 3px; align-items:center; }
-  .map-caption button { min-height:18px; }
   .review-screen .files-title { padding:5px 12px; margin:0; }
   .review-screen .files-title h2 { font-size:14px; }
   .review-screen .review-grid { margin-top:0; }
   .review-header .back { min-height:20px; }
   .review-header h1 { font-size:22px; }
-  @container run-review (max-width:899px) { .formation-files { grid-template-columns:1fr; }.formation-files .more-files { grid-column:1;grid-row:auto; }.decision-bar.ready-decision>.decision-main:first-child { flex-wrap:wrap; } }
+  @container run-review (max-width:899px) { .decision-bar.ready-decision>.decision-main:first-child { flex-wrap:wrap; } }
 
   /* Review reads as one code workspace, with the candidate map as its context. */
-  .candidate-overview {
-    overflow:hidden;
-    border:1px solid color-mix(in srgb,var(--pytxo-line) 84%,var(--pytxo-activity));
-    border-radius:8px;
-    background:var(--pytxo-work-canvas);
-  }
-  .candidate-overview>summary { background:color-mix(in srgb,var(--pytxo-surface-panel) 72%,transparent); }
-  .candidate-overview[open]>summary { border-bottom:1px solid var(--pytxo-line-soft); }
-  .candidate-context { background:var(--pytxo-work-canvas); }
-  .formation-files button { border-color:var(--pytxo-line-soft);background:var(--pytxo-work-node); }
-  .formation-files button:hover { border-color:color-mix(in srgb,var(--pytxo-activity) 46%,var(--pytxo-line)); }
-  .formation-files .map-selected {
-    border-color:color-mix(in srgb,var(--pytxo-activity) 70%,var(--pytxo-line));
-    background:color-mix(in srgb,var(--pytxo-work-node) 82%,var(--pytxo-activity));
-    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--pytxo-activity) 22%,transparent);
-  }
-  .convergence { stroke:color-mix(in srgb,var(--pytxo-text-muted) 46%,var(--pytxo-line)); }
-  .candidate-node { border-color:color-mix(in srgb,var(--pytxo-line) 84%,var(--pytxo-activity));background:var(--pytxo-work-node); }
-  .candidate-context .verification-node { border-radius:4px;background:color-mix(in srgb,var(--pytxo-surface-panel) 62%,transparent); }
-  .map-boundary { padding-left:12px;border-left:1px solid var(--pytxo-line-soft); }
   .review-screen .review-grid {
     overflow:hidden;
     border:1px solid var(--pytxo-line);
@@ -1466,10 +1440,6 @@
   }
   .decision-aperture { width:4px;border-radius:2px; }
 
-  @container run-review (max-width:899px) {
-    .map-boundary { padding-left:0;border-left:0; }
-  }
-
   /* Review is a fixed Work state: evidence scrolls while the decision stays visible. */
   .review-screen{display:flex;width:100%;max-width:none;height:100%;min-height:0;box-sizing:border-box;flex-direction:column;overflow:hidden}
   .review-decision{flex:0 0 auto}
@@ -1477,7 +1447,7 @@
   .candidate-workspace{overflow:visible}
   .review-loading,.review-error,.review-unavailable{min-height:0;flex:1;overflow:auto}
   .decision-bar{position:relative;bottom:auto;flex:0 0 auto;margin:0;padding-block:8px;background:var(--pytxo-surface-shell)}
-  @media(max-height:800px){.review-screen{gap:6px}.decision-bar{padding-block:2px}.convergence{height:44px}.candidate-node{padding:6px}.map-boundary .decision-aperture{min-height:44px}.diff-side .text-content{min-height:176px}}
+  @media(max-height:800px){.review-screen{gap:6px}.decision-bar{padding-block:2px}.diff-side .text-content{min-height:176px}}
 
   /* Line diff: computed in the renderer from the same exact bytes as "Before & after". */
   .comparison-context strong { min-width:0;overflow:hidden;color:var(--pytxo-text-strong);font:12px/1.4 "IBM Plex Mono",monospace;text-overflow:ellipsis;white-space:nowrap; }
@@ -1506,4 +1476,101 @@
   .diff-note { display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0;padding:12px 14px;border-bottom:1px solid var(--pytxo-line-soft);color:var(--pytxo-text-soft);font-size:12px; }
   .diff-note button { min-height:28px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:transparent;color:var(--pytxo-text-strong);font:inherit;cursor:pointer; }
   @media (prefers-reduced-motion: reduce) { .comparison-mode button { transition:none; } }
+
+  /* Apply gate: the changed files converge into one prepared change, which has
+     to clear every condition before it can reach the project. Terminal language,
+     same as the fleet: mono labels, one glyph per state, wires that carry signal
+     only while Apply is actually available. */
+  .candidate-overview { overflow:hidden; border:1px solid var(--pytxo-line); border-radius:6px; background:var(--pytxo-work-canvas); }
+  .candidate-overview>summary { padding:7px 12px; gap:10px; background:color-mix(in srgb,var(--pytxo-surface-panel) 72%,transparent); font:12px var(--pytxo-font-mono); }
+  .candidate-overview[open]>summary { border-bottom:1px solid var(--pytxo-line-soft); }
+  .candidate-overview>summary strong { font:600 12px var(--pytxo-font-ui); }
+  .candidate-symbol { color:var(--pytxo-activity); font:14px var(--pytxo-font-mono); }
+  .gate-mini { display:inline-flex; gap:3px; margin-left:auto; font:600 12px var(--pytxo-font-mono); }
+  .gate-mini i, .stage .mark { font-style:normal; color:var(--state-unknown); }
+  .gate-mini i.ok, .stage.ok .mark { color:var(--state-verified); }
+  .gate-mini i.fail, .stage.fail .mark { color:var(--state-refuted); }
+  .gate-mini i.wait, .stage.wait .mark { color:var(--live); }
+  .gate-mini + .verification-summary { margin-left:0; }
+  .candidate-overview>summary::after { margin-left:14px; color:var(--pytxo-text-muted); }
+  .decision-bar.tui-pane { --tui-bg:var(--pytxo-surface-shell); margin-top:12px; padding-top:14px; padding-bottom:8px; border-radius:6px; }
+  .decision-bar .tui-legend .gate-mini { margin-left:0; }
+  .decision-bar.confirmed { border-color:color-mix(in srgb,var(--state-verified) 45%,var(--pytxo-line)); }
+  /* The code view grows into the space above the decision, like an editor, instead of leaving a gap. */
+  .review-scroll { display:flex; flex-direction:column; }
+  .review-scroll>.candidate-workspace, .speculative-workspace, .review-screen .review-grid, .review-grid>.files-panel, .file-content { display:flex; flex-direction:column; flex:1 0 auto; min-height:0; }
+  .review-scroll .file-list { flex:1 0 auto; align-items:stretch; }
+  .file-content>.line-diff, .file-content>.exact-diff { flex:1 0 auto; }
+  .file-navigation { max-height:none; }
+  .candidate-context { display:grid; grid-template-columns:minmax(120px,190px) 44px minmax(0,1fr); align-items:center; padding:10px 14px 4px; background:var(--pytxo-work-canvas); }
+  .map-label { color:var(--pytxo-text-muted); font:500 10.5px var(--pytxo-font-mono); letter-spacing:.02em; white-space:nowrap; }
+  .formation-files { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px; min-width:0; }
+  .formation-files .map-label { grid-row:1; }
+  .formation-files button:not(.more-files) { grid-column:1 / -1; display:flex; justify-content:flex-start; gap:8px; min-height:24px; padding:2px 8px; border:1px solid var(--pytxo-line-soft); border-radius:3px; background:var(--pytxo-work-node); color:var(--pytxo-text-body); font:12px var(--pytxo-font-mono); text-align:left; }
+  .formation-files button:not(.more-files):hover { border-color:color-mix(in srgb,var(--pytxo-activity) 46%,var(--pytxo-line)); }
+  .formation-files button>span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .formation-files .map-selected { border-color:color-mix(in srgb,var(--pytxo-activity) 70%,var(--pytxo-line)); background:color-mix(in srgb,var(--pytxo-work-node) 82%,var(--pytxo-activity)); }
+  .map-file-kind { font:600 10.5px var(--pytxo-font-mono); color:var(--state-attention); }
+  .map-file-kind.add { color:var(--state-verified); } .map-file-kind.delete { color:var(--state-refuted); }
+  .formation-files .more-files { grid-column:2; grid-row:1; min-height:18px; padding:0; border:0; background:transparent; color:var(--pytxo-text-soft); font:11px var(--pytxo-font-mono); }
+  .convergence { width:100%; height:84px; fill:none; stroke:color-mix(in srgb,var(--pytxo-text-muted) 50%,var(--pytxo-line)); stroke-width:1.25; vector-effect:non-scaling-stroke; }
+  .convergence path { vector-effect:non-scaling-stroke; }
+  .convergence path.selected { stroke:var(--pytxo-activity); }
+  .gate { display:grid; grid-template-columns:auto minmax(18px,1fr) auto minmax(18px,1fr) auto minmax(18px,1fr) auto minmax(18px,1fr) auto; align-items:center; min-width:0; }
+  .gate .stage { display:flex; align-items:center; gap:9px; min-width:0; margin:0; padding:6px 8px; border:1px solid transparent; border-radius:4px; background:transparent; color:var(--pytxo-text-body); text-align:left; }
+  .gate .stage .mark { display:grid; place-items:center; flex:none; width:26px; height:26px; border:1px solid currentColor; border-radius:3px; font:600 13px var(--pytxo-font-mono); }
+  .gate .stage.open .mark { border-style:dashed; }
+  .stage-text { display:grid; gap:2px; min-width:0; }
+  .stage-text strong { font:500 12.5px var(--pytxo-font-ui); color:var(--pytxo-text-strong); white-space:nowrap; }
+  .stage-text small { color:var(--pytxo-text-muted); font:11px var(--pytxo-font-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gate .stage.fail .stage-text strong { color:var(--state-refuted); }
+  .gate button.stage { min-height:0; justify-content:flex-start; font:inherit; }
+  .gate button.stage:hover, .gate details.stage > summary:hover { background:var(--pytxo-surface-hover); }
+  .gate details.stage { padding:0; }
+  .gate details.stage > summary { display:flex; align-items:center; gap:9px; padding:6px 8px; border-radius:4px; cursor:pointer; list-style:none; }
+  .gate details.stage > summary::-webkit-details-marker { display:none; }
+  .gate details.stage[open] { position:relative; }
+  .node-pop { position:absolute; top:calc(100% + 6px); left:0; z-index:4; display:grid; gap:6px; width:min(46ch,60vw); padding:10px 12px; border:1px solid var(--pytxo-line); border-radius:4px; background:var(--pytxo-surface-raised); box-shadow:0 12px 30px -18px rgba(0,0,0,.6); }
+  .destination-node .node-pop { left:auto; right:0; }
+  .node-pop code { color:var(--pytxo-text-body); font:11px/1.5 var(--pytxo-font-mono); overflow-wrap:anywhere; }
+  .node-pop p { margin:0; color:var(--pytxo-text-soft); font-size:11px; line-height:1.5; }
+  .project-stage .tui-spin { width:1ch; }
+  /* A wire is a run of box-drawing dashes; lit wires carry a highlight toward the project. */
+  .wire { position:relative; height:16px; min-width:0; overflow:hidden; color:var(--pytxo-line); font:12px/16px var(--pytxo-font-mono); white-space:nowrap; }
+  .wire::before { content:"──────────────────────────────────────────────────────"; }
+  .wire::after { content:"▸"; position:absolute; right:0; top:0; padding-left:2px; background:var(--pytxo-work-canvas); }
+  .wire.lit { color:color-mix(in srgb,var(--state-verified) 62%,var(--pytxo-line)); }
+  .gate-open .wire.lit::before { background:linear-gradient(90deg,transparent 0 40%,var(--state-verified) 50%,transparent 60% 100%) 0 0 / 300% 100%, color-mix(in srgb,var(--state-verified) 55%,var(--pytxo-line)); -webkit-background-clip:text; background-clip:text; color:transparent; animation:wire-flow 2.4s linear infinite; }
+  .gate-open .wire:nth-of-type(2)::before { animation-delay:.3s; } .gate-open .wire:nth-of-type(3)::before { animation-delay:.6s; } .gate-open .wire:nth-of-type(4)::before { animation-delay:.9s; }
+  @keyframes wire-flow { from { background-position:100% 0, 0 0; } to { background-position:0 0, 0 0; } }
+  .map-boundary { display:flex; align-items:stretch; gap:10px; min-width:0; padding:4px 0 4px 6px; }
+  .map-boundary .decision-aperture { height:auto; min-height:40px; }
+  .destination-node { position:relative; min-width:0; }
+  .destination-node summary { display:grid; gap:2px; cursor:pointer; list-style:none; }
+  .destination-node summary::-webkit-details-marker { display:none; }
+  .destination-node summary strong { font:500 12.5px var(--pytxo-font-ui); color:var(--pytxo-text-strong); }
+  .destination-node summary>span:last-child { color:var(--pytxo-text-soft); font:11px var(--pytxo-font-mono); }
+  .map-boundary.applied .destination-node summary>span:last-child { color:var(--state-verified); }
+  .landed .wire::before { color:var(--state-verified); animation:wire-land .9s ease-out both; }
+  .landed .map-boundary .decision-aperture { animation:aperture-land 1.2s ease-out; }
+  @keyframes wire-land { from { clip-path:inset(0 100% 0 0); } to { clip-path:inset(0 0 0 0); } }
+  @keyframes aperture-land { 0%,40% { box-shadow:none; } 60% { box-shadow:0 0 0 3px color-mix(in srgb,var(--state-verified) 40%,transparent), 0 0 18px var(--state-verified); } 100% { box-shadow:none; } }
+  .map-caption { display:flex; justify-content:flex-end; padding:0 12px 4px; }
+  .map-caption button { min-height:18px; padding:0; border:0; background:transparent; color:var(--pytxo-text-soft); font:11px var(--pytxo-font-mono); }
+  .map-caption button:hover:not(:disabled) { background:transparent; color:var(--pytxo-text-strong); }
+  .candidate-context :is(button,summary):focus-visible { outline:2px solid var(--pytxo-accent); outline-offset:2px; }
+  @container run-review (max-width:1180px) {
+    /* The file list sits right below; at this width the gate keeps the row to itself. */
+    .candidate-context { grid-template-columns:minmax(0,1fr); padding-top:8px; }
+    .formation-files, .convergence { display:none; }
+  }
+  @container run-review (max-width:760px) {
+    .gate { grid-template-columns:minmax(0,1fr); }
+    .wire { height:10px; margin-left:20px; width:1px; background:var(--pytxo-line); }
+    .wire.lit { background:color-mix(in srgb,var(--state-verified) 62%,var(--pytxo-line)); }
+    .wire::before, .wire::after { content:none; }
+  }
+  @media (max-height:800px) { .convergence { height:64px; } .gate .stage .mark { width:22px; height:22px; } }
+  @media (prefers-reduced-motion: reduce) { .gate-open .wire.lit::before, .landed .wire::before, .landed .map-boundary .decision-aperture { animation:none; } }
+  :global([data-force-reduced-motion]) .gate-open .wire.lit::before, :global([data-force-reduced-motion]) .landed .wire::before { animation:none; }
 </style>

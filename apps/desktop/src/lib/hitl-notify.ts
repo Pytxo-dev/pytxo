@@ -23,3 +23,10 @@ export async function notifyHitlIfNeeded(count: number, actions: string[]): Prom
     body: preview,
   });
 }
+
+/** One system notification per finished run, so a fleet left running in the background reports back. */
+export async function notifyRunFinished(title: string, body: string): Promise<void> {
+  let granted = await isPermissionGranted();
+  if (!granted) granted = (await requestPermission()) === "granted";
+  if (granted) await sendNotification({ title, body });
+}
