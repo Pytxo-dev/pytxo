@@ -74,7 +74,9 @@ test("completion reads final output without claiming unconfigured checks", async
   });
   const board = page.getByTestId("fleet-board");
   await expect(board.getByText("FINAL OUTPUT", { exact: true })).toHaveCount(2);
-  await expect(board.locator(".state")).toHaveText(["Completed", "Completed"]);
+  // The terminal legend says "completed", never "passed", when no task checks ran.
+  await expect(board.locator(".state")).toHaveText([/completed/, /completed/]);
+  await expect(board.locator(".state")).not.toContainText(["passed", "passed"]);
   await expect(board.locator(".facts")).toContainText("No task checks configured");
   await expect(board).not.toContainText("Checks passed");
 });
