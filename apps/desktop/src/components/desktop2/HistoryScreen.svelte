@@ -379,4 +379,25 @@
     .outcome-heading h2 { font-size:21px; }
     .recorded-trace { padding:14px; }
   }
+
+  /* Terminal ledger: one glyph per run for its worst recorded state, mono
+     metadata, and the trace drawn as a rail. */
+  .run-navigator, .outcome-inspector { border-radius:6px; }
+  .run-navigator>header h2 { font:600 11.5px var(--pytxo-font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--pytxo-text-strong); }
+  .run-navigator>header span, .row time, .row-states { font-family:var(--pytxo-font-mono); font-size:11px; }
+  .row { position:relative; padding-left:36px; }
+  .row::before { position:absolute; left:13px; top:15px; content:"○"; color:var(--state-unknown); font:600 12px var(--pytxo-font-mono); }
+  .row[data-tone="verified"]::before { content:"✓"; color:var(--state-verified); }
+  .row[data-tone="refuted"]::before { content:"✗"; color:var(--state-refuted); }
+  .row[data-tone="claimed"]::before { content:"◐"; color:var(--state-claimed, var(--state-attention)); }
+  .row[data-tone="active"]::before { content:"▸"; color:var(--live); }
+  .row-states>span+span::before { content:"· "; color:var(--pytxo-text-muted); }
+  .outcome-label small, .lane-label { font-family:var(--pytxo-font-mono); font-weight:500; letter-spacing:.06em; }
+  .recorded-trace header h3 { font:600 11.5px var(--pytxo-font-mono); letter-spacing:.08em; text-transform:uppercase; }
+  .trace-lane button { border:1px solid var(--pytxo-line-soft); border-radius:4px; background:transparent; }
+  .trace-lane button::before { top:-5px; border-radius:0; transform:rotate(45deg); }
+  .trace-lane:first-of-type button { border:0; }
+  .trace-lane button small { font-family:var(--pytxo-font-mono); }
+  .file code, .check code { color:var(--pytxo-text-body); }
+  .file span { font:11px var(--pytxo-font-mono); }
 </style>
