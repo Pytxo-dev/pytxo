@@ -42,7 +42,7 @@ export function Hero() {
         <div className="overflow-hidden rounded-xl border border-white/10 shadow-[0_40px_120px_-40px_rgba(62,224,208,0.25)]">
           <HeroFleet alt="Pytxo Work view of one request split across agents: a fleet monitor with an ASCII scope and activity lines, Codex, Claude Code, Cursor Agent and OpenCode working in parallel, a second Codex task waiting on a file Claude Code owns, and Antigravity queued for the README" />
         </div>
-        <figcaption className="mt-3 text-center text-sm text-[#aaaab3]">One request, five agents, each in its own copy of the project. A task that shares a file waits for the agent that owns it. Pytxo Desktop playing a sample run; real runs take minutes.</figcaption>
+        <figcaption className="mt-3 text-center text-sm text-[#aaaab3]">One request, five agents, each in its own copy of the project. A task that shares a file waits for the agent that owns it; the combined change is checked, reviewed and applied. Pytxo Desktop playing a sample run; real runs take minutes.</figcaption>
       </figure>
     </div>
   </section>;
