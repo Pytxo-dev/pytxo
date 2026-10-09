@@ -2,7 +2,7 @@
 // PytxoLive shot list. Every shot is a range of the real recording; speed only
 // shortens waits and is disclosed on screen as "sped up".
 //   node scripts/live-cut.mjs <journey-dir>
-// Copies screen.mp4 and result.mp4 into public/live and writes live-cut.json.
+// Cuts each shot from screen.mkv into public/live (plus result.mp4 unless --no-result) and writes live-cut.json.
 import {execFileSync} from "node:child_process";
 import {existsSync, mkdirSync, readFileSync, writeFileSync} from "node:fs";
 import path from "node:path";
@@ -29,7 +29,7 @@ const focus = (p, w = 760, h = 430) => p ? {x: Math.max(0, Math.min(W - w, p.x -
 
 const newWork = hoverOf("New work");
 const request = hoverOf("Request");
-const firstAgent = clicks.find((p) => p.kind === "hover" && ["Claude Code", "Cursor Agent", "OpenCode", "Antigravity"].includes(p.label));
+const firstAgent = clicks.find((p) => p.kind === "hover" && ["OpenAI Codex", "Claude Code", "Cursor Agent", "OpenCode", "Antigravity"].includes(p.label));
 const build = hoverOf("Build plan");
 const run = hoverOf("Run");
 const review = hoverOf("Review changes");
@@ -45,7 +45,7 @@ const shots = [
   {start: firstAgent.t - 0.4, end: build.t + 0.8, kicker: "Choose agents", title: "Put every agent you use on the job.", focus: focus(firstAgent, 900, 506), target: 4.6, cap: 3},
   {start: m.plan - 0.2, end: run.t + 1.0, kicker: "Plan", title: "See the plan before anything runs.", focus: null, target: 4.0, cap: 3},
   ...(m.dragged ? [{start: m.dragged - 2.6, end: m.dragged + 1.2, kicker: "Fleet", title: "Every worker, on one canvas you can move.", focus: null, target: 4.6, cap: 1.5}] : []),
-  {start: (m.dragged ?? m.fleet ?? m.run) + 3, end: m.settled + 2, kicker: "Fleet", title: "They work side by side, in isolated copies.", focus: null, sped: true, target: 4.4, cap: 12},
+  {start: (m.dragged ?? m.fleet ?? m.run) + 3, end: m.settled + 2, kicker: "Fleet", title: "They work side by side, in isolated copies.", focus: null, sped: true, target: 5.0, cap: 160},
   {start: review.t - 0.4, end: (m.read ?? m.review + 3) + 0.8, kicker: "Review", title: "Read every change and its checks.", focus: null, target: 4.6, cap: 2.5},
   {start: apply1.t - 0.4, end: m.stale + 2.6, kicker: "Stale", title: "Something changed? Apply refuses.", focus: null, target: 5.4, cap: 2.2},
   {start: refresh.t - 0.4, end: m.applied + 2.2, kicker: "Apply", title: "Refresh, then Apply the exact reviewed bytes.", focus: null, sped: m.applied - refresh.t > 9, target: 5.0, cap: 6},
@@ -59,10 +59,10 @@ const shots = [
 });
 for (const s of shots) if (!(s.end > s.start)) throw new Error(`Empty shot: ${s.title}`);
 
-execFileSync("ffmpeg", ["-v", "error", "-y", "-i", path.join(dir, "screen.mkv"), "-vf", "setpts=PTS-STARTPTS,fps=60", "-c:v", "libx264", "-preset", "slow", "-crf", "14", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-g", "30", path.join(out, "screen.mp4")]);
-// Each shot also gets its own short clip, already at its cut speed (keyframe every 10 frames), so renders never seek the long take.
+// Each shot gets its own short clip, already at its cut speed (keyframe every 10 frames), so renders never seek the long take.
 shots.forEach((s, i) => {
-  execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", s.start.toFixed(3), "-to", s.end.toFixed(3), "-i", path.join(out, "screen.mp4"), "-an", "-vf", `setpts=(PTS-STARTPTS)/${s.speed.toFixed(4)},fps=60,tpad=stop_mode=clone:stop_duration=0.5`, "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-g", "10", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path.join(out, `shot${i}.mp4`)]);
+  // Input seeking on the take itself (offsets are relative to its first frame); no full re-encode.
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", s.start.toFixed(3), "-to", s.end.toFixed(3), "-i", path.join(dir, "screen.mkv"), "-an", "-vf", `setpts=(PTS-STARTPTS)/${s.speed.toFixed(4)},fps=60,tpad=stop_mode=clone:stop_duration=0.5`, "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-g", "10", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path.join(out, `shot${i}.mp4`)]);
   s.clip = `live/shot${i}.mp4`;
 });
 let result = null;
@@ -72,5 +72,5 @@ if (existsSync(path.join(dir, "result-frames.txt"))) {
 }
 
 const pointer = clicks.filter((p) => p.x !== undefined || p.kind === "click").map(({t, kind, x, y, label}) => ({t, kind, x, y, label}));
-writeFileSync("live-cut.json", JSON.stringify({width: W, height: H, video: "live/screen.mp4", result, lead: receipt.lead ?? null, shots, pointer, marks: m}, null, 2) + "\n");
+writeFileSync("live-cut.json", JSON.stringify({width: W, height: H, result: process.argv.includes("--no-result") ? null : result, lead: receipt.lead ?? null, shots, pointer, marks: m}, null, 2) + "\n");
 console.log(`${shots.length} shots from a ${W}x${H} take; ${pointer.length} pointer events`);

@@ -49,21 +49,40 @@ async function press(locator, label) {
   await locator.click();
 }
 
+// Live agents choose their own markup, so each control is found by what it does, and a
+// feature that did not land is skipped rather than failing the recording.
+const first = async (...selectors) => {
+  for (const selector of selectors) {
+    const locator = page.locator(selector).first();
+    if (await locator.count().catch(() => 0)) return locator;
+  }
+  return null;
+};
+
 try {
   await page.goto(`http://127.0.0.1:${server.address().port}/index.html`);
   await page.locator("#tasks li").first().waitFor();
   report.marks.result = Date.now();
   await page.waitForTimeout(1500);
-  await press(page.locator("#language-switch"), "Language");
-  await page.locator("#language-switch").selectOption("es");
-  await page.waitForFunction(() => document.documentElement.lang === "es");
-  await page.waitForTimeout(1200);
-  const input = page.locator("#new-task input");
-  await press(input, "New task");
-  await input.pressSequentially("Publicar la versión beta", { delay: 45 });
-  await press(page.locator("#new-task button"), "Add");
-  await page.waitForTimeout(800);
-  await press(page.locator("#tasks input[type=checkbox]").last(), "Done");
+  const language = await first("#language-switch", "select:has(option[value=es])");
+  const spanish = language ? null : await first("button:has-text('Español')", "button:has-text('ES')", "[data-lang=es]");
+  if (language || spanish) {
+    await press(language ?? spanish, "Language");
+    if (language) await language.selectOption("es");
+    await page.waitForFunction(() => document.documentElement.lang === "es", null, { timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(1200);
+  }
+  const es = await page.evaluate(() => document.documentElement.lang === "es");
+  const input = await first("#new-task input", "form input[type=text]", "form input:not([type])");
+  if (input) {
+    await press(input, "New task");
+    await input.pressSequentially(es ? "Publicar la versión beta" : "Ship the beta", { delay: 45 });
+    const add = await first("#new-task button", "form button");
+    if (add) await press(add, "Add"); else await input.press("Enter");
+    await page.waitForTimeout(800);
+  }
+  const done = page.locator("#tasks input[type=checkbox]").last();
+  if (await done.count()) await press(done, "Done");
   await page.waitForTimeout(1500);
   await page.screenshot({ path: path.join(out, "result.png") });
   report.lang = await page.evaluate(() => document.documentElement.lang);

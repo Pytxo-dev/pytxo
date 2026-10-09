@@ -1,5 +1,27 @@
 # Pytxo product demo
 
+## Live film v8 - October 10
+
+Current direction: **`PytxoLive`** cut from one native journey take of the
+released v1.2.4 Desktop (live take 2, `D:/pytxo-native-acceptance/film-124-live2`):
+Claude Code splits a one-paragraph request into 7 owned tasks; Claude Code,
+Codex and Cursor Agent run them; Review, stale refusal, refresh and Apply are
+the real recorded UI. The pointer is redrawn from the take's telemetry. Waits
+are shortened and labelled "sped up"; the fleet beat is a time-lapse of the
+whole 11-minute run. The result-app segment is left out (`--no-result`): the
+applied app has integration bugs that the agents' tests did not catch.
+
+```powershell
+# take (drives the real pointer; leave the machine alone ~20 min)
+tooling/acceptance/run-local.ps1 -Exe <released exe> -Evidence <dir> -Python <venv python> `
+  -Film -Live -Split -Lead "Claude Code" -Team "OpenAI Codex,Cursor Agent"
+node scripts/live-cut.mjs <dir>/journey --no-result
+./scripts/render-live.ps1 -Out out/pytxo-live-v8.mp4 -Fresh
+```
+
+Audio (`public/live/audio/`: ElevenLabs voiceover, CC0 music and effects) is
+ignored by git and was copied from the v7 working set.
+
 ## Motion recut with CC0 audio - October 3
 
 Current direction: **`PytxoMotionFilm`**, a 50-second connected motion edit

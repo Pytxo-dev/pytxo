@@ -42,6 +42,7 @@ parser.add_argument("--film", action="store_true")
 parser.add_argument("--split", action="store_true")
 args = parser.parse_args()
 
+BETA_AGENTS = ["OpenAI Codex", "Claude Code", "Cursor Agent", "OpenCode", "Antigravity"]
 out = Path(args.out)
 out.mkdir(parents=True, exist_ok=True)
 now_ms = lambda: round(time.time() * 1000)
@@ -113,6 +114,37 @@ def glide(x, y, seconds=0.5):
     ctypes.windll.user32.SetCursorPos(round(x), round(y))
 
 
+def owner_at(x, y):
+    """Process that owns the top-level window under screen point (x, y)."""
+    user32 = ctypes.windll.user32
+    user32.WindowFromPoint.restype = ctypes.wintypes.HWND
+    user32.GetAncestor.restype = ctypes.wintypes.HWND
+    root = user32.GetAncestor(user32.WindowFromPoint(ctypes.wintypes.POINT(round(x), round(y))), 2)
+    pid = ctypes.wintypes.DWORD()
+    user32.GetWindowThreadProcessId(root, ctypes.byref(pid))
+    return pid.value
+
+
+def guard(x, y):
+    """The journey drives the real pointer: never click or type into another app that came on top."""
+    for _ in range(3):
+        if owner_at(x, y) == win.process_id():
+            return
+        win.set_focus()
+        time.sleep(0.8)
+    raise RuntimeError(f"Another window covers Pytxo at ({x}, {y}); stopped before clicking it")
+
+
+def covers(element, x, y):
+    """True when the UI Automation element at (x, y) is the element or lies inside it."""
+    try:
+        found = Desktop(backend="uia").from_point(x, y).rectangle()
+    except Exception:
+        return True
+    box = element.rectangle()
+    return found.left >= box.left - 1 and found.top >= box.top - 1 and found.right <= box.right + 1 and found.bottom <= box.bottom + 1
+
+
 def press(target, label, timeout=60, settle=0.4, surface="desktop", click=True):
     element = target.wait("visible enabled", timeout=timeout)
     try:
@@ -121,9 +153,18 @@ def press(target, label, timeout=60, settle=0.4, surface="desktop", click=True):
     except Exception:
         pass
     middle = element.rectangle().mid_point()
+    # ScrollIntoView can leave a control under a sticky bar (New work's Split / Build plan
+    # footer); scroll on until the control itself is what sits under its middle.
+    for _ in range(4):
+        if covers(element, middle.x, middle.y):
+            break
+        mouse.scroll(coords=(middle.x, middle.y), wheel_dist=-2)
+        time.sleep(0.4)
+        middle = element.rectangle().mid_point()
     receipt["pointer"].append({"t": now_ms(), "kind": "hover", "label": label, "x": middle.x, "y": middle.y, "surface": surface})
     glide(middle.x, middle.y)
     time.sleep(settle)
+    guard(middle.x, middle.y)
     if click:
         receipt["pointer"].append({"t": now_ms(), "kind": "click", "label": label, "surface": surface})
         mouse.click(coords=(middle.x, middle.y))
@@ -132,6 +173,12 @@ def press(target, label, timeout=60, settle=0.4, surface="desktop", click=True):
 
 def type_text(text, pause=0.008):
     """Types like a keyboard; pywinauto's send_keys syntax characters are escaped."""
+    user32 = ctypes.windll.user32
+    user32.GetForegroundWindow.restype = ctypes.wintypes.HWND
+    pid = ctypes.wintypes.DWORD()
+    user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(pid))
+    if pid.value != win.process_id():
+        raise RuntimeError("Another app has the keyboard; stopped before typing into it")
     escaped = re.sub(r"([+^%~(){}\[\]])", r"{\1}", text).replace("\n", "{ENTER}")
     send_keys(escaped, with_spaces=True, pause=pause)
 
@@ -330,9 +377,15 @@ try:
             step("split")
             time.sleep(2.5)
         # New work starts with every ready agent on the team: point at each, tick only the missing ones.
-        for name in [entry.strip() for entry in args.team.split(",") if entry.strip()]:
+        team = [entry.strip() for entry in args.team.split(",") if entry.strip()]
+        for name in team:
             box = spec(name, control_type="CheckBox")
             press(box, name, settle=0.2, click=box.wait("visible", timeout=30).get_toggle_state() != 1)
+        # A ready agent left off the team (say, one signed in to a model that cannot edit) is unticked.
+        for name in BETA_AGENTS:
+            box = spec(name, control_type="CheckBox")
+            if name not in team and name != args.lead and present(box, 2) and box.wrapper_object().get_toggle_state() == 1:
+                press(box, name, settle=0.2)
         press(spec("Build plan", control_type="Button"), "Build plan")
         heading = wait(spec(title_re="^(Review plan|Plan blocked|Plan needs verification)$"), 180).window_text()
         mark("plan")
@@ -361,6 +414,7 @@ try:
                 x, y = area.left + area.width() // 2, area.top + area.height() // 3
                 glide(x, y, 0.6)
                 receipt["pointer"].append({"t": now_ms(), "kind": "drag", "label": "Canvas", "x": x, "y": y, "surface": "desktop"})
+                guard(x, y)
                 mouse.press(coords=(x, y))
                 glide(x - 260, y + 90, 1.2)
                 mouse.release(coords=(x - 260, y + 90))
@@ -386,6 +440,7 @@ try:
             middle = changes.wrapper_object().rectangle().mid_point()
             receipt["pointer"].append({"t": now_ms(), "kind": "hover", "label": "Changes", "x": middle.x, "y": middle.y, "surface": "desktop"})
             glide(middle.x, middle.y, 0.7)
+            guard(middle.x, middle.y)
             for _ in range(4):
                 mouse.scroll(coords=(middle.x, middle.y), wheel_dist=-3)
                 time.sleep(0.65)

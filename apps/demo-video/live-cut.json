@@ -1,411 +1,418 @@
 {
   "width": 1920,
   "height": 1020,
-  "video": "live/screen.mp4",
-  "result": "live/result.mp4",
+  "result": null,
+  "lead": "Claude Code",
   "shots": [
     {
-      "start": 42.004,
-      "end": 55.315,
-      "speed": 3.169285714285714,
+      "start": 176.386,
+      "end": 193.186,
       "kicker": "01 · Describe",
       "title": "Say what you want, once.",
       "focus": {
         "x": 179,
-        "y": 211,
+        "y": 271,
         "w": 1100,
         "h": 620
       },
+      "speed": 4,
       "clip": "live/shot0.mp4"
     },
     {
-      "start": 67.25,
-      "end": 81.05,
-      "speed": 2.9999999999999996,
-      "kicker": "02 · Choose agents",
-      "title": "Put every agent you use on the job.",
-      "focus": {
-        "x": 122,
-        "y": 514,
-        "w": 900,
-        "h": 506
-      },
+      "start": 223.727,
+      "end": 303.679,
+      "kicker": "02 · Split",
+      "title": "Claude Code reads the project and splits the job.",
+      "focus": null,
+      "sped": true,
+      "speed": 18.17090909090908,
       "clip": "live/shot1.mp4"
     },
     {
-      "start": 84.396,
-      "end": 91.68,
-      "speed": 1.8210000000000015,
-      "kicker": "03 · Plan",
-      "title": "See the plan before anything runs.",
-      "focus": null,
+      "start": 354.017,
+      "end": 367.817,
+      "kicker": "03 · Choose agents",
+      "title": "Put every agent you use on the job.",
+      "focus": {
+        "x": 0,
+        "y": 403,
+        "w": 900,
+        "h": 506
+      },
+      "speed": 3,
       "clip": "live/shot2.mp4"
     },
     {
-      "start": 108.248,
-      "end": 112.048,
-      "speed": 1,
-      "kicker": "04 · Fleet",
-      "title": "Every worker, on one canvas you can move.",
+      "start": 382.594,
+      "end": 394.594,
+      "kicker": "04 · Plan",
+      "title": "See the plan before anything runs.",
       "focus": null,
+      "speed": 3,
       "clip": "live/shot3.mp4"
     },
     {
-      "start": 113.848,
-      "end": 164.795,
-      "speed": 11.578863636363632,
-      "kicker": "04 · Fleet",
-      "title": "They work side by side, in isolated copies.",
+      "start": 430.53799999999995,
+      "end": 434.33799999999997,
+      "kicker": "05 · Fleet",
+      "title": "Every worker, on one canvas you can move.",
       "focus": null,
-      "sped": true,
+      "speed": 1,
       "clip": "live/shot4.mp4"
     },
     {
-      "start": 169.82600000000002,
-      "end": 181.32600000000002,
-      "speed": 2.5,
-      "kicker": "05 · Review",
-      "title": "Read every change and its checks.",
+      "start": 436.138,
+      "end": 1047.555,
+      "kicker": "05 · Fleet",
+      "title": "They work side by side, in isolated copies.",
       "focus": null,
+      "sped": true,
+      "speed": 122.28340000000003,
       "clip": "live/shot5.mp4"
     },
     {
-      "start": 185.972,
-      "end": 193.638,
-      "speed": 1.419629629629629,
-      "kicker": "06 · Stale",
-      "title": "Something changed? Apply refuses.",
+      "start": 1073.033,
+      "end": 1084.533,
+      "kicker": "06 · Review",
+      "title": "Read every change and its checks.",
       "focus": null,
+      "speed": 2.5,
       "clip": "live/shot6.mp4"
     },
     {
-      "start": 196.162,
-      "end": 222.414,
-      "speed": 5.250399999999996,
-      "kicker": "07 · Apply",
+      "start": 1110.7859999999998,
+      "end": 1122.666,
+      "kicker": "07 · Stale",
+      "title": "Something changed? Apply refuses.",
+      "focus": null,
+      "speed": 2.2,
+      "clip": "live/shot7.mp4"
+    },
+    {
+      "start": 1150.844,
+      "end": 1180.844,
+      "kicker": "08 · Apply",
       "title": "Refresh, then Apply the exact reviewed bytes.",
       "focus": null,
       "sped": true,
-      "clip": "live/shot7.mp4"
+      "speed": 6,
+      "clip": "live/shot8.mp4"
     }
   ],
   "pointer": [
     {
-      "t": 4.897,
+      "t": 12.906,
       "kind": "hover",
       "x": 960,
       "y": 794,
       "label": "Get started"
     },
     {
-      "t": 5.803,
+      "t": 16.325,
       "kind": "click",
       "label": "Get started"
     },
     {
-      "t": 11.009,
+      "t": 33.704,
       "kind": "hover",
       "x": 736,
-      "y": 858,
+      "y": 869,
       "label": "Continue"
     },
     {
-      "t": 11.913,
+      "t": 37.026,
       "kind": "click",
       "label": "Continue"
     },
     {
-      "t": 14.382,
+      "t": 45.242,
       "kind": "hover",
       "x": 960,
       "y": 526,
       "label": "Select folder"
     },
     {
-      "t": 15.287,
+      "t": 48.625,
       "kind": "click",
       "label": "Select folder"
     },
     {
-      "t": 21.71,
+      "t": 66.054,
       "kind": "hover",
       "x": 569,
       "y": 515,
       "label": "Folder"
     },
     {
-      "t": 22.618,
+      "t": 69.395,
       "kind": "click",
       "label": "Folder"
     },
     {
-      "t": 28.62,
+      "t": 86.725,
       "kind": "hover",
       "x": 738,
       "y": 553,
       "label": "Select Folder"
     },
     {
-      "t": 29.529,
+      "t": 90.144,
       "kind": "click",
       "label": "Select Folder"
     },
     {
-      "t": 36.937,
+      "t": 115.825,
       "kind": "hover",
       "x": 737,
       "y": 698,
       "label": "Enter Pytxo Desktop"
     },
     {
-      "t": 37.843,
+      "t": 120.893,
       "kind": "click",
       "label": "Enter Pytxo Desktop"
     },
     {
-      "t": 42.604,
+      "t": 140.342,
       "kind": "hover",
-      "x": 832,
-      "y": 477,
+      "x": 1075,
+      "y": 667,
       "label": "New work"
     },
     {
-      "t": 43.513,
+      "t": 144.82,
       "kind": "click",
       "label": "New work"
     },
     {
-      "t": 46.243,
+      "t": 174.274,
       "kind": "hover",
       "x": 729,
-      "y": 521,
+      "y": 581,
       "label": "Request"
     },
     {
-      "t": 47.148,
+      "t": 183.095,
       "kind": "click",
       "label": "Request"
     },
     {
-      "t": 59.069,
+      "t": 209.372,
       "kind": "hover",
-      "x": 1724,
-      "y": 172,
+      "x": 909,
+      "y": 251,
       "label": "Agent CLI"
     },
     {
-      "t": 59.978,
+      "t": 212.823,
       "kind": "click",
       "label": "Agent CLI"
     },
     {
-      "t": 63.847,
+      "t": 224.127,
       "kind": "hover",
-      "x": 572,
-      "y": 813,
-      "label": "Claude Code"
+      "x": 953,
+      "y": 906,
+      "label": "Split"
     },
     {
-      "t": 64.553,
+      "t": 227.549,
       "kind": "click",
-      "label": "Claude Code"
+      "label": "Split"
     },
     {
-      "t": 68.399,
-      "kind": "hover",
-      "x": 788,
-      "y": 813,
-      "label": "Cursor Agent"
-    },
-    {
-      "t": 69.103,
-      "kind": "click",
-      "label": "Cursor Agent"
-    },
-    {
-      "t": 72.798,
-      "kind": "hover",
-      "x": 1006,
-      "y": 813,
-      "label": "OpenCode"
-    },
-    {
-      "t": 73.507,
-      "kind": "click",
-      "label": "OpenCode"
-    },
-    {
-      "t": 77.241,
+      "t": 317.572,
       "kind": "hover",
       "x": 299,
-      "y": 868,
+      "y": 656,
+      "label": "OpenAI Codex"
+    },
+    {
+      "t": 320.748,
+      "kind": "click",
+      "label": "OpenAI Codex"
+    },
+    {
+      "t": 334.041,
+      "kind": "hover",
+      "x": 788,
+      "y": 656,
+      "label": "Cursor Agent"
+    },
+    {
+      "t": 355.682,
+      "kind": "hover",
+      "x": 742,
+      "y": 711,
       "label": "Antigravity"
     },
     {
-      "t": 77.946,
+      "t": 358.781,
       "kind": "click",
       "label": "Antigravity"
     },
     {
-      "t": 80.25,
+      "t": 367.017,
       "kind": "hover",
       "x": 1124,
       "y": 906,
       "label": "Build plan"
     },
     {
-      "t": 81.157,
+      "t": 370.364,
       "kind": "click",
       "label": "Build plan"
     },
     {
-      "t": 90.68,
+      "t": 393.594,
       "kind": "hover",
       "x": 1808,
-      "y": 424,
+      "y": 484,
       "label": "Run"
     },
     {
-      "t": 91.587,
+      "t": 396.938,
       "kind": "click",
       "label": "Run"
     },
     {
-      "t": 104.775,
+      "t": 420.595,
       "kind": "hover",
       "x": 1802,
       "y": 236,
       "label": "Canvas"
     },
     {
-      "t": 105.681,
+      "t": 424.043,
       "kind": "click",
       "label": "Canvas"
     },
     {
-      "t": 109.428,
+      "t": 429.156,
       "kind": "drag",
       "x": 1075,
       "y": 495,
       "label": "Canvas"
     },
     {
-      "t": 116.663,
+      "t": 443.272,
       "kind": "hover",
-      "x": 1538,
+      "x": 1533,
       "y": 236,
       "label": "Fleet"
     },
     {
-      "t": 117.569,
+      "t": 446.715,
       "kind": "click",
       "label": "Fleet"
     },
     {
-      "t": 168.674,
+      "t": 1057.187,
       "kind": "hover",
-      "x": 1669,
+      "x": 1653,
       "y": 156,
       "label": "Review changes"
     },
     {
-      "t": 169.579,
+      "t": 1060.539,
       "kind": "click",
       "label": "Review changes"
     },
     {
-      "t": 176.809,
+      "t": 1077.555,
       "kind": "hover",
       "x": 1212,
-      "y": 789,
+      "y": 798,
       "label": "Changes"
     },
     {
-      "t": 186.372,
+      "t": 1102.504,
       "kind": "hover",
       "x": 1567,
       "y": 968,
       "label": "Apply reviewed changes"
     },
     {
-      "t": 187.277,
+      "t": 1105.937,
       "kind": "click",
       "label": "Apply reviewed changes"
     },
     {
-      "t": 189.996,
+      "t": 1114.55,
       "kind": "hover",
       "x": 1116,
       "y": 597,
       "label": "Apply exact package"
     },
     {
-      "t": 190.903,
+      "t": 1117.923,
       "kind": "click",
       "label": "Apply exact package"
     },
     {
-      "t": 196.562,
+      "t": 1131.48,
       "kind": "hover",
       "x": 1349,
-      "y": 911,
+      "y": 914,
       "label": "Refresh review"
     },
     {
-      "t": 197.47,
+      "t": 1134.763,
       "kind": "click",
       "label": "Refresh review"
     },
     {
-      "t": 213.763,
+      "t": 1160.938,
       "kind": "hover",
       "x": 1567,
       "y": 968,
       "label": "Apply reviewed changes"
     },
     {
-      "t": 214.665,
+      "t": 1164.413,
       "kind": "click",
       "label": "Apply reviewed changes"
     },
     {
-      "t": 217.169,
+      "t": 1173.029,
       "kind": "hover",
       "x": 1116,
       "y": 597,
       "label": "Apply exact package"
     },
     {
-      "t": 218.075,
+      "t": 1176.498,
       "kind": "click",
       "label": "Apply exact package"
     },
     {
-      "t": 226.523,
+      "t": 1190.787,
       "kind": "hover",
-      "x": 114,
+      "x": 108,
       "y": 336,
       "label": "History"
     },
     {
-      "t": 227.429,
+      "t": 1194.178,
       "kind": "click",
       "label": "History"
     }
   ],
   "marks": {
-    "typing": 47.264,
-    "typed": 54.915,
-    "plan": 84.596,
-    "run": 91.716,
-    "fleet": 99.741,
-    "dragged": 110.848,
-    "settled": 162.795,
-    "review": 171.304,
-    "read": 180.526,
-    "note": 183.938,
-    "stale": 191.038,
-    "refreshed": 209.66,
-    "applied": 220.214
+    "typing": 183.218,
+    "typed": 192.786,
+    "split_start": 227.668,
+    "split": 301.279,
+    "plan": 377.992,
+    "run": 397.058,
+    "fleet": 405.077,
+    "dragged": 433.138,
+    "settled": 1045.555,
+    "review": 1066.213,
+    "read": 1083.733,
+    "note": 1094.178,
+    "stale": 1120.066,
+    "refreshed": 1150.936,
+    "applied": 1178.644
   }
 }
