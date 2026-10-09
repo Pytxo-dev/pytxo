@@ -27,6 +27,9 @@
   });
   const angles = new Map<string, number>();
   let phase = 0, sweep = -Math.PI / 2;
+  // When the last live worker reports and every worker succeeded, the blips
+  // spiral into the core once and settle back: many agents, one change.
+  let wasLive = false, convergeAt = -1;
   // The loop reads the newest blips without restarting on every poll.
   let latest: Blip[] = [];
   $effect.pre(() => { latest = blips; });
@@ -85,8 +88,12 @@
       if (disposed || !context) return;
       const current = latest;
       const fleetLive = current.some((blip) => blip.tone === "live");
+      if (animate && wasLive && !fleetLive && current.length > 0 && current.every((blip) => blip.tone === "done")) convergeAt = time;
+      wasLive = fleetLive;
+      const settle = convergeAt >= 0 ? (time - convergeAt) / 1000 : Infinity;
+      const converging = settle < 2.1;
       const step = previous ? Math.min(time - previous, 100) / 1000 : 0;
-      if (animate && previous && time - previous < 1000 / (fleetLive ? 24 : 10)) { frame = requestAnimationFrame(draw); return; }
+      if (animate && previous && time - previous < 1000 / (fleetLive || converging ? 24 : 10)) { frame = requestAnimationFrame(draw); return; }
       previous = time;
       phase += step * (fleetLive ? .7 : .15);
       if (fleetLive) sweep += step * 1.6;
@@ -118,7 +125,8 @@
         const z = p.z * Math.cos(phase) - p.x * Math.sin(phase);
         if (z < -.1 || Math.abs(p.y - .46 * x) < .17) continue;
         const color = p.y < -.35 ? 0 : p.y < .25 ? 1 : x > .45 ? 3 : 2;
-        put(CX + x * 50, CY + p.y * 40, ".:+*=x"[Math.min(5, Math.floor((z + .1) * 5.4))], palette.glyph[color], .5 + .5 * Math.max(0, z), true);
+        const flash = settle > 1.2 && settle < 2.1 ? Math.sin(((settle - 1.2) / .9) * Math.PI) : 0;
+        put(CX + x * 50, CY + p.y * 40, ".:+*=x"[Math.min(5, Math.floor((z + .1) * 5.4 + flash * 2))], palette.glyph[color], Math.min(1, .5 + .5 * Math.max(0, z) + flash * .4), true);
       }
       const perRing = new Map<number, number>();
       for (const blip of current) perRing.set(blip.ring, (perRing.get(blip.ring) ?? 0) + 1);
@@ -130,15 +138,21 @@
         let angle = angles.get(blip.id) ?? home;
         if (blip.tone === "live") angle += step * (.55 - blip.ring * .1);
         angles.set(blip.id, angle);
+        const pull = settle < 1.3 ? Math.pow(settle / 1.3, 3) : 0;
+        const fade = settle < 1.3 ? 1 - pull * .4 : settle < 2.1 ? (settle - 1.3) / .8 : 1;
         const { rx, ry } = ringRadius(blip.ring);
-        const at = (a: number) => [CX + Math.cos(a) * rx, CY + Math.sin(a) * ry] as const;
+        const at = (a: number) => {
+          const spiral = a + pull * Math.PI * 1.5;
+          return [CX + Math.cos(spiral) * rx * (1 - pull), CY + Math.sin(spiral) * ry * (1 - pull)] as const;
+        };
         const color = palette[blip.tone === "settled" ? "queued" : blip.tone];
+        if (settle < 1.3) [1, 2, 3].forEach((k) => { const [x, y] = at(angle - k * .2 * (1 - pull)); put(x, y, k === 1 ? "•" : "·", color, (.6 - k * .15) * fade, true); });
         if (blip.tone === "live") ["•", "·", ".", "."].forEach((char, k) => { const [x, y] = at(angle - (k + 1) * .14); put(x, y, char, color, .7 - k * .15, true); });
         const near = fleetLive && Math.abs(((sweep - angle) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)) < .5;
         const [x, y] = at(angle);
-        put(x - cw, y, "[", color, blip.tone === "queued" ? .45 : .8, true);
-        put(x, y, blip.mark, color, blip.tone === "queued" ? .55 : near ? 1 : .92, true);
-        put(x + cw, y, "]", color, blip.tone === "queued" ? .45 : .8, true);
+        put(x - cw, y, "[", color, (blip.tone === "queued" ? .45 : .8) * fade, true);
+        put(x, y, blip.mark, color, (blip.tone === "queued" ? .55 : near ? 1 : .92) * fade, true);
+        put(x + cw, y, "]", color, (blip.tone === "queued" ? .45 : .8) * fade, true);
       }
       context.clearRect(0, 0, W, H);
       for (const [key, cell] of cells) {
