@@ -1,3 +1,22 @@
+# CHECKPOINT — Pytxo — 2026-10-11 (v1.3 "Land" built locally, not published)
+
+- Branch `mbcz/v1.3-land`, worktree `pytxo-business-strategy-5cfa4d`, from main
+  `e348669`. Spec `docs/superpowers/specs/2026-10-10-pytxo-v1-3-design.md`;
+  audit `docs/01-projects/v1-3-audit-2026-10-10.md`; ADR-0042; strategy note
+  `docs/01-projects/pytxo-business-strategy-2026-10-10.md`. LAUNCH.md top section
+  has the full check table and publication gates.
+- Decisions taken for Matt (spec §1): landing-layer focus; repo stays MIT; no public
+  Team price; Emergent Ventures first; login optional with perks; benchmark named
+  Pybench, run as `pytxo bench` (PyPI `pybench` exists).
+- Built: `pytxo land` + receipts + CLI review/apply + Pybench + account perks
+  (Link migration 020, CLI, Desktop, web) + site/docs repositioning + FAQ fix.
+- Checks: fmt, clippy pass; cargo test pass (1,120 + Desktop 78 after keyring fix; pytxo-runner owned-launch tests need the CI attempt-host pin and pass 225/225 with it); web 31/31; Desktop check clean,
+  e2e 419 + fixes; native pass: release exe 2135650D…, isolated PYTXO_HOME; Settings → Account renders, 0 console errors; sign-in via browser handoff + deep link + local Link stored in Windows Credential Manager; sign-out removed it; signed-out share explains the perk.
+- Not done / blocked: Link Postgres paths untested (no DB); Link and site not
+  deployed; nothing pushed; live `pytxo land` on a real agent repo pending.
+- Next prompt: "Authorize push for mbcz/v1.3-land, open the PR, then take 1.3.0 through
+  the release gates in LAUNCH.md."
+
 # CHECKPOINT — Pytxo — 2026-10-10 (business strategy research, no implementation)
 
 - Matt asked for a holistic market study and business/SaaS strategy. Output:
