@@ -22,10 +22,17 @@ parallel-agent crowd complains about: "10 agents = 10 branches to read".
 | 2 | Fresh candidate after Oct 5–6 UI changes | **Done** — candidate run 37651799067 at `15758b7`, acceptance 37652820730 passed | — |
 | 3 | Live vendor agents on the final artifact | **Done** — 2026-10-10, the released v1.2.4 MSI's exe (`CA123A4E…`, from an administrative extract of the mirror MSI): Claude Code split the paragraph into 7 owned tasks; Claude Code, Codex and Cursor Agent ran them live, 7/7 completed; 14 files reviewed = 14 applied; stale refusal, refresh, Apply `applied`; fixture tests 22/22 after Apply. Evidence `D:/pytxo-native-acceptance/film-124-live2` | Antigravity: no changes in live runs (headless tool permission auto-denied); OpenCode: its configured default model cannot use tools here. Separate task |
 | 4 | Source visibility | **Done: public (MIT)** — gitleaks clean; private vulnerability reporting, secret scanning + push protection, Dependabot alerts and fork-PR approval on | — |
-| 5 | Publication | **Done** — v1.2.4 tagged at `ca214bb` (PR #39); release run 37935040667 green; `pytxo-releases` mirror v1.2.4 (MSI + CLI checksums verified, CLI reports 1.2.4); npm `latest` 1.2.4. v1.2.3 and v1.2.2 before it | Site deployed 2026-10-10 (PR #40). Left: YouTube upload of film v8, Product Hunt submission, launch posts (Matt writes HN/Reddit) |
+| 5 | Publication | **Done** — v1.2.5 tagged at `03eb9cd` (PR #43); release run 38046963880 green; `pytxo-releases` mirror v1.2.5 (MSI + CLI checksums verified, CLI reports 1.2.5); npm `latest` 1.2.5; native check of the released exe passed. v1.2.4 (`ca214bb`) before it | Left: YouTube upload of film v8, Product Hunt submission, launch posts (Matt writes HN/Reddit) |
 
 ## Work log
 
+- 2026-10-10 — v1.2.5 published: New work fits small windows (sticky header and
+  bar no longer show text around them under compact density; no title gap,
+  plan cards and paths stay in the panel), one page-title size and weight
+  across destinations, New work in the sidebar header row, Saved requests in
+  the heading, Light theme request text and saved-request titles readable.
+  PRs #42 and #43; release run 38046963880; mirror checksums and npm verified;
+  native check of the released exe over WebView2 remote debugging passed.
 - 2026-10-10 — Gate 3 and the film take. pytxo.com deployed with the 1.2.4
   docs flip (PR #40, `f65a680`); live site serves the v1.2.4 MSI and hero clip.
   Stand-in rehearsal on the released exe passed (7/7 files). Live take 1
