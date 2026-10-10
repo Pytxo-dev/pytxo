@@ -1,5 +1,6 @@
 //! Pytxo Link — optional account/control API and provider-neutral commerce reconciliation.
 
+mod account;
 mod audit;
 mod auth;
 mod commerce;
@@ -579,7 +580,9 @@ async fn main() {
         panic!("routing grants require LINK_ROUTING_TOKEN_EXPERIMENT=1");
     }
 
+    let accounts = account::AccountStore::from_state_parts(db.as_ref(), require_auth);
     let state = AppState {
+        accounts,
         api_key,
 
         admin_key: std::env::var("LINK_ADMIN_KEY")
@@ -776,6 +779,24 @@ fn build_router(state: AppState) -> Router {
             "/internal/routing/settle",
             post(routing_admission::settle_route),
         )
+        .route("/v1/account/authorize", post(account::authorize))
+        .route("/v1/account/exchange", post(account::exchange))
+        .route(
+            "/v1/account/session",
+            get(account::session).delete(account::sign_out),
+        )
+        .route(
+            "/v1/receipts",
+            post(account::share_receipt).get(account::my_receipts),
+        )
+        .route(
+            "/v1/receipts/{id}",
+            get(account::public_receipt).delete(account::delete_receipt),
+        )
+        .route(
+            "/v1/bench",
+            post(account::submit_bench).get(account::bench_board),
+        )
         .route("/v1/webhooks/paddle", post(paddle_webhook))
         .route("/v1/webhooks/dodo", post(dodo_webhook))
         .with_state(state)
@@ -842,6 +863,7 @@ mod contract_tests {
             paddle_prices: Some(paddle::PaddlePriceCatalog::test()),
             dodo_webhook_secret: None,
             dodo_products: Some(dodo::DodoProductCatalog::test()),
+            accounts: account::AccountStore::from_state_parts(None, false),
         }
     }
 

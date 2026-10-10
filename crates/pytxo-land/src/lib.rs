@@ -9,6 +9,7 @@
 //! fast-forward of a checked-out branch whose HEAD is still the base, so a
 //! target that moved during the gate is refused, never overwritten.
 
+pub mod bench;
 pub mod checks;
 mod git;
 mod overlap;
