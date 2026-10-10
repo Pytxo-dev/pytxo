@@ -49,6 +49,15 @@ pub struct MemoryAccounts {
     bench: Vec<StoredItem>,
 }
 
+/// account_id, state_hash, challenge, expires_at, consumed_at
+type CodeColumns = (
+    String,
+    Vec<u8>,
+    Vec<u8>,
+    DateTime<Utc>,
+    Option<DateTime<Utc>>,
+);
+
 #[derive(Clone)]
 struct CodeRow {
     account: String,
@@ -385,7 +394,7 @@ pub async fn exchange(
                 .begin()
                 .await
                 .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-            let row: Option<(String, Vec<u8>, Vec<u8>, DateTime<Utc>, Option<DateTime<Utc>>)> = sqlx::query_as(
+            let row: Option<CodeColumns> = sqlx::query_as(
                 "SELECT account_id, state_hash, challenge, expires_at, consumed_at FROM account_codes WHERE code_hash = $1 FOR UPDATE",
             )
             .bind(code_hash.as_slice())
@@ -753,7 +762,7 @@ pub async fn my_receipts(
                 .filter(|r| r.account == account && !r.deleted)
                 .map(|r| PublicItem { id: r.id.clone(), created_at: r.created, payload: r.payload.clone() })
                 .collect();
-            v.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            v.sort_by_key(|item| std::cmp::Reverse(item.created_at));
             v.truncate(200);
             v
         }
@@ -843,7 +852,7 @@ pub async fn bench_board(
                 .filter(|b| !b.deleted)
                 .map(|b| PublicItem { id: b.id.clone(), created_at: b.created, payload: b.payload.clone() })
                 .collect();
-            v.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            v.sort_by_key(|item| std::cmp::Reverse(item.created_at));
             v.truncate(50);
             v
         }
