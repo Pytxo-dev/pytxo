@@ -39,7 +39,7 @@ Published results: [the board and the reference run](/bench) · [raw JSON](/evid
 | Stale target refused | 1 |
 | Same-function warnings | 3 |
 
-The gate's own cost, without checks, is a few Git operations per input plus writing the receipt: typically one to three seconds on this Windows machine, where every Git process start is slow. The [board](/bench) shows the measured table next to plain `git merge`.
+Without checks, the gate added about one to three seconds over a plain sequential `git merge` of the same branches on this Windows machine, where every Git process start is slow; with checks, the median gate time was about 3 seconds. Timings varied between runs on the same machine, so treat them as rough. The [board](/bench) shows the measured table.
 
 ## What this does and does not show
 
