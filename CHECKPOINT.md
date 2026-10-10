@@ -1,3 +1,19 @@
+# CHECKPOINT — Pytxo — 2026-10-10 (business strategy research, no implementation)
+
+- Matt asked for a holistic market study and business/SaaS strategy. Output:
+  `docs/01-projects/pytxo-business-strategy-2026-10-10.md` (draft, linked from
+  MOC-home). Nothing implemented, released, priced, posted or committed.
+- Finding: the parallel-agent workspace layer is free and crowded (Orca ~89k
+  stars MIT, Conductor $22M free local tier, Vibe Kanban shut down for lack of a
+  model). Pain and budget sit at the end of the run (review bottleneck, review
+  tools at $20–30/dev, $435M into agent-control startups Apr–Sep 2026).
+- Recommendation: re-aim at "the landing layer for agent-written changes":
+  `pytxo gate` CLI/Action in shadow mode, GitHub App, hosted receipt Ledger as
+  the SaaS, Desktop kept as local cockpit; free for individuals/public repos,
+  ~$20/dev for private team repos; kill gates at 14/90 days.
+- Decisions for Matt are listed in section 9 of the note. Launch steps
+  (YouTube film v8, Product Hunt, HN/Reddit posts) remain as in the entry below.
+
 # CHECKPOINT — Pytxo — 2026-10-10 (v1.2.5 public)
 
 - v1.2.5 published: tag at `03eb9cd` (PR #43, UI fixes from PR #42 plus Light
