@@ -304,6 +304,18 @@ pub async fn account_share_run_receipt(
 mod tests {
     use super::*;
 
+    /// keyring 3 silently falls back to a per-entry mock when no platform
+    /// store feature is enabled; then nothing survives a new `Entry`.
+    #[cfg(windows)]
+    #[test]
+    fn credentials_persist_across_entries_in_the_os_store() {
+        let service = format!("com.pytxo.desktop.test-{}", uuid::Uuid::new_v4().simple());
+        Entry::new(&service, ACCOUNT).unwrap().set_password("probe").unwrap();
+        let read = Entry::new(&service, ACCOUNT).unwrap().get_password();
+        let _ = Entry::new(&service, ACCOUNT).unwrap().delete_credential();
+        assert_eq!(read.unwrap(), "probe");
+    }
+
     #[test]
     fn only_account_host_callbacks_match() {
         assert!(is_account_callback(
