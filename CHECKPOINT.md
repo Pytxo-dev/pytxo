@@ -1,3 +1,15 @@
+# CHECKPOINT — Pytxo — 2026-10-10 (v1.2.5 public)
+
+- v1.2.5 published: tag at `03eb9cd` (PR #43, UI fixes from PR #42 plus Light
+  theme contrast); release run 38046963880 green; mirror checksums and npm
+  `latest` 1.2.5 verified; native check of the released exe (`7BD8FC02…`,
+  `D:/pytxo-native-acceptance/msi-125`) passed with 0 console errors.
+- Docs flip to 1.2.5 and site deploy: PR from `mbcz/v1.2.5-public`.
+- Audit tooling (scratchpad, not committed): size sweep captures, sideways
+  overflow sweep, text-contrast sweep for both themes.
+- Next (Matt): YouTube upload of film v8, Product Hunt submission, HN/Reddit
+  posts. Optional: the Antigravity adapter task.
+
 # CHECKPOINT — Pytxo — 2026-10-10 (v1.2.4 public, gate 3, film v8, Product Hunt pack)
 
 - v1.2.4 published (tag at `ca214bb`, PR #39) and pytxo.com deployed with the
