@@ -310,7 +310,6 @@ export const ipc = {
     invoke<{ signed_in: boolean; session_present: boolean }>("auth_status")
       .then(unwrap)
       .catch(() => ({ signed_in: false, session_present: false })),
-  authOpenSignIn: () => invoke<void>("auth_open_sign_in").then(unwrap),
   accountStatus: () =>
     invoke<AccountStatus>("account_status")
       .then(unwrap)

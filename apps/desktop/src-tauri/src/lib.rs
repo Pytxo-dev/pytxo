@@ -34,7 +34,7 @@ use ipc::{
     run_review_content, select_domain, set_domain_permission, stop_run, structural_graph,
     tail_events, workspace_structural_graph, AppState,
 };
-use ipc_auth::{auth_clear_session, auth_open_sign_in, auth_status};
+use ipc_auth::{auth_clear_session, auth_status};
 use ipc_flow::{
     flow_advisor_consent, flow_advisor_consent_domains, flow_advisor_consent_enable,
     flow_advisor_consent_revoke, flow_advisor_packet_preview, flow_delete, flow_dispatch,
@@ -217,7 +217,6 @@ pub fn run() {
             start_ade_login,
             auth_status,
             auth_clear_session,
-            auth_open_sign_in,
             routing_account_status,
             routing_account_connect,
             routing_account_disconnect,

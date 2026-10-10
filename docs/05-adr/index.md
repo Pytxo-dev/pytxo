@@ -57,6 +57,7 @@ Architecture Decision Records are **immutable once Accepted**. Supersede by addi
 | ADR-0039 | [[ADR-0039-evidence-ledger-visual-contract]] | accepted |
 | ADR-0040 | [[ADR-0040-mbcz-merchant-of-record-boundary]] | proposed |
 | ADR-0041 | [[ADR-0041-advisory-coordinator-and-routing-boundary]] | proposed |
+| ADR-0042 | [[ADR-0042-landing-gate-and-receipts]] | accepted |
 
 ## Template
 

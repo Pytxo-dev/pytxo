@@ -6,16 +6,23 @@ tags: [product, positioning, gtm, competitive]
 audience: [human, agent]
 layer: meta
 created: 2026-10-02
-updated: 2026-10-02
+updated: 2026-10-10
 related: [[product-vision]], [[beta-competitor-research-2026-09-05]], [[competitive-landscape-2026-07]], [[competitive-benchmarks]]
 ---
 
 # Positioning
 
-**Pytxo turns one coding request into a coordinated run across the agent CLIs
-you already use, checks the combined result itself, and lands exactly the
-change you reviewed.** Category label: agent hypervisor. Lead with the outcome;
-explain the category, never the reverse.
+**Pytxo is the landing layer for coding agents: it checks what agents
+produced as one combined change, shows exactly what will land, refuses if
+anything moved, and leaves a receipt.** It does this for a run Pytxo planned
+across your agent CLIs and, since 1.3, for branches from any agent tool
+(`pytxo land`). Category label in architecture docs: agent hypervisor. Lead with
+the outcome; explain the category, never the reverse.
+
+> [!NOTE]
+> 2026-10-10: repositioned from "agent hypervisor" to "landing layer" per
+> [[pytxo-business-strategy-2026-10-10]] and [[2026-10-10-pytxo-v1-3-design]].
+> The H1 "Many agents. One verified change." stays.
 
 ## The market on 2026-10-02
 
@@ -53,9 +60,11 @@ no cloud, mobile or GitHub PR flow; slower than one agent for small jobs.
 ## Message hierarchy
 
 - **Headline:** the outcome — many agents, one job, one change you trust.
-- **Proof first:** the recorded native run (2 October 2026): 6 tasks, 5 CLIs,
-  3 waves, 6/6 checks, 7 files, stale Apply refused, then applied; fixture tests
-  10/10. Cite it as one recorded run, not a benchmark.
+- **Proof first:** Pybench (synthetic: per-branch CI lands 4 broken mains in 12
+  scenarios, `pytxo land` refuses all 4, 0 good changes refused) and the 10
+  October live run on the released 1.2.4 build (7 tasks, Claude Code + Codex +
+  Cursor Agent, 14/14 files applied, stale refusal, 22/22 tests). Quote numbers
+  only from their record files.
 - **Pillars:** split by ownership · checked by Pytxo · applied exactly · local.
 - **Who it is for:** developers who already pay for two or more coding-agent
   CLIs and want them working on the same change without babysitting merges.

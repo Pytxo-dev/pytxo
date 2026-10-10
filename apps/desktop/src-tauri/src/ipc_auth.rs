@@ -1,7 +1,6 @@
 use keyring::Entry;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_shell::ShellExt;
 
 use crate::ipc_error::{map_io_err, IpcResult, PytxoIpcError};
 
@@ -51,14 +50,6 @@ pub fn auth_clear_session(app: AppHandle) -> IpcResult<()> {
     std::env::remove_var("PYTXO_ULTRA_SESSION");
     pytxo_orchestrate::invalidate_entitlements_cache();
     let _ = app.emit(AUTH_CHANGED_EVENT, ());
-    Ok(())
-}
-
-#[tauri::command]
-#[allow(deprecated)] // Compatibility path until the existing shell plugin is replaced by opener.
-pub async fn auth_open_sign_in(app: AppHandle) -> IpcResult<()> {
-    let url = "https://pytxo.com/account?deck_callback=pytxo-deck";
-    app.shell().open(url, None).map_err(map_io_err)?;
     Ok(())
 }
 
