@@ -105,7 +105,7 @@
     {#if signedIn}
       <Button variant="ghost" size="sm" onclick={signOut}>Sign out</Button>
     {:else}
-      <Badge variant="outline" title="Connect experimental Routing in Settings; general account sign-in is paused">Local Core</Badge>
+      <Badge variant="outline" title="Sign in from Settings → Account for perks; local work needs no account">Local</Badge>
     {/if}
   </div>
 </div>

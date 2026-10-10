@@ -239,4 +239,22 @@ async fn real_candidate_checks_gate_apply_and_refresh_frozen_bytes() {
         fs::read_to_string(repo.join("operator-note.txt")).unwrap(),
         "preserve me\n"
     );
+    // A committed Apply leaves exactly one Apply receipt naming this run.
+    let receipts =
+        pytxo_core::list_receipts(&pytxo_orchestrate::repo_receipts_dir(&repo).unwrap());
+    let target = format!("run:{}", id.0);
+    let apply: Vec<_> = receipts
+        .iter()
+        .filter(|(_, r)| r.predicate.target.as_deref() == Some(target.as_str()))
+        .collect();
+    assert_eq!(apply.len(), 1, "{receipts:?}");
+    let receipt = &apply[0].1;
+    assert_eq!(receipt.predicate.kind, "apply");
+    assert_eq!(receipt.predicate.decision, "applied");
+    assert_eq!(
+        receipt.predicate.result.as_deref(),
+        Some(refreshed.package_digest.as_str())
+    );
+    assert!(receipt.predicate.files_changed >= 1);
+    assert!(receipt.digest_matches());
 }

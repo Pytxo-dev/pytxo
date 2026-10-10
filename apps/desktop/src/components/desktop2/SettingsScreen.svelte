@@ -692,7 +692,7 @@
             <button class="quiet" onclick={() => void accountSignIn()}>{account.sign_in_pending ? "Open browser again" : "Sign in"}</button>
           {/if}
         </div>
-        <div class="setting-row">
+        <div class="setting-row" data-testid="account-perks">
           <div>
             <strong>Perks</strong>
             <small>{ACCOUNT_PERKS.join(" · ")}. Shared receipts carry counts and outcomes only; commands, branches and your repository stay on this computer.</small>

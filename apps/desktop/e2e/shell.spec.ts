@@ -47,7 +47,7 @@ test.describe("Pytxo Desktop shell", () => {
     await completeOnboarding(page);
     await page.goto("/");
     await page.getByRole("link", { name: "Setup" }).click();
-    await page.getByRole("button", { name: "Account & billing" }).click();
+    await page.getByRole("button", { name: "Account", exact: true }).click();
     await page.getByRole("button", { name: "Run onboarding again" }).click();
     await expect(page.getByRole("heading", { name: "Many agents. One reviewed change.", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Get started" }).click();
@@ -248,11 +248,11 @@ test.describe("Pytxo Desktop shell", () => {
   test("sidebar reflects real account state instead of a fabricated identity", async ({ page }) => {
     await completeOnboarding(page);
     await page.goto("/");
-    await expect(page.getByRole("button", { name: "Open account and billing" })).toContainText("Local Core");
+    await expect(page.getByRole("button", { name: "Open account and billing" })).toContainText("Sign in for perks");
     await expect(page.getByText("Matt Bacon")).toHaveCount(0);
     await expect(page.getByText("MB", { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Open account and billing" }).click();
-    await expect(page.getByText("Not signed in", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("account-status")).toContainText("Everything local works without an account");
   });
 
   test("text Flow requires preview before mock dispatch", async ({ page }) => {
@@ -673,7 +673,7 @@ test.describe("Pytxo Desktop shell viewport coverage", () => {
       test("Setup bottom content is reachable via internal scroll", async ({ page }) => {
         await completeOnboarding(page);
         await page.goto("/#/setup");
-        await page.getByRole("button", { name: "Account & billing" }).click();
+        await page.getByRole("button", { name: "Account", exact: true }).click();
         const onboardingRow = page.getByRole("button", { name: "Run onboarding again" });
         await onboardingRow.scrollIntoViewIfNeeded();
         await expect(onboardingRow).toBeVisible();

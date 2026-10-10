@@ -70,9 +70,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   },
   {
     id: "account",
-    label: "Account & billing",
+    label: "Account",
     group: "More",
-    description: "Pytxo account, plan, and onboarding.",
+    description: "Optional Pytxo account, perks, and onboarding.",
     keywords: ["account", "billing", "tier", "plan", "payment", "invoices", "sign out", "pytxo cli", "onboarding", "welcome", "community", "discord"],
   },
 ];
