@@ -990,7 +990,7 @@ mod tests {
         let mut help = Vec::new();
         Cli::command().write_long_help(&mut help).unwrap();
         let help = String::from_utf8(help).unwrap();
-        assert!(help.contains("Pytxo local agent hypervisor"));
+        assert!(help.contains("the landing layer for coding agents"));
         assert!(!help.contains("agent control plane"));
     }
 }
