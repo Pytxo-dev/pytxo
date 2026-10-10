@@ -53,8 +53,8 @@ export default function DownloadPage() {
             </span>
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Terminal missions, doctor checks, and MCP. Desktop on Windows already includes the
-            local core. The CLI does not Apply repository changes; Apply stays in Desktop Review.
+            Runs, Review and Apply, <code className="font-mono">pytxo land</code> for branches from any
+            agent tool, Pybench, doctor checks and MCP. Desktop on Windows already includes the local core.
           </p>
 
           <div className="mt-6 flex flex-col gap-6">

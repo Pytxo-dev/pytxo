@@ -9,12 +9,6 @@ import { Button } from "@/components/ui/button";
 import { connectParams, connectPath, returnUrl } from "@/lib/account-connect";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
 
-export const ACCOUNT_PERKS = [
-  ["Share a receipt", "Publish what a landing decided as a public page: counts, checks and outcome. Commands, refs and repository names stay on your machine."],
-  ["Keep your receipts", "Shared receipts stay listed in your account across machines."],
-  ["Pybench board", "Publish your Pybench summary next to other machines' results."],
-  ["Team early access", "Design-partner access to Pytxo for teams when it opens."],
-] as const;
 
 export function AccountConnect() {
   const params = connectParams(useSearchParams());

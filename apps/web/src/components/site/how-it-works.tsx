@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 const STEPS = [
   {
@@ -37,7 +38,7 @@ export function HowItWorks() {
           </div>
         </li>)}
       </ol>
-      <p className="mt-12 text-sm text-[#8d8d96]">Screens are captures of Pytxo Desktop with sample data. <a className="aperture-link text-[#c4c4cc]" href="/docs/evidence">Evidence</a> records real runs and their limits.</p>
+      <p className="mt-12 text-sm text-[#8d8d96]">Screens are captures of Pytxo Desktop with sample data. <Link className="aperture-link text-[#c4c4cc]" href="/docs/evidence">Evidence</Link> records real runs and their limits.</p>
     </div>
   </section>;
 }

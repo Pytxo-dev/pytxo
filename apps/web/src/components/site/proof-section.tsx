@@ -7,7 +7,7 @@ const land = bench.land.summary;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 
 const BENCH_STATS = [
-  [`${land.pytxo_prevented}/${land.naive_landed_broken}`, "broken mains per-branch CI would have landed, refused"],
+  [`${land.pytxo_prevented}/${land.naive_landed_broken}`, "broken mains refused: per-branch CI would have landed them"],
   [`${land.correct}/${land.scenarios}`, "scenarios decided as expected"],
   [String(land.false_refusals), "good changes refused"],
   [seconds(land.median_gate_ms), "median gate time, checks included"],

@@ -8,7 +8,7 @@ test("every sitemap page serves its own crawlable identity without JavaScript", 
   const locations = [...(await sitemap.text()).matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
   expect(locations.length).toBeGreaterThan(4);
   expect(new Set(locations).size).toBe(locations.length);
-  expect(locations).toContain("https://pytxo.com/evidence");
+  expect(locations).toContain("https://pytxo.com/bench");
 
   for (const location of locations) {
     const url = new URL(location);
@@ -33,9 +33,9 @@ test("every sitemap page serves its own crawlable identity without JavaScript", 
 });
 
 test("tracking parameters do not change canonical or share URLs", async ({ page }) => {
-  await page.goto("/evidence?utm_source=acceptance");
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://pytxo.com/evidence");
-  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", "https://pytxo.com/evidence");
+  await page.goto("/bench?utm_source=acceptance");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://pytxo.com/bench");
+  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", "https://pytxo.com/bench");
 });
 
 test("robots exposes the sitemap and missing pages return a nonindexable 404", async ({ page, request }) => {
@@ -51,7 +51,7 @@ test("robots exposes the sitemap and missing pages return a nonindexable 404", a
 });
 
 test("social image is available with the declared dimensions and type", async ({ page, request }) => {
-  await page.goto("/evidence");
+  await page.goto("/bench");
   const image = await page.locator('meta[property="og:image"]').getAttribute("content");
   const url = new URL(image!);
   expect(url.origin).toBe("https://pytxo.com");

@@ -85,7 +85,7 @@ export default async function BenchPage() {
             {land.scenarios.map((x) => <tr key={x.id} className="border-b border-white/10 align-top">
               <th scope="row" className="py-3.5 pr-6 font-normal text-[#c7c7ce]">{x.title}</th>
               <td className={`py-3.5 pr-6 ${x.naive_outcome === "landed_broken" ? "text-[#ff9b8a]" : ""}`}>{NAIVE[x.naive_outcome] ?? x.naive_outcome}</td>
-              <td className="py-3.5 pr-6 text-[#f5f5f7]">{x.pytxo_decision}{x.pytxo_layer && x.pytxo_decision !== "stale" ? ` (${x.pytxo_layer.replace("_", " ")})` : ""}{x.symbol_collisions ? " · same-function warning" : ""}</td>
+              <td className="py-3.5 pr-6 text-[#f5f5f7]">{x.pytxo_decision}{x.pytxo_layer && x.pytxo_decision !== "stale" ? ` (${x.pytxo_layer.replace("_", " ")})` : ""}{x.symbol_collisions ? " · same function" : ""}</td>
               <td className="py-3.5 text-right font-mono text-xs tabular-nums">{s(x.gate_ms)}</td>
             </tr>)}
           </tbody>
@@ -93,7 +93,7 @@ export default async function BenchPage() {
       </div>
       {reference.overhead && <div className="mt-12">
         <h3 className="text-lg tracking-[-0.02em]">Gate cost without checks</h3>
-        <p className="mt-2 max-w-[48rem] text-sm text-[#8d8d96]">Median of three runs: sequential <code className="font-mono">git merge</code> of every input against <code className="font-mono">pytxo land</code> in shadow mode, which also maps ownership, writes the receipt and cleans up its worktree.</p>
+        <p className="mt-2 max-w-[48rem] text-sm text-[#8d8d96]">Median of three runs: sequential <code className="font-mono">git merge</code> of every input against <code className="font-mono">pytxo land</code> in shadow mode, which also maps file and function ownership and writes the receipt. Git process start-up dominates both on Windows.</p>
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[28rem] border-collapse text-left text-sm">
             <thead className="text-[#f5f5f7]"><tr className="border-b border-white/15"><th className="py-2.5 pr-6 font-medium">Inputs</th><th className="py-2.5 pr-6 font-medium">Files</th><th className="py-2.5 pr-6 text-right font-medium">git merge</th><th className="py-2.5 text-right font-medium">pytxo land</th></tr></thead>

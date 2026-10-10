@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { ACCOUNT_PERKS, AccountConnect } from "@/components/account-connect";
+import { AccountConnect } from "@/components/account-connect";
+import { ACCOUNT_PERKS } from "@/lib/account-connect";
 
 export const metadata: Metadata = {
   title: "Connect Pytxo",

@@ -51,3 +51,11 @@ export function safeConnectReturn(value: string | null): string | null {
   const parsed = connectParams(new URLSearchParams(value.slice("/account/connect?".length)));
   return parsed ? connectPath(parsed) : null;
 }
+
+/** Shown on the connect page and the account page. */
+export const ACCOUNT_PERKS = [
+  ["Share a receipt", "Publish what a landing decided as a public page: counts, checks and outcome. Commands, refs and repository names stay on your machine."],
+  ["Keep your receipts", "Shared receipts stay listed in your account across machines."],
+  ["Pybench board", "Publish your Pybench summary next to other machines' results."],
+  ["Team early access", "Design-partner access to Pytxo for teams when it opens."],
+] as const;
