@@ -510,7 +510,7 @@
   .command-copy { min-width:0; outline:0; }
   .command-copy:focus-visible { outline:2px solid var(--pytxo-accent); outline-offset:3px; }
   .title-row { display:flex;align-items:center;gap:10px;min-width:0; }
-  .command-copy h1 { display:block;min-width:0;max-width:60ch;margin:0;overflow:hidden;font-size:18px;font-weight:640;line-height:1.25;letter-spacing:-.02em;text-overflow:ellipsis;white-space:nowrap; }
+  .command-copy h1 { display:block;min-width:0;max-width:60ch;margin:0;overflow:hidden;font-size:var(--pytxo-title-size);font-weight:600;line-height:1.25;letter-spacing:-.02em;text-overflow:ellipsis;white-space:nowrap; }
   .title-row :global(.chip) { flex:none; }
   .heading-meta { display:flex;align-items:baseline;gap:8px;min-width:0;margin-top:3px;font-size:12px;line-height:1.35; }
   .heading-meta .scope { flex:none;color:var(--pytxo-text-muted);font:12px var(--pytxo-font-ui);white-space:nowrap; }

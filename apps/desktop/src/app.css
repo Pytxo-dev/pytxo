@@ -10,6 +10,8 @@
 
 /* Brand boundaries are not evidence colors. Activity never means verified. */
 :root {
+  /* One page-title size for every destination; density scales it. */
+  --pytxo-title-size: 22px;
   --pytxo-font-ui: "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   /* Box-drawing, block and braille glyphs fall back to the system mono, never a proportional face. */
   --pytxo-font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
@@ -269,3 +271,6 @@ html[data-force-reduced-motion] *::after {
 @keyframes tui-spin { to { transform: translateX(-4ch); } }
 @media (prefers-reduced-motion: reduce) { .tui-spin > span { animation: none; } }
 [data-force-reduced-motion] .tui-spin > span { animation: none; }
+
+html[data-ui-density="compact"] { --pytxo-title-size: 20px; }
+html[data-ui-density="comfortable"] { --pytxo-title-size: 24px; }

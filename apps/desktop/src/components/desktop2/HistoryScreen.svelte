@@ -289,7 +289,7 @@
 <style>
   .history { display:flex;flex:1;min-height:0;flex-direction:column;gap:16px;font-family:var(--pytxo-font-ui); }
   .history-heading { display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap; }
-  h1 { margin:0;font-size:24px; } h2 { margin:0;font-size:22px;line-height:1.4;overflow-wrap:anywhere; } h3 { margin:0 0 12px;font-size:15px; }
+  h1 { margin:0;font-size:var(--pytxo-title-size);font-weight:600;letter-spacing:-.02em; } h2 { margin:0;font-size:22px;line-height:1.4;overflow-wrap:anywhere; } h3 { margin:0 0 12px;font-size:15px; }
   .history-heading p { margin:6px 0 0;color:var(--pytxo-text-muted);font-size:12px; }
   button,input { font:inherit; } button { cursor:pointer; } button:disabled { opacity:.55;cursor:default; }
   .filters { display:flex;gap:8px;flex-wrap:wrap; }.filters label { display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--pytxo-line);border-radius:4px;background:var(--pytxo-surface-input); }
@@ -328,7 +328,7 @@
   .candidate-inventory { margin-top:12px; font-size:12px; }.candidate-inventory summary { cursor:pointer; color:var(--pytxo-text-soft); }
 
   /* History is a settled record browser, not a continuation of the live run. */
-  .history-heading h1 { font-size:27px;letter-spacing:-.035em; }
+
   .filters label,.filters button { border-radius:6px; }
   .history-layout { gap:12px; }
   .run-navigator {
@@ -352,7 +352,7 @@
     box-shadow:none;
   }
   .outcome-heading { padding-bottom:18px;border-bottom:1px solid var(--pytxo-line-soft); }
-  .outcome-heading h2 { max-width:34ch;font-size:24px;line-height:1.28;letter-spacing:-.03em;text-wrap:pretty; }
+  .outcome-heading h2 { max-width:34ch;font-size:var(--pytxo-title-size);font-weight:600;line-height:1.28;letter-spacing:-.02em;text-wrap:pretty; }
   .outcome-action { border-radius:6px;background:var(--pytxo-text-strong);color:var(--pytxo-surface-shell);font-weight:600; }
   .outcome-action:hover:not(:disabled) { background:var(--pytxo-text-soft); }
   .recorded-trace {

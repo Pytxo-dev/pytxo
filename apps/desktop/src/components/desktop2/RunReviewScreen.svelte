@@ -1111,7 +1111,7 @@
     gap: 20px;
     margin-bottom: 12px;
   }
-  .review-header h1 { margin: 5px 0 4px; font-size: 22px; }
+  .review-header h1 { margin: 5px 0 4px; font-size: var(--pytxo-title-size); font-weight: 600; letter-spacing: -.02em; }
   .review-header p { margin: 0; color: var(--pytxo-text-muted); font-size: 12px; }
   .review-context { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 10px; min-height: 24px; color: var(--pytxo-text-muted); font-size: 12px; }
   .run-details { position: relative; }
@@ -1324,7 +1324,7 @@
   }
 
   .review-screen{gap:14px}.review-screen .review-grid{display:flex;flex-direction:column;align-items:stretch;gap:0}.review-support{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0}.review-screen .panel{border-radius:0;border:0}.review-header{padding-bottom:0}.review-status{margin-top:10px}.decision-evidence{margin-top:10px}.files-title{padding:12px 16px}
-  .file-list{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:280px;align-items:start}.file-navigation{max-height:430px;overflow:auto;border-right:1px solid var(--pytxo-line)}.file-row{display:block}.file-content{min-width:0}.file-content>.exact-diff{border-top:0;min-width:0}.diff-side .text-content{min-height:240px;max-height:380px}.file-content .digest-details dl{grid-template-columns:1fr}.review-header h1{font-size:26px}
+  .file-list{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:280px;align-items:start}.file-navigation{max-height:430px;overflow:auto;border-right:1px solid var(--pytxo-line)}.file-row{display:block}.file-content{min-width:0}.file-content>.exact-diff{border-top:0;min-width:0}.diff-side .text-content{min-height:240px;max-height:380px}.file-content .digest-details dl{grid-template-columns:1fr}
   @media(max-width:1100px){.candidate-workspace{grid-template-columns:1fr}.review-support{grid-template-columns:1fr}.file-list{grid-template-columns:175px minmax(0,1fr)}}
   @media(max-width:760px){.review-order{grid-template-columns:repeat(2,minmax(0,1fr))}.file-list{display:block;min-height:0}.file-row{display:block}.file-content>.exact-diff{display:grid;grid-template-columns:1fr}.file-content>.digest-details{display:block}.decision-bar{flex-wrap:wrap;padding:10px 0}.decision-bar .review-actions{width:100%;justify-content:flex-start;gap:8px}.diff-side .text-content{min-height:100px}.candidate-formation small{display:none}}
 
@@ -1338,7 +1338,7 @@
   /* Focused reading mode: the system recedes, the decision owns the aperture. */
   .review-screen { gap: 12px; padding-top: 18px; }
   .review-header { margin: 0; }.review-decision { padding-bottom: 12px; border: 0; }
-  .review-header>div { width: 100%; }.review-header h1 { font-size: clamp(20px, 2vw, 28px); line-height: 1.25; margin: 5px 0 8px; overflow-wrap: anywhere; }
+  .review-header>div { width: 100%; }.review-header h1 { line-height: 1.25; margin: 5px 0 8px; overflow-wrap: anywhere; }
   .review-mode { display: block; color: var(--pytxo-text-muted); font-size: 11px; margin-top: 8px; }
   .candidate-workspace { display: block; }.candidate-overview { border-bottom: 1px solid var(--pytxo-line); }
   .candidate-overview>summary { padding: 14px 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; cursor: pointer; font-size: 12px; color: var(--pytxo-text-soft); }
@@ -1363,7 +1363,7 @@
   .candidate-overview>summary:focus-visible,.technical-evidence>summary:focus-visible,.decision-identity>summary:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: -2px; }
   @container run-review (max-width:1000px) { .file-list { display: grid; grid-template-columns: 180px minmax(0,1fr); }.file-navigation { max-height: 60vh; border-right: 1px solid var(--pytxo-line); }.file-content>.exact-diff { grid-template-columns: 1fr; }.decision-bar .review-actions { width: auto; } }
   @container run-review (max-width:640px) { .file-list { display: block; }.file-navigation { max-height: 150px; }.candidate-overview>summary { gap: 8px; }.comparison-context { display: grid; gap: 5px; }.decision-bar .review-actions { width: 100%; } }
-  @media(max-height:700px) { .review-screen { padding-top: 10px; }.review-mode { margin-top: 0; }.review-header h1 { font-size: 20px; }.review-decision { padding-bottom: 0; }.review-context { font-size: 12px; }.candidate-overview>summary { padding-block: 9px; }.decision-bar { padding-block: 9px; } }
+  @media(max-height:700px) { .review-screen { padding-top: 10px; }.review-mode { margin-top: 0; }.review-decision { padding-bottom: 0; }.review-context { font-size: 12px; }.candidate-overview>summary { padding-block: 9px; }.decision-bar { padding-block: 9px; } }
   @media(prefers-reduced-motion:reduce) { .decision-bar.confirmed .decision-aperture { animation: none; } }
   .verification-summary { margin-left: auto; }
   .decision-main { min-width: 0; flex: 1; }
@@ -1409,7 +1409,7 @@
   .review-screen .files-title h2 { font-size:14px; }
   .review-screen .review-grid { margin-top:0; }
   .review-header .back { min-height:20px; }
-  .review-header h1 { font-size:22px; }
+
   @container run-review (max-width:899px) { .decision-bar.ready-decision>.decision-main:first-child { flex-wrap:wrap; } }
 
   /* Review reads as one code workspace, with the candidate map as its context. */
@@ -1532,6 +1532,8 @@
   .gate details.stage[open] { position:relative; }
   .node-pop { position:absolute; top:calc(100% + 6px); left:0; z-index:4; display:grid; gap:6px; width:min(46ch,60vw); padding:10px 12px; border:1px solid var(--pytxo-line); border-radius:4px; background:var(--pytxo-surface-raised); box-shadow:0 12px 30px -18px rgba(0,0,0,.6); }
   .destination-node .node-pop { left:auto; right:0; }
+  /* Narrow: open the identity detail in place instead of as a popover that can leave the window. */
+  @container run-review (max-width:700px) { .node-pop { position:static; width:auto; margin-top:6px; box-shadow:none; } }
   .node-pop code { color:var(--pytxo-text-body); font:11px/1.5 var(--pytxo-font-mono); overflow-wrap:anywhere; }
   .node-pop p { margin:0; color:var(--pytxo-text-soft); font-size:11px; line-height:1.5; }
   .project-stage .tui-spin { width:1ch; }
