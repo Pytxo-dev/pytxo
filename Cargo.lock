@@ -4560,6 +4560,7 @@ dependencies = [
  "clap",
  "pytxo-catalog",
  "pytxo-core",
+ "pytxo-land",
  "pytxo-orchestrate",
  "pytxo-runner",
  "pytxo-shell",
@@ -4651,6 +4652,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pytxo-land"
+version = "1.2.5"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "pytxo-core",
+ "pytxo-signal",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
 name = "pytxo-link"
 version = "0.3.3"
 dependencies = [
@@ -4701,6 +4716,7 @@ dependencies = [
  "chrono",
  "fs2",
  "pytxo-core",
+ "pytxo-land",
  "pytxo-planner",
  "pytxo-runner",
  "pytxo-sanitize",

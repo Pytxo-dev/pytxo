@@ -15,6 +15,7 @@ members = [
     "crates/pytxo-voice",
     "crates/pytxo-catalog",
     "crates/pytxo-mcp",
+    "crates/pytxo-land",
     "apps/desktop/src-tauri",
     "services/pytxo-link",
     "services/pytxo-cloud-sandbox",
@@ -60,6 +61,7 @@ pytxo-shell = { path = "crates/pytxo-shell" }
 pytxo-planner = { path = "crates/pytxo-planner" }
 pytxo-voice = { path = "crates/pytxo-voice" }
 pytxo-catalog = { path = "crates/pytxo-catalog" }
+pytxo-land = { path = "crates/pytxo-land" }
 regex = "1.11"
 portable-pty = "0.8"
 tauri = { version = "2", features = [] }

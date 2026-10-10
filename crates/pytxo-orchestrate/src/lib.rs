@@ -28,6 +28,7 @@ use pytxo_store::routing_launch::{OwnedJobStopPhase, OwnedJobStopTarget};
 use pytxo_store::{PytxoStore, SharedStore};
 use serde::{Deserialize, Serialize};
 
+mod apply_receipt;
 pub mod billing;
 pub mod cloud;
 mod cost;
@@ -746,13 +747,23 @@ pub fn apply_run_changes(
     expected_package_digest: &str,
 ) -> anyhow::Result<RunApplyManifest> {
     let _upgrade_guard = pytxo_core::UpgradeGuard::work()?;
-    apply_run_changes_with(
-        config,
+    let repo_root = resolve_repo_root(repo.as_deref())?;
+    let manifest = apply_run_changes_with(
+        config.clone(),
         repo,
         run_id,
         expected_package_digest,
         apply_prepared_review_under_lease,
-    )
+    )?;
+    let receipt = load_config(config.as_deref(), &repo_root)
+        .and_then(|cfg| Ok(PytxoStore::open(&cfg.db_path_at(&repo_root))?))
+        .and_then(|store| {
+            apply_receipt::write_apply_receipt(&repo_root, &store, run_id, &manifest)
+        });
+    if let Err(error) = receipt {
+        tracing::warn!(run_id, %error, "Apply committed; its receipt could not be written");
+    }
+    Ok(manifest)
 }
 
 /// Reconcile one reviewed Apply journal and persist its authoritative run-contract state.
