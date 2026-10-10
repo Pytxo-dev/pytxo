@@ -1,3 +1,29 @@
+# CHECKPOINT — Pytxo — 2026-10-10 (v1.2.4 public, gate 3, film v8, Product Hunt pack)
+
+- v1.2.4 published (tag at `ca214bb`, PR #39) and pytxo.com deployed with the
+  1.2.4 docs flip (PR #40, merged `f65a680`; Vercel CLI from the repo root).
+- Gate 3 closed: live take 2 on the released MSI's exe (`CA123A4E…`, administrative
+  extract at `D:/pytxo-native-acceptance/msi-124`): Claude Code split 7 tasks;
+  Claude Code + Codex + Cursor Agent 7/7; 14 files reviewed = applied; stale
+  refusal; fixture tests 22/22. Evidence `D:/pytxo-native-acceptance/film-124-live2`
+  (take 1 with Antigravity in `film-124-live`; rehearsal in `film-124-rehearsal`).
+- Found live: Antigravity headless runs auto-deny a tool permission and exit 0
+  with no edits (shown only as "no changes"); OpenCode's configured default model
+  cannot use tools on this machine. Separate task suggested.
+- Journey (`tooling/acceptance/journey.py`): scrolls until the control is under
+  the pointer (sticky-footer miss), refuses to click/type into another app's
+  window, unticks ready agents left off `--team`. `result-app.mjs` finds controls
+  by role so live agents' markup works. `live-cut.mjs` cuts shots straight from
+  `screen.mkv`, `--no-result`, fleet beat is a disclosed time-lapse of the run.
+- Film v8: `apps/demo-video/out/pytxo-live-v8.mp4` (51 s, from take 2, audio from
+  the v7 set in `public/live/audio`, ignored). No result-app segment: the applied
+  app has integration bugs the agents' tests missed.
+- Product Hunt pack: `D:/marketing/campaigns/pytxo-public-beta-launch/product-hunt/`
+  (`out/thumb` 240/600 PNG + 240/480 GIF; `out/gallery` 8 × 1270×760 + @2x;
+  `src/` HTML + `render.mjs`). `product-hunt.md` and the fact sheet updated.
+- Next (Matt): upload film v8 to YouTube, submit Product Hunt with the pack,
+  write HN/Reddit posts. Optional: fix the Antigravity adapter before claiming it.
+
 # CHECKPOINT — Pytxo — 2026-10-09 (terminal fleet redesign)
 
 Approved by Matt 2026-10-09: "go all in on the UI/UX on the desktop app and

@@ -20,12 +20,29 @@ parallel-agent crowd complains about: "10 agents = 10 branches to read".
 |---|------|-------|---------|
 | 1 | Hosted CI / candidate MSI / cloud acceptance | **Done** — repo public 2026-10-07, so standard runners are free and unblocked. PR #33: CI green, candidate MSI built, cloud acceptance (install, mixed-agent journey, stale refusal, Apply, 150/175% layout) passed | — |
 | 2 | Fresh candidate after Oct 5–6 UI changes | **Done** — candidate run 37651799067 at `15758b7`, acceptance 37652820730 passed | — |
-| 3 | Live vendor agents on the final artifact | **Open** — cloud acceptance uses stand-in agents; no live Codex/Claude run on a released MSI yet, including Split. 2026-10-09: the redesign branch ran natively with stand-in agents (fresh store, full fleet, no errors) | One local run of the released MSI with real CLIs (the film take) |
+| 3 | Live vendor agents on the final artifact | **Done** — 2026-10-10, the released v1.2.4 MSI's exe (`CA123A4E…`, from an administrative extract of the mirror MSI): Claude Code split the paragraph into 7 owned tasks; Claude Code, Codex and Cursor Agent ran them live, 7/7 completed; 14 files reviewed = 14 applied; stale refusal, refresh, Apply `applied`; fixture tests 22/22 after Apply. Evidence `D:/pytxo-native-acceptance/film-124-live2` | Antigravity: no changes in live runs (headless tool permission auto-denied); OpenCode: its configured default model cannot use tools here. Separate task |
 | 4 | Source visibility | **Done: public (MIT)** — gitleaks clean; private vulnerability reporting, secret scanning + push protection, Dependabot alerts and fork-PR approval on | — |
-| 5 | Publication | **Done** — v1.2.4 tagged at `ca214bb` (PR #39); release run 37935040667 green; `pytxo-releases` mirror v1.2.4 (MSI + CLI checksums verified, CLI reports 1.2.4); npm `latest` 1.2.4. v1.2.3 and v1.2.2 before it | Site deploy of the 1.2.4 docs flip; film re-record and launch posts (Matt writes HN/Reddit) |
+| 5 | Publication | **Done** — v1.2.4 tagged at `ca214bb` (PR #39); release run 37935040667 green; `pytxo-releases` mirror v1.2.4 (MSI + CLI checksums verified, CLI reports 1.2.4); npm `latest` 1.2.4. v1.2.3 and v1.2.2 before it | Site deployed 2026-10-10 (PR #40). Left: YouTube upload of film v8, Product Hunt submission, launch posts (Matt writes HN/Reddit) |
 
 ## Work log
 
+- 2026-10-10 — Gate 3 and the film take. pytxo.com deployed with the 1.2.4
+  docs flip (PR #40, `f65a680`); live site serves the v1.2.4 MSI and hero clip.
+  Stand-in rehearsal on the released exe passed (7/7 files). Live take 1
+  (Claude Code lead + Cursor + Antigravity) passed the journey, but both
+  Antigravity tasks exited 0 with no edits: its headless mode auto-denied a
+  "command" tool permission, and Desktop showed only "no changes". Codex was
+  left off because the journey's click landed on New work's sticky footer.
+  Fixed in the journey: scroll until the control itself is under the pointer,
+  and never click or type into another app's window (Roblox Studio opened over
+  Pytxo during one attempt; that take was stopped). Live take 2 (Claude Code
+  lead + Codex + Cursor) passed end to end (see gate 3). The applied app has
+  integration bugs the agents' tests did not catch (duplicate theme button, the
+  empty-state line shown beside matching tasks, light page under a dark system
+  setting): checks passing is not correctness, and the film does not show the
+  result app. Film v8 cut from take 2: `apps/demo-video/out/pytxo-live-v8.mp4`.
+  Product Hunt thumbnail (PNG + GIF) and 8-image gallery from take-2 stills:
+  `D:/marketing/campaigns/pytxo-public-beta-launch/product-hunt/out/`.
 - 2026-10-09 — v1.2.4 published: terminal fleet monitor, Review Apply gate,
   background run-finished notification, 1–9 worker keys, store open fix. PR #39
   CI green (incl. Windows Rust), merged as `ca214bb`, tagged, release green,
