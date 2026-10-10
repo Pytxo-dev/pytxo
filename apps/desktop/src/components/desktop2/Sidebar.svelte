@@ -71,7 +71,14 @@
 </script>
 
 <aside class="sidebar" class:collapsed aria-label="Primary sidebar">
+  <!-- The top row lines up with the main header: New work and the collapse control. -->
   <div class="brand">
+    {#if onNewRun}
+      <button class="compose-trigger" onclick={onNewRun} aria-label={hasDraft ? "Continue draft" : "New work from sidebar"} title={hasDraft ? "Continue your draft in this window" : "Create a new run"}>
+        <IconPlus size={16} /><span>{hasDraft ? "Draft" : "New work"}</span>
+        {#if hasDraft}<i aria-hidden="true"></i>{/if}
+      </button>
+    {/if}
     <button
       class="collapse-btn"
       disabled={autoCollapsed}
@@ -82,13 +89,6 @@
       {#if collapsed}<IconChevronsRight size={15} />{:else}<IconChevronsLeft size={15} />{/if}
     </button>
   </div>
-
-  {#if onNewRun}
-    <button class="compose-trigger" onclick={onNewRun} aria-label={hasDraft ? "Continue draft" : "New work from sidebar"} title={hasDraft ? "Continue your draft in this window" : "Create a new run"}>
-      <IconPlus size={16} /><span>{hasDraft ? "Continue draft" : "New work"}</span>
-      {#if hasDraft}<i aria-hidden="true"></i>{/if}
-    </button>
-  {/if}
 
   <button
     class="command-trigger"
@@ -191,7 +191,7 @@
     height: 100%;
     background: var(--pytxo-surface-shell);
     border-right: 1px solid var(--pytxo-line);
-    padding: 12px 10px 10px;
+    padding: 0 10px 10px;
   }
   .sidebar.collapsed {
     padding: 14px 8px 12px;
@@ -202,10 +202,11 @@
     height: 52px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 0 6px 12px;
+    gap: 6px;
+    padding: 0;
     width: 100%;
   }
+  .brand .compose-trigger { flex: 1; width: auto; min-width: 0; margin: 0; white-space: nowrap; }
   .brand::after {
     content: "";
     position: absolute;
@@ -223,12 +224,14 @@
     left: 2px;
     right: 2px;
   }
+  .sidebar.collapsed .brand .collapse-btn { order: -1; margin-left: 0; }
+  .sidebar.collapsed .brand .compose-trigger { flex: none; width: 40px; }
   .sidebar.collapsed .brand {
     flex-direction: column;
     height: auto;
     gap: 8px;
     justify-content: center;
-    padding-inline: 0;
+    padding: 0 0 12px;
   }
   .compose-trigger {
     display: flex; align-items: center; gap: 9px; flex: none;
@@ -277,6 +280,7 @@
     display: flex;
     align-items: center;
     width: 100%;
+    margin-top: 12px;
     gap: 8px;
     height: 40px;
     flex: none;

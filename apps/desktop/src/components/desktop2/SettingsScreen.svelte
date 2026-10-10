@@ -852,9 +852,9 @@
   .settings-heading .section-title {
     margin: 6px 0 0;
     color: var(--pytxo-text-strong, #f4f5f7);
-    font-size: 24px;
+    font-size: var(--pytxo-title-size);
     font-weight: 600;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.02em;
     line-height: 1.25;
   }
   .settings-heading p {
