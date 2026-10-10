@@ -1,0 +1,26 @@
+---
+title: Signal Core size
+description: How much smaller Signal Core's structural scaffold is than the source it summarizes, measured in bytes.
+---
+
+Signal Core reads source files with tree-sitter and keeps their structure (signatures, types, imports) while dropping function bodies. Agents get a map of a file before they read all of it.
+
+## Measurements
+
+| Date | Corpus | Files | Source bytes | Scaffold bytes | Smaller by |
+|---|---|---|---|---|---|
+| 10 Oct 2026 (Pybench, 1.3.0) | Pytxo repository, tracked files ≥ 1 KiB in a Signal language, tests/fixtures/stories/vendor/build excluded | 365 | 4,984,928 | 699,244 | **86.0%** |
+| 30 Jul 2026 (commit `3acdc77`) | Pytxo production source under crates, services, packages, Desktop and Web, ≥ 1 KiB | 185 | 1,253,675 | 213,847 | **82.9%** |
+
+The two rows use different corpus rules and repository states, so they are not a trend. The July record breaks down by language: Rust 88.0%, TypeScript 58.7%, JavaScript 94.3%. Your repository's figure depends on its languages and file shapes.
+
+Reproduce the current figure on any repository with `pytxo bench --suite signal --repo <path>`.
+
+## What it does not claim
+
+- **Not a model-token saving.** Tokenizer output was not measured.
+- **Not a cost saving.** No provider bill was compared.
+- **Not a task-success claim.** Agent outcome quality was not measured.
+- **Not a general-repository result.** One repository per measurement, on one Windows host.
+
+Records: [Pybench results](/evidence/pybench-1.3.0-2026-10-10.json) · [July source record](https://github.com/Pytxo-dev/pytxo/blob/main/tooling/benchmarks/results/signal-real-repo.json)

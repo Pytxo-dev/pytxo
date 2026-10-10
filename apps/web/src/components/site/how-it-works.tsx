@@ -37,7 +37,7 @@ export function HowItWorks() {
           </div>
         </li>)}
       </ol>
-      <p className="mt-12 text-sm text-[#8d8d96]">Screens are captures of Pytxo Desktop with sample data. The <a className="aperture-link text-[#c4c4cc]" href="/evidence">evidence page</a> records real runs.</p>
+      <p className="mt-12 text-sm text-[#8d8d96]">Screens are captures of Pytxo Desktop with sample data. <a className="aperture-link text-[#c4c4cc]" href="/docs/evidence">Evidence</a> records real runs and their limits.</p>
     </div>
   </section>;
 }

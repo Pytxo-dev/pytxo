@@ -1,0 +1,64 @@
+name: Pytxo land (shadow)
+description: Check agent branches as one combined change with pytxo land and write the decision to the job summary. Never pushes or merges.
+branding:
+  icon: git-merge
+  color: green
+inputs:
+  inputs:
+    description: Space-separated branches, commits or patterns to combine (label:ref allowed)
+    required: true
+  checks:
+    description: Check command to run on the combined change
+    required: false
+    default: ""
+  per-input:
+    description: Also run the check on each input alone ("true" or "false")
+    required: false
+    default: "false"
+  base:
+    description: Commit to check against (default origin/<pull request base branch>)
+    required: false
+    default: ""
+  version:
+    description: Pytxo CLI version to install from npm
+    required: false
+    default: "1.3.0"
+outputs:
+  decision:
+    description: ready, blocked or stale
+    value: ${{ steps.land.outputs.decision }}
+runs:
+  using: composite
+  steps:
+    - name: Install Pytxo
+      shell: bash
+      run: npm i -g "pytxo@${{ inputs.version }}"
+    - name: Run the landing gate
+      id: land
+      shell: bash
+      env:
+        PYTXO_INPUTS: ${{ inputs.inputs }}
+        PYTXO_CHECK: ${{ inputs.checks }}
+        PYTXO_PER_INPUT: ${{ inputs.per-input }}
+        PYTXO_BASE: ${{ inputs.base }}
+      run: |
+        set +e
+        args=()
+        # Word-split the inputs on purpose; patterns are expanded by pytxo, not the shell.
+        set -f
+        for input in $PYTXO_INPUTS; do args+=("$input"); done
+        set +f
+        base="$PYTXO_BASE"
+        if [ -z "$base" ] && [ -n "$GITHUB_BASE_REF" ]; then base="origin/$GITHUB_BASE_REF"; fi
+        if [ -n "$base" ]; then args+=(--base "$base"); fi
+        if [ -n "$PYTXO_CHECK" ]; then args+=(--check "$PYTXO_CHECK"); fi
+        if [ "$PYTXO_PER_INPUT" = "true" ]; then args+=(--per-input); fi
+        pytxo land "${args[@]}" --markdown > pytxo-land.md
+        code=$?
+        cat pytxo-land.md >> "$GITHUB_STEP_SUMMARY"
+        case $code in
+          0) echo "decision=ready" >> "$GITHUB_OUTPUT" ;;
+          3) echo "decision=stale" >> "$GITHUB_OUTPUT" ;;
+          *) echo "decision=blocked" >> "$GITHUB_OUTPUT" ;;
+        esac
+        exit $code

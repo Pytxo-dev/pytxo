@@ -3,7 +3,7 @@ title: Introduction
 description: Set up Pytxo, give your coding agents one job, and review the combined change before applying it.
 ---
 
-Pytxo splits one coding request across the agent CLIs you already use (Codex, Claude Code, Cursor Agent, OpenCode and Antigravity), runs each task in its own copy of your project, checks the combined result, and applies exactly the changes you review. Keep your editor and your existing agent accounts.
+Pytxo is the landing layer for coding agents. Split one request across the agent CLIs you already use (Codex, Claude Code and Cursor Agent; OpenCode and Antigravity in beta), or bring branches from any agent tool. Pytxo checks the combined change, shows exactly what will land, refuses if anything moved, and leaves a receipt. Keep your editor and your existing agent accounts.
 
 **Start here:** [Install Pytxo](/docs/getting-started/install), then [set up Desktop](/docs/getting-started/desktop-setup).
 
@@ -11,7 +11,7 @@ Pytxo splits one coding request across the agent CLIs you already use (Codex, Cl
 
 The public download is **v1.2.5**. If your installed Desktop looks different from these guides, update it from [Download](/download).
 
-Desktop is available for **Windows x64**. The CLI also runs on macOS and Linux, but it has no Apply command.
+Desktop is available for **Windows x64**. The CLI runs on Windows, macOS and Linux and, since 1.3, covers Review, Apply and `pytxo land`.
 
 ## Your first workflow
 
@@ -20,7 +20,7 @@ Desktop is available for **Windows x64**. The CLI also runs on macOS and Linux, 
 3. **Run and review.** Inspect the prepared changes and their check results.
 4. **Apply when ready.** Write the reviewed changes to your repository, or discard them.
 
-Local Core does not require a Pytxo account. Your agent's sign-in and usage costs are separate.
+Pytxo does not require an account; a free one adds [sharing perks](/docs/getting-started/account). Your agent's sign-in and usage costs are separate.
 
 ## Find what you need
 
@@ -31,6 +31,8 @@ Local Core does not require a Pytxo account. Your agent's sign-in and usage cost
 | Try one small task | [First mission](/docs/getting-started/first-mission) |
 | Put several agents on one job | [One job, several agents](/docs/getting-started/multi-agent-run) |
 | Understand checks and apply changes | [Review and Apply](/docs/getting-started/review-and-apply) |
+| Check branches from other agent tools | [Land branches](/docs/getting-started/land-branches) |
+| See what Pytxo has been measured to do | [Evidence](/docs/evidence) · [Pybench](/bench) |
 | Fix a blocked run | [Troubleshooting](/docs/troubleshooting) |
 | Use Pytxo from a terminal or editor | [CLI reference](/docs/reference/cli) · [MCP setup](/docs/getting-started/mcp-from-cursor) |
 

@@ -3,9 +3,9 @@ import Link from "next/link";
 import { SOURCE_URL } from "@/lib/site";
 
 const FACTS = [
-  ["Desktop", "Windows x64. macOS and Linux have the Pytxo CLI today; Desktop for them is not built yet."],
-  ["Agents", "Codex, Claude Code, Cursor Agent, OpenCode and Antigravity. One is enough to start."],
-  ["Accounts", "Each agent signs in with its own account. Local work needs no Pytxo account."],
+  ["Desktop", "Windows x64. On macOS and Linux the CLI covers runs, Review, Apply and pytxo land; Desktop for them is not built yet."],
+  ["Agents", "Codex, Claude Code and Cursor Agent, verified live. OpenCode and Antigravity in beta. One is enough to start."],
+  ["Accounts", "Each agent signs in with its own account. Pytxo needs none; a free one adds sharing perks."],
   ["Keys", "Agents run with a clean environment: your shell's API keys are not passed to them."],
   ["Project", "A Git repository with the tools its build and tests need."],
   ["Cost", "No Pytxo charge for local work. Your agent subscriptions bill as usual."],

@@ -8,12 +8,13 @@ import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
 
 export const metadata: Metadata = {
   title: "Account",
-  description: "View account access for a configured Pytxo deployment.",
+  description: "Your optional Pytxo account: perks and shared receipts.",
   robots: { index: false, follow: false },
 };
 
 const QUICK_LINKS = [
-  { href: "/plans", label: "Plans", detail: "What is free today and what is coming" },
+  { href: "/plans", label: "Plans", detail: "Free today, Team in design" },
+  { href: "/bench", label: "Pybench", detail: "Published benchmark results" },
   { href: "/download", label: "Download", detail: "CLI and Desktop installers" },
   { href: "/docs", label: "Docs", detail: "Install, tutorials, reference" },
   { href: "/docs/getting-started/mcp-from-cursor", label: "MCP setup", detail: "Connect Cursor or VS Code" },
@@ -26,7 +27,7 @@ export default function AccountPage() {
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Account</h1>
         <p className="max-w-2xl text-muted-foreground">
           {SITE_AUTH_ENABLED
-            ? "Pytxo runs on your machine without an account. Sign in to link Pytxo Desktop to hosted features, such as experimental Routing, and to see what your account includes."
+            ? "Pytxo runs on your machine without an account. Signing in adds hosted perks: shareable receipts, receipt history and the Pybench board."
             : "Pytxo runs on your machine without an account. Account features will appear here when sign-in is available."}
         </p>
       </div>
@@ -35,7 +36,7 @@ export default function AccountPage() {
         <Card className="border-border bg-card/30">
           <CardHeader>
             <CardTitle>Your account</CardTitle>
-            <CardDescription>Your plan, agent limits and linked Desktop.</CardDescription>
+            <CardDescription>Perks, connected tools and shared receipts.</CardDescription>
           </CardHeader>
           <CardContent>
             <Suspense fallback={<p className="text-sm text-muted-foreground">Loading account…</p>}>

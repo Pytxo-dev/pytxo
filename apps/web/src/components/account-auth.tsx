@@ -134,8 +134,9 @@ function ConfiguredAccountAuth() {
           </SignUpButton>
         </div>
         <p className="text-sm text-muted-foreground">
-          The CLI and Desktop work without an account. Sign in when you want to
-          link Desktop to hosted features or a team plan.
+          Everything local works without an account. Signing in adds perks: share
+          a receipt as a public page, keep shared receipts across machines, and
+          publish Pybench results.
         </p>
         <Link href="/plans" className="text-sm text-primary hover:underline">
           Compare plans
@@ -145,9 +146,18 @@ function ConfiguredAccountAuth() {
         <div className="flex items-center gap-3">
           <UserButton afterSignOutUrl="/" />
           <span className="text-sm text-muted-foreground">
-            Signed in. Entitlements sync via Pytxo Link.
+            Signed in. Local Pytxo works the same with or without this.
           </span>
         </div>
+        <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-2">
+          <p className="font-medium">Connect your tools</p>
+          <p className="text-muted-foreground">
+            Run <code className="font-mono">pytxo login</code> in a terminal, or open Settings → Account in Pytxo Desktop.
+            Then share a receipt with <code className="font-mono">pytxo receipts share &lt;id&gt;</code> or publish
+            Pybench with <code className="font-mono">pytxo bench --submit</code>.
+          </p>
+        </div>
+        <SharedReceipts />
         {wantsDesktopReturn && bridge && bridgeAllowed ? (
           <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3">
             <p className="font-medium">{bridge.recoveryOnly ? "Reconnect Pytxo Desktop to revoke existing access" : "Connect Pytxo Desktop for experimental routing"}</p>
@@ -169,38 +179,28 @@ function ConfiguredAccountAuth() {
             </p>
           </div>
         )}
-        <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3">
+        {bridgeEnabled && <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3">
             <p className="font-medium">Hosted Routing access</p>
             <p className="text-muted-foreground">If you used experimental Routing and a Desktop is lost, revoke all Routing credentials, workspace grants, and evaluation tokens here. This affects every connected Desktop.</p>
             <Button variant="outline" onClick={() => void revokeAllRouting()} disabled={revokePending}>
               {revokePending ? "Revoking…" : "Revoke all Routing access"}
             </Button>
             {revokeMessage && <p role="status">{revokeMessage}</p>}
-          </div>
+          </div>}
         {loading && (
           <p className="text-sm text-muted-foreground">Loading entitlements…</p>
         )}
-        {entitlements && !loading && (
+        {entitlements && !loading && (entitlements.error || entitlements.org_id) && (
           <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm">
             {entitlements.error ? (
               <p className="text-muted-foreground">
-                Could not reach Pytxo Link ({entitlements.error}). Local Core tier still works.
+                Could not load organization details ({entitlements.error}). Local Pytxo still works.
               </p>
             ) : (
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
                 <div>
-                  <dt className="text-xs text-muted-foreground">Tier</dt>
-                  <dd className="mt-0.5 font-medium capitalize">{entitlements.tier ?? "core"}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Max agents</dt>
-                  <dd className="mt-0.5 font-medium">{entitlements.max_agents ?? 3}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Cloud</dt>
-                  <dd className="mt-0.5 font-medium">
-                    {entitlements.cloud_enabled ? "enabled" : "off"}
-                  </dd>
+                  <dt className="text-xs text-muted-foreground">Plan</dt>
+                  <dd className="mt-0.5 font-medium capitalize">{entitlements.tier ?? "free"}</dd>
                 </div>
                 {entitlements.org_id ? (
                   <div className="col-span-2">
@@ -270,4 +270,49 @@ export function AccountAuth() {
   }
 
   return <ConfiguredAccountAuth />;
+}
+
+type SharedReceiptRow = {
+  id: string;
+  created_at: string;
+  payload: { decision?: string; kind?: string; inputs?: number; files_changed?: number };
+};
+
+/** Account perk: receipts this account has shared, newest first. */
+function SharedReceipts() {
+  const [rows, setRows] = useState<SharedReceiptRow[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/account/receipts", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then((data: SharedReceiptRow[]) => !cancelled && setRows(data))
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return (
+    <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3" data-testid="shared-receipts">
+      <p className="font-medium">Shared receipts</p>
+      {failed ? (
+        <p className="text-muted-foreground">Could not load shared receipts right now.</p>
+      ) : rows === null ? (
+        <p className="text-muted-foreground">Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-muted-foreground">None yet. Shared receipts appear here and at their public link.</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-white/10">
+          {rows.map((row) => (
+            <li key={row.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+              <Link href={`/r/${row.id}`} className="font-mono text-xs text-foreground hover:underline">{row.id}</Link>
+              <span className="text-xs text-muted-foreground">
+                {row.payload.kind ?? "land"} · {row.payload.decision ?? "?"} · {row.payload.inputs ?? 0} inputs · {row.payload.files_changed ?? 0} files · {row.created_at.slice(0, 10)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }

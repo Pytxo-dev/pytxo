@@ -1,0 +1,92 @@
+---
+title: Land branches from any agent tool
+description: Use pytxo land to check several agent branches as one combined change, land only what passed, and keep a receipt.
+---
+
+Agent workspaces such as Orca, Conductor, Superset, the Codex app or Claude Code give each agent its own branch. Each branch can pass its own checks and still break when merged with the others. `pytxo land` checks the combination before any of it reaches your branch.
+
+It needs Pytxo 1.3 or later, Git, and the tools your checks use. It works on Windows, macOS and Linux and does not call any model.
+
+## Check a set of branches
+
+From your repository, with the target branch checked out:
+
+```bash
+pytxo land agent/cart agent/discount --check "npm test" --per-input
+```
+
+Pytxo:
+
+1. Resolves each branch and records the files it changed since it split from your branch.
+2. For files that more than one branch changed, maps the changes to functions, methods and types with Signal Core. Two branches that changed the same function are reported even when Git merges them cleanly.
+3. Merges the branches in the order you gave, in a separate worktree, with Git hooks turned off. A textual conflict blocks the combination.
+4. Runs each `--check` on the combined result. With `--per-input`, it first runs the same checks on each branch alone, which shows when every branch passes but the combination fails.
+5. Decides: **ready**, **blocked** or **stale**, and writes a receipt.
+
+By default this is **shadow mode**: your branch and working tree do not change. The combined commit is kept at `refs/pytxo/land/<receipt id>` so you can inspect it:
+
+```bash
+git log --oneline --graph refs/pytxo/land/<receipt id>
+```
+
+## Name the agents
+
+Prefix a branch with a label to record which agent wrote it. Labels appear in the output, the receipt and shared receipts:
+
+```bash
+pytxo land codex:agent/cart claude:agent/discount -c "npm test"
+```
+
+A pattern expands to matching local branches: `pytxo land 'agent/*' -c "npm test"`.
+
+## Land it
+
+When the result is ready, add `--apply`:
+
+```bash
+pytxo land codex:agent/cart claude:agent/discount -c "npm test" --apply
+```
+
+- If the target branch is checked out, Pytxo fast-forwards it only if it still points at the commit that was checked. Git refuses if your local changes would be overwritten.
+- If it is not checked out (`--into release`), Pytxo moves it with a compare-and-swap: the update succeeds only if the branch still points at the checked commit.
+
+If the branch moved while the gate ran, the decision is **stale** and nothing changes. Run the gate again on the new tip.
+
+The landed history contains one merge commit per input, made by your Git identity (or "Pytxo Land" if none is configured). Commits are not signed, even when your Git config signs commits; sign or squash afterwards if your repository requires it.
+
+## Read the result
+
+| Exit code | Decision | Meaning |
+|---|---|---|
+| 0 | ready / landed | No conflict and every combined check passed |
+| 2 | blocked | A conflict, a failed or timed-out combined check, or (with `--strict`) the same symbol changed by two inputs |
+| 3 | stale | The target moved while the gate ran |
+
+`--json` prints the full receipt. `--markdown` prints a summary for a pull-request comment.
+
+## Options
+
+| Option | Default | Use |
+|---|---|---|
+| `--check`, `-c` | none | Command to run on the combined change; repeatable. Without checks, a ready result only means "no conflicts". |
+| `--per-input` | off | Also run the checks on each branch alone |
+| `--apply` | off | Land a ready result |
+| `--into <branch>` | checked-out branch | Target branch |
+| `--base <rev>` | target tip | Check against another commit (shadow mode only) |
+| `--strict` | off | Block when two inputs changed the same function or type |
+| `--timeout <seconds>` | 900 | Per-check timeout |
+
+Checks run in a fresh worktree, so install dependencies inside the check when needed, for example `--check "npm ci && npm test"`.
+
+## In a pull request
+
+The repository ships a composite action that runs the gate in shadow mode and prints the Markdown summary to the job log. See [Land in GitHub Actions](/docs/getting-started/land-in-ci).
+
+## Limits
+
+- Pytxo checks what your commands check. Passing checks do not prove the code is right.
+- Symbol mapping covers Rust, TypeScript, JavaScript, Python, Go, Java, C/C++ and Ruby. Other files are compared by path only.
+- Inputs are merged in the order given; a different order can produce a different result when files overlap.
+- The gate does not rebase, squash or resolve conflicts for you.
+
+Every decision leaves a [receipt](/docs/concepts/receipts).

@@ -29,6 +29,7 @@ use pytxo_store::{PytxoStore, SharedStore};
 use serde::{Deserialize, Serialize};
 
 mod apply_receipt;
+pub use pytxo_land::repo_receipts_dir;
 pub mod billing;
 pub mod cloud;
 mod cost;

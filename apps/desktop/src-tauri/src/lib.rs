@@ -1,5 +1,6 @@
 mod flow_window;
 mod ipc;
+mod ipc_account;
 mod ipc_auth;
 mod ipc_error;
 mod ipc_flow;
@@ -144,6 +145,10 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            ipc_account::account_status,
+            ipc_account::account_sign_in,
+            ipc_account::account_sign_out,
+            ipc_account::account_share_run_receipt,
             update_safety::update_preflight,
             update_safety::begin_update_handoff,
             update_safety::finish_update_handoff,

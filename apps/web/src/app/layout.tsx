@@ -8,15 +8,15 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL("https://pytxo.com"),
   title: {
-    default: "Pytxo: Local commit layer",
+    default: "Pytxo: the landing layer for coding agents",
     template: "%s · Pytxo",
   },
   description:
-    "A local commit layer around the coding-agent CLIs you already use. Isolate overlapping work, review the exact package, then Apply.",
+    "Pytxo checks what your coding agents produced as one combined change, shows exactly what will land, refuses if anything moved, and leaves a receipt.",
   openGraph: {
     title: "Pytxo",
     description:
-      "Local commit layer around the coding-agent CLIs you already use. Parallel runs, one reviewed Apply.",
+      "The landing layer for coding agents. Many agents, one verified change.",
     url: "https://pytxo.com",
     siteName: "Pytxo",
     images: [
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Pytxo",
-    description: "Local commit layer around the coding-agent CLIs you already use",
+    description: "The landing layer for coding agents. Many agents, one verified change.",
     images: ["/product/work-1600x1000.png"],
   },
 };

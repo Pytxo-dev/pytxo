@@ -11,6 +11,7 @@
   import IconShieldCheck from "@tabler/icons-svelte/icons/shield-check";
   import IconTrash from "@tabler/icons-svelte/icons/trash";
   import type { DesktopBackend } from "../../lib/desktop-backend";
+  import { ipc } from "../../lib/ipc";
   import { workbenchSelection, rememberWorkbenchSelection } from "../../lib/workbench-selection";
   import { recordedCliFor, recordedWorkerLabel, reviewPresentation } from "../../lib/review-state";
   import { diffLines, diffStats, foldUnchanged } from "../../lib/line-diff";
@@ -631,6 +632,24 @@
       unsubscribe?.();
     };
   });
+
+  let sharing = $state(false);
+  let sharedUrl = $state<string | null>(null);
+  let shareMessage = $state("");
+
+  async function shareReceipt() {
+    if (sharing) return;
+    sharing = true;
+    shareMessage = "";
+    try {
+      const shared = await ipc.accountShareRunReceipt(run.id, domainId);
+      sharedUrl = shared.url;
+    } catch (error) {
+      shareMessage = error instanceof Error ? error.message : "Sharing failed.";
+    } finally {
+      sharing = false;
+    }
+  }
 </script>
 
 <section class="screen review-screen" bind:clientWidth={contentWidth} aria-labelledby="run-review-title">
@@ -894,6 +913,11 @@
       <div><h2>Prepared package unavailable</h2><p>{error || "This run has no immutable review manifest."}</p></div>
     </article>
   {/if}
+  {#if shareMessage || sharedUrl}
+    <p class="share-status" role="status" data-testid="share-status">
+      {#if sharedUrl}Receipt published: <a href={sharedUrl} target="_blank" rel="noopener noreferrer">{sharedUrl}</a>. Counts and outcomes only; your code and commands stay here.{:else}{shareMessage}{/if}
+    </p>
+  {/if}
   <footer id="review-apply-decision" class:ready-decision={presentation.state === "ready" && !applyDisabledReason} class="decision-bar repository-boundary tui-pane" class:confirmed={presentation.state === "applied"} aria-label="Decision">
     <span class="tui-legend" aria-hidden="true"><b>apply</b>{#if manifest}<span class="gate-mini">{#each gateMarks as mark}<i class={mark}>{GATE_GLYPH[mark]}</i>{/each}</span>{/if}<span>→ {run.repo_root.split(/[\\/]/).pop()}</span></span>
     <div class="decision-main">
@@ -989,6 +1013,11 @@
           aria-describedby={applyDisabledReason ? "apply-disabled-reason" : undefined}
         >
           <IconCheck size={15} /> Apply reviewed changes
+        </button>
+      {/if}
+      {#if presentation.state === "applied"}
+        <button class="share-receipt" disabled={sharing} onclick={() => void shareReceipt()} title="Publish counts and outcomes as a public page (account perk)">
+          {sharing ? "Sharing…" : sharedUrl ? "Shared" : "Share receipt"}
         </button>
       {/if}
       <button
@@ -1137,6 +1166,7 @@
     white-space: nowrap;
   }
   .review-screen .danger-quiet { color: var(--state-refuted); border-color: var(--pytxo-line); background: var(--pytxo-surface-panel); }
+  .review-screen .share-receipt { color: var(--pytxo-text-body); border-color: var(--pytxo-line); background: var(--pytxo-surface-panel); }
   .review-status {
     display: flex;
     gap: 10px;
@@ -1575,4 +1605,6 @@
   @media (max-height:800px) { .convergence { height:64px; } .gate .stage .mark { width:22px; height:22px; } }
   @media (prefers-reduced-motion: reduce) { .gate-open .wire.lit::before, .landed .wire::before, .landed .map-boundary .decision-aperture { animation:none; } }
   :global([data-force-reduced-motion]) .gate-open .wire.lit::before, :global([data-force-reduced-motion]) .landed .wire::before { animation:none; }
+  .share-status { margin: 0 0 8px; font-size: 12px; color: var(--pytxo-text-soft); overflow-wrap: anywhere; }
+  .share-status a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 </style>

@@ -89,6 +89,18 @@ pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
         trimmed.split(':').next().unwrap_or("unknown")
     );
 
+    if crate::ipc_account::is_account_callback(trimmed) {
+        let result = crate::ipc_account::handle_callback(app, trimmed);
+        if let Err(error) = &result {
+            let _ = app.emit(
+                crate::ipc_account::ACCOUNT_ERROR_EVENT,
+                error.message.clone(),
+            );
+        }
+        focus_main_window(app);
+        return result;
+    }
+
     if is_routing_callback(trimmed) {
         let result = crate::ipc_routing_account::handle_callback(app, trimmed);
         if let Err(error) = &result {

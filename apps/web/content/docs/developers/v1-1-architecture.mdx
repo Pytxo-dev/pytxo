@@ -25,6 +25,6 @@ Desktop, CLI, and MCP consume the same persisted run contract. Domain events and
 
 ## Boundaries
 
-Reviewed Apply covers Orbit and Galaxy within one execution domain and one repository root. DeepSpace is Apply denied (internally non-flushable) and Supernova writes directly. It is process-crash recovery, not power-loss ACID behavior, a cross-root transaction, partial-file acceptance, or kernel-grade isolation. There is no `pytxo apply` command; Apply is Desktop Run Review.
+Reviewed Apply covers Orbit and Galaxy within one execution domain and one repository root. DeepSpace is Apply denied (internally non-flushable) and Supernova writes directly. It is process-crash recovery, not power-loss ACID behavior, a cross-root transaction, partial-file acceptance, or kernel-grade isolation. Desktop Run Review and, since 1.3, `pytxo apply` call the same `apply_run_changes` path.
 
 Read the [architecture overview](/docs/developers/architecture) for the full component map.

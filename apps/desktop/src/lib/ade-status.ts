@@ -15,6 +15,17 @@ export function adeDisplayName(id: string | null | undefined): string | null {
   return id ? ADE_NAMES[id] ?? null : null;
 }
 
+/**
+ * Admitted to Desktop runs but not yet seen completing a live end-to-end run
+ * on a released build (10 Oct 2026: Antigravity's headless mode denied its own
+ * tool permission; OpenCode's default model could not use tools).
+ */
+export const UNVERIFIED_LIVE_ADES = ["opencode", "agy"] as const;
+
+export function isUnverifiedLiveAde(id: string): boolean {
+  return (UNVERIFIED_LIVE_ADES as readonly string[]).includes(id);
+}
+
 export function isBetaAde(id: string): boolean {
   return (DESKTOP_BETA_ADES as readonly string[]).includes(id);
 }

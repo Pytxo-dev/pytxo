@@ -1,0 +1,22 @@
+---
+title: Evidence
+description: What Pytxo has been measured or observed to do, how, and what each record does not show.
+---
+
+Every number Pytxo publishes comes from a record you can download, with the build it ran on and its limits. A benchmark, a recorded run and a byte measurement answer different questions, so they are kept apart.
+
+| Record | Answers | Does not answer |
+|---|---|---|
+| [Pybench](/docs/evidence/pybench) | What per-branch CI would put on main compared with what `pytxo land` decides, in known situations; what the gate costs | How often those situations happen in real projects |
+| [Live runs](/docs/evidence/live-runs) | Whether a released build completes a real multi-agent job with live vendor CLIs, Review, a stale refusal and Apply | Speed, reliability rate, or whether the resulting code is correct |
+| [Signal Core](/docs/evidence/signal-core) | How much smaller the structural scaffold is than the source, in bytes | Model tokens, cost, or task success |
+
+## Rules we hold ourselves to
+
+- A number is quoted only from its record file, with the date and build.
+- Failed and refused attempts stay published next to the successful ones.
+- Passing checks are reported as "these commands passed on these exact files", never as "the code is correct".
+- Synthetic benchmarks say they are synthetic.
+- Agents that have not completed a live end-to-end run on a release are labelled beta.
+
+Run Pybench yourself with `pytxo bench`, and compare with the [published board](/bench).

@@ -21,6 +21,23 @@ export const IPC_VERSION = "1.1.0";
 export const AUTH_CHANGED_EVENT = "deck-auth-changed";
 export const AUTH_ERROR_EVENT = "deck-auth-error";
 export const DEEP_LINK_EVENT = "pytxo-deep-link";
+export const ACCOUNT_CHANGED_EVENT = "pytxo-account-changed";
+export const ACCOUNT_ERROR_EVENT = "pytxo-account-error";
+
+/** Optional Pytxo account. Local work never depends on it. */
+export type AccountStatus = {
+  signed_in: boolean;
+  account_id: string | null;
+  expires_at: string | null;
+  sign_in_pending: boolean;
+};
+
+export const ACCOUNT_PERKS = [
+  "Share a receipt as a public page",
+  "Keep shared receipts across machines",
+  "Publish Pybench results",
+  "Early access to Team",
+] as const;
 export const DOMAIN_CHANGED_EVENT = "pytxo://domain-changed";
 
 /** A backend error: the message is for people; the code stays on the error for logic and logs. */
@@ -93,6 +110,16 @@ export function onAuthChanged(callback: () => void) {
 export function onAuthError(callback: (message: string) => void) {
   if (!inTauriRuntime()) return Promise.resolve(() => {});
   return listen<{ message: string }>(AUTH_ERROR_EVENT, (event) => callback(event.payload.message));
+}
+
+export function onAccountChanged(callback: () => void) {
+  if (!inTauriRuntime()) return Promise.resolve(() => {});
+  return listen(ACCOUNT_CHANGED_EVENT, callback);
+}
+
+export function onAccountError(callback: (message: string) => void) {
+  if (!inTauriRuntime()) return Promise.resolve(() => {});
+  return listen<string>(ACCOUNT_ERROR_EVENT, (event) => callback(event.payload));
 }
 
 export function onPytxoDeepLink(callback: (url: string) => void) {
@@ -284,6 +311,14 @@ export const ipc = {
       .then(unwrap)
       .catch(() => ({ signed_in: false, session_present: false })),
   authOpenSignIn: () => invoke<void>("auth_open_sign_in").then(unwrap),
+  accountStatus: () =>
+    invoke<AccountStatus>("account_status")
+      .then(unwrap)
+      .catch((): AccountStatus => ({ signed_in: false, account_id: null, expires_at: null, sign_in_pending: false })),
+  accountSignIn: () => invoke<void>("account_sign_in").then(unwrap),
+  accountSignOut: () => invoke<void>("account_sign_out").then(unwrap),
+  accountShareRunReceipt: (runId: string, domainId?: string | null) =>
+    invoke<{ url: string; receipt_id: string }>("account_share_run_receipt", { runId, domainId: domainId ?? null }).then(unwrap),
   authClearSession: () => invoke<void>("auth_clear_session").then(unwrap),
   routingAccountStatus: () => invoke<{ bridge_available: boolean; credential_present: boolean; account_id: string | null; expires_at: string | null; remote_status: "absent" | "verified" | "unverified" | "revoked"; recovery_only: boolean }>("routing_account_status").then(unwrap),
   routingAccountConnect: () => invoke<void>("routing_account_connect").then(unwrap),

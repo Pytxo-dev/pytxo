@@ -6,13 +6,15 @@ import { DISCORD_URL, GITHUB_URL, SOURCE_URL } from "@/lib/site";
 
 const PRODUCT_LINKS = [
   { href: "/download", label: "Download" },
-  { href: "/evidence", label: "Evidence" },
+  { href: "/bench", label: "Pybench" },
+  { href: "/docs/evidence", label: "Evidence" },
   { href: "/plans", label: "Plans" },
 ] as const;
 
 const DOCS_LINKS = [
   { href: "/docs", label: "Docs home" },
   { href: "/docs/getting-started/install", label: "Install" },
+  { href: "/docs/getting-started/land-branches", label: "Land branches" },
   { href: "/docs/concepts/desktop", label: "Pytxo Desktop" },
 ] as const;
 
@@ -34,7 +36,7 @@ export function SiteFooter() {
               <p className="font-semibold tracking-tight">Pytxo</p>
             </div>
             <p className="text-sm leading-relaxed text-[#7d7d87]">
-              The agent hypervisor for your repository. Many coding agents, one verified change.
+              The landing layer for coding agents. Many agents, one verified change.
             </p>
           </div>
 

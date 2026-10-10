@@ -282,11 +282,19 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     let id = new_receipt_id();
     let tag = id.trim_start_matches("rcpt_").to_lowercase();
 
-    // Combine.
-    let combined_tree = OwnedWorktree::add(&repo, &base, &tag)?;
-    let wt = Git::owned(&combined_tree.path, identity);
+    // Combine. Git >= 2.38 merges in memory (`merge-tree --write-tree` plus
+    // `commit-tree`): no checkout, no hooks, no index. Older Git falls back to
+    // merging in a Pytxo-owned worktree.
+    let in_memory = supports_merge_tree(&repo);
+    let owned = Git::owned(&root, identity);
     let mut receipt_inputs = Vec::new();
     let mut reasons = Vec::new();
+    let mut combined = base.clone();
+    let fallback_tree = if in_memory {
+        None
+    } else {
+        Some(OwnedWorktree::add(&repo, &base, &tag)?)
+    };
     for r in &resolved {
         let mut status = "merged";
         let mut conflict_files = Vec::new();
@@ -294,24 +302,27 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             status = "empty";
         } else {
             let message = format!("pytxo land: merge {}", r.input.reference);
-            let out = wt.output(&["merge", "--no-ff", "--no-edit", "-m", &message, &r.commit])?;
-            if !out.status.success() {
-                status = "conflict";
-                conflict_files = wt
-                    .lines(&["diff", "--name-only", "--diff-filter=U"])
-                    .unwrap_or_default();
-                if !wt.ok(&["merge", "--abort"]) {
-                    wt.run(&["reset", "--hard", "HEAD"])?;
+            let merged = match &fallback_tree {
+                None => merge_in_memory(&owned, &combined, &r.commit, &message)?,
+                Some(tree) => {
+                    merge_in_worktree(&Git::owned(&tree.path, identity), &r.commit, &message)?
                 }
-                reasons.push(format!(
-                    "{} conflicts with the inputs before it{}",
-                    r.input.reference,
-                    if conflict_files.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" in {}", conflict_files.join(", "))
-                    }
-                ));
+            };
+            match merged {
+                Ok(commit) => combined = commit,
+                Err(files) => {
+                    status = "conflict";
+                    conflict_files = files;
+                    reasons.push(format!(
+                        "{} conflicts with the inputs before it{}",
+                        r.input.reference,
+                        if conflict_files.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" in {}", conflict_files.join(", "))
+                        }
+                    ));
+                }
             }
         }
         receipt_inputs.push(ReceiptInput {
@@ -323,27 +334,23 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             conflict_files,
         });
     }
-    let combined = wt.run(&["rev-parse", "HEAD"])?;
+    drop(fallback_tree);
 
-    // Checks: each input alone first (optional), then the combination.
+    // Checks: each input alone first (optional), then the combination. Only
+    // checks need files on disk, so only checks create worktrees.
     let mut checks: Vec<ReceiptCheck> = Vec::new();
     if opts.per_input && !opts.checks.is_empty() {
         let scratch = OwnedWorktree::add(&repo, &base, &format!("{tag}-solo"))?;
         let sg = Git::owned(&scratch.path, identity);
         for r in resolved.iter().filter(|r| !r.files.is_empty()) {
-            sg.run(&["reset", "--hard", &base])?;
-            sg.run(&["clean", "-fdq"])?;
             let scope = format!("input:{}", r.input.reference);
-            let out = sg.output(&[
-                "merge",
-                "--no-ff",
-                "--no-edit",
-                "-m",
-                "pytxo land: solo",
-                &r.commit,
-            ])?;
-            if !out.status.success() {
-                let _ = sg.output(&["merge", "--abort"]);
+            let solo = if in_memory {
+                merge_in_memory(&owned, &base, &r.commit, "pytxo land: solo")?
+            } else {
+                sg.run(&["reset", "--hard", &base])?;
+                merge_in_worktree(&sg, &r.commit, "pytxo land: solo")?
+            };
+            let Ok(solo) = solo else {
                 checks.push(ReceiptCheck {
                     scope,
                     command: "(merge onto target)".into(),
@@ -354,7 +361,9 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                     output_tail: vec!["input does not merge cleanly onto the target".into()],
                 });
                 continue;
-            }
+            };
+            sg.run(&["checkout", "--detach", "--force", &solo])?;
+            sg.run(&["clean", "-fdq"])?;
             for command in &opts.checks {
                 checks.push(checks::run_check(
                     &scope,
@@ -365,8 +374,17 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             }
         }
     }
+    let combined_tree = if opts.checks.is_empty() {
+        None
+    } else {
+        Some(OwnedWorktree::add(&repo, &combined, &tag)?)
+    };
     for command in &opts.checks {
-        let check = checks::run_check("combined", command, &combined_tree.path, opts.check_timeout);
+        let dir = &combined_tree
+            .as_ref()
+            .expect("created when checks exist")
+            .path;
+        let check = checks::run_check("combined", command, dir, opts.check_timeout);
         if !check.passed {
             reasons.push(if check.timed_out {
                 format!("combined check timed out: {command}")
@@ -496,6 +514,85 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         combined_ref,
         insights,
     })
+}
+
+/// `git merge-tree --write-tree` arrived in Git 2.38.
+fn supports_merge_tree(repo: &Git) -> bool {
+    if std::env::var_os("PYTXO_LAND_WORKTREE_MERGE").is_some() {
+        return false;
+    }
+    let Ok(version) = repo.run(&["--version"]) else {
+        return false;
+    };
+    let mut parts = version
+        .split_whitespace()
+        .nth(2)
+        .unwrap_or("")
+        .split('.')
+        .map(|p| p.parse::<u32>().unwrap_or(0));
+    let (major, minor) = (parts.next().unwrap_or(0), parts.next().unwrap_or(0));
+    (major, minor) >= (2, 38)
+}
+
+/// Merge `commit` into `onto` without a worktree. `Ok(new commit)` or
+/// `Err(conflicted paths)`.
+fn merge_in_memory(
+    git: &Git,
+    onto: &str,
+    commit: &str,
+    message: &str,
+) -> Result<std::result::Result<String, Vec<String>>> {
+    let out = git.output(&[
+        "merge-tree",
+        "--write-tree",
+        "--name-only",
+        "--no-messages",
+        onto,
+        commit,
+    ])?;
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    let mut lines = text.lines().map(str::trim).filter(|l| !l.is_empty());
+    let tree = lines.next().unwrap_or_default().to_string();
+    match out.status.code() {
+        Some(0) => Ok(Ok(git.run(&[
+            "commit-tree",
+            &tree,
+            "-p",
+            onto,
+            "-p",
+            commit,
+            "-m",
+            message,
+        ])?)),
+        Some(1) => {
+            let mut files: Vec<String> = lines.map(str::to_string).collect();
+            files.dedup();
+            Ok(Err(files))
+        }
+        _ => bail!(
+            "git merge-tree failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ),
+    }
+}
+
+/// Fallback for Git < 2.38: merge in a Pytxo-owned worktree (hooks off).
+fn merge_in_worktree(
+    wt: &Git,
+    commit: &str,
+    message: &str,
+) -> Result<std::result::Result<String, Vec<String>>> {
+    let out = wt.output(&["merge", "--no-ff", "--no-edit", "-m", message, commit])?;
+    if out.status.success() {
+        return Ok(Ok(wt.run(&["rev-parse", "HEAD"])?));
+    }
+    let files = wt
+        .lines(&["diff", "--name-only", "--diff-filter=U"])
+        .unwrap_or_default();
+    if !wt.ok(&["merge", "--abort"]) {
+        wt.run(&["reset", "--hard", "HEAD"])?;
+    }
+    Ok(Err(files))
 }
 
 enum Landing {

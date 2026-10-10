@@ -1,0 +1,38 @@
+---
+title: Receipts
+description: The record Pytxo writes for every landing decision and every reviewed Apply.
+---
+
+Every `pytxo land` decision and every reviewed Apply writes a **receipt**: what was combined, what was checked, what was decided, and why.
+
+Receipts are stored in your repository's Git directory, `.git/pytxo/receipts/<id>.json`. They are never tracked, they are shared by every worktree of the repository, and Pytxo does not edit your `.gitignore` to keep them.
+
+```bash
+pytxo receipts              # newest first
+pytxo receipts show <id>    # full receipt; checks the digest
+pytxo receipts share <id>   # public page (account perk)
+```
+
+## Format
+
+A receipt is an [in-toto Statement v1](https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md), so supply-chain tools can read it. The subject is the combined commit (for `land`); the predicate type is `https://pytxo.com/receipt/v1`.
+
+| Field | Meaning |
+|---|---|
+| `kind` | `land` or `apply` |
+| `decision` | `ready`, `landed`, `blocked`, `stale` (land) or `applied` (Apply) |
+| `mode` | `shadow` (nothing changed) or `apply` |
+| `base`, `result` | The commit that was checked against and the combined commit (Apply: the reviewed package digest) |
+| `inputs` | Each branch or task: commit, agent label, files, status (`merged`, `conflict`, `empty`, `applied`) |
+| `shared_files` | Files changed by more than one input, and the functions or types two inputs both changed |
+| `checks` | Each command, where it ran (`combined` or `input:<ref>`), exit code, time and the last lines of output |
+| `reasons` | Why the decision is not `ready` |
+| `content_digest` | SHA-256 of the canonical predicate |
+
+## What the digest proves
+
+`pytxo receipts show` recomputes the digest and says whether it still matches. A matching digest shows the file was not edited after it was written. Receipts are not signed in 1.3, so the digest does not prove who wrote the file.
+
+## Apply receipts
+
+A reviewed Apply from Desktop or `pytxo apply` writes a receipt with `kind: apply`. Its inputs are the run's tasks with the agent that ran each one, its checks are the commands run on the combined candidate, and `result` is the reviewed package digest. The Apply journal remains the authority for recovery; the receipt is the summary you keep and share.
