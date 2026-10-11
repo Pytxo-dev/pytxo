@@ -9,6 +9,7 @@ Palette: Void / Panel / Ink, plus a logo-spectrum ribbon. Live (running) and Cue
 - `tokens.css` — CSS custom properties (void night + light)
 - `utilities.css` — ribbon, bezel, status lamp, Apply receipt
 - `tokens.json` — machine-readable palette for Rust TUI sync
+- `logo/pytxo-mark.svg` — master logo mark (Chroma p): a magenta main line and a spectrum branch that rejoins it. `apps/web/public/logo.png` is rendered from it at 1024 px; `apps/web/scripts/generate-favicon.mjs` and `tooling/scripts/generate-deck-icons.mjs` derive the favicons and Desktop icons from that PNG.
 
 ## Usage
 
