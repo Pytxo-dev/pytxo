@@ -4,7 +4,7 @@
  * apps/web/public/logo.png.
  *
  * The source logo is a 1024x1024 canvas with large transparent padding
- * around the lambda glyph. Icons are built by trimming that padding first,
+ * around the mark (rendered from packages/chroma/logo/pytxo-mark.svg). Icons are built by trimming that padding first,
  * then compositing the tight glyph onto a fully transparent canvas at each
  * target size. This keeps every icon alpha-transparent (so it reads
  * correctly against dark/light taskbars and docks) and keeps the glyph

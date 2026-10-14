@@ -158,6 +158,10 @@ sequence without authorizing external writes.
 - [[ADR-0036-effect-contract-commit-boundary]] — proposed effect-contract expansion beyond repository Apply
 - [[ADR-0037-chroma-aperture-visual-contract]] — shared website and Desktop presentation contract
 - [[competitive-landscape-2026-07]] — primary-source competitor map + GTM compare priorities (2026-07)
+- [[2026-10-10-pytxo-v1-3-design]] — v1.3 "Land": decisions, scope, receipts, Pybench, account perks
+- [[v1-3-audit-2026-10-10]] — inconsistencies and weaknesses found for v1.3, fixed vs deferred
+- [[ADR-0042-landing-gate-and-receipts]] — `pytxo land`, receipts and sharing boundary
+- [[pytxo-business-strategy-2026-10-10]] — market map, landing-layer recommendation, pricing anchors, horizons and kill gates (2026-10-10, draft for Matt)
 - [[beta-competitor-research-2026-09-05]] — fresh competitor evidence, single-harness value, and testable Beta differentiation
 - [[beta-ux-audit-2026-09-05]] — single-harness onboarding, task evidence, and remaining Beta proof gaps
 - [[beta-core-audit-2026-09-05]] — verifier Stop ownership, durable cancellation, and remaining core proof gaps

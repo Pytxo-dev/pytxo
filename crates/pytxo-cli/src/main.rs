@@ -1,4 +1,6 @@
+mod account;
 mod commands;
+mod land_cmd;
 mod mission;
 mod models;
 
@@ -9,7 +11,7 @@ use tracing_subscriber::EnvFilter;
 #[command(
     name = "pytxo",
     version,
-    about = "Pytxo local agent hypervisor",
+    about = "Pytxo: the landing layer for coding agents",
     after_help = "Discord: https://discord.gg/AUFRPFjSYv"
 )]
 struct Cli {
@@ -19,6 +21,116 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Land agent branches: check the combined change, then land it stale-safely
+    ///
+    /// Inputs are branches or commits from any agent tool (`label:ref` names the
+    /// agent, `agent/*` expands to matching branches). Default is shadow mode:
+    /// nothing in the repository changes and a receipt records the decision.
+    #[command(
+        after_help = "Exit codes: 0 ready or landed, 2 blocked, 3 stale (target moved).
+Example: pytxo land codex:agent/a claude:agent/b -c \"npm test\" --per-input"
+    )]
+    Land {
+        /// Branches or commits to combine, in merge order
+        #[arg(required = true, num_args = 1..)]
+        inputs: Vec<String>,
+        /// Base commit (default: the target's tip)
+        #[arg(long)]
+        base: Option<String>,
+        /// Target branch (default: the checked-out branch)
+        #[arg(long)]
+        into: Option<String>,
+        /// Check command to run on the combined change (repeatable)
+        #[arg(long = "check", short = 'c')]
+        checks: Vec<String>,
+        /// Also run the checks on each input alone
+        #[arg(long)]
+        per_input: bool,
+        /// Land a ready result: fast-forward or compare-and-swap the target
+        #[arg(long)]
+        apply: bool,
+        /// Block when two inputs changed the same function or type
+        #[arg(long)]
+        strict: bool,
+        /// Per-check timeout in seconds
+        #[arg(long, default_value = "900")]
+        timeout: u64,
+        #[arg(long)]
+        json: bool,
+        /// Pull-request comment format
+        #[arg(long, conflicts_with = "json")]
+        markdown: bool,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+    },
+    /// Review a finished run's prepared change (or refresh / discard it)
+    Review {
+        run_id: String,
+        /// Re-prepare a stale review against the current project
+        #[arg(long)]
+        refresh: bool,
+        /// Drop the prepared change without writing anything
+        #[arg(long)]
+        discard: bool,
+        #[arg(long)]
+        json: bool,
+        #[arg(long)]
+        config: Option<std::path::PathBuf>,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+    },
+    /// Apply a reviewed run: writes exactly the reviewed files, refused if anything moved
+    Apply {
+        run_id: String,
+        /// Package digest from `pytxo review` (skips the confirmation prompt)
+        #[arg(long)]
+        digest: Option<String>,
+        /// Apply the package shown without asking
+        #[arg(long)]
+        yes: bool,
+        #[arg(long)]
+        config: Option<std::path::PathBuf>,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+    },
+    /// Landing and Apply receipts for this repository
+    Receipts {
+        #[command(subcommand)]
+        action: Option<ReceiptsAction>,
+        #[arg(long, global = true)]
+        repo: Option<std::path::PathBuf>,
+    },
+    /// Pybench: offline benchmarks of the landing gate (no model calls)
+    #[command(
+        after_help = "Suites: land (what per-branch CI vs pytxo land would put on main), overhead (gate cost), signal (scaffold bytes).
+Results are synthetic mechanism tests, not real-world failure rates."
+    )]
+    Bench {
+        /// land, overhead, signal or all
+        #[arg(long, default_value = "all")]
+        suite: String,
+        /// Write the JSON report here
+        #[arg(long)]
+        out: Option<std::path::PathBuf>,
+        /// Print the JSON report instead of the table
+        #[arg(long)]
+        json: bool,
+        /// Repository for the signal suite (default: current)
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+        /// Publish the summary to the public Pybench board (account perk)
+        #[arg(long)]
+        submit: bool,
+        /// With --submit: keep the result private to your account (Pytxo Pro)
+        #[arg(long, requires = "submit")]
+        private: bool,
+    },
+    /// Sign in to Pytxo for account perks (sharing receipts, Pybench board). Optional.
+    Login,
+    /// Sign out on this machine
+    Logout,
+    /// Show the signed-in Pytxo account
+    Whoami,
     /// Initialize local Pytxo directories
     Init {
         #[arg(long)]
@@ -158,6 +270,27 @@ enum Commands {
     Models {
         #[command(subcommand)]
         action: ModelsAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ReceiptsAction {
+    /// List receipts, newest first
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print one receipt (full id or unique prefix) and check its digest
+    Show { id: String },
+    /// Publish a receipt as a public page (account perk). Counts and outcomes only.
+    Share {
+        id: String,
+        /// Also publish the changed file paths
+        #[arg(long)]
+        include_paths: bool,
+        /// Only you can open the page, signed in (Pytxo Pro)
+        #[arg(long)]
+        private: bool,
     },
 }
 
@@ -362,6 +495,101 @@ async fn run_cli() -> anyhow::Result<()> {
                 plan_file,
             })
             .await?;
+        }
+        Some(Commands::Land {
+            inputs,
+            base,
+            into,
+            checks,
+            per_input,
+            apply,
+            strict,
+            timeout,
+            json,
+            markdown,
+            repo,
+        }) => {
+            let code = land_cmd::run_land(land_cmd::LandArgs {
+                inputs,
+                base,
+                into,
+                checks,
+                per_input,
+                apply,
+                strict,
+                timeout_secs: timeout,
+                json,
+                markdown,
+                repo,
+            })?;
+            if code != 0 {
+                std::process::exit(code);
+            }
+        }
+        Some(Commands::Review {
+            run_id,
+            refresh,
+            discard,
+            json,
+            config,
+            repo,
+        }) => land_cmd::run_review(&run_id, refresh, discard, json, config, repo)?,
+        Some(Commands::Apply {
+            run_id,
+            digest,
+            yes,
+            config,
+            repo,
+        }) => land_cmd::run_apply(&run_id, digest, yes, config, repo)?,
+        Some(Commands::Receipts { action, repo }) => match action {
+            None | Some(ReceiptsAction::List { json: false }) => {
+                land_cmd::receipts_list(repo, false)?
+            }
+            Some(ReceiptsAction::List { json: true }) => land_cmd::receipts_list(repo, true)?,
+            Some(ReceiptsAction::Show { id }) => land_cmd::receipts_show(repo, &id)?,
+            Some(ReceiptsAction::Share {
+                id,
+                include_paths,
+                private,
+            }) => account::receipts_share(repo, &id, include_paths, private)?,
+        },
+        Some(Commands::Login) => account::login()?,
+        Some(Commands::Logout) => account::logout()?,
+        Some(Commands::Whoami) => account::whoami()?,
+        Some(Commands::Bench {
+            suite,
+            out,
+            json,
+            repo,
+            submit,
+            private,
+        }) => {
+            use pytxo_land::bench::{self, Suite};
+            let suites = match suite.as_str() {
+                "all" => vec![Suite::Land, Suite::Overhead, Suite::Signal],
+                "land" => vec![Suite::Land],
+                "overhead" => vec![Suite::Overhead],
+                "signal" => vec![Suite::Signal],
+                other => anyhow::bail!("unknown suite {other}: use land, overhead, signal or all"),
+            };
+            let report = bench::run(&suites, repo.as_deref(), |step| {
+                if !json {
+                    eprintln!("  running {step}");
+                }
+            })?;
+            let body = serde_json::to_string_pretty(&report)?;
+            if let Some(path) = &out {
+                std::fs::write(path, &body)?;
+                eprintln!("wrote {}", path.display());
+            }
+            if json {
+                println!("{body}");
+            } else {
+                print!("{}", bench::render_text(&report));
+            }
+            if submit {
+                account::submit_bench(&report, private)?;
+            }
         }
         Some(Commands::Init { repo }) => {
             commands::init(repo)?;
@@ -771,7 +999,7 @@ mod tests {
         let mut help = Vec::new();
         Cli::command().write_long_help(&mut help).unwrap();
         let help = String::from_utf8(help).unwrap();
-        assert!(help.contains("Pytxo local agent hypervisor"));
+        assert!(help.contains("the landing layer for coding agents"));
         assert!(!help.contains("agent control plane"));
     }
 }

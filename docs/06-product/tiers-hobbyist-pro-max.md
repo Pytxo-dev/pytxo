@@ -12,6 +12,13 @@ related: [[token-arbitrage]], [[gtm-open-source-loop]], [[pytxo-link-service]], 
 
 # Subscription tiers
 
+> [!WARNING]
+> Historical (superseded 2026-10-10). Current plans: Pytxo is free locally, a
+> free account adds sharing perks, and Team is planned with no published price
+> ([[2026-10-10-pytxo-v1-3-design]], [[pytxo-business-strategy-2026-10-10]]).
+> The tiers below, including the Core 3-agent limit and Ultra pricing, are not
+> offered.
+
 Pytxo monetizes **infrastructure efficiency and cloud offload**; the local core stays open-source for adoption. Commercial maturity and gates: [[pytxo-improvement-research]].
 
 | Tier | Price | Highlights |

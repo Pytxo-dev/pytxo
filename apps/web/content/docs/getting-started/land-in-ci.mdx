@@ -1,0 +1,59 @@
+---
+title: Land in GitHub Actions
+description: Run pytxo land in shadow mode on pull requests and post the result as a summary.
+---
+
+`pytxo land --markdown` prints a pull-request-ready summary. The Pytxo repository includes a composite action, `actions/land`, that installs the CLI and runs the gate in **shadow mode**: it never pushes, merges or changes branches.
+
+## Check agent pull requests together
+
+This workflow runs when a pull request labelled `agent` opens or changes. It checks every open `agent` pull request against the base branch as one combined change.
+
+```yaml
+name: Pytxo land (shadow)
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  land:
+    if: contains(github.event.pull_request.labels.*.name, 'agent')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fetch open agent pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh pr list --label agent --state open --json number --jq '.[].number'); do
+            git fetch origin "pull/$n/head:agent/pr-$n"
+          done
+      - uses: Pytxo-dev/pytxo/actions/land@v1.3.0
+        with:
+          inputs: "agent/*"
+          checks: "npm ci && npm test"
+          per-input: "true"
+```
+
+The step summary shows the decision, the inputs, shared files, checks and reasons. The job fails when the decision is blocked or stale, so you can make it a required check.
+
+## Action inputs
+
+| Input | Required | Description |
+|---|---|---|
+| `inputs` | yes | Space-separated branches, commits or patterns (`label:ref` allowed) |
+| `checks` | no | One check command. For several, chain them with `&&` |
+| `per-input` | no | `"true"` to also run checks on each branch alone |
+| `base` | no | Commit to check against. Default: `origin/<base branch>` of the pull request |
+| `version` | no | Pytxo version to install (default: the action's release) |
+
+The action never uses `--apply`. Landing stays a human or merge-queue decision; the receipt records what the gate saw.

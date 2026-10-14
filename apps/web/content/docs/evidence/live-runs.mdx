@@ -1,0 +1,47 @@
+---
+title: Live runs
+description: Recorded end-to-end runs of released and candidate builds with real agent CLIs, including the failures.
+---
+
+## 10 October 2026 · released 1.2.4 · three live agent CLIs
+
+The Desktop executable from the public 1.2.4 MSI (SHA-256 `CA123A4E…F871`) ran one paragraph-long request on a small task-board project.
+
+| | |
+|---|---|
+| Split | Claude Code split the paragraph into **7** tasks, each owning its files |
+| Agents | Claude Code, Codex and Cursor Agent, live and signed in with their own accounts |
+| Workers | **7/7** completed, all exit code 0, in about 10 min 50 s |
+| Review | **14** files, each with the task that wrote it |
+| Stale refusal | A file changed after review: Apply refused and wrote nothing. Refresh produced a new package digest |
+| Apply | **14/14** reviewed files written |
+| Project tests after Apply | **22/22** passed |
+
+Limits, as recorded:
+
+- One run on one fixture project on one Windows host. Not a benchmark and not a reliability rate.
+- Antigravity and OpenCode were left out. In live runs Antigravity's headless mode denied its own tool permission and made no edits, and OpenCode's configured model could not use tools on this machine. Both are labelled beta.
+- **Checks passing is not correctness.** The applied app had integration bugs, including a duplicate theme button and an empty-state line shown beside matching tasks, that the agents' own tests did not cover.
+- Host filesystem and network controls were advisory; the run's enforcement receipt lists which protections were enforced.
+
+[Run record (JSON)](/evidence/fleet-live-2026-10-10.json)
+
+## 2 October 2026 · 1.2.2 candidate · five agent CLIs
+
+The packaged Windows 1.2.2 candidate planned one six-line request into six tasks and ran them in three steps across Codex, Claude Code, Cursor Agent, OpenCode and Antigravity, four at once. Every worker exited successfully with its task checks passing, and the combined checks passed. A file added after review made Apply refuse; after a refresh, Apply wrote exactly the reviewed files and the project's tests passed 10/10.
+
+In this run OpenCode and Antigravity finished their tasks **without changing files**. The 10 October live runs showed the Antigravity cause was not fixed, which is why both remain beta.
+
+[Run record (JSON)](/evidence/fleet-native-2026-10-02.json)
+
+## 7–8 September 2026 · 1.2.2 candidate · one harness
+
+A synthetic code, tests and documentation mission ran through Codex 0.153.4: two independent tasks first, then the test task after its dependency, combined checks, explicit Review and Apply. All three applied file hashes matched the reviewed package and the project's tests passed.
+
+The failed attempts from the same days are kept:
+
+- A worker edited a file outside its ownership while passing its own checks; package preparation refused it. [Record](/evidence/astra-refused-run-2026-09-07.json)
+- Windows split a prompt argument and two workers stopped before model work. [Record](/evidence/astra-transport-failure-2026-09-07.json)
+- All checks passed, but review withheld Apply because the README contradicted the changed code. [Record](/evidence/astra-review-withheld-2026-09-07.json)
+
+A direct Codex run in a Git worktree also completed the change. Different instance counts, startup overhead and background load prevent a speed comparison. [Native record](/evidence/astra-native-codex-2026-09-07.json) · [Direct record](/evidence/astra-direct-codex-2026-09-07.json) · [8 September checkpoint](/evidence/astra-aperture-native-2026-09-08.json)

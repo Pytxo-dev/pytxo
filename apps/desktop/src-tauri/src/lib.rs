@@ -1,5 +1,6 @@
 mod flow_window;
 mod ipc;
+mod ipc_account;
 mod ipc_auth;
 mod ipc_error;
 mod ipc_flow;
@@ -33,7 +34,7 @@ use ipc::{
     run_review_content, select_domain, set_domain_permission, stop_run, structural_graph,
     tail_events, workspace_structural_graph, AppState,
 };
-use ipc_auth::{auth_clear_session, auth_open_sign_in, auth_status};
+use ipc_auth::{auth_clear_session, auth_status};
 use ipc_flow::{
     flow_advisor_consent, flow_advisor_consent_domains, flow_advisor_consent_enable,
     flow_advisor_consent_revoke, flow_advisor_packet_preview, flow_delete, flow_dispatch,
@@ -144,6 +145,10 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            ipc_account::account_status,
+            ipc_account::account_sign_in,
+            ipc_account::account_sign_out,
+            ipc_account::account_share_run_receipt,
             update_safety::update_preflight,
             update_safety::begin_update_handoff,
             update_safety::finish_update_handoff,
@@ -212,7 +217,6 @@ pub fn run() {
             start_ade_login,
             auth_status,
             auth_clear_session,
-            auth_open_sign_in,
             routing_account_status,
             routing_account_connect,
             routing_account_disconnect,

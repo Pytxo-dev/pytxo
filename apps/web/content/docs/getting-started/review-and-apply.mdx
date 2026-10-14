@@ -60,6 +60,6 @@ The Desktop preview starts new runs under **Orbit**. Other existing run types ha
 | DeepSpace | Apply is not allowed |
 | Supernova | Direct host writes; no reviewed Apply step |
 
-There is **no `pytxo apply`**. `pytxo hitl` handles Galaxy runtime approvals and does not apply a package. Windows Desktop is the Apply interface; macOS and Linux CLI users can inspect prepared packages but cannot complete that Desktop step.
+From a terminal on any platform, `pytxo review <run>` shows the same package and digest, and `pytxo apply <run> --digest <digest>` applies exactly that package. `pytxo hitl` handles Galaxy runtime approvals and does not apply a package. Every committed Apply writes a [receipt](/docs/concepts/receipts).
 
 Next: [Troubleshooting](/docs/troubleshooting) · [Permission profiles](/docs/reference/permission-tiers)

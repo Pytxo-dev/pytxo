@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { MenuIcon } from "lucide-react";
 
+import { HeaderAuth } from "@/components/header-auth";
 import { Button } from "@/components/ui/button";
 import {
   NavigationMenu,
@@ -60,6 +61,7 @@ export function SiteHeader() {
         </NavigationMenu>
 
         <div className="col-start-3 flex items-center justify-end gap-2">
+          <HeaderAuth />
           <Button size="sm" className="hidden h-8 rounded-[4px] bg-white px-3.5 text-black hover:bg-white/85 sm:inline-flex" asChild>
             <Link href="/download">Download</Link>
           </Button>

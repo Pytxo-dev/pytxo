@@ -152,6 +152,37 @@ impl CommerceStore {
         Self::Memory(Arc::new(Mutex::new(MemoryCommerceState::default())))
     }
 
+    /// The provider customer behind a user's most recent subscription, for
+    /// opening that provider's billing portal.
+    pub async fn customer_for_user(
+        &self,
+        provider: CommerceProvider,
+        user_id: &str,
+    ) -> Result<Option<String>, sqlx::Error> {
+        match self {
+            Self::Postgres(pool) => {
+                sqlx::query_scalar(
+                    "SELECT customer_id FROM billing_subscriptions \
+                     WHERE provider = $1 AND user_id = $2 ORDER BY last_event_at DESC LIMIT 1",
+                )
+                .bind(provider.as_str())
+                .bind(user_id)
+                .fetch_optional(pool)
+                .await
+            }
+            #[cfg(test)]
+            Self::Memory(state) => {
+                let state = state.lock().expect("commerce memory lock");
+                Ok(state
+                    .subscriptions
+                    .iter()
+                    .filter(|((p, _), s)| p == provider.as_str() && s.user_id == user_id)
+                    .max_by_key(|(_, s)| s.last_event_at)
+                    .map(|(_, s)| s.customer_id.clone()))
+            }
+        }
+    }
+
     pub async fn reconcile(
         &self,
         _entitlements: &EntitlementStore,

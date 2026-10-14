@@ -3,6 +3,7 @@
 mod emit;
 mod graph;
 mod language;
+mod symbols;
 
 use std::path::Path;
 
@@ -83,6 +84,8 @@ pub fn scaffold_source(path: &Path, source: &str, tier: FidelityTier) -> Result<
 pub fn read_scaffolded(path: &Path, tier: FidelityTier) -> Result<ScaffoldResult> {
     TreeSitterSignalCore.read_scaffolded(path, tier)
 }
+
+pub use symbols::{innermost_symbol, symbol_spans, SymbolSpan};
 
 pub use graph::{
     aggregate_modules, build_module_graph, build_structural_graph, enrich_symbol_nodes,

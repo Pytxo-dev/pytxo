@@ -1,3 +1,64 @@
+# v1.3 "Land" — running state
+
+Owner: Claude, 2026-10-10/11. Branch `mbcz/v1.3-land` (worktree
+`pytxo-business-strategy-5cfa4d`), from `main` @ `e348669` (v1.2.5). Design:
+`docs/superpowers/specs/2026-10-10-pytxo-v1-3-design.md`. Audit:
+`docs/01-projects/v1-3-audit-2026-10-10.md`. Nothing pushed, merged, tagged,
+released or deployed.
+
+## What 1.3 ships (local, verified)
+
+- `pytxo land` (new crate `pytxo-land`): branches from any agent tool combined in
+  memory (`git merge-tree`), checks on the combination and per input, same-function
+  detection via Signal Core, shadow by default, `--apply` by fast-forward or
+  compare-and-swap, stale refusal, receipts. 11 unit/integration tests on real git.
+- Receipts (`pytxo-core::receipt`, in-toto v1) for every landing and every committed
+  Apply; `pytxo receipts list|show|share`.
+- CLI parity: `pytxo review`, `pytxo apply` (digest-bound).
+- Pybench `pytxo bench`: final reference run 2026-10-10T16:50Z on release 1.3.0 —
+  12/12 as expected; per-branch CI lands 4 broken mains; gate refuses 4/4; 0 false
+  refusals; median gate 3.1 s. `tooling/benchmarks/results/pybench-1.3.0-2026-10-10.json`.
+- Optional account: Link `account.rs` + migration 020 (PKCE codes, `pas1_` credentials,
+  shared receipts, bench board), CLI `login/logout/whoami`, Desktop Settings → Account
+  and Review "Share receipt", web `/account/connect`, `/r/[id]`, `/bench`, header sign-in.
+- Website/docs: FAQ clipping fixed (regression test fails on the old accordion),
+  evidence moved to `/docs/evidence`, landing-layer positioning, plans (free / free
+  account / Team planned), honest agent labels, stale "no pytxo apply" docs fixed.
+- GitHub composite action `actions/land` (shadow only).
+- Pytxo Pro ($12/mo, added 2026-10-14): Link migration 021 (private receipts and
+  Pybench), free limit of 25 shared receipts, `GET /v1/bench/mine`, admin Dodo
+  customer lookup; CLI `--private`; web Dodo checkout and billing portal, plan panel,
+  receipt delete, private receipt view; Terms, Privacy, Refunds pages.
+
+## Checks (local, this branch)
+
+| Check | Result |
+|---|---|
+| `cargo fmt --all -- --check` | pass |
+| `cargo clippy --workspace --all-targets -D warnings` | pass |
+| `cargo test --workspace` | pass (1,120 + Desktop 78 after keyring fix; pytxo-runner owned-launch tests need the CI attempt-host pin and pass 225/225 with it) |
+| `pytxo-land` tests (both merge paths) | 11/11 + Pybench scenario test (ignored by default, passes) |
+| Link account contract test (memory store) | pass; **Postgres SQL not run** (no local DB) |
+| CLI login → whoami → share → public read against local Link | pass |
+| Web `pnpm lint`, `pnpm build`, Playwright (Chrome) | pass, 31/31 |
+| Desktop `npm run check` | 0 errors |
+| Desktop release e2e | 419 passed + routing test fixed after run; `review-depth` "another client refresh" failed once under 4-worker load, passed 5/5 alone |
+| Native release exe | pass: release exe 2135650D…, isolated PYTXO_HOME; Settings → Account renders, 0 console errors; sign-in via browser handoff + deep link + local Link stored in Windows Credential Manager; sign-out removed it; signed-out share explains the perk |
+
+## Gates before publishing 1.3.0 (Matt)
+
+| # | Gate | Unblock |
+|---|------|---------|
+| 1 | Push branch, open PR, CI green | `/authorize push` |
+| 2 | Link: Postgres test of migration 020 + account SQL, then deploy Link | Approval; a CI Postgres job or staging DB |
+| 3 | Merge, tag v1.3.0, release run, mirror + npm checks | `/authorize merge`, release approval |
+| 4 | Live run of `pytxo land` on a real multi-agent repo (Orca/Conductor branches) | Matt's agents and accounts |
+| 5 | Docs flip to 1.3.0 (install pages, `PUBLISHED_VERSION`) and site deploy | `/authorize deploy` |
+| 6 | Launch: YouTube film, Product Hunt, HN/Reddit (Matt's words) | Matt |
+| 7 | Pro billing live: Dodo **Test Mode** product "Pytxo Pro" $12/mo; webhook to `https://pytxo.com/api/billing/dodo/webhook` (subscription events); Link env `DODO_WEBHOOK_SECRET`, `DODO_BUSINESS_ID`, `DODO_BRAND_ID`, `DODO_PRODUCT_PRO`; Vercel env `DODO_API_KEY`, `DODO_ENVIRONMENT=test`, `DODO_PRODUCT_PRO`, `LINK_ADMIN_URL`, `LINK_ADMIN_KEY`; one test purchase end to end (checkout, webhook, plan shows Pro, portal, cancel); confirm checkout metadata reaches `subscription.active`; then repeat with live keys | Matt (keys and dashboard), `/authorize deploy`; review Terms/Privacy/Refunds (14-day first-payment refund, contact address) |
+
+---
+
 # Public beta launch — running state
 
 Owner: Claude (session started 2026-10-07). Branch `mbcz/pytxo-public-beta-636343`,

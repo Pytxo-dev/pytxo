@@ -39,7 +39,7 @@ export async function clearOnboarding(page: Page) {
 
 export async function openAppearance(page: Page) {
   await page.goto("/#/settings");
-  await page.getByRole("button", { name: "Account & billing" }).click();
+  await page.getByRole("button", { name: "Account", exact: true }).click();
   await page.getByRole("button", { name: "Appearance" }).click();
 }
 

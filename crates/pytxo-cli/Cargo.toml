@@ -25,9 +25,14 @@ experimental-routing-benchmark = []
 
 [dependencies]
 anyhow = { workspace = true }
+base64 = { workspace = true }
+getrandom = "0.2"
+sha2 = "0.10"
+ureq = { version = "2.12", features = ["json"] }
 clap = { workspace = true }
 pytxo-catalog = { workspace = true }
 pytxo-core = { workspace = true }
+pytxo-land = { workspace = true }
 pytxo-runner = { workspace = true }
 pytxo-orchestrate = { path = "../pytxo-orchestrate", features = ["sanitize", "link-http", "cloud-http"] }
 pytxo-shell = { path = "../pytxo-shell" }

@@ -8,7 +8,7 @@ export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
  */
 export const PUBLISHED_VERSION = "1.2.5";
 /** In-repo / changelog candidate. Not for public download URLs. */
-export const CANDIDATE_VERSION = "1.2.5";
+export const CANDIDATE_VERSION = "1.3.0";
 /** Alias for published tag used by download UI. */
 export const PYTXO_VERSION = PUBLISHED_VERSION;
 
@@ -47,9 +47,21 @@ export type NavLink = {
   badge?: string;
 };
 
+/** One product sentence, used by metadata, footer and structured data. */
+export const PRODUCT_LINE = "The landing layer for coding agents";
+export const PRODUCT_SUMMARY =
+  "Pytxo checks what your coding agents produced as one combined change, shows exactly what will land, refuses if anything moved, and leaves a receipt.";
+
+/** Agents verified live on a released build vs. those still in beta. */
+export const AGENT_SUPPORT = {
+  verified: ["Codex", "Claude Code", "Cursor Agent"],
+  beta: ["OpenCode", "Antigravity"],
+} as const;
+
 export const NAV_LINKS: NavLink[] = [
   { href: "/#how", label: "How it works" },
-  { href: "/evidence", label: "Evidence" },
+  { href: "/#land", label: "Land branches" },
+  { href: "/bench", label: "Pybench" },
   { href: "/docs", label: "Docs" },
   { href: DISCORD_URL, label: "Support" },
   { href: "/download", label: "Download" },

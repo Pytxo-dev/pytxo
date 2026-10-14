@@ -11,7 +11,8 @@ test("docs home and getting-started pages load", async ({ page }) => {
 
   await page.goto("/docs/getting-started/review-and-apply");
   await expect(page.getByRole("heading", { level: 1, name: "Review and Apply" })).toBeVisible();
-  await expect(page.getByText(/no pytxo apply/i)).toBeVisible();
+  await expect(page.getByText(/pytxo apply <run> --digest/i)).toBeVisible();
+  await expect(page.getByText(/no pytxo apply/i)).toHaveCount(0);
 
   await page.goto("/docs/getting-started/first-mission");
   await expect(page.getByRole("heading", { level: 1, name: /First mission/i })).toBeVisible();

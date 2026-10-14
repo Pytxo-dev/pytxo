@@ -1,7 +1,6 @@
 use keyring::Entry;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_shell::ShellExt;
 
 use crate::ipc_error::{map_io_err, IpcResult, PytxoIpcError};
 
@@ -54,14 +53,6 @@ pub fn auth_clear_session(app: AppHandle) -> IpcResult<()> {
     Ok(())
 }
 
-#[tauri::command]
-#[allow(deprecated)] // Compatibility path until the existing shell plugin is replaced by opener.
-pub async fn auth_open_sign_in(app: AppHandle) -> IpcResult<()> {
-    let url = "https://pytxo.com/account?deck_callback=pytxo-deck";
-    app.shell().open(url, None).map_err(map_io_err)?;
-    Ok(())
-}
-
 pub fn hydrate_session_env() {
     if let Ok(token) = read_session() {
         if !token.is_empty() {
@@ -88,6 +79,18 @@ pub fn handle_deck_deep_link(app: &AppHandle, url: &str) -> IpcResult<()> {
         "deck deep link: received {} callback",
         trimmed.split(':').next().unwrap_or("unknown")
     );
+
+    if crate::ipc_account::is_account_callback(trimmed) {
+        let result = crate::ipc_account::handle_callback(app, trimmed);
+        if let Err(error) = &result {
+            let _ = app.emit(
+                crate::ipc_account::ACCOUNT_ERROR_EVENT,
+                error.message.clone(),
+            );
+        }
+        focus_main_window(app);
+        return result;
+    }
 
     if is_routing_callback(trimmed) {
         let result = crate::ipc_routing_account::handle_callback(app, trimmed);

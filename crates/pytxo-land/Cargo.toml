@@ -1,0 +1,19 @@
+[package]
+name = "pytxo-land"
+description = "Pytxo landing gate: combine agent branches, check the combined change, land it stale-safely, write a receipt"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+pytxo-core = { workspace = true }
+pytxo-signal = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.14"

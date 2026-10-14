@@ -5,13 +5,15 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { safeConnectReturn } from "@/lib/account-connect";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
 import { desktopAccountUrl, desktopBridgeParams, desktopSignUpUrl } from "@/lib/desktop-bridge";
 
 export default function SignInPage() {
   const searchParams = useSearchParams();
   const bridge = desktopBridgeParams(searchParams);
-  const redirectUrl = desktopAccountUrl(bridge);
+  // CLI/Desktop sign-in returns to its connect request; everything else to /account.
+  const redirectUrl = safeConnectReturn(searchParams.get("return_to")) ?? desktopAccountUrl(bridge);
 
   if (!SITE_AUTH_ENABLED) {
     return (

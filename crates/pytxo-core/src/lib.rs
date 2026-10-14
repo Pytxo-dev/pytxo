@@ -15,12 +15,18 @@ mod moat;
 mod path_util;
 mod plan;
 mod project;
+mod receipt;
 mod review;
 pub mod routing;
 mod service_health;
 mod task;
 mod trust;
 mod upgrade_guard;
+pub use receipt::{
+    find_receipt, list_receipts, load_receipt, new_receipt_id, receipts_dir, Receipt, ReceiptCheck,
+    ReceiptInput, ReceiptPredicate, ReceiptSharedFile, ReceiptSubject, ReceiptSymbolCollision,
+    RECEIPT_PREDICATE_TYPE, RECEIPT_SHARE_SCHEMA, RECEIPT_STATEMENT_TYPE,
+};
 pub use upgrade_guard::UpgradeGuard;
 
 pub use ade_registry::{

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
+use crate::account::AccountStore;
 use crate::commerce::CommerceStore;
 use crate::dodo::DodoProductCatalog;
 use crate::entitlements::EntitlementStore;
@@ -47,6 +48,8 @@ pub struct AppState {
     pub paddle_prices: Option<PaddlePriceCatalog>,
     pub dodo_webhook_secret: Option<String>,
     pub dodo_products: Option<DodoProductCatalog>,
+    /// Optional account perks: sign-in, shared receipts, Pybench board.
+    pub accounts: AccountStore,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

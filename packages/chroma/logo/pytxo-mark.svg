@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10.5 11 80 80">
+  <title>Pytxo</title>
+  <defs>
+    <linearGradient id="pytxo-chroma" gradientUnits="userSpaceOnUse" x1="40" y1="16" x2="56" y2="72">
+      <stop offset="0" stop-color="#F04DA3"/>
+      <stop offset=".3" stop-color="#FF6A4A"/>
+      <stop offset=".55" stop-color="#F3C64E"/>
+      <stop offset=".8" stop-color="#79E07B"/>
+      <stop offset="1" stop-color="#45DCCB"/>
+    </linearGradient>
+  </defs>
+  <path d="M42 24H50A20 20 0 0 1 50 64H42" fill="none" stroke="url(#pytxo-chroma)" stroke-width="16"/>
+  <path d="M31 24V78" fill="none" stroke="#F04DA3" stroke-width="16" stroke-linecap="round"/>
+</svg>

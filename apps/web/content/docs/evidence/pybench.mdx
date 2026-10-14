@@ -1,0 +1,59 @@
+---
+title: Pybench
+description: How Pybench measures the landing gate, what each scenario contains, and what the results do not show.
+---
+
+Pybench is Pytxo's offline benchmark, run with `pytxo bench`. It never calls a model or an agent. Each scenario builds a throwaway Git repository with a small JavaScript project and a test runner, then gives two policies the same agent branches:
+
+- **Per-branch CI.** Test each branch alone against the target. Merge every branch that passed. Never test the merged result. This is how most branch-per-agent workflows land work today.
+- **`pytxo land`.** Combine the branches, run the same tests on the combination (and on each branch alone), and land only a combination that passed. Refuse if the target moved.
+
+Published results: [the board and the reference run](/bench) · [raw JSON](/evidence/pybench-1.3.0-2026-10-10.json).
+
+## Scenarios
+
+| Scenario | What the branches do | Known-correct outcome |
+|---|---|---|
+| Disjoint files | Two agents touch different files | Land |
+| Same file, different functions | Two agents edit different functions of one file | Land |
+| Same function, compatible edits | Two agents edit different lines of one function; Git merges cleanly | Land, with a same-function warning |
+| Textual conflict | Both rewrite the same line | Refuse (conflict) |
+| Rename vs new caller | One renames `price()`, the other adds a new caller of `price()` | Refuse: each passes alone, the combination fails |
+| Signature change | One adds a required parameter, the other adds a call without it | Refuse: combination fails |
+| Deleted helper | One deletes a helper it thinks is unused, the other starts using it | Refuse: combination fails |
+| Test contract flip | One changes a default and its tests, the other adds a test that relies on the old default | Refuse: combination fails |
+| Target moved | The target branch gets a new commit while the gate is checking | Refuse as stale |
+| Three-way fan-in | Three agents, separate files | Land |
+| Add/add | Both create the same new file differently | Refuse (conflict) |
+| Modify/delete | One deletes a file the other edits | Refuse (conflict) |
+
+## Reference result (1.3.0, 10 October 2026, Windows, 16 CPUs)
+
+| | |
+|---|---|
+| Decisions matching the known-correct outcome | **12/12** |
+| Broken mains per-branch CI landed | **4** |
+| Of those, refused by `pytxo land` | **4** |
+| Good changes refused | **0** |
+| Textual conflicts caught | 3 (per-branch CI also stops on these, at merge time) |
+| Stale target refused | 1 |
+| Same-function warnings | 3 |
+
+Without checks, the gate added about one to three seconds over a plain sequential `git merge` of the same branches on this Windows machine, where every Git process start is slow; with checks, the median gate time was about 3 seconds. Timings varied between runs on the same machine, so treat them as rough. The [board](/bench) shows the measured table.
+
+## What this does and does not show
+
+- It shows **the mechanism**: when branches that each pass their checks break together, testing the combination catches it and testing each branch does not.
+- It does **not** show how often that happens in real projects, how many agent branches break each other, or that `pytxo land` catches every problem. A combination that breaks something your checks do not test will still pass.
+- Scenarios are small and synthetic on purpose, so each outcome is known in advance.
+- Timings come from one machine and include Git and Node start-up; they are not a performance claim.
+
+## Run it
+
+```bash
+pytxo bench                       # all suites, terminal table
+pytxo bench --suite land --out pybench.json
+pytxo bench --submit              # publish the summary to the board (sign-in required)
+```
+
+Requirements: Pytxo 1.3 or later, Git, and Node.js for the land suite (the scenarios' tests are plain `node` scripts). Without Node, the land suite reports itself as skipped.

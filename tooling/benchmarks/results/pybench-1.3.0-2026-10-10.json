@@ -1,0 +1,225 @@
+{
+  "schema": "pybench/v1",
+  "pytxo_version": "1.3.0",
+  "created_at": "2026-10-10T16:50:12Z",
+  "machine": {
+    "os": "windows",
+    "arch": "x86_64",
+    "cpus": 16,
+    "git": "git version 2.53.0.windows.2",
+    "node": "v26.10.0"
+  },
+  "land": {
+    "skipped": null,
+    "scenarios": [
+      {
+        "id": "disjoint-files",
+        "title": "Two agents, separate files",
+        "inputs": 2,
+        "expected": "ready",
+        "pytxo_decision": "ready",
+        "pytxo_layer": "",
+        "symbol_collisions": 0,
+        "naive_outcome": "landed_ok",
+        "correct": true,
+        "gate_ms": 4066
+      },
+      {
+        "id": "same-file-separate-functions",
+        "title": "Same file, different functions",
+        "inputs": 2,
+        "expected": "ready",
+        "pytxo_decision": "ready",
+        "pytxo_layer": "",
+        "symbol_collisions": 0,
+        "naive_outcome": "landed_ok",
+        "correct": true,
+        "gate_ms": 3286
+      },
+      {
+        "id": "same-function-compatible",
+        "title": "Same function, compatible edits (reported, not blocked)",
+        "inputs": 2,
+        "expected": "ready",
+        "pytxo_decision": "ready",
+        "pytxo_layer": "",
+        "symbol_collisions": 1,
+        "naive_outcome": "landed_ok",
+        "correct": true,
+        "gate_ms": 4128
+      },
+      {
+        "id": "textual-conflict",
+        "title": "Both agents rewrite the same line",
+        "inputs": 2,
+        "expected": "blocked:conflict",
+        "pytxo_decision": "blocked",
+        "pytxo_layer": "conflict",
+        "symbol_collisions": 1,
+        "naive_outcome": "manual_conflict",
+        "correct": true,
+        "gate_ms": 3976
+      },
+      {
+        "id": "rename-vs-new-caller",
+        "title": "One agent renames a function, another adds a caller of the old name",
+        "inputs": 2,
+        "expected": "blocked:combined_check",
+        "pytxo_decision": "blocked",
+        "pytxo_layer": "combined_check",
+        "symbol_collisions": 0,
+        "naive_outcome": "landed_broken",
+        "correct": true,
+        "gate_ms": 2536
+      },
+      {
+        "id": "signature-change",
+        "title": "One agent adds a required parameter, another adds a call without it",
+        "inputs": 2,
+        "expected": "blocked:combined_check",
+        "pytxo_decision": "blocked",
+        "pytxo_layer": "combined_check",
+        "symbol_collisions": 0,
+        "naive_outcome": "landed_broken",
+        "correct": true,
+        "gate_ms": 2638
+      },
+      {
+        "id": "deleted-helper",
+        "title": "One agent deletes a helper it thinks is unused, another starts using it",
+        "inputs": 2,
+        "expected": "blocked:combined_check",
+        "pytxo_decision": "blocked",
+        "pytxo_layer": "combined_check",
+        "symbol_collisions": 0,
+        "naive_outcome": "landed_broken",
+        "correct": true,
+        "gate_ms": 2760
+      },
+      {
+        "id": "test-contract-flip",
+        "title": "One agent changes a default, another adds a test that relies on the old one",
+        "inputs": 2,
+        "expected": "blocked:combined_check",
+        "pytxo_decision": "blocked",
+        "pytxo_layer": "combined_check",
+        "symbol_collisions": 0,
+        "naive_outcome": "landed_broken",
+        "correct": true,
+        "gate_ms": 2879
+      },
+      {
+        "id": "target-moved",
+        "title": "The target branch moves while the gate is checking",
+        "inputs": 1,
+        "expected": "stale",
+        "pytxo_decision": "stale",
+        "pytxo_layer": "stale",
+        "symbol_collisions": 0,
+        "naive_outcome": "not_modeled",
+        "correct": true,
+        "gate_ms": 6163
+      },
+      {
+        "id": "three-way-fan-in",
+        "title": "Three agents, separate files",
+        "inputs": 3,
+        "expected": "ready",
+        "pytxo_decision": "ready",
+        "pytxo_layer": "",
+        "symbol_collisions": 0,
+        "naive_outcome": "landed_ok",
+        "correct": true,
+        "gate_ms": 3109
+      },
+      {
+        "id": "add-add",
+        "title": "Both agents create the same new file differently",
+        "inputs": 2,
+        "expected": "blocked:conflict",
+        "pytxo_decision": "blocked",
+        "pytxo_layer": "conflict",
+        "symbol_collisions": 0,
+        "naive_outcome": "manual_conflict",
+        "correct": true,
+        "gate_ms": 2705
+      },
+      {
+        "id": "modify-delete",
+        "title": "One agent deletes a file the other edits",
+        "inputs": 2,
+        "expected": "blocked:conflict",
+        "pytxo_decision": "blocked",
+        "pytxo_layer": "conflict",
+        "symbol_collisions": 1,
+        "naive_outcome": "manual_conflict",
+        "correct": true,
+        "gate_ms": 3111
+      }
+    ],
+    "summary": {
+      "scenarios": 12,
+      "correct": 12,
+      "naive_landed_broken": 4,
+      "pytxo_prevented": 4,
+      "false_refusals": 0,
+      "conflicts_caught": 3,
+      "stale_refused": 1,
+      "symbol_collisions_reported": 3,
+      "median_gate_ms": 3111
+    }
+  },
+  "overhead": {
+    "rows": [
+      {
+        "inputs": 2,
+        "files": 10,
+        "git_merge_ms": 1660,
+        "pytxo_land_ms": 4026
+      },
+      {
+        "inputs": 5,
+        "files": 10,
+        "git_merge_ms": 4172,
+        "pytxo_land_ms": 6886
+      },
+      {
+        "inputs": 10,
+        "files": 10,
+        "git_merge_ms": 5488,
+        "pytxo_land_ms": 8392
+      },
+      {
+        "inputs": 2,
+        "files": 100,
+        "git_merge_ms": 1565,
+        "pytxo_land_ms": 2365
+      },
+      {
+        "inputs": 5,
+        "files": 100,
+        "git_merge_ms": 3462,
+        "pytxo_land_ms": 5977
+      },
+      {
+        "inputs": 10,
+        "files": 100,
+        "git_merge_ms": 9473,
+        "pytxo_land_ms": 11532
+      }
+    ]
+  },
+  "signal": {
+    "repo": "pytxo-business-strategy-5cfa4d",
+    "files": 374,
+    "original_bytes": 5030538,
+    "scaffold_bytes": 716736,
+    "weighted_reduction_pct": 85.8,
+    "rule": "Tracked files in a Signal Core language, at least 1 KiB, excluding tests, fixtures, stories, vendor, build and generated paths. Byte reduction of the structural scaffold; not a token or cost measurement."
+  },
+  "notes": [
+    "Land scenarios are synthetic mechanism tests in throwaway repositories. They show what each policy does in a known situation, not how often it happens in real projects.",
+    "Per-branch CI = test each branch alone against the target, merge every branch that passed, never test the merged result.",
+    "No model or agent is called. Timings depend on this machine's git and disk speed."
+  ]
+}

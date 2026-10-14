@@ -5,12 +5,18 @@
 [![npm](https://img.shields.io/npm/v/pytxo)](https://www.npmjs.com/package/pytxo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
 
-**Many coding agents, one verified change.** Pytxo splits one request across the
-agent CLIs you already use (Codex, Claude Code, Cursor Agent, OpenCode,
-Antigravity), runs each task in an isolated copy, keeps tasks that share a file
-from running together, checks the combined result with your commands, and
-applies exactly the files you reviewed. It is an agent hypervisor: a control
-layer around the agents, not another agent or IDE.
+**The landing layer for coding agents.** Split one request across the agent
+CLIs you already use (Codex, Claude Code, Cursor Agent; OpenCode and
+Antigravity experimental), or bring branches from any agent tool with
+`pytxo land`. Pytxo checks the combined change with your commands, shows
+exactly what will land, refuses if anything moved, and leaves a receipt.
+Many agents, one verified change.
+
+```bash
+pytxo land codex:agent/a claude:agent/b --check "npm test" --per-input   # shadow: changes nothing
+pytxo land codex:agent/a claude:agent/b --check "npm test" --apply       # land if ready
+pytxo bench                                                             # Pybench
+```
 
 The wider product direction is a commit layer for autonomous work: effect-bound
 authority, independent post-state verification, causal evidence, and honest

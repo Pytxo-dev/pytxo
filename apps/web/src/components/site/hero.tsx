@@ -5,12 +5,13 @@ import { AsciiAperture } from "@/components/site/ascii-art";
 import { HeroFleet } from "@/components/site/hero-fleet";
 
 // Each mark sits beside its full product name and implies no partnership.
+// "beta" agents run, but have not completed a live end-to-end run on a release.
 const AGENTS = [
   { name: "Codex", mark: "/brands/openai-on-dark.svg" },
   { name: "Claude Code", mask: "/brands/anthropic.svg" },
-  { name: "Cursor", mark: "/brands/cursor-on-dark.svg" },
-  { name: "OpenCode", mark: "/brands/opencode.svg" },
-  { name: "Antigravity", mark: "/brands/antigravity.png" },
+  { name: "Cursor Agent", mark: "/brands/cursor-on-dark.svg" },
+  { name: "OpenCode", mark: "/brands/opencode.svg", beta: true },
+  { name: "Antigravity", mark: "/brands/antigravity.png", beta: true },
 ] as const;
 
 export function Hero() {
@@ -18,14 +19,14 @@ export function Hero() {
     <AsciiAperture className="pointer-events-none absolute inset-x-0 top-0 h-[min(860px,100svh)] w-full opacity-80 [mask-image:radial-gradient(ellipse_70%_75%_at_50%_45%,#000_35%,transparent_80%)]" />
     <div className="relative mx-auto max-w-[92rem] px-4 pb-14 pt-16 sm:px-6 lg:px-10 lg:pt-24">
       <div className="mx-auto max-w-[84rem] text-center">
-        <p className="text-sm font-medium tracking-[0.01em] text-[#aaaab3]">The agent hypervisor for your repository</p>
+        <p className="text-sm font-medium tracking-[0.01em] text-[#aaaab3]">The landing layer for coding agents</p>
         <h1 className="mt-5 text-[clamp(2.75rem,7.4vw,6.75rem)] font-semibold leading-[1.02] tracking-[-0.045em]">
           Many agents.<br /><span className="chroma-text">One verified change.</span>
         </h1>
-        <p className="mx-auto mt-7 max-w-[58ch] text-lg leading-relaxed text-[#c4c4cc] sm:text-xl">Describe a change once. Pytxo splits it across the coding agents you choose, keeps them off each other&apos;s files, runs your checks on the combined result, and applies exactly what you reviewed.</p>
+        <p className="mx-auto mt-7 max-w-[60ch] text-lg leading-relaxed text-[#c4c4cc] sm:text-xl">Split a job across the coding agents you already use, or bring branches from any agent tool. Pytxo checks the combined change, shows exactly what will land, and refuses if anything moved.</p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
           <Button size="lg" className="h-12 rounded-[6px] bg-white px-7 text-base text-black hover:bg-white/85" asChild><Link href="/download">Download for Windows</Link></Button>
-          <Link href="#how" className="aperture-link text-base text-[#c4c4cc]">See how it works ↓</Link>
+          <Link href="#land" className="aperture-link text-base text-[#c4c4cc]">Land branches from the CLI ↓</Link>
         </div>
       </div>
 
@@ -35,6 +36,7 @@ export function Hero() {
           {"mark" in agent && <Image src={agent.mark} alt="" width={20} height={20} className="h-5 w-5 object-contain" />}
           {"mask" in agent && <span aria-hidden className="h-5 w-5 bg-current" style={{ mask: `url(${agent.mask}) center / contain no-repeat` }} />}
           {agent.name}
+          {"beta" in agent && <span className="rounded-[3px] border border-white/15 px-1 font-mono text-[10px] uppercase tracking-[0.08em] text-[#8d8d96]">beta</span>}
         </li>)}
       </ul>
 

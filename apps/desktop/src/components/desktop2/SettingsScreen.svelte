@@ -36,7 +36,7 @@
   } from "../../lib/navigation.svelte";
   import { SETTINGS_GROUPS, SETTINGS_SECTIONS, settingsSectionMatches } from "../../lib/settings-catalog";
   import { setReducedMotion, setUiDensity, setUiScale, UI_SCALES, uiPrefs } from "../../lib/ui-prefs.svelte";
-  import { ipc, onAuthChanged } from "../../lib/ipc";
+  import { ACCOUNT_PERKS, ipc, onAccountChanged, onAccountError, onAuthChanged, type AccountStatus } from "../../lib/ipc";
   import { MOD_KEY } from "../../lib/platform";
   import UpdateControls from "../shell/UpdateControls.svelte";
 
@@ -342,6 +342,50 @@
     onAuthChange();
   }
 
+  let account = $state<AccountStatus>({ signed_in: false, account_id: null, expires_at: null, sign_in_pending: false });
+  let accountMessage = $state("");
+
+  async function refreshAccount() {
+    account = await ipc.accountStatus();
+  }
+
+  async function accountSignIn() {
+    accountMessage = "";
+    try {
+      await ipc.accountSignIn();
+      await refreshAccount();
+    } catch {
+      accountMessage = "Could not open the browser. Try again.";
+    }
+  }
+
+  async function accountSignOut() {
+    accountMessage = "";
+    await ipc.accountSignOut().catch(() => undefined);
+    await refreshAccount();
+    accountMessage = "Signed out. Local Pytxo works the same.";
+  }
+
+  onMount(() => {
+    let stopChanged: (() => void) | null = null;
+    let stopError: (() => void) | null = null;
+    let alive = true;
+    void refreshAccount();
+    void onAccountChanged(() => {
+      accountMessage = "";
+      void refreshAccount();
+    }).then((stop) => (alive ? (stopChanged = stop) : stop()));
+    void onAccountError((message) => {
+      accountMessage = message;
+      void refreshAccount();
+    }).then((stop) => (alive ? (stopError = stop) : stop()));
+    return () => {
+      alive = false;
+      stopChanged?.();
+      stopError?.();
+    };
+  });
+
 </script>
 
 <div class="settings-viewport">
@@ -637,21 +681,35 @@
     {:else if section === "account"}
       <article class="settings-group">
         <h2>Account</h2>
-        <div class="setting-row"><div><strong>Status</strong><small>{signedIn ? "Signed in to your Pytxo account." : "Not signed in. Core local runs work without an account."}</small></div><strong>{signedIn ? "Signed in" : "Not signed in"}</strong></div>
-        <div class="setting-row">
-          <div><strong>Pytxo account connection</strong><small>{signedIn ? "Clear the existing local session stored in the OS keyring." : "Paused while the browser return moves to one-time authorization codes. Agent accounts are available in Agents."}</small></div>
-          {#if signedIn}
-            <button class="quiet" onclick={() => void signOut()}>Sign out</button>
+        <div class="setting-row" data-testid="account-status">
+          <div>
+            <strong>Pytxo account</strong>
+            <small>{account.signed_in ? `Signed in as ${account.account_id}. Local work is the same either way.` : account.sign_in_pending ? "Finish signing in in your browser, then come back here." : "Optional. Everything local works without an account; signing in adds the perks below."}</small>
+          </div>
+          {#if account.signed_in}
+            <button class="quiet" onclick={() => void accountSignOut()}>Sign out</button>
           {:else}
-            <strong>Local Core</strong>
+            <button class="quiet" onclick={() => void accountSignIn()}>{account.sign_in_pending ? "Open browser again" : "Sign in"}</button>
           {/if}
         </div>
+        <div class="setting-row" data-testid="account-perks">
+          <div>
+            <strong>Perks</strong>
+            <small>{ACCOUNT_PERKS.join(" · ")}. Shared receipts carry counts and outcomes only; commands, branches and your repository stay on this computer.</small>
+          </div>
+          <strong>{account.signed_in ? "On" : "Off"}</strong>
+        </div>
+        {#if accountMessage}<p role="status">{accountMessage}</p>{/if}
+        {#if signedIn}
+          <div class="setting-row"><div><strong>Earlier session</strong><small>A session from an older Pytxo version is still stored in the OS keyring. It is no longer used.</small></div><button class="quiet" onclick={() => void signOut()}>Remove</button></div>
+        {/if}
+        {#if routingBridgeAvailable || routingCredentialPresent}
         <div class="setting-row">
           <div><strong>Experimental Routing account</strong><small>{routingRecoveryOnly ? "Recovery connection: inspect and revoke existing hosted grants in Work. New grants are unavailable through this connection." : !routingBridgeAvailable ? routingCredentialPresent ? "New account connections are off. Revoking here affects every Desktop and hosted workspace grant on this account." : "The account bridge is off in this build. Local Core remains available." : routingRemoteStatus === "verified" ? `Routing-only connection verified for ${routingAccountId ?? "this account"}. Hosted packets still require a separate workspace opt-in.` : routingRemoteStatus === "revoked" ? "This Routing credential was revoked. Revoke any saved hosted grants in Work before reconnecting." : routingCredentialPresent ? "A Routing credential is stored locally, but Link could not verify it. Hosted Routing is unavailable until verification succeeds." : "Connect your Pytxo account in the browser for a routing-only credential. Agent and Ultra billing remain separate."}</small></div>
           <button class="quiet" disabled={!routingBridgeAvailable && !routingCredentialPresent} onclick={() => void (routingRecoveryOnly && routingBridgeAvailable ? connectRoutingAccount() : routingCredentialPresent ? disconnectRoutingAccount() : connectRoutingAccount())}>{routingRecoveryOnly && routingBridgeAvailable ? "Reconnect full Routing access" : routingCredentialPresent ? "Revoke all Routing access" : "Connect"}</button>
         </div>
         {#if routingAccountMessage}<p role="status">{routingAccountMessage}</p>{/if}
-        <div class="setting-row"><div><strong>Tier</strong><small>Controls concurrent agent limits and cloud features.</small></div><strong class="mono">{tier}</strong></div>
+        {/if}
         {#if signedIn && subscriptionPortalUrl}
           <div class="setting-row"><div><strong>Billing portal</strong><small>Manage plan, payment method, and invoices.</small></div><a class="quiet" href={subscriptionPortalUrl} target="_blank" rel="noopener noreferrer">Open portal</a></div>
         {/if}

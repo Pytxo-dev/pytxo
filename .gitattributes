@@ -1,0 +1,2 @@
+# sqlx checksums migration bytes; a CRLF checkout must never change them.
+*.sql text eol=lf

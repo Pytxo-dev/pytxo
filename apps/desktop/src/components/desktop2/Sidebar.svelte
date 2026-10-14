@@ -7,6 +7,8 @@
   import type { CanonicalRoute, WorkspaceRecent } from "../../lib/navigation.svelte";
   import { MOD_KEY } from "../../lib/platform";
   import AdeIdentity from "./AdeIdentity.svelte";
+  import { onMount } from "svelte";
+  import { ipc, onAccountChanged } from "../../lib/ipc";
 
   export type SidebarAgent = { id: string; label: string; vendor: string; cli: string | null; tone: "live" | "done" | "failed" | "queued" | "settled" };
   export type SidebarJob = { runId: string; title: string; live: boolean; agents: SidebarAgent[] };
@@ -66,8 +68,18 @@
     };
   }
 
-  const accountLabel = $derived(signedIn ? `${tier.charAt(0).toUpperCase()}${tier.slice(1)} tier` : "Local Core");
-  const accountSub = $derived(signedIn ? "Account & billing" : "Account settings");
+  // The optional Pytxo account (perks), not the retired tier: local work is the same either way.
+  let accountSignedIn = $state(false);
+  onMount(() => {
+    let alive = true;
+    let stop: (() => void) | null = null;
+    const refresh = () => void ipc.accountStatus().then((status) => { if (alive) accountSignedIn = status.signed_in; });
+    refresh();
+    void onAccountChanged(refresh).then((off) => (alive ? (stop = off) : off()));
+    return () => { alive = false; stop?.(); };
+  });
+  const accountLabel = $derived(accountSignedIn ? "Pytxo account" : "Local");
+  const accountSub = $derived(accountSignedIn ? "Signed in · perks on" : "Sign in for perks");
 </script>
 
 <aside class="sidebar" class:collapsed aria-label="Primary sidebar">

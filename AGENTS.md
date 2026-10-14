@@ -4,9 +4,11 @@ Instructions for AI coding agents working in this repository.
 
 ## Project identity
 
-**Pytxo is an agent hypervisor** ([pytxo.com](https://pytxo.com)): a vendor-neutral
-control plane for preparing, running, observing, verifying, and integrating
-delegated work. Its reviewed repository Apply boundary is a shipping primitive;
+**Pytxo is the landing layer for coding agents** ([pytxo.com](https://pytxo.com)):
+it checks what agents produced as one combined change, lands exactly what was
+reviewed, refuses if anything moved, and leaves a receipt. Architecturally it is
+an agent hypervisor: a vendor-neutral control plane for preparing, running,
+observing, verifying, and integrating delegated work. Its reviewed repository Apply boundary is a shipping primitive;
 generalized effect contracts remain a proposed expansion. It schedules headless agents
 (Claude Code, Codex, Antigravity CLI, …) in background PTYs, isolates their
 work, and prepares exact bytes for reviewed Apply. Source:
@@ -17,7 +19,10 @@ work, and prepares exact bytes for reviewed Apply. Source:
 
 **Execution yard:** `portable-pty` default ([[ADR-0010-pty-default-execution-backend]]); `execution_backend = "subprocess"` for CI fallback.
 
-**Canonical vision:** [`docs/06-product/vision.md`](docs/06-product/vision.md)
+**Canonical vision:** [`docs/06-product/vision.md`](docs/06-product/vision.md) ·
+**Landing gate:** `crates/pytxo-land` (`pytxo land`, receipts, Pybench) —
+[ADR-0042](docs/05-adr/ADR-0042-landing-gate-and-receipts.md) ·
+**Current release plan:** [`docs/superpowers/specs/2026-10-10-pytxo-v1-3-design.md`](docs/superpowers/specs/2026-10-10-pytxo-v1-3-design.md)
 
 **Not:** BridgeSpace-style multi-terminal web workspaces (ADEs), a proprietary
 model router, generic workflow engine, or universal undo layer. **Is today:** a
@@ -62,6 +67,8 @@ When changing `pytxo-runner` or `pytxo-orchestrate`, declare which **permission 
 | `crates/pytxo-sanitize` | Log/MCP redaction |
 | `crates/pytxo-signal` | Signal Core (`tree-sitter` skeletons) |
 | `crates/pytxo-mcp` | Stdio MCP server binary |
+| `crates/pytxo-land` | `pytxo land` landing gate, Pybench (`pytxo bench`) |
+| `actions/land` | Shadow-mode GitHub composite action for `pytxo land` |
 | `crates/` | Core, scheduler, runner, store, CLI |
 | `apps/desktop/` | Svelte 5 + Tauri v2 Pytxo Desktop (`pytxo-desktop` crate) |
 | `apps/web/` | Next.js marketing site + public Fumadocs documentation |
@@ -110,6 +117,9 @@ npm run build:msi     # Windows MSI with voice support and the distribution CRT 
 
 | Term | Meaning |
 |------|---------|
+| **Landing layer** | Public name for the commit layer's shipped surface: Review/Apply and `pytxo land` |
+| **Receipt** | In-toto statement recording one landing decision or reviewed Apply (`.git/pytxo/receipts`) |
+| **Pybench** | `pytxo bench`: offline benchmarks of the landing gate |
 | **Commit layer** | Boundary that authorizes, commits, verifies, and records consequential agent effects |
 | **Effect contract** | Typed commitment covering identity, state, authority, evidence, and recovery |
 | **Signal Core** | Smarter context via AST skeletons on read |

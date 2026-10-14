@@ -231,7 +231,7 @@ for (const theme of ["void", "light"]) {
   test(`all Setup sections and menus remain readable in ${theme}`, async ({ page }, testInfo) => {
     await completeOnboarding(page, { "pytxo-deck-theme": theme });
     await page.goto("/#/setup");
-    for (const section of ["General", "Appearance", "Keyboard", "Workspaces", "Agents & permissions", "Providers", "Voice", "Privacy", "Account & billing"]) {
+    for (const section of ["General", "Appearance", "Keyboard", "Workspaces", "Agents & permissions", "Providers", "Voice", "Privacy", "Account"]) {
       await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: section, exact: true }).click();
       await expect(page.locator(".section-title")).toHaveText(section);
       await page.screenshot({ path: testInfo.outputPath(`${section.replace(/\W+/g, "-")}.png`) });

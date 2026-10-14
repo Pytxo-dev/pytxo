@@ -20,6 +20,7 @@ base64.workspace = true
 chrono.workspace = true
 fs2.workspace = true
 pytxo-core = { workspace = true }
+pytxo-land.workspace = true
 pytxo-planner.workspace = true
 pytxo-runner.workspace = true
 pytxo-scheduler.workspace = true

@@ -1,0 +1,59 @@
+---
+title: Pytxo account (optional)
+description: What signing in adds, how CLI and Desktop sign-in work, and what is shared.
+---
+
+Pytxo never needs an account for local work. Runs, Review, Apply, `pytxo land`, receipts and Pybench all work signed out. A free account adds hosted perks:
+
+| Perk | How |
+|---|---|
+| Share a receipt as a public page | `pytxo receipts share <id>`, or **Share receipt** in Desktop after Apply |
+| Keep shared receipts across machines | Listed on [your account page](/account) |
+| Publish Pybench results to the [board](/bench) | `pytxo bench --submit` |
+| Early access to Team | Design-partner invitations go to signed-in accounts first |
+
+[Pytxo Pro](#pytxo-pro) adds private receipts, unlimited shared receipts and private Pybench results.
+
+## Sign in from the CLI
+
+```bash
+pytxo login
+```
+
+Pytxo opens your browser at `pytxo.com/account/connect`. Sign in, check that the page names the Pytxo CLI, and choose **Connect**. The browser hands a one-use code back to the CLI on `127.0.0.1`, and the CLI exchanges it for an account credential.
+
+The exchange uses PKCE: the code only works together with a secret the CLI generated and never sent to the browser. The credential lasts 30 days and is stored in `~/.pytxo/account.json` (readable only by you on macOS and Linux). On a machine without a browser, set `PYTXO_NO_BROWSER=1` and open the printed address yourself.
+
+```bash
+pytxo whoami    # who is signed in, free or Pro, and whether the credential still works
+pytxo logout    # revoke this machine's credential and delete it
+```
+
+## Sign in from Desktop
+
+Open **Settings → Account** and choose **Sign in**. The same browser page opens; after **Connect**, your browser asks to open Pytxo Desktop. The credential is stored in the operating system's credential manager.
+
+## What is shared
+
+Nothing leaves your machine until you share or submit.
+
+- **A shared receipt** contains the decision, mode, counts (inputs, files, shared files, conflicts), check pass counts, agent labels, timing, the Pytxo version and the receipt digest. It never contains commands, branch names, check output, file contents or the repository name. File paths are included only with `--include-paths`.
+- **A Pybench submission** contains the summary numbers, your operating system, CPU architecture and CPU count.
+
+Shared receipts are public to anyone with the link and are not listed anywhere else. Delete one from your account page. A free account keeps 25 shared receipts; delete one to share another, or upgrade to Pro.
+
+## Pytxo Pro
+
+Pytxo Pro is $12 a month and adds:
+
+| Perk | How |
+|---|---|
+| Private receipts: only you can open the page, signed in | `pytxo receipts share <id> --private` |
+| Unlimited shared receipts (free accounts keep 25) | Automatic |
+| Private Pybench results, kept off the public board | `pytxo bench --submit --private` |
+
+Upgrade from [your account page](/account) or [Plans](/plans). Dodo Payments is the merchant of record: it takes the payment, sends the invoice and handles tax. **Manage billing** on your account page opens Dodo's portal for invoices, your payment method and cancellation; Pro stays on until the end of the month you paid for. See [Terms](/terms) and [Refunds](/refunds).
+
+Pro never changes what runs locally. A lapsed subscription keeps every receipt you already shared, including private ones; it only stops new private items and sharing past the free limit.
+
+An account credential cannot read your code, run agents, spend money or change billing. It only creates and lists your shared receipts and Pybench submissions.
