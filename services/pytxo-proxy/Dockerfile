@@ -1,9 +1,8 @@
 # Pytxo Ultra managed-inference proxy (ADR-0019)
 FROM rust:1.85-bookworm AS builder
 WORKDIR /app
-COPY Cargo.toml Cargo.lock ./
-COPY crates ./crates
-COPY services/pytxo-proxy ./services/pytxo-proxy
+# Whole tree: Cargo needs every workspace member's manifest (incl. apps/desktop/src-tauri)
+COPY . .
 RUN cargo build --release -p pytxo-proxy
 
 FROM debian:bookworm-slim
