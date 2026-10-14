@@ -416,6 +416,28 @@ async fn paddle_webhook(
     }
 }
 
+/// Admin-only: the Dodo customer behind a user's subscription, so the website
+/// can open Dodo's billing portal for the signed-in user.
+async fn admin_dodo_customer(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(user_id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    if !auth::admin_authorized(&headers, &state) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let commerce = state
+        .commerce
+        .as_ref()
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let customer = commerce
+        .customer_for_user(commerce::CommerceProvider::Dodo, &user_id)
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(serde_json::json!({ "customer_id": customer })))
+}
+
 async fn dodo_webhook(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -796,6 +818,11 @@ fn build_router(state: AppState) -> Router {
         .route(
             "/v1/bench",
             post(account::submit_bench).get(account::bench_board),
+        )
+        .route("/v1/bench/mine", get(account::my_bench))
+        .route(
+            "/v1/admin/billing/{user_id}/dodo-customer",
+            get(admin_dodo_customer),
         )
         .route("/v1/webhooks/paddle", post(paddle_webhook))
         .route("/v1/webhooks/dodo", post(dodo_webhook))
@@ -1287,6 +1314,24 @@ mod contract_tests {
         assert_eq!(first.status(), StatusCode::OK);
         assert_eq!(replay.status(), StatusCode::OK);
         assert_eq!(entitlements.get("user-dodo").await.tier, Tier::Pro);
+
+        // The website opens Dodo's billing portal through this admin lookup.
+        let lookup = |key: &'static str| {
+            Request::builder()
+                .uri("/v1/admin/billing/user-dodo/dodo-customer")
+                .header("x-link-admin-key", key)
+                .body(Body::empty())
+                .unwrap()
+        };
+        let denied = app.clone().oneshot(lookup("wrong")).await.unwrap();
+        assert_eq!(denied.status(), StatusCode::UNAUTHORIZED);
+        let found = app.clone().oneshot(lookup("test-admin")).await.unwrap();
+        assert_eq!(found.status(), StatusCode::OK);
+        let body = found.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(
+            serde_json::from_slice::<Value>(&body).unwrap()["customer_id"],
+            "customer-dodo"
+        );
 
         let ended = app
             .oneshot(signed_dodo_request(cancelled, "msg-cancelled"))

@@ -16,6 +16,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${ORIGIN}/download`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${ORIGIN}/bench`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${ORIGIN}/plans`, changeFrequency: "monthly", priority: 0.6 },
+    ...["/terms", "/privacy", "/refunds"].map((path) => ({
+      url: `${ORIGIN}${path}`,
+      changeFrequency: "yearly" as const,
+      priority: 0.2,
+    })),
     ...docs,
   ];
 }

@@ -1,8 +1,10 @@
+import { auth } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { StateChip } from "@/components/site/state-chip";
+import { SITE_AUTH_BACKEND_ENABLED } from "@/lib/auth-config";
 import { linkUrl } from "@/lib/link";
 
 type SharedReceipt = {
@@ -26,14 +28,26 @@ type SharedReceipt = {
 
 const ID = /^r_[0-9A-Za-z]{12}$/;
 
-async function load(id: string): Promise<{ created_at: string; payload: SharedReceipt } | null> {
+type Loaded = { created_at: string; payload: SharedReceipt; private?: boolean };
+
+/** Public receipts are cached; a private one (Pytxo Pro) is fetched uncached as its signed-in owner. */
+async function load(id: string): Promise<Loaded | null> {
   if (!ID.test(id)) return null;
   const target = linkUrl(`/v1/receipts/${id}`);
   if (!target) return null;
   try {
     const res = await fetch(target, { next: { revalidate: 300 }, signal: AbortSignal.timeout(5_000) });
-    if (!res.ok) return null;
-    return (await res.json()) as { created_at: string; payload: SharedReceipt };
+    if (res.ok) return (await res.json()) as Loaded;
+    if (res.status !== 404 || !SITE_AUTH_BACKEND_ENABLED) return null;
+    const { userId, getToken } = await auth();
+    const token = userId ? await getToken() : null;
+    if (!token) return null;
+    const own = await fetch(target, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
+    });
+    return own.ok ? ((await own.json()) as Loaded) : null;
   } catch {
     return null;
   }
@@ -90,6 +104,7 @@ export default async function ReceiptPage(props: { params: Promise<{ id: string 
       <ul className="mt-3 space-y-1 font-mono text-xs text-[#a9a9b2]">{r.paths.map((p) => <li key={p} className="break-all">{p}</li>)}</ul>
     </details>}
     <p className="mt-8 break-all font-mono text-xs text-[#6f6f79]">Receipt {r.id} · {r.content_digest}</p>
+    {found.private && <p className="mt-6 max-w-2xl text-sm leading-relaxed text-[#c4c4cc]" data-testid="private-receipt">Private receipt: only you can open this page, signed in.</p>}
     <p className="mt-6 max-w-2xl text-sm leading-relaxed text-[#8d8d96]">The person who shared this chose to publish counts and outcomes only; commands, branch names, output and the repository stay on their machine. The digest lets them prove this page matches the receipt file they kept.</p>
     <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm">
       <Link href="/docs/getting-started/land-branches" className="aperture-link">What is pytxo land? →</Link>

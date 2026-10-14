@@ -14,6 +14,9 @@ use sha2::{Digest, Sha256};
 
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// Mirrors Link's free-account limit (`services/pytxo-link`, FREE_RECEIPT_LIMIT).
+const FREE_RECEIPT_LIMIT: usize = 25;
+
 fn web_url() -> String {
     std::env::var("PYTXO_WEB_URL").unwrap_or_else(|_| "https://pytxo.com".into())
 }
@@ -203,10 +206,17 @@ pub fn whoami() -> Result<()> {
         .set("Authorization", &format!("Bearer {}", account.token))
         .call()
     {
-        Ok(_) => println!(
-            "Signed in as {} (credential expires {}).",
-            account.account_id, account.expires_at
-        ),
+        Ok(res) => {
+            let session: serde_json::Value = res.into_json().unwrap_or_default();
+            let plan = match session["plan"].as_str() {
+                Some("pro") => "Pytxo Pro",
+                _ => "free account",
+            };
+            println!(
+                "Signed in as {} ({plan}; credential expires {}).",
+                account.account_id, account.expires_at
+            );
+        }
         Err(ureq::Error::Status(401, _)) => {
             println!("Your sign-in expired or was revoked. Run `pytxo login`.")
         }
@@ -222,21 +232,38 @@ fn require() -> Result<StoredAccount> {
     load()?.context("this is an account perk: run `pytxo login` first (local work never needs it)")
 }
 
-pub fn share_receipt(payload: serde_json::Value) -> Result<String> {
+fn visibility(private: bool) -> &'static str {
+    if private {
+        "?private=true"
+    } else {
+        ""
+    }
+}
+
+pub fn share_receipt(payload: serde_json::Value, private: bool) -> Result<String> {
     let account = require()?;
     let res: serde_json::Value = agent()
-        .post(&format!("{}/v1/receipts", account.link_url))
+        .post(&format!("{}/v1/receipts{}", account.link_url, visibility(private)))
         .set("Authorization", &format!("Bearer {}", account.token))
         .send_json(payload)
         .map_err(|e| match e {
             ureq::Error::Status(401, _) => anyhow!("sign-in expired; run `pytxo login`"),
+            ureq::Error::Status(402, _) if private => anyhow!(
+                "private receipts are a Pytxo Pro perk: {}/plans",
+                web_url()
+            ),
+            ureq::Error::Status(402, _) => anyhow!(
+                "free accounts keep {FREE_RECEIPT_LIMIT} shared receipts; delete one on {}/account or upgrade to Pro: {}/plans",
+                web_url(),
+                web_url()
+            ),
             other => anyhow!("sharing failed: {other}"),
         })?
         .into_json()?;
     Ok(res["url"].as_str().unwrap_or_default().to_string())
 }
 
-pub fn submit_bench(report: &pytxo_land::bench::BenchReport) -> Result<()> {
+pub fn submit_bench(report: &pytxo_land::bench::BenchReport, private: bool) -> Result<()> {
     let account = require()?;
     let land = report
         .land
@@ -260,19 +287,41 @@ pub fn submit_bench(report: &pytxo_land::bench::BenchReport) -> Result<()> {
         "signal_reduction_pct": report.signal.as_ref().map(|g| g.weighted_reduction_pct),
     });
     agent()
-        .post(&format!("{}/v1/bench", account.link_url))
+        .post(&format!(
+            "{}/v1/bench{}",
+            account.link_url,
+            visibility(private)
+        ))
         .set("Authorization", &format!("Bearer {}", account.token))
         .send_json(payload)
-        .map_err(|e| anyhow!("submitting failed: {e}"))?;
-    println!(
-        "Published to {}/bench (summary numbers and machine type only).",
-        web_url()
-    );
+        .map_err(|e| match e {
+            ureq::Error::Status(402, _) => anyhow!(
+                "private Pybench results are a Pytxo Pro perk: {}/plans",
+                web_url()
+            ),
+            other => anyhow!("submitting failed: {other}"),
+        })?;
+    if private {
+        println!(
+            "Saved privately to your account at {}/account (not on the public board).",
+            web_url()
+        );
+    } else {
+        println!(
+            "Published to {}/bench (summary numbers and machine type only).",
+            web_url()
+        );
+    }
     Ok(())
 }
 
 /// Accepts `id` (prefix) of a receipt in this repository.
-pub fn receipts_share(repo: Option<PathBuf>, id: &str, include_paths: bool) -> Result<()> {
+pub fn receipts_share(
+    repo: Option<PathBuf>,
+    id: &str,
+    include_paths: bool,
+    private: bool,
+) -> Result<()> {
     let dir = crate::land_cmd::receipts_dir(repo)?;
     let (_, receipt) = pytxo_core::find_receipt(&dir, id)
         .with_context(|| format!("no single receipt matches {id}"))?;
@@ -281,7 +330,11 @@ pub fn receipts_share(repo: Option<PathBuf>, id: &str, include_paths: bool) -> R
     }
     let payload = receipt.share_payload(include_paths);
     println!("Sharing counts and outcomes only{}. Commands, refs, output and repository names stay local.", if include_paths { " plus file paths" } else { "" });
-    let url = share_receipt(payload)?;
-    println!("{url}");
+    let url = share_receipt(payload, private)?;
+    if private {
+        println!("{url} (private: only you can open it, signed in)");
+    } else {
+        println!("{url}");
+    }
     Ok(())
 }

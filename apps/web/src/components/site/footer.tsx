@@ -25,6 +25,12 @@ const RESOURCE_LINKS = [
   { href: "/docs/reference/cli", label: "CLI reference" },
 ] as const;
 
+const LEGAL_LINKS = [
+  { href: "/terms", label: "Terms" },
+  { href: "/privacy", label: "Privacy" },
+  { href: "/refunds", label: "Refunds" },
+] as const;
+
 export function SiteFooter() {
   return (
     <footer className="mt-auto border-t border-white/[0.08] bg-[#050507]">
@@ -93,10 +99,17 @@ export function SiteFooter() {
 
         <AsciiWordmark className="mt-14 block h-[clamp(96px,16vw,230px)] w-full" />
 
-        <div className="mt-6 flex items-center justify-between border-t border-white/[0.08] pt-6">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] pt-6">
           <p className="font-mono text-[10px] text-[#66666f]">
             © {new Date().getFullYear()} Pytxo. MIT License.
           </p>
+          <nav aria-label="Legal" className="flex gap-4 font-mono text-[10px] text-[#66666f]">
+            {LEGAL_LINKS.map((link) => (
+              <Link key={link.href} href={link.href} className="hover:text-foreground">
+                {link.label}
+              </Link>
+            ))}
+          </nav>
           <span className="font-mono text-[10px] text-[#66666f]">LOCAL BY DEFAULT</span>
         </div>
       </div>

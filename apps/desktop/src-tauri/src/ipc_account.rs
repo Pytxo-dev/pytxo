@@ -287,6 +287,12 @@ pub async fn account_share_run_receipt(
             "Your sign-in expired. Sign in again from Settings → Account.",
         ));
     }
+    if res.status() == reqwest::StatusCode::PAYMENT_REQUIRED {
+        return Err(err(
+            "account",
+            "Free accounts keep 25 shared receipts. Delete one at pytxo.com/account, or upgrade to Pytxo Pro for unlimited receipts.",
+        ));
+    }
     if !res.status().is_success() {
         return Err(err("account", "Sharing failed. Try again later."));
     }
@@ -310,7 +316,10 @@ mod tests {
     #[test]
     fn credentials_persist_across_entries_in_the_os_store() {
         let service = format!("com.pytxo.desktop.test-{}", uuid::Uuid::new_v4().simple());
-        Entry::new(&service, ACCOUNT).unwrap().set_password("probe").unwrap();
+        Entry::new(&service, ACCOUNT)
+            .unwrap()
+            .set_password("probe")
+            .unwrap();
         let read = Entry::new(&service, ACCOUNT).unwrap().get_password();
         let _ = Entry::new(&service, ACCOUNT).unwrap().delete_credential();
         assert_eq!(read.unwrap(), "probe");

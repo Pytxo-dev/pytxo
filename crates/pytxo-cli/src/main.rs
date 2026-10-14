@@ -121,6 +121,9 @@ Results are synthetic mechanism tests, not real-world failure rates."
         /// Publish the summary to the public Pybench board (account perk)
         #[arg(long)]
         submit: bool,
+        /// With --submit: keep the result private to your account (Pytxo Pro)
+        #[arg(long, requires = "submit")]
+        private: bool,
     },
     /// Sign in to Pytxo for account perks (sharing receipts, Pybench board). Optional.
     Login,
@@ -285,6 +288,9 @@ enum ReceiptsAction {
         /// Also publish the changed file paths
         #[arg(long)]
         include_paths: bool,
+        /// Only you can open the page, signed in (Pytxo Pro)
+        #[arg(long)]
+        private: bool,
     },
 }
 
@@ -541,9 +547,11 @@ async fn run_cli() -> anyhow::Result<()> {
             }
             Some(ReceiptsAction::List { json: true }) => land_cmd::receipts_list(repo, true)?,
             Some(ReceiptsAction::Show { id }) => land_cmd::receipts_show(repo, &id)?,
-            Some(ReceiptsAction::Share { id, include_paths }) => {
-                account::receipts_share(repo, &id, include_paths)?
-            }
+            Some(ReceiptsAction::Share {
+                id,
+                include_paths,
+                private,
+            }) => account::receipts_share(repo, &id, include_paths, private)?,
         },
         Some(Commands::Login) => account::login()?,
         Some(Commands::Logout) => account::logout()?,
@@ -554,6 +562,7 @@ async fn run_cli() -> anyhow::Result<()> {
             json,
             repo,
             submit,
+            private,
         }) => {
             use pytxo_land::bench::{self, Suite};
             let suites = match suite.as_str() {
@@ -579,7 +588,7 @@ async fn run_cli() -> anyhow::Result<()> {
                 print!("{}", bench::render_text(&report));
             }
             if submit {
-                account::submit_bench(&report)?;
+                account::submit_bench(&report, private)?;
             }
         }
         Some(Commands::Init { repo }) => {

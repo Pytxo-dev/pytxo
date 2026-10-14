@@ -229,10 +229,11 @@ test("the homepage no longer pins a scroll-jacked sequence", async ({ page }) =>
 const PLAN_TIERS = [
   { title: "Pytxo", status: "Free · available now" },
   { title: "Free account", status: "Free · new in 1.3" },
+  { title: "Pro", status: "$12/month · new in 1.3" },
   { title: "Team", status: "Planned · design partners" },
 ] as const;
 
-test("plans expose free local use, the free account and planned Team without subscribe tiers", async ({ page }, testInfo) => {
+test("plans expose free local use, the free account, Pro and planned Team", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/plans");
 
@@ -242,7 +243,7 @@ test("plans expose free local use, the free account and planned Team without sub
 
   const grid = page.getByTestId("plans-grid");
   const cells = grid.getByTestId("plan-cell");
-  await expect(cells).toHaveCount(3);
+  await expect(cells).toHaveCount(4);
 
   for (const tier of PLAN_TIERS) {
     await expect(page.locator('[data-slot="card-title"]', { hasText: tier.title })).toBeVisible();
@@ -255,10 +256,11 @@ test("plans expose free local use, the free account and planned Team without sub
     return { rowCount: tops.length, columnCount: lefts.length };
   });
   expect(layout.rowCount).toBe(1);
-  expect(layout.columnCount).toBe(3);
+  expect(layout.columnCount).toBe(4);
 
   await expect(page.getByText("Everything that runs on your machine is free and stays free.", { exact: false })).toBeVisible();
   await expect(page.getByText("Not available to buy.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Billed monthly through Dodo Payments", { exact: false })).toBeVisible();
   await expect(page.getByText("Subscribe to Pro")).toHaveCount(0);
   await expect(page.getByText("Subscribe to Max")).toHaveCount(0);
   await expect(page.getByText("Subscribe to Ultra")).toHaveCount(0);
@@ -280,7 +282,7 @@ test("plans remain complete and single-column on mobile", async ({ page }, testI
   expect(await renderedLineCount(heading)).toBeLessThanOrEqual(2.2);
 
   const cells = page.getByTestId("plan-cell");
-  await expect(cells).toHaveCount(3);
+  await expect(cells).toHaveCount(4);
   for (const tier of PLAN_TIERS) {
     await expect(page.locator('[data-slot="card-title"]', { hasText: tier.title })).toBeVisible();
     await expect(page.getByText(tier.status, { exact: true })).toBeVisible();
@@ -291,10 +293,28 @@ test("plans remain complete and single-column on mobile", async ({ page }, testI
     const lefts = [...new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().left)))];
     return { rowCount: tops.length, columnCount: lefts.length };
   });
-  expect(layout.rowCount).toBe(3);
+  expect(layout.rowCount).toBe(4);
   expect(layout.columnCount).toBe(1);
 
   await expect(page.getByText("Subscribe to Pro")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("plans-390.png"), fullPage: true });
+});
+
+test("terms, privacy and refunds are linked from every page footer", async ({ page }) => {
+  for (const [path, heading, phrase] of [
+    ["/terms", "Terms", "Dodo Payments, our merchant of record"],
+    ["/privacy", "Privacy", "send no telemetry"],
+    ["/refunds", "Refunds", "fully refundable for 14 days"],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { level: 1, name: heading, exact: true })).toBeVisible();
+    await expect(page.getByText(phrase, { exact: false })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  }
+  await page.goto("/");
+  const legal = page.getByRole("navigation", { name: "Legal" });
+  for (const name of ["Terms", "Privacy", "Refunds"]) {
+    await expect(legal.getByRole("link", { name, exact: true })).toBeVisible();
+  }
 });

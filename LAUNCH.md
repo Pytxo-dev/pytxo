@@ -25,6 +25,10 @@ released or deployed.
   evidence moved to `/docs/evidence`, landing-layer positioning, plans (free / free
   account / Team planned), honest agent labels, stale "no pytxo apply" docs fixed.
 - GitHub composite action `actions/land` (shadow only).
+- Pytxo Pro ($12/mo, added 2026-10-14): Link migration 021 (private receipts and
+  Pybench), free limit of 25 shared receipts, `GET /v1/bench/mine`, admin Dodo
+  customer lookup; CLI `--private`; web Dodo checkout and billing portal, plan panel,
+  receipt delete, private receipt view; Terms, Privacy, Refunds pages.
 
 ## Checks (local, this branch)
 
@@ -51,6 +55,7 @@ released or deployed.
 | 4 | Live run of `pytxo land` on a real multi-agent repo (Orca/Conductor branches) | Matt's agents and accounts |
 | 5 | Docs flip to 1.3.0 (install pages, `PUBLISHED_VERSION`) and site deploy | `/authorize deploy` |
 | 6 | Launch: YouTube film, Product Hunt, HN/Reddit (Matt's words) | Matt |
+| 7 | Pro billing live: Dodo **Test Mode** product "Pytxo Pro" $12/mo; webhook to `https://pytxo.com/api/billing/dodo/webhook` (subscription events); Link env `DODO_WEBHOOK_SECRET`, `DODO_BUSINESS_ID`, `DODO_BRAND_ID`, `DODO_PRODUCT_PRO`; Vercel env `DODO_API_KEY`, `DODO_ENVIRONMENT=test`, `DODO_PRODUCT_PRO`, `LINK_ADMIN_URL`, `LINK_ADMIN_KEY`; one test purchase end to end (checkout, webhook, plan shows Pro, portal, cancel); confirm checkout metadata reaches `subscription.active`; then repeat with live keys | Matt (keys and dashboard), `/authorize deploy`; review Terms/Privacy/Refunds (14-day first-payment refund, contact address) |
 
 ---
 

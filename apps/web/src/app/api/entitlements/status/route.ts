@@ -13,7 +13,7 @@ async function linkFetch(path: string, headers: LinkHeaders) {
     process.env.LINK_ADMIN_URL ?? process.env.NEXT_PUBLIC_LINK_URL ?? "https://link.pytxo.com";
   return fetch(`${linkBase.replace(/\/$/, "")}${path}`, {
     headers,
-    next: { revalidate: 60 },
+    cache: "no-store",
   });
 }
 

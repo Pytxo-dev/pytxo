@@ -86,6 +86,17 @@ Exit codes: `0` ready or landed, `2` blocked, `3` stale.
 | `--out <file>` | Write the JSON report |
 | `--json` | Print the JSON report |
 | `--submit` | Publish the summary to the [Pybench board](/bench) (account perk) |
+| `--private` | With `--submit`: save the result to your account only, off the board ([Pytxo Pro](/docs/getting-started/account#pytxo-pro)) |
+
+## `pytxo receipts`
+
+| Command | Description |
+|------|-------------|
+| `pytxo receipts` | List this repository's receipts, newest first (`--json` for machine output) |
+| `pytxo receipts show <id>` | Print one receipt (full id or unique prefix) and check its digest |
+| `pytxo receipts share <id>` | Publish counts and outcomes as a page (account perk) |
+| `pytxo receipts share <id> --include-paths` | Also publish the changed file paths |
+| `pytxo receipts share <id> --private` | Only you can open the page, signed in ([Pytxo Pro](/docs/getting-started/account#pytxo-pro)) |
 
 ## `pytxo mission`
 

@@ -3,13 +3,14 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlanRoadmapCard } from "@/components/site/plan-roadmap-card";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
+import { FREE_RECEIPT_LIMIT, PRO_INTERVAL, PRO_PRICE } from "@/lib/billing/pro";
 import { pageMetadata } from "@/lib/page-metadata";
 import { DISCORD_URL } from "@/lib/site";
 
 export const metadata = pageMetadata(
   "/plans",
   "Plans · Pytxo",
-  "Pytxo is free on your machine. A free account adds sharing perks. Team plans are in design with partners.",
+  `Pytxo is free on your machine. A free account adds sharing perks; Pytxo Pro adds private receipts for ${PRO_PRICE}/${PRO_INTERVAL}. Team is in design with partners.`,
 );
 
 const ROADMAP = [
@@ -34,10 +35,24 @@ const ROADMAP = [
       "Share a receipt as a public page",
       "Keep shared receipts across machines",
       "Publish Pybench results to the board",
+      `Keep up to ${FREE_RECEIPT_LIMIT} shared receipts`,
       "Early access to Team",
     ],
     detail:
       "Optional. Sign in from the CLI (pytxo login) or Desktop Settings when you want hosted perks. Removing your account never removes a local feature.",
+  },
+  {
+    name: "Pro",
+    status: `${PRO_PRICE}/${PRO_INTERVAL} · new in 1.3`,
+    statusVariant: "default" as const,
+    highlights: [
+      "Everything in the free account",
+      "Private receipts only you can open",
+      "Unlimited shared receipts",
+      "Private Pybench results, off the public board",
+    ],
+    detail:
+      "Billed monthly through Dodo Payments, our merchant of record. Cancel any time from your account; Pro stays on until the end of the month you paid for.",
   },
   {
     name: "Team",
@@ -61,20 +76,25 @@ export default function PlansPage() {
           Plans
         </h1>
         <p className="max-w-2xl text-lg text-muted-foreground">
-          Free on your machine, free to sign in. Team is in design with partners and
-          has no price yet.
+          Free on your machine, free to sign in. Pro adds private receipts and unlimited
+          history for {PRO_PRICE}/{PRO_INTERVAL}. Team is in design with partners.
         </p>
         <div className="mt-2 flex flex-wrap gap-3">
           <Button size="lg" asChild>
             <Link href="/download">Download Pytxo</Link>
           </Button>
+          {SITE_AUTH_ENABLED ? (
+            <Button size="lg" variant="outline" asChild>
+              <a href="/api/billing/checkout-redirect?plan=pro">Get Pro</a>
+            </Button>
+          ) : null}
           <Button size="lg" variant="outline" asChild>
             <a href={DISCORD_URL}>Talk to us about Team</a>
           </Button>
         </div>
       </div>
 
-      <div data-testid="plans-grid" className="mt-16 grid gap-4 md:grid-cols-3">
+      <div data-testid="plans-grid" className="mt-16 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {ROADMAP.map((tier) => (
           <div key={tier.name} data-testid="plan-cell" className="flex flex-col gap-3">
             <PlanRoadmapCard

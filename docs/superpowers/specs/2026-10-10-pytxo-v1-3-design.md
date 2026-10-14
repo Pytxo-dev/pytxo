@@ -28,6 +28,7 @@ Matt's action-time approval.
 | 4 | Founder story | **Later** (Matt) | — |
 | 5 | Grants | **Emergent Ventures first** (rolling, 13+), 1517 and Z Fellows after launch numbers exist. Applications are Matt's to send | Fits age and stage; the others want traction |
 | 6 | Launch date | **As soon as v1.3 passes its gates** (Matt) | — |
+| 7 | Pytxo Pro (added 2026-10-14, Matt approved) | **$12/month through Dodo Payments (merchant of record): private receipts, unlimited shared receipts (free keeps 25), private Pybench.** Gating lives in Link, which stays MIT; this amends #2 and #3 for an individual plan only, Team stays unpriced | Payments needed something real to sell; hosted perks are what a paid individual plan can honestly offer today, and an MIT license does not weaken a hosted service |
 
 Further decisions inside this spec:
 

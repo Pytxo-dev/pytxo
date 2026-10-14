@@ -5,12 +5,16 @@
 //! one-use code bound to the client's `state` and `code_challenge`; the client
 //! exchanges it with its `code_verifier` for an account credential (`pas1_…`,
 //! 30 days). Only hashes of codes and credentials are stored. The credential
-//! carries no entitlement, billing or Routing authority.
+//! carries no entitlement, billing or Routing authority of its own.
+//!
+//! Pytxo Pro (a paid Link entitlement, bought through Dodo) adds private
+//! receipt pages, private Pybench results and unlimited shared receipts;
+//! free accounts keep [`FREE_RECEIPT_LIMIT`] shared receipts.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::Json;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -20,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 
+use crate::entitlements::Tier;
 use crate::state::AppState;
 
 const CODE_PREFIX: &str = "pac1_";
@@ -30,6 +35,8 @@ const CODES_PER_MINUTE: usize = 5;
 const SESSIONS_PER_ACCOUNT: usize = 10;
 const MAX_PATHS: usize = 500;
 const PUBLIC_ID_LEN: usize = 12;
+/// Shared receipts a free account keeps; Pro is unlimited.
+pub const FREE_RECEIPT_LIMIT: usize = 25;
 
 // ------------------------------------------------------------------ storage
 
@@ -86,6 +93,7 @@ struct StoredItem {
     payload: serde_json::Value,
     created: DateTime<Utc>,
     deleted: bool,
+    private: bool,
 }
 
 impl AccountStore {
@@ -194,6 +202,36 @@ async fn any_account(state: &AppState, headers: &HeaderMap) -> Result<String, St
             .ok_or(StatusCode::UNAUTHORIZED);
     }
     website_account(state, headers).await
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Plan {
+    Free,
+    Pro,
+}
+
+impl Plan {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Free => "free",
+            Self::Pro => "pro",
+        }
+    }
+}
+
+/// Any paid Link tier counts as Pro (Max and Ultra are retired plan names).
+async fn plan_of(state: &AppState, account: &str) -> Plan {
+    match state.entitlements.get(account).await.tier {
+        Tier::Core => Plan::Free,
+        Tier::Pro | Tier::Max | Tier::Ultra => Plan::Pro,
+    }
+}
+
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct Visibility {
+    #[serde(default)]
+    private: bool,
 }
 
 async fn session_account(state: &AppState, token: &str) -> Result<Option<String>, StatusCode> {
@@ -453,7 +491,8 @@ pub async fn exchange(
 #[derive(Serialize)]
 pub struct SessionResponse {
     account_id: String,
-    perks: [&'static str; 3],
+    plan: &'static str,
+    perks: Vec<&'static str>,
 }
 
 pub async fn session(
@@ -464,11 +503,17 @@ pub async fn session(
     let account = session_account(&state, token)
         .await?
         .ok_or(StatusCode::UNAUTHORIZED)?;
+    let plan = plan_of(&state, &account).await;
+    let mut perks = vec!["share_receipts", "receipt_history", "bench_board"];
+    if plan == Plan::Pro {
+        perks.extend(["private_receipts", "unlimited_receipts", "private_bench"]);
+    }
     Ok((
         no_store(),
         Json(SessionResponse {
             account_id: account,
-            perks: ["share_receipts", "receipt_history", "bench_board"],
+            plan: plan.as_str(),
+            perks,
         }),
     ))
 }
@@ -635,6 +680,7 @@ async fn publish(
     prefix: &str,
     digest: String,
     payload: serde_json::Value,
+    private: bool,
 ) -> Result<String, StatusCode> {
     match &state.accounts {
         AccountStore::Unavailable => Err(StatusCode::SERVICE_UNAVAILABLE),
@@ -646,9 +692,10 @@ async fn publish(
                 &mut m.bench
             };
             if let Some(existing) = items
-                .iter()
+                .iter_mut()
                 .find(|i| i.account == account && i.digest == digest && !i.deleted)
             {
+                existing.private = private;
                 return Ok(existing.id.clone());
             }
             let id = public_id(prefix)?;
@@ -659,14 +706,15 @@ async fn publish(
                 payload,
                 created: Utc::now(),
                 deleted: false,
+                private,
             });
             Ok(id)
         }
         AccountStore::Postgres(db) => {
             let id = public_id(prefix)?;
             let sql = format!(
-                "INSERT INTO {table} (id, account_id, content_digest, payload) VALUES ($1, $2, $3, $4) \
-                 ON CONFLICT (account_id, content_digest) DO UPDATE SET deleted_at = NULL \
+                "INSERT INTO {table} (id, account_id, content_digest, payload, private) VALUES ($1, $2, $3, $4, $5) \
+                 ON CONFLICT (account_id, content_digest) DO UPDATE SET deleted_at = NULL, private = EXCLUDED.private \
                  RETURNING id"
             );
             sqlx::query_scalar(&sql)
@@ -674,6 +722,7 @@ async fn publish(
                 .bind(&account)
                 .bind(&digest)
                 .bind(&payload)
+                .bind(private)
                 .fetch_one(db)
                 .await
                 .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
@@ -681,14 +730,59 @@ async fn publish(
     }
 }
 
+/// Active shared receipts for `account`, and whether `digest` is one of them.
+async fn receipt_quota(
+    state: &AppState,
+    account: &str,
+    digest: &str,
+) -> Result<(usize, bool), StatusCode> {
+    match &state.accounts {
+        AccountStore::Unavailable => Err(StatusCode::SERVICE_UNAVAILABLE),
+        AccountStore::Memory(m) => {
+            let m = m.lock().map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+            let mine = m
+                .receipts
+                .iter()
+                .filter(|r| r.account == account && !r.deleted);
+            let (count, existing) =
+                mine.fold((0, false), |(n, e), r| (n + 1, e || r.digest == digest));
+            Ok((count, existing))
+        }
+        AccountStore::Postgres(db) => {
+            let (count, existing): (i64, bool) = sqlx::query_as(
+                "SELECT count(*), coalesce(bool_or(content_digest = $2), false) \
+                 FROM shared_receipts WHERE account_id = $1 AND deleted_at IS NULL",
+            )
+            .bind(account)
+            .bind(digest)
+            .fetch_one(db)
+            .await
+            .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+            Ok((usize::try_from(count).unwrap_or(usize::MAX), existing))
+        }
+    }
+}
+
+/// `?private=true` needs Pro; free accounts keep [`FREE_RECEIPT_LIMIT`]
+/// shared receipts. Both refusals are `402 Payment Required`.
 pub async fn share_receipt(
     State(state): State<AppState>,
     headers: HeaderMap,
+    Query(visibility): Query<Visibility>,
     Json(receipt): Json<SharedReceipt>,
 ) -> Result<(HeaderMap, Json<Published>), StatusCode> {
     let account = any_account(&state, &headers).await?;
     if !receipt.validate() {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    if plan_of(&state, &account).await == Plan::Free {
+        if visibility.private {
+            return Err(StatusCode::PAYMENT_REQUIRED);
+        }
+        let (count, existing) = receipt_quota(&state, &account, &receipt.content_digest).await?;
+        if !existing && count >= FREE_RECEIPT_LIMIT {
+            return Err(StatusCode::PAYMENT_REQUIRED);
+        }
     }
     let payload = serde_json::to_value(&receipt).map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
     let id = publish(
@@ -698,6 +792,7 @@ pub async fn share_receipt(
         "r_",
         receipt.content_digest.clone(),
         payload,
+        visibility.private,
     )
     .await?;
     Ok((
@@ -714,37 +809,68 @@ pub struct PublicItem {
     id: String,
     created_at: DateTime<Utc>,
     payload: serde_json::Value,
+    private: bool,
 }
 
+type ItemColumns = (String, DateTime<Utc>, serde_json::Value, bool);
+
+fn item((id, created_at, payload, private): ItemColumns) -> PublicItem {
+    PublicItem {
+        id,
+        created_at,
+        payload,
+        private,
+    }
+}
+
+fn memory_item(i: &StoredItem) -> PublicItem {
+    PublicItem {
+        id: i.id.clone(),
+        created_at: i.created,
+        payload: i.payload.clone(),
+        private: i.private,
+    }
+}
+
+/// A private receipt answers only its signed-in owner; everyone else gets the
+/// same 404 as a missing id, so private ids reveal nothing.
 pub async fn public_receipt(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
-) -> Result<Json<PublicItem>, StatusCode> {
+) -> Result<(HeaderMap, Json<PublicItem>), StatusCode> {
     if !id.starts_with("r_")
         || id.len() != 2 + PUBLIC_ID_LEN
         || !id[2..].chars().all(|c| c.is_ascii_alphanumeric())
     {
         return Err(StatusCode::NOT_FOUND);
     }
-    let found = match &state.accounts {
+    let found: Option<(PublicItem, String)> = match &state.accounts {
         AccountStore::Unavailable => return Err(StatusCode::SERVICE_UNAVAILABLE),
         AccountStore::Memory(m) => {
             let m = m.lock().map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
             m.receipts
                 .iter()
                 .find(|r| r.id == id && !r.deleted)
-                .map(|r| PublicItem { id: r.id.clone(), created_at: r.created, payload: r.payload.clone() })
+                .map(|r| (memory_item(r), r.account.clone()))
         }
-        AccountStore::Postgres(db) => sqlx::query_as::<_, (String, DateTime<Utc>, serde_json::Value)>(
-            "SELECT id, created_at, payload FROM shared_receipts WHERE id = $1 AND deleted_at IS NULL",
+        AccountStore::Postgres(db) => sqlx::query_as::<_, (String, DateTime<Utc>, serde_json::Value, bool, String)>(
+            "SELECT id, created_at, payload, private, account_id FROM shared_receipts WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(&id)
         .fetch_optional(db)
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
-        .map(|(id, created_at, payload)| PublicItem { id, created_at, payload }),
+        .map(|(id, created_at, payload, private, owner)| (item((id, created_at, payload, private)), owner)),
     };
-    found.map(Json).ok_or(StatusCode::NOT_FOUND)
+    let (found, owner) = found.ok_or(StatusCode::NOT_FOUND)?;
+    if !found.private {
+        return Ok((HeaderMap::new(), Json(found)));
+    }
+    match any_account(&state, &headers).await {
+        Ok(account) if account == owner => Ok((no_store(), Json(found))),
+        _ => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 pub async fn my_receipts(
@@ -752,32 +878,51 @@ pub async fn my_receipts(
     headers: HeaderMap,
 ) -> Result<(HeaderMap, Json<Vec<PublicItem>>), StatusCode> {
     let account = any_account(&state, &headers).await?;
-    let items = match &state.accounts {
+    let items = list_mine(&state, &account, "shared_receipts", 200).await?;
+    Ok((no_store(), Json(items)))
+}
+
+/// The caller's own receipts or Pybench results, newest first.
+async fn list_mine(
+    state: &AppState,
+    account: &str,
+    table: &'static str,
+    limit: usize,
+) -> Result<Vec<PublicItem>, StatusCode> {
+    Ok(match &state.accounts {
         AccountStore::Unavailable => return Err(StatusCode::SERVICE_UNAVAILABLE),
         AccountStore::Memory(m) => {
             let m = m.lock().map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-            let mut v: Vec<_> = m
-                .receipts
+            let items = if table == "shared_receipts" {
+                &m.receipts
+            } else {
+                &m.bench
+            };
+            let mut v: Vec<_> = items
                 .iter()
                 .filter(|r| r.account == account && !r.deleted)
-                .map(|r| PublicItem { id: r.id.clone(), created_at: r.created, payload: r.payload.clone() })
+                .map(memory_item)
                 .collect();
             v.sort_by_key(|item| std::cmp::Reverse(item.created_at));
-            v.truncate(200);
+            v.truncate(limit);
             v
         }
-        AccountStore::Postgres(db) => sqlx::query_as::<_, (String, DateTime<Utc>, serde_json::Value)>(
-            "SELECT id, created_at, payload FROM shared_receipts WHERE account_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
-        )
-        .bind(&account)
-        .fetch_all(db)
-        .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
-        .into_iter()
-        .map(|(id, created_at, payload)| PublicItem { id, created_at, payload })
-        .collect(),
-    };
-    Ok((no_store(), Json(items)))
+        AccountStore::Postgres(db) => {
+            let sql = format!(
+                "SELECT id, created_at, payload, private FROM {table} \
+                 WHERE account_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2"
+            );
+            sqlx::query_as::<_, ItemColumns>(&sql)
+                .bind(account)
+                .bind(i64::try_from(limit).unwrap_or(200))
+                .fetch_all(db)
+                .await
+                .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+                .into_iter()
+                .map(item)
+                .collect()
+        }
+    })
 }
 
 pub async fn delete_receipt(
@@ -818,25 +963,54 @@ pub async fn delete_receipt(
 
 // -------------------------------------------------------------------- bench
 
+/// `?private=true` (Pro) keeps the result off the public board; it appears
+/// only in the owner's `GET /v1/bench/mine`.
 pub async fn submit_bench(
     State(state): State<AppState>,
     headers: HeaderMap,
+    Query(visibility): Query<Visibility>,
     Json(bench): Json<SharedBench>,
 ) -> Result<(HeaderMap, Json<Published>), StatusCode> {
     let account = any_account(&state, &headers).await?;
     if !bench.validate() {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
+    if visibility.private && plan_of(&state, &account).await == Plan::Free {
+        return Err(StatusCode::PAYMENT_REQUIRED);
+    }
     let payload = serde_json::to_value(&bench).map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
     let digest = format!("{:x}", Sha256::digest(payload.to_string().as_bytes()));
-    let id = publish(&state, account, "bench_results", "b_", digest, payload).await?;
+    let id = publish(
+        &state,
+        account,
+        "bench_results",
+        "b_",
+        digest,
+        payload,
+        visibility.private,
+    )
+    .await?;
+    let url = if visibility.private {
+        "https://pytxo.com/account"
+    } else {
+        "https://pytxo.com/bench"
+    };
     Ok((
         no_store(),
         Json(Published {
-            url: "https://pytxo.com/bench".into(),
+            url: url.into(),
             id,
         }),
     ))
+}
+
+pub async fn my_bench(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<(HeaderMap, Json<Vec<PublicItem>>), StatusCode> {
+    let account = any_account(&state, &headers).await?;
+    let items = list_mine(&state, &account, "bench_results", 100).await?;
+    Ok((no_store(), Json(items)))
 }
 
 pub async fn bench_board(
@@ -849,21 +1023,22 @@ pub async fn bench_board(
             let mut v: Vec<_> = m
                 .bench
                 .iter()
-                .filter(|b| !b.deleted)
-                .map(|b| PublicItem { id: b.id.clone(), created_at: b.created, payload: b.payload.clone() })
+                .filter(|b| !b.deleted && !b.private)
+                .map(memory_item)
                 .collect();
             v.sort_by_key(|item| std::cmp::Reverse(item.created_at));
             v.truncate(50);
             v
         }
-        AccountStore::Postgres(db) => sqlx::query_as::<_, (String, DateTime<Utc>, serde_json::Value)>(
-            "SELECT id, created_at, payload FROM bench_results WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 50",
+        AccountStore::Postgres(db) => sqlx::query_as::<_, ItemColumns>(
+            "SELECT id, created_at, payload, private FROM bench_results \
+             WHERE deleted_at IS NULL AND NOT private ORDER BY created_at DESC LIMIT 50",
         )
         .fetch_all(db)
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
         .into_iter()
-        .map(|(id, created_at, payload)| PublicItem { id, created_at, payload })
+        .map(item)
         .collect(),
     };
     Ok(Json(items))
@@ -1051,10 +1226,121 @@ mod tests {
         assert_eq!(board[0]["payload"]["pytxo_prevented"], 4);
         assert!(!board.to_string().contains("alice"));
 
+        let (_, session) = call(&app, "GET", "/v1/account/session", auth, None).await;
+        assert_eq!(session["plan"], "free");
+
         // Signing out revokes the credential.
         let (status, _) = call(&app, "DELETE", "/v1/account/session", auth, None).await;
         assert_eq!(status, StatusCode::NO_CONTENT);
         let (status, _) = call(&app, "GET", "/v1/account/session", auth, None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    fn digest_payload(n: usize) -> serde_json::Value {
+        let mut p = receipt_payload('a');
+        p["content_digest"] = serde_json::json!(format!("sha256:{n:064x}"));
+        p
+    }
+
+    #[tokio::test]
+    async fn pro_gates_private_items_and_the_free_receipt_limit() {
+        let app = crate::build_router(crate::contract_tests::test_state());
+        let carol = Some(("x-pytxo-dev-account", "user_carol"));
+        let dave = Some(("x-pytxo-dev-account", "user_dave"));
+
+        // Free: private sharing needs Pro; public sharing stops at the limit,
+        // but re-sharing a receipt already kept still works.
+        let (status, _) = call(
+            &app,
+            "POST",
+            "/v1/receipts?private=true",
+            carol,
+            Some(digest_payload(0)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::PAYMENT_REQUIRED);
+        for n in 0..FREE_RECEIPT_LIMIT {
+            let (status, _) =
+                call(&app, "POST", "/v1/receipts", carol, Some(digest_payload(n))).await;
+            assert_eq!(status, StatusCode::OK, "receipt {n}");
+        }
+        let (status, _) = call(
+            &app,
+            "POST",
+            "/v1/receipts",
+            carol,
+            Some(digest_payload(FREE_RECEIPT_LIMIT)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::PAYMENT_REQUIRED);
+        let (status, _) = call(&app, "POST", "/v1/receipts", carol, Some(digest_payload(3))).await;
+        assert_eq!(status, StatusCode::OK);
+        let bench = serde_json::json!({
+            "schema": "pybench.share/v1", "pytxo_version": "1.3.0", "created_at": "2026-10-10T00:00:00Z",
+            "os": "linux", "arch": "x86_64", "cpus": 8, "scenarios": 12, "correct": 12,
+            "naive_landed_broken": 4, "pytxo_prevented": 4, "false_refusals": 0, "median_gate_ms": 2500
+        });
+        let (status, _) = call(
+            &app,
+            "POST",
+            "/v1/bench?private=true",
+            carol,
+            Some(bench.clone()),
+        )
+        .await;
+        assert_eq!(status, StatusCode::PAYMENT_REQUIRED);
+
+        // Pro (a paid entitlement) lifts the limit and allows private items.
+        let admin = Some(("x-link-admin-key", "test-admin"));
+        let (status, _) = call(
+            &app,
+            "PUT",
+            "/v1/admin/entitlements/user_carol",
+            admin,
+            Some(serde_json::json!({ "tier": "pro" })),
+        )
+        .await;
+        assert!(status.is_success(), "grant pro: {status}");
+        let (status, _) = call(
+            &app,
+            "POST",
+            "/v1/receipts",
+            carol,
+            Some(digest_payload(FREE_RECEIPT_LIMIT)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, private) = call(
+            &app,
+            "POST",
+            "/v1/receipts?private=true",
+            carol,
+            Some(digest_payload(99)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let id = private["id"].as_str().unwrap().to_string();
+
+        // A private page answers only its owner; others see a plain 404.
+        let uri = format!("/v1/receipts/{id}");
+        assert_eq!(
+            call(&app, "GET", &uri, None, None).await.0,
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            call(&app, "GET", &uri, dave, None).await.0,
+            StatusCode::NOT_FOUND
+        );
+        let (status, own) = call(&app, "GET", &uri, carol, None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(own["private"], true);
+
+        // Private Pybench results stay off the public board.
+        let (status, _) = call(&app, "POST", "/v1/bench?private=true", carol, Some(bench)).await;
+        assert_eq!(status, StatusCode::OK);
+        let (_, board) = call(&app, "GET", "/v1/bench", None, None).await;
+        assert_eq!(board.as_array().unwrap().len(), 0);
+        let (_, mine) = call(&app, "GET", "/v1/bench/mine", carol, None).await;
+        assert_eq!(mine[0]["private"], true);
     }
 }

@@ -7,6 +7,7 @@ import { SignedIn, SignedOut, SignUpButton, UserButton } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
+import { FREE_RECEIPT_LIMIT, isProTier, PRO_INTERVAL, PRO_PERKS, PRO_PRICE } from "@/lib/billing/pro";
 import { desktopAccountUrl, desktopBridgeAllowed, desktopBridgeParams, desktopSignInUrl } from "@/lib/desktop-bridge";
 
 type OrgPolicy = {
@@ -136,7 +137,8 @@ function ConfiguredAccountAuth() {
         <p className="text-sm text-muted-foreground">
           Everything local works without an account. Signing in adds perks: share
           a receipt as a public page, keep shared receipts across machines, and
-          publish Pybench results.
+          publish Pybench results. Pytxo Pro ({PRO_PRICE}/{PRO_INTERVAL}) adds
+          private receipts and unlimited history.
         </p>
         <Link href="/plans" className="text-sm text-primary hover:underline">
           Compare plans
@@ -154,10 +156,13 @@ function ConfiguredAccountAuth() {
           <p className="text-muted-foreground">
             Run <code className="font-mono">pytxo login</code> in a terminal, or open Settings → Account in Pytxo Desktop.
             Then share a receipt with <code className="font-mono">pytxo receipts share &lt;id&gt;</code> or publish
-            Pybench with <code className="font-mono">pytxo bench --submit</code>.
+            Pybench with <code className="font-mono">pytxo bench --submit</code>. Add <code className="font-mono">--private</code> to
+            either with Pro.
           </p>
         </div>
-        <SharedReceipts />
+        {entitlements && !loading && !entitlements.error ? <PlanPanel tier={entitlements.tier ?? null} /> : null}
+        <SharedReceipts pro={isProTier(entitlements?.tier)} />
+        <MyBench />
         {wantsDesktopReturn && bridge && bridgeAllowed ? (
           <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3">
             <p className="font-medium">{bridge.recoveryOnly ? "Reconnect Pytxo Desktop to revoke existing access" : "Connect Pytxo Desktop for experimental routing"}</p>
@@ -200,7 +205,7 @@ function ConfiguredAccountAuth() {
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
                 <div>
                   <dt className="text-xs text-muted-foreground">Plan</dt>
-                  <dd className="mt-0.5 font-medium capitalize">{entitlements.tier ?? "free"}</dd>
+                  <dd className="mt-0.5 font-medium">{isProTier(entitlements.tier) ? "Pro" : "Free"}</dd>
                 </div>
                 {entitlements.org_id ? (
                   <div className="col-span-2">
@@ -238,10 +243,6 @@ function ConfiguredAccountAuth() {
             )}
           </div>
         )}
-        <p className="text-sm text-muted-foreground">
-          Billing self-service is not connected. Use the support contact on your
-          payment receipt for changes or cancellation.
-        </p>
       </SignedIn>
     </div>
   );
@@ -272,47 +273,175 @@ export function AccountAuth() {
   return <ConfiguredAccountAuth />;
 }
 
-type SharedReceiptRow = {
+type SharedRow = {
   id: string;
   created_at: string;
-  payload: { decision?: string; kind?: string; inputs?: number; files_changed?: number };
+  private?: boolean;
+  payload: {
+    decision?: string;
+    kind?: string;
+    inputs?: number;
+    files_changed?: number;
+    scenarios?: number;
+    correct?: number;
+    pytxo_prevented?: number;
+    naive_landed_broken?: number;
+    os?: string;
+  };
 };
 
-/** Account perk: receipts this account has shared, newest first. */
-function SharedReceipts() {
-  const [rows, setRows] = useState<SharedReceiptRow[] | null>(null);
+const BILLING_NOTICE: Record<string, string> = {
+  upgraded: "Thanks. Pro turns on as soon as Dodo confirms the payment, usually within a minute. Refresh this page if it still says Free.",
+  active: "You already have Pytxo Pro.",
+  unavailable: "Billing is unavailable right now. Nothing was charged; try again later.",
+  none: "No Pytxo Pro subscription is linked to this account.",
+};
+
+function billingNotice(params: Pick<URLSearchParams, "get">): string | null {
+  if (params.get("upgraded") === "1") return BILLING_NOTICE.upgraded;
+  if (params.get("pro") === "active") return BILLING_NOTICE.active;
+  const billing = params.get("billing");
+  return billing ? (BILLING_NOTICE[billing] ?? null) : null;
+}
+
+/** Free or Pro, with the one action that applies: upgrade or manage billing. */
+function PlanPanel({ tier }: { tier: string | null }) {
+  const searchParams = useSearchParams();
+  const notice = billingNotice(searchParams);
+  const pro = isProTier(tier);
+  return (
+    <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3" data-testid="account-plan">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-medium">{pro ? "Pytxo Pro" : "Free account"}</p>
+        {pro ? (
+          <a href="/api/billing/portal" className="text-primary hover:underline">Manage billing</a>
+        ) : null}
+      </div>
+      {notice ? <p role="status" className="text-muted-foreground">{notice}</p> : null}
+      {pro ? (
+        <p className="text-muted-foreground">
+          Private receipts, unlimited shared receipts and private Pybench are on. Invoices, payment method and
+          cancellation are in Manage billing.
+        </p>
+      ) : (
+        <>
+          <ul className="flex flex-col gap-1.5 text-muted-foreground">
+            {PRO_PERKS.map(([title, detail]) => (
+              <li key={title}>
+                <span className="text-foreground">{title}.</span> {detail}
+              </li>
+            ))}
+          </ul>
+          <div>
+            <Button asChild>
+              <a href="/api/billing/checkout-redirect?plan=pro">
+                Upgrade to Pro · {PRO_PRICE}/{PRO_INTERVAL}
+              </a>
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function useRows(path: string): [SharedRow[] | null, boolean, (rows: SharedRow[]) => void] {
+  const [rows, setRows] = useState<SharedRow[] | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/account/receipts", { cache: "no-store" })
+    fetch(path, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-      .then((data: SharedReceiptRow[]) => !cancelled && setRows(data))
+      .then((data: SharedRow[]) => !cancelled && setRows(data))
       .catch(() => !cancelled && setFailed(true));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [path]);
+  return [rows, failed, setRows];
+}
+
+/** Account perk: receipts this account has shared, newest first. */
+function SharedReceipts({ pro }: { pro: boolean }) {
+  const [rows, failed, setRows] = useRows("/api/account/receipts");
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function remove(id: string) {
+    if (deleting || !window.confirm("Delete this shared receipt? Its link stops working. Your local receipt file is not touched.")) return;
+    setDeleting(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/account/receipts?id=${encodeURIComponent(id)}`, { method: "DELETE", cache: "no-store" });
+      if (res.status !== 204 && res.status !== 404) throw new Error(String(res.status));
+      setRows((rows ?? []).filter((row) => row.id !== id));
+    } catch {
+      setError("Could not delete that receipt. Try again later.");
+    } finally {
+      setDeleting(null);
+    }
+  }
+
   return (
     <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3" data-testid="shared-receipts">
-      <p className="font-medium">Shared receipts</p>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-medium">Shared receipts</p>
+        {rows && !pro ? (
+          <span className="text-xs text-muted-foreground">{rows.length} of {FREE_RECEIPT_LIMIT} kept on the free plan</span>
+        ) : null}
+      </div>
       {failed ? (
         <p className="text-muted-foreground">Could not load shared receipts right now.</p>
       ) : rows === null ? (
         <p className="text-muted-foreground">Loading…</p>
       ) : rows.length === 0 ? (
-        <p className="text-muted-foreground">None yet. Shared receipts appear here and at their public link.</p>
+        <p className="text-muted-foreground">None yet. Shared receipts appear here and at their link.</p>
       ) : (
         <ul className="flex flex-col divide-y divide-white/10">
           {rows.map((row) => (
             <li key={row.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
-              <Link href={`/r/${row.id}`} className="font-mono text-xs text-foreground hover:underline">{row.id}</Link>
-              <span className="text-xs text-muted-foreground">
+              <span className="flex items-baseline gap-2">
+                <Link href={`/r/${row.id}`} className="font-mono text-xs text-foreground hover:underline">{row.id}</Link>
+                {row.private ? <span className="text-xs text-muted-foreground">private</span> : null}
+              </span>
+              <span className="flex items-baseline gap-3 text-xs text-muted-foreground">
                 {row.payload.kind ?? "land"} · {row.payload.decision ?? "?"} · {row.payload.inputs ?? 0} inputs · {row.payload.files_changed ?? 0} files · {row.created_at.slice(0, 10)}
+                <button
+                  type="button"
+                  onClick={() => void remove(row.id)}
+                  disabled={deleting !== null}
+                  className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
+                  aria-label={`Delete shared receipt ${row.id}`}
+                >
+                  {deleting === row.id ? "Deleting…" : "Delete"}
+                </button>
               </span>
             </li>
           ))}
         </ul>
       )}
+      {error ? <p role="alert" className="text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+
+/** Pybench results this account submitted; private ones (Pro) appear only here. */
+function MyBench() {
+  const [rows, failed] = useRows("/api/account/bench");
+  if (failed || !rows || rows.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-white/10 bg-background/50 px-4 py-4 text-sm flex flex-col gap-3" data-testid="my-bench">
+      <p className="font-medium">Your Pybench results</p>
+      <ul className="flex flex-col divide-y divide-white/10">
+        {rows.map((row) => (
+          <li key={row.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-xs text-muted-foreground">
+            <span>
+              {row.payload.correct ?? 0}/{row.payload.scenarios ?? 0} as expected · prevented {row.payload.pytxo_prevented ?? 0} of {row.payload.naive_landed_broken ?? 0} broken landings · {row.payload.os ?? "?"}
+            </span>
+            <span>{row.private ? "private" : "on the board"} · {row.created_at.slice(0, 10)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
