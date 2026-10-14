@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 const QUICK_LINKS = [
-  { href: "/plans", label: "Plans", detail: "Free today, Team in design" },
+  { href: "/plans", label: "Plans", detail: "Free, Pro and Team compared" },
   { href: "/bench", label: "Pybench", detail: "Published benchmark results" },
   { href: "/download", label: "Download", detail: "CLI and Desktop installers" },
   { href: "/docs", label: "Docs", detail: "Install, tutorials, reference" },
