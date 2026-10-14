@@ -1,3 +1,27 @@
+# Goal (2026-10-15): v1.3 beta-release ready and worth using
+
+Authorized by Matt this session: push, publish, deploy. Milestones end with a
+checkpoint; each is a separate session.
+
+| # | Milestone | Done when |
+|---|-----------|-----------|
+| M1 | Ship 1.3.0 | Main CI green; v1.3.0 tagged; release run green; mirror MSI/CLI checksums and npm `latest` = 1.3.0; docs flipped to 1.3.0 and pytxo.com deployed; sloplint 0 errors on web and Desktop; Pro checkout closed until Dodo is live |
+| M2 | First use that works | Clean `npm i -g pytxo@1.3.0` → `pytxo land` on a real repo with branches from 2+ live agents → decision + receipt; time to first decision measured; every friction point found is fixed or filed |
+| M3 | Launch kit | Film on the 1.3 build, Product Hunt fields, docs evidence page; HN/Reddit wording is Matt's |
+
+Matt only: Dodo live mode (verification, live product, webhook, key,
+`DODO_ENVIRONMENT=live` + redeploy opens checkout), Vercel token for the
+deploy-web workflow, legal page review, launch posts.
+
+## M1 log
+
+- PR #46: release-version check (installer said 1.2.5), pytxo-proxy Dockerfile
+  (failed since July; Deploy services dispatch green), RustSec bumps (rustls
+  0.23.46, quinn-proto 0.11.18), sloplint errors (4 false positives suppressed
+  with reasons; server-side fetch timeouts), Pro checkout closed unless
+  `DODO_ENVIRONMENT=live` (test mode granted Pro for a test card and refused
+  real cards), deploy-web warns instead of failing without secrets.
+
 # v1.3 "Land" — running state
 
 Owner: Claude, 2026-10-10/11. Branch `mbcz/v1.3-land` (worktree
