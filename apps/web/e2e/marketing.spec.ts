@@ -111,7 +111,7 @@ for (const width of [1440, 390]) {
       await trigger.click();
       const region = page.getByTestId("faq-section").getByRole("region").first();
       await expect(region).toBeVisible();
-      await page.waitForTimeout(350);
+      await region.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
       const clipped = await region.evaluate((el) => {
         const inner = el.firstElementChild as HTMLElement | null;
         return el.scrollHeight - el.clientHeight > 1 || (inner ? inner.scrollHeight - inner.clientHeight > 1 : false);
@@ -229,7 +229,8 @@ test("the homepage no longer pins a scroll-jacked sequence", async ({ page }) =>
 const PLAN_TIERS = [
   { title: "Pytxo", status: "Free · available now" },
   { title: "Free account", status: "Free · new in 1.3" },
-  { title: "Pro", status: "$12/month · new in 1.3" },
+  // CI builds without live Dodo keys, so Pro checkout is closed.
+  { title: "Pro", status: "$12/month · checkout opens soon" },
   { title: "Team", status: "Planned · design partners" },
 ] as const;
 

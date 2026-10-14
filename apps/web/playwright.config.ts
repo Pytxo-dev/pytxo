@@ -20,6 +20,7 @@ export default defineConfig({
     // Local `.env.local` keys would otherwise handshake to an unresolved Clerk host.
     env: {
       ...process.env,
+      // sloplint-disable-next-line SEC-001 -- an empty key is how e2e turns Clerk off
       CLERK_SECRET_KEY: process.env.PLAYWRIGHT_CLERK_SECRET_KEY ?? "",
     },
   },

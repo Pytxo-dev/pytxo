@@ -14,6 +14,7 @@ async function linkFetch(path: string, headers: LinkHeaders) {
   return fetch(`${linkBase.replace(/\/$/, "")}${path}`, {
     headers,
     cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
   });
 }
 

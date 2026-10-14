@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { SITE_AUTH_BACKEND_ENABLED } from "@/lib/auth-config";
 import { createProCheckout, dodoConfig } from "@/lib/billing/dodo";
-import { isProTier } from "@/lib/billing/pro";
+import { isProTier, PRO_CHECKOUT_OPEN } from "@/lib/billing/pro";
 import { linkUrl, NO_STORE } from "@/lib/link";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +31,9 @@ export async function GET(req: NextRequest) {
   const config = dodoConfig();
   if (!SITE_AUTH_BACKEND_ENABLED || !config) {
     return NextResponse.redirect(new URL("/account?billing=unavailable", req.nextUrl.origin));
+  }
+  if (!PRO_CHECKOUT_OPEN) {
+    return NextResponse.redirect(new URL("/account?billing=soon", req.nextUrl.origin));
   }
   if (req.nextUrl.searchParams.get("plan") !== "pro") {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400, headers: NO_STORE });

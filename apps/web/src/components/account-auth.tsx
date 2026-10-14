@@ -7,7 +7,7 @@ import { SignedIn, SignedOut, SignUpButton, UserButton } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
-import { FREE_RECEIPT_LIMIT, isProTier, PRO_INTERVAL, PRO_PERKS, PRO_PRICE } from "@/lib/billing/pro";
+import { FREE_RECEIPT_LIMIT, isProTier, PRO_CHECKOUT_OPEN, PRO_INTERVAL, PRO_PERKS, PRO_PRICE } from "@/lib/billing/pro";
 import { desktopAccountUrl, desktopBridgeAllowed, desktopBridgeParams, desktopSignInUrl } from "@/lib/desktop-bridge";
 
 type OrgPolicy = {
@@ -295,6 +295,7 @@ const BILLING_NOTICE: Record<string, string> = {
   active: "You already have Pytxo Pro.",
   unavailable: "Billing is unavailable right now. Nothing was charged; try again later.",
   none: "No Pytxo Pro subscription is linked to this account.",
+  soon: "Pro checkout is not open yet. Nothing was charged.",
 };
 
 function billingNotice(params: Pick<URLSearchParams, "get">): string | null {
@@ -332,13 +333,17 @@ function PlanPanel({ tier }: { tier: string | null }) {
               </li>
             ))}
           </ul>
-          <div>
-            <Button asChild>
-              <a href="/api/billing/checkout-redirect?plan=pro">
-                Upgrade to Pro · {PRO_PRICE}/{PRO_INTERVAL}
-              </a>
-            </Button>
-          </div>
+          {PRO_CHECKOUT_OPEN ? (
+            <div>
+              <Button asChild>
+                <a href="/api/billing/checkout-redirect?plan=pro">
+                  Upgrade to Pro · {PRO_PRICE}/{PRO_INTERVAL}
+                </a>
+              </Button>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Pro checkout opens soon ({PRO_PRICE}/{PRO_INTERVAL}).</p>
+          )}
         </>
       )}
     </div>

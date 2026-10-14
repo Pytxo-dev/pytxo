@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlanRoadmapCard } from "@/components/site/plan-roadmap-card";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
-import { FREE_RECEIPT_LIMIT, PRO_INTERVAL, PRO_PRICE } from "@/lib/billing/pro";
+import { FREE_RECEIPT_LIMIT, PRO_CHECKOUT_OPEN, PRO_INTERVAL, PRO_PRICE } from "@/lib/billing/pro";
 import { pageMetadata } from "@/lib/page-metadata";
 import { DISCORD_URL } from "@/lib/site";
 
@@ -43,7 +43,7 @@ const ROADMAP = [
   },
   {
     name: "Pro",
-    status: `${PRO_PRICE}/${PRO_INTERVAL} · new in 1.3`,
+    status: `${PRO_PRICE}/${PRO_INTERVAL} · ${PRO_CHECKOUT_OPEN ? "new in 1.3" : "checkout opens soon"}`,
     statusVariant: "default" as const,
     highlights: [
       "Everything in the free account",
@@ -83,7 +83,7 @@ export default function PlansPage() {
           <Button size="lg" asChild>
             <Link href="/download">Download Pytxo</Link>
           </Button>
-          {SITE_AUTH_ENABLED ? (
+          {SITE_AUTH_ENABLED && PRO_CHECKOUT_OPEN ? (
             <Button size="lg" variant="outline" asChild>
               <a href="/api/billing/checkout-redirect?plan=pro">Get Pro</a>
             </Button>

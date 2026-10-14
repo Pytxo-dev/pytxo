@@ -9,6 +9,7 @@ const FORWARDED_HEADERS = [
   "webhook-signature",
 ] as const;
 
+// sloplint-disable-next-line SEC-006 -- forwards the raw body and signature headers; Link verifies them (services/pytxo-link/src/dodo.rs)
 export async function POST(req: NextRequest) {
   const linkBase = process.env.LINK_ADMIN_URL?.trim();
   if (!linkBase) {
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
       body: await req.arrayBuffer(),
       cache: "no-store",
       redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
     });
     const responseHeaders = new Headers();
     const upstreamContentType = upstream.headers.get("content-type");

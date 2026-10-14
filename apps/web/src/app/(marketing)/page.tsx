@@ -64,6 +64,7 @@ export default function HomePage() {
     <>
       <script
         type="application/ld+json"
+        // sloplint-disable-next-line SEC-007 -- constant structured data; "<" is escaped below
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(STRUCTURED_DATA).replace(/</g, "\\u003c"),
         }}

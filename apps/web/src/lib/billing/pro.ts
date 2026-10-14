@@ -6,6 +6,9 @@
 export const PRO_PRICE = "$12";
 export const PRO_INTERVAL = "month";
 
+/** True only when the deployment bills with live Dodo keys (see next.config.ts). */
+export const PRO_CHECKOUT_OPEN = process.env.PYTXO_PRO_CHECKOUT_OPEN === "1";
+
 /** Mirrors FREE_RECEIPT_LIMIT in services/pytxo-link/src/account.rs. */
 export const FREE_RECEIPT_LIMIT = 25;
 
