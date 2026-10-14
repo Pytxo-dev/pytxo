@@ -240,8 +240,7 @@ async fn real_candidate_checks_gate_apply_and_refresh_frozen_bytes() {
         "preserve me\n"
     );
     // A committed Apply leaves exactly one Apply receipt naming this run.
-    let receipts =
-        pytxo_core::list_receipts(&pytxo_orchestrate::repo_receipts_dir(&repo).unwrap());
+    let receipts = pytxo_core::list_receipts(&pytxo_orchestrate::repo_receipts_dir(&repo).unwrap());
     let target = format!("run:{}", id.0);
     let apply: Vec<_> = receipts
         .iter()
