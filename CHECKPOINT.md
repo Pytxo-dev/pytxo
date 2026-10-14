@@ -1,3 +1,55 @@
+# CHECKPOINT — Pytxo — 2026-10-14 (v1.3 merged and deployed; Pro live in Dodo test mode)
+
+## Branch / commit
+- `main` at `8f49168` (PR #45 merged `mbcz/v1.3-land`). Worktree
+  `pytxo-business-strategy-5cfa4d`. Key commits: `ef2579b` Pro billing, `a9ab1fd`
+  Chroma p logo, `c691f3c` `.gitattributes` pins `*.sql` to LF, `ebc79c7` copy fix.
+
+## Completed
+- Pytxo Pro ($12/mo): Link gating (migration 021), CLI `--private`, web checkout +
+  billing portal, plans card, Terms/Privacy/Refunds pages.
+- Dodo **test mode**: product `pdt_0Npij2sJ3LhJlb9qwqNbL` (brand Pytxo
+  `brnd_0NpiqDZkYTf0EKVK8FI7z`, business `bus_0NmlAGsAIGl3PeW5qiQo2`); webhook
+  `https://pytxo.com/api/billing/dodo/webhook` (all `subscription.*`).
+- Env set — Vercel prod: `DODO_API_KEY` (Matt), `DODO_ENVIRONMENT=test`,
+  `DODO_PRODUCT_PRO`; Railway `keen-laughter/pytxo-link`: `DODO_BUSINESS_ID`,
+  `DODO_BRAND_ID`, `DODO_PRODUCT_PRO`, `DODO_WEBHOOK_SECRET` (Matt). No keys stored here.
+- Deployed by CLI from the branch: Vercel prod + Railway Link. Migrations 020/021
+  applied in prod Postgres.
+- Test purchase end to end: Dodo checkout → 3 webhooks 200 → account shows Pro
+  (metadata `user_id` propagation confirmed).
+- Dodo Claude plugin installed (user scope); its API MCP still needs `/mcp` auth.
+
+## Incident (resolved)
+- First `railway up` from the Windows tree shipped CRLF migrations → sqlx
+  `VersionMismatch(1)` → Link crash-looped ~10 min. Fixed by redeploying a
+  `git -c core.autocrlf=false archive` export; `.gitattributes` now prevents it.
+  Never `railway up` from a CRLF working tree.
+
+## Not done
+- GitHub Actions "Deploy web" on main fails: repo secrets `VERCEL_TOKEN`,
+  `VERCEL_ORG_ID` (`team_9sY8Z8TDoLtbWEte8M95C2mY`), `VERCEL_PROJECT_ID`
+  (`prj_2741otn0udtebonWb6wVx7EH8UiO`) unset. Token is Matt's to create.
+- PR #45 merged before CI finished (main has no required checks); check the CI
+  runs on `8f49168` and fix forward if red. Suggest branch protection.
+- Dodo live mode: live product, webhook, key, `DODO_ENVIRONMENT=live` (after Dodo
+  verification).
+- Matt reviews legal pages (14-day refund, contact@mbcz.xyz, operator "MBCZ").
+- v1.3 release: tag, installers, launch; live `pytxo land` on a real agent repo.
+- Manual (Matt): GitHub org description, social handles, D:/marketing logo refresh.
+
+## Tests last run
+- Link 54/54, Desktop 78, CLI pass; fmt + clippy clean; web tsc/lint/build pass;
+  Playwright 32/32. Prod smoke: link /health 200, pytxo.com/plans 200.
+
+## Next prompt (paste below)
+```txt
+Pytxo: read the 2026-10-14 entry in CHECKPOINT.md. First check the CI runs on
+main 8f49168 and fix forward if any failed. Then prepare the v1.3 release
+(tag, installers, release notes check) per LAUNCH.md — stop before publishing
+for my /authorize.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-11 (v1.3 "Land" built locally, not published)
 
 - Branch `mbcz/v1.3-land`, worktree `pytxo-business-strategy-5cfa4d`, from main
