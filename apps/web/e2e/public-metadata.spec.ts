@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test";
 test.use({ javaScriptEnabled: false });
 
 test("every sitemap page serves its own crawlable identity without JavaScript", async ({ page, request }) => {
+  // Visits every page in turn; at 62 pages it already took 26s of the default 30s.
+  test.slow();
   const sitemap = await request.get("/sitemap.xml");
   expect(sitemap.status()).toBe(200);
   const locations = [...(await sitemap.text()).matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
