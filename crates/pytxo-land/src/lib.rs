@@ -473,8 +473,51 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             collisions.join("; ")
         ));
     }
+    // Suggested from the project files for the user to pass; never run unasked.
+    let suggestion = checks::suggest_check(&root);
     if opts.checks.is_empty() && files_changed > 0 {
-        insights.push("No checks ran. Pass --check \"<command>\" to verify the combined change before landing.".into());
+        insights.push(format!(
+            "No checks ran. Pass --check \"{}\" to verify the combined change before landing.",
+            suggestion.as_deref().unwrap_or("<command>")
+        ));
+    }
+    // A check that fails everywhere, or a Node check that never installs, is
+    // most likely failing for want of a set-up worktree, not because of the inputs.
+    for command in &opts.checks {
+        let of_command = |c: &&ReceiptCheck| &c.command == command;
+        if !checks
+            .iter()
+            .filter(of_command)
+            .any(|c| c.scope == "combined" && !c.passed)
+        {
+            continue;
+        }
+        let solo: Vec<&ReceiptCheck> = checks
+            .iter()
+            .filter(of_command)
+            .filter(|c| c.scope != "combined")
+            .collect();
+        let everywhere = !solo.is_empty() && solo.iter().all(|c| !c.passed);
+        let install_hint = suggestion
+            .as_deref()
+            .filter(|s| checks::installs(s) && !checks::installs(command));
+        let mut insight = String::new();
+        if everywhere {
+            insight.push_str(&format!(
+                "`{command}` failed on every input alone too, so the check itself may be what fails, not the combination."
+            ));
+        }
+        if let Some(s) = install_hint {
+            if !insight.is_empty() {
+                insight.push(' ');
+            }
+            insight.push_str(&format!(
+                "Checks run in a fresh worktree where dependencies are not installed: install them in the check, for example --check \"{s}\"."
+            ));
+        }
+        if !insight.is_empty() {
+            insights.push(insight);
+        }
     }
     if files_changed == 0 && decision == "ready" {
         insights.push("Nothing to land: the inputs add no changes to the target.".into());
