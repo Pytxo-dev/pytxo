@@ -1,3 +1,73 @@
+# CHECKPOINT — Pytxo — 2026-10-15 (M2 first use; 1.3.1 prepared, not pushed)
+
+## Branch / commit
+- `mbcz/pytxo-m2-first-use-e55e50` (worktree `pytxo-m2-first-use-e55e50`), 6
+  commits on `fe331de`: npm first-run install, land friction fixes, docs page,
+  `release: prepare 1.3.1`, e2e budget, LAUNCH/CHECKPOINT. Not pushed.
+- Throwaway repo for the Action test: local commit only
+  (`D:/pytxo-native-acceptance/m2-first-use/action/repo`, `main` 903918e plus
+  `claude/rename-helper`, `codex/negated-flags`); GitHub repo not created yet.
+
+## Completed
+- Two live first-use runs on lukeed/mri with Claude Code and Codex branches,
+  timed from `npm i -g pytxo@1.3.0` to decision: record in
+  `D:/pytxo-native-acceptance/m2-first-use/README.md` (96.1 s install to
+  READY with the right check; run 2 BLOCKED → fix → READY → LANDED).
+- npm launcher downloads and verifies the binary on first run when install
+  scripts were skipped (pnpm 10, `--ignore-scripts`); offline and checksum
+  mismatch refuse. `packages/pytxo/test/launcher.test.js`; CI runs the npm
+  tests on every OS.
+- `pytxo land`: failed checks print error lines; fails-everywhere and install
+  hints; suggested check without `--check` (never run); `next` + `output`
+  lines after blocked/stale (Markdown too); Signal Core names anonymous default
+  exports `default`; "no shared symbol" wording. Regression tests in
+  `pytxo-land` and `pytxo-signal`.
+- Docs: "First landing in 5 minutes" (`getting-started/first-landing.mdx`),
+  linked from docs home, install, land guide and the site's land section.
+- 1.3.1 prepared: versions bumped (verify-release-version passes), release
+  notes, changelog row, Action default 1.3.1.
+
+## Not done
+- `/authorize push` needed: push this branch, open the 1.3.1 PR, CI green;
+  create `mattbaconz/pytxo-land-shadow-test` (approved), push, open two
+  `agent` PRs and confirm the summary renders and the job goes green then red.
+- `pytxo receipts share`: `pytxo login` timed out without browser approval.
+  Rerun with `PYTXO_HOME=D:/pytxo-native-acceptance/m2-first-use/run2/pytxo-home`
+  while Matt is at the browser, then share `rcpt_20261015T091727Z_39fac8c3`.
+- Release 1.3.1 (merge, tag, release run, mirror, npm, docs flip) needs Matt's
+  authorization.
+- Desktop `npm run check` not run (only its version strings changed).
+
+## Tests last run
+- `node --test packages/pytxo/test/` 7/7 (built CLI present); install matrix:
+  npm, npm `--ignore-scripts`, pnpm 10, offline.
+- `cargo test -p pytxo-land -p pytxo-signal` pass (14 + 11; Pybench scenario
+  test pass); `cargo fmt --check` clean; clippy `-D warnings` on land, signal,
+  cli clean.
+- Web: lint, build, Playwright (Chrome) 32/32; sloplint 0 errors on changed
+  docs and release notes.
+
+## Next prompt (paste below)
+```txt
+Pytxo M3 "Launch kit". Read AGENTS.md, the latest CHECKPOINT.md entry and the
+goal table at the top of LAUNCH.md. First confirm 1.3.1 is released (tag,
+mirror, npm latest, docs flipped); if not, finish that before anything else
+and stop for /authorize where needed.
+
+Outcome: everything Matt needs to launch on the 1.3.1 build, except his own
+posts. 1) Film: re-record the product demo (apps/demo-video, Remotion) on the
+1.3.1 CLI using the M2 runs on lukeed/mri as the script (BLOCKED → fix →
+READY → LANDED, with the failure line 1.3.1 prints); real captures only.
+2) Product Hunt fields: name, tagline, description, first comment, gallery
+list, from the 5-minute page and measured numbers only. 3) Docs evidence
+page: add the M2 first-use runs (commands, timings, receipts) under
+apps/web/content/docs/evidence. HN/Reddit wording stays Matt's: prepare facts
+he can use, no drafts in his voice. Run sloplint (0 errors), web
+lint/build/e2e (PLAYWRIGHT_CHANNEL=chrome). One worker, no subagents. Push,
+deploy or publish only after /authorize. Finish with a CHECKPOINT entry and
+the next prompt.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-15 (v1.3.0 released; M1 of the beta-ready goal)
 
 ## Branch / commit

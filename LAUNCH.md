@@ -30,14 +30,42 @@ deploy-web workflow, legal page review, launch posts.
   install scripts synced; CLI reports 1.3.0; npm `latest` 1.3.0 and an isolated
   `npm i pytxo@1.3.0` runs. Docs flipped to 1.3.0 (local lint/build/e2e 32/32).
 
-## M2 inputs found so far
+## M2 log
 
-- npm 11.18 warns that `pytxo`'s postinstall is not covered by `allowScripts`;
-  pnpm 10 blocks dependency install scripts by default. With the script
-  blocked, `vendor/` is empty and `pytxo` only says "binary not found". The
-  launcher should download on first run.
-- Combined-check output is right but per-input checks fail noisily when a check
-  file exists only on another branch (expected; consider labelling).
+Record with timings, commands and receipts:
+`D:/pytxo-native-acceptance/m2-first-use/README.md`. Repo: lukeed/mri;
+branches from Claude Code and Codex (headless), two runs, fresh npm prefix and
+`PYTXO_HOME` each.
+
+- Run 1 (as the docs say): `npm i -g` 22.7 s → `pytxo land … --check "npm test"
+  --per-input` BLOCKED for the wrong reason (no node_modules in the fresh
+  worktree, no reason printed) → `npm ci` BLOCKED (no lockfile) → `npm install
+  && npm test` READY in 73.1 s. Install to correct decision: 96.1 s of command
+  time.
+- Run 2: rename vs new caller → BLOCKED (79.0 s, both pass alone) → fix commit
+  → READY (68.9 s) → `--apply` LANDED (57.0 s). `pytxo receipts share` needs
+  `pytxo login`; the login timed out without browser approval, so share is
+  not done.
+- Fixed on `mbcz/pytxo-m2-first-use-e55e50`: npm launcher downloads and
+  verifies on first run (pnpm 10, `--ignore-scripts`); failed checks print
+  their error lines; fails-everywhere and install hints; suggested check
+  without `--check`; next step after blocked/stale; anonymous default exports
+  named `default`; "no shared symbol" wording; docs page "First landing in 5
+  minutes"; 1.3.1 prepared.
+
+### Filed, not fixed
+
+- npm 11.18 prints an allow-scripts warning on `npm i -g pytxo`; the
+  postinstall still runs and the 1.3.1 launcher covers the case where it does
+  not. Only npm can remove the warning (or users allow the script).
+- Codex CLI `exec -s workspace-write` keeps `.git` read-only, so Codex cannot
+  commit its own branch; both Codex branches were committed by hand. Agent-side,
+  not Pytxo; the 5-minute page says to commit agent changes first.
+- Noisy per-input failures when a check file exists only on another branch:
+  not reproduced in either run (both agents edited existing test files). Keep
+  open until a run shows it.
+- `--apply` reruns every check after a shadow READY (57 s). By design (stale
+  safety); docs now say `--apply` can be passed on the first run.
 
 # v1.3 "Land" — running state
 
