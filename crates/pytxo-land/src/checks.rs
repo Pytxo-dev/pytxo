@@ -57,6 +57,60 @@ pub fn run_check(scope: &str, command: &str, cwd: &Path, timeout: Duration) -> R
     finish(exit_code, timed_out, tail)
 }
 
+/// A check command for the project at `root`, to print as a suggestion; never
+/// run unasked. Checks run in a fresh worktree, so Node suggestions install first.
+pub fn suggest_check(root: &Path) -> Option<String> {
+    let has = |file: &str| root.join(file).exists();
+    let npm_test = std::fs::read_to_string(root.join("package.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|pkg| pkg["scripts"]["test"].as_str().map(str::to_string))
+        .is_some_and(|test| !test.contains("no test specified"));
+    let command = if npm_test {
+        if has("pnpm-lock.yaml") {
+            "pnpm install --frozen-lockfile && pnpm test"
+        } else if has("yarn.lock") {
+            "yarn install && yarn test"
+        } else if has("package-lock.json") || has("npm-shrinkwrap.json") {
+            "npm ci && npm test"
+        } else {
+            "npm install && npm test"
+        }
+    } else if has("Cargo.toml") {
+        "cargo test"
+    } else if has("go.mod") {
+        "go test ./..."
+    } else if [
+        "pyproject.toml",
+        "pytest.ini",
+        "setup.py",
+        "setup.cfg",
+        "tox.ini",
+    ]
+    .iter()
+    .any(|f| has(f))
+    {
+        "python -m pytest"
+    } else {
+        return None;
+    };
+    Some(command.into())
+}
+
+/// Whether `command` installs dependencies before testing.
+pub fn installs(command: &str) -> bool {
+    let padded = format!("{command} ");
+    [
+        "npm install",
+        "npm i ",
+        "npm ci",
+        "yarn install",
+        "bun install",
+    ]
+    .iter()
+    .any(|step| padded.contains(step))
+}
+
 fn shell(command: &str) -> std::process::Command {
     #[cfg(windows)]
     {
@@ -126,5 +180,43 @@ mod tests {
         let slow = "sleep 30";
         let timeout = run_check("combined", slow, &dir, Duration::from_millis(300));
         assert!(timeout.timed_out && !timeout.passed, "{timeout:?}");
+    }
+
+    #[test]
+    fn suggests_a_check_from_the_project_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        let suggest = || suggest_check(d);
+        assert_eq!(suggest(), None);
+
+        std::fs::write(d.join("pyproject.toml"), "").unwrap();
+        assert_eq!(suggest().as_deref(), Some("python -m pytest"));
+        std::fs::write(d.join("Cargo.toml"), "").unwrap();
+        assert_eq!(suggest().as_deref(), Some("cargo test"));
+
+        // npm's placeholder test script is not a test suite.
+        let placeholder = r#"{"scripts":{"test":"echo \"Error: no test specified\" && exit 1"}}"#;
+        std::fs::write(d.join("package.json"), placeholder).unwrap();
+        assert_eq!(suggest().as_deref(), Some("cargo test"));
+
+        std::fs::write(
+            d.join("package.json"),
+            r#"{"scripts":{"test":"tape test/*.js"}}"#,
+        )
+        .unwrap();
+        assert_eq!(suggest().as_deref(), Some("npm install && npm test"));
+        std::fs::write(d.join("package-lock.json"), "{}").unwrap();
+        assert_eq!(suggest().as_deref(), Some("npm ci && npm test"));
+        std::fs::write(d.join("pnpm-lock.yaml"), "").unwrap();
+        assert_eq!(
+            suggest().as_deref(),
+            Some("pnpm install --frozen-lockfile && pnpm test")
+        );
+
+        assert!(installs("npm ci && npm test"));
+        assert!(installs("pnpm install --frozen-lockfile && pnpm test"));
+        assert!(installs("pnpm i && pnpm test"));
+        assert!(!installs("npm test"));
+        assert!(!installs("echo tape is not installed && exit 1"));
     }
 }

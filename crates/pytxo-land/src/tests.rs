@@ -123,6 +123,8 @@ fn same_file_separate_functions_versus_same_function() {
     let shared = &separate.receipt.predicate.shared_files;
     assert_eq!(shared.len(), 1);
     assert!(shared[0].symbol_collisions.is_empty(), "{shared:?}");
+    // Claims only what was found: edits outside any named symbol are possible.
+    assert!(render_text(&separate).contains("no shared symbol"));
 
     // b edits label(); c edits total(): still separate. a + c both inside different
     // functions too, so build a real same-symbol case: two edits inside total().
@@ -206,6 +208,90 @@ fn every_input_passes_alone_but_the_combination_fails() {
     );
     assert!(checks.iter().any(|c| c.scope == "combined" && !c.passed));
     assert!(out.insights[0].contains("Every input passed"));
+}
+
+/// An npm project whose test script exists, committed on main.
+fn npm_project(d: &Path) {
+    write(
+        d,
+        &[("package.json", r#"{"scripts":{"test":"tape test/*.js"}}"#)],
+    );
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", "package"]);
+}
+
+#[test]
+fn a_check_that_fails_everywhere_points_at_the_check() {
+    // First-use run 1 (mri): `--check "npm test"` failed on every input and on
+    // the combination because the fresh worktree had no node_modules, and the
+    // output only said "FAIL exit 1".
+    let dir = repo();
+    let d = dir.path();
+    npm_project(d);
+    branch(
+        d,
+        "main",
+        "agent/a",
+        &[("src/a.js", "module.exports = 1;\n")],
+    );
+    branch(d, "main", "agent/b", &[("docs/b.md", "b\n")]);
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.checks = vec!["echo Error: tape is not installed && exit 1".into()];
+    o.per_input = true;
+    let out = land(&o).unwrap();
+    assert_eq!(out.decision(), "blocked");
+
+    let hint = out.insights.join("\n");
+    assert!(hint.contains("failed on every input alone too"), "{hint}");
+    assert!(
+        hint.contains("--check \"npm install && npm test\""),
+        "{hint}"
+    );
+    let text = render_text(&out);
+    assert!(
+        text.contains("\n      Error: tape is not installed"),
+        "{text}"
+    );
+    assert!(text.contains("\nnext      fix the failure"), "{text}");
+    assert!(
+        text.contains(&format!(
+            "output    pytxo receipts show {}",
+            out.receipt.predicate.id
+        )),
+        "{text}"
+    );
+    assert!(render_markdown(&out).contains("**Next:**"));
+
+    // A check that installs first gets no install hint.
+    o.checks = vec!["echo npm ci && exit 1".into()];
+    let out = land(&o).unwrap();
+    assert!(!out
+        .insights
+        .join("\n")
+        .contains("dependencies are not installed"));
+}
+
+#[test]
+fn without_checks_the_project_test_command_is_suggested_not_run() {
+    let dir = repo();
+    let d = dir.path();
+    npm_project(d);
+    branch(
+        d,
+        "main",
+        "agent/a",
+        &[("src/a.js", "module.exports = 1;\n")],
+    );
+    let out = land(&opts(d, &["agent/a"])).unwrap();
+    assert_eq!(out.decision(), "ready");
+    assert!(out.receipt.predicate.checks.is_empty(), "nothing ran");
+    assert!(
+        out.insights
+            .iter()
+            .any(|i| i.contains("Pass --check \"npm install && npm test\"")),
+        "{:?}",
+        out.insights
+    );
 }
 
 #[test]

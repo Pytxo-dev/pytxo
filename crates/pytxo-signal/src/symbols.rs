@@ -99,6 +99,14 @@ fn symbol_name(node: tree_sitter::Node<'_>, source: &str, lang: &str) -> Option<
             | "interface_declaration"
             | "type_alias_declaration"
             | "enum_declaration" => named_field(node, source, "name"),
+            // `export default function (…) {…}` has no name of its own.
+            "function_expression" | "function" | "arrow_function" | "class"
+                if node
+                    .parent()
+                    .is_some_and(|p| p.kind() == "export_statement") =>
+            {
+                Some(named_field(node, source, "name").unwrap_or_else(|| "default".into()))
+            }
             // `const total = () => …` and `const total = function () {…}`
             "variable_declarator" => {
                 let value = node.child_by_field_name("value")?;
@@ -168,6 +176,21 @@ mod tests {
         assert_eq!(innermost_symbol(&spans, 7).unwrap().name, "Cart.total");
         assert_eq!(innermost_symbol(&spans, 2).unwrap().name, "add");
         assert!(innermost_symbol(&spans, 4).is_none());
+    }
+
+    #[test]
+    fn anonymous_default_export_is_named_default() {
+        // mri's whole parser is `export default function (args, opts) {…}`;
+        // without a name, two agents editing it read as "separate symbols".
+        let src = "function toVal() {}\n\nexport default function (args) {\n  return args;\n}\n";
+        let spans = symbol_spans(Path::new("index.js"), src);
+        assert_eq!(innermost_symbol(&spans, 4).unwrap().name, "default");
+        assert_eq!(innermost_symbol(&spans, 1).unwrap().name, "toVal");
+        let arrow = symbol_spans(
+            Path::new("a.ts"),
+            "export default () => {\n  return 1;\n};\n",
+        );
+        assert_eq!(innermost_symbol(&arrow, 2).unwrap().name, "default");
     }
 
     #[test]
