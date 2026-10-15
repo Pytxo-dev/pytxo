@@ -845,6 +845,8 @@
         }
       } finally {
         loading = false;
+        // Startup benchmark anchor (tooling/benchmarks/desktop-perf.mjs).
+        void tick().then(() => performance.mark("pytxo:ready"));
       }
       if (!disposed && previewState === "default") {
         scheduleDelta();
