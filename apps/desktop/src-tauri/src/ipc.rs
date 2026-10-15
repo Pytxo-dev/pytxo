@@ -53,6 +53,53 @@ pub struct AppState {
         Mutex<HashMap<uuid::Uuid, std::sync::Arc<std::sync::atomic::AtomicBool>>>,
 }
 
+impl AppState {
+    pub fn new(config_path: Option<PathBuf>) -> Self {
+        Self {
+            config_path: Mutex::new(config_path),
+            poll_cursors: Mutex::new(HashMap::new()),
+            domain_change_observations: Mutex::new(HashMap::new()),
+            domain_store_paths: Mutex::new(HashMap::new()),
+            selected_domain_id: Mutex::new(None),
+            voice_sessions: std::sync::Arc::new(Mutex::new(HashMap::new())),
+            voice_captures: std::sync::Arc::new(Mutex::new(HashMap::new())),
+            voice_cancellations: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Keeps what another read resolved (store paths, settled change boundaries)
+    /// without overwriting anything this state already observed itself.
+    pub(crate) fn adopt(&self, other: AppState) -> IpcResult<()> {
+        let paths = other
+            .domain_store_paths
+            .into_inner()
+            .map_err(map_lock_err)?;
+        let mut current = self.domain_store_paths.lock().map_err(map_lock_err)?;
+        for (domain_id, path) in paths {
+            current.entry(domain_id).or_insert(path);
+        }
+        drop(current);
+        let observations = other
+            .domain_change_observations
+            .into_inner()
+            .map_err(map_lock_err)?;
+        let mut current = self
+            .domain_change_observations
+            .lock()
+            .map_err(map_lock_err)?;
+        for (path, observation) in observations {
+            current.entry(path).or_insert(observation);
+        }
+        Ok(())
+    }
+}
+
+/// `pytxo.toml` in the directory Desktop started in, when there is one.
+pub fn startup_config_path() -> Option<PathBuf> {
+    let config = std::env::current_dir().ok()?.join("pytxo.toml");
+    config.exists().then_some(config)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DomainChangeObservation {
     fingerprint: StoreFingerprint,
@@ -60,13 +107,13 @@ pub(crate) struct DomainChangeObservation {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct StoreFingerprint {
+pub(crate) struct StoreFingerprint {
     database: Option<FileFingerprint>,
     wal: Option<FileFingerprint>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct FileFingerprint {
+pub(crate) struct FileFingerprint {
     len: u64,
     modified: Option<SystemTime>,
     created: Option<SystemTime>,
@@ -548,7 +595,7 @@ pub fn list_domains_cmd() -> IpcResult<Vec<DomainDto>> {
 
 /// "All projects" home: every domain the hypervisor catalog knows about,
 /// including ones not yet loaded into this session ([[execution-domains]] v2).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_all_domains() -> IpcResult<Vec<CatalogEntry>> {
     orch_list_catalog_domains().map_err(map_orch_err)
 }
@@ -874,7 +921,7 @@ fn optional_file_fingerprint(path: &Path) -> IpcResult<Option<FileFingerprint>> 
     }
 }
 
-fn store_fingerprint(path: &Path) -> IpcResult<StoreFingerprint> {
+pub(crate) fn store_fingerprint(path: &Path) -> IpcResult<StoreFingerprint> {
     Ok(StoreFingerprint {
         database: optional_file_fingerprint(path)?,
         wal: optional_file_fingerprint(&sqlite_sidecar_path(path, "-wal"))?,
@@ -937,7 +984,7 @@ fn observed_domain_changes(
     Ok(dto)
 }
 
-fn domain_changes_batch_blocking(
+pub(crate) fn domain_changes_batch_blocking(
     state: &AppState,
     requests: Vec<DomainChangesRequest>,
     limit: usize,
@@ -1680,7 +1727,7 @@ pub async fn load_desktop_snapshot(
     .map_err(map_orch_err)?
 }
 
-fn load_desktop_snapshot_blocking(
+pub(crate) fn load_desktop_snapshot_blocking(
     state: &AppState,
     run_limit: Option<usize>,
     fleet_limit: Option<usize>,
@@ -2146,6 +2193,38 @@ mod mission_control_contract_tests {
             assert!(!serialized.contains("\"cmd\""));
         }
     }
+    #[test]
+    fn startup_boundary_read_is_adopted_without_overwriting_live_state() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("domain.db");
+        let store = pytxo_store::PytxoStore::open(&path).unwrap();
+        store.insert_run("run-a", "/repo").unwrap();
+        let boundary = store.changes_since(0, 100).unwrap().next_cursor;
+        assert!(boundary > 0);
+        drop(store);
+
+        let startup = AppState::new(None);
+        remember_domain_store_path(&startup, "domain", path.clone()).unwrap();
+        remember_domain_store_path(&startup, "other", dir.path().join("startup.db")).unwrap();
+        let request = || DomainChangesRequest {
+            domain_id: "domain".into(),
+            cursor: i64::MAX,
+        };
+        let page = domain_changes_batch_blocking(&startup, vec![request()], 1)
+            .unwrap()
+            .remove(0);
+        assert_eq!((page.next_cursor, page.cursor_gap), (boundary, true));
+
+        let live = AppState::new(None);
+        remember_domain_store_path(&live, "other", dir.path().join("live.db")).unwrap();
+        live.adopt(startup).unwrap();
+        let paths = live.domain_store_paths.lock().unwrap().clone();
+        assert_eq!(paths["domain"], path);
+        assert_eq!(paths["other"], dir.path().join("live.db"));
+        let observations = live.domain_change_observations.lock().unwrap();
+        assert_eq!(observations[&path].settled_cursor, boundary);
+    }
+
     #[test]
     fn dock_observers_have_independent_cursors_and_enforce_run_membership() {
         let dir = tempfile::tempdir().unwrap();

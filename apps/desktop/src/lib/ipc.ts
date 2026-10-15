@@ -137,6 +137,22 @@ export const ipc = {
   listAllDomains: () =>
     invoke<CatalogEntry[]>("list_all_domains").then(unwrap).catch(() => [] as CatalogEntry[]),
   catalogFingerprint: () => invoke<string>("catalog_fingerprint").then(unwrap),
+  takeStartupSnapshot: () =>
+    invoke<{
+      catalog_fingerprint: string;
+      boundaries: Array<{ domain_id: string; cursor: number }>;
+      snapshot: {
+        domains: CatalogEntryStatus[];
+        runs: RunDto[];
+        agents: AgentDto[];
+        approvals: HitlDto[];
+        fleets: import("./types").FleetRunDto[];
+        diagnostics: import("./desktop-backend").DesktopSnapshotDiagnostic[];
+      };
+      read_at_ms: number;
+      run_limit: number;
+      fleet_limit: number;
+    } | null>("take_startup_snapshot").then(unwrap),
   /**
    * Deliberately non-catching: this is the primary "is the hypervisor
    * reachable" signal for the Desktop 2 shell. Swallowing failures here would

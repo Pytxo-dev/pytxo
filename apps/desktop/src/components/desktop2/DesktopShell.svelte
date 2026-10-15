@@ -6,7 +6,7 @@
   import IconPlayerStop from "@tabler/icons-svelte/icons/player-stop";
   import IconSettings from "@tabler/icons-svelte/icons/settings";
   import IconTarget from "@tabler/icons-svelte/icons/target";
-  import { createDesktopBackend, isTauriRuntime, type DesktopSnapshot } from "../../lib/desktop-backend";
+  import { createDesktopBackend, isTauriRuntime, type DesktopSnapshot, type StartupSnapshot } from "../../lib/desktop-backend";
   import type { AgentDto, RunDto } from "../../lib/types";
   import type { ComposerDraft } from "../../lib/composer-draft";
   import { SETTINGS_SECTIONS } from "../../lib/settings-catalog";
@@ -16,6 +16,7 @@
     incrementalDomainBatchSize,
     loadConsistentDesktopSnapshot,
     selectIncrementalDomainBatch,
+    startupSnapshotFor,
   } from "../../lib/desktop-sync";
   import {
     addWorkspaceRecent,
@@ -173,7 +174,9 @@
   /** Saved plan prose per run and task: presentation only, like Work's task copy. */
   let taskCopy = $state<Record<string, Record<string, string>>>({});
   $effect(() => {
-    void snapshot.runs.length;
+    // Titles label listed runs only; before the first snapshot there are none,
+    // and reading every draft then competes with that snapshot.
+    if (snapshot.runs.length === 0) return;
     void backend.flowHistory().then((records) => {
       const next: Record<string, string> = {};
       const copy: Record<string, Record<string, string>> = {};
@@ -446,7 +449,7 @@
   }
 
   let snapshotRequest = 0;
-  async function refreshSnapshot(opts: { silent?: boolean; primeCursors?: boolean } = {}): Promise<boolean> {
+  async function refreshSnapshot(opts: { silent?: boolean; primeCursors?: boolean; startup?: StartupSnapshot | null } = {}): Promise<boolean> {
     const request = ++snapshotRequest;
     // Cursor progress belongs to the snapshot we publish, never a discarded read.
     const nextCursors = new Map(domainCursors);
@@ -458,11 +461,13 @@
       // Work still renders worker identity and evidence while unfocused.
       // Throttle background polling, but never publish an incomplete Work snapshot.
       const includeAgents = opsHeavy;
-      const load = () => backend.loadSnapshot({
+      const loadOpts = {
         includeAgents,
         runLimit: idleChrome && !opsHeavy ? 12 : 30,
         fleetLimit: idleChrome && !opsHeavy ? 8 : 20,
-      });
+      };
+      const load = () => backend.loadSnapshot(loadOpts);
+      const startup = startupSnapshotFor(opts.startup, loadOpts);
       const next = opts.primeCursors === false
         ? await load()
         : await loadConsistentDesktopSnapshot(
@@ -470,6 +475,8 @@
             (domainId, cursor, limit) => backend.domainChanges(domainId, cursor, limit),
             nextCursors,
             backend.domainChangesBatch?.bind(backend),
+            backend.catalogDomainIds?.bind(backend),
+            startup,
           );
       // A late lightweight read must not erase worker rows after entering Work.
       if (request !== snapshotRequest || (!includeAgents && route === "work")) return false;
@@ -485,8 +492,9 @@
       }
       // Every screen renders a snapshot, never "now". The title bar states how
       // old the rendered state is so nothing implies live truth.
-      snapshotLoadedAt = Date.now();
-      nowMs = snapshotLoadedAt;
+      // A published startup read is as old as that read, not this moment.
+      snapshotLoadedAt = startup && next === startup.snapshot ? Math.min(Date.now(), startup.readAtMs) : Date.now();
+      nowMs = Date.now();
       if (missionView === "detail" && !focusRunId) {
         const pick = pickDefaultDetailRun(next.runs);
         if (pick) {
@@ -805,8 +813,9 @@
     }
     void (async () => {
       try {
-        const observedCatalog = await backend.catalogFingerprint().catch(() => null);
-        const refreshed = await refreshSnapshot();
+        const startup = (await backend.takeStartupSnapshot?.().catch(() => null)) ?? null;
+        const observedCatalog = startup?.catalogFingerprint ?? await backend.catalogFingerprint().catch(() => null);
+        const refreshed = await refreshSnapshot({ startup });
         if (refreshed && observedCatalog !== null) catalogFingerprint = observedCatalog;
         const openBehavior =
           typeof localStorage !== "undefined" &&
@@ -838,11 +847,9 @@
             }
           }
         }
-        try {
-          voiceModelPath = await backend.voiceModelStatus();
-        } catch {
-          /* optional */
-        }
+        // Optional, and it hashes an installed model: never hold the shell for it.
+        // A model installed meanwhile keeps its path.
+        void backend.voiceModelStatus().then((path) => { voiceModelPath ??= path; }).catch(() => { /* optional */ });
       } finally {
         loading = false;
         // Startup benchmark anchor (tooling/benchmarks/desktop-perf.mjs).
