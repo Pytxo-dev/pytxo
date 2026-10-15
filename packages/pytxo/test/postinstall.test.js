@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const http = require("node:http");
 const os = require("node:os");
@@ -78,15 +78,17 @@ test("postinstall verifies staged bytes and fails closed on checksum mismatch", 
   if (!cli) return t.skip("build pytxo-cli before the staged installer integration test");
 
   const bytes = fs.readFileSync(cli);
+  // assertBinaryVersion compares against the requested release, so ask for the built one.
+  const version = spawnSync(cli, ["--version"], { encoding: "utf8" }).stdout.match(/pytxo\s+v?(\S+)/i)[1];
   const asset = getAssetName();
   let checksum = sha256(bytes);
   const server = http.createServer((request, response) => {
-    if (request.url === `/v1.2.2/${asset}`) {
+    if (request.url === `/v${version}/${asset}`) {
       response.writeHead(200, { "content-type": "application/octet-stream" });
       response.end(bytes);
       return;
     }
-    if (request.url === "/v1.2.2/SHA256SUMS.txt") {
+    if (request.url === `/v${version}/SHA256SUMS.txt`) {
       response.writeHead(200, { "content-type": "text/plain" });
       response.end(`${checksum}  ${asset}\n`);
       return;
@@ -101,7 +103,7 @@ test("postinstall verifies staged bytes and fails closed on checksum mismatch", 
     const installed = await runInstaller({
       PYTXO_RELEASE_BASE_URL: base,
       PYTXO_VENDOR_DIR: vendor,
-      PYTXO_VERSION: "1.2.2",
+      PYTXO_VERSION: version,
     });
     assert.equal(installed.code, 0, installed.stderr);
     const destination = path.join(vendor, process.platform === "win32" ? "pytxo.exe" : "pytxo");
@@ -112,7 +114,7 @@ test("postinstall verifies staged bytes and fails closed on checksum mismatch", 
     const rejected = await runInstaller({
       PYTXO_RELEASE_BASE_URL: base,
       PYTXO_VENDOR_DIR: vendor,
-      PYTXO_VERSION: "1.2.2",
+      PYTXO_VERSION: version,
     });
     assert.notEqual(rejected.code, 0);
     assert.match(rejected.stderr, /SHA-256 mismatch/);

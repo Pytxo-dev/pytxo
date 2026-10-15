@@ -128,7 +128,6 @@ jobs:
       # Smokes and benchmarks reuse the debug CLI the tests just built instead of
       # compiling it again in separate jobs.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        if: runner.os == 'Linux'
         with:
           node-version: "22"
 
@@ -159,6 +158,12 @@ jobs:
           & "$env:GITHUB_WORKSPACE/tooling/benchmarks/three-agent-preflight.ps1"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & "$env:GITHUB_WORKSPACE/tooling/benchmarks/overlay-vs-worktree.ps1"
+
+      # First-run download when install scripts were skipped (pnpm 10,
+      # --ignore-scripts). Uses the CLI built above where there is one.
+      - name: npm wrapper install tests
+        working-directory: packages/pytxo
+        run: npm test
 
       # Advisories depend on Cargo.lock, not the OS. rust-cache keeps the binary.
       - name: cargo audit
