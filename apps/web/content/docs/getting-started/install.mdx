@@ -25,7 +25,7 @@ pytxo --version
 pytxo doctor
 ```
 
-The npm package downloads the matching native binary. You still need your own coding agent; Pytxo does not include a model subscription.
+The npm package downloads the matching native binary and checks it against the release's SHA-256 list. If your package manager skips install scripts (pnpm 10 does by default, as does `npm i --ignore-scripts`), Pytxo 1.3.1 and later do this on the first `pytxo` command instead. You still need your own coding agent; Pytxo does not include a model subscription.
 
 ### Without Node.js
 
@@ -63,4 +63,4 @@ Use a Git repository with working build or test commands. Review [folder trust](
 
 Since 1.3 the CLI covers the whole loop on every platform: plan and run work, `pytxo review` and `pytxo apply` a finished run, and `pytxo land` branches from any agent tool.
 
-Next: [First mission](/docs/getting-started/first-mission) · [Troubleshooting](/docs/troubleshooting)
+Next: [First landing in 5 minutes](/docs/getting-started/first-landing) · [First mission](/docs/getting-started/first-mission) · [Troubleshooting](/docs/troubleshooting)

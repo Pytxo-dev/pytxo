@@ -2,6 +2,7 @@
   "title": "Get started",
   "pages": [
     "install",
+    "first-landing",
     "desktop-setup",
     "first-mission",
     "multi-agent-run",
