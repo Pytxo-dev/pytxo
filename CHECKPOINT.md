@@ -1,3 +1,36 @@
+# CHECKPOINT — Pytxo — 2026-10-15 (v1.3.0 released; M1 of the beta-ready goal)
+
+## Branch / commit
+- `main` at the docs flip on top of `27d5191` (PR #46). Tag `v1.3.0` → `27d5191`.
+  Worktree `v1-3-release-prep-6a2f7e`. Goal and milestones: top of `LAUNCH.md`.
+
+## Completed
+- Main CI fixed forward: release-version check (`install.ps1`), pytxo-proxy
+  Dockerfile (red since July), RustSec bumps (rustls 0.23.46, quinn-proto
+  0.11.18), deploy-web warns without Vercel secrets.
+- Pro checkout closed until `DODO_ENVIRONMENT=live` (test mode handed out Pro
+  for a test card). Plans/account say "checkout opens soon".
+- sloplint (`D:/unslop/public-repo`): web and Desktop 0 errors (4 false
+  positives suppressed with reasons). Warnings left: brand gradient (UI-001,
+  intentional), shadcn `transition-all`, Desktop BE-001/UI-006 minor.
+- `pytxo land` names inputs left out of combined checks after a conflict.
+- v1.3.0 published: release run 38668669664 green; mirror 6/6 checksums,
+  `latest.json` 1.3.0; npm `latest` 1.3.0; docs flipped; site deployed.
+
+## Not done
+- Matt: Dodo live mode then redeploy (opens checkout); Vercel token secrets;
+  legal pages review; launch posts.
+- M2 (next session): first use with live agents; npm postinstall fallback.
+
+## Next prompt (paste below)
+```txt
+Pytxo: read the 2026-10-15 checkpoint and the goal at the top of LAUNCH.md.
+Do M2 "First use that works": clean install of pytxo 1.3.0 → pytxo land on a
+real repo with branches from 2+ live agents (Claude Code, Codex) → measure time
+to first decision, fix friction (start with the npm postinstall fallback),
+prepare 1.3.1 if needed.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-14 (v1.3 merged and deployed; Pro live in Dodo test mode)
 
 ## Branch / commit

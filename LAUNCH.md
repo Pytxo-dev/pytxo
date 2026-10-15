@@ -21,6 +21,23 @@ deploy-web workflow, legal page review, launch posts.
   with reasons; server-side fetch timeouts), Pro checkout closed unless
   `DODO_ENVIRONMENT=live` (test mode granted Pro for a test card and refused
   real cards), deploy-web warns instead of failing without secrets.
+- Pre-release smoke of `pytxo land` on two-agent repos (conflict, clean-merge
+  semantic break, `--apply`): decisions right, exit 2 on blocked. Fixed: the
+  summary said "combined pass" without saying a conflicting input was left out.
+- 2026-10-15: main fast-forwarded to `27d5191` (PR #46 merged), tag v1.3.0,
+  release run 38668669664 green (all gates, 5 CLI targets, MSI, mirror, npm).
+  Mirror: 6/6 checksums OK, both MSI copies identical, `latest.json` 1.3.0,
+  install scripts synced; CLI reports 1.3.0; npm `latest` 1.3.0 and an isolated
+  `npm i pytxo@1.3.0` runs. Docs flipped to 1.3.0 (local lint/build/e2e 32/32).
+
+## M2 inputs found so far
+
+- npm 11.18 warns that `pytxo`'s postinstall is not covered by `allowScripts`;
+  pnpm 10 blocks dependency install scripts by default. With the script
+  blocked, `vendor/` is empty and `pytxo` only says "binary not found". The
+  launcher should download on first run.
+- Combined-check output is right but per-input checks fail noisily when a check
+  file exists only on another branch (expected; consider labelling).
 
 # v1.3 "Land" — running state
 
