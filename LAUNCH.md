@@ -53,6 +53,19 @@ branches from Claude Code and Codex (headless), two runs, fresh npm prefix and
   named `default`; "no shared symbol" wording; docs page "First landing in 5
   minutes"; 1.3.1 prepared.
 
+- Action (shadow) on `mattbaconz/pytxo-land-shadow-test`, docs workflow with
+  `Pytxo-dev/pytxo/actions/land@v1.3.0`: PR 1 (Claude rename) alone → green;
+  PR 2 (Codex caller) → red, exit 2, BLOCKED "every input passed alone, the
+  combined change failed". Summary printed to the log and rendered with
+  GitHub's Markdown API: 3 tables, quote and receipt line render. Opening a PR
+  with the label already on ran the job twice (opened + labeled); the docs
+  example now has a per-PR `concurrency` group, checked on PR 3 (one run
+  cancelled, one completed). Delete the repo when M2 is closed.
+- `pytxo login` retried on 2026-10-16 with Matt present: timed out again after
+  5 minutes, so `receipts share` is still not done. Next: run `pytxo login`
+  in a visible terminal and check the browser lands on
+  pytxo.com/account/connect.
+
 ### Filed, not fixed
 
 - npm 11.18 prints an allow-scripts warning on `npm i -g pytxo`; the
@@ -64,6 +77,9 @@ branches from Claude Code and Codex (headless), two runs, fresh npm prefix and
 - Noisy per-input failures when a check file exists only on another branch:
   not reproduced in either run (both agents edited existing test files). Keep
   open until a run shows it.
+- The docs workflow uses `actions/checkout@v4` and `actions/setup-node@v4`;
+  GitHub warns they target the deprecated Node 20. Move the example to the
+  current majors after checking them.
 - `--apply` reruns every check after a shadow READY (57 s). By design (stale
   safety); docs now say `--apply` can be passed on the first run.
 
