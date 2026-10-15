@@ -1,12 +1,12 @@
-# CHECKPOINT — Pytxo — 2026-10-15 (M2 first use; 1.3.1 prepared, not pushed)
+# CHECKPOINT — Pytxo — 2026-10-16 (M2 first use; 1.3.1 PR #47 open)
 
 ## Branch / commit
 - `mbcz/pytxo-m2-first-use-e55e50` (worktree `pytxo-m2-first-use-e55e50`), 6
   commits on `fe331de`: npm first-run install, land friction fixes, docs page,
-  `release: prepare 1.3.1`, e2e budget, LAUNCH/CHECKPOINT. Not pushed.
-- Throwaway repo for the Action test: local commit only
-  (`D:/pytxo-native-acceptance/m2-first-use/action/repo`, `main` 903918e plus
-  `claude/rename-helper`, `codex/negated-flags`); GitHub repo not created yet.
+  `release: prepare 1.3.1`, e2e budget, LAUNCH/CHECKPOINT, CI docs
+  concurrency. Pushed; PR https://github.com/Pytxo-dev/pytxo/pull/47.
+- Throwaway repo `mattbaconz/pytxo-land-shadow-test` (public): PR 1 green, PR 2
+  red as expected; delete it once M2 is closed.
 
 ## Completed
 - Two live first-use runs on lukeed/mri with Claude Code and Codex branches,
@@ -28,10 +28,9 @@
   notes, changelog row, Action default 1.3.1.
 
 ## Not done
-- `/authorize push` needed: push this branch, open the 1.3.1 PR, CI green;
-  create `mattbaconz/pytxo-land-shadow-test` (approved), push, open two
-  `agent` PRs and confirm the summary renders and the job goes green then red.
-- `pytxo receipts share`: `pytxo login` timed out without browser approval.
+- PR #47 CI: check with the PR tools, fix forward if red.
+- `pytxo receipts share`: `pytxo login` timed out twice (2026-10-15, 10-16)
+  without a completed browser approval.
   Rerun with `PYTXO_HOME=D:/pytxo-native-acceptance/m2-first-use/run2/pytxo-home`
   while Matt is at the browser, then share `rcpt_20261015T091727Z_39fac8c3`.
 - Release 1.3.1 (merge, tag, release run, mirror, npm, docs flip) needs Matt's

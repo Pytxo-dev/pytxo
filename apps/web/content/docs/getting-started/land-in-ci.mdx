@@ -19,6 +19,12 @@ permissions:
   contents: read
   pull-requests: read
 
+# Opening a pull request with the label already on sends both "opened" and
+# "labeled"; keep only the newest run per pull request.
+concurrency:
+  group: pytxo-land-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   land:
     if: contains(github.event.pull_request.labels.*.name, 'agent')
