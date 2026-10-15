@@ -15,6 +15,7 @@ const TAG = VERSION.startsWith("v") ? VERSION : `v${VERSION}`;
 const NORMALIZED_VERSION = VERSION.replace(/^v/, "");
 const MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024;
 const MAX_REDIRECTS = 8;
+const DOWNLOAD_IDLE_TIMEOUT_MS = 30_000;
 
 const vendorDir = process.env.PYTXO_VENDOR_DIR || path.join(__dirname, "vendor");
 const destName = process.platform === "win32" ? "pytxo.exe" : "pytxo";
@@ -23,7 +24,7 @@ const dest = path.join(vendorDir, destName);
 function downloadBuffer(url, redirects = 0) {
   return new Promise((resolve, reject) => {
     const transport = new URL(url).protocol === "https:" ? https : http;
-    transport
+    const request = transport
       .get(url, (res) => {
         if (res.statusCode === 302 || res.statusCode === 301) {
           const loc = res.headers.location;
@@ -52,7 +53,11 @@ function downloadBuffer(url, redirects = 0) {
         res.on("end", () => resolve(Buffer.concat(chunks)));
         res.on("error", reject);
       })
-      .on("error", reject);
+      .on("error", (error) => reject(new Error(`could not download ${url}: ${error.message}`)));
+    // Without this, a dead network can leave the first `pytxo` run hanging.
+    request.setTimeout(DOWNLOAD_IDLE_TIMEOUT_MS, () => {
+      request.destroy(new Error(`no response for ${DOWNLOAD_IDLE_TIMEOUT_MS / 1000}s`));
+    });
   });
 }
 
@@ -109,11 +114,9 @@ function installAtomically(tempPath, destination) {
   }
 }
 
-async function main() {
-  if (process.env.PYTXO_SKIP_DOWNLOAD === "1") {
-    console.log("pytxo: PYTXO_SKIP_DOWNLOAD=1, skipping binary download (development only)");
-    return;
-  }
+// Shared by postinstall and by bin/pytxo.js, which calls it on first run when
+// install scripts were skipped (pnpm 10, `npm i --ignore-scripts`).
+async function install() {
   const asset = getAssetName();
   fs.mkdirSync(vendorDir, { recursive: true });
   const releaseBase = process.env.PYTXO_RELEASE_BASE_URL
@@ -121,7 +124,7 @@ async function main() {
     : `https://github.com/${REPO}/releases/download/${TAG}`;
   const checksumUrl = `${releaseBase}/SHA256SUMS.txt`;
   const url = `${releaseBase}/${asset}`;
-  console.log(`pytxo: downloading ${asset} from ${TAG}…`);
+  console.error(`pytxo: downloading ${asset} ${TAG} and checking it against SHA256SUMS.txt…`);
   const checksumText = (await downloadBuffer(checksumUrl)).toString("utf8");
   const checksum = expectedChecksum(checksumText, asset);
 
@@ -150,6 +153,15 @@ async function main() {
   } finally {
     fs.rmSync(temp, { force: true });
   }
+  console.error(`pytxo: installed ${dest}`);
+}
+
+async function main() {
+  if (process.env.PYTXO_SKIP_DOWNLOAD === "1") {
+    console.log("pytxo: PYTXO_SKIP_DOWNLOAD=1, skipping binary download (development only)");
+    return;
+  }
+  await install();
 }
 
 if (require.main === module) {
@@ -161,7 +173,9 @@ if (require.main === module) {
 
 module.exports = {
   assertChecksum,
+  dest,
   expectedChecksum,
+  install,
   installAtomically,
   sha256,
 };
