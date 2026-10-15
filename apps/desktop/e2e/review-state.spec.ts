@@ -266,6 +266,34 @@ test.describe("Run Review state contracts", () => {
     expect(cursors.get("repo")).toBe(1);
   });
 
+  test("a new domain starts at its store boundary without replaying the change log", async () => {
+    // A long-lived store: one change per recorded event.
+    const boundary = 96_000;
+    const requested: number[] = [];
+    const cursors = new Map<string, number>();
+    let loads = 0;
+    await loadConsistentDesktopSnapshot(
+      async () => { loads += 1; return { domains: [{ domain_id: "repo" }] }; },
+      async (_domainId, cursor, limit) => {
+        requested.push(cursor);
+        if (cursor > boundary) return { changes: [], next_cursor: boundary, has_more: false, cursor_gap: true };
+        const last = Math.min(boundary, cursor + limit);
+        return {
+          changes: Array.from({ length: last - cursor }, (_, index) => ({ sequence: cursor + index + 1, entity_kind: "event", entity_id: String(cursor + index + 1), changed_at: "now" })),
+          next_cursor: last,
+          has_more: last < boundary,
+          cursor_gap: false,
+        };
+      },
+      cursors,
+    );
+
+    expect(cursors.get("repo")).toBe(boundary);
+    // One boundary read, one settled check; the snapshot reload carries history.
+    expect(requested).toEqual([Number.MAX_SAFE_INTEGER, boundary]);
+    expect(loads).toBe(2);
+  });
+
   test("cursor reset and reconnect require a snapshot without swallowing the next delta", async () => {
     const cursors = new Map([["repo", 99]]);
     let nativeBoundary = 2;

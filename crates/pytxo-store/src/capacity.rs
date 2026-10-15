@@ -692,16 +692,13 @@ pub(crate) fn migrate_catalog_capacity(conn: &Connection) -> Result<()> {
 }
 
 pub(crate) fn verify_catalog_capacity(conn: &Connection) -> Result<()> {
-    let expected = Connection::open_in_memory().map_err(store_error)?;
-    expected
-        .execute_batch(&format!(
-            "{CAPACITY_POOLS_TABLE};
-             {CAPACITY_RESERVATIONS_TABLE};
-             {CAPACITY_RESERVATION_RESOURCES_TABLE};
-             {CAPACITY_STATE_INDEX};
-             {CAPACITY_RESOURCE_INDEX};"
-        ))
-        .map_err(store_error)?;
+    let expected = crate::migrate::reference_schema(&[
+        CAPACITY_POOLS_TABLE,
+        CAPACITY_RESERVATIONS_TABLE,
+        CAPACITY_RESERVATION_RESOURCES_TABLE,
+        CAPACITY_STATE_INDEX,
+        CAPACITY_RESOURCE_INDEX,
+    ])?;
     verify_schema_object(conn, &expected, "table", "capacity_pools")?;
     verify_schema_object(conn, &expected, "table", "capacity_reservations")?;
     verify_schema_object(conn, &expected, "table", "capacity_reservation_resources")?;

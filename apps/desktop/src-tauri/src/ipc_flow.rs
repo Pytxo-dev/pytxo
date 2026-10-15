@@ -247,7 +247,7 @@ pub async fn flow_stop_routed(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn flow_history() -> IpcResult<Vec<FlowDraftRecord>> {
     let catalog = Catalog::open_default().map_err(map_store_err)?;
     list_flow_drafts_with_routed_recovery(&catalog).map_err(map_orch_err)

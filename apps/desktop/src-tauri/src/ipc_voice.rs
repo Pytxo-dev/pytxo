@@ -136,7 +136,7 @@ pub fn voice_local_available() -> bool {
     cfg!(feature = "voice-whisper")
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn voice_model_status() -> IpcResult<Option<String>> {
     Ok(verified_default_model_path()?.map(|path| path.to_string_lossy().into_owned()))
 }

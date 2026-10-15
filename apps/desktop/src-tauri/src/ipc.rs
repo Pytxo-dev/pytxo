@@ -22,7 +22,7 @@ use pytxo_orchestrate::{
     CatalogEntryStatus, DomainSummary, RunOptions,
 };
 use pytxo_runner::{isolation_backend_label, RecoveryOutcome};
-use pytxo_store::{AgentRecord, EventRecord, RunContractRecord, RunRecord};
+use pytxo_store::{AgentRecord, EventRecord, RunContractRecord, RunContractSummary, RunRecord};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, State};
 
@@ -615,7 +615,7 @@ pub async fn catalog_fingerprint() -> IpcResult<String> {
 }
 
 /// Enriched catalog with per-domain run health ([[execution-domains]] Phase 3).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_domains_status() -> IpcResult<Vec<CatalogEntryStatus>> {
     orch_list_domains_status().map_err(map_orch_err)
 }
@@ -708,7 +708,7 @@ pub fn ensure_workspace(state: State<'_, AppState>, domain_id: String) -> IpcRes
     Ok(id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_runs(
     state: State<'_, AppState>,
     limit: usize,
@@ -720,14 +720,14 @@ pub fn list_runs(
     let runs = store.list_runs(limit).map_err(map_store_err)?;
     runs.into_iter()
         .map(|run| {
-            let contract = store.get_run_contract(&run.id).ok().flatten();
+            let contract = store.get_run_contract_summary(&run.id).ok().flatten();
             let revision = routing_revision_for_run(&store, &domain, &run.id)?;
             Ok(run_to_dto(run, &domain, &cfg, contract.as_ref(), revision))
         })
         .collect::<IpcResult<Vec<_>>>()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn run_review(
     state: State<'_, AppState>,
     run_id: String,
@@ -766,7 +766,7 @@ pub fn run_review(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn run_review_content(
     state: State<'_, AppState>,
     run_id: String,
@@ -980,7 +980,7 @@ pub async fn domain_changes_batch(
     .map_err(map_orch_err)?
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_agents(
     state: State<'_, AppState>,
     run_id: String,
@@ -1006,7 +1006,7 @@ pub struct AgentArbitrageDto {
 }
 
 /// Per-agent Signal Core arbitrage stats for the topology graph.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_arbitrage(
     state: State<'_, AppState>,
     run_id: String,
@@ -1030,7 +1030,7 @@ pub fn agent_arbitrage(
         .collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn tail_events(
     state: State<'_, AppState>,
     agent_id: String,
@@ -1048,7 +1048,7 @@ pub fn tail_events(
         .collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn poll_log_lines(
     state: State<'_, AppState>,
     agent_id: String,
@@ -1072,7 +1072,7 @@ pub fn poll_log_lines(
 
 /// Read-only observer API. The caller owns its cursor; another view cannot
 /// consume it. Require exact run/agent membership inside the requested domain.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_agent_events(
     state: State<'_, AppState>,
     run_id: String,
@@ -1113,7 +1113,7 @@ fn read_scoped_agent_events(
 /// The last error a worker printed, reduced to one plain sentence so a failed
 /// run can say why without opening raw output. Advisory only: the recorded exit
 /// status stays authoritative, and payloads were already sanitized at capture.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_failure_hint(
     state: State<'_, AppState>,
     run_id: String,
@@ -1408,7 +1408,7 @@ fn hitl_to_dto(request: pytxo_runner::HitlRequest, domain_id: String) -> HitlDto
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_hitl(state: State<'_, AppState>, domain_id: Option<String>) -> IpcResult<Vec<HitlDto>> {
     let domain = resolve_domain(&state, domain_id)?;
     let domain_id = domain.clone();
@@ -1419,7 +1419,7 @@ pub fn list_hitl(state: State<'_, AppState>, domain_id: Option<String>) -> IpcRe
         .collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_hitl_all() -> IpcResult<Vec<HitlDto>> {
     Ok(orch_list_hitl_pending_all()
         .map_err(map_orch_err)?
@@ -1511,7 +1511,7 @@ pub struct FleetRunDto {
     pub status: String,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_fleet_runs(limit: usize) -> IpcResult<Vec<FleetRunDto>> {
     Ok(fleet_status(None, limit)
         .map_err(map_orch_err)?
@@ -1609,7 +1609,10 @@ fn load_domain_desktop_snapshot(
     };
     for run in domain_runs {
         let run_id = run.id.clone();
-        let contract = match store.get_run_contract(&run_id).map_err(map_store_err) {
+        let contract = match store
+            .get_run_contract_summary(&run_id)
+            .map_err(map_store_err)
+        {
             Ok(contract) => contract,
             Err(error) => {
                 loaded.diagnostics.push(snapshot_diagnostic(
@@ -1860,7 +1863,7 @@ pub struct FleetRunStatusDto {
     pub nodes: Vec<FleetNodeDto>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fleet_run_status_cmd(fleet_run_id: String) -> IpcResult<FleetRunStatusDto> {
     let status = fleet_run_status(&fleet_run_id).map_err(map_orch_err)?;
     Ok(FleetRunStatusDto {
@@ -1907,7 +1910,7 @@ pub struct StructuralEdgeDto {
     pub to: String,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn workspace_structural_graph(
     state: State<'_, AppState>,
     domain_id: Option<String>,
@@ -1942,7 +1945,7 @@ fn graph_to_dto(graph: pytxo_signal::StructuralGraph) -> StructuralGraphDto {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn structural_graph(
     state: State<'_, AppState>,
     run_id: String,
@@ -1990,7 +1993,7 @@ fn run_to_dto(
     r: RunRecord,
     domain_id: &str,
     cfg: &PytxoConfig,
-    contract: Option<&RunContractRecord>,
+    contract: Option<&RunContractSummary>,
     routing_revision: Option<String>,
 ) -> RunDto {
     let (isolation_mode, isolation_backend) = run_isolation_status(

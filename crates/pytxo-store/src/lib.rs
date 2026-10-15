@@ -26,5 +26,5 @@ pub use catalog_hosted_grants::{
 pub use project_store::ProjectStore;
 pub use store::{
     AgentRecord, DomainChange, DomainChangesPage, DomainRunSummary, EventRecord, PytxoStore,
-    RoutedWorktreeInstance, RunContractRecord, RunRecord,
+    RoutedWorktreeInstance, RunContractRecord, RunContractSummary, RunRecord,
 };

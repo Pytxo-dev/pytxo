@@ -30,3 +30,30 @@ test("Output joins recorded soft wraps while Raw text preserves separate payload
   await dock.getByRole("button", { name: "Plain text", exact: true }).click();
   await expect(output.locator("pre")).toHaveText("No risk is found.\nNext record");
 });
+
+test("Output of a long recorded log reaches its newest line without per-page polling pauses", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const svelteUrl = "/node_modules/svelte/src/index-client.js";
+    const dockUrl = "/src/components/desktop2/DockInspection.svelte";
+    const [{ mount }, { default: Dock }] = await Promise.all([import(svelteUrl), import(dockUrl)]);
+    const target = document.createElement("main");
+    target.id = "output-test";
+    target.style.cssText = "position:fixed;inset:0;background:white;z-index:9999";
+    document.body.append(target);
+    const total = 1000;
+    mount(Dock, { target, props: {
+      view: { kind: "agent-output", title: "Output", runId: "run", domainId: "domain", agentId: "worker" },
+      snapshot: { runs: [], agents: [] }, visible: true, onReview: () => {}, onOpenApprovals: () => {},
+      backend: { readAgentEvents: (_run: string, _agent: string, _domain: string, after: number, limit: number) => Promise.resolve(
+        Array.from({ length: Math.max(0, Math.min(limit, total - after)) }, (_, index) => ({
+          id: after + index + 1, agent_id: "worker", kind: "stdout", ts: "", payload: `record ${after + index + 1}
+`,
+        })),
+      ) },
+    } });
+  });
+  // Five full pages: paced at one page per poll interval this took over eight seconds.
+  const output = page.locator("#output-test").getByRole("region", { name: "Recorded agent output", exact: true });
+  await expect(output).toContainText("record 1000", { timeout: 3000 });
+});

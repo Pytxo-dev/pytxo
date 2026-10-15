@@ -1940,26 +1940,17 @@ fn verify_routing_advisor_consent_store_schema(conn: &Connection) -> Result<()> 
 }
 
 fn verify_routed_flow_dispatch_claims_schema(conn: &Connection, version: i64) -> Result<()> {
-    let expected =
-        Connection::open_in_memory().map_err(|error| PytxoError::Store(error.to_string()))?;
-    expected
-        .execute_batch(ROUTED_FLOW_DISPATCH_CLAIMS_TABLE_V3)
-        .map_err(|error| PytxoError::Store(error.to_string()))?;
+    let mut migrations = vec![ROUTED_FLOW_DISPATCH_CLAIMS_TABLE_V3];
     if version >= 4 {
-        expected
-            .execute_batch(ROUTED_FLOW_DISPATCH_CLAIMS_V4)
-            .map_err(|error| PytxoError::Store(error.to_string()))?;
+        migrations.push(ROUTED_FLOW_DISPATCH_CLAIMS_V4);
     }
     if version >= 5 {
-        expected
-            .execute_batch(ROUTED_FLOW_DISPATCH_CLAIMS_V5)
-            .map_err(|error| PytxoError::Store(error.to_string()))?;
+        migrations.push(ROUTED_FLOW_DISPATCH_CLAIMS_V5);
     }
     if version >= 9 {
-        expected
-            .execute_batch(ROUTED_FLOW_DISPATCH_CLAIMS_V9)
-            .map_err(|error| PytxoError::Store(error.to_string()))?;
+        migrations.push(ROUTED_FLOW_DISPATCH_CLAIMS_V9);
     }
+    let expected = crate::migrate::reference_schema(&migrations)?;
     let expected_sql: String = expected
         .query_row(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='flow_dispatch_claims'",
@@ -1984,11 +1975,7 @@ fn verify_routed_flow_dispatch_claims_schema(conn: &Connection, version: i64) ->
 }
 
 fn verify_flow_catalog_schema(conn: &Connection) -> Result<()> {
-    let expected =
-        Connection::open_in_memory().map_err(|error| PytxoError::Store(error.to_string()))?;
-    expected
-        .execute_batch(FLOW_DRAFTS_MIGRATION)
-        .map_err(|error| PytxoError::Store(error.to_string()))?;
+    let expected = crate::migrate::reference_schema(&[FLOW_DRAFTS_MIGRATION])?;
     for (kind, name) in [
         ("table", "flow_drafts"),
         ("index", "idx_flow_drafts_updated_at"),

@@ -119,6 +119,9 @@ export async function consumeDomainChanges(
   return { changed, needsSnapshot };
 }
 
+/** Beyond any store's last change: the page reports a cursor gap at the store's boundary. */
+const DOMAIN_CURSOR_PAST_END = Number.MAX_SAFE_INTEGER;
+
 /**
  * Establishes a cursor boundary before accepting the returned snapshot.
  *
@@ -143,7 +146,12 @@ export async function loadConsistentDesktopSnapshot<
   const domainIds = snapshot.domains.map((domain) => domain.domain_id);
   const newlyDiscovered = domainIds.filter((domainId) => !cursors.has(domainId));
   if (newlyDiscovered.length > 0) {
-    await consumeDomainChanges(newlyDiscovered, cursors, loadPage, 1000, loadBatch);
+    // The reload below already contains a new domain's history, so its cursor
+    // starts at the store's current boundary. A cursor past the end returns that
+    // boundary in one call; replaying the log from zero cost one round trip per
+    // thousand recorded events.
+    for (const domainId of newlyDiscovered) cursors.set(domainId, DOMAIN_CURSOR_PAST_END);
+    await consumeDomainChanges(newlyDiscovered, cursors, loadPage, 1, loadBatch);
     snapshot = await loadSnapshot();
   }
 
