@@ -12,6 +12,22 @@ fn input_name(reference: &str, agent: Option<&str>) -> String {
     agent.map_or_else(|| reference.to_string(), |a| format!("{a}:{reference}"))
 }
 
+/// Inputs that conflicted and so are absent from the tree the combined checks
+/// ran on; without this a "combined pass" reads as covering every input.
+fn left_out_of_combined(outcome: &LandOutcome) -> Option<String> {
+    let p = &outcome.receipt.predicate;
+    if !p.checks.iter().any(|c| c.scope == "combined") {
+        return None;
+    }
+    let names: Vec<String> = p
+        .inputs
+        .iter()
+        .filter(|i| i.status == "conflict")
+        .map(|i| input_name(&i.reference, i.agent.as_deref()))
+        .collect();
+    (!names.is_empty()).then(|| names.join(", "))
+}
+
 pub fn render_text(outcome: &LandOutcome) -> String {
     let p = &outcome.receipt.predicate;
     let mut s = String::new();
@@ -83,6 +99,9 @@ pub fn render_text(outcome: &LandOutcome) -> String {
                 seconds(c.duration_ms),
                 c.command
             );
+        }
+        if let Some(names) = left_out_of_combined(outcome) {
+            let _ = writeln!(s, "  combined leaves out {names} (conflict)");
         }
     }
     for insight in &outcome.insights {
@@ -185,6 +204,9 @@ pub fn render_markdown(outcome: &LandOutcome) -> String {
                 result,
                 seconds(c.duration_ms)
             );
+        }
+        if let Some(names) = left_out_of_combined(outcome) {
+            let _ = writeln!(s, "\nCombined checks leave out {names}, which conflicted.");
         }
     }
     if !p.reasons.is_empty() {

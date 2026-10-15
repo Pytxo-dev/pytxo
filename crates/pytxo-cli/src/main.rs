@@ -55,11 +55,13 @@ Example: pytxo land codex:agent/a claude:agent/b -c \"npm test\" --per-input"
         /// Per-check timeout in seconds
         #[arg(long, default_value = "900")]
         timeout: u64,
+        /// Print the decision, exit code and receipt as JSON
         #[arg(long)]
         json: bool,
         /// Pull-request comment format
         #[arg(long, conflicts_with = "json")]
         markdown: bool,
+        /// Repository to land in (default: the current directory)
         #[arg(long)]
         repo: Option<std::path::PathBuf>,
     },

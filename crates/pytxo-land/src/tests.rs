@@ -148,12 +148,15 @@ fn textual_conflict_blocks() {
     let d = dir.path();
     branch(d, "main", "agent/a", &[("README.md", "# shop A\n")]);
     branch(d, "main", "agent/b", &[("README.md", "# shop B\n")]);
-    let out = land(&opts(d, &["agent/a", "agent/b"])).unwrap();
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.checks = vec!["echo ok".into()];
+    let out = land(&o).unwrap();
     assert_eq!(out.decision(), "blocked");
     let p = &out.receipt.predicate;
     assert_eq!(p.inputs[1].status, "conflict");
     assert_eq!(p.inputs[1].conflict_files, ["README.md"]);
     assert!(p.reasons[0].contains("agent/b conflicts"));
+    assert!(render_text(&out).contains("combined leaves out agent/b (conflict)"));
 }
 
 #[test]
