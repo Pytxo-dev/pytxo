@@ -1541,23 +1541,8 @@ fn reviewed_git_program() -> Result<PathBuf> {
                     }) {
                         continue;
                     }
-                    let direct = if directory
-                        .file_name()
-                        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("cmd"))
-                    {
-                        directory
-                            .parent()
-                            .map(|root| root.join("mingw64").join("bin").join("git.exe"))
-                    } else {
-                        None
-                    };
-                    if let Some(program) = direct {
-                        if std::fs::symlink_metadata(&program).is_ok_and(|metadata| {
-                            metadata.file_type().is_file() && !is_reparse(&metadata)
-                        }) {
-                            return canonical_repo_root(&program)
-                                .map_err(|error| error.to_string());
-                        }
+                    if let Some(program) = direct_git_beside(&directory) {
+                        return canonical_repo_root(&program).map_err(|error| error.to_string());
                     }
                 }
                 Err("no direct Git for Windows executable was found beside a PATH cmd shim".into())
@@ -1570,6 +1555,26 @@ fn reviewed_git_program() -> Result<PathBuf> {
     {
         Ok(PathBuf::from("git"))
     }
+}
+
+/// The `cmd\git.exe` on PATH only launches the real Git, which Git for Windows
+/// keeps under `ucrt64` since 2.56 and under `mingw64` before.
+#[cfg(windows)]
+fn direct_git_beside(cmd_directory: &Path) -> Option<PathBuf> {
+    if !cmd_directory
+        .file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("cmd"))
+    {
+        return None;
+    }
+    let root = cmd_directory.parent()?;
+    ["ucrt64", "mingw64"]
+        .iter()
+        .map(|prefix| root.join(prefix).join("bin").join("git.exe"))
+        .find(|program| {
+            std::fs::symlink_metadata(program)
+                .is_ok_and(|metadata| metadata.file_type().is_file() && !is_reparse(&metadata))
+        })
 }
 
 pub fn remove_worktree(
@@ -1660,4 +1665,33 @@ fn path_to_git(path: &Path) -> String {
     strip_extended_path(path.to_path_buf())
         .to_string_lossy()
         .to_string()
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::direct_git_beside;
+
+    #[test]
+    fn direct_git_is_found_in_ucrt64_and_mingw64_installs() {
+        for prefix in ["ucrt64", "mingw64"] {
+            let root = tempfile::tempdir().unwrap();
+            let cmd = root.path().join("cmd");
+            let bin = root.path().join(prefix).join("bin");
+            std::fs::create_dir_all(&cmd).unwrap();
+            std::fs::create_dir_all(&bin).unwrap();
+            std::fs::write(cmd.join("git.exe"), b"shim").unwrap();
+            assert_eq!(direct_git_beside(&cmd), None, "{prefix}: no direct git yet");
+            std::fs::write(bin.join("git.exe"), b"git").unwrap();
+            assert_eq!(
+                direct_git_beside(&cmd),
+                Some(bin.join("git.exe")),
+                "{prefix}"
+            );
+            assert_eq!(
+                direct_git_beside(&bin),
+                None,
+                "{prefix}: only a cmd directory counts"
+            );
+        }
+    }
 }
