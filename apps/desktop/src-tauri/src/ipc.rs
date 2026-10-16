@@ -928,6 +928,40 @@ pub(crate) fn store_fingerprint(path: &Path) -> IpcResult<StoreFingerprint> {
     })
 }
 
+/// A snapshot opens each store several times. While nothing else has a store
+/// open, every one of those closes is the last: it checkpoints and deletes the
+/// -wal and -shm files, and the next open creates them again. One handle per
+/// store, held for the snapshot only, keeps them in place; recovery can still
+/// replace a store right after the snapshot. The handle never creates a store
+/// or writes. It opens read-write only so that, closing last, it checkpoints
+/// and deletes the files as before: a read-only last close would leave them
+/// behind and change the store fingerprints Desktop observes.
+fn hold_snapshot_wals(state: &AppState) -> Vec<rusqlite::Connection> {
+    let mut held: Vec<_> = pytxo_store::default_catalog_path()
+        .and_then(|catalog| hold_store_wal(&catalog))
+        .into_iter()
+        .collect();
+    if let Ok(domains) = pytxo_orchestrate::list_catalog_domains() {
+        held.extend(
+            domains
+                .iter()
+                .filter_map(|domain| resolved_domain_store_path(state, &domain.domain_id).ok())
+                .filter_map(|path| hold_store_wal(&path)),
+        );
+    }
+    held
+}
+
+fn hold_store_wal(path: &Path) -> Option<rusqlite::Connection> {
+    let conn =
+        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)
+            .ok()?;
+    // SQLite opens the WAL at the first read; this one ends at once.
+    conn.query_row("PRAGMA schema_version", [], |_| Ok(()))
+        .ok()?;
+    Some(conn)
+}
+
 fn unchanged_domain_changes(cursor: i64) -> DomainChangesPageDto {
     DomainChangesPageDto {
         changes: Vec::new(),
@@ -1152,7 +1186,7 @@ fn read_scoped_agent_events(
         ));
     }
     store
-        .tail_events_after(agent_id, after.max(0), limit.clamp(1, 200))
+        .tail_events_after(agent_id, after.max(0), limit.clamp(1, 1000))
         .map_err(map_store_err)
         .map(|events| events.into_iter().map(event_to_dto).collect())
 }
@@ -1736,6 +1770,7 @@ pub(crate) fn load_desktop_snapshot_blocking(
     let run_limit = run_limit.unwrap_or(30);
     let fleet_limit = fleet_limit.unwrap_or(20);
     let include_agents = include_agents.unwrap_or(true);
+    let _held_wals = hold_snapshot_wals(state);
     let domains = orch_list_domains_status().map_err(map_orch_err)?;
     let domain_ids = domains
         .iter()
@@ -2246,6 +2281,50 @@ mod mission_control_contract_tests {
         assert_eq!(next[0].payload, "second");
         assert!(read_scoped_agent_events(&store, "run-b", "agent-a", 0, 200).is_err());
         assert!(read_scoped_agent_events(&store, "run-a", "missing", 0, 200).is_err());
+    }
+
+    #[test]
+    fn a_snapshot_wal_hold_keeps_the_wal_and_leaves_none_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("held.db");
+        let wal = sqlite_sidecar_path(&path, "-wal");
+        assert!(
+            hold_store_wal(&path).is_none(),
+            "a hold never creates a store"
+        );
+        assert!(!path.exists());
+        drop(pytxo_store::PytxoStore::open(&path).unwrap());
+        assert!(!wal.exists());
+        let held = hold_store_wal(&path).unwrap();
+        let store = pytxo_store::PytxoStore::open_existing_read_only(&path).unwrap();
+        store.list_runs(1).unwrap();
+        drop(store);
+        assert!(wal.exists(), "an inner close is not the last one");
+        drop(held);
+        assert!(
+            !wal.exists(),
+            "the hold closes last and leaves the store as before"
+        );
+    }
+
+    #[test]
+    fn observer_pages_stay_bounded_at_a_thousand_events() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = pytxo_store::PytxoStore::open(&dir.path().join("dock.db")).unwrap();
+        store.insert_run("run-a", "/repo").unwrap();
+        store
+            .insert_agent("agent-a", "run-a", "task", 0, None, "echo hi")
+            .unwrap();
+        for line in 0..1001 {
+            store
+                .append_event("agent-a", "stdout", &line.to_string())
+                .unwrap();
+        }
+        let page = read_scoped_agent_events(&store, "run-a", "agent-a", 0, 5000).unwrap();
+        assert_eq!(page.len(), 1000);
+        let rest =
+            read_scoped_agent_events(&store, "run-a", "agent-a", page[999].id, 5000).unwrap();
+        assert_eq!(rest.len(), 1);
     }
     use pytxo_core::{
         PreparedRunFile, PreparedRunFileKind, PreparedRunManifest, PreparedRunSummary,

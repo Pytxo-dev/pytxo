@@ -2,6 +2,7 @@ import { ipc } from "./ipc";
 import type { AdeCliStatusDto, AgentArbitrageDto, AgentDto, CatalogEntryStatus, DesktopChangedEvent, DomainChangesPageDto, FleetRunDto, HitlDto, PreparedContentChunkDto, PreparedRunManifest, ProviderStatusDto, RoutingDisplaySummary, RunApplyManifest, RunDto, RunReviewDto, StructuralGraphDto } from "./types";
 import type { FlowDraftInput, FlowDraftRecord, FlowPlan, SplitDraft, ProposedHostedAdvisorPacketPreview, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, VoiceProgressEvent, VoiceSessionDto } from "./types";
 import { PreviewDesktopBackend } from "./desktop-backend.preview";
+import { fingerprintedRead } from "./desktop-sync";
 
 export type DesktopSnapshotError = { kind: "hypervisor-unavailable"; message: string };
 
@@ -194,7 +195,8 @@ class TauriDesktopBackend implements DesktopBackend {
     return ipc.ensureWorkspace(created);
   }
   async voiceAvailable() { return ipc.voiceLocalAvailable(); }
-  async flowHistory() { return ipc.flowHistory(); }
+  /** Drafts live in the catalog, so a read stands while the catalog is unchanged. */
+  flowHistory = fingerprintedRead(() => ipc.catalogFingerprint(), () => ipc.flowHistory());
   async previewFlowAdvisorPacket(draftId: string) { return ipc.flowAdvisorPacketPreview(draftId); }
   async previewProposedHostedPacket(draftId: string) { return ipc.flowProposedHostedPacketPreview(draftId); }
   async previewReviewedHostedPacket(draftId: string) { return ipc.flowReviewedHostedPacketPreview(draftId); }

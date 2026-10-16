@@ -186,6 +186,28 @@ export async function loadConsistentDesktopSnapshot<
 }
 
 /**
+ * Reuses a read while a fingerprint taken before it still matches, so a read
+ * started after any change never returns older data. Failures are not kept.
+ */
+export function fingerprintedRead<T>(
+  fingerprint: () => Promise<string>,
+  read: () => Promise<T>,
+): () => Promise<T> {
+  let last: { fingerprint: string; value: Promise<T> } | null = null;
+  return async () => {
+    const current = await fingerprint().catch(() => null);
+    if (current !== null && last?.fingerprint === current) return last.value;
+    const value = read();
+    const entry = current === null ? null : { fingerprint: current, value };
+    last = entry;
+    value.catch(() => {
+      if (last === entry) last = null;
+    });
+    return value;
+  };
+}
+
+/**
  * The startup read as the page's own first read would have returned it, or
  * null when that read would use other limits. Without agents it drops them
  * and their read failures, exactly what a read without agents leaves out.

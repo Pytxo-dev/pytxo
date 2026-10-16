@@ -8,6 +8,7 @@ import {
 import {
   consumeDomainChanges,
   fingerprintDesktopSnapshot,
+  fingerprintedRead,
   incrementalDomainBatchSize,
   loadConsistentDesktopSnapshot,
   selectIncrementalDomainBatch,
@@ -391,6 +392,32 @@ test.describe("Run Review state contracts", () => {
     // An idle first read uses smaller limits; the startup read cannot stand in.
     expect(startupSnapshotFor(startup, { includeAgents: false, runLimit: 12, fleetLimit: 8 })).toBeNull();
     expect(startupSnapshotFor(null, { includeAgents: true, runLimit: 30, fleetLimit: 20 })).toBeNull();
+  });
+
+  test("a fingerprinted read is reused only while its fingerprint holds", async () => {
+    let fingerprint = "a";
+    let reads = 0;
+    let fail = false;
+    const read = fingerprintedRead(async () => fingerprint, async () => {
+      reads += 1;
+      if (fail) throw new Error("locked");
+      return [reads];
+    });
+    const first = await read();
+    expect(await read()).toBe(first);
+    expect(reads).toBe(1);
+    // Any change after the read means the next read must be fresh.
+    fingerprint = "b";
+    expect(await read()).toEqual([2]);
+    // A failed read is never handed out again.
+    fingerprint = "c";
+    fail = true;
+    await expect(read()).rejects.toThrow("locked");
+    fail = false;
+    expect(await read()).toEqual([4]);
+    // Without a fingerprint nothing is reused.
+    const unfingerprinted = fingerprintedRead(async () => { throw new Error("no catalog"); }, async () => { reads += 1; return reads; });
+    expect(await unfingerprinted()).not.toBe(await unfingerprinted());
   });
 
   test("cursor reset and reconnect require a snapshot without swallowing the next delta", async () => {

@@ -7,7 +7,7 @@
   import IconSettings from "@tabler/icons-svelte/icons/settings";
   import IconTarget from "@tabler/icons-svelte/icons/target";
   import { createDesktopBackend, isTauriRuntime, type DesktopSnapshot, type StartupSnapshot } from "../../lib/desktop-backend";
-  import type { AgentDto, RunDto } from "../../lib/types";
+  import type { AgentDto, FlowDraftRecord, RunDto } from "../../lib/types";
   import type { ComposerDraft } from "../../lib/composer-draft";
   import { SETTINGS_SECTIONS } from "../../lib/settings-catalog";
   import {
@@ -173,11 +173,15 @@
   let requestTitles = $state<Record<string, string>>({});
   /** Saved plan prose per run and task: presentation only, like Work's task copy. */
   let taskCopy = $state<Record<string, Record<string, string>>>({});
+  let titledDrafts: FlowDraftRecord[] | null = null;
   $effect(() => {
     // Titles label listed runs only; before the first snapshot there are none,
     // and reading every draft then competes with that snapshot.
     if (snapshot.runs.length === 0) return;
     void backend.flowHistory().then((records) => {
+      // An unchanged catalog returns the same read: nothing to re-derive.
+      if (records === titledDrafts) return;
+      titledDrafts = records;
       const next: Record<string, string> = {};
       const copy: Record<string, Record<string, string>> = {};
       for (const record of records) {

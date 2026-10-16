@@ -35,7 +35,16 @@
   let reviewError = $state<string | null>(null);
   let reviewLoading = $state(false);
   let rows: HTMLButtonElement[] = $state([]);
-  let drafts = $state<FlowDraftRecord[]>([]);
+  // Shared, never mutated: no deep proxy over every saved draft.
+  let drafts = $state.raw<FlowDraftRecord[]>([]);
+  const draftByRun = $derived.by(() => {
+    const byRun = new Map<string, FlowDraftRecord>();
+    for (const draft of drafts) {
+      const key = `${draft.domain_id}:${draft.dispatched_run_id}`;
+      if (draft.dispatched_run_id && !byRun.has(key)) byRun.set(key, draft);
+    }
+    return byRun;
+  });
 
   const ordered = $derived(
     [...snapshot.runs].sort((a, b) => (b.started_at ?? "").localeCompare(a.started_at ?? "")),
@@ -135,7 +144,7 @@
   }
 
   function draftFor(run: RunDto) {
-    return drafts.find((draft) => draft.dispatched_run_id === run.id && draft.domain_id === run.domain_id) ?? null;
+    return draftByRun.get(`${run.domain_id}:${run.id}`) ?? null;
   }
 
   function requestLabel(run: RunDto) {

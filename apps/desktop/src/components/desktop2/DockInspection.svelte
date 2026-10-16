@@ -88,9 +88,10 @@
     async function poll() {
       let caughtUp = true;
       try {
-        const page = await backend.readAgentEvents(view.runId, view.agentId!, view.domainId, after, 200);
+        // Each page is one store open: a long log reaches its newest line in few, large pages.
+        const page = await backend.readAgentEvents(view.runId, view.agentId!, view.domainId, after, 1000);
         if (disposed) return;
-        caughtUp = page.length < 200;
+        caughtUp = page.length < 1000;
         if (page.length) {
           after = page[page.length - 1].id;
           cursor = after;
