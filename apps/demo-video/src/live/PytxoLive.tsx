@@ -68,7 +68,7 @@ const cover = Math.max(W / cut.width, H / cut.height);
 // Anchored left: the sidebar stays whole; only window chrome on the right trims.
 const offX = 0;
 
-const Glyph = ({size, phase}: {size: number; phase: number}) => {
+export const Glyph = ({size, phase}: {size: number; phase: number}) => {
   const shell = Array.from({length: 340}, (_, n) => {
     const y = 1 - 2 * (n + .5) / 340, r = Math.sqrt(1 - y * y), a = n * Math.PI * (3 - Math.sqrt(5));
     return {x: Math.cos(a) * r, y, z: Math.sin(a) * r, c: ".:+*=x"[n % 6]};
@@ -90,7 +90,7 @@ const hash = (a: number, b: number) => { const x = Math.sin(a * 127.1 + b * 311.
 const CHARS = ".:+*=x";
 
 /** A full-frame field of mono glyphs that breathes, then clears around the centre. */
-const AsciiField = ({frame, fade}: {frame: number; fade: number}) => {
+export const AsciiField = ({frame, fade}: {frame: number; fade: number}) => {
   const cols = 64, rows = 30;
   const cells = [];
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
@@ -124,7 +124,7 @@ const AsciiWipe = ({at}: {at: number}) => {
 };
 
 /** Types text out one glyph at a time, with a block cursor while it types. */
-const Typed = ({text, at, perChar = 2.2, style}: {text: string; at: number; perChar?: number; style: React.CSSProperties}) => {
+export const Typed = ({text, at, perChar = 2.2, style}: {text: string; at: number; perChar?: number; style: React.CSSProperties}) => {
   const frame = useCurrentFrame();
   const n = Math.max(0, Math.min(text.length, Math.floor((frame - at) / perChar)));
   const typing = n < text.length && frame >= at;
@@ -133,13 +133,13 @@ const Typed = ({text, at, perChar = 2.2, style}: {text: string; at: number; perC
 };
 
 /** One quiet caption: a small dark pill near the bottom. */
-const Caption = ({text, at, out}: {text: string; at: number; out: number}) => {
+export const Caption = ({text, at, out, bottom = 72, size = 46}: {text: string; at: number; out: number; bottom?: number; size?: number}) => {
   const frame = useCurrentFrame();
   const p = interpolate(frame, [at, at + 18, out - 14, out], [0, 1, 1, 0], {extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(.2, .8, .2, 1)});
   if (p <= 0) return null;
   return (
-    <div style={{position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center", opacity: p, transform: `translateY(${(1 - p) * 8}px)`}}>
-      <div style={{padding: "18px 34px", borderRadius: 999, background: "rgba(9,9,11,.86)", border: "1px solid rgba(255,255,255,.12)", boxShadow: "0 24px 60px rgba(0,0,0,.5)", font: `600 46px ${sans}`, letterSpacing: "-.015em", color: ink}}>{text}</div>
+    <div style={{position: "absolute", left: 0, right: 0, bottom, display: "flex", justifyContent: "center", opacity: p, transform: `translateY(${(1 - p) * 8}px)`}}>
+      <div style={{padding: `${size * .39}px ${size * .74}px`, borderRadius: 999, background: "rgba(9,9,11,.86)", border: "1px solid rgba(255,255,255,.12)", boxShadow: "0 24px 60px rgba(0,0,0,.5)", font: `600 ${size}px ${sans}`, letterSpacing: "-.015em", color: ink}}>{text}</div>
     </div>
   );
 };

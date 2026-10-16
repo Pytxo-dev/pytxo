@@ -3,6 +3,7 @@ import {Composition, Folder} from "remotion";
 import {PytxoMotionFilm} from "./motion/PytxoMotionFilm";
 import {FILM_FRAMES, PytxoFilm} from "./film/PytxoFilm";
 import {LIVE_FRAMES, PytxoLive} from "./live/PytxoLive";
+import {LAND_FPS, LAND_FRAMES, PytxoLand, PytxoLandStill} from "./land/PytxoLand";
 import {Opening as MotionOpening} from "./motion/Opening";
 import {Dispatch as MotionDispatch} from "./motion/Dispatch";
 import {Merge as MotionMerge} from "./motion/Merge";
@@ -46,6 +47,8 @@ export const RemotionRoot = () => {
     <>
     <Composition id="PytxoFilm" component={PytxoFilm} durationInFrames={FILM_FRAMES} fps={60} width={1920} height={1080} />
     <Composition id="PytxoLive" component={PytxoLive} durationInFrames={LIVE_FRAMES} fps={60} width={1920} height={1080} />
+    <Composition id="PytxoLand" component={PytxoLand} durationInFrames={LAND_FRAMES} fps={LAND_FPS} width={1920} height={1080} />
+    <Composition id="PytxoLandStill" component={PytxoLandStill} durationInFrames={1} fps={LAND_FPS} width={1270} height={760} defaultProps={{at: 0, rows: [0, 32] as [number, number], cols: 122, title: ""}} />
     <Composition id="PytxoMotionFilm" component={PytxoMotionFilm} durationInFrames={3000} fps={60} width={1920} height={1080} defaultProps={fleetProps} />
     <Folder name="Motion-Scenes">
       <Composition id="Motion-Opening" component={MotionOpening} durationInFrames={240} fps={60} width={1920} height={1080} defaultProps={fleetProps} />

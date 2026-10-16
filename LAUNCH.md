@@ -83,6 +83,35 @@ branches from Claude Code and Codex (headless), two runs, fresh npm prefix and
 - `--apply` reruns every check after a shadow READY (57 s). By design (stale
   safety); docs now say `--apply` can be passed on the first run.
 
+## M3 log
+
+Kit (outside the repo): `D:/marketing/campaigns/pytxo-1.3-land-launch/`
+(README, `product-hunt.md`, `fact-sheet.md`, `product-hunt/out/`). Nothing
+submitted, posted or uploaded.
+
+- 1.3.1 spot-check 2026-10-16: npm `latest` 1.3.1; pytxo.com install page
+  shows 1.3.1.
+- Film `PytxoLand` (apps/demo-video): one terminal take of 1.3.1 from npm in a
+  fresh prefix on a fresh mri clone with the M2 run 2 branches (take 4,
+  `D:/pytxo-film/take-4`): `npm i -g` 51.2 s → BLOCKED 57.7 s with
+  `ReferenceError: toVal is not defined` under the combined check → fix 2.0 s
+  → READY 58.4 s → `--apply` LANDED 56.0 s (`8f13795`) → `pytxo receipts`.
+  Commands typed by a script and run as typed; output unedited; waits shown
+  faster with the factor on screen. 75 s render, 1080p.
+- Product Hunt fields, first-comment draft (Matt rewrites), gallery of six
+  1270×760 stills cut from the take, console checklist: `product-hunt.md`.
+- HN/Reddit: `fact-sheet.md`, facts with sources and limits, likely questions,
+  do-not-claim list. No drafts in Matt's voice.
+- Docs: `evidence/first-use` (both M2 runs and the filmed 1.3.1 run, with
+  timings) and two JSON records with all nine receipts, profile paths redacted.
+
+### Filed, not fixed
+
+- Receipt check `output_tail` decodes the test runner's `√` as cp1252
+  (`âˆš`) on Windows.
+- Receipts keep user-profile paths from check output in `output_tail`; the
+  published records redact them, Pytxo does not.
+
 # v1.3 "Land" — running state
 
 Owner: Claude, 2026-10-10/11. Branch `mbcz/v1.3-land` (worktree

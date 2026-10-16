@@ -158,6 +158,18 @@ test("evidence moved into the docs and keeps every record downloadable", async (
   expect(live.fixture_tests_after_apply.failed).toBe(0);
   await expect(page.getByText(`${live.apply.files_written}/${live.review.files}`, { exact: true })).toBeVisible();
 
+  await page.goto("/docs/evidence/first-use");
+  const firstUse = await (await page.request.get("/evidence/first-use-2026-10-15.json")).json();
+  const decisions = firstUse.runs[1].steps.filter((step: { decision?: string }) => step.decision).map((step: { decision: string }) => step.decision);
+  expect(decisions).toEqual(["BLOCKED", "READY", "LANDED"]);
+  expect(JSON.stringify(firstUse.receipts)).not.toMatch(/Users\\\\(?!<user>)/);
+  await expect(page.locator('a[href="/evidence/first-use-2026-10-15.json"]')).toBeVisible();
+  await expect(page.getByText("96.1 s", { exact: false }).first()).toBeVisible();
+  const take = await (await page.request.get("/evidence/first-use-film-1.3.1-2026-10-16.json")).json();
+  expect(take.steps.filter((step: { decision?: string }) => step.decision).map((step: { decision: string }) => step.decision)).toEqual(["BLOCKED", "READY", "LANDED"]);
+  expect(Object.values(take.receipts).every((receipt) => (receipt as { predicate: { pytxo_version: string } }).predicate.pytxo_version === "1.3.1")).toBe(true);
+  await expect(page.locator('a[href="/evidence/first-use-film-1.3.1-2026-10-16.json"]')).toBeVisible();
+
   await page.goto("/docs/evidence/signal-core");
   await expect(page.getByText("Not a model-token saving.", { exact: false })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);

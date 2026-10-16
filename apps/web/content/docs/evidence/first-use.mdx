@@ -1,0 +1,70 @@
+---
+title: First use
+description: Two timed runs from installing the CLI to a landing decision on a real repository, with branches from Claude Code and Codex, including the wrong turns.
+---
+
+## 16 October 2026 · released 1.3.1 · run 2, filmed
+
+The product film repeats run 2 below on the released 1.3.1, installed with `npm i -g pytxo` into a fresh npm prefix: a fresh clone of mri at `62b9ce4` with the same two agent commits, Claude Code's `2534fe2` and Codex's `ec1701b`. A script typed each command on screen and ran it as typed.
+
+| Command | Time | Result |
+|---|---|---|
+| `npm i -g pytxo` | 51.2 s | 1.3.1 installed, including the 29.9 MB binary download, on a slower connection than on 15 October |
+| `pytxo land claude:claude/rename-helper codex:codex/negated-flags --check "npm install && npm test" --per-input` | 57.7 s | **BLOCKED**: both branches pass alone; the combined check fails and 1.3.1 prints `ReferenceError: toVal is not defined` under it |
+| `git rebase` the Codex branch onto the Claude branch, `toVal(` → `assign(`, commit | 2.0 s | |
+| same `pytxo land` command | 58.4 s | **READY** |
+| same command with `--apply` | 56.0 s | **LANDED**, `8f13795` |
+
+[Take record with its three receipts (JSON)](/evidence/first-use-film-1.3.1-2026-10-16.json)
+
+## 15 October 2026 · released 1.3.0 · Claude Code and Codex
+
+Two runs on [lukeed/mri](https://github.com/lukeed/mri) at `62b9ce4`, a small, widely used argument parser whose tests run 84 assertions. Each run started from a fresh npm prefix, a fresh Pytxo home and a clean clone. Claude Code 2.1.299 (`claude -p`) and Codex CLI 0.159.3 (`codex exec -s workspace-write`) each worked on their own branch from a one-paragraph prompt. Codex's sandbox keeps `.git` read-only, so its changes were committed by hand with the agent's own message.
+
+Times are command times on Windows 11 with 15.5 GB of RAM, measured as each command ran. Every decision below has a receipt in the run record.
+
+### Run 1: two features, and a check that could not run
+
+Claude Code added minimist-compatible `options['--']` (79 s); Codex made `--key=` an empty string (190 s). The steps follow the docs as they were on that day.
+
+| Command | Time | Result |
+|---|---|---|
+| `npm i -g pytxo@1.3.0` | 22.7 s | installed |
+| `pytxo --version` | 0.3 s | 1.3.0 |
+| `pytxo land … --check "npm test" --per-input` | 10.4 s | BLOCKED: every check failed, no reason shown |
+| `pytxo land … --check "npm ci && npm test" --per-input` | 13.7 s | BLOCKED: mri has no lockfile |
+| `pytxo land … --check "npm install && npm test" --per-input` | 73.1 s | **READY** |
+
+Install to the correct decision: **96.1 s** of command time. The two BLOCKED results were the check's fault, not the branches': a check runs in a fresh worktree where nothing is installed. 1.3.0 did not say so. 1.3.1 prints the failing line (`'bundt' is not recognized…`), notes that the check failed on every branch alone, and suggests `--check "npm install && npm test"`.
+
+### Run 2: each branch passes alone, the combination fails
+
+Claude Code renamed the internal helper `toVal` to `assign` (70 s). Codex routed `--no-` flags through `toVal` (200 s).
+
+| Command | Time | Result |
+|---|---|---|
+| `npm i -g pytxo@1.3.0` | 29.9 s | installed |
+| `pytxo land claude:claude/rename-helper codex:codex/negated-flags --check "npm install && npm test" --per-input` | 79.0 s | **BLOCKED**: both branches pass alone, combined `FAIL exit 1` |
+| `git rebase` the Codex branch onto the Claude branch, change the call to `assign(`, commit | 1.2 s | fix commit `0a1447b` |
+| same `pytxo land` command | 68.9 s | **READY** |
+| same command with `--apply` | 57.0 s | **LANDED**: one merge commit per branch, `ddae178` |
+| `pytxo receipts` | 0.6 s | blocked, ready and landed receipts listed |
+
+On 1.3.0 the reason, `ReferenceError: toVal is not defined`, was only in the receipt. A replay of the same branches on a 1.3.1 build printed it under the combined check, followed by a `next` line.
+
+### What changed because of these runs
+
+- Failed checks print their error lines; a check that fails on every branch alone says the check may be the problem.
+- Without `--check`, Pytxo suggests one from the project files and does not run it.
+- `npm i -g --ignore-scripts` and pnpm 10, which skip install scripts, used to leave no binary. 1.3.1 downloads and verifies it on the first command: 27.8 s and 19.4 s, then 0.6 s.
+- [First landing in 5 minutes](/docs/getting-started/first-landing) was written from these runs.
+
+Still open: npm 11 prints an allow-scripts warning on `npm i -g pytxo` (the install still works), and sharing the landed receipt needs `pytxo login`, which timed out twice without a browser approval, so there is no shared receipt link.
+
+### Limits
+
+- Two runs on one small repository on one Windows host. Not a benchmark and not a rate.
+- Command times only: reading output and writing the fix are not included. npm's cache was warm for the checks; a cold `npm install` of mri took 40.5 s.
+- **Checks passing is not correctness.** READY means these commands passed on these exact files.
+
+[Run record with all six receipts (JSON)](/evidence/first-use-2026-10-15.json). User-profile paths in the receipts' check output are replaced with `<user>`.

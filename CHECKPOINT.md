@@ -1,3 +1,64 @@
+# CHECKPOINT — Pytxo — 2026-10-16 (M3 launch kit; nothing published)
+
+## Branch / commit
+- `mbcz/optimistic-curran-3f1d81` from `main` @ `045a66a`, one commit
+  (`docs(launch): M3 kit …`). Not pushed; no PR, deploy, upload or post.
+- 1.3.2 (Desktop performance) still sits on `mbcz/competent-taussig-e022b3`
+  (other session); untouched.
+
+## Completed
+- 1.3.1 spot-check: npm `latest` 1.3.1; pytxo.com install page shows 1.3.1.
+- Film `PytxoLand` (apps/demo-video): one terminal take of 1.3.1 from npm on a
+  fresh mri clone with the M2 run 2 branches. BLOCKED 57.7 s (with
+  `ReferenceError: toVal is not defined`) → fix → READY 58.4 s → `--apply`
+  LANDED 56.0 s (`8f13795`) → `pytxo receipts`. Capture pipeline in
+  `scripts/land-take/` (dedicated conhost + ffmpeg Windows Graphics Capture),
+  cut by `scripts/land-cut.mjs`. Take: `D:/pytxo-film/take-4`. Render 75.2 s,
+  1080p, audio; in the kit as `product-hunt/out/pytxo-land-1.3.1.mp4`.
+- Product Hunt: fields, first-comment draft (Matt rewrites), six 1270×760
+  gallery stills from the take (`scripts/render-land-gallery.mjs`), logo
+  thumbnail, console checklist. HN/Reddit: fact sheet with sources, limits,
+  likely questions and a do-not-claim list; no drafts in Matt's voice. Kit:
+  `D:/marketing/campaigns/pytxo-1.3-land-launch/`.
+- Docs: `evidence/first-use` (M2 runs 1 and 2 on 1.3.0, the filmed 1.3.1 run)
+  plus JSON records with all nine receipts, profile paths redacted; e2e
+  asserts the page, decisions and redaction.
+
+## Not done
+- Publish (needs /authorize): push the branch, PR, merge, deploy docs.
+- Matt only: YouTube upload of the film, Product Hunt submission, first
+  comment and HN/Reddit posts in his words.
+- `pytxo receipts share` still blocked on `pytxo login` (see previous entry).
+
+## Filed, not fixed
+- Receipt `output_tail` decodes the test runner's `√` as cp1252 (`âˆš`).
+- Receipts keep user-profile paths from check output; only the published
+  records are redacted.
+
+## Tests last run
+- Web (`apps/web`, fresh `npm ci`): lint pass, build pass, Playwright
+  (Chrome) 31/32. The one failure, "every FAQ answer opens fully at 1440px"
+  (homepage, not touched here), passed 4/4 when rerun alone; the full run was
+  on a machine with 1.7 GB free RAM.
+- demo-video `tsc --noEmit` clean; film checked frame by frame on a contact
+  sheet (no caption or badge over terminal output); ffprobe 75.24 s, 1920×1080,
+  audio.
+- sloplint 0 errors, 0 warnings: `first-use.mdx`, evidence `index.mdx`,
+  demo-video README, kit README, `product-hunt.md`, `fact-sheet.md`.
+
+## Next prompt (paste below)
+```txt
+Pytxo M3 publish. Read AGENTS.md, the latest CHECKPOINT.md entry and LAUNCH.md
+(M3 log). Matt has run /authorize for: push mbcz/optimistic-curran-3f1d81,
+open the PR, merge it after CI is green, and deploy the docs to Vercel prod
+the way 1.3.1 was deployed (CLI from a clean git archive of main). Then check
+pytxo.com/docs/evidence/first-use and both JSON records load, and that no
+user-profile path is in them. Do not touch mbcz/competent-taussig-e022b3.
+After that, fix the two filed receipt issues in crates/pytxo-land (decode
+check output as UTF-8 on Windows; keep user-profile paths in output_tail out
+of anything `pytxo receipts share` uploads) with regression tests. One worker. Finish with a CHECKPOINT entry.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-16 (M2 first use; v1.3.1 released and deployed)
 
 ## Branch / commit
