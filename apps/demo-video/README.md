@@ -1,5 +1,33 @@
 # Pytxo product demo
 
+## Land film - October 16
+
+Current direction: **`PytxoLand`**, one terminal take of the released 1.3.1 CLI
+(`npm i -g pytxo`) on lukeed/mri, following the M2 first-use run 2 script:
+BLOCKED (each branch passes alone, the combination fails with
+`ReferenceError: toVal is not defined`) → fix → READY → `--apply` LANDED →
+receipts. The branches are the commits Claude Code (`2534fe2`) and Codex
+(`ec1701b`) wrote in that run (`D:/pytxo-native-acceptance/m2-first-use`).
+
+`scripts/land-take/take.py` clones a fresh repo with those branches, opens a
+dedicated console (122×32, Cascadia Mono) running `driver.sh`, and records the
+window with ffmpeg's Windows Graphics Capture source, so it can sit behind other
+windows. The driver types each command on screen and runs exactly what it
+typed; it uses a fresh npm prefix and `PYTXO_HOME`. The screen is cleared
+before each `pytxo land` run. `scripts/land-cut.mjs` turns the take's
+`timeline.jsonl` into `land-cut.json`: typing plays at 1.6 times its recorded speed, waits are
+shortened with "SPED UP N×" in the top margin from 4×, and finished output is held as a
+slowed still so it can be read. Zoom rows per command are in `land-focus.json`.
+Audio is the CC0 set in `public/audio/cc0`.
+
+```powershell
+python -I scripts/land-take/take.py D:/pytxo-film/take-N D:/pytxo-native-acceptance/m2-first-use/run2/repo
+node scripts/land-cut.mjs D:/pytxo-film/take-N
+npx remotion render src/index.ts PytxoLand out/pytxo-land-1.3.1.mp4 --codec=h264 --crf=17 --pixel-format=yuv420p --color-space=bt709 --concurrency=2
+```
+
+`public/land/` (the take proxy) is ignored by git; rebuild it from the take.
+
 ## Live film v8 - October 10
 
 Current direction: **`PytxoLive`** cut from one native journey take of the

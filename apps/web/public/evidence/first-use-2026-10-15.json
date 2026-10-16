@@ -1,0 +1,1549 @@
+{
+  "schema": "pytxo.evidence/v1",
+  "recorded": "2026-10-15",
+  "build": "Pytxo CLI 1.3.0 installed from npm (npm i -g pytxo@1.3.0); the 1.3.1 failure lines come from replays of the same branches on a debug build of the branch that became 1.3.1",
+  "host": {
+    "os": "Windows 11 Home",
+    "ram_gb": 15.5,
+    "node": "26.10",
+    "npm": "11.18",
+    "git": "2.53"
+  },
+  "repo": {
+    "name": "lukeed/mri",
+    "url": "https://github.com/lukeed/mri",
+    "base": "62b9ce4f25e1f7b476c99858c20882d86c010085",
+    "tests": "tape, 84 assertions; no lockfile, so every check installs dependencies",
+    "cold_npm_install_seconds": 40.5
+  },
+  "agents": [
+    {
+      "cli": "Claude Code 2.1.299",
+      "invocation": "claude -p --dangerously-skip-permissions"
+    },
+    {
+      "cli": "Codex CLI 0.159.3",
+      "invocation": "codex exec -s workspace-write",
+      "note": "the sandbox keeps .git read-only, so Codex's changes were committed by hand with the agent's own message"
+    }
+  ],
+  "fresh_state": "each run used a fresh npm prefix, a fresh PYTXO_HOME and a clean clone",
+  "runs": [
+    {
+      "name": "run 1: two features on the same parser",
+      "branches": [
+        {
+          "ref": "claude/double-dash",
+          "agent": "Claude Code",
+          "agent_seconds": 79,
+          "commit": "9439706",
+          "task": "add minimist-compatible options['--']"
+        },
+        {
+          "ref": "codex/empty-value",
+          "agent": "Codex",
+          "agent_seconds": 190,
+          "commit": "d8583a1",
+          "task": "make --key= an empty string"
+        }
+      ],
+      "steps": [
+        {
+          "command": "npm i -g pytxo@1.3.0",
+          "seconds": 22.7,
+          "exit_code": 0
+        },
+        {
+          "command": "pytxo --version",
+          "seconds": 0.3,
+          "exit_code": 0
+        },
+        {
+          "command": "pytxo doctor",
+          "seconds": 1.0,
+          "exit_code": 0
+        },
+        {
+          "command": "pytxo land claude:claude/double-dash codex:codex/empty-value --per-input --check \"npm test\"",
+          "seconds": 10.4,
+          "exit_code": 2,
+          "receipt": "rcpt_20261015T090604Z_ffc851a9",
+          "decision": "BLOCKED",
+          "checks": [
+            {
+              "scope": "input:claude/double-dash",
+              "passed": false,
+              "exit_code": 1,
+              "seconds": 1.8
+            },
+            {
+              "scope": "input:codex/empty-value",
+              "passed": false,
+              "exit_code": 1,
+              "seconds": 1.7
+            },
+            {
+              "scope": "combined",
+              "passed": false,
+              "exit_code": 1,
+              "seconds": 1.8
+            }
+          ]
+        },
+        {
+          "command": "pytxo receipts show rcpt_20261015T090604Z_ffc851a9",
+          "seconds": 0.5,
+          "exit_code": 0
+        },
+        {
+          "command": "pytxo land claude:claude/double-dash codex:codex/empty-value --per-input --check \"npm ci && npm test\"",
+          "seconds": 13.7,
+          "exit_code": 2,
+          "receipt": "rcpt_20261015T090648Z_8c186b70",
+          "decision": "BLOCKED",
+          "checks": [
+            {
+              "scope": "input:claude/double-dash",
+              "passed": false,
+              "exit_code": 1,
+              "seconds": 2.1
+            },
+            {
+              "scope": "input:codex/empty-value",
+              "passed": false,
+              "exit_code": 1,
+              "seconds": 2.9
+            },
+            {
+              "scope": "combined",
+              "passed": false,
+              "exit_code": 1,
+              "seconds": 2.9
+            }
+          ]
+        },
+        {
+          "command": "pytxo land claude:claude/double-dash codex:codex/empty-value --per-input --check \"npm install && npm test\"",
+          "seconds": 73.1,
+          "exit_code": 0,
+          "receipt": "rcpt_20261015T090719Z_dc5edba8",
+          "decision": "READY",
+          "checks": [
+            {
+              "scope": "input:claude/double-dash",
+              "passed": true,
+              "exit_code": 0,
+              "seconds": 24.7
+            },
+            {
+              "scope": "input:codex/empty-value",
+              "passed": true,
+              "exit_code": 0,
+              "seconds": 6.9
+            },
+            {
+              "scope": "combined",
+              "passed": true,
+              "exit_code": 0,
+              "seconds": 22.3
+            }
+          ]
+        }
+      ],
+      "install_to_correct_decision_seconds": 96.1,
+      "note": "The first two checks were wrong, not the branches: a fresh worktree has no node_modules and mri has no lockfile. 1.3.0 printed no reason; 1.3.1 prints the failing line and suggests --check \"npm install && npm test\"."
+    },
+    {
+      "name": "run 2: a rename against a new caller",
+      "branches": [
+        {
+          "ref": "claude/rename-helper",
+          "agent": "Claude Code",
+          "agent_seconds": 70,
+          "commit": "2534fe2",
+          "task": "rename the internal helper toVal to assign"
+        },
+        {
+          "ref": "codex/negated-flags",
+          "agent": "Codex",
+          "agent_seconds": 200,
+          "commit": "ec1701b",
+          "task": "route --no-<flag> through toVal"
+        }
+      ],
+      "steps": [
+        {
+          "command": "npm i -g pytxo@1.3.0",
+          "seconds": 29.9,
+          "exit_code": 0
+        },
+        {
+          "command": "pytxo --version",
+          "seconds": 0.4,
+          "exit_code": 0
+        },
+        {
+          "command": "pytxo land claude:claude/rename-helper codex:codex/negated-flags --check \"npm install && npm test\" --per-input",
+          "seconds": 79.0,
+          "exit_code": 2,
+          "receipt": "rcpt_20261015T091341Z_46b507d4",
+          "decision": "BLOCKED",
+          "checks": [
+            {
+              "scope": "input:claude/rename-helper",
+              "passed": true,
+              "exit_code": 0,
+              "seconds": 28.6
+            },
+            {
+              "scope": "input:codex/negated-flags",
+              "passed": true,
+              "exit_code": 0,
+              "seconds": 7.5
+            },
+            {
+              "scope": "combined",
+              "passed": false,
+              "exit_code": 1,
+              "seconds": 23.5
+            }
+          ]
+        },
+        {
+          "command": "git switch -q codex/negated-flags && git rebase -q claude/rename-helper",
+          "seconds": 0.6,
+          "exit_code": 0
+        },
+        {
+          "command": "(edit: toVal( -> assign( on the negated-flag line) git commit -q -am \"Call assign() after the toVal rename\"",
+          "seconds": 0.6,
+          "exit_code": 0
+        },
+        {
+          "command": "pytxo land claude:claude/rename-helper codex:codex/negated-flags --check \"npm install && npm test\" --per-input",
+          "seconds": 68.9,
+          "exit_code": 0,
+          "receipt": "rcpt_20261015T091557Z_31935c7f",
+          "decision": "READY",
+          "checks": [
+            {
+              "scope": "input:claude/rename-helper",
+              "passed": true,
+              "exit_code": 0,
+              "seconds": 17.0
+            },
+            {
+              "scope": "input:codex/negated-flags",
+              "passed": true,
+              "exit_code": 0,
+              "seconds": 5.6
+            },
+            {
+              "scope": "combined",
+              "passed": true,
+              "exit_code": 0,
+              "seconds": 26.0
+            }
+          ]
+        },
+        {
+          "command": "pytxo land claude:claude/rename-helper codex:codex/negated-flags --check \"npm install && npm test\" --per-input --apply",
+          "seconds": 57.0,
+          "exit_code": 0,
+          "receipt": "rcpt_20261015T091727Z_39fac8c3",
+          "decision": "LANDED",
+          "checks": [
+            {
+              "scope": "input:claude/rename-helper",
+              "passed": true,
+              "exit_code": 0,
+              "seconds": 17.3
+            },
+            {
+              "scope": "input:codex/negated-flags",
+              "passed": true,
+              "exit_code": 0,
+              "seconds": 5.5
+            },
+            {
+              "scope": "combined",
+              "passed": true,
+              "exit_code": 0,
+              "seconds": 16.8
+            }
+          ]
+        },
+        {
+          "command": "pytxo receipts",
+          "seconds": 0.6,
+          "exit_code": 0
+        },
+        {
+          "command": "pytxo receipts share rcpt_20261015T091727Z_39fac8c3",
+          "seconds": 0.6,
+          "exit_code": 1
+        }
+      ],
+      "landed_commit": "ddae178",
+      "note": "Each branch passed alone; together the new caller called a function the other branch had renamed. The fix commit is 0a1447b. Sharing the landed receipt needs pytxo login, which timed out without a browser approval, so no shared receipt link exists."
+    }
+  ],
+  "replays_on_1_3_1": [
+    {
+      "of": "run 1, --check \"npm test\"",
+      "receipt_id": "rcpt_20261015T093217Z_f83a65b0",
+      "printed": "'bundt' is not recognized as an internal or external command, (under each FAIL), plus: the check failed on every input alone, install dependencies in the check"
+    },
+    {
+      "of": "run 1, no --check",
+      "receipt_id": "rcpt_20261015T093247Z_ed409233",
+      "printed": "No checks ran. Pass --check \"npm install && npm test\" (suggested, not run)"
+    },
+    {
+      "of": "run 2, breaking pair",
+      "receipt_id": "rcpt_20261015T093312Z_1d0cb56c",
+      "printed": "ReferenceError: toVal is not defined (under the combined FAIL)"
+    }
+  ],
+  "limits": [
+    "Two runs on one small repository on one Windows host. Not a benchmark and not a rate.",
+    "Times are command times only; reading output and fixing code are not included.",
+    "npm's package cache was warm for the land checks; a cold npm install took 40.5 s.",
+    "The runs used 1.3.0. Failure lines quoted from 1.3.1 come from replays of the same branches on a 1.3.1 debug build.",
+    "Checks passing means these commands passed on these exact files, not that the code is correct."
+  ],
+  "redaction": "Receipts are copied verbatim except user-profile paths in check output (C:\\Users\\<user>). Each receipt's content_digest refers to the unredacted original.",
+  "receipts": {
+    "rcpt_20261015T090604Z_ffc851a9": {
+      "_type": "https://in-toto.io/Statement/v1",
+      "subject": [
+        {
+          "name": "git:master",
+          "digest": {
+            "gitCommit": "bdc7b31486c27ef14b5cebf722d7fe6a39ad81bd"
+          }
+        }
+      ],
+      "predicateType": "https://pytxo.com/receipt/v1",
+      "predicate": {
+        "id": "rcpt_20261015T090604Z_ffc851a9",
+        "kind": "land",
+        "created_at": "2026-10-15T09:06:11Z",
+        "pytxo_version": "1.3.0",
+        "decision": "blocked",
+        "mode": "shadow",
+        "target": "master",
+        "base": "62b9ce4f25e1f7b476c99858c20882d86c010085",
+        "result": "bdc7b31486c27ef14b5cebf722d7fe6a39ad81bd",
+        "inputs": [
+          {
+            "ref": "claude/double-dash",
+            "agent": "claude",
+            "commit": "9439706ababcf65dcee6c0ff41fd472d6c8df80f",
+            "status": "merged",
+            "files": [
+              "index.d.ts",
+              "readme.md",
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          },
+          {
+            "ref": "codex/empty-value",
+            "agent": "codex",
+            "commit": "d8583a190bffdfc14d81d3cef03172a3fc1cde6b",
+            "status": "merged",
+            "files": [
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          }
+        ],
+        "files_changed": 4,
+        "shared_files": [
+          {
+            "path": "src/index.js",
+            "inputs": [
+              "claude/double-dash",
+              "codex/empty-value"
+            ],
+            "symbol_collisions": []
+          },
+          {
+            "path": "test/index.js",
+            "inputs": [
+              "claude/double-dash",
+              "codex/empty-value"
+            ],
+            "symbol_collisions": []
+          }
+        ],
+        "checks": [
+          {
+            "scope": "input:claude/double-dash",
+            "command": "npm test",
+            "exit_code": 1,
+            "passed": false,
+            "duration_ms": 1759,
+            "timed_out": false,
+            "output_tail": [
+              "> mri@1.2.0 pretest",
+              "> npm run build",
+              "> mri@1.2.0 build",
+              "> bundt",
+              "'bundt' is not recognized as an internal or external command,",
+              "operable program or batch file."
+            ]
+          },
+          {
+            "scope": "input:codex/empty-value",
+            "command": "npm test",
+            "exit_code": 1,
+            "passed": false,
+            "duration_ms": 1677,
+            "timed_out": false,
+            "output_tail": [
+              "> mri@1.2.0 pretest",
+              "> npm run build",
+              "> mri@1.2.0 build",
+              "> bundt",
+              "'bundt' is not recognized as an internal or external command,",
+              "operable program or batch file."
+            ]
+          },
+          {
+            "scope": "combined",
+            "command": "npm test",
+            "exit_code": 1,
+            "passed": false,
+            "duration_ms": 1841,
+            "timed_out": false,
+            "output_tail": [
+              "> mri@1.2.0 pretest",
+              "> npm run build",
+              "> mri@1.2.0 build",
+              "> bundt",
+              "'bundt' is not recognized as an internal or external command,",
+              "operable program or batch file."
+            ]
+          }
+        ],
+        "reasons": [
+          "combined check failed: npm test (exit 1)"
+        ],
+        "duration_ms": 10040,
+        "content_digest": "sha256:f856c4f589d2b33de7b079e8d65827e310771ee6f8de8876ee0629acc65d0001"
+      }
+    },
+    "rcpt_20261015T090648Z_8c186b70": {
+      "_type": "https://in-toto.io/Statement/v1",
+      "subject": [
+        {
+          "name": "git:master",
+          "digest": {
+            "gitCommit": "c742609848c71cee3945b59e0be8502053c2f643"
+          }
+        }
+      ],
+      "predicateType": "https://pytxo.com/receipt/v1",
+      "predicate": {
+        "id": "rcpt_20261015T090648Z_8c186b70",
+        "kind": "land",
+        "created_at": "2026-10-15T09:06:59Z",
+        "pytxo_version": "1.3.0",
+        "decision": "blocked",
+        "mode": "shadow",
+        "target": "master",
+        "base": "62b9ce4f25e1f7b476c99858c20882d86c010085",
+        "result": "c742609848c71cee3945b59e0be8502053c2f643",
+        "inputs": [
+          {
+            "ref": "claude/double-dash",
+            "agent": "claude",
+            "commit": "9439706ababcf65dcee6c0ff41fd472d6c8df80f",
+            "status": "merged",
+            "files": [
+              "index.d.ts",
+              "readme.md",
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          },
+          {
+            "ref": "codex/empty-value",
+            "agent": "codex",
+            "commit": "d8583a190bffdfc14d81d3cef03172a3fc1cde6b",
+            "status": "merged",
+            "files": [
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          }
+        ],
+        "files_changed": 4,
+        "shared_files": [
+          {
+            "path": "src/index.js",
+            "inputs": [
+              "claude/double-dash",
+              "codex/empty-value"
+            ],
+            "symbol_collisions": []
+          },
+          {
+            "path": "test/index.js",
+            "inputs": [
+              "claude/double-dash",
+              "codex/empty-value"
+            ],
+            "symbol_collisions": []
+          }
+        ],
+        "checks": [
+          {
+            "scope": "input:claude/double-dash",
+            "command": "npm ci && npm test",
+            "exit_code": 1,
+            "passed": false,
+            "duration_ms": 2093,
+            "timed_out": false,
+            "output_tail": [
+              "npm error     Limits the ability for npm to fetch dependencies from urls.",
+              "npm error",
+              "npm error   --allow-scripts",
+              "npm error     Comma-separated list of packages whose install-time lifecycle scripts",
+              "npm error",
+              "npm error   --strict-allow-scripts",
+              "npm error     If `true`, turn the install-script policy from a warning into a hard",
+              "npm error",
+              "npm error   --dangerously-allow-all-scripts",
+              "npm error     If `true`, bypass the `allowScripts` policy entirely and run every",
+              "npm error",
+              "npm error   --audit",
+              "npm error     When \"true\" submit audit reports alongside the current npm command to the",
+              "npm error",
+              "npm error   --bin-links",
+              "npm error     Tells npm to create symlinks (or `.cmd` shims on Windows) for package",
+              "npm error",
+              "npm error   --fund",
+              "npm error     When \"true\" displays the message at the end of each `npm install`",
+              "npm error",
+              "npm error   --dry-run",
+              "npm error     Indicates that you don't want npm to make any changes and that it should",
+              "npm error",
+              "npm error   -w|--workspace",
+              "npm error     Enable running a command in the context of the configured workspaces of the",
+              "npm error",
+              "npm error   --workspaces",
+              "npm error     Set to true to run the command in the context of **all** configured",
+              "npm error",
+              "npm error   --include-workspace-root",
+              "npm error     Include the workspace root when workspaces are enabled for a command.",
+              "npm error",
+              "npm error   --install-links",
+              "npm error     When set file: protocol dependencies will be packed and installed as",
+              "npm error",
+              "npm error",
+              "npm error aliases: clean-install, ic, install-clean, isntall-clean",
+              "npm error",
+              "npm error Run \"npm help ci\" for more info",
+              "npm error A complete log of this run can be found in: C:\\Users\\<user>\\scoop\\persist\\nodejs\\cache\\_logs\\2026-10-15T09_06_50_489Z-debug-0.log"
+            ]
+          },
+          {
+            "scope": "input:codex/empty-value",
+            "command": "npm ci && npm test",
+            "exit_code": 1,
+            "passed": false,
+            "duration_ms": 2890,
+            "timed_out": false,
+            "output_tail": [
+              "npm error     Limits the ability for npm to fetch dependencies from urls.",
+              "npm error",
+              "npm error   --allow-scripts",
+              "npm error     Comma-separated list of packages whose install-time lifecycle scripts",
+              "npm error",
+              "npm error   --strict-allow-scripts",
+              "npm error     If `true`, turn the install-script policy from a warning into a hard",
+              "npm error",
+              "npm error   --dangerously-allow-all-scripts",
+              "npm error     If `true`, bypass the `allowScripts` policy entirely and run every",
+              "npm error",
+              "npm error   --audit",
+              "npm error     When \"true\" submit audit reports alongside the current npm command to the",
+              "npm error",
+              "npm error   --bin-links",
+              "npm error     Tells npm to create symlinks (or `.cmd` shims on Windows) for package",
+              "npm error",
+              "npm error   --fund",
+              "npm error     When \"true\" displays the message at the end of each `npm install`",
+              "npm error",
+              "npm error   --dry-run",
+              "npm error     Indicates that you don't want npm to make any changes and that it should",
+              "npm error",
+              "npm error   -w|--workspace",
+              "npm error     Enable running a command in the context of the configured workspaces of the",
+              "npm error",
+              "npm error   --workspaces",
+              "npm error     Set to true to run the command in the context of **all** configured",
+              "npm error",
+              "npm error   --include-workspace-root",
+              "npm error     Include the workspace root when workspaces are enabled for a command.",
+              "npm error",
+              "npm error   --install-links",
+              "npm error     When set file: protocol dependencies will be packed and installed as",
+              "npm error",
+              "npm error",
+              "npm error aliases: clean-install, ic, install-clean, isntall-clean",
+              "npm error",
+              "npm error Run \"npm help ci\" for more info",
+              "npm error A complete log of this run can be found in: C:\\Users\\<user>\\scoop\\persist\\nodejs\\cache\\_logs\\2026-10-15T09_06_53_371Z-debug-0.log"
+            ]
+          },
+          {
+            "scope": "combined",
+            "command": "npm ci && npm test",
+            "exit_code": 1,
+            "passed": false,
+            "duration_ms": 2889,
+            "timed_out": false,
+            "output_tail": [
+              "npm error     Limits the ability for npm to fetch dependencies from urls.",
+              "npm error",
+              "npm error   --allow-scripts",
+              "npm error     Comma-separated list of packages whose install-time lifecycle scripts",
+              "npm error",
+              "npm error   --strict-allow-scripts",
+              "npm error     If `true`, turn the install-script policy from a warning into a hard",
+              "npm error",
+              "npm error   --dangerously-allow-all-scripts",
+              "npm error     If `true`, bypass the `allowScripts` policy entirely and run every",
+              "npm error",
+              "npm error   --audit",
+              "npm error     When \"true\" submit audit reports alongside the current npm command to the",
+              "npm error",
+              "npm error   --bin-links",
+              "npm error     Tells npm to create symlinks (or `.cmd` shims on Windows) for package",
+              "npm error",
+              "npm error   --fund",
+              "npm error     When \"true\" displays the message at the end of each `npm install`",
+              "npm error",
+              "npm error   --dry-run",
+              "npm error     Indicates that you don't want npm to make any changes and that it should",
+              "npm error",
+              "npm error   -w|--workspace",
+              "npm error     Enable running a command in the context of the configured workspaces of the",
+              "npm error",
+              "npm error   --workspaces",
+              "npm error     Set to true to run the command in the context of **all** configured",
+              "npm error",
+              "npm error   --include-workspace-root",
+              "npm error     Include the workspace root when workspaces are enabled for a command.",
+              "npm error",
+              "npm error   --install-links",
+              "npm error     When set file: protocol dependencies will be packed and installed as",
+              "npm error",
+              "npm error",
+              "npm error aliases: clean-install, ic, install-clean, isntall-clean",
+              "npm error",
+              "npm error Run \"npm help ci\" for more info",
+              "npm error A complete log of this run can be found in: C:\\Users\\<user>\\scoop\\persist\\nodejs\\cache\\_logs\\2026-10-15T09_06_56_780Z-debug-0.log"
+            ]
+          }
+        ],
+        "reasons": [
+          "combined check failed: npm ci && npm test (exit 1)"
+        ],
+        "duration_ms": 13406,
+        "content_digest": "sha256:235ec8d26becda05fb56207710f777018f447f79755656b8731018579d0bb2a1"
+      }
+    },
+    "rcpt_20261015T090719Z_dc5edba8": {
+      "_type": "https://in-toto.io/Statement/v1",
+      "subject": [
+        {
+          "name": "git:master",
+          "digest": {
+            "gitCommit": "05a71c0541e549370b02309bbc1c707c5d72d578"
+          }
+        }
+      ],
+      "predicateType": "https://pytxo.com/receipt/v1",
+      "predicate": {
+        "id": "rcpt_20261015T090719Z_dc5edba8",
+        "kind": "land",
+        "created_at": "2026-10-15T09:08:29Z",
+        "pytxo_version": "1.3.0",
+        "decision": "ready",
+        "mode": "shadow",
+        "target": "master",
+        "base": "62b9ce4f25e1f7b476c99858c20882d86c010085",
+        "result": "05a71c0541e549370b02309bbc1c707c5d72d578",
+        "inputs": [
+          {
+            "ref": "claude/double-dash",
+            "agent": "claude",
+            "commit": "9439706ababcf65dcee6c0ff41fd472d6c8df80f",
+            "status": "merged",
+            "files": [
+              "index.d.ts",
+              "readme.md",
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          },
+          {
+            "ref": "codex/empty-value",
+            "agent": "codex",
+            "commit": "d8583a190bffdfc14d81d3cef03172a3fc1cde6b",
+            "status": "merged",
+            "files": [
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          }
+        ],
+        "files_changed": 4,
+        "shared_files": [
+          {
+            "path": "src/index.js",
+            "inputs": [
+              "claude/double-dash",
+              "codex/empty-value"
+            ],
+            "symbol_collisions": []
+          },
+          {
+            "path": "test/index.js",
+            "inputs": [
+              "claude/double-dash",
+              "codex/empty-value"
+            ],
+            "symbol_collisions": []
+          }
+        ],
+        "checks": [
+          {
+            "scope": "input:claude/double-dash",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 24682,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  options[--]",
+              "    √ default unchanged",
+              "    √ should be equivalent",
+              "    √ empty array w/o --",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     87",
+              "  passing:   87",
+              "  duration:  1s"
+            ]
+          },
+          {
+            "scope": "input:codex/empty-value",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 6915,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     93",
+              "  passing:   93",
+              "  duration:  288ms"
+            ]
+          },
+          {
+            "scope": "combined",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 22283,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  options[--]",
+              "    √ default unchanged",
+              "    √ should be equivalent",
+              "    √ empty array w/o --",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     96",
+              "  passing:   96",
+              "  duration:  1.1s"
+            ]
+          }
+        ],
+        "reasons": [],
+        "duration_ms": 72675,
+        "content_digest": "sha256:8e48f1efe90bf75388ee101bb91336d96e8b86412602c219eb52ec43a1792caa"
+      }
+    },
+    "rcpt_20261015T091341Z_46b507d4": {
+      "_type": "https://in-toto.io/Statement/v1",
+      "subject": [
+        {
+          "name": "git:master",
+          "digest": {
+            "gitCommit": "975c7d6cbf4f15dbcec5cd07e9602e01e1d6f8a6"
+          }
+        }
+      ],
+      "predicateType": "https://pytxo.com/receipt/v1",
+      "predicate": {
+        "id": "rcpt_20261015T091341Z_46b507d4",
+        "kind": "land",
+        "created_at": "2026-10-15T09:14:57Z",
+        "pytxo_version": "1.3.0",
+        "decision": "blocked",
+        "mode": "shadow",
+        "target": "master",
+        "base": "62b9ce4f25e1f7b476c99858c20882d86c010085",
+        "result": "975c7d6cbf4f15dbcec5cd07e9602e01e1d6f8a6",
+        "inputs": [
+          {
+            "ref": "claude/rename-helper",
+            "agent": "claude",
+            "commit": "2534fe2e987ae622aa40105550c88d414f47f8ff",
+            "status": "merged",
+            "files": [
+              "src/index.js"
+            ],
+            "conflict_files": []
+          },
+          {
+            "ref": "codex/negated-flags",
+            "agent": "codex",
+            "commit": "ec1701b7f66500b772043a22bdd1c2f5f4b7d1bf",
+            "status": "merged",
+            "files": [
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          }
+        ],
+        "files_changed": 2,
+        "shared_files": [
+          {
+            "path": "src/index.js",
+            "inputs": [
+              "claude/rename-helper",
+              "codex/negated-flags"
+            ],
+            "symbol_collisions": []
+          }
+        ],
+        "checks": [
+          {
+            "scope": "input:claude/rename-helper",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 28637,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     84",
+              "  passing:   84",
+              "  duration:  977ms"
+            ]
+          },
+          {
+            "scope": "input:codex/negated-flags",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 7454,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     93",
+              "  passing:   93",
+              "  duration:  340ms"
+            ]
+          },
+          {
+            "scope": "combined",
+            "command": "npm install && npm test",
+            "exit_code": 1,
+            "passed": false,
+            "duration_ms": 23476,
+            "timed_out": false,
+            "output_tail": [
+              "npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.",
+              "npm warn deprecated trim@0.0.1: Use String.prototype.trim() instead",
+              "npm warn deprecated glob@7.1.7: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me",
+              "added 165 packages, and audited 166 packages in 17s",
+              "81 packages are looking for funding",
+              "  run `npm fund` for details",
+              "4 vulnerabilities (3 high, 1 critical)",
+              "To address all issues (including breaking changes), run:",
+              "  npm audit fix --force",
+              "Run `npm audit` for details.",
+              "> mri@1.2.0 pretest",
+              "> npm run build",
+              "> mri@1.2.0 build",
+              "> bundt",
+              "Filename             Filesize  (gzip)",
+              "lib\\index.js          1.68 kB  795 B ",
+              "lib\\index.mjs         1.68 kB  790 B ",
+              "> mri@1.2.0 test",
+              "> tape test/*.js | tap-spec",
+              "C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261015t091341z_46b507d4\\lib\\index.js:83",
+              "\t\t\ttoVal(out, name, false, opts);",
+              "\t\t\t^",
+              "ReferenceError: toVal is not defined",
+              "    at module.exports (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261015t091341z_46b507d4\\lib\\index.js:83:4)",
+              "    at Test.<anonymous> (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261015t091341z_46b507d4\\test\\index.js:5:15)",
+              "    at Test.bound [as _cb] (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261015t091341z_46b507d4\\node_modules\\tape\\lib\\test.js:80:32)",
+              "    at Test.run (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261015t091341z_46b507d4\\node_modules\\tape\\lib\\test.js:96:10)",
+              "    at Test.bound [as run] (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261015t091341z_46b507d4\\node_modules\\tape\\lib\\test.js:80:32)",
+              "    at Immediate.next (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261015t091341z_46b507d4\\node_modules\\tape\\lib\\results.js:83:19)",
+              "    at process.processImmediate (node:internal/timers:574:21)",
+              "Node.js v26.10.0",
+              "  parse args"
+            ]
+          }
+        ],
+        "reasons": [
+          "combined check failed: npm install && npm test (exit 1)"
+        ],
+        "duration_ms": 78528,
+        "content_digest": "sha256:15247670a8a87bf0acb162241d0aa60a86794e07b587dd61aacca0ae8c2d01c4"
+      }
+    },
+    "rcpt_20261015T091557Z_31935c7f": {
+      "_type": "https://in-toto.io/Statement/v1",
+      "subject": [
+        {
+          "name": "git:master",
+          "digest": {
+            "gitCommit": "e106b390c481c5a6ac05cbe3cd16b9de6cd751eb"
+          }
+        }
+      ],
+      "predicateType": "https://pytxo.com/receipt/v1",
+      "predicate": {
+        "id": "rcpt_20261015T091557Z_31935c7f",
+        "kind": "land",
+        "created_at": "2026-10-15T09:17:03Z",
+        "pytxo_version": "1.3.0",
+        "decision": "ready",
+        "mode": "shadow",
+        "target": "master",
+        "base": "62b9ce4f25e1f7b476c99858c20882d86c010085",
+        "result": "e106b390c481c5a6ac05cbe3cd16b9de6cd751eb",
+        "inputs": [
+          {
+            "ref": "claude/rename-helper",
+            "agent": "claude",
+            "commit": "2534fe2e987ae622aa40105550c88d414f47f8ff",
+            "status": "merged",
+            "files": [
+              "src/index.js"
+            ],
+            "conflict_files": []
+          },
+          {
+            "ref": "codex/negated-flags",
+            "agent": "codex",
+            "commit": "0a1447be39f82181a0caaaa739caa02e6affca52",
+            "status": "merged",
+            "files": [
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          }
+        ],
+        "files_changed": 2,
+        "shared_files": [
+          {
+            "path": "src/index.js",
+            "inputs": [
+              "claude/rename-helper",
+              "codex/negated-flags"
+            ],
+            "symbol_collisions": [
+              {
+                "symbol": "assign",
+                "inputs": [
+                  "claude/rename-helper",
+                  "codex/negated-flags"
+                ]
+              },
+              {
+                "symbol": "toVal",
+                "inputs": [
+                  "claude/rename-helper",
+                  "codex/negated-flags"
+                ]
+              }
+            ]
+          }
+        ],
+        "checks": [
+          {
+            "scope": "input:claude/rename-helper",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 16955,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     84",
+              "  passing:   84",
+              "  duration:  871ms"
+            ]
+          },
+          {
+            "scope": "input:codex/negated-flags",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 5640,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     93",
+              "  passing:   93",
+              "  duration:  236ms"
+            ]
+          },
+          {
+            "scope": "combined",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 26022,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     93",
+              "  passing:   93",
+              "  duration:  1.2s"
+            ]
+          }
+        ],
+        "reasons": [],
+        "duration_ms": 68582,
+        "content_digest": "sha256:f1a6db4f7fe5a052b3ec5ed913be2c9de116753f71300f42b1220aa96f843bc9"
+      }
+    },
+    "rcpt_20261015T091727Z_39fac8c3": {
+      "_type": "https://in-toto.io/Statement/v1",
+      "subject": [
+        {
+          "name": "git:master",
+          "digest": {
+            "gitCommit": "ddae1782559be6c944a204303b0bbba93f630a48"
+          }
+        }
+      ],
+      "predicateType": "https://pytxo.com/receipt/v1",
+      "predicate": {
+        "id": "rcpt_20261015T091727Z_39fac8c3",
+        "kind": "land",
+        "created_at": "2026-10-15T09:18:20Z",
+        "pytxo_version": "1.3.0",
+        "decision": "landed",
+        "mode": "apply",
+        "target": "master",
+        "base": "62b9ce4f25e1f7b476c99858c20882d86c010085",
+        "result": "ddae1782559be6c944a204303b0bbba93f630a48",
+        "inputs": [
+          {
+            "ref": "claude/rename-helper",
+            "agent": "claude",
+            "commit": "2534fe2e987ae622aa40105550c88d414f47f8ff",
+            "status": "merged",
+            "files": [
+              "src/index.js"
+            ],
+            "conflict_files": []
+          },
+          {
+            "ref": "codex/negated-flags",
+            "agent": "codex",
+            "commit": "0a1447be39f82181a0caaaa739caa02e6affca52",
+            "status": "merged",
+            "files": [
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          }
+        ],
+        "files_changed": 2,
+        "shared_files": [
+          {
+            "path": "src/index.js",
+            "inputs": [
+              "claude/rename-helper",
+              "codex/negated-flags"
+            ],
+            "symbol_collisions": [
+              {
+                "symbol": "assign",
+                "inputs": [
+                  "claude/rename-helper",
+                  "codex/negated-flags"
+                ]
+              },
+              {
+                "symbol": "toVal",
+                "inputs": [
+                  "claude/rename-helper",
+                  "codex/negated-flags"
+                ]
+              }
+            ]
+          }
+        ],
+        "checks": [
+          {
+            "scope": "input:claude/rename-helper",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 17295,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     84",
+              "  passing:   84",
+              "  duration:  876ms"
+            ]
+          },
+          {
+            "scope": "input:codex/negated-flags",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 5530,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     93",
+              "  passing:   93",
+              "  duration:  235ms"
+            ]
+          },
+          {
+            "scope": "combined",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 16802,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     93",
+              "  passing:   93",
+              "  duration:  846ms"
+            ]
+          }
+        ],
+        "reasons": [],
+        "duration_ms": 56551,
+        "content_digest": "sha256:2470542e42ae1fcb9b23edc1f5a0efbc74916dfac1ea85e50e0996275f8b8c27"
+      }
+    }
+  }
+}

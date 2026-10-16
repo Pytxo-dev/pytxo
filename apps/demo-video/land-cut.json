@@ -1,0 +1,420 @@
+{
+  "width": 1586,
+  "height": 960,
+  "fps": 30,
+  "offset": 1792166174.335,
+  "landed": "8f13795",
+  "commands": [
+    {
+      "label": "install",
+      "exit": 0,
+      "seconds": 51.2
+    },
+    {
+      "label": "version",
+      "exit": 0,
+      "seconds": 1.3
+    },
+    {
+      "label": "branches",
+      "exit": 0,
+      "seconds": 0.4
+    },
+    {
+      "label": "land-blocked",
+      "exit": 2,
+      "seconds": 57.7
+    },
+    {
+      "label": "fix-rebase",
+      "exit": 0,
+      "seconds": 0.8
+    },
+    {
+      "label": "fix-edit",
+      "exit": 0,
+      "seconds": 0.5
+    },
+    {
+      "label": "fix-commit",
+      "exit": 0,
+      "seconds": 0.7
+    },
+    {
+      "label": "land-ready",
+      "exit": 0,
+      "seconds": 58.4
+    },
+    {
+      "label": "land-apply",
+      "exit": 0,
+      "seconds": 56
+    },
+    {
+      "label": "graph",
+      "exit": 0,
+      "seconds": 0.3
+    },
+    {
+      "label": "receipts",
+      "exit": 0,
+      "seconds": 1.5
+    }
+  ],
+  "shots": [
+    {
+      "label": "install",
+      "beat": "install",
+      "part": "type",
+      "start": 4.527,
+      "end": 6.1000000000000005,
+      "speed": 1.6,
+      "focus": null
+    },
+    {
+      "label": "install",
+      "beat": "install",
+      "part": "run",
+      "start": 6.1000000000000005,
+      "end": 57.068999999999996,
+      "speed": 23.17,
+      "focus": null
+    },
+    {
+      "label": "install",
+      "beat": "install",
+      "part": "hold",
+      "start": 57.219,
+      "end": 59.469,
+      "speed": 2.812,
+      "focus": null
+    },
+    {
+      "label": "version",
+      "beat": "install",
+      "part": "type",
+      "start": 60.592,
+      "end": 62.207,
+      "speed": 1.6,
+      "focus": null
+    },
+    {
+      "label": "version",
+      "beat": "install",
+      "part": "run",
+      "start": 62.207,
+      "end": 63.296,
+      "speed": 1,
+      "focus": null
+    },
+    {
+      "label": "version",
+      "beat": "install",
+      "part": "hold",
+      "start": 63.446,
+      "end": 65.696,
+      "speed": 1.406,
+      "focus": null
+    },
+    {
+      "label": "branches",
+      "beat": "branches",
+      "part": "type",
+      "start": 66.951,
+      "end": 68.50500000000001,
+      "speed": 1.6,
+      "focus": null
+    },
+    {
+      "label": "branches",
+      "beat": "branches",
+      "part": "run",
+      "start": 68.50500000000001,
+      "end": 68.649,
+      "speed": 1,
+      "focus": null
+    },
+    {
+      "label": "branches",
+      "beat": "branches",
+      "part": "hold",
+      "start": 68.799,
+      "end": 71.049,
+      "speed": 0.703,
+      "focus": null
+    },
+    {
+      "label": "land-blocked",
+      "beat": "blocked",
+      "part": "type",
+      "start": 72.407,
+      "end": 77.034,
+      "speed": 1.6,
+      "focus": null
+    },
+    {
+      "label": "land-blocked",
+      "beat": "blocked",
+      "part": "run",
+      "start": 77.034,
+      "end": 134.467,
+      "speed": 26.11,
+      "focus": null
+    },
+    {
+      "label": "land-blocked",
+      "beat": "blocked",
+      "part": "hold",
+      "start": 134.617,
+      "end": 135.742,
+      "speed": 0.321,
+      "focus": {
+        "x": 0,
+        "y": 360,
+        "w": 1040,
+        "h": 210
+      }
+    },
+    {
+      "label": "land-blocked",
+      "beat": "blocked",
+      "part": "hold",
+      "start": 135.742,
+      "end": 136.867,
+      "speed": 0.321,
+      "focus": {
+        "x": 0,
+        "y": 660,
+        "w": 1352,
+        "h": 90
+      }
+    },
+    {
+      "label": "fix-rebase",
+      "beat": "fix",
+      "part": "type",
+      "start": 138.241,
+      "end": 141.657,
+      "speed": 1.6,
+      "focus": null
+    },
+    {
+      "label": "fix-rebase",
+      "beat": "fix",
+      "part": "run",
+      "start": 141.657,
+      "end": 142.217,
+      "speed": 1,
+      "focus": null
+    },
+    {
+      "label": "fix-rebase",
+      "beat": "fix",
+      "part": "hold",
+      "start": 142.367,
+      "end": 144.617,
+      "speed": 2.813,
+      "focus": null
+    },
+    {
+      "label": "fix-edit",
+      "beat": "fix",
+      "part": "type",
+      "start": 145.657,
+      "end": 148.32,
+      "speed": 1.6,
+      "focus": null
+    },
+    {
+      "label": "fix-edit",
+      "beat": "fix",
+      "part": "run",
+      "start": 148.32,
+      "end": 148.57,
+      "speed": 1,
+      "focus": null
+    },
+    {
+      "label": "fix-edit",
+      "beat": "fix",
+      "part": "hold",
+      "start": 148.72,
+      "end": 150.97,
+      "speed": 0.643,
+      "focus": null
+    },
+    {
+      "label": "fix-commit",
+      "beat": "fix",
+      "part": "type",
+      "start": 152.009,
+      "end": 155.542,
+      "speed": 1.6,
+      "focus": null
+    },
+    {
+      "label": "fix-commit",
+      "beat": "fix",
+      "part": "run",
+      "start": 155.542,
+      "end": 155.94400000000002,
+      "speed": 1,
+      "focus": null
+    },
+    {
+      "label": "fix-commit",
+      "beat": "fix",
+      "part": "hold",
+      "start": 156.094,
+      "end": 158.344,
+      "speed": 1.875,
+      "focus": null
+    },
+    {
+      "label": "land-ready",
+      "beat": "ready",
+      "part": "type",
+      "start": 159.675,
+      "end": 164.198,
+      "speed": 1.6,
+      "focus": null
+    },
+    {
+      "label": "land-ready",
+      "beat": "ready",
+      "part": "run",
+      "start": 164.198,
+      "end": 222.33100000000002,
+      "speed": 26.42,
+      "focus": null
+    },
+    {
+      "label": "land-ready",
+      "beat": "ready",
+      "part": "hold",
+      "start": 222.481,
+      "end": 223.606,
+      "speed": 0.5,
+      "focus": {
+        "x": 0,
+        "y": 360,
+        "w": 1040,
+        "h": 120
+      }
+    },
+    {
+      "label": "land-ready",
+      "beat": "ready",
+      "part": "hold",
+      "start": 223.606,
+      "end": 224.731,
+      "speed": 0.5,
+      "focus": {
+        "x": 0,
+        "y": 630,
+        "w": 1352,
+        "h": 120
+      }
+    },
+    {
+      "label": "land-apply",
+      "beat": "landed",
+      "part": "type",
+      "start": 226.031,
+      "end": 230.874,
+      "speed": 1.6,
+      "focus": null
+    },
+    {
+      "label": "land-apply",
+      "beat": "landed",
+      "part": "run",
+      "start": 230.874,
+      "end": 286.58799999999997,
+      "speed": 25.32,
+      "focus": null
+    },
+    {
+      "label": "land-apply",
+      "beat": "landed",
+      "part": "hold",
+      "start": 286.738,
+      "end": 287.863,
+      "speed": 0.75,
+      "focus": {
+        "x": 0,
+        "y": 360,
+        "w": 1040,
+        "h": 120
+      }
+    },
+    {
+      "label": "land-apply",
+      "beat": "landed",
+      "part": "hold",
+      "start": 287.863,
+      "end": 288.988,
+      "speed": 0.75,
+      "focus": {
+        "x": 0,
+        "y": 630,
+        "w": 1352,
+        "h": 90
+      }
+    },
+    {
+      "label": "graph",
+      "beat": "landed",
+      "part": "type",
+      "start": 290.059,
+      "end": 292.085,
+      "speed": 1.6,
+      "focus": null
+    },
+    {
+      "label": "graph",
+      "beat": "landed",
+      "part": "run",
+      "start": 292.085,
+      "end": 292.16999999999996,
+      "speed": 1,
+      "focus": null
+    },
+    {
+      "label": "graph",
+      "beat": "landed",
+      "part": "hold",
+      "start": 292.32,
+      "end": 294.57,
+      "speed": 0.643,
+      "focus": null
+    },
+    {
+      "label": "receipts",
+      "beat": "receipts",
+      "part": "type",
+      "start": 295.63,
+      "end": 297.17499999999995,
+      "speed": 1.6,
+      "focus": null
+    },
+    {
+      "label": "receipts",
+      "beat": "receipts",
+      "part": "run",
+      "start": 297.17499999999995,
+      "end": 298.445,
+      "speed": 1,
+      "focus": null
+    },
+    {
+      "label": "receipts",
+      "beat": "receipts",
+      "part": "hold",
+      "start": 298.595,
+      "end": 300.845,
+      "speed": 0.643,
+      "focus": null
+    }
+  ]
+}

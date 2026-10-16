@@ -1,0 +1,812 @@
+{
+  "schema": "pytxo.evidence/v1",
+  "recorded": "2026-10-16",
+  "build": "Pytxo CLI 1.3.1, installed from npm (npm i -g pytxo) into a fresh prefix with a fresh PYTXO_HOME",
+  "what": "The run 2 script of the 15 October first-use record, filmed: same base (62b9ce4) and the same agent commits, Claude Code 2534fe2 and Codex ec1701b, in a fresh clone",
+  "film": "apps/demo-video PytxoLand; commands typed on screen by a script and run as typed; output unedited",
+  "steps": [
+    {
+      "command": "npm i -g pytxo",
+      "seconds": 51.2,
+      "exit_code": 0
+    },
+    {
+      "command": "pytxo --version",
+      "seconds": 1.3,
+      "exit_code": 0
+    },
+    {
+      "command": "git branch -v",
+      "seconds": 0.4,
+      "exit_code": 0
+    },
+    {
+      "command": "pytxo land claude:claude/rename-helper codex:codex/negated-flags --check \"npm install && npm test\" --per-input",
+      "seconds": 57.7,
+      "exit_code": 2,
+      "decision": "BLOCKED",
+      "receipt": "rcpt_20261016T155734Z_53cf2fde",
+      "checks": [
+        {
+          "scope": "input:claude/rename-helper",
+          "passed": true,
+          "seconds": 17.3
+        },
+        {
+          "scope": "input:codex/negated-flags",
+          "passed": true,
+          "seconds": 6.4
+        },
+        {
+          "scope": "combined",
+          "passed": false,
+          "seconds": 18.4
+        }
+      ]
+    },
+    {
+      "command": "git switch -q codex/negated-flags && git rebase -q claude/rename-helper",
+      "seconds": 0.8,
+      "exit_code": 0
+    },
+    {
+      "command": "sed -i 's/toVal(/assign(/' src/index.js && git diff",
+      "seconds": 0.5,
+      "exit_code": 0
+    },
+    {
+      "command": "git commit -qam \"Call assign() after the toVal rename\" && git switch -q master",
+      "seconds": 0.7,
+      "exit_code": 0
+    },
+    {
+      "command": "pytxo land claude:claude/rename-helper codex:codex/negated-flags --check \"npm install && npm test\" --per-input",
+      "seconds": 58.4,
+      "exit_code": 0,
+      "decision": "READY",
+      "receipt": "rcpt_20261016T155901Z_ed396da8",
+      "checks": [
+        {
+          "scope": "input:claude/rename-helper",
+          "passed": true,
+          "seconds": 20.1
+        },
+        {
+          "scope": "input:codex/negated-flags",
+          "passed": true,
+          "seconds": 5.8
+        },
+        {
+          "scope": "combined",
+          "passed": true,
+          "seconds": 17.0
+        }
+      ]
+    },
+    {
+      "command": "pytxo land claude:claude/rename-helper codex:codex/negated-flags --check \"npm install && npm test\" --per-input --apply",
+      "seconds": 56.0,
+      "exit_code": 0,
+      "decision": "LANDED",
+      "receipt": "rcpt_20261016T160008Z_b3177396",
+      "checks": [
+        {
+          "scope": "input:claude/rename-helper",
+          "passed": true,
+          "seconds": 17.3
+        },
+        {
+          "scope": "input:codex/negated-flags",
+          "passed": true,
+          "seconds": 5.7
+        },
+        {
+          "scope": "combined",
+          "passed": true,
+          "seconds": 16.6
+        }
+      ]
+    },
+    {
+      "command": "git log --oneline --graph -6",
+      "seconds": 0.3,
+      "exit_code": 0
+    },
+    {
+      "command": "pytxo receipts",
+      "seconds": 1.5,
+      "exit_code": 0
+    }
+  ],
+  "landed_commit": "8f13795",
+  "limits": [
+    "One take on one small repository on one Windows host.",
+    "npm i -g ran on a slow connection; downloading the 29.9 MB binary took most of its time.",
+    "Checks passing means these commands passed on these exact files, not that the code is correct."
+  ],
+  "redaction": "Receipts are verbatim except user-profile paths in check output, shown as <user>; each content_digest refers to the unredacted original.",
+  "receipts": {
+    "rcpt_20261016T155734Z_53cf2fde": {
+      "_type": "https://in-toto.io/Statement/v1",
+      "subject": [
+        {
+          "name": "git:master",
+          "digest": {
+            "gitCommit": "12b6009165cfd5eded35d90a7bfc0fc15156ce8f"
+          }
+        }
+      ],
+      "predicateType": "https://pytxo.com/receipt/v1",
+      "predicate": {
+        "id": "rcpt_20261016T155734Z_53cf2fde",
+        "kind": "land",
+        "created_at": "2026-10-16T15:58:28Z",
+        "pytxo_version": "1.3.1",
+        "decision": "blocked",
+        "mode": "shadow",
+        "target": "master",
+        "base": "62b9ce4f25e1f7b476c99858c20882d86c010085",
+        "result": "12b6009165cfd5eded35d90a7bfc0fc15156ce8f",
+        "inputs": [
+          {
+            "ref": "claude/rename-helper",
+            "agent": "claude",
+            "commit": "2534fe2e987ae622aa40105550c88d414f47f8ff",
+            "status": "merged",
+            "files": [
+              "src/index.js"
+            ],
+            "conflict_files": []
+          },
+          {
+            "ref": "codex/negated-flags",
+            "agent": "codex",
+            "commit": "ec1701b7f66500b772043a22bdd1c2f5f4b7d1bf",
+            "status": "merged",
+            "files": [
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          }
+        ],
+        "files_changed": 2,
+        "shared_files": [
+          {
+            "path": "src/index.js",
+            "inputs": [
+              "claude/rename-helper",
+              "codex/negated-flags"
+            ],
+            "symbol_collisions": [
+              {
+                "symbol": "default",
+                "inputs": [
+                  "claude/rename-helper",
+                  "codex/negated-flags"
+                ]
+              }
+            ]
+          }
+        ],
+        "checks": [
+          {
+            "scope": "input:claude/rename-helper",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 17341,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     84",
+              "  passing:   84",
+              "  duration:  839ms"
+            ]
+          },
+          {
+            "scope": "input:codex/negated-flags",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 6436,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     93",
+              "  passing:   93",
+              "  duration:  267ms"
+            ]
+          },
+          {
+            "scope": "combined",
+            "command": "npm install && npm test",
+            "exit_code": 1,
+            "passed": false,
+            "duration_ms": 18367,
+            "timed_out": false,
+            "output_tail": [
+              "npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.",
+              "npm warn deprecated trim@0.0.1: Use String.prototype.trim() instead",
+              "npm warn deprecated glob@7.1.7: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me",
+              "added 165 packages, and audited 166 packages in 14s",
+              "81 packages are looking for funding",
+              "  run `npm fund` for details",
+              "4 vulnerabilities (3 high, 1 critical)",
+              "To address all issues (including breaking changes), run:",
+              "  npm audit fix --force",
+              "Run `npm audit` for details.",
+              "> mri@1.2.0 pretest",
+              "> npm run build",
+              "> mri@1.2.0 build",
+              "> bundt",
+              "Filename             Filesize  (gzip)",
+              "lib\\index.js          1.68 kB  795 B ",
+              "lib\\index.mjs         1.68 kB  790 B ",
+              "> mri@1.2.0 test",
+              "> tape test/*.js | tap-spec",
+              "C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261016t155734z_53cf2fde\\lib\\index.js:83",
+              "\t\t\ttoVal(out, name, false, opts);",
+              "\t\t\t^",
+              "ReferenceError: toVal is not defined",
+              "    at module.exports (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261016t155734z_53cf2fde\\lib\\index.js:83:4)",
+              "    at Test.<anonymous> (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261016t155734z_53cf2fde\\test\\index.js:5:15)",
+              "    at Test.bound [as _cb] (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261016t155734z_53cf2fde\\node_modules\\tape\\lib\\test.js:80:32)",
+              "    at Test.run (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261016t155734z_53cf2fde\\node_modules\\tape\\lib\\test.js:96:10)",
+              "    at Test.bound [as run] (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261016t155734z_53cf2fde\\node_modules\\tape\\lib\\test.js:80:32)",
+              "    at Immediate.next (C:\\Users\\<user>\\AppData\\Local\\Temp\\pytxo-land-20261016t155734z_53cf2fde\\node_modules\\tape\\lib\\results.js:83:19)",
+              "    at process.processImmediate (node:internal/timers:574:21)",
+              "Node.js v26.10.0",
+              "  parse args"
+            ]
+          }
+        ],
+        "reasons": [
+          "combined check failed: npm install && npm test (exit 1)"
+        ],
+        "duration_ms": 56321,
+        "content_digest": "sha256:afdb41aa75d96ab4f250213d150741dbdadde471ddaff9950244dd7d33bb3c61"
+      }
+    },
+    "rcpt_20261016T155901Z_ed396da8": {
+      "_type": "https://in-toto.io/Statement/v1",
+      "subject": [
+        {
+          "name": "git:master",
+          "digest": {
+            "gitCommit": "2446c0c6961af5119c28be22ee10805a993286f2"
+          }
+        }
+      ],
+      "predicateType": "https://pytxo.com/receipt/v1",
+      "predicate": {
+        "id": "rcpt_20261016T155901Z_ed396da8",
+        "kind": "land",
+        "created_at": "2026-10-16T15:59:56Z",
+        "pytxo_version": "1.3.1",
+        "decision": "ready",
+        "mode": "shadow",
+        "target": "master",
+        "base": "62b9ce4f25e1f7b476c99858c20882d86c010085",
+        "result": "2446c0c6961af5119c28be22ee10805a993286f2",
+        "inputs": [
+          {
+            "ref": "claude/rename-helper",
+            "agent": "claude",
+            "commit": "2534fe2e987ae622aa40105550c88d414f47f8ff",
+            "status": "merged",
+            "files": [
+              "src/index.js"
+            ],
+            "conflict_files": []
+          },
+          {
+            "ref": "codex/negated-flags",
+            "agent": "codex",
+            "commit": "4405e2628b59d23efce0f356b30a26cd36aa7696",
+            "status": "merged",
+            "files": [
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          }
+        ],
+        "files_changed": 2,
+        "shared_files": [
+          {
+            "path": "src/index.js",
+            "inputs": [
+              "claude/rename-helper",
+              "codex/negated-flags"
+            ],
+            "symbol_collisions": [
+              {
+                "symbol": "assign",
+                "inputs": [
+                  "claude/rename-helper",
+                  "codex/negated-flags"
+                ]
+              },
+              {
+                "symbol": "default",
+                "inputs": [
+                  "claude/rename-helper",
+                  "codex/negated-flags"
+                ]
+              },
+              {
+                "symbol": "toVal",
+                "inputs": [
+                  "claude/rename-helper",
+                  "codex/negated-flags"
+                ]
+              }
+            ]
+          }
+        ],
+        "checks": [
+          {
+            "scope": "input:claude/rename-helper",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 20054,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     84",
+              "  passing:   84",
+              "  duration:  748ms"
+            ]
+          },
+          {
+            "scope": "input:codex/negated-flags",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 5792,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     93",
+              "  passing:   93",
+              "  duration:  225ms"
+            ]
+          },
+          {
+            "scope": "combined",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 16973,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     93",
+              "  passing:   93",
+              "  duration:  855ms"
+            ]
+          }
+        ],
+        "reasons": [],
+        "duration_ms": 57002,
+        "content_digest": "sha256:8b78736518d0d4e9b9a9aff1b20a41364a7d6b35ed1294efefab42b558df746c"
+      }
+    },
+    "rcpt_20261016T160008Z_b3177396": {
+      "_type": "https://in-toto.io/Statement/v1",
+      "subject": [
+        {
+          "name": "git:master",
+          "digest": {
+            "gitCommit": "8f13795b7c9aaa6d7e3c15dab676c618cc0379a0"
+          }
+        }
+      ],
+      "predicateType": "https://pytxo.com/receipt/v1",
+      "predicate": {
+        "id": "rcpt_20261016T160008Z_b3177396",
+        "kind": "land",
+        "created_at": "2026-10-16T16:01:00Z",
+        "pytxo_version": "1.3.1",
+        "decision": "landed",
+        "mode": "apply",
+        "target": "master",
+        "base": "62b9ce4f25e1f7b476c99858c20882d86c010085",
+        "result": "8f13795b7c9aaa6d7e3c15dab676c618cc0379a0",
+        "inputs": [
+          {
+            "ref": "claude/rename-helper",
+            "agent": "claude",
+            "commit": "2534fe2e987ae622aa40105550c88d414f47f8ff",
+            "status": "merged",
+            "files": [
+              "src/index.js"
+            ],
+            "conflict_files": []
+          },
+          {
+            "ref": "codex/negated-flags",
+            "agent": "codex",
+            "commit": "4405e2628b59d23efce0f356b30a26cd36aa7696",
+            "status": "merged",
+            "files": [
+              "src/index.js",
+              "test/index.js"
+            ],
+            "conflict_files": []
+          }
+        ],
+        "files_changed": 2,
+        "shared_files": [
+          {
+            "path": "src/index.js",
+            "inputs": [
+              "claude/rename-helper",
+              "codex/negated-flags"
+            ],
+            "symbol_collisions": [
+              {
+                "symbol": "assign",
+                "inputs": [
+                  "claude/rename-helper",
+                  "codex/negated-flags"
+                ]
+              },
+              {
+                "symbol": "default",
+                "inputs": [
+                  "claude/rename-helper",
+                  "codex/negated-flags"
+                ]
+              },
+              {
+                "symbol": "toVal",
+                "inputs": [
+                  "claude/rename-helper",
+                  "codex/negated-flags"
+                ]
+              }
+            ]
+          }
+        ],
+        "checks": [
+          {
+            "scope": "input:claude/rename-helper",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 17251,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     84",
+              "  passing:   84",
+              "  duration:  828ms"
+            ]
+          },
+          {
+            "scope": "input:codex/negated-flags",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 5703,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     93",
+              "  passing:   93",
+              "  duration:  288ms"
+            ]
+          },
+          {
+            "scope": "combined",
+            "command": "npm install && npm test",
+            "exit_code": 0,
+            "passed": true,
+            "duration_ms": 16573,
+            "timed_out": false,
+            "output_tail": [
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  flag boolean with default string & alias",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "  nums",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  already a number",
+              "    √ should be equivalent",
+              "    √ should be equal",
+              "    √ should be equal",
+              "  boolean and alias is not unknown",
+              "    √ should be equivalent",
+              "  string and alias is not unknown",
+              "    √ should be equivalent",
+              "  default and alias is not unknown",
+              "    √ should be equivalent",
+              "  total:     93",
+              "  passing:   93",
+              "  duration:  782ms"
+            ]
+          }
+        ],
+        "reasons": [],
+        "duration_ms": 54588,
+        "content_digest": "sha256:4484c45bd72da6f4afa058121e094cdfa217c292386d144ff7169416a17c1987"
+      }
+    }
+  }
+}
