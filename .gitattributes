@@ -1,2 +1,5 @@
 # sqlx checksums migration bytes; a CRLF checkout must never change them.
 *.sql text eol=lf
+
+# bash reads this driver directly; CRLF breaks it
+apps/demo-video/scripts/land-take/*.sh text eol=lf
