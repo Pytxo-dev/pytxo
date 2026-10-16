@@ -43,7 +43,7 @@ jobs:
           for n in $(gh pr list --label agent --state open --json number --jq '.[].number'); do
             git fetch origin "pull/$n/head:agent/pr-$n"
           done
-      - uses: Pytxo-dev/pytxo/actions/land@v1.3.0
+      - uses: Pytxo-dev/pytxo/actions/land@v1.3.1
         with:
           inputs: "agent/*"
           checks: "npm ci && npm test"
