@@ -1,9 +1,10 @@
 # CHECKPOINT — Pytxo — 2026-10-16 (M3 launch kit; nothing published)
 
 ## Branch / commit
-- `mbcz/optimistic-curran-3f1d81` from `main` @ `045a66a`: `5001cd9` (kit)
-  and `a1f5184` (LF for the take driver). Not pushed; no PR, deploy, upload
-  or post.
+- PR #48 rebase-merged into `main` (`4447751` kit, `e00d7b3` LF for the take
+  driver, `f1b9d4e` checkpoint); CI web green. Docs deployed to Vercel prod by
+  CLI from a clean `git archive` of `f1b9d4e`; pytxo.com/docs/evidence/first-use
+  and both JSON records serve 200 with no user-profile paths. No upload or post.
 - 1.3.2 (Desktop performance) still sits on `mbcz/competent-taussig-e022b3`
   (other session); untouched.
 
@@ -26,7 +27,6 @@
   asserts the page, decisions and redaction.
 
 ## Not done
-- Publish (needs /authorize): push the branch, PR, merge, deploy docs.
 - Matt only: YouTube upload of the film, Product Hunt submission, first
   comment and HN/Reddit posts in his words.
 - `pytxo receipts share` still blocked on `pytxo login` (see previous entry).

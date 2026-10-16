@@ -87,7 +87,8 @@ branches from Claude Code and Codex (headless), two runs, fresh npm prefix and
 
 Kit (outside the repo): `D:/marketing/campaigns/pytxo-1.3-land-launch/`
 (README, `product-hunt.md`, `fact-sheet.md`, `product-hunt/out/`). Nothing
-submitted, posted or uploaded.
+submitted, posted or uploaded. Repo work merged as PR #48 and docs deployed
+2026-10-17.
 
 - 1.3.1 spot-check 2026-10-16: npm `latest` 1.3.1; pytxo.com install page
   shows 1.3.1.
