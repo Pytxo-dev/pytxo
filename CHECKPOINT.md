@@ -49,15 +49,15 @@
 
 ## Next prompt (paste below)
 ```txt
-Pytxo M3 publish. Read AGENTS.md, the latest CHECKPOINT.md entry and LAUNCH.md
-(M3 log). Matt has run /authorize for: push mbcz/optimistic-curran-3f1d81,
-open the PR, merge it after CI is green, and deploy the docs to Vercel prod
-the way 1.3.1 was deployed (CLI from a clean git archive of main). Then check
-pytxo.com/docs/evidence/first-use and both JSON records load, and that no
-user-profile path is in them. Do not touch mbcz/competent-taussig-e022b3.
-After that, fix the two filed receipt issues in crates/pytxo-land (decode
-check output as UTF-8 on Windows; keep user-profile paths in output_tail out
-of anything `pytxo receipts share` uploads) with regression tests. One worker. Finish with a CHECKPOINT entry.
+Pytxo receipt output fixes. Read AGENTS.md, the latest CHECKPOINT.md entry
+and LAUNCH.md (M3 log, "Filed, not fixed"). In crates/pytxo-land: decode
+check output as UTF-8 on Windows (a test runner's `√` is stored as `âˆš` in
+receipt output_tail), and keep user-profile paths in output_tail out of
+anything `pytxo receipts share` uploads (reuse pytxo-sanitize if it fits).
+Reproduce each first, add a regression test for each, run cargo test, fmt and
+clippy -D warnings on the touched crates (-j 4; low RAM). One worker. Commit
+on a branch; push only after /authorize. Do not touch
+mbcz/competent-taussig-e022b3. Finish with a CHECKPOINT entry.
 ```
 
 # CHECKPOINT — Pytxo — 2026-10-16 (M2 first use; v1.3.1 released and deployed)
