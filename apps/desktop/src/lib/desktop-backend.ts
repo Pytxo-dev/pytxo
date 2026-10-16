@@ -195,8 +195,16 @@ class TauriDesktopBackend implements DesktopBackend {
     return ipc.ensureWorkspace(created);
   }
   async voiceAvailable() { return ipc.voiceLocalAvailable(); }
-  /** Drafts live in the catalog, so a read stands while the catalog is unchanged. */
-  flowHistory = fingerprintedRead(() => ipc.catalogFingerprint(), () => ipc.flowHistory());
+  /**
+   * Drafts live in the catalog, so a read stands while the catalog is unchanged.
+   * A dispatching or recovering draft does not: each read checks whether its
+   * controller is still alive, and a controller can exit without a write.
+   */
+  flowHistory = fingerprintedRead(
+    () => ipc.catalogFingerprint(),
+    () => ipc.flowHistory(),
+    (drafts) => !drafts.some((draft) => draft.status === "dispatching" || draft.status === "recovery_required"),
+  );
   async previewFlowAdvisorPacket(draftId: string) { return ipc.flowAdvisorPacketPreview(draftId); }
   async previewProposedHostedPacket(draftId: string) { return ipc.flowProposedHostedPacketPreview(draftId); }
   async previewReviewedHostedPacket(draftId: string) { return ipc.flowReviewedHostedPacketPreview(draftId); }

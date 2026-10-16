@@ -418,6 +418,21 @@ test.describe("Run Review state contracts", () => {
     // Without a fingerprint nothing is reused.
     const unfingerprinted = fingerprintedRead(async () => { throw new Error("no catalog"); }, async () => { reads += 1; return reads; });
     expect(await unfingerprinted()).not.toBe(await unfingerprinted());
+    // A result that can go stale without a write (a live controller check) is read again.
+    let status = "dispatching";
+    let liveReads = 0;
+    const drafts = fingerprintedRead(async () => "same", async () => {
+      liveReads += 1;
+      return [{ status }];
+    }, (records) => !records.some((record) => record.status === "dispatching" || record.status === "recovery_required"));
+    await drafts();
+    status = "recovery_required";
+    expect(await drafts()).toEqual([{ status: "recovery_required" }]);
+    status = "completed";
+    await drafts();
+    const settled = await drafts();
+    expect(settled).toEqual([{ status: "completed" }]);
+    expect(liveReads).toBe(3);
   });
 
   test("cursor reset and reconnect require a snapshot without swallowing the next delta", async () => {

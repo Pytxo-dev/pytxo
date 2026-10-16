@@ -187,11 +187,13 @@ export async function loadConsistentDesktopSnapshot<
 
 /**
  * Reuses a read while a fingerprint taken before it still matches, so a read
- * started after any change never returns older data. Failures are not kept.
+ * started after any change never returns older data. Failures are not kept,
+ * nor a result `reusable` rejects: one that can go stale without a write.
  */
 export function fingerprintedRead<T>(
   fingerprint: () => Promise<string>,
   read: () => Promise<T>,
+  reusable: (value: T) => boolean = () => true,
 ): () => Promise<T> {
   let last: { fingerprint: string; value: Promise<T> } | null = null;
   return async () => {
@@ -200,9 +202,10 @@ export function fingerprintedRead<T>(
     const value = read();
     const entry = current === null ? null : { fingerprint: current, value };
     last = entry;
-    value.catch(() => {
+    const forget = () => {
       if (last === entry) last = null;
-    });
+    };
+    value.then((result) => { if (!reusable(result)) forget(); }, forget);
     return value;
   };
 }
