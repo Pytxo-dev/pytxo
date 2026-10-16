@@ -1,12 +1,17 @@
-# CHECKPOINT — Pytxo — 2026-10-16 (M2 first use; 1.3.1 PR #47 open)
+# CHECKPOINT — Pytxo — 2026-10-16 (M2 first use; v1.3.1 released and deployed)
 
 ## Branch / commit
-- `mbcz/pytxo-m2-first-use-e55e50` (worktree `pytxo-m2-first-use-e55e50`), 6
-  commits on `fe331de`: npm first-run install, land friction fixes, docs page,
-  `release: prepare 1.3.1`, e2e budget, LAUNCH/CHECKPOINT, CI docs
-  concurrency. Pushed; PR https://github.com/Pytxo-dev/pytxo/pull/47.
-- Throwaway repo `mattbaconz/pytxo-land-shadow-test` (public): PR 1 green, PR 2
-  red as expected; delete it once M2 is closed.
+- `main` at `d1d5292` (`docs: v1.3.1 is the public release`). PR #47
+  rebase-merged as `d977b7b`; tag `v1.3.1` → `d977b7b` (created by the Release
+  workflow, dispatched on main).
+- Last commit before merge: `90e5bec` fixed Windows CI. Git for Windows 2.56
+  (runner image 20261007) moved `git.exe` to `ucrt64in`; the reviewed Git
+  resolver now checks `ucrt64` then `mingw64` (main had been red since then).
+- Throwaway repo `mattbaconz/pytxo-land-shadow-test` (public) still exists:
+  deleting it needs `gh auth refresh -h github.com -s delete_repo` (Matt).
+- 1.3.2 (Desktop performance) is committed on `mbcz/competent-taussig-e022b3`
+  (`62887c8`, 1 behind main) by the "Pytxo Desktop performance pass" session;
+  not pushed.
 
 ## Completed
 - Two live first-use runs on lukeed/mri with Claude Code and Codex branches,
@@ -26,15 +31,17 @@
   linked from docs home, install, land guide and the site's land section.
 - 1.3.1 prepared: versions bumped (verify-release-version passes), release
   notes, changelog row, Action default 1.3.1.
+- Released 2026-10-16: Release run 38913133845 green (CLI 5 targets, Desktop
+  MSI, mirror, npm). npm `latest` 1.3.1; `SHA256SUMS.txt` matches the Windows
+  binary; clean `npm i -g` and `--ignore-scripts` installs report 1.3.1. Docs
+  flipped and deployed to Vercel prod by CLI from a clean `git archive` of main
+  (CI has no Vercel secrets); pytxo.com install page shows 1.3.1.
 
 ## Not done
-- PR #47 CI: check with the PR tools, fix forward if red.
 - `pytxo receipts share`: `pytxo login` timed out twice (2026-10-15, 10-16)
   without a completed browser approval.
   Rerun with `PYTXO_HOME=D:/pytxo-native-acceptance/m2-first-use/run2/pytxo-home`
   while Matt is at the browser, then share `rcpt_20261015T091727Z_39fac8c3`.
-- Release 1.3.1 (merge, tag, release run, mirror, npm, docs flip) needs Matt's
-  authorization.
 - Desktop `npm run check` not run (only its version strings changed).
 
 ## Tests last run
