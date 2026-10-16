@@ -11,6 +11,10 @@ use crate::schema::{
     MIGRATION_013, MIGRATION_014, MIGRATION_015,
 };
 
+/// The version the last migration step stamps. Adding a step means raising
+/// this; `latest_version_is_where_a_fresh_store_ends` fails until both agree.
+pub(crate) const LATEST_VERSION: i32 = 15;
+
 /// The schema SQLite itself parses from constant migration SQL, applied in
 /// order to an empty in-memory database. Schema verification compares stores
 /// against it on every open; the SQL never changes, so each thread builds a
@@ -145,7 +149,7 @@ pub fn apply_migrations(conn: &Connection) -> Result<()> {
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(store_error)?;
 
-    if !(0..=15).contains(&version) {
+    if !(0..=LATEST_VERSION).contains(&version) {
         return Err(PytxoError::Store(format!(
             "unsupported store schema version {version}"
         )));
@@ -153,21 +157,21 @@ pub fn apply_migrations(conn: &Connection) -> Result<()> {
 
     // A current store applies no step. Every guard below would only repeat part
     // of this final check, and each one re-verifies everything older than it.
-    if version == 15 {
+    if version == LATEST_VERSION {
         return verify_latest_schema(conn);
     }
 
     // Before the per-step locks, a racing opener could stamp a fully migrated
     // store back down to an old version. Its schema is already the latest, so it
     // is restamped instead of re-running DDL that would fail on existing columns.
-    if version > 0 && version < 15 && has_latest_schema(conn) {
-        if let Some(tx) = begin_step(conn, 15)? {
+    if version > 0 && version < LATEST_VERSION && has_latest_schema(conn) {
+        if let Some(tx) = begin_step(conn, LATEST_VERSION)? {
             if !has_latest_schema(&tx) {
                 return Err(PytxoError::Store(
                     "store schema changed while repairing its version".into(),
                 ));
             }
-            tx.pragma_update(None, "user_version", 15)
+            tx.pragma_update(None, "user_version", LATEST_VERSION)
                 .map_err(store_error)?;
             tx.commit().map_err(store_error)?;
         }
@@ -885,6 +889,27 @@ mod tests {
             .unwrap();
         assert_eq!(version, 0);
         assert!(!table_exists(&conn, "agents").unwrap());
+    }
+
+    #[test]
+    fn latest_version_is_where_a_fresh_store_ends() {
+        // The current-store shortcut is keyed on LATEST_VERSION. A new step that
+        // stamps past it, or a raised constant without its step, fails here.
+        let conn = Connection::open_in_memory().unwrap();
+        apply_migrations(&conn).unwrap();
+        let version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, LATEST_VERSION);
+        assert!(has_latest_schema(&conn));
+        apply_migrations(&conn).expect("a current store reopens through the shortcut");
+        // One version back is not current: it is restamped, not short-circuited.
+        set_version(&conn, LATEST_VERSION - 1);
+        apply_migrations(&conn).unwrap();
+        let version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, LATEST_VERSION);
     }
 
     #[test]
