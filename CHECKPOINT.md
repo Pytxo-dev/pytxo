@@ -1,8 +1,9 @@
 # CHECKPOINT — Pytxo — 2026-10-16 (M3 launch kit; nothing published)
 
 ## Branch / commit
-- `mbcz/optimistic-curran-3f1d81` from `main` @ `045a66a`, one commit
-  (`docs(launch): M3 kit …`). Not pushed; no PR, deploy, upload or post.
+- `mbcz/optimistic-curran-3f1d81` from `main` @ `045a66a`: `5001cd9` (kit)
+  and `a1f5184` (LF for the take driver). Not pushed; no PR, deploy, upload
+  or post.
 - 1.3.2 (Desktop performance) still sits on `mbcz/competent-taussig-e022b3`
   (other session); untouched.
 
