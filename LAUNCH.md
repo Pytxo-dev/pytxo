@@ -106,12 +106,15 @@ submitted, posted or uploaded. Repo work merged as PR #48 and docs deployed
 - Docs: `evidence/first-use` (both M2 runs and the filmed 1.3.1 run, with
   timings) and two JSON records with all nine receipts, profile paths redacted.
 
-### Filed, not fixed
+### Filed, then closed as not reproduced (2026-10-17)
 
-- Receipt check `output_tail` decodes the test runner's `√` as cp1252
-  (`âˆš`) on Windows.
-- Receipts keep user-profile paths from check output in `output_tail`; the
-  published records redact them, Pytxo does not.
+- Receipt check `output_tail` showed the test runner's `√` as `âˆš`. The
+  receipt files hold UTF-8 `√`; Windows PowerShell 5.1 `Get-Content` reads
+  files without a BOM as ANSI. Read receipts with `-Encoding UTF8`.
+- Receipts keep user-profile paths from check output in `output_tail`. True
+  for the local file, which is by design; `pytxo receipts share` (CLI and
+  Desktop) uploads counts and outcomes only, and the link server rejects any
+  other field. Hand-published records still need redaction.
 
 # v1.3 "Land" — running state
 

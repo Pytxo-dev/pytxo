@@ -1,3 +1,43 @@
+# CHECKPOINT — Pytxo — 2026-10-17 (receipt output defects: not reproduced)
+
+## Branch / commit
+- `mbcz/heuristic-grothendieck-12a174`, rebased on `main` @ `60ef22a`: one
+  test commit plus this checkpoint. Not pushed.
+- 1.3.2 on `mbcz/competent-taussig-e022b3` untouched.
+
+## Completed
+- UTF-8 `output_tail`: not a Pytxo defect. All nine M2/film receipts on disk
+  hold `√` as UTF-8 (`checks.rs` already decodes with `from_utf8_lossy`).
+  `âˆš` reproduces only by reading a receipt with Windows PowerShell 5.1
+  `Get-Content` (ANSI default); `-Encoding UTF8` shows `√`.
+- Profile paths and `receipts share`: no leak. CLI and Desktop both upload
+  `Receipt::share_payload` (counts, outcomes, digest; repo-relative paths only
+  with `--include-paths`); `pytxo-link` `SharedReceipt` is
+  `deny_unknown_fields`. Local receipts keep full output on purpose; the M3
+  docs records were redacted by hand, which stays a manual step.
+- Regression tests: `checks::tests::keeps_utf8_check_output` (pytxo-land) and
+  profile paths added to `share_payload_never_carries_commands_refs_or_output`
+  (pytxo-core). LAUNCH.md filed items closed as not reproduced.
+
+## Not done
+- No code fix (nothing to fix). Optional, unrequested: redact profile paths in
+  local `output_tail` via `pytxo-sanitize` at write time (loses npm log paths
+  useful for local debugging).
+- Carried: Matt-only launch posts; `receipts share` blocked on `pytxo login`.
+
+## Tests last run
+- `cargo test -j 4 -p pytxo-land -p pytxo-core`: all pass, 0 failed (land
+  lib 15 + 1 ignored); `cargo fmt --check` clean; clippy `-D warnings
+  --all-targets` on both clean.
+
+## Next prompt (paste below)
+```txt
+Pytxo 1.3.2 release. Read AGENTS.md and the latest CHECKPOINT.md entry. 1.3.2
+(Desktop performance) is on mbcz/competent-taussig-e022b3; the receipt test
+commit on mbcz/heuristic-grothendieck-12a174 can join it. After /authorize:
+push, PR, CI green, release, verify npm latest and the mirror.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-16 (M3 launch kit; nothing published)
 
 ## Branch / commit
