@@ -1,6 +1,6 @@
 ---
 title: Multiple accounts per agent CLI
-status: Implementing
+status: Implemented (unreleased)
 date: 2026-10-17
 tags: [desktop, runner, setup, accounts]
 ---
