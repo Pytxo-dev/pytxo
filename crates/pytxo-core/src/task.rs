@@ -25,6 +25,10 @@ pub struct AgentSpec {
     /// capped by the permission profile. Falls back to the global `signal_fidelity`.
     #[serde(default)]
     pub signal_fidelity: Option<crate::moat::FidelityTier>,
+    /// Named sign-in for this agent's CLI (`pytxo accounts`); unset uses the
+    /// CLI's active account.
+    #[serde(default)]
+    pub account: Option<String>,
 }
 
 impl AgentSpec {
@@ -115,6 +119,7 @@ mod tests {
             provider: Some("deepseek".into()),
             api_key_env: None,
             signal_fidelity: None,
+            account: None,
         };
         let route = agent.model_route();
         assert_eq!(route.provider, ProviderId::Deepseek);

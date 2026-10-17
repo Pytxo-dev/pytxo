@@ -48,7 +48,10 @@ use ipc_flow::{
 use ipc_install::{
     create_example_workspace, install_pytxo_cli, install_pytxo_cli_status, pick_workspace_folder,
 };
-use ipc_meta::{check_pytxo_cli, entitlement_status, ipc_version, list_ade_clis, start_ade_login};
+use ipc_meta::{
+    add_agent_account, check_pytxo_cli, entitlement_status, ipc_version, list_ade_clis,
+    list_agent_accounts, remove_agent_account, start_ade_login, use_agent_account,
+};
 use ipc_routing_account::{
     routing_account_connect, routing_account_disconnect, routing_account_reconnect_for_revocation,
     routing_account_status, routing_hosted_grant_enable, routing_hosted_grant_revoke,
@@ -210,6 +213,10 @@ pub fn run() {
             entitlement_status,
             list_ade_clis,
             start_ade_login,
+            list_agent_accounts,
+            add_agent_account,
+            use_agent_account,
+            remove_agent_account,
             auth_status,
             auth_clear_session,
             routing_account_status,

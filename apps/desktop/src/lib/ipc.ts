@@ -2,6 +2,7 @@ import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AdeCliStatusDto,
+  AgentAccountDto,
   AgentArbitrageDto,
   AgentDto,
   CatalogEntry,
@@ -286,8 +287,16 @@ export const ipc = {
   checkPytxoCli: () => invoke<boolean>("check_pytxo_cli").then(unwrap).catch(() => false),
   listAdeClis: () =>
     invoke<AdeCliStatusDto[]>("list_ade_clis").then(unwrap),
-  startAdeLogin: (id: string) =>
-    invoke<{ id: string; message: string }>("start_ade_login", { id }).then(unwrap),
+  startAdeLogin: (id: string, account?: string) =>
+    invoke<{ id: string; message: string }>("start_ade_login", { id, account: account ?? null }).then(unwrap),
+  listAgentAccounts: () =>
+    invoke<AgentAccountDto[]>("list_agent_accounts").then(unwrap),
+  addAgentAccount: (cli: string, name: string) =>
+    invoke<{ id: string; message: string }>("add_agent_account", { cli, name }).then(unwrap),
+  useAgentAccount: (cli: string, name: string) =>
+    invoke<null>("use_agent_account", { cli, name }).then(unwrap),
+  removeAgentAccount: (cli: string, name: string) =>
+    invoke<null>("remove_agent_account", { cli, name }).then(unwrap),
   installPytxoCli: () =>
     invoke<{
       phase: string;

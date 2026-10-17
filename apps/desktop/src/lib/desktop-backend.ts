@@ -1,5 +1,5 @@
 import { ipc } from "./ipc";
-import type { AdeCliStatusDto, AgentArbitrageDto, AgentDto, CatalogEntryStatus, DesktopChangedEvent, DomainChangesPageDto, FleetRunDto, HitlDto, PreparedContentChunkDto, PreparedRunManifest, ProviderStatusDto, RoutingDisplaySummary, RunApplyManifest, RunDto, RunReviewDto, StructuralGraphDto } from "./types";
+import type { AdeCliStatusDto, AgentAccountDto, AgentArbitrageDto, AgentDto, CatalogEntryStatus, DesktopChangedEvent, DomainChangesPageDto, FleetRunDto, HitlDto, PreparedContentChunkDto, PreparedRunManifest, ProviderStatusDto, RoutingDisplaySummary, RunApplyManifest, RunDto, RunReviewDto, StructuralGraphDto } from "./types";
 import type { FlowDraftInput, FlowDraftRecord, FlowPlan, SplitDraft, ProposedHostedAdvisorPacketPreview, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, VoiceProgressEvent, VoiceSessionDto } from "./types";
 import { PreviewDesktopBackend } from "./desktop-backend.preview";
 import { fingerprintedRead } from "./desktop-sync";
@@ -51,7 +51,11 @@ export interface DesktopBackend {
   stopRun(runId: string, domainId: string): Promise<void>;
   forgetDomain(domainId: string): Promise<void>;
   listAdeClis(): Promise<AdeCliStatusDto[]>;
-  startAdeLogin(id: string): Promise<{ id: string; message: string }>;
+  startAdeLogin(id: string, account?: string): Promise<{ id: string; message: string }>;
+  listAgentAccounts(): Promise<AgentAccountDto[]>;
+  addAgentAccount(cli: string, name: string): Promise<{ id: string; message: string }>;
+  useAgentAccount(cli: string, name: string): Promise<void>;
+  removeAgentAccount(cli: string, name: string): Promise<void>;
   listProviders(): Promise<ProviderStatusDto[]>;
   previewFlow(input: FlowDraftInput): Promise<FlowPlan>;
   splitRequest(domainId: string, request: string, adeId: string): Promise<SplitDraft>;
@@ -161,8 +165,20 @@ class TauriDesktopBackend implements DesktopBackend {
   async listAdeClis() {
     return ipc.listAdeClis();
   }
-  async startAdeLogin(id: string) {
-    return ipc.startAdeLogin(id);
+  async startAdeLogin(id: string, account?: string) {
+    return ipc.startAdeLogin(id, account);
+  }
+  async listAgentAccounts() {
+    return ipc.listAgentAccounts();
+  }
+  async addAgentAccount(cli: string, name: string) {
+    return ipc.addAgentAccount(cli, name);
+  }
+  async useAgentAccount(cli: string, name: string) {
+    await ipc.useAgentAccount(cli, name);
+  }
+  async removeAgentAccount(cli: string, name: string) {
+    await ipc.removeAgentAccount(cli, name);
   }
   async listProviders() {
     return ipc.listProviders();

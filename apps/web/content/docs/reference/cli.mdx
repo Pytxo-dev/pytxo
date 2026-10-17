@@ -31,6 +31,7 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the shell.
 | `pytxo run` | Schedule and execute agents in isolated copies |
 | `pytxo mission` | Natural-language mission: plan → approve → isolated run → review package |
 | `pytxo agents` | List registered agent CLIs and PATH detection |
+| `pytxo accounts` | Several sign-ins per agent CLI (Claude Code, Codex) and which one new work uses |
 | `pytxo shell` | One-shot shell without the TUI (`--eval`) |
 | `pytxo status` | List runs and agents from SQLite |
 | `pytxo logs --agent <id>` | Tail stored stdout/stderr events |
@@ -112,6 +113,32 @@ pytxo mission "…" --ade claude   # preferred ADE id
 ## `pytxo agents`
 
 Lists ADE CLIs from the registry and whether they are on `PATH`. `--json` for scripts.
+
+## `pytxo accounts`
+
+Keep more than one sign-in for an agent CLI, such as a work and a personal
+Claude account. Each account is the CLI's own config folder under
+`~/.pytxo/agent-accounts/<cli>/<name>/`, selected for each launch through the
+variable the vendor documents (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`). Sign-in
+runs the vendor's own command; Pytxo never reads or copies the credentials it
+writes. `default` is the CLI's usual sign-in.
+
+```bash
+pytxo accounts list            # every account and its sign-in state
+pytxo accounts add claude work # creates the folder, opens Claude Code sign-in
+pytxo accounts use claude work # new work on Claude Code uses this account
+pytxo accounts login codex     # sign the default Codex account in again
+pytxo accounts remove claude work
+```
+
+A configured agent can pin an account in `pytxo.toml` with `account = "work"`.
+Desktop shows the same accounts under **Setup → Agent CLIs**. Cursor Agent,
+Antigravity and Gemini CLI keep one sign-in per OS user, so they have no
+accounts list.
+
+Every account must be yours. Provider terms forbid sharing an account and
+working around usage limits, so Pytxo never switches accounts on its own when
+one reports a limit; it tells you which account hit it.
 
 ## `pytxo shell`
 

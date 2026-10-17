@@ -45,7 +45,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     label: "Agents & permissions",
     group: "Workspace",
     description: "Installed coding agents, vendor sign-in, and default permissions.",
-    keywords: ["agent cli", "codex", "claude", "cursor", "opencode", "gemini", "copilot", "aider", "antigravity", "install", "sign in", "login", "subscription", "permission profile", "deepspace", "orbit", "galaxy", "supernova", "mcp"],
+    keywords: ["agent cli", "codex", "claude", "cursor", "opencode", "gemini", "copilot", "aider", "antigravity", "install", "sign in", "login", "subscription", "accounts", "multiple accounts", "switch account", "permission profile", "deepspace", "orbit", "galaxy", "supernova", "mcp"],
   },
   {
     id: "providers",

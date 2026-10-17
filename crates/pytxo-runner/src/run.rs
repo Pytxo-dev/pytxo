@@ -1063,6 +1063,29 @@ async fn run_one_agent(
     }
 
     let cmd = resolve_cmd_for_task(ctx, task)?;
+    // The account is chosen from the registry launcher, not the expanded
+    // command: Windows adapters wrap the CLI in an encoded PowerShell script.
+    let launcher = ctx
+        .task_cmd_template
+        .as_ref()
+        .and_then(|templates| templates.launcher_for(&task.task_id.0))
+        .unwrap_or(&ctx.cmd);
+    let agent_account = ctx
+        .route_agents
+        .iter()
+        .find(|agent| agent.name == task.agent)
+        .and_then(|agent| agent.account.as_deref());
+    let account = pytxo_core::agent_accounts::launch_binding(
+        &pytxo_core::agent_accounts::default_root(),
+        launcher,
+        agent_account,
+    )?;
+    let account_env = account.as_ref().and_then(|binding| binding.env.clone());
+    if let (Some(binding), Some(cb)) = (&account, ctx.on_event.as_ref()) {
+        if pytxo_core::agent_accounts::account_env(binding.cli_id).is_some() {
+            cb(&agent_key, "account", &binding.label());
+        }
+    }
     let task_prompt = ctx
         .task_prompts
         .get(&task.task_id.0)
@@ -1131,6 +1154,7 @@ async fn run_one_agent(
         let cloud_dispatcher = ctx.cloud_dispatcher.clone();
         let cloud_fallback_local = ctx.cloud_fallback_local;
         let sandbox_id = sandbox_id.clone();
+        let account_env = account_env.clone();
         move || {
             let out = run_command_streaming(
                 &wt_path,
@@ -1156,6 +1180,7 @@ async fn run_one_agent(
                     data_dir,
                     branch,
                 }),
+                account_env.as_ref(),
             );
             if let Ok(ref res) = out {
                 if let Some(pid) = res.pid {
@@ -1240,6 +1265,7 @@ async fn run_one_agent(
         let cloud_dispatcher = ctx.cloud_dispatcher.clone();
         let cloud_fallback_local = ctx.cloud_fallback_local;
         let sandbox_id = sandbox_id.clone();
+        let account_env = account_env.clone();
         let retry = tokio::task::spawn_blocking({
             let wt_path = wt_path.clone();
             let cmd = cmd.clone();
@@ -1278,6 +1304,7 @@ async fn run_one_agent(
                         data_dir,
                         branch,
                     }),
+                    account_env.as_ref(),
                 )
             }
         })
@@ -1288,6 +1315,18 @@ async fn run_one_agent(
 
     let mut exit_code = result.exit_code;
     let mut stderr = result.stderr;
+    if exit_code != Some(0) && !result.cancelled {
+        let output = format!("{}\n{stderr}", result.stdout);
+        if let Some(hint) = account
+            .as_ref()
+            .and_then(|binding| binding.failure_hint(&output))
+        {
+            if let Some(cb) = ctx.on_event.as_ref() {
+                cb(&agent_key, "account-hint", &hint);
+            }
+            stderr.push_str(&format!("\n{hint}\n"));
+        }
+    }
     let mut verification_failed = false;
     let mut verification_cancelled = false;
     if !result.cancelled && exit_code == Some(0) && !task.verify.is_empty() {
@@ -1887,8 +1926,12 @@ fn run_command_streaming(
     cloud_sandbox_id: Option<&str>,
     cloud_fallback_local: bool,
     persist: Option<ProcessPersist>,
+    account_env: Option<&(&'static str, PathBuf)>,
 ) -> Result<SingleResult> {
     let mut env = build_child_env(context_dir, profile, managed_transport, route);
+    if let Some((key, home)) = account_env {
+        env.set(*key, home.to_string_lossy());
+    }
     if let Some(prompt) = task_prompt {
         env.set("PYTXO_TASK_PROMPT", prompt);
     }
@@ -2700,6 +2743,7 @@ mod shell_cwd_tests {
             None,
             false,
             None,
+            None,
         )
         .unwrap();
         assert_eq!(
@@ -2721,6 +2765,42 @@ mod shell_cwd_tests {
     #[test]
     fn shell_cwd_subprocess_keeps_the_canonical_workspace() {
         assert_worker_cwd(ExecutionBackend::Subprocess);
+    }
+
+    #[test]
+    fn selected_account_folder_reaches_the_agent() {
+        let (_fixture, cwd) = canonical_fixture();
+        let route = ConfigModelRouter.route("fixture", &pytxo_core::PytxoConfig::default());
+        let home = cwd.join("account-home");
+        for backend in [ExecutionBackend::Subprocess, ExecutionBackend::Pty] {
+            let output = run_command_streaming(
+                &cwd,
+                "echo [%CODEX_HOME%]",
+                None,
+                "account-run:agent-0",
+                None,
+                PermissionProfile::Orbit,
+                &ManagedTransport::default(),
+                &route,
+                backend,
+                12,
+                200,
+                &SwarmRegistry::new(),
+                false,
+                None,
+                None,
+                None,
+                false,
+                None,
+                Some(&("CODEX_HOME", home.clone())),
+            )
+            .unwrap();
+            assert!(
+                output.stdout.contains(&format!("[{}]", home.display())),
+                "{backend:?}: {}",
+                output.stdout
+            );
+        }
     }
 
     #[test]

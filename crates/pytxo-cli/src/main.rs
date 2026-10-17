@@ -1,4 +1,5 @@
 mod account;
+mod agent_accounts;
 mod commands;
 mod land_cmd;
 mod mission;
@@ -133,6 +134,15 @@ Results are synthetic mechanism tests, not real-world failure rates."
     Logout,
     /// Show the signed-in Pytxo account
     Whoami,
+    /// Agent CLI sign-ins: several accounts each for Claude Code, Codex and Cursor Agent
+    #[command(
+        after_help = "Each account is the vendor CLI's own config folder; sign-in runs the vendor's command and Pytxo never reads its credentials.
+A configured agent can pin one with `account = \"work\"` in pytxo.toml."
+    )]
+    Accounts {
+        #[command(subcommand)]
+        action: Option<AccountsAction>,
+    },
     /// Initialize local Pytxo directories
     Init {
         #[arg(long)]
@@ -273,6 +283,23 @@ Results are synthetic mechanism tests, not real-world failure rates."
         #[command(subcommand)]
         action: ModelsAction,
     },
+}
+
+#[derive(Subcommand)]
+enum AccountsAction {
+    /// Every account with its sign-in state
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add an account and open the vendor sign-in (e.g. `add claude work`)
+    Add { cli: String, name: String },
+    /// Sign an account in again (default: the CLI's own sign-in)
+    Login { cli: String, name: Option<String> },
+    /// Use this account for new work on that CLI (`default` for the CLI's own)
+    Use { cli: String, name: String },
+    /// Sign out and delete an account folder
+    Remove { cli: String, name: String },
 }
 
 #[derive(Subcommand)]
@@ -558,6 +585,16 @@ async fn run_cli() -> anyhow::Result<()> {
         Some(Commands::Login) => account::login()?,
         Some(Commands::Logout) => account::logout()?,
         Some(Commands::Whoami) => account::whoami()?,
+        Some(Commands::Accounts { action }) => match action {
+            None => agent_accounts::list(false)?,
+            Some(AccountsAction::List { json }) => agent_accounts::list(json)?,
+            Some(AccountsAction::Add { cli, name }) => agent_accounts::add(&cli, &name)?,
+            Some(AccountsAction::Login { cli, name }) => {
+                agent_accounts::login(&cli, name.as_deref())?
+            }
+            Some(AccountsAction::Use { cli, name }) => agent_accounts::use_account(&cli, &name)?,
+            Some(AccountsAction::Remove { cli, name }) => agent_accounts::remove(&cli, &name)?,
+        },
         Some(Commands::Bench {
             suite,
             out,
