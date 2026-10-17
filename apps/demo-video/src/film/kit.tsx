@@ -30,7 +30,7 @@ export const shadow = "0 1px 2px rgba(25,25,24,.05), 0 10px 30px rgba(25,25,24,.
 export const ledger = fleet;
 export const changes = diff;
 
-const FACES: [string, string, number][] = [
+export const FACES: [string, string, number][] = [
   ["Sora", "fonts/sora-latin-400-normal.woff2", 400],
   ["Sora", "fonts/sora-latin-500-normal.woff2", 500],
   ["Sora", "fonts/sora-latin-600-normal.woff2", 600],
