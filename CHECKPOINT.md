@@ -1,3 +1,46 @@
+# CHECKPOINT — Pytxo — 2026-10-17 (1.3.2 released and docs live)
+
+## Branch / commit
+- PR #50 (receipt regression tests + checkpoint) rebase-merged: `a42c89d`,
+  `d49cae5`. Release run 39002421281 on `d49cae5`, tag `v1.3.2` there.
+- Docs flip `1c5ddb0` pushed to `main`; this checkpoint on top.
+
+## Completed
+- Released 1.3.2 (Desktop performance + updater zip feature dropped for
+  RUSTSEC-2026-0367/0368/0369): run green (release gate, CLI 5 targets,
+  Desktop MSI, private release, mirror, npm). `pytxo-releases` v1.3.2 has the
+  same 10 assets as v1.3.1; `SHA256SUMS.txt` matches `pytxo-windows-x64.exe`,
+  which prints `pytxo 1.3.2`. npm `latest` 1.3.2 (registry lagged ~4 min).
+  Clean `npm i -g` and `--ignore-scripts` installs into scratch prefixes both
+  print `pytxo 1.3.2` (the latter downloads and checks the binary on first run).
+- Docs flipped as in `d1d5292` (README, install, docs index, changelog line,
+  CLI reference, land-in-ci `actions/land@v1.3.2`, `PUBLISHED_VERSION`);
+  verify-release-version 1.3.2 passes before and after. Deployed to Vercel
+  prod by CLI from a clean `git archive` of `1c5ddb0` with `C:/pytxo/.vercel`;
+  pytxo.com install, docs, changelog and download pages serve 1.3.2.
+
+## Not done
+- Matt only: YouTube upload of the film, Product Hunt submission, first
+  comment and HN/Reddit posts (kit: `D:/marketing/campaigns/pytxo-1.3-land-launch/`;
+  film and stills show 1.3.1, still accurate for `pytxo land`).
+- `pytxo receipts share` still blocked on `pytxo login` (see 2026-10-16).
+- npm 11.18 prints an `allow-scripts` warning on `npm i -g pytxo`; the install
+  still placed the binary. Not investigated.
+
+## Tests last run
+- `cargo test -j 4 -p pytxo-land -p pytxo-core` on the rebased branch: all
+  pass (land lib 15 + 1 ignored). PR #50 CI green (rust ubuntu + windows).
+- Release run 39002421281: every job success.
+
+## Next prompt (paste below)
+```txt
+Pytxo after 1.3.2. Read AGENTS.md and the latest CHECKPOINT.md entry. 1.3.2 is
+released and the docs are live. Check whether npm 11's allow-scripts warning
+on `npm i -g pytxo` will block the postinstall binary download in a coming npm
+release, and if so make the first-run download the documented path; otherwise
+report and stop. Matt's launch posts stay his.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-17 (receipt output defects: not reproduced)
 
 ## Branch / commit
