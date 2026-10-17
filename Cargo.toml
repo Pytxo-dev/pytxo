@@ -69,6 +69,9 @@ tauri-build = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-process = "2"
 tauri-plugin-notification = "2"
-tauri-plugin-updater = "2"
+# Pytxo ships signed MSI updates only. The default `zip` feature unpacks
+# .zip/.tar.gz payloads Pytxo never publishes and pulls zip 4.x
+# (RUSTSEC-2026-0367, -0368, -0369).
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls"] }
 tauri-plugin-deep-link = "2"
 tauri-plugin-single-instance = "2"
