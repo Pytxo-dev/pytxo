@@ -2310,16 +2310,25 @@ mod mission_control_contract_tests {
     #[test]
     fn observer_pages_stay_bounded_at_a_thousand_events() {
         let dir = tempfile::tempdir().unwrap();
-        let store = pytxo_store::PytxoStore::open(&dir.path().join("dock.db")).unwrap();
+        let path = dir.path().join("dock.db");
+        let store = pytxo_store::PytxoStore::open(&path).unwrap();
         store.insert_run("run-a", "/repo").unwrap();
         store
             .insert_agent("agent-a", "run-a", "task", 0, None, "echo hi")
             .unwrap();
+        // One commit: a thousand separate ones took ~20 s on Windows CI and
+        // starved the shell started by the concurrent workspace terminal test.
+        let mut conn = rusqlite::Connection::open(&path).unwrap();
+        let tx = conn.transaction().unwrap();
+        let ts = chrono::Utc::now().to_rfc3339();
         for line in 0..1001 {
-            store
-                .append_event("agent-a", "stdout", &line.to_string())
-                .unwrap();
+            tx.execute(
+                "INSERT INTO events (agent_id, ts, kind, payload) VALUES ('agent-a', ?1, 'stdout', ?2)",
+                rusqlite::params![ts, line.to_string()],
+            )
+            .unwrap();
         }
+        tx.commit().unwrap();
         let page = read_scoped_agent_events(&store, "run-a", "agent-a", 0, 5000).unwrap();
         assert_eq!(page.len(), 1000);
         let rest =
