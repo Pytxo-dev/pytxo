@@ -1,3 +1,7 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use pytxo_core::{PytxoError, Result};
 use rusqlite::{Connection, OptionalExtension};
 
@@ -6,6 +10,31 @@ use crate::schema::{
     MIGRATION_007, MIGRATION_008, MIGRATION_009, MIGRATION_010, MIGRATION_011, MIGRATION_012,
     MIGRATION_013, MIGRATION_014, MIGRATION_015,
 };
+
+/// The version the last migration step stamps. Adding a step means raising
+/// this; `latest_version_is_where_a_fresh_store_ends` fails until both agree.
+pub(crate) const LATEST_VERSION: i32 = 15;
+
+/// The schema SQLite itself parses from constant migration SQL, applied in
+/// order to an empty in-memory database. Schema verification compares stores
+/// against it on every open; the SQL never changes, so each thread builds a
+/// reference once instead of on every open (it was most of the open cost).
+pub(crate) fn reference_schema(migrations: &[&str]) -> Result<Rc<Connection>> {
+    thread_local! {
+        static REFERENCES: RefCell<HashMap<String, Rc<Connection>>> = RefCell::new(HashMap::new());
+    }
+    let key = migrations.join("\n--\n");
+    if let Some(reference) = REFERENCES.with(|cache| cache.borrow().get(&key).cloned()) {
+        return Ok(reference);
+    }
+    let reference = Connection::open_in_memory().map_err(store_error)?;
+    for sql in migrations {
+        reference.execute_batch(sql).map_err(store_error)?;
+    }
+    let reference = Rc::new(reference);
+    REFERENCES.with(|cache| cache.borrow_mut().insert(key, reference.clone()));
+    Ok(reference)
+}
 
 const SCHEMA_001: &[(&str, &[&str])] = &[
     (
@@ -120,23 +149,29 @@ pub fn apply_migrations(conn: &Connection) -> Result<()> {
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(store_error)?;
 
-    if !(0..=15).contains(&version) {
+    if !(0..=LATEST_VERSION).contains(&version) {
         return Err(PytxoError::Store(format!(
             "unsupported store schema version {version}"
         )));
     }
 
+    // A current store applies no step. Every guard below would only repeat part
+    // of this final check, and each one re-verifies everything older than it.
+    if version == LATEST_VERSION {
+        return verify_latest_schema(conn);
+    }
+
     // Before the per-step locks, a racing opener could stamp a fully migrated
     // store back down to an old version. Its schema is already the latest, so it
     // is restamped instead of re-running DDL that would fail on existing columns.
-    if version > 0 && version < 15 && has_latest_schema(conn) {
-        if let Some(tx) = begin_step(conn, 15)? {
+    if version > 0 && version < LATEST_VERSION && has_latest_schema(conn) {
+        if let Some(tx) = begin_step(conn, LATEST_VERSION)? {
             if !has_latest_schema(&tx) {
                 return Err(PytxoError::Store(
                     "store schema changed while repairing its version".into(),
                 ));
             }
-            tx.pragma_update(None, "user_version", 15)
+            tx.pragma_update(None, "user_version", LATEST_VERSION)
                 .map_err(store_error)?;
             tx.commit().map_err(store_error)?;
         }
@@ -323,8 +358,7 @@ fn apply_migration_015(conn: &Connection, sql: &str) -> Result<()> {
 /// including column types, keys, uniqueness, FK and CHECK constraints. Checking
 /// column names alone would accept a malformed pre-stamped version 8 database.
 fn verify_routing_schema(conn: &Connection) -> Result<()> {
-    let expected = Connection::open_in_memory().map_err(store_error)?;
-    expected.execute_batch(MIGRATION_008).map_err(store_error)?;
+    let expected = reference_schema(&[MIGRATION_008])?;
     let mut stmt = expected.prepare("SELECT type,name,sql FROM sqlite_master WHERE name LIKE 'routing_%' OR name='idx_routing_events_scope'").map_err(store_error)?;
     let rows = stmt
         .query_map([], |r| {
@@ -356,8 +390,7 @@ fn verify_routing_schema(conn: &Connection) -> Result<()> {
 /// Compare the new private table with the canonical SQLite-parsed definition,
 /// including its primary key and NOT NULL constraints.
 fn verify_staging_schema(conn: &Connection) -> Result<()> {
-    let expected = Connection::open_in_memory().map_err(store_error)?;
-    expected.execute_batch(MIGRATION_009).map_err(store_error)?;
+    let expected = reference_schema(&[MIGRATION_009])?;
     let expected_sql: String = expected
         .query_row(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='routing_mission_stages'",
@@ -381,8 +414,7 @@ fn verify_staging_schema(conn: &Connection) -> Result<()> {
 }
 
 fn verify_capacity_intent_schema(conn: &Connection) -> Result<()> {
-    let expected = Connection::open_in_memory().map_err(store_error)?;
-    expected.execute_batch(MIGRATION_010).map_err(store_error)?;
+    let expected = reference_schema(&[MIGRATION_010])?;
     for (kind, name) in [
         ("table", "routing_capacity_intents"),
         ("index", "idx_routing_capacity_intents_phase"),
@@ -413,8 +445,7 @@ fn verify_capacity_intent_schema(conn: &Connection) -> Result<()> {
 }
 
 fn verify_private_artifact_schema(conn: &Connection) -> Result<()> {
-    let expected = Connection::open_in_memory().map_err(store_error)?;
-    expected.execute_batch(MIGRATION_011).map_err(store_error)?;
+    let expected = reference_schema(&[MIGRATION_011])?;
     for (kind, name) in [
         ("table", "routing_private_artifacts"),
         ("index", "idx_routing_private_input_singleton"),
@@ -577,14 +608,14 @@ fn verify_v12_schema(conn: &Connection) -> Result<()> {
 }
 
 fn verify_advisor_schema(conn: &Connection, scoped: bool, hosted: bool) -> Result<()> {
-    let expected = Connection::open_in_memory().map_err(store_error)?;
-    expected.execute_batch(MIGRATION_013).map_err(store_error)?;
+    let mut migrations = vec![MIGRATION_013];
     if scoped {
-        expected.execute_batch(MIGRATION_014).map_err(store_error)?;
+        migrations.push(MIGRATION_014);
     }
     if hosted {
-        expected.execute_batch(MIGRATION_015).map_err(store_error)?;
+        migrations.push(MIGRATION_015);
     }
+    let expected = reference_schema(&migrations)?;
     let mut objects = vec![
         ("table", "routing_advisor_consent"),
         ("table", "routing_advisor_requests"),
@@ -624,8 +655,7 @@ fn verify_v11_schema(conn: &Connection) -> Result<()> {
 }
 
 fn verify_checker_ownership_schema(conn: &Connection) -> Result<()> {
-    let expected = Connection::open_in_memory().map_err(store_error)?;
-    expected.execute_batch(MIGRATION_012).map_err(store_error)?;
+    let expected = reference_schema(&[MIGRATION_012])?;
     for (kind, name) in [
         ("table", "attempt_checker_ownership"),
         ("index", "idx_attempt_checker_job_name"),
@@ -859,6 +889,40 @@ mod tests {
             .unwrap();
         assert_eq!(version, 0);
         assert!(!table_exists(&conn, "agents").unwrap());
+    }
+
+    #[test]
+    fn latest_version_is_where_a_fresh_store_ends() {
+        // The current-store shortcut is keyed on LATEST_VERSION. A new step that
+        // stamps past it, or a raised constant without its step, fails here.
+        let conn = Connection::open_in_memory().unwrap();
+        apply_migrations(&conn).unwrap();
+        let version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, LATEST_VERSION);
+        assert!(has_latest_schema(&conn));
+        apply_migrations(&conn).expect("a current store reopens through the shortcut");
+        // One version back is not current: it is restamped, not short-circuited.
+        set_version(&conn, LATEST_VERSION - 1);
+        apply_migrations(&conn).unwrap();
+        let version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, LATEST_VERSION);
+    }
+
+    #[test]
+    fn current_store_still_verifies_its_oldest_schema() {
+        let conn = Connection::open_in_memory().unwrap();
+        apply_migrations(&conn).unwrap();
+        apply_migrations(&conn).unwrap();
+        // Only the version 1 checks can see this; the current version skips every step.
+        conn.execute_batch("DROP TABLE events; CREATE TABLE events (id INTEGER PRIMARY KEY);")
+            .unwrap();
+
+        apply_migrations(&conn)
+            .expect_err("a current store with a broken v1 table must fail closed");
     }
 
     #[test]

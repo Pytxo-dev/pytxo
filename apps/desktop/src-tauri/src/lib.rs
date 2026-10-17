@@ -17,6 +17,7 @@ mod local_preview;
 pub mod local_preview_policy;
 #[cfg(windows)]
 mod main_profile;
+mod startup_snapshot;
 mod tray;
 mod update_safety;
 mod workspace_project;
@@ -58,11 +59,13 @@ use ipc_voice::{
     voice_install_default_model, voice_list_devices, voice_local_available, voice_model_status,
     voice_pause_session, voice_resume_session, voice_start_session,
 };
-use std::sync::Mutex;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let config_path = ipc::startup_config_path();
+    // Read the first snapshot while the webview below is created.
+    startup_snapshot::start(config_path.clone());
     #[allow(unused_mut)]
     let mut context = tauri::generate_context!();
     #[cfg(windows)]
@@ -120,16 +123,7 @@ pub fn run() {
         .manage(tray::TrayPrefs::load())
         .manage(workspace_terminal::WorkspaceTerminals::default())
         .manage(update_safety::UpdateHandoff::default())
-        .manage(AppState {
-            config_path: Mutex::new(None),
-            poll_cursors: Mutex::new(std::collections::HashMap::new()),
-            domain_change_observations: Mutex::new(std::collections::HashMap::new()),
-            domain_store_paths: Mutex::new(std::collections::HashMap::new()),
-            selected_domain_id: Mutex::new(None),
-            voice_sessions: std::sync::Arc::new(Mutex::new(std::collections::HashMap::new())),
-            voice_captures: std::sync::Arc::new(Mutex::new(std::collections::HashMap::new())),
-            voice_cancellations: Mutex::new(std::collections::HashMap::new()),
-        })
+        .manage(AppState::new(config_path))
         .on_window_event(|window, event| {
             local_preview::on_window_event(window, event);
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -201,6 +195,7 @@ pub fn run() {
             project_remove_root_cmd,
             list_fleet_runs,
             load_desktop_snapshot,
+            startup_snapshot::take_startup_snapshot,
             fleet_run_status_cmd,
             structural_graph,
             workspace_structural_graph,
@@ -298,16 +293,6 @@ pub fn run() {
             }
             local_preview::start_expiry(app.handle().clone());
             ipc_auth::hydrate_session_env();
-            if let Ok(dir) = std::env::current_dir() {
-                let cfg = dir.join("pytxo.toml");
-                if cfg.exists() {
-                    if let Some(state) = app.try_state::<AppState>() {
-                        if let Ok(mut guard) = state.config_path.lock() {
-                            *guard = Some(cfg);
-                        }
-                    }
-                }
-            }
             Ok(())
         })
         .build(context)

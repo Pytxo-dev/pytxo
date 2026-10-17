@@ -22,7 +22,7 @@ use pytxo_orchestrate::{
     CatalogEntryStatus, DomainSummary, RunOptions,
 };
 use pytxo_runner::{isolation_backend_label, RecoveryOutcome};
-use pytxo_store::{AgentRecord, EventRecord, RunContractRecord, RunRecord};
+use pytxo_store::{AgentRecord, EventRecord, RunContractRecord, RunContractSummary, RunRecord};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, State};
 
@@ -53,6 +53,53 @@ pub struct AppState {
         Mutex<HashMap<uuid::Uuid, std::sync::Arc<std::sync::atomic::AtomicBool>>>,
 }
 
+impl AppState {
+    pub fn new(config_path: Option<PathBuf>) -> Self {
+        Self {
+            config_path: Mutex::new(config_path),
+            poll_cursors: Mutex::new(HashMap::new()),
+            domain_change_observations: Mutex::new(HashMap::new()),
+            domain_store_paths: Mutex::new(HashMap::new()),
+            selected_domain_id: Mutex::new(None),
+            voice_sessions: std::sync::Arc::new(Mutex::new(HashMap::new())),
+            voice_captures: std::sync::Arc::new(Mutex::new(HashMap::new())),
+            voice_cancellations: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Keeps what another read resolved (store paths, settled change boundaries)
+    /// without overwriting anything this state already observed itself.
+    pub(crate) fn adopt(&self, other: AppState) -> IpcResult<()> {
+        let paths = other
+            .domain_store_paths
+            .into_inner()
+            .map_err(map_lock_err)?;
+        let mut current = self.domain_store_paths.lock().map_err(map_lock_err)?;
+        for (domain_id, path) in paths {
+            current.entry(domain_id).or_insert(path);
+        }
+        drop(current);
+        let observations = other
+            .domain_change_observations
+            .into_inner()
+            .map_err(map_lock_err)?;
+        let mut current = self
+            .domain_change_observations
+            .lock()
+            .map_err(map_lock_err)?;
+        for (path, observation) in observations {
+            current.entry(path).or_insert(observation);
+        }
+        Ok(())
+    }
+}
+
+/// `pytxo.toml` in the directory Desktop started in, when there is one.
+pub fn startup_config_path() -> Option<PathBuf> {
+    let config = std::env::current_dir().ok()?.join("pytxo.toml");
+    config.exists().then_some(config)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DomainChangeObservation {
     fingerprint: StoreFingerprint,
@@ -60,13 +107,13 @@ pub(crate) struct DomainChangeObservation {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct StoreFingerprint {
+pub(crate) struct StoreFingerprint {
     database: Option<FileFingerprint>,
     wal: Option<FileFingerprint>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct FileFingerprint {
+pub(crate) struct FileFingerprint {
     len: u64,
     modified: Option<SystemTime>,
     created: Option<SystemTime>,
@@ -548,7 +595,7 @@ pub fn list_domains_cmd() -> IpcResult<Vec<DomainDto>> {
 
 /// "All projects" home: every domain the hypervisor catalog knows about,
 /// including ones not yet loaded into this session ([[execution-domains]] v2).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_all_domains() -> IpcResult<Vec<CatalogEntry>> {
     orch_list_catalog_domains().map_err(map_orch_err)
 }
@@ -615,7 +662,7 @@ pub async fn catalog_fingerprint() -> IpcResult<String> {
 }
 
 /// Enriched catalog with per-domain run health ([[execution-domains]] Phase 3).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_domains_status() -> IpcResult<Vec<CatalogEntryStatus>> {
     orch_list_domains_status().map_err(map_orch_err)
 }
@@ -708,7 +755,7 @@ pub fn ensure_workspace(state: State<'_, AppState>, domain_id: String) -> IpcRes
     Ok(id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_runs(
     state: State<'_, AppState>,
     limit: usize,
@@ -720,14 +767,14 @@ pub fn list_runs(
     let runs = store.list_runs(limit).map_err(map_store_err)?;
     runs.into_iter()
         .map(|run| {
-            let contract = store.get_run_contract(&run.id).ok().flatten();
+            let contract = store.get_run_contract_summary(&run.id).ok().flatten();
             let revision = routing_revision_for_run(&store, &domain, &run.id)?;
             Ok(run_to_dto(run, &domain, &cfg, contract.as_ref(), revision))
         })
         .collect::<IpcResult<Vec<_>>>()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn run_review(
     state: State<'_, AppState>,
     run_id: String,
@@ -766,7 +813,7 @@ pub fn run_review(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn run_review_content(
     state: State<'_, AppState>,
     run_id: String,
@@ -874,11 +921,45 @@ fn optional_file_fingerprint(path: &Path) -> IpcResult<Option<FileFingerprint>> 
     }
 }
 
-fn store_fingerprint(path: &Path) -> IpcResult<StoreFingerprint> {
+pub(crate) fn store_fingerprint(path: &Path) -> IpcResult<StoreFingerprint> {
     Ok(StoreFingerprint {
         database: optional_file_fingerprint(path)?,
         wal: optional_file_fingerprint(&sqlite_sidecar_path(path, "-wal"))?,
     })
+}
+
+/// A snapshot opens each store several times. While nothing else has a store
+/// open, every one of those closes is the last: it checkpoints and deletes the
+/// -wal and -shm files, and the next open creates them again. One handle per
+/// store, held for the snapshot only, keeps them in place; recovery can still
+/// replace a store right after the snapshot. The handle never creates a store
+/// or writes. It opens read-write only so that, closing last, it checkpoints
+/// and deletes the files as before: a read-only last close would leave them
+/// behind and change the store fingerprints Desktop observes.
+fn hold_snapshot_wals(state: &AppState) -> Vec<rusqlite::Connection> {
+    let mut held: Vec<_> = pytxo_store::default_catalog_path()
+        .and_then(|catalog| hold_store_wal(&catalog))
+        .into_iter()
+        .collect();
+    if let Ok(domains) = pytxo_orchestrate::list_catalog_domains() {
+        held.extend(
+            domains
+                .iter()
+                .filter_map(|domain| resolved_domain_store_path(state, &domain.domain_id).ok())
+                .filter_map(|path| hold_store_wal(&path)),
+        );
+    }
+    held
+}
+
+fn hold_store_wal(path: &Path) -> Option<rusqlite::Connection> {
+    let conn =
+        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)
+            .ok()?;
+    // SQLite opens the WAL at the first read; this one ends at once.
+    conn.query_row("PRAGMA schema_version", [], |_| Ok(()))
+        .ok()?;
+    Some(conn)
 }
 
 fn unchanged_domain_changes(cursor: i64) -> DomainChangesPageDto {
@@ -937,7 +1018,7 @@ fn observed_domain_changes(
     Ok(dto)
 }
 
-fn domain_changes_batch_blocking(
+pub(crate) fn domain_changes_batch_blocking(
     state: &AppState,
     requests: Vec<DomainChangesRequest>,
     limit: usize,
@@ -980,7 +1061,7 @@ pub async fn domain_changes_batch(
     .map_err(map_orch_err)?
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_agents(
     state: State<'_, AppState>,
     run_id: String,
@@ -1006,7 +1087,7 @@ pub struct AgentArbitrageDto {
 }
 
 /// Per-agent Signal Core arbitrage stats for the topology graph.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_arbitrage(
     state: State<'_, AppState>,
     run_id: String,
@@ -1030,7 +1111,7 @@ pub fn agent_arbitrage(
         .collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn tail_events(
     state: State<'_, AppState>,
     agent_id: String,
@@ -1048,7 +1129,7 @@ pub fn tail_events(
         .collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn poll_log_lines(
     state: State<'_, AppState>,
     agent_id: String,
@@ -1072,7 +1153,7 @@ pub fn poll_log_lines(
 
 /// Read-only observer API. The caller owns its cursor; another view cannot
 /// consume it. Require exact run/agent membership inside the requested domain.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_agent_events(
     state: State<'_, AppState>,
     run_id: String,
@@ -1105,7 +1186,7 @@ fn read_scoped_agent_events(
         ));
     }
     store
-        .tail_events_after(agent_id, after.max(0), limit.clamp(1, 200))
+        .tail_events_after(agent_id, after.max(0), limit.clamp(1, 1000))
         .map_err(map_store_err)
         .map(|events| events.into_iter().map(event_to_dto).collect())
 }
@@ -1113,7 +1194,7 @@ fn read_scoped_agent_events(
 /// The last error a worker printed, reduced to one plain sentence so a failed
 /// run can say why without opening raw output. Advisory only: the recorded exit
 /// status stays authoritative, and payloads were already sanitized at capture.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_failure_hint(
     state: State<'_, AppState>,
     run_id: String,
@@ -1408,7 +1489,7 @@ fn hitl_to_dto(request: pytxo_runner::HitlRequest, domain_id: String) -> HitlDto
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_hitl(state: State<'_, AppState>, domain_id: Option<String>) -> IpcResult<Vec<HitlDto>> {
     let domain = resolve_domain(&state, domain_id)?;
     let domain_id = domain.clone();
@@ -1419,7 +1500,7 @@ pub fn list_hitl(state: State<'_, AppState>, domain_id: Option<String>) -> IpcRe
         .collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_hitl_all() -> IpcResult<Vec<HitlDto>> {
     Ok(orch_list_hitl_pending_all()
         .map_err(map_orch_err)?
@@ -1511,7 +1592,7 @@ pub struct FleetRunDto {
     pub status: String,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_fleet_runs(limit: usize) -> IpcResult<Vec<FleetRunDto>> {
     Ok(fleet_status(None, limit)
         .map_err(map_orch_err)?
@@ -1609,7 +1690,10 @@ fn load_domain_desktop_snapshot(
     };
     for run in domain_runs {
         let run_id = run.id.clone();
-        let contract = match store.get_run_contract(&run_id).map_err(map_store_err) {
+        let contract = match store
+            .get_run_contract_summary(&run_id)
+            .map_err(map_store_err)
+        {
             Ok(contract) => contract,
             Err(error) => {
                 loaded.diagnostics.push(snapshot_diagnostic(
@@ -1677,7 +1761,7 @@ pub async fn load_desktop_snapshot(
     .map_err(map_orch_err)?
 }
 
-fn load_desktop_snapshot_blocking(
+pub(crate) fn load_desktop_snapshot_blocking(
     state: &AppState,
     run_limit: Option<usize>,
     fleet_limit: Option<usize>,
@@ -1686,6 +1770,7 @@ fn load_desktop_snapshot_blocking(
     let run_limit = run_limit.unwrap_or(30);
     let fleet_limit = fleet_limit.unwrap_or(20);
     let include_agents = include_agents.unwrap_or(true);
+    let _held_wals = hold_snapshot_wals(state);
     let domains = orch_list_domains_status().map_err(map_orch_err)?;
     let domain_ids = domains
         .iter()
@@ -1860,7 +1945,7 @@ pub struct FleetRunStatusDto {
     pub nodes: Vec<FleetNodeDto>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fleet_run_status_cmd(fleet_run_id: String) -> IpcResult<FleetRunStatusDto> {
     let status = fleet_run_status(&fleet_run_id).map_err(map_orch_err)?;
     Ok(FleetRunStatusDto {
@@ -1907,7 +1992,7 @@ pub struct StructuralEdgeDto {
     pub to: String,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn workspace_structural_graph(
     state: State<'_, AppState>,
     domain_id: Option<String>,
@@ -1942,7 +2027,7 @@ fn graph_to_dto(graph: pytxo_signal::StructuralGraph) -> StructuralGraphDto {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn structural_graph(
     state: State<'_, AppState>,
     run_id: String,
@@ -1990,7 +2075,7 @@ fn run_to_dto(
     r: RunRecord,
     domain_id: &str,
     cfg: &PytxoConfig,
-    contract: Option<&RunContractRecord>,
+    contract: Option<&RunContractSummary>,
     routing_revision: Option<String>,
 ) -> RunDto {
     let (isolation_mode, isolation_backend) = run_isolation_status(
@@ -2144,6 +2229,38 @@ mod mission_control_contract_tests {
         }
     }
     #[test]
+    fn startup_boundary_read_is_adopted_without_overwriting_live_state() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("domain.db");
+        let store = pytxo_store::PytxoStore::open(&path).unwrap();
+        store.insert_run("run-a", "/repo").unwrap();
+        let boundary = store.changes_since(0, 100).unwrap().next_cursor;
+        assert!(boundary > 0);
+        drop(store);
+
+        let startup = AppState::new(None);
+        remember_domain_store_path(&startup, "domain", path.clone()).unwrap();
+        remember_domain_store_path(&startup, "other", dir.path().join("startup.db")).unwrap();
+        let request = || DomainChangesRequest {
+            domain_id: "domain".into(),
+            cursor: i64::MAX,
+        };
+        let page = domain_changes_batch_blocking(&startup, vec![request()], 1)
+            .unwrap()
+            .remove(0);
+        assert_eq!((page.next_cursor, page.cursor_gap), (boundary, true));
+
+        let live = AppState::new(None);
+        remember_domain_store_path(&live, "other", dir.path().join("live.db")).unwrap();
+        live.adopt(startup).unwrap();
+        let paths = live.domain_store_paths.lock().unwrap().clone();
+        assert_eq!(paths["domain"], path);
+        assert_eq!(paths["other"], dir.path().join("live.db"));
+        let observations = live.domain_change_observations.lock().unwrap();
+        assert_eq!(observations[&path].settled_cursor, boundary);
+    }
+
+    #[test]
     fn dock_observers_have_independent_cursors_and_enforce_run_membership() {
         let dir = tempfile::tempdir().unwrap();
         let store = pytxo_store::PytxoStore::open(&dir.path().join("dock.db")).unwrap();
@@ -2164,6 +2281,59 @@ mod mission_control_contract_tests {
         assert_eq!(next[0].payload, "second");
         assert!(read_scoped_agent_events(&store, "run-b", "agent-a", 0, 200).is_err());
         assert!(read_scoped_agent_events(&store, "run-a", "missing", 0, 200).is_err());
+    }
+
+    #[test]
+    fn a_snapshot_wal_hold_keeps_the_wal_and_leaves_none_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("held.db");
+        let wal = sqlite_sidecar_path(&path, "-wal");
+        assert!(
+            hold_store_wal(&path).is_none(),
+            "a hold never creates a store"
+        );
+        assert!(!path.exists());
+        drop(pytxo_store::PytxoStore::open(&path).unwrap());
+        assert!(!wal.exists());
+        let held = hold_store_wal(&path).unwrap();
+        let store = pytxo_store::PytxoStore::open_existing_read_only(&path).unwrap();
+        store.list_runs(1).unwrap();
+        drop(store);
+        assert!(wal.exists(), "an inner close is not the last one");
+        drop(held);
+        assert!(
+            !wal.exists(),
+            "the hold closes last and leaves the store as before"
+        );
+    }
+
+    #[test]
+    fn observer_pages_stay_bounded_at_a_thousand_events() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("dock.db");
+        let store = pytxo_store::PytxoStore::open(&path).unwrap();
+        store.insert_run("run-a", "/repo").unwrap();
+        store
+            .insert_agent("agent-a", "run-a", "task", 0, None, "echo hi")
+            .unwrap();
+        // One commit: a thousand separate ones took ~20 s on Windows CI and
+        // starved the shell started by the concurrent workspace terminal test.
+        let mut conn = rusqlite::Connection::open(&path).unwrap();
+        let tx = conn.transaction().unwrap();
+        let ts = chrono::Utc::now().to_rfc3339();
+        for line in 0..1001 {
+            tx.execute(
+                "INSERT INTO events (agent_id, ts, kind, payload) VALUES ('agent-a', ?1, 'stdout', ?2)",
+                rusqlite::params![ts, line.to_string()],
+            )
+            .unwrap();
+        }
+        tx.commit().unwrap();
+        let page = read_scoped_agent_events(&store, "run-a", "agent-a", 0, 5000).unwrap();
+        assert_eq!(page.len(), 1000);
+        let rest =
+            read_scoped_agent_events(&store, "run-a", "agent-a", page[999].id, 5000).unwrap();
+        assert_eq!(rest.len(), 1);
     }
     use pytxo_core::{
         PreparedRunFile, PreparedRunFileKind, PreparedRunManifest, PreparedRunSummary,

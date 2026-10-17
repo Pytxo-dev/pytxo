@@ -86,9 +86,12 @@
     let after = untrack(() => cursor);
     loading = true;
     async function poll() {
+      let caughtUp = true;
       try {
-        const page = await backend.readAgentEvents(view.runId, view.agentId!, view.domainId, after, 200);
+        // Each page is one store open: a long log reaches its newest line in few, large pages.
+        const page = await backend.readAgentEvents(view.runId, view.agentId!, view.domainId, after, 1000);
         if (disposed) return;
+        caughtUp = page.length < 1000;
         if (page.length) {
           after = page[page.length - 1].id;
           cursor = after;
@@ -106,7 +109,9 @@
       } catch (cause) {
         if (!disposed) error = cause instanceof Error ? cause.message : String(cause);
       } finally {
-        if (!disposed) { loading = false; timer = setTimeout(poll, 2000); }
+        // A full page means more recorded output is waiting. Read on at once, so a
+        // long log reaches its newest line without a two-second pause per page.
+        if (!disposed) { loading = false; timer = setTimeout(poll, caughtUp ? 2000 : 0); }
       }
     }
     void poll();

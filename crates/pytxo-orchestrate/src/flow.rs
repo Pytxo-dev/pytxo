@@ -4317,7 +4317,9 @@ fn reconcile_abandoned_routed_startup(
 pub fn list_flow_drafts_with_routed_recovery(
     catalog: &Catalog,
 ) -> anyhow::Result<Vec<FlowDraftRecord>> {
-    for draft in catalog.list_flow_drafts()? {
+    let drafts = catalog.list_flow_drafts()?;
+    let mut reconciled = false;
+    for draft in &drafts {
         let mut needs_recovery = draft.status == "recovery_required";
         if draft.status == "dispatching" {
             if let Some(run_id) = draft.dispatched_run_id.as_deref() {
@@ -4346,12 +4348,17 @@ pub fn list_flow_drafts_with_routed_recovery(
             }
         }
         if needs_recovery {
+            reconciled = true;
             if let Err(error) = reconcile_routed_flow_startup(catalog, &draft.id) {
                 tracing::warn!(draft_id = %draft.id, %error, "routed Flow startup recovery deferred");
             }
         }
     }
-    Ok(catalog.list_flow_drafts()?)
+    // Only recovery rewrites drafts here; without it the first read is current.
+    if reconciled {
+        return Ok(catalog.list_flow_drafts()?);
+    }
+    Ok(drafts)
 }
 
 fn dispatch_flow_scoped(

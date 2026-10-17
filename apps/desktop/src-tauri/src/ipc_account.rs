@@ -98,7 +98,7 @@ fn http() -> IpcResult<reqwest::Client> {
         .map_err(|e| err("account", e.to_string()))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn account_status() -> IpcResult<AccountStatusDto> {
     let account = load();
     let sign_in_pending = pending()

@@ -482,7 +482,7 @@ fn launch_vendor_terminal(executable: &str, args: &[&str]) -> IpcResult<()> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn entitlement_status(
     state: State<'_, AppState>,
     domain_id: Option<String>,

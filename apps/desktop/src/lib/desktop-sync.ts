@@ -1,4 +1,4 @@
-import type { DesktopSnapshot } from "./desktop-backend";
+import type { DesktopSnapshot, StartupSnapshot } from "./desktop-backend";
 import { advanceDomainCursor, type DomainCursorPage } from "./review-state";
 
 export function fingerprintDesktopSnapshot(snapshot: DesktopSnapshot): string {
@@ -119,6 +119,9 @@ export async function consumeDomainChanges(
   return { changed, needsSnapshot };
 }
 
+/** Beyond any store's last change: the page reports a cursor gap at the store's boundary. */
+const DOMAIN_CURSOR_PAST_END = Number.MAX_SAFE_INTEGER;
+
 /**
  * Establishes a cursor boundary before accepting the returned snapshot.
  *
@@ -138,12 +141,35 @@ export async function loadConsistentDesktopSnapshot<
   ) => Promise<DomainCursorPage>,
   cursors: Map<string, number>,
   loadBatch?: DomainChangesBatchLoader,
+  listDomainIds?: () => Promise<string[]>,
+  preloaded?: { snapshot: T; boundaries: Array<{ domainId: string; cursor: number }> } | null,
 ): Promise<T> {
-  let snapshot = await loadSnapshot();
+  let snapshot: T;
+  if (cursors.size === 0 && preloaded) {
+    // A snapshot read elsewhere, after these boundaries, stands in for the
+    // first read; the catch-up below reloads if anything moved since.
+    for (const { domainId, cursor } of preloaded.boundaries) cursors.set(domainId, cursor);
+    snapshot = preloaded.snapshot;
+  } else {
+    if (cursors.size === 0 && listDomainIds) {
+      // First load: take every catalog domain's boundary before the only
+      // snapshot read, so that read already holds what the cursors mark observed.
+      // Any failure falls back to the snapshot-first path below.
+      const known = await listDomainIds().catch(() => [] as string[]);
+      for (const domainId of known) cursors.set(domainId, DOMAIN_CURSOR_PAST_END);
+      await consumeDomainChanges(known, cursors, loadPage, 1, loadBatch).catch(() => cursors.clear());
+    }
+    snapshot = await loadSnapshot();
+  }
   const domainIds = snapshot.domains.map((domain) => domain.domain_id);
   const newlyDiscovered = domainIds.filter((domainId) => !cursors.has(domainId));
   if (newlyDiscovered.length > 0) {
-    await consumeDomainChanges(newlyDiscovered, cursors, loadPage, 1000, loadBatch);
+    // The reload below already contains a new domain's history, so its cursor
+    // starts at the store's current boundary. A cursor past the end returns that
+    // boundary in one call; replaying the log from zero cost one round trip per
+    // thousand recorded events.
+    for (const domainId of newlyDiscovered) cursors.set(domainId, DOMAIN_CURSOR_PAST_END);
+    await consumeDomainChanges(newlyDiscovered, cursors, loadPage, 1, loadBatch);
     snapshot = await loadSnapshot();
   }
 
@@ -157,4 +183,47 @@ export async function loadConsistentDesktopSnapshot<
     snapshot = await loadSnapshot();
   }
   return snapshot;
+}
+
+/**
+ * Reuses a read while a fingerprint taken before it still matches, so a read
+ * started after any change never returns older data. Failures are not kept,
+ * nor a result `reusable` rejects: one that can go stale without a write.
+ */
+export function fingerprintedRead<T>(
+  fingerprint: () => Promise<string>,
+  read: () => Promise<T>,
+  reusable: (value: T) => boolean = () => true,
+): () => Promise<T> {
+  let last: { fingerprint: string; value: Promise<T> } | null = null;
+  return async () => {
+    const current = await fingerprint().catch(() => null);
+    if (current !== null && last?.fingerprint === current) return last.value;
+    const value = read();
+    const entry = current === null ? null : { fingerprint: current, value };
+    last = entry;
+    const forget = () => {
+      if (last === entry) last = null;
+    };
+    value.then((result) => { if (!reusable(result)) forget(); }, forget);
+    return value;
+  };
+}
+
+/**
+ * The startup read as the page's own first read would have returned it, or
+ * null when that read would use other limits. Without agents it drops them
+ * and their read failures, exactly what a read without agents leaves out.
+ */
+export function startupSnapshotFor(
+  startup: StartupSnapshot | null | undefined,
+  load: { includeAgents: boolean; runLimit: number; fleetLimit: number },
+): StartupSnapshot | null {
+  if (!startup || startup.runLimit !== load.runLimit || startup.fleetLimit !== load.fleetLimit) return null;
+  if (load.includeAgents) return startup;
+  const { snapshot } = startup;
+  return {
+    ...startup,
+    snapshot: { ...snapshot, agents: [], diagnostics: snapshot.diagnostics.filter((diagnostic) => diagnostic.stage !== "agents") },
+  };
 }

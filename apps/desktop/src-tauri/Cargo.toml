@@ -38,6 +38,7 @@ portable-pty.workspace = true
 pytxo-core = { path = "../../../crates/pytxo-core" }
 pytxo-planner = { path = "../../../crates/pytxo-planner" }
 pytxo-store = { path = "../../../crates/pytxo-store" }
+rusqlite.workspace = true
 pytxo-orchestrate = { path = "../../../crates/pytxo-orchestrate", features = ["sanitize", "link-http"] }
 pytxo-signal = { path = "../../../crates/pytxo-signal" }
 pytxo-runner = { path = "../../../crates/pytxo-runner" }

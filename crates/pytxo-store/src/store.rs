@@ -42,6 +42,18 @@ pub struct RunContractRecord {
     pub recovery_state: Option<String>,
 }
 
+/// The contract state a run list shows, without the plan or manifests.
+#[derive(Clone, Debug)]
+pub struct RunContractSummary {
+    pub apply_status: String,
+    pub applied_at: Option<String>,
+    pub enforcement_json: Option<String>,
+    pub prepared_digest: Option<String>,
+    pub prepared_at: Option<String>,
+    pub last_apply_error: Option<RunApplyError>,
+    pub recovery_state: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct DomainChange {
     pub sequence: i64,
@@ -456,6 +468,33 @@ impl PytxoStore {
                         last_apply_error: error_json
                             .and_then(|json| serde_json::from_str(&json).ok()),
                         recovery_state: row.get(11)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(|e| PytxoError::Store(e.to_string()))
+    }
+
+    /// Like [`Self::get_run_contract`] for run lists: parsing every listed run's
+    /// prepared manifest dominated Desktop snapshot reads.
+    pub fn get_run_contract_summary(&self, run_id: &str) -> Result<Option<RunContractSummary>> {
+        self.conn
+            .query_row(
+                "SELECT apply_status, applied_at, enforcement_json, prepared_digest,
+                        prepared_at, last_apply_error_json, recovery_state
+                 FROM run_contracts WHERE run_id = ?1",
+                params![run_id],
+                |row| {
+                    let error_json: Option<String> = row.get(5)?;
+                    Ok(RunContractSummary {
+                        apply_status: row.get(0)?,
+                        applied_at: row.get(1)?,
+                        enforcement_json: row.get(2)?,
+                        prepared_digest: row.get(3)?,
+                        prepared_at: row.get(4)?,
+                        last_apply_error: error_json
+                            .and_then(|json| serde_json::from_str(&json).ok()),
+                        recovery_state: row.get(6)?,
                     })
                 },
             )
@@ -1958,6 +1997,20 @@ mod tests {
             .unwrap()
             .last_apply_error
             .is_some());
+        // Run lists read the summary; it must agree with the full contract.
+        let full = store.get_run_contract(run_id).unwrap().unwrap();
+        let summary = store.get_run_contract_summary(run_id).unwrap().unwrap();
+        assert_eq!(summary.apply_status, full.apply_status);
+        assert_eq!(summary.applied_at, full.applied_at);
+        assert_eq!(summary.enforcement_json, full.enforcement_json);
+        assert_eq!(summary.prepared_digest, full.prepared_digest);
+        assert_eq!(summary.prepared_at, full.prepared_at);
+        assert_eq!(summary.recovery_state.as_deref(), Some("rolled_back"));
+        assert_eq!(summary.recovery_state, full.recovery_state);
+        let error = summary.last_apply_error.unwrap();
+        assert_eq!(error.code, "interrupted_apply");
+        assert!(error.rollback_confirmed);
+        assert!(store.get_run_contract_summary("missing").unwrap().is_none());
         assert!(store.claim_run_apply(run_id).unwrap());
         let manifest = r#"{"transaction_id":"retry-attempt","changes":[]}"#;
         store

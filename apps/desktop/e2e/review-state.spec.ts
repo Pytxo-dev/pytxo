@@ -8,11 +8,13 @@ import {
 import {
   consumeDomainChanges,
   fingerprintDesktopSnapshot,
+  fingerprintedRead,
   incrementalDomainBatchSize,
   loadConsistentDesktopSnapshot,
   selectIncrementalDomainBatch,
+  startupSnapshotFor,
 } from "../src/lib/desktop-sync";
-import type { DesktopSnapshot } from "../src/lib/desktop-backend";
+import type { DesktopSnapshot, StartupSnapshot } from "../src/lib/desktop-backend";
 import type { AgentDto } from "../src/lib/types";
 
 test.describe("Recorded review ownership", () => {
@@ -264,6 +266,173 @@ test.describe("Run Review state contracts", () => {
     expect(result.marker).toBe("after");
     expect(loads).toBeGreaterThanOrEqual(2);
     expect(cursors.get("repo")).toBe(1);
+  });
+
+  test("a new domain starts at its store boundary without replaying the change log", async () => {
+    // A long-lived store: one change per recorded event.
+    const boundary = 96_000;
+    const requested: number[] = [];
+    const cursors = new Map<string, number>();
+    let loads = 0;
+    await loadConsistentDesktopSnapshot(
+      async () => { loads += 1; return { domains: [{ domain_id: "repo" }] }; },
+      async (_domainId, cursor, limit) => {
+        requested.push(cursor);
+        if (cursor > boundary) return { changes: [], next_cursor: boundary, has_more: false, cursor_gap: true };
+        const last = Math.min(boundary, cursor + limit);
+        return {
+          changes: Array.from({ length: last - cursor }, (_, index) => ({ sequence: cursor + index + 1, entity_kind: "event", entity_id: String(cursor + index + 1), changed_at: "now" })),
+          next_cursor: last,
+          has_more: last < boundary,
+          cursor_gap: false,
+        };
+      },
+      cursors,
+    );
+
+    expect(cursors.get("repo")).toBe(boundary);
+    // One boundary read, one settled check; the snapshot reload carries history.
+    expect(requested).toEqual([Number.MAX_SAFE_INTEGER, boundary]);
+    expect(loads).toBe(2);
+  });
+
+  test("first load takes catalog boundaries before one snapshot read", async () => {
+    const boundary = 96_000;
+    const order: string[] = [];
+    const cursors = new Map<string, number>();
+    const page = (cursor: number): DomainCursorPage =>
+      cursor > boundary
+        ? { changes: [], next_cursor: boundary, has_more: false, cursor_gap: true }
+        : { changes: [], next_cursor: boundary, has_more: false, cursor_gap: false };
+    await loadConsistentDesktopSnapshot(
+      async () => { order.push("snapshot"); return { domains: [{ domain_id: "repo" }] }; },
+      async (_domainId, cursor) => { order.push(`page ${cursor}`); return page(cursor); },
+      cursors,
+      undefined,
+      async () => { order.push("catalog"); return ["repo"]; },
+    );
+    expect(order).toEqual(["catalog", `page ${Number.MAX_SAFE_INTEGER}`, "snapshot", `page ${boundary}`]);
+    expect(cursors.get("repo")).toBe(boundary);
+
+    // A failed boundary read falls back to snapshot, boundary, reload.
+    order.length = 0;
+    cursors.clear();
+    let failed = false;
+    await loadConsistentDesktopSnapshot(
+      async () => { order.push("snapshot"); return { domains: [{ domain_id: "repo" }] }; },
+      async (_domainId, cursor) => {
+        if (!failed) { failed = true; throw new Error("Store missing"); }
+        order.push(`page ${cursor}`);
+        return page(cursor);
+      },
+      cursors,
+      undefined,
+      async () => ["repo"],
+    );
+    expect(order).toEqual(["snapshot", `page ${Number.MAX_SAFE_INTEGER}`, "snapshot", `page ${boundary}`]);
+    expect(cursors.get("repo")).toBe(boundary);
+  });
+
+  test("a startup read with earlier boundaries replaces the first snapshot read", async () => {
+    const preloaded = { snapshot: { marker: "startup", domains: [{ domain_id: "repo" }] }, boundaries: [{ domainId: "repo", cursor: 7 }] };
+    const unchanged = (cursor: number): DomainCursorPage => ({ changes: [], next_cursor: cursor, has_more: false, cursor_gap: false });
+    let loads = 0;
+    const cursors = new Map<string, number>();
+    const result = await loadConsistentDesktopSnapshot(
+      async () => { loads += 1; return { marker: "reloaded", domains: [{ domain_id: "repo" }] }; },
+      async (_domainId, cursor) => unchanged(cursor),
+      cursors,
+      undefined,
+      async () => { throw new Error("catalog read not needed"); },
+      preloaded,
+    );
+    expect(result).toBe(preloaded.snapshot);
+    expect(loads).toBe(0);
+    expect(cursors.get("repo")).toBe(7);
+
+    // A change after the boundary, or a domain the startup read had no
+    // boundary for, means the startup snapshot may be stale: read again.
+    for (const [boundaries, change] of [[[{ domainId: "repo", cursor: 7 }], true], [[], false]] as const) {
+      loads = 0;
+      cursors.clear();
+      const reloaded = await loadConsistentDesktopSnapshot(
+        async () => { loads += 1; return { marker: "reloaded", domains: [{ domain_id: "repo" }] }; },
+        async (_domainId, cursor) => change && cursor === 7
+          ? { changes: [{ sequence: 8, entity_kind: "contract", entity_id: "run-1", changed_at: "now" }], next_cursor: 8, has_more: false, cursor_gap: false }
+          : cursor > 8 ? { ...unchanged(8), cursor_gap: true } : unchanged(Math.max(cursor, 8)),
+        cursors,
+        undefined,
+        undefined,
+        { snapshot: preloaded.snapshot, boundaries: [...boundaries] },
+      );
+      expect(reloaded.marker).toBe("reloaded");
+      expect(loads).toBe(1);
+      expect(cursors.get("repo")).toBe(8);
+    }
+  });
+
+  test("a startup read stands in only for a first read with the same limits", () => {
+    const agent = { id: "run-1:agent-0", domain_id: "repo", run_id: "run-1", task_id: "t", wave: 0, status: "completed", exit_code: 0, root_id: null } as AgentDto;
+    const startup = {
+      catalogFingerprint: "fp", boundaries: [], readAtMs: 1, runLimit: 30, fleetLimit: 20,
+      snapshot: {
+        domains: [], runs: [], agents: [agent], approvals: [], fleets: [], error: null,
+        diagnostics: [
+          { domain_id: "repo", stage: "agents", run_id: "run-2", message: "locked" },
+          { domain_id: "repo", stage: "runs", run_id: null, message: "locked" },
+        ],
+      },
+    } as StartupSnapshot;
+    expect(startupSnapshotFor(startup, { includeAgents: true, runLimit: 30, fleetLimit: 20 })).toBe(startup);
+    // History and Setup read without agents: drop them and their read failures.
+    const light = startupSnapshotFor(startup, { includeAgents: false, runLimit: 30, fleetLimit: 20 });
+    expect(light?.snapshot.agents).toEqual([]);
+    expect(light?.snapshot.diagnostics.map((diagnostic) => diagnostic.stage)).toEqual(["runs"]);
+    expect(startup.snapshot.agents).toHaveLength(1);
+    // An idle first read uses smaller limits; the startup read cannot stand in.
+    expect(startupSnapshotFor(startup, { includeAgents: false, runLimit: 12, fleetLimit: 8 })).toBeNull();
+    expect(startupSnapshotFor(null, { includeAgents: true, runLimit: 30, fleetLimit: 20 })).toBeNull();
+  });
+
+  test("a fingerprinted read is reused only while its fingerprint holds", async () => {
+    let fingerprint = "a";
+    let reads = 0;
+    let fail = false;
+    const read = fingerprintedRead(async () => fingerprint, async () => {
+      reads += 1;
+      if (fail) throw new Error("locked");
+      return [reads];
+    });
+    const first = await read();
+    expect(await read()).toBe(first);
+    expect(reads).toBe(1);
+    // Any change after the read means the next read must be fresh.
+    fingerprint = "b";
+    expect(await read()).toEqual([2]);
+    // A failed read is never handed out again.
+    fingerprint = "c";
+    fail = true;
+    await expect(read()).rejects.toThrow("locked");
+    fail = false;
+    expect(await read()).toEqual([4]);
+    // Without a fingerprint nothing is reused.
+    const unfingerprinted = fingerprintedRead(async () => { throw new Error("no catalog"); }, async () => { reads += 1; return reads; });
+    expect(await unfingerprinted()).not.toBe(await unfingerprinted());
+    // A result that can go stale without a write (a live controller check) is read again.
+    let status = "dispatching";
+    let liveReads = 0;
+    const drafts = fingerprintedRead(async () => "same", async () => {
+      liveReads += 1;
+      return [{ status }];
+    }, (records) => !records.some((record) => record.status === "dispatching" || record.status === "recovery_required"));
+    await drafts();
+    status = "recovery_required";
+    expect(await drafts()).toEqual([{ status: "recovery_required" }]);
+    status = "completed";
+    await drafts();
+    const settled = await drafts();
+    expect(settled).toEqual([{ status: "completed" }]);
+    expect(liveReads).toBe(3);
   });
 
   test("cursor reset and reconnect require a snapshot without swallowing the next delta", async () => {

@@ -91,7 +91,7 @@
   let routedStopNotice = $state("");
   let historyStopPending = $state("");
   let historyStopNotice = $state("");
-  let history = $state<FlowDraftRecord[]>([]);
+  let history = $state.raw<FlowDraftRecord[]>([]);
   let packetEligible = $state<Record<string, boolean>>({});
   let packetDraftId = $state<string | null>(null);
   let packetPreview = $state<RoutedAdvisorPacketPreview | null>(null);

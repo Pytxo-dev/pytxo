@@ -756,7 +756,10 @@ pub fn list_catalog_domains_enriched() -> anyhow::Result<Vec<CatalogEntryStatus>
     let mut out = Vec::with_capacity(entries.len());
     for entry in entries {
         let mut row = CatalogEntryStatus::from(entry);
-        if let Ok(store) = pytxo_store::PytxoStore::open(std::path::Path::new(&row.db_path)) {
+        // A status read never creates or migrates a store; that is a write path's job.
+        if let Ok(store) =
+            pytxo_store::PytxoStore::open_existing_read_only(std::path::Path::new(&row.db_path))
+        {
             if let Ok(summary) = store.domain_run_summary() {
                 row.active_runs = summary.active_runs;
                 row.latest_run_status = summary.latest_run_status;

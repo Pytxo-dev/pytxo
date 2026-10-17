@@ -2,6 +2,7 @@ import { ipc } from "./ipc";
 import type { AdeCliStatusDto, AgentArbitrageDto, AgentDto, CatalogEntryStatus, DesktopChangedEvent, DomainChangesPageDto, FleetRunDto, HitlDto, PreparedContentChunkDto, PreparedRunManifest, ProviderStatusDto, RoutingDisplaySummary, RunApplyManifest, RunDto, RunReviewDto, StructuralGraphDto } from "./types";
 import type { FlowDraftInput, FlowDraftRecord, FlowPlan, SplitDraft, ProposedHostedAdvisorPacketPreview, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, VoiceProgressEvent, VoiceSessionDto } from "./types";
 import { PreviewDesktopBackend } from "./desktop-backend.preview";
+import { fingerprintedRead } from "./desktop-sync";
 
 export type DesktopSnapshotError = { kind: "hypervisor-unavailable"; message: string };
 
@@ -26,6 +27,17 @@ export type DesktopSnapshot = {
    * render these as distinct states rather than collapsing both into "empty".
    */
   error: DesktopSnapshotError | null;
+};
+
+/** The first snapshot, read while the window was created, and the change boundaries read before it. */
+export type StartupSnapshot = {
+  catalogFingerprint: string;
+  boundaries: Array<{ domainId: string; cursor: number }>;
+  snapshot: DesktopSnapshot;
+  readAtMs: number;
+  /** The read's limits; it always includes agents. */
+  runLimit: number;
+  fleetLimit: number;
 };
 
 export interface DesktopBackend {
@@ -91,7 +103,11 @@ export interface DesktopBackend {
   reconcileRunRecovery(runId: string, domainId: string | null): Promise<{ outcome: string; attempt_id: string | null }>;
   domainChanges(domainId: string, cursor: number, limit?: number): Promise<DomainChangesPageDto>;
   domainChangesBatch?: import("./desktop-sync").DomainChangesBatchLoader;
+  /** Catalog domain ids without opening any store (empty on failure). */
+  catalogDomainIds?(): Promise<string[]>;
   catalogFingerprint(): Promise<string>;
+  /** Once per app launch; null afterwards or when the startup read failed. */
+  takeStartupSnapshot?(): Promise<StartupSnapshot | null>;
   onDomainChanged(callback: (event: DesktopChangedEvent) => void): Promise<() => void>;
   structuralGraph(runId: string, domainId: string | null): Promise<StructuralGraphDto>;
   workspaceStructuralGraph(domainId: string): Promise<StructuralGraphDto>;
@@ -179,7 +195,16 @@ class TauriDesktopBackend implements DesktopBackend {
     return ipc.ensureWorkspace(created);
   }
   async voiceAvailable() { return ipc.voiceLocalAvailable(); }
-  async flowHistory() { return ipc.flowHistory(); }
+  /**
+   * Drafts live in the catalog, so a read stands while the catalog is unchanged.
+   * A dispatching or recovering draft does not: each read checks whether its
+   * controller is still alive, and a controller can exit without a write.
+   */
+  flowHistory = fingerprintedRead(
+    () => ipc.catalogFingerprint(),
+    () => ipc.flowHistory(),
+    (drafts) => !drafts.some((draft) => draft.status === "dispatching" || draft.status === "recovery_required"),
+  );
   async previewFlowAdvisorPacket(draftId: string) { return ipc.flowAdvisorPacketPreview(draftId); }
   async previewProposedHostedPacket(draftId: string) { return ipc.flowProposedHostedPacketPreview(draftId); }
   async previewReviewedHostedPacket(draftId: string) { return ipc.flowReviewedHostedPacketPreview(draftId); }
@@ -206,7 +231,20 @@ class TauriDesktopBackend implements DesktopBackend {
   async reconcileRunRecovery(runId: string, domainId: string | null) { return ipc.reconcileRunRecovery(runId, domainId); }
   async domainChanges(domainId: string, cursor: number, limit = 200) { return ipc.domainChanges(domainId, cursor, limit); }
   async domainChangesBatch(requests: Array<{ domain_id: string; cursor: number }>, limit: number) { return ipc.domainChangesBatch(requests, limit); }
+  async catalogDomainIds() { return (await ipc.listAllDomains()).map((entry) => entry.domain_id); }
   async catalogFingerprint() { return ipc.catalogFingerprint(); }
+  async takeStartupSnapshot(): Promise<StartupSnapshot | null> {
+    const taken = await ipc.takeStartupSnapshot();
+    if (!taken) return null;
+    return {
+      catalogFingerprint: taken.catalog_fingerprint,
+      boundaries: taken.boundaries.map((boundary) => ({ domainId: boundary.domain_id, cursor: boundary.cursor })),
+      snapshot: { ...taken.snapshot, error: null },
+      readAtMs: taken.read_at_ms,
+      runLimit: taken.run_limit,
+      fleetLimit: taken.fleet_limit,
+    };
+  }
   async onDomainChanged(callback: (event: DesktopChangedEvent) => void) { return ipc.onDomainChanged(callback); }
   async structuralGraph(runId: string, domainId: string | null) { return ipc.structuralGraph(runId, domainId); }
   async workspaceStructuralGraph(domainId: string) { return ipc.workspaceStructuralGraph(domainId); }
