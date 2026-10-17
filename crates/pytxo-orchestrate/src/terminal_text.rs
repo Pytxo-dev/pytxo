@@ -97,6 +97,8 @@ pub fn event_lines(events: &[EventRecord]) -> Vec<String> {
             "verify-ok" => lines.push("✓ Task checks passed".into()),
             "verify-failed" => lines.push("✗ Task checks failed".into()),
             "agent-cancelled" => lines.push("Stopped".into()),
+            "account" => lines.push(format!("Account: {}", event.payload.trim())),
+            "account-hint" => lines.push(event.payload.trim().to_string()),
             _ => {}
         }
     }

@@ -1,6 +1,7 @@
 //! Shared domain types and configuration for Pytxo.
 
 mod ade_registry;
+pub mod agent_accounts;
 mod background_process;
 mod billing;
 mod child_env;

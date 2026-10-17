@@ -298,6 +298,16 @@ export type AdeCliStatusDto = {
   login_label: string | null;
   docs_url: string;
   detail: string;
+  /** Account new work uses, for CLIs that can hold several. */
+  active_account?: string | null;
+};
+
+/** One sign-in for an agent CLI; `default` is the CLI's own home. */
+export type AgentAccountDto = {
+  cli: string;
+  account: string;
+  active: boolean;
+  state: "signed_in" | "signed_out" | "unknown" | "not_installed";
 };
 
 export type ProviderStatusDto = {

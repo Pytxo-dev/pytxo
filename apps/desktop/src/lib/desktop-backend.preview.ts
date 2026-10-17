@@ -7,7 +7,7 @@
  */
 import type { DesktopBackend, DesktopSnapshot } from "./desktop-backend";
 import { DESKTOP_BETA_MAX_WORKERS, isBetaAde } from "./ade-status";
-import type { AdeCliStatusDto, DesktopChangedEvent, SplitDraft, DomainChangeDto, FlowDraftInput, FlowDraftRecord, FlowPlan, PermissionEnforcementReceipt, PreparedContentChunkDto, PreparedRunManifest, ProposedHostedAdvisorPacketPreview, ProviderStatusDto, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RoutingDisplaySummary, RunApplyError, RunApplyManifest, RunReviewDto, VoiceProgressEvent, VoiceSessionDto } from "./types";
+import type { AdeCliStatusDto, AgentAccountDto, DesktopChangedEvent, SplitDraft, DomainChangeDto, FlowDraftInput, FlowDraftRecord, FlowPlan, PermissionEnforcementReceipt, PreparedContentChunkDto, PreparedRunManifest, ProposedHostedAdvisorPacketPreview, ProviderStatusDto, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RoutingDisplaySummary, RunApplyError, RunApplyManifest, RunReviewDto, VoiceProgressEvent, VoiceSessionDto } from "./types";
 
 const previewSignalMark = Uint8Array.from({ length: 300 }, (_, index) => index % 251);
 previewSignalMark.set([0x00, 0xff, 0x50, 0x4e, 0x47], 0);
@@ -470,6 +470,13 @@ const previewCompletedAgents = [
 
 export class PreviewDesktopBackend implements DesktopBackend {
   private readonly snapshot = structuredClone(previewSnapshot);
+  // Browser preview fixture only; the native app probes each vendor CLI.
+  private previewAccounts: AgentAccountDto[] = [
+    { cli: "claude", account: "default", active: false, state: "signed_in" },
+    { cli: "claude", account: "max-2", active: true, state: "signed_in" },
+    { cli: "codex", account: "default", active: true, state: "signed_in" },
+    { cli: "codex", account: "work", active: false, state: "signed_out" },
+  ];
   private readonly voiceDevices = new Map<string, string>();
   private readonly cancelledVoiceSessions = new Set<string>();
   private readonly activeVoiceSessions = new Set<string>();
@@ -702,7 +709,24 @@ export class PreviewDesktopBackend implements DesktopBackend {
   async listAdeClis() {
     return previewAdeState();
   }
-  async startAdeLogin(id: string) {
+  async listAgentAccounts() {
+    return structuredClone(this.previewAccounts);
+  }
+  async addAgentAccount(cli: string, name: string) {
+    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(name) || name === "default") throw new Error(`account name "${name}" must be 1-32 lowercase letters, digits or dashes`);
+    if (this.previewAccounts.some((row) => row.cli === cli && row.account === name)) throw new Error(`account "${name}" already exists`);
+    this.previewAccounts.push({ cli, account: name, active: false, state: "signed_out" });
+    return this.startAdeLogin(cli, name);
+  }
+  async useAgentAccount(cli: string, name: string) {
+    for (const row of this.previewAccounts) if (row.cli === cli) row.active = row.account === name;
+  }
+  async removeAgentAccount(cli: string, name: string) {
+    const removed = this.previewAccounts.find((row) => row.cli === cli && row.account === name);
+    this.previewAccounts = this.previewAccounts.filter((row) => row !== removed);
+    if (removed?.active) await this.useAgentAccount(cli, "default");
+  }
+  async startAdeLogin(id: string, _account?: string) {
     const target = previewAdeState().find((item) => item.id === id);
     if (!target?.installed) throw new Error(`${target?.display_name ?? id} is not installed or is not on PATH.`);
     if (typeof localStorage !== "undefined" && localStorage.getItem("pytxo-preview-login-error-v1") === "true") {

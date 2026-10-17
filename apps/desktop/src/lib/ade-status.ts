@@ -50,9 +50,11 @@ export function isAdeSessionConfirmed(cli: AdeCliStatusDto): boolean {
 
 export function adeAvailabilityLabel(cli: AdeCliStatusDto): string {
   if (!cli.installed || cli.auth_state === "not_installed") return "not installed";
-  if (cli.auth_state === "signed_out") return "sign-in required";
-  if (cli.auth_state === "unknown") return "sign-in could not be verified";
+  // Name a non-default account so Work says which sign-in will run.
+  const account = cli.active_account && cli.active_account !== "default" ? ` · account ${cli.active_account}` : "";
+  if (cli.auth_state === "signed_out") return `sign-in required${account}`;
+  if (cli.auth_state === "unknown") return `sign-in could not be verified${account}`;
   if (cli.auth_state === "detected_only") return "detected · write mode not mapped";
   if (cli.auth_state === "vendor_managed") return "available · vendor-managed authentication";
-  return "ready";
+  return `ready${account}`;
 }

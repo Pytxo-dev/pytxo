@@ -1,8 +1,11 @@
 use serde::Serialize;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::path::Path;
+use std::process::Command;
 
+use pytxo_core::agent_accounts::{
+    self as accounts, host_auth_dir, host_command, run_probe_command, ProbeOutput as ProbeResult,
+    SessionState, DEFAULT_ACCOUNT,
+};
 use pytxo_core::DomainId;
 use pytxo_orchestrate::{effective_entitlements, fetch_link_wallet_balance};
 use tauri::State;
@@ -33,6 +36,17 @@ pub struct AdeCliStatusDto {
     pub login_label: Option<String>,
     pub docs_url: String,
     pub detail: String,
+    /// The account new work uses, for CLIs that can hold several.
+    pub active_account: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct AgentAccountDto {
+    pub cli: String,
+    pub account: String,
+    pub active: bool,
+    /// signed_in, signed_out, unknown or not_installed
+    pub state: String,
 }
 
 #[derive(Serialize)]
@@ -74,18 +88,27 @@ fn list_ade_clis_sync() -> Vec<AdeCliStatusDto> {
 fn ade_status(spec: pytxo_core::AdeCliSpec) -> AdeCliStatusDto {
     let installed = pytxo_core::ade_on_path(&spec);
     let meta = auth_meta(spec.id, installed);
+    let active_account = accounts::account_env(spec.id)
+        .map(|_| accounts::active(&accounts::default_root(), spec.id));
+    let auth_label = match &active_account {
+        Some(account) if installed && account != DEFAULT_ACCOUNT => {
+            format!("{} · {account}", meta.label)
+        }
+        _ => meta.label,
+    };
     AdeCliStatusDto {
         id: spec.id.to_string(),
         display_name: spec.display_name.to_string(),
         default_cmd: spec.default_cmd.to_string(),
         installed,
         auth_state: meta.state.into(),
-        auth_label: meta.label,
+        auth_label,
         auth_owner: meta.owner.into(),
         login_supported: meta.login_label.is_some(),
         login_label: meta.login_label.map(str::to_string),
         docs_url: meta.docs_url.into(),
         detail: meta.detail.into(),
+        active_account,
     }
 }
 
@@ -197,13 +220,16 @@ fn auth_meta(id: &str, installed: bool) -> AuthMeta {
         return meta;
     }
 
-    let probe = match id {
-        "codex" => Some(run_auth_probe("codex", &["login", "status"])),
-        "claude" => Some(run_auth_probe("claude", &["auth", "status", "--json"])),
-        "cursor" => Some(run_auth_probe("cursor-agent", &["status"])),
-        "opencode" => Some(run_auth_probe("opencode", &["auth", "list"])),
-        _ => None,
-    };
+    // Probe the account new work will use, so Work's readiness gate checks
+    // the sign-in that actually runs.
+    let root = accounts::default_root();
+    let probe = accounts::status_command(id).map(|(executable, args)| {
+        let mut command = host_command(executable, args);
+        if let Ok(Some((var, dir))) = accounts::env_for(&root, id, &accounts::active(&root, id)) {
+            command.env(var, dir);
+        }
+        run_probe_command(command)
+    });
     if let Some(probe) = probe {
         if let Some(probe) = probe {
             apply_probe_result(id, &probe, &mut meta);
@@ -215,88 +241,39 @@ fn auth_meta(id: &str, installed: bool) -> AuthMeta {
     meta
 }
 
-struct ProbeResult {
-    success: bool,
-    output: String,
-}
-
-fn run_auth_probe(executable: &str, args: &[&str]) -> Option<ProbeResult> {
-    run_probe_command(host_command(executable, args))
-}
-
-fn run_probe_command(mut command: Command) -> Option<ProbeResult> {
-    // Readiness checks run in the background; only an explicit sign-in opens a terminal.
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-    let mut child = command
-        .current_dir(host_auth_dir())
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .ok()?;
-    let started = Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if started.elapsed() < Duration::from_secs(10) => {
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            Ok(None) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return None;
-            }
-            Err(_) => return None,
-        }
-    }
-    let output = child.wait_with_output().ok()?;
-    let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
-    combined.push('\n');
-    combined.push_str(&String::from_utf8_lossy(&output.stderr));
-    Some(ProbeResult {
-        success: output.status.success(),
-        output: combined,
-    })
-}
-
 fn apply_probe_result(id: &str, probe: &ProbeResult, meta: &mut AuthMeta) {
     let lower = probe.output.to_ascii_lowercase();
-    match id {
-        "codex" if probe.success && lower.contains("logged in") => {
-            meta.state = "signed_in";
-            meta.label = if lower.contains("chatgpt") {
-                "ChatGPT connected".into()
-            } else {
-                "Codex connected".into()
-            };
-        }
-        "claude" => {
-            let logged_in = serde_json::from_str::<serde_json::Value>(probe.output.trim())
-                .ok()
-                .and_then(|value| value.get("loggedIn").and_then(serde_json::Value::as_bool))
-                .unwrap_or(false);
-            if probe.success && logged_in {
+    if matches!(id, "claude" | "codex" | "cursor") {
+        match accounts::session_state(id, probe) {
+            SessionState::SignedIn => {
                 meta.state = "signed_in";
-                meta.label = "Claude account connected".into();
-            } else {
-                meta.state = "signed_out";
-                meta.label = "Claude Code is not signed in".into();
+                meta.label = match id {
+                    "codex" if lower.contains("chatgpt") => "ChatGPT connected",
+                    "codex" => "Codex connected",
+                    "claude" => "Claude account connected",
+                    _ => "Cursor account connected",
+                }
+                .into();
             }
+            SessionState::SignedOut => {
+                meta.state = "signed_out";
+                meta.label = if id == "claude" {
+                    "Claude Code is not signed in"
+                } else {
+                    "Not connected"
+                }
+                .into();
+            }
+            SessionState::Unknown if lower.contains("unable to fetch") => {
+                meta.state = "unknown";
+                meta.label =
+                    "Cursor session could not be confirmed; check Cursor authentication".into();
+            }
+            SessionState::Unknown => {}
         }
-        "cursor" if lower.contains("unable to fetch") => {
-            meta.state = "unknown";
-            meta.label =
-                "Cursor session could not be confirmed; check Cursor authentication".into();
-        }
-        "cursor" if probe.success && lower.contains("logged in") => {
-            meta.state = "signed_in";
-            meta.label = "Cursor account connected".into();
-        }
+        return;
+    }
+    match id {
         // Workers get no host environment keys, so only stored credentials count.
         "opencode" if probe.success && !lower.contains("0 credentials") => {
             meta.state = "signed_in";
@@ -325,31 +302,8 @@ fn apply_probe_result(id: &str, probe: &ProbeResult, meta: &mut AuthMeta) {
     }
 }
 
-fn host_command(executable: &str, args: &[&str]) -> Command {
-    if cfg!(windows) {
-        let mut command = Command::new("cmd");
-        let command_line = std::iter::once(executable)
-            .chain(args.iter().copied())
-            .collect::<Vec<_>>()
-            .join(" ");
-        command.args(["/D", "/S", "/C", &command_line]);
-        command
-    } else {
-        let mut command = Command::new(executable);
-        command.args(args);
-        command
-    }
-}
-
-fn host_auth_dir() -> PathBuf {
-    std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
-        .map(PathBuf::from)
-        .filter(|path| path.is_dir())
-        .unwrap_or_else(std::env::temp_dir)
-}
-
 #[tauri::command]
-pub fn start_ade_login(id: String) -> IpcResult<AdeLoginLaunchDto> {
+pub fn start_ade_login(id: String, account: Option<String>) -> IpcResult<AdeLoginLaunchDto> {
     let spec = pytxo_core::resolve_ade(&id)
         .ok_or_else(|| PytxoIpcError::new("integrations", "Unknown agent CLI."))?;
     if !pytxo_core::ade_on_path(spec) {
@@ -358,6 +312,12 @@ pub fn start_ade_login(id: String) -> IpcResult<AdeLoginLaunchDto> {
             format!("{} is not installed or is not on PATH.", spec.display_name),
         ));
     }
+    let account_env = match account.as_deref() {
+        Some(name) if name != DEFAULT_ACCOUNT => {
+            accounts::env_for(&accounts::default_root(), spec.id, name).map_err(account_err)?
+        }
+        _ => None,
+    };
     let (executable, args, message) = match spec.id {
         "codex" => (
             "codex",
@@ -411,14 +371,22 @@ pub fn start_ade_login(id: String) -> IpcResult<AdeLoginLaunchDto> {
             ))
         }
     };
-    launch_vendor_terminal(executable, &args)?;
+    launch_vendor_terminal(
+        executable,
+        &args,
+        account_env.as_ref().map(|(var, dir)| (*var, dir.as_path())),
+    )?;
     Ok(AdeLoginLaunchDto {
         id: id.to_ascii_lowercase(),
         message: message.into(),
     })
 }
 
-fn launch_vendor_terminal(executable: &str, args: &[&str]) -> IpcResult<()> {
+fn launch_vendor_terminal(
+    executable: &str,
+    args: &[&str],
+    account_env: Option<(&str, &Path)>,
+) -> IpcResult<()> {
     let command_line = std::iter::once(executable)
         .chain(args.iter().copied())
         .collect::<Vec<_>>()
@@ -428,7 +396,11 @@ fn launch_vendor_terminal(executable: &str, args: &[&str]) -> IpcResult<()> {
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
-        Command::new("cmd")
+        let mut command = Command::new("cmd");
+        if let Some((var, dir)) = account_env {
+            command.env(var, dir);
+        }
+        command
             .args(["/D", "/K", &command_line])
             .current_dir(host_auth_dir())
             .creation_flags(CREATE_NEW_CONSOLE)
@@ -436,6 +408,17 @@ fn launch_vendor_terminal(executable: &str, args: &[&str]) -> IpcResult<()> {
             .map_err(map_io_err)?;
         Ok(())
     }
+
+    // Terminal apps start their own shell, so the account folder travels in
+    // the command line rather than this process's environment.
+    #[cfg(not(windows))]
+    let command_line = match account_env {
+        Some((var, dir)) => format!(
+            "{var}='{}' {command_line}",
+            dir.to_string_lossy().replace('\'', "'\\''")
+        ),
+        None => command_line,
+    };
 
     #[cfg(target_os = "macos")]
     {
@@ -480,6 +463,102 @@ fn launch_vendor_terminal(executable: &str, args: &[&str]) -> IpcResult<()> {
             .map_err(map_io_err)?;
         Ok(())
     }
+}
+
+fn account_err(error: pytxo_core::PytxoError) -> PytxoIpcError {
+    let message = error.to_string();
+    PytxoIpcError::new(
+        "integrations",
+        message.trim_start_matches("configuration: ").to_string(),
+    )
+}
+
+/// Every account for the CLIs that can hold several, each freshly probed.
+#[tauri::command]
+pub async fn list_agent_accounts() -> IpcResult<Vec<AgentAccountDto>> {
+    tokio::task::spawn_blocking(|| {
+        let root = accounts::default_root();
+        let mut rows = Vec::new();
+        for spec in accounts::account_clis() {
+            let installed = pytxo_core::ade_on_path(spec);
+            let active = accounts::active(&root, spec.id);
+            let names = accounts::list(&root, spec.id).map_err(account_err)?;
+            for account in std::iter::once(DEFAULT_ACCOUNT.to_string()).chain(names) {
+                rows.push((spec.id, account == active, account, installed));
+            }
+        }
+        let handles = rows
+            .into_iter()
+            .map(|(cli, active, account, installed)| {
+                let root = root.clone();
+                std::thread::spawn(move || {
+                    let state = if installed {
+                        accounts::probe_account(&root, cli, &account)
+                            .map_or("unknown", SessionState::as_str)
+                    } else {
+                        "not_installed"
+                    };
+                    AgentAccountDto {
+                        cli: cli.into(),
+                        account,
+                        active,
+                        state: state.into(),
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+        Ok(handles
+            .into_iter()
+            .filter_map(|handle| handle.join().ok())
+            .collect())
+    })
+    .await
+    .map_err(|error| PytxoIpcError::new("integrations", format!("account probe failed: {error}")))?
+}
+
+/// Creates the account folder, then opens the vendor sign-in for it.
+#[tauri::command]
+pub fn add_agent_account(cli: String, name: String) -> IpcResult<AdeLoginLaunchDto> {
+    let spec = pytxo_core::resolve_ade(&cli)
+        .ok_or_else(|| PytxoIpcError::new("integrations", "Unknown agent CLI."))?;
+    if !pytxo_core::ade_on_path(spec) {
+        return Err(PytxoIpcError::new(
+            "integrations",
+            format!("Install {} before adding an account.", spec.display_name),
+        ));
+    }
+    accounts::add(&accounts::default_root(), spec.id, &name).map_err(account_err)?;
+    start_ade_login(spec.id.into(), Some(name))
+}
+
+#[tauri::command]
+pub fn use_agent_account(cli: String, name: String) -> IpcResult<()> {
+    accounts::set_active(&accounts::default_root(), &cli, &name).map_err(account_err)
+}
+
+/// Signs the account out in the background (the vendor revokes the session
+/// and drops any keychain entry keyed to its folder), then deletes the folder.
+#[tauri::command]
+pub async fn remove_agent_account(cli: String, name: String) -> IpcResult<()> {
+    tokio::task::spawn_blocking(move || {
+        let root = accounts::default_root();
+        let spec = pytxo_core::resolve_ade(&cli)
+            .ok_or_else(|| PytxoIpcError::new("integrations", "Unknown agent CLI."))?;
+        if let (Ok(Some((var, dir))), Some((executable, args)), true) = (
+            accounts::env_for(&root, spec.id, &name),
+            accounts::sign_out_command(spec.id),
+            pytxo_core::ade_on_path(spec),
+        ) {
+            let mut command = host_command(executable, args);
+            command.env(var, dir);
+            let _ = run_probe_command(command);
+        }
+        accounts::remove(&root, spec.id, &name).map_err(account_err)
+    })
+    .await
+    .map_err(|error| {
+        PytxoIpcError::new("integrations", format!("account removal failed: {error}"))
+    })?
 }
 
 #[tauri::command(async)]

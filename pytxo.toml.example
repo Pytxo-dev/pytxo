@@ -65,6 +65,7 @@ paths = ["src/**"]
 # provider = "deepseek"
 # cli_adapter = "generic"
 # api_key_env = "DEEPSEEK_API_KEY"   # BYOK only; omit under billing.mode = ultra
+# account = "work"   # a `pytxo accounts` sign-in for this agent's CLI
 
 [[task]]
 id = "task-a"
