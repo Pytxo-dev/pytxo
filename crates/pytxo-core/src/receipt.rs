@@ -278,7 +278,11 @@ mod tests {
                     passed: false,
                     duration_ms: 12,
                     timed_out: false,
-                    output_tail: vec!["FAIL".into()],
+                    output_tail: vec![
+                        "FAIL".into(),
+                        r"npm error log: C:\Users\someone\AppData\npm\debug.log".into(),
+                        "at /home/someone/repo/test.js:3".into(),
+                    ],
                 }],
                 reasons: vec!["combined check failed".into()],
                 duration_ms: 40,
@@ -306,12 +310,19 @@ mod tests {
     #[test]
     fn share_payload_never_carries_commands_refs_or_output() {
         let payload = sample().share_payload(false).to_string();
-        for secret in ["npm test", "token=abc", "agent/a", "secret-name", "FAIL"] {
+        // Check output (including user-profile paths) stays local.
+        let local = ["npm test", "token=abc", "agent/a", "secret-name", "FAIL"];
+        for secret in local.iter().chain(&["someone", "Users", "/home/"]) {
             assert!(!payload.contains(secret), "{secret} leaked: {payload}");
         }
         assert!(payload.contains("\"agents\":[\"codex\"]"));
         let with_paths = sample().share_payload(true).to_string();
         assert!(with_paths.contains("secret-name.js"));
-        assert!(!with_paths.contains("npm test"));
+        for secret in ["npm test", "FAIL", "someone", "Users", "/home/"] {
+            assert!(
+                !with_paths.contains(secret),
+                "{secret} leaked: {with_paths}"
+            );
+        }
     }
 }
