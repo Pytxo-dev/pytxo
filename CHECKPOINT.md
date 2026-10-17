@@ -1,3 +1,76 @@
+# CHECKPOINT — Pytxo — 2026-10-17 (multiple accounts per agent CLI)
+
+## Branch / commit
+- `mbcz/clever-germain-0232a6` (worktree `C:/pytxo/.claude/worktrees/clever-germain-0232a6`),
+  commit 5d95bce on top of `0851d42`. Not pushed: push, merge, release or
+  deploy only after Matt runs /authorize in that session.
+
+## Completed
+- Design: `docs/superpowers/specs/2026-10-17-agent-cli-accounts-design.md`
+  (primary-source research, provider terms, runner/CLI/Setup design, not in v1).
+- Accounts for Claude Code (`CLAUDE_CONFIG_DIR`) and Codex (`CODEX_HOME`):
+  each account is the vendor's own config folder under
+  `~/.pytxo/agent-accounts/<cli>/<name>/`; `.active` picks the one new work
+  uses; `default` is the CLI's usual home. Pytxo never reads the folder.
+- Runner sets the one variable per launch (`[[agent]] account` in
+  `pytxo.toml` > active account > default), logs an `account` event (name,
+  never path), refuses a missing account before spawn, and after a failed exit
+  appends one `pytxo:` line for expired login or usage limit. No automatic
+  account switching (Anthropic and OpenAI terms name limit circumvention).
+- `pytxo accounts list|add|login|use|remove`; Desktop Setup → Agents &
+  permissions → Agent CLIs shows an Accounts list per supported CLI (state,
+  Select/Selected, Sign in, Add account, Sign out and remove); the CLI row's
+  readiness reflects the active account.
+- Sanitizer: Anthropic `sk-ant-` keys, bare JWTs, JSON `access/refresh/id_token`
+  values; fixed the Windows profile path rule (stopped at a user name with `s`).
+- Cursor Agent dropped: a fresh, empty `CURSOR_CONFIG_DIR` still reports
+  `Logged in`, so its sign-in is per OS user. Antigravity and Gemini CLI also
+  stay single sign-in.
+
+## Not done
+- Per-run account picker in the Work composer (Setup's choice applies to new work).
+- Native Desktop "Add and sign in" / "Sign in" not clicked (they open vendor
+  OAuth in the browser); CLI `add`/`login` paths share the same core calls.
+- `apps/web/content/docs/reference/cli.mdx` `pytxo accounts` section must ship
+  with the release that contains the feature, not before.
+- During CLI testing `pytxo accounts add cursor work` (before Cursor was
+  dropped) opened a real Cursor browser sign-in at ~16:26 that completed on
+  its own; Matt's default Cursor and Claude sign-ins were confirmed still
+  signed in afterwards.
+
+## Tests last run
+- `cargo fmt --all -- --check` clean; `cargo clippy -p pytxo-core -p pytxo-sanitize
+  -p pytxo-runner -p pytxo-orchestrate -p pytxo-cli -p pytxo-desktop --all-targets
+  -- -D warnings` clean (-j 1, debuginfo 0; RAM ~0.6 GB free).
+- Tests: pytxo-core `agent_accounts` 7/7, pytxo-sanitize 4/4, pytxo-orchestrate
+  `terminal_text` pass, pytxo-cli pass, pytxo-desktop `ipc_meta` pass,
+  pytxo-runner lib 95 pass / 7 fail: the 7 `owned_launch::windows::fault_tests`
+  need `PYTXO_TEST_ATTEMPT_HOST` (prebuilt companion), not set here; file untouched.
+- Desktop `npm run check` and `vite build` pass.
+- CLI round trip (debug `pytxo.exe`, scratch `PYTXO_HOME`): bad name and
+  Antigravity/Cursor refused with the fix message, `use`/missing account,
+  `list` and `--json` show real probe states (named Claude folder signed out,
+  defaults signed in), `remove claude max-2` signs out only that folder
+  (default Claude still `loggedIn: true` afterwards).
+- Native debug Desktop `D:/pytxo-accounts-target/debug/pytxo-desktop.exe`
+  (dev profile, custom-protocol, 61,839,872 bytes, SHA-256
+  `dcea0a180d39beac2d7c5d328496ccd5f1f0dc1cf024b25e85d11c5ecbdaeaa1`) over
+  WebView2 CDP on an isolated `PYTXO_HOME`: Setup shows Default + named
+  accounts with real states; Select max-2 makes the Claude row "Not ready ·
+  ... · max-2"; Add form disables "Bad Name", enables "personal", Escape
+  cancels; Sign out and remove deletes `codex/work`; 560 px layout stacks.
+  Screenshots: side-session notes `agent-accounts-native/`. Not exercised:
+  Work composer readiness with a workspace, vendor sign-in buttons.
+
+## Next prompt
+Pytxo, worktree `C:/pytxo/.claude/worktrees/clever-germain-0232a6`, branch
+`mbcz/clever-germain-0232a6` commit 5d95bce (multiple accounts per agent CLI,
+spec `docs/superpowers/specs/2026-10-17-agent-cli-accounts-design.md`). After
+Matt runs /authorize: push the branch and open a PR to `main`; do not release
+or deploy docs until the release that ships it. Before merging, sign in a
+second Claude account once by hand (`pytxo accounts add claude work`) and run
+one Desktop job on it to confirm the `Account: Claude Code · work` run event.
+
 # CHECKPOINT — Pytxo — 2026-10-17 (1.3.2 released and docs live)
 
 ## Branch / commit
