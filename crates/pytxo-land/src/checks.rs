@@ -182,6 +182,20 @@ mod tests {
         assert!(timeout.timed_out && !timeout.passed, "{timeout:?}");
     }
 
+    /// Test runners on Windows print `√` as UTF-8; the receipt must keep it,
+    /// not the cp1252 reading `âˆš`.
+    #[test]
+    fn keeps_utf8_check_output() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("out.txt"), "    √ should be equal\n").unwrap();
+        #[cfg(windows)]
+        let print = "type out.txt";
+        #[cfg(not(windows))]
+        let print = "cat out.txt";
+        let check = run_check("combined", print, dir.path(), Duration::from_secs(30));
+        assert_eq!(check.output_tail, ["    √ should be equal"]);
+    }
+
     #[test]
     fn suggests_a_check_from_the_project_files() {
         let dir = tempfile::tempdir().unwrap();
