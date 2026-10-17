@@ -1,8 +1,24 @@
 # Pytxo product demo
 
+## Desktop film - October 17
+
+Current direction: **`PytxoDesktop`**, one native take of the released Pytxo
+Desktop 1.3.2 (live Claude Code lead + OpenCode on the taskboard fixture), cut
+to the beat of Matt's chosen track with the site's ASCII title system.
+Storyboard, beat grid and capture notes: [DESKTOP-FILM.md](DESKTOP-FILM.md).
+
+- Take: `tooling/acceptance/run-local.ps1 -Film -Live -Split` (real pointer,
+  60 fps, pointer telemetry in `receipt.json`).
+- Cut: `scripts/desktop-cut.mjs` writes `public/desktop/shotN.mp4` and
+  `desktop-cut.json`; shot lengths are whole bars from `desktop-music.json`
+  (`scripts/beats.mjs` measures BPM, phase and the drop). Camera keys per shot
+  are in `desktop-focus.json`.
+- `public/desktop/` (clips and the track) is ignored by git. The track is not
+  cleared for commercial use.
+
 ## Land film - October 16
 
-Current direction: **`PytxoLand`**, one terminal take of the released 1.3.1 CLI
+Superseded by the Desktop film. **`PytxoLand`**, one terminal take of the released 1.3.1 CLI
 (`npm i -g pytxo`) on lukeed/mri, following the M2 first-use run 2 script:
 BLOCKED (each branch passes alone, the combination fails with
 `ReferenceError: toVal is not defined`) → fix → READY → `--apply` LANDED →

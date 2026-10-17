@@ -171,6 +171,20 @@ def press(target, label, timeout=60, settle=0.4, surface="desktop", click=True):
     return element
 
 
+def reveal(target, tries=8):
+    """Scrolls a control that exists below the fold (a long split proposal pushes the team list down) into view."""
+    element = target.wait("exists", timeout=30)
+    for _ in range(tries):
+        if element.is_visible():
+            return
+        try:
+            element.iface_scroll_item.ScrollIntoView()
+        except Exception:
+            frame = win.rectangle()
+            mouse.scroll(coords=(frame.left + frame.width() // 3, frame.top + frame.height() // 2), wheel_dist=-3)
+        time.sleep(0.4)
+
+
 def type_text(text, pause=0.008):
     """Types like a keyboard; pywinauto's send_keys syntax characters are escaped."""
     user32 = ctypes.windll.user32
@@ -213,6 +227,17 @@ def wait_for(predicate, timeout, interval=2.0, what="condition"):
             return value
         time.sleep(interval)
     raise TimeoutError(f"Timed out waiting for {what}")
+
+
+def confirm_apply(run_id):
+    """Presses the dialog's confirm; a click the dialog dropped (the ledger still says ready) is pressed again."""
+    target = spec("Apply exact package", control_type="Button")
+    for _ in range(3):
+        press(target, "Apply exact package", settle=0.8)
+        time.sleep(3)
+        if contract(run_id)["apply"] != "ready" or not target.exists(timeout=0):
+            return
+    raise RuntimeError("Apply exact package did not take the click")
 
 
 def onboard(example):
@@ -378,12 +403,16 @@ try:
             time.sleep(2.5)
         # New work starts with every ready agent on the team: point at each, tick only the missing ones.
         team = [entry.strip() for entry in args.team.split(",") if entry.strip()]
+        # Agent checkboxes carry badges in their names ("OpenCode EXPERIMENTAL", "Claude Code LEAD").
         for name in team:
-            box = spec(name, control_type="CheckBox")
+            if name == args.lead:
+                continue  # the lead's box is ticked and disabled
+            box = spec(title_re=f"^{re.escape(name)}", control_type="CheckBox")
+            reveal(box)
             press(box, name, settle=0.2, click=box.wait("visible", timeout=30).get_toggle_state() != 1)
         # A ready agent left off the team (say, one signed in to a model that cannot edit) is unticked.
         for name in BETA_AGENTS:
-            box = spec(name, control_type="CheckBox")
+            box = spec(title_re=f"^{re.escape(name)}", control_type="CheckBox")
             if name not in team and name != args.lead and present(box, 2) and box.wrapper_object().get_toggle_state() == 1:
                 press(box, name, settle=0.2)
         press(spec("Build plan", control_type="Button"), "Build plan")
@@ -454,7 +483,7 @@ try:
         note.write_text("A file added after review.\n", encoding="utf-8")
         mark("note")
         press(spec("Apply reviewed changes", control_type="Button"), "Apply reviewed changes")
-        press(spec("Apply exact package", control_type="Button"), "Apply exact package")
+        confirm_apply(run_id)
         wait_for(lambda: contract(run_id)["apply"] == "stale", 120, what="the stale refusal")
         mark("stale")
         time.sleep(3)
@@ -469,7 +498,7 @@ try:
         mark("refreshed")
         time.sleep(1.5)
         press(spec("Apply reviewed changes", control_type="Button"), "Apply reviewed changes")
-        press(spec("Apply exact package", control_type="Button"), "Apply exact package")
+        confirm_apply(run_id)
         applied = wait_for(lambda: (state := contract(run_id)) and state["apply"] not in ("ready", "applying") and state, 300, what="Apply to finish")
         mark("applied")
         time.sleep(3)
@@ -480,7 +509,9 @@ try:
             raise AssertionError(f"Apply did not succeed: {applied['apply']}")
 
         press(spec("History", index=0), "History")
-        time.sleep(2)
+        mark("history")
+        # Film takes hold History long enough to read the run's receipt.
+        time.sleep(6 if args.film else 2)
         shot("history")
     receipt["result"] = "passed"
 except Exception as error:

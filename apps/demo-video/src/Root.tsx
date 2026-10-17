@@ -4,6 +4,7 @@ import {PytxoMotionFilm} from "./motion/PytxoMotionFilm";
 import {FILM_FRAMES, PytxoFilm} from "./film/PytxoFilm";
 import {LIVE_FRAMES, PytxoLive} from "./live/PytxoLive";
 import {LAND_FPS, LAND_FRAMES, PytxoLand, PytxoLandStill} from "./land/PytxoLand";
+import {DESKTOP_FPS, DESKTOP_FRAMES, PytxoDesktop} from "./desktop/PytxoDesktop";
 import {Opening as MotionOpening} from "./motion/Opening";
 import {Dispatch as MotionDispatch} from "./motion/Dispatch";
 import {Merge as MotionMerge} from "./motion/Merge";
@@ -45,6 +46,7 @@ const fleetProps = parseFleetFilmProps(importedFleetJson);
 export const RemotionRoot = () => {
   return (
     <>
+    <Composition id="PytxoDesktop" component={PytxoDesktop} durationInFrames={DESKTOP_FRAMES} fps={DESKTOP_FPS} width={1920} height={1080} />
     <Composition id="PytxoFilm" component={PytxoFilm} durationInFrames={FILM_FRAMES} fps={60} width={1920} height={1080} />
     <Composition id="PytxoLive" component={PytxoLive} durationInFrames={LIVE_FRAMES} fps={60} width={1920} height={1080} />
     <Composition id="PytxoLand" component={PytxoLand} durationInFrames={LAND_FRAMES} fps={LAND_FPS} width={1920} height={1080} />
