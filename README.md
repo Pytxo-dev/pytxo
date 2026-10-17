@@ -32,13 +32,13 @@ star, not a shipping claim.
 ## Install
 
 ```bash
-npm i -g pytxo@1.3.1
+npm i -g pytxo@1.3.2
 pytxo doctor
 ```
 
 Installers and binaries are published through
 [Pytxo releases](https://github.com/Pytxo-dev/pytxo-releases). Pytxo Desktop is
-Windows-first for v1.3.1. The npm installer must fail if the binary for the
+Windows-first for v1.3.2. The npm installer must fail if the binary for the
 current platform is not present or cannot be verified; it must not imply that a
 missing platform succeeded.
 
@@ -100,7 +100,7 @@ Run the repository smoke separately with
 
 ## Status
 
-**Current release: v1.3.1 (public beta).** The shipping proof is a local, vendor-neutral
+**Current release: v1.3.2 (public beta).** The shipping proof is a local, vendor-neutral
 mission that produces isolated work, explicit verification, an immutable
 single-root review package, guarded Apply, and durable evidence/recovery state.
 Optional cloud services and the broader production-effect commit layer are not
