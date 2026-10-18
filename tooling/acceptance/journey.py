@@ -408,17 +408,34 @@ try:
         # New work starts with every ready agent on the team: point at each, tick only the missing ones.
         team = [entry.strip() for entry in args.team.split(",") if entry.strip()]
         # Agent checkboxes carry badges in their names ("OpenCode EXPERIMENTAL", "Claude Code LEAD").
-        for name in team:
-            if name == args.lead:
-                continue  # the lead's box is ticked and disabled
-            box = spec(title_re=f"^{re.escape(name)}", control_type="CheckBox")
-            reveal(box)
-            press(box, name, settle=0.2, click=box.wait("visible", timeout=30).get_toggle_state() != 1)
-        # A ready agent left off the team (say, one signed in to a model that cannot edit) is unticked.
-        for name in BETA_AGENTS:
-            box = spec(title_re=f"^{re.escape(name)}", control_type="CheckBox")
-            if name not in team and name != args.lead and present(box, 2) and box.wrapper_object().get_toggle_state() == 1:
-                press(box, name, settle=0.2)
+        box_of = lambda name: spec(title_re=f"^{re.escape(name)}", control_type="CheckBox")
+        footer = spec("Build plan", control_type="Button")
+
+        def clear_of_footer(box):
+            """The Split / Build plan bar is sticky and covers the agent row's last line; UIA hit tests miss it."""
+            for _ in range(6):
+                if box.wrapper_object().rectangle().bottom < footer.wrapper_object().rectangle().top - 24:
+                    return
+                frame = win.rectangle()
+                mouse.scroll(coords=(frame.left + frame.width() // 3, frame.top + frame.height() // 2), wheel_dist=-2)
+                time.sleep(0.4)
+
+        # Lead only, then tick the team: an agent left off it (say, one out of quota) gets no task.
+        if present(spec("Lead only", control_type="Button"), 2):
+            press(spec("Lead only", control_type="Button"), "Lead only", settle=0.3)
+            time.sleep(0.6)
+        for attempt in range(4):
+            wrong = [name for name in BETA_AGENTS if name != args.lead and present(box_of(name), 2)
+                     and (box_of(name).wrapper_object().get_toggle_state() == 1) != (name in team)]
+            if not wrong:
+                break
+            if attempt == 3:
+                raise RuntimeError(f"Team not selected: {wrong}")
+            for name in wrong:
+                reveal(box_of(name))
+                clear_of_footer(box_of(name))
+                press(box_of(name), name, settle=0.2)
+                time.sleep(0.4)
         press(spec("Build plan", control_type="Button"), "Build plan")
         heading = wait(spec(title_re="^(Review plan|Plan blocked|Plan needs verification)$"), 180).window_text()
         mark("plan")
@@ -427,6 +444,11 @@ try:
         fits("plan")
         if heading != "Review plan":
             raise AssertionError(f"Plan not ready: {heading}")
+        # The plan line names every agent with a task ("7 tasks · 3 steps · Claude Code + OpenAI Codex").
+        summary = wait(spec(title_re=r"^\d+ tasks? · \d+ steps? · .*"), 30).window_text()
+        receipt["checks"]["plan"]["summary"] = summary
+        if missing := [name for name in team if name not in summary]:
+            raise AssertionError(f"Plan gives no task to {missing}: {summary}")
         step("plan ready")
 
         before = latest_run()
