@@ -3,12 +3,13 @@ title: Changelog
 description: Public binary versions and where to find release notes.
 ---
 
-This source candidate targets **1.3.2**, which is also the latest public GitHub and npm release (the public beta).
+This source candidate targets **1.3.3**. The latest public GitHub and npm release is **1.3.2** (the public beta).
 
 Release notes and installers live on [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases). Desktop and CLI ship from that distribution repo, not from a docs-only changelog.
 
 | Version | Notes |
 |---------|--------|
+| 1.3.3 | Several sign-ins per agent CLI: [`pytxo accounts`](/docs/reference/cli#pytxo-accounts) and Desktop **Setup → Agent CLIs** keep more than one Claude Code or Codex account, and new work uses the one you pick; a worker that exits 0 after printing a CLI error and changing nothing now fails instead of passing; logs redact Anthropic keys, JWTs and JSON token fields, and Windows profile paths are redacted in full |
 | 1.3.2 | Desktop speed on long histories: opens in 1–2 s instead of about 10 s, Work and Review open in about a quarter of a second, and a long worker log shows its newest line at once instead of after 47 s; workspace status no longer creates or upgrades a store |
 | 1.3.1 | First-use fixes: the npm package installs with pnpm 10 and `--ignore-scripts`; failed checks print their error lines; `pytxo land` suggests a check and says when a check fails on every branch; next step after blocked or stale; two agents editing a default export count as the same symbol; [first landing in 5 minutes](/docs/getting-started/first-landing) |
 | 1.3.0 | **Land.** `pytxo land` checks branches from any agent tool as one combined change (same-function detection, per-branch and combined checks, shadow mode, stale-safe `--apply`); receipts for every landing and Apply; `pytxo review` and `pytxo apply` bring the full loop to macOS and Linux; Pybench (`pytxo bench`); optional account with shareable receipts and the Pybench board; GitHub Action for shadow-mode checks; FAQ answers no longer cut off on the website; evidence moved into the docs |
