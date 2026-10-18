@@ -27,8 +27,12 @@ const f = (seconds: number) => Math.round(seconds * FPS);
 const WIPE = f(BEAT);
 
 type Rect = [number, number, number, number];
-type Key = {at?: number; mark?: string; offset?: number; rect: Rect | null};
-type Shot = {id: string; start: number; end: number; speed: number; bars: number; clip: string};
+// free: the window may float above the frame's bottom edge, so a bar at the app's foot sits mid-frame, clear of the caption.
+type Key = {at?: number; mark?: string; offset?: number; rect: Rect | null; free?: boolean};
+// ramp: seconds into the shot where it drops to real time, at source time `at`.
+type Shot = {id: string; start: number; end: number; speed: number; bars: number; clip: string; ramp?: number; at?: number};
+const sourceAt = (s: Shot, sec: number) => s.ramp !== undefined && sec >= s.ramp ? s.at! + sec - s.ramp : s.start + sec * s.speed;
+const screenAt = (s: Shot, t: number) => s.ramp !== undefined && t >= s.at! ? s.ramp + t - s.at! : (t - s.start) / s.speed;
 
 const CAPTION: Record<string, [string, string]> = {
   describe: ["Describe", "One request, in plain words."],
@@ -51,17 +55,17 @@ const OUT_AT = f(cuts.at(-1)!);
 const OUTRO = f(7);
 export const DESKTOP_FRAMES = OUT_AT + OUTRO;
 const lengthOf = (i: number) => f(shots[i].bars * BAR);
-const markFrame = (i: number, mark: string) => cutAt(i) + f(((cut.marks as Record<string, number>)[mark] - shots[i].start) / shots[i].speed);
+const markFrame = (i: number, mark: string) => cutAt(i) + f(screenAt(shots[i], (cut.marks as Record<string, number>)[mark]));
 
 // Base framing: the app at 84 % inside the ASCII field; captions live in the margin.
 const BASE = .84;
 const baseView = {s: BASE, x: (W - cut.width * BASE) / 2, y: (H - cut.height * BASE) / 2 - 6};
-const viewOf = (rect: Rect | null) => {
+const viewOf = (rect: Rect | null, free = false) => {
   if (!rect) return baseView;
   const [fx, fy, fw, fh] = rect;
   const s = Math.max(BASE, Math.min(1.75, Math.min(W / fw, H / fh)));
-  let x = W / 2 - (fx + fw / 2) * s, y = H / 2 - (fy + fh / 2) * s;
-  if (s >= 1) { x = Math.min(0, Math.max(W - cut.width * s, x)); y = Math.min(0, Math.max(H - cut.height * s, y)); }
+  let x = W / 2 - (fx + fw / 2) * s, y = (free ? H * .5 : H / 2) - (fy + fh / 2) * s;
+  if (s >= 1) { x = Math.min(0, Math.max(W - cut.width * s, x)); if (!free) y = Math.min(0, Math.max(H - cut.height * s, y)); }
   return {s, x, y};
 };
 
@@ -72,7 +76,7 @@ const cameraAt = (i: number, local: number) => {
   const beat = BEAT * FPS;
   const keys = ((focus as unknown as Record<string, Key[]>)[shot.id] ?? [{at: 0, rect: null}]).map((k) => {
     const raw = k.mark ? markFrame(i, k.mark) - cutAt(i) + f(k.offset ?? 0) : f(k.at! < 0 ? shot.bars * BAR + k.at! : k.at!);
-    return {f: Math.round(raw / beat) * beat, v: viewOf(k.rect)};
+    return {f: Math.round(raw / beat) * beat, v: viewOf(k.rect, k.free)};
   });
   let v = keys[0].v;
   for (let k = 1; k < keys.length; k++) {
@@ -133,7 +137,8 @@ const ShotView = ({i}: {i: number}) => {
   const local = frame - WIPE;
   const shot = shots[i];
   const cam = cameraAt(i, local);
-  const t = shot.start + (Math.max(0, local) / FPS) * shot.speed;
+  const t = sourceAt(shot, Math.max(0, local) / FPS);
+  const sped = shot.speed >= 1.5 ? interpolate(local, [f(shot.ramp ?? 1e4) - 8, f(shot.ramp ?? 1e4)], [1, 0], clamp) : 0;
   const edge = interpolate(frame, [0, WIPE], [-120, W + 120], {...clamp, easing: Easing.inOut(Easing.cubic)});
   const video = <OffthreadVideo src={staticFile(shot.clip)} muted style={{position: "absolute", inset: 0, width: cut.width, height: cut.height}} />;
   return (
@@ -146,7 +151,7 @@ const ShotView = ({i}: {i: number}) => {
       {/* Zoomed past the margin, captions get a dark floor under them. */}
       <AbsoluteFill style={{background: "linear-gradient(180deg, transparent 72%, rgba(4,4,6,.97) 90%)", opacity: interpolate(cam.s, [BASE, 1.05], [0, 1], clamp)}} />
       {shot.id === "stale" && <Note i={i} local={local} />}
-      {shot.speed >= 1.5 && <div style={{position: "absolute", bottom: 30, right: baseView.x, font: `500 17px ${MONO}`, letterSpacing: ".08em", color: "#c7c7ce", padding: "6px 12px", borderRadius: 4, background: "rgba(6,6,9,.82)", border: "1px solid #2a2a30"}}>{`SPED UP ${shot.speed < 3 ? shot.speed.toFixed(1) : Math.round(shot.speed)}×`}</div>}
+      {sped > 0 && <div style={{position: "absolute", bottom: 30, opacity: sped, right: baseView.x, font: `500 17px ${MONO}`, letterSpacing: ".08em", color: "#c7c7ce", padding: "6px 12px", borderRadius: 4, background: "rgba(6,6,9,.82)", border: "1px solid #2a2a30"}}>{`SPED UP ${shot.speed < 3 ? shot.speed.toFixed(1) : Math.round(shot.speed)}×`}</div>}
     </AbsoluteFill>
   );
 };
@@ -272,8 +277,10 @@ const Music = () => (
   </>
 );
 
-export const PytxoDesktop = () => {
+// audioOnly renders just the music, so an audio pass never asks the compositor for video frames.
+export const PytxoDesktop = ({audioOnly = false}: {audioOnly?: boolean}) => {
   useFilmFonts();
+  if (audioOnly) return <Music />;
   return (
     <AbsoluteFill style={{background: BG, overflow: "hidden"}}>
       <Open />

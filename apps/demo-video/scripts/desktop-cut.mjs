@@ -32,30 +32,41 @@ const refresh = hover("Refresh review");
 const track = JSON.parse(readFileSync("desktop-music.json", "utf8"));
 const BAR = 4 * 60 / track.bpm;
 const plan = [
-  {id: "describe", start: hover("New work").t - 0.5, end: m.typed + 0.4, bars: 3, cap: 6},
+  {id: "describe", start: m.typing - 1.2, end: m.typed + 0.4, bars: 3, cap: 6},
   ...(m.split ? [{id: "split", start: hover("Split").t - 0.4, end: m.split + 2.6, bars: 3, cap: 80, anchor: ["split", 2]}] : []),
   {id: "agents", start: firstAgent.t - 0.4, end: hover("Build plan").t + 0.6, bars: 2, cap: 3},
   {id: "plan", start: m.plan - 0.2, end: hover("Run").t + 1.0, bars: 3, cap: 3},
   {id: "fleet", start: (m.dragged ?? m.fleet ?? m.run) + 3, end: m.settled + 2.4, bars: 6, cap: 300, anchor: ["settled", 5]},
-  {id: "review", start: hover("Review changes").t - 0.4, end: (m.read ?? m.review + 3) + 0.6, bars: 4, cap: 2.5},
-  {id: "stale", start: apply1.t - 0.4, end: m.stale + 3.0, bars: 4, cap: 2.2, anchor: ["stale", 3]},
+  {id: "review", start: hover("Review changes").t - 0.4, end: (m.read ?? m.review + 3) - 1.3, bars: 4, cap: 2.5},
+  {id: "stale", start: apply1.t - 0.4, end: m.stale + 3.0, bars: 4, cap: 4, anchor: ["stale", 2.5]},
   {id: "apply", start: refresh.t - 0.4, end: m.applied + 2.6, bars: 4, cap: 10, anchor: ["applied", 2]},
   {id: "history", start: m.history - 0.3, end: m.history + 5.6, bars: 3, cap: 1.4},
 ];
 const shots = plan.map(({bars, cap, anchor, ...s}) => {
   const length = bars * BAR;
-  const speed = Math.min(cap, Math.max(1, (s.end - s.start) / length));
-  // Anchored: the moment sits on its bar line; otherwise the shot keeps its end.
-  const start = Math.max(0, anchor ? m[anchor[0]] - speed * anchor[1] * BAR : s.end - speed * length);
-  return {id: s.id, start, end: start + speed * length, speed, bars};
+  if (!anchor) {
+    const speed = Math.min(cap, Math.max(1, (s.end - s.start) / length));
+    const start = Math.max(0, s.end - speed * length);
+    return {id: s.id, start, end: start + speed * length, speed, bars};
+  }
+  // Anchored: a speed ramp. The wait before the moment plays fast and the moment lands on
+  // its bar line; from there the shot runs in real time, so it never runs into the next scene.
+  const at = m[anchor[0]], ramp = anchor[1] * BAR;
+  const speed = Math.min(cap, Math.max(1, (at - s.start) / ramp));
+  const start = Math.max(0, at - speed * ramp);
+  return {id: s.id, start, end: at + (length - ramp), speed, bars, ramp, at};
 });
 for (const s of shots) if (!(s.end > s.start)) throw new Error(`Empty shot: ${s.id}`);
 
-// One short clip per shot at its cut speed (keyframe every 10 frames), so renders never seek the long take.
+// One short clip per shot at its cut speed (every frame a keyframe: exact compositor seeks), so renders never seek the long take.
 shots.forEach((s, i) => {
+  const crop = `crop=${W}:${H}:0:0`, hold = "fps=60,tpad=stop_mode=clone:stop_duration=1.5";
+  const sped = `setpts=(PTS-STARTPTS)/${s.speed.toFixed(4)}`;
+  const filter = s.ramp === undefined ? ["-vf", `${crop},${sped},${hold}`]
+    : ["-filter_complex", `[0:v]${crop},split[a][b];[a]trim=end=${(s.at - s.start).toFixed(3)},${sped}[x];[b]trim=start=${(s.at - s.start).toFixed(3)},setpts=PTS-STARTPTS[y];[x][y]concat=n=2:v=1:a=0,${hold}`];
   execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", s.start.toFixed(3), "-to", s.end.toFixed(3), "-i", path.join(dir, "screen.mkv"), "-an",
-    "-vf", `crop=${W}:${H}:0:0,setpts=(PTS-STARTPTS)/${s.speed.toFixed(4)},fps=60,tpad=stop_mode=clone:stop_duration=1.5`,
-    "-c:v", "libx264", "-preset", "fast", "-crf", "12", "-g", "10", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path.join(out, `shot${i}.mp4`)]);
+    ...filter,
+    "-c:v", "libx264", "-preset", "fast", "-crf", "12", "-g", "1", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path.join(out, `shot${i}.mp4`)]);
   s.clip = `desktop/shot${i}.mp4`;
 });
 

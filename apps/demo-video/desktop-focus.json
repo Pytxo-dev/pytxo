@@ -1,11 +1,11 @@
 {
-  "describe": [{"at": 0, "rect": null}, {"at": 0.5, "rect": [250, 380, 760, 360]}],
+  "describe": [{"at": 0, "rect": null}, {"mark": "typing", "offset": -0.2, "rect": [260, 400, 940, 330]}],
   "split": [{"at": 0, "rect": [250, 380, 760, 360]}, {"at": -1.6, "rect": [250, 560, 760, 260]}],
-  "agents": [{"at": 0, "rect": [250, 380, 760, 360]}, {"at": 0.3, "rect": [250, 700, 760, 240]}],
+  "agents": [{"at": 0, "rect": [250, 430, 940, 330]}],
   "plan": [{"at": 0, "rect": null}, {"at": 0.5, "rect": [980, 290, 920, 380]}, {"at": 2.4, "rect": [980, 480, 920, 470]}],
   "fleet": [{"at": 0, "rect": null}, {"at": 0.6, "rect": [270, 270, 1630, 300]}, {"at": 4.2, "rect": [830, 310, 1080, 240]}],
   "review": [{"at": 0, "rect": null}, {"at": 0.6, "rect": [250, 230, 1650, 190]}, {"at": 3.2, "rect": [540, 470, 1360, 340]}],
-  "stale": [{"at": 0, "rect": null}, {"mark": "stale", "offset": -0.15, "rect": [250, 790, 1650, 220]}],
-  "apply": [{"at": 0, "rect": null}, {"mark": "applied", "offset": -0.2, "rect": [250, 790, 1650, 220]}, {"at": -1.1, "rect": [250, 230, 1650, 190]}],
+  "stale": [{"at": 0, "rect": null}, {"mark": "stale", "offset": -0.15, "rect": [240, 895, 1660, 115], "free": true}],
+  "apply": [{"at": 0, "rect": null}, {"mark": "applied", "offset": -0.2, "rect": [240, 895, 1660, 115], "free": true}, {"at": -1.1, "rect": [250, 230, 1650, 190]}],
   "history": [{"at": 0, "rect": null}, {"at": 0.5, "rect": [620, 210, 1280, 700]}]
 }
