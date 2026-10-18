@@ -31,6 +31,9 @@ for (let from = 0; from < total; from += 600) {
   parts.push(file);
   console.log(`frames ${from}-${Math.min(total, from + 600) - 1} done`);
 }
+// The refusal plays the track through a low-pass filter; WAV keeps it sample-aligned with the MP3.
+const low = path.resolve("public/desktop/music-low.wav");
+execFileSync("ffmpeg", ["-v", "error", "-y", "-i", "public/desktop/music.mp3", "-af", "lowpass=f=320,lowpass=f=320", "-c:a", "pcm_s16le", low]);
 const audio = path.join(work, "audio.wav");
 const props = path.join(work, "audio-props.json");
 writeFileSync(props, JSON.stringify({audioOnly: true}));
