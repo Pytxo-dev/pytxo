@@ -185,7 +185,12 @@ pub fn env_for(root: &Path, cli_id: &str, name: &str) -> Result<Option<(&'static
 /// The registry CLI a launch command starts, from its first word.
 pub fn cli_for_command(cmd: &str) -> Option<&'static AdeCliSpec> {
     let first = cmd.split_whitespace().next()?.trim_matches(['"', '\'']);
-    let file = Path::new(first).file_name()?.to_str()?.to_ascii_lowercase();
+    // Both separators on every host: a Windows-style path in pytxo.toml is not
+    // split by `Path` on Unix.
+    let file = first.rsplit(['/', '\\']).next()?.to_ascii_lowercase();
+    if file.is_empty() {
+        return None;
+    }
     let stem = [".exe", ".cmd", ".bat", ".ps1"]
         .iter()
         .find_map(|ext| file.strip_suffix(ext))
