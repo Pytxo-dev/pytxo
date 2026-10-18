@@ -1315,7 +1315,33 @@ async fn run_one_agent(
 
     let mut exit_code = result.exit_code;
     let mut stderr = result.stderr;
-    if exit_code != Some(0) && !result.cancelled {
+    // A zero exit is only the agent's claim ([[ADR-0038-epistemic-state-contract]]):
+    // `opencode run` exits 0 after `Error: Model not found: …`. Refute it when the
+    // output ends on an error line and none of the task's own paths changed.
+    let reported_error = if !result.cancelled && exit_code == Some(0) && used_isolation {
+        let mut changes = BTreeMap::new();
+        reported_cli_error(&stderr)
+            .or_else(|| reported_cli_error(&result.stdout))
+            .filter(|_| {
+                collect_claimed_changes(
+                    &eff_repo_root,
+                    &wt_path,
+                    &task.paths,
+                    &ctx.sparse_exclude,
+                    &mut changes,
+                )
+                .is_ok()
+                    && changes.is_empty()
+            })
+    } else {
+        None
+    };
+    if let Some(line) = &reported_error {
+        stderr = format!(
+            "{stderr}\nagent exited 0 but reported an error and changed none of its paths: {line}"
+        );
+    }
+    if (exit_code != Some(0) || reported_error.is_some()) && !result.cancelled {
         let output = format!("{}\n{stderr}", result.stdout);
         if let Some(hint) = account
             .as_ref()
@@ -1329,7 +1355,11 @@ async fn run_one_agent(
     }
     let mut verification_failed = false;
     let mut verification_cancelled = false;
-    if !result.cancelled && exit_code == Some(0) && !task.verify.is_empty() {
+    if !result.cancelled
+        && exit_code == Some(0)
+        && reported_error.is_none()
+        && !task.verify.is_empty()
+    {
         let verify_ctx = ctx.clone();
         let verify_cwd = wt_path.clone();
         let verify_commands = task.verify.clone();
@@ -1398,6 +1428,7 @@ async fn run_one_agent(
     if used_isolation
         && !ctx.keep_worktrees
         && exit_code == Some(0)
+        && reported_error.is_none()
         && !verification_cancelled
         && !result.cancelled
     {
@@ -1408,7 +1439,7 @@ async fn run_one_agent(
         AgentRunOutcome::Cancelled
     } else if verification_failed {
         AgentRunOutcome::VerificationFailed
-    } else if exit_code == Some(0) {
+    } else if exit_code == Some(0) && reported_error.is_none() {
         AgentRunOutcome::Succeeded
     } else {
         AgentRunOutcome::ProcessFailed
@@ -1435,6 +1466,50 @@ async fn run_one_agent(
         outcome,
         root_id: task.root.clone(),
     })
+}
+
+/// The last visible output line when it is a CLI error (`Error: …`, any case),
+/// with terminal escape sequences removed.
+fn reported_cli_error(output: &str) -> Option<String> {
+    let line = output
+        .lines()
+        .rev()
+        .map(strip_terminal_escapes)
+        .find(|line| !line.trim().is_empty())?;
+    let line = line.trim();
+    line.get(..6)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("error:"))
+        .then(|| line.to_string())
+}
+
+/// Drops CSI (`ESC [ … final`) and OSC (`ESC ] … BEL|ESC \`) sequences.
+fn strip_terminal_escapes(line: &str) -> String {
+    let mut plain = String::with_capacity(line.len());
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        if c != '\x1b' {
+            plain.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('[') => {
+                for c in chars.by_ref() {
+                    if ('@'..='~').contains(&c) {
+                        break;
+                    }
+                }
+            }
+            Some(']') => {
+                while let Some(c) = chars.next() {
+                    if c == '\x07' || (c == '\x1b' && chars.next().is_some()) {
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    plain
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2904,6 +2979,26 @@ mod dependency_output_tests {
     fn write(path: &Path, contents: &str) {
         std::fs::create_dir_all(path.parent().expect("parent")).expect("create parent");
         std::fs::write(path, contents).expect("write fixture");
+    }
+
+    #[test]
+    fn reported_cli_error_reads_the_last_visible_line_only() {
+        // Captured from `opencode run` with an unauthenticated pinned provider.
+        let opencode = "      at <anonymous> (node:fs:225:13)\n\n\x1b[91m\x1b[1mError: \x1b[0mModel not found: openrouter/~moonshotai/kimi-latest.\r\n\x1b[?25h\x1b]0;opencode\x07\r\n";
+        assert_eq!(
+            reported_cli_error(opencode).as_deref(),
+            Some("Error: Model not found: openrouter/~moonshotai/kimi-latest.")
+        );
+        assert_eq!(
+            reported_cli_error("error: invalid model").as_deref(),
+            Some("error: invalid model")
+        );
+        assert_eq!(
+            reported_cli_error("Error: earlier\nDone, wrote src/app.js\n"),
+            None
+        );
+        assert_eq!(reported_cli_error("The Error: is quoted"), None);
+        assert_eq!(reported_cli_error(""), None);
     }
 
     #[test]
