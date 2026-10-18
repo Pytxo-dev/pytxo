@@ -141,6 +141,53 @@ fixture in `crates/pytxo-runner/tests/owned_launch.rs` and
 and delete cargo again), then check `ctc/rca` for a new record. Separately,
 before launch, decide on a Windows code-signing certificate for `sign_desktop`.
 
+# CHECKPOINT — Pytxo — 2026-10-18 (Desktop 1.3.2 launch film)
+
+## Branch / commit
+- `mbcz/youthful-yonath-fb16df` (worktree youthful-yonath-fb16df), local
+  commits only; nothing pushed, uploaded or published.
+
+## Completed
+- `PytxoDesktop` composition in `apps/demo-video` replaces the 1.3.1 CLI land
+  film: ~60 s at 1080p, cut to the beat of Matt's track (blksmiith, "sr20det
+  coldrage"; not cleared, kept out of git in `public/desktop/`), with the ASCII
+  title system from the site. Storyboard, beat grid and capture notes are in
+  `apps/demo-video/DESKTOP-FILM.md`.
+- Footage is one native take (take 14, `D:/pytxo-film/desktop-take-14`) of the
+  released 1.3.2 exe with live agents: Claude Code (lead) and OpenAI Codex, 3
+  tasks each. The take covers split, plan, run, Review (12 files), the stale
+  refusal, Refresh and Apply, and History. Fixture tests passed 13/13 after Apply.
+- Harness fixes in `tooling/acceptance/journey.py`:
+  - re-press a dropped Apply confirm;
+  - stop a take as soon as the split is refused;
+  - select the team past the sticky footer;
+  - assert the plan gives every team member a task.
+- `scripts/desktop-cut.mjs` cuts shots to whole bars and speed-ramps anchored
+  shots: fast up to the moment, real time after it.
+- `scripts/render-desktop.mjs` renders in retried chunks around a random
+  Remotion compositor frame failure.
+- Output: `apps/demo-video/out/pytxo-desktop-1.3.2.mp4` (59.8 s, 1080p60, AAC;
+  ignored by git).
+
+## Not done
+- Publishing the film (YouTube, PH, site) stays Matt's call, after /authorize.
+- Music licence: not cleared for commercial use.
+- Agents not on the team: Cursor Agent (out of usage) and Antigravity (no
+  headless output). OpenCode has only a Zen login; the fixture pins OpenRouter,
+  whose key exists only in the environment.
+- A separate session is fixing Pytxo marking an errored OpenCode task "passed"
+  (`mbcz/nifty-villani-8b3739`).
+
+## Tests last run
+- Take 14 journey passed (`receipt.json`). `npx tsc --noEmit` is clean.
+  `inspect_video.py` decoded the full film; contact sheet, chunk seams,
+  payoff frames and the refusal silence (41.15–43.2 s) checked.
+
+## Next prompt (paste below)
+- Matt reviews `out/pytxo-desktop-1.3.2.mp4`. Re-cut: `node scripts/desktop-cut.mjs
+  D:/pytxo-film/desktop-take-14/journey "Claude Code + OpenAI Codex"`, then
+  `node scripts/render-desktop.mjs`.
+
 # CHECKPOINT — Pytxo — 2026-10-17 (multiple accounts per agent CLI)
 
 ## Branch / commit

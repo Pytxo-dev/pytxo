@@ -1,0 +1,452 @@
+{
+  "width": 1920,
+  "height": 1020,
+  "lead": "Claude Code",
+  "team": "Claude Code + OpenAI Codex",
+  "fleet": {
+    "status": "completed",
+    "workers": 6,
+    "completed": 6,
+    "agents": [
+      [
+        "mission-0",
+        "completed",
+        0
+      ],
+      [
+        "mission-1",
+        "completed",
+        0
+      ],
+      [
+        "mission-2",
+        "completed",
+        0
+      ],
+      [
+        "mission-3",
+        "completed",
+        0
+      ],
+      [
+        "mission-4",
+        "completed",
+        0
+      ],
+      [
+        "mission-5",
+        "completed",
+        0
+      ]
+    ]
+  },
+  "review": {
+    "files": [
+      "README.md",
+      "index.html",
+      "src/app.js",
+      "src/components/filter-bar.js",
+      "src/i18n/es.json",
+      "src/i18n/index.js",
+      "src/model.mjs",
+      "src/style.css",
+      "src/theme.js",
+      "test/i18n.test.mjs",
+      "test/model.test.mjs",
+      "test/validation.test.mjs"
+    ],
+    "digest": "f70bcb543e2a69376957f4f381768bc5b48d5e21d434bd0272643947ecc85bc5"
+  },
+  "shots": [
+    {
+      "id": "describe",
+      "start": 166.811,
+      "end": 171.433,
+      "speed": 1.1250076388888854,
+      "bars": 3,
+      "clip": "desktop/shot0.mp4"
+    },
+    {
+      "id": "split",
+      "start": 175.088,
+      "end": 208.2344721825963,
+      "speed": 11.601915104166672,
+      "bars": 3,
+      "ramp": 2.738944365192582,
+      "at": 206.865,
+      "clip": "desktop/shot1.mp4"
+    },
+    {
+      "id": "agents",
+      "start": 218.406,
+      "end": 224.069,
+      "speed": 2.067584895833327,
+      "bars": 2,
+      "clip": "desktop/shot2.mp4"
+    },
+    {
+      "id": "plan",
+      "start": 226.04500000000002,
+      "end": 231.642,
+      "speed": 1.3623253472222174,
+      "bars": 3,
+      "clip": "desktop/shot3.mp4"
+    },
+    {
+      "id": "fleet",
+      "start": 251.002,
+      "end": 481.8254721825963,
+      "speed": 33.50984458333333,
+      "bars": 6,
+      "ramp": 6.847360912981455,
+      "at": 480.456,
+      "clip": "desktop/shot4.mp4"
+    },
+    {
+      "id": "review",
+      "start": 484.22200000000004,
+      "end": 492.897,
+      "speed": 1.5836393229166583,
+      "bars": 4,
+      "clip": "desktop/shot5.mp4"
+    },
+    {
+      "id": "stale",
+      "start": 495.726,
+      "end": 505.00620827389446,
+      "speed": 2.1105941666666665,
+      "bars": 4,
+      "ramp": 3.4236804564907275,
+      "at": 502.952,
+      "clip": "desktop/shot6.mp4"
+    },
+    {
+      "id": "apply",
+      "start": 506.72900000000004,
+      "end": 530.8339443651926,
+      "speed": 7.800815624999995,
+      "bars": 4,
+      "ramp": 2.738944365192582,
+      "at": 528.095,
+      "clip": "desktop/shot7.mp4"
+    },
+    {
+      "id": "history",
+      "start": 533.4882168330956,
+      "end": 539.24,
+      "speed": 1.4,
+      "bars": 3,
+      "clip": "desktop/shot8.mp4"
+    }
+  ],
+  "pointer": [
+    {
+      "t": 3.251,
+      "kind": "hover",
+      "x": 960,
+      "y": 794,
+      "label": "Get started"
+    },
+    {
+      "t": 4.293,
+      "kind": "click",
+      "label": "Get started"
+    },
+    {
+      "t": 10.916,
+      "kind": "hover",
+      "x": 736,
+      "y": 869,
+      "label": "Continue"
+    },
+    {
+      "t": 11.972,
+      "kind": "click",
+      "label": "Continue"
+    },
+    {
+      "t": 13.058,
+      "kind": "hover",
+      "x": 960,
+      "y": 526,
+      "label": "Select folder"
+    },
+    {
+      "t": 14.112,
+      "kind": "click",
+      "label": "Select folder"
+    },
+    {
+      "t": 17.268,
+      "kind": "hover",
+      "x": 569,
+      "y": 515,
+      "label": "Folder"
+    },
+    {
+      "t": 18.344,
+      "kind": "click",
+      "label": "Folder"
+    },
+    {
+      "t": 21.04,
+      "kind": "hover",
+      "x": 738,
+      "y": 553,
+      "label": "Select Folder"
+    },
+    {
+      "t": 22.124,
+      "kind": "click",
+      "label": "Select Folder"
+    },
+    {
+      "t": 156.335,
+      "kind": "hover",
+      "x": 737,
+      "y": 698,
+      "label": "Enter Pytxo Desktop"
+    },
+    {
+      "t": 157.397,
+      "kind": "click",
+      "label": "Enter Pytxo Desktop"
+    },
+    {
+      "t": 160.499,
+      "kind": "hover",
+      "x": 1075,
+      "y": 667,
+      "label": "New work"
+    },
+    {
+      "t": 161.565,
+      "kind": "click",
+      "label": "New work"
+    },
+    {
+      "t": 166.824,
+      "kind": "hover",
+      "x": 729,
+      "y": 566,
+      "label": "Request"
+    },
+    {
+      "t": 167.899,
+      "kind": "click",
+      "label": "Request"
+    },
+    {
+      "t": 172.944,
+      "kind": "hover",
+      "x": 909,
+      "y": 251,
+      "label": "Agent CLI"
+    },
+    {
+      "t": 174.013,
+      "kind": "click",
+      "label": "Agent CLI"
+    },
+    {
+      "t": 175.488,
+      "kind": "hover",
+      "x": 948,
+      "y": 921,
+      "label": "Split"
+    },
+    {
+      "t": 176.551,
+      "kind": "click",
+      "label": "Split"
+    },
+    {
+      "t": 210.966,
+      "kind": "hover",
+      "x": 996,
+      "y": 838,
+      "label": "Lead only"
+    },
+    {
+      "t": 211.95,
+      "kind": "click",
+      "label": "Lead only"
+    },
+    {
+      "t": 218.806,
+      "kind": "hover",
+      "x": 304,
+      "y": 641,
+      "label": "OpenAI Codex"
+    },
+    {
+      "t": 219.661,
+      "kind": "click",
+      "label": "OpenAI Codex"
+    },
+    {
+      "t": 223.469,
+      "kind": "hover",
+      "x": 1119,
+      "y": 918,
+      "label": "Build plan"
+    },
+    {
+      "t": 224.51,
+      "kind": "click",
+      "label": "Build plan"
+    },
+    {
+      "t": 230.642,
+      "kind": "hover",
+      "x": 1803,
+      "y": 469,
+      "label": "Run"
+    },
+    {
+      "t": 231.695,
+      "kind": "click",
+      "label": "Run"
+    },
+    {
+      "t": 242.381,
+      "kind": "hover",
+      "x": 1802,
+      "y": 237,
+      "label": "Canvas"
+    },
+    {
+      "t": 243.524,
+      "kind": "click",
+      "label": "Canvas"
+    },
+    {
+      "t": 246.291,
+      "kind": "drag",
+      "x": 1075,
+      "y": 495,
+      "label": "Canvas"
+    },
+    {
+      "t": 250.999,
+      "kind": "hover",
+      "x": 1529,
+      "y": 237,
+      "label": "Fleet"
+    },
+    {
+      "t": 252.038,
+      "kind": "click",
+      "label": "Fleet"
+    },
+    {
+      "t": 484.622,
+      "kind": "hover",
+      "x": 1653,
+      "y": 156,
+      "label": "Review changes"
+    },
+    {
+      "t": 485.665,
+      "kind": "click",
+      "label": "Review changes"
+    },
+    {
+      "t": 490.305,
+      "kind": "hover",
+      "x": 1212,
+      "y": 810,
+      "label": "Changes"
+    },
+    {
+      "t": 496.126,
+      "kind": "hover",
+      "x": 1567,
+      "y": 968,
+      "label": "Apply reviewed changes"
+    },
+    {
+      "t": 497.192,
+      "kind": "click",
+      "label": "Apply reviewed changes"
+    },
+    {
+      "t": 498.361,
+      "kind": "hover",
+      "x": 1116,
+      "y": 597,
+      "label": "Apply exact package"
+    },
+    {
+      "t": 499.807,
+      "kind": "click",
+      "label": "Apply exact package"
+    },
+    {
+      "t": 507.129,
+      "kind": "hover",
+      "x": 1349,
+      "y": 914,
+      "label": "Refresh review"
+    },
+    {
+      "t": 508.226,
+      "kind": "click",
+      "label": "Refresh review"
+    },
+    {
+      "t": 521.089,
+      "kind": "hover",
+      "x": 1567,
+      "y": 968,
+      "label": "Apply reviewed changes"
+    },
+    {
+      "t": 522.183,
+      "kind": "click",
+      "label": "Apply reviewed changes"
+    },
+    {
+      "t": 523.496,
+      "kind": "hover",
+      "x": 1116,
+      "y": 597,
+      "label": "Apply exact package"
+    },
+    {
+      "t": 524.976,
+      "kind": "click",
+      "label": "Apply exact package"
+    },
+    {
+      "t": 532.467,
+      "kind": "hover",
+      "x": 114,
+      "y": 276,
+      "label": "History"
+    },
+    {
+      "t": 533.538,
+      "kind": "click",
+      "label": "History"
+    }
+  ],
+  "marks": {
+    "typing": 168.011,
+    "typed": 171.033,
+    "split_start": 176.68,
+    "split": 206.865,
+    "plan": 226.245,
+    "run": 231.812,
+    "fleet": 239.83,
+    "dragged": 248.002,
+    "settled": 480.456,
+    "review": 486.396,
+    "read": 494.197,
+    "note": 495.157,
+    "stale": 502.952,
+    "refreshed": 518.377,
+    "applied": 528.095,
+    "history": 533.64
+  }
+}

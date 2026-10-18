@@ -3,7 +3,7 @@
 ## Desktop film - October 17
 
 Current direction: **`PytxoDesktop`**, one native take of the released Pytxo
-Desktop 1.3.2 (live Claude Code lead + OpenCode on the taskboard fixture), cut
+Desktop 1.3.2 (live Claude Code lead + OpenAI Codex on the taskboard fixture), cut
 to the beat of Matt's chosen track with the site's ASCII title system.
 Storyboard, beat grid and capture notes: [DESKTOP-FILM.md](DESKTOP-FILM.md).
 

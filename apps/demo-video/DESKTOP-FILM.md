@@ -49,7 +49,7 @@ writes exactly the reviewed files → History keeps the receipt.
 | 0 | 0:00–0:04 | ASCII aperture resolves from glyph noise | locked | "Your agents ship in parallel." → "Each branch passes." |
 | 1 | 0:04–0:09 | ASCII problem card (type only, no fake UI) | glitch burst on the drop | "Together, they break." + `ReferenceError` (source line: lukeed/mri, 2026-10-15) |
 | 2 | 0:09–0:16 | Work → New work: paragraph request typed; Split with Claude Code → "proposed 7 tasks, each owning its files" | drift down, zoom 1.6× on the proposal line | "One request." |
-| 3 | 0:16–0:22 | Team ticked (OpenCode joins the Claude Code lead) → Build plan → Review plan | drift along step cards | "Every file has one owner." |
+| 3 | 0:16–0:22 | Lead only, then Codex ticked to join the Claude Code lead → Build plan → Review plan | drift along step cards | "Every file has one owner." |
 | 4 | 0:22–0:32 | Run → Fleet (in-app ASCII radar), time-lapse | zoom on fleet rows turning `passed` | "Isolated copies. Your repo untouched." + "sped up N×" |
 | 5 | 0:32–0:42 | Review: summary rail (agents → change → checks → project), scroll one diff | zoom 1.5× on "Checks · all passed" | "Checked as one change." |
 | 6 | 0:42–0:50 | A file lands in the repo after review → Apply → refused, "changed since review" | snap zoom on the refusal; music drops out | "Something moved. Nothing written." |
@@ -76,10 +76,11 @@ first beat 0.070 s, intro 0–4.86 s, drop at 4.863 s (beat 14), a break
   burst; the mri evidence line on beat 18.
 - Every shot lasts whole bars (1.369 s) and is fully on screen on a downbeat;
   the ASCII wipe takes the beat before it. Camera moves start on beats.
-- Anchors: the split proposal, the end of the run, the refusal and "Applied
-  successfully" each land on a bar line of their shot.
+- Anchors: the split proposal, the end of the run and "Applied successfully"
+  land on a bar line of their shot, the refusal on the beat halfway through its
+  third bar. Each is a speed ramp: fast up to the moment, real time after it.
 - The refusal is the only silence: the track cuts out on it and slams back on
-  the Apply downbeat one bar later.
+  the Apply downbeat a bar and a half later.
 - Outro: the main track stops; the song's own closing stabs carry the ASCII
   wordmark and the tagline.
 
@@ -100,20 +101,36 @@ Taken from the site's `ascii-art.tsx` (the shipped style): the aperture ramp
 
 ## Capture
 
-One native take of the released 1.3.2 exe (MSI SHA-256 `f290718d…`, extracted,
-not installed) with `tooling/acceptance/run-local.ps1 -Film -Live -Split
--Lead "Claude Code" -Team "OpenCode"`: live Claude Code (lead) and OpenCode on
-the taskboard fixture, 60 fps, pointer telemetry, isolated `PYTXO_HOME` and
-WebView profile. The take drives the real mouse and keyboard for ~5 min.
+Take 14 (2026-10-18) of the released 1.3.2 exe (SHA-256 `74D8B6A5…F49865`,
+extracted from the MSI, not installed) with `tooling/acceptance/run-local.ps1
+-Film -Live -Split -Lead "Claude Code" -Team "OpenAI Codex"` on the taskboard
+fixture: 60 fps, pointer telemetry, isolated `PYTXO_HOME` and WebView profile.
+Claude Code split the request into 6 owned tasks over 4 steps. It ran 3 of
+them, and Codex ran the other 3; Review attributes each file to its agent.
+Review checked 12 files. Apply refused the stale package ("changed since
+review"), applied after Refresh review, and the fixture's tests then passed
+13/13 (`D:/pytxo-film/desktop-take-14`).
 
-Codex (expired sign-in), Cursor Agent (out of usage) and Antigravity (no
-headless output) were not usable on the capture day, so the film credits only
-the two agents that worked. Re-cut after a new take:
+Not on the team, and why: Cursor Agent was out of usage. Antigravity gives no
+headless output. OpenCode's only stored login is OpenCode Zen; the fixture pins
+an OpenRouter model whose key exists only in the environment, and Pytxo does not
+pass environment keys to workers. OpenCode then exits 0 after "Model not found"
+(Pytxo marked those tasks passed; fixed separately).
+
+Long waits play as a speed ramp: fast up to the moment that matters (the
+split proposal, the end of the run, the refusal, "Applied successfully"),
+which lands on a bar line, then real time. "SPED UP N×" shows only while the
+footage is sped up.
 
 ```bash
-node scripts/desktop-cut.mjs <evidence>/journey "Claude Code and OpenCode"
-npx remotion render PytxoDesktop out/pytxo-desktop-1.3.2.mp4 --concurrency=1 --offthreadvideo-cache-size-in-bytes=150000000 --offthreadvideo-threads=1
+node scripts/desktop-cut.mjs D:/pytxo-film/desktop-take-14/journey "Claude Code + OpenAI Codex"
+node scripts/render-desktop.mjs
 ```
+
+Remotion 4.0.502's compositor now and then fails one OffthreadVideo frame
+("No frame found at position N") at a random spot in a long render, so
+`render-desktop.mjs` renders 600-frame chunks, retries a failed chunk, renders
+the audio once and joins them without re-encoding the video.
 
 The track is copied to `public/desktop/music.mp3` by hand; it is not in git.
 
