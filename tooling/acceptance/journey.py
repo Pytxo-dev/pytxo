@@ -397,7 +397,11 @@ try:
             # The lead reads the project read-only and rewrites the request as owned tasks.
             press(spec(title_re="^Split with ", control_type="Button"), "Split")
             mark("split_start")
-            wait(spec(title_re=r".* proposed \d+ tasks?, each owning its files.*"), 600)
+            proposal = spec(title_re=r".* proposed \d+ tasks?, each owning its files.*")
+            refused = spec(title_re=r".* returned no usable tasks.*")
+            wait_for(lambda: present(proposal) or present(refused), 600, what="the split proposal")
+            if not present(proposal):
+                raise RuntimeError(f"Split failed: {refused.window_text()}")
             mark("split")
             step("split")
             time.sleep(2.5)
