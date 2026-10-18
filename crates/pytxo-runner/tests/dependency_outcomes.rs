@@ -414,6 +414,61 @@ async fn nonzero_upstream_blocks_dependent_but_not_later_independent_task() {
     assert_dependency_is_blocked_and_independent_completes(&results);
 }
 
+/// Stand-in for `opencode run`, which exits 0 after printing
+/// `Error: Model not found: …` when its pinned provider has no credential.
+/// `independent` also ends on an error line but writes its owned file.
+fn error_then_exit_zero_command() -> String {
+    if cfg!(windows) {
+        "if \"{task_id}\"==\"upstream\" (echo Error: Model not found: openrouter/~moonshotai/kimi-latest. 1>&2) else (echo {task_id}>{task_id}.txt & echo Error: unrelated warning 1>&2)".into()
+    } else {
+        "if [ \"{task_id}\" = \"upstream\" ]; then printf '\\033[91m\\033[1mError: \\033[0mModel not found: openrouter/~moonshotai/kimi-latest.\\n' >&2; else printf '%s' '{task_id}' > {task_id}.txt; printf 'Error: unrelated warning\\n' >&2; fi".into()
+    }
+}
+
+#[tokio::test]
+async fn zero_exit_with_reported_error_and_no_owned_changes_is_failed() {
+    for backend in [ExecutionBackend::Subprocess, ExecutionBackend::Pty] {
+        let repo = TempDir::new().unwrap();
+        init_git_repo(repo.path());
+        let mut ctx = context(repo.path(), error_then_exit_zero_command());
+        ctx.execution_backend = backend;
+
+        let results = execute_plan(
+            &ctx,
+            &plan(vec!["echo checks-ok".into()]),
+            &ProcessRegistry::default(),
+            &SwarmRegistry::new(),
+        )
+        .await
+        .unwrap();
+        let find = |id: &str| results.iter().find(|result| result.task_id == id).unwrap();
+
+        let upstream = find("upstream");
+        assert_eq!(
+            upstream.outcome,
+            AgentRunOutcome::ProcessFailed,
+            "{backend:?}: {results:?}"
+        );
+        assert_eq!(upstream.exit_code, Some(0), "keep the real exit code");
+        assert!(
+            upstream.stderr.contains("Model not found"),
+            "{backend:?}: {}",
+            upstream.stderr
+        );
+        assert_eq!(
+            find("dependent").outcome,
+            AgentRunOutcome::BlockedByDependency {
+                task_ids: vec!["upstream".into()]
+            }
+        );
+        assert_eq!(
+            find("independent").outcome,
+            AgentRunOutcome::Succeeded,
+            "{backend:?}: an error line alone does not fail a worker that wrote its files"
+        );
+    }
+}
+
 #[tokio::test]
 async fn verification_failure_blocks_dependent_output_composition() {
     let repo = TempDir::new().unwrap();
