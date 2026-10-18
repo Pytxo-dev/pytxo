@@ -50,6 +50,97 @@ Then pick up the accounts follow-up from the 2026-10-17 entry: a per-run
 account picker in the Work composer.
 ```
 
+# CHECKPOINT — Pytxo — 2026-10-18 (Bitdefender detections on Windows launches)
+
+## Branch / commit
+- `mbcz/determined-ramanujan-2fafa8`, this checkpoint only (no code change).
+  Not pushed.
+
+## Cause (from Bitdefender's own records, not inferred)
+- Source: Bitdefender root-cause records
+  `C:/ProgramData/Bitdefender/Bitdefender Security App/ctc/rca/*.dat` (JSON)
+  and quarantine metadata `C:/ProgramData/Bitdefender/Desktop/Quarantine/*.dat`.
+  Summaries: side-session notes `av-detection/`.
+- Every Pytxo incident is Advanced Threat Control (behaviour), not a
+  signature: `ATC.Malicious`, heuristic 55016, ids `SuspiciousBehavior.*`,
+  score 45–55. Seven records name a trigger, 2026-09-23 → 2026-10-18
+  21:50 (the 2026-09-22 record has the same fixture in its graph); all seven
+  name the same process: the test fixture
+  `%TEMP%\.tmpXXXX\fixture with spaces.exe`, parent the `owned_launch` test
+  binary, started by `cargo test -p pytxo-runner`. The detected instance is
+  always the one that starts a copy of itself (`--child` / `--child-gated`).
+- That fixture is `crates/pytxo-runner/tests/fixtures/owned_launch.cs`,
+  compiled at test time by `csc.exe` into a `%TEMP%` tempdir
+  (`tests/owned_launch.rs:86`, also `tests/embedded_hosted_launch.rs:99`):
+  an unsigned exe with no version info, written seconds earlier, run from
+  `%TEMP%`, that respawns its own image.
+- Collateral: ATC then quarantines the whole process tree and what it wrote.
+  That is how `cargo.exe` (stable 2026-10-18 11:06, 1.85.0 21:46), test
+  binaries, `pytxo-attempt-host.exe`, Codex's `node.exe`, `uv`/`python`
+  shims and `blender-mcp.exe` disappeared. 803 quarantined files since
+  2026-09-22.
+- Not the cause: the suspended start. `direct_owned_launch`
+  (`CREATE_SUSPENDED` + `PROC_THREAD_ATTRIBUTE_JOB_LIST` + `ResumeThread`)
+  ran in the same flagged `cargo test` runs and was never the trigger; its
+  payloads are system binaries. The Job is already bound at creation
+  (`owned_launch_windows.rs:1039`); the suspension only holds the payload
+  until the guard registers it, so dropping it would break register-before-run
+  for no evidenced gain.
+
+## Shipped product
+- Not implicated. No record names a Desktop or CLI process as trigger.
+- The 1.3.2 Desktop (unsigned, SHA-256 `74D8B6A5…49865`) ran 14 film takes
+  on 2026-10-17/18 with live Claude Code and Codex and is intact at
+  `D:/pytxo-film/desktop-132/extract/...`. The two incidents during takes:
+  Fitifact `uninstall.exe /S` from PowerShell (2026-10-17 16:22, another
+  product) and the runner tests above (2026-10-18 11:08, nifty-villani
+  worktree). That 11:08 one is the "Malicious behavior blocked" seen while filming.
+- The earlier quarantines of `pytxo.exe` (09-24) and an MSI-extracted
+  `pytxo-desktop.exe` (09-30) happened while each served as
+  `PYTXO_TEST_ATTEMPT_HOST` for the same fixture test.
+- The owned launcher is reachable in shipped Desktop only through the
+  experimental routed Claude path, gated by
+  `PYTXO_EXPERIMENTAL_ROUTED_CLAUDE_PROPOSAL=1` plus three env paths
+  (`apps/desktop/src-tauri/src/ipc_flow.rs:37`); its payloads are the real,
+  signed agent CLIs, not a temp-dropped exe.
+- Microsoft Defender: untested. It is passive here (Bitdefender is the
+  registered AV); GitHub's Windows runners run with real-time protection off.
+
+## Fixes compared
+- False-positive reports: nothing to report. No release binary was
+  detected, and Bitdefender is right that a self-respawning unsigned temp exe
+  is suspicious.
+- Sign Windows binaries (`sign_desktop`): 1.3.2 Desktop and installed
+  `C:/Program Files/Pytxo Desktop/pytxo-desktop.exe` are `NotSigned`.
+  It wouldn't stop these test detections, but it is the one lever that applies to
+  shipped binaries (SmartScreen, AV reputation). Needs a code-signing
+  certificate in `WINDOWS_CERTIFICATE`; worth doing before launch.
+- Launch change (Job at creation, no suspended start): already half done, and
+  not the trigger. Don't change it.
+- **Recommended: fix the test fixture.** Replace the runtime-`csc`
+  `%TEMP%` fixture in `owned_launch.rs` and `embedded_hosted_launch.rs` with a
+  cargo-built fixture binary run from `CARGO_TARGET_TMPDIR` (keep the
+  spaced path, exact-argv, child/child-gated modes). It's unproven until one
+  local run passes without an ATC event, and that run may trigger ATC again and
+  delete cargo. Until then, don't run those two test files locally; CI's Windows
+  job (`ci.yml:118`) still covers them.
+
+## Residual risk, not evidenced
+- Default Windows Work dispatch starts every agent through
+  `powershell -NoProfile -NonInteractive -EncodedCommand` (`crates/pytxo-orchestrate/src/flow.rs:4850`).
+  Bitdefender didn't flag it in 14 live takes, but `-EncodedCommand`
+  is a common EDR alert rule. Revisit if a customer's AV reports it.
+
+## Next prompt
+Pytxo. Bitdefender ATC kills the `pytxo-runner` owned-launch tests because
+of the runtime-`csc` `%TEMP%` fixture (see the 2026-10-18 checkpoint
+"Bitdefender detections"). After Matt restores cargo, replace the
+fixture in `crates/pytxo-runner/tests/owned_launch.rs` and
+`tests/embedded_hosted_launch.rs` with a cargo-built fixture binary run from
+`CARGO_TARGET_TMPDIR`. Ask Matt before the first local run (it may trigger ATC
+and delete cargo again), then check `ctc/rca` for a new record. Separately,
+before launch, decide on a Windows code-signing certificate for `sign_desktop`.
+
 # CHECKPOINT — Pytxo — 2026-10-17 (multiple accounts per agent CLI)
 
 ## Branch / commit
