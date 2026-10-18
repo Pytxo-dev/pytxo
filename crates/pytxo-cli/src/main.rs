@@ -134,7 +134,7 @@ Results are synthetic mechanism tests, not real-world failure rates."
     Logout,
     /// Show the signed-in Pytxo account
     Whoami,
-    /// Agent CLI sign-ins: several accounts each for Claude Code, Codex and Cursor Agent
+    /// Agent CLI sign-ins: several accounts each for Claude Code and Codex
     #[command(
         after_help = "Each account is the vendor CLI's own config folder; sign-in runs the vendor's command and Pytxo never reads its credentials.
 A configured agent can pin one with `account = \"work\"` in pytxo.toml."
