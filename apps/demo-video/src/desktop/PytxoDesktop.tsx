@@ -1,7 +1,7 @@
 // PytxoDesktop: one native take of the released Pytxo Desktop 1.3.2, framed in
 // the site's ASCII system and cut to the beat of the track in
 // desktop-music.json. Every product shot is the real recording; the pointer is
-// redrawn from the take's telemetry, shortened waits say so, and the ASCII art
+// redrawn from the take's telemetry, the outro says waits are shortened, and the ASCII art
 // never reports product state.
 import {AbsoluteFill, Audio, Easing, Freeze, interpolate, OffthreadVideo, Sequence, staticFile, useCurrentFrame} from "remotion";
 import {useFilmFonts} from "../film/kit";
@@ -18,11 +18,12 @@ const MUTED = "#8b8b94";
 const ease = Easing.bezier(.16, 1, .3, 1);
 const clamp = {extrapolateLeft: "clamp", extrapolateRight: "clamp"} as const;
 
-// The beat grid. Film time equals track time until the outro.
+// The beat grid. Film time equals track time throughout.
 const BEAT = 60 / track.bpm;
 const BAR = 4 * BEAT;
 const beatAt = (n: number) => track.firstBeat + n * BEAT;
 const DROP = track.drop;
+const DROP_BEAT = Math.round((DROP - track.firstBeat) / BEAT);
 const f = (seconds: number) => Math.round(seconds * FPS);
 const WIPE = f(BEAT);
 
@@ -34,19 +35,21 @@ type Shot = {id: string; start: number; end: number; speed: number; bars: number
 const sourceAt = (s: Shot, sec: number) => s.ramp !== undefined && sec >= s.ramp ? s.at! + sec - s.ramp : s.start + sec * s.speed;
 const screenAt = (s: Shot, t: number) => s.ramp !== undefined && t >= s.at! ? s.ramp + t - s.at! : (t - s.start) / s.speed;
 
-const CAPTION: Record<string, [string, string]> = {
-  describe: ["Describe", "One request, in plain words."],
-  split: ["Split", `${cut.lead === "OpenAI Codex" ? "Codex" : cut.lead ?? "The lead agent"} splits it into owned tasks.`],
-  agents: ["Team", "Put the agents you already use on it."],
-  plan: ["Plan", "Every file has one owner."],
-  fleet: ["Run", "Isolated copies. Your repo is untouched."],
-  review: ["Review", "Checked as one combined change."],
-  stale: ["Guard", "The repo moved after review. Apply refuses."],
-  apply: ["Apply", "It writes exactly what you reviewed."],
-  history: ["Record", "Every run and Apply, on the record."],
+// [kicker, line, line from the refusal on]
+const CAPTION: Record<string, [string, string, string?]> = {
+  describe: ["Describe", "Describe the whole job once."],
+  split: ["Split", `${cut.lead === "OpenAI Codex" ? "Codex" : cut.lead ?? "The lead agent"} breaks it into tasks.`],
+  agents: ["Team", "Add Codex. Mix agents across vendors."],
+  plan: ["Plan", "Each file gets exactly one owner."],
+  fleet: ["Run", "They work in parallel, each in its own copy."],
+  review: ["Review", "All their work is tested together, as one change."],
+  stale: ["Guard", "Meanwhile, a file in your repo changes.", "The review is stale, so Apply refuses."],
+  apply: ["Apply", "Re-check, then it writes exactly what you reviewed."],
+  history: ["Record", "Every Apply leaves a receipt."],
 };
 
-// Shots start on bar lines: the cold open holds three bars past the drop.
+// Shots start on bar lines: the cold open holds three bars past the drop, and the
+// shot bars (desktop-cut.mjs) put the wordmark where the track settles, 33 bars past the drop.
 const shots = cut.shots as Shot[];
 const OPEN_END = DROP + 3 * BAR;
 const cuts = shots.reduce<number[]>((list, s, i) => [...list, (i ? list[i - 1] : OPEN_END) + s.bars * BAR], []);
@@ -117,14 +120,6 @@ const Cursor = ({t, scale}: {t: number; scale: number}) => {
   );
 };
 
-/** The take's own event, named: the journey writes a file into the repo after review. */
-const Note = ({i, local}: {i: number; local: number}) => {
-  const at = markFrame(i, "note") - cutAt(i), stale = markFrame(i, "stale") - cutAt(i);
-  const o = Math.min(interpolate(local, [at, at + 14], [0, 1], clamp), interpolate(local, [stale - 14, stale - 2], [1, 0], clamp));
-  if (o <= 0) return null;
-  return <div style={{position: "absolute", top: 34, left: baseView.x, opacity: o, translate: `0 ${(1 - o) * 10}px`, font: `500 19px ${MONO}`, color: "#e9bb91", padding: "7px 14px", borderRadius: 4, background: "rgba(6,6,9,.86)", border: "1px solid #4a3a2a"}}>+ operator-note.txt written to the repo after review</div>;
-};
-
 const backdrop = (context: CanvasRenderingContext2D, frame: number) => {
   // The field breathes on every beat.
   const since = ((frame / FPS - track.firstBeat) % BEAT + BEAT) % BEAT;
@@ -138,7 +133,6 @@ const ShotView = ({i}: {i: number}) => {
   const shot = shots[i];
   const cam = cameraAt(i, local);
   const t = sourceAt(shot, Math.max(0, local) / FPS);
-  const sped = shot.speed >= 1.5 ? interpolate(local, [f(shot.ramp ?? 1e4) - 8, f(shot.ramp ?? 1e4)], [1, 0], clamp) : 0;
   const edge = interpolate(frame, [0, WIPE], [-120, W + 120], {...clamp, easing: Easing.inOut(Easing.cubic)});
   const video = <OffthreadVideo src={staticFile(shot.clip)} muted style={{position: "absolute", inset: 0, width: cut.width, height: cut.height}} />;
   return (
@@ -150,8 +144,6 @@ const ShotView = ({i}: {i: number}) => {
       </div>
       {/* Zoomed past the margin, captions get a dark floor under them. */}
       <AbsoluteFill style={{background: "linear-gradient(180deg, transparent 72%, rgba(4,4,6,.97) 90%)", opacity: interpolate(cam.s, [BASE, 1.05], [0, 1], clamp)}} />
-      {shot.id === "stale" && <Note i={i} local={local} />}
-      {sped > 0 && <div style={{position: "absolute", bottom: 30, opacity: sped, right: baseView.x, font: `500 17px ${MONO}`, letterSpacing: ".08em", color: "#c7c7ce", padding: "6px 12px", borderRadius: 4, background: "rgba(6,6,9,.82)", border: "1px solid #2a2a30"}}>{`SPED UP ${shot.speed < 3 ? shot.speed.toFixed(1) : Math.round(shot.speed)}×`}</div>}
     </AbsoluteFill>
   );
 };
@@ -183,8 +175,8 @@ const Caption = ({number, kicker, line, at, out}: {number: number; kicker: strin
 // Cold open: one line per phrase of the intro, the break line on the drop.
 const T = (spec: Omit<TitleSpec, "cx"> & {cx?: number}): TitleSpec => ({cx: W / 2, ...spec});
 const OPEN_TITLES: TitleSpec[] = [
-  T({text: "Your agents ship in parallel.", at: f(beatAt(0)), out: f(beatAt(7)), cy: 470, size: 92}),
-  T({text: "Each branch passes.", at: f(beatAt(8)), out: f(OPEN_END) - 2, cy: 400, size: 92}),
+  T({text: "Your agents ship in parallel.", at: f(beatAt(0)), out: f(beatAt(DROP_BEAT / 2 - 1)), cy: 470, size: 92}),
+  T({text: "Each branch passes.", at: f(beatAt(DROP_BEAT / 2)), out: f(OPEN_END) - 2, cy: 400, size: 92}),
   T({text: "Together, they break.", at: f(DROP) - 2, out: f(OPEN_END) - 2, cy: 520, size: 92, spectrum: true}),
 ];
 const OUT_TITLES: TitleSpec[] = [
@@ -232,8 +224,9 @@ const Open = () => {
       }} />
       <Titles titles={OPEN_TITLES} />
       {/* The real case behind the line, from the M2 first-use record. */}
-      <div style={{position: "absolute", left: 0, right: 0, top: 640, textAlign: "center", font: `500 25px ${MONO}`, letterSpacing: ".01em", color: "#a9a9b2", opacity: interpolate(frame, [f(beatAt(18)), f(beatAt(18)) + 12, f(OPEN_END) - 14, f(OPEN_END)], [0, 1, 1, 0], clamp)}}>
-        lukeed/mri · Claude Code renamed <span style={{color: INK}}>toVal</span> · Codex called it · combined: <span style={{color: "#ff6a4a"}}>ReferenceError: toVal is not defined</span>
+      <div style={{position: "absolute", left: 0, right: 0, top: 640, textAlign: "center", font: `500 29px ${MONO}`, letterSpacing: ".01em", color: "#a9a9b2", lineHeight: 1.6, opacity: interpolate(frame, [f(beatAt(DROP_BEAT + 2)), f(beatAt(DROP_BEAT + 2)) + 12, f(OPEN_END) - 14, f(OPEN_END)], [0, 1, 1, 0], clamp)}}>
+        Real case, lukeed/mri: Claude Code renamed <span style={{color: INK}}>toVal</span>, Codex added a call to it.<br />
+        Both passed alone. Combined: <span style={{color: "#ff6a4a"}}>ReferenceError: toVal is not defined</span>
       </div>
     </AbsoluteFill>
   );
@@ -248,8 +241,8 @@ const Outro = () => {
       <AsciiCanvas draw={(context, at) => { drawAperture(context, {time: at / FPS, cx: W / 2, cy: H / 2, radius: 520, alpha: .18, orbits: true}); drawBurst(context, at, OUT_AT); }} />
       <Titles titles={OUT_TITLES} />
       <div style={{position: "absolute", left: 0, right: 0, top: 700, textAlign: "center", font: `500 30px ${SANS}`, color: MUTED, opacity: interpolate(frame, [OUT_AT + f(4 * BEAT), OUT_AT + f(4 * BEAT) + 14], [0, 1], clamp)}}>Download for Windows · pytxo.com</div>
-      <div style={{position: "absolute", left: 0, right: 0, bottom: 54, textAlign: "center", font: `500 16px ${MONO}`, letterSpacing: ".1em", color: "#5d5d66", opacity: interpolate(frame, [OUT_AT + f(8 * BEAT), OUT_AT + f(8 * BEAT) + 14], [0, 1], clamp)}}>
-        {`RECORDED IN PYTXO DESKTOP 1.3.2 · LIVE ${TEAM.toUpperCase()} · WAITS SHORTENED AND MARKED · MUSIC: ${track.credit.toUpperCase()}`}
+      <div style={{position: "absolute", left: 0, right: 0, bottom: 54, textAlign: "center", font: `500 19px ${MONO}`, letterSpacing: ".1em", color: "#8b8b94", opacity: interpolate(frame, [OUT_AT + f(8 * BEAT), OUT_AT + f(8 * BEAT) + 14], [0, 1], clamp)}}>
+        {`RECORDED LIVE IN PYTXO DESKTOP 1.3.2 · ${TEAM.toUpperCase()} · NO MOCKUPS · WAITS SHORTENED${track.credit ? ` · MUSIC: ${track.credit.toUpperCase()}` : ""}`}
       </div>
     </AbsoluteFill>
   );
@@ -259,21 +252,13 @@ const staleIndex = shots.findIndex((s) => s.id === "stale");
 const STALE = staleIndex >= 0 ? markFrame(staleIndex, "stale") : -1;
 const BACK = staleIndex >= 0 ? cutAt(staleIndex + 1) : -1;
 
+// The refusal drops the track under a low-pass filter (a copy made by render-desktop.mjs);
+// it opens back up over the beat before the Apply downbeat.
+const muffled = (at: number) => STALE < 0 ? 0 : interpolate(at, [STALE - 4, STALE + 4, BACK - WIPE, BACK], [0, 1, 1, 0], clamp);
 const Music = () => (
   <>
-    <Sequence durationInFrames={OUT_AT}>
-      <Audio src={staticFile(track.src)} volume={(at) => {
-        // The refusal is the one moment the music stops; it slams back on the Apply downbeat.
-        const gap = STALE >= 0 && at >= STALE && at < BACK ? 0 : 1;
-        return track.volume * gap * Math.min(1, (OUT_AT - at) / 2);
-      }} />
-    </Sequence>
-    {/* The track's own closing stabs carry the wordmark. */}
-    {track.ending.map((from, k) => (
-      <Sequence key={from} from={OUT_AT + f(from - track.ending[0])} durationInFrames={k + 1 < track.ending.length ? f(track.ending[k + 1] - from) : OUTRO - f(from - track.ending[0])}>
-        <Audio src={staticFile(track.src)} trimBefore={f(from)} volume={(at) => track.volume * Math.min(1, (OUTRO - f(from - track.ending[0]) - at) / 30)} />
-      </Sequence>
-    ))}
+    <Audio src={staticFile(track.src)} volume={(at) => track.volume * (1 - muffled(at)) * Math.min(1, (DESKTOP_FRAMES - at) / 90)} />
+    {STALE >= 0 && <Audio src={staticFile(track.low)} volume={(at) => track.volume * .8 * muffled(at)} />}
   </>
 );
 
@@ -290,9 +275,14 @@ export const PytxoDesktop = ({audioOnly = false}: {audioOnly?: boolean}) => {
         </Sequence>
       ))}
       <Wipes />
-      {shots.map((shot, i) => (
-        <Caption key={`c${shot.id}`} number={i + 1} kicker={CAPTION[shot.id][0]} line={CAPTION[shot.id][1]} at={cutAt(i)} out={cutAt(i) + lengthOf(i) - WIPE} />
-      ))}
+      {shots.map((shot, i) => {
+        const [kicker, line, then] = CAPTION[shot.id], out = cutAt(i) + lengthOf(i) - WIPE;
+        const turn = then && shot.id === "stale" ? STALE : out;
+        return [
+          <Caption key={`c${shot.id}`} number={i + 1} kicker={kicker} line={line} at={cutAt(i)} out={turn} />,
+          turn < out && <Caption key={`t${shot.id}`} number={i + 1} kicker={kicker} line={then!} at={turn} out={out} />,
+        ];
+      })}
       <Outro />
       <Music />
     </AbsoluteFill>

@@ -50,7 +50,7 @@ writes exactly the reviewed files → History keeps the receipt.
 | 1 | 0:04–0:09 | ASCII problem card (type only, no fake UI) | glitch burst on the drop | "Together, they break." + `ReferenceError` (source line: lukeed/mri, 2026-10-15) |
 | 2 | 0:09–0:16 | Work → New work: paragraph request typed; Split with Claude Code → "proposed 7 tasks, each owning its files" | drift down, zoom 1.6× on the proposal line | "One request." |
 | 3 | 0:16–0:22 | Lead only, then Codex ticked to join the Claude Code lead → Build plan → Review plan | drift along step cards | "Every file has one owner." |
-| 4 | 0:22–0:32 | Run → Fleet (in-app ASCII radar), time-lapse | zoom on fleet rows turning `passed` | "Isolated copies. Your repo untouched." + "sped up N×" |
+| 4 | 0:22–0:32 | Run → Fleet (in-app ASCII radar), time-lapse | zoom on fleet rows turning `passed` | "Isolated copies. Your repo untouched." |
 | 5 | 0:32–0:42 | Review: summary rail (agents → change → checks → project), scroll one diff | zoom 1.5× on "Checks · all passed" | "Checked as one change." |
 | 6 | 0:42–0:50 | A file lands in the repo after review → Apply → refused, "changed since review" | snap zoom on the refusal; music drops out | "Something moved. Nothing written." |
 | 7 | 0:50–0:57 | Refresh review → Apply exact package → "Applied successfully" | pull back to full window | "Exactly what you reviewed." |
@@ -58,31 +58,33 @@ writes exactly the reviewed files → History keeps the receipt.
 | 9 | 1:02–1:08 | ASCII PYTXO wordmark | locked | "The landing layer for coding agents" · pytxo.com · Desktop 1.3.2 |
 
 Captions sit in the frame margin (the app plays at ~90 % inside an ASCII
-field), never over the UI being shown. Every shortened wait carries "sped up
-N×". A closing provenance line: real Desktop 1.3.2 run, live agents, waits
-shortened and marked.
+field), never over the UI being shown. The outro's provenance line says the
+run is real (no mockups) and that waits are shortened.
 
 ## Music and beat grid
 
-Track: blksmiith, "sr20det coldrage" (Matt's choice, replacing PLENKA "When
-You Find Me"; neither is cleared for commercial use by this repo, so the file
-stays out of git in `public/desktop/`). `scripts/beats.mjs` measures 175.25 BPM,
-first beat 0.070 s, intro 0–4.86 s, drop at 4.863 s (beat 14), a break
-82–137.7 s and closing stabs at 218.5 s and 223.3 s (`desktop-music.json`).
+Track: Matt's royalty-free `alternative.mp3` (2026-10-18; replaces blksmiith
+"sr20det coldrage", which was not cleared). It stays out of git in
+`public/desktop/` and the outro names no artist; add `credit` in
+`desktop-music.json` if its licence asks for one. 174 BPM: `scripts/beats.mjs`
+reads it as 116.25 (a 2:3 error), so the grid comes from kick onsets: kicks on
+every bar (1.379 s), first beat 0.007 s, a break 3–4.1 s, drop at 4.145 s
+(beat 12), and the track settles into a calmer section 33 bars later (49.66 s).
 
 - Intro: "Your agents ship in parallel." on beat 0, "Each branch passes." on
-  beat 8.
-- Drop (4.863 s): "Together, they break." decodes on the hit with a glitch
-  burst; the mri evidence line on beat 18.
-- Every shot lasts whole bars (1.369 s) and is fully on screen on a downbeat;
+  beat 6, into the break.
+- Drop (4.145 s): "Together, they break." decodes on the hit with a glitch
+  burst; the mri evidence line two beats later.
+- Every shot lasts whole bars (1.379 s) and is fully on screen on a downbeat;
   the ASCII wipe takes the beat before it. Camera moves start on beats.
 - Anchors: the split proposal, the end of the run and "Applied successfully"
   land on a bar line of their shot, the refusal on the beat halfway through its
   third bar. Each is a speed ramp: fast up to the moment, real time after it.
-- The refusal is the only silence: the track cuts out on it and slams back on
-  the Apply downbeat a bar and a half later.
-- Outro: the main track stops; the song's own closing stabs carry the ASCII
-  wordmark and the tagline.
+- The refusal drops the track under a low-pass filter (`music-low.wav`, made
+  by `render-desktop.mjs`); it opens back up over the beat before the Apply
+  downbeat a bar and a half later. A plain mute read as a glitch.
+- Outro: the shots add up to 33 bars past the drop, so the ASCII wordmark
+  lands where the track settles; the music fades out with the film.
 
 ## ASCII title and transition system
 
@@ -119,8 +121,8 @@ pass environment keys to workers. OpenCode then exits 0 after "Model not found"
 
 Long waits play as a speed ramp: fast up to the moment that matters (the
 split proposal, the end of the run, the refusal, "Applied successfully"),
-which lands on a bar line, then real time. "SPED UP N×" shows only while the
-footage is sped up.
+which lands on a bar line, then real time. Matt dropped the on-screen
+"SPED UP N×" chip (2026-10-18); the outro says waits are shortened.
 
 ```bash
 node scripts/desktop-cut.mjs D:/pytxo-film/desktop-take-14/journey "Claude Code + OpenAI Codex"

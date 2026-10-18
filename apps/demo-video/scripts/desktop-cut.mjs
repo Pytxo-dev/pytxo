@@ -36,11 +36,11 @@ const plan = [
   ...(m.split ? [{id: "split", start: hover("Split").t - 0.4, end: m.split + 2.6, bars: 3, cap: 80, anchor: ["split", 2]}] : []),
   {id: "agents", start: firstAgent.t - 0.4, end: hover("Build plan").t + 0.6, bars: 2, cap: 3},
   {id: "plan", start: m.plan - 0.2, end: hover("Run").t + 1.0, bars: 3, cap: 3},
-  {id: "fleet", start: (m.dragged ?? m.fleet ?? m.run) + 3, end: m.settled + 2.4, bars: 6, cap: 300, anchor: ["settled", 5]},
+  {id: "fleet", start: (m.dragged ?? m.fleet ?? m.run) + 3, end: m.settled + 2.4, bars: 5, cap: 300, anchor: ["settled", 4]},
   {id: "review", start: hover("Review changes").t - 0.4, end: (m.read ?? m.review + 3) - 1.3, bars: 4, cap: 2.5},
   {id: "stale", start: apply1.t - 0.4, end: m.stale + 3.0, bars: 4, cap: 4, anchor: ["stale", 2.5]},
   {id: "apply", start: refresh.t - 0.4, end: m.applied + 2.6, bars: 4, cap: 10, anchor: ["applied", 2]},
-  {id: "history", start: m.history - 0.3, end: m.history + 5.6, bars: 3, cap: 1.4},
+  {id: "history", start: m.history - 0.3, end: m.history + 5.6, bars: 2, cap: 1.4},
 ];
 const shots = plan.map(({bars, cap, anchor, ...s}) => {
   const length = bars * BAR;

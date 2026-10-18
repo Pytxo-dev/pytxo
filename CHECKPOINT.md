@@ -149,8 +149,8 @@ before launch, decide on a Windows code-signing certificate for `sign_desktop`.
 
 ## Completed
 - `PytxoDesktop` composition in `apps/demo-video` replaces the 1.3.1 CLI land
-  film: ~60 s at 1080p, cut to the beat of Matt's track (blksmiith, "sr20det
-  coldrage"; not cleared, kept out of git in `public/desktop/`), with the ASCII
+  film: 56.7 s at 1080p60, cut to the beat of Matt's royalty-free `alternative.mp3`
+  (kept out of git in `public/desktop/`; no credit on screen), with the ASCII
   title system from the site. Storyboard, beat grid and capture notes are in
   `apps/demo-video/DESKTOP-FILM.md`.
 - Footage is one native take (take 14, `D:/pytxo-film/desktop-take-14`) of the
@@ -164,14 +164,18 @@ before launch, decide on a Windows code-signing certificate for `sign_desktop`.
   - assert the plan gives every team member a task.
 - `scripts/desktop-cut.mjs` cuts shots to whole bars and speed-ramps anchored
   shots: fast up to the moment, real time after it.
+- Second pass after Matt's review: plain-language captions (the Guard caption
+  turns over on the refusal), the real mri case on two readable lines, Review
+  holds on the proof rail, no "SPED UP" chip, a low-pass duck instead of a mute
+  at the refusal, and a readable "recorded live, no mockups" outro line.
 - `scripts/render-desktop.mjs` renders in retried chunks around a random
   Remotion compositor frame failure.
-- Output: `apps/demo-video/out/pytxo-desktop-1.3.2.mp4` (59.8 s, 1080p60, AAC;
+- Output: `apps/demo-video/out/pytxo-desktop-1.3.2.mp4` (56.7 s, 1080p60, AAC;
   ignored by git).
 
 ## Not done
 - Publishing the film (YouTube, PH, site) stays Matt's call, after /authorize.
-- Music licence: not cleared for commercial use.
+- Music: Matt's royalty-free track; add a credit if its licence needs one.
 - Agents not on the team: Cursor Agent (out of usage) and Antigravity (no
   headless output). OpenCode has only a Zen login; the fixture pins OpenRouter,
   whose key exists only in the environment.
@@ -181,7 +185,7 @@ before launch, decide on a Windows code-signing certificate for `sign_desktop`.
 ## Tests last run
 - Take 14 journey passed (`receipt.json`). `npx tsc --noEmit` is clean.
   `inspect_video.py` decoded the full film; contact sheet, chunk seams,
-  payoff frames and the refusal silence (41.15–43.2 s) checked.
+  payoff frames and the refusal filter drop checked.
 
 ## Next prompt (paste below)
 - Matt reviews `out/pytxo-desktop-1.3.2.mp4`. Re-cut: `node scripts/desktop-cut.mjs
