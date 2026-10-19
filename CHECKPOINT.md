@@ -55,6 +55,56 @@ lists webpki-roots 0.26.11 as unaffected); if it does, drop the ignore in a
 small PR. Then pick up #54 once Matt has done its native Desktop check.
 ```
 
+# CHECKPOINT — Pytxo — 2026-10-19 (per-run account picker in Work)
+
+## Branch / commit
+- `mbcz/work-account-picker` (worktree `C:/pytxo/.claude/worktrees/unruffled-leakey-6ad6d3`),
+  commit `7521e2f` plus this checkpoint, on `main` @ `b763dbd`. PR #54.
+
+## Completed
+- Local cargo works again (1.98.1); `cargo test -p pytxo-land` 15 pass.
+- Work composer: a CLI on the job with more than one sign-in gets an account
+  select (starts at Setup's choice, this run only). Readiness and the lead
+  agent's label follow the picked account; a signed-out pick blocks Build plan
+  with "<CLI> account <name>: Signed out. Sign it in from Setup or pick another
+  account." Plan review shows the reviewed account per task (hidden under a
+  640 px container so task ids stay readable).
+- Plumbing: `FlowDraftInput.ade_accounts` → preview `review_run_accounts`
+  (drops CLIs outside the plan, blocks `account_unavailable` on a missing
+  folder) → `FlowPlan.accounts` (save_reviewed refuses changes) → dispatch
+  builds per-task commands with `TaskCommand.account` → runner uses it after
+  a `pytxo.toml` agent pin and before Setup's selection.
+- Spec `docs/superpowers/specs/2026-10-17-agent-cli-accounts-design.md`
+  records the composer choice and precedence. Public docs untouched (ship
+  with the release that contains it).
+
+## Not done
+- Native Desktop not built or run: ~0.8 GB RAM free, and a real dispatch
+  spends Codex/Claude quota. UI exercised in the Vite preview backend only;
+  the run log `account` event for a Work-dispatched run is unverified live.
+- PR #54 open; not merged.
+
+## Tests last run
+- `cargo test -j 2`: pytxo-orchestrate lib 107 pass (new
+  `run_accounts_keep_plan_clis_and_block_missing_folders`), `--test flow`
+  19 pass (new `run_account_choice_is_reviewed_and_a_missing_account_blocks`),
+  `flow_concurrency` pass; pytxo-runner `per_task_commands_*` pass.
+- `cargo clippy -p pytxo-runner -p pytxo-orchestrate -p pytxo-cli
+  --all-targets -D warnings` clean; `cargo fmt --check` clean.
+- Desktop `npm run check`: 0 errors, stylelint clean.
+- Preview (Vite, 1440 and 560 px): picker, signed-out block, reviewed accounts
+  in Plan. Screenshots: side-session notes `work-account-picker/`.
+
+## Next prompt (paste below)
+```txt
+Pytxo, branch mbcz/work-account-picker (commit 7521e2f, per-run account picker
+in Work). Read AGENTS.md and the latest CHECKPOINT.md entry. Push and open a PR
+to main; after CI is green, rebase-merge. Then, with Matt at the machine,
+build native Desktop on an isolated PYTXO_HOME, pick a non-default Claude or
+Codex account in Work, run a one-file task and confirm the run log's account
+event names it.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-19 (1.3.3 released and docs live)
 
 ## Branch / commit
