@@ -77,6 +77,7 @@ async fn dispatch_preserves_reviewed_single_worker_waves() {
             ade_id: Some("codex".into()),
             ade_ids: Vec::new(),
             task_ades: Default::default(),
+            ade_accounts: Default::default(),
             max_workers: Some(1),
             verification_commands: vec![],
         },

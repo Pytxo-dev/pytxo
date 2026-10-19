@@ -60,6 +60,7 @@ pub async fn run_mission(opts: MissionOptions) -> anyhow::Result<()> {
         ade_id: opts.ade.clone(),
         ade_ids: Vec::new(),
         task_ades: Default::default(),
+        ade_accounts: Default::default(),
         max_workers: None,
         verification_commands: vec![],
     };

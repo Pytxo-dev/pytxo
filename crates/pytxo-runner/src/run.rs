@@ -176,6 +176,9 @@ pub struct TaskCommand {
     pub launcher: String,
     /// The template expanded by [`resolve_cmd_for_task`].
     pub template: String,
+    /// Account reviewed in Work for this task's CLI. An `account` pinned on the
+    /// agent in `pytxo.toml` still wins; unset uses the CLI's selected account.
+    pub account: Option<String>,
 }
 
 impl TaskCommandTemplate {
@@ -197,6 +200,14 @@ impl TaskCommandTemplate {
         match self {
             Self::Shared(_) => None,
             Self::PerTask(commands) => commands.get(task_id).map(|c| c.launcher.as_str()),
+        }
+    }
+
+    /// Account reviewed for a task, when the run chose one.
+    pub fn account_for(&self, task_id: &str) -> Option<&str> {
+        match self {
+            Self::Shared(_) => None,
+            Self::PerTask(commands) => commands.get(task_id)?.account.as_deref(),
         }
     }
 }
@@ -1074,7 +1085,12 @@ async fn run_one_agent(
         .route_agents
         .iter()
         .find(|agent| agent.name == task.agent)
-        .and_then(|agent| agent.account.as_deref());
+        .and_then(|agent| agent.account.as_deref())
+        .or_else(|| {
+            ctx.task_cmd_template
+                .as_ref()
+                .and_then(|templates| templates.account_for(&task.task_id.0))
+        });
     let account = pytxo_core::agent_accounts::launch_binding(
         &pytxo_core::agent_accounts::default_root(),
         launcher,
@@ -2319,20 +2335,30 @@ fn per_task_commands_select_each_cli_and_refuse_unreviewed_tasks() {
     let command = |launcher: &str| TaskCommand {
         launcher: launcher.into(),
         template: format!("{launcher} --task {{task_id}}"),
+        account: None,
     };
     let templates = TaskCommandTemplate::PerTask(HashMap::from([
         ("a".to_string(), command("codex exec")),
-        ("b".to_string(), command("claude -p")),
+        (
+            "b".to_string(),
+            TaskCommand {
+                account: Some("work".into()),
+                ..command("claude -p")
+            },
+        ),
     ]));
     assert_eq!(
         templates.template_for("b").unwrap(),
         "claude -p --task {task_id}"
     );
     assert_eq!(templates.launcher_for("a"), Some("codex exec"));
+    assert_eq!(templates.account_for("a"), None);
+    assert_eq!(templates.account_for("b"), Some("work"));
     assert!(templates.template_for("c").is_err());
     let shared = TaskCommandTemplate::from("opencode run");
     assert_eq!(shared.template_for("anything").unwrap(), "opencode run");
     assert_eq!(shared.launcher_for("anything"), None);
+    assert_eq!(shared.account_for("anything"), None);
 }
 
 #[cfg(all(test, windows))]

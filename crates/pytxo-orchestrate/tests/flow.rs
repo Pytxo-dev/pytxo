@@ -223,6 +223,7 @@ fn input(repo: &std::path::Path) -> FlowDraftInput {
         ade_id: Some("codex".into()),
         ade_ids: Vec::new(),
         task_ades: Default::default(),
+        ade_accounts: Default::default(),
         max_workers: None,
         verification_commands: vec![],
     }
@@ -507,6 +508,37 @@ fn run_checks_require_fresh_preview_and_do_not_modify_config() {
     assert!(save_reviewed_flow_plan(&catalog, plan).is_err());
     request.verification_commands = vec!["first\nsecond".into()];
     assert!(preview_flow(&catalog, request).is_err());
+}
+
+#[test]
+fn run_account_choice_is_reviewed_and_a_missing_account_blocks() {
+    let dir = tempfile::tempdir().unwrap();
+    seed_mission_path(dir.path());
+    let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+    let mut request = input(dir.path());
+    request.ade_accounts = [("codex".to_string(), "default".to_string())].into();
+    let plan = preview_flow(&catalog, request.clone()).unwrap();
+    assert_eq!(plan.status, FlowStatus::Ready, "{:?}", plan.blocked_reasons);
+    assert_eq!(
+        plan.accounts.get("codex").map(String::as_str),
+        Some("default")
+    );
+    let mut tampered = plan.clone();
+    tampered
+        .accounts
+        .insert("codex".into(), "someone-else".into());
+    assert!(save_reviewed_flow_plan(&catalog, tampered).is_err());
+    assert!(save_reviewed_flow_plan(&catalog, plan).is_ok());
+
+    request.ade_accounts = [("codex".to_string(), "pytxo-test-missing".to_string())].into();
+    let blocked = preview_flow(&catalog, request).unwrap();
+    assert_eq!(blocked.status, FlowStatus::Blocked);
+    assert!(blocked.accounts.is_empty());
+    assert!(blocked.blocked_reasons.iter().any(|reason| matches!(
+        reason,
+        FlowBlockedReason::AccountUnavailable { ade_id, account, .. }
+            if ade_id == "codex" && account == "pytxo-test-missing"
+    )));
 }
 
 #[test]

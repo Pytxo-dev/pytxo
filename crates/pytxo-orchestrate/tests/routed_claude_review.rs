@@ -73,6 +73,7 @@ fn reviewed_claude_preview_requires_gate_and_stages_subscription_without_a_run()
         ade_id: None,
         ade_ids: Vec::new(),
         task_ades: Default::default(),
+        ade_accounts: Default::default(),
         max_workers: Some(1),
         verification_commands: vec!["echo verification-ok".into()],
     };
