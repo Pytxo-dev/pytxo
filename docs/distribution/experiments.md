@@ -54,6 +54,18 @@ third-party repositories live in the private marketing kit, not here.
   - Scan 1 of 7 (2026-10-19), nine concurrent Claude Code pull requests:
     blocked. Five conflicted textually; the four that merged passed the
     workspace tests together. No combined test failure, so no outreach.
+  - Scan 2 (2026-10-19), three Copilot pull requests: one conflicted textually
+    with another; the other two passed together. No outreach.
+  - Scan 3 (2026-10-20), two Claude Code pull requests: Pytxo reported each
+    passing alone and the combination failing. A plain-git merge of both on a
+    fresh runner passed the full suite (0 failures), so the report did not
+    reproduce: likely a flaky test or service state shared between check runs.
+    No outreach.
+  - Interim (3 of 7): no confirmed combined failure. Conflicts between open agent
+    pull requests, which GitHub does not show until one merges, appeared in 2 of
+    3 repositories, which is a candidate hook for a follow-up experiment. A
+    single failing combined run can be a flake; the gate should re-run before
+    blaming the combination.
 - What we learned: of 22 filtered candidate repositories, only 7 had concurrent
   agent pull requests sharing files, so cold targets for this hook are fewer
   than the 20 to 30 first assumed.
