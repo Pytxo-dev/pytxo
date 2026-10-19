@@ -5,7 +5,7 @@
 //! checks remain in their owning layers. Desktop presents telemetry and intent; it never
 //! enforces policy.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Component, Path};
 use std::sync::Arc;
 
@@ -122,6 +122,10 @@ pub struct FlowDraftInput {
     /// Explicit per-task CLI choices (task id → ADE id), validated like `ade_ids`.
     #[serde(default)]
     pub task_ades: HashMap<String, String>,
+    /// Accounts chosen in Work for this run (CLI id → account name). An
+    /// `account` pinned on the agent in `pytxo.toml` still wins at launch.
+    #[serde(default)]
+    pub ade_accounts: BTreeMap<String, String>,
     /// Explicit per-run concurrency; omitted CLI requests retain repository configuration.
     #[serde(default)]
     pub max_workers: Option<usize>,
@@ -171,6 +175,11 @@ pub enum FlowBlockedReason {
     AdeUnavailable {
         ade_id: String,
     },
+    AccountUnavailable {
+        ade_id: String,
+        account: String,
+        message: String,
+    },
     OverlappingPathClaims {
         task_a: String,
         task_b: String,
@@ -202,6 +211,10 @@ pub struct FlowPlan {
     pub isolation_backend_intent: String,
     pub execution_backend: String,
     pub ade: FlowAdeSummary,
+    /// Reviewed accounts for this run (CLI id → account name); CLIs without an
+    /// entry use the account selected in Setup.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub accounts: BTreeMap<String, String>,
     pub warnings: Vec<FlowWarning>,
     pub blocked_reasons: Vec<FlowBlockedReason>,
     pub estimated_tokens: Option<u64>,
@@ -2064,6 +2077,21 @@ fn preview_flow_scoped(
             .into_iter()
             .map(|id| FlowBlockedReason::AdeUnavailable { ade_id: id.clone() }),
     );
+    let accounts = if routed {
+        BTreeMap::new()
+    } else {
+        let plan_ades: Vec<&str> = if task_ades.is_empty() {
+            ade.requested.as_deref().into_iter().collect()
+        } else {
+            task_ades.values().map(String::as_str).collect()
+        };
+        review_run_accounts(
+            &pytxo_core::agent_accounts::default_root(),
+            &input.ade_accounts,
+            &plan_ades,
+            &mut blocked_reasons,
+        )
+    };
     let mut warnings: Vec<FlowWarning> = execution
         .warnings
         .iter()
@@ -2136,6 +2164,7 @@ fn preview_flow_scoped(
         isolation_backend_intent: pytxo_runner::effective_isolation_mode(&cfg).as_str().into(),
         execution_backend: backend,
         ade,
+        accounts,
         warnings,
         blocked_reasons,
         estimated_tokens: None,
@@ -2248,6 +2277,7 @@ pub fn save_reviewed_flow_plan(catalog: &Catalog, reviewed: FlowPlan) -> anyhow:
         || reviewed.isolation_backend_intent != persisted.isolation_backend_intent
         || reviewed.execution_backend != persisted.execution_backend
         || reviewed.ade != persisted.ade
+        || reviewed.accounts != persisted.accounts
         || reviewed.warnings != persisted.warnings
         || reviewed.blocked_reasons != persisted.blocked_reasons
         || reviewed.estimated_tokens != persisted.estimated_tokens
@@ -4496,29 +4526,32 @@ fn dispatch_flow_scoped(
             .context("Flow dispatch requires a selected ADE; generate a new preview")?;
         Some(dispatchable(ade_id)?)
     };
-    // Mixed-CLI plans: every task runs exactly its reviewed CLI.
-    let task_commands =
-        if experimental_routed || plan.tasks.iter().all(|task| task.ade_id.is_none()) {
-            None
-        } else {
-            let mut commands = HashMap::new();
-            for task in &plan.tasks {
-                let ade_id = task
-                    .ade_id
-                    .as_deref()
-                    .or(plan.ade.requested.as_deref())
-                    .context("Flow task has no reviewed CLI; generate a new preview")?;
-                let ade = dispatchable(ade_id)?;
-                commands.insert(
-                    task.id.clone(),
-                    pytxo_runner::TaskCommand {
-                        launcher: ade.default_cmd.to_string(),
-                        template: ade_prompt_command(ade.default_cmd),
-                    },
-                );
-            }
-            Some(pytxo_runner::TaskCommandTemplate::PerTask(commands))
-        };
+    // Mixed-CLI plans and plans with reviewed accounts: every task runs exactly
+    // its reviewed CLI under its reviewed account.
+    let task_commands = if experimental_routed
+        || (plan.accounts.is_empty() && plan.tasks.iter().all(|task| task.ade_id.is_none()))
+    {
+        None
+    } else {
+        let mut commands = HashMap::new();
+        for task in &plan.tasks {
+            let ade_id = task
+                .ade_id
+                .as_deref()
+                .or(plan.ade.requested.as_deref())
+                .context("Flow task has no reviewed CLI; generate a new preview")?;
+            let ade = dispatchable(ade_id)?;
+            commands.insert(
+                task.id.clone(),
+                pytxo_runner::TaskCommand {
+                    launcher: ade.default_cmd.to_string(),
+                    template: ade_prompt_command(ade.default_cmd),
+                    account: plan.accounts.get(ade.id).cloned(),
+                },
+            );
+        }
+        Some(pytxo_runner::TaskCommandTemplate::PerTask(commands))
+    };
     ensure_repo_trusted(&repo)?;
     #[cfg(windows)]
     let routed_store_guard = if experimental_routed {
@@ -4917,6 +4950,36 @@ fn selected_ades(input: &FlowDraftInput) -> Vec<String> {
         .collect()
 }
 
+/// Accounts chosen in Work, kept only for CLIs this plan dispatches. A choice
+/// that cannot run (unknown account, CLI without accounts) blocks the plan
+/// instead of silently falling back to Setup's account.
+fn review_run_accounts(
+    root: &Path,
+    chosen: &BTreeMap<String, String>,
+    plan_ades: &[&str],
+    blocked: &mut Vec<FlowBlockedReason>,
+) -> BTreeMap<String, String> {
+    use pytxo_core::agent_accounts::{account_env, env_for, DEFAULT_ACCOUNT};
+    let mut accounts = BTreeMap::new();
+    for (cli, name) in chosen {
+        let cli = resolve_ade(cli).map_or(cli.as_str(), |spec| spec.id);
+        if !plan_ades.contains(&cli) || (name == DEFAULT_ACCOUNT && account_env(cli).is_none()) {
+            continue;
+        }
+        match env_for(root, cli, name) {
+            Ok(_) => {
+                accounts.insert(cli.to_string(), name.clone());
+            }
+            Err(error) => blocked.push(FlowBlockedReason::AccountUnavailable {
+                ade_id: cli.to_string(),
+                account: name.clone(),
+                message: error.to_string(),
+            }),
+        }
+    }
+    accounts
+}
+
 /// Round-robin assignment over planned task order, with explicit per-task
 /// choices. Empty for single-CLI plans, which keep the plan-level selection.
 fn assign_task_ades(tasks: &[Task], input: &FlowDraftInput) -> HashMap<String, String> {
@@ -5116,6 +5179,7 @@ mod tests {
             ade_id: None,
             ade_ids: vec!["codex".into(), "claude_code".into()],
             task_ades: HashMap::new(),
+            ade_accounts: Default::default(),
             max_workers: None,
             verification_commands: vec![],
         };
@@ -5131,6 +5195,35 @@ mod tests {
         assert!(
             assign_task_ades(&tasks, &input).is_empty(),
             "a single CLI keeps the plan-level selection"
+        );
+    }
+
+    #[test]
+    fn run_accounts_keep_plan_clis_and_block_missing_folders() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("claude").join("work")).unwrap();
+        let chosen = BTreeMap::from([
+            ("claude_code".to_string(), "work".to_string()),
+            ("codex".to_string(), "gone".to_string()),
+            ("cursor".to_string(), "default".to_string()),
+            ("opencode".to_string(), "other".to_string()),
+        ]);
+        let mut blocked = Vec::new();
+        let accounts = review_run_accounts(
+            root.path(),
+            &chosen,
+            &["claude", "codex", "cursor"],
+            &mut blocked,
+        );
+        assert_eq!(
+            accounts,
+            BTreeMap::from([("claude".to_string(), "work".to_string())]),
+            "aliases resolve, CLIs outside the plan and default on single-sign-in CLIs drop"
+        );
+        assert!(
+            matches!(&blocked[..], [FlowBlockedReason::AccountUnavailable { ade_id, account, .. }]
+                if ade_id == "codex" && account == "gone"),
+            "{blocked:?}"
         );
     }
 
@@ -5246,6 +5339,7 @@ mod tests {
                 installed: vec!["codex".into()],
                 command: None,
             },
+            accounts: Default::default(),
             warnings: vec![],
             blocked_reasons: vec![],
             estimated_tokens: None,
@@ -5347,6 +5441,7 @@ mod tests {
                 installed: vec![],
                 command: None,
             },
+            accounts: Default::default(),
             warnings: vec![],
             blocked_reasons: vec![],
             estimated_tokens: None,

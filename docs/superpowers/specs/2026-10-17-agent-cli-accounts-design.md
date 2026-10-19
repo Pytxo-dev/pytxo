@@ -108,10 +108,20 @@ named accounts, and an Add account field. The CLI row's own status reflects
 the active account, so Work's readiness gate checks the account that will
 actually run. Other CLIs show nothing new.
 
+**Work composer (added after 1.3.3).** When a CLI on the job has more than
+one account, Work shows an account select for it, starting at Setup's choice;
+the choice applies to that run only. The plan input carries it as
+`ade_accounts`; preview keeps entries for CLIs the plan dispatches and blocks
+the plan (`account_unavailable`) when an account folder is missing. The
+reviewed plan records `accounts`, Review shows the account on each task, and
+dispatch hands each task its reviewed account. Precedence at launch:
+`[[agent]] account` in `pytxo.toml`, then the run's reviewed account, then
+Setup's selected account, then `default`. A picked account other than
+Setup's makes that CLI ready only when its own sign-in state is signed in.
+
 ## Not in v1
 
-Per-run account choice inside the Work composer (Setup's choice applies to
-new work), automatic switching, sharing settings or MCP config between
+Automatic switching, sharing settings or MCP config between
 account folders (each account starts with the vendor's defaults), email
 display (keeps addresses out of demo footage), Cursor, Gemini and Antigravity
 accounts.

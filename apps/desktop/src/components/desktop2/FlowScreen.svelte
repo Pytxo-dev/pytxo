@@ -10,10 +10,10 @@
   import AdeIdentity from "./AdeIdentity.svelte";
   import FleetRadar from "./FleetRadar.svelte";
   import type { ComposerDraft } from "../../lib/composer-draft";
-  import { adeAvailabilityLabel, betaAdesInOrder, DESKTOP_BETA_MAX_WORKERS, isAdeRunnable, isBetaAde, isUnverifiedLiveAde } from "../../lib/ade-status";
+  import { ACCOUNT_STATE_LABEL, adeAvailabilityLabel, betaAdesInOrder, DESKTOP_BETA_MAX_WORKERS, isAdeRunnable, isBetaAde, isUnverifiedLiveAde } from "../../lib/ade-status";
   import { draftTitle } from "../../lib/draft-title";
   import type { DesktopBackend } from "../../lib/desktop-backend";
-  import type { AdeCliStatusDto, FlowDraftRecord, FlowPlan, ProposedHostedAdvisorPacketPreview, ReviewedDemandFacts, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
+  import type { AdeCliStatusDto, AgentAccountDto, FlowDraftRecord, FlowPlan, ProposedHostedAdvisorPacketPreview, ReviewedDemandFacts, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RunDto, VoiceSessionDto, VoiceState } from "../../lib/types";
 
   const ADE_CHOICE_KEY = "pytxo-flow-ade-v1";
   const CLAUDE_ROUTE_CHOICE = "claude-proposal-route-experiment";
@@ -123,6 +123,11 @@
   let teamAdes = $state<string[]>([]);
   /** Explicit per-task CLI choices; any change requires a fresh plan. */
   let taskAdes = $state<Record<string, string>>({});
+  /** Sign-ins per CLI, as Setup lists them. */
+  let agentAccounts = $state<AgentAccountDto[]>([]);
+  /** Account this run uses per CLI; starts at Setup's selection. */
+  let runAccounts = $state<Record<string, string>>({});
+  const accountsFor = (id: string) => agentAccounts.filter((row) => row.cli === id);
   let workers = $state(1);
   let workersTouched = false;
   let teamInitialized = false;
@@ -136,6 +141,14 @@
   let splitError = $state("");
   let missionBeforeSplit = $state<string | null>(null);
 
+  const routedChoice = $derived(selectedAde === CLAUDE_ROUTE_CHOICE || selectedAde === CLAUDE_HOSTED_CHOICE);
+  /** Every CLI in this request, primary first. */
+  const team = $derived(routedChoice || !selectedAde ? [] : [selectedAde, ...teamAdes.filter((id) => id !== selectedAde)]);
+  const teamCandidates = $derived(betaAdesInOrder(adeClis).filter((cli) => isAdeReady(cli) && cli.id !== selectedAde));
+  /** Team CLIs with more than one sign-in get an account choice for this run. */
+  const accountPickClis = $derived(team.filter((id) => accountsFor(id).length > 1));
+  const accountPicks = $derived(Object.fromEntries(accountPickClis.filter((id) => runAccounts[id]).map((id) => [id, runAccounts[id]])));
+  const accountLabel = (name: string) => (name === "default" ? "Default" : name);
   const currentInputKey = $derived(
     JSON.stringify({
       mission: mission.trim(),
@@ -144,6 +157,7 @@
       ade: selectedAde,
       team: teamAdes,
       taskAdes,
+      accounts: accountPicks,
       workers,
       checks: runChecks.trim(),
       routingFacts: selectedAde === CLAUDE_ROUTE_CHOICE || selectedAde === CLAUDE_HOSTED_CHOICE
@@ -151,10 +165,6 @@
     }),
   );
   const planMatchesInputs = $derived(!!plan && planInputKey === currentInputKey);
-  const routedChoice = $derived(selectedAde === CLAUDE_ROUTE_CHOICE || selectedAde === CLAUDE_HOSTED_CHOICE);
-  /** Every CLI in this request, primary first. */
-  const team = $derived(routedChoice || !selectedAde ? [] : [selectedAde, ...teamAdes.filter((id) => id !== selectedAde)]);
-  const teamCandidates = $derived(betaAdesInOrder(adeClis).filter((cli) => isAdeReady(cli) && cli.id !== selectedAde));
   const adeName = (id: string | null | undefined) => adeClis.find((cli) => cli.id === id)?.display_name ?? id ?? "Not selected";
   function toggleTeamAde(id: string) {
     teamAdes = teamAdes.includes(id) ? teamAdes.filter((other) => other !== id) : [...teamAdes, id];
@@ -223,6 +233,10 @@
     if (/\[(?:existing file path|expected behavior|test file path)\]/i.test(mission)) return "Replace the bracketed guidance with your repository's paths and expected behavior.";
     if (!selectedDomainId) return "Select a workspace before building a plan.";
     if (adeLoading) return "Checking the selected agent CLI.";
+    const unready = accountPickClis
+      .map((id) => accountsFor(id).find((row) => row.account === runAccounts[id]))
+      .find((row) => row && row.state !== "signed_in" && adeClis.some((cli) => cli.id === row.cli && cli.installed && !isAdeReady(cli)));
+    if (unready) return `${adeName(unready.cli)} account ${accountLabel(unready.account)}: ${ACCOUNT_STATE_LABEL[unready.state]}. Sign it in from Setup or pick another account.`;
     if (!selectedAdeReady) return "Select an installed, signed-in agent CLI before building a plan.";
     return null;
   });
@@ -286,8 +300,18 @@
     void loadWorkspaceRoutingGrants(domainIds);
   });
 
+  /** The run's account for a CLI when it differs from Setup's choice. */
+  function pickedAccountRow(cli: AdeCliStatusDto) {
+    const picked = runAccounts[cli.id];
+    return picked && picked !== (cli.active_account ?? "default")
+      ? agentAccounts.find((account) => account.cli === cli.id && account.account === picked) ?? null
+      : null;
+  }
+
   function isAdeReady(cli: AdeCliStatusDto) {
-    return isAdeRunnable(cli);
+    // Another account than Setup's is ready when its own sign-in is.
+    const row = pickedAccountRow(cli);
+    return row ? cli.installed && row.state === "signed_in" : isAdeRunnable(cli);
   }
 
   function verificationCommandsFor(candidate: FlowPlan | null) {
@@ -468,20 +492,32 @@
     packetActionPending = false;
   }
 
+  /** Availability for the account this run uses, which may not be Setup's. */
   function adeUnavailableReason(cli: AdeCliStatusDto) {
-    return adeAvailabilityLabel(cli);
+    const row = pickedAccountRow(cli);
+    if (!row || !cli.installed) return adeAvailabilityLabel(cli);
+    const account = `account ${accountLabel(row.account)}`;
+    return row.state === "signed_in" ? `ready · ${account}` : `${account} · ${ACCOUNT_STATE_LABEL[row.state].toLowerCase()}`;
   }
 
   async function loadAdeClis() {
     adeLoading = true;
     adeError = "";
     try {
-      const [detected, experiment, hosted] = await Promise.all([
+      const [detected, experiment, hosted, accounts] = await Promise.all([
         backend.listAdeClis(),
         backend.experimentalClaudeRoutingAvailable().catch(() => false),
         backend.experimentalHostedReviewAvailable().catch(() => false),
+        backend.listAgentAccounts().catch((): AgentAccountDto[] => []),
       ]);
       adeClis = detected;
+      agentAccounts = accounts;
+      // Keep this run's choice while that account exists; otherwise follow Setup.
+      runAccounts = Object.fromEntries([...new Set(accounts.map((row) => row.cli))].map((cli) => {
+        const rows = accounts.filter((row) => row.cli === cli);
+        const kept = rows.find((row) => row.account === runAccounts[cli]);
+        return [cli, (kept ?? rows.find((row) => row.active) ?? rows[0]).account];
+      }));
       experimentalClaudeAvailable = experiment;
       experimentalHostedAvailable = hosted;
       const saved = typeof localStorage === "undefined" ? null : localStorage.getItem(ADE_CHOICE_KEY);
@@ -549,7 +585,7 @@
     dispatchedStatus = "";
     historySyncedRun = "";
     try {
-      const input = { id: crypto.randomUUID(), title: draftTitle(mission), mission_text: mission, source: missionSource, domain_id: selectedDomainId || null, project_id: null, ade_id: routedChoice ? null : selectedAde, ade_ids: team.length > 1 ? team : undefined, task_ades: Object.keys(taskAdes).length ? taskAdes : undefined, max_workers: routedChoice ? 1 : workers, verification_commands: runChecks.split(/\r?\n/).map((command) => command.trim()).filter(Boolean) };
+      const input = { id: crypto.randomUUID(), title: draftTitle(mission), mission_text: mission, source: missionSource, domain_id: selectedDomainId || null, project_id: null, ade_id: routedChoice ? null : selectedAde, ade_ids: team.length > 1 ? team : undefined, task_ades: Object.keys(taskAdes).length ? taskAdes : undefined, ade_accounts: !routedChoice && Object.keys(accountPicks).length ? accountPicks : undefined, max_workers: routedChoice ? 1 : workers, verification_commands: runChecks.split(/\r?\n/).map((command) => command.trim()).filter(Boolean) };
       const facts: ReviewedDemandFacts = {
         task_kind: reviewedTaskKind,
         context_complete: reviewedContextComplete,
@@ -968,7 +1004,7 @@
         {:else if selectedAde === CLAUDE_HOSTED_CHOICE && experimentalHostedAvailable}
           <span>Hosted Routing review: configured · packet inspection only</span>
         {:else if selectedAdeStatus}
-          <span class:ready={selectedAdeReady}>{selectedAdeStatus.display_name}: {adeLoading ? "checking…" : adeAvailabilityLabel(selectedAdeStatus)}</span>
+          <span class:ready={selectedAdeReady}>{selectedAdeStatus.display_name}: {adeLoading ? "checking…" : adeUnavailableReason(selectedAdeStatus)}</span>
         {:else if !adeLoading}
           <span class="error">Install and sign in to an agent CLI before building a plan.</span>
         {/if}
@@ -984,6 +1020,21 @@
               <label class="team-chip" class:on={lead || teamAdes.includes(cli.id)} class:lead class:unavailable={!ready} title={ready ? (lead ? "Lead agent: plans the job and takes the first task" : "Shares tasks with the lead agent") : adeUnavailableReason(cli)}><input type="checkbox" checked={lead || teamAdes.includes(cli.id)} disabled={lead || !ready} onchange={() => toggleTeamAde(cli.id)} /><AdeIdentity id={cli.id} />{cli.display_name}{#if lead}<em>Lead</em>{:else if !ready}<em>{adeUnavailableReason(cli)}</em>{:else if isUnverifiedLiveAde(cli.id)}<em title="Not yet seen completing a live run on a release; check its changes closely">experimental</em>{/if}</label>
             {/each}
           </fieldset>
+        {/if}
+        {#if !routedChoice && accountPickClis.length}
+          <div class="account-picks">
+            {#each accountPickClis as id (id)}
+              <label class="account-pick">
+                <span>{adeName(id)} account</span>
+                <select value={runAccounts[id]} disabled={planning || dispatching} onchange={(event) => { runAccounts = { ...runAccounts, [id]: event.currentTarget.value }; }}>
+                  {#each accountsFor(id) as row (row.account)}
+                    <option value={row.account}>{accountLabel(row.account)} · {ACCOUNT_STATE_LABEL[row.state]}{row.active ? " · Setup's choice" : ""}</option>
+                  {/each}
+                </select>
+              </label>
+            {/each}
+            <small>For this run only. An account pinned on an agent in pytxo.toml still wins.</small>
+          </div>
         {/if}
         {#if !routedChoice}
           <div class="workers-row">
@@ -1110,7 +1161,7 @@
         <div class="preview-scope"><FleetRadar blips={team.map((id, index) => ({ id, mark: String(index + 1), tone: "ready" as const, ring: 0 }))} rings={1} /></div>
         <ol class="preview-team">
           {#each team as id, index (id)}
-            <li><span class="num">{index + 1}</span><AdeIdentity {id} /><span class="name">{adeName(id)}</span><span class="role">{index === 0 ? "lead · plans the job" : "takes tasks"}</span></li>
+            <li><span class="num">{index + 1}</span><AdeIdentity {id} /><span class="name">{adeName(id)}{accountPicks[id] && accountPicks[id] !== "default" ? ` · ${accountPicks[id]}` : ""}</span><span class="role">{index === 0 ? "lead · plans the job" : "takes tasks"}</span></li>
           {/each}
         </ol>
         <p class="preview-loop"><b>describe</b><i aria-hidden="true">─▸</i>plan<i aria-hidden="true">─▸</i>agents work<i aria-hidden="true">─▸</i>verify<i aria-hidden="true">─▸</i>apply</p>
@@ -1166,6 +1217,7 @@
                         {#if team.length > 1}
                           <select aria-label={`Agent for ${task.id}`} value={taskAde} onchange={(event) => taskAdes = { ...taskAdes, [task.id]: event.currentTarget.value }}>{#each team as id}<option value={id}>{adeName(id)}</option>{/each}</select>
                         {:else}<span>{adeName(taskAde)}</span>{/if}
+                        {#if taskAde && plan.accounts?.[taskAde]}<span class="task-account" title="Account reviewed for this run">{accountLabel(plan.accounts[taskAde])}</span>{/if}
                       </span>
                     {/if}
                     <textarea aria-label={`Task ${task.id} prompt`} rows="1" value={task.prompt || task.id} readonly={!!plan.routing} oninput={(event) => editTask(task.id, event.currentTarget.value)}></textarea>
@@ -1373,6 +1425,14 @@
   .team-chip:has(input:focus-visible) { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }
   .workers-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; font-size: 13px; color: var(--pytxo-text-body); }
   .workers-row small { color: var(--pytxo-text-muted); font-size: 12px; }
+  .account-picks { display: grid; grid-template-columns: max-content minmax(0, max-content); align-items: center; gap: 8px 10px; margin-top: 12px; font-size: 13px; color: var(--pytxo-text-body); }
+  .account-pick { display: contents; }
+  .account-pick select { min-height: 30px; max-width: 100%; font-size: 13px; }
+  .account-picks small { grid-column: 1 / -1; contain: inline-size; color: var(--pytxo-text-muted); font-size: 12px; }
+  .flow-screen .plan-item .task-account { color: var(--pytxo-text-soft); font: 500 11.5px var(--pytxo-font-mono); }
+  .flow-screen .plan-item .task-account::before { content: "· "; color: var(--pytxo-text-muted); }
+  /* Narrow plans keep the task id readable; the Request tab still shows the account. */
+  @container flow (max-width: 640px) { .flow-screen .plan-item .task-account { display: none; } }
   .stepper { display: inline-flex; border: 1px solid var(--pytxo-line); border-radius: 8px; overflow: hidden; }
   .stepper button { width: 34px; min-height: 34px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--pytxo-text-body); font-size: 16px; }
   .stepper button:disabled { opacity: .35; }

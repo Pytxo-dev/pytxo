@@ -1,4 +1,11 @@
-import type { AdeCliStatusDto } from "./types";
+import type { AdeCliStatusDto, AgentAccountDto } from "./types";
+
+export const ACCOUNT_STATE_LABEL: Record<AgentAccountDto["state"], string> = {
+  signed_in: "Signed in",
+  signed_out: "Signed out",
+  unknown: "Could not check",
+  not_installed: "Not installed",
+};
 
 /** CLIs Desktop Beta can dispatch; mirrors `DESKTOP_BETA_ADES` in Core. */
 export const DESKTOP_BETA_ADES = ["codex", "claude", "cursor", "opencode", "agy"] as const;

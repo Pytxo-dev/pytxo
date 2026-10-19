@@ -72,6 +72,7 @@ fn routed_preview_stays_local_under_ambient_llm_opt_in() {
         ade_id: None,
         ade_ids: Vec::new(),
         task_ades: Default::default(),
+        ade_accounts: Default::default(),
         max_workers: Some(1),
         verification_commands: vec!["echo local-check".into()],
     };

@@ -11,7 +11,7 @@
   import IconPlus from "@tabler/icons-svelte/icons/plus";
   import IconRefresh from "@tabler/icons-svelte/icons/refresh";
   import IconShieldLock from "@tabler/icons-svelte/icons/shield-lock";
-  import { DESKTOP_BETA_ADES, isAdeRunnable, isBetaAde } from "../../lib/ade-status";
+  import { ACCOUNT_STATE_LABEL, DESKTOP_BETA_ADES, isAdeRunnable, isBetaAde } from "../../lib/ade-status";
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import type { AdeCliStatusDto, AgentAccountDto } from "../../lib/types";
 
@@ -46,12 +46,6 @@
   const ACCOUNT_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
   const newNameValid = $derived(ACCOUNT_NAME.test(newAccountName) && newAccountName !== "default");
   const accountsFor = (cliId: string) => accounts.filter((row) => row.cli === cliId);
-  const ACCOUNT_STATE_LABEL: Record<AgentAccountDto["state"], string> = {
-    signed_in: "Signed in",
-    signed_out: "Signed out",
-    unknown: "Could not check",
-    not_installed: "Not installed",
-  };
 
   function showError(error: unknown) {
     adeMessage = error instanceof Error ? error.message : String(error);
