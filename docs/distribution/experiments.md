@@ -48,8 +48,12 @@ third-party repositories live in the private marketing kit, not here.
   - Modify the channel if failures were reported with no reply.
   - Change targets if none of the seven scans finds a failure.
   - Inconclusive if fewer than four scans complete.
-- Result: not run. Scans need an isolated runner, because untrusted pull-request
-  code must not run on a developer machine.
+- Result: running. Scans run in a separate public repository on GitHub-hosted
+  runners, because untrusted pull-request code must not run on a developer
+  machine.
+  - Scan 1 of 7 (2026-10-19), nine concurrent Claude Code pull requests:
+    blocked. Five conflicted textually; the four that merged passed the
+    workspace tests together. No combined test failure, so no outreach.
 - What we learned: of 22 filtered candidate repositories, only 7 had concurrent
   agent pull requests sharing files, so cold targets for this hook are fewer
   than the 20 to 30 first assumed.
