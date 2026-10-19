@@ -1,3 +1,55 @@
+# CHECKPOINT — Pytxo — 2026-10-19 (1.3.3 released and docs live)
+
+## Branch / commit
+- PR #53 (`release: prepare 1.3.3`) rebase-merged as `b432a7c` on top of
+  `a7dc80f` (PR #52) and `58bd0c7`/`07dba28` (PR #51). Release run
+  39175276832 on `b432a7c`; tag `v1.3.3` there.
+- Docs flip `ba8f94d` pushed to `main`; this checkpoint on top.
+
+## Completed
+- 1.3.3 contents: several sign-ins per agent CLI (`pytxo accounts`, Desktop
+  Setup accounts list, Claude Code and Codex only), quiet zero-exit worker
+  failures now fail (#52), log redaction for `sk-ant-` keys, JWTs, JSON token
+  fields and full Windows profile paths. Release notes
+  `distribution/release-notes/v1.3.3.md`; changelog row; `pytxo accounts
+  --help` no longer lists Cursor Agent. The `pytxo accounts` section in
+  `cli.mdx` had already merged with PR #51 and went live with this deploy.
+- Release run green (19 jobs: release gate, CLI 5 targets, Desktop MSI,
+  private release, mirror, npm). `pytxo-releases` v1.3.3 has the same 10
+  assets as v1.3.2; `SHA256SUMS.txt` matches `pytxo-windows-x64.exe`, which
+  prints `pytxo 1.3.3`. npm `latest` 1.3.3 at first check. Clean `npm i -g`
+  and `--ignore-scripts` installs into scratch prefixes both print `pytxo 1.3.3`.
+- Docs flipped as for 1.3.2 (README, install, docs index, changelog line,
+  CLI reference, land-in-ci `actions/land@v1.3.3`, `PUBLISHED_VERSION`);
+  verify-release-version 1.3.3 passes before and after. Deployed to Vercel
+  prod by CLI from a clean `git archive` of `ba8f94d` with `C:/pytxo/.vercel`;
+  pytxo.com install, docs, changelog, CLI (with `#pytxo-accounts`) and download
+  pages serve 1.3.3.
+
+## Not done
+- Local cargo is broken (cargo.exe missing from rustup toolchains, likely an
+  antivirus quarantine; separate session). This release was built and tested
+  only by CI; no local cargo run.
+- Carried: Matt-only launch posts; `pytxo receipts share` blocked on
+  `pytxo login`; npm 11 `allow-scripts` warning on `npm i -g pytxo` (install
+  still places the binary), not investigated.
+- Accounts: per-run picker in the Work composer and native vendor sign-in
+  clicks still not done (see the 2026-10-17 accounts entry).
+
+## Tests last run
+- PR #53 CI green (changes, rust ubuntu + windows, desktop-frontend, web;
+  desktop-tauri skipped). Release run 39175276832: every job success.
+- sloplint 0 errors / 0 warnings on the release notes and changelog.
+
+## Next prompt (paste below)
+```txt
+Pytxo after 1.3.3. Read AGENTS.md and the latest CHECKPOINT.md entry. 1.3.3
+is released and the docs are live. First confirm local cargo works again
+(`cargo --version`, `cargo test -j 4 -p pytxo-land`); if not, stop and report.
+Then pick up the accounts follow-up from the 2026-10-17 entry: a per-run
+account picker in the Work composer.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-17 (multiple accounts per agent CLI)
 
 ## Branch / commit
