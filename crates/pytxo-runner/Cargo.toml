@@ -9,6 +9,12 @@ license.workspace = true
 [lib]
 doctest = false
 
+# Owned-launch test payload; integration tests copy it under CARGO_TARGET_TMPDIR.
+[[bin]]
+name = "pytxo-owned-launch-fixture"
+path = "tests/fixtures/owned_launch_fixture.rs"
+test = false
+
 [dependencies]
 anyhow = { workspace = true }
 base64 = { workspace = true }
