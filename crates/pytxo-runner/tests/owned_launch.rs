@@ -87,24 +87,12 @@ fn fixture(
     transport: OwnedTransport,
     mode: &str,
 ) -> (tempfile::TempDir, OwnedLaunchSpec, Callbacks) {
-    let dir = tempfile::tempdir().unwrap();
-    let source = dir.path().join("fixture.cs");
+    // Cargo-built payload copied under the target dir. A csc-compiled %TEMP%
+    // fixture made Bitdefender quarantine the whole test tree, Cargo included.
+    let dir = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let exe = dir.path().join("fixture with spaces.exe");
-    fs::write(&source, include_str!("fixtures/owned_launch.cs")).unwrap();
+    fs::copy(env!("CARGO_BIN_EXE_pytxo-owned-launch-fixture"), &exe).unwrap();
     let root = PathBuf::from(std::env::var_os("SystemRoot").unwrap());
-    let compiler = root.join("Microsoft.NET/Framework64/v4.0.30319/csc.exe");
-    let result = Command::new(compiler)
-        .creation_flags(0x08000000)
-        .args(["/nologo", "/target:exe"])
-        .arg(format!("/out:{}", exe.display()))
-        .arg(&source)
-        .output()
-        .unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stdout)
-    );
     let output = dir.path().join("result.txt");
     let mut environment = BTreeMap::new();
     environment.insert("SystemRoot".into(), root.to_string_lossy().into_owned());

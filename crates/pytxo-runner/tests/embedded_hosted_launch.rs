@@ -21,34 +21,11 @@ mod tests {
     };
     use std::collections::BTreeMap;
     use std::fs;
-    use std::os::windows::process::CommandExt;
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::time::Duration;
 
     const PROMPT: &[u8] = b"synthetic private prompt\nno provider calls; & | < > ` $()";
-    const PAYLOAD: &str = r#"
-using System;
-using System.IO;
-using System.Text;
-using System.Threading;
-class Payload {
-    static int Main(string[] args) {
-        string output = Environment.GetEnvironmentVariable("TEST_OUTPUT");
-        if (args.Length > 0 && args[0] == "wait") {
-            File.WriteAllText(output + ".started", "started", new UTF8Encoding(false));
-            Thread.Sleep(30000);
-            File.WriteAllText(output + ".late", "escaped job", new UTF8Encoding(false));
-            return 0;
-        }
-        File.WriteAllText(output + ".cmdline", Environment.CommandLine, new UTF8Encoding(false));
-        File.WriteAllLines(output + ".argv", args, new UTF8Encoding(false));
-        File.WriteAllText(output + ".stdin", Console.In.ReadToEnd(), new UTF8Encoding(false));
-        Console.WriteLine("fake payload complete");
-        return 0;
-    }
-}
-"#;
 
     struct Callbacks {
         marker: PathBuf,
@@ -92,23 +69,9 @@ class Payload {
     }
 
     fn fixture(dir: &Path, arguments: Vec<String>) -> (OwnedLaunchSpec, Callbacks) {
-        let source = dir.join("fake-payload.cs");
         let payload = dir.join("fake payload with spaces.exe");
-        fs::write(&source, PAYLOAD).unwrap();
+        fs::copy(env!("CARGO_BIN_EXE_pytxo-owned-launch-fixture"), &payload).unwrap();
         let root = PathBuf::from(std::env::var_os("SystemRoot").unwrap());
-        let compiler = root.join("Microsoft.NET/Framework64/v4.0.30319/csc.exe");
-        let build = Command::new(compiler)
-            .creation_flags(0x08000000)
-            .args(["/nologo", "/target:exe"])
-            .arg(format!("/out:{}", payload.display()))
-            .arg(&source)
-            .output()
-            .unwrap();
-        assert!(
-            build.status.success(),
-            "fake payload compile failed: {}",
-            String::from_utf8_lossy(&build.stderr)
-        );
         let host = PathBuf::from(
             std::env::var_os("PYTXO_TEST_EMBEDDED_HOST")
                 .expect("set PYTXO_TEST_EMBEDDED_HOST to a separately compiled, absolute host"),
@@ -130,6 +93,7 @@ class Payload {
             environment: BTreeMap::from([
                 ("SystemRoot".into(), root.to_string_lossy().into_owned()),
                 ("TEST_OUTPUT".into(), output.to_string_lossy().into_owned()),
+                ("TEST_MODE".into(), "embedded".into()),
             ]),
             working_directory: dir.to_path_buf(),
             stdin: PROMPT.to_vec(),
@@ -152,7 +116,7 @@ class Payload {
     #[test]
     #[ignore = "requires a separately compiled embedded Pytxo host pin"]
     fn private_stdin_exact_argv_and_natural_job_zero() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
         let arguments = vec!["echo".into(), "two words".into(), "a\"b".into()];
         let (spec, mut callbacks) = fixture(dir.path(), arguments.clone());
         let debug = format!("{spec:?}");
@@ -201,7 +165,7 @@ class Payload {
     #[test]
     #[ignore = "requires a separately compiled embedded Pytxo host pin"]
     fn cancellation_after_payload_start_terminates_owned_job() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
         let (spec, mut callbacks) = fixture(dir.path(), vec!["wait".into()]);
         let marker = callbacks.marker.clone();
         let receipt = run_owned_launch(&spec, &mut callbacks, || Ok(marker.exists())).unwrap();
@@ -218,7 +182,7 @@ class Payload {
     #[test]
     #[ignore = "requires a separately compiled embedded Pytxo host pin"]
     fn private_stdin_reaches_payload_through_owned_pty() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
         let (mut spec, mut callbacks) = fixture(dir.path(), vec!["echo".into()]);
         spec.transport = OwnedTransport::Pty;
         let receipt = run_owned_launch(&spec, &mut callbacks, || Ok(false)).unwrap();
