@@ -18,7 +18,7 @@ third-party repositories live in the private marketing kit, not here.
 
 ## 2026-10-19 — Pytxo — E1 "Found it first"
 
-- Status: proposed
+- Status: reviewed (2026-10-20); cold-scan outreach abandoned
 - Project and goal: Pytxo 1.3.3; first repositories outside Pytxo running
   `pytxo land` each week.
 - Audience: maintainers of public repositories with two or more open agent pull
@@ -61,12 +61,25 @@ third-party repositories live in the private marketing kit, not here.
     fresh runner passed the full suite (0 failures), so the report did not
     reproduce: likely a flaky test or service state shared between check runs.
     No outreach.
-  - Interim (3 of 7): no confirmed combined failure. Conflicts between open agent
-    pull requests, which GitHub does not show until one merges, appeared in 2 of
-    3 repositories, which is a candidate hook for a follow-up experiment. A
-    single failing combined run can be a flake; the gate should re-run before
-    blaming the combination.
-- What we learned: of 22 filtered candidate repositories, only 7 had concurrent
-  agent pull requests sharing files, so cold targets for this hook are fewer
-  than the 20 to 30 first assumed.
-- Next experiment: E2, two Reddit posts built on the same run, after E1.
+  - Interim (3 of 7): no confirmed combined failure. A single failing combined
+    run can be a flake; the gate should re-run before blaming the combination.
+  - E1b (2026-10-20): merge-only scans (git merges, no pull-request code run) of
+    16 repositories, 13 of them not stacked.
+    - 7 had no conflicts.
+    - 5 had an agent pull request that already conflicts with its base, which
+      GitHub shows.
+    - 1 had two agent pull requests that GitHub reports as mergeable but that
+      conflict with each other, in test index files.
+    - This corrects the interim note: inter-PR conflicts were confirmed in 1
+      repository, not 2.
+- What we learned: one snapshot of public repositories rarely shows a
+  reportable combined problem (0 of 3 test scans and 1 of 13 merge scans), and
+  maintainers serialize agent merges quickly (one repository merged or closed
+  5 of its 9 agent pull requests within a day). Cold-scan outreach is abandoned
+  as the primary channel.
+  Of 22 filtered candidate repositories, only 7 had concurrent agent pull
+  requests sharing files.
+- Next experiment: developers who run several agents in parallel on one
+  repository and merge the results locally, where the merge pain is not
+  serialized by a maintainer. Replies in dated public threads where that pain
+  is described, using the first-use evidence run.
