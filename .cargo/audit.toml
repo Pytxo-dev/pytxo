@@ -6,12 +6,8 @@
 # Windows-notification-only transitive exception.
 # `rsa` has no fixed release for RUSTSEC-2023-0071; it is pulled by the
 # macOS/desktop dependency graph and is not used for Pytxo's key handling.
-# RUSTSEC-2026-0381 flags webpki-roots 0.26.11 (via ureq 2.x) by version only:
-# 0.26.11 is a shim that re-exports TLS_SERVER_ROOTS from webpki-roots 1.x,
-# locked at the patched 1.0.10. Drop this when ureq moves to webpki-roots 1.x.
 ignore = [
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
   "RUSTSEC-2023-0071",
-  "RUSTSEC-2026-0381",
 ]
