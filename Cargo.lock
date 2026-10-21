@@ -4567,7 +4567,7 @@ checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
 name = "pytxo-catalog"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4580,7 +4580,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-cli"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4622,7 +4622,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-core"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "chrono",
  "fs2",
@@ -4641,7 +4641,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-desktop"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -4684,7 +4684,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-land"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4725,7 +4725,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-mcp"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -4740,7 +4740,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-orchestrate"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4768,7 +4768,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-planner"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -4809,7 +4809,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-runner"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4833,7 +4833,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-sanitize"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "pytxo-core",
  "regex",
@@ -4842,7 +4842,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-scheduler"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "glob",
  "pytxo-core",
@@ -4850,7 +4850,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-shell"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "anyhow",
  "pytxo-catalog",
@@ -4863,7 +4863,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-signal"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "anyhow",
  "pytxo-core",
@@ -4883,7 +4883,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-store"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "chrono",
  "getrandom 0.2.17",
@@ -4897,7 +4897,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-tui"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -4911,7 +4911,7 @@ dependencies = [
 
 [[package]]
 name = "pytxo-voice"
-version = "1.3.3"
+version = "1.3.4"
 dependencies = [
  "cpal",
  "serde",
