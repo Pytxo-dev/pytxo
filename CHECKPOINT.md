@@ -1,3 +1,60 @@
+# CHECKPOINT — Pytxo — 2026-10-21 (1.3.4 security patch released and docs live)
+
+## Branch / commit
+- PR #61 (`release: prepare 1.3.4`) rebase-merged as `1c84d51` on top of
+  `969ad4d` (PR #60). Tag `v1.3.4` there; release run 39574626469 started by
+  the tag push.
+- PR #59 (runner fixture built with Cargo, tests only) merged as `fda7c53`
+  after the tag, so it is not in 1.3.4. Docs flip `c7999d5` on top of it; this
+  checkpoint on top.
+
+## Completed
+- 1.3.4 contents: lockfile bumps from #60 only. rustls-webpki 0.103.16
+  (RUSTSEC-2026-0382), webpki-roots 1.0.10 (0381) and webpki-root-certs 1.0.10
+  (0383), the emSign distrusted-intermediates advisories, CVE-2026-111943.
+  CLI, MCP and Desktop all carry rustls via ureq 2.x, reqwest and the Tauri
+  updater. No shipped source changed. Release notes
+  `distribution/release-notes/v1.3.4.md`; changelog row. #54 (Work account
+  picker) left out, still waiting on Matt's native Desktop check.
+- Release run green (19 jobs). `pytxo-releases` v1.3.4 has the same 10 assets
+  as v1.3.3; `SHA256SUMS.txt` matches `pytxo-windows-x64.exe`, which prints
+  `pytxo 1.3.4`. npm publish job printed `+ pytxo@1.3.4` at 09:43 UTC;
+  registry `latest` showed 1.3.4 at 09:47. Clean `npm i -g` and
+  `--ignore-scripts` installs into scratch prefixes both print `pytxo 1.3.4`
+  (needed `--prefer-online`: the local npm metadata cache still had 1.3.3).
+- Docs flipped as for 1.3.3 (README, install, docs index, changelog line, CLI
+  reference, land-in-ci `actions/land@v1.3.4`, `PUBLISHED_VERSION`);
+  verify-release-version 1.3.4 passes before and after. Deployed to Vercel
+  prod by CLI from a clean `git archive` of `c7999d5` with `C:/pytxo/.vercel`
+  (`dpl_eUXQC7eJ8wYAcvtkkZN2MZoJCrpw`); pytxo.com install, docs, changelog, CLI,
+  land-in-ci and download pages serve 1.3.4.
+
+## Not done
+- Upstream advisory-db now marks webpki-roots `= 0.26.11` as unaffected by
+  RUSTSEC-2026-0381, so the `.cargo/audit.toml` ignore added in #60 can
+  probably go. Not checked or changed here.
+- `sloplint` is not installed on this machine; not run on the notes.
+- Carried: Matt-only launch posts; `pytxo receipts share` blocked on
+  `pytxo login`; npm 11 `allow-scripts` warning; #54 native check.
+
+## Tests last run
+- Local (Windows, cargo works again): `cargo audit` exit 0 (12 allowed
+  warnings); fmt and clippy `-D warnings` clean; `cargo test --workspace`
+  1150 passed, 0 failed, 16 ignored, with `PYTXO_TEST_ATTEMPT_HOST` set as CI
+  does (without it 7 `owned_launch_windows` fault tests panic on the missing
+  pin). The `pytxo-runner` `owned_launch` target was skipped locally because,
+  before #59, it compiled the csc fixture Bitdefender ATC quarantines.
+- PR #61 CI green; release run 39574626469 every job success.
+
+## Next prompt (paste below)
+```txt
+Pytxo after 1.3.4. Read AGENTS.md and the latest CHECKPOINT.md entry. 1.3.4
+is released and the docs are live. Check whether `cargo audit` still passes
+without the RUSTSEC-2026-0381 ignore in `.cargo/audit.toml` (advisory-db now
+lists webpki-roots 0.26.11 as unaffected); if it does, drop the ignore in a
+small PR. Then pick up #54 once Matt has done its native Desktop check.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-19 (1.3.3 released and docs live)
 
 ## Branch / commit
