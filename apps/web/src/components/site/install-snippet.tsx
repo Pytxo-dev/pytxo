@@ -30,7 +30,7 @@ export function InstallSnippet({ children, className, copyLabel }: InstallSnippe
           type="button"
           aria-label={copyLabel}
           onClick={copyCommand}
-          className="min-h-10 rounded-[var(--radius-md)] px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="touch-target relative min-h-10 rounded-[var(--radius-md)] px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           {copyState === "copied" ? "Copied" : "Copy"}
         </button>

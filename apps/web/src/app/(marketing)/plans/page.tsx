@@ -80,15 +80,15 @@ export default function PlansPage() {
           history for {PRO_PRICE}/{PRO_INTERVAL}. Team is in design with partners.
         </p>
         <div className="mt-2 flex flex-wrap gap-3">
-          <Button size="lg" asChild>
+          <Button size="lg" className="touch-target relative" asChild>
             <Link href="/download">Download Pytxo</Link>
           </Button>
           {SITE_AUTH_ENABLED && PRO_CHECKOUT_OPEN ? (
-            <Button size="lg" variant="outline" asChild>
+            <Button size="lg" variant="outline" className="touch-target relative" asChild>
               <a href="/api/billing/checkout-redirect?plan=pro">Get Pro</a>
             </Button>
           ) : null}
-          <Button size="lg" variant="outline" asChild>
+          <Button size="lg" variant="outline" className="touch-target relative" asChild>
             <a href={DISCORD_URL}>Talk to us about Team</a>
           </Button>
         </div>

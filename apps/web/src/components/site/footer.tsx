@@ -25,6 +25,10 @@ const RESOURCE_LINKS = [
   { href: "/docs/reference/cli", label: "CLI reference" },
 ] as const;
 
+// Phones: each link is a 44px row; desktop keeps the tighter list.
+const LIST = "mt-4 flex flex-col gap-2.5 text-[#7d7d87] max-md:mt-1 max-md:gap-0";
+const LINK = "hover:text-foreground max-md:block max-md:py-3";
+
 const LEGAL_LINKS = [
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
@@ -49,10 +53,10 @@ export function SiteFooter() {
           <div className="grid grid-cols-2 gap-10 text-sm sm:grid-cols-3">
             <div>
               <p className="font-medium text-foreground">Product</p>
-              <ul className="mt-4 flex flex-col gap-2.5 text-[#7d7d87]">
+              <ul className={LIST}>
                 {PRODUCT_LINKS.map((link) => (
                   <li key={link.href}>
-                    <Link href={link.href} className="hover:text-foreground">
+                    <Link href={link.href} className={LINK}>
                       {link.label}
                     </Link>
                   </li>
@@ -61,10 +65,10 @@ export function SiteFooter() {
             </div>
             <div>
               <p className="font-medium text-foreground">Docs</p>
-              <ul className="mt-4 flex flex-col gap-2.5 text-[#7d7d87]">
+              <ul className={LIST}>
                 {DOCS_LINKS.map((link) => (
                   <li key={link.href}>
-                    <Link href={link.href} className="hover:text-foreground">
+                    <Link href={link.href} className={LINK}>
                       {link.label}
                     </Link>
                   </li>
@@ -73,7 +77,7 @@ export function SiteFooter() {
             </div>
             <div>
               <p className="font-medium text-foreground">Resources</p>
-              <ul className="mt-4 flex flex-col gap-2.5 text-[#7d7d87]">
+              <ul className={LIST}>
                 {RESOURCE_LINKS.map((link) => (
                   <li key={link.href}>
                     {"external" in link && link.external ? (
@@ -81,12 +85,12 @@ export function SiteFooter() {
                         href={link.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hover:text-foreground"
+                        className={LINK}
                       >
                         {link.label}
                       </a>
                     ) : (
-                      <Link href={link.href} className="hover:text-foreground">
+                      <Link href={link.href} className={LINK}>
                         {link.label}
                       </Link>
                     )}
@@ -105,7 +109,7 @@ export function SiteFooter() {
           </p>
           <nav aria-label="Legal" className="flex gap-4 font-mono text-[10px] text-[#66666f]">
             {LEGAL_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className="hover:text-foreground">
+              <Link key={link.href} href={link.href} className="touch-target relative hover:text-foreground">
                 {link.label}
               </Link>
             ))}
