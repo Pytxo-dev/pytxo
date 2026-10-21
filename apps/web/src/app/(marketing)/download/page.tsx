@@ -120,7 +120,7 @@ export default function DownloadPage() {
                   Manual download per platform from GitHub Releases.
                 </p>
               </div>
-              <Button variant="outline" className="border-border" asChild>
+              <Button variant="outline" className="touch-target relative border-border" asChild>
                 <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer">
                   Browse releases
                 </a>
@@ -146,7 +146,7 @@ export default function DownloadPage() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="px-1 py-2 text-sm font-medium text-primary transition-colors hover:text-foreground"
+                className="px-1 py-2 text-sm font-medium text-primary transition-colors hover:text-foreground max-md:py-3"
               >
                 {item.label}
               </Link>

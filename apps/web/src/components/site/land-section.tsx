@@ -46,7 +46,7 @@ export function LandSection() {
             <dd className="mt-1.5 text-sm leading-relaxed text-[#9d9da6]">{detail}</dd>
           </div>)}
         </dl>
-        <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm"><Link href="/docs/getting-started/first-landing" className="aperture-link">First landing in 5 minutes →</Link><Link href="/docs/getting-started/land-branches" className="aperture-link">Read the landing guide →</Link></div>
+        <div className="mt-6 flex flex-wrap gap-x-6 gap-y-6 text-sm"><Link href="/docs/getting-started/first-landing" className="aperture-link">First landing in 5 minutes →</Link><Link href="/docs/getting-started/land-branches" className="aperture-link">Read the landing guide →</Link></div>
       </div>
       <div className="min-w-0 self-start">
         <figure className="relative rounded-md border border-white/15 p-2 pt-4" data-testid="land-output">

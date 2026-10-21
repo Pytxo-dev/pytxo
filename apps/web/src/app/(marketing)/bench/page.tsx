@@ -104,7 +104,7 @@ export default async function BenchPage() {
         </div>
       </div>}
       {reference.signal && <p className="mt-10 max-w-[48rem] text-sm leading-relaxed text-[#8d8d96]">Signal Core on the Pytxo repository: {reference.signal.files} source files, {reference.signal.original_bytes.toLocaleString("en-US")} bytes reduced to a {reference.signal.scaffold_bytes.toLocaleString("en-US")}-byte structural scaffold ({reference.signal.weighted_reduction_pct}% smaller). Bytes, not tokens or cost.</p>}
-      <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+      <div className="mt-6 flex flex-wrap gap-x-6 gap-y-6 text-sm">
         <a className="aperture-link" href="/evidence/pybench-1.3.0-2026-10-10.json">Raw results (JSON)</a>
         <Link className="aperture-link" href="/docs/evidence/pybench">Method and limits →</Link>
       </div>

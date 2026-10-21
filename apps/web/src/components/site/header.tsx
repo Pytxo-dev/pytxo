@@ -31,7 +31,7 @@ export function SiteHeader() {
       className="sticky top-0 z-50 border-b border-white/[0.04] bg-[#050507]/90 backdrop-blur-xl"
     >
       <div className="mx-auto grid h-16 max-w-[92rem] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6 lg:px-10">
-        <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
+        <Link href="/" className="touch-target relative flex items-center gap-2.5 transition-opacity hover:opacity-90">
           <Image
             src="/logo-mark.png"
             alt="Pytxo"
@@ -68,7 +68,7 @@ export function SiteHeader() {
 
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden">
+              <Button variant="ghost" size="icon" className="touch-target relative md:hidden">
                 <MenuIcon />
                 <span className="sr-only">Open menu</span>
               </Button>
@@ -82,7 +82,7 @@ export function SiteHeader() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className="rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-card"
+                    className="rounded-md px-3 py-3 text-sm font-medium transition-colors hover:bg-card"
                   >
                     {link.label}
                   </Link>

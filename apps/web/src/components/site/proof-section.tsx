@@ -40,7 +40,7 @@ export function ProofSection() {
           <h2 id="proof-title" className="text-[clamp(2rem,3.4vw,3.25rem)] leading-[1.06] tracking-[-0.04em]">Measured, with the limits printed.</h2>
           <p className="mt-6 max-w-[44ch] text-base leading-relaxed text-[#b4b4bd]">Pybench builds throwaway repositories where agent branches each pass their own checks but break together, and compares what per-branch CI would put on main with what <code className="font-mono text-[0.92em]">pytxo land</code> decides. It shows the mechanism, not how often it happens in real projects. Run it yourself with <code className="font-mono text-[0.92em]">pytxo bench</code>.</p>
           <p className="mt-4 max-w-[44ch] text-sm leading-relaxed text-[#8d8d96]">The live run used the released 1.2.4 Desktop with real Claude Code, Codex and Cursor Agent sessions in {minutes(live.run_seconds)}. Its checks passed and the applied app still had integration bugs the agents&apos; tests missed. Checks passing is evidence, not proof.</p>
-          <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+          <div className="mt-6 flex flex-wrap gap-x-6 gap-y-6 text-sm">
             <Link href="/bench" className="aperture-link">Pybench results →</Link>
             <Link href="/docs/evidence" className="aperture-link">All evidence and limits →</Link>
           </div>

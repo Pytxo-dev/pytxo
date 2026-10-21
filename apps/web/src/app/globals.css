@@ -185,6 +185,56 @@
   }
 }
 
+/* Touch screens: grow small controls to a 44px hit area without moving or
+   resizing anything that is drawn. `.touch-target` needs a positioned element. */
+@media (pointer: coarse) {
+  #nd-subnav :is(a, button),
+  #nd-sidebar-mobile button[aria-label],
+  [data-toc-popover-trigger],
+  button[aria-label="Close Search"],
+  figure button[aria-label="Copy Text"] {
+    position: relative;
+  }
+
+  /* The pill's children are round already; clipping would hide the hit area. */
+  [data-theme-toggle] {
+    overflow: visible;
+  }
+
+  .aperture-link::before,
+  .touch-target::before,
+  #nd-subnav :is(a, button)::before,
+  #nd-sidebar-mobile button[aria-label]::before,
+  [data-toc-popover-trigger]::before,
+  button[aria-label="Close Search"]::before,
+  figure button[aria-label="Copy Text"]::before {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    content: "";
+    translate: -50% -50%;
+  }
+
+  /* The docs search and sidebar buttons sit side by side, so widen them. */
+  #nd-subnav button {
+    min-width: 44px;
+  }
+
+  /* Full-width rows: a 44px row is the hit area. */
+  #nd-sidebar-mobile a,
+  [role="dialog"] button[aria-selected] {
+    min-height: 44px;
+  }
+
+  /* Grow the search field into its row's padding so the row keeps its height. */
+  [role="dialog"] input[placeholder="Search"] {
+    min-height: 44px;
+    margin-block: -8px;
+  }
+}
+
 [data-chroma-theme="void"] aside a[data-active="true"],
 [data-chroma-theme="void"] [data-sidebar] a[aria-current="page"] {
   position: relative;
