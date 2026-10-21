@@ -79,7 +79,10 @@ pytxo land <ref>... [--base <ref>] [--check <cmd>]... [--per-input]
 4. **Check.** Each `--check` runs in the combined worktree (shell, cwd =
    worktree, 15-minute timeout, last 40 output lines kept). With
    `--per-input`, the same checks also run on each input alone, which is what
-   exposes "every branch passed, the combination fails".
+   exposes "every branch passed, the combination fails". A combined check that
+   fails while every input passed it alone runs once more (`"rerun": true` in
+   the receipt): two failures blame the combination; a pass on the second run
+   is reported as a flaky check and still blocks.
 5. **Decide.** `ready` (no conflict, all combined checks passed), `blocked`
    (conflict, failed combined check, diverged input) or `stale` (target moved
    during the gate). Symbol collisions are reported as risk; they block only
@@ -134,7 +137,7 @@ An in-toto Statement v1 so supply-chain tooling can read it; unsigned in v1.3
     "base": "<sha>", "result": "<sha or null>",
     "inputs": [{ "ref": "...", "commit": "<sha>", "files": 3, "status": "merged | conflict | diverged" }],
     "shared_files": [{ "path": "...", "inputs": ["a", "b"], "symbols": [{ "name": "fn", "inputs": ["a","b"] }] }],
-    "checks": [{ "scope": "combined | input:<ref>", "command": "...", "exit_code": 0, "duration_ms": 0, "passed": true }],
+    "checks": [{ "scope": "combined | input:<ref>", "command": "...", "exit_code": 0, "duration_ms": 0, "passed": true, "rerun": "true on a combined re-run; omitted otherwise" }],
     "reasons": ["human-readable blocking reasons"],
     "content_digest": "sha256 of the canonical predicate without this field"
   }

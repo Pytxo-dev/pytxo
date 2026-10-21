@@ -104,6 +104,11 @@ pub struct ReceiptCheck {
     pub timed_out: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub output_tail: Vec<String>,
+    /// The second run of a combined check that failed while every input
+    /// passed it alone. Absent (false) on every other run, so older receipts
+    /// read and verify unchanged.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rerun: bool,
 }
 
 impl Receipt {
@@ -283,6 +288,7 @@ mod tests {
                         r"npm error log: C:\Users\someone\AppData\npm\debug.log".into(),
                         "at /home/someone/repo/test.js:3".into(),
                     ],
+                    rerun: false,
                 }],
                 reasons: vec!["combined check failed".into()],
                 duration_ms: 40,
@@ -298,6 +304,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let receipt = sample();
         assert!(receipt.digest_matches());
+        // Fields added after v1 are left out when unset, so older receipts verify.
+        assert!(!serde_json::to_string(&receipt).unwrap().contains("rerun"));
         let path = receipt.write_to(dir.path()).unwrap();
         let loaded = load_receipt(&path).unwrap();
         assert_eq!(loaded, receipt);

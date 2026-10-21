@@ -63,6 +63,7 @@ pub(crate) fn write_apply_receipt(
                     duration_ms: 0,
                     timed_out: false,
                     output_tail: Vec::new(),
+                    rerun: false,
                 })
                 .collect()
         })

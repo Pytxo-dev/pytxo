@@ -359,6 +359,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                     duration_ms: 0,
                     timed_out: false,
                     output_tail: vec!["input does not merge cleanly onto the target".into()],
+                    rerun: false,
                 });
                 continue;
             };
@@ -385,17 +386,45 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             .expect("created when checks exist")
             .path;
         let check = checks::run_check("combined", command, dir, opts.check_timeout);
-        if !check.passed {
-            reasons.push(if check.timed_out {
-                format!("combined check timed out: {command}")
-            } else {
-                format!(
-                    "combined check failed: {command} (exit {})",
-                    check.exit_code.map_or("?".into(), |c| c.to_string())
-                )
+        // "Every input passed alone, the combination failed" is the claim this
+        // gate leads with, so one flaky run must not make it: run it once more.
+        let solo: Vec<&ReceiptCheck> = checks
+            .iter()
+            .filter(|c| c.scope != "combined" && &c.command == command)
+            .collect();
+        let rerun =
+            (!check.passed && !solo.is_empty() && solo.iter().all(|c| c.passed)).then(|| {
+                ReceiptCheck {
+                    rerun: true,
+                    ..checks::run_check("combined", command, dir, opts.check_timeout)
+                }
             });
+        let how = |c: &ReceiptCheck| {
+            if c.timed_out {
+                "timed out".to_string()
+            } else {
+                format!("exit {}", c.exit_code.map_or("?".into(), |e| e.to_string()))
+            }
+        };
+        match &rerun {
+            Some(again) if again.passed => reasons.push(format!(
+                "combined check flaky: {command} failed ({}), then passed when run again",
+                how(&check)
+            )),
+            Some(again) => reasons.push(format!(
+                "combined check failed twice: {command} ({}, then {})",
+                how(&check),
+                how(again)
+            )),
+            None if check.timed_out => reasons.push(format!("combined check timed out: {command}")),
+            None if !check.passed => reasons.push(format!(
+                "combined check failed: {command} ({})",
+                how(&check)
+            )),
+            None => {}
         }
         checks.push(check);
+        checks.extend(rerun);
     }
     drop(combined_tree);
 
@@ -461,9 +490,19 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
 
     let mut insights = Vec::new();
     let solo: Vec<&ReceiptCheck> = checks.iter().filter(|c| c.scope != "combined").collect();
-    let combined_failed = checks.iter().any(|c| c.scope == "combined" && !c.passed);
-    if combined_failed && !solo.is_empty() && solo.iter().all(|c| c.passed) {
-        insights.push("Every input passed its checks alone. The combined change failed.".into());
+    // Only a combined check that failed its re-run too blames the combination.
+    let failed_twice = checks.iter().any(|c| c.rerun && !c.passed);
+    if failed_twice && solo.iter().all(|c| c.passed) {
+        insights.push(
+            "Every input passed its checks alone. The combined change failed both times it ran."
+                .into(),
+        );
+    }
+    for c in checks.iter().filter(|c| c.rerun && c.passed) {
+        insights.push(format!(
+            "`{}` failed on the combined change, then passed when run again: the check is flaky, so this run does not show that the combination is at fault.",
+            c.command
+        ));
     }
     if !collisions.is_empty() {
         insights.push(format!(
@@ -488,7 +527,8 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         if !checks
             .iter()
             .filter(of_command)
-            .any(|c| c.scope == "combined" && !c.passed)
+            .rfind(|c| c.scope == "combined")
+            .is_some_and(|c| !c.passed)
         {
             continue;
         }
