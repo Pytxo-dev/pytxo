@@ -306,3 +306,16 @@ jobs:
         working-directory: apps/desktop
         run: npm run build:native
 
+  # The one check branch protection requires. A skipped matrix job reports as
+  # plain "rust", never as its per-OS names, so path-filtered PRs could not
+  # satisfy those directly. Skipped jobs pass here; failed or cancelled ones fail.
+  ci-ok:
+    needs: [changes, rust, web, desktop-frontend, desktop-tauri]
+    if: always()
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any needed job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+
