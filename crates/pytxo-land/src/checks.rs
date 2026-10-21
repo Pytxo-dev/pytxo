@@ -20,6 +20,7 @@ pub fn run_check(scope: &str, command: &str, cwd: &Path, timeout: Duration) -> R
         duration_ms: started.elapsed().as_millis() as u64,
         timed_out,
         output_tail: tail,
+        rerun: false,
     };
 
     let log_path =

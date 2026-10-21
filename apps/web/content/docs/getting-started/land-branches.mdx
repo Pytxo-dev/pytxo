@@ -20,7 +20,7 @@ Pytxo:
 1. Resolves each branch and records the files it changed since it split from your branch.
 2. For files that more than one branch changed, maps the changes to functions, methods and types with Signal Core. Two branches that changed the same function are reported even when Git merges them cleanly.
 3. Merges the branches in the order you gave, in a separate worktree, with Git hooks turned off. A textual conflict blocks the combination.
-4. Runs each `--check` on the combined result, in a fresh worktree where nothing is installed. With `--per-input`, it first runs the same checks on each branch alone, which shows when every branch passes but the combination fails, and when the check fails everywhere.
+4. Runs each `--check` on the combined result, in a fresh worktree where nothing is installed. With `--per-input`, it first runs the same checks on each branch alone, which shows when every branch passes but the combination fails, and when the check fails everywhere. If every branch passes a check alone and the combination fails it, the check runs on the combination once more: Pytxo blames the combination only when it fails twice, and calls the check flaky when the second run passes. A flaky check still blocks. The receipt records both runs.
 5. Decides: **ready**, **blocked** or **stale**, and writes a receipt.
 
 By default this is **shadow mode**: your branch and working tree do not change. The combined commit is kept at `refs/pytxo/land/<receipt id>` so you can inspect it:

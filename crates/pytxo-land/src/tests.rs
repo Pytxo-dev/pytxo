@@ -210,6 +210,122 @@ fn every_input_passes_alone_but_the_combination_fails() {
     assert!(out.insights[0].contains("Every input passed"));
 }
 
+/// A check that fails only where both `a.txt` and `b.txt` exist, so only on
+/// the combination; with `marker`, only until it has failed once.
+fn combined_only_failure(marker: Option<&Path>) -> String {
+    #[cfg(windows)]
+    let check = match marker {
+        Some(m) => format!(
+            "if not exist a.txt (exit 0) else if not exist b.txt (exit 0) else if exist \"{0}\" (exit 0) else (type nul > \"{0}\" & exit 1)",
+            m.display()
+        ),
+        None => "if not exist a.txt (exit 0) else if not exist b.txt (exit 0) else (exit 1)".into(),
+    };
+    #[cfg(not(windows))]
+    let check = match marker {
+        Some(m) => format!(
+            "test -f a.txt && test -f b.txt || exit 0; test -f '{0}' && exit 0; touch '{0}'; exit 1",
+            m.display()
+        ),
+        None => "test -f a.txt && test -f b.txt && exit 1; exit 0".into(),
+    };
+    check
+}
+
+fn combined_runs(out: &LandOutcome) -> Vec<(bool, bool)> {
+    out.receipt
+        .predicate
+        .checks
+        .iter()
+        .filter(|c| c.scope == "combined")
+        .map(|c| (c.passed, c.rerun))
+        .collect()
+}
+
+#[test]
+fn a_flaky_combined_check_runs_again_and_is_not_blamed_on_the_combination() {
+    // Logflare scan, 2026-10-20: both PRs passed `mix test` alone and the
+    // combination failed once, yet a plain merge of the same PRs passed.
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    let scratch = tempfile::tempdir().unwrap();
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.checks = vec![combined_only_failure(Some(&scratch.path().join("failed")))];
+    o.per_input = true;
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.decision(), "blocked", "{text}");
+    assert_eq!(
+        combined_runs(&out),
+        [(false, false), (true, true)],
+        "{text}"
+    );
+    let said = out.insights.join("\n");
+    assert!(!said.contains("The combined change failed"), "{said}");
+    assert!(said.contains("the check is flaky"), "{said}");
+    let p = &out.receipt.predicate;
+    assert!(
+        p.reasons[0].starts_with("combined check flaky:"),
+        "{:?}",
+        p.reasons
+    );
+    assert!(text.contains("  combined, run 2 "), "{text}");
+    assert!(
+        text.contains("\nnext      the combined check is flaky"),
+        "{text}"
+    );
+    let markdown = render_markdown(&out);
+    assert!(
+        markdown.contains("| combined, run 2 | pass |"),
+        "{markdown}"
+    );
+
+    // Both runs are in the written receipt, and its digest still verifies.
+    let written: Receipt =
+        serde_json::from_slice(&std::fs::read(&out.receipt_path).unwrap()).unwrap();
+    assert!(written.digest_matches());
+    assert_eq!(written.predicate.checks, p.checks);
+}
+
+#[test]
+fn a_combined_failure_that_repeats_is_blamed_on_the_combination() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.checks = vec![combined_only_failure(None)];
+
+    // Without --per-input nothing shows the inputs pass alone: one run, no blame.
+    let out = land(&o).unwrap();
+    assert_eq!(combined_runs(&out), [(false, false)]);
+    assert!(out.insights.is_empty(), "{:?}", out.insights);
+
+    o.per_input = true;
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.decision(), "blocked", "{text}");
+    assert_eq!(
+        combined_runs(&out),
+        [(false, false), (false, true)],
+        "{text}"
+    );
+    assert_eq!(
+        out.insights,
+        ["Every input passed its checks alone. The combined change failed both times it ran."]
+    );
+    let reason = &out.receipt.predicate.reasons[0];
+    assert!(
+        reason.starts_with("combined check failed twice:")
+            && reason.ends_with("(exit 1, then exit 1)"),
+        "{reason}"
+    );
+    assert!(text.contains("  combined, run 2 "), "{text}");
+    assert!(text.contains("\nnext      fix the failure"), "{text}");
+}
+
 /// An npm project whose test script exists, committed on main.
 fn npm_project(d: &Path) {
     write(

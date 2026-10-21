@@ -2,6 +2,8 @@
 
 use std::fmt::Write as _;
 
+use pytxo_core::{ReceiptCheck, ReceiptPredicate};
+
 use crate::{short, LandOutcome};
 
 fn seconds(ms: u64) -> String {
@@ -10,6 +12,25 @@ fn seconds(ms: u64) -> String {
 
 fn input_name(reference: &str, agent: Option<&str>) -> String {
     agent.map_or_else(|| reference.to_string(), |a| format!("{a}:{reference}"))
+}
+
+/// A check's scope as shown; the re-run of a combined check is run 2.
+fn scope_label(c: &ReceiptCheck) -> String {
+    if c.rerun {
+        format!("{}, run 2", c.scope)
+    } else {
+        c.scope.clone()
+    }
+}
+
+/// A failed combined run whose re-run passed.
+fn passed_when_rerun(p: &ReceiptPredicate, c: &ReceiptCheck) -> bool {
+    !c.passed
+        && !c.rerun
+        && c.scope == "combined"
+        && p.checks
+            .iter()
+            .any(|r| r.rerun && r.passed && r.command == c.command)
 }
 
 /// Inputs that conflicted and so are absent from the tree the combined checks
@@ -65,6 +86,15 @@ fn next_step(outcome: &LandOutcome) -> Option<&'static str> {
         "blocked" if p.inputs.iter().any(|i| i.status == "conflict") => Some(
             "merge or rebase the conflicting branch onto the ones before it, resolve the conflict, then run the same command again",
         ),
+        "blocked"
+            if p.checks
+                .iter()
+                .filter(|c| !c.passed)
+                .all(|c| passed_when_rerun(p, c))
+                && p.checks.iter().any(|c| !c.passed) =>
+        {
+            Some("the combined check is flaky: make it reliable, or run the same command again")
+        }
         "blocked" if p.checks.iter().any(|c| !c.passed) => Some(
             "fix the failure on one of the branches (or fix the check), then run the same command again",
         ),
@@ -140,7 +170,7 @@ pub fn render_text(outcome: &LandOutcome) -> String {
             let _ = writeln!(
                 s,
                 "  {:<28} {:<14} {}  {}",
-                c.scope,
+                scope_label(c),
                 verdict,
                 seconds(c.duration_ms),
                 c.command
@@ -257,7 +287,7 @@ pub fn render_markdown(outcome: &LandOutcome) -> String {
                 s,
                 "| `{}` | {} | {} | {} |",
                 c.command,
-                c.scope,
+                scope_label(c),
                 result,
                 seconds(c.duration_ms)
             );
@@ -269,7 +299,7 @@ pub fn render_markdown(outcome: &LandOutcome) -> String {
                     s,
                     "\n`{}` ({}):\n```\n{}\n```",
                     c.command,
-                    c.scope,
+                    scope_label(c),
                     lines.join("\n")
                 );
             }
