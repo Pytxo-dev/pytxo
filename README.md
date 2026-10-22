@@ -36,6 +36,10 @@ npm i -g pytxo@1.3.5
 pytxo doctor
 ```
 
+The first `pytxo` command downloads the native binary for your platform and
+checks it against the release's SHA-256 list. npm 12 blocks install scripts by
+default and prints a warning about pytxo's `postinstall`; you can ignore it.
+
 Installers and binaries are published through
 [Pytxo releases](https://github.com/Pytxo-dev/pytxo-releases). Pytxo Desktop is
 Windows-first for v1.3.5. The npm installer must fail if the binary for the
