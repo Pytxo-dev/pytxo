@@ -70,7 +70,8 @@ branches from Claude Code and Codex (headless), two runs, fresh npm prefix and
 
 - npm 11.18 prints an allow-scripts warning on `npm i -g pytxo`; the
   postinstall still runs and the 1.3.1 launcher covers the case where it does
-  not. Only npm can remove the warning (or users allow the script).
+  not. Resolved 2026-10-22: npm 12 (`latest` since 2026-07-08) blocks the
+  script, so the first-run download is now the documented install path.
 - Codex CLI `exec -s workspace-write` keeps `.git` read-only, so Codex cannot
   commit its own branch; both Codex branches were committed by hand. Agent-side,
   not Pytxo; the 5-minute page says to commit agent changes first.

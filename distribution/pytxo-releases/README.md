@@ -53,6 +53,10 @@ npm i -g pytxo
 pytxo doctor
 ```
 
+The first `pytxo` command downloads the native binary and checks it against
+`SHA256SUMS.txt`. npm 12 blocks install scripts by default and prints a warning
+about pytxo's `postinstall`; you can ignore it.
+
 **CLI install script (macOS / Linux):**
 
 ```bash

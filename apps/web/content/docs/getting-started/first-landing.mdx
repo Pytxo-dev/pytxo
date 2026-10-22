@@ -14,9 +14,7 @@ npm i -g pytxo
 pytxo --version
 ```
 
-`npm i -g` took 22.7 and 29.9 seconds in two runs, including the native binary download.
-
-If your package manager skips install scripts (pnpm 10 does by default, as does `npm i --ignore-scripts`), Pytxo 1.3.1 and later download and verify the binary on the first `pytxo` command instead. That first command took 19.4 seconds after a pnpm install and 27.8 seconds after `npm i --ignore-scripts`.
+npm 12 and pnpm 10 skip install scripts by default, so `npm i -g` installs only the launcher and prints a warning about pytxo's `postinstall`, which you can ignore. Your first `pytxo` command downloads the native binary and checks it against the release's SHA-256 list: 4.3 seconds after an npm 12 install on 2026-10-22, and 19.4 and 27.8 seconds in earlier pnpm and `--ignore-scripts` runs. Later commands start in under a second. npm 11 and older run the download during `npm i -g` instead (22.7 and 29.9 seconds in two runs).
 
 ## 2. Check the branches together
 
