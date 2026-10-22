@@ -1,3 +1,53 @@
+# CHECKPOINT — Pytxo — 2026-10-22 (1.3.5 released and docs live)
+
+## Branch / commit
+- PR #67 (`release: prepare 1.3.5`) rebase-merged as `41b17a2` on top of
+  `7735a3b` (PR #65). Tag `v1.3.5` there; release run 39776813455 started by
+  the tag push.
+- Docs flip `50aab32` pushed to main on top; this checkpoint on top.
+
+## Completed
+- 1.3.5 contents since v1.3.4: #64 (`pytxo land --per-input` re-runs a
+  combined check that fails although every input passed it alone; blames the
+  combination only on two failures, flaky otherwise, still blocked; receipt
+  records both runs, `"rerun": true` on the second) and #54 (Work picks the
+  account for one run; Review shows it per task). #59, #62 and #65 change no
+  behaviour; #63 is site-only. Release notes
+  `distribution/release-notes/v1.3.5.md`; changelog row.
+- Release run green (20 jobs). `pytxo-releases` v1.3.5 has the same 10 assets
+  as v1.3.4; `SHA256SUMS.txt` matches `pytxo-windows-x64.exe`, which prints
+  `pytxo 1.3.5`. npm publish job printed `+ pytxo@1.3.5` at 12:53 UTC;
+  registry `latest` showed 1.3.5 at 13:00. Clean `npm i -g` and
+  `--ignore-scripts` installs into scratch prefixes both print `pytxo 1.3.5`.
+- Docs flipped as for 1.3.4 (README, install, docs index, changelog line, CLI
+  reference, land-in-ci `actions/land@v1.3.5`, `PUBLISHED_VERSION`);
+  verify-release-version 1.3.5 passes before and after. Vercel's git
+  integration built production from main by itself
+  (`dpl_211U2S7Guyu9jxfLkxF8wrSAMVpG` for `50aab32`), so no CLI deploy was
+  needed; pytxo.com install, docs, changelog, CLI, land-in-ci and download
+  pages serve 1.3.5.
+
+## Not done
+- The GitHub "Deploy web" workflow still exists and skips without
+  `VERCEL_TOKEN`; Vercel's git integration now covers it. Not removed here.
+- Carried: Matt-only launch posts (Product Hunt); `pytxo receipts share`
+  blocked on `pytxo login`; npm 11 `allow-scripts` warning.
+
+## Tests last run
+- Local (Windows, `-j 2`, about 1.7 GB free): `cargo audit` exit 0 (12 allowed
+  warnings); fmt and clippy `-D warnings` clean; `cargo test --workspace`
+  1173 passed, 0 failed, 18 ignored, with `PYTXO_TEST_ATTEMPT_HOST` pinned as
+  CI does. Verifier tests 11/11.
+- PR #67 CI green (`ci-ok`); release run 39776813455 every job success.
+
+## Next prompt (paste below)
+```txt
+Pytxo after 1.3.5. Read AGENTS.md and the latest CHECKPOINT.md entry. 1.3.5
+is released and the docs are live; Vercel deploys main web changes by itself.
+Decide whether to delete the skipped "Deploy web" workflow, then continue the
+Product Hunt launch prep.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-21 (1.3.4 security patch released and docs live)
 
 ## Branch / commit
