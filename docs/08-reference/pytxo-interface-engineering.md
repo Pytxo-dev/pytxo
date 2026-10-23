@@ -6,7 +6,7 @@ tags: [reference, desktop, website, accessibility, motion]
 audience: [agent, human]
 layer: presentation
 created: 2026-09-14
-updated: 2026-10-09
+updated: 2026-10-23
 related: [[desktop-interaction-audit-2026-09-13]], [[modular-project-safety-contract-2026-09-13]], [[pytxo-presentation-references-2026-09-14]]
 ---
 
@@ -50,6 +50,14 @@ pytxo.com share a terminal vocabulary on top of Chroma Aperture:
   time slice with a few seconds' decay on one fleet-wide scale; it is not
   progress and must never be read as percent complete. A live worker silent for
   45 s reads **quiet**, because Pytxo cannot tell quiet from stuck.
+- **Wall** (`FleetWall.svelte`, Work → Run | Wall; approved by Matt on
+  2026-10-23): every agent of every workspace's active runs on one screen, one
+  pane per repository. A tile shows the CLI, task, state colour and label,
+  elapsed time and the last two output lines, all read in one
+  `agent_output_tails` call per poll. Header counts and the evidence footer
+  (run IDs and any linked fleet run) come only from the snapshot's recorded
+  runs; finished runs stay until **Clear finished**. `lib/fleet-wall.ts` sizes
+  the grid to fit (48 agents ≈ 8 × 6 at 1080p); a tile opens its run.
 - **ASCII scope** (`FleetRadar.svelte`): the aperture as an ASCII sphere, one
   orbit per step and one numbered blip per task. Live blips travel and the sweep
   turns only while something is live. It is decoration over real state; the

@@ -974,6 +974,7 @@
           onReviewRun={(runId) => openMission(runId, "review")}
           onStopRun={stopRunFromOps}
           onSelectRun={focusRun}
+          onOpenRun={(runId, domainId) => openMission(runId, undefined, domainId)}
           onInspect={(ref, position) => missionDock?.open(ref, position)}
           onDismissInspect={() => missionDock?.dismiss("right")}
         />

@@ -60,6 +60,7 @@ test("a sparkline marks time outside the worker's window and scales to the fleet
   expect(line.tail).toBe("··");
   expect(sparkline([0, 0, 0], 1, null, null)).toEqual({ lead: "···", body: "", tail: "" });
   expect(clock(125_400)).toBe("2:05");
+  expect(clock(3_725_000)).toBe("1:02:05");
 });
 
 test("event times accumulate across reads for the activity line", async () => {

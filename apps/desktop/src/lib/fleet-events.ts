@@ -71,5 +71,7 @@ export function sparkline(levels: number[], peak: number, from: number | null, t
 
 export function clock(ms: number): string {
   const seconds = Math.max(0, Math.round(ms / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  const minutes = Math.floor(seconds / 60);
+  const ss = String(seconds % 60).padStart(2, "0");
+  return minutes < 60 ? `${minutes}:${ss}` : `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}:${ss}`;
 }

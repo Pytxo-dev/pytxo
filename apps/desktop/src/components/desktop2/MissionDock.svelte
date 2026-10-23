@@ -579,7 +579,9 @@
   .workspace-tools.tools-folded { position: absolute; top: 15px; right: 12px; z-index: 3; min-height: 28px; padding: 0; border: 0; justify-content: flex-end; }
   .workspace-tools.tools-folded .tools-label, .workspace-tools.tools-folded>.tools-toggle::after { display: none; }
   .workspace-tools.tools-folded>.tools-toggle { width: 34px; min-height: 34px; justify-content: center; border: 1px solid var(--pytxo-line); border-radius: 4px; }
-  .workspace-tools.tools-folded ~ .dock-grid .mission-content :global(.command-strip:not(.idle)) { padding-right: 44px; }
+  .workspace-tools.tools-folded ~ .dock-grid .mission-content :global(.command-strip:not(.idle)),
+  .workspace-tools.tools-folded ~ .dock-grid .mission-content :global(.command-strip.with-view),
+  .workspace-tools.tools-folded ~ .dock-grid .mission-content :global(.wall-head) { padding-right: 44px; }
   .workspace-tools.tools-folded>:not(.tools-toggle) { display: none; }
   .workspace-tools>.tools-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; font-size: 11px; color: var(--pytxo-text-muted); }
   .workspace-tools>.tools-toggle:hover { color: var(--foreground); }
