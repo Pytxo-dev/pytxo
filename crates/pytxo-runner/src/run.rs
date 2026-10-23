@@ -1748,7 +1748,7 @@ fn run_verify_commands_with_limits(
         let (stdout, stderr) = captured?;
         if !output.success() {
             let code = output.code().unwrap_or(-1);
-            return Err(PytxoError::Runner(format!(
+            return Err(PytxoError::CheckFailed(format!(
                 "verify `{cmd}` failed (exit {code}): {}{}",
                 stderr.text,
                 if stderr.truncated {

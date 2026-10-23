@@ -3832,7 +3832,13 @@ pub fn reconcile_routed_flow_startup(catalog: &Catalog, draft_id: &str) -> anyho
                 && contract
                     .last_apply_error
                     .as_ref()
-                    .is_some_and(|error| error.code == "routed_review_failed")
+                    // A combined check that failed at Review publication is recorded under its own code.
+                    .is_some_and(|error| {
+                        matches!(
+                            error.code.as_str(),
+                            "routed_review_failed" | "candidate_check_failed"
+                        )
+                    })
         }) && pytxo_runner::apply_attempt_ids(&data_dir, run_id)?.is_empty()
     } else {
         false

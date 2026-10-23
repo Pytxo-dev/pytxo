@@ -971,7 +971,7 @@
           {focusRunId}
           onNewRun={openWorkspaceCompose}
           onOpenApprovals={() => (approvalsOpen = true)}
-          onReviewRun={(runId) => openMission(runId, "review")}
+          onReviewRun={(runId, domainId) => openMission(runId, "review", domainId)}
           onStopRun={stopRunFromOps}
           onSelectRun={focusRun}
           onOpenRun={(runId, domainId) => openMission(runId, undefined, domainId)}
@@ -1083,6 +1083,15 @@
   }
   .desktop2.sidebar-collapsed {
     grid-template-columns: 58px minmax(0, 1fr);
+  }
+  /* The Wall's presenter mode: the work area alone. */
+  :global(html[data-presenting]) .desktop2,
+  :global(html[data-presenting]) .desktop2:not(.sidebar-collapsed) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :global(html[data-presenting]) .desktop2 > :global(.sidebar),
+  :global(html[data-presenting]) main > :global(.app-bar) {
+    display: none;
   }
   main {
     min-width: 0;
