@@ -16,6 +16,11 @@ pub enum PytxoError {
     #[error("runner: {0}")]
     Runner(String),
 
+    /// A check command ran and exited unsuccessfully: its verdict, not a
+    /// failure to run it. Reads exactly like `Runner`.
+    #[error("runner: {0}")]
+    CheckFailed(String),
+
     /// An explicit Stop boundary, not a process or verification failure.
     #[error("runner: {0} cancelled by Stop")]
     Cancelled(String),
