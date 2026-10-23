@@ -95,7 +95,7 @@ fn copy_dir_skip_sparse(
     copy_dir_skip_sparse_inner(
         &source_root,
         &destination_root,
-        sparse_exclude,
+        &crate::blast::copy_layer_exclude(sparse_exclude),
         &destination_root,
         excluded_source_root.as_deref(),
     )
@@ -209,8 +209,9 @@ mod tests {
         let handle = prepare_projfs_overlay(&repo, &wt, "run3", "agent-2", &[]).unwrap();
 
         assert!(handle.cwd.join("app.ts").exists());
-        assert!(handle.cwd.join(".pytxo/keep.toml").exists());
-        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
+        // Pytxo's own state is not workspace content; copying it held files
+        // (the process registry lock) that concurrent agents must open.
+        assert!(!handle.cwd.join(".pytxo").exists());
     }
 
     #[cfg(windows)]
@@ -218,7 +219,7 @@ mod tests {
     fn prepare_projfs_excludes_sibling_agent_workspaces() {
         let tmp = tempfile::tempdir().unwrap();
         let repo = tmp.path().join("repo");
-        let wt = repo.join(".pytxo/worktrees");
+        let wt = repo.join("worktrees");
         std::fs::create_dir_all(wt.join("projfs-old-agent/upper")).unwrap();
         std::fs::write(repo.join("app.ts"), "export {}\n").unwrap();
         std::fs::write(
@@ -230,7 +231,7 @@ mod tests {
         let handle = prepare_projfs_overlay(&repo, &wt, "run-new", "agent-new", &[]).unwrap();
 
         assert!(handle.cwd.join("app.ts").exists());
-        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
+        assert!(!handle.cwd.join("worktrees").exists());
     }
 
     #[cfg(windows)]
