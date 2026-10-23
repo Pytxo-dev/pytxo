@@ -151,7 +151,10 @@ async fn real_candidate_checks_gate_apply_and_refresh_frozen_bytes() {
     let error = run(options(&bad_repo, &["a", "b"], &verify))
         .await
         .unwrap_err();
-    assert!(error.to_string().contains("review preparation failed"));
+    assert!(
+        error.to_string().contains("review preparation failed"),
+        "{error:#}"
+    );
     let store = PytxoStore::open(&bad_repo.join(".pytxo/data/pytxo.db")).unwrap();
     let bad_run = store.list_runs(1).unwrap().remove(0);
     assert!(store
