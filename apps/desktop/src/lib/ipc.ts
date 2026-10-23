@@ -227,6 +227,8 @@ export const ipc = {
     invoke<EventDto[]>("tail_events", { agentId, tail, domainId }).then(unwrap),
   readAgentEvents: (runId: string, agentId: string, domainId: string, after: number, limit: number) =>
     invoke<EventDto[]>("read_agent_events", { runId, agentId, domainId, after, limit }).then(unwrap),
+  agentOutputTails: (requests: import("./types").AgentTailRequest[], lines: number) =>
+    invoke<import("./types").AgentTailDto[]>("agent_output_tails", { requests, lines }).then(unwrap),
   agentFailureHint: (runId: string, agentId: string, domainId: string) =>
     invoke<string | null>("agent_failure_hint", { runId, agentId, domainId }).then(unwrap),
   pollLogLines: (agentId: string, limit: number, domainId: string | null) =>

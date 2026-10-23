@@ -97,6 +97,10 @@ export interface DesktopBackend {
   deleteFlowDraft(draftId: string): Promise<void>;
   listAgents(runId: string, domainId: string | null): Promise<AgentDto[]>;
   readAgentEvents(runId: string, agentId: string, domainId: string, after: number, limit: number): Promise<import("./types").EventDto[]>;
+  /** The newest output lines of many workers in one read. */
+  agentOutputTails(requests: import("./types").AgentTailRequest[], lines: number): Promise<import("./types").AgentTailDto[]>;
+  /** Which workspace run each node of a fleet run dispatched; empty when unreadable. */
+  fleetRunNodes(fleetRunId: string): Promise<import("./types").FleetNodeDto[]>;
   /** Last error the worker printed, as one advisory sentence; null when none. */
   agentFailureHint(runId: string, agentId: string, domainId: string): Promise<string | null>;
   runReview(runId: string, domainId: string | null): Promise<RunReviewDto>;
@@ -238,6 +242,8 @@ class TauriDesktopBackend implements DesktopBackend {
   async deleteFlowDraft(draftId: string) { return ipc.flowDelete(draftId); }
   async listAgents(runId: string, domainId: string | null) { return ipc.listAgents(runId, domainId); }
   async readAgentEvents(runId: string, agentId: string, domainId: string, after: number, limit: number) { return ipc.readAgentEvents(runId, agentId, domainId, after, limit); }
+  async agentOutputTails(requests: import("./types").AgentTailRequest[], lines: number) { return ipc.agentOutputTails(requests, lines); }
+  async fleetRunNodes(fleetRunId: string) { return ipc.fleetRunStatus(fleetRunId); }
   async agentFailureHint(runId: string, agentId: string, domainId: string) { return ipc.agentFailureHint(runId, agentId, domainId); }
   async runReview(runId: string, domainId: string | null) { return ipc.runReview(runId, domainId); }
   async routingRunSummary(runId: string, domainId: string) { return ipc.routingRunSummary(runId, domainId); }

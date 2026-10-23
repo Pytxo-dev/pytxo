@@ -7,7 +7,8 @@
  */
 import type { DesktopBackend, DesktopSnapshot } from "./desktop-backend";
 import { DESKTOP_BETA_MAX_WORKERS, isBetaAde } from "./ade-status";
-import type { AdeCliStatusDto, AgentAccountDto, DesktopChangedEvent, SplitDraft, DomainChangeDto, FlowDraftInput, FlowDraftRecord, FlowPlan, PermissionEnforcementReceipt, PreparedContentChunkDto, PreparedRunManifest, ProposedHostedAdvisorPacketPreview, ProviderStatusDto, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RoutingDisplaySummary, RunApplyError, RunApplyManifest, RunReviewDto, VoiceProgressEvent, VoiceSessionDto } from "./types";
+import { eventLines } from "./terminal-text";
+import type { AdeCliStatusDto, AgentAccountDto, AgentTailDto, AgentTailRequest, DesktopChangedEvent, FleetNodeDto, SplitDraft, DomainChangeDto, FlowDraftInput, FlowDraftRecord, FlowPlan, PermissionEnforcementReceipt, PreparedContentChunkDto, PreparedRunManifest, ProposedHostedAdvisorPacketPreview, ProviderStatusDto, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, RoutingDisplaySummary, RunApplyError, RunApplyManifest, RunReviewDto, VoiceProgressEvent, VoiceSessionDto } from "./types";
 
 const previewSignalMark = Uint8Array.from({ length: 300 }, (_, index) => index % 251);
 previewSignalMark.set([0x00, 0xff, 0x50, 0x4e, 0x47], 0);
@@ -483,6 +484,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
   private readonly domainListeners = new Set<(event: DesktopChangedEvent) => void>();
   private readonly changes: DomainChangeDto[] = [];
   private readonly recoveredRuns = new Set<string>();
+  private wallFleetNodes: FleetNodeDto[] = [];
   private shadowConsent: RoutedAdvisorConsentStatus = { domain_id: "signal-lab", revision: 0, enabled: false, current_scope: false, recipient_identity: "pytxo-local-advisor-fixture/no-network/v1", updated_at_ms: 0 };
   private readonly shadowConsentStorageKey = "pytxo-preview-shadow-grant-state-v1";
   private sequence = 0;
@@ -559,6 +561,8 @@ export class PreviewDesktopBackend implements DesktopBackend {
         ...this.fleetAgentRows(run),
       ];
     }
+    const wallFixture = localStorage.getItem("pytxo-preview-wall-v1");
+    if (wallFixture) this.addWallFixture(wallFixture);
     if (localStorage.getItem("pytxo-preview-agent-identity-v1") === "1") {
       this.snapshot.agents[0] = { ...this.snapshot.agents[0], launcher: { id: "codex", display_name: "OpenAI Codex" }, workspace_path: "C:/browser-fixture/isolated/worker" };
     }
@@ -571,6 +575,32 @@ export class PreviewDesktopBackend implements DesktopBackend {
       reviewRun.apply_status =
         requested === "recovered" ? "ready" : requested;
     }
+  }
+
+  /**
+   * Browser fixture for the Work wall (`pytxo-preview-wall-v1`): one fleet run
+   * whose nodes each run eight workers in their own workspace. "1" mixes
+   * states beside the default run; a number N is N working agents alone.
+   * Illustrative, not recorded runs.
+   */
+  private addWallFixture(size: string) {
+    const mixed = size === "1";
+    const total = mixed ? 20 : Math.max(1, Math.min(256, Number(size) || 20));
+    if (!mixed) this.snapshot.runs[0].status = "completed";
+    const started = Date.now() - 95_000;
+    const clis = [{ id: "claude", display_name: "Claude Code" }, { id: "codex", display_name: "OpenAI Codex" }];
+    for (let workspace = 0; workspace * 8 < total; workspace += 1) {
+      const repo = `C:/fw/fw${workspace + 1}`;
+      const run = { ...this.snapshot.runs[1], id: `wall-run-${workspace + 1}`, domain_id: repo, repo_root: repo, status: "running", apply_status: null, prepared_digest: null, prepared_at: null, started_at: new Date(started + workspace * 4_000).toISOString() };
+      this.snapshot.domains.push({ ...this.snapshot.domains[1], domain_id: repo, repo_root: repo, active_runs: 1, latest_run_status: "running", hitl_pending: 0 });
+      this.snapshot.runs.push(run);
+      for (let index = 0; index < Math.min(8, total - workspace * 8); index += 1) {
+        const status = mixed && index >= 6 && workspace < 2 ? "completed" : mixed && workspace === 1 && index === 5 ? "failed" : "running";
+        this.snapshot.agents.push({ id: `${run.id}:agent-${index}`, domain_id: repo, run_id: run.id, task_id: `task-${index + 1}`, wave: 0, status, exit_code: status === "completed" ? 0 : status === "failed" ? 1 : null, root_id: null, launcher: clis[(workspace + index) % 2] });
+      }
+      this.wallFleetNodes.push({ node_id: `fw${workspace + 1}`, domain_id: repo, domain_run_id: run.id, wave: 0, status: "running" });
+    }
+    this.snapshot.fleets.push({ id: "fleet-run-preview", fleet_id: "wall-preview", started_at: new Date(started).toISOString(), finished_at: null, status: "running" });
   }
 
   private fleetAgentRows(run: { id: string; domain_id: string }) {
@@ -976,6 +1006,12 @@ export class PreviewDesktopBackend implements DesktopBackend {
       const reads = Number(localStorage.getItem("pytxo-preview-agent-event-reads-v1") ?? "0");
       localStorage.setItem("pytxo-preview-agent-event-reads-v1", String(reads + 1));
     }
+    if (runId.startsWith("wall-run-")) {
+      const start = Date.parse(this.snapshot.runs.find(run => run.id === runId && run.domain_id === domainId)?.started_at ?? "") || Date.now();
+      return ["reading the workspace", "writing its change", "running its checks"]
+        .map((step, index) => ({ id: index + 1, agent_id: agentId, kind: "stdout", payload: `Browser fixture: ${agent.task_id} ${step}`, ts: new Date(start + 2_000 + index * 9_000).toISOString() }))
+        .filter(e => e.id > after).slice(0, limit);
+    }
     const fleetTask = localStorage.getItem("pytxo-preview-fleet-v1") === "1" ? fleetTasks.find(task => agentId.endsWith(`:fleet-${task.task_id}`)) : undefined;
     const script = fleetTask && fleetScripted() ? fleetScript[fleetTask.task_id] : null;
     if (fleetTask && script) {
@@ -1016,6 +1052,23 @@ export class PreviewDesktopBackend implements DesktopBackend {
       })).filter(e => e.id > after).slice(0, limit);
     }
     return ["\x1b[", "32mBrowser fixture: recorded output example. Native Desktop reads actual stored events.", "\x1b[0m"].map((payload, index) => ({ id: index + 1, agent_id: agentId, kind: "stdout", payload, ts: "2026-09-12T00:00:00Z" })).filter(e => e.id > after).slice(0, limit);
+  }
+  async agentOutputTails(requests: AgentTailRequest[], lines: number): Promise<AgentTailDto[]> {
+    if (localStorage.getItem("pytxo-preview-observe-polls-v1") === "1") {
+      const reads = Number(localStorage.getItem("pytxo-preview-tail-batch-reads-v1") ?? "0");
+      localStorage.setItem("pytxo-preview-tail-batch-reads-v1", String(reads + 1));
+    }
+    return Promise.all(requests.map(async (request) => {
+      try {
+        const events = await this.readAgentEvents(request.run_id, request.agent_id, request.domain_id, 0, 1000);
+        return { ...request, lines: eventLines(events).slice(-lines), first_at: events[0]?.ts ?? null, last_at: events.at(-1)?.ts ?? null, error: null };
+      } catch (error) {
+        return { ...request, lines: [], first_at: null, last_at: null, error: error instanceof Error ? error.message : String(error) };
+      }
+    }));
+  }
+  async fleetRunNodes(fleetRunId: string): Promise<FleetNodeDto[]> {
+    return fleetRunId === "fleet-run-preview" ? structuredClone(this.wallFleetNodes) : [];
   }
   async agentFailureHint(runId: string, agentId: string, domainId: string): Promise<string | null> {
     const agent = this.snapshot.agents.find(a => a.id === agentId && a.run_id === runId && a.domain_id === domainId);

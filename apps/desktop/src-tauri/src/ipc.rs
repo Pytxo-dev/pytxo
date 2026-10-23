@@ -1191,6 +1191,118 @@ fn read_scoped_agent_events(
         .map(|events| events.into_iter().map(event_to_dto).collect())
 }
 
+#[derive(Deserialize)]
+pub struct AgentTailRequest {
+    pub domain_id: String,
+    pub run_id: String,
+    pub agent_id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AgentTailDto {
+    pub domain_id: String,
+    pub run_id: String,
+    pub agent_id: String,
+    /// Newest readable lines, oldest first, as Core's `event_lines` renders them.
+    pub lines: Vec<String>,
+    /// Times of the worker's first and newest recorded events.
+    pub first_at: Option<String>,
+    pub last_at: Option<String>,
+    /// Why this worker could not be read; the rest of the batch is unaffected.
+    pub error: Option<String>,
+}
+
+const MAX_TAIL_REQUESTS: usize = 256;
+/// Newest events read per worker; wrapped or blank output folds into fewer lines.
+const TAIL_EVENT_WINDOW: usize = 60;
+
+/// Recent output for many workers in one read, for the Work wall. Each worker
+/// is checked for run membership exactly like `read_agent_events`.
+#[tauri::command]
+pub async fn agent_output_tails(
+    app: tauri::AppHandle,
+    requests: Vec<AgentTailRequest>,
+    lines: usize,
+) -> IpcResult<Vec<AgentTailDto>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        agent_output_tails_blocking(&app.state::<AppState>(), requests, lines)
+    })
+    .await
+    .map_err(map_orch_err)?
+}
+
+pub(crate) fn agent_output_tails_blocking(
+    state: &AppState,
+    requests: Vec<AgentTailRequest>,
+    lines: usize,
+) -> IpcResult<Vec<AgentTailDto>> {
+    if requests.len() > MAX_TAIL_REQUESTS {
+        return Err(PytxoIpcError::new(
+            "input",
+            "At most 256 workers per output batch",
+        ));
+    }
+    let lines = lines.clamp(1, 20);
+    // One read-only handle per workspace, closed when the batch returns.
+    let mut stores: HashMap<String, Result<pytxo_store::PytxoStore, String>> = HashMap::new();
+    Ok(requests
+        .into_iter()
+        .map(|request| {
+            let store = stores.entry(request.domain_id.clone()).or_insert_with(|| {
+                resolved_domain_store_path(state, &request.domain_id)
+                    .and_then(|path| {
+                        pytxo_store::PytxoStore::open_existing_read_only(&path)
+                            .map_err(map_store_err)
+                    })
+                    .map_err(|error| error.message)
+            });
+            let tail = store.as_ref().map_err(Clone::clone).and_then(|store| {
+                read_agent_tail(store, &request.run_id, &request.agent_id, lines)
+                    .map_err(|error| error.message)
+            });
+            let (text, first_at, last_at, error) = match tail {
+                Ok(tail) => (tail.lines, tail.first_at, tail.last_at, None),
+                Err(message) => (Vec::new(), None, None, Some(message)),
+            };
+            AgentTailDto {
+                domain_id: request.domain_id,
+                run_id: request.run_id,
+                agent_id: request.agent_id,
+                lines: text,
+                first_at,
+                last_at,
+                error,
+            }
+        })
+        .collect())
+}
+
+struct AgentTail {
+    lines: Vec<String>,
+    first_at: Option<String>,
+    last_at: Option<String>,
+}
+
+fn read_agent_tail(
+    store: &pytxo_store::PytxoStore,
+    run_id: &str,
+    agent_id: &str,
+    lines: usize,
+) -> IpcResult<AgentTail> {
+    // The first page of one also enforces run membership.
+    let first = read_scoped_agent_events(store, run_id, agent_id, 0, 1)?;
+    let recent = store
+        .list_events(agent_id, TAIL_EVENT_WINDOW)
+        .map_err(map_store_err)?;
+    let mut text = pytxo_orchestrate::event_lines(&recent);
+    text.drain(..text.len().saturating_sub(lines));
+    Ok(AgentTail {
+        lines: text,
+        first_at: first.into_iter().next().map(|event| event.ts),
+        last_at: recent.last().map(|event| event.ts.to_rfc3339()),
+    })
+}
+
 /// The last error a worker printed, reduced to one plain sentence so a failed
 /// run can say why without opening raw output. Advisory only: the recorded exit
 /// status stays authoritative, and payloads were already sanitized at capture.
@@ -2281,6 +2393,54 @@ mod mission_control_contract_tests {
         assert_eq!(next[0].payload, "second");
         assert!(read_scoped_agent_events(&store, "run-b", "agent-a", 0, 200).is_err());
         assert!(read_scoped_agent_events(&store, "run-a", "missing", 0, 200).is_err());
+    }
+
+    #[test]
+    fn output_tails_read_many_workers_at_once_and_scope_each_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wall.db");
+        let store = pytxo_store::PytxoStore::open(&path).unwrap();
+        store.insert_run("run-a", "/repo").unwrap();
+        store.insert_run("run-b", "/repo").unwrap();
+        store
+            .insert_agent("agent-a", "run-a", "task", 0, None, "echo hi")
+            .unwrap();
+        store
+            .insert_agent("agent-b", "run-b", "task", 0, None, "echo hi")
+            .unwrap();
+        for line in ["one", "two", "", "three"] {
+            store.append_event("agent-a", "stdout", line).unwrap();
+        }
+        drop(store);
+        let state = AppState::new(None);
+        remember_domain_store_path(&state, "domain", path).unwrap();
+        let request = |domain: &str, run: &str, agent: &str| AgentTailRequest {
+            domain_id: domain.into(),
+            run_id: run.into(),
+            agent_id: agent.into(),
+        };
+        let tails = agent_output_tails_blocking(
+            &state,
+            vec![
+                request("domain", "run-a", "agent-a"),
+                request("domain", "run-b", "agent-b"),
+                request("domain", "run-b", "agent-a"),
+                request("no-such-domain", "run-a", "agent-a"),
+            ],
+            2,
+        )
+        .unwrap();
+        assert_eq!(tails[0].lines, ["two", "three"]);
+        assert!(tails[0].first_at.is_some() && tails[0].last_at.is_some());
+        assert!(tails[0].error.is_none());
+        assert!(tails[1].lines.is_empty() && tails[1].first_at.is_none());
+        assert!(tails[1].error.is_none(), "a silent worker is not an error");
+        assert!(tails[2].error.is_some() && tails[2].lines.is_empty());
+        assert!(tails[3].error.is_some());
+        let too_many = (0..257)
+            .map(|_| request("domain", "run-a", "agent-a"))
+            .collect();
+        assert!(agent_output_tails_blocking(&state, too_many, 2).is_err());
     }
 
     #[test]

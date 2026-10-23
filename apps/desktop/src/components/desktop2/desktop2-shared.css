@@ -375,3 +375,10 @@ html[data-chroma-theme="light"] .desktop2 .primary{background:#050507;color:#ede
 /* Reading surfaces retain working space across density preferences. */
 html[data-ui-density] .desktop2 .screen.review-screen { padding-top:8px; padding-bottom:12px; }
 html[data-ui-density] .desktop2 .screen.history { max-width:none; width:100%; }
+
+/* Work view switch: one run's detail, or every running agent on the wall. Same place in both views. */
+.desktop2 .work-view{display:flex;flex:none;align-items:center;border:1px solid var(--pytxo-line);border-radius:4px;overflow:hidden}
+.desktop2 .work-view button{min-height:34px;padding:0 12px;border:0;border-left:1px solid var(--pytxo-line);background:transparent;color:var(--pytxo-text-muted);font:500 12px var(--pytxo-font-ui);cursor:pointer;transition:background-color var(--pytxo-motion-fast) var(--pytxo-motion-ease),color var(--pytxo-motion-fast) var(--pytxo-motion-ease)}
+.desktop2 .work-view button:first-child{border-left:0}
+.desktop2 .work-view button:hover,.desktop2 .work-view button[aria-pressed="true"]{background:var(--pytxo-surface-active);color:var(--pytxo-text-strong)}
+.desktop2 .work-view button:focus-visible{outline:2px solid var(--pytxo-accent);outline-offset:-2px}

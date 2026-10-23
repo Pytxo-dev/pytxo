@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { withPreviewsHidden } from "../../lib/preview-overlay";
+  import { isActiveRun } from "../../lib/fleet-wall";
+  import FleetWall from "./FleetWall.svelte";
   import IconArrowRight from "@tabler/icons-svelte/icons/arrow-right";
   import { canOpenRunReview } from "../../lib/review-state";
   import IconAlertTriangle from "@tabler/icons-svelte/icons/alert-triangle";
@@ -32,6 +35,7 @@
     onReviewRun,
     onStopRun,
     onSelectRun,
+    onOpenRun = null,
     onInspect = null,
     onDismissInspect = () => {},
   }: {
@@ -45,9 +49,25 @@
     onReviewRun: (runId: string) => void;
     onStopRun: (runId: string, domainId: string) => Promise<void>;
     onSelectRun: (runId: string) => void;
+    /** Opens a run from any workspace; the wall lists every workspace's runs. */
+    onOpenRun?: ((runId: string, domainId: string) => void) | null;
     onInspect?: ((ref: DockReference, position?: DockPosition) => void) | null;
     onDismissInspect?: () => void;
   } = $props();
+
+  const WALL_KEY = "pytxo-work-wall-v1";
+  let wallOpen = $state((() => { try { return sessionStorage.getItem(WALL_KEY) === "1"; } catch { return false; } })());
+  let wallScreen: { focusHeading: () => void } | undefined = $state();
+  async function showWall(open: boolean) {
+    wallOpen = open;
+    try { if (open) sessionStorage.setItem(WALL_KEY, "1"); else sessionStorage.removeItem(WALL_KEY); } catch { /* The view still switches for this mount. */ }
+    await tick();
+    if (open) wallScreen?.focusHeading(); else heading?.focus();
+  }
+  function openFromWall(runId: string, domainId: string) {
+    void showWall(false);
+    if (onOpenRun) onOpenRun(runId, domainId); else onSelectRun(runId);
+  }
 
   let heading: HTMLElement | undefined = $state();
   let stopDialog: HTMLDialogElement | undefined = $state();
@@ -128,6 +148,8 @@
   const receiptProfile = $derived((review?.enforcement?.run?.effective_profile ?? "").toLowerCase());
   const canReviewFocusRun = $derived(canOpenRunReview(focusRun, review));
   const canStopFocusRun = $derived(!!focusRun && ACTIVE_STATUSES.includes(focusRun.status.toLowerCase()));
+  /** With no run here, the wall is offered only while another workspace has one active. */
+  const wallAvailable = $derived(!!focusRun || snapshot.runs.some(isActiveRun));
   const checks = $derived(review?.prepared_manifest?.candidate_verification?.checks ?? []);
   const workSummary = $derived.by(() => {
     if (!focusRun) return "";
@@ -344,8 +366,15 @@
   }
 </script>
 
+{#snippet workView()}
+  <div class="work-view" role="group" aria-label="Work view"><button aria-pressed="true">Run</button><button aria-pressed="false" title="Every running agent, across workspaces" onclick={() => void showWall(true)}>Wall</button></div>
+{/snippet}
+
+{#if wallOpen}
+<FleetWall bind:this={wallScreen} {snapshot} {backend} onOpenRun={openFromWall} onClose={() => void showWall(false)} />
+{:else}
 <section class="screen work" aria-label="Work">
-  <section class="command-strip work-heading" class:idle={!focusRun} aria-label={focusRun ? "Focused run" : undefined}>
+  <section class="command-strip work-heading" class:idle={!focusRun} class:with-view={!focusRun && wallAvailable} aria-label={focusRun ? "Focused run" : undefined}>
     {#if focusRun}<ApertureGlyph active={activity.active} tone={activity.tone} />{/if}
     <div class="command-copy" bind:this={heading} tabindex="-1">
       <div class="title-row">
@@ -366,7 +395,10 @@
         <button class="stop-run" disabled={!canStopFocusRun} aria-describedby={!canStopFocusRun ? "stop-disabled-reason" : undefined} onclick={() => requestStop(focusRun)}><IconPlayerStop size={14} />Stop</button>
         {#if !canReviewFocusRun}<span id="review-unavailable-reason" class="sr-reason">Review is available when the agents prepare changes.</span>{/if}
         {#if !canStopFocusRun}<span id="stop-disabled-reason" class="sr-reason">There is no running work to stop.</span>{/if}
+        {@render workView()}
       </div>
+    {:else if wallAvailable}
+      <div class="command-actions">{@render workView()}</div>
     {/if}
   </section>
   {#if stopMessage}
@@ -416,6 +448,7 @@
     </div>
   {/if}
 </section>
+{/if}
 
 <dialog bind:this={stopDialog} class="confirm-dialog" onclose={() => (stopTarget = null)}>
   {#if stopTarget}
@@ -507,6 +540,7 @@
   .command-strip :global(.aperture-glyph) { width:34px;height:34px;flex-basis:34px; }
   /* No focused run means no glyph or actions: the heading owns the full row. */
   .command-strip.idle { grid-template-columns:minmax(0,1fr); }
+  .command-strip.idle.with-view { grid-template-columns:minmax(0,1fr) auto; }
   .command-copy { min-width:0; outline:0; }
   .command-copy:focus-visible { outline:2px solid var(--pytxo-accent); outline-offset:3px; }
   .title-row { display:flex;align-items:center;gap:10px;min-width:0; }

@@ -266,6 +266,18 @@ export type EventDto = {
   ts: string;
 };
 
+export type AgentTailRequest = { domain_id: string; run_id: string; agent_id: string };
+
+/** One worker's recent output from `agent_output_tails`; `error` covers this worker only. */
+export type AgentTailDto = AgentTailRequest & {
+  /** Newest readable lines, oldest first. */
+  lines: string[];
+  /** Times of the worker's first and newest recorded events. */
+  first_at: string | null;
+  last_at: string | null;
+  error: string | null;
+};
+
 export type CatalogEntry = {
   domain_id: string;
   repo_root: string;
