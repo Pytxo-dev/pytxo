@@ -96,6 +96,7 @@ fn galaxy_flush_blocks_until_denied() {
         cwd: repo.to_path_buf(),
         branch: "pytxo/run-x/agent-0".into(),
         backend: IsolationMode::Worktree,
+        fallback_reason: None,
     };
 
     // Reviewer denies once a request appears.

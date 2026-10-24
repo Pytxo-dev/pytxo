@@ -66,6 +66,7 @@ pub fn prepare_projfs_overlay(
         cwd: upper,
         branch: String::new(),
         backend: IsolationMode::Overlay,
+        fallback_reason: None,
     })
 }
 
@@ -109,8 +110,8 @@ fn copy_dir_skip_sparse_inner(
     excluded_source_root: Option<&Path>,
 ) -> Result<()> {
     std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("projfs mkdir: {e}")))?;
-    for entry in
-        std::fs::read_dir(src).map_err(|e| PytxoError::Runner(format!("projfs readdir: {e}")))?
+    for entry in std::fs::read_dir(src)
+        .map_err(|e| PytxoError::Runner(format!("projfs readdir {}: {e}", src.display())))?
     {
         let entry = entry.map_err(|e| PytxoError::Runner(format!("projfs entry: {e}")))?;
         let name = entry.file_name();
@@ -135,7 +136,7 @@ fn copy_dir_skip_sparse_inner(
             copy_dir_skip_sparse_inner(&from, &to, &[], destination_root, excluded_source_root)?;
         } else {
             std::fs::copy(&from, &to)
-                .map_err(|e| PytxoError::Runner(format!("projfs copy: {e}")))?;
+                .map_err(|e| PytxoError::Runner(format!("projfs copy {}: {e}", from.display())))?;
         }
     }
     Ok(())

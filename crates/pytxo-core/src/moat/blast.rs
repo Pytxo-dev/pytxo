@@ -43,6 +43,8 @@ pub struct WorkspaceHandle {
     pub cwd: PathBuf,
     pub branch: String,
     pub backend: IsolationMode,
+    /// Why `prepare` settled for a fallback mechanism, for the run's events.
+    pub fallback_reason: Option<String>,
 }
 
 /// Blast Shield contract: prepare an isolated execution bubble, rollback or flush on demand.
