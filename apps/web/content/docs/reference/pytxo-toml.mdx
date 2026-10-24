@@ -44,8 +44,11 @@ Trusted folder tier from [Folder trust](/docs/getting-started/folder-trust) over
 | `depends_on` | Task ids that must finish first |
 | `root` | Optional modular project root label |
 | `signal_fidelity` | Per-task fidelity override |
+| `verify` | Check commands; each runs in the task's workspace, then on the combined change before Review |
 
 Tasks with overlapping `paths` are scheduled in different **waves**.
+
+Review refuses a change outside the task's `paths`. Unless a task claims it, a file that your repository's Git ignore rules exclude, such as the `__pycache__/` a check writes, is left out of Review and never applied.
 
 ## `[billing]`
 

@@ -1,11 +1,13 @@
 //! Combined-candidate source attestation for Orbit/Galaxy, one repository domain.
 //! Commands run through the existing bounded verifier; this module never spawns processes.
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::change_set::{
     collect_inventory, file_mode, load_review_package, manifest_digest, replace_synced,
     set_file_mode, sha256_bytes, validated_change_path, verify_manifest_preimages,
 };
+use crate::git::ignored_paths;
 use pytxo_core::{
     CandidateCheckEvidence, CandidateInventoryFile, CandidateVerificationEvidence,
     PreparedRunFileKind, PreparedRunManifest, PytxoError, Result,
@@ -153,6 +155,8 @@ impl CandidateVerification {
     }
 
     /// Call after EVERY command, including a failed command, before another command runs.
+    /// A check may write caches that the primary checkout's Git rules ignore, such as
+    /// `__pycache__`; every path that lands and every other included path stays frozen.
     pub fn check_unchanged(&self) -> Result<()> {
         let git_boundary = self.workspace.join(".git");
         let boundary_is_file = std::fs::symlink_metadata(&git_boundary)
@@ -165,7 +169,33 @@ impl CandidateVerification {
                 "candidate verifier changed its Git discovery boundary",
             ));
         }
-        if inventory(&self.workspace, &self.exclusions)? != self.candidate {
+        let nodes = collect_inventory(&self.workspace, &self.exclusions)?;
+        let mut frozen: BTreeMap<_, _> = self
+            .candidate
+            .iter()
+            .map(|entry| (entry.path.as_str(), entry))
+            .collect();
+        let mut changed: BTreeSet<String> = nodes.symlinks.into_keys().collect();
+        for (path, absolute) in nodes.files {
+            let unchanged = match frozen.remove(path.as_str()) {
+                Some(entry) => {
+                    let bytes = std::fs::read(&absolute).map_err(PytxoError::Io)?;
+                    entry.sha256 == sha256_bytes(&bytes) && entry.mode == file_mode(&absolute)?
+                }
+                None => false,
+            };
+            if !unchanged {
+                changed.insert(path);
+            }
+        }
+        changed.extend(frozen.into_keys().map(str::to_owned));
+        if self
+            .manifest
+            .files
+            .iter()
+            .any(|file| changed.contains(&file.path))
+            || ignored_paths(&self.repo_root, &changed)? != changed
+        {
             return Err(reject(
                 "candidate verifier changed included source; verification is invalid",
             ));

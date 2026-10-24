@@ -36,7 +36,7 @@ Signal uses structural parsing/context reduction. This is not an established red
 
 ### Candidate, verification, Review, Apply, recovery
 
-`prepare_review_package` assembles claimed changes into durable blobs and a manifest. `CandidateVerification::prepare` snapshots the included repository inventory, overlays stored targets, and inserts a Git-discovery boundary. The orchestrator runs each required command with original task authority capped by current trust, then calls `check_unchanged` after each command. `finish` records base/candidate inventories, exclusions, recipe evidence, and time, and recomputes the package digest.
+`prepare_review_package` assembles claimed changes into durable blobs and a manifest. `CandidateVerification::prepare` snapshots the included repository inventory, overlays stored targets, and inserts a Git-discovery boundary. The orchestrator runs each required command with original task authority capped by current trust, then calls `check_unchanged` after each command; a check may change only paths that the primary checkout's Git rules ignore and that will not land. `finish` records base/candidate inventories, exclusions, recipe evidence, and time, and recomputes the package digest.
 
 `require_candidate_verification` requires a v3 package and nonempty successful checks with identity/authority fields and a reconstructable composition. The orchestrator compares the recorded recipe and receipts with the saved plan and domain. Nonempty changes need checks for every planned task; no-change manifests have an explicit shortcut.
 

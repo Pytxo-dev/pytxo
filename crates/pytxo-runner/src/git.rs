@@ -1644,6 +1644,51 @@ pub fn merge_agent_branch(repo_root: &Path, branch: &str) -> Result<()> {
     Ok(())
 }
 
+/// The given paths, relative to `repo_root`, that the checkout's own Git rules
+/// ignore. Git never ignores a tracked path; a folder outside Git ignores nothing.
+pub(crate) fn ignored_paths(
+    repo_root: &Path,
+    paths: &BTreeSet<String>,
+) -> Result<BTreeSet<String>> {
+    if paths.is_empty() || !repo_root.join(".git").exists() {
+        return Ok(BTreeSet::new());
+    }
+    // check-ignore refuses --literal-pathspecs. A wildcard in a name can only
+    // match a tracked path, which reads as not ignored and so fails closed.
+    let mut child = pytxo_core::background_command("git")
+        .args(["check-ignore", "-z", "--stdin"])
+        .current_dir(repo_root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| PytxoError::Runner(format!("spawn git: {e}")))?;
+    let input: Vec<u8> = paths
+        .iter()
+        .flat_map(|path| path.bytes().chain([0]))
+        .collect();
+    let mut stdin = child.stdin.take().expect("piped git stdin");
+    let writer = std::thread::spawn(move || stdin.write_all(&input));
+    let output = child.wait_with_output()?;
+    let written = writer
+        .join()
+        .map_err(|_| PytxoError::Runner("git check-ignore input writer failed".into()))?;
+    // Exit 1 means none of the paths is ignored.
+    if !matches!(output.status.code(), Some(0 | 1)) {
+        return Err(PytxoError::Runner(format!(
+            "git check-ignore failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    written?;
+    Ok(output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|path| !path.is_empty())
+        .map(|path| String::from_utf8_lossy(path).into_owned())
+        .collect())
+}
+
 fn git(repo_root: &Path, args: &[&str]) -> Result<String> {
     let output = pytxo_core::background_command("git")
         .args(args)
