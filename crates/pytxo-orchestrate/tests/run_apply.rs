@@ -77,7 +77,7 @@ fn attest(
     command: &str,
 ) -> PreparedRunManifest {
     let candidate = CandidateVerification::prepare(repo, data, &manifest, &[]).unwrap();
-    let receipt = run_candidate_check(
+    let observed = run_candidate_check(
         &CandidateCheckContext {
             cwd: candidate.workspace_root().into(),
             run_id: manifest.run_id.clone(),
@@ -102,7 +102,9 @@ fn attest(
             command: command.into(),
             effective_profile: "orbit".into(),
             passed: true,
-            enforcement: serde_json::to_value(receipt).unwrap(),
+            exit_code: observed.exit_code,
+            duration_ms: Some(observed.duration_ms),
+            enforcement: serde_json::to_value(observed.receipt).unwrap(),
         }])
         .unwrap()
 }

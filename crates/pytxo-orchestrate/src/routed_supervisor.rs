@@ -3416,6 +3416,8 @@ mod routed_review_snapshot_tests {
                     command: "check".into(),
                     effective_profile: "orbit".into(),
                     passed: true,
+                    exit_code: None,
+                    duration_ms: None,
                     enforcement: serde_json::json!({}),
                 }],
                 verified_at: "now".into(),
