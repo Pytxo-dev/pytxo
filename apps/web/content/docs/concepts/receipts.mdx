@@ -27,6 +27,7 @@ A receipt is an [in-toto Statement v1](https://github.com/in-toto/attestation/bl
 | `shared_files` | Files changed by more than one input, and the functions or types two inputs both changed |
 | `checks` | Each command, where it ran (`combined` or `input:<ref>`), exit code, time and the last lines of output |
 | `reasons` | Why the decision is not `ready` |
+| `duration_ms` | Wall time of the decision: the whole gate for `land`, the Apply itself for `apply` |
 | `content_digest` | SHA-256 of the canonical predicate |
 
 ## What the digest proves
@@ -35,4 +36,4 @@ A receipt is an [in-toto Statement v1](https://github.com/in-toto/attestation/bl
 
 ## Apply receipts
 
-A reviewed Apply from Desktop or `pytxo apply` writes a receipt with `kind: apply`. Its inputs are the run's tasks with the agent that ran each one, its checks are the commands run on the combined candidate, and `result` is the reviewed package digest. The Apply journal remains the authority for recovery; the receipt is the summary you keep and share.
+A reviewed Apply from Desktop or `pytxo apply` writes a receipt with `kind: apply`. Its inputs are the run's tasks with the agent that ran each one, its checks are the commands run on the combined candidate during review preparation, with each one's exit code and time (the output stays in the run's logs), and `result` is the reviewed package digest. Reviews prepared by Pytxo 1.3.5 or earlier did not record exit codes or times, so their Apply receipts show an empty exit code and zero time. The Apply journal remains the authority for recovery; the receipt is the summary you keep and share.

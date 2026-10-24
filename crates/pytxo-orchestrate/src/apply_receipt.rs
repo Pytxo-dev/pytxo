@@ -16,6 +16,7 @@ pub(crate) fn write_apply_receipt(
     store: &PytxoStore,
     run_id: &str,
     applied: &RunApplyManifest,
+    duration_ms: u64,
 ) -> anyhow::Result<std::path::PathBuf> {
     let contract = store
         .get_run_contract(run_id)?
@@ -58,9 +59,9 @@ pub(crate) fn write_apply_receipt(
                 .map(|c| ReceiptCheck {
                     scope: "combined".into(),
                     command: c.command.clone(),
-                    exit_code: None,
+                    exit_code: c.exit_code,
                     passed: c.passed,
-                    duration_ms: 0,
+                    duration_ms: c.duration_ms.unwrap_or_default(),
                     timed_out: false,
                     output_tail: Vec::new(),
                     rerun: false,
@@ -85,7 +86,7 @@ pub(crate) fn write_apply_receipt(
         shared_files: Vec::new(),
         checks,
         reasons: Vec::new(),
-        duration_ms: 0,
+        duration_ms,
         content_digest: String::new(),
     };
     let receipt = Receipt::new(predicate, &format!("pytxo-run:{run_id}"), None);
