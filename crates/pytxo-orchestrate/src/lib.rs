@@ -653,6 +653,7 @@ pub fn commit_workspace_for_agent(
         cwd: PathBuf::from(worktree),
         branch,
         backend: cfg.isolation,
+        fallback_reason: None,
     };
     let metering = billing::metering_for_ctx(&cfg, &repo_root, &None);
     let ctx = RunContext {
