@@ -55,6 +55,9 @@ pub struct ReceiptPredicate {
     pub checks: Vec<ReceiptCheck>,
     #[serde(default)]
     pub reasons: Vec<String>,
+    /// Wall time of the decision: the whole gate for `land`, the Apply itself
+    /// for `apply` (its checks ran during review preparation and carry their
+    /// own times).
     #[serde(default)]
     pub duration_ms: u64,
     /// sha256 of the canonical predicate JSON with this field empty.
@@ -97,6 +100,9 @@ pub struct ReceiptCheck {
     /// `combined` or `input:<ref>`.
     pub scope: String,
     pub command: String,
+    /// `None` when no exit status was observed (the check never started or
+    /// timed out). Apply receipts for reviews prepared by Pytxo 1.3.5 or
+    /// earlier also have `None` here and a zero `duration_ms`.
     pub exit_code: Option<i32>,
     pub passed: bool,
     pub duration_ms: u64,

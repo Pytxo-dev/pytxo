@@ -42,11 +42,20 @@ pub struct CandidateCheckContext {
     pub on_event: Option<EventCallback>,
 }
 
+/// A passed candidate check: the verifier boundary it ran under and what its
+/// process reported.
+#[derive(Clone, Debug)]
+pub struct CandidateCheckRun {
+    pub receipt: crate::VerificationEnforcementReceipt,
+    pub exit_code: Option<i32>,
+    pub duration_ms: u64,
+}
+
 /// Blocking check; async callers must use `spawn_blocking`.
 pub fn run_candidate_check(
     ctx: &CandidateCheckContext,
     command: &str,
-) -> Result<crate::VerificationEnforcementReceipt> {
+) -> Result<CandidateCheckRun> {
     let ctx = ctx.clone();
     let command = command.to_owned();
     {
@@ -67,7 +76,8 @@ pub fn run_candidate_check(
             },
             swarm: ctx.swarm,
         };
-        run_verify_commands(
+        // An empty command runs nothing and reports nothing.
+        let (exit_code, duration_ms) = run_verify_commands(
             &ctx.cwd,
             &[command],
             ctx.on_event.as_ref(),
@@ -78,8 +88,14 @@ pub fn run_candidate_check(
             ctx.workspace_isolated,
             ctx.hitl.as_ref(),
             Some(&lifecycle),
-        )?;
-        Ok(receipt)
+        )?
+        .pop()
+        .unwrap_or_default();
+        Ok(CandidateCheckRun {
+            receipt,
+            exit_code,
+            duration_ms,
+        })
     }
 }
 
@@ -1410,7 +1426,7 @@ async fn run_one_agent(
         .await
         .map_err(|error| PytxoError::Runner(format!("verification join: {error}")))?;
         match verification {
-            Ok(()) => {
+            Ok(_) => {
                 if let Some(cb) = ctx.on_event.as_ref() {
                     cb(
                         &agent_key,
@@ -1544,7 +1560,7 @@ fn run_verify_commands(
     workspace_isolated: bool,
     hitl: Option<&crate::hitl::HitlQueue>,
     lifecycle: Option<&VerificationLifecycle>,
-) -> Result<()> {
+) -> Result<Vec<(Option<i32>, u64)>> {
     run_verify_commands_with_limits(
         cwd,
         commands,
@@ -1578,7 +1594,7 @@ fn run_verify_commands_with_limits(
     timeout: Duration,
     output_limit_bytes: usize,
     lifecycle: Option<&VerificationLifecycle>,
-) -> Result<()> {
+) -> Result<Vec<(Option<i32>, u64)>> {
     let receipt = crate::enforcement::verification_enforcement_receipt(
         profile,
         domain_id,
@@ -1601,6 +1617,8 @@ fn run_verify_commands_with_limits(
 
     let engine = PermissionEngine::new(profile);
     let net = engine.network();
+    // Exit code and wall time of each command that passed.
+    let mut passed = Vec::with_capacity(commands.len());
     for cmd in commands {
         if let Some(lifecycle) = lifecycle {
             lifecycle.ensure_not_cancelled(agent_key)?;
@@ -1735,6 +1753,7 @@ fn run_verify_commands_with_limits(
             }
             thread::sleep(Duration::from_millis(10));
         };
+        let duration_ms = started.elapsed().as_millis() as u64;
         let output_deadline = started + timeout;
         let captured = (|| {
             let stdout = join_bounded_reader(stdout_handle, output_deadline, lifecycle, agent_key)?;
@@ -1762,6 +1781,7 @@ fn run_verify_commands_with_limits(
                 }
             )));
         }
+        passed.push((output.code(), duration_ms));
         if let Some(cb) = on_event {
             if !stdout.text.is_empty() {
                 cb(agent_key, "verify-stdout", &stdout.text);
@@ -1778,7 +1798,7 @@ fn run_verify_commands_with_limits(
             }
         }
     }
-    Ok(())
+    Ok(passed)
 }
 
 struct BoundedOutput {
@@ -3383,9 +3403,10 @@ mod verification_boundary_tests {
         )
         .unwrap();
         assert_eq!(
-            serde_json::to_value(observed).unwrap(),
+            serde_json::to_value(observed.receipt).unwrap(),
             serde_json::to_value(expected).unwrap()
         );
+        assert_eq!(observed.exit_code, Some(0));
         stop_run(temp.path(), &ctx.run_id, true).unwrap();
         assert!(run_candidate_check(&ctx, "echo escaped > after-stop.txt")
             .unwrap_err()

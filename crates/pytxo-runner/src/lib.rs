@@ -125,6 +125,6 @@ pub use race::SwarmRegistry;
 pub use run::{
     cleanup_worktrees, commit_workspace, execute_plan, publish_run_cancellation,
     run_candidate_check, stop_all, stop_run, terminate_published_run, AgentRunOutcome,
-    AgentRunResult, CandidateCheckContext, EventCallback, PublishedRunCancellation, RootExec,
-    RunContext, TaskCommand, TaskCommandTemplate,
+    AgentRunResult, CandidateCheckContext, CandidateCheckRun, EventCallback,
+    PublishedRunCancellation, RootExec, RunContext, TaskCommand, TaskCommandTemplate,
 };

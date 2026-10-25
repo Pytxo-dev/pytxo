@@ -273,6 +273,18 @@ async fn real_candidate_checks_gate_apply_and_refresh_frozen_bytes() {
     );
     assert!(receipt.predicate.files_changed >= 1);
     assert!(receipt.digest_matches());
+    // Its check is the one candidate verification observed, not placeholders.
+    let [check] = receipt.predicate.checks.as_slice() else {
+        panic!("one combined check: {:?}", receipt.predicate.checks);
+    };
+    let recorded = &refreshed.candidate_verification.as_ref().unwrap().checks[0];
+    assert_eq!(check.scope, "combined");
+    assert_eq!(check.command, verify);
+    assert!(check.passed);
+    assert_eq!(check.exit_code, Some(0));
+    assert!(check.duration_ms > 0);
+    assert_eq!(Some(check.duration_ms), recorded.duration_ms);
+    assert!(receipt.predicate.duration_ms > 0, "Apply wall time");
 
     // Desktop's Flow dispatch records the same failed combination the same way.
     let flow_repo = temp.path().join("flow-combined-fails");

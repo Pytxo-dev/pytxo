@@ -123,6 +123,8 @@ fn receipt(passed: bool) -> CandidateCheckEvidence {
         command: "check shared resource".into(),
         effective_profile: "orbit".into(),
         passed,
+        exit_code: None,
+        duration_ms: None,
         enforcement: serde_json::json!({"actor": "verification", "effective_profile": "orbit"}),
     }
 }
