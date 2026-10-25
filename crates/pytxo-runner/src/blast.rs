@@ -108,6 +108,7 @@ fn prepare_overlay_layer(ctx: &IsolationCtx) -> Result<WorkspaceHandle> {
 }
 
 /// Blast Shield MVP backend — git worktree isolation ([[ADR-0005-worktree-isolation-for-mvp]]).
+/// The worktree's branch starts at HEAD, but its files hold the primary checkout's bytes.
 #[derive(Clone, Default)]
 pub struct WorktreeIsolation;
 
@@ -120,12 +121,21 @@ impl IsolationBackend for WorktreeIsolation {
         let branch = branch_name(&ctx.run_id.0, &ctx.agent_id.0);
         let cwd = worktree_path(&ctx.worktree_base, &ctx.run_id.0, &ctx.agent_id.0);
         create_worktree(&ctx.repo_root, &cwd, &branch)?;
-        Ok(WorkspaceHandle {
+        let handle = WorkspaceHandle {
             cwd,
             branch,
             backend: IsolationMode::Worktree,
             fallback_reason: None,
-        })
+        };
+        // ponytail: checkout then copy writes every file twice; `worktree add --no-checkout`
+        // plus `git reset -q` would write once if large repos make prepare slow.
+        if let Err(error) = take_primary_bytes(&ctx.repo_root, &handle.cwd, &ctx.sparse_exclude) {
+            let _ = self.rollback(ctx, &handle);
+            return Err(PytxoError::Runner(format!(
+                "git worktree could not take the primary checkout's bytes: {error}"
+            )));
+        }
+        Ok(handle)
     }
 
     fn rollback(&self, ctx: &IsolationCtx, handle: &WorkspaceHandle) -> Result<()> {
@@ -215,12 +225,6 @@ impl IsolationBackend for OverlayIsolation {
         let mut handle = self.fallback.prepare(ctx).map_err(|error| {
             PytxoError::Runner(format!("{reason}; git worktree fallback failed: {error}"))
         })?;
-        if let Err(error) = take_primary_bytes(&ctx.repo_root, &handle.cwd, &ctx.sparse_exclude) {
-            let _ = self.fallback.rollback(ctx, &handle);
-            return Err(PytxoError::Runner(format!(
-                "{reason}; git worktree fallback could not take the primary checkout's bytes: {error}"
-            )));
-        }
         handle.backend = IsolationMode::Overlay;
         handle.fallback_reason = Some(format!(
             "{reason}; using a git worktree holding the primary checkout's bytes"
@@ -262,7 +266,7 @@ impl IsolationBackend for OverlayIsolation {
     }
 }
 
-/// Give a fallback checkout the bytes review compares it against. Review and Apply read
+/// Give a git worktree the bytes review compares it against. Review and Apply read
 /// the primary checkout's physical files, which a fresh checkout of HEAD does not
 /// reproduce under core.autocrlf, eol attributes, filters or uncommitted work.
 fn take_primary_bytes(repo_root: &Path, workspace: &Path, sparse_exclude: &[String]) -> Result<()> {

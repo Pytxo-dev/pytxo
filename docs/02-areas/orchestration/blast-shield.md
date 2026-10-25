@@ -6,7 +6,7 @@ tags: [orchestration, filesystem, moat]
 audience: [human, agent]
 layer: orchestration
 created: 2026-06-02
-updated: 2026-08-01
+updated: 2026-10-25
 related: [[sparse-overlay-fs]], [[ADR-0003-sparse-overlay-not-ram-cow]], [[ADR-0005-worktree-isolation-for-mvp]], [[ADR-0034-immutable-review-package-and-durable-apply]], [[permission-profile-engine]], [[product-vision]]
 ---
 
@@ -28,8 +28,11 @@ Worktree or sparse copy-layer workspace
 Headless PTY agent
 ```
 
-The workspace backend is either a Git worktree or a sparse copy-layer. The
-Windows label `projfs-sparse-copy-v2` is not a kernel ProjFS provider, and the
+The workspace backend is either a Git worktree or a sparse copy-layer. Either
+way the workspace starts from the primary checkout's physical bytes, which are
+what review and Apply compare against. A Git worktree's branch starts at
+`HEAD`, and Pytxo then copies the primary checkout's files over the checkout,
+including ignored files outside `sparse_exclude`. The Windows label `projfs-sparse-copy-v2` is not a kernel ProjFS provider, and the
 copy-layer is not an mmap CoW filesystem. [[sparse-overlay-fs]] records the
 kernel FUSE/ProjFS direction separately.
 

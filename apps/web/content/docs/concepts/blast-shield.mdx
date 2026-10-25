@@ -14,8 +14,10 @@ in one execution domain and one repository root.
 | `worktree` | Git worktree per agent |
 | `overlay` | Sparse copy-layer workspace |
 
-Both modes produce the same immutable package. The copy-layer is not a kernel
-ProjFS/FUSE provider.
+Both modes produce the same immutable package. Both also start each agent from
+your checkout's current files, including ignored files outside `sparse_exclude`
+such as `.env`, so Review compares the agent's work with the files it started
+from. The copy-layer is not a kernel ProjFS/FUSE provider.
 
 ## Package preparation
 
