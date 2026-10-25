@@ -835,6 +835,9 @@ async fn run_one_agent(
 
     let (workspace, used_isolation) = if engine.use_worktree_isolation() {
         let workspace = isolation.prepare(&iso_ctx)?;
+        if let (Some(reason), Some(cb)) = (&workspace.fallback_reason, ctx.on_event.as_ref()) {
+            cb(&agent_key, "isolation-fallback", reason);
+        }
         (workspace, true)
     } else {
         // Supernova: run directly in repo root without Blast worktree isolation.
@@ -843,6 +846,7 @@ async fn run_one_agent(
                 cwd: eff_repo_root.clone(),
                 branch: String::new(),
                 backend: ctx.isolation_mode,
+                fallback_reason: None,
             },
             false,
         )
@@ -1767,7 +1771,7 @@ fn run_verify_commands_with_limits(
         let (stdout, stderr) = captured?;
         if !output.success() {
             let code = output.code().unwrap_or(-1);
-            return Err(PytxoError::Runner(format!(
+            return Err(PytxoError::CheckFailed(format!(
                 "verify `{cmd}` failed (exit {code}): {}{}",
                 stderr.text,
                 if stderr.truncated {

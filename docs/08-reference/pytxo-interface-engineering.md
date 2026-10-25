@@ -58,6 +58,25 @@ pytxo.com share a terminal vocabulary on top of Chroma Aperture:
   (run IDs and any linked fleet run) come only from the snapshot's recorded
   runs; finished runs stay until **Clear finished**. `lib/fleet-wall.ts` sizes
   the grid to fit (48 agents ≈ 8 × 6 at 1080p); a tile opens its run.
+  - *Done is a claim.* An exit-0 tile is `claimed` (**done**, hollow face) and
+    fills to `verified` over 200 ms (instant under reduced motion) only when
+    its run's Review state is **Ready to Apply** or **Applied**.
+  - *Verdict line.* Each run's verdict sits on its pane's bottom border and comes
+    from `reviewPresentation()` with the same contract Review builds:
+    **N working**, **Checking the combined change…**, **Combined change
+    verified · Ready to Apply**, **Combined check failed: <command>**
+    (`last_apply_error.code = candidate_check_failed`), otherwise Review's own
+    title. A ready run reads **Reading the review…** until its package is
+    read, so it never claims verification early. Clicking a
+    verdict opens that run's Review; the Wall never applies. `run_review` is
+    read once per run each time its `apply_status` or prepared digest changes,
+    never on the output poll. The header's **ready N/M** counts verified runs.
+  - *Presenting.* **Present** hides the sidebar, app bar and title bar, goes
+    full screen (`core:window:allow-set-fullscreen`) and enlarges the header
+    counts. Esc, **Exit**, leaving full screen or leaving the Wall ends it.
+    Pending approvals stay one click away in the header (that click ends
+    presenting), Stop is reached through a tile, and tail lines show the home
+    folder as `~`. Browser fixture: `pytxo-preview-wall-v1 = land`.
 - **ASCII scope** (`FleetRadar.svelte`): the aperture as an ASCII sphere, one
   orbit per step and one numbered blip per task. Live blips travel and the sweep
   turns only while something is live. It is decoration over real state; the

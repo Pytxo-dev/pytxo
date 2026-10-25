@@ -1,4 +1,4 @@
-import type { AgentDto, RunApplyError, RunDto, RunReviewDto } from "./types";
+import type { AgentDto, PreparedRunManifest, RunApplyError, RunDto, RunReviewDto } from "./types";
 
 /** Planned agent labels are not runtime identities: dispatch may reorder tasks. */
 /**
@@ -73,6 +73,24 @@ export type ReviewPresentation = {
   discardAllowed: boolean;
   busy: boolean;
 };
+
+/** Checks on the combined change passed: a v3 package with v1 evidence of at least one check, every one passed. */
+export function candidateVerified(manifest: PreparedRunManifest | null | undefined): boolean {
+  const evidence = manifest?.candidate_verification;
+  return manifest?.version === 3 && evidence?.version === 1 && evidence.checks.length > 0 && evidence.checks.every((check) => check.passed);
+}
+
+/** The contract Review presents for `run`, read from its review once loaded. */
+export function reviewContract(run: Pick<RunDto, "apply_status">, review: RunReviewDto | null): ReviewContractState {
+  const manifest = review?.prepared_manifest ?? null;
+  return {
+    apply_status: review?.apply_status ?? run.apply_status ?? "unavailable",
+    recovery_state: review?.recovery_state ?? null,
+    last_apply_error: review?.last_apply_error ?? null,
+    candidate_verified: candidateVerified(manifest),
+    prepared_file_count: manifest?.files.length ?? null,
+  };
+}
 
 export function reviewPresentation(contract: ReviewContractState): ReviewPresentation {
   const retryable =
@@ -181,7 +199,8 @@ export function reviewPresentation(contract: ReviewContractState): ReviewPresent
     case "review_failed":
       return {
         state: "review_failed",
-        title: "Could not prepare the review",
+        // Every agent may have passed; only the independent check on the combination failed.
+        title: contract.last_apply_error?.code === "candidate_check_failed" ? "Combined check failed" : "Could not prepare the review",
         detail:
           contract.last_apply_error?.message ??
           "Pytxo could not collect or check the changed files.",

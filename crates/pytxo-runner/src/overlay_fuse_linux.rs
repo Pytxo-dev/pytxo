@@ -32,6 +32,7 @@ pub fn prepare_kernel_overlay(
             cwd: mnt,
             branch: String::new(),
             backend: IsolationMode::Overlay,
+            fallback_reason: None,
         });
     }
 

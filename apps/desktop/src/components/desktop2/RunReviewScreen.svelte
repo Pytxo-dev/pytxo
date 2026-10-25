@@ -13,7 +13,7 @@
   import type { DesktopBackend } from "../../lib/desktop-backend";
   import { ipc } from "../../lib/ipc";
   import { workbenchSelection, rememberWorkbenchSelection } from "../../lib/workbench-selection";
-  import { recordedCliFor, recordedWorkerLabel, reviewPresentation } from "../../lib/review-state";
+  import { candidateVerified, recordedCliFor, recordedWorkerLabel, reviewContract, reviewPresentation } from "../../lib/review-state";
   import { diffLines, diffStats, foldUnchanged } from "../../lib/line-diff";
   import type {
     AgentDto,
@@ -148,16 +148,8 @@
     if (file.after_sha256) void loadPreparedContent(file, "after", true);
   }
   const candidateEvidence = $derived(manifest?.candidate_verification);
-  const candidatePassed = $derived(manifest?.version === 3 && candidateEvidence?.version === 1 && candidateEvidence.checks.length > 0 && candidateEvidence.checks.every((check) => check.passed));
-  const presentation = $derived(
-    reviewPresentation({
-      apply_status: review?.apply_status ?? run.apply_status ?? "unavailable",
-      recovery_state: review?.recovery_state ?? null,
-      last_apply_error: review?.last_apply_error ?? null,
-      candidate_verified: candidatePassed,
-      prepared_file_count: manifest?.files.length ?? null,
-    }),
-  );
+  const candidatePassed = $derived(candidateVerified(manifest));
+  const presentation = $derived(reviewPresentation(reviewContract(run, review)));
   const tasks = $derived(review?.plan.waves.flat() ?? []);
   const receiptRows = $derived.by((): Array<[string, EnforcementSurface]> => {
     const receipt = review?.enforcement.run;

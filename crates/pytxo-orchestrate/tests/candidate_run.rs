@@ -1,11 +1,12 @@
 use pytxo_core::{ExecutionBackend, PermissionProfile, Task, TaskId};
 use pytxo_orchestrate::{
-    apply_run_changes as apply_reviewed_run_changes, refresh_run_review, run, trust_repo,
+    apply_run_changes as apply_reviewed_run_changes, dispatch_desktop_beta_flow, preview_flow,
+    refresh_run_review, run, save_reviewed_flow_plan, trust_repo, FlowDraftInput, FlowSource,
     RunOptions,
 };
 use pytxo_runner::load_review_package;
-use pytxo_store::PytxoStore;
-use std::{fs, path::Path, process::Command};
+use pytxo_store::{Catalog, PytxoStore};
+use std::{fs, path::Path, process::Command, time::Duration};
 
 fn apply_run_changes(
     config: Option<std::path::PathBuf>,
@@ -151,7 +152,10 @@ async fn real_candidate_checks_gate_apply_and_refresh_frozen_bytes() {
     let error = run(options(&bad_repo, &["a", "b"], &verify))
         .await
         .unwrap_err();
-    assert!(error.to_string().contains("review preparation failed"));
+    assert!(
+        error.to_string().contains("review preparation failed"),
+        "{error:#}"
+    );
     let store = PytxoStore::open(&bad_repo.join(".pytxo/data/pytxo.db")).unwrap();
     let bad_run = store.list_runs(1).unwrap().remove(0);
     assert!(store
@@ -159,13 +163,14 @@ async fn real_candidate_checks_gate_apply_and_refresh_frozen_bytes() {
         .unwrap()
         .iter()
         .all(|agent| agent.status == "completed"));
+    let contract = store.get_run_contract(&bad_run.id).unwrap().unwrap();
+    assert_eq!(contract.apply_status, "review_failed");
+    // A check that ran and failed is recorded as its own outcome.
+    let failure = contract.last_apply_error.unwrap();
+    assert_eq!(failure.code, "candidate_check_failed");
     assert_eq!(
-        store
-            .get_run_contract(&bad_run.id)
-            .unwrap()
-            .unwrap()
-            .apply_status,
-        "review_failed"
+        failure.message,
+        format!("a: {verify} failed on the combined change")
     );
     assert!(apply_run_changes(None, Some(bad_repo.clone()), &bad_run.id).is_err());
     assert_eq!(
@@ -175,6 +180,18 @@ async fn real_candidate_checks_gate_apply_and_refresh_frozen_bytes() {
     assert_eq!(
         fs::read_to_string(bad_repo.join("b.txt")).unwrap().trim(),
         "0"
+    );
+    // Refreshing while the combination still fails records the same outcome.
+    assert!(refresh_run_review(None, Some(bad_repo.clone()), &bad_run.id).is_err());
+    assert_eq!(
+        store
+            .get_run_contract(&bad_run.id)
+            .unwrap()
+            .unwrap()
+            .last_apply_error
+            .unwrap()
+            .code,
+        "candidate_check_failed"
     );
 
     // All workers succeeded; only the independent candidate check failed.
@@ -268,4 +285,109 @@ async fn real_candidate_checks_gate_apply_and_refresh_frozen_bytes() {
     assert!(check.duration_ms > 0);
     assert_eq!(Some(check.duration_ms), recorded.duration_ms);
     assert!(receipt.predicate.duration_ms > 0, "Apply wall time");
+
+    // Desktop's Flow dispatch records the same failed combination the same way.
+    let flow_repo = temp.path().join("flow-combined-fails");
+    let flow_verify = fixture(&flow_repo);
+    fs::write(
+        flow_repo.join("pytxo.toml"),
+        "max_agents = 2\npermission_profile = \"orbit\"\nexecution_backend = \"pty\"\n",
+    )
+    .unwrap();
+    for args in [
+        vec!["add", "pytxo.toml"],
+        vec![
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@pytxo.local",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "config",
+        ],
+    ] {
+        assert!(Command::new("git")
+            .args(args)
+            .current_dir(&flow_repo)
+            .status()
+            .unwrap()
+            .success());
+    }
+    // A stand-in Codex that writes the one file its task names.
+    let bin = temp.path().join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    #[cfg(windows)]
+    fs::write(
+        bin.join("codex.cmd"),
+        "@findstr /c:\"a.txt\" >nul && (>a.txt echo 1) || (>b.txt echo 1)\r\n@exit /b 0\r\n",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::write(
+            bin.join("codex"),
+            "#!/bin/sh\ncase \"$PYTXO_TASK_PROMPT\" in *a.txt*) echo 1 > a.txt;; *) echo 1 > b.txt;; esac\n",
+        )
+        .unwrap();
+        fs::set_permissions(bin.join("codex"), fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let mut paths = vec![bin];
+    paths.extend(std::env::split_paths(
+        &std::env::var_os("PATH").unwrap_or_default(),
+    ));
+    std::env::set_var("PATH", std::env::join_paths(paths).unwrap());
+    let catalog = Catalog::open(&temp.path().join("catalog.db")).unwrap();
+    let plan = preview_flow(
+        &catalog,
+        FlowDraftInput {
+            id: "combined".into(),
+            title: "Both files".into(),
+            mission_text: "update a.txt; update b.txt".into(),
+            source: FlowSource::Text,
+            domain_id: Some(flow_repo.to_string_lossy().into_owned()),
+            project_id: None,
+            ade_id: Some("codex".into()),
+            ade_ids: Vec::new(),
+            task_ades: Default::default(),
+            ade_accounts: Default::default(),
+            max_workers: None,
+            verification_commands: vec![flow_verify.clone()],
+        },
+    )
+    .unwrap();
+    save_reviewed_flow_plan(&catalog, plan).unwrap();
+    let flow_run = dispatch_desktop_beta_flow(&catalog, "combined").unwrap();
+    let flow_store = PytxoStore::open(&flow_repo.join(".pytxo/data/pytxo.db")).unwrap();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    while matches!(
+        flow_store
+            .get_run(&flow_run)
+            .unwrap()
+            .unwrap()
+            .status
+            .as_str(),
+        "starting" | "running"
+    ) {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "Flow run did not settle"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert!(flow_store
+        .list_agents_for_run(&flow_run)
+        .unwrap()
+        .iter()
+        .all(|agent| agent.status == "completed" && agent.exit_code == Some(0)));
+    let contract = flow_store.get_run_contract(&flow_run).unwrap().unwrap();
+    assert_eq!(contract.apply_status, "review_failed");
+    let failure = contract.last_apply_error.unwrap();
+    assert_eq!(failure.code, "candidate_check_failed");
+    assert_eq!(
+        failure.message,
+        format!("mission-0: {flow_verify} failed on the combined change")
+    );
 }
