@@ -33,7 +33,7 @@ const PLATFORMS = [
   {
     id: "macos" as const,
     label: "macOS",
-    detail: "v1 build not available yet",
+    detail: "Desktop not built yet; use the CLI below",
     href: DESKTOP_DOWNLOADS.macosArm,
     available: false,
     Icon: AppleIcon,
@@ -42,7 +42,7 @@ const PLATFORMS = [
   {
     id: "linux" as const,
     label: "Linux",
-    detail: "v1 build not available yet",
+    detail: "Desktop not built yet; use the CLI below",
     href: DESKTOP_DOWNLOADS.linux,
     available: false,
     Icon: LinuxIcon,
@@ -73,7 +73,7 @@ export function DownloadDesktop() {
             Install a supported agent CLI separately; the Pytxo CLI is optional for Desktop.
           </p>
         </div>
-        {os !== "unknown" ? (
+        {PLATFORMS.some((platform) => platform.available && platform.match(os)) ? (
           <Badge variant="outline" className="w-fit border-primary/30 bg-primary/10 text-primary">
             Suggested for your OS
           </Badge>

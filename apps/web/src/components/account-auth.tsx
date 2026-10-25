@@ -315,7 +315,7 @@ function PlanPanel({ tier }: { tier: string | null }) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="font-medium">{pro ? "Pytxo Pro" : "Free account"}</p>
         {pro ? (
-          <a href="/api/billing/portal" className="text-primary hover:underline">Manage billing</a>
+          <a href="/api/billing/portal" className="text-primary underline underline-offset-4">Manage billing</a>
         ) : null}
       </div>
       {notice ? <p role="status" className="text-muted-foreground">{notice}</p> : null}

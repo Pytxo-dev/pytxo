@@ -104,17 +104,17 @@ export function SiteFooter() {
         <AsciiWordmark className="mt-14 block h-[clamp(96px,16vw,230px)] w-full" />
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] pt-6">
-          <p className="font-mono text-[10px] text-[#66666f]">
+          <p className="font-mono text-[10px] text-[#7d7d87]">
             © {new Date().getFullYear()} Pytxo. MIT License.
           </p>
-          <nav aria-label="Legal" className="flex gap-4 font-mono text-[10px] text-[#66666f]">
+          <nav aria-label="Legal" className="flex gap-4 font-mono text-[10px] text-[#7d7d87]">
             {LEGAL_LINKS.map((link) => (
               <Link key={link.href} href={link.href} className="touch-target relative hover:text-foreground">
                 {link.label}
               </Link>
             ))}
           </nav>
-          <span className="font-mono text-[10px] text-[#66666f]">LOCAL BY DEFAULT</span>
+          <span className="font-mono text-[10px] text-[#7d7d87]">LOCAL BY DEFAULT</span>
         </div>
       </div>
     </footer>

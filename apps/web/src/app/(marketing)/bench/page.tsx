@@ -7,7 +7,7 @@ import { pageMetadata } from "@/lib/page-metadata";
 
 export const metadata = pageMetadata(
   "/bench",
-  "Pybench · Pytxo",
+  "Pybench results · Pytxo",
   "Offline benchmarks of the Pytxo landing gate: what per-branch CI would land compared with what pytxo land decides, gate cost, and Signal Core scaffold size.",
 );
 export const revalidate = 300;

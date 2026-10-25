@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/navigation-menu";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -30,11 +31,17 @@ export function SiteHeader() {
       data-site-header
       className="sticky top-0 z-50 border-b border-white/[0.04] bg-[#050507]/90 backdrop-blur-xl"
     >
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-10 focus:rounded-[4px] focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-black"
+      >
+        Skip to content
+      </a>
       <div className="mx-auto grid h-16 max-w-[92rem] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6 lg:px-10">
         <Link href="/" className="touch-target relative flex items-center gap-2.5 transition-opacity hover:opacity-90">
           <Image
             src="/logo-mark.png"
-            alt="Pytxo"
+            alt=""
             width={28}
             height={28}
             className="size-7"
@@ -79,13 +86,14 @@ export function SiteHeader() {
               </SheetHeader>
               <nav className="mt-6 flex flex-col gap-1">
                 {NAV_LINKS.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="rounded-md px-3 py-3 text-sm font-medium transition-colors hover:bg-card"
-                  >
-                    {link.label}
-                  </Link>
+                  <SheetClose key={link.href} asChild>
+                    <Link
+                      href={link.href}
+                      className="rounded-md px-3 py-3 text-sm font-medium transition-colors hover:bg-card"
+                    >
+                      {link.label}
+                    </Link>
+                  </SheetClose>
                 ))}
 
               </nav>

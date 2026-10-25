@@ -22,9 +22,9 @@ export function PlanRoadmapCard({
         <span>{status}</span>
       </div>
       <div className="flex flex-col gap-3 p-5">
-        <h3 data-slot="card-title" className="text-lg font-semibold tracking-tight">
+        <h2 data-slot="card-title" className="text-lg font-semibold tracking-tight">
           {name}
-        </h3>
+        </h2>
         <p className="text-sm leading-relaxed text-muted-foreground">{detail}</p>
         <ul className="flex flex-col gap-1.5 font-mono text-[13px] text-foreground">
           {highlights.map((highlight) => (
