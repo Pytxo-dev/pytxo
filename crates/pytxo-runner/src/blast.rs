@@ -10,6 +10,16 @@ fn should_skip_dir(name: &str, sparse_exclude: &[String]) -> bool {
     sparse_exclude.iter().any(|e| e == name)
 }
 
+/// Top-level names a copy-layer never materializes: `sparse_exclude` plus Pytxo's
+/// own `.pytxo` state (run store, process registry, worktrees). Review never treats
+/// that state as workspace content, and on Windows a copy in progress holds files
+/// that concurrently running agents must open for writing (os error 32).
+pub(crate) fn copy_layer_exclude(sparse_exclude: &[String]) -> Vec<String> {
+    let mut exclude = sparse_exclude.to_vec();
+    exclude.push(".pytxo".into());
+    exclude
+}
+
 /// Sparse copy-layer: materialize `repo_root` into `dst`, skipping top-level `sparse_exclude` names.
 /// Works for git and non-git trees (Phase 69). Kernel FUSE/ProjFS remain preferred when available.
 fn copy_dir_recursive(
@@ -30,7 +40,7 @@ fn copy_dir_recursive(
     copy_dir_recursive_inner(
         &source_root,
         &destination_root,
-        sparse_exclude,
+        &copy_layer_exclude(sparse_exclude),
         &destination_root,
         excluded_source_root.as_deref(),
     )
@@ -431,8 +441,7 @@ mod tests {
         let handle = prepare_overlay_layer(&ctx).unwrap();
 
         assert!(handle.cwd.join("README.md").exists());
-        assert!(handle.cwd.join(".pytxo/keep.toml").exists());
-        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
+        assert!(!handle.cwd.join(".pytxo").exists());
     }
 
     #[test]
@@ -440,7 +449,7 @@ mod tests {
         use pytxo_core::{AgentId, RunId};
         let tmp = tempfile::tempdir().unwrap();
         let repo = tmp.path().join("repo");
-        let worktree_base = repo.join(".pytxo/worktrees");
+        let worktree_base = repo.join("worktrees");
         std::fs::create_dir_all(worktree_base.join("overlay-old-agent/upper")).unwrap();
         std::fs::write(repo.join("README.md"), "x\n").unwrap();
         std::fs::write(
@@ -459,7 +468,7 @@ mod tests {
         let handle = prepare_overlay_layer(&ctx).unwrap();
 
         assert!(handle.cwd.join("README.md").exists());
-        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
+        assert!(!handle.cwd.join("worktrees").exists());
     }
 
     #[cfg(windows)]
