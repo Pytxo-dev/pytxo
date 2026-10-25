@@ -89,6 +89,9 @@
   .titlebar-wrap {
     flex-shrink: 0;
   }
+  :global(html[data-presenting]) .titlebar-wrap {
+    display: none;
+  }
   .titlebar {
     display: flex;
     align-items: center;

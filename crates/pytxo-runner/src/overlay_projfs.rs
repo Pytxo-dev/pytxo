@@ -66,6 +66,7 @@ pub fn prepare_projfs_overlay(
         cwd: upper,
         branch: String::new(),
         backend: IsolationMode::Overlay,
+        fallback_reason: None,
     })
 }
 
@@ -95,7 +96,7 @@ fn copy_dir_skip_sparse(
     copy_dir_skip_sparse_inner(
         &source_root,
         &destination_root,
-        sparse_exclude,
+        &crate::blast::copy_layer_exclude(sparse_exclude),
         &destination_root,
         excluded_source_root.as_deref(),
     )
@@ -109,8 +110,8 @@ fn copy_dir_skip_sparse_inner(
     excluded_source_root: Option<&Path>,
 ) -> Result<()> {
     std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("projfs mkdir: {e}")))?;
-    for entry in
-        std::fs::read_dir(src).map_err(|e| PytxoError::Runner(format!("projfs readdir: {e}")))?
+    for entry in std::fs::read_dir(src)
+        .map_err(|e| PytxoError::Runner(format!("projfs readdir {}: {e}", src.display())))?
     {
         let entry = entry.map_err(|e| PytxoError::Runner(format!("projfs entry: {e}")))?;
         let name = entry.file_name();
@@ -135,7 +136,7 @@ fn copy_dir_skip_sparse_inner(
             copy_dir_skip_sparse_inner(&from, &to, &[], destination_root, excluded_source_root)?;
         } else {
             std::fs::copy(&from, &to)
-                .map_err(|e| PytxoError::Runner(format!("projfs copy: {e}")))?;
+                .map_err(|e| PytxoError::Runner(format!("projfs copy {}: {e}", from.display())))?;
         }
     }
     Ok(())
@@ -209,8 +210,9 @@ mod tests {
         let handle = prepare_projfs_overlay(&repo, &wt, "run3", "agent-2", &[]).unwrap();
 
         assert!(handle.cwd.join("app.ts").exists());
-        assert!(handle.cwd.join(".pytxo/keep.toml").exists());
-        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
+        // Pytxo's own state is not workspace content; copying it held files
+        // (the process registry lock) that concurrent agents must open.
+        assert!(!handle.cwd.join(".pytxo").exists());
     }
 
     #[cfg(windows)]
@@ -218,7 +220,7 @@ mod tests {
     fn prepare_projfs_excludes_sibling_agent_workspaces() {
         let tmp = tempfile::tempdir().unwrap();
         let repo = tmp.path().join("repo");
-        let wt = repo.join(".pytxo/worktrees");
+        let wt = repo.join("worktrees");
         std::fs::create_dir_all(wt.join("projfs-old-agent/upper")).unwrap();
         std::fs::write(repo.join("app.ts"), "export {}\n").unwrap();
         std::fs::write(
@@ -230,7 +232,7 @@ mod tests {
         let handle = prepare_projfs_overlay(&repo, &wt, "run-new", "agent-new", &[]).unwrap();
 
         assert!(handle.cwd.join("app.ts").exists());
-        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
+        assert!(!handle.cwd.join("worktrees").exists());
     }
 
     #[cfg(windows)]

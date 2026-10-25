@@ -653,6 +653,7 @@ pub fn commit_workspace_for_agent(
         cwd: PathBuf::from(worktree),
         branch,
         backend: cfg.isolation,
+        fallback_reason: None,
     };
     let metering = billing::metering_for_ctx(&cfg, &repo_root, &None);
     let ctx = RunContext {
@@ -1282,8 +1283,7 @@ pub fn refresh_run_review(
             Ok(manifest)
         }
         Err(error) => {
-            let apply_error =
-                run_apply_error("review_refresh_failed", &error.to_string(), false, None);
+            let apply_error = review_failure("review_refresh_failed", &error);
             let _ = store.fail_run_preparation(run_id, &apply_error);
             Err(anyhow::anyhow!(error))
         }
@@ -1359,7 +1359,15 @@ fn verify_combined_candidate(
         for command in &task.verify {
             let result = run_candidate_check(&context, command);
             candidate.check_unchanged()?;
-            let receipt = result?;
+            let receipt = match result {
+                Err(error @ PytxoError::CheckFailed(_)) => {
+                    return Err(anyhow::Error::new(error).context(CandidateCheckFailed {
+                        task_id: task.task_id.0.clone(),
+                        command: command.clone(),
+                    }))
+                }
+                result => result?,
+            };
             checks.push(pytxo_core::CandidateCheckEvidence {
                 task_id: task.task_id.0.clone(),
                 command: command.clone(),
@@ -1490,6 +1498,32 @@ fn review_workspaces(
             })
         })
         .collect()
+}
+
+/// A combined check ran and failed, so the combined change is refuted. A
+/// verifier that could not run or broke an integrity rule keeps its own code.
+#[derive(Debug)]
+struct CandidateCheckFailed {
+    task_id: String,
+    command: String,
+}
+
+impl std::fmt::Display for CandidateCheckFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}: {} failed on the combined change",
+            self.task_id, self.command
+        )
+    }
+}
+
+/// The recorded Review failure: `code`, unless a combined check failed.
+fn review_failure(code: &str, error: &anyhow::Error) -> RunApplyError {
+    match error.downcast_ref::<CandidateCheckFailed>() {
+        Some(failed) => run_apply_error("candidate_check_failed", &failed.to_string(), false, None),
+        None => run_apply_error(code, &error.to_string(), false, None),
+    }
 }
 
 fn run_apply_error(
@@ -2271,12 +2305,7 @@ pub(crate) async fn execute_run_body(
                         }
                     }
                     Err(error) => {
-                        let apply_error = run_apply_error(
-                            "review_preparation_failed",
-                            &error.to_string(),
-                            false,
-                            None,
-                        );
+                        let apply_error = review_failure("review_preparation_failed", &error);
                         let _ = store.fail_run_preparation(&run_id.0, &apply_error);
                         review_error = Some(anyhow::anyhow!(error));
                     }
