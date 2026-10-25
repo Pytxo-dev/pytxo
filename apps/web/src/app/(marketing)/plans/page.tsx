@@ -120,7 +120,7 @@ export default function PlansPage() {
 
       <p className="mt-12 text-sm text-muted-foreground">
         See{" "}
-        <Link href="/docs/concepts/what-is-pytxo" className="text-primary hover:underline">
+        <Link href="/docs/concepts/what-is-pytxo" className="text-primary underline underline-offset-4">
           what is Pytxo
         </Link>{" "}
         for the product model and current boundaries.
