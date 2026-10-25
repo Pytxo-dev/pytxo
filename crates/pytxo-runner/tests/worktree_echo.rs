@@ -189,3 +189,51 @@ async fn overlay_copy_failure_falls_back_to_a_reviewable_worktree() {
     .unwrap();
     assert!(change_set.changes.is_empty(), "{:?}", change_set.changes);
 }
+
+/// Explicit worktree isolation checks out HEAD, while review compares the workspace byte
+/// for byte with the primary checkout's physical files. An agent that edits nothing must
+/// still review clean when the two differ: LF blobs that core.autocrlf checks out as CRLF,
+/// an uncommitted edit, an uncommitted delete, an untracked file and an ignored file.
+#[tokio::test]
+async fn unedited_worktree_isolation_agent_reviews_clean() {
+    let tmp = TempDir::new().unwrap();
+    let repo = tmp.path();
+    init_git_repo(repo);
+    std::fs::write(repo.join(".gitignore"), "*.log\n").unwrap();
+    std::fs::write(repo.join("kept.txt"), "kept\n").unwrap();
+    std::fs::write(repo.join("gone.txt"), "gone\n").unwrap();
+    git(repo, &["add", "."]);
+    git(repo, &["commit", "-qm", "more"]);
+    git(repo, &["config", "core.autocrlf", "true"]);
+    std::fs::write(repo.join("kept.txt"), "edited\n").unwrap();
+    std::fs::remove_file(repo.join("gone.txt")).unwrap();
+    std::fs::write(repo.join("notes.txt"), "untracked\n").unwrap();
+    std::fs::write(repo.join("build.log"), "ignored\n").unwrap();
+
+    let mut ctx = context(repo);
+    assert_eq!(ctx.isolation_mode, IsolationMode::Worktree);
+    ctx.keep_worktrees = true;
+
+    let registry = ProcessRegistry::default();
+    let swarm = SwarmRegistry::new();
+    let results = execute_plan(&ctx, &plan(), &registry, &swarm)
+        .await
+        .unwrap();
+    assert_eq!(results[0].exit_code, Some(0));
+    let workspace = results[0].worktree_path.clone().unwrap();
+    assert!(workspace.join(".git").is_file(), "expected a git worktree");
+
+    let change_set = prepare_run_change_set(
+        repo,
+        &[AgentWorkspaceInput {
+            agent_id: "agent-0".into(),
+            task_id: "t0".into(),
+            workspace_path: workspace,
+            claims: vec![],
+            depends_on: vec![],
+        }],
+        &[],
+    )
+    .unwrap();
+    assert!(change_set.changes.is_empty(), "{:?}", change_set.changes);
+}
