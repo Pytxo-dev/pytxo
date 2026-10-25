@@ -5,17 +5,21 @@
 
 <script lang="ts">
   import { onDestroy, untrack } from "svelte";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import type { DesktopBackend, DesktopSnapshot } from "../../lib/desktop-backend";
   import { clock } from "../../lib/fleet-events";
-  import { fleetLinks, fleetWall, isActiveRun, runKey, wallLayout } from "../../lib/fleet-wall";
-  import type { AgentDto, AgentTailDto, FleetNodeDto } from "../../lib/types";
+  import { fleetLinks, fleetWall, homeTilde, isActiveRun, landedTile, runKey, runVerdict, wallLayout, type WallVerdict } from "../../lib/fleet-wall";
+  import type { AgentDto, AgentTailDto, FleetNodeDto, RunDto, RunReviewDto } from "../../lib/types";
   import AdeIdentity from "./AdeIdentity.svelte";
   import ApertureGlyph from "./ApertureGlyph.svelte";
 
-  let { snapshot, backend, onOpenRun, onClose }: {
+  let { snapshot, backend, onOpenRun, onOpenReview, onOpenApprovals, onClose }: {
     snapshot: DesktopSnapshot;
     backend: DesktopBackend;
     onOpenRun: (runId: string, domainId: string) => void;
+    /** Opens a run's Review; the wall itself never applies anything. */
+    onOpenReview: (runId: string, domainId: string) => void;
+    onOpenApprovals: () => void;
     onClose: () => void;
   } = $props();
 
@@ -151,6 +155,72 @@
     }).catch(() => {});
   });
 
+  // One review read per run each time its recorded review state changes, never on the
+  // output poll. Pending and preparing runs need none: the snapshot already says so.
+  const reviewKey = (run: RunDto) => `${run.apply_status}\n${run.prepared_digest}`;
+  let reviews = $state<Record<string, { key: string; review: RunReviewDto | null }>>({});
+  const reviewReads = new Set<string>();
+  $effect(() => {
+    for (const run of wall.runs) {
+      const id = runKey(run);
+      const key = reviewKey(run);
+      if (!run.apply_status || ["pending", "preparing"].includes(run.apply_status)) continue;
+      if (untrack(() => reviews[id]?.key) === key || reviewReads.has(`${id}\n${key}`)) continue;
+      reviewReads.add(`${id}\n${key}`);
+      backend.runReview(run.id, run.domain_id).catch(() => null).then((review) => {
+        reviewReads.delete(`${id}\n${key}`);
+        if (!disposed) reviews = { ...reviews, [id]: { key, review } };
+      });
+    }
+  });
+
+  const READING: WallVerdict = { tone: "unknown", label: "Reading the review…", landed: false };
+  const UNREADABLE: WallVerdict = { tone: "unknown", label: "Review could not be read", landed: false };
+  /** Each run's last verdict; it stands while a newer read is on its way, unless it claimed verification. */
+  const shownVerdicts = new Map<string, WallVerdict>();
+  const verdicts = $derived.by(() => new Map(wall.runs.map((run) => {
+    const id = runKey(run);
+    const read = reviews[id]?.key === reviewKey(run) ? reviews[id] : null;
+    const working = tiles.filter((tile) => tile.tone === "active" && runKey(tile.run) === id).length;
+    const previous = shownVerdicts.get(id);
+    const verdict = runVerdict(run, working, read?.review ?? null) ?? (read ? UNREADABLE : previous && !previous.landed ? previous : READING);
+    shownVerdicts.set(id, verdict);
+    return [id, verdict] as const;
+  })));
+  /** Runs whose combined change is verified: their done tiles turn solid. */
+  const landed = $derived(new Set([...verdicts].filter(([, verdict]) => verdict.landed).map(([id]) => id)));
+  const anyRefuted = $derived(wall.counts.failed > 0 || [...verdicts.values()].some((verdict) => verdict.tone === "refuted"));
+
+  // Presenter mode: the wall alone, full screen. Exit, Esc, leaving full screen or leaving the wall ends it.
+  let presenting = $state(false);
+  let home = $state<string | null>(null);
+  let stopFullscreenWatch: (() => void) | undefined;
+  const nativeWindow = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window ? getCurrentWindow() : null;
+  async function present(on: boolean) {
+    if (presenting === on) return;
+    presenting = on;
+    document.documentElement.toggleAttribute("data-presenting", on);
+    stopFullscreenWatch?.();
+    stopFullscreenWatch = undefined;
+    if (on && home === null) backend.homeDir().then((dir) => { home = dir; }, () => {});
+    const win = nativeWindow();
+    if (!win) return;
+    try {
+      await win.setFullscreen(on);
+      if (!on) return;
+      const stop = await win.onResized(async () => {
+        if (presenting && !(await win.isFullscreen())) void present(false);
+      });
+      if (presenting) stopFullscreenWatch = stop; else stop();
+    } catch { /* Without full screen the chrome still hides. */ }
+  }
+  function presentKey(event: KeyboardEvent) {
+    if (!presenting || event.key !== "Escape" || event.defaultPrevented || document.querySelector("dialog[open]")) return;
+    event.preventDefault();
+    void present(false);
+  }
+  onDestroy(() => { if (presenting) void present(false); });
+
   /** The body's padding; the layout fills what is inside it. */
   const BODY_PADDING = 14;
   let bodyWidth = $state(0);
@@ -164,26 +234,35 @@
   }
 </script>
 
-<section class="screen work wall" aria-label="All agents" data-testid="fleet-wall">
+<svelte:window onkeydown={presentKey} />
+
+<section class="screen work wall" class:presenting aria-label="All agents" data-testid="fleet-wall">
   <header class="wall-head">
-    <ApertureGlyph active={wall.counts.working > 0} tone={wall.counts.failed ? "refuted" : wall.counts.working ? "active" : wall.runs.length ? "settled" : "unknown"} />
+    <ApertureGlyph active={wall.counts.working > 0} tone={anyRefuted ? "refuted" : wall.counts.working ? "active" : wall.runs.length ? "settled" : "unknown"} />
     <h1 bind:this={heading} tabindex="-1">All agents</h1>
     <dl class="stats" aria-label="Counts over the runs listed below">
       <div data-kind="working" class:hot={wall.counts.working > 0}><dt>working</dt><dd>{wall.counts.working}</dd></div>
-      <div data-kind="done" class:hot={wall.counts.done > 0}><dt>done</dt><dd>{wall.counts.done}</dd></div>
+      <div data-kind="done"><dt>done</dt><dd>{wall.counts.done}</dd></div>
       <div data-kind="failed" class:hot={wall.counts.failed > 0}><dt>failed</dt><dd>{wall.counts.failed}</dd></div>
       {#if wall.counts.queued}<div data-kind="queued"><dt>queued</dt><dd>{wall.counts.queued}</dd></div>{/if}
       {#if wall.counts.other}<div data-kind="other"><dt>stopped or unknown</dt><dd>{wall.counts.other}</dd></div>{/if}
+      <div data-kind="ready" class:hot={landed.size > 0} title="Runs whose combined change is verified, of the runs on the wall"><dt>ready</dt><dd>{landed.size}/{wall.runs.length}</dd></div>
       <div data-kind="runs"><dt>{wall.runs.length === 1 ? "run" : "runs"}</dt><dd>{wall.runs.length}</dd></div>
       <div data-kind="repos"><dt>{wall.groups.length === 1 ? "repo" : "repos"}</dt><dd>{wall.groups.length}</dd></div>
       <div data-kind="elapsed"><dt>elapsed</dt><dd><time>{wallElapsed}</time></dd></div>
     </dl>
     <div class="wall-actions">
-      {#if wall.runs.some((run) => !isActiveRun(run))}<button class="clear" onclick={clearFinished}>Clear finished</button>{/if}
-      <div class="work-view" role="group" aria-label="Work view">
-        <button aria-pressed="false" onclick={onClose}>Run</button>
-        <button aria-pressed="true">Wall</button>
-      </div>
+      {#if presenting && snapshot.approvals.length}
+        <button class="approvals" onclick={() => { void present(false); onOpenApprovals(); }}>{snapshot.approvals.length} {snapshot.approvals.length === 1 ? "approval" : "approvals"} waiting</button>
+      {/if}
+      {#if !presenting && wall.runs.some((run) => !isActiveRun(run))}<button class="clear" onclick={clearFinished}>Clear finished</button>{/if}
+      <button class="present" title={presenting ? "Exit presenting (Esc)" : "Only the wall, full screen"} onclick={() => void present(!presenting)}>{presenting ? "Exit" : "Present"}</button>
+      {#if !presenting}
+        <div class="work-view" role="group" aria-label="Work view">
+          <button aria-pressed="false" onclick={onClose}>Run</button>
+          <button aria-pressed="true">Wall</button>
+        </div>
+      {/if}
     </div>
   </header>
 
@@ -201,7 +280,7 @@
           <section class="group tui-pane" aria-label={`${group.repo}: ${group.tiles.length} ${group.tiles.length === 1 ? "agent" : "agents"}`}>
             <span class="tui-legend"><b>{group.repo}</b><span>{group.tiles.length}</span></span>
             <ol class="tiles">
-              {#each group.tiles as tile (tile.agent.id)}
+              {#each group.tiles.map((entry) => landedTile(entry, landed)) as tile (tile.agent.id)}
                 {@const tail = tails[keyOf(tile.agent)]}
                 {@const prompt = prompts[`${runKey(tile.run)}\n${tile.agent.task_id}`]}
                 {@const time = elapsed(tile.agent)}
@@ -216,7 +295,7 @@
                     {#if prompt}<span class="prompt">{prompt}</span>{/if}
                     <span class="out">
                       {#if tail?.error}<span class="hint">Output unavailable</span>
-                      {:else if tail?.lines.length}{#each tail.lines as line, index (index)}<span>{line}</span>{/each}
+                      {:else if tail?.lines.length}{#each tail.lines as line, index (index)}<span>{presenting ? homeTilde(line, home) : line}</span>{/each}
                       {:else}<span class="hint">{tail ? "No output yet" : "Reading output"}</span>{/if}
                     </span>
                     <span class="foot">
@@ -228,6 +307,17 @@
               {/each}
               {#if !group.tiles.length}<li class="pending">No workers recorded yet</li>{/if}
             </ol>
+            <span class="verdicts">
+              {#each group.runs as run (runKey(run))}
+                {@const verdict = verdicts.get(runKey(run)) ?? READING}
+                <button class="verdict" data-tone={verdict.tone} title={verdict.label}
+                  aria-label={`${group.repo}${group.runs.length > 1 ? ` ${run.id}` : ""}: ${verdict.label}. Open Review.`}
+                  onclick={() => { void present(false); onOpenReview(run.id, run.domain_id); }}>
+                  {#if verdict.tone === "active"}<span class="tui-spin" aria-hidden="true"><span>|/-\</span></span>{:else}<i aria-hidden="true">{MARK[verdict.tone] ?? "○"}</i>{/if}
+                  <span>{verdict.label}</span>
+                </button>
+              {/each}
+            </span>
           </section>
         {/each}
       </div>
@@ -254,13 +344,15 @@
   .stats dd { order: 1; margin: 0; color: var(--pytxo-text-strong); font: 600 26px/1 var(--pytxo-font-ui); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
   .stats dt { order: 2; margin-top: 5px; color: var(--pytxo-text-muted); font: 500 10.5px var(--pytxo-font-mono); letter-spacing: .08em; text-transform: uppercase; }
   .stats [data-kind="working"].hot dd { color: var(--pytxo-activity); }
-  .stats [data-kind="done"].hot dd { color: var(--state-verified); }
+  .stats [data-kind="ready"].hot dd { color: var(--state-verified); }
   .stats [data-kind="failed"].hot dd { color: var(--state-refuted); }
-  .stats [data-kind="runs"], .stats [data-kind="elapsed"] { padding-left: 26px; border-left: 1px solid var(--pytxo-line-soft); }
+  .stats [data-kind="ready"], .stats [data-kind="elapsed"] { padding-left: 26px; border-left: 1px solid var(--pytxo-line-soft); }
   .wall-actions { display: flex; align-items: center; gap: 7px; }
-  .clear { min-height: 34px; padding: 0 12px; border: 1px solid var(--pytxo-line); border-radius: 4px; background: transparent; color: var(--pytxo-text-soft); font: 500 12px var(--pytxo-font-ui); cursor: pointer; }
-  .clear:hover { background: var(--pytxo-surface-active); color: var(--pytxo-text-strong); }
-  .clear:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }
+  .clear, .present, .approvals { min-height: 34px; padding: 0 12px; border: 1px solid var(--pytxo-line); border-radius: 4px; background: transparent; color: var(--pytxo-text-soft); font: 500 12px var(--pytxo-font-ui); cursor: pointer; }
+  .clear:hover, .present:hover, .approvals:hover { background: var(--pytxo-surface-active); color: var(--pytxo-text-strong); }
+  .clear:focus-visible, .present:focus-visible, .approvals:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }
+  /* Same hue as the app bar's inbox: the one thing that blocks the operator. */
+  .approvals, .approvals:hover { border-color: color-mix(in oklab, var(--state-attention) 50%, var(--pytxo-line)); color: var(--state-attention); font-weight: 600; }
   .wall-feedback { flex: none; margin: 0; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--state-refuted) 48%, var(--pytxo-line)); border-radius: 4px; color: var(--state-refuted); font-size: 12px; }
 
   /* The layout fills this box exactly, so a stable gutter keeps it from flipping when it scrolls. */
@@ -269,9 +361,20 @@
   .wall-empty h2 { margin: 0; color: var(--pytxo-text-strong); font-size: 16px; font-weight: 600; }
   .wall-empty p { max-width: 52ch; margin: 0; color: var(--pytxo-text-soft); font-size: 12.5px; line-height: 1.6; text-wrap: pretty; }
 
-  /* Pane sizes mirror WALL_METRICS in lib/fleet-wall.ts. */
-  .bands { display: grid; grid-template-columns: repeat(var(--blocks), max-content); align-items: start; justify-content: center; gap: 18px 12px; }
-  .group { padding: 15px 7px 7px; }
+  /* Pane sizes mirror WALL_METRICS in lib/fleet-wall.ts. Bands keep room between a verdict line and the next legend. */
+  .bands { display: grid; grid-template-columns: repeat(var(--blocks), max-content); align-items: start; justify-content: center; gap: 24px 12px; }
+  .group { padding: 15px 7px 15px; }
+  /* Each run's verdict sits on the pane's bottom border, as the legend sits on its top one. */
+  .verdicts { position: absolute; bottom: -9px; left: 12px; z-index: 1; display: flex; max-width: calc(100% - 24px); gap: 6px; }
+  .verdict { --verdict: var(--pytxo-text-soft); position: relative; display: flex; min-width: 0; height: 18px; flex: 0 1 auto; align-items: center; gap: 6px; padding: 0 7px; border: 0; background: var(--tui-bg); color: var(--verdict); font: 600 11.5px var(--pytxo-font-mono); white-space: nowrap; cursor: pointer; }
+  .verdict::after { content: ""; position: absolute; inset: -5px 0; }
+  .verdict > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+  .verdict i { font-style: normal; }
+  .verdict:hover > span:last-child { text-decoration: underline; text-underline-offset: 3px; }
+  .verdict:focus-visible { outline: 2px solid var(--pytxo-accent); outline-offset: 2px; }
+  .verdict[data-tone="active"] { --verdict: var(--pytxo-activity); }
+  .verdict[data-tone="verified"] { --verdict: var(--state-verified); }
+  .verdict[data-tone="refuted"] { --verdict: var(--state-refuted); }
   .group .tui-legend { max-width: calc(100% - 24px); overflow: hidden; }
   .group .tui-legend b { overflow: hidden; letter-spacing: .04em; text-overflow: ellipsis; }
   .group .tui-legend span { color: var(--pytxo-text-muted); }
@@ -280,11 +383,13 @@
   .pending { display: grid; place-items: center; border: 1px dashed var(--pytxo-line); border-radius: 5px; color: var(--pytxo-text-muted); font: 11.5px var(--pytxo-font-mono); }
 
   /* State reads at phone size: a top rule, a tinted face and a coloured label, plus a shape per state. */
-  .tile { --accent: var(--pytxo-text-muted); container: tile / size; position: relative; display: flex; width: 100%; height: 100%; box-sizing: border-box; flex-direction: column; gap: 3px; overflow: hidden; padding: 9px 10px 6px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--pytxo-line)); border-radius: 5px; background: color-mix(in srgb, var(--accent) 8%, var(--pytxo-work-canvas)); color: var(--pytxo-text-body); text-align: left; cursor: pointer; transition: border-color var(--pytxo-motion-fast) var(--pytxo-motion-ease); }
+  .tile { --accent: var(--pytxo-text-muted); container: tile / size; position: relative; display: flex; width: 100%; height: 100%; box-sizing: border-box; flex-direction: column; gap: 3px; overflow: hidden; padding: 9px 10px 6px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--pytxo-line)); border-radius: 5px; background: color-mix(in srgb, var(--accent) 8%, var(--pytxo-work-canvas)); color: var(--pytxo-text-body); text-align: left; cursor: pointer; transition: border-color var(--pytxo-motion-fast) var(--pytxo-motion-ease), background-color 200ms var(--pytxo-motion-ease); }
   .tile::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: var(--accent); }
   .tile[data-tone="active"] { --accent: var(--pytxo-activity); }
   /* Settled states get a stronger face than working ones, so done and failed separate from live at a glance. */
   .tile[data-tone="verified"] { --accent: var(--state-verified); background: color-mix(in srgb, var(--accent) 15%, var(--pytxo-work-canvas)); animation: settle 1s ease-out 1; }
+  /* Exit 0 is the agent's claim: hollow until the run's combined change is verified, then it fills. */
+  .tile[data-tone="claimed"] { --accent: var(--state-claimed); background: transparent; }
   .tile[data-tone="refuted"] { --accent: var(--state-refuted); background: color-mix(in srgb, var(--accent) 17%, var(--pytxo-work-canvas)); }
   .tile[data-tone="queued"] { border-style: dashed; }
   .tile[data-tone="queued"]::before { background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 10px); }
@@ -312,11 +417,19 @@
   @container tile (max-height: 96px) { .prompt { display: none; } }
   @container tile (max-height: 74px) { .out span:not(:last-child) { display: none; } }
 
+  /* Presenting: the wall alone, its counts read from across a room. */
+  .presenting .wall-head { grid-template-columns: 46px auto minmax(0, 1fr) auto; min-height: 84px; }
+  .presenting .wall-head :global(.aperture-glyph) { width: 46px; height: 46px; flex-basis: 46px; }
+  .presenting .stats { gap: 4px 34px; }
+  .presenting .stats dd { font-size: 42px; }
+  .presenting .stats dt { font-size: 12.5px; }
+  .presenting .stats [data-kind="ready"], .presenting .stats [data-kind="elapsed"] { padding-left: 34px; }
+
   .evidence { display: flex; max-height: 46px; flex: none; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; overflow: auto; color: var(--pytxo-text-muted); font: 11px/1.6 var(--pytxo-font-mono); }
   .evidence code { color: var(--pytxo-text-soft); font: inherit; white-space: nowrap; }
 
   @media (prefers-reduced-motion: reduce) { .tile { animation: none; transition: none; } }
   :global([data-force-reduced-motion]) .tile { animation: none; transition: none; }
-  @container mission (max-width: 1120px) { .stats { gap: 4px 16px; } .stats [data-kind="runs"], .stats [data-kind="elapsed"] { padding-left: 16px; } }
+  @container mission (max-width: 1120px) { .stats { gap: 4px 16px; } .stats [data-kind="ready"], .stats [data-kind="elapsed"] { padding-left: 16px; } }
   @container mission (max-width: 880px) { .wall-head { grid-template-columns: 34px minmax(0, 1fr) auto; } .stats { grid-column: 1 / -1; flex-wrap: wrap; } }
 </style>

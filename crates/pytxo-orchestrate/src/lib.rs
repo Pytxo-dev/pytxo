@@ -653,6 +653,7 @@ pub fn commit_workspace_for_agent(
         cwd: PathBuf::from(worktree),
         branch,
         backend: cfg.isolation,
+        fallback_reason: None,
     };
     let metering = billing::metering_for_ctx(&cfg, &repo_root, &None);
     let ctx = RunContext {
@@ -747,6 +748,7 @@ pub fn apply_run_changes(
     run_id: &str,
     expected_package_digest: &str,
 ) -> anyhow::Result<RunApplyManifest> {
+    let started = std::time::Instant::now();
     let _upgrade_guard = pytxo_core::UpgradeGuard::work()?;
     let repo_root = resolve_repo_root(repo.as_deref())?;
     let manifest = apply_run_changes_with(
@@ -756,10 +758,11 @@ pub fn apply_run_changes(
         expected_package_digest,
         apply_prepared_review_under_lease,
     )?;
+    let duration_ms = started.elapsed().as_millis() as u64;
     let receipt = load_config(config.as_deref(), &repo_root)
         .and_then(|cfg| Ok(PytxoStore::open(&cfg.db_path_at(&repo_root))?))
         .and_then(|store| {
-            apply_receipt::write_apply_receipt(&repo_root, &store, run_id, &manifest)
+            apply_receipt::write_apply_receipt(&repo_root, &store, run_id, &manifest, duration_ms)
         });
     if let Err(error) = receipt {
         tracing::warn!(run_id, %error, "Apply committed; its receipt could not be written");
@@ -1282,8 +1285,7 @@ pub fn refresh_run_review(
             Ok(manifest)
         }
         Err(error) => {
-            let apply_error =
-                run_apply_error("review_refresh_failed", &error.to_string(), false, None);
+            let apply_error = review_failure("review_refresh_failed", &error);
             let _ = store.fail_run_preparation(run_id, &apply_error);
             Err(anyhow::anyhow!(error))
         }
@@ -1359,13 +1361,23 @@ fn verify_combined_candidate(
         for command in &task.verify {
             let result = run_candidate_check(&context, command);
             candidate.check_unchanged()?;
-            let receipt = result?;
+            let observed = match result {
+                Err(error @ PytxoError::CheckFailed(_)) => {
+                    return Err(anyhow::Error::new(error).context(CandidateCheckFailed {
+                        task_id: task.task_id.0.clone(),
+                        command: command.clone(),
+                    }))
+                }
+                result => result?,
+            };
             checks.push(pytxo_core::CandidateCheckEvidence {
                 task_id: task.task_id.0.clone(),
                 command: command.clone(),
                 effective_profile: profile.as_str().into(),
                 passed: true,
-                enforcement: serde_json::to_value(receipt)?,
+                exit_code: observed.exit_code,
+                duration_ms: Some(observed.duration_ms),
+                enforcement: serde_json::to_value(observed.receipt)?,
             });
         }
     }
@@ -1490,6 +1502,32 @@ fn review_workspaces(
             })
         })
         .collect()
+}
+
+/// A combined check ran and failed, so the combined change is refuted. A
+/// verifier that could not run or broke an integrity rule keeps its own code.
+#[derive(Debug)]
+struct CandidateCheckFailed {
+    task_id: String,
+    command: String,
+}
+
+impl std::fmt::Display for CandidateCheckFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}: {} failed on the combined change",
+            self.task_id, self.command
+        )
+    }
+}
+
+/// The recorded Review failure: `code`, unless a combined check failed.
+fn review_failure(code: &str, error: &anyhow::Error) -> RunApplyError {
+    match error.downcast_ref::<CandidateCheckFailed>() {
+        Some(failed) => run_apply_error("candidate_check_failed", &failed.to_string(), false, None),
+        None => run_apply_error(code, &error.to_string(), false, None),
+    }
 }
 
 fn run_apply_error(
@@ -2271,12 +2309,7 @@ pub(crate) async fn execute_run_body(
                         }
                     }
                     Err(error) => {
-                        let apply_error = run_apply_error(
-                            "review_preparation_failed",
-                            &error.to_string(),
-                            false,
-                            None,
-                        );
+                        let apply_error = review_failure("review_preparation_failed", &error);
                         let _ = store.fail_run_preparation(&run_id.0, &apply_error);
                         review_error = Some(anyhow::anyhow!(error));
                     }
@@ -4891,7 +4924,9 @@ mod tests {
                 command: command.into(),
                 effective_profile: "orbit".into(),
                 passed: true,
-                enforcement: serde_json::to_value(check).unwrap(),
+                exit_code: check.exit_code,
+                duration_ms: Some(check.duration_ms),
+                enforcement: serde_json::to_value(check.receipt).unwrap(),
             }])
             .unwrap();
         let store = PytxoStore::open(&db_path).unwrap();

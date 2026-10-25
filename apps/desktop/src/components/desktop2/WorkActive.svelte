@@ -46,7 +46,7 @@
     focusRunId?: string | null;
     onNewRun: () => void;
     onOpenApprovals: () => void;
-    onReviewRun: (runId: string) => void;
+    onReviewRun: (runId: string, domainId?: string) => void;
     onStopRun: (runId: string, domainId: string) => Promise<void>;
     onSelectRun: (runId: string) => void;
     /** Opens a run from any workspace; the wall lists every workspace's runs. */
@@ -371,7 +371,7 @@
 {/snippet}
 
 {#if wallOpen}
-<FleetWall bind:this={wallScreen} {snapshot} {backend} onOpenRun={openFromWall} onClose={() => void showWall(false)} />
+<FleetWall bind:this={wallScreen} {snapshot} {backend} onOpenRun={openFromWall} onOpenReview={onReviewRun} {onOpenApprovals} onClose={() => void showWall(false)} />
 {:else}
 <section class="screen work" aria-label="Work">
   <section class="command-strip work-heading" class:idle={!focusRun} class:with-view={!focusRun && wallAvailable} aria-label={focusRun ? "Focused run" : undefined}>

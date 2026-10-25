@@ -1927,12 +1927,7 @@ fn run_two_sibling_fixtures(
             if matches!(contract.apply_status.as_str(), "pending" | "preparing") {
                 store.fail_run_preparation(
                     &scope.run_id.0,
-                    &crate::run_apply_error(
-                        "routed_review_failed",
-                        &error.to_string(),
-                        false,
-                        None,
-                    ),
+                    &crate::review_failure("routed_review_failed", &error),
                 )?;
                 finish_local_run_unlocked(
                     store,
@@ -3226,12 +3221,7 @@ fn execute_admitted_fixture(
                     bail!("passed routed Review could not enter failure settlement");
                 }
                 if matches!(contract.apply_status.as_str(), "pending" | "preparing") {
-                    let review_error = crate::run_apply_error(
-                        "routed_review_failed",
-                        &error.to_string(),
-                        false,
-                        None,
-                    );
+                    let review_error = crate::review_failure("routed_review_failed", &error);
                     store.fail_run_preparation(&admitted.scope.run_id.0, &review_error)?;
                 }
                 let settled = finish_local_run_unlocked(
@@ -3416,6 +3406,8 @@ mod routed_review_snapshot_tests {
                     command: "check".into(),
                     effective_profile: "orbit".into(),
                     passed: true,
+                    exit_code: None,
+                    duration_ms: None,
                     enforcement: serde_json::json!({}),
                 }],
                 verified_at: "now".into(),

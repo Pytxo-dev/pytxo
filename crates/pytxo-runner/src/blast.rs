@@ -10,6 +10,16 @@ fn should_skip_dir(name: &str, sparse_exclude: &[String]) -> bool {
     sparse_exclude.iter().any(|e| e == name)
 }
 
+/// Top-level names a copy-layer never materializes: `sparse_exclude` plus Pytxo's
+/// own `.pytxo` state (run store, process registry, worktrees). Review never treats
+/// that state as workspace content, and on Windows a copy in progress holds files
+/// that concurrently running agents must open for writing (os error 32).
+pub(crate) fn copy_layer_exclude(sparse_exclude: &[String]) -> Vec<String> {
+    let mut exclude = sparse_exclude.to_vec();
+    exclude.push(".pytxo".into());
+    exclude
+}
+
 /// Sparse copy-layer: materialize `repo_root` into `dst`, skipping top-level `sparse_exclude` names.
 /// Works for git and non-git trees (Phase 69). Kernel FUSE/ProjFS remain preferred when available.
 fn copy_dir_recursive(
@@ -30,7 +40,7 @@ fn copy_dir_recursive(
     copy_dir_recursive_inner(
         &source_root,
         &destination_root,
-        sparse_exclude,
+        &copy_layer_exclude(sparse_exclude),
         &destination_root,
         excluded_source_root.as_deref(),
     )
@@ -44,8 +54,8 @@ fn copy_dir_recursive_inner(
     excluded_source_root: Option<&Path>,
 ) -> Result<()> {
     std::fs::create_dir_all(dst).map_err(|e| PytxoError::Runner(format!("overlay mkdir: {e}")))?;
-    for entry in
-        std::fs::read_dir(src).map_err(|e| PytxoError::Runner(format!("overlay readdir: {e}")))?
+    for entry in std::fs::read_dir(src)
+        .map_err(|e| PytxoError::Runner(format!("overlay readdir {}: {e}", src.display())))?
     {
         let entry = entry.map_err(|e| PytxoError::Runner(format!("overlay entry: {e}")))?;
         let name = entry.file_name();
@@ -68,7 +78,7 @@ fn copy_dir_recursive_inner(
             copy_dir_recursive_inner(&from, &to, &[], destination_root, excluded_source_root)?;
         } else {
             std::fs::copy(&from, &to)
-                .map_err(|e| PytxoError::Runner(format!("overlay copy: {e}")))?;
+                .map_err(|e| PytxoError::Runner(format!("overlay copy {}: {e}", from.display())))?;
         }
     }
     Ok(())
@@ -93,6 +103,7 @@ fn prepare_overlay_layer(ctx: &IsolationCtx) -> Result<WorkspaceHandle> {
         cwd: upper,
         branch: String::new(),
         backend: IsolationMode::Overlay,
+        fallback_reason: None,
     })
 }
 
@@ -113,6 +124,7 @@ impl IsolationBackend for WorktreeIsolation {
             cwd,
             branch,
             backend: IsolationMode::Worktree,
+            fallback_reason: None,
         })
     }
 
@@ -130,7 +142,8 @@ impl IsolationBackend for WorktreeIsolation {
 /// Preference order (Phase 69):
 /// 1. Kernel FUSE (Linux) / macFUSE / Windows ProjFS sparse copy when feature + probe OK
 /// 2. Always-on sparse copy-layer (git **or** non-git trees)
-/// 3. Git worktree only if copy-layer fails (should be rare)
+/// 3. Git worktree only if copy-layer fails (should be rare), holding the primary checkout's
+///    bytes and naming the copy-layer error in `WorkspaceHandle::fallback_reason`
 #[derive(Clone, Default)]
 pub struct OverlayIsolation {
     fallback: WorktreeIsolation,
@@ -176,27 +189,42 @@ impl IsolationBackend for OverlayIsolation {
                 }
             }
         }
+        let mut copy_failures = Vec::new();
         #[cfg(target_os = "windows")]
         {
             // Production interim: sparse copy-layer labeled projfs-* (full ProjFS provider = north star).
             if crate::overlay_projfs::projfs_supported() {
-                if let Ok(handle) = crate::overlay_projfs::prepare_projfs_overlay(
+                match crate::overlay_projfs::prepare_projfs_overlay(
                     &ctx.repo_root,
                     &ctx.worktree_base,
                     &ctx.run_id.0,
                     &ctx.agent_id.0,
                     &ctx.sparse_exclude,
                 ) {
-                    return Ok(handle);
+                    Ok(handle) => return Ok(handle),
+                    Err(error) => copy_failures.push(error.to_string()),
                 }
             }
         }
         // Always-on copy-layer: works for non-git directories (Phase 69).
-        if let Ok(handle) = prepare_overlay_layer(ctx) {
-            return Ok(handle);
+        match prepare_overlay_layer(ctx) {
+            Ok(handle) => return Ok(handle),
+            Err(error) => copy_failures.push(error.to_string()),
         }
-        let mut handle = self.fallback.prepare(ctx)?;
+        let reason = format!("copy-layer failed: {}", copy_failures.join("; "));
+        let mut handle = self.fallback.prepare(ctx).map_err(|error| {
+            PytxoError::Runner(format!("{reason}; git worktree fallback failed: {error}"))
+        })?;
+        if let Err(error) = take_primary_bytes(&ctx.repo_root, &handle.cwd, &ctx.sparse_exclude) {
+            let _ = self.fallback.rollback(ctx, &handle);
+            return Err(PytxoError::Runner(format!(
+                "{reason}; git worktree fallback could not take the primary checkout's bytes: {error}"
+            )));
+        }
         handle.backend = IsolationMode::Overlay;
+        handle.fallback_reason = Some(format!(
+            "{reason}; using a git worktree holding the primary checkout's bytes"
+        ));
         Ok(handle)
     }
 
@@ -232,6 +260,33 @@ impl IsolationBackend for OverlayIsolation {
         }
         self.fallback.flush(ctx, handle)
     }
+}
+
+/// Give a fallback checkout the bytes review compares it against. Review and Apply read
+/// the primary checkout's physical files, which a fresh checkout of HEAD does not
+/// reproduce under core.autocrlf, eol attributes, filters or uncommitted work.
+fn take_primary_bytes(repo_root: &Path, workspace: &Path, sparse_exclude: &[String]) -> Result<()> {
+    let primary = crate::change_set::collect_inventory(repo_root, sparse_exclude)?;
+    let checkout = crate::change_set::collect_inventory(workspace, sparse_exclude)?;
+    // Removals first: on a case-insensitive filesystem a stale name can alias a copied one.
+    for (path, file) in &checkout.files {
+        if !primary.files.contains_key(path) {
+            std::fs::remove_file(file)
+                .map_err(|e| PytxoError::Runner(format!("fallback remove {path}: {e}")))?;
+        }
+    }
+    for (path, source) in &primary.files {
+        let relative = source
+            .strip_prefix(repo_root)
+            .map_err(|e| PytxoError::Runner(format!("fallback path {path}: {e}")))?;
+        let target = workspace.join(relative);
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::copy(source, &target)
+            .map_err(|e| PytxoError::Runner(format!("fallback copy {path}: {e}")))?;
+    }
+    Ok(())
 }
 
 fn flush_overlay_upper(repo_root: &Path, upper: &Path) -> Result<()> {
@@ -431,8 +486,7 @@ mod tests {
         let handle = prepare_overlay_layer(&ctx).unwrap();
 
         assert!(handle.cwd.join("README.md").exists());
-        assert!(handle.cwd.join(".pytxo/keep.toml").exists());
-        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
+        assert!(!handle.cwd.join(".pytxo").exists());
     }
 
     #[test]
@@ -440,7 +494,7 @@ mod tests {
         use pytxo_core::{AgentId, RunId};
         let tmp = tempfile::tempdir().unwrap();
         let repo = tmp.path().join("repo");
-        let worktree_base = repo.join(".pytxo/worktrees");
+        let worktree_base = repo.join("worktrees");
         std::fs::create_dir_all(worktree_base.join("overlay-old-agent/upper")).unwrap();
         std::fs::write(repo.join("README.md"), "x\n").unwrap();
         std::fs::write(
@@ -459,7 +513,7 @@ mod tests {
         let handle = prepare_overlay_layer(&ctx).unwrap();
 
         assert!(handle.cwd.join("README.md").exists());
-        assert!(!handle.cwd.join(".pytxo/worktrees").exists());
+        assert!(!handle.cwd.join("worktrees").exists());
     }
 
     #[cfg(windows)]

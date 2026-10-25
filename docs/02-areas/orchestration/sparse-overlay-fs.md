@@ -6,7 +6,7 @@ tags: [orchestration, filesystem]
 audience: [human, agent]
 layer: orchestration
 created: 2026-06-02
-updated: 2026-07-23
+updated: 2026-10-24
 related: [[ADR-0003-sparse-overlay-not-ram-cow]], [[blast-shield]], [[pytxo-improvement-research]]
 ---
 
@@ -24,6 +24,8 @@ Complements **[[blast-shield]]** for huge monorepos. Mapping entire repos (`node
 | `overlay-fuse-kernel` | Linux | Kernel `overlay` mount when available |
 | `overlay-projfs` | Windows | Provider stub; falls back to copy-layer / worktree |
 | Git worktrees | all | Still valid isolation backend ([[ADR-0005-worktree-isolation-for-mvp]]) |
+
+When no copy-layer can be built, a git worktree is the last resort. Review and Apply compare a workspace byte for byte with the primary checkout's physical files, and a fresh checkout of `HEAD` differs from them under `core.autocrlf`, eol attributes, filters, or uncommitted work. The fallback therefore copies the primary checkout's bytes over every path review reads, and the run records an `isolation-fallback` event carrying the copy-layer error.
 
 ## North star (dated roadmap — not marketing)
 

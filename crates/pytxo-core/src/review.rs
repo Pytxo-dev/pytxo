@@ -100,6 +100,13 @@ pub struct CandidateCheckEvidence {
     pub command: String,
     pub effective_profile: String,
     pub passed: bool,
+    /// What the verifier process reported. Packages prepared by older builds
+    /// lack both; they stay unserialized when absent so those packages keep
+    /// their digest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
     pub enforcement: serde_json::Value,
 }
 
@@ -214,6 +221,8 @@ mod tests {
                     command: "check".into(),
                     effective_profile: "orbit".into(),
                     passed: true,
+                    exit_code: None,
+                    duration_ms: None,
                     enforcement: serde_json::json!({}),
                 }],
                 verified_at: "now".into(),
@@ -221,6 +230,12 @@ mod tests {
         };
         manifest.package_digest = prepared_manifest_digest(&manifest).unwrap();
         manifest
+    }
+
+    #[test]
+    fn unrecorded_check_results_keep_older_package_bytes() {
+        let json = serde_json::to_string(&verified_manifest()).unwrap();
+        assert!(!json.contains("exit_code") && !json.contains("duration_ms"));
     }
 
     #[test]

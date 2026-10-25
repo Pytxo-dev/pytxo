@@ -52,6 +52,7 @@ pub fn prepare_macos_overlay(
             cwd: mnt,
             branch: String::new(),
             backend: IsolationMode::Overlay,
+            fallback_reason: None,
         });
     }
 

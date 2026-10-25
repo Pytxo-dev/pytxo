@@ -1505,6 +1505,89 @@ fn rejects_agent_edits_outside_declared_claims() {
 }
 
 #[test]
+fn unclaimed_paths_the_primary_ignores_are_not_edits_but_cannot_hide_source() {
+    let git = |repo: &Path, args: &[&str]| {
+        assert!(std::process::Command::new("git")
+            .args(args)
+            .current_dir(repo)
+            .status()
+            .expect("run git")
+            .success());
+    };
+    let temp = tempfile::tempdir().expect("tempdir");
+    let repo = temp.path().join("repo");
+    let ignore_rules = "cache/\n*.log\n.env\n";
+    write(&repo.join("src/owned.txt"), "before\n");
+    write(&repo.join("kept.log"), "tracked\n");
+    write(&repo.join(".gitignore"), ignore_rules);
+    git(&repo, &["init", "-q"]);
+    git(&repo, &["add", "-f", "."]);
+    git(
+        &repo,
+        &[
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@pytxo.local",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "baseline",
+        ],
+    );
+    write(&repo.join(".env"), "operator only\n");
+
+    let workspace = temp.path().join("workspace-agent-0");
+    write(&workspace.join("src/owned.txt"), "after\n");
+    write(&workspace.join("kept.log"), "tracked\n");
+    write(&workspace.join(".gitignore"), ignore_rules);
+    write(&workspace.join("cache/out.pyc"), "check output\n");
+    let prepare = || {
+        prepare_run_change_set(
+            &repo,
+            &[AgentWorkspaceInput {
+                agent_id: "agent-0".into(),
+                task_id: "implement".into(),
+                workspace_path: workspace.clone(),
+                claims: vec!["src".into(), ".gitignore".into()],
+                depends_on: vec![],
+            }],
+            &[],
+        )
+    };
+
+    let change_set = prepare().expect("ignored check output and operator file are not edits");
+    let paths: Vec<_> = change_set
+        .changes
+        .iter()
+        .map(|change| change.path.as_str())
+        .collect();
+    assert_eq!(paths, ["src/owned.txt"]);
+
+    // Git never ignores a tracked file, even when an ignore pattern matches it.
+    write(&workspace.join("kept.log"), "edited\n");
+    let error = prepare().expect_err("tracked edit outside claims");
+    assert!(
+        error.to_string().contains("edited kept.log outside"),
+        "{error}"
+    );
+    write(&workspace.join("kept.log"), "tracked\n");
+
+    // Only the primary checkout's rules count, not the agent's edited ones.
+    write(
+        &workspace.join(".gitignore"),
+        &format!("{ignore_rules}notes.txt\n"),
+    );
+    write(&workspace.join("notes.txt"), "unreviewed\n");
+    let error = prepare().expect_err("agent rules cannot hide a new file");
+    assert!(
+        error.to_string().contains("edited notes.txt outside"),
+        "{error}"
+    );
+}
+
+#[test]
 fn rejects_conflicting_changes_from_independent_tasks() {
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path().join("repo");
