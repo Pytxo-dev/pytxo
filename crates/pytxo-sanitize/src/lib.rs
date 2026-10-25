@@ -31,12 +31,20 @@ static RULES: LazyLock<Vec<(Regex, &'static str)>> = LazyLock::new(|| {
             Regex::new(r"(?i)(api[_-]?key|token)\s*[:=]\s*\S+").expect("api key"),
             "$1=[REDACTED]",
         ),
+        // Any drive, any case, either separator, and JSON-escaped runs
+        // (`C:\Users\…`, `c:/users/…`, `C:\\Users\\…`). The name stops at `"`,
+        // which no OS allows in user names, so JSON around the path survives.
         (
-            Regex::new(r"[A-Za-z]:\\Users\\[^\\\s]+").expect("win path"),
+            Regex::new(r#"(?i)[a-z]:[\\/]+users[\\/]+[^\\/\s"]+"#).expect("win path"),
+            "[REDACTED_PATH]",
+        ),
+        // Case-sensitive, so URL paths such as `/users/<login>` survive.
+        (
+            Regex::new(r#"/Users/[^/\s"]+"#).expect("mac home"),
             "[REDACTED_PATH]",
         ),
         (
-            Regex::new(r"/home/[^/\s]+").expect("unix home"),
+            Regex::new(r#"/home/[^/\s"]+"#).expect("unix home"),
             "[REDACTED_PATH]",
         ),
     ]
@@ -89,6 +97,53 @@ mod tests {
         // The old class `[^\\s]` also stopped at the letter `s`.
         let out = sanitize_line(r"C:\Users\sam\.pytxo\agent-accounts\claude\work");
         assert!(!out.contains("sam"), "{out}");
+    }
+
+    #[test]
+    fn redacts_user_paths_in_any_separator_case_or_os_form() {
+        for (line, expected) in [
+            // Node, Git and many agents print Windows paths with forward slashes.
+            ("C:/Users/sam/fw/app.ts", "[REDACTED_PATH]/fw/app.ts"),
+            (r"C:\Users/sam/fw", "[REDACTED_PATH]/fw"),
+            (r"C:/Users\sam\fw", r"[REDACTED_PATH]\fw"),
+            (r"d:\users\sam\fw", r"[REDACTED_PATH]\fw"),
+            ("E:/USERS/sam", "[REDACTED_PATH]"),
+            // PTY output keeps its color codes.
+            (
+                "\x1b[36mC:/Users/sam/fw\x1b[0m",
+                "\x1b[36m[REDACTED_PATH]/fw\x1b[0m",
+            ),
+            // JSON doubles each backslash; the closing quote must survive.
+            (
+                r#"{"cwd":"C:\\Users\\sam\\fw"}"#,
+                r#"{"cwd":"[REDACTED_PATH]\\fw"}"#,
+            ),
+            (
+                r#"{"home":"C:/Users/sam","n":1}"#,
+                r#"{"home":"[REDACTED_PATH]","n":1}"#,
+            ),
+            ("/Users/sam/fw/app.ts", "[REDACTED_PATH]/fw/app.ts"),
+            (
+                r#"{"cwd":"/home/sam","n":1}"#,
+                r#"{"cwd":"[REDACTED_PATH]","n":1}"#,
+            ),
+        ] {
+            assert_eq!(sanitize_line(line), expected, "{line}");
+        }
+    }
+
+    #[test]
+    fn keeps_paths_without_a_user_segment() {
+        for line in [
+            "C:/tools/node/node.exe",
+            r"C:\Program Files\Git\bin\git.exe",
+            "C:/UsersData/cache",
+            r"dir C:\Users",
+            "/usr/local/bin/cargo",
+            "https://api.github.com/users/octocat",
+        ] {
+            assert_eq!(sanitize_line(line), line);
+        }
     }
 
     #[test]
