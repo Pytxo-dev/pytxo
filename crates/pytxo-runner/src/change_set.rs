@@ -1038,19 +1038,26 @@ pub fn prepare_run_change_set(
             .chain(workspace_inventory.symlinks.keys())
             .cloned()
             .collect();
+        let is_claimed = |path: &str| {
+            workspace
+                .claims
+                .iter()
+                .any(|claim| path_matches_claim(path, claim))
+        };
 
+        // (path, kind); no kind marks a symlink on either side.
+        let mut found = Vec::new();
         for path in paths {
-            let base_symlink = base_inventory.symlinks.get(&path);
-            let workspace_symlink = workspace_inventory.symlinks.get(&path);
-            if base_symlink.is_some() || workspace_symlink.is_some() {
-                return Err(PytxoError::Runner(format!(
-                    "run Apply does not support symlink path {path}"
-                )));
+            if base_inventory.symlinks.contains_key(&path)
+                || workspace_inventory.symlinks.contains_key(&path)
+            {
+                found.push((path, None));
+                continue;
             }
-
-            let before = base_inventory.files.get(&path);
-            let after = workspace_inventory.files.get(&path);
-            let kind = match (before, after) {
+            let kind = match (
+                base_inventory.files.get(&path),
+                workspace_inventory.files.get(&path),
+            ) {
                 (None, Some(_)) => Some(RunChangeKind::Add),
                 (Some(_), None) => Some(RunChangeKind::Delete),
                 (Some(before), Some(after)) => {
@@ -1061,74 +1068,94 @@ pub fn prepare_run_change_set(
                 }
                 (None, None) => None,
             };
-            if let Some(kind) = kind {
-                let candidate = RunChange {
-                    path,
-                    kind,
-                    source_agent_id: workspace.agent_id.clone(),
-                    source_task_id: workspace.task_id.clone(),
-                    source_path: after.cloned(),
-                    base_digest: before.map(|path| file_digest(path)).transpose()?,
-                    result_digest: after.map(|path| file_digest(path)).transpose()?,
-                    base_mode: before.map(|path| file_mode(path)).transpose()?.flatten(),
-                    result_mode: after.map(|path| file_mode(path)).transpose()?.flatten(),
-                };
-                let is_claimed = workspace
-                    .claims
-                    .iter()
-                    .any(|claim| path_matches_claim(&candidate.path, claim));
-                if !is_claimed {
-                    if let Some(existing) = changes.get(&candidate.path) {
-                        let is_dependency_output = task_depends_on(
-                            &candidate.source_task_id,
-                            &existing.source_task_id,
-                            &task_dependencies,
-                        );
-                        if is_dependency_output && changes_are_equivalent(existing, &candidate)? {
-                            continue;
-                        }
+            if kind.is_some() {
+                found.push((path, kind));
+            }
+        }
+        // A check's __pycache__ or the operator's .env is not an agent edit: an
+        // unclaimed path that the primary checkout's Git rules ignore never lands.
+        // Claimed and tracked paths, and the agent's own ignore rules, get no pass.
+        let unclaimed = found
+            .iter()
+            .map(|(path, _)| path)
+            .filter(|path| !is_claimed(path))
+            .cloned()
+            .collect();
+        let ignored = crate::git::ignored_paths(repo_root, &unclaimed)?;
+
+        for (path, kind) in found {
+            if ignored.contains(&path) {
+                continue;
+            }
+            let Some(kind) = kind else {
+                return Err(PytxoError::Runner(format!(
+                    "run Apply does not support symlink path {path}"
+                )));
+            };
+            let before = base_inventory.files.get(&path);
+            let after = workspace_inventory.files.get(&path);
+            let candidate = RunChange {
+                path,
+                kind,
+                source_agent_id: workspace.agent_id.clone(),
+                source_task_id: workspace.task_id.clone(),
+                source_path: after.cloned(),
+                base_digest: before.map(|path| file_digest(path)).transpose()?,
+                result_digest: after.map(|path| file_digest(path)).transpose()?,
+                base_mode: before.map(|path| file_mode(path)).transpose()?.flatten(),
+                result_mode: after.map(|path| file_mode(path)).transpose()?.flatten(),
+            };
+            if !is_claimed(&candidate.path) {
+                if let Some(existing) = changes.get(&candidate.path) {
+                    let is_dependency_output = task_depends_on(
+                        &candidate.source_task_id,
+                        &existing.source_task_id,
+                        &task_dependencies,
+                    );
+                    if is_dependency_output && changes_are_equivalent(existing, &candidate)? {
+                        continue;
                     }
-                    return Err(PytxoError::Runner(format!(
-                        "agent {} edited {} outside declared claims",
-                        workspace.agent_id, candidate.path
-                    )));
                 }
-                match changes.get(&candidate.path) {
-                    None => {
-                        changes.insert(candidate.path.clone(), candidate);
-                    }
-                    Some(existing)
-                        if changes_are_equivalent(existing, &candidate)?
-                            && (task_depends_on(
-                                &candidate.source_task_id,
-                                &existing.source_task_id,
-                                &task_dependencies,
-                            ) || task_depends_on(
-                                &existing.source_task_id,
-                                &candidate.source_task_id,
-                                &task_dependencies,
-                            )) => {}
-                    Some(existing)
-                        if task_depends_on(
+                return Err(PytxoError::Runner(format!(
+                    "agent {} edited {} outside declared claims",
+                    workspace.agent_id, candidate.path
+                )));
+            }
+            match changes.get(&candidate.path) {
+                None => {
+                    changes.insert(candidate.path.clone(), candidate);
+                }
+                Some(existing)
+                    if changes_are_equivalent(existing, &candidate)?
+                        && (task_depends_on(
                             &candidate.source_task_id,
                             &existing.source_task_id,
                             &task_dependencies,
-                        ) =>
-                    {
-                        changes.insert(candidate.path.clone(), candidate);
-                    }
-                    Some(existing)
-                        if task_depends_on(
+                        ) || task_depends_on(
                             &existing.source_task_id,
                             &candidate.source_task_id,
                             &task_dependencies,
-                        ) => {}
-                    Some(existing) => {
-                        return Err(PytxoError::Runner(format!(
-                            "run change conflict on {} between independent tasks {} and {}",
-                            candidate.path, existing.source_task_id, candidate.source_task_id
-                        )));
-                    }
+                        )) => {}
+                Some(existing)
+                    if task_depends_on(
+                        &candidate.source_task_id,
+                        &existing.source_task_id,
+                        &task_dependencies,
+                    ) =>
+                {
+                    changes.insert(candidate.path.clone(), candidate);
+                }
+                Some(existing)
+                    if task_depends_on(
+                        &existing.source_task_id,
+                        &candidate.source_task_id,
+                        &task_dependencies,
+                    ) => {}
+                Some(existing) => {
+                    return Err(PytxoError::Runner(format!(
+                        "run change conflict on {} between independent tasks {} and {}",
+                        candidate.path, existing.source_task_id, candidate.source_task_id
+                    )));
                 }
             }
         }

@@ -223,6 +223,53 @@ fn verifier_mutations_are_rejected_between_commands() {
 }
 
 #[test]
+fn checks_may_write_ignored_caches_but_not_landing_or_source_paths() {
+    let temp = tempfile::tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let task = temp.path().join("task");
+    let data = repo.join(".pytxo/data");
+    let ignore_rules = ".pytxo/\ncache/\n*.log\n";
+    write_state(&repo, "0", "0");
+    std::fs::write(repo.join(".gitignore"), ignore_rules).unwrap();
+    assert!(Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(&repo)
+        .status()
+        .unwrap()
+        .success());
+    write_state(&task, "1", "0");
+    std::fs::write(task.join(".gitignore"), ignore_rules).unwrap();
+    std::fs::write(task.join("run.log"), "claimed agent output").unwrap();
+    let manifest = prepare_review_package(
+        &repo,
+        &data,
+        "ignored-cache",
+        "base",
+        &[input(&task, "task", &["a.txt", "run.log"])],
+        &[],
+    )
+    .unwrap();
+    let candidate = CandidateVerification::prepare(&repo, &data, &manifest, &[]).unwrap();
+    let root = candidate.workspace_root();
+    std::fs::create_dir(root.join("cache")).unwrap();
+    std::fs::write(root.join("cache/out.pyc"), "check output").unwrap();
+    candidate.check_unchanged().unwrap();
+    std::fs::write(root.join("run.log"), "rewritten by a check").unwrap();
+    assert!(
+        candidate.check_unchanged().is_err(),
+        "a landing path stays frozen even when Git ignores it"
+    );
+    std::fs::write(root.join("run.log"), "claimed agent output").unwrap();
+    std::fs::write(root.join("new.txt"), "source").unwrap();
+    assert!(
+        candidate.check_unchanged().is_err(),
+        "a new file Git would not ignore is source"
+    );
+    std::fs::remove_file(root.join("new.txt")).unwrap();
+    candidate.finish(vec![receipt(true)]).unwrap();
+}
+
+#[test]
 fn primary_drift_during_verification_and_empty_recipes_are_rejected() {
     let temp = tempfile::tempdir().unwrap();
     let repo = temp.path().join("repo");
