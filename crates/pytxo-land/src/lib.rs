@@ -522,6 +522,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     }
     // A check that fails everywhere, or a Node check that never installs, is
     // most likely failing for want of a set-up worktree, not because of the inputs.
+    // A solo pass of the same command shows the set-up works, so no install hint.
     for command in &opts.checks {
         let of_command = |c: &&ReceiptCheck| &c.command == command;
         if !checks
@@ -538,9 +539,9 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             .filter(|c| c.scope != "combined")
             .collect();
         let everywhere = !solo.is_empty() && solo.iter().all(|c| !c.passed);
-        let install_hint = suggestion
-            .as_deref()
-            .filter(|s| checks::installs(s) && !checks::installs(command));
+        let install_hint = suggestion.as_deref().filter(|s| {
+            checks::installs(s) && !checks::installs(command) && !solo.iter().any(|c| c.passed)
+        });
         let mut insight = String::new();
         if everywhere {
             insight.push_str(&format!(
