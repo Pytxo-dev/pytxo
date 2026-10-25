@@ -40,6 +40,9 @@ for (const width of [1440, 390]) {
     await expect(hero.getByRole("button", { name: "Copy the npm install command" })).toBeVisible();
     await expect(hero.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
     await expect(hero.getByRole("link", { name: "Download for Windows" })).toHaveAttribute("href", "/download");
+    await expect(hero.getByRole("link", { name: "mattbaconz" })).toHaveAttribute("href", "https://github.com/mattbaconz");
+    await expect(hero.getByRole("link", { name: "lukeed/mri" })).toHaveAttribute("href", "/docs/getting-started/first-landing#3-if-the-decision-is-blocked");
+    expect(await (await page.request.get("/docs/getting-started/first-landing")).text()).toContain('id="3-if-the-decision-is-blocked"');
     const how = page.getByTestId("how-it-works");
     await expect(how.getByRole("listitem")).toHaveCount(3);
     // Step images load lazily; each must load once it is scrolled into view.

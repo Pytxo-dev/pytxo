@@ -39,7 +39,9 @@ export function Hero() {
             </Button>
             <Link href="/download" className="aperture-link text-base text-[#c4c4cc]">Download for Windows</Link>
           </div>
-          {/* PLACEHOLDER builder line: one short line in Matt's own words on who builds Pytxo and why. Waiting on his wording; do not merge without it. */}
+          <p className="mt-8 max-w-[46ch] text-sm leading-relaxed text-[#8d8d96]">
+            I&apos;m Matt (<a className="aperture-link text-[#c4c4cc]" href="https://github.com/mattbaconz">mattbaconz</a> on GitHub), and I build Pytxo on my own. I gave Claude Code and Codex two tasks on <Link className="aperture-link text-[#c4c4cc]" href="/docs/getting-started/first-landing#3-if-the-decision-is-blocked">lukeed/mri</Link> that collide on one helper; both branches passed alone and failed together.
+          </p>
         </div>
       </div>
     </div>
