@@ -26,17 +26,20 @@ for (const width of [1440, 390]) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     const hero = page.getByTestId("marketing-hero");
-    await expect(hero.getByRole("heading", { level: 1 })).toContainText("Many agents.");
-    await expect(hero.getByRole("heading", { level: 1 })).toContainText("One verified change.");
-    await expect(hero.getByText(/or bring branches from any agent tool/)).toBeVisible();
-    await expect(hero.getByRole("link", { name: "Download for Windows" })).toBeInViewport();
-    await expect(hero.getByText(/Mixed-agent runs arrive in/)).toHaveCount(0);
-    await expect(hero.getByRole("link", { name: /Land branches from the CLI/ })).toHaveAttribute("href", "#land");
-    await expect(hero.getByText("beta", { exact: true })).toHaveCount(2);
-    const agents = hero.getByRole("list", { name: "Agent CLIs Pytxo runs" });
-    for (const name of ["Codex", "Claude Code", "Cursor", "OpenCode", "Antigravity"]) await expect(agents).toContainText(name);
-    await expect(agents.locator('img[src*="antigravity"]')).toHaveCount(1);
-    await expect(hero.getByTestId("hero-fleet").getByRole("img")).toHaveJSProperty("naturalWidth", 1600);
+    await expect(hero.getByRole("heading", { level: 1 })).toHaveText("pytxo land refuses agent branches that pass alone but fail together.");
+    // The hero shows the recorded bytes of a real run, not a retyped or illustrated one.
+    const record = await (await page.request.get("/evidence/land-blocked-1.3.5-2026-10-25.json")).json();
+    expect(record.receipt.predicate.decision).toBe("blocked");
+    expect(record.output).toContain(record.receipt.predicate.id);
+    const capture = hero.getByTestId("hero-capture");
+    expect(await capture.locator("pre").textContent()).toBe(`$ ${record.command}\n${record.output}`);
+    await expect(capture.getByText("decision  BLOCKED")).toBeInViewport();
+    await expect(capture.getByRole("link", { name: "Raw output and receipt" })).toHaveAttribute("href", "/evidence/land-blocked-1.3.5-2026-10-25.json");
+    await expect(hero.getByText(/Give it the branches your agents left/)).toBeVisible();
+    await expect(hero.locator("pre").filter({ hasText: /^npm i -g pytxo@\d+\.\d+\.\d+$/ })).toBeVisible();
+    await expect(hero.getByRole("button", { name: "Copy the npm install command" })).toBeVisible();
+    await expect(hero.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
+    await expect(hero.getByRole("link", { name: "Download for Windows" })).toHaveAttribute("href", "/download");
     const how = page.getByTestId("how-it-works");
     await expect(how.getByRole("listitem")).toHaveCount(3);
     // Step images load lazily; each must load once it is scrolled into view.
@@ -93,7 +96,7 @@ test("homepage leads with the outcome, then how, why, proof and requirements", a
   await expect(proof).toContainText("Checks passing is evidence, not proof.");
   await expect(proof.getByRole("link", { name: /Pybench results/ })).toHaveAttribute("href", "/bench");
   await expect(proof.getByRole("link", { name: /All evidence and limits/ })).toHaveAttribute("href", "/docs/evidence");
-  await expect(page.getByTestId("land-section")).toContainText("Every input passed its checks alone. The combined change failed.");
+  await expect(page.getByTestId("marketing-hero")).toContainText("Every input passed its checks alone. The combined change failed both times it ran.");
   await expect(page.getByTestId("compatibility-section")).toContainText("your shell's API keys are not passed to them");
   await expect(page.getByTestId("faq-section")).toContainText("Does Pytxo sandbox everything an agent does?");
   await expect(page.locator(".aperture-marquee")).toHaveCount(0);
@@ -197,7 +200,7 @@ test("account connect refuses incomplete links and receipt ids are validated", a
   expect(missing?.status()).toBe(404);
 });
 
-test("chroma identity keeps the spectrum static and limited to its two signatures", async ({ page }) => {
+test("chroma identity keeps the spectrum to the logo", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
@@ -208,10 +211,8 @@ test("chroma identity keeps the spectrum static and limited to its two signature
   expect(font.toLowerCase()).not.toContain("geist");
   expect(headingColor).toBe("rgb(245, 245, 247)");
   await expect(page.locator(".nebula-bg, .chroma-glow")).toHaveCount(0);
-  // The approved fleet hero carries the spectrum once in its headline; it never animates.
-  await expect(page.locator(".chroma-text")).toHaveCount(1);
-  await expect(page.locator(".chroma-text")).toHaveText("One verified change.");
-  expect(await page.locator(".chroma-text").evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+  // The headline is plain text; the spectrum stays in the logo.
+  await expect(page.locator(".chroma-text")).toHaveCount(0);
 
 
   await expect(page.locator('header img[src*="logo"]')).toHaveCount(1);

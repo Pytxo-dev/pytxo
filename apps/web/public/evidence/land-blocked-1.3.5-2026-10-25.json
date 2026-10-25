@@ -1,0 +1,127 @@
+{
+  "schema": "pytxo.evidence/v1",
+  "recorded": "2026-10-25",
+  "build": "Pytxo CLI 1.3.5: pytxo-windows-x64.exe from the v1.3.5 release of Pytxo-dev/pytxo-releases, checked against the release's SHA256SUMS.txt",
+  "host": {
+    "os": "Windows 11 Home",
+    "node": "26.10",
+    "git": "2.53"
+  },
+  "repo": {
+    "name": "Pybench rename-vs-new-caller",
+    "source": "https://github.com/Pytxo-dev/pytxo/blob/main/crates/pytxo-land/src/bench.rs",
+    "built": "the files, branches and commits that Pybench's build_repo() makes for this scenario, recreated at D:\\pybench-shop",
+    "branches": {
+      "agent/rename": "renames price() to unitPrice() in src/cart.js",
+      "agent/discount": "adds src/discount.js, which calls price(), and tests/discount.test.js"
+    }
+  },
+  "command": "pytxo land agent/rename agent/discount --check \"node run-tests.js\" --per-input",
+  "exit_code": 2,
+  "output": "pytxo land  rcpt_20261025T095419Z_77822d97  shadow\ntarget main @ 80a1e9db5 · 2 inputs · 3 files changed\n\ninputs\n  agent/rename                       1 file   merged\n  agent/discount                     2 files  merged\n\nchecks\n  input:agent/rename           pass           0.2s  node run-tests.js\n  input:agent/discount         pass           0.2s  node run-tests.js\n  combined                     FAIL exit 1    0.2s  node run-tests.js\n      FAIL discount.test.js: price is not a function\n  combined, run 2              FAIL exit 1    0.2s  node run-tests.js\n      FAIL discount.test.js: price is not a function\n\n! Every input passed its checks alone. The combined change failed both times it ran.\n\ndecision  BLOCKED\n  - combined check failed twice: node run-tests.js (exit 1, then exit 1)\nnext      fix the failure on one of the branches (or fix the check), then run the same command again\noutput    pytxo receipts show rcpt_20261025T095419Z_77822d97\ninspect   git log --oneline --graph refs/pytxo/land/rcpt_20261025T095419Z_77822d97\nreceipt   D:\\pybench-shop\\.git\\pytxo\\receipts\\rcpt_20261025T095419Z_77822d97.json\n",
+  "limits": [
+    "Pybench writes both branches itself; no agent wrote them.",
+    "It shows the mechanism, not how often it happens in real projects."
+  ],
+  "receipt": {
+    "_type": "https://in-toto.io/Statement/v1",
+    "subject": [
+      {
+        "name": "git:main",
+        "digest": {
+          "gitCommit": "22acc03a03ddc7e516901701847d633accc1a28d"
+        }
+      }
+    ],
+    "predicateType": "https://pytxo.com/receipt/v1",
+    "predicate": {
+      "id": "rcpt_20261025T095419Z_77822d97",
+      "kind": "land",
+      "created_at": "2026-10-25T09:54:22Z",
+      "pytxo_version": "1.3.5",
+      "decision": "blocked",
+      "mode": "shadow",
+      "target": "main",
+      "base": "80a1e9db52b5bbcb3db8ec3b8c170857884e131c",
+      "result": "22acc03a03ddc7e516901701847d633accc1a28d",
+      "inputs": [
+        {
+          "ref": "agent/rename",
+          "commit": "46e3af4d944d50457af09b1fd6248fa307575efc",
+          "status": "merged",
+          "files": [
+            "src/cart.js"
+          ],
+          "conflict_files": []
+        },
+        {
+          "ref": "agent/discount",
+          "commit": "8cc4c0a1d0ff6fab90f434d5ffa6ce48587cc089",
+          "status": "merged",
+          "files": [
+            "src/discount.js",
+            "tests/discount.test.js"
+          ],
+          "conflict_files": []
+        }
+      ],
+      "files_changed": 3,
+      "shared_files": [],
+      "checks": [
+        {
+          "scope": "input:agent/rename",
+          "command": "node run-tests.js",
+          "exit_code": 0,
+          "passed": true,
+          "duration_ms": 175,
+          "timed_out": false,
+          "output_tail": [
+            "ok   cart.test.js"
+          ]
+        },
+        {
+          "scope": "input:agent/discount",
+          "command": "node run-tests.js",
+          "exit_code": 0,
+          "passed": true,
+          "duration_ms": 214,
+          "timed_out": false,
+          "output_tail": [
+            "ok   cart.test.js",
+            "ok   discount.test.js"
+          ]
+        },
+        {
+          "scope": "combined",
+          "command": "node run-tests.js",
+          "exit_code": 1,
+          "passed": false,
+          "duration_ms": 175,
+          "timed_out": false,
+          "output_tail": [
+            "ok   cart.test.js",
+            "FAIL discount.test.js: price is not a function"
+          ]
+        },
+        {
+          "scope": "combined",
+          "command": "node run-tests.js",
+          "exit_code": 1,
+          "passed": false,
+          "duration_ms": 173,
+          "timed_out": false,
+          "output_tail": [
+            "ok   cart.test.js",
+            "FAIL discount.test.js: price is not a function"
+          ],
+          "rerun": true
+        }
+      ],
+      "reasons": [
+        "combined check failed twice: node run-tests.js (exit 1, then exit 1)"
+      ],
+      "duration_ms": 2880,
+      "content_digest": "sha256:fd528862102584cd718d164e75a51bb0f440d5bc52120acac4ec9498cd25e751"
+    }
+  }
+}

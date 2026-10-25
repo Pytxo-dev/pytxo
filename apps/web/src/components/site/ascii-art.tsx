@@ -3,12 +3,11 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 /*
-  Character-grid art for the marketing site. Both pieces draw only characters
-  from the Pytxo aperture ramp onto a canvas, pause when off screen or hidden,
-  and render one still frame when the visitor prefers reduced motion.
+  Character-grid art for the marketing site. The footer wordmark draws only
+  characters from the Pytxo aperture ramp onto a canvas, pauses when off screen
+  or hidden, and renders one still frame when the visitor prefers reduced motion.
 */
 
-const GLYPH = ["#7ee1ed", "#b4b9ff", "#bd9eef", "#e9bb91"];
 const RAMP = " .:-=+*x#%@";
 const GLITCH = "01<>/\\|+*x#%@";
 
@@ -71,89 +70,6 @@ function near(pointer: { x: number; y: number } | null, x: number, y: number, ra
   if (!pointer) return 0;
   const distance = Math.hypot(pointer.x - x, (pointer.y - y) * 1.3);
   return distance < radius ? 1 - distance / radius : 0;
-}
-
-const AGENTS = ["codex", "claude", "cursor", "opencode", "antigravity"];
-
-/**
- * The aperture mark as a shaded ASCII sphere, with the five agent CLIs on
- * tilted orbits around it: many agents, one change.
- */
-const drawAperture: Draw = (context, { width, height, time, pointer }) => {
-  const cw = width < 640 ? 7 : 9, ch = width < 640 ? 12 : 15;
-  context.font = `500 ${width < 640 ? 10 : 12}px "IBM Plex Mono", ui-monospace, monospace`;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  const narrow = width < 640;
-  const cx = width / 2, cy = height * (narrow ? .3 : .47);
-  const radius = Math.min(width * (narrow ? .44 : .3), height * .42, 330);
-  const spin = time * .32;
-  const light = { x: -.45, y: -.55, z: .7 };
-  const cols = Math.ceil(width / cw), rows = Math.ceil(height / ch);
-  const c0 = Math.max(0, Math.floor((cx - radius) / cw) - 1), c1 = Math.min(cols, Math.ceil((cx + radius) / cw) + 1);
-  const r0 = Math.max(0, Math.floor((cy - radius) / ch) - 1), r1 = Math.min(rows, Math.ceil((cy + radius) / ch) + 1);
-  for (let row = r0; row < r1; row += 1) {
-    for (let col = c0; col < c1; col += 1) {
-      const px = col * cw + cw / 2, py = row * ch + ch / 2;
-      const x = (px - cx) / radius, y = (py - cy) / radius;
-      const rr = x * x + y * y;
-      if (rr > 1) continue;
-      // The aperture's diagonal cut, fixed in screen space like the logo.
-      if (Math.abs(y - .46 * x) < .085) continue;
-      const z = Math.sqrt(1 - rr);
-      const lon = Math.atan2(x, z) + spin, lat = Math.asin(y);
-      const shade = Math.max(0, x * light.x + y * light.y + z * light.z);
-      const bands = .55 + .45 * Math.sin(lon * 9) * Math.cos(lat * 7);
-      const hot = near(pointer, px, py, 120);
-      // Mostly light characters: the sphere sits behind the headline, not over it.
-      const level = Math.min(RAMP.length - 1, Math.floor((.05 + shade * .42 + bands * .2 + hot * .55) * (RAMP.length - 1)));
-      if (level < 1) continue;
-      const tone = y < -.35 ? 0 : y < .25 ? 1 : x > .45 ? 3 : 2;
-      context.globalAlpha = .16 + .42 * shade + hot * .5;
-      context.fillStyle = GLYPH[tone];
-      context.fillText(hot > .35 ? GLITCH[(col * 7 + row * 13 + Math.floor(time * 18)) % GLITCH.length] : RAMP[level], px, py);
-    }
-  }
-  // Orbits: one tilted ellipse, five agents spaced around it, each with a fading trail.
-  const rx = Math.min(width * .46, radius * 1.75), ry = radius * .42;
-  const tilt = -.16;
-  const at = (angle: number) => {
-    const ox = Math.cos(angle) * rx, oy = Math.sin(angle) * ry;
-    return [cx + ox * Math.cos(tilt) - oy * Math.sin(tilt), cy + ox * Math.sin(tilt) + oy * Math.cos(tilt)] as const;
-  };
-  context.globalAlpha = .22;
-  context.fillStyle = "#7d7d87";
-  for (let a = 0; a < Math.PI * 2; a += (cw * 1.6) / rx) {
-    const [x, y] = at(a);
-    const behind = Math.sin(a) < 0 && Math.hypot(x - cx, (y - cy)) < radius;
-    if (!behind) context.fillText("·", x, y);
-  }
-  AGENTS.forEach((name, index) => {
-    const angle = time * .22 + (index / AGENTS.length) * Math.PI * 2;
-    const front = Math.sin(angle) > 0;
-    for (let k = 7; k >= 0; k -= 1) {
-      const [x, y] = at(angle - k * .035);
-      if (!front && Math.hypot(x - cx, y - cy) < radius * .98) continue;
-      context.globalAlpha = k === 0 ? .95 : .5 - k * .055;
-      context.fillStyle = k === 0 ? "#f5f5f7" : "#45dccb";
-      context.fillText(k === 0 ? "◆" : k < 3 ? "•" : "·", x, y);
-    }
-    const [x, y] = at(angle);
-    if (!front && Math.hypot(x - cx, y - cy) < radius * .98) return;
-    // Names fade while they cross the headline column.
-    context.globalAlpha = .2 + .55 * Math.min(1, Math.abs(x - cx) / (rx * .75));
-    context.fillStyle = "#c7c7ce";
-    context.textAlign = "left";
-    context.fillText(name, x + cw * 1.4, y);
-    context.textAlign = "center";
-  });
-  context.globalAlpha = 1;
-};
-
-export function AsciiAperture({ className }: { className?: string }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useCharCanvas(ref, drawAperture, 30);
-  return <canvas ref={ref} aria-hidden="true" className={className} />;
 }
 
 /** The wordmark rasterised into the aperture ramp, with a slow shimmer that runs across it. */

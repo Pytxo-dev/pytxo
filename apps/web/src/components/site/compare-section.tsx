@@ -1,5 +1,3 @@
-import { ApplyGate } from "@/components/site/apply-gate";
-
 // Category-level comparison: what each approach hands you, not claims about any one product.
 const ROWS = [
   ["You hand out", "One task per agent", "One request. Pytxo plans the split"],
@@ -15,7 +13,6 @@ export function CompareSection() {
       <div className="min-w-0">
         <h2 id="compare-title" className="max-w-[18ch] text-[clamp(2rem,3.4vw,3.25rem)] leading-[1.06] tracking-[-0.04em]">Why not just run agents side by side?</h2>
         <p className="mt-6 max-w-[42ch] text-base leading-relaxed text-[#b4b4bd]">Agent workspaces give each agent its own branch and leave the merging to you. That works for separate tasks. Pytxo is for one job that several agents finish together, and <code className="font-mono text-[0.92em]">pytxo land</code> brings the same check to branches from those workspaces.</p>
-        <ApplyGate className="mt-10 max-w-[40rem]" />
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[36rem] border-collapse text-left text-sm sm:text-base">
