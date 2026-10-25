@@ -27,11 +27,13 @@ pytxo land codex:agent/a claude:agent/b --check "npm test" --per-input   # shado
 ```
 
 Pass your agents' branches as `label:branch` (the label is only a name) and
-your own test command. `--per-input` also runs the check on each branch alone,
-so a failure that only shows up in the combination is reported as one, and when
-only the combination fails it runs once more to rule out a flaky test. Add
-`--apply` to land a ready result. `pytxo land` calls no model and sends
-nothing; receipts stay in `.git/pytxo/receipts`.
+your own test command. Checks run in a fresh worktree where nothing is
+installed, so a Node project installs in the check:
+`--check "npm ci && npm test"`. `--per-input` also runs the check on each
+branch alone, so a failure that only shows up in the combination is reported as
+one, and when only the combination fails it runs once more to rule out a flaky
+test. Add `--apply` to land a ready result. `pytxo land` calls no model and
+sends nothing; receipts stay in `.git/pytxo/receipts`.
 
 **Limits**
 
