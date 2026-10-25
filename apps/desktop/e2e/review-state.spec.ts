@@ -167,6 +167,29 @@ test.describe("Run Review state contracts", () => {
     });
   });
 
+  test("names a failed combined check apart from a failed preparation", () => {
+    const failed = (code: string, message: string) => reviewPresentation({
+      apply_status: "review_failed",
+      recovery_state: null,
+      last_apply_error: { at: "2026-10-23T10:00:00Z", code, message, attempt_id: null, rollback_confirmed: false },
+      candidate_verified: false,
+      prepared_file_count: null,
+    });
+    expect(failed("candidate_check_failed", "a: npm test failed on the combined change")).toMatchObject({
+      state: "review_failed",
+      title: "Combined check failed",
+      detail: "a: npm test failed on the combined change",
+      primaryLabel: "Retry preparation",
+      applyAllowed: false,
+    });
+    expect(failed("review_preparation_failed", "disk full")).toMatchObject({
+      state: "review_failed",
+      title: "Could not prepare the review",
+      detail: "disk full",
+      applyAllowed: false,
+    });
+  });
+
   test("advances, resets, and reconnects a domain cursor deterministically", () => {
     const page = (
       next_cursor: number,

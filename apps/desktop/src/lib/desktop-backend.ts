@@ -1,3 +1,4 @@
+import { homeDir as osHomeDir } from "@tauri-apps/api/path";
 import { ipc } from "./ipc";
 import type { AdeCliStatusDto, AgentAccountDto, AgentArbitrageDto, AgentDto, CatalogEntryStatus, DesktopChangedEvent, DomainChangesPageDto, FleetRunDto, HitlDto, PreparedContentChunkDto, PreparedRunManifest, ProviderStatusDto, RoutingDisplaySummary, RunApplyManifest, RunDto, RunReviewDto, StructuralGraphDto } from "./types";
 import type { FlowDraftInput, FlowDraftRecord, FlowPlan, SplitDraft, ProposedHostedAdvisorPacketPreview, ReviewedDemandFacts, ReviewedHostedAdvisorPacketPreview, RoutingHostedGrantStatus, RoutedAdvisorConsentStatus, RoutedAdvisorPacketPreview, VoiceProgressEvent, VoiceSessionDto } from "./types";
@@ -103,6 +104,8 @@ export interface DesktopBackend {
   fleetRunNodes(fleetRunId: string): Promise<import("./types").FleetNodeDto[]>;
   /** Last error the worker printed, as one advisory sentence; null when none. */
   agentFailureHint(runId: string, agentId: string, domainId: string): Promise<string | null>;
+  /** The user's home folder, for display only; null when unknown. */
+  homeDir(): Promise<string | null>;
   runReview(runId: string, domainId: string | null): Promise<RunReviewDto>;
   routingRunSummary(runId: string, domainId: string): Promise<RoutingDisplaySummary | null>;
   runReviewContent(runId: string, path: string, side: "before" | "after", offset: number, limit: number, domainId: string | null): Promise<PreparedContentChunkDto>;
@@ -245,6 +248,7 @@ class TauriDesktopBackend implements DesktopBackend {
   async agentOutputTails(requests: import("./types").AgentTailRequest[], lines: number) { return ipc.agentOutputTails(requests, lines); }
   async fleetRunNodes(fleetRunId: string) { return ipc.fleetRunStatus(fleetRunId); }
   async agentFailureHint(runId: string, agentId: string, domainId: string) { return ipc.agentFailureHint(runId, agentId, domainId); }
+  async homeDir() { try { return await osHomeDir(); } catch { return null; } }
   async runReview(runId: string, domainId: string | null) { return ipc.runReview(runId, domainId); }
   async routingRunSummary(runId: string, domainId: string) { return ipc.routingRunSummary(runId, domainId); }
   async runReviewContent(runId: string, path: string, side: "before" | "after", offset: number, limit: number, domainId: string | null) { return ipc.runReviewContent(runId, path, side, offset, limit, domainId); }

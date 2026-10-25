@@ -469,6 +469,18 @@ const previewCompletedAgents = [
   { id: "run-71ad:agent-1", domain_id: "signal-lab", run_id: "run-71ad", task_id: "contract-tests", wave: 1, status: "completed", exit_code: 0, root_id: null },
 ];
 
+/** Where each run of the `land` wall fixture settles; `working` keeps working. */
+const LAND_STATES: Record<string, { status: string; apply_status: string; error?: [string, string] }> = {
+  working: { status: "running", apply_status: "pending" },
+  checking: { status: "completed", apply_status: "preparing" },
+  ready: { status: "completed", apply_status: "ready" },
+  "check-failed": { status: "completed", apply_status: "review_failed", error: ["candidate_check_failed", "task-1: npm test failed on the combined change"] },
+  empty: { status: "completed", apply_status: "ready" },
+  stale: { status: "completed", apply_status: "stale" },
+  failed: { status: "failed", apply_status: "review_failed", error: ["review_preparation_failed", "task-2 exited 1, so its change was not collected"] },
+  applied: { status: "completed", apply_status: "applied" },
+};
+
 export class PreviewDesktopBackend implements DesktopBackend {
   private readonly snapshot = structuredClone(previewSnapshot);
   // Browser preview fixture only; the native app probes each vendor CLI.
@@ -485,6 +497,8 @@ export class PreviewDesktopBackend implements DesktopBackend {
   private readonly changes: DomainChangeDto[] = [];
   private readonly recoveredRuns = new Set<string>();
   private wallFleetNodes: FleetNodeDto[] = [];
+  /** When the `land` wall fixture's runs settle; 0 once they have. */
+  private landSettleAt = 0;
   private shadowConsent: RoutedAdvisorConsentStatus = { domain_id: "signal-lab", revision: 0, enabled: false, current_scope: false, recipient_identity: "pytxo-local-advisor-fixture/no-network/v1", updated_at_ms: 0 };
   private readonly shadowConsentStorageKey = "pytxo-preview-shadow-grant-state-v1";
   private sequence = 0;
@@ -584,6 +598,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
    * Illustrative, not recorded runs.
    */
   private addWallFixture(size: string) {
+    if (size === "land") return this.addLandFixture();
     const mixed = size === "1";
     const total = mixed ? 20 : Math.max(1, Math.min(256, Number(size) || 20));
     if (!mixed) this.snapshot.runs[0].status = "completed";
@@ -601,6 +616,49 @@ export class PreviewDesktopBackend implements DesktopBackend {
       this.wallFleetNodes.push({ node_id: `fw${workspace + 1}`, domain_id: repo, domain_run_id: run.id, wave: 0, status: "running" });
     }
     this.snapshot.fleets.push({ id: "fleet-run-preview", fleet_id: "wall-preview", started_at: new Date(started).toISOString(), finished_at: null, status: "running" });
+  }
+
+  /**
+   * Browser fixture for the wall's landing states (`pytxo-preview-wall-v1` =
+   * "land"): a two-agent run in each of eight workspaces, all working until
+   * about two seconds after load, when every run but `working` settles into the
+   * review state its workspace is named for. Illustrative, not recorded runs.
+   */
+  private addLandFixture() {
+    this.snapshot.runs[0].status = "completed";
+    const started = Date.now() - 95_000;
+    this.landSettleAt = Date.now() + 2_000;
+    const clis = [{ id: "claude", display_name: "Claude Code" }, { id: "codex", display_name: "OpenAI Codex" }];
+    Object.keys(LAND_STATES).forEach((state, workspace) => {
+      const repo = `C:/Users/preview/fw/${state}`;
+      const run = { ...this.snapshot.runs[1], id: `land-run-${state}`, domain_id: repo, repo_root: repo, status: "running", apply_status: "pending", prepared_digest: null, prepared_at: null, applied_at: null, last_apply_error: null, recovery_state: null, started_at: new Date(started + workspace * 4_000).toISOString() };
+      this.snapshot.domains.push({ ...this.snapshot.domains[1], domain_id: repo, repo_root: repo, active_runs: 1, latest_run_status: "running", hitl_pending: 0 });
+      this.snapshot.runs.push(run);
+      for (let index = 0; index < 2; index += 1) {
+        this.snapshot.agents.push({ id: `${run.id}:agent-${index}`, domain_id: repo, run_id: run.id, task_id: `task-${index + 1}`, wave: 0, status: "running", exit_code: null, root_id: null, launcher: clis[(workspace + index) % 2] });
+      }
+    });
+  }
+
+  /** Settles the `land` fixture once, announced like the native change feed. */
+  private advanceLandFixture() {
+    if (!this.landSettleAt || Date.now() < this.landSettleAt) return;
+    this.landSettleAt = 0;
+    for (const run of this.snapshot.runs.filter((item) => item.id.startsWith("land-run-"))) {
+      const settled = LAND_STATES[run.id.slice("land-run-".length)];
+      if (!settled || settled.status === "running") continue;
+      Object.assign(run, {
+        status: settled.status,
+        apply_status: settled.apply_status,
+        prepared_digest: settled.apply_status === "review_failed" || settled.apply_status === "preparing" ? null : `pkg-${run.id}`,
+        applied_at: settled.apply_status === "applied" ? new Date().toISOString() : null,
+        last_apply_error: settled.error ? { at: new Date().toISOString(), code: settled.error[0], message: settled.error[1], attempt_id: null, rollback_confirmed: false } : null,
+      });
+      this.snapshot.agents = this.snapshot.agents.map((agent) => agent.run_id !== run.id ? agent
+        : settled.status === "failed" && agent.task_id === "task-2" ? { ...agent, status: "failed", exit_code: 1 } : { ...agent, status: "completed", exit_code: 0 });
+      this.emitChange(run.domain_id, "agent", run.id);
+      this.emitChange(run.domain_id, "contract", run.id);
+    }
   }
 
   private fleetAgentRows(run: { id: string; domain_id: string }) {
@@ -683,6 +741,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
 
   async loadSnapshot(opts: { includeAgents?: boolean } = {}) {
     this.advanceFleetScript();
+    this.advanceLandFixture();
     if (localStorage.getItem("pytxo-preview-observe-polls-v1") === "1") {
       const reads = Number(localStorage.getItem("pytxo-preview-snapshot-reads-v1") ?? "0");
       localStorage.setItem("pytxo-preview-snapshot-reads-v1", String(reads + 1));
@@ -1006,9 +1065,10 @@ export class PreviewDesktopBackend implements DesktopBackend {
       const reads = Number(localStorage.getItem("pytxo-preview-agent-event-reads-v1") ?? "0");
       localStorage.setItem("pytxo-preview-agent-event-reads-v1", String(reads + 1));
     }
-    if (runId.startsWith("wall-run-")) {
+    if (runId.startsWith("wall-run-") || runId.startsWith("land-run-")) {
       const start = Date.parse(this.snapshot.runs.find(run => run.id === runId && run.domain_id === domainId)?.started_at ?? "") || Date.now();
-      return ["reading the workspace", "writing its change", "running its checks"]
+      const change = runId.startsWith("land-run-") ? `writing ${domainId.replaceAll("/", "\\")}\\src\\${agent.task_id}.ts` : "writing its change";
+      return ["reading the workspace", change, "running its checks"]
         .map((step, index) => ({ id: index + 1, agent_id: agentId, kind: "stdout", payload: `Browser fixture: ${agent.task_id} ${step}`, ts: new Date(start + 2_000 + index * 9_000).toISOString() }))
         .filter(e => e.id > after).slice(0, limit);
     }
@@ -1091,6 +1151,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
     }
     return agents;
   }
+  async homeDir() { return "C:\\Users\\preview"; }
   async runReview(runId: string): Promise<RunReviewDto> {
     if (localStorage.getItem("pytxo-preview-delayed-plan-v1") === "1") {
       await new Promise(resolve => setTimeout(resolve, 1200));
@@ -1120,7 +1181,12 @@ export class PreviewDesktopBackend implements DesktopBackend {
       warnings: [],
     };
     const fleet = localStorage.getItem("pytxo-preview-fleet-v1") === "1" && runId === this.snapshot.runs[0]?.id;
-    const plan = fleet ? fleetPlan : denseTopology ? densePlan : isSignalRun
+    const land = runId.startsWith("land-run-");
+    const landPlan: RunReviewDto["plan"] = {
+      waves: [["task-1", "task-2"].map((task_id) => ({ task_id, agent: "codex", paths: [`src/${task_id}.ts`], depends_on: [], wave: 0, root: null, verify: ["npm test"] }))],
+      warnings: [],
+    };
+    const plan = fleet ? fleetPlan : land ? landPlan : denseTopology ? densePlan : isSignalRun
       ? {
           waves: [
             [{
@@ -1311,6 +1377,18 @@ export class PreviewDesktopBackend implements DesktopBackend {
           enforcement: {},
         }],
       };
+    }
+    if (land) {
+      // Every land fixture package passed its combined check; `empty` changed nothing.
+      preparedManifest.version = 3;
+      preparedManifest.candidate_verification = {
+        version: 1, verified_at: "2026-10-23T09:00:00Z", base_inventory: [], candidate_inventory: [], exclusions: [".git", "node_modules"],
+        checks: [{ task_id: "task-1", command: "npm test", effective_profile: "orbit", passed: true, enforcement: {} }],
+      };
+      if (runId === "land-run-empty") {
+        preparedManifest.files = [];
+        preparedManifest.summary = { added: 0, modified: 0, deleted: 0, bytes: 0 };
+      }
     }
     const recovered = requested === "recovered" || this.recoveredRuns.has(runId)
       || runId === "run-8f2c" && localStorage.getItem("pytxo-preview-legacy-retry-v1") === "1" && localStorage.getItem("pytxo-preview-newer-apply-error-v1") !== "1";
@@ -1523,6 +1601,7 @@ export class PreviewDesktopBackend implements DesktopBackend {
   }
   async domainChanges(_domainId: string, cursor: number, limit = 200) {
     this.advanceFleetScript();
+    this.advanceLandFixture();
     if (cursor > this.sequence) {
       return {
         changes: [],
