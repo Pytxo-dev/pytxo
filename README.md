@@ -12,16 +12,38 @@ Antigravity experimental), or bring branches from any agent tool with
 exactly what will land, refuses if anything moved, and leaves a receipt.
 Many agents, one verified change.
 
+![pytxo land on two branches that each pass their tests alone: the combined change fails twice and the decision is BLOCKED](docs/_attachments/pytxo-land-blocked.gif)
+
+<sub>Recorded with pytxo 1.3.5 from npm on the sample repository from Pybench's
+rename scenario: one branch renames `price()`, the other adds a caller of
+`price()`. The branches come from Pybench, not from an agent run. The GIF cuts
+the 3 s wait before the output to 1 s; the
+[asciinema recording](docs/_attachments/pytxo-land-blocked.cast) keeps the real
+timing.</sub>
+
 ```bash
-pytxo land codex:agent/a claude:agent/b --check "npm test" --per-input   # shadow: changes nothing
-pytxo land codex:agent/a claude:agent/b --check "npm test" --apply       # land if ready
-pytxo bench                                                             # Pybench
+npm i -g pytxo
+pytxo land codex:agent/a claude:agent/b --check "npm test" --per-input   # shadow mode: changes nothing
 ```
 
-The wider product direction is a commit layer for autonomous work: effect-bound
-authority, independent post-state verification, causal evidence, and honest
-recovery across production systems. That production-effect gateway is a north
-star, not a shipping claim.
+Pass your agents' branches as `label:branch` (the label is only a name) and
+your own test command. Checks run in a fresh worktree where nothing is
+installed, so a Node project installs in the check:
+`--check "npm ci && npm test"`. `--per-input` also runs the check on each
+branch alone, so a failure that only shows up in the combination is reported as
+one, and when only the combination fails it runs once more to rule out a flaky
+test. Add `--apply` to land a ready result. `pytxo land` calls no model and
+sends nothing; receipts stay in `.git/pytxo/receipts`.
+
+**Limits**
+
+- It catches what your checks catch. A break your tests don't cover can still
+  land, and merge conflicts are reported and blocked, not resolved.
+- Pybench (`pytxo bench`) runs on synthetic repositories. It shows the
+  mechanism, not how often this happens in real projects.
+- The CLI ships for macOS, Linux and Windows. Pytxo Desktop is Windows x64 only.
+- Receipts use the in-toto statement format but are not signed. This is a
+  public beta.
 
 - **Site:** [pytxo.com](https://pytxo.com)
 - **Docs:** [pytxo.com/docs](https://pytxo.com/docs)
@@ -58,6 +80,11 @@ Today, one successful Orbit or Galaxy mission can become an immutable review
 package for one repository root. Apply uses the stored target bytes, validates
 affected-path preimages, and journals recovery. This repository boundary is the
 first concrete version of the broader commit-layer contract.
+
+The wider product direction is a commit layer for autonomous work: effect-bound
+authority, independent post-state verification, causal evidence, and honest
+recovery across production systems. That production-effect gateway is a north
+star, not a shipping claim.
 
 | Moat | Role |
 |------|------|
