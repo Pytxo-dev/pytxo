@@ -3,12 +3,13 @@ title: Changelog
 description: Public binary versions and where to find release notes.
 ---
 
-This source candidate targets **1.3.5**, which is also the latest public GitHub and npm release (the public beta).
+This source candidate targets **1.3.6**. The latest public GitHub and npm release is **1.3.5** (the public beta).
 
 Release notes and installers live on [GitHub Releases](https://github.com/Pytxo-dev/pytxo-releases/releases). Desktop and CLI ship from that distribution repo, not from a docs-only changelog.
 
 | Version | Notes |
 |---------|--------|
+| 1.3.6 | Desktop **Work → Wall** shows every agent of every workspace on one screen, and a finished agent's tile fills only once its run is Ready to Apply or Applied; agents in a git worktree get the primary checkout's exact bytes, so an agent that edited nothing is no longer rejected under `core.autocrlf`; Windows copy-layer workspaces no longer copy `.pytxo` state, which could fail runs before any check; check output Git ignores, such as `__pycache__`, no longer blocks Review; Apply receipts record each combined check's exit code and time; logs redact forward-slash and macOS home paths and the running user's home when its name has a space; `pytxo land` drops its install hint when the check passed on an input alone |
 | 1.3.5 | `pytxo land --per-input` runs a combined check again when every branch passed it alone but the combination failed, blames the combination only if it fails twice, and calls the check flaky (still blocked) when the second run passes; the receipt records both runs. Desktop **Work** can pick which Claude Code or Codex account one run uses, and Review shows it on each task |
 | 1.3.4 | Security patch: HTTPS certificate checks in the CLI, MCP server and Desktop reject the distrusted emSign intermediates (rustls-webpki 0.103.16 and webpki-roots 1.0.10 for RUSTSEC-2026-0381, 0382 and 0383); no other changes |
 | 1.3.3 | Several sign-ins per agent CLI: [`pytxo accounts`](/docs/reference/cli#pytxo-accounts) and Desktop **Setup → Agent CLIs** keep more than one Claude Code or Codex account, and new work uses the one you pick; a worker that exits 0 after printing a CLI error and changing nothing now fails instead of passing; logs redact Anthropic keys, JWTs and JSON token fields, and Windows profile paths are redacted in full |
