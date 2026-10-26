@@ -6,7 +6,7 @@ export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
  * "current release" copy must use this — never the unpublished workspace
  * candidate.
  */
-export const PUBLISHED_VERSION = "1.3.5";
+export const PUBLISHED_VERSION = "1.3.6";
 /** In-repo / changelog candidate. Not for public download URLs. */
 export const CANDIDATE_VERSION = "1.3.6";
 /** Alias for published tag used by download UI. */
