@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { FleetRun } from "@/components/site/fleet-run";
 
 const STEPS = [
   {
@@ -34,11 +35,13 @@ export function HowItWorks() {
             <p className="mt-5 max-w-[44ch] text-base leading-relaxed text-[#b4b4bd]">{step.body}</p>
           </div>
           <div className="overflow-hidden rounded-lg border border-white/10 bg-[#09090b]">
-            <Image src={`/product/${step.image}-1600x1000.png`} alt={step.alt} width={1600} height={1000} sizes="(min-width: 1024px) 60vw, 100vw" className="h-auto w-full" />
+            {step.image === "fleet"
+              ? <FleetRun alt={step.alt} />
+              : <Image src={`/product/${step.image}-1600x1000.png`} alt={step.alt} width={1600} height={1000} sizes="(min-width: 1024px) 60vw, 100vw" className="h-auto w-full" />}
           </div>
         </li>)}
       </ol>
-      <p className="mt-12 text-sm text-[#8d8d96]">Screens are captures of Pytxo Desktop with sample data. <Link className="aperture-link text-[#c4c4cc]" href="/docs/evidence">Evidence</Link> records real runs and their limits.</p>
+      <p className="mt-12 text-sm text-[#8d8d96]">Screens are captures of Pytxo Desktop with sample data. Step 02 plays a sample run; real runs take minutes. <Link className="aperture-link text-[#c4c4cc]" href="/docs/evidence">Evidence</Link> records real runs and their limits.</p>
     </div>
   </section>;
 }

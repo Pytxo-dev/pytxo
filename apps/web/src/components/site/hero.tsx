@@ -1,51 +1,49 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { AsciiAperture } from "@/components/site/ascii-art";
-import { HeroFleet } from "@/components/site/hero-fleet";
+import { InstallSnippet } from "@/components/site/install-snippet";
+import { NPM_INSTALL, SOURCE_URL } from "@/lib/site";
+import capture from "../../../public/evidence/land-blocked-1.3.5-2026-10-25.json";
 
-// Each mark sits beside its full product name and implies no partnership.
-// "beta" agents run, but have not completed a live end-to-end run on a release.
-const AGENTS = [
-  { name: "Codex", mark: "/brands/openai-on-dark.svg" },
-  { name: "Claude Code", mask: "/brands/anthropic.svg" },
-  { name: "Cursor Agent", mark: "/brands/cursor-on-dark.svg" },
-  { name: "OpenCode", mark: "/brands/opencode.svg", beta: true },
-  { name: "Antigravity", mark: "/brands/antigravity.png", beta: true },
-] as const;
+// Exact output of the published 1.3.5 CLI, recorded on Pybench's
+// rename-vs-new-caller repository; the record holds the receipt as well.
+const CAPTURE_URL = "/evidence/land-blocked-1.3.5-2026-10-25.json";
+const failed = (line: string) => line.startsWith("!") || line.startsWith("decision") || line.includes("FAIL");
 
 export function Hero() {
-  return <section className="relative overflow-hidden border-b border-white/10" data-testid="marketing-hero">
-    <AsciiAperture className="pointer-events-none absolute inset-x-0 top-0 h-[min(860px,100svh)] w-full opacity-80 [mask-image:radial-gradient(ellipse_70%_75%_at_50%_45%,#000_35%,transparent_80%)]" />
-    <div className="relative mx-auto max-w-[92rem] px-4 pb-14 pt-16 sm:px-6 lg:px-10 lg:pt-24">
-      <div className="mx-auto max-w-[84rem] text-center">
-        <p className="text-sm font-medium tracking-[0.01em] text-[#aaaab3]">The landing layer for coding agents</p>
-        <h1 className="mt-5 text-[clamp(2.75rem,7.4vw,6.75rem)] font-semibold leading-[1.02] tracking-[-0.045em]">
-          Many agents.<br /><span className="chroma-text">One verified change.</span>
-        </h1>
-        <p className="mx-auto mt-7 max-w-[60ch] text-lg leading-relaxed text-[#c4c4cc] sm:text-xl">Split a job across the coding agents you already use, or bring branches from any agent tool. Pytxo checks the combined change, shows exactly what will land, and refuses if anything moved.</p>
-        <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
-          <Button size="lg" className="h-12 rounded-[6px] bg-white px-7 text-base text-black hover:bg-white/85" asChild><Link href="/download">Download for Windows</Link></Button>
-          <Link href="#land" className="aperture-link text-base text-[#c4c4cc]">Land branches from the CLI ↓</Link>
+  return <section className="border-b border-white/10" data-testid="marketing-hero">
+    <div className="mx-auto max-w-[92rem] px-4 pb-16 pt-12 sm:px-6 lg:px-10 lg:pb-20 lg:pt-16">
+      <p className="text-sm font-medium text-[#aaaab3]">The landing layer for coding agents</p>
+      <h1 className="mt-4 max-w-[30ch] text-balance text-[clamp(2.125rem,4.2vw,3.75rem)] font-semibold leading-[1.08] tracking-[-0.035em]">
+        <code className="font-mono text-[0.88em] font-medium tracking-[-0.05em] [word-spacing:-0.3em]">pytxo land</code> refuses agent branches that pass alone but fail together.
+      </h1>
+
+      <div className="mt-10 grid gap-10 xl:grid-cols-[minmax(0,1fr)_22rem] xl:gap-14">
+        <figure className="min-w-0" data-testid="hero-capture">
+          <div className="relative rounded-md border border-white/15 p-2 pt-4">
+            <span className="absolute -top-2.5 left-4 bg-background px-2 font-mono text-xs text-[#7d7d87]"><b className="font-semibold uppercase tracking-[0.12em] text-[#f5f5f7]">terminal</b> · pytxo {capture.receipt.predicate.pytxo_version}</span>
+            <pre className="overflow-x-auto rounded-[4px] bg-[#09090b] p-4 font-mono text-[11px] leading-[1.65] text-[#c7c7ce] sm:p-5 sm:text-[12.5px]" tabIndex={0} aria-label="Recorded output of pytxo land">
+              <span className="text-[#8d8d96]">$ </span><span className="text-[#f5f5f7]">{capture.command}</span>{"\n"}{capture.output.trimEnd().split("\n").map((line, i) => <span key={i} className={failed(line) ? "text-[#ff9b8a]" : undefined}>{line}{"\n"}</span>)}
+            </pre>
+          </div>
+          <figcaption className="mt-3 max-w-[80ch] px-1 text-sm leading-relaxed text-[#8d8d96]">
+            Recorded on 25 October 2026 with the published 1.3.5 CLI, on a sample repository from Pybench. One branch renames <code className="font-mono text-[0.92em]">price()</code> to <code className="font-mono text-[0.92em]">unitPrice()</code>; the other adds code that calls <code className="font-mono text-[0.92em]">price()</code>. Each passes the test on its own. Together the test fails, and fails again when pytxo reruns it, so nothing lands. <a className="aperture-link text-[#c4c4cc]" href={CAPTURE_URL}>Raw output and receipt</a>
+          </figcaption>
+        </figure>
+
+        <div className="min-w-0 max-w-[40rem]">
+          <p className="text-lg leading-relaxed text-[#c4c4cc]">Give it the branches your agents left, from Claude Code, Codex or any other tool, and the command that tests your project. It merges them in a separate worktree and runs that command on the result. Your branch moves only when the result passes and you add <code className="whitespace-nowrap font-mono text-[0.9em] text-[#e4e4ea]">--apply</code>.</p>
+          <InstallSnippet className="mt-8" copyLabel="Copy the npm install command">{NPM_INSTALL}</InstallSnippet>
+          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-4">
+            <Button size="lg" className="h-11 gap-2 rounded-[6px] bg-white px-5 text-base text-black hover:bg-white/85" asChild>
+              <a href={SOURCE_URL}><span aria-hidden className="size-[18px] bg-current [mask:url(/brands/github.svg)_center/contain_no-repeat]" />Source on GitHub</a>
+            </Button>
+            <Link href="/download" className="aperture-link text-base text-[#c4c4cc]">Download for Windows</Link>
+          </div>
+          <p className="mt-8 max-w-[46ch] text-sm leading-relaxed text-[#8d8d96]">
+            I&apos;m Matt (<a className="aperture-link text-[#c4c4cc]" href="https://github.com/mattbaconz">mattbaconz</a> on GitHub), and I build Pytxo on my own. I gave Claude Code and Codex two tasks on <Link className="aperture-link text-[#c4c4cc]" href="/docs/getting-started/first-landing#3-if-the-decision-is-blocked">lukeed/mri</Link> that collide on one helper; both branches passed alone and failed together.
+          </p>
         </div>
       </div>
-
-      <ul className="mx-auto mt-10 flex max-w-5xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-base text-[#d4d4da]" aria-label="Agent CLIs Pytxo runs">
-        <li className="text-[#aaaab3]">With the CLIs you already pay for</li>
-        {AGENTS.map((agent) => <li key={agent.name} className="flex items-center gap-2">
-          {"mark" in agent && <Image src={agent.mark} alt="" width={20} height={20} className="h-5 w-5 object-contain" />}
-          {"mask" in agent && <span aria-hidden className="h-5 w-5 bg-current" style={{ mask: `url(${agent.mask}) center / contain no-repeat` }} />}
-          {agent.name}
-          {"beta" in agent && <span className="rounded-[3px] border border-white/15 px-1 font-mono text-[10px] uppercase tracking-[0.08em] text-[#8d8d96]">beta</span>}
-        </li>)}
-      </ul>
-
-      <figure className="mx-auto mt-12 max-w-[78rem]" data-testid="hero-fleet">
-        <div className="overflow-hidden rounded-xl border border-white/10 shadow-[0_40px_120px_-40px_rgba(62,224,208,0.25)]">
-          <HeroFleet alt="Pytxo Work view of one request split across agents: a fleet monitor with an ASCII scope and activity lines, Codex, Claude Code, Cursor Agent and OpenCode working in parallel, a second Codex task waiting on a file Claude Code owns, and Antigravity queued for the README" />
-        </div>
-        <figcaption className="mt-3 text-center text-sm text-[#aaaab3]">One request, five agents, each in its own copy of the project. A task that shares a file waits for the agent that owns it; the combined change is checked, reviewed and applied. Pytxo Desktop playing a sample run; real runs take minutes.</figcaption>
-      </figure>
     </div>
   </section>;
 }
