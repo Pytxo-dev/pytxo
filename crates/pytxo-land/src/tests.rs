@@ -388,6 +388,33 @@ fn a_check_that_fails_everywhere_points_at_the_check() {
 }
 
 #[test]
+fn a_check_that_passes_alone_gets_no_install_hint() {
+    // Show HN prep: `--check "npm test" --per-input` on a dependency-free npm
+    // project passed on both inputs and failed twice on the combination, yet
+    // the output still blamed missing dependencies.
+    let dir = repo();
+    let d = dir.path();
+    npm_project(d);
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.checks = vec![combined_only_failure(None)];
+
+    // With no solo runs nothing shows the set-up works, so the hint stays.
+    let out = land(&o).unwrap();
+    let said = out.insights.join("\n");
+    assert!(said.contains("dependencies are not installed"), "{said}");
+
+    // The solo passes prove it does, so only the combination is blamed.
+    o.per_input = true;
+    let out = land(&o).unwrap();
+    assert_eq!(
+        out.insights,
+        ["Every input passed its checks alone. The combined change failed both times it ran."]
+    );
+}
+
+#[test]
 fn without_checks_the_project_test_command_is_suggested_not_run() {
     let dir = repo();
     let d = dir.path();
