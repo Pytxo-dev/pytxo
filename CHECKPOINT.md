@@ -1,3 +1,69 @@
+# CHECKPOINT — Pytxo — 2026-10-27 (1.3.6 released and docs live)
+
+## Branch / commit
+- PR #83 (`release: prepare 1.3.6`) rebase-merged as `e6675b5` on top of
+  `a052050` (PR #82). Tag `v1.3.6` there; release run 40360129514 started by
+  the tag push.
+- Docs flip `a0c17f7` pushed to main on top; this checkpoint on top.
+
+## Completed
+- 1.3.6 contents since v1.3.5: #69 and #70 (Desktop Work → Wall shows every
+  agent across workspaces; a finished tile fills only once its run is Ready
+  to Apply or Applied; Present; a failed combined check is recorded as
+  `candidate_check_failed`), #76 and #79 (git worktree workspaces take the
+  primary checkout's bytes), #73 (`.pytxo` kept out of Windows copy-layer
+  workspaces), #75 (ignored check output no longer blocks Review), #74 (Apply
+  receipts carry each check's exit code and time), #71 and #72 (home path
+  redaction), #82 (`pytxo land` install hint only when no solo run passed).
+  #77, #78 and #81 are site-only; #80 and `1ca7598` docs-only. Release notes
+  `distribution/release-notes/v1.3.6.md`; changelog row.
+- Release run green (20 jobs; its gate ran the full CI, macOS and
+  desktop-tauri included). `pytxo-releases` v1.3.6 published 17:27 UTC on
+  2026-10-26 with the same 10 assets as v1.3.5; `SHA256SUMS.txt` and
+  `DESKTOP_SHA256SUMS.txt` match GitHub's asset digests, and `latest.json`
+  points the updater at the 1.3.6 MSI. `npm view pytxo version` and the
+  `latest` tag show 1.3.6. Clean `npm i -g` (npm 11.18) and `--ignore-scripts`
+  installs into scratch prefixes both print `pytxo 1.3.6`; the second
+  downloaded the binary on first run and checked it against `SHA256SUMS.txt`.
+- Docs flipped as for 1.3.5 (README, install including the `--allow-scripts`
+  pin, docs index, changelog line, CLI reference, land-in-ci
+  `actions/land@v1.3.6`, `PUBLISHED_VERSION`); verify-release-version 1.3.6
+  passes before and after. Vercel's git integration deployed `a0c17f7`;
+  pytxo.com home, install, docs, changelog, CLI, land-in-ci and download pages
+  serve 1.3.6.
+- The README GIF/cast and the homepage capture, recorded on 1.3.5, never
+  showed the install hint #82 removed, and 1.3.6 prints the same output for
+  that scenario, so no re-record. Both still say they were recorded with
+  1.3.5, which is accurate.
+
+## Not done
+- Local Rust build and tests skipped (about 1.5 GB free); PR #83 CI and the
+  release gate ran fmt, clippy, workspace tests and `cargo audit`.
+- The 1.3.6 MSI was not installed or opened here.
+- GitHub's push banner reports 123 Dependabot alerts on main (8 critical);
+  not triaged here.
+- Carried: the skipped "Deploy web" workflow (Vercel's git integration
+  deploys main); Matt-only launch posts; `pytxo receipts share` blocked on
+  `pytxo login`.
+
+## Tests last run
+- `node tooling/scripts/verify-release-version.mjs 1.3.6` passes (candidate
+  and published 1.3.6); verifier tests 11/11.
+- PR #83 CI green (`ci-ok`: rust ubuntu and windows, web, desktop-frontend;
+  desktop-tauri skipped by the path filter). Main CI green on `a052050` and
+  `e6675b5`. Release run 40360129514 every job success.
+- Main CI on `a0c17f7` (run 40369246609) failed once in desktop-frontend: the
+  `@performance` dense-canvas Playwright test saw one 52 ms long task (limit
+  50) at page start, before any gesture. The flip changed no desktop file;
+  the rerun of the failed jobs passed. Timing flake on the shared runner.
+
+## Next prompt (paste below)
+```txt
+Pytxo after 1.3.6. Read AGENTS.md and the latest CHECKPOINT.md entry. 1.3.6
+is released and the docs are live. Continue the Show HN launch prep for
+`pytxo land`.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-22 (1.3.5 released and docs live)
 
 ## Branch / commit
