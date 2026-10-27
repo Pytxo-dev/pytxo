@@ -416,6 +416,7 @@ test("@performance dense canvas gestures and successive selections avoid browser
     const matrix = new DOMMatrixReadOnly((element as HTMLElement).style.transform);
     return { x: matrix.m41, y: matrix.m42, scale: matrix.a };
   });
+  await expect(map.locator(".task-node")).toHaveCount(24);
   const panStart = await viewport.evaluate(element => {
     const bounds = element.getBoundingClientRect();
     for (const [x, y] of [
@@ -429,6 +430,13 @@ test("@performance dense canvas gestures and successive selections avoid browser
     }
     throw new Error("No unobstructed canvas background point for the pan gesture");
   });
+  // Startup rendering is not what this measures. Count only long tasks that
+  // start after the dense map has painted, right before the first gesture.
+  const gesturesStart = await page.evaluate(() => new Promise<number>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
+    const time = performance.now();
+    (window as any).__pytxoPerformanceMarks.push({ label: "gestures-start", time });
+    resolve(time);
+  }))));
   await page.mouse.move(panStart.x, panStart.y);
   await page.mouse.down();
   await expect(viewport).toHaveClass(/\bpanning\b/);
@@ -452,7 +460,7 @@ test("@performance dense canvas gestures and successive selections avoid browser
       marks: (window as any).__pytxoPerformanceMarks as { label: string; time: number }[],
     };
   });
-  expect(performance.longTasks.filter(entry => entry.duration > 50), JSON.stringify(performance, null, 2)).toEqual([]);
+  expect(performance.longTasks.filter(entry => entry.duration > 50 && entry.startTime >= gesturesStart), JSON.stringify(performance, null, 2)).toEqual([]);
   expect(Number(await page.evaluate(() => localStorage.getItem("pytxo-preview-review-reads-v1") ?? "0"))).toBe(1);
 });
 
