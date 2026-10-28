@@ -246,8 +246,9 @@ fn hook_reply(
         },
     );
     // Room to stop the tests, remove the worktree and answer before the
-    // agent tool kills the hook: a minute, or half of a short timeout.
-    opts.deadline = Some(started + timeout - Duration::from_secs(60).min(timeout / 2));
+    // agent tool kills the hook: a minute, or half of a short timeout. A
+    // timeout past what the clock can count means no deadline.
+    opts.deadline = started.checked_add(timeout - Duration::from_secs(60).min(timeout / 2));
     let outcome = land(&opts)?;
     let _ = std::fs::write(&memo, &fingerprint);
     if outcome.out_of_time {

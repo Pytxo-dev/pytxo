@@ -279,7 +279,10 @@ fn hook_block_turns_blocked_into_a_block_decision() {
     let dir = repo(&["claude/a", "codex/b"]);
     let d = dir.path();
     git(d, &["config", "pytxo.check", "exit 1"]);
-    let v = hook_reply(&pytxo(d, &["hook", "--block"], Some(&stop_event(d))));
+    // A timeout no clock can count is no deadline, not a crash.
+    let forever = u64::MAX.to_string();
+    let args = ["hook", "--block", "--timeout", &forever];
+    let v = hook_reply(&pytxo(d, &args, Some(&stop_event(d))));
     assert_eq!(v["decision"], "block", "{v}");
     let reason = v["reason"].as_str().unwrap();
     assert!(reason.contains("\nBLOCKED  "), "{reason}");
