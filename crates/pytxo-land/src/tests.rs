@@ -788,8 +788,12 @@ fn markdown_advice_fits_a_pull_request() {
 fn test_output_shows_only_as_code_in_markdown() {
     let dir = repo();
     let d = dir.path();
+    let token = format!("ghp_{}", "x7".repeat(18));
     let line = "Error: login failed for @octocat at https://evil.example <b>x</b> ```x";
-    branch(d, "main", "agent/a", &[("out.txt", &format!("{line}\n"))]);
+    let printed = format!("{line} {token}\n");
+    // The token is masked once, where the output is captured.
+    let line = &format!("{line} [REDACTED]");
+    branch(d, "main", "agent/a", &[("out.txt", &printed)]);
     let mut o = opts(d, &["agent/a"]);
     #[cfg(windows)]
     let check = "type out.txt & exit 1";
@@ -808,6 +812,7 @@ fn test_output_shows_only_as_code_in_markdown() {
     );
     assert!(md.contains(&format!("\n````\n{line}\n````\n")), "{md}");
     assert_eq!(md.matches("@octocat").count(), 2, "{md}");
-    // Plain output is unchanged.
+    assert!(!md.contains(&token), "{md}");
+    // Plain output shows the same line, not as code.
     assert!(verdict(&out, "again").why.ends_with(&format!(": {line}")));
 }

@@ -228,6 +228,8 @@ fn kill_tree(child: &mut std::process::Child) {
     let _ = child.wait();
 }
 
+/// The output's last lines, credentials masked: receipts, `--json`, hook
+/// replies and pull-request comments all show these lines.
 fn read_tail(path: &Path) -> Vec<String> {
     let mut bytes = Vec::new();
     if File::open(path)
@@ -240,8 +242,95 @@ fn read_tail(path: &Path) -> Vec<String> {
     let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
     lines[lines.len().saturating_sub(TAIL_LINES)..]
         .iter()
-        .map(|l| l.chars().take(400).collect())
+        .map(|l| redact(l).chars().take(400).collect())
         .collect()
+}
+
+const REDACTED: &str = "[REDACTED]";
+
+/// Letters, digits, `_` and `-`.
+fn key_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_' || c == '-'
+}
+
+fn aws_char(c: char) -> bool {
+    c.is_ascii_uppercase() || c.is_ascii_digit()
+}
+
+/// Credential prefixes, the least length of the rest and its characters, after
+/// pytxo-core's cloud upload patterns: GitHub, OpenAI and Anthropic, Stripe,
+/// Slack, Google and AWS keys.
+const KEYS: [(&str, usize, fn(char) -> bool); 16] = [
+    ("ghp_", 20, key_char),
+    ("gho_", 20, key_char),
+    ("ghu_", 20, key_char),
+    ("ghs_", 20, key_char),
+    ("ghr_", 20, key_char),
+    ("github_pat_", 20, key_char),
+    ("sk-", 20, key_char),
+    ("sk_live_", 16, key_char),
+    ("xoxa-", 16, key_char),
+    ("xoxb-", 16, key_char),
+    ("xoxp-", 16, key_char),
+    ("xoxr-", 16, key_char),
+    ("xoxs-", 16, key_char),
+    ("AIza", 30, key_char),
+    ("AKIA", 16, aws_char),
+    ("ASIA", 16, aws_char),
+];
+
+/// `line` with the credentials a failing test may print masked: the `KEYS`,
+/// bearer tokens, and the password in `scheme://user:password@host`. Prefix
+/// scans rather than regexes, which would add 1.5 MB to the npm binary.
+fn redact(line: &str) -> String {
+    // Bytes at the start of `s` that `allowed` accepts.
+    let run =
+        |s: &str, allowed: &dyn Fn(char) -> bool| s.find(|c: char| !allowed(c)).unwrap_or(s.len());
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(c) = rest.chars().next() {
+        if let Some(after) = rest.strip_prefix("://") {
+            let authority = &after[..run(after, &|c| !c.is_whitespace() && c != '/')];
+            let userinfo = authority.rsplit_once('@').map(|(info, _)| info);
+            if let Some((user, password)) = userinfo.and_then(|i| i.split_once(':')) {
+                if !password.is_empty() {
+                    // The user can be a token too (`https://<token>:x-oauth-basic@`).
+                    out.push_str(&format!("://{}:{REDACTED}", redact(user)));
+                    rest = &after[user.len() + 1 + password.len()..];
+                    continue;
+                }
+            }
+        }
+        // Keys start a word, as `\b` would say.
+        if !out.ends_with(|p: char| p.is_alphanumeric() || p == '_') {
+            if let Some((prefix, least, allowed)) = KEYS.iter().find(|k| rest.starts_with(k.0)) {
+                let key = prefix.len() + run(&rest[prefix.len()..], allowed);
+                if key - prefix.len() >= *least {
+                    out.push_str(REDACTED);
+                    rest = &rest[key..];
+                    continue;
+                }
+            }
+            if rest
+                .get(..6)
+                .is_some_and(|w| w.eq_ignore_ascii_case("bearer"))
+            {
+                let gap = run(&rest[6..], &char::is_whitespace);
+                let token = run(&rest[6 + gap..], &|c| {
+                    c.is_ascii_alphanumeric() || "._~+/=-".contains(c)
+                });
+                if gap > 0 && token >= 16 {
+                    out.push_str(&rest[..6 + gap]);
+                    out.push_str(REDACTED);
+                    rest = &rest[6 + gap + token..];
+                    continue;
+                }
+            }
+        }
+        out.push(c);
+        rest = &rest[c.len_utf8()..];
+    }
+    out
 }
 
 #[cfg(test)]
@@ -265,6 +354,53 @@ mod tests {
         let slow = "sleep 30";
         let timeout = run_check("combined", slow, &dir, Duration::from_millis(300));
         assert!(timeout.timed_out && !timeout.passed, "{timeout:?}");
+    }
+
+    /// A failing test that prints a credential must not publish it: the tail
+    /// goes into receipts, hook replies and pull-request comments.
+    #[test]
+    fn masks_the_credentials_a_test_prints() {
+        // Built here, so no scanner takes the source for a leak.
+        let gh = format!("ghp_{}", "a1B2".repeat(9));
+        let aws = format!("AKIA{}", "Z9".repeat(8));
+        let ant = format!("sk-ant-api03-{}", "x_Y-".repeat(6));
+        let line = format!(
+            "FAIL {gh} key={aws},{ant} db postgres://admin:hunter2@db:5432/prod Authorization: bearer {} √",
+            "eyJ.a-b~c".repeat(3)
+        );
+        assert_eq!(
+            redact(&line),
+            "FAIL [REDACTED] key=[REDACTED],[REDACTED] db postgres://admin:[REDACTED]@db:5432/prod Authorization: bearer [REDACTED] √"
+        );
+        let ghs = format!("ghs_{}", "q".repeat(36));
+        assert_eq!(
+            redact(&format!(
+                "https://{ghs}:x-oauth-basic@github.com/o/r and redis://:pw@cache:6379"
+            )),
+            "https://[REDACTED]:[REDACTED]@github.com/o/r and redis://:[REDACTED]@cache:6379"
+        );
+        // Whole words only, long enough, and URLs that carry a password.
+        for kept in [
+            "task-runner-integration-tests-pass",
+            "sk-short",
+            "ASIA_PACIFIC_SOUTHEAST_REGION",
+            &format!("x{gh}"),
+            "see https://example.com:8080/a@b:c and http://user@host/",
+            "git@github.com:o/r.git, redis://localhost:6379, file:///tmp/x",
+            "Bearer short",
+        ] {
+            assert_eq!(redact(kept), kept);
+        }
+
+        // Masked where it is captured.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("out.txt"), format!("token {gh}\n")).unwrap();
+        #[cfg(windows)]
+        let print = "type out.txt";
+        #[cfg(not(windows))]
+        let print = "cat out.txt";
+        let check = run_check("combined", print, dir.path(), Duration::from_secs(30));
+        assert_eq!(check.output_tail, ["token [REDACTED]"]);
     }
 
     /// Test runners on Windows print `√` as UTF-8; the receipt must keep it,
