@@ -474,13 +474,33 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                         check.exit_code.map_or("with an error".into(), |e| e.to_string())
                     ),
                 };
+                // `--check "<command that installs first>"`, from the insights.
+                let install = outcome
+                    .insights
+                    .iter()
+                    .find_map(|i| i.split("for example ").nth(1))
+                    .map(|s| s.trim_end_matches('.'));
+                let install_first = |fix: &str| {
+                    if pr {
+                        format!(
+                            "checks run in a fresh worktree, so install first: set the Action's `check:` input to `{}`. Then {again}.",
+                            fix.trim_start_matches("--check ").trim_matches('"')
+                        )
+                    } else {
+                        format!("checks run in a fresh worktree, so install first: {fix}. Then {again}.")
+                    }
+                };
                 if solo.is_empty() {
                     return v(
                         "failed",
                         "BLOCKED",
                         format!("{names} fail {cmd} when combined."),
                         why(c, "on the combined change"),
-                        format!("to see whether each branch passes alone, run it with --per-input. Fix the failure, then {again}."),
+                        match install {
+                            Some(fix) if pr => install_first(fix),
+                            _ if pr => format!("fix the failure, then {again}."),
+                            _ => format!("to see whether each branch passes alone, run it with --per-input. Fix the failure, then {again}."),
+                        },
                     );
                 }
                 let failing: Vec<String> = solo
@@ -504,11 +524,6 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                     );
                 }
                 let solo_fail = solo.iter().find(|s| !s.passed).copied().unwrap_or(c);
-                let install = outcome
-                    .insights
-                    .iter()
-                    .find_map(|i| i.split("for example ").nth(1))
-                    .map(|s| s.trim_end_matches('.'));
                 if failing.len() == solo.len() {
                     return v(
                         "alone",
@@ -516,11 +531,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                         format!("{cmd} fails on every branch alone too, so the combination is not the problem."),
                         why(solo_fail, "on each branch"),
                         match install {
-                            Some(fix) if pr => format!(
-                                "checks run in a fresh worktree, so install first: set the Action's `check:` input to `{}`. Then {again}.",
-                                fix.trim_start_matches("--check ").trim_matches('"')
-                            ),
-                            Some(fix) => format!("checks run in a fresh worktree, so install first: {fix}. Then {again}."),
+                            Some(fix) => install_first(fix),
                             None if pr => format!("make {cmd} pass on {target}, or set the Action's `check:` input to the right command, then {again}."),
                             None => format!("make {cmd} pass on {target}, or pass the right command with --check, then {again}."),
                         },
@@ -657,9 +668,8 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
         p.files_changed,
         seconds(p.duration_ms)
     );
-    for insight in &outcome.insights {
-        let _ = writeln!(s, "> {insight}\n");
-    }
+    // No insights: they give terminal advice (--check), name branches and
+    // paths as plain text, and say again what the verdict and tables say.
     let _ = writeln!(s, "| Input | Files | Status |\n|---|---:|---|");
     for i in &p.inputs {
         let _ = writeln!(

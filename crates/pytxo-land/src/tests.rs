@@ -741,6 +741,10 @@ fn markdown_advice_fits_a_pull_request() {
     let mut o = opts(d, &["agent/a", "agent/b"]);
     let next = |out: &LandOutcome| {
         let md = render_markdown(out);
+        // The Action has no input for these, so the comment never names them.
+        for flag in ["--check", "--per-input", "--timeout", "--apply"] {
+            assert!(!md.contains(flag), "{flag} in {md}");
+        }
         let line = md.lines().find_map(|l| l.strip_prefix("**Next:** "));
         line.unwrap().to_string()
     };
@@ -783,6 +787,19 @@ fn markdown_advice_fits_a_pull_request() {
         next(&out)
     );
     assert!(verdict(&out, again).next.contains("with --check"));
+
+    // A failure with no input run alone: the Action cannot pass --per-input.
+    o.per_input = PerInput::Never;
+    let out = land(&o).unwrap();
+    assert_eq!(next(&out), "fix the failure, then push again.");
+    assert!(verdict(&out, again).next.contains("--per-input"));
+    // ...and one that needs its dependencies installed says how.
+    npm_project(d);
+    let out = land(&o).unwrap();
+    assert_eq!(
+        next(&out),
+        "checks run in a fresh worktree, so install first: set the Action's `check:` input to `npm install && npm test`. Then push again."
+    );
 }
 
 /// Test output in a pull-request comment must not mention, link or format:
