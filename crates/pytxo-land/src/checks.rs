@@ -221,7 +221,9 @@ pub fn detect_check(
         return found("bundle exec rake test", "Rakefile");
     }
     if let Some(composer) = json("composer.json") {
-        if composer["scripts"]["test"].is_string() {
+        // A script is a command or a list of them.
+        let test = &composer["scripts"]["test"];
+        if test.is_string() || test.as_array().is_some_and(|a| !a.is_empty()) {
             return found("composer install && composer test", "composer.json");
         }
     }
@@ -421,11 +423,12 @@ fn mask_private_keys(text: &str) -> String {
     out
 }
 
-/// Whether `key`, in any case and with `-` read as `_`, names a credential:
-/// `AWS_SECRET_ACCESS_KEY`, `NPM_TOKEN`, `x-api-key`, `DB_PASSWORD`... An
-/// error's name does not: `JsonWebTokenError: invalid signature`.
+/// Whether `key`, in any case and without `-` and `_`, names a credential:
+/// `AWS_SECRET_ACCESS_KEY`, `NPM_TOKEN`, `x-api-key`, `privateKey`,
+/// `Authorization`... An error's name does not: `JsonWebTokenError: invalid
+/// signature`.
 fn credential_key(key: &str) -> bool {
-    let key = key.to_ascii_lowercase().replace('-', "_");
+    let key = key.to_ascii_lowercase().replace(['-', '_'], "");
     if key.ends_with("error") || key.ends_with("exception") {
         return false;
     }
@@ -434,11 +437,11 @@ fn credential_key(key: &str) -> bool {
         "token",
         "password",
         "passwd",
-        "api_key",
         "apikey",
-        "access_key",
-        "private_key",
+        "accesskey",
+        "privatekey",
         "credential",
+        "authorization",
     ]
     .iter()
     .any(|word| key.contains(word))
@@ -625,7 +628,7 @@ mod tests {
         );
         assert_eq!(
             redact(&line),
-            "FAIL [REDACTED] key=[REDACTED],[REDACTED] db postgres://admin:[REDACTED]@db:5432/prod Authorization: bearer [REDACTED] √"
+            "FAIL [REDACTED] key=[REDACTED],[REDACTED] db postgres://admin:[REDACTED]@db:5432/prod Authorization: [REDACTED] √"
         );
         let ghs = format!("ghs_{}", "q".repeat(36));
         assert_eq!(
@@ -744,6 +747,19 @@ mod tests {
                 format!("X-Auth-Token: Basic {}", "dXNlcjpwYXNzd29yZA=="),
                 "X-Auth-Token: [REDACTED]",
             ),
+            // camelCase names, and the header itself.
+            (
+                format!("wallet privateKey: 0x{}", "4c0883a6".repeat(8)),
+                "wallet privateKey: [REDACTED]",
+            ),
+            (
+                format!("s3 accessKey={}", "AbCdEfGh12345678wxyz"),
+                "s3 accessKey=[REDACTED]",
+            ),
+            (
+                format!("failed Authorization: Basic {}", "dXNlcjpwYXNzd29yZA=="),
+                "failed Authorization: [REDACTED]",
+            ),
         ] {
             assert_eq!(redact(&line), masked);
         }
@@ -760,6 +776,8 @@ mod tests {
             "TokenExpiredError: jwt expired",
             "CredentialsProviderError: Could not load credentials from any providers",
             "org.example.InvalidTokenException: token is invalid",
+            "authorization failed: user is not allowed",
+            "AuthorizationError: denied",
         ] {
             assert_eq!(redact(kept), kept);
         }
@@ -991,6 +1009,18 @@ mod tests {
         assert_eq!(
             cmd(&[("composer.json", r#"{"scripts":{"test":"phpunit"}}"#)]).as_deref(),
             Some("composer install && composer test")
+        );
+        assert_eq!(
+            cmd(&[(
+                "composer.json",
+                r#"{"scripts":{"test":["@phpunit"],"phpunit":"phpunit"}}"#
+            )])
+            .as_deref(),
+            Some("composer install && composer test")
+        );
+        assert_eq!(
+            cmd(&[("composer.json", r#"{"scripts":{"test":[]}}"#)]),
+            None
         );
         // With the BOM Windows PowerShell 5.1 writes.
         let bom = |json: &str| format!("\u{feff}{json}");
