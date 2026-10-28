@@ -49,12 +49,12 @@ export default function DownloadPage() {
           <div className="flex flex-wrap items-baseline gap-2">
             <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">CLI</h2>
             <span className="text-sm text-muted-foreground">
-              Required on macOS and Linux; optional on Windows with Desktop
+              The check, for macOS, Linux and Windows
             </span>
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Runs, Review and Apply, <code className="font-mono">pytxo land</code> for branches from any
-            agent tool, Pybench, doctor checks and MCP. Desktop on Windows already includes the local core.
+            Checks your agents&apos; branches together. <code className="font-mono">npx pytxo</code> runs it
+            without installing; these keep <code className="font-mono">pytxo</code> on your PATH.
           </p>
 
           <div className="mt-6 flex flex-col gap-6">

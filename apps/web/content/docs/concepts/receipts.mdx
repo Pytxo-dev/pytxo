@@ -3,15 +3,18 @@ title: Receipts
 description: The record Pytxo writes for every landing decision and every reviewed Apply.
 ---
 
-Every `pytxo land` decision and every reviewed Apply writes a **receipt**: what was combined, what was checked, what was decided, and why.
+Every check (`pytxo`, `pytxo check` or `pytxo land`) and every reviewed Apply writes a **receipt**: what was combined, what was checked, what was decided, and why.
 
 Receipts are stored in your repository's Git directory, `.git/pytxo/receipts/<id>.json`. They are never tracked, they are shared by every worktree of the repository, and Pytxo does not edit your `.gitignore` to keep them.
 
 ```bash
 pytxo receipts              # newest first
 pytxo receipts show <id>    # full receipt; checks the digest
-pytxo receipts share <id>   # public page (account perk)
 ```
+
+`pytxo receipts share <id>`, which publishes a page with counts and outcomes, is only in source builds with the default `full` feature, not in the npm binary.
+
+Test output is masked before it is stored: common key formats, bearer tokens and passwords in URLs become `[REDACTED]` in the receipt, in `--json`, in hook replies and in pull-request comments.
 
 ## Format
 
@@ -32,7 +35,7 @@ A receipt is an [in-toto Statement v1](https://github.com/in-toto/attestation/bl
 
 ## What the digest proves
 
-`pytxo receipts show` recomputes the digest and says whether it still matches. A matching digest shows the file was not edited after it was written. Receipts are not signed in 1.3, so the digest does not prove who wrote the file.
+`pytxo receipts show` recomputes the digest and says whether it still matches. A matching digest shows the file was not edited after it was written. Receipts are not signed, so the digest does not prove who wrote the file.
 
 ## Apply receipts
 

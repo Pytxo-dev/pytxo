@@ -11,6 +11,9 @@ on: pull_request
 permissions:
   contents: read
   pull-requests: write
+concurrency:
+  group: pytxo-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -18,7 +21,7 @@ jobs:
       - uses: Pytxo-dev/pytxo/actions/land@v2
 ```
 
-No inputs, no labels, no other steps.
+No inputs, no labels, no other steps. `concurrency` stops an older run when the pull request gets a new push, so an old verdict never replaces a newer one. A stopped run posts nothing.
 
 ## What it does
 
@@ -33,11 +36,13 @@ On `pull_request_target` it refuses to run. On any other event it does nothing a
 
 ## When the job fails
 
-A blocked verdict fails the job only when this pull request is part of the problem: its branch fails the tests on its own, it conflicts with another agent pull request, or it breaks the tests together with one. You can make it a required check.
+The job fails when this pull request conflicts, fails the tests alone, or is in a combination that fails while each pull request passes alone. In that last case every pull request in the combination fails, because Pytxo cannot tell which one is at fault. When nothing in the result points at any of them, such as a combined run that timed out, every pull request in the run fails too. You can make it a required check.
 
-When the cause is another pull request, such as a draft that fails on its own or two other pull requests that conflict with each other, the comment names it and the job passes. A flaky result passes with a warning.
+When only other pull requests are to blame, such as a draft that fails on its own or two other pull requests that conflict with each other, the comment names them and the job passes. A flaky result passes with a warning.
 
 A stale result, where the base branch moved during the check, also fails the job; run it again. So does an error, when Pytxo could not run the check.
+
+If no test command is found, the comment says NO TESTS and the job passes; set the `check` input.
 
 ## Inputs
 

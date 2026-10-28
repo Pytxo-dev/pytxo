@@ -55,14 +55,16 @@ for (const width of [1440, 390]) {
     await expect(ci.locator("pre")).toContainText("uses: Pytxo-dev/pytxo/actions/land@v2");
     await expect(ci.getByRole("link", { name: /Set it up/ })).toHaveAttribute("href", "/docs/getting-started/land-in-ci");
     // The frozen Desktop download stays one click away, in the footer.
-    await page.locator("footer").getByRole("link", { name: "Pytxo Desktop (1.x)" }).click();
+    await page.locator("footer").getByRole("link", { name: "Pytxo Desktop (frozen)" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Download" })).toBeVisible();
     await expect(page.getByText(/download below installs the current public/)).toHaveCount(0);
     await expect(page.getByText(/^v\d+\.\d+\.\d+$/).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Pytxo-dev/pytxo" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
     await expect(page.getByRole("button", { name: "Not yet" })).toHaveCount(2);
     await expect(page.getByText("The CLI does not Apply repository changes")).toHaveCount(0);
-    await expect(page.getByText(/Runs, Review and Apply/)).toBeVisible();
+    // The CLI section sells the check, not the frozen 1.x commands.
+    await expect(page.getByText("Checks your agents' branches together.", { exact: false })).toBeVisible();
+    await expect(page.getByText(/Runs, Review and Apply/)).toHaveCount(0);
     await expect(page.getByText("planning, waves, isolation, and Apply")).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: testInfo.outputPath(`launch-download-${width}.png`), fullPage: true });
@@ -110,8 +112,8 @@ test("homepage leads with the outcome, then how, why, proof and requirements", a
   // The Action's safety copy says what a fork's run gets, not that the tests never see the token.
   await expect(page.getByTestId("ci-section")).toContainText("checked in its own run, with GitHub's read-only token and no secrets");
   await expect(page.locator("main")).not.toContainText(/without the token|has no token/i);
-  // A pull request that is not the cause of a break does not fail.
-  await expect(page.getByTestId("ci-section")).toContainText("fails the job only when that pull request is part of the problem");
+  // A pull request that is not to blame for a break does not fail.
+  await expect(page.getByTestId("ci-section")).toContainText("when only others are to blame, the comment names them and the job passes");
   // Newcomers see none of the frozen 1.x vocabulary.
   await expect(page.locator("main")).not.toContainText(/\b(hypervisor|control plane|telemetry|orbit|galaxy|deepspace|supernova|signal core|blast shield|missions?|fleets?)\b/i);
   await expect(page.locator(".aperture-marquee")).toHaveCount(0);

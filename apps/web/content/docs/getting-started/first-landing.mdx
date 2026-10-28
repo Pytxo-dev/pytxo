@@ -28,20 +28,15 @@ pytxo land claude:claude/double-dash codex:codex/empty-value --check "npm instal
 
 Use your own branch names. The `claude:` and `codex:` prefixes are labels for the output and the receipt; leave them off if you prefer.
 
-The check runs in a fresh worktree where nothing is installed, so a Node project has to install its dependencies in the check. Use `npm ci` instead of `npm install` if the repository has a lockfile. With `--check "npm test"` alone, every check failed on `'bundt' is not recognized`, which is mri's build tool missing, not a problem with the branches. If you leave out `--check`, Pytxo 1.3.1 and later suggest a command from your project files without running it.
+The check runs in a fresh worktree where nothing is installed, so a Node project has to install its dependencies in the check. Use `npm ci` instead of `npm install` if the repository has a lockfile. With `--check "npm test"` alone, every check failed on `'bundt' is not recognized`, which is mri's build tool missing, not a problem with the branches. If you leave out `--check`, Pytxo 2.0 runs the test command it finds in your project files, installing dependencies first for a `package.json` that has any.
 
-`--per-input` also runs the check on each branch alone, which tells a broken check apart from a broken combination. This command took 73.1 seconds: 24.7 and 6.9 seconds for the branches alone and 22.3 seconds for the combination, mostly `npm install`. The output ends with:
-
-```text
-decision  READY
-land it   rerun with --apply
-```
+`--per-input` also runs the check on each branch alone, which tells a broken check apart from a broken combination. With 1.3 this command took 73.1 seconds: 24.7 and 6.9 seconds for the branches alone and 22.3 seconds for the combination, mostly `npm install`. The output is the verdict in three lines, starting with `READY`. Add `--verbose` to see what was found, every check run and the receipt's path as well.
 
 Ready means no conflict and every combined check passed. Nothing changed yet: your branch and working tree are as they were.
 
 ## 3. If the decision is BLOCKED
 
-In a second run, Claude Code renamed the helper `toVal` to `assign`, while Codex made negated flags call `toVal`. Each branch passed alone. Together they failed. A 1.3.1 build prints why:
+In a second run, Claude Code renamed the helper `toVal` to `assign`, while Codex made negated flags call `toVal`. Each branch passed alone. Together they failed. The `BLOCKED` verdict says so, and its `why` line quotes the first error. `--verbose` adds every check run; a 1.3.1 build printed:
 
 ```text
 checks
@@ -65,7 +60,7 @@ Add `--apply` to the same command:
 pytxo land claude:claude/rename-helper codex:codex/negated-flags --check "npm install && npm test" --per-input --apply
 ```
 
-`--apply` runs the checks again and moves the checked-out branch only if the result is still ready and that branch has not moved. It took 57.0 seconds and ended with `decision  LANDED`: one merge commit per agent branch on top of the checked-out branch. Because `--apply` lands only a ready result, you can pass it on the first run.
+`--apply` runs the checks again and moves the checked-out branch only if the result is still ready and that branch has not moved. With 1.3 it took 57.0 seconds and the decision was LANDED: one merge commit per agent branch on top of the checked-out branch. Because `--apply` lands only a ready result, you can pass it on the first run.
 
 ## 5. Keep the receipt
 
@@ -73,7 +68,7 @@ pytxo land claude:claude/rename-helper codex:codex/negated-flags --check "npm in
 pytxo receipts
 ```
 
-Every decision, blocked ones included, has a receipt in `.git/pytxo/receipts`. `pytxo receipts share <id>` publishes a page with counts and outcomes after `pytxo login`.
+Every decision, blocked ones included, has a receipt in `.git/pytxo/receipts`; `pytxo receipts show <id>` prints one and checks its digest. `pytxo receipts share <id>`, which publishes a page with counts and outcomes after `pytxo login`, is only in source builds with the default `full` feature, not in the npm binary.
 
 ## The measured total
 
@@ -86,4 +81,4 @@ Every decision, blocked ones included, has a receipt in `.git/pytxo/receipts`. `
 
 These are command times only; reading the output is extra. npm's package cache was already warm: a cold `npm install` of mri took 40.5 seconds on the same machine.
 
-Next: every option in [Land branches](/docs/getting-started/land-branches), and pull requests in [Land in GitHub Actions](/docs/getting-started/land-in-ci).
+Next: every option in [Land branches](/docs/getting-started/land-branches), and pull requests with the [GitHub Action](/docs/getting-started/land-in-ci).

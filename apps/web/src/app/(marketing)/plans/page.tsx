@@ -12,7 +12,7 @@ const PRO_LAUNCH = "$29 once for the first 500 buyers, then $5/month or $48/year
 export const metadata = pageMetadata(
   "/plans",
   "Plans · Pytxo",
-  `Pytxo is free on your machine and on public repositories. Pro, for the GitHub Action on private repositories, is ${PRO_LAUNCH}. Team is planned.`,
+  `Pytxo is free on your machine and on public repositories. Pro, for the GitHub Action on private repositories, is not on sale yet: ${PRO_LAUNCH}. Team is planned.`,
 );
 
 const ROADMAP = [
@@ -40,7 +40,7 @@ const ROADMAP = [
       "Then $5/month or $48/year",
     ],
     detail:
-      "A license key you add as a repository secret. Until Pro opens, the Action runs free on private repositories too. If development stops, Pro unlocks for everyone.",
+      "A license key, kept as a repository secret and passed to the Action's license input. Until Pro opens, the Action runs free on private repositories too. If development stops, Pro unlocks for everyone.",
   },
   {
     name: "Team",
@@ -65,7 +65,7 @@ export default function PlansPage() {
         </h1>
         <p className="max-w-2xl text-lg text-muted-foreground">
           Free on your machine and on public repositories. Pro covers the GitHub Action on
-          private repositories: {PRO_LAUNCH}. Team is planned.
+          private repositories and is not on sale yet: {PRO_LAUNCH}. Team is planned.
         </p>
         <div className="mt-2 flex flex-wrap gap-3">
           <Button size="lg" className="touch-target relative" asChild>

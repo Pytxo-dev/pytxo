@@ -30,12 +30,14 @@ npx pytxo
 
 With no arguments Pytxo:
 
-1. **Finds the agent branches**: branches named `claude/*`, `codex/*`, `copilot/*`, `cursor/*`, `devin/*`, `jules/*` or `agent/*`, plus every branch checked out in a linked worktree, that have a commit in the last 14 days.
+1. **Finds the agent branches**: branches named `claude/*`, `codex/*`, `copilot/*`, `cursor/*`, `devin/*`, `jules/*` or `agent/*`, plus every branch checked out in a linked worktree, that have a commit in the last 14 days, at most 10 at once, newest first. Branches already merged into the target, squash merges included, are skipped. Only committed work is checked: a worktree whose changes are all uncommitted gets a hint to commit them.
 2. **Finds the target**: the default branch (`origin/HEAD`, else `main`, `master` or `trunk`).
 3. **Finds your tests** in the target branch: `package.json` (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a `Makefile` with a `test` target.
-4. **Merges the branches in a throwaway worktree**, runs the tests on the result, and prints the verdict.
+4. **Merges the branches in a throwaway worktree**, runs the tests on the result, and prints the verdict. Submodules are not checked out there.
 
-Nothing in your repository changes. With no agent branches it prints one line and suggests the demo.
+If your agents push their branches to GitHub, run `git fetch` first so Pytxo sees them. A compiled project, such as a Rust workspace, pays a cold build in each throwaway worktree.
+
+Nothing in your repository changes, even if you stop a check partway. With no agent branches it prints one line and suggests the demo.
 
 ## 3. Read the verdict
 
@@ -49,7 +51,7 @@ Every verdict is three lines: what happened, why, and what to do next.
 | `NO TESTS` | They merge cleanly but no test command was found | 0 |
 | `STALE` | The target branch moved during the check; run it again | 3 |
 
-When the combined change fails, Pytxo runs each branch alone to tell a break that only happens together from a branch that was already broken, then runs the combined change once more to catch a flaky test.
+When the combined change fails, Pytxo runs each branch alone to tell a break that only happens together from a branch that was already broken, and, if every branch passes alone, runs the combined change once more to catch a flaky test.
 
 ## 4. Change what it checks
 
@@ -72,7 +74,7 @@ git config pytxo.into develop
 
 The environment variables `PYTXO_BRANCHES`, `PYTXO_CHECK`, `PYTXO_DAYS` and `PYTXO_INTO` do the same for one shell.
 
-`--verbose` adds every check's output, the receipt and the digests. `--json` and `--markdown` are for scripts and pull-request comments. See the [CLI reference](/docs/reference/cli) for every flag.
+`--verbose` adds what was found, every test run with its error lines, the receipt's path and a ref to the combined commit; `pytxo receipts show <id>` prints the last 40 lines of each run and checks the digest. `--json` and `--markdown` are for scripts and pull-request comments. See the [CLI reference](/docs/reference/cli) for every flag.
 
 ## Next
 

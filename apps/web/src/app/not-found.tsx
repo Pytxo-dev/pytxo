@@ -4,6 +4,7 @@ import Link from "next/link";
 import { SiteFooter } from "@/components/site/footer";
 import { SiteHeader } from "@/components/site/header";
 import { Button } from "@/components/ui/button";
+import { GET_STARTED_HREF } from "@/lib/site";
 
 // Next adds the noindex robots tag to every 404 response itself.
 export const metadata: Metadata = {
@@ -19,14 +20,14 @@ export default function NotFound() {
           <p className="font-mono text-sm text-muted-foreground">404</p>
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">This page does not exist.</h1>
           <p className="max-w-2xl text-lg text-muted-foreground">
-            The link may be old, or the page moved into the docs. Start from the docs or the download page.
+            The link may be old, or the page moved into the docs. Start from the Quickstart or the docs.
           </p>
           <div className="mt-2 flex flex-wrap gap-3">
             <Button size="lg" className="touch-target relative" asChild>
               <Link href="/docs">Go to the docs</Link>
             </Button>
             <Button size="lg" variant="outline" className="touch-target relative" asChild>
-              <Link href="/download">Download Pytxo</Link>
+              <Link href={GET_STARTED_HREF}>Quickstart</Link>
             </Button>
             <Button size="lg" variant="outline" className="touch-target relative" asChild>
               <Link href="/">Home</Link>

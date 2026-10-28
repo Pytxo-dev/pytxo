@@ -8,7 +8,7 @@ import { pageMetadata } from "@/lib/page-metadata";
 export const metadata = pageMetadata(
   "/bench",
   "Pybench results · Pytxo",
-  "Offline benchmarks of the Pytxo landing gate: what per-branch CI would land compared with what pytxo land decides, gate cost, and Signal Core scaffold size.",
+  "Offline benchmarks of the check: what per-branch CI would land compared with what the check decides, what the check costs, and the signal suite's scaffold size.",
 );
 export const revalidate = 300;
 
@@ -103,7 +103,7 @@ export default async function BenchPage() {
           </table>
         </div>
       </div>}
-      {reference.signal && <p className="mt-10 max-w-[48rem] text-sm leading-relaxed text-[#8d8d96]">Signal Core on the Pytxo repository: {reference.signal.files} source files, {reference.signal.original_bytes.toLocaleString("en-US")} bytes reduced to a {reference.signal.scaffold_bytes.toLocaleString("en-US")}-byte structural scaffold ({reference.signal.weighted_reduction_pct}% smaller). Bytes, not tokens or cost.</p>}
+      {reference.signal && <p className="mt-10 max-w-[48rem] text-sm leading-relaxed text-[#8d8d96]">The signal suite on the Pytxo repository: {reference.signal.files} source files, {reference.signal.original_bytes.toLocaleString("en-US")} bytes reduced to a {reference.signal.scaffold_bytes.toLocaleString("en-US")}-byte structural scaffold ({reference.signal.weighted_reduction_pct}% smaller). Bytes, not tokens or cost.</p>}
       <div className="mt-6 flex flex-wrap gap-x-6 gap-y-6 text-sm">
         <a className="aperture-link" href="/evidence/pybench-1.3.0-2026-10-10.json">Raw results (JSON)</a>
         <Link className="aperture-link" href="/docs/evidence/pybench">Method and limits →</Link>
@@ -127,7 +127,7 @@ export default async function BenchPage() {
             </tr>)}
           </tbody>
         </table>
-      </div> : <p className="mt-6 text-sm text-[#a9a9b2]">{entries ? "No published results yet. Be the first:" : "The board is unavailable right now. Run it locally:"}</p>}
+      </div> : <p className="mt-6 text-sm text-[#a9a9b2]">{entries ? "No published results yet. Run it locally:" : "The board is unavailable right now. Run it locally:"}</p>}
       <div className="mt-6 max-w-xl">
         <InstallSnippet copyLabel="Copy the Pybench command">npx pytxo bench</InstallSnippet>
       </div>

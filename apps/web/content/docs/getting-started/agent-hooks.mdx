@@ -3,20 +3,22 @@ title: Claude Code and Codex
 description: Run the check when an agent stops, and see the verdict in the agent's session.
 ---
 
-When Claude Code or Codex finishes a turn, Pytxo checks the agent branches in your repository together and shows the verdict in the session. It stays quiet unless two or more agent branches changed since its last answer, and it waits while background agents are still working.
+When Claude Code or Codex finishes a turn, Pytxo checks the agent branches in your repository together and shows the verdict in the session. It answers when two or more agent branches exist and one of them, the target or the test command changed since its last answer, and it waits while background agents are still working.
 
 Both run `npx -y pytxo@2.0.0 hook`, so Node.js must be on your PATH.
 
-One check runs at a time per repository, linked worktrees included: while one runs, the other sessions' hooks in that repository stay quiet. The hook finishes inside its time limit. If the check needs longer, it says so and asks you to run `npx pytxo` in a terminal.
+Claude Code and Codex wait for the hook, so after a change the turn ends only when the check does: as long as your tests take, up to the hook's 900-second limit. If the check needs longer, it says so and asks you to run `npx pytxo` in a terminal. One check runs at a time per repository, linked worktrees included: while one runs, the other sessions' hooks in that repository stay quiet.
 
 ## Claude Code
 
-In Claude Code:
+In a shell:
 
-```text
-/plugin marketplace add Pytxo-dev/pytxo
-/plugin install pytxo@pytxo
+```bash
+claude plugin marketplace add Pytxo-dev/pytxo --sparse .claude-plugin integrations/claude-code
+claude plugin install pytxo@pytxo
 ```
+
+`--sparse` limits the checkout to the plugin's directories instead of the whole repository. Inside Claude Code, `/plugin marketplace add Pytxo-dev/pytxo` and then `/plugin install pytxo@pytxo` work too, without that limit.
 
 The verdict appears as a message when the turn ends:
 
@@ -34,8 +36,8 @@ next     fix one branch so they agree, then Pytxo checks again when an agent sto
 
 ## Make the agent fix it
 
-By default the hook only tells you. With `hook --block`, a BLOCKED verdict asks the agent to keep working on the fix. Change the command in the hook to `npx -y pytxo@2.0.0 hook --timeout 900 --block`. Keep `--timeout` equal to the hook's `timeout` (900 seconds): the hook answers before that, and says so if the tests could not finish.
+By default the hook only tells you. With `hook --block`, a BLOCKED or FLAKY verdict asks the agent to keep working on it. Change the command in the hook to `npx -y pytxo@2.0.0 hook --timeout 900 --block`. Keep `--timeout` equal to the hook's `timeout` (900 seconds): the hook answers before that, and says so if the tests could not finish.
 
 ## What it checks
 
-The same as `npx pytxo` with no arguments: the agent branches and linked worktrees, against the default branch, with the test command it finds. Change them with `git config pytxo.branches`, `git config pytxo.check` and `git config pytxo.into`; see the [Quickstart](/docs/getting-started/quickstart#4-change-what-it-checks). Nothing in your repository changes: the check runs in a throwaway worktree and records a receipt under `.git/pytxo/receipts`. Pytxo's own temporary worktrees never count as agent branches.
+The same as `npx pytxo` with no arguments: the agent branches and linked worktrees, against the default branch, with the test command it finds. Change them with `git config pytxo.branches`, `git config pytxo.check` and `git config pytxo.into`; see the [Quickstart](/docs/getting-started/quickstart#4-change-what-it-checks). Only committed work is checked: a worktree whose changes are all uncommitted gets a hint to commit them. Nothing in your repository changes: the check runs in a throwaway worktree and records a receipt under `.git/pytxo/receipts`. Pytxo's own temporary worktrees never count as agent branches.

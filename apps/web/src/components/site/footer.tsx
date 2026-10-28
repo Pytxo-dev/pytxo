@@ -8,7 +8,7 @@ const PRODUCT_LINKS = [
   { href: "/bench", label: "Pybench" },
   { href: "/docs/evidence", label: "Evidence" },
   { href: "/plans", label: "Plans" },
-  { href: "/download", label: "Pytxo Desktop (1.x)" },
+  { href: "/download", label: "Pytxo Desktop (frozen)" },
 ] as const;
 
 const DOCS_LINKS = [

@@ -47,14 +47,14 @@ const STRUCTURED_DATA = {
 
 const FAQ = [
   { q: "Which agents does it work with?", a: "Any agent that leaves its work on a branch. With no arguments Pytxo checks branches named claude/*, codex/*, copilot/*, cursor/*, devin/*, jules/* and agent/*, plus every branch in a linked worktree, that have a commit in the last 14 days. Name other branches yourself, or set git config pytxo.branches." },
-  { q: "How does it find my tests?", a: "It reads the target branch and picks the usual command for package.json, Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a Makefile test target, installing dependencies first when the project has any. Or pass your own with -c." },
+  { q: "How does it find my tests?", a: "It reads the target branch and picks the usual command for package.json (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a Makefile test target. Or pass your own with -c." },
   { q: "Does it change my repository?", a: "No. The merge and the tests happen in a throwaway worktree. Only --apply lands a ready result on the target branch, and it refuses if that branch moved during the check." },
   { q: "What does a pass prove?", a: "That your tests pass on the merge of the branches. Pytxo catches what your tests catch: a break they don't cover can still land. Merge conflicts are blocked, not resolved." },
-  { q: "What if a test is flaky?", a: "When the combined change fails, Pytxo runs each branch alone and the combined change once more. A failure that does not repeat is reported as flaky, not as a break." },
+  { q: "What if a test is flaky?", a: "When the combined change fails, Pytxo runs each branch alone and, if every branch passes alone, the combined change once more. A failure that does not repeat is reported as flaky, not as a break." },
   { q: "Does it send my code anywhere?", a: "No. The check runs on your machine or in your own CI. It calls no model, needs no account, and sends nothing anywhere." },
   { q: "Is the GitHub Action safe on public repositories?", a: "It runs on pull_request only and refuses pull_request_target. A fork's pull request never joins another pull request's run: it is checked in its own run, with GitHub's read-only token and no secrets." },
   { q: "What does it cost?", a: "Pytxo is free on your machine and on public repositories, and open source under MIT. A paid plan for private repositories in CI is planned; until it opens, the Action is free everywhere." },
-  { q: "What happened to Pytxo Desktop?", a: "It is frozen at 1.x and still a free download. Pytxo now does one thing: the check." },
+  { q: "What happened to Pytxo Desktop?", a: "It is frozen and still a free download for Windows. Pytxo now does one thing: the check." },
 ] as const;
 
 export default function HomePage() {
