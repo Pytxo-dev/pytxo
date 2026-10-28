@@ -107,6 +107,9 @@ test("homepage leads with the outcome, then how, why, proof and requirements", a
   await expect(page.getByTestId("compatibility-section")).toContainText("Pytxo calls no model and sends nothing anywhere.");
   await expect(page.getByTestId("faq-section")).toContainText("Does it send my code anywhere?");
   await expect(page.getByTestId("get-it-section").locator("pre").filter({ hasText: /^npx pytxo demo$/ })).toBeVisible();
+  // The Action's safety copy says what a fork's run gets, not that the tests never see the token.
+  await expect(page.getByTestId("ci-section")).toContainText("checked in its own run, with GitHub's read-only token and no secrets");
+  await expect(page.locator("main")).not.toContainText(/without the token|has no token/i);
   // Newcomers see none of the frozen 1.x vocabulary.
   await expect(page.locator("main")).not.toContainText(/\b(hypervisor|control plane|telemetry|orbit|galaxy|deepspace|supernova|signal core|blast shield|missions?|fleets?)\b/i);
   await expect(page.locator(".aperture-marquee")).toHaveCount(0);

@@ -52,7 +52,7 @@ const FAQ = [
   { q: "What does a pass prove?", a: "That your tests pass on the merge of the branches. Pytxo catches what your tests catch: a break they don't cover can still land. Merge conflicts are blocked, not resolved." },
   { q: "What if a test is flaky?", a: "When the combined change fails, Pytxo runs each branch alone and the combined change once more. A failure that does not repeat is reported as flaky, not as a break." },
   { q: "Does it send my code anywhere?", a: "No. The check runs on your machine or in your own CI. It calls no model, needs no account, and sends nothing anywhere." },
-  { q: "Is the GitHub Action safe on public repositories?", a: "It runs on pull_request only and refuses pull_request_target. The tests run in a step without the token, and a fork's pull request never joins another pull request's run, so its code never runs with that run's token." },
+  { q: "Is the GitHub Action safe on public repositories?", a: "It runs on pull_request only and refuses pull_request_target. A fork's pull request never joins another pull request's run: it is checked in its own run, with GitHub's read-only token and no secrets." },
   { q: "What does it cost?", a: "Pytxo is free on your machine and on public repositories, and open source under MIT. A paid plan for private repositories in CI is planned; until it opens, the Action is free everywhere." },
   { q: "What happened to Pytxo Desktop?", a: "It is frozen at 1.x and still a free download. Pytxo now does one thing: the check." },
 ] as const;

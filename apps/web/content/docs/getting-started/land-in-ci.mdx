@@ -51,8 +51,9 @@ The check runs your own test command, so the runner needs whatever your tests ne
 ## Security
 
 - It runs on `pull_request` only. On `pull_request_target` it refuses to run, because that event would run pull-request code with a write token.
-- The token is only in the steps that list pull requests and comment. The step that runs your tests does not get it, and the Action's own checkout does not store it in `.git/config`. If you add your own `actions/checkout` before Pytxo, set `persist-credentials: false`.
-- A fork's pull request never joins another pull request's run, so fork code never runs with that run's token. A fork's own run gets GitHub's read-only token, so its verdict goes to the job summary.
+- Your tests run in the same job that posts the comment, so code in this repository's agent branches can reach the job's `pull-requests: write` token, as in any CI job that runs that code. Give the workflow no other permissions or secrets.
+- A fork's pull request never joins another pull request's run. It is checked in its own run, with GitHub's read-only token and no secrets, so its verdict goes to the job summary. In a private repository, keep GitHub's options that send write tokens or secrets to workflows from fork pull requests turned off.
+- The Action's own checkout does not store the token in `.git/config`. If you add your own `actions/checkout` before Pytxo, set `persist-credentials: false`.
 - `permissions` above is all it needs: `contents: read` to fetch the branches, `pull-requests: write` to comment. Without `pull-requests: write` the verdict goes to the job summary instead.
 - It never pushes, merges or changes a branch.
 

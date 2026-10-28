@@ -57,8 +57,12 @@ without tests (Pytxo catches only what the tests catch).
   (`pytxo bench`) shows the mechanism on synthetic repositories, not a rate.
 - The check is as slow as your test suite, plus installing dependencies in a
   fresh worktree.
-- In CI, a fork's pull request never joins another pull request's run, so
-  fork code never runs with that run's token.
+- In CI, your tests run in the same job that posts the comment, so code in
+  this repository's agent branches can reach the job's `pull-requests: write`
+  token, as in any CI job that runs that code. Give the workflow no other
+  permissions or secrets. A fork's pull request never joins another pull
+  request's run: it is checked in its own run, with GitHub's read-only token
+  and no secrets.
 - Receipts use the in-toto statement format but are not signed.
 
 ## Price

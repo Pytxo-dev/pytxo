@@ -31,6 +31,9 @@ test("docs lead with the check and keep 1.x under Advanced", async ({ page }) =>
   await expect(page.getByRole("heading", { level: 1, name: "GitHub Action" })).toBeVisible();
   await expect(page.locator("article")).toContainText("uses: Pytxo-dev/pytxo/actions/land@v2");
   await expect(page.locator("article")).not.toContainText("@v1.3.6");
+  // Tests share the job with the comment step, so the page must not promise they never see its token.
+  await expect(page.locator("article")).toContainText("pull-requests: write token, as in any CI job that runs that code");
+  await expect(page.locator("article")).not.toContainText("does not get it");
 
   await page.goto("/docs/getting-started/agent-hooks");
   await expect(page.getByRole("heading", { level: 1, name: "Claude Code and Codex" })).toBeVisible();

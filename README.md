@@ -66,10 +66,10 @@ jobs:
 On every agent pull request, the Action checks it together with the other
 open agent pull requests into the same base branch, then posts one comment and
 keeps it up to date. A blocked combination fails the job. It runs on
-`pull_request` only, never `pull_request_target`; the tests run in a step that
-has no token, and a fork's pull request never joins another pull
-request's run. Without `pull-requests: write` the verdict goes to the job summary
-instead. See [the Action's inputs](actions/land/action.yml).
+`pull_request` only, never `pull_request_target`. A fork's pull request never
+joins another pull request's run: it is checked in its own run, with GitHub's
+read-only token and no secrets. Without `pull-requests: write` the verdict goes
+to the job summary instead. See [the Action's inputs](actions/land/action.yml).
 
 ## When your agents finish
 
