@@ -294,6 +294,22 @@ test("a push or a merge queue passes with a notice; pull_request_target is refus
   assert.equal(fs.readFileSync(outputs, "utf8"), "");
 });
 
+/** action.yml's steps, as text without comments. */
+const steps = fs
+  .readFileSync(new URL("./action.yml", import.meta.url), "utf8")
+  .replace(/\r\n/g, "\n")
+  .split("\n  steps:\n")[1]
+  .split(/\n    - /)
+  .map((s) => s.replace(/^\s*#.*$/gm, ""));
+const step = (needle) => steps.find((s) => s.includes(needle));
+
+test("action.yml: nothing runs after a cancel, and the step that runs the tests gets no token", () => {
+  assert.ok(steps.every((s) => !s.includes("always()")));
+  assert.match(step('pytxo-action.mjs" comment'), /if: \$\{\{ !cancelled\(\) && /);
+  assert.doesNotMatch(step("id: check"), /token/i);
+  assert.match(step("actions/checkout@"), /persist-credentials: false/);
+});
+
 test("Pro licensing is built but switched off", () => {
   assert.equal(LICENSING, false);
   assert.equal(LICENSE_PUBLIC_KEY, null);

@@ -81,7 +81,8 @@ runs:
         echo "code=$code" >> "$GITHUB_OUTPUT"
         echo "decision=$decision" >> "$GITHUB_OUTPUT"
 
-    - if: always() && steps.discover.outcome == 'success'
+    # After a failed check too, but not after a cancelled run.
+    - if: ${{ !cancelled() && steps.discover.outcome == 'success' }}
       shell: bash
       env:
         PYTXO_TOKEN: ${{ inputs.token }}
