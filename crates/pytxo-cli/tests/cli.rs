@@ -82,6 +82,29 @@ fn no_agent_branches_is_one_line_and_exit_zero() {
         text.trim_end().ends_with("See it work: pytxo demo"),
         "{text}"
     );
+
+    // An old agent branch, merged long ago: counted as not looked at, which
+    // is all the age test knows; PYTXO_DAYS=0 looks and finds it merged.
+    let d = dir.path();
+    git(d, &["checkout", "-q", "-b", "claude/old", "main"]);
+    std::fs::write(d.join("old.txt"), "old\n").unwrap();
+    git(d, &["add", "-A"]);
+    let old = Command::new("git")
+        .args(["commit", "-q", "-m", "old"])
+        .env("GIT_COMMITTER_DATE", "2026-01-01T00:00:00Z")
+        .current_dir(d)
+        .output()
+        .unwrap();
+    assert!(old.status.success());
+    git(d, &["checkout", "-q", "main"]);
+    git(d, &["merge", "-q", "--no-ff", "-m", "merge", "claude/old"]);
+    let text = stdout(&pytxo(d, &[], None));
+    assert!(
+        text.contains(" 1 with no commit in 14 days not looked at (PYTXO_DAYS=0 looks at them). "),
+        "{text}"
+    );
+    let text = stdout(&pytxo_env(d, &[], None, &[("PYTXO_DAYS", "0")]));
+    assert!(text.starts_with("No agent branches"), "{text}");
 }
 
 #[test]

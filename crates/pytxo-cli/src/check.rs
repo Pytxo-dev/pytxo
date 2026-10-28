@@ -351,7 +351,8 @@ fn nothing_to_check(plan: &Plan, json: bool) -> Result<()> {
     let skipped = match plan.old {
         0 => String::new(),
         n => format!(
-            " {n} older than {} days left out (PYTXO_DAYS=0 includes them).",
+            // Not "unmerged": the age test runs first, so merged ones count too.
+            " {n} with no commit in {} days not looked at (PYTXO_DAYS=0 looks at them).",
             plan.max_age_days
         ),
     };
@@ -443,7 +444,7 @@ fn found(plan: &Plan) -> String {
     }
     if plan.old > 0 {
         s.push_str(&format!(
-            "  ({} older than {} days left out)\n",
+            "  ({} with no commit in {} days not looked at)\n",
             plan.old, plan.max_age_days
         ));
     }
