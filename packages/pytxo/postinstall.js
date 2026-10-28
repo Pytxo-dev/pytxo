@@ -125,7 +125,10 @@ async function install() {
   const checksumUrl = `${releaseBase}/SHA256SUMS.txt`;
   const url = `${releaseBase}/${asset}`;
   console.error(`pytxo: downloading ${asset} ${TAG} and checking it against SHA256SUMS.txt…`);
-  const checksumText = (await downloadBuffer(checksumUrl)).toString("utf8");
+  const fetched = (promise) => promise.catch((error) => {
+    throw Object.assign(error, { downloadFailed: true });
+  });
+  const checksumText = (await fetched(downloadBuffer(checksumUrl))).toString("utf8");
   const checksum = expectedChecksum(checksumText, asset);
 
   if (fs.existsSync(dest)) {
@@ -136,7 +139,7 @@ async function install() {
     }
   }
 
-  const bytes = await downloadBuffer(url);
+  const bytes = await fetched(downloadBuffer(url));
   assertChecksum(bytes, checksum, asset);
   const suffix = process.platform === "win32" ? ".exe" : "";
   const temp = path.join(
@@ -167,7 +170,11 @@ async function main() {
 if (require.main === module) {
   main().catch((error) => {
     console.error(`pytxo: install failed: ${error.message}`);
-    process.exitCode = 1;
+    // A download that did not happen (offline, a proxy) must not fail
+    // `npm install` or `npx`: the launcher tries again on first run. A binary
+    // that fails verification fails the install.
+    if (error.downloadFailed) console.error("pytxo: the first run of pytxo will try again.");
+    else process.exitCode = 1;
   });
 }
 

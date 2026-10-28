@@ -74,6 +74,19 @@ function runInstaller(env) {
   });
 }
 
+test("a download that fails leaves the retry to the first run", async () => {
+  const vendor = fs.mkdtempSync(path.join(os.tmpdir(), "pytxo-vendor-"));
+  try {
+    // Port 9 (discard) refuses the connection.
+    const result = await runInstaller({ PYTXO_RELEASE_BASE_URL: "http://127.0.0.1:9", PYTXO_VENDOR_DIR: vendor });
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stderr, /first run of pytxo will try again/);
+    assert.equal(fs.readdirSync(vendor).length, 0);
+  } finally {
+    fs.rmSync(vendor, { recursive: true, force: true });
+  }
+});
+
 test("postinstall verifies staged bytes and fails closed on checksum mismatch", async (t) => {
   const cli = builtCli();
   if (!cli) return t.skip("build pytxo-cli before the staged installer integration test");
