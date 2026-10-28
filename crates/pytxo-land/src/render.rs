@@ -253,6 +253,28 @@ fn and_list(names: &[String]) -> String {
 /// The decision in plain words. `again` finishes "fix it, then ...", for
 /// example "run npx pytxo again" or "push again".
 pub fn verdict(outcome: &LandOutcome, again: &str) -> Verdict {
+    verdict_for(outcome, again, false)
+}
+
+/// The longest run of `c` in `text`.
+fn longest_run(text: &str, c: char) -> usize {
+    text.split(|x| x != c).map(str::len).max().unwrap_or(0)
+}
+
+/// `text` as a Markdown code span nothing in it can close, so test output in
+/// a pull-request comment renders no mention, link or HTML.
+fn code_span(text: &str) -> String {
+    let ticks = "`".repeat(longest_run(text, '`') + 1);
+    let pad = if text.starts_with('`') || text.ends_with('`') {
+        " "
+    } else {
+        ""
+    };
+    format!("{ticks}{pad}{text}{pad}{ticks}")
+}
+
+/// `pr`: for a pull-request comment, where test output shows only as code.
+fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
     let p = &outcome.receipt.predicate;
     let target = p.target.as_deref().unwrap_or("HEAD");
     let all: Vec<String> = p.inputs.iter().map(plain_name).collect();
@@ -265,7 +287,10 @@ pub fn verdict(outcome: &LandOutcome, again: &str) -> Verdict {
         why,
         next,
     };
-    let first_line = |c: &ReceiptCheck| why_lines(&c.output_tail).into_iter().next();
+    let first_line = |c: &ReceiptCheck| {
+        let line = why_lines(&c.output_tail).into_iter().next()?;
+        Some(if pr { code_span(&line) } else { line })
+    };
     let failed_combined = p
         .checks
         .iter()
@@ -501,7 +526,7 @@ pub fn render_markdown(outcome: &LandOutcome) -> String {
 
 pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
     let p = &outcome.receipt.predicate;
-    let verdict = verdict(outcome, "push again");
+    let verdict = verdict_for(outcome, "push again", true);
     let mark = match verdict.label {
         "READY" | "LANDED" => "✅",
         "STALE" | "NO TESTS" => "⏸️",
@@ -586,14 +611,15 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
             );
         }
         for c in p.checks.iter().filter(|c| !c.passed) {
-            let lines = why_lines(&c.output_tail);
+            let lines = why_lines(&c.output_tail).join("\n");
             if !lines.is_empty() {
+                // Longer than any backtick run in the output, so no line closes it.
+                let fence = "`".repeat(longest_run(&lines, '`').max(2) + 1);
                 let _ = writeln!(
                     s,
-                    "\n`{}` ({}):\n```\n{}\n```",
+                    "\n`{}` ({}):\n{fence}\n{lines}\n{fence}",
                     c.command,
                     scope_label(c),
-                    lines.join("\n")
                 );
             }
         }

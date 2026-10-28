@@ -678,3 +678,33 @@ fn plain_verdicts_say_what_why_and_next() {
     );
     assert!(render_markdown_with(&out, true).contains(&out.receipt.predicate.content_digest));
 }
+
+/// Test output in a pull-request comment must not mention, link or format:
+/// it shows only as code, which nothing in the output can close.
+#[test]
+fn test_output_shows_only_as_code_in_markdown() {
+    let dir = repo();
+    let d = dir.path();
+    let line = "Error: login failed for @octocat at https://evil.example <b>x</b> ```x";
+    branch(d, "main", "agent/a", &[("out.txt", &format!("{line}\n"))]);
+    let mut o = opts(d, &["agent/a"]);
+    #[cfg(windows)]
+    let check = "type out.txt & exit 1";
+    #[cfg(not(windows))]
+    let check = "cat out.txt; exit 1";
+    o.checks = vec![check.into()];
+    let out = land(&o).unwrap();
+    assert_eq!(out.decision(), "blocked");
+    let md = render_markdown(&out);
+    // A span and a fence one backtick longer than the output's own ```.
+    assert!(
+        md.contains(&format!(
+            "**Why:** {check} fails on the combined change: ````{line}````\n"
+        )),
+        "{md}"
+    );
+    assert!(md.contains(&format!("\n````\n{line}\n````\n")), "{md}");
+    assert_eq!(md.matches("@octocat").count(), 2, "{md}");
+    // Plain output is unchanged.
+    assert!(verdict(&out, "again").why.ends_with(&format!(": {line}")));
+}
