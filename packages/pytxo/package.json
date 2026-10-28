@@ -1,6 +1,6 @@
 {
   "name": "pytxo",
-  "version": "1.3.6",
+  "version": "2.0.0",
   "description": "Each agent's branch passes. Do they pass together? Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests on the combined result, and blocks the merge if it breaks.",
   "license": "MIT",
   "repository": {
