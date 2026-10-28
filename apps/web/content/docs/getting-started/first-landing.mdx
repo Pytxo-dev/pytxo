@@ -20,7 +20,7 @@ npm 12 and pnpm 10 skip install scripts by default, so `npm i -g` installs only 
 
 ## 2. Check the branches together
 
-From your repository, with the branch you want to land into checked out:
+From your repository, with the branch you want to land into checked out. Pytxo checks the branches you name against that branch:
 
 ```bash
 pytxo land claude:claude/double-dash codex:codex/empty-value --check "npm install && npm test" --per-input
@@ -65,7 +65,7 @@ Add `--apply` to the same command:
 pytxo land claude:claude/rename-helper codex:codex/negated-flags --check "npm install && npm test" --per-input --apply
 ```
 
-`--apply` runs the checks again and moves your branch only if the result is still ready and the branch has not moved. It took 57.0 seconds and ended with `decision  LANDED`: one merge commit per branch on top of your branch. Because `--apply` lands only a ready result, you can pass it on the first run.
+`--apply` runs the checks again and moves the checked-out branch only if the result is still ready and that branch has not moved. It took 57.0 seconds and ended with `decision  LANDED`: one merge commit per agent branch on top of the checked-out branch. Because `--apply` lands only a ready result, you can pass it on the first run.
 
 ## 5. Keep the receipt
 

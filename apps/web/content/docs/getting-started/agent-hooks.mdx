@@ -36,4 +36,4 @@ By default the hook only tells you. With `hook --block`, a BLOCKED verdict asks 
 
 ## What it checks
 
-The same as `npx pytxo` with no arguments: the agent branches and linked worktrees, against the default branch, with the test command it finds. Change them with `git config pytxo.branches` and `git config pytxo.check`; see the [Quickstart](/docs/getting-started/quickstart#4-change-what-it-checks). Nothing in your repository changes: the check runs in a throwaway worktree and records a receipt under `.git/pytxo/receipts`.
+The same as `npx pytxo` with no arguments: the agent branches and linked worktrees, against the default branch, with the test command it finds. Change them with `git config pytxo.branches`, `git config pytxo.check` and `git config pytxo.into`; see the [Quickstart](/docs/getting-started/quickstart#4-change-what-it-checks). Nothing in your repository changes: the check runs in a throwaway worktree and records a receipt under `.git/pytxo/receipts`.

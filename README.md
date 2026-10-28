@@ -86,12 +86,19 @@ to the job summary instead. See [the Action's inputs](actions/land/action.yml).
 **Which branches.** With no arguments Pytxo checks branches named `claude/*`,
 `codex/*`, `copilot/*`, `cursor/*`, `devin/*`, `jules/*` and `agent/*`, plus
 every branch checked out in a linked worktree, that have a commit in the last
-14 days, against the default branch. Name branches yourself
-(`npx pytxo feature/a feature/b`) or change the patterns for a repository:
+14 days. Name branches yourself (`npx pytxo feature/a feature/b`) or change the
+patterns for a repository:
 
 ```bash
 git config pytxo.branches "bot/* ai/*"
 ```
+
+**Which target.** With no arguments the branches are checked against the
+default branch: `origin/HEAD`, else `main`, `master` or `trunk`. Branches you
+name are checked against the branch you have checked out, as in Pytxo 1.x, or
+against the default branch if the checked-out branch is one of them.
+`--into <branch>`, `git config pytxo.into <branch>` or `PYTXO_INTO` sets the
+target in both cases.
 
 **Which tests.** Pytxo reads the target branch and picks the usual command
 for `package.json` (npm, pnpm, yarn or bun, installing dependencies first when

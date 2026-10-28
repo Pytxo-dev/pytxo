@@ -59,15 +59,18 @@ npx pytxo --into develop               # against another branch
 npx pytxo -c "npm ci && npm run test:unit"   # another test command
 ```
 
+Branches you name are checked against the branch you have checked out, as in Pytxo 1.x, or against the default branch if the checked-out branch is one of them. `--into` sets the target in both cases.
+
 To change the defaults for one repository:
 
 ```bash
 git config pytxo.branches "bot/* ai/*"
 git config pytxo.check "make test"
 git config pytxo.days 30
+git config pytxo.into develop
 ```
 
-The environment variables `PYTXO_BRANCHES`, `PYTXO_CHECK` and `PYTXO_DAYS` do the same for one shell.
+The environment variables `PYTXO_BRANCHES`, `PYTXO_CHECK`, `PYTXO_DAYS` and `PYTXO_INTO` do the same for one shell.
 
 `--verbose` adds every check's output, the receipt and the digests. `--json` and `--markdown` are for scripts and pull-request comments. See the [CLI reference](/docs/reference/cli) for every flag.
 

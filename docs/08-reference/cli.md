@@ -6,7 +6,7 @@ tags: [reference, cli]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-07-27
+updated: 2026-10-28
 related: [[pytxo-toml]], [[repository-layout]], [[mission-loop]], [[first-mission]]
 ---
 
@@ -18,6 +18,15 @@ Binary: `cargo run -p pytxo-cli -- <cmd>`
 ## Default: the check
 
 `pytxo` with **no subcommand** runs `pytxo check` ([[ADR-0043-check-is-the-default-command]]): it detects the agent branches, the target and the test command, merges the branches in a throwaway worktree and prints a three-line verdict. `pytxo land` is an alias. The released binaries build with `--no-default-features` and carry only `check`, `demo`, `hook`, `receipts` and `bench`.
+
+Target: with no branches named, the default branch (`origin/HEAD`, else `main`, `master`, `trunk`). Named branches are checked against the checked-out branch, as in 1.x, or the default branch when the checked-out branch is one of them. `--into <branch>`, `git config pytxo.into` or `PYTXO_INTO` override both.
+
+| `git config` key | Environment variable | Default |
+|------|------|------|
+| `pytxo.branches` | `PYTXO_BRANCHES` | `claude/* codex/* copilot/* cursor/* devin/* jules/* agent/* worktrees` |
+| `pytxo.check` | `PYTXO_CHECK` | found in the target branch |
+| `pytxo.days` | `PYTXO_DAYS` | `14` |
+| `pytxo.into` | `PYTXO_INTO` | the target above |
 
 ## Hypervisor Shell (frozen, `full` builds)
 

@@ -3,7 +3,7 @@ title: Land branches from any agent tool
 description: Use pytxo land to check several agent branches as one combined change, land only what passed, and keep a receipt.
 ---
 
-> **Pytxo 2.0:** `pytxo land` is now an alias of `pytxo check`, and with no branches it finds the agent branches and the test command on its own; see the [Quickstart](/docs/getting-started/quickstart). The flags on this page still work.
+> **Pytxo 2.0:** `pytxo land` is now an alias of `pytxo check`, and with no branches it finds the agent branches and the test command on its own and checks against the default branch; see the [Quickstart](/docs/getting-started/quickstart). Branches you name, as on this page, are still checked against the branch you have checked out, and the flags on this page still work.
 
 Agent workspaces such as Orca, Conductor, Superset, the Codex app or Claude Code give each agent its own branch. Each branch can pass its own checks and still break when merged with the others. `pytxo land` checks the combination before any of it reaches your branch.
 
@@ -11,7 +11,7 @@ It needs Pytxo 1.3 or later, Git, and the tools your checks use. It works on Win
 
 ## Check a set of branches
 
-From your repository, with the target branch checked out:
+From your repository, with the target branch checked out. Pytxo checks the branches you name against the branch you have checked out, or against the default branch if the checked-out branch is one of them:
 
 ```bash
 pytxo land agent/cart agent/discount --check "npm ci && npm test" --per-input
@@ -73,7 +73,7 @@ A failed check prints its error lines under it (1.3.1 and later), and a blocked 
 | `--check`, `-c` | none | Command to run on the combined change; repeatable. Without checks, a ready result only means "no conflicts", and Pytxo suggests a command from your project files without running it. |
 | `--per-input` | off | Also run the checks on each branch alone |
 | `--apply` | off | Land a ready result |
-| `--into <branch>` | checked-out branch | Target branch |
+| `--into <branch>` | the checked-out branch, or the default branch if it is one of the inputs | Target branch; `git config pytxo.into` or `PYTXO_INTO` sets it too |
 | `--base <rev>` | target tip | Check against another commit (shadow mode only) |
 | `--strict` | off | Block when two inputs changed the same function or type |
 | `--timeout <seconds>` | 900 | Per-check timeout |

@@ -21,7 +21,7 @@ Binary: `pytxo`. This page describes **2.0.0**. Run it with `npx pytxo`, or keep
 | Flag | Description |
 |------|-------------|
 | `[branch]...` | Branches or patterns to check. Default: the detected agent branches |
-| `--into <branch>` | Target branch. Default: the default branch (`origin/HEAD`, else `main`, `master` or `trunk`) |
+| `--into <branch>` | Target branch. Default: the default branch (`origin/HEAD`, else `main`, `master` or `trunk`); when you name branches, the branch you have checked out, or the default branch if that branch is one of them |
 | `--base <rev>` | Check against another commit instead of the target's tip (not with `--apply`) |
 | `-c`, `--check <cmd>` | Test command, repeatable. Default: found in the target branch |
 | `--per-input` | Run the checks on each branch alone every time, not only after the combined change fails |
@@ -42,6 +42,7 @@ With no branches given, Pytxo checks branches that match the patterns below and 
 | `pytxo.branches` | `PYTXO_BRANCHES` | `claude/* codex/* copilot/* cursor/* devin/* jules/* agent/* worktrees` |
 | `pytxo.check` | `PYTXO_CHECK` | found in the target branch |
 | `pytxo.days` | `PYTXO_DAYS` | `14` |
+| `pytxo.into` | `PYTXO_INTO` | see `--into` above |
 
 ## `pytxo bench`
 
