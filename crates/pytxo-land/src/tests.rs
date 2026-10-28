@@ -1229,8 +1229,8 @@ fn a_collision_names_a_detached_worktree_by_its_label() {
 }
 
 /// Ctrl+C says what it does, and a second one quits at once while the
-/// clean-up is still slow; on Unix a signal ignored at start (`nohup pytxo`)
-/// stays ignored. In a child process, whose handler this test installs.
+/// clean-up is still slow; on Unix a signal ignored at start (`nohup pytxo`,
+/// the binary itself) stays ignored. In a child process, whose handler this test installs.
 #[test]
 fn a_second_ctrl_c_quits_at_once() {
     const CHILD: &str = "PYTXO_LAND_CTRL_C_TEST";

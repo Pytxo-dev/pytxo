@@ -216,7 +216,7 @@ impl OwnedWorktree {
         // Checkout runs no hooks: the owned config points hooksPath nowhere.
         let owned = Git::owned(repo.cwd(), None);
         owned
-            .run(&["worktree", "add", "--detach", "--force", &path, at])
+            .run_stoppable(&["worktree", "add", "--detach", "--force", &path, at])
             .context("creating the landing worktree")?;
         // The pid tells a later run whether this one still goes.
         let reason = format!("{LOCK_REASON}{}", std::process::id());
@@ -373,7 +373,8 @@ pub(crate) fn active() -> MutexGuard<'static, Active> {
     static HANDLER: Once = Once::new();
     HANDLER.call_once(|| {
         // A signal ignored when pytxo started stays ignored, as `nohup pytxo`
-        // and a script's `pytxo &` ask.
+        // and a script's `pytxo &` ask. Only for the binary itself: npx and
+        // npm start it with every signal back to its default.
         #[cfg(unix)]
         let ignored: Vec<libc::c_int> = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP]
             .into_iter()
@@ -395,6 +396,12 @@ pub(crate) fn active() -> MutexGuard<'static, Active> {
         }
     });
     ACTIVE.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Installs the interrupt handler now, so an interrupt during the first
+/// steps (finding branches, building the demo) exits with 130 as well.
+pub fn watch_interrupts() {
+    drop(active());
 }
 
 /// Set by the first Ctrl+C, SIGTERM or SIGHUP.

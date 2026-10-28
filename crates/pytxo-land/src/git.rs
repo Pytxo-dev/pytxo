@@ -2,8 +2,10 @@
 //! pointed at a path that holds none, so a branch cannot execute code during
 //! checkout or merge; checks are the only code the gate runs.
 
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
-use std::process::Output;
+use std::process::{Command, Output, Stdio};
+use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 
@@ -60,7 +62,7 @@ impl Git {
         &self.cwd
     }
 
-    pub fn output(&self, args: &[&str]) -> Result<Output> {
+    fn command(&self, args: &[&str]) -> Command {
         let mut cmd = pytxo_core::background_command("git");
         // Paths as they are, not `"caf\303\251.txt"`.
         cmd.arg("-c").arg("core.quotePath=false");
@@ -71,8 +73,57 @@ impl Git {
             .current_dir(&self.cwd)
             .env("GIT_TERMINAL_PROMPT", "0")
             .env("LC_ALL", "C");
-        cmd.output()
+        cmd
+    }
+
+    pub fn output(&self, args: &[&str]) -> Result<Output> {
+        self.command(args)
+            .output()
             .with_context(|| format!("running git {}", args.join(" ")))
+    }
+
+    /// `run` for a long command an interrupt must stop before it clears up,
+    /// such as the checkout of a big repository: recorded with the checks,
+    /// and on Unix leading a process group, like them. On Windows Ctrl+C does
+    /// not reach git, which would go on writing the worktree being removed.
+    pub(crate) fn run_stoppable(&self, args: &[&str]) -> Result<()> {
+        let what = || format!("git {}", args.join(" "));
+        let mut cmd = self.command(args);
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped());
+        #[cfg(unix)]
+        std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+        // Started and recorded under one lock, as checks are.
+        let mut active = crate::active();
+        let mut child = cmd.spawn().with_context(|| format!("running {}", what()))?;
+        let pid = child.id();
+        active.checks.push(pid);
+        drop(active);
+        // Read meanwhile: git stops on a full pipe.
+        let mut stderr = child.stderr.take();
+        let errors = std::thread::spawn(move || {
+            let mut text = String::new();
+            if let Some(pipe) = stderr.as_mut() {
+                let _ = pipe.read_to_string(&mut text);
+            }
+            text
+        });
+        let status = loop {
+            // Reaped and forgotten under the lock, as checks are.
+            let mut active = crate::active();
+            if let Some(status) = child.try_wait().transpose() {
+                active.checks.retain(|&p| p != pid);
+                break status.with_context(|| format!("running {}", what()))?;
+            }
+            drop(active);
+            std::thread::sleep(Duration::from_millis(40));
+        };
+        if !status.success() {
+            let errors = errors.join().unwrap_or_default();
+            return Err(anyhow!("{} failed: {}", what(), errors.trim()));
+        }
+        Ok(())
     }
 
     /// Trimmed stdout; error carries stderr.

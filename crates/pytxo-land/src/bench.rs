@@ -835,6 +835,8 @@ mod tempdir {
             let path =
                 std::env::temp_dir().join(format!("{prefix}-{}", uuid::Uuid::new_v4().simple()));
             std::fs::create_dir_all(&path)?;
+            // Removed by an interrupt too, which skips Drop.
+            crate::active().paths.push(path.clone());
             Ok(Self(path))
         }
 
@@ -845,6 +847,7 @@ mod tempdir {
         /// Leave the directory on disk and return its path.
         pub fn keep(self) -> PathBuf {
             let path = self.0.clone();
+            crate::active().paths.retain(|p| p != &path);
             std::mem::forget(self);
             path
         }
@@ -853,6 +856,7 @@ mod tempdir {
     impl Drop for Dir {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
+            crate::active().paths.retain(|p| p != &self.0);
         }
     }
 }

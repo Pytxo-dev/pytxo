@@ -5,7 +5,7 @@ use std::ffi::OsString;
 use std::fs::{File, OpenOptions};
 use std::io::Read;
 use std::path::Path;
-use std::process::{Output, Stdio};
+use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use pytxo_core::ReceiptCheck;
@@ -278,36 +278,39 @@ fn shell(command: &str) -> std::process::Command {
 
 /// Stops check `pid` and everything it started.
 pub(crate) fn kill_tree(pid: u32) {
-    let mut kill = if cfg!(windows) {
-        let mut taskkill = pytxo_core::background_command("taskkill");
-        taskkill.args(["/T", "/F", "/PID", &pid.to_string()]);
-        taskkill
-    } else {
-        // It leads its own process group, which `-<pid>` names.
-        let mut kill = pytxo_core::background_command("kill");
-        kill.args(["-KILL", "--", &format!("-{pid}")]);
-        kill
-    };
-    let _ = kill.stdout(Stdio::null()).stderr(Stdio::null()).status();
+    #[cfg(not(unix))]
+    let _ = pytxo_core::background_command("taskkill")
+        .args(["/T", "/F", "/PID", &pid.to_string()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    // It leads its own process group, which `-<pid>` names. Called, not run
+    // as `kill`: slim images (`node:22-slim`) have no kill binary.
+    // SAFETY: kill(2) only sends a signal.
+    #[cfg(unix)]
+    unsafe {
+        libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
+    }
 }
 
 /// Whether process `pid` may still run: only a sure answer says no.
 pub(crate) fn alive(pid: u32) -> bool {
-    if cfg!(windows) {
+    #[cfg(not(unix))]
+    {
         let out = pytxo_core::background_command("tasklist")
             .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
             .output();
-        let listed =
-            |o: &Output| String::from_utf8_lossy(&o.stdout).contains(&format!("\"{pid}\""));
+        let listed = |o: &std::process::Output| {
+            String::from_utf8_lossy(&o.stdout).contains(&format!("\"{pid}\""))
+        };
         !out.is_ok_and(|o| o.status.success() && !listed(&o))
-    } else {
-        // `kill -0` only asks. EPERM, another user's process, is one too.
-        let out = pytxo_core::background_command("kill")
-            .args(["-0", &pid.to_string()])
-            .env("LC_ALL", "C")
-            .output();
-        let missing = |o: &Output| String::from_utf8_lossy(&o.stderr).contains("No such process");
-        !out.is_ok_and(|o| !o.status.success() && missing(&o))
+    }
+    // Signal 0 only asks. EPERM, another user's process, is one too.
+    // SAFETY: signal 0 sends nothing.
+    #[cfg(unix)]
+    {
+        let asked = unsafe { libc::kill(pid as libc::pid_t, 0) };
+        asked == 0 || std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
     }
 }
 

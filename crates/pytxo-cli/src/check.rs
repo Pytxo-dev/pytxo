@@ -121,6 +121,7 @@ fn not_in_this_build(what: &str) -> String {
 /// Runs the check and returns the exit code: 0 ready or nothing to check,
 /// 2 blocked, 3 stale.
 pub fn run(args: CheckArgs) -> Result<i32> {
+    pytxo_land::watch_interrupts();
     let cwd = match &args.repo {
         Some(repo) => repo.clone(),
         None => std::env::current_dir()?,
