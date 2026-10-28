@@ -254,6 +254,10 @@ test("the private candidate branch never deploys, and main waits while the candi
     "2ntt/pytxo-beta-candidate-20261003": false,
     ...(unpublished ? { main: false } : {}),
   });
+  // The Vercel CLI in deploy-web.yml is the other way to production.
+  const deploy = await readFile(path.resolve(here, "../../.github/workflows/deploy-web.yml"), "utf8");
+  const hold = deploy.indexOf('[ "$published" != "$candidate" ]');
+  assert.ok(hold > 0 && hold < deploy.indexOf("vercel deploy --prod"));
 });
 
 test("the Desktop updater uses a stable signed channel with a release fallback", async () => {
