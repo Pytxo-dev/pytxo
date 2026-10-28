@@ -39,6 +39,10 @@ fn repo(branches: &[&str]) -> tempfile::TempDir {
 }
 
 fn pytxo(dir: &Path, args: &[&str], stdin: Option<&str>) -> Output {
+    pytxo_env(dir, args, stdin, &[])
+}
+
+fn pytxo_env(dir: &Path, args: &[&str], stdin: Option<&str>, envs: &[(&str, &str)]) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_pytxo"))
         .args(args)
         .current_dir(dir)
@@ -46,6 +50,8 @@ fn pytxo(dir: &Path, args: &[&str], stdin: Option<&str>) -> Output {
         .env_remove("PYTXO_BRANCHES")
         .env_remove("PYTXO_CHECK")
         .env_remove("PYTXO_DAYS")
+        .env_remove("PYTXO_INTO")
+        .envs(envs.iter().copied())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -113,6 +119,49 @@ fn json_carries_the_verdict_and_what_was_found() {
     assert_eq!(v["branches"][0]["name"], "claude/a");
     assert_eq!(v["check_source"], "--check");
     assert!(out.stderr.is_empty(), "--json keeps stderr quiet");
+}
+
+#[test]
+fn named_branches_land_on_the_checked_out_branch_unless_pytxo_into_says() {
+    let dir = repo(&["codex/a", "codex/b"]);
+    let d = dir.path();
+    git(d, &["checkout", "-q", "-b", "develop"]);
+    let args = ["--json", "-c", "git --version", "codex/a", "codex/b"];
+    let target = |envs: &[(&str, &str)]| {
+        let out = pytxo_env(d, &args, None, envs);
+        assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
+        let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        v["target"].as_str().unwrap().to_string()
+    };
+    assert_eq!(target(&[]), "develop");
+    git(d, &["config", "pytxo.into", "main"]);
+    assert_eq!(target(&[]), "main");
+    // The environment beats git config, as for PYTXO_BRANCHES and PYTXO_CHECK.
+    assert_eq!(target(&[("PYTXO_INTO", "develop")]), "develop");
+
+    // --apply moves the checked-out branch, not main.
+    git(d, &["config", "--unset", "pytxo.into"]);
+    let main = Command::new("git")
+        .args(["rev-parse", "main"])
+        .current_dir(d)
+        .output()
+        .unwrap()
+        .stdout;
+    let out = pytxo(
+        d,
+        &["--apply", "-c", "git --version", "codex/a", "codex/b"],
+        None,
+    );
+    assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
+    assert!(stdout(&out).starts_with("LANDED"), "{}", stdout(&out));
+    assert!(d.join("f0.txt").exists() && d.join("f1.txt").exists());
+    let after = Command::new("git")
+        .args(["rev-parse", "main"])
+        .current_dir(d)
+        .output()
+        .unwrap()
+        .stdout;
+    assert_eq!(after, main, "main did not move");
 }
 
 #[test]

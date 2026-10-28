@@ -45,7 +45,8 @@ enum Commands {
         after_help = "Exit codes: 0 ready (or nothing to check), 2 blocked, 3 stale (the target moved), 1 error.
 Branches: claude/*, codex/*, copilot/*, cursor/*, devin/*, jules/*, agent/* and every branch in a
 linked worktree, with a commit in the last 14 days. Change them with git config pytxo.branches
-\"...\" (or PYTXO_BRANCHES), the test command with git config pytxo.check \"...\" (or PYTXO_CHECK)."
+\"...\" (or PYTXO_BRANCHES), the test command with git config pytxo.check \"...\" (or PYTXO_CHECK),
+the target with git config pytxo.into <branch> (or PYTXO_INTO)."
     )]
     Check(check::CheckArgs),
     /// See it work: a throwaway repo where two agent branches pass alone and fail together

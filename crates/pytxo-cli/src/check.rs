@@ -16,7 +16,8 @@ use serde_json::json;
 pub struct CheckArgs {
     /// Branches or commits to check, in merge order (default: the agent branches found)
     pub branches: Vec<String>,
-    /// Target branch (default: origin/HEAD, then main, master or trunk)
+    /// Target branch (default: PYTXO_INTO or git config pytxo.into, else the
+    /// checked-out branch when you name branches, else origin/HEAD, main, master or trunk)
     #[arg(long)]
     pub into: Option<String>,
     /// Base commit (default: the target's tip)

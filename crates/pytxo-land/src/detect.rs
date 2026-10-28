@@ -106,16 +106,21 @@ pub fn plan(cwd: &Path, given: &[String], into: Option<&str>, checks: &[String])
             .context("not inside a git repository")?,
     );
     let git = Git::user(&root);
-    let target = target_branch(&git, into)?;
+    // Named branches first: the target depends on them.
+    let named = if given.is_empty() {
+        None
+    } else {
+        Some(expand(&git, given)?)
+    };
+    let target = target_branch(&git, into, named.as_deref())?;
     let patterns = patterns(&git);
     let max_age_days = setting(&git, "PYTXO_DAYS", "pytxo.days")
         .first()
         .and_then(|d| d.trim().parse().ok())
         .unwrap_or(DEFAULT_MAX_AGE_DAYS);
-    let (branches, old) = if given.is_empty() {
-        detect(&git, &target, &patterns, max_age_days)?
-    } else {
-        (expand(&git, given)?, 0)
+    let (branches, old) = match named {
+        Some(named) => (named, 0),
+        None => detect(&git, &target, &patterns, max_age_days)?,
     };
     let (checks, check_source) = if !checks.is_empty() {
         (checks.to_vec(), Some("--check".to_string()))
@@ -147,12 +152,34 @@ pub fn plan(cwd: &Path, given: &[String], into: Option<&str>, checks: &[String])
     })
 }
 
-/// `--into`, else the default branch, else the checked-out branch. A hook
-/// runs inside an agent's worktree, where the checked-out branch is the
-/// agent's own, so the default branch comes first.
-pub fn target_branch(git: &Git, into: Option<&str>) -> Result<String> {
+/// The first of: `--into`; `PYTXO_INTO`, else `git config pytxo.into`; with
+/// branches `named` on the command line, the checked-out branch unless it is
+/// one of them; origin/HEAD, main, master or trunk; the checked-out branch.
+/// Without named branches the default branch comes first: a hook runs inside
+/// an agent's worktree, where the checked-out branch is the agent's own.
+pub fn target_branch(
+    git: &Git,
+    into: Option<&str>,
+    named: Option<&[AgentBranch]>,
+) -> Result<String> {
     if let Some(t) = into {
         return Ok(t.to_string());
+    }
+    // The last value, as `git config --get` reads it.
+    if let Some(t) = setting(git, "PYTXO_INTO", "pytxo.into").pop() {
+        return Ok(t);
+    }
+    let current = git
+        .run(&["symbolic-ref", "--quiet", "--short", "HEAD"])
+        .ok();
+    if let (Some(current), Some(named)) = (&current, named) {
+        // `HEAD`, `heads/x` and `x` all name the same branch.
+        let mut args = vec!["rev-parse", "--symbolic-full-name"];
+        args.extend(named.iter().map(|b| b.reference.as_str()));
+        let inputs = git.lines(&args).unwrap_or_default();
+        if !inputs.contains(&format!("refs/heads/{current}")) {
+            return Ok(current.clone());
+        }
     }
     let exists = |b: &str| {
         git.ok(&[
@@ -178,8 +205,7 @@ pub fn target_branch(git: &Git, into: Option<&str>) -> Result<String> {
     {
         return Ok(b);
     }
-    git.run(&["symbolic-ref", "--quiet", "--short", "HEAD"])
-        .context("no target branch: pass --into <branch>")
+    current.context("no target branch: pass --into <branch>")
 }
 
 /// `PYTXO_BRANCHES`, else `git config pytxo.branches`, else the defaults.
@@ -758,7 +784,69 @@ mod tests {
                 "refs/remotes/origin/develop",
             ],
         );
-        assert_eq!(target_branch(&Git::user(&d), None).unwrap(), "develop");
-        assert_eq!(target_branch(&Git::user(&d), Some("main")).unwrap(), "main");
+        assert_eq!(
+            target_branch(&Git::user(&d), None, None).unwrap(),
+            "develop"
+        );
+        assert_eq!(
+            target_branch(&Git::user(&d), Some("main"), None).unwrap(),
+            "main"
+        );
+    }
+
+    /// Every rung of the target order, from the main checkout and from linked
+    /// worktrees. `PYTXO_INTO` is tested from the binary: it sets no env here.
+    #[test]
+    fn the_target_order() {
+        let (dir, d) = repo();
+        branch(&d, "codex/a", "a.js");
+        branch(&d, "codex/b", "b.js");
+        git(&d, &["branch", "develop"]);
+        let target = |cwd: &Path, given: &[&str], into: Option<&str>| {
+            let given: Vec<String> = given.iter().map(|s| s.to_string()).collect();
+            plan(cwd, &given, into, &[]).unwrap().target
+        };
+        // Without names (bare pytxo, hooks): the default branch.
+        git(&d, &["checkout", "-q", "develop"]);
+        assert_eq!(target(&d, &[], None), "main");
+        // Named branches land on the checked-out branch...
+        assert_eq!(target(&d, &["codex/a", "codex/b"], None), "develop");
+        // ...unless it is one of them, however it is spelled, or HEAD is detached.
+        git(&d, &["checkout", "-q", "codex/a"]);
+        assert_eq!(target(&d, &["codex/a", "codex/b"], None), "main");
+        assert_eq!(target(&d, &["HEAD", "codex/b"], None), "main");
+        git(&d, &["checkout", "-q", "--detach", "develop"]);
+        assert_eq!(target(&d, &["codex/a"], None), "main");
+        // A linked worktree's own checked-out branch.
+        let wt = dir.path().join("feature wt");
+        let wt_arg = wt.to_string_lossy().into_owned();
+        git(
+            &d,
+            &["worktree", "add", "-q", "-b", "feature", &wt_arg, "main"],
+        );
+        assert_eq!(target(&wt, &["codex/a"], None), "feature");
+        assert_eq!(target(&wt, &[], None), "main");
+        let agent = dir.path().join("agent wt");
+        git(
+            &d,
+            &["worktree", "add", "-q", &agent.to_string_lossy(), "codex/b"],
+        );
+        assert_eq!(target(&agent, &["codex/a", "codex/b"], None), "main");
+        // git config pytxo.into beats both; its last value counts.
+        git(&d, &["config", "--add", "pytxo.into", "main"]);
+        git(&d, &["config", "--add", "pytxo.into", "develop"]);
+        assert_eq!(target(&wt, &["codex/a"], None), "develop");
+        assert_eq!(target(&agent, &[], None), "develop");
+        // --into beats everything.
+        assert_eq!(target(&wt, &["codex/a"], Some("main")), "main");
+
+        // No default branch: the checked-out one.
+        let lone = tempfile::tempdir().unwrap();
+        let l = lone.path();
+        git(l, &["init", "-q", "-b", "work"]);
+        git(l, &["config", "user.email", "test@pytxo.invalid"]);
+        git(l, &["config", "user.name", "Test"]);
+        commit_file(l, "README.md", "hi", "base");
+        assert_eq!(target(l, &[], None), "work");
     }
 }
