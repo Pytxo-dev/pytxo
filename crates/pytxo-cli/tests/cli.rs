@@ -210,6 +210,18 @@ fn hook_reply(out: &Output) -> serde_json::Value {
 }
 
 #[test]
+fn hook_block_turns_blocked_into_a_block_decision() {
+    let dir = repo(&["claude/a", "codex/b"]);
+    let d = dir.path();
+    git(d, &["config", "pytxo.check", "exit 1"]);
+    let v = hook_reply(&pytxo(d, &["hook", "--block"], Some(&stop_event(d))));
+    assert_eq!(v["decision"], "block", "{v}");
+    let reason = v["reason"].as_str().unwrap();
+    assert!(reason.contains("\nBLOCKED  "), "{reason}");
+    assert!(v.get("systemMessage").is_none(), "{v}");
+}
+
+#[test]
 fn one_hook_checks_a_repository_at_a_time() {
     let dir = repo(&["claude/a", "codex/b"]);
     let d = dir.path();
