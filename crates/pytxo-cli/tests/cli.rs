@@ -210,6 +210,51 @@ fn hook_reply(out: &Output) -> serde_json::Value {
 }
 
 #[test]
+fn one_hook_checks_a_repository_at_a_time() {
+    let dir = repo(&["claude/a", "codex/b"]);
+    let d = dir.path();
+    git(d, &["config", "pytxo.check", "git --version"]);
+    let event = stop_event(d);
+    // Another session's hook holds a fresh lock: quiet, and its lock stays.
+    let lock = d.join(".git").join("pytxo").join("hook.lock");
+    std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
+    std::fs::write(&lock, "4242 other").unwrap();
+    let out = pytxo(d, &["hook"], Some(&event));
+    assert_eq!((out.status.code(), stdout(&out)), (Some(0), String::new()));
+    assert_eq!(std::fs::read_to_string(&lock).unwrap(), "4242 other");
+
+    // Older than the hook timeout: a killed hook's, so it is taken over.
+    let killed = std::time::SystemTime::now() - std::time::Duration::from_secs(120);
+    let file = std::fs::File::options().write(true).open(&lock).unwrap();
+    file.set_modified(killed).unwrap();
+    drop(file);
+    let v = hook_reply(&pytxo(d, &["hook", "--timeout", "60"], Some(&event)));
+    assert!(
+        v["systemMessage"].as_str().unwrap().contains("READY"),
+        "{v}"
+    );
+    assert!(!lock.exists(), "released after a verdict");
+
+    // Released when nothing changed, and when the check fails to run.
+    let out = pytxo(d, &["hook"], Some(&event));
+    assert_eq!(stdout(&out), "");
+    assert!(!lock.exists(), "released when quiet");
+    git(d, &["commit", "-q", "--allow-empty", "-m", "moved"]);
+    let receipts = d.join(".git").join("pytxo").join("receipts");
+    std::fs::remove_dir_all(&receipts).unwrap();
+    std::fs::write(&receipts, "not a directory").unwrap();
+    let v = hook_reply(&pytxo(d, &["hook"], Some(&event)));
+    assert!(
+        v["systemMessage"]
+            .as_str()
+            .unwrap()
+            .contains("could not check"),
+        "{v}"
+    );
+    assert!(!lock.exists(), "released after an error");
+}
+
+#[test]
 fn a_hook_out_of_time_says_so_and_leaves_no_worktree() {
     let dir = repo(&["claude/a", "codex/b"]);
     let d = dir.path();

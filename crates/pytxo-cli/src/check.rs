@@ -2,9 +2,10 @@
 //! check the branches together, print the verdict. Also `pytxo demo`,
 //! `pytxo hook` and `pytxo receipts`.
 
-use std::io::Read;
-use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::fs::OpenOptions;
+use std::io::{ErrorKind, Read, Write};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use clap::Args;
@@ -173,6 +174,10 @@ fn hook_reply(
     }
     // Same branches, same tips, same tests: the last verdict still stands.
     let memo = pytxo_land::repo_receipts_dir(&plan.root)?.with_file_name("hook-last");
+    // Parallel sessions stop at the same time: one check per repository.
+    let Some(_lock) = HookLock::take(&memo.with_file_name("hook.lock"), timeout)? else {
+        return Ok(None);
+    };
     let fingerprint = plan.fingerprint();
     if std::fs::read_to_string(&memo).is_ok_and(|last| last == fingerprint) {
         return Ok(None);
@@ -202,6 +207,61 @@ fn hook_reply(
     } else {
         json!({ "systemMessage": text })
     }))
+}
+
+/// `hook.lock` in the git common dir, which every linked worktree shares.
+/// Dropping it removes it, on every way out of the hook; a lock a killed hook
+/// left behind is stale once it is older than the hook timeout.
+struct HookLock {
+    path: PathBuf,
+    token: String,
+}
+
+impl HookLock {
+    /// `None` while another hook holds a lock younger than `stale_after`.
+    fn take(path: &Path, stale_after: Duration) -> Result<Option<Self>> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let token = format!("{} {nanos}", std::process::id());
+        for _ in 0..2 {
+            match OpenOptions::new().write(true).create_new(true).open(path) {
+                Ok(mut file) => {
+                    file.write_all(token.as_bytes())?;
+                    return Ok(Some(Self {
+                        path: path.to_path_buf(),
+                        token,
+                    }));
+                }
+                Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+                    let age = std::fs::metadata(path)
+                        .and_then(|m| m.modified())
+                        .ok()
+                        .and_then(|t| t.elapsed().ok());
+                    if age.is_some_and(|age| age < stale_after) {
+                        return Ok(None);
+                    }
+                    // ponytail: two hooks taking over one stale lock at the
+                    // same moment can both run, as every hook could before.
+                    let _ = std::fs::remove_file(path);
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+        Ok(None)
+    }
+}
+
+impl Drop for HookLock {
+    fn drop(&mut self) {
+        // Only its own: a hook that outlived its timeout leaves its successor's.
+        if std::fs::read_to_string(&self.path).is_ok_and(|t| t == self.token) {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
 }
 
 /// `pytxo demo`: the check on a throwaway repository where two agent
