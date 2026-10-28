@@ -257,10 +257,12 @@ fn aws_char(c: char) -> bool {
     c.is_ascii_uppercase() || c.is_ascii_digit()
 }
 
-/// Credential prefixes, the least length of the rest and its characters, after
-/// pytxo-core's cloud upload patterns: GitHub, OpenAI and Anthropic, Stripe,
-/// Slack, Google and AWS keys.
-const KEYS: [(&str, usize, fn(char) -> bool); 16] = [
+/// A credential's prefix, the least length of the rest and its characters.
+type Key = (&'static str, usize, fn(char) -> bool);
+
+/// After pytxo-core's cloud upload patterns: GitHub, OpenAI and Anthropic,
+/// Stripe, Slack, Google and AWS keys.
+const KEYS: [Key; 16] = [
     ("ghp_", 20, key_char),
     ("gho_", 20, key_char),
     ("ghu_", 20, key_char),
