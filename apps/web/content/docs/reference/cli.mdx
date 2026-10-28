@@ -35,7 +35,7 @@ Binary: `pytxo`. This page describes **2.0.0**. Run it with `npx pytxo`, or keep
 
 Exit codes: `0` ready, landed or nothing to check, `2` blocked, `3` stale (the target moved during the check), `1` error.
 
-With no branches given, Pytxo checks branches that match the patterns below and have a commit in the last 14 days. The pattern `worktrees` means every branch checked out in a linked worktree. The test command comes from the target branch: `package.json` (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a `Makefile` with a `test` target.
+With no branches given, Pytxo checks branches that match the patterns below and have a commit in the last 14 days. The pattern `worktrees` means every branch checked out in a linked worktree; Pytxo's own temporary worktrees never count. The test command comes from the target branch: `package.json` (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a `Makefile` with a `test` target.
 
 | `git config` key | Environment variable | Default |
 |------|------|------|
