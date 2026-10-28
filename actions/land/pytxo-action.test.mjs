@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import {
   commentBody,
   glob,
+  INSTALL_HINT,
   isAgentPr,
   LICENSE_PUBLIC_KEY,
   licenseGate,
@@ -105,49 +106,83 @@ test("local branch names keep the PR's own name when it is safe and unique", () 
   assert.equal(localName(pr(5, "a..b"), taken, "main"), "pr-5");
 });
 
-function fakeGitHub(comments, { status = 200 } = {}) {
+/** A GitHub API serving `pages` of comments, by the `page` query parameter. */
+function fakeGitHub(pages, { status = 200 } = {}) {
   const calls = [];
   const fetchImpl = async (url, init = {}) => {
     calls.push({ url, method: init.method || "GET", body: init.body && JSON.parse(init.body) });
     if (status !== 200) return { ok: false, status, json: async () => ({}) };
-    return { ok: true, status: 200, json: async () => comments };
+    const page = Number(new URL(url).searchParams.get("page")) || 1;
+    return { ok: true, status: 200, json: async () => pages[page - 1] ?? [] };
   };
   return { calls, fetchImpl };
 }
 
+const byBot = (id, body) => ({ id, body, user: { login: "github-actions[bot]", type: "Bot" } });
+const byPerson = (id, body) => ({ id, body, user: { login: "matt", type: "User" } });
+
 test("one comment: created the first time, updated in place after", async () => {
   const target = { apiUrl: "https://api", repo: REPO, number: 14, token: "t", body: `${MARKER}\nverdict` };
-  const fresh = fakeGitHub([{ id: 1, body: "someone else" }]);
+  // A person quoting the marker does not make their comment Pytxo's.
+  const fresh = fakeGitHub([[byPerson(1, `see ${MARKER} above`), byBot(2, "another bot")]]);
   assert.equal(await upsertComment(fresh.fetchImpl, target), "created");
+  assert.equal(fresh.calls.length, 2);
   assert.equal(fresh.calls[1].method, "POST");
   assert.equal(fresh.calls[1].url, "https://api/repos/acme/shop/issues/14/comments");
 
-  const again = fakeGitHub([{ id: 1, body: "someone else" }, { id: 7, body: `${MARKER}\nold` }]);
+  // Pytxo's comment on the second page is found and updated in place.
+  const chatter = Array.from({ length: 100 }, (_, i) => byPerson(i + 1, i === 0 ? MARKER : "lgtm"));
+  const again = fakeGitHub([chatter, [byPerson(101, "lgtm"), byBot(107, `${MARKER}\nold`), byBot(108, `${MARKER}\nnewer`)]]);
   assert.equal(await upsertComment(again.fetchImpl, target), "updated");
-  assert.equal(again.calls[1].method, "PATCH");
-  assert.equal(again.calls[1].url, "https://api/repos/acme/shop/issues/comments/7");
-  assert.equal(again.calls[1].body.body, target.body);
+  assert.deepEqual(
+    again.calls.map((c) => c.method),
+    ["GET", "GET", "PATCH"],
+  );
+  assert.match(again.calls[0].url, /\?per_page=100&page=1$/);
+  assert.match(again.calls[1].url, /\?per_page=100&page=2$/);
+  assert.equal(again.calls[2].url, "https://api/repos/acme/shop/issues/comments/107");
+  assert.equal(again.calls[2].body.body, target.body);
 
-  const none = fakeGitHub([]);
-  assert.equal(await upsertComment(none.fetchImpl, { ...target, create: false }), "none");
-  assert.equal(none.calls.length, 1);
+  // A full page with no match reads on; a short one ends the search.
+  const twoPages = fakeGitHub([Array.from({ length: 100 }, (_, i) => byPerson(i + 1, "lgtm")), []]);
+  assert.equal(await upsertComment(twoPages.fetchImpl, { ...target, create: false }), "none");
+  assert.equal(twoPages.calls.length, 2);
 
   const readOnly = fakeGitHub([], { status: 403 });
   assert.equal(await upsertComment(readOnly.fetchImpl, target), "forbidden");
 });
 
-test("the comment names the PRs, then carries the CLI's verdict or the error", () => {
+test("every comment names what it checked, then its notes, then the install line", () => {
   const prs = [
     { number: 9, branch: "claude/rename" },
     { number: 14, branch: "codex/discount" },
   ];
-  const ok = commentBody({ prs, markdown: "### ⛔ BLOCKED: x\n", stderr: "", code: "2" });
-  assert.ok(ok.startsWith(`${MARKER}\nChecked together: #9 \`claude/rename\` · #14 \`codex/discount\`\n`));
-  assert.ok(ok.includes("### ⛔ BLOCKED: x"));
+  const cli = `### ⛔ BLOCKED: x\n\n<details>\n\n</details>\n\n<sub>the CLI's install line</sub>\n<!-- pytxo-verdict {"label":"BLOCKED","implicated":[0]} -->\n`;
+  const ok = commentBody({ prs, markdown: cli, stderr: "", code: "2", notes: ["1 agent pull request from forks left out."] });
+  assert.equal(
+    ok,
+    [
+      MARKER,
+      "Checked together: #9 `claude/rename` · #14 `codex/discount`",
+      "",
+      "### ⛔ BLOCKED: x\n\n<details>\n\n</details>",
+      "",
+      "> 1 agent pull request from forks left out.",
+      "",
+      INSTALL_HINT,
+      "",
+    ].join("\n"),
+  );
   const broken = commentBody({ prs, markdown: "", stderr: "npm error 404 pytxo@9\n", code: "1" });
   assert.ok(broken.includes("could not run the check (exit 1)"));
   assert.ok(broken.includes("npm error 404 pytxo@9"));
-  assert.ok(commentBody({ reason: "nothing to combine" }).includes("Nothing to check"));
+  const nothing = commentBody({ reason: "nothing to combine", notes: ["2 older agent pull requests left out."] });
+  assert.ok(nothing.includes("Nothing to check"));
+  assert.ok(nothing.endsWith(`\n\n> 2 older agent pull requests left out.\n\n${INSTALL_HINT}\n`));
+  for (const body of [ok, broken, nothing]) {
+    assert.ok(body.endsWith(`\n\n${INSTALL_HINT}\n`));
+    assert.equal(body.split("<sub>").length, 2);
+  }
 });
 
 // discover, end to end: a real origin with refs/pull/N/head, a local API.

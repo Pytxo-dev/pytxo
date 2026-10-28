@@ -25,6 +25,9 @@ export const AGENT_BOTS = new Set([
 
 export const MARKER = "<!-- pytxo-check -->";
 export const MAX_PRS = 10;
+/** The line every comment ends with, as the CLI's markdown does. */
+export const INSTALL_HINT =
+  "<sub>Add this check to any repo in one line: `uses: Pytxo-dev/pytxo/actions/land@v2` · see it work: `npx pytxo demo`</sub>";
 
 /** `*` matches any run of characters, slashes included; `?` matches one. */
 export function glob(pattern, text) {
@@ -115,11 +118,21 @@ export async function listOpenPrs(fetchImpl, { apiUrl, repo, base, token }) {
   return prs;
 }
 
-/** Updates Pytxo's comment on the PR, or creates it. "forbidden" when the token cannot write. */
+/**
+ * Updates Pytxo's comment on the PR, or creates it. Only a bot's comment
+ * counts (anyone can paste the marker), and every page is searched.
+ * "forbidden" when the token cannot write.
+ */
 export async function upsertComment(fetchImpl, { apiUrl, repo, number, token, body, create = true }) {
-  const list = await api(fetchImpl, `${apiUrl}/repos/${repo}/issues/${number}/comments?per_page=100`, token);
-  if (!list.ok) return list.status === 403 ? "forbidden" : `HTTP ${list.status}`;
-  const existing = (await list.json()).find((c) => c.body?.includes(MARKER));
+  let existing;
+  for (let page = 1; !existing; page++) {
+    const url = `${apiUrl}/repos/${repo}/issues/${number}/comments?per_page=100&page=${page}`;
+    const list = await api(fetchImpl, url, token);
+    if (!list.ok) return list.status === 403 ? "forbidden" : `HTTP ${list.status}`;
+    const batch = await list.json();
+    existing = batch.find((c) => c.user?.type === "Bot" && c.body?.includes(MARKER));
+    if (batch.length < 100) break;
+  }
   if (!existing && !create) return "none";
   const response = existing
     ? await api(fetchImpl, `${apiUrl}/repos/${repo}/issues/comments/${existing.id}`, token, {
@@ -134,20 +147,28 @@ export async function upsertComment(fetchImpl, { apiUrl, repo, number, token, bo
   return response.status === 403 ? "forbidden" : `HTTP ${response.status}`;
 }
 
-/** The comment: which PRs were checked, then the CLI's markdown verdict. */
-export function commentBody({ prs, markdown, stderr, code, reason }) {
+/**
+ * The comment: which PRs were checked, the CLI's verdict (or why there is
+ * none), the notes, then the install line. The CLI's own closing lines (its
+ * install line and verdict line) make way for the notes.
+ */
+export function commentBody({ prs, markdown, stderr, code, reason, notes = [] }) {
   const lines = [MARKER];
   if (reason) {
     lines.push(`### ⏸️ Nothing to check`, "", reason);
-    return `${lines.join("\n")}\n`;
-  }
-  lines.push(`Checked together: ${prs.map((p) => `#${p.number} \`${p.branch}\``).join(" · ")}`, "");
-  if (markdown.trim()) {
-    lines.push(markdown.trim());
   } else {
-    const tail = stderr.trim().split(/\r?\n/).slice(-20).join("\n");
-    lines.push(`### ⚠️ Pytxo could not run the check (exit ${code})`, "", "```", tail || "no output", "```");
+    lines.push(`Checked together: ${prs.map((p) => `#${p.number} \`${p.branch}\``).join(" · ")}`, "");
+    const verdict = markdown.trim().split(/\r?\n/);
+    while (verdict.length && /^(\s*|<sub>.*<\/sub>|<!-- pytxo-verdict .*-->)$/.test(verdict.at(-1))) verdict.pop();
+    if (verdict.length) {
+      lines.push(verdict.join("\n"));
+    } else {
+      const tail = stderr.trim().split(/\r?\n/).slice(-20).join("\n");
+      lines.push(`### ⚠️ Pytxo could not run the check (exit ${code})`, "", "```", tail || "no output", "```");
+    }
   }
+  if (notes.length) lines.push("", ...notes.map((n) => `> ${n}`));
+  lines.push("", INSTALL_HINT);
   return `${lines.join("\n")}\n`;
 }
 
@@ -296,16 +317,16 @@ async function comment() {
     stderr: read("pytxo-check.err"),
     code: process.env.PYTXO_CODE || "?",
     reason: state.reason,
+    notes: state.notes,
   });
-  const notes = state.notes?.length ? `\n${state.notes.map((n) => `> ${n}`).join("\n")}\n` : "";
-  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${body}${notes}`);
+  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, body);
   if (process.env.PYTXO_COMMENT === "false") return;
   const result = await upsertComment(fetch, {
     apiUrl: process.env.GITHUB_API_URL || "https://api.github.com",
     repo: process.env.GITHUB_REPOSITORY,
     number: state.number,
     token: process.env.PYTXO_TOKEN,
-    body: `${body}${notes}`,
+    body,
     // "Nothing to combine" only updates a comment that is already there.
     create: !state.reason,
   });
