@@ -92,6 +92,9 @@ pub struct LandOptions {
     /// Treat symbol collisions as blocking.
     pub strict: bool,
     pub check_timeout: Duration,
+    /// No test run starts after this, and the one running then is cut short
+    /// (`pytxo hook`, which must answer before the agent tool kills it).
+    pub deadline: Option<Instant>,
     /// Override the receipts directory (tests, benchmarks).
     pub receipts_dir: Option<PathBuf>,
     /// Keep `refs/pytxo/land/<id>` pointing at the combined commit.
@@ -110,6 +113,7 @@ impl LandOptions {
             apply: false,
             strict: false,
             check_timeout: DEFAULT_CHECK_TIMEOUT,
+            deadline: None,
             receipts_dir: None,
             keep_ref: true,
         }
@@ -123,6 +127,9 @@ pub struct LandOutcome {
     pub combined_ref: Option<String>,
     /// Plain-language observations worth leading with.
     pub insights: Vec<String>,
+    /// The deadline stopped the checks before they finished, so the decision
+    /// says nothing about the inputs.
+    pub out_of_time: bool,
 }
 
 impl LandOutcome {
@@ -383,10 +390,34 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     // Checks: the combination, and each input alone when asked. Only checks
     // need files on disk, so only checks create worktrees.
     let mut checks: Vec<ReceiptCheck> = Vec::new();
+    // Past the deadline nothing more starts; a run gets at most what is left.
+    let out_of_time = std::cell::Cell::new(false);
+    let late = || {
+        let late = opts.deadline.is_some_and(|d| Instant::now() >= d);
+        out_of_time.set(out_of_time.get() || late);
+        late
+    };
+    let run_check = |scope: &str, command: &str, dir: &Path| {
+        if late() {
+            return None;
+        }
+        let left = opts
+            .deadline
+            .map(|d| d.saturating_duration_since(Instant::now()));
+        let timeout = left.map_or(opts.check_timeout, |l| l.min(opts.check_timeout));
+        let check = checks::run_check(scope, command, dir, timeout);
+        if check.timed_out && timeout < opts.check_timeout {
+            out_of_time.set(true);
+        }
+        Some(check)
+    };
     let run_solo = |checks: &mut Vec<ReceiptCheck>| -> Result<()> {
         let scratch = OwnedWorktree::add(&repo, &base, &format!("{tag}-solo"))?;
         let sg = Git::owned(&scratch.path, identity);
         for r in resolved.iter().filter(|r| !r.files.is_empty()) {
+            if late() {
+                return Ok(());
+            }
             let scope = format!("input:{}", r.input.reference);
             let solo = if in_memory {
                 merge_in_memory(&owned, &base, &r.commit, "pytxo land: solo")?
@@ -410,12 +441,10 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             sg.run(&["checkout", "--detach", "--force", &solo])?;
             sg.run(&["clean", "-fdq"])?;
             for command in &opts.checks {
-                checks.push(checks::run_check(
-                    &scope,
-                    command,
-                    &scratch.path,
-                    opts.check_timeout,
-                ));
+                let Some(check) = run_check(&scope, command, &scratch.path) else {
+                    return Ok(());
+                };
+                checks.push(check);
             }
         }
         Ok(())
@@ -435,9 +464,9 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     let first_runs: Vec<ReceiptCheck> = opts
         .checks
         .iter()
-        .map(|command| checks::run_check("combined", command, &dir, opts.check_timeout))
+        .map_while(|command| run_check("combined", command, &dir))
         .collect();
-    if opts.per_input == PerInput::OnFailure && first_runs.iter().any(|c| !c.passed) {
+    if opts.per_input == PerInput::OnFailure && first_runs.iter().any(|c| !c.passed) && !late() {
         run_solo(&mut checks)?;
     }
     for (command, check) in opts.checks.iter().zip(first_runs) {
@@ -447,12 +476,12 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             .iter()
             .filter(|c| c.scope != "combined" && &c.command == command)
             .collect();
-        let rerun =
-            (!check.passed && !solo.is_empty() && solo.iter().all(|c| c.passed)).then(|| {
-                ReceiptCheck {
-                    rerun: true,
-                    ..checks::run_check("combined", command, &dir, opts.check_timeout)
-                }
+        let rerun = (!check.passed && !solo.is_empty() && solo.iter().all(|c| c.passed))
+            .then(|| run_check("combined", command, &dir))
+            .flatten()
+            .map(|again| ReceiptCheck {
+                rerun: true,
+                ..again
             });
         let how = |c: &ReceiptCheck| {
             if c.timed_out {
@@ -482,6 +511,10 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         checks.extend(rerun);
     }
     drop(combined_tree);
+    let out_of_time = out_of_time.get();
+    if out_of_time {
+        reasons.push("out of time: the deadline stopped the checks before they finished".into());
+    }
 
     let collisions: Vec<String> = shared_files
         .iter()
@@ -652,6 +685,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         receipt_path,
         combined_ref,
         insights,
+        out_of_time,
     })
 }
 

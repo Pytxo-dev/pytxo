@@ -884,6 +884,7 @@ mod tests {
             receipt_path: Default::default(),
             combined_ref: None,
             insights: Vec::new(),
+            out_of_time: false,
         };
         let md = render_markdown(&outcome);
         let last = md.trim_end().lines().last().unwrap();

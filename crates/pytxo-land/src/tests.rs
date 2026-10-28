@@ -547,6 +547,52 @@ fn scratch_worktrees_are_named_the_way_detection_recognizes() {
 }
 
 #[test]
+fn a_deadline_cuts_the_checks_short_and_says_so() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    #[cfg(windows)]
+    let slow = "ping -n 30 127.0.0.1 > nul";
+    #[cfg(not(windows))]
+    let slow = "sleep 30";
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.checks = vec![slow.into(), "echo never".into()];
+    o.per_input = PerInput::OnFailure;
+    let started = Instant::now();
+    o.deadline = Some(started + Duration::from_secs(4));
+    let out = land(&o).unwrap();
+    assert!(
+        started.elapsed() < Duration::from_secs(20),
+        "the run was cut"
+    );
+    assert!(out.out_of_time);
+    assert_eq!(out.decision(), "blocked");
+    // Nothing starts after the cut: no second command, no input alone, no
+    // re-run. (On a loaded machine the deadline can pass before the first.)
+    let checks = &out.receipt.predicate.checks;
+    assert!(checks.len() <= 1, "{checks:?}");
+    assert!(
+        checks
+            .iter()
+            .all(|c| c.scope == "combined" && c.command == slow && c.timed_out),
+        "{checks:?}"
+    );
+    let reasons = &out.receipt.predicate.reasons;
+    assert!(
+        reasons.iter().any(|r| r.starts_with("out of time")),
+        "{reasons:?}"
+    );
+
+    // A deadline that leaves room changes nothing.
+    o.checks = vec!["echo ok".into()];
+    o.deadline = Some(Instant::now() + Duration::from_secs(600));
+    let out = land(&o).unwrap();
+    assert!(!out.out_of_time);
+    assert_eq!(out.decision(), "ready");
+}
+
+#[test]
 fn empty_inputs_land_nothing() {
     let dir = repo();
     let d = dir.path();
