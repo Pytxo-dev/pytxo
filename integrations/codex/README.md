@@ -17,10 +17,11 @@ linked worktrees) changed since its last answer.
 The hook runs `npx -y pytxo@2.0.0 hook`, so Node.js must be on your PATH. On
 Windows, Codex runs it through `cmd.exe`, which finds `npx` as usual.
 
-One check runs at a time across sessions: while one runs, other sessions'
-hooks stay quiet. The hook finishes inside its time limit; if the check needs
-longer, it says so and asks you to run `npx pytxo` in a terminal. Pytxo's own
-temporary worktrees never count as agent branches.
+One check runs at a time per repository, linked worktrees included: while one
+runs, other sessions' hooks in that repository stay quiet. The hook finishes
+inside its time limit; if the check needs longer, it says so and asks you to
+run `npx pytxo` in a terminal. Pytxo's own temporary worktrees never count as
+agent branches.
 
 To make Codex keep working on a BLOCKED verdict instead of only showing it, use
 `npx -y pytxo@2.0.0 hook --block`.

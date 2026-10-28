@@ -7,7 +7,7 @@ When Claude Code or Codex finishes a turn, Pytxo checks the agent branches in yo
 
 Both run `npx -y pytxo@2.0.0 hook`, so Node.js must be on your PATH.
 
-One check runs at a time across all your sessions: while one runs, the other sessions' hooks stay quiet. The hook finishes inside its time limit. If the check needs longer, it says so and asks you to run `npx pytxo` in a terminal.
+One check runs at a time per repository, linked worktrees included: while one runs, the other sessions' hooks in that repository stay quiet. The hook finishes inside its time limit. If the check needs longer, it says so and asks you to run `npx pytxo` in a terminal.
 
 ## Claude Code
 

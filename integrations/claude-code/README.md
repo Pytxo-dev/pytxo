@@ -26,12 +26,13 @@ next     fix one branch so they agree, then Pytxo checks again when an agent sto
 ```
 
 When Claude runs subagents in the background, the check waits until the last
-one finishes. One check runs at a time across sessions: while one runs, other
-sessions' hooks stay quiet. The hook finishes inside its time limit; if the
-check needs longer, it says so and asks you to run `npx pytxo` in a terminal.
-Nothing in your repository changes: the check runs in a temporary worktree and
-only records a receipt under `.git/pytxo/receipts`. Pytxo's own temporary
-worktrees never count as agent branches.
+one finishes. One check runs at a time per repository, linked worktrees
+included: while one runs, other sessions' hooks in that repository stay quiet.
+The hook finishes inside its time limit; if the check needs longer, it says so
+and asks you to run `npx pytxo` in a terminal. Nothing in your repository
+changes: the check runs in a temporary worktree and only records a receipt
+under `.git/pytxo/receipts`. Pytxo's own temporary worktrees never count as
+agent branches.
 
 ## Options
 
