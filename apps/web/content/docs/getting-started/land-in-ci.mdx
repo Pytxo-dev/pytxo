@@ -37,6 +37,8 @@ A blocked verdict fails the job only when this pull request is part of the probl
 
 When the cause is another pull request, such as a draft that fails on its own or two other pull requests that conflict with each other, the comment names it and the job passes. A flaky result passes with a warning.
 
+A stale result, where the base branch moved during the check, also fails the job; run it again. So does an error, when Pytxo could not run the check.
+
 ## Inputs
 
 All optional.
