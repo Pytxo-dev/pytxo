@@ -623,7 +623,7 @@ fn plain_verdicts_say_what_why_and_next() {
     // Markdown leads with the verdict and ends with the install line.
     let md = render_markdown(&out);
     assert!(md.starts_with("### ⛔ BLOCKED: agent/d conflicts with agent/c\n"), "{md}");
-    assert!(md.contains("**Next:** Rebase agent/d onto agent/c"), "{md}");
+    assert!(md.contains("**Next:** rebase agent/d onto agent/c"), "{md}");
     assert!(md.trim_end().ends_with(&format!("<sub>{INSTALL_HINT}</sub>")), "{md}");
     assert!(!md.contains(&out.receipt.predicate.content_digest), "digest only with --verbose");
     assert!(render_markdown_with(&out, true).contains(&out.receipt.predicate.content_digest));

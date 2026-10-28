@@ -29,7 +29,12 @@ async function fixture(versions) {
   await writeFile(path.join(root, "packages", "pytxo", "package.json"), JSON.stringify({ version: versions.npm }));
   await writeFile(path.join(root, "apps", "web", "src", "lib", "site.ts"), `export const PUBLISHED_VERSION = "${versions.publicRelease ?? versions.rust}";\nexport const CANDIDATE_VERSION = "${versions.web ?? versions.rust}";\nexport const PYTXO_VERSION = PUBLISHED_VERSION;\n`);
   await writeFile(path.join(root, "distribution", "pytxo-releases", "install.ps1"), `throw "(v${versions.installer ?? versions.rust} provides Windows x64)"\n`);
-  await writeFile(path.join(root, "README.md"), `npm i -g pytxo@${versions.readme ?? versions.publicRelease ?? versions.rust}\n`);
+  await writeFile(
+    path.join(root, "README.md"),
+    versions.readme === null ? "npx pytxo\n" : `npm i -g pytxo@${versions.readme ?? versions.publicRelease ?? versions.rust}\n`,
+  );
+  await mkdir(path.join(root, "actions", "land"), { recursive: true });
+  await writeFile(path.join(root, "actions", "land", "action.yml"), `    default: "${versions.action ?? versions.rust}" # pytxo-version\n`);
   await writeFile(path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"), `This source candidate targets **${versions.changelog ?? versions.rust}**.\nThe latest public release is **${versions.publicRelease ?? versions.rust}**.\n`);
   await writeFile(path.join(root, "distribution", "release-notes", `v${versions.rust}.md`), `# Pytxo v${versions.releaseNotes ?? versions.rust}\n`);
   return root;
@@ -114,4 +119,13 @@ test("does not substitute a public version for a missing candidate declaration",
   const root = await fixture({ rust: "1.2.2", desktop: "1.2.2", tauri: "1.2.2", demo: "1.2.2", npm: "1.2.2" });
   await writeFile(path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"), "Current public binary: **1.2.2**.\n");
   await assert.rejects(() => verifyReleaseVersion(root), /Missing changelog source candidate version/);
+});
+
+test("the README may leave the version out; the Action must pin the release", async () => {
+  const root = await fixture({ rust: "2.0.0", desktop: "2.0.0", tauri: "2.0.0", demo: "2.0.0", npm: "2.0.0", readme: null });
+  const actual = await verifyReleaseVersion(root, "2.0.0");
+  assert.equal(actual.readme, undefined);
+  assert.equal(actual.action, "2.0.0");
+  const stale = await fixture({ rust: "2.0.0", desktop: "2.0.0", tauri: "2.0.0", demo: "2.0.0", npm: "2.0.0", action: "1.3.6" });
+  await assert.rejects(() => verifyReleaseVersion(stale, "2.0.0"), /action=1\.3\.6/);
 });

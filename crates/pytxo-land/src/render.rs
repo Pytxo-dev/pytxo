@@ -515,8 +515,9 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
         verdict.label,
         verdict.what.trim_end_matches('.')
     );
-    let _ = writeln!(s, "**Why:** {}\n", upper_first(&verdict.why));
-    let _ = writeln!(s, "**Next:** {}\n", upper_first(&verdict.next));
+    // Lower case on purpose: these often start with a command (npm test...).
+    let _ = writeln!(s, "**Why:** {}\n", verdict.why);
+    let _ = writeln!(s, "**Next:** {}\n", verdict.next);
     let _ = writeln!(s, "<details><summary>Details</summary>\n");
     let _ = writeln!(
         s,
@@ -615,11 +616,4 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
     }
     let _ = writeln!(s, "\n</details>\n\n<sub>{INSTALL_HINT}</sub>");
     s
-}
-
-fn upper_first(text: &str) -> String {
-    let mut chars = text.chars();
-    chars
-        .next()
-        .map_or_else(String::new, |c| c.to_uppercase().chain(chars).collect())
 }
