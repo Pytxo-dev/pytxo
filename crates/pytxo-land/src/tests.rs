@@ -362,7 +362,10 @@ fn a_check_that_fails_everywhere_points_at_the_check() {
     assert_eq!(out.decision(), "blocked");
 
     let hint = out.insights.join("\n");
-    assert!(hint.contains("failed on every input alone too"), "{hint}");
+    assert!(
+        hint.contains("failed on every input alone and on main too"),
+        "{hint}"
+    );
     assert!(
         hint.contains("--check \"npm install && npm test\""),
         "{hint}"
@@ -680,11 +683,45 @@ fn plain_verdicts_say_what_why_and_next() {
     let v = verdict(&out, again);
     assert_eq!((v.kind, v.label), ("flaky", "FLAKY"));
 
-    // Fails everywhere: not the combination's fault.
+    // Fails everywhere, the target too: not the branches' fault.
     o.checks = vec!["exit 1".into()];
-    let v = verdict(&land(&o).unwrap(), again);
+    let out = land(&o).unwrap();
+    let scopes: Vec<&str> = out
+        .receipt
+        .predicate
+        .checks
+        .iter()
+        .map(|c| c.scope.as_str())
+        .collect();
+    assert_eq!(
+        scopes,
+        ["input:agent/a", "input:agent/b", "combined", "target"]
+    );
+    let v = verdict(&out, again);
     assert_eq!(v.kind, "alone");
-    assert!(v.what.contains("fails on every branch alone too"), "{v:?}");
+    assert_eq!(
+        v.what,
+        "exit 1 fails on main as well, so the check or the environment is broken, not the branches."
+    );
+    assert_eq!(v.why, "exit 1 exits 1 on main.");
+    assert!(render_markdown(&out)
+        .ends_with("\n<!-- pytxo-verdict {\"label\":\"BLOCKED\",\"implicated\":[0,1]} -->\n"));
+
+    // Every branch fails alone but the target passes: the branches did it.
+    o.checks = vec!["git diff --quiet main HEAD".into()];
+    let out = land(&o).unwrap();
+    let v = verdict(&out, again);
+    assert_eq!(v.kind, "alone");
+    assert_eq!(
+        v.what,
+        "agent/a and agent/b fail git diff --quiet main HEAD on their own, so the combination fails too."
+    );
+    assert_eq!(
+        v.next,
+        "fix agent/a and agent/b first, then run npx pytxo again."
+    );
+    assert!(render_markdown(&out)
+        .ends_with("\n<!-- pytxo-verdict {\"label\":\"BLOCKED\",\"implicated\":[0,1]} -->\n"));
 
     // Without solo runs, the verdict says only what it knows.
     o.per_input = PerInput::Never;
@@ -835,4 +872,241 @@ fn test_output_shows_only_as_code_in_markdown() {
     assert!(!md.contains(&token), "{md}");
     // Plain output shows the same line, not as code.
     assert!(verdict(&out, "again").why.ends_with(&format!(": {line}")));
+}
+
+/// Colors, progress redraws and other control characters print nothing in
+/// a terminal; in a comment a carriage return would end a code span.
+#[test]
+fn check_output_shows_as_a_terminal_would() {
+    let dir = repo();
+    let d = dir.path();
+    let printed = "\u{1b}[31mFAIL\u{1b}[0m 2 tests\n0%\r# @octocat broke it\n";
+    branch(d, "main", "agent/a", &[("out.txt", printed)]);
+    let mut o = opts(d, &["agent/a"]);
+    #[cfg(windows)]
+    let check = "type out.txt & exit 1";
+    #[cfg(not(windows))]
+    let check = "cat out.txt; exit 1";
+    o.checks = vec![check.into()];
+    let out = land(&o).unwrap();
+    assert_eq!(
+        out.receipt.predicate.checks[0].output_tail,
+        ["FAIL 2 tests", "# @octocat broke it"]
+    );
+    let md = render_markdown(&out);
+    assert!(!md.contains(['\r', '\u{1b}']), "{md:?}");
+    let mut fenced = false;
+    for line in md.lines().skip(1) {
+        if line.starts_with("```") {
+            fenced = !fenced;
+        }
+        assert!(fenced || !line.starts_with('#'), "{line}\n{md}");
+    }
+}
+
+/// What the target changed since a branch was cut is named as the target,
+/// not as the branches before it.
+#[test]
+fn a_conflict_with_the_target_names_the_target() {
+    let again = "run npx pytxo again";
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("docs/a.md", "a\n")]);
+    branch(d, "main", "agent/b", &[("README.md", "# shop B\n")]);
+    write(d, &[("README.md", "# shop main\n")]);
+    git(d, &["commit", "-q", "-am", "main moves on"]);
+
+    for inputs in [&["agent/b"][..], &["agent/a", "agent/b"]] {
+        let mut o = opts(d, inputs);
+        o.checks = vec!["echo ok".into()];
+        let out = land(&o).unwrap();
+        assert_eq!(
+            out.receipt.predicate.reasons,
+            ["agent/b conflicts with main in README.md"]
+        );
+        let v = verdict(&out, again);
+        assert_eq!(
+            (v.kind, v.what.as_str()),
+            ("conflict", "agent/b conflicts with main.")
+        );
+        assert_eq!(
+            v.next,
+            "rebase agent/b onto main (or ask its agent to), then run npx pytxo again."
+        );
+        assert!(
+            render_markdown(&out).starts_with("### ⛔ BLOCKED: `agent/b` conflicts with `main`\n")
+        );
+    }
+}
+
+/// A combined run that times out is the answer: each further run could take
+/// as long again to say the same.
+#[test]
+fn nothing_runs_after_a_timeout() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    #[cfg(windows)]
+    let slow = "ping -n 30 127.0.0.1 > nul";
+    #[cfg(not(windows))]
+    let slow = "sleep 30";
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.checks = vec![slow.into(), "echo never".into()];
+    o.per_input = PerInput::OnFailure;
+    o.check_timeout = Duration::from_millis(500);
+    let out = land(&o).unwrap();
+    let checks = &out.receipt.predicate.checks;
+    assert_eq!(checks.len(), 1, "{checks:?}");
+    assert!(checks[0].scope == "combined" && checks[0].timed_out);
+    assert_eq!(verdict(&out, "again").kind, "timeout");
+
+    // Asked for, each input still runs alone first; the target never does.
+    o.checks = vec![slow.into()];
+    o.per_input = PerInput::Always;
+    let out = land(&o).unwrap();
+    let scopes: Vec<&str> = out
+        .receipt
+        .predicate
+        .checks
+        .iter()
+        .map(|c| c.scope.as_str())
+        .collect();
+    assert_eq!(scopes, ["input:agent/a", "input:agent/b", "combined"]);
+}
+
+/// A killed run's scratch worktrees stay registered; the next run removes
+/// them, but not a concurrent run's.
+#[test]
+fn a_run_removes_what_killed_runs_left() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    let scratch = tempfile::tempdir().unwrap();
+    let left = |tag: &str, pid: u32| {
+        let path = scratch.path().join(format!("pytxo-land-{tag}"));
+        let shown = path.to_str().unwrap();
+        git(d, &["worktree", "add", "-q", "--detach", shown, "main"]);
+        let reason = format!("pytxo {pid}");
+        git(d, &["worktree", "lock", "--reason", &reason, shown]);
+        path
+    };
+    let now = chrono::Utc::now().format("%Y%m%dt%H%M%Sz");
+    let me = std::process::id();
+    let old = left("20250101t000000z_0123abcd", me);
+    let dead = left(&format!("{now}_0123abce-solo"), 99_999_999);
+    let running = left(&format!("{now}_0123abcf"), me);
+
+    let mut o = opts(d, &["agent/a"]);
+    o.checks = vec!["echo ok".into()];
+    assert_eq!(land(&o).unwrap().decision(), "ready");
+    let listed = git(d, &["worktree", "list", "--porcelain"]);
+    let registered = |p: &Path| listed.contains(p.file_name().unwrap().to_str().unwrap());
+    assert!(!old.exists() && !registered(&old), "{listed}");
+    assert!(!dead.exists() && !registered(&dead), "{listed}");
+    assert!(running.exists() && registered(&running), "{listed}");
+}
+
+/// Git's own spelling of a path, not `"caf\303\251.txt"`.
+#[test]
+fn paths_are_recorded_as_they_are() {
+    let dir = repo();
+    let d = dir.path();
+    git(d, &["config", "core.quotePath", "true"]);
+    branch(d, "main", "agent/a", &[("café.txt", "a\n")]);
+    let out = land(&opts(d, &["agent/a"])).unwrap();
+    assert_eq!(out.receipt.predicate.inputs[0].files, ["café.txt"]);
+}
+
+/// Checks run in a worktree without submodules; a failure says how to
+/// include them.
+#[test]
+fn a_failure_says_how_to_include_submodules() {
+    let dir = repo();
+    let d = dir.path();
+    let modules = "[submodule \"lib\"]\n\tpath = lib\n\turl = https://example.invalid/lib.git\n";
+    write(d, &[(".gitmodules", modules)]);
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", "submodules"]);
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    let mut o = opts(d, &["agent/a"]);
+    o.checks = vec!["exit 1".into()];
+    let out = land(&o).unwrap();
+    assert!(out.submodules);
+    let v = verdict(&out, "run npx pytxo again");
+    assert!(
+        v.next.ends_with(" Checks run in a fresh worktree without submodules: to include them, pass --check \"git submodule update --init --recursive && exit 1\"."),
+        "{v:?}"
+    );
+    let md = render_markdown(&out);
+    assert!(
+        md.contains(" to include them, set the Action's `check:` input to `git submodule update --init --recursive && exit 1`."),
+        "{md}"
+    );
+    // A pass has nothing to explain.
+    o.checks = vec!["echo ok".into()];
+    let v = verdict(&land(&o).unwrap(), "again");
+    assert!(!v.next.contains("submodule"), "{v:?}");
+}
+
+/// The gate's own git commands run no hooks: not the repository's, and on
+/// Unix none another user could plant in the shared temp directory.
+#[test]
+fn scratch_checkouts_run_no_hooks() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    // Here whatever the user's global config says.
+    let hooks = d.join(".git/hooks");
+    std::fs::create_dir_all(&hooks).unwrap();
+    let hooks_path = hooks.display().to_string().replace('\\', "/");
+    git(d, &["config", "core.hooksPath", &hooks_path]);
+    let ran = d.join(".hook-ran");
+    let hook = hooks.join("post-checkout");
+    let touch = ran.display().to_string().replace('\\', "/");
+    std::fs::write(&hook, format!("#!/bin/sh\ntouch '{touch}'\n")).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let mut o = opts(d, &["agent/a"]);
+    o.checks = vec!["echo ok".into()];
+    o.per_input = PerInput::Always;
+    assert_eq!(land(&o).unwrap().decision(), "ready");
+    assert!(!ran.exists());
+    // The hook runs when the user's own git checks out.
+    git(d, &["checkout", "-q", "agent/a"]);
+    assert!(ran.exists());
+}
+
+/// Checks whose working directory reads `C:\Users\RUNNER~1\...` see it unlike
+/// its real path.
+#[cfg(windows)]
+#[test]
+fn the_temp_dir_is_spelled_in_full() {
+    let temp = long_temp_dir();
+    let shown = temp.to_string_lossy();
+    assert!(
+        !shown.starts_with(r"\\?\") && !shown.contains('~'),
+        "{shown}"
+    );
+    assert_eq!(
+        std::fs::canonicalize(&temp).unwrap(),
+        std::fs::canonicalize(std::env::temp_dir()).unwrap()
+    );
+}
+
+/// On Unix a run's worktrees and logs sit in a directory only the user can
+/// enter, gone with the run.
+#[cfg(unix)]
+#[test]
+fn the_run_directory_is_private() {
+    use std::os::unix::fs::PermissionsExt;
+    let run = RunDir::new("20261029t000000z_0badc0de").unwrap();
+    let mode = std::fs::metadata(&run.0).unwrap().permissions().mode();
+    assert_eq!(mode & 0o777, 0o700);
+    let path = run.0.clone();
+    drop(run);
+    assert!(!path.exists());
 }

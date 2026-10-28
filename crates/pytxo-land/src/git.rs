@@ -1,6 +1,6 @@
 //! Thin `git` runner. Every command in a Pytxo-owned worktree runs with hooks
-//! pointed at a directory that does not exist, so a branch cannot execute
-//! code during checkout or merge; checks are the only code the gate runs.
+//! pointed at a path that holds none, so a branch cannot execute code during
+//! checkout or merge; checks are the only code the gate runs.
 
 use std::path::{Path, PathBuf};
 use std::process::Output;
@@ -25,7 +25,13 @@ impl Git {
 
     /// For a Pytxo-owned worktree: hooks off, no signing prompts, no auto-gc.
     pub fn owned(cwd: &Path, identity: Option<(&str, &str)>) -> Self {
-        let no_hooks = std::env::temp_dir().join("pytxo-land-no-hooks-dir-does-not-exist");
+        // Any local user can create a directory in a Unix temp dir, and plant
+        // hooks in it; nothing can sit under /dev/null.
+        let no_hooks = if cfg!(unix) {
+            PathBuf::from("/dev/null")
+        } else {
+            std::env::temp_dir().join("pytxo-land-no-hooks-dir-does-not-exist")
+        };
         let mut config = vec![
             format!("core.hooksPath={}", no_hooks.display()),
             "commit.gpgsign=false".into(),
@@ -53,6 +59,8 @@ impl Git {
 
     pub fn output(&self, args: &[&str]) -> Result<Output> {
         let mut cmd = pytxo_core::background_command("git");
+        // Paths as they are, not `"caf\303\251.txt"`.
+        cmd.arg("-c").arg("core.quotePath=false");
         for pair in &self.config {
             cmd.arg("-c").arg(pair);
         }

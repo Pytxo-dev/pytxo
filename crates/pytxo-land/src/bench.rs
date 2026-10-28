@@ -452,12 +452,14 @@ fn naive_policy(repo: &Path, branches: &[&str]) -> Result<&'static str> {
     )?;
     let g = Git::owned(&scratch, Some(("Pybench", "pybench@pytxo.invalid")));
     let base = g.run(&["rev-parse", "HEAD"])?;
+    let check = |scope: &str| {
+        let logs = std::env::temp_dir();
+        run_check(scope, CHECK, &scratch, &logs, Duration::from_secs(120)).passed
+    };
     let mut passing = Vec::new();
     for b in branches {
         g.run(&["reset", "-q", "--hard", &base])?;
-        if g.ok(&["merge", "-q", "--no-ff", "--no-edit", b])
-            && run_check("solo", CHECK, &scratch, Duration::from_secs(120)).passed
-        {
+        if g.ok(&["merge", "-q", "--no-ff", "--no-edit", b]) && check("solo") {
             passing.push(*b);
         } else {
             let _ = g.output(&["merge", "--abort"]);
@@ -471,9 +473,7 @@ fn naive_policy(repo: &Path, branches: &[&str]) -> Result<&'static str> {
             outcome = "manual_conflict";
         }
     }
-    if outcome == "landed_ok"
-        && !run_check("after", CHECK, &scratch, Duration::from_secs(120)).passed
-    {
+    if outcome == "landed_ok" && !check("after") {
         outcome = "landed_broken";
     }
     let _ = sh_git(

@@ -18,6 +18,7 @@ mod render;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard, Once, PoisonError};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
@@ -130,6 +131,8 @@ pub struct LandOutcome {
     /// The deadline stopped the checks before they finished, so the decision
     /// says nothing about the inputs.
     pub out_of_time: bool,
+    /// The target has submodules, which the checks' worktrees leave out.
+    pub submodules: bool,
 }
 
 impl LandOutcome {
@@ -169,62 +172,206 @@ const SCRATCH_PREFIX: &str = "pytxo-land-";
 /// gives it, not by its parent: the temp directory differs between a terminal
 /// and a hook, and between its short (8.3), long and symlinked spellings.
 pub(crate) fn is_scratch_worktree(path: &Path) -> bool {
-    let Some(tag) = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .and_then(|n| n.strip_prefix(SCRATCH_PREFIX))
-    else {
-        return false;
-    };
+    scratch_tag(path).is_some()
+}
+
+/// The tag of a scratch worktree's run, without `-solo`.
+fn scratch_tag(path: &Path) -> Option<&str> {
+    let name = path.file_name()?.to_str()?.strip_prefix(SCRATCH_PREFIX)?;
     // `20261028t120005z_ab12cd34`, as `new_receipt_id` writes it.
-    let tag = tag.strip_suffix("-solo").unwrap_or(tag).as_bytes();
-    tag.len() == 25
-        && tag.iter().enumerate().all(|(i, c)| match i {
-            8 => *c == b't',
-            15 => *c == b'z',
-            16 => *c == b'_',
+    let tag = name.strip_suffix("-solo").unwrap_or(name);
+    let ok = tag.len() == 25
+        && tag.bytes().enumerate().all(|(i, c)| match i {
+            8 => c == b't',
+            15 => c == b'z',
+            16 => c == b'_',
             17.. => c.is_ascii_hexdigit(),
             _ => c.is_ascii_digit(),
-        })
+        });
+    ok.then_some(tag)
 }
 
 impl OwnedWorktree {
-    fn add(repo: &Git, at: &str, tag: &str) -> Result<Self> {
-        let path = std::env::temp_dir().join(format!("{SCRATCH_PREFIX}{tag}"));
+    fn add(repo: &Git, dir: &Path, at: &str, tag: &str) -> Result<Self> {
+        let path = dir.join(format!("{SCRATCH_PREFIX}{tag}"));
         if path.exists() {
             std::fs::remove_dir_all(&path).ok();
         }
-        // Checkout runs no hooks: the owned config points hooksPath nowhere.
-        Git::owned(repo.cwd(), None)
-            .run(&[
-                "worktree",
-                "add",
-                "--detach",
-                "--force",
-                &path.to_string_lossy(),
-                at,
-            ])
-            .context("creating the landing worktree")?;
-        Ok(Self {
+        // Recorded first, so an interrupt during the checkout removes it too;
+        // dropped, it is removed even when the checkout fails.
+        active().worktrees.push((repo.clone(), path.clone()));
+        let tree = Self {
             repo: repo.clone(),
             path,
-        })
+        };
+        let path = tree.path.to_string_lossy().into_owned();
+        // Checkout runs no hooks: the owned config points hooksPath nowhere.
+        let owned = Git::owned(repo.cwd(), None);
+        owned
+            .run(&["worktree", "add", "--detach", "--force", &path, at])
+            .context("creating the landing worktree")?;
+        // The pid tells a later run whether this one still goes.
+        let reason = format!("{LOCK_REASON}{}", std::process::id());
+        let _ = owned.output(&["worktree", "lock", "--reason", &reason, &path]);
+        Ok(tree)
     }
 }
 
 impl Drop for OwnedWorktree {
     fn drop(&mut self) {
-        let _ = self.repo.output(&[
-            "worktree",
-            "remove",
-            "--force",
-            &self.path.to_string_lossy(),
-        ]);
-        if self.path.exists() {
-            let _ = std::fs::remove_dir_all(&self.path);
-            let _ = self.repo.output(&["worktree", "prune"]);
+        remove_worktree(&self.repo, &self.path);
+        active().worktrees.retain(|(_, p)| p != &self.path);
+    }
+}
+
+/// `git worktree lock --reason`, then the pid of the run that holds it.
+const LOCK_REASON: &str = "pytxo ";
+
+/// Unlocks and removes a scratch worktree, as far as it goes.
+fn remove_worktree(repo: &Git, path: &Path) {
+    let path_arg = path.to_string_lossy();
+    let _ = repo.output(&["worktree", "unlock", &path_arg]);
+    if !repo.ok(&["worktree", "remove", "--force", &path_arg]) {
+        // Half made, or its directory already gone: what is left, then git's
+        // record of it.
+        let _ = std::fs::remove_dir_all(path);
+        let _ = repo.output(&["worktree", "prune"]);
+    }
+}
+
+/// Removes the scratch worktrees killed runs left registered in `repo`:
+/// those of a run that started a day or more ago, or whose process is gone.
+/// A concurrent run's stay.
+fn remove_stale_worktrees(repo: &Git) {
+    let Ok(listing) = repo.run(&["worktree", "list", "--porcelain"]) else {
+        return;
+    };
+    // ponytail: by age a run counts as dead after a day even if its pid runs
+    // (pids are reused), so a run past 24 hours can lose its worktrees to
+    // another; record the start time in the lock if runs ever last that long.
+    let cutoff = (chrono::Utc::now() - chrono::Duration::hours(24))
+        .format("%Y%m%dt%H%M%Sz")
+        .to_string();
+    for block in listing.replace("\r\n", "\n").split("\n\n") {
+        let Some(path) = block
+            .lines()
+            .find_map(|l| l.strip_prefix("worktree "))
+            .map(native_path)
+        else {
+            continue;
+        };
+        let Some(tag) = scratch_tag(&path) else {
+            continue;
+        };
+        let pid = block
+            .lines()
+            .find_map(|l| l.strip_prefix(&format!("locked {LOCK_REASON}")))
+            .and_then(|p| p.trim().parse::<u32>().ok());
+        // Tags start with the time, so they sort by it.
+        if tag[..16] < *cutoff || pid.is_some_and(|p| !checks::alive(p)) {
+            remove_worktree(repo, &path);
+            // On Unix its run's private directory holds the run's logs too.
+            let run_dir = path
+                .parent()
+                .filter(|d| d.ends_with(format!("pytxo-{tag}")));
+            if let Some(dir) = run_dir {
+                let _ = std::fs::remove_dir_all(dir);
+            }
         }
     }
+}
+
+/// Where a run's scratch worktrees and check logs go. Any local user can
+/// write to a Unix temp directory, so there it is a directory of the run's
+/// own that only the user can enter, removed with the run.
+struct RunDir(PathBuf);
+
+impl RunDir {
+    fn new(tag: &str) -> Result<Self> {
+        let temp = long_temp_dir();
+        #[cfg(unix)]
+        let temp = {
+            use std::os::unix::fs::DirBuilderExt;
+            let dir = temp.join(format!("pytxo-{tag}"));
+            std::fs::DirBuilder::new()
+                .mode(0o700)
+                .create(&dir)
+                .context("creating the checks' private directory")?;
+            active().paths.push(dir.clone());
+            dir
+        };
+        #[cfg(not(unix))]
+        let _ = tag;
+        Ok(Self(temp))
+    }
+}
+
+impl Drop for RunDir {
+    fn drop(&mut self) {
+        if cfg!(unix) {
+            let _ = std::fs::remove_dir_all(&self.0);
+            active().paths.retain(|p| p != &self.0);
+        }
+    }
+}
+
+/// The temp directory, on Windows spelled in full: checks whose working
+/// directory reads `C:\Users\RUNNER~1\...` see it unlike its real path.
+fn long_temp_dir() -> PathBuf {
+    let temp = std::env::temp_dir();
+    #[cfg(windows)]
+    if let Ok(full) = std::fs::canonicalize(&temp) {
+        // Without the `\\?\` canonicalize adds, which many tools reject.
+        let full = full.to_string_lossy();
+        return match full.strip_prefix(r"\\?\") {
+            Some(unc) if unc.starts_with(r"UNC\") => PathBuf::from(format!(r"\{}", &unc[3..])),
+            Some(local) => PathBuf::from(local),
+            None => PathBuf::from(&*full),
+        };
+    }
+    temp
+}
+
+/// What a run has going that Ctrl+C or a kill must not leave behind.
+pub(crate) struct Active {
+    /// Check processes; on Unix each leads its own process group.
+    pub(crate) checks: Vec<u32>,
+    worktrees: Vec<(Git, PathBuf)>,
+    /// Check logs, and on Unix the run's private directory.
+    pub(crate) paths: Vec<PathBuf>,
+}
+
+static ACTIVE: Mutex<Active> = Mutex::new(Active {
+    checks: Vec::new(),
+    worktrees: Vec::new(),
+    paths: Vec::new(),
+});
+
+/// The running checks and scratch worktrees. The first call installs the
+/// Ctrl+C, SIGTERM and SIGHUP handler that clears them away.
+pub(crate) fn active() -> MutexGuard<'static, Active> {
+    static HANDLER: Once = Once::new();
+    HANDLER.call_once(|| {
+        // A handler the program set first stays.
+        let _ = ctrlc::set_handler(interrupted);
+    });
+    ACTIVE.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Stops the checks, removes the scratch worktrees and exits with 130. The
+/// lock is never released, so nothing new starts meanwhile.
+fn interrupted() {
+    let active = ACTIVE.lock().unwrap_or_else(PoisonError::into_inner);
+    for &pid in &active.checks {
+        checks::kill_tree(pid);
+    }
+    for (repo, path) in &active.worktrees {
+        remove_worktree(repo, path);
+    }
+    for path in &active.paths {
+        let _ = std::fs::remove_dir_all(path).or_else(|_| std::fs::remove_file(path));
+    }
+    std::process::exit(130);
 }
 
 pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
@@ -332,19 +479,22 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         .map_or(Some(("Pytxo Land", "land@pytxo.invalid")), |_| None);
     let id = new_receipt_id();
     let tag = id.trim_start_matches("rcpt_").to_lowercase();
+    remove_stale_worktrees(&repo);
+    let run_dir = RunDir::new(&tag)?;
+    let target_name = target.as_deref().unwrap_or("HEAD");
 
     // Combine. Git >= 2.38 merges in memory (`merge-tree --write-tree` plus
     // `commit-tree`): no checkout, no hooks, no index. Older Git falls back to
     // merging in a Pytxo-owned worktree.
     let in_memory = supports_merge_tree(&repo);
     let owned = Git::owned(&root, identity);
-    let mut receipt_inputs = Vec::new();
+    let mut receipt_inputs: Vec<ReceiptInput> = Vec::new();
     let mut reasons = Vec::new();
     let mut combined = base.clone();
     let fallback_tree = if in_memory {
         None
     } else {
-        Some(OwnedWorktree::add(&repo, &base, &tag)?)
+        Some(OwnedWorktree::add(&repo, &run_dir.0, &base, &tag)?)
     };
     for r in &resolved {
         let mut status = "merged";
@@ -364,9 +514,21 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 Err(files) => {
                     status = "conflict";
                     conflict_files = files;
+                    // Merges start from the target: what no input before
+                    // this one changed, the target did.
+                    let earlier = receipt_inputs.iter().any(|i| {
+                        i.status == "merged"
+                            && (conflict_files.is_empty()
+                                || i.files.iter().any(|f| conflict_files.contains(f)))
+                    });
                     reasons.push(format!(
-                        "{} conflicts with the inputs before it{}",
+                        "{} conflicts with {}{}",
                         r.input.reference,
+                        if earlier {
+                            "the inputs before it"
+                        } else {
+                            target_name
+                        },
                         if conflict_files.is_empty() {
                             String::new()
                         } else {
@@ -405,14 +567,14 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             .deadline
             .map(|d| d.saturating_duration_since(Instant::now()));
         let timeout = left.map_or(opts.check_timeout, |l| l.min(opts.check_timeout));
-        let check = checks::run_check(scope, command, dir, timeout);
+        let check = checks::run_check(scope, command, dir, &run_dir.0, timeout);
         if check.timed_out && timeout < opts.check_timeout {
             out_of_time.set(true);
         }
         Some(check)
     };
     let run_solo = |checks: &mut Vec<ReceiptCheck>| -> Result<()> {
-        let scratch = OwnedWorktree::add(&repo, &base, &format!("{tag}-solo"))?;
+        let scratch = OwnedWorktree::add(&repo, &run_dir.0, &base, &format!("{tag}-solo"))?;
         let sg = Git::owned(&scratch.path, identity);
         for r in resolved.iter().filter(|r| !r.files.is_empty()) {
             if late() {
@@ -455,18 +617,31 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     let combined_tree = if opts.checks.is_empty() {
         None
     } else {
-        Some(OwnedWorktree::add(&repo, &combined, &tag)?)
+        Some(OwnedWorktree::add(&repo, &run_dir.0, &combined, &tag)?)
     };
     let dir = combined_tree
         .as_ref()
         .map(|t| t.path.clone())
         .unwrap_or_default();
-    let first_runs: Vec<ReceiptCheck> = opts
-        .checks
-        .iter()
-        .map_while(|command| run_check("combined", command, &dir))
-        .collect();
-    if opts.per_input == PerInput::OnFailure && first_runs.iter().any(|c| !c.passed) && !late() {
+    // A run that times out is the answer: nothing runs after it, since each
+    // further run could take the whole timeout to say the same.
+    let mut first_runs: Vec<ReceiptCheck> = Vec::new();
+    for command in &opts.checks {
+        let Some(check) = run_check("combined", command, &dir) else {
+            break;
+        };
+        let timed_out = check.timed_out;
+        first_runs.push(check);
+        if timed_out {
+            break;
+        }
+    }
+    let timed_out = first_runs.iter().any(|c| c.timed_out);
+    if opts.per_input == PerInput::OnFailure
+        && !timed_out
+        && first_runs.iter().any(|c| !c.passed)
+        && !late()
+    {
         run_solo(&mut checks)?;
     }
     for (command, check) in opts.checks.iter().zip(first_runs) {
@@ -476,7 +651,9 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             .iter()
             .filter(|c| c.scope != "combined" && &c.command == command)
             .collect();
-        let rerun = (!check.passed && !solo.is_empty() && solo.iter().all(|c| c.passed))
+        // Not a timeout, which would take as long again to say the same.
+        let again = !check.passed && !check.timed_out && !solo.is_empty();
+        let rerun = (again && solo.iter().all(|c| c.passed))
             .then(|| run_check("combined", command, &dir))
             .flatten()
             .map(|again| ReceiptCheck {
@@ -510,7 +687,35 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         checks.push(check);
         checks.extend(rerun);
     }
+    // A check every input fails alone blames them only if the target passes
+    // it: run it there once, in the combined worktree, which is done with.
+    // Not after a timeout, which would take as long again.
+    let on_target: Vec<&String> = opts
+        .checks
+        .iter()
+        .filter(|command| {
+            let runs = || checks.iter().filter(|c| &c.command == *command);
+            let alone: Vec<&ReceiptCheck> =
+                runs().filter(|c| c.scope.starts_with("input:")).collect();
+            runs().any(|c| c.scope == "combined" && !c.passed)
+                && !runs().any(|c| c.timed_out)
+                && !alone.is_empty()
+                && alone.iter().all(|c| !c.passed)
+        })
+        .collect();
+    if let (Some(tree), false) = (&combined_tree, on_target.is_empty() || late()) {
+        let tg = Git::owned(&tree.path, identity);
+        tg.run(&["checkout", "--detach", "--force", &base])?;
+        tg.run(&["clean", "-fdq"])?;
+        for command in on_target {
+            let Some(check) = run_check("target", command, &tree.path) else {
+                break;
+            };
+            checks.push(check);
+        }
+    }
     drop(combined_tree);
+    drop(run_dir);
     let out_of_time = out_of_time.get();
     if out_of_time {
         reasons.push("out of time: the deadline stopped the checks before they finished".into());
@@ -577,7 +782,10 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     }
 
     let mut insights = Vec::new();
-    let solo: Vec<&ReceiptCheck> = checks.iter().filter(|c| c.scope != "combined").collect();
+    let solo: Vec<&ReceiptCheck> = checks
+        .iter()
+        .filter(|c| c.scope.starts_with("input:"))
+        .collect();
     // Only a combined check that failed its re-run too blames the combination.
     let failed_twice = checks.iter().any(|c| c.rerun && !c.passed);
     if failed_twice && solo.iter().all(|c| c.passed) {
@@ -610,7 +818,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     }
     // A check that fails everywhere, or a Node check that never installs, is
     // most likely failing for want of a set-up worktree, not because of the inputs.
-    // A solo pass of the same command shows the set-up works, so no install hint.
+    // A pass alone or on the target shows the set-up works, so no install hint.
     for command in &opts.checks {
         let of_command = |c: &&ReceiptCheck| &c.command == command;
         if !checks
@@ -624,17 +832,25 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         let solo: Vec<&ReceiptCheck> = checks
             .iter()
             .filter(of_command)
-            .filter(|c| c.scope != "combined")
+            .filter(|c| c.scope.starts_with("input:"))
             .collect();
-        let everywhere = !solo.is_empty() && solo.iter().all(|c| !c.passed);
-        let install_hint = suggestion.as_deref().filter(|s| {
-            checks::installs(s) && !checks::installs(command) && !solo.iter().any(|c| c.passed)
-        });
+        let on_target = checks
+            .iter()
+            .filter(of_command)
+            .find(|c| c.scope == "target");
+        let everywhere = !solo.is_empty()
+            && solo.iter().all(|c| !c.passed)
+            && !on_target.is_some_and(|c| c.passed);
+        let set_up = solo.iter().chain(&on_target).any(|c| c.passed);
+        let install_hint = suggestion
+            .as_deref()
+            .filter(|s| checks::installs(s) && !checks::installs(command) && !set_up);
         let mut insight = String::new();
         if everywhere {
-            insight.push_str(&format!(
-                "`{command}` failed on every input alone too, so the check itself may be what fails, not the combination."
-            ));
+            insight.push_str(&match on_target {
+                Some(_) => format!("`{command}` failed on every input alone and on {target_name} too, so the check itself may be what fails, not the combination."),
+                None => format!("`{command}` failed on every input alone too, so the check itself may be what fails, not the combination."),
+            });
         }
         if let Some(s) = install_hint {
             if !insight.is_empty() {
@@ -679,6 +895,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         .clone()
         .unwrap_or_else(|| receipts_dir(&common_dir));
     let receipt_path = receipt.write_to(&dir).context("writing the receipt")?;
+    let submodules = repo.ok(&["cat-file", "-e", &format!("{base}:.gitmodules")]);
 
     Ok(LandOutcome {
         receipt,
@@ -686,6 +903,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         combined_ref,
         insights,
         out_of_time,
+        submodules,
     })
 }
 

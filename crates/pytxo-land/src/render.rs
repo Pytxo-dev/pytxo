@@ -146,7 +146,7 @@ fn next_step(outcome: &LandOutcome) -> Option<&'static str> {
     let p = &outcome.receipt.predicate;
     match p.decision.as_str() {
         "blocked" if p.inputs.iter().any(|i| i.status == "conflict") => Some(
-            "merge or rebase the conflicting branch onto the ones before it, resolve the conflict, then run the same command again",
+            "merge or rebase the conflicting branch onto the target and the branches before it, resolve the conflict, then run the same command again",
         ),
         "blocked"
             if p.checks
@@ -302,12 +302,13 @@ fn plain_name(i: &pytxo_core::ReceiptInput) -> String {
     }
 }
 
-/// "a", "a and b", "a, b and c", or "4 branches".
+/// "a", "a and b", up to "a, b, c and d" as the progress line has it, then
+/// "5 branches".
 fn and_list(names: &[String]) -> String {
     match names {
         [] => "no branches".into(),
         [one] => one.clone(),
-        [init @ .., last] if names.len() <= 3 => format!("{} and {last}", init.join(", ")),
+        [init @ .., last] if names.len() <= 4 => format!("{} and {last}", init.join(", ")),
         _ => format!("{} branches", names.len()),
     }
 }
@@ -324,8 +325,10 @@ fn longest_run(text: &str, c: char) -> usize {
 }
 
 /// `text` as a Markdown code span nothing in it can close, so test output in
-/// a pull-request comment renders no mention, link or HTML.
+/// a pull-request comment renders no mention, link or HTML. A line break
+/// would end the span, so it reads as a space.
 fn code_span(text: &str) -> String {
+    let text = &text.replace(['\r', '\n'], " ");
     let ticks = "`".repeat(longest_run(text, '`') + 1);
     let pad = if text.starts_with('`') || text.ends_with('`') {
         " "
@@ -400,13 +403,16 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                     .iter()
                     .take_while(|i| i.reference != c.reference)
                     .filter(|i| {
-                        c.conflict_files.is_empty()
-                            || i.files.iter().any(|f| c.conflict_files.contains(f))
+                        i.status == "merged"
+                            && (c.conflict_files.is_empty()
+                                || i.files.iter().any(|f| c.conflict_files.contains(f)))
                     })
                     .map(branch)
                     .collect();
+                // Merges start from the target: what no branch before this
+                // one changed, the target did.
                 let others = if earlier.is_empty() {
-                    "the branches before it".to_string()
+                    shown(target)
                 } else {
                     and_list(&earlier)
                 };
@@ -465,8 +471,12 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                 let solo: Vec<&ReceiptCheck> = p
                     .checks
                     .iter()
-                    .filter(|s| s.scope != "combined" && s.command == c.command)
+                    .filter(|s| s.scope.starts_with("input:") && s.command == c.command)
                     .collect();
+                let on_target = p
+                    .checks
+                    .iter()
+                    .find(|s| s.scope == "target" && s.command == c.command);
                 let why = |check: &ReceiptCheck, place: &str| match first_line(check) {
                     Some(line) => format!("{cmd} fails {place}: {line}"),
                     None => format!(
@@ -490,17 +500,31 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                         format!("checks run in a fresh worktree, so install first: {fix}. Then {again}.")
                     }
                 };
+                // For a failure the set-up may explain; not when a branch or
+                // the target passes.
+                let submodules = |next: String| {
+                    if !outcome.submodules {
+                        return next;
+                    }
+                    let fix = format!("git submodule update --init --recursive && {cmd}");
+                    let how = if pr {
+                        format!("set the Action's `check:` input to {}", code_span(&fix))
+                    } else {
+                        format!("pass --check \"{fix}\"")
+                    };
+                    format!("{next} Checks run in a fresh worktree without submodules: to include them, {how}.")
+                };
                 if solo.is_empty() {
                     return v(
                         "failed",
                         "BLOCKED",
                         format!("{names} fail {cmd} when combined."),
                         why(c, "on the combined change"),
-                        match install {
+                        submodules(match install {
                             Some(fix) if pr => install_first(fix),
                             _ if pr => format!("fix the failure, then {again}."),
                             _ => format!("to see whether each branch passes alone, run it with --per-input. Fix the failure, then {again}."),
-                        },
+                        }),
                     );
                 }
                 let failing: Vec<String> = solo
@@ -524,17 +548,29 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                     );
                 }
                 let solo_fail = solo.iter().find(|s| !s.passed).copied().unwrap_or(c);
-                if failing.len() == solo.len() {
+                // Every branch failing alone blames them only if the target
+                // passes; then they each fail on their own, below.
+                if failing.len() == solo.len() && !on_target.is_some_and(|t| t.passed) {
+                    let (what, reason) = match on_target {
+                        Some(t) => (
+                            format!("{cmd} fails on {target} as well, so the check or the environment is broken, not the branches."),
+                            why(t, &format!("on {target}")),
+                        ),
+                        None => (
+                            format!("{cmd} fails on every branch alone too, so the combination is not the problem."),
+                            why(solo_fail, "on each branch"),
+                        ),
+                    };
                     return v(
                         "alone",
                         "BLOCKED",
-                        format!("{cmd} fails on every branch alone too, so the combination is not the problem."),
-                        why(solo_fail, "on each branch"),
-                        match install {
+                        what,
+                        reason,
+                        submodules(match install {
                             Some(fix) => install_first(fix),
                             None if pr => format!("make {cmd} pass on {target}, or set the Action's `check:` input to the right command, then {again}."),
                             None => format!("make {cmd} pass on {target}, or pass the right command with --check, then {again}."),
-                        },
+                        }),
                     );
                 }
                 let who = and_list(&failing);
@@ -661,11 +697,13 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
     let _ = writeln!(s, "<details><summary>Details</summary>\n");
     let _ = writeln!(
         s,
-        "Target `{}` at `{}` · {} inputs · {} files changed · {}\n",
+        "Target `{}` at `{}` · {} input{} · {} file{} changed · {}\n",
         p.target.as_deref().unwrap_or("HEAD"),
         short(&p.base),
         p.inputs.len(),
+        if p.inputs.len() == 1 { "" } else { "s" },
         p.files_changed,
+        if p.files_changed == 1 { "" } else { "s" },
         seconds(p.duration_ms)
     );
     // No insights: they give terminal advice (--check), name branches and
@@ -777,6 +815,7 @@ mod tests {
             combined_ref: None,
             insights: Vec::new(),
             out_of_time: false,
+            submodules: false,
         }
     }
 
@@ -1004,5 +1043,32 @@ mod tests {
         // The terminal shows them as they are.
         let v = verdict(&outcome(p), "again");
         assert_eq!(v.what, "claude/x-@octocat conflicts with codex/a.");
+    }
+
+    /// The verdict names as many branches as the progress line does.
+    #[test]
+    fn names_up_to_four_branches_then_counts_them() {
+        let names = |n: usize| (1..=n).map(|i| format!("b{i}")).collect::<Vec<_>>();
+        assert_eq!(and_list(&names(1)), "b1");
+        assert_eq!(and_list(&names(2)), "b1 and b2");
+        assert_eq!(and_list(&names(4)), "b1, b2, b3 and b4");
+        assert_eq!(and_list(&names(5)), "5 branches");
+    }
+
+    /// GitHub ends a line, and so a code span, at a carriage return too.
+    #[test]
+    fn a_code_span_stays_on_one_line() {
+        assert_eq!(code_span("0%\r# @x\nb"), "`0% # @x b`");
+    }
+
+    #[test]
+    fn details_count_one_input_and_one_file() {
+        let mut p = blocked("merged", vec![check("combined", false)]);
+        let md = render_markdown(&outcome(p.clone()));
+        assert!(md.contains(" · 3 inputs · 3 files changed · "), "{md}");
+        p.inputs.truncate(1);
+        p.files_changed = 1;
+        let md = render_markdown(&outcome(p));
+        assert!(md.contains(" · 1 input · 1 file changed · "), "{md}");
     }
 }
