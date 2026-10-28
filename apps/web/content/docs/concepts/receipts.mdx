@@ -14,7 +14,7 @@ pytxo receipts show <id>    # full receipt; checks the digest
 
 `pytxo receipts share <id>`, which publishes a page with counts and outcomes, is only in source builds with the default `full` feature, not in the npm binary.
 
-Test output is masked before it is stored: common key formats, bearer tokens and passwords in URLs become `[REDACTED]` in the receipt, in `--json`, in hook replies and in pull-request comments.
+Test output is masked before it is stored: private keys, common key formats (npm tokens included), bearer tokens, passwords in URLs and the values of keys named like credentials, such as `DB_PASSWORD=` or `NPM_TOKEN:`, become `[REDACTED]` in the receipt, in `--json`, in hook replies and in pull-request comments.
 
 ## Format
 

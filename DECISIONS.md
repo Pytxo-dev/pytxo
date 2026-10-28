@@ -75,7 +75,12 @@ chosen, why, and how to undo it.
     `git config pytxo.days N` or `PYTXO_DAYS`; `0` turns the filter off.
     The filter runs before the merge tests, which saves git calls per old
     branch, so the printed count includes old branches that are already
-    merged ("N with no commit in 14 days not looked at").
+    merged ("N with no commit in 14 days not looked at"), and it counts
+    branches, not commits. A worktree on a commit the target (or origin's
+    copy of it) already has is never old, since its only work can be
+    uncommitted: it still gets the hint to commit it. That costs one
+    `git rev-list` per run when any worktree is old, plus a `git status` for
+    each worktree it exempts.
 
 12. **The lean binary keeps Signal Core.** Measured on Windows x64 release
     builds: full CLI ~30 MB and 233 crates, lean CLI 10.9 MB and 72 crates.
@@ -85,7 +90,8 @@ chosen, why, and how to undo it.
     grammars stay. Undo: make `pytxo-signal` optional in `pytxo-land`.
 
 13. **Windows on Arm installs the x64 binary.** Windows 11 on Arm runs x64
-    code under emulation; no native Arm build ships yet.
+    code under emulation; no native Arm build ships yet. The npm package and
+    `install.ps1` both do this.
 
 14. **Release tags must be exact versions.** `release.yml` fired on `v*`, so
     the floating `v2` tag for the Action would have started a release. It now
@@ -106,8 +112,9 @@ chosen, why, and how to undo it.
     timeout is taken over. The hook answers before `--timeout` (default 900,
     which both configs pass and declare as the hook's timeout). If the tests
     cannot finish in time it says so, points at `npx pytxo`, never blocks,
-    and remembers the tips so the next Stop stays quiet. A setting that
-    stops every check, such as a missing `pytxo.into`, is reported once.
+    and remembers the tips so the next Stop stays quiet. An error that
+    stops the check, such as a missing `pytxo.into`, is reported once, until
+    a tip, the target or the test command changes.
     The verdict is a `systemMessage`; `--block` (opt-in) turns BLOCKED and
     FLAKY into `decision: "block"` so the agent keeps working on it.
     `SubagentStop` is not used: it fires once per agent. Hooks pin
@@ -124,7 +131,9 @@ chosen, why, and how to undo it.
     Errors are reported as errors, not as "blocked". The job fails when the
     CLI's last-line verdict tag implicates this PR (it conflicts, fails
     alone, or is in a combination that fails while each passes alone), when
-    the result is stale, or on an error. When only other PRs are to blame it
+    the result is stale, or on an error. When nothing points at one PR (a
+    combined timeout, or a `--strict` collision), every PR in the run is
+    implicated and fails. When only other PRs are to blame it
     passes with a notice and the comment names them; FLAKY passes with a
     warning; a CLI without the tag fails on any exit 2. It runs on
     `pull_request`, refuses `pull_request_target` and passes, without a
@@ -149,7 +158,7 @@ chosen, why, and how to undo it.
     homepage drops the Desktop planner, fleet and live-run sections for How
     it works, the one-line Action, a per-branch-CI comparison, Pybench and a
     check FAQ. `/download` stays, reached from the footer as "Pytxo Desktop
-    (1.x)", and now leads with `npx pytxo demo`. Same visual system, no new
+    (frozen)", and now leads with `npx pytxo demo`. Same visual system, no new
     components beyond the CI section.
 20. **The hero shows a recorded demo, labelled as a local candidate build.**
     `public/evidence/demo-blocked-2.0.0-2026-10-28.json` is the exact output
@@ -175,10 +184,16 @@ chosen, why, and how to undo it.
 23. **ADR-0043 supersedes ADR-0012.** A bare `pytxo` runs the check; the
     shell is `pytxo shell` in a `full` build; `PYTXO_NO_TUI` is gone.
 24. **A PR comment treats everything from a branch as untrusted text.**
-    Captured test output is masked when it is captured: the key formats in
-    pytxo-core's `SECRET_PATTERNS`, bearer tokens and URL passwords become
-    `[REDACTED]` in receipts, `--json`, hook replies and comments. It is a
-    prefix scan of about 10 KB; `pytxo-sanitize` would add a 1.5 MB regex
+    Captured test output is masked when it is captured: PEM private key
+    blocks, the key formats in pytxo-core's `SECRET_PATTERNS` plus npm
+    tokens, bearer tokens, URL passwords, and the value of any key whose name
+    contains secret, token, password, passwd, api_key, apikey, access_key,
+    private_key or credential (after `=`, `:`, `=>` or `:=`) become
+    `[REDACTED]` in receipts, `--json`, hook replies and comments. A name
+    ending in Error or Exception is not a key, so `JsonWebTokenError: ...`
+    stays readable; the cost is masking harmless values such as
+    `max_tokens: 100`. Carriage returns, ANSI escapes and other control
+    characters are stripped. It is a prefix scan of about 10 KB; `pytxo-sanitize` would add a 1.5 MB regex
     engine to the npm binary. In `--markdown`, test output, branch names,
     paths and reasons appear only as code, the terminal's insights are left
     out, advice names the Action's inputs instead of CLI flags, and the
@@ -191,5 +206,74 @@ chosen, why, and how to undo it.
 26. **The site does not deploy from `main` until npm has 2.0.0.**
     `apps/web/vercel.json` sets `git.deploymentEnabled.main` to `false`, so
     merging 2.0 does not put 2.0 commands on pytxo.com before npm can serve
-    them. The promotion commit after the npm release removes the key and
-    sets `PUBLISHED_VERSION` to 2.0.0. Undo: drop the key.
+    them. `deploy-web.yml`, the Vercel CLI route to production, exits with a
+    notice while `PUBLISHED_VERSION` and `CANDIDATE_VERSION` differ. The web
+    CI job runs the version check and the inventory test, which asserts both
+    holds, so a site-only change cannot drop one. The promotion commit after
+    the npm release removes the key, sets `PUBLISHED_VERSION` to 2.0.0 and
+    updates the changelog's latest public release. Undo: drop the key.
+27. **The changelog's latest public release must match `PUBLISHED_VERSION`.**
+    `verify-release-version.mjs` reads it like the README's, so the
+    promotion commit cannot leave the docs naming 1.3.6.
+28. **A failed binary download does not fail `npm install` or `npx`.**
+    Offline machines and proxies are common, and the launcher downloads on
+    first run anyway. A binary that fails its SHA-256 or `--version` check
+    still fails the install.
+29. **Detection reads git config the way git does, and says what it left
+    out.** Settings come from `git config --show-scope --get-all`, keeping
+    the most specific scope's values, so a repository's `pytxo.check`
+    replaces a global one instead of joining it; Git older than 2.26 falls
+    back to `--get-all` and keeps the last value. At most the 10 newest
+    branches are checked. Branches that share no history with the target
+    (a `gh-pages` worktree) are left out and counted under `--verbose`. A
+    worktree whose changes are all uncommitted is named, with a hint to
+    commit them. Note lines under the verdict, and `notes` in `--json`, say
+    when the target is behind `origin` or branches were left out; the
+    no-branches line suggests `git fetch`. `--json` gives each branch's
+    `label` when it has one. Undo: drop the notes and the cap.
+30. **A squash-merged branch is found by patch id when a merge cannot
+    tell.** When the target has edited the same lines again, or Git has no
+    `merge-tree --write-tree`, Pytxo squashes the branch with `commit-tree`
+    under a fixed identity and date and asks `git cherry` whether the target
+    has that patch. The fixed identity makes the object the same on every
+    run, so detection writes one object per distinct squash, once. Known
+    limit: on old Git a branch squash-merged and later reverted on the
+    target is still skipped.
+31. **Ctrl+C cleans up; a second Ctrl+C quits at once.** The first Ctrl+C,
+    SIGTERM or SIGHUP prints one line, removes the run's scratch worktrees
+    and logs, and exits 130; a second one exits 130 at once. On Unix a
+    signal ignored when Pytxo started (`nohup`, `pytxo &`) stays ignored.
+    The npm launcher ignores these signals while the binary runs, so the
+    terminal comes back only after the cleanup, and passes the binary's exit
+    code on (128 plus the signal number when it was killed). A run killed
+    hard leaves its directory for the next run to remove: scratch worktrees
+    are dated by the run start in their tag, and unlocked young ones are
+    kept for 24 hours. ctrlc is pinned at 3.4.6, which adds no crates; libc
+    is a Unix-only dependency for reading the inherited signal disposition.
+32. **Checks run in a process group of their own, with nothing to answer
+    a prompt.** On Unix a check runs in its own process group, so a timeout
+    or Ctrl+C stops the whole tree, and the run's directory is private
+    (0700, logs 0600). Scratch checkouts run no Git hooks. Every check gets an
+    empty stdin and `GIT_TERMINAL_PROMPT=0`; a check that opens the terminal
+    itself (an ssh passphrase, sudo) waits until `--timeout`. `PYTHONPATH`
+    gets the checkout first. Submodules are never checked out, and failed
+    verdicts say so when the target has `.gitmodules`.
+33. **When every branch fails alone, the target runs once.** That run
+    (scope `target` in the receipt) tells "the target was already broken"
+    from "every branch broke it". It runs once per command and never after a
+    timeout, and a target run that timed out is not evidence. After a
+    combined run times out, nothing else runs. A branch that conflicts is
+    merged onto the target alone before an earlier branch is blamed.
+34. **Windows checks see the long temp path when it is plain.**
+    `C:\Users\RUNNER~1\...` confuses tools that compare paths, so checks run
+    under the long spelling, unless it has a space or a non-ASCII letter or
+    is a UNC or volume path, where the short spelling is safer for unquoted
+    tools and cmd.exe.
+35. **The docs keep 1.x material in place and show one setup everywhere.**
+    The CLI reference keeps the 1.x commands as H3 sections under "Pytxo 1.x
+    commands", so existing anchors work; the 2.0 environment variables come
+    first and the old table is "1.x environment variables". Every copy of
+    the workflow snippet carries a per-PR concurrency group with
+    `cancel-in-progress`. The Claude Code install leads with the shell
+    commands and `--sparse` (checked with Claude Code 2.1.299); `/plugin` in
+    a session is the second route.
