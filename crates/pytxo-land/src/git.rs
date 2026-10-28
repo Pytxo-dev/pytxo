@@ -33,6 +33,10 @@ impl Git {
             "advice.detachedHead=false".into(),
             "merge.autoStash=false".into(),
         ];
+        if cfg!(windows) {
+            // Temp worktrees sit deep under %TEMP%; let checkouts pass 260 chars.
+            config.push("core.longpaths=true".into());
+        }
         if let Some((name, email)) = identity {
             config.push(format!("user.name={name}"));
             config.push(format!("user.email={email}"));

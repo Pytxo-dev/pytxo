@@ -104,7 +104,7 @@ fn shadow_mode_combines_disjoint_inputs_and_changes_nothing() {
     // The combined commit contains both inputs.
     git(d, &["cat-file", "-e", &format!("{combined}:src/a.js")]);
     git(d, &["cat-file", "-e", &format!("{combined}:docs/b.md")]);
-    assert!(render_markdown(&out).contains("Pytxo land: **ready**"));
+    assert!(render_markdown(&out).starts_with("### ✅ READY: agent/a and agent/b pass exit 0 together\n"));
 }
 
 #[test]
@@ -195,7 +195,7 @@ fn every_input_passes_alone_but_the_combination_fails() {
 
     let mut o = opts(d, &["agent/rename", "agent/caller"]);
     o.checks = vec!["node check.js".into()];
-    o.per_input = true;
+    o.per_input = PerInput::Always;
     let out = land(&o).unwrap();
     assert_eq!(out.decision(), "blocked", "{}", render_text(&out));
     let checks = &out.receipt.predicate.checks;
@@ -253,7 +253,7 @@ fn a_flaky_combined_check_runs_again_and_is_not_blamed_on_the_combination() {
     let scratch = tempfile::tempdir().unwrap();
     let mut o = opts(d, &["agent/a", "agent/b"]);
     o.checks = vec![combined_only_failure(Some(&scratch.path().join("failed")))];
-    o.per_input = true;
+    o.per_input = PerInput::Always;
     let out = land(&o).unwrap();
     let text = render_text(&out);
     assert_eq!(out.decision(), "blocked", "{text}");
@@ -303,7 +303,7 @@ fn a_combined_failure_that_repeats_is_blamed_on_the_combination() {
     assert_eq!(combined_runs(&out), [(false, false)]);
     assert!(out.insights.is_empty(), "{:?}", out.insights);
 
-    o.per_input = true;
+    o.per_input = PerInput::Always;
     let out = land(&o).unwrap();
     let text = render_text(&out);
     assert_eq!(out.decision(), "blocked", "{text}");
@@ -330,7 +330,10 @@ fn a_combined_failure_that_repeats_is_blamed_on_the_combination() {
 fn npm_project(d: &Path) {
     write(
         d,
-        &[("package.json", r#"{"scripts":{"test":"tape test/*.js"}}"#)],
+        &[(
+            "package.json",
+            r#"{"scripts":{"test":"tape test/*.js"},"devDependencies":{"tape":"^5"}}"#,
+        )],
     );
     git(d, &["add", "-A"]);
     git(d, &["commit", "-q", "-m", "package"]);
@@ -353,7 +356,7 @@ fn a_check_that_fails_everywhere_points_at_the_check() {
     branch(d, "main", "agent/b", &[("docs/b.md", "b\n")]);
     let mut o = opts(d, &["agent/a", "agent/b"]);
     o.checks = vec!["echo Error: tape is not installed && exit 1".into()];
-    o.per_input = true;
+    o.per_input = PerInput::Always;
     let out = land(&o).unwrap();
     assert_eq!(out.decision(), "blocked");
 
@@ -406,7 +409,7 @@ fn a_check_that_passes_alone_gets_no_install_hint() {
     assert!(said.contains("dependencies are not installed"), "{said}");
 
     // The solo passes prove it does, so only the combination is blamed.
-    o.per_input = true;
+    o.per_input = PerInput::Always;
     let out = land(&o).unwrap();
     assert_eq!(
         out.insights,
@@ -523,4 +526,105 @@ fn empty_inputs_land_nothing() {
     assert_eq!(out.receipt.predicate.files_changed, 0);
     assert_eq!(out.receipt.predicate.inputs[0].status, "empty");
     assert!(out.combined_ref.is_none());
+}
+
+/// The three plain lines for each kind of outcome, and the order `OnFailure`
+/// runs things in: the combination first, each branch alone only after a failure.
+#[test]
+fn plain_verdicts_say_what_why_and_next() {
+    let again = "run npx pytxo again";
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.per_input = PerInput::OnFailure;
+
+    // No checks: merged, but nothing proved it works.
+    let v = verdict(&land(&o).unwrap(), again);
+    assert_eq!((v.kind, v.label), ("no_tests", "NO TESTS"));
+    assert_eq!(
+        v.what,
+        "agent/a and agent/b merge cleanly onto main, but no tests ran."
+    );
+    assert!(v.next.contains("--check"), "{v:?}");
+
+    // A passing combination runs once: no solo runs on a pass.
+    o.checks = vec!["echo ok".into()];
+    let out = land(&o).unwrap();
+    assert_eq!(out.receipt.predicate.checks.len(), 1);
+    let v = verdict(&out, again);
+    assert_eq!((v.kind, v.label), ("ready", "READY"));
+    assert_eq!(v.what, "agent/a and agent/b pass echo ok together.");
+    assert!(v.next.contains("Nothing in your repository changed"), "{v:?}");
+
+    // Fails only together: combined, then each alone, then the combined re-run.
+    o.checks = vec![combined_only_failure(None)];
+    let out = land(&o).unwrap();
+    let scopes: Vec<&str> = out
+        .receipt
+        .predicate
+        .checks
+        .iter()
+        .map(|c| c.scope.as_str())
+        .collect();
+    assert_eq!(
+        scopes,
+        ["input:agent/a", "input:agent/b", "combined", "combined"]
+    );
+    assert_eq!(combined_runs(&out), [(false, false), (false, true)]);
+    let v = verdict(&out, again);
+    assert_eq!((v.kind, v.label), ("together", "BLOCKED"));
+    assert!(
+        v.what.starts_with("agent/a and agent/b pass ") && v.what.ends_with(" alone but fail together."),
+        "{v:?}"
+    );
+    assert_eq!(v.next, "fix one branch so they agree, then run npx pytxo again.");
+    let text = v.to_string();
+    assert_eq!(text.lines().count(), 3, "{text}");
+    assert!(text.starts_with("BLOCKED  agent/a and agent/b pass "), "{text}");
+    assert!(text.contains("\nwhy      "), "{text}");
+    assert!(text.ends_with("\nnext     fix one branch so they agree, then run npx pytxo again.\n"));
+
+    // Flaky: fails once on the combination, passes when run again.
+    let scratch = tempfile::tempdir().unwrap();
+    o.checks = vec![combined_only_failure(Some(&scratch.path().join("once")))];
+    let out = land(&o).unwrap();
+    assert_eq!(out.exit_code(), 2);
+    let v = verdict(&out, again);
+    assert_eq!((v.kind, v.label), ("flaky", "FLAKY"));
+
+    // Fails everywhere: not the combination's fault.
+    o.checks = vec!["exit 1".into()];
+    let v = verdict(&land(&o).unwrap(), again);
+    assert_eq!(v.kind, "alone");
+    assert!(v.what.contains("fails on every branch alone too"), "{v:?}");
+
+    // Without solo runs, the verdict says only what it knows.
+    o.per_input = PerInput::Never;
+    let v = verdict(&land(&o).unwrap(), again);
+    assert_eq!(v.kind, "failed");
+    assert!(v.next.contains("--per-input"), "{v:?}");
+
+    // A conflict names both sides and the file.
+    branch(d, "main", "agent/c", &[("README.md", "# shop C\n")]);
+    branch(d, "main", "agent/d", &[("README.md", "# shop D\n")]);
+    let mut o = opts(d, &["agent/c", "agent/d"]);
+    o.checks = vec!["echo ok".into()];
+    let out = land(&o).unwrap();
+    let v = verdict(&out, again);
+    assert_eq!((v.kind, v.label), ("conflict", "BLOCKED"));
+    assert_eq!(v.what, "agent/d conflicts with agent/c.");
+    assert_eq!(
+        v.why,
+        "git cannot merge them: README.md changed on both sides."
+    );
+
+    // Markdown leads with the verdict and ends with the install line.
+    let md = render_markdown(&out);
+    assert!(md.starts_with("### ⛔ BLOCKED: agent/d conflicts with agent/c\n"), "{md}");
+    assert!(md.contains("**Next:** Rebase agent/d onto agent/c"), "{md}");
+    assert!(md.trim_end().ends_with(&format!("<sub>{INSTALL_HINT}</sub>")), "{md}");
+    assert!(!md.contains(&out.receipt.predicate.content_digest), "digest only with --verbose");
+    assert!(render_markdown_with(&out, true).contains(&out.receipt.predicate.content_digest));
 }

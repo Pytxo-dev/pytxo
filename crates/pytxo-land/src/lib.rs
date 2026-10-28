@@ -11,6 +11,7 @@
 
 pub mod bench;
 pub mod checks;
+pub mod detect;
 mod git;
 mod overlap;
 mod render;
@@ -26,7 +27,7 @@ use pytxo_core::{
 };
 
 pub use git::Git;
-pub use render::{render_markdown, render_text};
+pub use render::{render_markdown, render_markdown_with, render_text, verdict, Verdict, INSTALL_HINT};
 
 pub const DEFAULT_CHECK_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 
@@ -62,6 +63,19 @@ impl LandInput {
     }
 }
 
+/// When each input is also checked alone, beside the combined change.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PerInput {
+    /// Only the combined change is checked.
+    #[default]
+    Never,
+    /// Each input alone first, then the combination (`--per-input`).
+    Always,
+    /// The combination first; each input alone only after it fails, which
+    /// tells "fails together" from "fails alone" without paying for it on a pass.
+    OnFailure,
+}
+
 #[derive(Clone, Debug)]
 pub struct LandOptions {
     pub repo: PathBuf,
@@ -71,7 +85,7 @@ pub struct LandOptions {
     /// Target branch; defaults to the branch checked out in `repo`.
     pub into: Option<String>,
     pub checks: Vec<String>,
-    pub per_input: bool,
+    pub per_input: PerInput,
     pub apply: bool,
     /// Treat symbol collisions as blocking.
     pub strict: bool,
@@ -90,7 +104,7 @@ impl LandOptions {
             base: None,
             into: None,
             checks: Vec::new(),
-            per_input: false,
+            per_input: PerInput::Never,
             apply: false,
             strict: false,
             check_timeout: DEFAULT_CHECK_TIMEOUT,
@@ -336,10 +350,10 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     }
     drop(fallback_tree);
 
-    // Checks: each input alone first (optional), then the combination. Only
-    // checks need files on disk, so only checks create worktrees.
+    // Checks: the combination, and each input alone when asked. Only checks
+    // need files on disk, so only checks create worktrees.
     let mut checks: Vec<ReceiptCheck> = Vec::new();
-    if opts.per_input && !opts.checks.is_empty() {
+    let run_solo = |checks: &mut Vec<ReceiptCheck>| -> Result<()> {
         let scratch = OwnedWorktree::add(&repo, &base, &format!("{tag}-solo"))?;
         let sg = Git::owned(&scratch.path, identity);
         for r in resolved.iter().filter(|r| !r.files.is_empty()) {
@@ -374,18 +388,26 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 ));
             }
         }
+        Ok(())
+    };
+    if opts.per_input == PerInput::Always && !opts.checks.is_empty() {
+        run_solo(&mut checks)?;
     }
     let combined_tree = if opts.checks.is_empty() {
         None
     } else {
         Some(OwnedWorktree::add(&repo, &combined, &tag)?)
     };
-    for command in &opts.checks {
-        let dir = &combined_tree
-            .as_ref()
-            .expect("created when checks exist")
-            .path;
-        let check = checks::run_check("combined", command, dir, opts.check_timeout);
+    let dir = combined_tree.as_ref().map(|t| t.path.clone()).unwrap_or_default();
+    let first_runs: Vec<ReceiptCheck> = opts
+        .checks
+        .iter()
+        .map(|command| checks::run_check("combined", command, &dir, opts.check_timeout))
+        .collect();
+    if opts.per_input == PerInput::OnFailure && first_runs.iter().any(|c| !c.passed) {
+        run_solo(&mut checks)?;
+    }
+    for (command, check) in opts.checks.iter().zip(first_runs) {
         // "Every input passed alone, the combination failed" is the claim this
         // gate leads with, so one flaky run must not make it: run it once more.
         let solo: Vec<&ReceiptCheck> = checks
@@ -396,7 +418,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             (!check.passed && !solo.is_empty() && solo.iter().all(|c| c.passed)).then(|| {
                 ReceiptCheck {
                     rerun: true,
-                    ..checks::run_check("combined", command, dir, opts.check_timeout)
+                    ..checks::run_check("combined", command, &dir, opts.check_timeout)
                 }
             });
         let how = |c: &ReceiptCheck| {
@@ -601,7 +623,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
 }
 
 /// `git merge-tree --write-tree` arrived in Git 2.38.
-fn supports_merge_tree(repo: &Git) -> bool {
+pub(crate) fn supports_merge_tree(repo: &Git) -> bool {
     if std::env::var_os("PYTXO_LAND_WORKTREE_MERGE").is_some() {
         return false;
     }
@@ -743,7 +765,7 @@ fn checked_out_at(repo: &Git, refname: &str) -> Result<Option<PathBuf>> {
 }
 
 /// Git prints `/` separators even on Windows; keep displayed paths native.
-fn native_path(raw: &str) -> PathBuf {
+pub(crate) fn native_path(raw: &str) -> PathBuf {
     if cfg!(windows) {
         PathBuf::from(raw.replace('/', "\\"))
     } else {

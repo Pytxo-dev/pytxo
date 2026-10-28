@@ -3,6 +3,7 @@
 use std::fmt::Write as _;
 
 use pytxo_core::{ReceiptCheck, ReceiptPredicate};
+use serde::Serialize;
 
 use crate::{short, LandOutcome};
 
@@ -208,24 +209,315 @@ pub fn render_text(outcome: &LandOutcome) -> String {
     s
 }
 
-pub fn render_markdown(outcome: &LandOutcome) -> String {
+/// A decision in three plain lines: what happened, why, and what to do next.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Verdict {
+    /// ready, no_tests, nothing, landed, conflict, together, alone, failed,
+    /// timeout, flaky, collision, refused or stale.
+    pub kind: &'static str,
+    /// The word a person reads first: READY, BLOCKED, FLAKY, STALE...
+    pub label: &'static str,
+    pub what: String,
+    pub why: String,
+    pub next: String,
+}
+
+impl std::fmt::Display for Verdict {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{:<9}{}", self.label, self.what)?;
+        writeln!(f, "{:<9}{}", "why", self.why)?;
+        writeln!(f, "{:<9}{}", "next", self.next)
+    }
+}
+
+/// A branch as a person names it: the label of a detached worktree's
+/// commit, otherwise the branch.
+fn plain_name(i: &pytxo_core::ReceiptInput) -> String {
+    let is_commit = i.reference.len() >= 7 && i.reference.chars().all(|c| c.is_ascii_hexdigit());
+    match &i.agent {
+        Some(label) if is_commit => label.clone(),
+        _ => i.reference.clone(),
+    }
+}
+
+/// "a", "a and b", "a, b and c", or "4 branches".
+fn and_list(names: &[String]) -> String {
+    match names {
+        [] => "no branches".into(),
+        [one] => one.clone(),
+        [init @ .., last] if names.len() <= 3 => format!("{} and {last}", init.join(", ")),
+        _ => format!("{} branches", names.len()),
+    }
+}
+
+/// The decision in plain words. `again` finishes "fix it, then ...", for
+/// example "run npx pytxo again" or "push again".
+pub fn verdict(outcome: &LandOutcome, again: &str) -> Verdict {
     let p = &outcome.receipt.predicate;
-    let mark = match p.decision.as_str() {
-        "ready" | "landed" => "✅",
-        "stale" => "⏸️",
+    let target = p.target.as_deref().unwrap_or("HEAD");
+    let all: Vec<String> = p.inputs.iter().map(plain_name).collect();
+    let names = and_list(&all);
+    let several = all.len() > 1;
+    let v = |kind, label, what: String, why: String, next: String| Verdict {
+        kind,
+        label,
+        what,
+        why,
+        next,
+    };
+    let first_line = |c: &ReceiptCheck| why_lines(&c.output_tail).into_iter().next();
+    let failed_combined = p
+        .checks
+        .iter()
+        .find(|c| c.scope == "combined" && !c.passed && !c.rerun);
+
+    match p.decision.as_str() {
+        "stale" => v(
+            "stale",
+            "STALE",
+            format!("{target} moved while the check ran."),
+            format!("the result describes an old tip of {target}, so it does not count."),
+            format!("{again}."),
+        ),
+        "landed" => {
+            let how = match p.checks.iter().find(|c| c.scope == "combined") {
+                Some(c) => format!("{} passed on the combined change", c.command),
+                None => "no tests ran".into(),
+            };
+            v(
+                "landed",
+                "LANDED",
+                format!("{names} {} on {target} now.", if several { "are" } else { "is" }),
+                format!("they merged cleanly and {how}."),
+                format!("push {target} when you are ready."),
+            )
+        }
+        "blocked" => {
+            if let Some(c) = p.inputs.iter().find(|i| i.status == "conflict") {
+                let earlier: Vec<String> = p
+                    .inputs
+                    .iter()
+                    .take_while(|i| i.reference != c.reference)
+                    .filter(|i| {
+                        c.conflict_files.is_empty()
+                            || i.files.iter().any(|f| c.conflict_files.contains(f))
+                    })
+                    .map(plain_name)
+                    .collect();
+                let others = if earlier.is_empty() {
+                    "the branches before it".to_string()
+                } else {
+                    and_list(&earlier)
+                };
+                let files = match c.conflict_files.as_slice() {
+                    [] => "the same lines".to_string(),
+                    [a] => a.clone(),
+                    [a, b] => format!("{a} and {b}"),
+                    [a, b, rest @ ..] => format!("{a}, {b} and {} more", rest.len()),
+                };
+                let name = plain_name(c);
+                return v(
+                    "conflict",
+                    "BLOCKED",
+                    format!("{name} conflicts with {others}."),
+                    format!("git cannot merge them: {files} changed on both sides."),
+                    format!("rebase {name} onto {others} (or ask its agent to), then {again}."),
+                );
+            }
+            if let Some(c) = failed_combined {
+                let cmd = &c.command;
+                let rerun = p
+                    .checks
+                    .iter()
+                    .find(|r| r.rerun && r.command == c.command);
+                if rerun.is_some_and(|r| r.passed) {
+                    return v(
+                        "flaky",
+                        "FLAKY",
+                        format!("{cmd} failed on the combined change, then passed when run again."),
+                        format!("a flaky test cannot say whether {names} work together."),
+                        format!("make that test reliable, then {again}."),
+                    );
+                }
+                if c.timed_out {
+                    return v(
+                        "timeout",
+                        "BLOCKED",
+                        format!(
+                            "{cmd} did not finish on the combined change ({}).",
+                            seconds(c.duration_ms)
+                        ),
+                        "a test command that waits for input or watches files never exits."
+                            .into(),
+                        format!("make {cmd} exit on its own, or raise --timeout, then {again}."),
+                    );
+                }
+                let solo: Vec<&ReceiptCheck> = p
+                    .checks
+                    .iter()
+                    .filter(|s| s.scope != "combined" && s.command == c.command)
+                    .collect();
+                let why = |check: &ReceiptCheck, place: &str| match first_line(check) {
+                    Some(line) => format!("{cmd} fails {place}: {line}"),
+                    None => format!(
+                        "{cmd} exits {} {place}.",
+                        check.exit_code.map_or("with an error".into(), |e| e.to_string())
+                    ),
+                };
+                if solo.is_empty() {
+                    return v(
+                        "failed",
+                        "BLOCKED",
+                        format!("{names} fail {cmd} when combined."),
+                        why(c, "on the combined change"),
+                        format!("to see whether each branch passes alone, run it with --per-input. Fix the failure, then {again}."),
+                    );
+                }
+                let failing: Vec<String> = solo
+                    .iter()
+                    .filter(|s| !s.passed)
+                    .filter_map(|s| s.scope.strip_prefix("input:"))
+                    .map(|r| {
+                        p.inputs
+                            .iter()
+                            .find(|i| i.reference == r)
+                            .map_or_else(|| r.to_string(), plain_name)
+                    })
+                    .collect();
+                if failing.is_empty() {
+                    return v(
+                        "together",
+                        "BLOCKED",
+                        format!("{names} pass {cmd} alone but fail together."),
+                        why(rerun.unwrap_or(c), "on the combined change"),
+                        format!("fix one branch so they agree, then {again}."),
+                    );
+                }
+                let solo_fail = solo.iter().find(|s| !s.passed).copied().unwrap_or(c);
+                let install = outcome
+                    .insights
+                    .iter()
+                    .find_map(|i| i.split("for example ").nth(1))
+                    .map(|s| s.trim_end_matches('.'));
+                if failing.len() == solo.len() {
+                    return v(
+                        "alone",
+                        "BLOCKED",
+                        format!("{cmd} fails on every branch alone too, so the combination is not the problem."),
+                        why(solo_fail, "on each branch"),
+                        match install {
+                            Some(fix) => format!("checks run in a fresh worktree, so install first: {fix}. Then {again}."),
+                            None => format!("make {cmd} pass on {target}, or pass the right command with --check, then {again}."),
+                        },
+                    );
+                }
+                let who = and_list(&failing);
+                return v(
+                    "alone",
+                    "BLOCKED",
+                    format!(
+                        "{who} {} {cmd} on {}, so the combination fails too.",
+                        if failing.len() == 1 { "fails" } else { "fail" },
+                        if failing.len() == 1 { "its own" } else { "their own" }
+                    ),
+                    why(solo_fail, "alone"),
+                    format!("fix {who} first, then {again}."),
+                );
+            }
+            if let Some((file, c)) = p
+                .shared_files
+                .iter()
+                .find_map(|f| f.symbol_collisions.first().map(|c| (f, c)))
+            {
+                return v(
+                    "collision",
+                    "BLOCKED",
+                    format!(
+                        "{} both changed {} in {}.",
+                        and_list(&c.inputs),
+                        c.symbol,
+                        file.path
+                    ),
+                    "--strict blocks when two branches change the same function or type.".into(),
+                    format!("check that {} still works for both, or run without --strict.", c.symbol),
+                );
+            }
+            v(
+                "refused",
+                "BLOCKED",
+                format!("{names} could not land on {target}."),
+                p.reasons.first().cloned().unwrap_or_default(),
+                format!("fix that, then {again}."),
+            )
+        }
+        _ if p.files_changed == 0 => v(
+            "nothing",
+            "READY",
+            format!("{names} add nothing to {target}."),
+            format!("every change on {} is already in {target}.", if several { "them" } else { "it" }),
+            "nothing to merge.".into(),
+        ),
+        _ => match p.checks.iter().find(|c| c.scope == "combined") {
+            None => v(
+                "no_tests",
+                "NO TESTS",
+                format!("{names} merge cleanly onto {target}, but no tests ran."),
+                format!("no test command was found at the root of {target} (package.json, Cargo.toml, go.mod, pyproject.toml...)."),
+                "name one with --check \"<command>\", or once for this repo: git config pytxo.check \"<command>\".".into(),
+            ),
+            Some(c) if several => v(
+                "ready",
+                "READY",
+                format!("{names} pass {} together.", c.command),
+                format!(
+                    "they merge cleanly onto {target} and {} passed on the combined change in {}.",
+                    c.command,
+                    seconds(c.duration_ms)
+                ),
+                "merge them as usual, or land them here with --apply. Nothing in your repository changed.".into(),
+            ),
+            Some(c) => v(
+                "ready",
+                "READY",
+                format!("{names} passes {} on top of {target}.", c.command),
+                format!(
+                    "it merges cleanly and {} passed in {}.",
+                    c.command,
+                    seconds(c.duration_ms)
+                ),
+                "merge it as usual, or land it here with --apply. Nothing in your repository changed.".into(),
+            ),
+        },
+    }
+}
+
+/// The one line every pull-request comment ends with.
+pub const INSTALL_HINT: &str = "Add this check to any repo in one line: `uses: Pytxo-dev/pytxo/actions/land@v2` · see it work: `npx pytxo demo`";
+
+/// Pull-request comment: the verdict, the detail folded, the install line.
+pub fn render_markdown(outcome: &LandOutcome) -> String {
+    render_markdown_with(outcome, false)
+}
+
+pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
+    let p = &outcome.receipt.predicate;
+    let verdict = verdict(outcome, "push again");
+    let mark = match verdict.label {
+        "READY" | "LANDED" => "✅",
+        "STALE" | "NO TESTS" => "⏸️",
+        "FLAKY" => "⚠️",
         _ => "⛔",
     };
     let mut s = String::new();
     let _ = writeln!(
         s,
-        "### {mark} Pytxo land: **{}** ({})\n",
-        p.decision,
-        if p.mode == "shadow" {
-            "shadow, nothing changed"
-        } else {
-            "applied"
-        }
+        "### {mark} {}: {}\n",
+        verdict.label,
+        verdict.what.trim_end_matches('.')
     );
+    let _ = writeln!(s, "**Why:** {}\n", upper_first(&verdict.why));
+    let _ = writeln!(s, "**Next:** {}\n", upper_first(&verdict.next));
+    let _ = writeln!(s, "<details><summary>Details</summary>\n");
     let _ = writeln!(
         s,
         "Target `{}` at `{}` · {} inputs · {} files changed · {}\n",
@@ -309,18 +601,25 @@ pub fn render_markdown(outcome: &LandOutcome) -> String {
         }
     }
     if !p.reasons.is_empty() {
-        let _ = writeln!(s, "\n**Why:**");
+        let _ = writeln!(s, "\nReasons:");
         for r in &p.reasons {
             let _ = writeln!(s, "- {r}");
         }
     }
-    if let Some(next) = next_step(outcome) {
-        let _ = writeln!(s, "\n**Next:** {next}.");
+    if verbose {
+        let _ = writeln!(
+            s,
+            "\nReceipt `{}` · digest `{}`",
+            p.id, p.content_digest
+        );
     }
-    let _ = writeln!(
-        s,
-        "\n<sub>Receipt `{}` · digest `{}`</sub>",
-        p.id, p.content_digest
-    );
+    let _ = writeln!(s, "\n</details>\n\n<sub>{INSTALL_HINT}</sub>");
     s
+}
+
+fn upper_first(text: &str) -> String {
+    let mut chars = text.chars();
+    chars
+        .next()
+        .map_or_else(String::new, |c| c.to_uppercase().chain(chars).collect())
 }
