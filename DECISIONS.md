@@ -79,3 +79,32 @@ chosen, why, and how to undo it.
 
 15. **Desktop's "install CLI" verifies with `--version`.** It ran
     `pytxo doctor --quick`, which the released CLI no longer has.
+
+16. **The agent hooks run on `Stop` only, and stay quiet by default.**
+    `pytxo hook` answers when two or more agent branches exist and something
+    changed since its last answer (a fingerprint of the target tip, branch
+    tips and test command in `.git/pytxo/hook-last`). In Claude Code it waits
+    while `background_tasks` still lists subagents, teammates or workflows,
+    so parallel agents get one check, after the last one. The verdict is a
+    `systemMessage`; `--block` (opt-in) turns BLOCKED into
+    `decision: "block"` so the agent keeps working on it. `SubagentStop` is
+    not used: it fires once per agent. Hooks pin `npx -y pytxo@<version>`.
+
+17. **The Action checks agent PRs only, from the same repository.** It runs
+    when the PR that triggered it is an agent PR (branch prefix or agent
+    account), and adds the other open agent PRs into the same base, oldest
+    first, with the triggering PR last so a conflict names the newest change.
+    Pull requests from forks never join another PR's run, where their code
+    would see that run's token; a fork PR's own run is read-only and checks
+    it with the base repository's agent PRs. At most 10 PRs at once. Draft
+    PRs count (Copilot opens drafts). Only the triggering PR gets the comment.
+    Errors are reported as errors, not as "blocked".
+
+18. **Pro licensing is a switched-off scaffold in the Action.** Public
+    repositories are free and always will be; local runs are never checked.
+    For private repositories in CI: a 14-day trial counted from the first
+    commit of the workflow file (no API call, no permission), then a
+    `pytxo1.<payload>.<signature>` key passed as `license:` from the
+    `PYTXO_LICENSE` secret, verified offline with Ed25519. `LICENSING = false`
+    and `LICENSE_PUBLIC_KEY = null` keep it off; switching it on needs a
+    signing keypair and a release.

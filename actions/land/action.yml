@@ -20,6 +20,10 @@ inputs:
     description: Token that lists pull requests and comments (needs pull-requests write to comment)
     required: false
     default: ${{ github.token }}
+  license:
+    description: Pytxo Pro license key for private repositories (secrets.PYTXO_LICENSE). Not required today.
+    required: false
+    default: ""
   version:
     description: Pytxo CLI version from npm
     required: false
@@ -49,6 +53,7 @@ runs:
       env:
         PYTXO_TOKEN: ${{ inputs.token }}
         PYTXO_BRANCHES: ${{ inputs.branches }}
+        PYTXO_LICENSE: ${{ inputs.license }}
       run: node "$GITHUB_ACTION_PATH/pytxo-action.mjs" discover
 
     # Runs the tests on the combined change. The token is not in this step's env.

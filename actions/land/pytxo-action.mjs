@@ -6,6 +6,7 @@
 // The check step between them runs the tests without the token in its env.
 
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -165,6 +166,56 @@ function output(name, value) {
 
 const statePath = () => path.join(process.env.RUNNER_TEMP || ".", "pytxo-action.json");
 
+// Pytxo Pro for private repositories in CI. Built and switched off: nothing
+// is enforced, and no key is checked, until LICENSING is true and
+// LICENSE_PUBLIC_KEY holds the public half of the signing key.
+export const LICENSING = false;
+export const TRIAL_DAYS = 14;
+export const LICENSE_PUBLIC_KEY = null;
+const BUY = "https://pytxo.com/plans";
+
+/**
+ * A key is `pytxo1.<payload>.<signature>`, both base64url; the payload is
+ * JSON `{ "repo": "owner/name" or "owner/*", "exp": "2027-10-01" or null }`
+ * signed with Ed25519. Verified offline: no account, no network.
+ */
+export function verifyLicense(key, repo, now, publicKey = LICENSE_PUBLIC_KEY) {
+  const [version, payload, signature] = (key || "").trim().split(".");
+  if (version !== "pytxo1" || !payload || !signature || !publicKey) return { valid: false, reason: "not a Pytxo license key" };
+  const signed = crypto.verify(null, Buffer.from(payload), publicKey, Buffer.from(signature, "base64url"));
+  if (!signed) return { valid: false, reason: "the license key's signature does not match" };
+  const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  const [owner] = repo.split("/");
+  if (claims.repo !== repo && claims.repo !== `${owner}/*`) return { valid: false, reason: `the license key is for ${claims.repo}` };
+  if (claims.exp && new Date(claims.exp) < now) return { valid: false, reason: `the license key expired on ${claims.exp}` };
+  return { valid: true };
+}
+
+/** Public repositories are free. Private ones get TRIAL_DAYS, then need a key. */
+export function licenseGate({ isPrivate, repo, key, trialStart, now, publicKey = LICENSE_PUBLIC_KEY }) {
+  if (!isPrivate) return { allowed: true };
+  const license = verifyLicense(key, repo, now, publicKey);
+  if (license.valid) return { allowed: true };
+  const left = Math.ceil(TRIAL_DAYS - (now - trialStart) / 86_400_000);
+  if (left > 0) {
+    return { allowed: true, notice: `Pytxo Pro trial for private repositories: ${left} day${left === 1 ? "" : "s"} left. ${BUY}` };
+  }
+  const why = key ? ` (${license.reason})` : "";
+  return {
+    allowed: false,
+    notice: `The ${TRIAL_DAYS}-day trial for private repositories is over${why}. Add a Pytxo Pro license key as the PYTXO_LICENSE secret and pass it as \`license\`: ${BUY}`,
+  };
+}
+
+/** When the workflow file was first committed: the trial's start, with no API call. */
+// ponytail: renaming the workflow file restarts the trial; a server-side record if that matters.
+function workflowAddedAt() {
+  const file = (process.env.GITHUB_WORKFLOW_REF || "").split("@")[0].split("/").slice(2).join("/");
+  const dates = file ? spawnSync("git", ["log", "--diff-filter=A", "--format=%cI", "--", file], { encoding: "utf8" }).stdout : "";
+  const first = dates.trim().split(/\r?\n/).filter(Boolean).at(-1);
+  return first ? new Date(first) : new Date();
+}
+
 async function discover() {
   const event = process.env.GITHUB_EVENT_NAME;
   if (event === "pull_request_target") {
@@ -200,6 +251,17 @@ async function discover() {
     token && !configured.stdout.trim() ? { server, basic: Buffer.from(`x-access-token:${token}`).toString("base64") } : undefined;
   if (git(["rev-parse", "--is-shallow-repository"]) === "true") {
     git(["fetch", "--quiet", "--unshallow", "--no-tags", "origin"], { auth });
+  }
+  if (LICENSING && payload.repository?.private) {
+    const gate = licenseGate({
+      isPrivate: true,
+      repo,
+      key: process.env.PYTXO_LICENSE,
+      trialStart: workflowAddedAt(),
+      now: new Date(),
+    });
+    if (!gate.allowed) throw new Error(gate.notice);
+    if (gate.notice) console.log(`::notice::${gate.notice}`);
   }
   const taken = new Set([base]);
   const prs = selection.prs.map((pr) => ({ number: pr.number, sha: pr.head.sha, branch: localName(pr, taken, base) }));

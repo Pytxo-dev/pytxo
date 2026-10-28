@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -11,11 +12,15 @@ import {
   commentBody,
   glob,
   isAgentPr,
+  LICENSE_PUBLIC_KEY,
+  licenseGate,
+  LICENSING,
   localName,
   MARKER,
   parsePatterns,
   selectPrs,
   upsertComment,
+  verifyLicense,
 } from "./pytxo-action.mjs";
 
 const script = fileURLToPath(new URL("./pytxo-action.mjs", import.meta.url));
@@ -236,4 +241,36 @@ test("discover fetches the agent PRs as local branches and the base", async (t) 
   });
   assert.equal(refused.status, 1);
   assert.match(refused.stdout, /refusing to run on pull_request_target/);
+});
+
+test("Pro licensing is built but switched off", () => {
+  assert.equal(LICENSING, false);
+  assert.equal(LICENSE_PUBLIC_KEY, null);
+});
+
+test("license keys verify offline; private repositories get a 14-day trial", () => {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
+  const sign = (claims) => {
+    const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+    return `pytxo1.${payload}.${crypto.sign(null, Buffer.from(payload), privateKey).toString("base64url")}`;
+  };
+  const now = new Date("2026-11-20T00:00:00Z");
+  const key = sign({ repo: "acme/shop", exp: "2027-01-01" });
+  assert.deepEqual(verifyLicense(key, "acme/shop", now, publicKey), { valid: true });
+  assert.ok(verifyLicense(sign({ repo: "acme/*", exp: null }), "acme/api", now, publicKey).valid);
+  assert.match(verifyLicense(key, "other/shop", now, publicKey).reason, /for acme\/shop/);
+  assert.match(verifyLicense(sign({ repo: "acme/shop", exp: "2026-11-01" }), "acme/shop", now, publicKey).reason, /expired/);
+  const forged = `${key.slice(0, key.lastIndexOf(".") + 1)}${Buffer.alloc(64).toString("base64url")}`;
+  assert.match(verifyLicense(forged, "acme/shop", now, publicKey).reason, /signature/);
+  assert.equal(verifyLicense(key, "acme/shop", now, null).valid, false);
+
+  const gate = (opts) => licenseGate({ repo: "acme/shop", now, publicKey, ...opts });
+  assert.deepEqual(gate({ isPrivate: false }), { allowed: true });
+  const trial = gate({ isPrivate: true, trialStart: new Date("2026-11-10T00:00:00Z") });
+  assert.equal(trial.allowed, true);
+  assert.match(trial.notice, /4 days left/);
+  const over = gate({ isPrivate: true, trialStart: new Date("2026-10-01T00:00:00Z") });
+  assert.equal(over.allowed, false);
+  assert.match(over.notice, /PYTXO_LICENSE/);
+  assert.deepEqual(gate({ isPrivate: true, trialStart: new Date("2026-10-01T00:00:00Z"), key }), { allowed: true });
 });
