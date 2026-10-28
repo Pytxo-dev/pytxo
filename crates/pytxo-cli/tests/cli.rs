@@ -713,20 +713,22 @@ fn a_hook_out_of_time_says_so_and_leaves_no_worktree() {
     let dir = repo(&["claude/a", "codex/b"]);
     let d = dir.path();
     #[cfg(windows)]
-    let slow = "ping -n 30 127.0.0.1 > nul";
+    let slow = "ping -n 60 127.0.0.1 > nul";
     #[cfg(not(windows))]
-    let slow = "sleep 30";
+    let slow = "sleep 60";
     git(d, &["config", "pytxo.check", slow]);
     let started = std::time::Instant::now();
-    // A 10-second hook answers after about 5; the test alone takes 30.
+    // A 20-second hook answers after about 10; the test alone takes 60. On
+    // Windows the git calls before the test starts take seconds, more so
+    // with the other tests running.
     let out = pytxo(
         d,
-        &["hook", "--block", "--timeout", "10"],
+        &["hook", "--block", "--timeout", "20"],
         Some(&stop_event(d)),
     );
     let took = started.elapsed();
     let v = hook_reply(&out);
-    assert!(took < std::time::Duration::from_secs(10), "{took:?}");
+    assert!(took < std::time::Duration::from_secs(20), "{took:?}");
     let message = v["systemMessage"].as_str().unwrap();
     assert!(
         message.contains("could not finish") && message.contains("Run pytxo in a terminal"),

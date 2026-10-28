@@ -1354,11 +1354,31 @@ mod tests {
             r#"{"scripts":{"test":"exit 0"}}"#,
             "fast",
         );
-        git(&d, &["checkout", "-q", "main"]);
-        let plan = plan(&d, &[], None, &[]).unwrap();
+        // Checked out, the branch without a test script is not where the
+        // command comes from: the target's tree is.
+        git(&d, &["checkout", "-q", "codex/no-tests"]);
+        let plan = plan(&d, &[], Some("main"), &[]).unwrap();
         assert_eq!(names(&plan), ["claude/fast", "codex/no-tests"]);
         assert_eq!(plan.checks, ["npm test"]);
         assert_eq!(plan.check_source.as_deref(), Some("package.json"));
+    }
+
+    /// The Action's default list (actions/land/pytxo-action.mjs) is the same.
+    #[test]
+    fn the_default_patterns_are_the_agents_prefixes() {
+        assert_eq!(
+            DEFAULT_PATTERNS,
+            [
+                "claude/*",
+                "codex/*",
+                "copilot/*",
+                "cursor/*",
+                "devin/*",
+                "jules/*",
+                "agent/*",
+                WORKTREES
+            ]
+        );
     }
 
     #[test]
