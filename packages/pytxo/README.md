@@ -24,11 +24,28 @@ next     fix one branch so they agree, then run npx pytxo again.
 Nothing in your repository changes. Exit codes: `0` ready (or nothing to
 check), `2` blocked, `3` stale, `1` error.
 
-In CI, one line in a workflow checks every agent pull request:
+In CI, one line in a workflow checks every agent pull request. Add
+`.github/workflows/pytxo.yml`:
 
 ```yaml
-- uses: Pytxo-dev/pytxo/actions/land@v2
+name: Pytxo
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+concurrency:
+  group: pytxo-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Pytxo-dev/pytxo/actions/land@v2
 ```
+
+Your tests run in the job that holds this token, so give the workflow no other
+permissions or secrets. See
+[the GitHub Action guide](https://pytxo.com/docs/getting-started/land-in-ci).
 
 Docs: [pytxo.com/docs](https://pytxo.com/docs) · Source:
 [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo) · Community:

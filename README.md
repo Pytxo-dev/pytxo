@@ -25,7 +25,7 @@ npx pytxo        # checks your agent branches together
 No flags, no config, no account. Pytxo finds the agent branches, finds your
 test command, merges the branches in a throwaway worktree, runs the tests
 there and prints the verdict in three lines: what happened, why, and what to
-do next. Nothing in your repository changes.
+do next. Nothing in your repository changes, even if you stop a check partway.
 
 ## The demo
 
@@ -56,6 +56,9 @@ on: pull_request
 permissions:
   contents: read
   pull-requests: write
+concurrency:
+  group: pytxo-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -65,19 +68,22 @@ jobs:
 
 On every agent pull request, the Action checks it together with the other
 open agent pull requests into the same base branch, then posts one comment and
-keeps it up to date. A blocked verdict fails the job only when this pull
-request is part of the problem; when another pull request is the cause, the
-comment names it and the job passes. It runs on `pull_request` only, never
-`pull_request_target`. A fork's pull request never joins another pull
-request's run: it is checked in its own run, with GitHub's read-only token and
-no secrets. Without `pull-requests: write` the verdict goes to the job summary
-instead. See [the Action's inputs](actions/land/action.yml).
+keeps it up to date. The job fails when this pull request conflicts, fails the
+tests alone, or is in a combination that fails while each passes alone; when
+only other pull requests are to blame, the comment names them and the job
+passes. It runs on `pull_request` only, never `pull_request_target`. A fork's
+pull request never joins another pull request's run: it is checked in its own
+run, with GitHub's read-only token and no secrets. Without
+`pull-requests: write` the verdict goes to the job summary instead. See
+[the Action's inputs](actions/land/action.yml).
 
 ## When your agents finish
 
-- **Claude Code:** `/plugin marketplace add Pytxo-dev/pytxo`, then
-  `/plugin install pytxo@pytxo`. The check runs when Claude stops and stays
-  quiet unless two or more agent branches changed.
+- **Claude Code:** in a shell,
+  `claude plugin marketplace add Pytxo-dev/pytxo --sparse .claude-plugin integrations/claude-code`,
+  then `claude plugin install pytxo@pytxo`. The check runs when Claude stops.
+  It answers when two or more agent branches exist and one of them, the target
+  or the test command changed since its last answer.
   [More](integrations/claude-code/README.md)
 - **Codex:** copy [integrations/codex/hooks.json](integrations/codex/hooks.json)
   to `~/.codex/hooks.json` and trust it in `/hooks`.
@@ -88,8 +94,12 @@ instead. See [the Action's inputs](actions/land/action.yml).
 **Which branches.** With no arguments Pytxo checks branches named `claude/*`,
 `codex/*`, `copilot/*`, `cursor/*`, `devin/*`, `jules/*` and `agent/*`, plus
 every branch checked out in a linked worktree, that have a commit in the last
-14 days. Name branches yourself (`npx pytxo feature/a feature/b`) or change the
-patterns for a repository:
+14 days, at most 10 at once, newest first. Branches already merged into the
+target, squash merges included, are skipped. Only committed work is checked: a
+worktree whose changes are all uncommitted gets a hint to commit them. If your
+agents push their branches to GitHub, run `git fetch` first. Name branches
+yourself (`npx pytxo feature/a feature/b`) or change the patterns for a
+repository:
 
 ```bash
 git config pytxo.branches "bot/* ai/*"
@@ -106,18 +116,23 @@ branch is checked out. `--into <branch>`, `git config pytxo.into <branch>` or
 for `package.json` (npm, pnpm, yarn or bun, installing dependencies first when
 there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix,
 RSpec, Rake, Composer or a `Makefile` with a `test` target. Set it yourself
-with `-c "npm ci && npm test"` or `git config pytxo.check "..."`.
+with `-c "npm ci && npm test"` or `git config pytxo.check "..."`. A compiled
+project, such as a Rust workspace, pays a cold build in each throwaway
+worktree. Submodules are not checked out there.
 
 **How it decides.** Pytxo runs the tests on the combined change first. If they
 fail, it runs them on each branch alone to tell a break that only happens
-together from a branch that is already broken, then runs the combined change
-once more to rule out a flaky test. Merge conflicts block too.
+together from a branch that is already broken, and, if every branch passes
+alone, runs the combined change once more to catch a flaky test. Merge
+conflicts block too.
 
 **Exit codes.** `0` ready (or nothing to check), `2` blocked, `3` stale (the
 target branch moved during the check), `1` error.
 
-**Output.** `--verbose` adds the receipt, digests and every check's output;
-`--json` is for scripts and `--markdown` is the GitHub Action's comment.
+**Output.** `--verbose` adds what was found, every test run with its error
+lines, the receipt's path and a ref to the combined commit;
+`pytxo receipts show <id>` prints the last 40 lines of each run and checks the
+digest. `--json` is for scripts and `--markdown` is the GitHub Action's comment.
 `--apply` lands a ready result on the target branch. Every check records a
 receipt in `.git/pytxo/receipts` (`pytxo receipts`).
 

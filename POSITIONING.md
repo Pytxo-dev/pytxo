@@ -55,8 +55,8 @@ without tests (Pytxo catches only what the tests catch).
   about 4.3% of 2,807 repositories
   ([arXiv 2607.04697](https://arxiv.org/abs/2607.04697)). Pybench
   (`pytxo bench`) shows the mechanism on synthetic repositories, not a rate.
-- The check is as slow as your test suite, plus installing dependencies in a
-  fresh worktree.
+- The check is as slow as your test suite, plus installing dependencies, or a
+  cold build of a compiled project, in a fresh worktree.
 - In CI, your tests run in the same job that posts the comment, so code in
   this repository's agent branches can reach the job's `pull-requests: write`
   token, as in any CI job that runs that code. Give the workflow no other
