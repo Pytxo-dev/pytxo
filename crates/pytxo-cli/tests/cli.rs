@@ -303,6 +303,33 @@ fn a_hook_out_of_time_says_so_and_leaves_no_worktree() {
     assert_eq!(list.matches("worktree ").count(), 1, "{list}");
 }
 
+#[cfg(not(feature = "full"))]
+#[test]
+fn pytxo_1x_commands_say_this_build_leaves_them_out() {
+    let dir = repo(&["claude/a"]);
+    let d = dir.path();
+    for command in ["shell", "doctor"] {
+        let out = pytxo(d, &[command], None);
+        assert_eq!(out.status.code(), Some(1), "{command}");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(err.lines().count(), 1, "{err}");
+        assert!(
+            err.contains(&format!("{command} is a Pytxo 1.x command"))
+                && err.contains("a source build with default features has it"),
+            "{err}"
+        );
+    }
+    // Outside a repository too.
+    let elsewhere = tempfile::tempdir().unwrap();
+    let out = pytxo(elsewhere.path(), &["mission", "fix it"], None);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("mission is a Pytxo 1.x command"));
+    // A branch of that name is checked like any other.
+    git(d, &["branch", "run", "claude/a"]);
+    let out = pytxo(d, &["run", "-c", "git --version"], None);
+    assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
+}
+
 #[test]
 fn usage_errors_exit_one_not_two() {
     let dir = repo(&[]);

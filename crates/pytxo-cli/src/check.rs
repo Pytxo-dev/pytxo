@@ -53,6 +53,33 @@ pub struct CheckArgs {
     pub repo: Option<PathBuf>,
 }
 
+/// The Pytxo 1.x commands only a build with the default `full` feature has.
+#[cfg_attr(feature = "full", allow(dead_code))]
+pub const FULL_ONLY: [&str; 22] = [
+    "accounts",
+    "agents",
+    "apply",
+    "doctor",
+    "domains",
+    "fleet",
+    "hitl",
+    "init",
+    "login",
+    "logout",
+    "logs",
+    "mission",
+    "models",
+    "project",
+    "providers",
+    "review",
+    "run",
+    "shell",
+    "status",
+    "stop",
+    "trust",
+    "whoami",
+];
+
 /// Runs the check and returns the exit code: 0 ready or nothing to check,
 /// 2 blocked, 3 stale.
 pub fn run(args: CheckArgs) -> Result<i32> {
@@ -60,6 +87,15 @@ pub fn run(args: CheckArgs) -> Result<i32> {
         Some(repo) => repo.clone(),
         None => std::env::current_dir()?,
     };
+    // In this build `pytxo shell` would look for a branch named shell.
+    #[cfg(not(feature = "full"))]
+    if let Some(name) = args.branches.iter().find(|b| {
+        FULL_ONLY.contains(&b.as_str()) && pytxo_land::Git::user(&cwd).commit_of(b).is_err()
+    }) {
+        anyhow::bail!(
+            "{name} is a Pytxo 1.x command that is not in this build; a source build with default features has it"
+        );
+    }
     let plan = detect::plan(&cwd, &args.branches, args.into.as_deref(), &args.checks)?;
     if plan.branches.is_empty() {
         nothing_to_check(&plan, args.json)?;

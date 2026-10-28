@@ -260,4 +260,19 @@ mod tests {
         ));
         assert!(Cli::try_parse_from(["pytxo", "--json", "--markdown"]).is_err());
     }
+
+    /// The lean build names exactly the commands it leaves out.
+    #[cfg(feature = "full")]
+    #[test]
+    fn full_only_lists_every_command_the_lean_build_leaves_out() {
+        let lean = ["check", "demo", "hook", "receipts", "bench", "help"];
+        let cli = Cli::command();
+        let mut names: Vec<&str> = cli
+            .get_subcommands()
+            .map(|c| c.get_name())
+            .filter(|n| !lean.contains(n))
+            .collect();
+        names.sort_unstable();
+        assert_eq!(names, check::FULL_ONLY);
+    }
 }
