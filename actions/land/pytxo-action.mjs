@@ -121,18 +121,23 @@ export async function listOpenPrs(fetchImpl, { apiUrl, repo, base, token }) {
 }
 
 /**
- * Updates Pytxo's comment on the PR, or creates it. Only a bot's comment
- * counts (anyone can paste the marker), and every page is searched.
+ * Updates Pytxo's comment on the PR, or creates it. Pytxo's comment starts
+ * with the marker and was written by this token's account (anyone can paste
+ * the marker): a personal access token's user, or a bot for GITHUB_TOKEN and
+ * app tokens, which cannot read /user. Every page is searched.
  * "forbidden" when the token cannot write.
  */
 export async function upsertComment(fetchImpl, { apiUrl, repo, number, token, body, create = true }) {
+  const me = await api(fetchImpl, `${apiUrl}/user`, token);
+  const login = me.ok ? (await me.json()).login : undefined;
+  const ours = (c) => c.body?.startsWith(MARKER) && (login ? c.user?.login === login : c.user?.type === "Bot");
   let existing;
   for (let page = 1; !existing; page++) {
     const url = `${apiUrl}/repos/${repo}/issues/${number}/comments?per_page=100&page=${page}`;
     const list = await api(fetchImpl, url, token);
     if (!list.ok) return list.status === 403 ? "forbidden" : `HTTP ${list.status}`;
     const batch = await list.json();
-    existing = batch.find((c) => c.user?.type === "Bot" && c.body?.includes(MARKER));
+    existing = batch.find(ours);
     if (batch.length < 100) break;
   }
   if (!existing && !create) return "none";

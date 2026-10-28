@@ -107,10 +107,15 @@ test("local branch names keep the PR's own name when it is safe and unique", () 
   assert.equal(localName(pr(5, "a..b"), taken, "main"), "pr-5");
 });
 
-/** A GitHub API serving `pages` of comments, by the `page` query parameter. */
-function fakeGitHub(pages, { status = 200 } = {}) {
+/**
+ * A GitHub API serving `pages` of comments, by the `page` query parameter.
+ * /user answers only for a personal access token's `login`, as for GitHub's
+ * own token it does not. `calls` leaves that lookup out.
+ */
+function fakeGitHub(pages, { status = 200, login } = {}) {
   const calls = [];
   const fetchImpl = async (url, init = {}) => {
+    if (url.endsWith("/user")) return { ok: Boolean(login), status: login ? 200 : 403, json: async () => ({ login }) };
     calls.push({ url, method: init.method || "GET", body: init.body && JSON.parse(init.body) });
     if (status !== 200) return { ok: false, status, json: async () => ({}) };
     const page = Number(new URL(url).searchParams.get("page")) || 1;
@@ -119,13 +124,13 @@ function fakeGitHub(pages, { status = 200 } = {}) {
   return { calls, fetchImpl };
 }
 
-const byBot = (id, body) => ({ id, body, user: { login: "github-actions[bot]", type: "Bot" } });
-const byPerson = (id, body) => ({ id, body, user: { login: "matt", type: "User" } });
+const byBot = (id, body, login = "github-actions[bot]") => ({ id, body, user: { login, type: "Bot" } });
+const byPerson = (id, body, login = "matt") => ({ id, body, user: { login, type: "User" } });
 
 test("one comment: created the first time, updated in place after", async () => {
   const target = { apiUrl: "https://api", repo: REPO, number: 14, token: "t", body: `${MARKER}\nverdict` };
-  // A person quoting the marker does not make their comment Pytxo's.
-  const fresh = fakeGitHub([[byPerson(1, `see ${MARKER} above`), byBot(2, "another bot")]]);
+  // A person, or another bot, quoting the marker does not make the comment Pytxo's.
+  const fresh = fakeGitHub([[byPerson(1, `${MARKER} pasted`), byBot(2, "another bot"), byBot(3, `> ${MARKER}`, "claude[bot]")]]);
   assert.equal(await upsertComment(fresh.fetchImpl, target), "created");
   assert.equal(fresh.calls.length, 2);
   assert.equal(fresh.calls[1].method, "POST");
@@ -143,6 +148,11 @@ test("one comment: created the first time, updated in place after", async () => 
   assert.match(again.calls[1].url, /\?per_page=100&page=2$/);
   assert.equal(again.calls[2].url, "https://api/repos/acme/shop/issues/comments/107");
   assert.equal(again.calls[2].body.body, target.body);
+
+  // A personal access token's comments are its user's, not a bot's.
+  const pat = fakeGitHub([[byBot(4, `${MARKER}\nold`), byPerson(5, `${MARKER}\nold`, "matt-ci")]], { login: "matt-ci" });
+  assert.equal(await upsertComment(pat.fetchImpl, target), "updated");
+  assert.equal(pat.calls[1].url, "https://api/repos/acme/shop/issues/comments/5");
 
   // A full page with no match reads on; a short one ends the search.
   const twoPages = fakeGitHub([Array.from({ length: 100 }, (_, i) => byPerson(i + 1, "lgtm")), []]);
