@@ -30,7 +30,7 @@
     } else if (phase !== "installing") {
       phase = "ready";
       message =
-        "Desktop can run work without a separate CLI install. Install the CLI for terminal workflows, MCP tools, and pytxo doctor.";
+        "Desktop can run work without a separate CLI install. Install the CLI to check your agents' branches together from a terminal.";
     }
   }
 
