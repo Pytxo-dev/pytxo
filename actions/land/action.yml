@@ -90,9 +90,11 @@ runs:
         PYTXO_CODE: ${{ steps.check.outputs.code }}
       run: node "$GITHUB_ACTION_PATH/pytxo-action.mjs" comment
 
-    # Blocked, stale or broken fails the job, so the pull request shows it.
+    # Fails the job when this pull request blocks the combination, the result
+    # is stale or the check broke, so the pull request shows it. Another pull
+    # request's breakage, or a flaky test, passes with a note.
     - if: steps.check.outputs.code != '' && steps.check.outputs.code != '0'
       shell: bash
       env:
         PYTXO_CODE: ${{ steps.check.outputs.code }}
-      run: exit "$PYTXO_CODE"
+      run: node "$GITHUB_ACTION_PATH/pytxo-action.mjs" verdict

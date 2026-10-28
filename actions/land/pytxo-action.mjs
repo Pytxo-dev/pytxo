@@ -1,9 +1,11 @@
-// The Pytxo GitHub Action's two jobs around the check itself:
+// The Pytxo GitHub Action's jobs around the check itself:
 //   discover  find the open agent pull requests into this one's base branch and
 //             fetch them as local branches (no tests run here)
 //   comment   put the verdict in the job summary and in one pull-request
 //             comment, updated in place
-// The check step between them runs the tests without the token in its env.
+//   verdict   end the job: fail it when this pull request blocks the
+//             combination, the result is stale or the check broke
+// The check step after discover runs the tests without the token in its env.
 
 import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -172,6 +174,36 @@ export function commentBody({ prs, markdown, stderr, code, reason, notes = [] })
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * How the job ends after the CLI exits with `code`. The pull request that
+ * started the run is the last of `prs`. A blocked combination fails its job
+ * only when the CLI's verdict line implicates it, so one broken draft cannot
+ * block every other agent pull request; a flaky result passes with a warning.
+ * Without the verdict line (an older CLI) every non-zero exit fails.
+ */
+export function jobOutcome({ code, markdown = "", prs = [] }) {
+  if (code !== "2") return { fail: code !== "0" };
+  // Only the last line counts: test output earlier in the markdown cannot pose as it.
+  const line = /^<!-- pytxo-verdict (.*) -->$/.exec(markdown.trim().split(/\r?\n/).at(-1));
+  let verdict;
+  try {
+    verdict = JSON.parse(line?.[1]);
+  } catch {
+    verdict = null;
+  }
+  if (verdict?.label === "FLAKY") {
+    return { fail: false, warning: "A test failed on the combined change, then passed when run again, so there is no verdict." };
+  }
+  const blamed = verdict?.label === "BLOCKED" && Array.isArray(verdict.implicated) ? verdict.implicated : [];
+  const self = prs.length - 1;
+  if (!blamed.length || !blamed.every((i) => Number.isInteger(i) && i >= 0 && i < self)) return { fail: true };
+  const names = blamed.map((i) => `#${prs[i].number}`);
+  const who = names.length === 1 ? `${names[0]} blocks` : `${names.slice(0, -1).join(", ")} and ${names.at(-1)} block`;
+  // True whether they conflict (left out of the tree this one was tested on) or fail alone.
+  const them = names.length === 1 ? "it" : "them";
+  return { fail: false, note: `This pull request is not the cause: ${who} the combination, so whether this one works with ${them} is not known yet.` };
+}
+
 function git(args, { auth } = {}) {
   const extra = auth ? ["-c", `http.${auth.server}/.extraheader=AUTHORIZATION: basic ${auth.basic}`] : [];
   const result = spawnSync("git", [...extra, ...args], { encoding: "utf8" });
@@ -186,6 +218,10 @@ function output(name, value) {
 }
 
 const statePath = () => path.join(process.env.RUNNER_TEMP || ".", "pytxo-action.json");
+const read = (name) => {
+  const file = path.join(process.env.RUNNER_TEMP || ".", name);
+  return fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+};
 
 // Pytxo Pro for private repositories in CI. Built and switched off: nothing
 // is enforced, and no key is checked, until LICENSING is true and
@@ -310,17 +346,17 @@ async function discover() {
 }
 
 async function comment() {
-  const temp = process.env.RUNNER_TEMP || ".";
-  const read = (name) => (fs.existsSync(path.join(temp, name)) ? fs.readFileSync(path.join(temp, name), "utf8") : "");
   const state = JSON.parse(read("pytxo-action.json") || "{}");
   if (!state.number) return;
+  const markdown = read("pytxo-check.md");
+  const { note } = jobOutcome({ code: process.env.PYTXO_CODE, markdown, prs: state.prs });
   const body = commentBody({
     prs: state.prs,
-    markdown: read("pytxo-check.md"),
+    markdown,
     stderr: read("pytxo-check.err"),
     code: process.env.PYTXO_CODE || "?",
     reason: state.reason,
-    notes: state.notes,
+    notes: [note, ...state.notes].filter(Boolean),
   });
   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, body);
   if (process.env.PYTXO_COMMENT === "false") return;
@@ -340,11 +376,21 @@ async function comment() {
   }
 }
 
+/** Fails the job with the CLI's exit code, unless the verdict lets this pull request pass. */
+async function verdict() {
+  const state = JSON.parse(read("pytxo-action.json") || "{}");
+  const code = process.env.PYTXO_CODE;
+  const job = jobOutcome({ code, markdown: read("pytxo-check.md"), prs: state.prs });
+  if (job.warning) console.log(`::warning::${job.warning}`);
+  if (job.note) console.log(`::notice::${job.note}`);
+  if (job.fail) process.exitCode = Number(code) || 1;
+}
+
 const invoked = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (invoked) {
-  const run = { discover, comment }[process.argv[2]];
+  const run = { discover, comment, verdict }[process.argv[2]];
   if (!run) {
-    console.error("usage: pytxo-action.mjs discover|comment");
+    console.error("usage: pytxo-action.mjs discover|comment|verdict");
     process.exit(1);
   }
   run().catch((error) => {

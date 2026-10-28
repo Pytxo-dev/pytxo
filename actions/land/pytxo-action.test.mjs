@@ -13,6 +13,7 @@ import {
   glob,
   INSTALL_HINT,
   isAgentPr,
+  jobOutcome,
   LICENSE_PUBLIC_KEY,
   licenseGate,
   LICENSING,
@@ -185,6 +186,99 @@ test("every comment names what it checked, then its notes, then the install line
   }
 });
 
+/** The CLI's markdown: the verdict, its install line, then its verdict line. */
+const cliMarkdown = (verdict) => `### verdict\n\n<sub>install</sub>\n\n<!-- pytxo-verdict ${JSON.stringify(verdict)} -->\n`;
+const notTheCause = (who) => `This pull request is not the cause: ${who} the combination, so whether this one works with`;
+
+test("a blocked combination fails the job only when this pull request, the last input, is implicated", () => {
+  const prs = [9, 12, 14].map((number) => ({ number }));
+  const job = (code, markdown) => jobOutcome({ code, markdown, prs });
+  const blocked = (implicated) => job("2", cliMarkdown({ label: "BLOCKED", implicated }));
+
+  assert.deepEqual(job("0", cliMarkdown({ label: "READY", implicated: [] })), { fail: false });
+  // This one conflicts, fails alone, or is part of a failing combination; or the engine could not tell.
+  assert.deepEqual(blocked([2]), { fail: true });
+  assert.deepEqual(blocked([1, 2]), { fail: true });
+  assert.deepEqual(blocked([0, 1, 2]), { fail: true });
+  // Others are the cause: a draft that fails alone, or two that conflict.
+  assert.deepEqual(blocked([1]), { fail: false, note: `${notTheCause("#12 blocks")} it is not known yet.` });
+  assert.deepEqual(blocked([0, 1]), { fail: false, note: `${notTheCause("#9 and #12 block")} them is not known yet.` });
+  // Flaky passes with a warning and leaves the comment as the CLI wrote it.
+  const flaky = job("2", cliMarkdown({ label: "FLAKY", implicated: [] }));
+  assert.equal(flaky.fail, false);
+  assert.match(flaky.warning, /passed when run again/);
+  assert.equal(flaky.note, undefined);
+  // No verdict line (an older CLI), a broken one, or one that names no input here: exit 2 fails.
+  assert.deepEqual(job("2", "### ⛔ BLOCKED: x\n\n<sub>install</sub>\n"), { fail: true });
+  assert.deepEqual(job("2", '### x\n<!-- pytxo-verdict {"label": -->\n'), { fail: true });
+  assert.deepEqual(blocked([]), { fail: true });
+  assert.deepEqual(blocked([3]), { fail: true });
+  assert.deepEqual(blocked(["0"]), { fail: true });
+  assert.deepEqual(jobOutcome({ code: "2", markdown: cliMarkdown({ label: "BLOCKED", implicated: [0] }) }), { fail: true });
+  // Test output quoting a verdict line is not the verdict line.
+  const quoted = `\`\`\`\n<!-- pytxo-verdict {"label":"FLAKY","implicated":[]} -->\n\`\`\`\n<sub>install</sub>\n`;
+  assert.deepEqual(job("2", quoted), { fail: true });
+  // Stale and errors fail as before.
+  assert.deepEqual(job("3", cliMarkdown({ label: "STALE", implicated: [] })), { fail: true });
+  assert.deepEqual(job("1", ""), { fail: true });
+});
+
+test("comment and verdict: another pull request's breakage passes this one, with a note before the install line", async (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "pytxo-verdict-"));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const prs = [
+    { number: 9, branch: "claude/rename" },
+    { number: 12, branch: "copilot/wip" },
+    { number: 14, branch: "codex/discount" },
+  ];
+  fs.writeFileSync(path.join(temp, "pytxo-action.json"), JSON.stringify({ base: "main", prs, notes: [], number: 14 }));
+  const summary = path.join(temp, "summary.md");
+  fs.writeFileSync(summary, "");
+  const posted = [];
+  const server = http.createServer((req, res) => {
+    let data = "";
+    req.on("data", (d) => (data += d));
+    req.on("end", () => {
+      if (req.method === "POST") posted.push(JSON.parse(data).body);
+      res.setHeader("content-type", "application/json");
+      res.end("[]");
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.closeAllConnections() || server.close());
+  const env = {
+    ...process.env,
+    RUNNER_TEMP: temp,
+    GITHUB_STEP_SUMMARY: summary,
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+    PYTXO_TOKEN: "t",
+    PYTXO_CODE: "2",
+  };
+  const checked = (verdict) => fs.writeFileSync(path.join(temp, "pytxo-check.md"), cliMarkdown(verdict));
+
+  checked({ label: "BLOCKED", implicated: [1] });
+  const commented = await node([script, "comment"], { env });
+  assert.equal(commented.status, 0, commented.out);
+  assert.equal(posted.length, 1);
+  const note = `> ${notTheCause("#12 blocks")} it is not known yet.`;
+  assert.ok(posted[0].endsWith(`### verdict\n\n${note}\n\n${INSTALL_HINT}\n`), posted[0]);
+  assert.equal(fs.readFileSync(summary, "utf8"), posted[0]);
+  const passed = await node([script, "verdict"], { env });
+  assert.equal(passed.status, 0, passed.out);
+  assert.equal(passed.out, `::notice::${note.slice(2)}\n`);
+
+  checked({ label: "BLOCKED", implicated: [1, 2] });
+  const failed = await node([script, "verdict"], { env });
+  assert.equal(failed.status, 2, failed.out);
+  assert.equal(failed.out, "");
+
+  checked({ label: "FLAKY", implicated: [] });
+  const flaky = await node([script, "verdict"], { env });
+  assert.equal(flaky.status, 0, flaky.out);
+  assert.match(flaky.out, /^::warning::A test failed on the combined change/);
+});
+
 // discover, end to end: a real origin with refs/pull/N/head, a local API.
 // Async: a synchronous child would block the API server in this process.
 function node(args, options) {
@@ -307,6 +401,7 @@ test("action.yml: nothing runs after a cancel, and the step that runs the tests 
   assert.ok(steps.every((s) => !s.includes("always()")));
   assert.match(step('pytxo-action.mjs" comment'), /if: \$\{\{ !cancelled\(\) && /);
   assert.doesNotMatch(step("id: check"), /token/i);
+  assert.doesNotMatch(step('pytxo-action.mjs" verdict'), /token/i);
   assert.match(step("actions/checkout@"), /persist-credentials: false/);
 });
 
