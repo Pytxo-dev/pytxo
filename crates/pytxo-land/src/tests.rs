@@ -1300,3 +1300,123 @@ fn the_run_directory_is_private() {
     drop(run);
     assert!(!path.exists());
 }
+
+/// A check that fails where `file` exists.
+fn fails_with(file: &str) -> String {
+    if cfg!(windows) {
+        format!("if exist {file} (exit 1) else (exit 0)")
+    } else {
+        format!("test ! -f {file}")
+    }
+}
+
+/// Each run in a reused worktree starts from its branch's files only: build
+/// output an earlier run left in an ignored directory is gone, so a test
+/// command that runs that output blames the right branch.
+#[test]
+fn ignored_build_output_does_not_carry_over_between_runs() {
+    let dir = repo();
+    let d = dir.path();
+    write(d, &[(".gitignore", "out/\n"), ("src/base.txt", "ok\n")]);
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", "build"]);
+    branch(d, "main", "agent/bad", &[("src/bad1.txt", "bad\n")]);
+    branch(d, "main", "agent/good", &[("src/good.txt", "good\n")]);
+    branch(d, "main", "agent/worse", &[("src/bad2.txt", "bad\n")]);
+    // Builds src/ into the ignored out/, then fails on any bad file there.
+    let check = if cfg!(windows) {
+        r"(if not exist out mkdir out) & copy /y src\*.txt out >nul & if exist out\bad*.txt (exit 1) else (exit 0)"
+    } else {
+        "mkdir -p out && cp src/*.txt out/ && ! ls out/bad* >/dev/null 2>&1"
+    };
+
+    let mut o = opts(d, &["agent/bad", "agent/good"]);
+    o.checks = vec![check.into()];
+    o.per_input = PerInput::OnFailure;
+    let out = land(&o).unwrap();
+    let checks = &out.receipt.predicate.checks;
+    let alone = |r: &str| checks.iter().find(|c| c.scope == format!("input:{r}"));
+    assert!(alone("agent/good").is_some_and(|c| c.passed), "{checks:?}");
+    assert!(
+        verdict(&out, "again").what.starts_with("agent/bad fails "),
+        "{checks:?}"
+    );
+
+    // Both fail alone: main runs without the combination's output.
+    o.inputs = ["agent/bad", "agent/worse"].map(LandInput::parse).to_vec();
+    let out = land(&o).unwrap();
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        checks.iter().any(|c| c.scope == "target" && c.passed),
+        "{checks:?}"
+    );
+    assert!(
+        verdict(&out, "again")
+            .what
+            .starts_with("agent/bad and agent/worse fail "),
+        "{checks:?}"
+    );
+}
+
+/// A user's `submodule.recurse` does not reach the scratch checkouts, which
+/// leave submodules out.
+#[test]
+fn submodule_recurse_does_not_break_the_scratch_checkouts() {
+    let sub = repo();
+    let dir = repo();
+    let d = dir.path();
+    let url = sub.path().to_string_lossy().replace('\\', "/");
+    git(
+        d,
+        &[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            "-q",
+            &url,
+            "lib",
+        ],
+    );
+    git(d, &["commit", "-q", "-m", "submodule"]);
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    git(d, &["config", "submodule.recurse", "true"]);
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.checks = vec![fails_with("a.txt")];
+    o.per_input = PerInput::OnFailure;
+    let out = land(&o).unwrap();
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        checks
+            .iter()
+            .any(|c| c.scope == "input:agent/b" && c.passed),
+        "{checks:?}"
+    );
+    assert!(
+        verdict(&out, "again").what.starts_with("agent/a fails "),
+        "{checks:?}"
+    );
+}
+
+/// A check that fails again on the combination speaks over a flaky one.
+#[test]
+fn a_flaky_check_does_not_hide_a_real_failure() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    let marker = d.join(".git").join("flaky-ran");
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.checks = vec![combined_only_failure(Some(&marker)), fails_with("a.txt")];
+    o.per_input = PerInput::OnFailure;
+    let out = land(&o).unwrap();
+    let v = verdict(&out, "again");
+    assert_eq!(v.label, "BLOCKED", "{v:?}");
+    assert!(v.what.starts_with("agent/a fails "), "{v:?}");
+    let md = render_markdown(&out);
+    assert!(
+        md.contains(r#"{"label":"BLOCKED","implicated":[0]}"#),
+        "{md}"
+    );
+}

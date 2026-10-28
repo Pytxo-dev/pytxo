@@ -370,10 +370,15 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
         let line = why_lines(&c.output_tail).into_iter().next()?;
         Some(if pr { code_span(&line) } else { line })
     };
-    let failed_combined = p
-        .checks
-        .iter()
-        .find(|c| c.scope == "combined" && !c.passed && !c.rerun);
+    // A check that fails again speaks over one that passed when run again.
+    let failing = || {
+        p.checks
+            .iter()
+            .filter(|c| c.scope == "combined" && !c.passed && !c.rerun)
+    };
+    let failed_combined = failing()
+        .find(|c| !passed_when_rerun(p, c))
+        .or_else(|| failing().next());
 
     match p.decision.as_str() {
         "stale" => v(

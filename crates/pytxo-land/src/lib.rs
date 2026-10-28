@@ -232,6 +232,13 @@ impl Drop for OwnedWorktree {
     }
 }
 
+/// Back to a fresh worktree's files before the next run in it. What a build
+/// left in ignored directories goes too: a test command that runs `tsc`'s
+/// outDir would run the last branch's tests as well. Dependencies stay, since
+/// their tools never run stale output: `node_modules`, which an install brings
+/// in line, and Cargo's `target`.
+const SCRATCH_CLEAN: [&str; 6] = ["clean", "-ffdxq", "-e", "node_modules", "-e", "target"];
+
 /// `git worktree lock --reason`, then the pid of the run that holds it.
 const LOCK_REASON: &str = "pytxo ";
 
@@ -658,7 +665,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 continue;
             };
             sg.run(&["checkout", "--detach", "--force", &solo])?;
-            sg.run(&["clean", "-fdq"])?;
+            sg.run(&SCRATCH_CLEAN)?;
             for command in &opts.checks {
                 let Some(check) = run_check(&scope, command, &scratch.path) else {
                     return Ok(());
@@ -763,7 +770,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     if let (Some(tree), false) = (&combined_tree, on_target.is_empty() || late()) {
         let tg = Git::owned(&tree.path, identity);
         tg.run(&["checkout", "--detach", "--force", &base])?;
-        tg.run(&["clean", "-fdq"])?;
+        tg.run(&SCRATCH_CLEAN)?;
         for command in on_target {
             let Some(check) = run_check("target", command, &tree.path) else {
                 break;

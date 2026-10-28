@@ -38,6 +38,9 @@ impl Git {
             "gc.auto=0".into(),
             "advice.detachedHead=false".into(),
             "merge.autoStash=false".into(),
+            // Submodules stay out, even where the user set submodule.recurse:
+            // checkout and reset would look for theirs in the worktree.
+            "submodule.recurse=false".into(),
         ];
         if cfg!(windows) {
             // Temp worktrees sit deep under %TEMP%; let checkouts pass 260 chars.
