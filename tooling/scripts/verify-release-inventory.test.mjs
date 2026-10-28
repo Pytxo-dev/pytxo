@@ -243,10 +243,17 @@ test("candidate signing cannot publish a release or update channel", async () =>
   assert.ok(workflow.indexOf("verify-windows-msi.ps1") < workflow.indexOf("actions/upload-artifact"));
 });
 
-test("the private candidate branch does not trigger a Vercel deployment", async () => {
+test("the private candidate branch never deploys, and main waits while the candidate is unpublished", async () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const config = JSON.parse(await readFile(path.resolve(here, "../../apps/web/vercel.json"), "utf8"));
-  assert.deepEqual(config.git.deploymentEnabled, { "2ntt/pytxo-beta-candidate-20261003": false });
+  const site = await readFile(path.resolve(here, "../../apps/web/src/lib/site.ts"), "utf8");
+  const version = (name) => site.match(new RegExp(`^export const ${name} = "([^"]+)";`, "m"))?.[1];
+  const unpublished = version("PUBLISHED_VERSION") !== version("CANDIDATE_VERSION");
+  assert.ok(version("PUBLISHED_VERSION") && version("CANDIDATE_VERSION"));
+  assert.deepEqual(config.git.deploymentEnabled, {
+    "2ntt/pytxo-beta-candidate-20261003": false,
+    ...(unpublished ? { main: false } : {}),
+  });
 });
 
 test("the Desktop updater uses a stable signed channel with a release fallback", async () => {
