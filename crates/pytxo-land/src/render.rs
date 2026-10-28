@@ -374,7 +374,14 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                         ),
                         "a test command that waits for input or watches files never exits."
                             .into(),
-                        format!("make {cmd} exit on its own, or raise --timeout, then {again}."),
+                        format!(
+                            "make {cmd} exit on its own, or raise {}, then {again}.",
+                            if pr {
+                                "the Action's `timeout:` input"
+                            } else {
+                                "--timeout"
+                            }
+                        ),
                     );
                 }
                 let solo: Vec<&ReceiptCheck> = p
@@ -431,7 +438,12 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                         format!("{cmd} fails on every branch alone too, so the combination is not the problem."),
                         why(solo_fail, "on each branch"),
                         match install {
+                            Some(fix) if pr => format!(
+                                "checks run in a fresh worktree, so install first: set the Action's `check:` input to `{}`. Then {again}.",
+                                fix.trim_start_matches("--check ").trim_matches('"')
+                            ),
                             Some(fix) => format!("checks run in a fresh worktree, so install first: {fix}. Then {again}."),
+                            None if pr => format!("make {cmd} pass on {target}, or set the Action's `check:` input to the right command, then {again}."),
                             None => format!("make {cmd} pass on {target}, or pass the right command with --check, then {again}."),
                         },
                     );
@@ -488,7 +500,11 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                 "NO TESTS",
                 format!("{names} merge cleanly onto {target}, but no tests ran."),
                 format!("no test command was found at the root of {target} (package.json, Cargo.toml, go.mod, pyproject.toml...)."),
-                "name one with --check \"<command>\", or once for this repo: git config pytxo.check \"<command>\".".into(),
+                if pr {
+                    "set the Action's `check:` input to your test command.".into()
+                } else {
+                    "name one with --check \"<command>\", or once for this repo: git config pytxo.check \"<command>\".".into()
+                },
             ),
             Some(c) if several => v(
                 "ready",
@@ -499,7 +515,10 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                     c.command,
                     seconds(c.duration_ms)
                 ),
-                "merge them as usual, or land them here with --apply. Nothing in your repository changed.".into(),
+                format!(
+                    "merge them as usual{}. Nothing in your repository changed.",
+                    if pr { "" } else { ", or land them here with --apply" }
+                ),
             ),
             Some(c) => v(
                 "ready",
@@ -510,7 +529,10 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                     c.command,
                     seconds(c.duration_ms)
                 ),
-                "merge it as usual, or land it here with --apply. Nothing in your repository changed.".into(),
+                format!(
+                    "merge it as usual{}. Nothing in your repository changed.",
+                    if pr { "" } else { ", or land it here with --apply" }
+                ),
             ),
         },
     }

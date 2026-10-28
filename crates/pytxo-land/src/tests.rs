@@ -679,6 +679,62 @@ fn plain_verdicts_say_what_why_and_next() {
     assert!(render_markdown_with(&out, true).contains(&out.receipt.predicate.content_digest));
 }
 
+/// The pull-request comment gives advice in the GitHub Action's terms; the
+/// terminal keeps its flags.
+#[test]
+fn markdown_advice_fits_a_pull_request() {
+    let again = "run npx pytxo again";
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    let next = |out: &LandOutcome| {
+        let md = render_markdown(out);
+        let line = md.lines().find_map(|l| l.strip_prefix("**Next:** "));
+        line.unwrap().to_string()
+    };
+
+    let out = land(&o).unwrap();
+    assert_eq!(
+        next(&out),
+        "set the Action's `check:` input to your test command."
+    );
+    assert!(verdict(&out, again).next.contains("git config pytxo.check"));
+
+    o.checks = vec!["echo ok".into()];
+    let out = land(&o).unwrap();
+    assert_eq!(
+        next(&out),
+        "merge them as usual. Nothing in your repository changed."
+    );
+    assert!(verdict(&out, again).next.contains("--apply"));
+
+    #[cfg(windows)]
+    let slow = "ping -n 30 127.0.0.1 > nul";
+    #[cfg(not(windows))]
+    let slow = "sleep 30";
+    o.checks = vec![slow.into()];
+    o.check_timeout = Duration::from_millis(300);
+    let out = land(&o).unwrap();
+    assert!(
+        next(&out).contains("or raise the Action's `timeout:` input, then push again."),
+        "{}",
+        next(&out)
+    );
+    assert!(verdict(&out, again).next.contains("raise --timeout"));
+
+    o.checks = vec!["exit 1".into()];
+    o.per_input = PerInput::OnFailure;
+    let out = land(&o).unwrap();
+    assert!(
+        next(&out).contains("or set the Action's `check:` input to the right command"),
+        "{}",
+        next(&out)
+    );
+    assert!(verdict(&out, again).next.contains("with --check"));
+}
+
 /// Test output in a pull-request comment must not mention, link or format:
 /// it shows only as code, which nothing in the output can close.
 #[test]
