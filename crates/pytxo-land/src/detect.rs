@@ -323,11 +323,28 @@ fn settings(git: &Git, var: &str, key: &str) -> Vec<String> {
     if let Some(v) = env(var) {
         return vec![v];
     }
-    // `local\tnpm test`, in the order system, global, local, worktree, command.
-    let lines = git
-        .lines(&["config", "--show-scope", "--get-all", key])
-        .unwrap_or_default();
-    let scoped: Vec<(&str, &str)> = lines.iter().filter_map(|l| l.split_once('\t')).collect();
+    // Git before 2.26 has no --show-scope; there the last file that sets the
+    // key stands in for the last scope.
+    for show in ["--show-scope", "--show-origin"] {
+        let Ok(out) = git.output(&["config", show, "--get-all", key]) else {
+            break;
+        };
+        match out.status.code() {
+            Some(0) => return most_specific(&String::from_utf8_lossy(&out.stdout)),
+            // Set nowhere.
+            Some(1) => break,
+            _ => {}
+        }
+    }
+    Vec::new()
+}
+
+/// The values of the last scope, or file, out of `git config --get-all`
+/// with `--show-scope` (`local\tnpm test`) or `--show-origin`, which list
+/// the system's first.
+fn most_specific(text: &str) -> Vec<String> {
+    let lines = text.lines().map(str::trim).filter(|l| !l.is_empty());
+    let scoped: Vec<(&str, &str)> = lines.filter_map(|l| l.split_once('\t')).collect();
     let last = scoped.last().map(|&(scope, _)| scope);
     scoped
         .into_iter()
@@ -547,16 +564,38 @@ fn detect(git: &Git, target: &str, patterns: &[String], max_age_days: u64) -> Re
             .map_or(0, |d| d.as_secs());
         now.saturating_sub(max_age_days * 86_400)
     });
+    let old = |c: &Candidate| cutoff.is_some_and(|cut| c.time < cut);
     let (mut seen, mut merged) = (BTreeSet::new(), BTreeSet::new());
+    // An old worktree on a commit a target has can only hold uncommitted
+    // work, so it is not old but merged. One walk, for all of them, lists
+    // the commits the targets lack.
+    let old_worktrees: BTreeSet<&str> = candidates
+        .iter()
+        .filter(|c| c.worktree.is_some() && old(c))
+        .map(|c| c.commit.as_str())
+        .collect();
+    if !old_worktrees.is_empty() {
+        let mut args = vec!["rev-list"];
+        args.extend(&old_worktrees);
+        args.push("--not");
+        args.extend(targets.iter().map(String::as_str));
+        if let Ok(lacked) = git.lines(&args) {
+            let lacked: BTreeSet<String> = lacked.into_iter().collect();
+            for commit in old_worktrees.into_iter().filter(|c| !lacked.contains(*c)) {
+                seen.insert(commit.to_string());
+                merged.insert(commit.to_string());
+            }
+        }
+    }
     let mut found = Detected::default();
     let mut open = Vec::new();
     for c in candidates {
+        // The age check costs no git call, so it goes first, for each name.
+        if old(&c) && !(c.worktree.is_some() && merged.contains(&c.commit)) {
+            found.old += 1;
+            continue;
+        }
         if seen.insert(c.commit.clone()) {
-            // The age check costs no git call, so it goes first.
-            if cutoff.is_some_and(|cut| c.time < cut) {
-                found.old += 1;
-                continue;
-            }
             // Nothing to merge onto: a `gh-pages` worktree, an orphan branch.
             let Ok(base) = git.run(&["merge-base", &targets[0], &c.commit]) else {
                 found.unrelated += 1;
@@ -643,20 +682,38 @@ fn in_by_patch_id(git: &Git, target: &str, commit: &str) -> bool {
         // One commit is its own squash; more get one, on the merge base.
         Ok((false, n)) if n > 1 => git
             .run(&["merge-base", target, commit])
-            .and_then(|base| {
-                Git::owned(git.cwd(), Some(("Pytxo Land", "land@pytxo.invalid"))).run(&[
-                    "commit-tree",
-                    &format!("{commit}^{{tree}}"),
-                    "-p",
-                    &base,
-                    "-m",
-                    "squash",
-                ])
-            })
+            .and_then(|base| squash_commit(git, &base, commit))
             .and_then(|squash| all_in(&squash))
             .is_ok_and(|(all, _)| all),
         _ => false,
     }
+}
+
+/// `commit`'s tree as one commit on `base`. Its names and dates are fixed,
+/// so the same squash is the same object: written once, not on every run.
+fn squash_commit(git: &Git, base: &str, commit: &str) -> Result<String> {
+    let (name, email, date) = ("Pytxo Land", "land@pytxo.invalid", "2000-01-01T00:00:00Z");
+    let tree = format!("{commit}^{{tree}}");
+    let out = pytxo_core::background_command("git")
+        .args(["-c", "commit.gpgsign=false", "commit-tree"])
+        .args([tree.as_str(), "-p", base, "-m", "squash"])
+        .current_dir(git.cwd())
+        .envs([
+            ("GIT_AUTHOR_NAME", name),
+            ("GIT_AUTHOR_EMAIL", email),
+            ("GIT_AUTHOR_DATE", date),
+            ("GIT_COMMITTER_NAME", name),
+            ("GIT_COMMITTER_EMAIL", email),
+            ("GIT_COMMITTER_DATE", date),
+        ])
+        .output()?;
+    if !out.status.success() {
+        bail!(
+            "git commit-tree failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
 /// The tree of `commit` merged into `target_ref` in memory, `None` on a conflict.
@@ -1136,6 +1193,13 @@ mod tests {
         branch(&d, "codex/open", "b.js");
         let plan = plan(&d, &[], None, &[]).unwrap();
         assert_eq!(names(&plan), ["codex/open"]);
+        // The squash is the same commit every time: a second look, a second
+        // later, writes no object.
+        let objects = || git(&d, &["count-objects"]);
+        let before = objects();
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        super::plan(&d, &[], None, &[]).unwrap();
+        assert_eq!(objects(), before);
     }
 
     #[test]
@@ -1165,6 +1229,68 @@ mod tests {
         let plan = plan(&d, &[], None, &[]).unwrap();
         assert_eq!(names(&plan), ["codex/tax"]);
         assert_eq!(plan.uncommitted_only, ["claude/one", "my-repo"]);
+    }
+
+    /// A target whose last commit is old: worktrees on it, or on origin's
+    /// copy of it, have no commit of their own to be old, so their
+    /// uncommitted work is still named. Old branches count by name, two names
+    /// for one commit as two.
+    #[test]
+    fn worktrees_on_an_old_target_are_named_and_old_branches_count_by_name() {
+        let (dir, d) = repo();
+        let old = |args: &[&str]| {
+            let out = Command::new("git")
+                .args(args)
+                .env("GIT_COMMITTER_DATE", "2020-01-01T00:00:00Z")
+                .current_dir(&d)
+                .output()
+                .unwrap();
+            assert!(out.status.success());
+        };
+        old(&["commit", "-q", "--amend", "--no-edit"]);
+        git(&d, &["checkout", "-q", "-b", "codex/old", "main"]);
+        std::fs::write(d.join("old.js"), "old").unwrap();
+        git(&d, &["add", "-A"]);
+        old(&["commit", "-q", "-m", "old"]);
+        git(&d, &["checkout", "-q", "main"]);
+        git(&d, &["branch", "agent/old", "codex/old"]);
+        let plan = plan(&d, &[], None, &[]).unwrap();
+        assert!(plan.branches.is_empty());
+        assert_eq!(plan.old, 2);
+
+        // Two agents at their turn's end on main, and one with nothing to say.
+        for name in ["claude/one", "claude/two", "claude/done"] {
+            let wt = dir.path().join(name.replace('/', "-"));
+            git(
+                &d,
+                &["worktree", "add", "-q", "-b", name, &wt.to_string_lossy()],
+            );
+            if name != "claude/done" {
+                std::fs::write(wt.join("draft.txt"), "draft").unwrap();
+            }
+        }
+        let plan = super::plan(&d, &[], None, &[]).unwrap();
+        assert!(plan.branches.is_empty());
+        assert_eq!(plan.uncommitted_only, ["claude/one", "claude/two"]);
+        assert_eq!(plan.old, 2);
+
+        // And one on origin's copy of main, which main has not pulled yet.
+        git(&d, &["checkout", "-q", "-b", "upstream", "main"]);
+        std::fs::write(d.join("up.js"), "up").unwrap();
+        git(&d, &["add", "-A"]);
+        old(&["commit", "-q", "-m", "up"]);
+        git(&d, &["update-ref", "refs/remotes/origin/main", "upstream"]);
+        git(&d, &["checkout", "-q", "main"]);
+        git(&d, &["branch", "-q", "-D", "upstream"]);
+        git(&d, &["branch", "claude/ahead", "origin/main"]);
+        let wt = dir.path().join("claude-ahead");
+        let path = wt.to_string_lossy();
+        git(&d, &["worktree", "add", "-q", &path, "claude/ahead"]);
+        std::fs::write(wt.join("draft.txt"), "draft").unwrap();
+        let plan = super::plan(&d, &[], None, &[]).unwrap();
+        let named = ["claude/ahead", "claude/one", "claude/two"];
+        assert_eq!(plan.uncommitted_only, named);
+        assert_eq!(plan.old, 2);
     }
 
     #[test]
@@ -1219,7 +1345,8 @@ mod tests {
     }
 
     /// The test command comes from the target's tree, so an agent branch
-    /// cannot pick it, or switch it off.
+    /// cannot pick it. What `npm test` runs is still the combined tree's
+    /// test script.
     #[test]
     fn a_branch_that_changes_the_test_script_does_not_pick_the_command() {
         let (_dir, d) = repo();
@@ -1310,5 +1437,17 @@ mod tests {
         let plan = super::plan(&d, &[], None, &[]).unwrap();
         assert_eq!(plan.checks, ["git --version"]);
         assert_eq!(plan.max_age_days, 5);
+    }
+
+    /// Git 2.26 and later say each value's scope; before, the file each one
+    /// came from stands in for it, so two values in one file both count.
+    #[test]
+    fn the_most_specific_scope_wins_with_or_without_scopes() {
+        let scoped = "global\texit 1\nlocal\tnpm test\nlocal\tnpm run lint\n";
+        assert_eq!(most_specific(scoped), ["npm test", "npm run lint"]);
+        let files = "file:C:/Users/me/.gitconfig\texit 1\n\
+                     file:.git/config\tnpm test\nfile:.git/config\tnpm run lint\n";
+        assert_eq!(most_specific(files), ["npm test", "npm run lint"]);
+        assert!(most_specific("").is_empty());
     }
 }

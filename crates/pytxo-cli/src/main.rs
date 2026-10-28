@@ -57,13 +57,14 @@ the target with git config pytxo.into <branch> (or PYTXO_INTO)."
     },
     /// Run the check from a Claude Code or Codex Stop hook (hook JSON on stdin, JSON out)
     #[command(
-        after_help = "Checks when there are two or more agent branches, then stays quiet until an agent branch,
-the target branch or the test command changes. Claude Code: install the plugin
-(/plugin marketplace add Pytxo-dev/pytxo). Codex: add integrations/codex/hooks.json to
-~/.codex/hooks.json, then trust it in /hooks."
+        after_help = "Answers when two or more agent branches exist and one of them, the target or the test command
+changed since its last answer. Claude Code, in a shell:
+  claude plugin marketplace add Pytxo-dev/pytxo --sparse .claude-plugin integrations/claude-code
+  claude plugin install pytxo@pytxo
+Codex: add integrations/codex/hooks.json to ~/.codex/hooks.json, then trust it in /hooks."
     )]
     Hook {
-        /// On BLOCKED or FLAKY, ask the agent to keep working on the fix instead of only telling you
+        /// On BLOCKED or FLAKY, ask the agent to keep working on it instead of only telling you
         #[arg(long)]
         block: bool,
         /// The hook's timeout in its config, in seconds: Pytxo answers before it runs out
@@ -282,13 +283,13 @@ mod tests {
             .render_long_help()
             .to_string();
         let help = help.split_whitespace().collect::<Vec<_>>().join(" ");
-        assert!(
-            help.contains(
-                "stays quiet until an agent branch, the target branch or the test command changes"
-            ),
-            "{help}"
-        );
-        assert!(help.contains("On BLOCKED or FLAKY"), "{help}");
+        for line in [
+            "Answers when two or more agent branches exist and one of them, the target or the test command changed since its last answer.",
+            "claude plugin marketplace add Pytxo-dev/pytxo --sparse .claude-plugin integrations/claude-code claude plugin install pytxo@pytxo",
+            "On BLOCKED or FLAKY, ask the agent to keep working on it",
+        ] {
+            assert!(help.contains(line), "{line} not in {help}");
+        }
     }
 
     /// The lean build names exactly the commands it leaves out.

@@ -39,7 +39,7 @@ pub struct CheckArgs {
     /// Timeout for each test run, in seconds
     #[arg(long, default_value = "900")]
     pub timeout: u64,
-    /// Show what was found, every test run, the receipt and its digest
+    /// Show what was found, every test run with its error lines, the receipt's path and a ref to the combined commit; with --markdown, the receipt's id and digest
     #[arg(long, short = 'v')]
     pub verbose: bool,
     /// Print the verdict, what was found and the receipt as JSON
@@ -563,6 +563,7 @@ fn progress(plan: &Plan) -> String {
     let names: Vec<&str> = plan.branches.iter().map(|b| b.name()).collect();
     let names = match names.as_slice() {
         [one] => one.to_string(),
+        // As many as the verdict names.
         all if all.len() <= 4 => and_list(all),
         _ => format!("{} branches", names.len()),
     };
@@ -638,13 +639,18 @@ fn branches_json(plan: &Plan) -> serde_json::Value {
     plan.branches
         .iter()
         .map(|b| {
-            json!({
+            let mut branch = json!({
                 "name": b.name(),
                 "reference": b.reference,
                 "commit": b.commit,
                 "worktree": b.worktree,
                 "uncommitted": b.uncommitted,
-            })
+            });
+            // `claude:claude/a` on the command line, or a detached worktree's.
+            if let Some(label) = &b.label {
+                branch["label"] = json!(label);
+            }
+            branch
         })
         .collect()
 }

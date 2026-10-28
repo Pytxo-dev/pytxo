@@ -195,6 +195,15 @@ fn work_nobody_committed_is_named_not_dropped() {
     let dir = repo(&[]);
     let d = dir.path();
     git(d, &["config", "pytxo.check", "git --version"]);
+    // main's last commit is weeks old, as in a quiet repository; the
+    // worktrees on it have no commit of their own to be old.
+    let amend = Command::new("git")
+        .args(["commit", "-q", "--amend", "--no-edit"])
+        .env("GIT_COMMITTER_DATE", "2020-01-01T00:00:00Z")
+        .current_dir(d)
+        .output()
+        .unwrap();
+    assert!(amend.status.success());
     // Two agents at their turn's end: worktrees on their branches, nothing committed.
     let worktrees = tempfile::tempdir().unwrap();
     for name in ["claude/one", "claude/two"] {
@@ -208,6 +217,7 @@ fn work_nobody_committed_is_named_not_dropped() {
     let note = "claude/one and claude/two have only uncommitted changes; commit them to check them together.";
     let text = stdout(&pytxo(d, &[], None));
     assert!(text.contains(&format!(" {note} ")), "{text}");
+    assert!(!text.contains("not looked at"), "{text}");
     // The hook says it once.
     let event = stop_event(d);
     let v = hook_reply(&pytxo(d, &["hook"], Some(&event)));
@@ -399,6 +409,53 @@ fn json_carries_the_verdict_and_what_was_found() {
     assert_eq!(v["branches"][0]["name"], "claude/a");
     assert_eq!(v["check_source"], "--check");
     assert!(out.stderr.is_empty(), "--json keeps stderr quiet");
+
+    // A label from the command line comes along; the name stays the branch.
+    let args = [
+        "--json",
+        "-c",
+        "git --version",
+        "claude:claude/a",
+        "codex/b",
+    ];
+    let out = pytxo(dir.path(), &args, None);
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["branches"][0]["name"], "claude/a");
+    assert_eq!(v["branches"][0]["label"], "claude");
+    assert!(v["branches"][1].get("label").is_none(), "{v}");
+}
+
+/// The line before the tests and the verdict name the branches alike: up to
+/// four by name, then how many.
+#[test]
+fn progress_and_verdict_name_the_branches_alike() {
+    let dir = repo(&["claude/a", "claude/b", "codex/c", "codex/d", "codex/e"]);
+    let four = [
+        "-c",
+        "git --version",
+        "claude/a",
+        "claude/b",
+        "codex/c",
+        "codex/d",
+    ];
+    let five = ["-c", "git --version"];
+    for (args, names) in [
+        (&four[..], "claude/a, claude/b, codex/c and codex/d"),
+        (&five[..], "5 branches"),
+    ] {
+        let out = pytxo(dir.path(), args, None);
+        assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
+        let progress = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            progress.starts_with(&format!("Checking {names} against main")),
+            "{progress}"
+        );
+        assert!(
+            stdout(&out).starts_with(&format!("READY    {names} pass")),
+            "{}",
+            stdout(&out)
+        );
+    }
 }
 
 #[test]
