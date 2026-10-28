@@ -81,4 +81,4 @@ if ($userPath -notlike "*$InstallDir*") {
 
 $InstalledVersion = (& $Dest --version | Out-String).Trim()
 if ($LASTEXITCODE -ne 0) { throw "Installed Pytxo version check failed" }
-Write-Host "Installed $InstalledVersion. Run 'pytxo doctor' inside a repository."
+Write-Host "Installed $InstalledVersion. Run 'pytxo' inside a repository, or 'pytxo demo' to see it work."

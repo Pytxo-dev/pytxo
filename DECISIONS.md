@@ -9,8 +9,9 @@ chosen, why, and how to undo it.
    fills one in. Undo: split the clap variants again.
 
 2. **Target = the default branch, not the checked-out one.** Order:
-   `--into`, then `origin/HEAD`, `init.defaultBranch`, `main`, `master`,
-   `trunk`, then the checked-out branch. A hook runs inside an agent's
+   `--into`, then `origin/HEAD`, `main`, `master`, `trunk`, then the
+   checked-out branch. (`init.defaultBranch` was dropped: it names the branch
+   for new repositories, not this one's.) A hook runs inside an agent's
    worktree, where "the checked-out branch" is the agent branch itself.
 
 3. **Agent branches = patterns plus linked worktrees.** Default list:
@@ -56,3 +57,25 @@ chosen, why, and how to undo it.
 10. **Receipts stay; their detail moves behind `--verbose`.** Every run still
     writes one under `.git/pytxo/receipts`. The `refs/pytxo/land/<id>` ref is
     kept only with `--verbose`, the one output that prints it.
+
+11. **Only branches with a commit in the last 14 days count.** Agent branches
+    pile up; a check of every branch anyone ever pushed is slow and says
+    nothing about today's work. The count left out is printed. Change it with
+    `git config pytxo.days N` or `PYTXO_DAYS`; `0` turns the filter off.
+
+12. **The lean binary keeps Signal Core.** Measured on Windows x64 release
+    builds: full CLI ~30 MB and 233 crates, lean CLI 10.9 MB and 72 crates.
+    Most of what is left is the eight tree-sitter grammars behind "same
+    function" detection and `--strict`. At 10.9 MB the download is ~1 s at
+    10 MB/s and ~5 s at 2 MB/s, inside the 30-second demo budget, so the
+    grammars stay. Undo: make `pytxo-signal` optional in `pytxo-land`.
+
+13. **Windows on Arm installs the x64 binary.** Windows 11 on Arm runs x64
+    code under emulation; no native Arm build ships yet.
+
+14. **Release tags must be exact versions.** `release.yml` fired on `v*`, so
+    the floating `v2` tag for the Action would have started a release. It now
+    fires on `vX.Y.Z` and `vX.Y.Z-*` only.
+
+15. **Desktop's "install CLI" verifies with `--version`.** It ran
+    `pytxo doctor --quick`, which the released CLI no longer has.

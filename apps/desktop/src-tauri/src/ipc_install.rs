@@ -237,15 +237,15 @@ fn install_pytxo_cli_inner() -> IpcResult<PathBuf> {
         }
     }
     set_state("verifying", "Verifying CLI…");
-    let mut doctor = Command::new(&dest);
-    doctor.args(["doctor", "--quick"]);
-    hide_window(&mut doctor);
-    let doctor = doctor.output();
-    if let Ok(out) = doctor {
+    // The released CLI is the check alone (2.0): `--version` proves it runs.
+    let mut version = Command::new(&dest);
+    version.arg("--version");
+    hide_window(&mut version);
+    if let Ok(out) = version.output() {
         if !out.status.success() {
             let stderr = String::from_utf8_lossy(&out.stderr);
             if !stderr.is_empty() {
-                set_state("verifying", format!("Installed (doctor notes: {stderr})"));
+                set_state("verifying", format!("Installed (pytxo --version: {stderr})"));
             }
         }
     }

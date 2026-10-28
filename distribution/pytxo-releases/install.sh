@@ -93,4 +93,4 @@ if ! echo ":$PATH:" | grep -q ":${INSTALL_DIR}:"; then
   echo "Add to PATH:  export PATH=\"${INSTALL_DIR}:\$PATH\""
 fi
 
-echo "Installed $(${INSTALL_DIR}/pytxo --version). Run 'pytxo doctor' inside a repository."
+echo "Installed $(${INSTALL_DIR}/pytxo --version). Run 'pytxo' inside a repository, or 'pytxo demo' to see it work."

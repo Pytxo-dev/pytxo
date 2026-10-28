@@ -51,7 +51,7 @@ jobs:
           has() { grep -qE "$1|^\.github/workflows/ci\.yml$" <<< "$files" && echo true || echo false; }
           {
             echo "full=false"
-            echo "rust=$(has '^(Cargo\.(toml|lock)|crates/|services/|apps/desktop/src-tauri/|packages/pytxo/|tooling/|\.cargo/|rust-toolchain)')"
+            echo "rust=$(has '^(Cargo\.(toml|lock)|crates/|services/|apps/desktop/src-tauri/|packages/pytxo/|actions/|integrations/|\.claude-plugin/|tooling/|\.cargo/|rust-toolchain)')"
             echo "desktop=$(has '^(apps/desktop/|tooling/)')"
             echo "web=$(has '^(apps/web/|packages/chroma/)')"
           } | tee -a "$GITHUB_OUTPUT"
@@ -106,6 +106,12 @@ jobs:
 
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # The released CLI: the check alone, without the frozen 1.x commands.
+      - name: cargo clippy and test (released CLI build)
+        run: |
+          cargo clippy -p pytxo-cli --no-default-features --all-targets -- -D warnings
+          cargo test -p pytxo-cli --no-default-features
 
       - name: Build and pin Windows owned-launch test helper
         if: runner.os == 'Windows'
