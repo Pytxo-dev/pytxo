@@ -72,7 +72,8 @@ export function selectPrs(current, open, patterns = DEFAULT_PATTERNS, max = MAX_
   const prs = [...left, current];
   const notes = [];
   if (forks) notes.push(`${forks} agent pull request${forks === 1 ? "" : "s"} from forks left out.`);
-  if (left.length < eligible.length) notes.push(`${eligible.length - left.length} older agent pull requests left out (at most ${max} at once).`);
+  const older = eligible.length - left.length;
+  if (older) notes.push(`${older} older agent pull request${older === 1 ? "" : "s"} left out (at most ${max} at once).`);
   if (prs.length < 2) {
     return { prs, notes, reason: `#${current.number} is the only open agent pull request into ${current.base.ref}; there is nothing to combine.` };
   }
