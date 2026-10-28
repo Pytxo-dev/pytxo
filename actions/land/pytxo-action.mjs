@@ -5,7 +5,8 @@
 //             comment, updated in place
 //   verdict   end the job: fail it when this pull request blocks the
 //             combination, the result is stale or the check broke
-// The check step after discover runs the tests without the token in its env.
+// The check step after discover runs the tests without the token in its env
+// (action.yml says what that does and does not keep out).
 
 import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
