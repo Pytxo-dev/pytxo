@@ -84,9 +84,38 @@ pub const FULL_ONLY: [&str; 22] = [
 /// out and no branch or commit: `pytxo shell` would look for a branch.
 #[cfg(not(feature = "full"))]
 pub fn left_out(arg: &str, cwd: &Path) -> Option<String> {
-    (FULL_ONLY.contains(&arg) && pytxo_land::Git::user(cwd).commit_of(arg).is_err()).then(|| {
-        format!("{arg} is a Pytxo 1.x command that is not in this build; a source build with default features has it")
-    })
+    (FULL_ONLY.contains(&arg) && pytxo_land::Git::user(cwd).commit_of(arg).is_err())
+        .then(|| not_in_this_build(arg))
+}
+
+/// The same error for a command line the parser stops at or shows help for:
+/// `help shell`, `shell --help`, `receipts share` and `bench --submit` too.
+#[cfg(not(feature = "full"))]
+pub fn left_out_command(args: &[String], cwd: &Path) -> Option<String> {
+    let words: Vec<&str> = args
+        .iter()
+        .map(String::as_str)
+        .filter(|a| !a.starts_with('-'))
+        .collect();
+    let words = match words.as_slice() {
+        ["help", rest @ ..] => rest,
+        all => all,
+    };
+    match words {
+        ["receipts", rest @ ..] if rest.contains(&"share") => {
+            Some(not_in_this_build("receipts share"))
+        }
+        ["bench", ..] if args.iter().any(|a| a == "--submit") => {
+            Some(not_in_this_build("bench --submit"))
+        }
+        [first, ..] => left_out(first, cwd),
+        [] => None,
+    }
+}
+
+#[cfg(not(feature = "full"))]
+fn not_in_this_build(what: &str) -> String {
+    format!("{what} is a Pytxo 1.x command that is not in this build; a source build with default features has it")
 }
 
 /// Runs the check and returns the exit code: 0 ready or nothing to check,
@@ -100,16 +129,30 @@ pub fn run(args: CheckArgs) -> Result<i32> {
     if let Some(line) = args.branches.iter().find_map(|b| left_out(b, &cwd)) {
         anyhow::bail!(line);
     }
-    let plan = detect::plan(&cwd, &args.branches, args.into.as_deref(), &args.checks)?;
+    let plan = match detect::plan(&cwd, &args.branches, args.into.as_deref(), &args.checks) {
+        // Outside a repository the demo still works.
+        Err(e) if e.to_string() == detect::NOT_A_REPOSITORY => anyhow::bail!(
+            "not a git repository: run {0} inside one, or see it work: {0} demo",
+            run_as()
+        ),
+        plan => plan?,
+    };
+    Ok(check(&plan, &args)?.0)
+}
+
+/// The check `plan` describes: its exit code and its verdict's kind, `None`
+/// when there was nothing to check.
+fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
     if plan.branches.is_empty() {
-        nothing_to_check(&plan, args.json)?;
-        return Ok(0);
+        nothing_to_check(plan, args.json)?;
+        return Ok((0, None));
     }
     if !args.json {
-        eprintln!("{}", progress(&plan));
+        eprintln!("{}", progress(plan));
     }
-    let outcome = land(&options(&plan, &args))?;
-    let verdict = verdict(&outcome, &format!("run {} again", rerun_command()));
+    let outcome = land(&options(plan, args))?;
+    let verdict = verdict(&outcome, &again());
+    let notes = notes(plan);
     if args.json {
         println!(
             "{}",
@@ -117,8 +160,9 @@ pub fn run(args: CheckArgs) -> Result<i32> {
                 "decision": outcome.decision(),
                 "exit_code": outcome.exit_code(),
                 "verdict": verdict,
+                "notes": uncommitted_notes(plan).into_iter().chain(notes).collect::<Vec<_>>(),
                 "target": plan.target,
-                "branches": branches_json(&plan),
+                "branches": branches_json(plan),
                 "checks": plan.checks,
                 "check_source": plan.check_source,
                 "insights": outcome.insights,
@@ -131,11 +175,11 @@ pub fn run(args: CheckArgs) -> Result<i32> {
         print!("{}", render_markdown_with(&outcome, args.verbose));
     } else {
         if args.verbose {
-            print!("{}\n{}\n", found(&plan), render_text(&outcome));
+            print!("{}\n{}\n", found(plan), render_text(&outcome));
         }
-        print!("{verdict}");
+        print!("{verdict}{}", note_lines(&notes));
     }
-    Ok(outcome.exit_code())
+    Ok((outcome.exit_code(), Some(verdict.kind)))
 }
 
 fn options(plan: &Plan, args: &CheckArgs) -> LandOptions {
@@ -228,7 +272,19 @@ fn hook_reply(
     };
     // One agent alone: nothing to combine.
     if plan.branches.len() < 2 {
-        return Ok(None);
+        // Unless committing the work nobody committed yet makes two: said once.
+        if plan.branches.len() + plan.uncommitted_only.len() < 2 {
+            return Ok(None);
+        }
+        let note = uncommitted_only(&plan.uncommitted_only);
+        if said(&note) {
+            return Ok(None);
+        }
+        let _ = std::fs::create_dir_all(&receipts);
+        let _ = std::fs::write(&memo, &note);
+        return Ok(Some(json!({
+            "systemMessage": format!("Pytxo did not check the agent branches: {note}")
+        })));
     }
     // Parallel sessions stop at the same time: one check per repository.
     let Some(_lock) = HookLock::take(&memo.with_file_name("hook.lock"), timeout)? else {
@@ -249,8 +305,10 @@ fn hook_reply(
     // agent tool kills the hook: a minute, or half of a short timeout. A
     // timeout past what the clock can count means no deadline.
     opts.deadline = started.checked_add(timeout - Duration::from_secs(60).min(timeout / 2));
-    let outcome = land(&opts)?;
+    // A verdict or an error, said once for the same branches, tips and tests.
+    let outcome = land(&opts);
     let _ = std::fs::write(&memo, &fingerprint);
+    let outcome = outcome?;
     if outcome.out_of_time {
         return Ok(Some(json!({ "systemMessage": format!(
             "Pytxo could not finish checking the agent branches before the hook's time ran out. Run {} in a terminal to check them.",
@@ -258,7 +316,14 @@ fn hook_reply(
         ) })));
     }
     let verdict = verdict(&outcome, "Pytxo checks again when an agent stops");
-    let text = format!("Pytxo checked the agent branches together.\n{verdict}");
+    let notes: Vec<String> = uncommitted_notes(&plan)
+        .into_iter()
+        .chain(notes(&plan))
+        .collect();
+    let text = format!(
+        "Pytxo checked the agent branches together.\n{verdict}{}",
+        note_lines(&notes)
+    );
     Ok(Some(if block && outcome.exit_code() == 2 {
         json!({ "decision": "block", "reason": text })
     } else {
@@ -329,34 +394,41 @@ pub fn demo(keep: bool) -> Result<i32> {
     for (name, change) in pytxo_land::bench::DEMO_BRANCHES {
         eprintln!("  {name:<20} {change}");
     }
-    let code = run(CheckArgs {
-        repo: Some(dir.path().to_path_buf()),
-        // PYTXO_INTO or a global pytxo.into names a branch of the user's.
-        into: Some("main".into()),
-        timeout: 120,
-        ..CheckArgs::default()
-    })?;
-    let run_as = run_as();
+    // Its own branches, target and test, so no PYTXO_* variable and no
+    // pytxo.* setting of the user's reaches it.
+    let git = pytxo_land::Git::user(dir.path());
+    let (test, file) = detect::test_command(&git, "refs/heads/main")
+        .context("the demo repo declares no test command")?;
+    let branches = pytxo_land::bench::DEMO_BRANCHES.map(|(name, _)| name.to_string());
+    let mut plan = detect::plan(dir.path(), &branches, Some("main"), &[test])?;
+    plan.check_source = Some(file);
+    let kind = check(
+        &plan,
+        &CheckArgs {
+            timeout: 120,
+            ..CheckArgs::default()
+        },
+    )?
+    .1;
     if keep {
         eprintln!("\nThe demo repo is at {}", dir.keep().display());
-    } else {
-        eprintln!(
-            "\nThat repo was temporary and is gone. Now run {run_as} in a repo where agents work."
+    }
+    // The demo worked when it caught the break it was built for.
+    if kind != Some("together") {
+        anyhow::bail!(
+            "the demo should show two branches that pass alone and fail together, and it did not"
         );
     }
-    // The demo worked when it caught the break.
-    Ok(if code == 2 { 0 } else { 1.max(code) })
+    if !keep {
+        eprintln!(
+            "\nThat repo was temporary and is gone. Now run {} in a repo where agents work.",
+            run_as()
+        );
+    }
+    Ok(0)
 }
 
 fn nothing_to_check(plan: &Plan, json: bool) -> Result<()> {
-    let skipped = match plan.old {
-        0 => String::new(),
-        n => format!(
-            // Not "unmerged": the age test runs first, so merged ones count too.
-            " {n} with no commit in {} days not looked at (PYTXO_DAYS=0 looks at them).",
-            plan.max_age_days
-        ),
-    };
     if json {
         println!(
             "{}",
@@ -367,17 +439,46 @@ fn nothing_to_check(plan: &Plan, json: bool) -> Result<()> {
                 "branches": [],
                 "patterns": plan.patterns,
                 "old": plan.old,
+                "unrelated": plan.unrelated,
+                "uncommitted_only": plan.uncommitted_only,
             }))?
         );
-    } else {
-        println!(
-            "No agent branches to check against {} (looked for {}).{skipped} See it work: {} demo",
-            plan.target,
-            looked_for(&plan.patterns),
-            run_as()
-        );
+        return Ok(());
     }
+    let mut line = format!(
+        "No agent branches to check against {} (looked for {}).",
+        plan.target,
+        looked_for(&plan.patterns)
+    );
+    if !plan.uncommitted_only.is_empty() {
+        line.push_str(&format!(" {}", uncommitted_only(&plan.uncommitted_only)));
+    }
+    if plan.unrelated > 0 {
+        line.push_str(&format!(
+            " {} sharing no history with {} left out.",
+            plan.unrelated, plan.target
+        ));
+    }
+    if plan.old > 0 {
+        line.push_str(&format!(
+            // Not "unmerged": the age test runs first, so merged ones count too.
+            " {} with no commit in {} days not looked at (PYTXO_DAYS=0 looks at them).",
+            plan.old, plan.max_age_days
+        ));
+    }
+    println!(
+        "{line} If your agents push to GitHub, run git fetch first. See it work: {} demo",
+        run_as()
+    );
     Ok(())
+}
+
+/// "a", "a and b", "a, b and c".
+fn and_list(names: &[&str]) -> String {
+    match names {
+        [init @ .., last] if !init.is_empty() => format!("{} and {last}", init.join(", ")),
+        _ => names.join(""),
+    }
 }
 
 /// "claude/*, codex/* and linked worktrees".
@@ -392,10 +493,69 @@ fn looked_for(patterns: &[String]) -> String {
             }
         })
         .collect();
+    and_list(&names)
+}
+
+/// Worktrees with work only in uncommitted changes, which no check can see.
+fn uncommitted_only(names: &[String]) -> String {
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
     match names.as_slice() {
-        [init @ .., last] if !init.is_empty() => format!("{} and {last}", init.join(", ")),
-        _ => names.join(""),
+        [one] => format!("{one} has only uncommitted changes; commit them to check them."),
+        _ => format!(
+            "{} have only uncommitted changes; commit them to check them together.",
+            and_list(&names)
+        ),
     }
+}
+
+/// Work the check cannot see: the terminal says it before the tests run.
+fn uncommitted_notes(plan: &Plan) -> Vec<String> {
+    let mut notes: Vec<String> = plan
+        .branches
+        .iter()
+        .filter(|b| b.uncommitted)
+        .map(|b| {
+            format!(
+                "{} has uncommitted changes; only its commits are checked.",
+                b.name()
+            )
+        })
+        .collect();
+    if !plan.uncommitted_only.is_empty() {
+        notes.push(uncommitted_only(&plan.uncommitted_only));
+    }
+    notes
+}
+
+/// What the verdict leaves unsaid about what it checked against.
+fn notes(plan: &Plan) -> Vec<String> {
+    let mut notes = Vec::new();
+    if plan.behind > 0 {
+        notes.push(format!(
+            "{0} is {1} commit{2} behind origin/{0}; pull it to check against {3} too.",
+            plan.target,
+            plan.behind,
+            if plan.behind == 1 { "" } else { "s" },
+            if plan.behind == 1 { "that" } else { "those" }
+        ));
+    }
+    if plan.left_out > 0 {
+        notes.push(format!(
+            "{} older agent branch{} left out (at most {} at once).",
+            plan.left_out,
+            if plan.left_out == 1 { "" } else { "es" },
+            detect::MAX_BRANCHES
+        ));
+    }
+    notes
+}
+
+/// Notes as lines under the verdict.
+fn note_lines(notes: &[String]) -> String {
+    notes
+        .iter()
+        .map(|n| format!("{:<9}{n}\n", "note"))
+        .collect()
 }
 
 /// One line on stderr before the tests run, so a long test run is not silence.
@@ -403,7 +563,7 @@ fn progress(plan: &Plan) -> String {
     let names: Vec<&str> = plan.branches.iter().map(|b| b.name()).collect();
     let names = match names.as_slice() {
         [one] => one.to_string(),
-        [init @ .., last] if names.len() <= 4 => format!("{} and {last}", init.join(", ")),
+        all if all.len() <= 4 => and_list(all),
         _ => format!("{} branches", names.len()),
     };
     let tests = match (plan.checks.as_slice(), &plan.check_source) {
@@ -412,11 +572,8 @@ fn progress(plan: &Plan) -> String {
         (checks, None) => format!(" with {}", checks.join(" && ")),
     };
     let mut line = format!("Checking {names} against {}{tests}...", plan.target);
-    for b in plan.branches.iter().filter(|b| b.uncommitted) {
-        line.push_str(&format!(
-            "\n  {} has uncommitted changes; only its commits are checked.",
-            b.name()
-        ));
+    for note in uncommitted_notes(plan) {
+        line.push_str(&format!("\n  {note}"));
     }
     line
 }
@@ -447,6 +604,19 @@ fn found(plan: &Plan) -> String {
         s.push_str(&format!(
             "  ({} with no commit in {} days not looked at)\n",
             plan.old, plan.max_age_days
+        ));
+    }
+    if plan.unrelated > 0 {
+        s.push_str(&format!(
+            "  ({} sharing no history with {} left out)\n",
+            plan.unrelated, plan.target
+        ));
+    }
+    if plan.left_out > 0 {
+        s.push_str(&format!(
+            "  ({} older left out: at most {} at once)\n",
+            plan.left_out,
+            detect::MAX_BRANCHES
         ));
     }
     s.push_str(&format!(
@@ -488,23 +658,36 @@ fn run_as() -> String {
         .unwrap_or_else(|| "pytxo".into())
 }
 
-/// The command line that got here, to tell the user what to run again.
-fn rerun_command() -> String {
-    let args: Vec<String> = std::env::args()
-        .skip(1)
-        .map(|a| {
-            if a.contains(' ') {
-                format!("\"{a}\"")
-            } else {
-                a
-            }
-        })
-        .collect();
-    match args.first().map(String::as_str) {
-        // The demo repo is gone by then; point at the real thing.
-        None | Some("demo") => run_as(),
-        Some(_) => format!("{} {}", run_as(), args.join(" ")),
+/// What to run again: the command line that got here, when it can be pasted.
+fn again() -> String {
+    rerun_command(&std::env::args().skip(1).collect::<Vec<_>>()).map_or_else(
+        || "run the same command again".into(),
+        |c| format!("run {c} again"),
+    )
+}
+
+/// `args` as one line to paste, `None` when a quote or a `$` in one would
+/// change what the shell runs.
+fn rerun_command(args: &[String]) -> Option<String> {
+    let mut line = run_as();
+    // The demo repo is gone by then; point at the real thing.
+    if args.first().is_none_or(|a| a == "demo") {
+        return Some(line);
     }
+    for a in args {
+        if a.contains(['"', '\'', '`', '$']) {
+            return None;
+        }
+        let plain = !a.is_empty()
+            && a.chars()
+                .all(|c| c.is_ascii_alphanumeric() || "-_./:=@,+".contains(c));
+        line.push_str(&if plain {
+            format!(" {a}")
+        } else {
+            format!(" \"{a}\"")
+        });
+    }
+    Some(line)
 }
 
 pub fn receipts_dir(repo: Option<PathBuf>) -> Result<PathBuf> {
@@ -560,6 +743,24 @@ pub fn receipts_show(repo: Option<PathBuf>, id: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_rerun_hint_pastes_or_says_run_it_again() {
+        let line = |args: &[&str]| {
+            rerun_command(&args.iter().map(|a| a.to_string()).collect::<Vec<_>>())
+                .map(|c| c.replacen(&run_as(), "pytxo", 1))
+        };
+        assert_eq!(line(&[]).as_deref(), Some("pytxo"));
+        assert_eq!(line(&["demo"]).as_deref(), Some("pytxo"));
+        assert_eq!(
+            line(&["-c", "npm test", "agent/*", "--into", "main"]).as_deref(),
+            Some(r#"pytxo -c "npm test" "agent/*" --into main"#)
+        );
+        // A quote or a `$` in one changes what the shell runs.
+        assert_eq!(line(&["-c", r#"echo "hi""#]), None);
+        assert_eq!(line(&["-c", "echo 'hi'"]), None);
+        assert_eq!(line(&["-c", "echo $HOME"]), None);
+    }
 
     /// The hook answers inside the timeout its configs declare.
     #[test]

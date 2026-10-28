@@ -57,12 +57,13 @@ the target with git config pytxo.into <branch> (or PYTXO_INTO)."
     },
     /// Run the check from a Claude Code or Codex Stop hook (hook JSON on stdin, JSON out)
     #[command(
-        after_help = "Answers only when two or more agent branches changed since the last answer, so a
-quiet repository stays quiet. Claude Code: install the plugin (/plugin marketplace add Pytxo-dev/pytxo).
-Codex: add integrations/codex/hooks.json to ~/.codex/hooks.json, then trust it in /hooks."
+        after_help = "Checks when there are two or more agent branches, then stays quiet until an agent branch,
+the target branch or the test command changes. Claude Code: install the plugin
+(/plugin marketplace add Pytxo-dev/pytxo). Codex: add integrations/codex/hooks.json to
+~/.codex/hooks.json, then trust it in /hooks."
     )]
     Hook {
-        /// On BLOCKED, ask the agent to keep working on the fix instead of only telling you
+        /// On BLOCKED or FLAKY, ask the agent to keep working on the fix instead of only telling you
         #[arg(long)]
         block: bool,
         /// The hook's timeout in its config, in seconds: Pytxo answers before it runs out
@@ -140,12 +141,13 @@ fn main() {
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(e) => {
-            // `pytxo shell --eval x`: the 1.x flags fail before the check
-            // can say that this build has no shell.
+            // `pytxo shell --eval x`, `help shell`, `shell --help`: the 1.x
+            // forms fail or show help before the check can say that this
+            // build has no shell.
             #[cfg(not(feature = "full"))]
-            if e.use_stderr() {
-                let first = std::env::args().skip(1).find(|a| !a.starts_with('-'));
-                if let Some(line) = first.and_then(|a| check::left_out(&a, ".".as_ref())) {
+            {
+                let args: Vec<String> = std::env::args().skip(1).collect();
+                if let Some(line) = check::left_out_command(&args, ".".as_ref()) {
                     eprintln!("error: {line}");
                     std::process::exit(1);
                 }
@@ -269,6 +271,24 @@ mod tests {
             Some(Commands::Demo { keep: false })
         ));
         assert!(Cli::try_parse_from(["pytxo", "--json", "--markdown"]).is_err());
+    }
+
+    #[test]
+    fn hook_help_says_when_it_answers_and_what_blocks() {
+        let mut cli = Cli::command();
+        let help = cli
+            .find_subcommand_mut("hook")
+            .unwrap()
+            .render_long_help()
+            .to_string();
+        let help = help.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            help.contains(
+                "stays quiet until an agent branch, the target branch or the test command changes"
+            ),
+            "{help}"
+        );
+        assert!(help.contains("On BLOCKED or FLAKY"), "{help}");
     }
 
     /// The lean build names exactly the commands it leaves out.

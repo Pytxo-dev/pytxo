@@ -105,6 +105,246 @@ fn no_agent_branches_is_one_line_and_exit_zero() {
     );
     let text = stdout(&pytxo_env(d, &[], None, &[("PYTXO_DAYS", "0")]));
     assert!(text.starts_with("No agent branches"), "{text}");
+    // Cloud agents' branches arrive by fetch.
+    assert!(
+        text.ends_with(
+            " If your agents push to GitHub, run git fetch first. See it work: pytxo demo\n"
+        ),
+        "{text}"
+    );
+
+    // A branch with no history in common is left out and counted, not an error.
+    git(d, &["checkout", "-q", "--orphan", "claude/pages"]);
+    git(d, &["rm", "-rfq", "."]);
+    std::fs::write(d.join("index.html"), "hi\n").unwrap();
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", "pages"]);
+    git(d, &["checkout", "-q", "main"]);
+    let out = pytxo(d, &[], None);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout(&out).contains(" 1 sharing no history with main left out. "),
+        "{}",
+        stdout(&out)
+    );
+}
+
+#[test]
+fn outside_a_repository_points_at_the_demo() {
+    let elsewhere = tempfile::tempdir().unwrap();
+    let out = pytxo(elsewhere.path(), &[], None);
+    assert_eq!(out.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stderr),
+        "error: not a git repository: run pytxo inside one, or see it work: pytxo demo\n"
+    );
+    // No git at all says so.
+    let empty = tempfile::tempdir().unwrap();
+    let path = empty.path().to_string_lossy().into_owned();
+    let out = pytxo_env(elsewhere.path(), &[], None, &[("PATH", &path)]);
+    assert_eq!(out.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stderr),
+        "error: git is not on PATH: install it from https://git-scm.com\n"
+    );
+}
+
+/// A global pytxo.check runs instead of nothing, never beside the
+/// repository's; a global pytxo.days never beats it.
+#[test]
+fn global_settings_give_way_to_the_repository_ones() {
+    let dir = repo(&["claude/a", "codex/b"]);
+    let d = dir.path();
+    git(d, &["checkout", "-q", "-b", "claude/old", "main"]);
+    std::fs::write(d.join("old.txt"), "old\n").unwrap();
+    git(d, &["add", "-A"]);
+    let old = Command::new("git")
+        .args(["commit", "-q", "-m", "old"])
+        .env("GIT_COMMITTER_DATE", "2020-01-01T00:00:00Z")
+        .current_dir(d)
+        .output()
+        .unwrap();
+    assert!(old.status.success());
+    git(d, &["checkout", "-q", "main"]);
+    git(d, &["config", "pytxo.check", "git --version"]);
+    git(d, &["config", "pytxo.days", "14"]);
+    let home = tempfile::tempdir().unwrap();
+    let global = home.path().join("gitconfig");
+    std::fs::write(&global, "[pytxo]\n\tcheck = exit 1\n\tdays = 0\n").unwrap();
+    let global = global.to_string_lossy().into_owned();
+    let out = pytxo_env(d, &["--json"], None, &[("GIT_CONFIG_GLOBAL", &global)]);
+    assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["checks"], serde_json::json!(["git --version"]));
+    let names: Vec<&str> = v["branches"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| b["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["claude/a", "codex/b"]);
+}
+
+#[test]
+fn work_nobody_committed_is_named_not_dropped() {
+    let dir = repo(&[]);
+    let d = dir.path();
+    git(d, &["config", "pytxo.check", "git --version"]);
+    // Two agents at their turn's end: worktrees on their branches, nothing committed.
+    let worktrees = tempfile::tempdir().unwrap();
+    for name in ["claude/one", "claude/two"] {
+        let wt = worktrees.path().join(name.replace('/', "-"));
+        git(
+            d,
+            &["worktree", "add", "-q", "-b", name, &wt.to_string_lossy()],
+        );
+        std::fs::write(wt.join("draft.txt"), "draft\n").unwrap();
+    }
+    let note = "claude/one and claude/two have only uncommitted changes; commit them to check them together.";
+    let text = stdout(&pytxo(d, &[], None));
+    assert!(text.contains(&format!(" {note} ")), "{text}");
+    // The hook says it once.
+    let event = stop_event(d);
+    let v = hook_reply(&pytxo(d, &["hook"], Some(&event)));
+    assert_eq!(
+        v["systemMessage"],
+        format!("Pytxo did not check the agent branches: {note}")
+    );
+    let out = pytxo(d, &["hook"], Some(&event));
+    assert_eq!((out.status.code(), stdout(&out)), (Some(0), String::new()));
+}
+
+#[test]
+fn the_hook_carries_the_uncommitted_note_the_terminal_prints() {
+    let dir = repo(&["claude/a", "codex/b"]);
+    let d = dir.path();
+    git(d, &["config", "pytxo.check", "git --version"]);
+    let worktrees = tempfile::tempdir().unwrap();
+    let b = worktrees.path().join("b");
+    git(
+        d,
+        &["worktree", "add", "-q", &b.to_string_lossy(), "codex/b"],
+    );
+    std::fs::write(b.join("f1.txt"), "edited\n").unwrap();
+    let note = "codex/b has uncommitted changes; only its commits are checked.";
+    let out = pytxo(d, &[], None);
+    let progress = String::from_utf8_lossy(&out.stderr);
+    assert!(progress.contains(&format!("\n  {note}\n")), "{progress}");
+
+    let v = hook_reply(&pytxo(d, &["hook"], Some(&stop_event(d))));
+    let message = v["systemMessage"].as_str().unwrap();
+    assert!(message.contains("\nREADY    "), "{message}");
+    assert!(
+        message.ends_with(&format!("\nnote     {note}\n")),
+        "{message}"
+    );
+    git(d, &["config", "pytxo.check", "exit 1"]);
+    let v = hook_reply(&pytxo(d, &["hook", "--block"], Some(&stop_event(d))));
+    assert_eq!(v["decision"], "block", "{v}");
+    let reason = v["reason"].as_str().unwrap();
+    assert!(
+        reason.ends_with(&format!("\nnote     {note}\n")),
+        "{reason}"
+    );
+}
+
+#[test]
+fn notes_under_the_verdict_say_what_it_left_out() {
+    let names: Vec<String> = (0..11).map(|i| format!("codex/b{i:02}")).collect();
+    let dir = repo(&names.iter().map(String::as_str).collect::<Vec<_>>());
+    let d = dir.path();
+    // GitHub has a commit the local main has not pulled.
+    git(d, &["checkout", "-q", "-b", "upstream", "main"]);
+    git(d, &["commit", "-q", "--allow-empty", "-m", "on GitHub"]);
+    git(d, &["update-ref", "refs/remotes/origin/main", "upstream"]);
+    git(d, &["checkout", "-q", "main"]);
+    let notes = [
+        "main is 1 commit behind origin/main; pull it to check against that too.",
+        "1 older agent branch left out (at most 10 at once).",
+    ];
+    let out = pytxo(d, &["-c", "git --version"], None);
+    assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
+    let text = stdout(&out);
+    assert!(text.starts_with("READY    10 branches pass"), "{text}");
+    assert!(
+        text.ends_with(&format!("\nnote     {}\nnote     {}\n", notes[0], notes[1])),
+        "{text}"
+    );
+    let out = pytxo(d, &["--json", "-c", "git --version"], None);
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["notes"], serde_json::json!(notes));
+    assert_eq!(v["branches"].as_array().unwrap().len(), 10);
+}
+
+#[test]
+fn squash_merged_branches_are_skipped_without_merge_tree() {
+    let dir = repo(&["claude/a", "codex/b", "codex/squashed"]);
+    let d = dir.path();
+    git(d, &["merge", "-q", "--squash", "codex/squashed"]);
+    git(d, &["commit", "-q", "-m", "squash"]);
+    // Git before 2.38 has no merge-tree --write-tree; this takes that path.
+    let out = pytxo_env(
+        d,
+        &["--json", "-c", "git --version"],
+        None,
+        &[("PYTXO_LAND_WORKTREE_MERGE", "1")],
+    );
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let names: Vec<&str> = v["branches"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| b["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["claude/a", "codex/b"]);
+}
+
+#[test]
+fn bare_pytxo_exits_two_when_blocked_and_three_when_stale() {
+    let dir = repo(&["claude/a", "codex/b"]);
+    let d = dir.path();
+    let out = pytxo(d, &["-c", "exit 1"], None);
+    assert_eq!(out.status.code(), Some(2), "{}", stdout(&out));
+    assert!(stdout(&out).starts_with("BLOCKED  "), "{}", stdout(&out));
+    // The test command moves main while the check runs.
+    let out = pytxo(d, &["-c", "git update-ref refs/heads/main HEAD"], None);
+    assert_eq!(out.status.code(), Some(3), "{}", stdout(&out));
+    assert!(
+        stdout(&out).starts_with("STALE    main moved while the check ran.\n"),
+        "{}",
+        stdout(&out)
+    );
+}
+
+#[test]
+fn strict_blocks_two_branches_that_change_one_function() {
+    let dir = repo(&[]);
+    let d = dir.path();
+    let cart = "function total(items) {\n  let sum = 0;\n  for (const i of items) sum += i;\n  return sum;\n}\n";
+    std::fs::write(d.join("cart.js"), cart).unwrap();
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", "cart"]);
+    for (name, from, to) in [
+        ("claude/c", "let sum = 0;", "let sum = 0; // start"),
+        ("codex/c2", "return sum;", "return Math.round(sum);"),
+    ] {
+        git(d, &["checkout", "-q", "-b", name, "main"]);
+        std::fs::write(d.join("cart.js"), cart.replace(from, to)).unwrap();
+        git(d, &["commit", "-q", "-am", name]);
+        git(d, &["checkout", "-q", "main"]);
+    }
+    let out = pytxo(d, &["--strict", "-c", "git --version"], None);
+    assert_eq!(out.status.code(), Some(2), "{}", stdout(&out));
+    assert!(
+        stdout(&out).starts_with("BLOCKED  claude/c and codex/c2 both changed total in cart.js.\n"),
+        "{}",
+        stdout(&out)
+    );
 }
 
 #[test]
@@ -127,6 +367,23 @@ fn bare_pytxo_finds_the_agent_branches_and_prints_three_lines() {
     assert!(
         progress.contains("Checking claude/a and codex/b against main"),
         "{progress}"
+    );
+
+    // Labelled, as the land guides write them: both lines name the branches.
+    let out = pytxo(
+        dir.path(),
+        &["-c", "git --version", "claude:claude/a", "codex:codex/b"],
+        None,
+    );
+    let progress = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        progress.starts_with("Checking claude/a and codex/b against main"),
+        "{progress}"
+    );
+    assert!(
+        stdout(&out).starts_with("READY    claude/a and codex/b pass"),
+        "{}",
+        stdout(&out)
     );
 }
 
@@ -332,6 +589,9 @@ fn one_hook_checks_a_repository_at_a_time() {
         "{v}"
     );
     assert!(!lock.exists(), "released after an error");
+    // Said once, like a verdict: the next stop with the same tips is quiet.
+    let out = pytxo(d, &["hook"], Some(&event));
+    assert_eq!((out.status.code(), stdout(&out)), (Some(0), String::new()));
 }
 
 #[test]
@@ -376,22 +636,37 @@ fn a_hook_out_of_time_says_so_and_leaves_no_worktree() {
 fn pytxo_1x_commands_say_this_build_leaves_them_out() {
     let dir = repo(&["claude/a"]);
     let d = dir.path();
-    // With the 1.x flags too, which this build's parser does not know.
-    let lines: [&[&str]; 5] = [
-        &["shell"],
-        &["doctor"],
-        &["shell", "--eval", "x"],
-        &["doctor", "--quick"],
-        &["logs", "--agent", "a"],
+    // With the 1.x flags too, which this build's parser does not know, and
+    // asking for its help.
+    let lines: [(&[&str], &str); 9] = [
+        (&["shell"], "shell"),
+        (&["doctor"], "doctor"),
+        (&["shell", "--eval", "x"], "shell"),
+        (&["doctor", "--quick"], "doctor"),
+        (&["logs", "--agent", "a"], "logs"),
+        (&["help", "shell"], "shell"),
+        (&["shell", "--help"], "shell"),
+        (&["receipts", "share", "rcpt_x"], "receipts share"),
+        (&["bench", "--submit"], "bench --submit"),
     ];
-    for args in lines {
+    for (args, name) in lines {
         let out = pytxo(d, args, None);
         assert_eq!(out.status.code(), Some(1), "{args:?}");
         let err = String::from_utf8_lossy(&out.stderr);
         assert_eq!(
             err,
-            format!("error: {} is a Pytxo 1.x command that is not in this build; a source build with default features has it\n", args[0])
+            format!("error: {name} is a Pytxo 1.x command that is not in this build; a source build with default features has it\n"),
+            "{args:?}"
         );
+    }
+    // Help for what this build has is still help.
+    for args in [
+        &["--help"][..],
+        &["help"],
+        &["help", "check"],
+        &["hook", "--help"],
+    ] {
+        assert_eq!(pytxo(d, args, None).status.code(), Some(0), "{args:?}");
     }
     // Outside a repository too.
     let elsewhere = tempfile::tempdir().unwrap();
@@ -421,18 +696,48 @@ fn the_demo_catches_the_break() {
         return;
     }
     let dir = tempfile::tempdir().unwrap();
-    // The user's own target setting names no branch of the demo's.
-    let out = pytxo_env(dir.path(), &["demo"], None, &[("PYTXO_INTO", "develop")]);
-    let text = stdout(&out);
-    assert_eq!(
-        out.status.code(),
-        Some(0),
-        "{text}{}",
-        String::from_utf8_lossy(&out.stderr)
+    // A temp dir of its own, to see the demo's repo and worktrees gone after.
+    let temp = tempfile::tempdir().unwrap();
+    let t = temp.path().to_string_lossy().into_owned();
+    // The user's own settings name no branch, test or target of the demo's.
+    let started = std::time::Instant::now();
+    let out = pytxo_env(
+        dir.path(),
+        &["demo"],
+        None,
+        &[
+            ("PYTXO_INTO", "develop"),
+            ("PYTXO_BRANCHES", "team/*"),
+            ("PYTXO_CHECK", "exit 1"),
+            ("PYTXO_DAYS", "1"),
+            ("TEMP", &t),
+            ("TMP", &t),
+            ("TMPDIR", &t),
+        ],
     );
+    let took = started.elapsed();
+    let text = stdout(&out);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{text}{err}");
     assert!(
         text.starts_with("BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together."),
         "{text}"
     );
     assert!(text.contains("price is not a function"), "{text}");
+    assert!(
+        err.contains("against main with npm test (from package.json)..."),
+        "{err}"
+    );
+    assert!(
+        err.contains("That repo was temporary and is gone."),
+        "{err}"
+    );
+    // A first look takes under a minute.
+    assert!(took < std::time::Duration::from_secs(60), "{took:?}");
+    let left: Vec<String> = std::fs::read_dir(temp.path())
+        .unwrap()
+        .filter_map(|e| e.ok()?.file_name().into_string().ok())
+        .filter(|n| n.starts_with("pybench-") || n.starts_with("pytxo-"))
+        .collect();
+    assert!(left.is_empty(), "left behind: {left:?}");
 }
