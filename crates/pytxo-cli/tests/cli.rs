@@ -138,6 +138,16 @@ fn named_branches_land_on_the_checked_out_branch_unless_pytxo_into_says() {
     assert_eq!(target(&[]), "main");
     // The environment beats git config, as for PYTXO_BRANCHES and PYTXO_CHECK.
     assert_eq!(target(&[("PYTXO_INTO", "develop")]), "develop");
+    // A target that does not exist is one clear error, branches named or not.
+    let bare: &[&str] = &["-c", "git --version"];
+    for args in [&args[..], bare] {
+        let out = pytxo_env(d, args, None, &[("PYTXO_INTO", "nope")]);
+        assert_eq!(out.status.code(), Some(1));
+        assert_eq!(
+            String::from_utf8_lossy(&out.stderr),
+            "error: target branch does not exist: nope (from PYTXO_INTO)\n"
+        );
+    }
 
     // --apply moves the checked-out branch, not main.
     git(d, &["config", "--unset", "pytxo.into"]);
@@ -347,7 +357,8 @@ fn the_demo_catches_the_break() {
         return;
     }
     let dir = tempfile::tempdir().unwrap();
-    let out = pytxo(dir.path(), &["demo"], None);
+    // The user's own target setting names no branch of the demo's.
+    let out = pytxo_env(dir.path(), &["demo"], None, &[("PYTXO_INTO", "develop")]);
     let text = stdout(&out);
     assert_eq!(
         out.status.code(),

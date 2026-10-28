@@ -162,12 +162,36 @@ pub fn target_branch(
     into: Option<&str>,
     named: Option<&[AgentBranch]>,
 ) -> Result<String> {
+    let exists = |b: &str| {
+        git.ok(&[
+            "show-ref",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/{b}"),
+        ])
+    };
+    // A branch someone named must exist, or detection fails on it with a git error.
+    let named_by = |t: &str, from: &str| {
+        if exists(t) {
+            Ok(t.to_string())
+        } else {
+            bail!("target branch does not exist: {t} (from {from})")
+        }
+    };
     if let Some(t) = into {
-        return Ok(t.to_string());
+        return named_by(t, "--into");
     }
     // The last value, as `git config --get` reads it.
     if let Some(t) = setting(git, "PYTXO_INTO", "pytxo.into").pop() {
-        return Ok(t);
+        let from_env = std::env::var("PYTXO_INTO").is_ok_and(|v| !v.trim().is_empty());
+        return named_by(
+            &t,
+            if from_env {
+                "PYTXO_INTO"
+            } else {
+                "git config pytxo.into"
+            },
+        );
     }
     let current = git
         .run(&["symbolic-ref", "--quiet", "--short", "HEAD"])
@@ -181,14 +205,6 @@ pub fn target_branch(
             return Ok(current.clone());
         }
     }
-    let exists = |b: &str| {
-        git.ok(&[
-            "show-ref",
-            "--verify",
-            "--quiet",
-            &format!("refs/heads/{b}"),
-        ])
-    };
     let remote_head = git
         .run(&[
             "symbolic-ref",
@@ -205,7 +221,7 @@ pub fn target_branch(
     {
         return Ok(b);
     }
-    current.context("no target branch: pass --into <branch>")
+    current.context("no target branch: pass --into <branch>, or set git config pytxo.into <branch>")
 }
 
 /// `PYTXO_BRANCHES`, else `git config pytxo.branches`, else the defaults.
@@ -856,6 +872,17 @@ mod tests {
         assert_eq!(target(&agent, &[], None), "develop");
         // --into beats everything.
         assert_eq!(target(&wt, &["codex/a"], Some("main")), "main");
+        // A target someone named must exist, and the error says who named it.
+        let error = |into: Option<&str>| format!("{:#}", plan(&wt, &[], into, &[]).unwrap_err());
+        assert_eq!(
+            error(Some("nope")),
+            "target branch does not exist: nope (from --into)"
+        );
+        git(&d, &["config", "--add", "pytxo.into", "gone"]);
+        assert_eq!(
+            error(None),
+            "target branch does not exist: gone (from git config pytxo.into)"
+        );
 
         // No default branch: the checked-out one.
         let lone = tempfile::tempdir().unwrap();

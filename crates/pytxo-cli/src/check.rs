@@ -310,6 +310,8 @@ pub fn demo(keep: bool) -> Result<i32> {
     }
     let code = run(CheckArgs {
         repo: Some(dir.path().to_path_buf()),
+        // PYTXO_INTO or a global pytxo.into names a branch of the user's.
+        into: Some("main".into()),
         timeout: 120,
         ..CheckArgs::default()
     })?;
