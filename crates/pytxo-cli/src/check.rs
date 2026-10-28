@@ -4,7 +4,7 @@
 
 use std::io::Read;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use clap::Args;
@@ -117,14 +117,20 @@ fn options(plan: &Plan, args: &CheckArgs) -> LandOptions {
     opts
 }
 
+/// The `timeout` the Claude Code and Codex hook configs give `pytxo hook`.
+pub const HOOK_TIMEOUT_SECS: u64 = 900;
+
 /// `pytxo hook`: the check from a Claude Code or Codex `Stop` hook. Reads the
 /// hook's JSON on stdin and answers with JSON on stdout, or with nothing when
-/// there is nothing new to say. It never fails the agent's turn.
-pub fn hook(block: bool) -> Result<i32> {
+/// there is nothing new to say. It never fails the agent's turn, and answers
+/// before the hook's `timeout` (seconds) runs out.
+pub fn hook(block: bool, timeout: u64) -> Result<i32> {
+    let started = Instant::now();
     let mut input = String::new();
     let _ = std::io::stdin().read_to_string(&mut input);
     let event: serde_json::Value = serde_json::from_str(&input).unwrap_or_default();
-    let reply = match hook_reply(&event, block) {
+    let timeout = Duration::from_secs(timeout.max(1));
+    let reply = match hook_reply(&event, block, started, timeout) {
         Ok(None) => return Ok(0),
         Ok(Some(reply)) => reply,
         Err(e) => {
@@ -135,7 +141,12 @@ pub fn hook(block: bool) -> Result<i32> {
     Ok(0)
 }
 
-fn hook_reply(event: &serde_json::Value, block: bool) -> Result<Option<serde_json::Value>> {
+fn hook_reply(
+    event: &serde_json::Value,
+    block: bool,
+    started: Instant,
+    timeout: Duration,
+) -> Result<Option<serde_json::Value>> {
     // Claude Code fires Stop while its background agents still run; the last
     // one to finish gets the check.
     let busy = event["background_tasks"].as_array().is_some_and(|tasks| {
@@ -166,14 +177,24 @@ fn hook_reply(event: &serde_json::Value, block: bool) -> Result<Option<serde_jso
     if std::fs::read_to_string(&memo).is_ok_and(|last| last == fingerprint) {
         return Ok(None);
     }
-    let outcome = land(&options(
+    let mut opts = options(
         &plan,
         &CheckArgs {
             timeout: 900,
             ..CheckArgs::default()
         },
-    ))?;
+    );
+    // Room to stop the tests, remove the worktree and answer before the
+    // agent tool kills the hook: a minute, or half of a short timeout.
+    opts.deadline = Some(started + timeout - Duration::from_secs(60).min(timeout / 2));
+    let outcome = land(&opts)?;
     let _ = std::fs::write(&memo, &fingerprint);
+    if outcome.out_of_time {
+        return Ok(Some(json!({ "systemMessage": format!(
+            "Pytxo could not finish checking the agent branches before the hook's time ran out. Run {} in a terminal to check them.",
+            run_as()
+        ) })));
+    }
     let verdict = verdict(&outcome, "Pytxo checks again when an agent stops");
     let text = format!("Pytxo checked the agent branches together.\n{verdict}");
     Ok(Some(if block && outcome.exit_code() == 2 {
@@ -414,4 +435,21 @@ pub fn receipts_show(repo: Option<PathBuf>, id: &str) -> Result<()> {
         }
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The hook answers inside the timeout its configs declare.
+    #[test]
+    fn hook_configs_declare_the_timeout_the_hook_answers_inside() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../integrations");
+        for config in ["claude-code/hooks/hooks.json", "codex/hooks.json"] {
+            let text = std::fs::read_to_string(root.join(config)).unwrap();
+            let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+            let hook = &v["hooks"]["Stop"][0]["hooks"][0];
+            assert_eq!(hook["timeout"], HOOK_TIMEOUT_SECS, "{config}");
+        }
+    }
 }

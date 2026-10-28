@@ -65,6 +65,9 @@ Codex: add integrations/codex/hooks.json to ~/.codex/hooks.json, then trust it i
         /// On BLOCKED, ask the agent to keep working on the fix instead of only telling you
         #[arg(long)]
         block: bool,
+        /// The hook's timeout in its config, in seconds: Pytxo answers before it runs out
+        #[arg(long, default_value_t = check::HOOK_TIMEOUT_SECS)]
+        timeout: u64,
     },
     /// Receipts: every check records its decision under .git/pytxo/receipts
     Receipts {
@@ -155,7 +158,7 @@ fn run(cli: Cli) -> anyhow::Result<i32> {
         None => check::run(cli.check),
         Some(Commands::Check(args)) => check::run(args),
         Some(Commands::Demo { keep }) => check::demo(keep),
-        Some(Commands::Hook { block }) => check::hook(block),
+        Some(Commands::Hook { block, timeout }) => check::hook(block, timeout),
         Some(Commands::Receipts { action, repo }) => {
             match action {
                 None => check::receipts_list(repo, false)?,
