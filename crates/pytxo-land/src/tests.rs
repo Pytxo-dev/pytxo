@@ -105,7 +105,7 @@ fn shadow_mode_combines_disjoint_inputs_and_changes_nothing() {
     git(d, &["cat-file", "-e", &format!("{combined}:src/a.js")]);
     git(d, &["cat-file", "-e", &format!("{combined}:docs/b.md")]);
     assert!(render_markdown(&out)
-        .starts_with("### ✅ READY: agent/a and agent/b pass exit 0 together\n"));
+        .starts_with("### ✅ READY: `agent/a` and `agent/b` pass exit 0 together\n"));
 }
 
 #[test]
@@ -279,7 +279,7 @@ fn a_flaky_combined_check_runs_again_and_is_not_blamed_on_the_combination() {
     );
     let markdown = render_markdown(&out);
     assert!(
-        markdown.contains("| combined, run 2 | pass |"),
+        markdown.contains("| `combined, run 2` | pass |"),
         "{markdown}"
     );
 
@@ -709,10 +709,13 @@ fn plain_verdicts_say_what_why_and_next() {
     // Markdown leads with the verdict and ends with the install line.
     let md = render_markdown(&out);
     assert!(
-        md.starts_with("### ⛔ BLOCKED: agent/d conflicts with agent/c\n"),
+        md.starts_with("### ⛔ BLOCKED: `agent/d` conflicts with `agent/c`\n"),
         "{md}"
     );
-    assert!(md.contains("**Next:** rebase agent/d onto agent/c"), "{md}");
+    assert!(
+        md.contains("**Next:** rebase `agent/d` onto `agent/c`"),
+        "{md}"
+    );
     assert!(
         md.ends_with(&format!(
             "<sub>{INSTALL_HINT}</sub>\n\n<!-- pytxo-verdict {{\"label\":\"BLOCKED\",\"implicated\":[1]}} -->\n"

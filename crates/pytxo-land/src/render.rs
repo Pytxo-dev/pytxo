@@ -99,18 +99,16 @@ fn verdict_tag(p: &ReceiptPredicate, label: &str) -> String {
 
 /// Inputs that conflicted and so are absent from the tree the combined checks
 /// ran on; without this a "combined pass" reads as covering every input.
-fn left_out_of_combined(outcome: &LandOutcome) -> Option<String> {
+fn left_out_of_combined(outcome: &LandOutcome) -> Vec<String> {
     let p = &outcome.receipt.predicate;
     if !p.checks.iter().any(|c| c.scope == "combined") {
-        return None;
+        return Vec::new();
     }
-    let names: Vec<String> = p
-        .inputs
+    p.inputs
         .iter()
         .filter(|i| i.status == "conflict")
         .map(|i| input_name(&i.reference, i.agent.as_deref()))
-        .collect();
-    (!names.is_empty()).then(|| names.join(", "))
+        .collect()
 }
 
 /// The lines of a failed check's output most likely to say why it failed:
@@ -245,8 +243,9 @@ pub fn render_text(outcome: &LandOutcome) -> String {
                 }
             }
         }
-        if let Some(names) = left_out_of_combined(outcome) {
-            let _ = writeln!(s, "  combined leaves out {names} (conflict)");
+        let names = left_out_of_combined(outcome);
+        if !names.is_empty() {
+            let _ = writeln!(s, "  combined leaves out {} (conflict)", names.join(", "));
         }
     }
     for insight in &outcome.insights {
@@ -336,11 +335,25 @@ fn code_span(text: &str) -> String {
     format!("{ticks}{pad}{text}{pad}{ticks}")
 }
 
-/// `pr`: for a pull-request comment, where test output shows only as code.
+/// A Markdown table cell nothing in `text` can end or format.
+fn cell(text: &str) -> String {
+    code_span(text).replace('|', "\\|")
+}
+
+/// `pr`: for a pull-request comment, where test output, branch names and
+/// paths, which a fork controls, show only as code.
 fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
     let p = &outcome.receipt.predicate;
     let target = p.target.as_deref().unwrap_or("HEAD");
-    let all: Vec<String> = p.inputs.iter().map(plain_name).collect();
+    let shown = |text: &str| {
+        if pr {
+            code_span(text)
+        } else {
+            text.to_string()
+        }
+    };
+    let branch = |i: &pytxo_core::ReceiptInput| shown(&plain_name(i));
+    let all: Vec<String> = p.inputs.iter().map(branch).collect();
     let names = and_list(&all);
     let several = all.len() > 1;
     let v = |kind, label, what: String, why: String, next: String| Verdict {
@@ -390,7 +403,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                         c.conflict_files.is_empty()
                             || i.files.iter().any(|f| c.conflict_files.contains(f))
                     })
-                    .map(plain_name)
+                    .map(branch)
                     .collect();
                 let others = if earlier.is_empty() {
                     "the branches before it".to_string()
@@ -399,11 +412,13 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                 };
                 let files = match c.conflict_files.as_slice() {
                     [] => "the same lines".to_string(),
-                    [a] => a.clone(),
-                    [a, b] => format!("{a} and {b}"),
-                    [a, b, rest @ ..] => format!("{a}, {b} and {} more", rest.len()),
+                    [a] => shown(a),
+                    [a, b] => format!("{} and {}", shown(a), shown(b)),
+                    [a, b, rest @ ..] => {
+                        format!("{}, {} and {} more", shown(a), shown(b), rest.len())
+                    }
                 };
-                let name = plain_name(c);
+                let name = branch(c);
                 return v(
                     "conflict",
                     "BLOCKED",
@@ -476,7 +491,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                         p.inputs
                             .iter()
                             .find(|i| i.reference == r)
-                            .map_or_else(|| r.to_string(), plain_name)
+                            .map_or_else(|| shown(r), branch)
                     })
                     .collect();
                 if failing.is_empty() {
@@ -529,24 +544,28 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                 .iter()
                 .find_map(|f| f.symbol_collisions.first().map(|c| (f, c)))
             {
+                let inputs: Vec<String> = c.inputs.iter().map(|n| shown(n)).collect();
                 return v(
                     "collision",
                     "BLOCKED",
                     format!(
                         "{} both changed {} in {}.",
-                        and_list(&c.inputs),
-                        c.symbol,
-                        file.path
+                        and_list(&inputs),
+                        shown(&c.symbol),
+                        shown(&file.path)
                     ),
                     "--strict blocks when two branches change the same function or type.".into(),
-                    format!("check that {} still works for both, or run without --strict.", c.symbol),
+                    format!(
+                        "check that {} still works for both, or run without --strict.",
+                        shown(&c.symbol)
+                    ),
                 );
             }
             v(
                 "refused",
                 "BLOCKED",
                 format!("{names} could not land on {target}."),
-                p.reasons.first().cloned().unwrap_or_default(),
+                p.reasons.first().map(|r| shown(r)).unwrap_or_default(),
                 format!("fix that, then {again}."),
             )
         }
@@ -645,8 +664,8 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
     for i in &p.inputs {
         let _ = writeln!(
             s,
-            "| `{}` | {} | {} |",
-            input_name(&i.reference, i.agent.as_deref()),
+            "| {} | {} | {} |",
+            cell(&input_name(&i.reference, i.agent.as_deref())),
             i.files.len(),
             if i.status == "conflict" {
                 "**conflict**"
@@ -661,13 +680,14 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
             let same = f
                 .symbol_collisions
                 .iter()
-                .map(|c| format!("`{}`", c.symbol))
+                .map(|c| cell(&c.symbol))
                 .collect::<Vec<_>>();
+            let inputs = f.inputs.iter().map(|n| cell(n)).collect::<Vec<_>>();
             let _ = writeln!(
                 s,
-                "| `{}` | {} | {} |",
-                f.path,
-                f.inputs.join(", "),
+                "| {} | {} | {} |",
+                cell(&f.path),
+                inputs.join(", "),
                 if same.is_empty() {
                     "—".into()
                 } else {
@@ -688,9 +708,9 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
             };
             let _ = writeln!(
                 s,
-                "| `{}` | {} | {} | {} |",
-                c.command,
-                scope_label(c),
+                "| {} | {} | {} | {} |",
+                cell(&c.command),
+                cell(&scope_label(c)),
                 result,
                 seconds(c.duration_ms)
             );
@@ -702,20 +722,28 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
                 let fence = "`".repeat(longest_run(&lines, '`').max(2) + 1);
                 let _ = writeln!(
                     s,
-                    "\n`{}` ({}):\n{fence}\n{lines}\n{fence}",
-                    c.command,
-                    scope_label(c),
+                    "\n{} ({}):\n{fence}\n{lines}\n{fence}",
+                    code_span(&c.command),
+                    code_span(&scope_label(c)),
                 );
             }
         }
-        if let Some(names) = left_out_of_combined(outcome) {
-            let _ = writeln!(s, "\nCombined checks leave out {names}, which conflicted.");
+        let names: Vec<String> = left_out_of_combined(outcome)
+            .iter()
+            .map(|n| code_span(n))
+            .collect();
+        if !names.is_empty() {
+            let _ = writeln!(
+                s,
+                "\nCombined checks leave out {}, which conflicted.",
+                names.join(", ")
+            );
         }
     }
     if !p.reasons.is_empty() {
         let _ = writeln!(s, "\nReasons:");
         for r in &p.reasons {
-            let _ = writeln!(s, "- {r}");
+            let _ = writeln!(s, "- {}", code_span(r));
         }
     }
     if verbose {
@@ -729,7 +757,17 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pytxo_core::{Receipt, ReceiptInput};
+    use pytxo_core::{Receipt, ReceiptInput, ReceiptSharedFile};
+
+    fn outcome(p: ReceiptPredicate) -> LandOutcome {
+        LandOutcome {
+            receipt: Receipt::new(p, "git:main", None),
+            receipt_path: Default::default(),
+            combined_ref: None,
+            insights: Vec::new(),
+            out_of_time: false,
+        }
+    }
 
     fn input(reference: &str, status: &str) -> ReceiptInput {
         ReceiptInput {
@@ -879,14 +917,7 @@ mod tests {
     #[test]
     fn markdown_ends_with_the_verdict_tag() {
         let p = blocked("conflict", vec![check("combined", true)]);
-        let outcome = LandOutcome {
-            receipt: Receipt::new(p, "git:main", None),
-            receipt_path: Default::default(),
-            combined_ref: None,
-            insights: Vec::new(),
-            out_of_time: false,
-        };
-        let md = render_markdown(&outcome);
+        let md = render_markdown(&outcome(p));
         let last = md.trim_end().lines().last().unwrap();
         assert_eq!(
             last,
@@ -894,5 +925,52 @@ mod tests {
         );
         assert_eq!(md.matches("pytxo-verdict").count(), 1, "{md}");
         assert!(md.ends_with(&format!("<sub>{INSTALL_HINT}</sub>\n\n{last}\n")));
+    }
+
+    /// Branch names and paths come from a fork: a comment shows them only as
+    /// code, which nothing in them can close, format or split into cells.
+    #[test]
+    fn names_and_paths_show_only_as_code_in_markdown() {
+        let file = "@octocat [docs](evil.example)|x.txt";
+        let mut p = blocked("merged", vec![check("combined", true)]);
+        p.inputs = vec![
+            ReceiptInput {
+                files: vec![file.into()],
+                ..input("codex/a", "merged")
+            },
+            ReceiptInput {
+                files: vec![file.into()],
+                conflict_files: vec![file.into()],
+                ..input("claude/x-@octocat", "conflict")
+            },
+        ];
+        p.shared_files = vec![ReceiptSharedFile {
+            path: file.into(),
+            inputs: vec!["codex/a".into(), "claude/x-@octocat".into()],
+            symbol_collisions: Vec::new(),
+        }];
+        p.reasons = vec![format!(
+            "claude/x-@octocat conflicts with the inputs before it in {file}"
+        )];
+        let md = render_markdown(&outcome(p.clone()));
+        for line in [
+            "### ⛔ BLOCKED: `claude/x-@octocat` conflicts with `codex/a`",
+            &format!("**Why:** git cannot merge them: `{file}` changed on both sides."),
+            "**Next:** rebase `claude/x-@octocat` onto `codex/a` (or ask its agent to), then push again.",
+            "| `claude/x-@octocat` | 1 | **conflict** |",
+            "| `@octocat [docs](evil.example)\\|x.txt` | `codex/a`, `claude/x-@octocat` | — |",
+            "Combined checks leave out `claude/x-@octocat`, which conflicted.",
+            &format!("- `claude/x-@octocat conflicts with the inputs before it in {file}`"),
+        ] {
+            assert!(md.lines().any(|l| l == line), "{line}\n{md}");
+        }
+        // Outside code nothing mentions or links.
+        for line in md.lines() {
+            let outside: String = line.split('`').step_by(2).collect();
+            assert!(!outside.contains('@') && !outside.contains("]("), "{line}");
+        }
+        // The terminal shows them as they are.
+        let v = verdict(&outcome(p), "again");
+        assert_eq!(v.what, "claude/x-@octocat conflicts with codex/a.");
     }
 }
