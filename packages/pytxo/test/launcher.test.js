@@ -141,3 +141,35 @@ test("tells the binary whether it ran through npx", () => {
   assert.equal(runAs({ npm_command: "run-script" }), "pytxo");
   assert.equal(runAs({ PYTXO_RUN_AS: "pnpm dlx pytxo" }), "pnpm dlx pytxo");
 });
+
+// Ctrl+C reaches the whole process group. The launcher must outlive it, so
+// the terminal comes back only once the binary has cleaned up and exited.
+test("Ctrl+C waits for the binary and keeps its exit code", { skip: process.platform === "win32" }, async (t) => {
+  const binary = [
+    "process.on('SIGINT', () => setTimeout(() => process.exit(130), 300));",
+    "console.log('ready');",
+    "setInterval(() => {}, 1000);",
+  ].join("");
+  const child = spawn(process.execPath, [launcher, "-e", binary], {
+    detached: true,
+    env: { ...process.env, PYTXO_BINARY: process.execPath },
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  // A launcher that died first would leave the stand-in binary running.
+  t.after(() => {
+    try {
+      process.kill(-child.pid, "SIGKILL");
+    } catch {}
+  });
+  await new Promise((resolve) => child.stdout.once("data", resolve));
+  process.kill(-child.pid, "SIGINT");
+  const [code, signal] = await new Promise((resolve) => child.on("exit", (...end) => resolve(end)));
+  assert.deepEqual([code, signal], [130, null]);
+});
+
+test("a binary killed by a signal exits as the shell reports it", { skip: process.platform === "win32" }, () => {
+  const result = spawnSync(process.execPath, [launcher, "-e", "process.kill(process.pid, 'SIGKILL')"], {
+    env: { ...process.env, PYTXO_BINARY: process.execPath },
+  });
+  assert.equal(result.status, 137);
+});

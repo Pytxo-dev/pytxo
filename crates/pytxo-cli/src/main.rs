@@ -27,7 +27,7 @@ in a throwaway worktree, runs your tests on the combined result, and blocks the 
 
 Run it with no arguments inside a repository. Nothing in the repository changes.",
     args_conflicts_with_subcommands = true,
-    after_help = "Exit codes: 0 ready (or nothing to check), 2 blocked, 3 stale (the target moved), 1 error.
+    after_help = "Exit codes: 0 ready (or nothing to check), 2 blocked, 3 stale (the target moved), 1 error, 130 stopped by Ctrl+C.
 See it work: pytxo demo · Discord: https://discord.gg/AUFRPFjSYv"
 )]
 struct Cli {
@@ -42,7 +42,7 @@ enum Commands {
     /// Check the agent branches together (what `pytxo` runs with no command)
     #[command(
         alias = "land",
-        after_help = "Exit codes: 0 ready (or nothing to check), 2 blocked, 3 stale (the target moved), 1 error.
+        after_help = "Exit codes: 0 ready (or nothing to check), 2 blocked, 3 stale (the target moved), 1 error, 130 stopped by Ctrl+C.
 Branches: claude/*, codex/*, copilot/*, cursor/*, devin/*, jules/*, agent/* and every branch in a
 linked worktree, with a commit in the last 14 days. Change them with git config pytxo.branches
 \"...\" (or PYTXO_BRANCHES), the test command with git config pytxo.check \"...\" (or PYTXO_CHECK),
