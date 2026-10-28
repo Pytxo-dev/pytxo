@@ -518,6 +518,35 @@ fn a_target_that_moves_during_the_gate_is_refused() {
 }
 
 #[test]
+fn scratch_worktrees_are_named_the_way_detection_recognizes() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    let seen = d.join(".cwd-test");
+    let mut o = opts(d, &["agent/a"]);
+    // Each run appends the worktree it ran in.
+    #[cfg(windows)]
+    let record = format!("cd >> \"{}\"", seen.display());
+    #[cfg(not(windows))]
+    let record = format!("pwd >> '{}'", seen.display());
+    o.checks = vec![record];
+    o.per_input = PerInput::Always;
+    assert_eq!(land(&o).unwrap().decision(), "ready");
+    let paths = std::fs::read_to_string(&seen).unwrap();
+    let paths: Vec<&str> = paths.lines().map(str::trim).collect();
+    assert_eq!(
+        paths.len(),
+        2,
+        "one solo run and one combined run: {paths:?}"
+    );
+    for p in paths {
+        assert!(is_scratch_worktree(Path::new(p)), "{p}");
+    }
+    assert!(!is_scratch_worktree(Path::new("/tmp/pytxo-land-fix")));
+    assert!(!is_scratch_worktree(d));
+}
+
+#[test]
 fn empty_inputs_land_nothing() {
     let dir = repo();
     let d = dir.path();

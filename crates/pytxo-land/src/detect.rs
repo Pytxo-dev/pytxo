@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 
-use crate::{checks, native_path, supports_merge_tree, Git, LandInput};
+use crate::{checks, is_scratch_worktree, native_path, supports_merge_tree, Git, LandInput};
 
 /// Stands for every branch checked out in a linked worktree.
 pub const WORKTREES: &str = "worktrees";
@@ -241,7 +241,8 @@ struct Worktree {
     linked: bool,
 }
 
-/// `git worktree list --porcelain`, minus bare and missing (prunable) entries.
+/// `git worktree list --porcelain`, minus bare and missing (prunable) entries
+/// and Pytxo's own scratch worktrees.
 fn worktrees(git: &Git) -> Vec<Worktree> {
     let Ok(text) = git.run(&["worktree", "list", "--porcelain"]) else {
         return Vec::new();
@@ -260,7 +261,8 @@ fn worktrees(git: &Git) -> Vec<Worktree> {
                 gone = true;
             }
         }
-        if let (Some(path), false) = (path, gone) {
+        let scratch = branch.is_none() && path.as_deref().is_some_and(is_scratch_worktree);
+        if let (Some(path), false) = (path, gone || scratch) {
             out.push(Worktree {
                 path,
                 head,
@@ -656,6 +658,28 @@ mod tests {
         git(&d, &["config", "pytxo.branches", "codex/"]);
         let plan = super::plan(&wt, &[], None, &[]).unwrap();
         assert_eq!(names(&plan), ["codex/tax"]);
+    }
+
+    #[test]
+    fn pytxo_scratch_worktrees_are_not_agent_branches() {
+        // A killed run leaves its scratch worktrees registered, each with a
+        // commit nobody merged; a concurrent run's look the same.
+        let (dir, d) = repo();
+        branch(&d, "claude/a", "a.js");
+        let detached = |name: &str| {
+            let wt = dir.path().join(name);
+            git(
+                &d,
+                &["worktree", "add", "-q", "--detach", &wt.to_string_lossy()],
+            );
+            commit_file(&wt, &format!("{name}.txt"), name, "pytxo land: merge");
+        };
+        detached("pytxo-land-20261028t120005z_ab12cd34");
+        detached("pytxo-land-20261028t120005z_ab12cd34-solo");
+        // The user's own detached worktree with a similar name still counts.
+        detached("pytxo-land-fix");
+        let plan = plan(&d, &[], None, &[]).unwrap();
+        assert_eq!(names(&plan), ["claude/a", "pytxo-land-fix"]);
     }
 
     #[test]

@@ -153,9 +153,37 @@ struct OwnedWorktree {
     path: PathBuf,
 }
 
+/// Scratch worktrees are `<temp>/pytxo-land-<tag>` or `...-<tag>-solo`, where
+/// the tag is the receipt id without `rcpt_`, in lower case.
+const SCRATCH_PREFIX: &str = "pytxo-land-";
+
+/// One of Pytxo's own scratch worktrees: this run's, a concurrent run's, or
+/// one a killed run left behind. Matched by the name `OwnedWorktree::add`
+/// gives it, not by its parent: the temp directory differs between a terminal
+/// and a hook, and between its short (8.3), long and symlinked spellings.
+pub(crate) fn is_scratch_worktree(path: &Path) -> bool {
+    let Some(tag) = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .and_then(|n| n.strip_prefix(SCRATCH_PREFIX))
+    else {
+        return false;
+    };
+    // `20261028t120005z_ab12cd34`, as `new_receipt_id` writes it.
+    let tag = tag.strip_suffix("-solo").unwrap_or(tag).as_bytes();
+    tag.len() == 25
+        && tag.iter().enumerate().all(|(i, c)| match i {
+            8 => *c == b't',
+            15 => *c == b'z',
+            16 => *c == b'_',
+            17.. => c.is_ascii_hexdigit(),
+            _ => c.is_ascii_digit(),
+        })
+}
+
 impl OwnedWorktree {
     fn add(repo: &Git, at: &str, tag: &str) -> Result<Self> {
-        let path = std::env::temp_dir().join(format!("pytxo-land-{tag}"));
+        let path = std::env::temp_dir().join(format!("{SCRATCH_PREFIX}{tag}"));
         if path.exists() {
             std::fs::remove_dir_all(&path).ok();
         }
