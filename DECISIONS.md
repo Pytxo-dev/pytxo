@@ -108,3 +108,34 @@ chosen, why, and how to undo it.
     `PYTXO_LICENSE` secret, verified offline with Ed25519. `LICENSING = false`
     and `LICENSE_PUBLIC_KEY = null` keep it off; switching it on needs a
     signing keypair and a release.
+
+19. **The site leads with the check; Desktop moves to the footer.** The
+    header button is "Get started" (the Quickstart), not "Download". The
+    homepage drops the Desktop planner, fleet and live-run sections for How
+    it works, the one-line Action, a per-branch-CI comparison, Pybench and a
+    check FAQ. `/download` stays, reached from the footer as "Pytxo Desktop
+    (1.x)", and now leads with `npx pytxo demo`. Same visual system, no new
+    components beyond the CI section.
+20. **The hero shows a recorded demo, labelled as a local candidate build.**
+    `public/evidence/demo-blocked-2.0.0-2026-10-28.json` is the exact output
+    of `npx pytxo demo` from a release build of commit bee65c0, with three
+    timed runs (5.5-5.8 s). The demo deletes its repository, so the record
+    has no receipt. Re-record from npm after the release if wanted. How it
+    works quotes lines of the same record. The share image
+    (`public/social/check-1600x1000.png`) is rendered from HTML with
+    Playwright from the same lines, with the elided progress lines shown as
+    `...`.
+21. **The plans page links to no checkout.** It shows Free, Pro ("$29 once ·
+    not on sale yet", $5/month or $48/year after the first 500) and Team
+    (planned), plus "if development stops, Pro unlocks for everyone" from the
+    Impulse plan. `pro.ts`, the checkout route, Dodo config, the account page
+    and the legal pages are untouched, so the $12/month product still exists
+    behind `/api/billing/checkout-redirect` when live keys are set; only the
+    "Get Pro" button on `/plans` is gone.
+22. **Docs keep every 1.x page and URL.** The sidebar lists Get started
+    (Quickstart, GitHub Action, Claude Code and Codex, Install, the two land
+    guides), Look it up (CLI, changelog, receipts) and Evidence, then
+    "Advanced: Pytxo 1.x" with the Desktop, mission, tier, MCP and
+    troubleshooting pages. No page moved, so no redirect is needed.
+23. **ADR-0043 supersedes ADR-0012.** A bare `pytxo` runs the check; the
+    shell is `pytxo shell` in a `full` build; `PYTXO_NO_TUI` is gone.
