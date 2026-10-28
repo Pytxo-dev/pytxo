@@ -365,6 +365,13 @@ fn sh_git(dir: &Path, args: &[&str]) -> Result<String> {
     Git::owned(dir, Some(("Pybench", "pybench@pytxo.invalid"))).run(args)
 }
 
+/// `git init -b main`, which Git before 2.28 does not take.
+fn init_main(dir: &Path) -> Result<()> {
+    sh_git(dir, &["init", "-q"])?;
+    sh_git(dir, &["symbolic-ref", "HEAD", "refs/heads/main"])?;
+    Ok(())
+}
+
 fn write_files(dir: &Path, files: &[(&str, String)]) -> Result<()> {
     for (path, body) in files {
         let p = dir.join(path);
@@ -377,7 +384,7 @@ fn write_files(dir: &Path, files: &[(&str, String)]) -> Result<()> {
 fn build_repo(scenario: &Scenario, files: &[(&str, String)]) -> Result<Dir> {
     let dir = tempdir::Dir::new("pybench")?;
     let d = dir.path();
-    sh_git(d, &["init", "-q", "-b", "main"])?;
+    init_main(d)?;
     sh_git(d, &["config", "core.autocrlf", "false"])?;
     sh_git(d, &["config", "user.name", "Pybench"])?;
     sh_git(d, &["config", "user.email", "pybench@pytxo.invalid"])?;
@@ -607,7 +614,7 @@ fn overhead_suite(progress: &mut impl FnMut(&str)) -> Result<OverheadSuite> {
         progress(&format!("overhead  {inputs} inputs × {files} files"));
         let dir = tempdir::Dir::new("pybench-overhead")?;
         let d = dir.path();
-        sh_git(d, &["init", "-q", "-b", "main"])?;
+        init_main(d)?;
         sh_git(d, &["config", "core.autocrlf", "false"])?;
         let base: Vec<(&str, String)> = Vec::new();
         write_files(d, &base)?;
