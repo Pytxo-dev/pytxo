@@ -245,7 +245,10 @@ fn install_pytxo_cli_inner() -> IpcResult<PathBuf> {
         if !out.status.success() {
             let stderr = String::from_utf8_lossy(&out.stderr);
             if !stderr.is_empty() {
-                set_state("verifying", format!("Installed (pytxo --version: {stderr})"));
+                set_state(
+                    "verifying",
+                    format!("Installed (pytxo --version: {stderr})"),
+                );
             }
         }
     }
