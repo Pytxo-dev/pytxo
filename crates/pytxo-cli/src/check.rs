@@ -570,6 +570,12 @@ mod tests {
             let v: serde_json::Value = serde_json::from_str(&text).unwrap();
             let hook = &v["hooks"]["Stop"][0]["hooks"][0];
             assert_eq!(hook["timeout"], HOOK_TIMEOUT_SECS, "{config}");
+            // The command says it too, so whoever lowers one sees the other.
+            let command = hook["command"].as_str().unwrap();
+            assert!(
+                command.ends_with(&format!(" hook --timeout {HOOK_TIMEOUT_SECS}")),
+                "{config}: {command}"
+            );
         }
     }
 }
