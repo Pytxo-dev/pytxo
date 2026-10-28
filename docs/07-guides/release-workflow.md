@@ -48,7 +48,8 @@ git tag v1.0.1
 git push origin v1.0.1
 ```
 
-Pushes the same **Release** workflow via the `v*` tag trigger.
+Starts the same **Release** workflow. It triggers only on exact versions
+(`v1.0.1`, `v1.0.1-beta.1`), not on the Action's `v2` tag below.
 
 ## Account/billing-blocked runner fallback
 
@@ -92,4 +93,10 @@ installed the new signed release and confirmed its running version after restart
 
 - Verify [pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases/releases) has all five binaries + `SHA256SUMS.txt`
 - Verify `npm i -g pytxo@1.0.1` downloads the correct binary
+- For a final 2.x release (not a `-*` prerelease), once npm serves the version,
+  move the `v2` tag that every Action setup snippet uses
+  (`Pytxo-dev/pytxo/actions/land@v2`):
+  `git fetch origin tag vX.Y.Z && git tag -f v2 "vX.Y.Z^{commit}" && git push -f origin v2`.
+  release.yml
+  ignores this tag because it triggers only on exact versions.
 - Update `RELEASE.md` and `apps/web/src/lib/site.ts` (`PYTXO_VERSION`) before tagging

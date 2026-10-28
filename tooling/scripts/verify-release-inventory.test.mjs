@@ -222,6 +222,24 @@ test("release publication waits for exact CLI and Desktop preparation", async ()
   assert.equal(workflow.match(/npm publish --access public/g)?.length, 1);
 });
 
+test("a release runs only for an exact version tag, never for the Action's floating v2 tag", async () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const workflow = await readFile(path.resolve(here, "../../.github/workflows/release.yml"), "utf8");
+  // The "- ..." items under on: → push: → tags:.
+  const lines = workflow.replace(/\r\n/g, "\n").split("\n");
+  const push = lines.indexOf("  push:", lines.indexOf("on:"));
+  const start = lines.indexOf("    tags:", push);
+  assert.ok(lines.indexOf("on:") >= 0 && push > 0 && start > push, "release.yml must list on.push.tags");
+  const tags = [];
+  for (const line of lines.slice(start + 1)) {
+    const item = line.match(/^      - "?([^"]*)"?$/);
+    if (!item) break;
+    tags.push(item[1]);
+  }
+  // Exactly these two: a "v*" pattern would also match v2.
+  assert.deepEqual(tags, ["v[0-9]+.[0-9]+.[0-9]+", "v[0-9]+.[0-9]+.[0-9]+-*"]);
+});
+
 test("candidate signing cannot publish a release or update channel", async () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const workflow = await readFile(path.resolve(here, "../../.github/workflows/desktop-candidate.yml"), "utf8");
