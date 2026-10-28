@@ -150,6 +150,16 @@ test("homepage FAQ answers open and close by keyboard", async ({ page }) => {
   await expect(page.getByText("The merge and the tests happen in a throwaway worktree.", { exact: false })).toBeHidden();
 });
 
+test("the Action's FAQ answer says what a fork's run gets, not that the tests never see the token", async ({ page }) => {
+  // A closed answer is not in the DOM, so the guards on main cannot see it.
+  await page.goto("/");
+  const question = "Is the GitHub Action safe on public repositories?";
+  await page.getByRole("button", { name: question }).click();
+  const answer = page.getByTestId("faq-section").getByRole("region", { name: question });
+  await expect(answer).toContainText("checked in its own run, with GitHub's read-only token and no secrets");
+  await expect(answer).not.toContainText(/without the token|has no token/i);
+});
+
 test("evidence moved into the docs and keeps every record downloadable", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/evidence");
