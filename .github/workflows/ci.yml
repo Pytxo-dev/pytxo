@@ -173,7 +173,7 @@ jobs:
 
       # PR discovery, the sticky comment, and a real fetch of refs/pull/N/head.
       - name: GitHub Action tests
-        run: node --test actions/land/
+        run: node --test actions/land/pytxo-action.test.mjs
 
       # Advisories depend on Cargo.lock, not the OS. rust-cache keeps the binary.
       - name: cargo audit
