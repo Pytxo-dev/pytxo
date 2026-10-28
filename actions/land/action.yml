@@ -12,6 +12,10 @@ inputs:
     description: Agent branch patterns, space-separated (default claude/* codex/* copilot/* cursor/* devin/* jules/* agent/*)
     required: false
     default: ""
+  timeout:
+    description: Timeout for each test run, in whole seconds (default 900)
+    required: false
+    default: ""
   comment:
     description: Post the verdict as one pull-request comment, updated in place ("true" or "false")
     required: false
@@ -63,12 +67,14 @@ runs:
       env:
         PYTXO_VERSION_PIN: ${{ inputs.version }}
         PYTXO_CHECK: ${{ inputs.check }}
+        PYTXO_TIMEOUT: ${{ inputs.timeout }}
         PYTXO_BASE: ${{ steps.discover.outputs.base }}
       run: |
         set +e
         branches=()
         while IFS= read -r branch; do [ -n "$branch" ] && branches+=("$branch"); done < "$RUNNER_TEMP/pytxo-branches.txt"
-        npx -y "pytxo@$PYTXO_VERSION_PIN" check --into "$PYTXO_BASE" --markdown -- "${branches[@]}" \
+        # --into: the pull request's base, never the CLI's default target.
+        npx -y "pytxo@$PYTXO_VERSION_PIN" check --into "$PYTXO_BASE" ${PYTXO_TIMEOUT:+--timeout "$PYTXO_TIMEOUT"} --markdown -- "${branches[@]}" \
           > "$RUNNER_TEMP/pytxo-check.md" 2> "$RUNNER_TEMP/pytxo-check.err"
         code=$?
         cat "$RUNNER_TEMP/pytxo-check.err" >&2

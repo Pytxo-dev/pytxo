@@ -401,6 +401,8 @@ test("action.yml: nothing runs after a cancel, and the step that runs the tests 
   assert.ok(steps.every((s) => !s.includes("always()")));
   assert.match(step('pytxo-action.mjs" comment'), /if: \$\{\{ !cancelled\(\) && /);
   assert.doesNotMatch(step("id: check"), /token/i);
+  // The pull request's base, never the CLI's default target; the timeout only when set.
+  assert.match(step("id: check"), / check --into "\$PYTXO_BASE" \$\{PYTXO_TIMEOUT:\+--timeout "\$PYTXO_TIMEOUT"\} /);
   assert.doesNotMatch(step('pytxo-action.mjs" verdict'), /token/i);
   assert.match(step("actions/checkout@"), /persist-credentials: false/);
 });
