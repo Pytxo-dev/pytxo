@@ -82,7 +82,7 @@ Checks run in a fresh worktree, so install dependencies inside the check when ne
 
 ## In a pull request
 
-The repository ships a composite action that runs the gate in shadow mode and prints the Markdown summary to the job log. See [Land in GitHub Actions](/docs/getting-started/land-in-ci).
+The GitHub Action checks every agent pull request together with the other open agent pull requests and keeps one comment with the verdict. See [GitHub Action](/docs/getting-started/land-in-ci).
 
 ## Limits
 

@@ -110,6 +110,8 @@ test("homepage leads with the outcome, then how, why, proof and requirements", a
   // The Action's safety copy says what a fork's run gets, not that the tests never see the token.
   await expect(page.getByTestId("ci-section")).toContainText("checked in its own run, with GitHub's read-only token and no secrets");
   await expect(page.locator("main")).not.toContainText(/without the token|has no token/i);
+  // A pull request that is not the cause of a break does not fail.
+  await expect(page.getByTestId("ci-section")).toContainText("fails the job only when that pull request is part of the problem");
   // Newcomers see none of the frozen 1.x vocabulary.
   await expect(page.locator("main")).not.toContainText(/\b(hypervisor|control plane|telemetry|orbit|galaxy|deepspace|supernova|signal core|blast shield|missions?|fleets?)\b/i);
   await expect(page.locator(".aperture-marquee")).toHaveCount(0);
