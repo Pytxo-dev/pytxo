@@ -63,7 +63,9 @@ without tests (Pytxo catches only what the tests catch).
   token, as in any CI job that runs that code. Give the workflow no other
   permissions or secrets. A fork's pull request never joins another pull
   request's run: it is checked in its own run, with GitHub's read-only token
-  and no secrets.
+  and no secrets. Nor does a pull request opened by Copilot or
+  `github-actions[bot]`, whose runs GitHub holds for approval: its own run
+  checks it with the others once someone approves it.
 - Receipts use the in-toto statement format but are not signed.
 
 ## Price

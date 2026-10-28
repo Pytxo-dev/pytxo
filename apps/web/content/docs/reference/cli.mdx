@@ -25,7 +25,7 @@ Binary: `pytxo`. This page describes **2.0.0**. Run it with `npx pytxo`, or keep
 | `--base <rev>` | Check against another commit instead of the target's tip (not with `--apply`) |
 | `-c`, `--check <cmd>` | Test command, repeatable. Default: found in the target branch |
 | `--per-input` | Run the checks on each branch alone every time, not only after the combined change fails |
-| `--apply` | Land a READY result on the target by fast-forward or compare-and-swap; refused if the target moved |
+| `--apply` | Land a READY result on the target by fast-forward or compare-and-swap; refused if the target moved. It lands only a tested result: when no test command was found, it exits `1` and leaves the target unchanged, so name one with `--check` |
 | `--strict` | Block when two branches changed the same function or type |
 | `--timeout <s>` | Per-check timeout in seconds (default 900). A combined run that times out does not run again, and neither the branches alone nor later `--check` commands run after it |
 | `-v`, `--verbose` | Also print what was found, every test run with its error lines, the receipt's path and a ref to the combined commit; with `--markdown`, the receipt's id and digest |
@@ -41,7 +41,7 @@ The test command comes from the target branch: `package.json` (npm, pnpm, yarn o
 
 Checks run without a terminal and with `GIT_TERMINAL_PROMPT=0`, so a command that asks for input fails, or waits until `--timeout`. `PYTHONPATH` starts with `<worktree>/src`, when it exists, and `<worktree>`, so Python imports the code being checked, not an editable install of your checkout.
 
-Ctrl+C or SIGTERM while the tests run stops them, removes the throwaway worktree and exits with `130`; a second Ctrl+C quits at once. A check that is killed outright, from Task Manager, with `kill -9` or by an agent tool ending the hook, leaves its worktree in `git worktree list`; the next check removes it when it starts.
+Ctrl+C or SIGTERM while the tests run stops them, removes the throwaway worktree and exits with `130`; a second Ctrl+C quits at once. Under `npx pytxo` on Windows, npm returns to the prompt at once with exit code `1` and Pytxo finishes cleaning up a second or two later; the binary from the install script or the releases page, and `npx` on macOS and Linux, wait and exit `130`. A check that is killed outright, from Task Manager, with `kill -9` or by an agent tool ending the hook, leaves its worktree in `git worktree list`; the next check removes it when it starts.
 
 | `git config` key | Environment variable | Default |
 |------|------|------|

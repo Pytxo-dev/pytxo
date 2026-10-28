@@ -68,17 +68,23 @@ jobs:
       - uses: Pytxo-dev/pytxo/actions/land@v2
 ```
 
-On every agent pull request, the Action checks it together with the other
-open agent pull requests into the same base branch, then posts one comment and
-keeps it up to date. The job fails when this pull request conflicts, fails the
-tests alone, or is in a combination that fails while each passes alone; when
-only other pull requests are to blame, the comment names them and the job
-passes. When nothing in the result points at any pull request, such as a
-combined run that timed out, every pull request in the run fails. It runs on
+Your tests run in the job that holds this token, so give the workflow no other
+permissions or secrets.
+
+A run on an agent pull request checks it together with the other open agent
+pull requests into the same base branch and keeps one comment on it, updated in
+place. When no other agent pull request is open into that base, the job passes
+with a note in the job summary. The job fails when this pull request conflicts,
+fails the tests alone, or is in a combination that fails while each passes
+alone; when only other pull requests are to blame, the comment names them and
+the job passes. When nothing in the result points at any pull request, such as
+a combined run that timed out, every pull request in the run fails. It runs on
 `pull_request` only, never `pull_request_target`. A fork's pull request never
 joins another pull request's run: it is checked in its own run, with GitHub's
-read-only token and no secrets. Without `pull-requests: write` the verdict goes
-to the job summary instead. See [the Action's inputs](actions/land/action.yml).
+read-only token and no secrets. Nor does a pull request opened by Copilot or
+`github-actions[bot]`, whose runs GitHub holds for approval: its own run, once
+approved, checks it with the others. Without `pull-requests: write` the verdict goes to the job
+summary instead. See [the Action's inputs](actions/land/action.yml).
 
 ## When your agents finish
 
@@ -131,13 +137,14 @@ combined run times out, that is the answer: the branches do not run alone
 after it, and it does not run again. Merge conflicts block too.
 
 **Exit codes.** `0` ready (or nothing to check), `2` blocked, `3` stale (the
-target branch moved during the check), `1` error.
+target moved), `1` error, `130` stopped by Ctrl+C.
 
 **Output.** `--verbose` adds what was found, every test run with its error
 lines, the receipt's path and a ref to the combined commit;
 `pytxo receipts show <id>` prints the last 40 lines of each run and checks the
 digest. `--json` is for scripts and `--markdown` is the GitHub Action's comment.
-`--apply` lands a ready result on the target branch. Every check records a
+`--apply` lands only a tested, ready result on the target branch: when no test
+command was found, it exits `1` and changes nothing. Every check records a
 receipt in `.git/pytxo/receipts` (`pytxo receipts`).
 
 **Limits.** It catches what your tests catch: a break your tests don't cover

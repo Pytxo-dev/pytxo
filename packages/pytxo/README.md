@@ -22,9 +22,11 @@ next     fix one branch so they agree, then run npx pytxo again.
 ```
 
 Nothing in your repository changes. Exit codes: `0` ready (or nothing to
-check), `2` blocked, `3` stale, `1` error.
+check), `2` blocked, `3` stale (the target moved), `1` error, `130` stopped by
+Ctrl+C.
 
-In CI, one line in a workflow checks every agent pull request. Add
+In CI, one line in a workflow checks each agent pull request together with
+the other open ones into its base branch. Add
 `.github/workflows/pytxo.yml`:
 
 ```yaml

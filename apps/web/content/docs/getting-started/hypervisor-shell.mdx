@@ -3,14 +3,14 @@ title: Hypervisor Shell
 description: Use Pytxo's terminal interface to preview plans, dispatch runs, inspect status, and read agent logs.
 ---
 
-Running `pytxo` with no subcommand opens the local **Hypervisor Shell**. It has a **board** for runs, waves, and approvals; **scrollback** for command output and plan previews; and an operator **prompt** for slash commands.
+`pytxo shell` opens the local **Hypervisor Shell** (a source build with the default `full` feature; in 1.x a bare `pytxo` did this). It has a **board** for runs, waves, and approvals; **scrollback** for command output and plan previews; and an operator **prompt** for slash commands.
 
 Your agent CLI (Antigravity, Claude Code, Codex, and so on) still does the thinking. Pytxo schedules waves, spawns processes in isolated copies, and records telemetry.
 
 ## Workflow
 
 ```text
-1. pytxo                         -> trust tier picker (first visit) -> shell
+1. pytxo shell                   -> trust tier picker (first visit) -> shell
 2. /models search deepseek       -> browse BYOK models (key in env)
 3. /dry-run --agents 3           -> preview wave plan (conflicts, task graph)
 4. /run --cmd "agy --help"       -> dispatch your CLI in isolated copies
@@ -42,7 +42,7 @@ Untrusted folders block `/run` but allow `/doctor` and `/dry-run`. See [Folder t
 
 ## Scripts and CI
 
-Set `PYTXO_NO_TUI=1` (or pass an explicit subcommand) to keep the classic CLI for automation:
+For automation, call the subcommands directly:
 
 ```bash
 pytxo doctor

@@ -17,8 +17,8 @@ jobs:
 
 const POINTS = [
   ["Agent pull requests only", "Found by branch prefix or by bot author, such as Copilot, Claude, Cursor, Devin or Jules. No labels to add."],
-  ["One comment", "Posted on the pull request and updated in place. The job fails when that pull request conflicts, fails alone, or is in a combination that fails while each passes alone; when only others are to blame, the comment names them and the job passes. When nothing in the result points at any pull request, such as a combined run that timed out, every pull request in the run fails. Without comment permission the verdict goes to the job summary."],
-  ["Safe by default", "pull_request only, never pull_request_target. A fork's pull request never joins another pull request's run: it is checked in its own run, with GitHub's read-only token and no secrets."],
+  ["One comment", "Posted on the pull request that started the run and updated in place. The job fails when that pull request conflicts, fails alone, or is in a combination that fails while each passes alone; when only others are to blame, the comment names them and the job passes. When nothing in the result points at any pull request, such as a combined run that timed out, every pull request in the run fails. Without comment permission the verdict goes to the job summary."],
+  ["Safe by default", "pull_request only, never pull_request_target. A fork's pull request never joins another pull request's run: it is checked in its own run, with GitHub's read-only token and no secrets. A pull request opened by Copilot or github-actions[bot], whose runs GitHub holds for approval, joins only its own run. Your tests run in the job that holds the token, so give the workflow no other permissions or secrets."],
   ["When your agents finish", "The Claude Code plugin and the Codex hook run the same check on your machine when an agent stops."],
 ] as const;
 
@@ -28,7 +28,7 @@ export function CiSection() {
       <div className="min-w-0">
         <span className="flex items-center gap-3 font-mono text-xs uppercase tracking-[0.14em] text-[#8d8d96]">github actions<i aria-hidden className="h-px w-16 bg-[linear-gradient(90deg,#45dccb,transparent)]" /></span>
         <h2 id="ci-title" className="mt-3 max-w-[18ch] text-[clamp(2rem,3.4vw,3.25rem)] leading-[1.06] tracking-[-0.04em]">One line in CI.</h2>
-        <p className="mt-6 max-w-[44ch] text-base leading-relaxed text-[#b4b4bd]">On every agent pull request, the Action checks it together with the other open agent pull requests into the same base branch, and tells you on the pull request.</p>
+        <p className="mt-6 max-w-[44ch] text-base leading-relaxed text-[#b4b4bd]">The Action checks an agent pull request together with the other open agent pull requests into the same base branch, and tells you on that pull request. With none to combine, the job passes with a note in the job summary.</p>
         <pre className="mt-8 overflow-x-auto rounded-[4px] border border-white/10 bg-[#09090b] p-4 font-mono text-[12px] leading-[1.65] text-[#c7c7ce]" tabIndex={0} aria-label="GitHub Actions workflow"><span className="text-[#8d8d96]"># .github/workflows/pytxo.yml</span>{"\n"}{WORKFLOW}</pre>
         <div className="mt-6 flex flex-wrap gap-x-6 gap-y-6 text-sm"><Link href="/docs/getting-started/land-in-ci" className="aperture-link">Set it up →</Link><Link href="/docs/getting-started/agent-hooks" className="aperture-link">Claude Code and Codex →</Link></div>
       </div>

@@ -1,6 +1,6 @@
 ---
 title: GitHub Action
-description: Check every agent pull request together with the other open agent pull requests, with one line of GitHub Actions.
+description: Check each agent pull request together with the other open ones, with one line of GitHub Actions.
 ---
 
 Add `.github/workflows/pytxo.yml`:
@@ -28,9 +28,9 @@ No inputs, no labels, no other steps. `concurrency` stops an older run when the 
 On each `pull_request` event:
 
 1. **Is this an agent pull request?** It is when its branch matches `claude/*`, `codex/*`, `copilot/*`, `cursor/*`, `devin/*`, `jules/*` or `agent/*`, or when an agent account opened it (Copilot, Claude, Cursor, Devin or Jules). Anything else ends the job with a note in the job summary.
-2. **Which pull requests go together?** This one plus the other open agent pull requests from this repository into the same base branch, oldest first, at most 10. Drafts count. If this is the only one, there is nothing to combine.
+2. **Which pull requests go together?** This one plus the other open agent pull requests from this repository into the same base branch, oldest first, at most 10. Drafts count. A pull request opened by Copilot or `github-actions[bot]`, whose runs GitHub holds for approval, joins only its own run. If this is the only one, there is nothing to combine.
 3. **The check.** It fetches those branches and runs `npx pytxo check` on them, which merges them in a throwaway worktree and runs the test command it finds in the base branch.
-4. **The verdict.** It posts one comment on the pull request and updates it on every run.
+4. **The verdict.** It posts one comment on this pull request and updates it on every run.
 
 On `pull_request_target` it refuses to run. On any other event it does nothing and the job passes.
 
@@ -68,6 +68,7 @@ The check runs your own test command, so the runner needs whatever your tests ne
 
 - It runs on `pull_request` only. On `pull_request_target` it refuses to run, because that event would run pull-request code with a write token.
 - Your tests run in the same job that posts the comment, so code in this repository's agent branches can reach the job's `pull-requests: write` token, as in any CI job that runs that code. Give the workflow no other permissions or secrets.
+- By default GitHub runs no workflow on a pull request from Copilot or `github-actions[bot]` until someone with write access approves the run. Such a pull request never joins another pull request's run, which would run its code without that approval. Its own run, once approved, checks it with the others.
 - A fork's pull request never joins another pull request's run. It is checked in its own run, with GitHub's read-only token and no secrets, so its verdict goes to the job summary. In a private repository, keep GitHub's options that send write tokens or secrets to workflows from fork pull requests turned off.
 - The Action's own checkout does not store the token in `.git/config`. If you add your own `actions/checkout` before Pytxo, set `persist-credentials: false`.
 - Test output in the comment is redacted for common secret formats and shown as code.
@@ -77,3 +78,11 @@ The check runs your own test command, so the runner needs whatever your tests ne
 ## Private repositories
 
 The Action is free on public and private repositories today. A paid plan for private repositories is planned; see [Plans](/plans).
+
+## Moving from v1
+
+- `checks` is now `check`.
+- `inputs`, `per-input` and `base` are gone. The Action finds the agent pull requests itself and checks them against the pull request's base. Set `branches` only for other branch prefixes: it replaces the default patterns, so don't move `inputs: "agent/*"` into it.
+- Remove a `version` pinned to 1.x: the v2 Action runs `pytxo check`, which 1.x does not have.
+- Agent pull requests are found by branch prefix or bot author, not by the `agent` label, so drop the label `if:` and the fetch step. Your own `actions/checkout` can go too; if you keep it, set `persist-credentials: false`.
+- Commenting needs `pull-requests: write`.
