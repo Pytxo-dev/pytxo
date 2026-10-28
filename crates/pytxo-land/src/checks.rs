@@ -39,7 +39,10 @@ pub fn run_check(
     let spawned = new_log(&log_path).and_then(|log| {
         let err = log.try_clone()?;
         let mut cmd = shell(command);
+        // Nothing to answer a prompt with: git asks for no password, and
+        // input reads as empty.
         cmd.current_dir(cwd)
+            .env("GIT_TERMINAL_PROMPT", "0")
             .stdin(Stdio::null())
             .stdout(Stdio::from(log))
             .stderr(Stdio::from(err));
@@ -264,7 +267,9 @@ fn shell(command: &str) -> std::process::Command {
         let mut cmd = pytxo_core::background_command("sh");
         cmd.arg("-c").arg(command);
         // A group of its own: `sh -c "npm ci && npm test"` does not exec npm,
-        // so stopping only `sh` would leave the test run going.
+        // so stopping only `sh` would leave the test run going. From a
+        // terminal that group runs in the background, so a check that opens
+        // the terminal itself (an ssh passphrase, sudo) waits until --timeout.
         #[cfg(unix)]
         std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
         cmd
@@ -413,25 +418,27 @@ fn mask_private_keys(text: &str) -> String {
     out
 }
 
-/// The length of a credential name at the start of `s`, in any case:
-/// pytxo-core's `api[_-]?key`, `access[_-]?token`, `auth[_-]?token`,
-/// `secret([_-]?key)?` and `password`.
-fn credential_name(s: &str) -> Option<usize> {
-    let word = |at: usize, w: &str| {
-        s.get(at..at + w.len())
-            .is_some_and(|x| x.eq_ignore_ascii_case(w))
-            .then_some(at + w.len())
-    };
-    let joined = |head: &str, tail: &str| {
-        let at = word(0, head)?;
-        word(at + usize::from(s[at..].starts_with(['_', '-'])), tail)
-    };
-    joined("api", "key")
-        .or_else(|| joined("access", "token"))
-        .or_else(|| joined("auth", "token"))
-        .or_else(|| joined("secret", "key"))
-        .or_else(|| word(0, "secret"))
-        .or_else(|| word(0, "password"))
+/// Whether `key`, in any case and with `-` read as `_`, names a credential:
+/// `AWS_SECRET_ACCESS_KEY`, `NPM_TOKEN`, `x-api-key`, `DB_PASSWORD`... An
+/// error's name does not: `JsonWebTokenError: invalid signature`.
+fn credential_key(key: &str) -> bool {
+    let key = key.to_ascii_lowercase().replace('-', "_");
+    if key.ends_with("error") || key.ends_with("exception") {
+        return false;
+    }
+    [
+        "secret",
+        "token",
+        "password",
+        "passwd",
+        "api_key",
+        "apikey",
+        "access_key",
+        "private_key",
+        "credential",
+    ]
+    .iter()
+    .any(|word| key.contains(word))
 }
 
 /// Letters, digits, `_` and `-`.
@@ -443,12 +450,16 @@ fn aws_char(c: char) -> bool {
     c.is_ascii_uppercase() || c.is_ascii_digit()
 }
 
+fn npm_char(c: char) -> bool {
+    c.is_ascii_alphanumeric()
+}
+
 /// A credential's prefix, the least length of the rest and its characters.
 type Key = (&'static str, usize, fn(char) -> bool);
 
 /// After pytxo-core's cloud upload patterns: GitHub, OpenAI and Anthropic,
-/// Stripe, Slack, Google and AWS keys.
-const KEYS: [Key; 16] = [
+/// Stripe, Slack, Google and AWS keys, and npm tokens.
+const KEYS: [Key; 17] = [
     ("ghp_", 20, key_char),
     ("gho_", 20, key_char),
     ("ghu_", 20, key_char),
@@ -465,11 +476,13 @@ const KEYS: [Key; 16] = [
     ("AIza", 30, key_char),
     ("AKIA", 16, aws_char),
     ("ASIA", 16, aws_char),
+    ("npm_", 36, npm_char),
 ];
 
 /// `line` with the credentials a failing test may print masked: the `KEYS`,
-/// bearer tokens, the password in `scheme://user:password@host`, and values
-/// such as `password=...` or `"api_key": "..."`. Prefix scans rather than
+/// bearer tokens, the password in `scheme://user:password@host`, and the
+/// value given a key that names a credential, such as `DB_PASSWORD=...`,
+/// `"api_key": "..."` or `password => "..."`. Prefix scans rather than
 /// regexes, which would add 1.5 MB to the npm binary.
 fn redact(line: &str) -> String {
     // Bytes at the start of `s` that `allowed` accepts.
@@ -516,18 +529,41 @@ fn redact(line: &str) -> String {
                 }
             }
         }
-        // A name, maybe its closing quote, `:` or `=`, the value. Unlike
-        // `\b`, a `_` before the name counts: `DB_PASSWORD=...`.
-        if let Some(name) = credential_name(rest).filter(|_| !out.ends_with(char::is_alphanumeric))
-        {
-            let quote = usize::from(rest[name..].starts_with(['"', '\'']));
-            let sep = name + quote + run(&rest[name + quote..], &char::is_whitespace);
-            if rest[sep..].starts_with([':', '=']) {
-                let at = sep + 1 + run(&rest[sep + 1..], &char::is_whitespace);
+        // A whole key that names a credential, maybe its closing quote, `=`,
+        // `:`, `=>` or `:=`, then the value. Not `==`, a comparison, nor
+        // `::`, which joins a path such as `auth::token::tests`.
+        let key = if out.ends_with(key_char) {
+            0
+        } else {
+            run(rest, &key_char)
+        };
+        if key > 0 && credential_key(&rest[..key]) {
+            let quote = usize::from(rest[key..].starts_with(['"', '\'']));
+            let sep = key + quote + run(&rest[key + quote..], &char::is_whitespace);
+            let after = &rest[sep..];
+            let sep_len = if after.starts_with("=>") || after.starts_with(":=") {
+                2
+            } else if after.starts_with(['=', ':']) && !after[1..].starts_with(['=', ':']) {
+                1
+            } else {
+                0
+            };
+            if sep_len > 0 {
+                let at = sep + sep_len + run(&rest[sep + sep_len..], &char::is_whitespace);
                 let value = &rest[at..];
+                let word = |s: &str| run(s, &|c| !c.is_whitespace() && c != ',' && c != ';');
+                let first = word(value);
                 let len = match value.chars().next() {
                     Some(q @ ('"' | '\'')) => value[1..].find(q).map_or(value.len(), |end| end + 2),
-                    _ => run(value, &|c| !c.is_whitespace() && c != ',' && c != ';'),
+                    // `Bearer <token>`, `Basic <base64>`: the credential follows.
+                    _ if ["bearer", "basic"]
+                        .iter()
+                        .any(|s| value[..first].eq_ignore_ascii_case(s)) =>
+                    {
+                        let gap = run(&value[first..], &char::is_whitespace);
+                        first + gap + word(&value[first + gap..])
+                    }
+                    _ => first,
                 };
                 if len > 0 {
                     out.push_str(&rest[..at]);
@@ -671,15 +707,56 @@ mod tests {
             ("Secret-Key : s3cr3t;", "Secret-Key : [REDACTED];"),
             ("export AUTH_TOKEN='t0k'", "export AUTH_TOKEN=[REDACTED]"),
             ("password: p@ss, user: me", "password: [REDACTED], user: me"),
+            ("mypassword=x", "mypassword=[REDACTED]"),
+            ("token := abc", "token := [REDACTED]"),
         ] {
             assert_eq!(redact(line), masked);
         }
+        // Keys that only contain the word, Ruby's `=>`, and npm tokens. Built
+        // here, so no scanner takes the source for a leak.
+        let npm = format!("npm_{}", "abcdefghijklmnopqrstuvwxyz0123456789");
+        for (line, masked) in [
+            (
+                format!(
+                    "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENG{}",
+                    "bPxRfiCYEXAMPLEKEY"
+                ),
+                "AWS_SECRET_ACCESS_KEY=[REDACTED]",
+            ),
+            (format!("NPM_TOKEN={npm}"), "NPM_TOKEN=[REDACTED]"),
+            (
+                format!("SECRET_TOKEN={}", "plainsecretvalue"),
+                "SECRET_TOKEN=[REDACTED]",
+            ),
+            (
+                format!("password => \"{}\"", "rocket"),
+                "password => [REDACTED]",
+            ),
+            (format!("registry token {npm}"), "registry token [REDACTED]"),
+            (
+                format!("x-access-token: Bearer {}", "eyJ.a-b~c".repeat(3)),
+                "x-access-token: [REDACTED]",
+            ),
+            (
+                format!("X-Auth-Token: Basic {}", "dXNlcjpwYXNzd29yZA=="),
+                "X-Auth-Token: [REDACTED]",
+            ),
+        ] {
+            assert_eq!(redact(&line), masked);
+        }
         for kept in [
             "passwordless login works",
-            "password_reset: ok",
-            "mypassword=x",
-            "secrets: 3",
             "expected password",
+            "test result: FAILED. 3 passed; 1 failed; 0 ignored",
+            "expected: 3, got: 4 at src/token.rs:12:5",
+            "test auth::token::tests::refresh ... FAILED",
+            "assertion failed: token == expected",
+            "npm_config_user_agent=npm/10.8.2 node/v22.11.0",
+            // An error's name, though it holds a credential word.
+            "JsonWebTokenError: invalid signature",
+            "TokenExpiredError: jwt expired",
+            "CredentialsProviderError: Could not load credentials from any providers",
+            "org.example.InvalidTokenException: token is invalid",
         ] {
             assert_eq!(redact(kept), kept);
         }
@@ -703,6 +780,24 @@ mod tests {
             Duration::from_secs(30),
         );
         assert_eq!(check.output_tail, ["before", "[REDACTED]", "after"]);
+    }
+
+    /// A check never waits on a prompt nobody can answer.
+    #[test]
+    fn git_asks_a_check_for_no_password() {
+        let dir = tempfile::tempdir().unwrap();
+        #[cfg(windows)]
+        let print = "echo %GIT_TERMINAL_PROMPT%";
+        #[cfg(not(windows))]
+        let print = "echo \"$GIT_TERMINAL_PROMPT\"";
+        let check = run_check(
+            "combined",
+            print,
+            dir.path(),
+            dir.path(),
+            Duration::from_secs(30),
+        );
+        assert_eq!(check.output_tail, ["0"]);
     }
 
     #[test]

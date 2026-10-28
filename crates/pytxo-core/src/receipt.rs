@@ -97,7 +97,7 @@ pub struct ReceiptSymbolCollision {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ReceiptCheck {
-    /// `combined` or `input:<ref>`.
+    /// `combined`, `input:<ref>` or `target`.
     pub scope: String,
     pub command: String,
     /// `None` when no exit status was observed (the check never started or
@@ -167,12 +167,8 @@ impl Receipt {
     /// only with `include_paths`.
     pub fn share_payload(&self, include_paths: bool) -> serde_json::Value {
         let p = &self.predicate;
-        let tally = |scope_combined: bool| {
-            let checks: Vec<_> = p
-                .checks
-                .iter()
-                .filter(|c| (c.scope == "combined") == scope_combined)
-                .collect();
+        let tally = |in_scope: fn(&str) -> bool| {
+            let checks: Vec<_> = p.checks.iter().filter(|c| in_scope(&c.scope)).collect();
             serde_json::json!({
                 "passed": checks.iter().filter(|c| c.passed).count(),
                 "total": checks.len(),
@@ -195,7 +191,10 @@ impl Receipt {
             "shared_files": p.shared_files.len(),
             "symbol_collisions": p.shared_files.iter().map(|f| f.symbol_collisions.len()).sum::<usize>(),
             "conflicts": p.inputs.iter().filter(|i| i.status == "conflict").count(),
-            "checks": { "combined": tally(true), "per_input": tally(false) },
+            "checks": {
+                "combined": tally(|s| s == "combined"),
+                "per_input": tally(|s| s.starts_with("input:")),
+            },
             "duration_ms": p.duration_ms,
             "content_digest": p.content_digest,
         });
@@ -338,5 +337,21 @@ mod tests {
                 "{secret} leaked: {with_paths}"
             );
         }
+    }
+
+    /// A run on the target is neither combined nor per input.
+    #[test]
+    fn share_payload_counts_only_input_runs_as_per_input() {
+        let mut receipt = sample();
+        let run = receipt.predicate.checks[0].clone();
+        for scope in ["input:agent/a", "target"] {
+            receipt.predicate.checks.push(ReceiptCheck {
+                scope: scope.into(),
+                ..run.clone()
+            });
+        }
+        let checks = &receipt.share_payload(false)["checks"];
+        assert_eq!(checks["combined"]["total"], 1);
+        assert_eq!(checks["per_input"]["total"], 1);
     }
 }

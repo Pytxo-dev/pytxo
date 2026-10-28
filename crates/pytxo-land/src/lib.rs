@@ -17,7 +17,9 @@ mod overlap;
 mod render;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, Once, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -61,8 +63,10 @@ impl LandInput {
         }
     }
 
+    /// As the verdict names it: the label of a detached worktree's commit,
+    /// otherwise the reference.
     fn name(&self) -> &str {
-        &self.reference
+        render::plain_name(&self.reference, self.label.as_deref())
     }
 }
 
@@ -133,6 +137,9 @@ pub struct LandOutcome {
     pub out_of_time: bool,
     /// The target has submodules, which the checks' worktrees leave out.
     pub submodules: bool,
+    /// The conflicting inputs that conflict with the target itself, not only
+    /// with the inputs merged before them.
+    pub target_conflicts: Vec<String>,
 }
 
 impl LandOutcome {
@@ -163,8 +170,9 @@ struct OwnedWorktree {
     path: PathBuf,
 }
 
-/// Scratch worktrees are `<temp>/pytxo-land-<tag>` or `...-<tag>-solo`, where
-/// the tag is the receipt id without `rcpt_`, in lower case.
+/// Scratch worktrees are `<temp>/pytxo-<tag>/pytxo-land-<tag>` or
+/// `...-<tag>-solo`, where the tag is the receipt id without `rcpt_`, in
+/// lower case.
 const SCRATCH_PREFIX: &str = "pytxo-land-";
 
 /// One of Pytxo's own scratch worktrees: this run's, a concurrent run's, or
@@ -270,7 +278,7 @@ fn remove_stale_worktrees(repo: &Git) {
         // Tags start with the time, so they sort by it.
         if tag[..16] < *cutoff || pid.is_some_and(|p| !checks::alive(p)) {
             remove_worktree(repo, &path);
-            // On Unix its run's private directory holds the run's logs too.
+            // Its run's directory holds the run's logs too.
             let run_dir = path
                 .parent()
                 .filter(|d| d.ends_with(format!("pytxo-{tag}")));
@@ -281,55 +289,60 @@ fn remove_stale_worktrees(repo: &Git) {
     }
 }
 
-/// Where a run's scratch worktrees and check logs go. Any local user can
-/// write to a Unix temp directory, so there it is a directory of the run's
-/// own that only the user can enter, removed with the run.
+/// Where a run's scratch worktrees and check logs go: a directory of the
+/// run's own, removed with the run, or by the next run after a kill. Any
+/// local user can write to a Unix temp directory, so there only the user can
+/// enter it.
 struct RunDir(PathBuf);
 
 impl RunDir {
     fn new(tag: &str) -> Result<Self> {
-        let temp = long_temp_dir();
+        let dir = long_temp_dir().join(format!("pytxo-{tag}"));
         #[cfg(unix)]
-        let temp = {
+        let made = {
             use std::os::unix::fs::DirBuilderExt;
-            let dir = temp.join(format!("pytxo-{tag}"));
-            std::fs::DirBuilder::new()
-                .mode(0o700)
-                .create(&dir)
-                .context("creating the checks' private directory")?;
-            active().paths.push(dir.clone());
-            dir
+            std::fs::DirBuilder::new().mode(0o700).create(&dir)
         };
         #[cfg(not(unix))]
-        let _ = tag;
-        Ok(Self(temp))
+        let made = std::fs::create_dir(&dir);
+        made.context("creating the run's scratch directory")?;
+        active().paths.push(dir.clone());
+        Ok(Self(dir))
     }
 }
 
 impl Drop for RunDir {
     fn drop(&mut self) {
-        if cfg!(unix) {
-            let _ = std::fs::remove_dir_all(&self.0);
-            active().paths.retain(|p| p != &self.0);
-        }
+        let _ = std::fs::remove_dir_all(&self.0);
+        active().paths.retain(|p| p != &self.0);
     }
 }
 
-/// The temp directory, on Windows spelled in full: checks whose working
-/// directory reads `C:\Users\RUNNER~1\...` see it unlike its real path.
+/// The temp directory, on Windows spelled in full where that is safe: checks
+/// whose working directory reads `C:\Users\RUNNER~1\...` see it unlike its
+/// real path.
 fn long_temp_dir() -> PathBuf {
     let temp = std::env::temp_dir();
     #[cfg(windows)]
-    if let Ok(full) = std::fs::canonicalize(&temp) {
-        // Without the `\\?\` canonicalize adds, which many tools reject.
-        let full = full.to_string_lossy();
-        return match full.strip_prefix(r"\\?\") {
-            Some(unc) if unc.starts_with(r"UNC\") => PathBuf::from(format!(r"\{}", &unc[3..])),
-            Some(local) => PathBuf::from(local),
-            None => PathBuf::from(&*full),
-        };
+    if let Some(full) = std::fs::canonicalize(&temp)
+        .ok()
+        .and_then(|full| plain_drive_path(&full.to_string_lossy()))
+    {
+        return full;
     }
     temp
+}
+
+/// `\\?\C:\...` without the prefix, when the rest is printable ASCII with no
+/// space; otherwise the short spelling serves better. A space or a non-ASCII
+/// letter breaks tools that use the working directory unquoted (make, npm
+/// scripts), cmd.exe refuses a UNC working directory (`\\?\UNC\...`), and a
+/// volume GUID path (`\\?\Volume{...}\`) is relative without its prefix.
+#[cfg(any(windows, test))]
+fn plain_drive_path(canonical: &str) -> Option<PathBuf> {
+    let path = canonical.strip_prefix(r"\\?\")?;
+    let drive = matches!(path.as_bytes(), [d, b':', b'\\', ..] if d.is_ascii_alphabetic());
+    (drive && path.bytes().all(|b| b.is_ascii_graphic())).then(|| PathBuf::from(path))
 }
 
 /// What a run has going that Ctrl+C or a kill must not leave behind.
@@ -337,7 +350,7 @@ pub(crate) struct Active {
     /// Check processes; on Unix each leads its own process group.
     pub(crate) checks: Vec<u32>,
     worktrees: Vec<(Git, PathBuf)>,
-    /// Check logs, and on Unix the run's private directory.
+    /// Check logs and the run's directory.
     pub(crate) paths: Vec<PathBuf>,
 }
 
@@ -352,15 +365,55 @@ static ACTIVE: Mutex<Active> = Mutex::new(Active {
 pub(crate) fn active() -> MutexGuard<'static, Active> {
     static HANDLER: Once = Once::new();
     HANDLER.call_once(|| {
-        // A handler the program set first stays.
+        // A signal ignored when pytxo started stays ignored, as `nohup pytxo`
+        // and a script's `pytxo &` ask.
+        #[cfg(unix)]
+        let ignored: Vec<libc::c_int> = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP]
+            .into_iter()
+            .filter(|&signal| {
+                // SAFETY: all zeroes is a valid sigaction, and without a new
+                // action sigaction only reads the current one into it.
+                let mut old: libc::sigaction = unsafe { std::mem::zeroed() };
+                let read = unsafe { libc::sigaction(signal, std::ptr::null(), &mut old) } == 0;
+                read && old.sa_sigaction == libc::SIG_IGN
+            })
+            .collect();
+        // Replaces any handler the program set, except one it set through
+        // ctrlc first, which stays.
         let _ = ctrlc::set_handler(interrupted);
+        #[cfg(unix)]
+        for signal in ignored {
+            // SAFETY: ignoring a signal runs no code of ours.
+            unsafe { libc::signal(signal, libc::SIG_IGN) };
+        }
     });
     ACTIVE.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// Set by the first Ctrl+C, SIGTERM or SIGHUP.
+static STOPPING: AtomicBool = AtomicBool::new(false);
+
+/// The first signal says so and clears up on a thread of its own, since ctrlc
+/// handles the next signal only once this returns; the second exits at once.
+fn interrupted() {
+    if STOPPING.swap(true, Ordering::SeqCst) {
+        std::process::exit(130);
+    }
+    let _ = writeln!(
+        std::io::stderr(),
+        "pytxo is stopping and removing its scratch checkout. Press Ctrl+C again to quit at once."
+    );
+    if std::thread::Builder::new()
+        .spawn(clean_up_and_exit)
+        .is_err()
+    {
+        clean_up_and_exit();
+    }
+}
+
 /// Stops the checks, removes the scratch worktrees and exits with 130. The
 /// lock is never released, so nothing new starts meanwhile.
-fn interrupted() {
+fn clean_up_and_exit() {
     let active = ACTIVE.lock().unwrap_or_else(PoisonError::into_inner);
     for &pid in &active.checks {
         checks::kill_tree(pid);
@@ -490,6 +543,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     let owned = Git::owned(&root, identity);
     let mut receipt_inputs: Vec<ReceiptInput> = Vec::new();
     let mut reasons = Vec::new();
+    let mut target_conflicts = Vec::new();
     let mut combined = base.clone();
     let fallback_tree = if in_memory {
         None
@@ -503,31 +557,34 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             status = "empty";
         } else {
             let message = format!("pytxo land: merge {}", r.input.reference);
-            let merged = match &fallback_tree {
-                None => merge_in_memory(&owned, &combined, &r.commit, &message)?,
+            let merge = |onto: &str| match &fallback_tree {
+                None => merge_in_memory(&owned, onto, &r.commit, &message),
                 Some(tree) => {
-                    merge_in_worktree(&Git::owned(&tree.path, identity), &r.commit, &message)?
+                    let wt = Git::owned(&tree.path, identity);
+                    wt.run(&["reset", "--hard", onto])?;
+                    merge_in_worktree(&wt, &r.commit, &message)
                 }
             };
+            let merged = merge(&combined)?;
             match merged {
                 Ok(commit) => combined = commit,
                 Err(files) => {
                     status = "conflict";
                     conflict_files = files;
-                    // Merges start from the target: what no input before
-                    // this one changed, the target did.
-                    let earlier = receipt_inputs.iter().any(|i| {
-                        i.status == "merged"
-                            && (conflict_files.is_empty()
-                                || i.files.iter().any(|f| conflict_files.contains(f)))
-                    });
+                    // Merges start from the target, so an input that does
+                    // not merge onto it alone either conflicts with the
+                    // target; any other, with the inputs before it.
+                    let alone = combined == base || merge(&base)?.is_err();
+                    if alone {
+                        target_conflicts.push(r.input.reference.clone());
+                    }
                     reasons.push(format!(
                         "{} conflicts with {}{}",
                         r.input.reference,
-                        if earlier {
-                            "the inputs before it"
-                        } else {
+                        if alone {
                             target_name
+                        } else {
+                            "the inputs before it"
                         },
                         if conflict_files.is_empty() {
                             String::new()
@@ -834,10 +891,11 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             .filter(of_command)
             .filter(|c| c.scope.starts_with("input:"))
             .collect();
+        // A run that timed out on the target says nothing about it.
         let on_target = checks
             .iter()
             .filter(of_command)
-            .find(|c| c.scope == "target");
+            .find(|c| c.scope == "target" && !c.timed_out);
         let everywhere = !solo.is_empty()
             && solo.iter().all(|c| !c.passed)
             && !on_target.is_some_and(|c| c.passed);
@@ -904,6 +962,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         insights,
         out_of_time,
         submodules,
+        target_conflicts,
     })
 }
 

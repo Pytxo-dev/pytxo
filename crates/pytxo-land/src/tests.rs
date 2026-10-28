@@ -880,7 +880,8 @@ fn test_output_shows_only_as_code_in_markdown() {
 fn check_output_shows_as_a_terminal_would() {
     let dir = repo();
     let d = dir.path();
-    let printed = "\u{1b}[31mFAIL\u{1b}[0m 2 tests\n0%\r# @octocat broke it\n";
+    // Both lines read as errors, so both reach the comment.
+    let printed = "\u{1b}[31mFAIL\u{1b}[0m 2 tests\n0%\r# @octocat failed it\n";
     branch(d, "main", "agent/a", &[("out.txt", printed)]);
     let mut o = opts(d, &["agent/a"]);
     #[cfg(windows)]
@@ -891,7 +892,7 @@ fn check_output_shows_as_a_terminal_would() {
     let out = land(&o).unwrap();
     assert_eq!(
         out.receipt.predicate.checks[0].output_tail,
-        ["FAIL 2 tests", "# @octocat broke it"]
+        ["FAIL 2 tests", "# @octocat failed it"]
     );
     let md = render_markdown(&out);
     assert!(!md.contains(['\r', '\u{1b}']), "{md:?}");
@@ -905,15 +906,24 @@ fn check_output_shows_as_a_terminal_would() {
 }
 
 /// What the target changed since a branch was cut is named as the target,
-/// not as the branches before it.
+/// not as the branches before it, even one that changed the same file
+/// elsewhere: rebasing onto that one would not help.
 #[test]
 fn a_conflict_with_the_target_names_the_target() {
     let again = "run npx pytxo again";
     let dir = repo();
     let d = dir.path();
-    branch(d, "main", "agent/a", &[("docs/a.md", "a\n")]);
-    branch(d, "main", "agent/b", &[("README.md", "# shop B\n")]);
-    write(d, &[("README.md", "# shop main\n")]);
+    let readme = "# shop\n\nSells things.\n\nOpen daily.\n\nMIT\n";
+    write(d, &[("README.md", readme)]);
+    git(d, &["commit", "-q", "-am", "readme"]);
+    let last = readme.replace("MIT", "Apache-2.0");
+    branch(d, "main", "agent/a", &[("README.md", &last)]);
+    let first = readme.replace("# shop", "# shop B");
+    branch(d, "main", "agent/b", &[("README.md", &first)]);
+    write(
+        d,
+        &[("README.md", &readme.replace("# shop", "# shop main"))],
+    );
     git(d, &["commit", "-q", "-am", "main moves on"]);
 
     for inputs in [&["agent/b"][..], &["agent/a", "agent/b"]] {
@@ -937,6 +947,39 @@ fn a_conflict_with_the_target_names_the_target() {
             render_markdown(&out).starts_with("### ⛔ BLOCKED: `agent/b` conflicts with `main`\n")
         );
     }
+}
+
+/// A run on the target that times out says nothing about the target: the
+/// check is not blamed on it.
+#[test]
+fn a_target_run_that_times_out_blames_nothing() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.bad", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.bad", "b\n")]);
+    // Fails at once where a branch is, and runs until stopped on main.
+    #[cfg(windows)]
+    let check =
+        "if exist a.bad (exit 1) else if exist b.bad (exit 1) else (ping -n 30 127.0.0.1 > nul)";
+    #[cfg(not(windows))]
+    let check = "test -f a.bad && exit 1; test -f b.bad && exit 1; sleep 30";
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.checks = vec![check.into()];
+    o.per_input = PerInput::OnFailure;
+    o.check_timeout = Duration::from_secs(3);
+    let out = land(&o).unwrap();
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        checks.iter().any(|c| c.scope == "target" && c.timed_out),
+        "{checks:?}"
+    );
+    let said = out.insights.join("\n");
+    assert!(said.contains("failed on every input alone too"), "{said}");
+    assert!(!said.contains("on main"), "{said}");
+    assert_eq!(
+        verdict(&out, "again").what,
+        format!("{check} fails on every branch alone too, so the combination is not the problem.")
+    );
 }
 
 /// A combined run that times out is the answer: each further run could take
@@ -1050,7 +1093,8 @@ fn a_failure_says_how_to_include_submodules() {
 }
 
 /// The gate's own git commands run no hooks: not the repository's, and on
-/// Unix none another user could plant in the shared temp directory.
+/// Unix none another user could plant in the shared temp directory, where
+/// the hooks path once pointed.
 #[test]
 fn scratch_checkouts_run_no_hooks() {
     let dir = repo();
@@ -1070,10 +1114,28 @@ fn scratch_checkouts_run_no_hooks() {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
+    // Planted only when this test makes the directory, and removed before
+    // anything can fail.
+    #[cfg(unix)]
+    let planted = {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join("pytxo-land-no-hooks-dir-does-not-exist");
+        std::fs::create_dir(&dir).is_ok().then(|| {
+            let hook = dir.join("post-checkout");
+            std::fs::write(&hook, format!("#!/bin/sh\ntouch '{touch}'\n")).unwrap();
+            std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+            dir
+        })
+    };
     let mut o = opts(d, &["agent/a"]);
     o.checks = vec!["echo ok".into()];
     o.per_input = PerInput::Always;
-    assert_eq!(land(&o).unwrap().decision(), "ready");
+    let decision = land(&o).map(|out| out.decision().to_string());
+    #[cfg(unix)]
+    if let Some(dir) = planted {
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    assert_eq!(decision.unwrap(), "ready");
     assert!(!ran.exists());
     // The hook runs when the user's own git checks out.
     git(d, &["checkout", "-q", "agent/a"]);
@@ -1081,19 +1143,145 @@ fn scratch_checkouts_run_no_hooks() {
 }
 
 /// Checks whose working directory reads `C:\Users\RUNNER~1\...` see it unlike
-/// its real path.
+/// its real path, so it is spelled in full unless that has a space or the
+/// like (`C:\Users\Jane Doe\...`).
 #[cfg(windows)]
 #[test]
 fn the_temp_dir_is_spelled_in_full() {
     let temp = long_temp_dir();
     let shown = temp.to_string_lossy();
-    assert!(
-        !shown.starts_with(r"\\?\") && !shown.contains('~'),
-        "{shown}"
-    );
+    let full = std::fs::canonicalize(std::env::temp_dir()).unwrap();
+    assert!(!shown.starts_with(r"\\?\"), "{shown}");
+    if plain_drive_path(&full.to_string_lossy()).is_some() {
+        assert!(!shown.contains('~'), "{shown}");
+    }
+    assert_eq!(std::fs::canonicalize(&temp).unwrap(), full);
+}
+
+/// Only a plain drive path replaces the temp directory's own spelling.
+#[test]
+fn the_temp_dir_is_spelled_in_full_only_when_plain() {
     assert_eq!(
-        std::fs::canonicalize(&temp).unwrap(),
-        std::fs::canonicalize(std::env::temp_dir()).unwrap()
+        plain_drive_path(r"\\?\C:\Users\runneradmin\AppData\Local\Temp"),
+        Some(PathBuf::from(r"C:\Users\runneradmin\AppData\Local\Temp"))
+    );
+    for kept in [
+        r"\\?\C:\Users\Jane Doe\AppData\Local\Temp",
+        r"\\?\C:\Users\José\AppData\Local\Temp",
+        r"\\?\UNC\fileserver\home\jane\Temp",
+        r"\\?\Volume{0b7d4f8e-1c2a-4e5b-9a3d-6f1e2d3c4b5a}\Temp",
+        r"C:\Users\jane\AppData\Local\Temp",
+    ] {
+        assert_eq!(plain_drive_path(kept), None, "{kept}");
+    }
+}
+
+/// A run's worktrees and check logs sit in a directory of its own, which
+/// goes with the run, or with the next run after a kill.
+#[test]
+fn a_run_keeps_its_worktrees_and_logs_in_a_directory_of_its_own() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    let mut o = opts(d, &["agent/a"]);
+    #[cfg(windows)]
+    let list = "cd && dir /b ..";
+    #[cfg(not(windows))]
+    let list = "pwd && ls ..";
+    o.checks = vec![list.into()];
+    let out = land(&o).unwrap();
+    let p = &out.receipt.predicate;
+    let shown = &p.checks[0].output_tail;
+    let run_dir = Path::new(&shown[0]).parent().unwrap();
+    let tag = p.id.trim_start_matches("rcpt_").to_lowercase();
+    assert!(run_dir.ends_with(format!("pytxo-{tag}")), "{shown:?}");
+    assert!(
+        shown
+            .iter()
+            .any(|l| l.starts_with("pytxo-check-") && l.ends_with(".log")),
+        "{shown:?}"
+    );
+    assert!(!run_dir.exists(), "{shown:?}");
+}
+
+/// A detached worktree's commit shows as its label, not as a hash, in a
+/// --strict collision too.
+#[test]
+fn a_collision_names_a_detached_worktree_by_its_label() {
+    let dir = repo();
+    let d = dir.path();
+    let c = CART.replace("let sum = 0;", "let sum = 0; // start");
+    let c2 = CART.replace("return sum;", "return Math.round(sum);");
+    branch(d, "main", "agent/c", &[("src/cart.js", &c)]);
+    branch(d, "main", "agent/c2", &[("src/cart.js", &c2)]);
+    let codex = format!("codex:{}", git(d, &["rev-parse", "agent/c"]));
+    let claude = format!("claude:{}", git(d, &["rev-parse", "agent/c2"]));
+    let mut o = opts(d, &[codex.as_str(), claude.as_str()]);
+    o.strict = true;
+    let out = land(&o).unwrap();
+    let shared = &out.receipt.predicate.shared_files[0];
+    assert_eq!(shared.inputs, ["codex", "claude"]);
+    assert_eq!(shared.symbol_collisions[0].inputs, ["codex", "claude"]);
+    assert_eq!(
+        verdict(&out, "again").what,
+        "codex and claude both changed total in src/cart.js."
+    );
+}
+
+/// Ctrl+C says what it does, and a second one quits at once while the
+/// clean-up is still slow; on Unix a signal ignored at start (`nohup pytxo`)
+/// stays ignored. In a child process, whose handler this test installs.
+#[test]
+fn a_second_ctrl_c_quits_at_once() {
+    const CHILD: &str = "PYTXO_LAND_CTRL_C_TEST";
+    if std::env::var_os(CHILD).is_some() {
+        // SAFETY: ignoring a signal runs no code.
+        #[cfg(unix)]
+        unsafe {
+            libc::signal(libc::SIGHUP, libc::SIG_IGN);
+        }
+        // The clean-up waits for this lock, as for a slow removal.
+        let _busy = active();
+        #[cfg(unix)]
+        {
+            // SAFETY: raise signals only this process.
+            unsafe { libc::raise(libc::SIGHUP) };
+            std::thread::sleep(Duration::from_millis(500));
+            assert!(!STOPPING.load(Ordering::SeqCst), "SIGHUP was handled");
+        }
+        // As ctrlc's thread would, once for each Ctrl+C.
+        std::thread::spawn(interrupted).join().unwrap();
+        interrupted();
+        unreachable!("the second Ctrl+C exits");
+    }
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "tests::a_second_ctrl_c_quits_at_once",
+            "--nocapture",
+        ])
+        .env(CHILD, "1")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break Some(status);
+        }
+        if started.elapsed() > Duration::from_secs(30) {
+            let _ = child.kill();
+            break None;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    let mut said = String::new();
+    std::io::Read::read_to_string(&mut child.stderr.take().unwrap(), &mut said).unwrap();
+    assert_eq!(status.and_then(|s| s.code()), Some(130), "{said}");
+    assert!(
+        said.contains("Press Ctrl+C again to quit at once."),
+        "{said}"
     );
 }
 
@@ -1103,7 +1291,9 @@ fn the_temp_dir_is_spelled_in_full() {
 #[test]
 fn the_run_directory_is_private() {
     use std::os::unix::fs::PermissionsExt;
-    let run = RunDir::new("20261029t000000z_0badc0de").unwrap();
+    // Unique, so no other run's directory is in the way.
+    let tag = new_receipt_id().trim_start_matches("rcpt_").to_lowercase();
+    let run = RunDir::new(&tag).unwrap();
     let mode = std::fs::metadata(&run.0).unwrap().permissions().mode();
     assert_eq!(mode & 0o777, 0o700);
     let path = run.0.clone();

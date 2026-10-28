@@ -294,11 +294,11 @@ impl std::fmt::Display for Verdict {
 
 /// A branch as a person names it: the label of a detached worktree's
 /// commit, otherwise the branch.
-fn plain_name(i: &pytxo_core::ReceiptInput) -> String {
-    let is_commit = i.reference.len() >= 7 && i.reference.chars().all(|c| c.is_ascii_hexdigit());
-    match &i.agent {
-        Some(label) if is_commit => label.clone(),
-        _ => i.reference.clone(),
+pub(crate) fn plain_name<'a>(reference: &'a str, label: Option<&'a str>) -> &'a str {
+    let is_commit = reference.len() >= 7 && reference.chars().all(|c| c.is_ascii_hexdigit());
+    match label {
+        Some(label) if is_commit => label,
+        _ => reference,
     }
 }
 
@@ -355,7 +355,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
             text.to_string()
         }
     };
-    let branch = |i: &pytxo_core::ReceiptInput| shown(&plain_name(i));
+    let branch = |i: &pytxo_core::ReceiptInput| shown(plain_name(&i.reference, i.agent.as_deref()));
     let all: Vec<String> = p.inputs.iter().map(branch).collect();
     let names = and_list(&all);
     let several = all.len() > 1;
@@ -398,23 +398,27 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
         }
         "blocked" => {
             if let Some(c) = p.inputs.iter().find(|i| i.status == "conflict") {
-                let earlier: Vec<String> = p
+                let before: Vec<&pytxo_core::ReceiptInput> = p
                     .inputs
                     .iter()
                     .take_while(|i| i.reference != c.reference)
-                    .filter(|i| {
-                        i.status == "merged"
-                            && (c.conflict_files.is_empty()
-                                || i.files.iter().any(|f| c.conflict_files.contains(f)))
-                    })
-                    .map(branch)
+                    .filter(|i| i.status == "merged")
                     .collect();
-                // Merges start from the target: what no branch before this
-                // one changed, the target did.
-                let others = if earlier.is_empty() {
+                let touched: Vec<String> = before
+                    .iter()
+                    .filter(|i| i.files.iter().any(|f| c.conflict_files.contains(f)))
+                    .map(|i| branch(i))
+                    .collect();
+                // Merges start from the target: a branch that does not merge
+                // onto it alone either conflicts with the target; any other,
+                // with the branches before it that changed the same files.
+                let others = if before.is_empty() || outcome.target_conflicts.contains(&c.reference)
+                {
                     shown(target)
+                } else if touched.is_empty() {
+                    and_list(&before.iter().map(|i| branch(i)).collect::<Vec<_>>())
                 } else {
-                    and_list(&earlier)
+                    and_list(&touched)
                 };
                 let files = match c.conflict_files.as_slice() {
                     [] => "the same lines".to_string(),
@@ -473,10 +477,11 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                     .iter()
                     .filter(|s| s.scope.starts_with("input:") && s.command == c.command)
                     .collect();
+                // A run that timed out on the target says nothing about it.
                 let on_target = p
                     .checks
                     .iter()
-                    .find(|s| s.scope == "target" && s.command == c.command);
+                    .find(|s| s.scope == "target" && s.command == c.command && !s.timed_out);
                 let why = |check: &ReceiptCheck, place: &str| match first_line(check) {
                     Some(line) => format!("{cmd} fails {place}: {line}"),
                     None => format!(
@@ -627,7 +632,10 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
             None => v(
                 "no_tests",
                 "NO TESTS",
-                format!("{names} merge cleanly onto {target}, but no tests ran."),
+                format!(
+                    "{names} {} cleanly onto {target}, but no tests ran.",
+                    if several { "merge" } else { "merges" }
+                ),
                 format!("no test command was found at the root of {target} (package.json, Cargo.toml, go.mod, pyproject.toml...)."),
                 if pr {
                     "set the Action's `check:` input to your test command.".into()
@@ -816,6 +824,7 @@ mod tests {
             insights: Vec::new(),
             out_of_time: false,
             submodules: false,
+            target_conflicts: Vec::new(),
         }
     }
 
@@ -1059,6 +1068,41 @@ mod tests {
     #[test]
     fn a_code_span_stays_on_one_line() {
         assert_eq!(code_span("0%\r# @x\nb"), "`0% # @x b`");
+    }
+
+    #[test]
+    fn one_branch_merges_cleanly() {
+        let mut p = blocked("merged", Vec::new());
+        p.decision = "ready".into();
+        p.inputs.truncate(1);
+        assert_eq!(
+            verdict(&outcome(p), "again").what,
+            "a merges cleanly onto main, but no tests ran."
+        );
+    }
+
+    /// A target run that timed out is no evidence: the verdict says only what
+    /// the branches showed.
+    #[test]
+    fn a_target_run_that_timed_out_is_not_blamed() {
+        let timed_out = ReceiptCheck {
+            timed_out: true,
+            exit_code: None,
+            ..check("target", false)
+        };
+        let checks = vec![
+            check("combined", false),
+            check("input:a", false),
+            check("input:b", false),
+            check("input:c", false),
+            timed_out,
+        ];
+        let v = verdict(&outcome(blocked("merged", checks)), "again");
+        assert_eq!(
+            v.what,
+            "npm test fails on every branch alone too, so the combination is not the problem."
+        );
+        assert_eq!(v.why, "npm test exits 1 on each branch.");
     }
 
     #[test]
