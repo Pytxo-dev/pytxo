@@ -668,8 +668,9 @@ fn plain_verdicts_say_what_why_and_next() {
     );
     assert!(md.contains("**Next:** rebase agent/d onto agent/c"), "{md}");
     assert!(
-        md.trim_end()
-            .ends_with(&format!("<sub>{INSTALL_HINT}</sub>")),
+        md.ends_with(&format!(
+            "<sub>{INSTALL_HINT}</sub>\n\n<!-- pytxo-verdict {{\"label\":\"BLOCKED\",\"implicated\":[1]}} -->\n"
+        )),
         "{md}"
     );
     assert!(

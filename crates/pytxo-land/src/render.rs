@@ -1,5 +1,6 @@
 //! Terminal and pull-request (Markdown) summaries of a landing outcome.
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use pytxo_core::{ReceiptCheck, ReceiptPredicate};
@@ -32,6 +33,68 @@ fn passed_when_rerun(p: &ReceiptPredicate, c: &ReceiptCheck) -> bool {
         && p.checks
             .iter()
             .any(|r| r.rerun && r.passed && r.command == c.command)
+}
+
+/// Positions, in command-line order, of the inputs a BLOCKED verdict blames:
+/// one that does not merge, one whose own check fails alone, and every input
+/// of a combination that fails although each passes alone. Every input when
+/// it blames none of those (say the combined run timed out before any input
+/// ran alone), so the GitHub Action stays conservative. Empty for any other
+/// label.
+fn implicated(p: &ReceiptPredicate, label: &str) -> Vec<usize> {
+    if label != "BLOCKED" {
+        return Vec::new();
+    }
+    let all = 0..p.inputs.len();
+    let alone = |n: usize| {
+        let scope = format!("input:{}", p.inputs[n].reference);
+        p.checks.iter().filter(move |c| c.scope == scope)
+    };
+    let mut blamed: BTreeSet<usize> = all
+        .clone()
+        .filter(|&n| p.inputs[n].status == "conflict" || alone(n).any(|c| !c.passed))
+        .collect();
+    let merged: Vec<usize> = all
+        .clone()
+        .filter(|&n| p.inputs[n].status == "merged")
+        .collect();
+    let together = p
+        .checks
+        .iter()
+        .filter(|c| c.scope == "combined" && !c.passed && !c.rerun && !passed_when_rerun(p, c))
+        .any(|c| {
+            merged.iter().all(|&n| {
+                let runs: Vec<&ReceiptCheck> =
+                    alone(n).filter(|r| r.command == c.command).collect();
+                !runs.is_empty() && runs.iter().all(|r| r.passed)
+            })
+        });
+    if together {
+        blamed.extend(&merged);
+    }
+    if blamed.is_empty() {
+        all.collect()
+    } else {
+        blamed.into_iter().collect()
+    }
+}
+
+/// The last line of a pull-request comment, for the GitHub Action:
+/// `<!-- pytxo-verdict {"label":"BLOCKED","implicated":[0,2]} -->`.
+fn verdict_tag(p: &ReceiptPredicate, label: &str) -> String {
+    #[derive(Serialize)]
+    struct Tag<'a> {
+        label: &'a str,
+        implicated: Vec<usize>,
+    }
+    let tag = Tag {
+        label,
+        implicated: implicated(p, label),
+    };
+    format!(
+        "<!-- pytxo-verdict {} -->",
+        serde_json::to_string(&tag).expect("plain data")
+    )
 }
 
 /// Inputs that conflicted and so are absent from the tree the combined checks
@@ -659,5 +722,176 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
         let _ = writeln!(s, "\nReceipt `{}` · digest `{}`", p.id, p.content_digest);
     }
     let _ = writeln!(s, "\n</details>\n\n<sub>{INSTALL_HINT}</sub>");
+    let _ = writeln!(s, "\n{}", verdict_tag(p, verdict.label));
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pytxo_core::{Receipt, ReceiptInput};
+
+    fn input(reference: &str, status: &str) -> ReceiptInput {
+        ReceiptInput {
+            reference: reference.into(),
+            agent: None,
+            commit: "0".repeat(40),
+            status: status.into(),
+            files: vec![format!("{reference}.txt")],
+            conflict_files: Vec::new(),
+        }
+    }
+
+    fn check(scope: &str, passed: bool) -> ReceiptCheck {
+        ReceiptCheck {
+            scope: scope.into(),
+            command: "npm test".into(),
+            exit_code: Some(if passed { 0 } else { 1 }),
+            passed,
+            duration_ms: 1,
+            timed_out: false,
+            output_tail: Vec::new(),
+            rerun: false,
+        }
+    }
+
+    fn rerun(passed: bool) -> ReceiptCheck {
+        ReceiptCheck {
+            rerun: true,
+            ..check("combined", passed)
+        }
+    }
+
+    /// Inputs a, b and c, the third one as `c_status`.
+    fn blocked(c_status: &str, checks: Vec<ReceiptCheck>) -> ReceiptPredicate {
+        ReceiptPredicate {
+            id: "rcpt_20261028T120005Z_ab12cd34".into(),
+            kind: "land".into(),
+            created_at: String::new(),
+            pytxo_version: String::new(),
+            decision: "blocked".into(),
+            mode: "shadow".into(),
+            target: Some("main".into()),
+            base: "0".repeat(40),
+            result: None,
+            inputs: vec![
+                input("a", "merged"),
+                input("b", "merged"),
+                input("c", c_status),
+            ],
+            files_changed: 3,
+            shared_files: Vec::new(),
+            checks,
+            reasons: vec!["blocked".into()],
+            duration_ms: 1,
+            content_digest: String::new(),
+        }
+    }
+
+    #[test]
+    fn only_a_blocked_verdict_implicates_anyone() {
+        let p = blocked(
+            "conflict",
+            vec![check("input:a", false), check("combined", false)],
+        );
+        for label in ["READY", "LANDED", "FLAKY", "NO TESTS", "STALE"] {
+            assert_eq!(implicated(&p, label), Vec::<usize>::new(), "{label}");
+        }
+    }
+
+    #[test]
+    fn an_input_that_does_not_merge_is_implicated() {
+        let p = blocked("conflict", vec![check("combined", true)]);
+        assert_eq!(implicated(&p, "BLOCKED"), [2]);
+    }
+
+    #[test]
+    fn an_input_that_fails_alone_is_implicated() {
+        let checks = vec![
+            check("combined", false),
+            check("input:a", true),
+            check("input:b", false),
+            check("input:c", true),
+        ];
+        assert_eq!(implicated(&blocked("merged", checks), "BLOCKED"), [1]);
+        // Not merging onto the target alone counts as failing alone.
+        let checks = vec![
+            check("input:a", true),
+            ReceiptCheck {
+                command: "(merge onto target)".into(),
+                ..check("input:c", false)
+            },
+        ];
+        assert_eq!(implicated(&blocked("merged", checks), "BLOCKED"), [2]);
+    }
+
+    #[test]
+    fn a_combination_that_fails_while_each_input_passes_alone_implicates_all_of_it() {
+        let alone_ok = || ["input:a", "input:b", "input:c"].map(|s| check(s, true));
+        let mut checks = vec![check("combined", false)];
+        checks.extend(alone_ok());
+        checks.push(rerun(false));
+        assert_eq!(implicated(&blocked("merged", checks), "BLOCKED"), [0, 1, 2]);
+        // A conflicting input is not in the combination, but is blamed itself.
+        let mut checks = vec![check("combined", false)];
+        checks.extend(alone_ok());
+        checks.push(rerun(false));
+        assert_eq!(
+            implicated(&blocked("conflict", checks), "BLOCKED"),
+            [0, 1, 2]
+        );
+        let checks = vec![
+            check("combined", false),
+            check("input:a", true),
+            check("input:b", true),
+            rerun(false),
+        ];
+        assert_eq!(implicated(&blocked("empty", checks), "BLOCKED"), [0, 1]);
+    }
+
+    #[test]
+    fn a_block_no_input_explains_implicates_every_input() {
+        // The combined run timed out, with no per-input runs to say more.
+        let timed_out = ReceiptCheck {
+            timed_out: true,
+            exit_code: None,
+            ..check("combined", false)
+        };
+        assert_eq!(
+            implicated(&blocked("merged", vec![timed_out]), "BLOCKED"),
+            [0, 1, 2]
+        );
+        // A combined failure without per-input runs, or with no check at all
+        // (a --strict symbol collision, a refused --apply).
+        assert_eq!(
+            implicated(
+                &blocked("merged", vec![check("combined", false)]),
+                "BLOCKED"
+            ),
+            [0, 1, 2]
+        );
+        assert_eq!(
+            implicated(&blocked("merged", Vec::new()), "BLOCKED"),
+            [0, 1, 2]
+        );
+    }
+
+    #[test]
+    fn markdown_ends_with_the_verdict_tag() {
+        let p = blocked("conflict", vec![check("combined", true)]);
+        let outcome = LandOutcome {
+            receipt: Receipt::new(p, "git:main", None),
+            receipt_path: Default::default(),
+            combined_ref: None,
+            insights: Vec::new(),
+        };
+        let md = render_markdown(&outcome);
+        let last = md.trim_end().lines().last().unwrap();
+        assert_eq!(
+            last,
+            r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[2]} -->"#
+        );
+        assert_eq!(md.matches("pytxo-verdict").count(), 1, "{md}");
+        assert!(md.ends_with(&format!("<sub>{INSTALL_HINT}</sub>\n\n{last}\n")));
+    }
 }
