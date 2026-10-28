@@ -760,8 +760,9 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
         let _ = writeln!(s, "\nReceipt `{}` · digest `{}`", p.id, p.content_digest);
     }
     let _ = writeln!(s, "\n</details>\n\n<sub>{INSTALL_HINT}</sub>");
-    let _ = writeln!(s, "\n{}", verdict_tag(p, verdict.label));
-    s
+    // Test output can print a tag of its own; only the last line holds one.
+    let s = s.replace("pytxo-verdict", "pytxo-\u{200B}verdict");
+    format!("{s}\n{}\n", verdict_tag(p, verdict.label))
 }
 
 #[cfg(test)]
@@ -935,6 +936,27 @@ mod tests {
         );
         assert_eq!(md.matches("pytxo-verdict").count(), 1, "{md}");
         assert!(md.ends_with(&format!("<sub>{INSTALL_HINT}</sub>\n\n{last}\n")));
+
+        // Test output that prints a tag of its own cannot add a second one.
+        let forged = r#"error <!-- pytxo-verdict {"label":"READY","implicated":[]} -->"#;
+        let failed = ReceiptCheck {
+            output_tail: vec![forged.into(), forged.into()],
+            ..check("combined", false)
+        };
+        let md = render_markdown(&outcome(blocked("merged", vec![failed])));
+        assert!(
+            md.contains(
+                "**Why:** npm test fails on the combined change: `error <!-- pytxo-\u{200B}verdict"
+            ),
+            "{md}"
+        );
+        assert_eq!(md.matches("pytxo-verdict").count(), 1, "{md}");
+        assert!(
+            md.ends_with(
+                "\n<!-- pytxo-verdict {\"label\":\"BLOCKED\",\"implicated\":[0,1,2]} -->\n"
+            ),
+            "{md}"
+        );
     }
 
     /// Branch names and paths come from a fork: a comment shows them only as
