@@ -140,6 +140,16 @@ fn main() {
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(e) => {
+            // `pytxo shell --eval x`: the 1.x flags fail before the check
+            // can say that this build has no shell.
+            #[cfg(not(feature = "full"))]
+            if e.use_stderr() {
+                let first = std::env::args().skip(1).find(|a| !a.starts_with('-'));
+                if let Some(line) = first.and_then(|a| check::left_out(&a, ".".as_ref())) {
+                    eprintln!("error: {line}");
+                    std::process::exit(1);
+                }
+            }
             // Usage errors exit 1, not clap's 2: 2 means "blocked".
             let code = if e.use_stderr() { 1 } else { 0 };
             let _ = e.print();

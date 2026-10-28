@@ -350,15 +350,21 @@ fn a_hook_out_of_time_says_so_and_leaves_no_worktree() {
 fn pytxo_1x_commands_say_this_build_leaves_them_out() {
     let dir = repo(&["claude/a"]);
     let d = dir.path();
-    for command in ["shell", "doctor"] {
-        let out = pytxo(d, &[command], None);
-        assert_eq!(out.status.code(), Some(1), "{command}");
+    // With the 1.x flags too, which this build's parser does not know.
+    let lines: [&[&str]; 5] = [
+        &["shell"],
+        &["doctor"],
+        &["shell", "--eval", "x"],
+        &["doctor", "--quick"],
+        &["logs", "--agent", "a"],
+    ];
+    for args in lines {
+        let out = pytxo(d, args, None);
+        assert_eq!(out.status.code(), Some(1), "{args:?}");
         let err = String::from_utf8_lossy(&out.stderr);
-        assert_eq!(err.lines().count(), 1, "{err}");
-        assert!(
-            err.contains(&format!("{command} is a Pytxo 1.x command"))
-                && err.contains("a source build with default features has it"),
-            "{err}"
+        assert_eq!(
+            err,
+            format!("error: {} is a Pytxo 1.x command that is not in this build; a source build with default features has it\n", args[0])
         );
     }
     // Outside a repository too.

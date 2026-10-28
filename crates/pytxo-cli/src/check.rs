@@ -80,6 +80,15 @@ pub const FULL_ONLY: [&str; 22] = [
     "whoami",
 ];
 
+/// The error for `arg` when it names a Pytxo 1.x command this build leaves
+/// out and no branch or commit: `pytxo shell` would look for a branch.
+#[cfg(not(feature = "full"))]
+pub fn left_out(arg: &str, cwd: &Path) -> Option<String> {
+    (FULL_ONLY.contains(&arg) && pytxo_land::Git::user(cwd).commit_of(arg).is_err()).then(|| {
+        format!("{arg} is a Pytxo 1.x command that is not in this build; a source build with default features has it")
+    })
+}
+
 /// Runs the check and returns the exit code: 0 ready or nothing to check,
 /// 2 blocked, 3 stale.
 pub fn run(args: CheckArgs) -> Result<i32> {
@@ -87,14 +96,9 @@ pub fn run(args: CheckArgs) -> Result<i32> {
         Some(repo) => repo.clone(),
         None => std::env::current_dir()?,
     };
-    // In this build `pytxo shell` would look for a branch named shell.
     #[cfg(not(feature = "full"))]
-    if let Some(name) = args.branches.iter().find(|b| {
-        FULL_ONLY.contains(&b.as_str()) && pytxo_land::Git::user(&cwd).commit_of(b).is_err()
-    }) {
-        anyhow::bail!(
-            "{name} is a Pytxo 1.x command that is not in this build; a source build with default features has it"
-        );
+    if let Some(line) = args.branches.iter().find_map(|b| left_out(b, &cwd)) {
+        anyhow::bail!(line);
     }
     let plan = detect::plan(&cwd, &args.branches, args.into.as_deref(), &args.checks)?;
     if plan.branches.is_empty() {
