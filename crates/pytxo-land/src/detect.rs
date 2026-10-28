@@ -63,12 +63,7 @@ impl AgentBranch {
 
     /// As the verdict names it: a detached worktree's label, else the branch.
     pub fn name(&self) -> &str {
-        let commit =
-            self.reference.len() >= 7 && self.reference.chars().all(|c| c.is_ascii_hexdigit());
-        match &self.label {
-            Some(label) if commit => label,
-            _ => &self.reference,
-        }
+        crate::render::plain_name(&self.reference, self.label.as_deref())
     }
 }
 
