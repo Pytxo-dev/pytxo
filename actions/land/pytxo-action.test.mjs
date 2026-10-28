@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   commentBody,
+  DEFAULT_PATTERNS,
   glob,
   INSTALL_HINT,
   isAgentPr,
@@ -43,7 +44,8 @@ test("patterns match like the CLI's: * crosses slashes, a trailing / means every
   assert.ok(!glob("codex/*", "codexx/a"));
   assert.ok(!glob("claude/*", "my-claude/a"));
   assert.deepEqual(parsePatterns("claude/, bots/*"), ["claude/*", "bots/*"]);
-  assert.equal(parsePatterns("").length, 7);
+  assert.deepEqual(DEFAULT_PATTERNS, ["claude/*", "codex/*", "copilot/*", "cursor/*", "devin/*", "jules/*", "agent/*"]);
+  assert.equal(parsePatterns(""), DEFAULT_PATTERNS);
 });
 
 test("agent pull requests are found by branch prefix or by the agent's account", () => {
@@ -83,10 +85,35 @@ test("a fork PR is checked with the base repo's agent PRs, never the other way r
   );
 });
 
+test("a PR GitHub holds for workflow approval joins only its own run", () => {
+  const copilot = pr(10, "copilot/fix-tax", { login: "Copilot" });
+  const open = [
+    pr(9, "claude/rename"),
+    copilot,
+    pr(11, "add-docs", { login: "copilot-swe-agent[bot]" }),
+    pr(12, "agent/bump-deps", { login: "github-actions[bot]" }),
+    pr(14, "codex/discount"),
+  ];
+  const other = selectPrs(open[4], open);
+  assert.deepEqual(
+    other.prs.map((p) => p.number),
+    [9, 14],
+  );
+  assert.deepEqual(other.notes, ["3 agent pull requests that GitHub holds for workflow approval left out."]);
+  // Its own run, once approved, checks it with the others.
+  const own = selectPrs(copilot, open);
+  assert.deepEqual(
+    own.prs.map((p) => p.number),
+    [9, 14, 10],
+  );
+  assert.deepEqual(own.notes, ["2 agent pull requests that GitHub holds for workflow approval left out."]);
+  assert.deepEqual(selectPrs(open[4], [open[0], copilot, open[4]]).notes, ["1 agent pull request that GitHub holds for workflow approval left out."]);
+});
+
 test("nothing to check: not an agent PR, or the only one", () => {
   assert.match(selectPrs(pr(3, "matt/readme"), []).reason, /#3 is not an agent pull request/);
   const alone = selectPrs(pr(4, "claude/a"), [pr(4, "claude/a"), pr(5, "matt/b")]);
-  assert.match(alone.reason, /only open agent pull request into main/);
+  assert.match(alone.reason, /only agent pull request into main this run can check/);
 });
 
 test("at most ten PRs at once, keeping the newest", () => {
@@ -413,6 +440,8 @@ test("action.yml: nothing runs after a cancel, and the step that runs the tests 
   assert.doesNotMatch(step("id: check"), /token/i);
   // The pull request's base, never the CLI's default target; the timeout only when set.
   assert.match(step("id: check"), / check --into "\$PYTXO_BASE" \$\{PYTXO_TIMEOUT:\+--timeout "\$PYTXO_TIMEOUT"\} /);
+  // The `check` input reaches the CLI as its PYTXO_CHECK setting.
+  assert.match(step("id: check"), /PYTXO_CHECK: \$\{\{ inputs\.check \}\}/);
   assert.doesNotMatch(step('pytxo-action.mjs" verdict'), /token/i);
   assert.match(step("actions/checkout@"), /persist-credentials: false/);
   // A push or a merge queue passes without cloning the history first.

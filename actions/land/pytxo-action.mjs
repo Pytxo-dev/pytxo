@@ -26,6 +26,9 @@ export const AGENT_BOTS = new Set([
   "google-labs-jules[bot]",
 ]);
 
+// GitHub runs no workflow on these accounts' pull requests until someone approves it.
+const HELD_FOR_APPROVAL = new Set(["Copilot", "copilot-swe-agent[bot]", "github-actions[bot]"]);
+
 export const MARKER = "<!-- pytxo-check -->";
 export const MAX_PRS = 10;
 /** The line every comment ends with, as the CLI's markdown does. */
@@ -57,7 +60,8 @@ const sameRepo = (pr) => pr.head.repo?.full_name === pr.base.repo.full_name;
  * The pull requests to check together, in merge order: the other agent PRs
  * into the same base (oldest first), then this one, so a conflict names the
  * newest change. Fork PRs never join another PR's run: their code would run
- * with that run's token.
+ * with that run's token. Nor do PRs GitHub holds for workflow approval: their
+ * code would run before anyone approved it. Each is checked in its own run.
  */
 export function selectPrs(current, open, patterns = DEFAULT_PATTERNS, max = MAX_PRS) {
   if (!isAgentPr(current, patterns)) {
@@ -67,15 +71,18 @@ export function selectPrs(current, open, patterns = DEFAULT_PATTERNS, max = MAX_
     .filter((pr) => pr.number !== current.number && pr.base.ref === current.base.ref && isAgentPr(pr, patterns))
     .sort((a, b) => a.number - b.number);
   const forks = others.filter((pr) => !sameRepo(pr)).length;
-  const eligible = others.filter(sameRepo);
+  const held = (pr) => HELD_FOR_APPROVAL.has(pr.user?.login);
+  const waiting = others.filter((pr) => sameRepo(pr) && held(pr)).length;
+  const eligible = others.filter((pr) => sameRepo(pr) && !held(pr));
   const left = eligible.slice(Math.max(0, eligible.length - (max - 1)));
   const prs = [...left, current];
   const notes = [];
   if (forks) notes.push(`${forks} agent pull request${forks === 1 ? "" : "s"} from forks left out.`);
+  if (waiting) notes.push(`${waiting} agent pull request${waiting === 1 ? "" : "s"} that GitHub holds for workflow approval left out.`);
   const older = eligible.length - left.length;
   if (older) notes.push(`${older} older agent pull request${older === 1 ? "" : "s"} left out (at most ${max} at once).`);
   if (prs.length < 2) {
-    return { prs, notes, reason: `#${current.number} is the only open agent pull request into ${current.base.ref}; there is nothing to combine.` };
+    return { prs, notes, reason: `#${current.number} is the only agent pull request into ${current.base.ref} this run can check; there is nothing to combine.` };
   }
   return { prs, notes };
 }
