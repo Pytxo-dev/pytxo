@@ -374,14 +374,14 @@ fn write_files(dir: &Path, files: &[(&str, String)]) -> Result<()> {
     Ok(())
 }
 
-fn build_repo(scenario: &Scenario) -> Result<tempdir::Dir> {
+fn build_repo(scenario: &Scenario, files: &[(&str, String)]) -> Result<Dir> {
     let dir = tempdir::Dir::new("pybench")?;
     let d = dir.path();
     sh_git(d, &["init", "-q", "-b", "main"])?;
     sh_git(d, &["config", "core.autocrlf", "false"])?;
     sh_git(d, &["config", "user.name", "Pybench"])?;
     sh_git(d, &["config", "user.email", "pybench@pytxo.invalid"])?;
-    write_files(d, &base_files())?;
+    write_files(d, files)?;
     sh_git(d, &["add", "-A"])?;
     sh_git(d, &["commit", "-q", "-m", "base"])?;
     for (name, edits) in &scenario.branches {
@@ -397,6 +397,41 @@ fn build_repo(scenario: &Scenario) -> Result<tempdir::Dir> {
         sh_git(d, &["checkout", "-q", "main"])?;
     }
     Ok(dir)
+}
+
+/// What `pytxo demo` checks: two agent branches that each pass `npm test`
+/// and break it together. One renames `price`, the other adds a caller of it.
+pub const DEMO_BRANCHES: [(&str, &str); 2] = [
+    ("claude/rename-price", "renames price() to unitPrice() in src/cart.js"),
+    ("codex/add-discount", "adds src/discount.js, which calls price()"),
+];
+
+/// Builds the `pytxo demo` repository in a fresh temp directory: the
+/// rename-vs-new-caller scenario, on agent branch names, with a
+/// `package.json` so the test command is detected the way it is in a real repo.
+pub fn demo_repo() -> Result<Dir> {
+    let node = Command::new("node").arg("--version").output();
+    if !node.is_ok_and(|o| o.status.success()) {
+        bail!("the demo's tests run on Node.js, which is not on PATH: install it from https://nodejs.org");
+    }
+    let mut demo = scenarios()
+        .into_iter()
+        .find(|s| s.id == "rename-vs-new-caller")
+        .expect("the demo scenario exists");
+    for (branch, (name, _)) in demo.branches.iter_mut().zip(DEMO_BRANCHES) {
+        branch.0 = name;
+    }
+    let mut files = base_files();
+    files.push((
+        "package.json",
+        "{
+  \"name\": \"shop\",
+  \"private\": true,
+  \"scripts\": { \"test\": \"node run-tests.js\" }
+}
+".into(),
+    ));
+    build_repo(&demo, &files)
 }
 
 /// Per-branch CI: test each branch alone, merge the ones that passed, never
@@ -461,7 +496,7 @@ fn land_suite(has_node: bool, progress: &mut impl FnMut(&str)) -> Result<LandSui
     let mut results = Vec::new();
     for scenario in scenarios() {
         progress(&format!("land  {}", scenario.id));
-        let dir = build_repo(&scenario)?;
+        let dir = build_repo(&scenario, &base_files())?;
         let d = dir.path();
         let names: Vec<&str> = scenario.branches.iter().map(|(n, _)| *n).collect();
         let naive = if scenario.moves_target {
@@ -787,6 +822,8 @@ pub fn render_text(r: &BenchReport) -> String {
 
 /// Minimal owned temp directory (removed on drop) so the CLI binary does not
 /// need `tempfile` at runtime.
+pub use tempdir::Dir;
+
 mod tempdir {
     use std::path::{Path, PathBuf};
 
@@ -802,6 +839,13 @@ mod tempdir {
 
         pub fn path(&self) -> &Path {
             &self.0
+        }
+
+        /// Leave the directory on disk and return its path.
+        pub fn keep(self) -> PathBuf {
+            let path = self.0.clone();
+            std::mem::forget(self);
+            path
         }
     }
 
