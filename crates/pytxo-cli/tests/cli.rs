@@ -395,6 +395,63 @@ fn bare_pytxo_finds_the_agent_branches_and_prints_three_lines() {
         "{}",
         stdout(&out)
     );
+
+    // Only --verbose keeps a ref to the combined commit.
+    let refs = || {
+        let out = Command::new("git")
+            .args(["for-each-ref", "refs/pytxo"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).lines().count()
+    };
+    assert_eq!(refs(), 0);
+    pytxo(dir.path(), &["-v", "-c", "git --version"], None);
+    assert_eq!(refs(), 1);
+}
+
+/// The Action's `check:` input arrives as PYTXO_CHECK, over the repository's
+/// own setting.
+#[test]
+fn pytxo_check_comes_before_the_repository_setting() {
+    let dir = repo(&["claude/a", "codex/b"]);
+    git(dir.path(), &["config", "pytxo.check", "exit 1"]);
+    let out = pytxo_env(
+        dir.path(),
+        &["--json"],
+        None,
+        &[("PYTXO_CHECK", "git --version")],
+    );
+    assert_eq!(out.status.code(), Some(0));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["checks"], serde_json::json!(["git --version"]));
+    assert_eq!(v["check_source"], "PYTXO_CHECK");
+}
+
+/// --apply lands only what a test passed: with no test command it changes
+/// nothing.
+#[test]
+fn apply_without_a_test_command_lands_nothing() {
+    let dir = repo(&["claude/a", "codex/b"]);
+    let main = || {
+        let out = Command::new("git")
+            .args(["rev-parse", "main"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    let before = main();
+    let out = pytxo(dir.path(), &["--apply"], None);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(1), "{err}");
+    assert!(
+        err.contains(
+            "--apply lands only a tested result, and no test command was found at the root of main"
+        ),
+        "{err}"
+    );
+    assert_eq!(main(), before);
 }
 
 #[test]
@@ -789,8 +846,8 @@ fn the_demo_catches_the_break() {
         err.contains("That repo was temporary and is gone."),
         "{err}"
     );
-    // A first look takes under a minute.
-    assert!(took < std::time::Duration::from_secs(60), "{took:?}");
+    // The demo's budget is 30 seconds, npx included.
+    assert!(took < std::time::Duration::from_secs(30), "{took:?}");
     let left: Vec<String> = std::fs::read_dir(temp.path())
         .unwrap()
         .filter_map(|e| e.ok()?.file_name().into_string().ok())

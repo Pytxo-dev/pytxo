@@ -148,6 +148,13 @@ fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
         nothing_to_check(plan, args.json)?;
         return Ok((0, None));
     }
+    // A merge nothing tested is not a result to land.
+    if args.apply && plan.checks.is_empty() {
+        anyhow::bail!(
+            "--apply lands only a tested result, and no test command was found at the root of {}; name one with --check \"<command>\"",
+            plan.target
+        );
+    }
     if !args.json {
         eprintln!("{}", progress(plan));
     }
