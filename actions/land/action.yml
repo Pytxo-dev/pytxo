@@ -45,7 +45,8 @@ runs:
         if git rev-parse --git-dir >/dev/null 2>&1; then present=true; else present=false; fi
         echo "present=$present" >> "$GITHUB_OUTPUT"
 
-    - if: steps.repo.outputs.present != 'true'
+    # Only a pull request needs the history; other events pass without it.
+    - if: steps.repo.outputs.present != 'true' && github.event_name == 'pull_request'
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       with:
         fetch-depth: 0

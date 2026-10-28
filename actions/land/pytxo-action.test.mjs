@@ -415,6 +415,8 @@ test("action.yml: nothing runs after a cancel, and the step that runs the tests 
   assert.match(step("id: check"), / check --into "\$PYTXO_BASE" \$\{PYTXO_TIMEOUT:\+--timeout "\$PYTXO_TIMEOUT"\} /);
   assert.doesNotMatch(step('pytxo-action.mjs" verdict'), /token/i);
   assert.match(step("actions/checkout@"), /persist-credentials: false/);
+  // A push or a merge queue passes without cloning the history first.
+  assert.match(step("actions/checkout@"), /if: .* && github\.event_name == 'pull_request'\n/);
 });
 
 test("Pro licensing is built but switched off", () => {
