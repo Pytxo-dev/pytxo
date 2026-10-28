@@ -123,3 +123,21 @@ test("checksum mismatch refuses to install", async (t) => {
   assert.match(result.stderr, /SHA-256 mismatch/);
   assert.deepEqual(fs.readdirSync(vendor), []);
 });
+
+// The CLI words its "run ... again" hints after how it was started.
+test("tells the binary whether it ran through npx", () => {
+  const runAs = (env) => {
+    const childEnv = { ...process.env, PYTXO_BINARY: process.execPath, ...env };
+    delete childEnv.PYTXO_RUN_AS;
+    delete childEnv.npm_command;
+    Object.assign(childEnv, env);
+    return spawnSync(process.execPath, [launcher, "-e", "console.log(process.env.PYTXO_RUN_AS)"], {
+      encoding: "utf8",
+      env: childEnv,
+    }).stdout.trim();
+  };
+  assert.equal(runAs({ npm_command: "exec" }), "npx pytxo");
+  assert.equal(runAs({}), "pytxo");
+  assert.equal(runAs({ npm_command: "run-script" }), "pytxo");
+  assert.equal(runAs({ PYTXO_RUN_AS: "pnpm dlx pytxo" }), "pnpm dlx pytxo");
+});

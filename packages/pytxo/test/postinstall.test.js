@@ -20,7 +20,8 @@ test("release platform mapping is exact and rejects undeclared targets", () => {
   assert.equal(getAssetName("win32", "x64"), "pytxo-windows-x64.exe");
   assert.equal(getAssetName("darwin", "arm64"), "pytxo-darwin-arm64");
   assert.equal(getAssetName("linux", "x64"), "pytxo-linux-x64");
-  assert.throws(() => getAssetName("win32", "arm64"), /Unsupported Pytxo release platform/);
+  assert.equal(getAssetName("win32", "arm64"), "pytxo-windows-x64.exe");
+  assert.throws(() => getAssetName("win32", "ia32"), /Unsupported Pytxo release platform/);
   assert.throws(() => getAssetName("linux", "ia32"), /Unsupported Pytxo release platform/);
 });
 

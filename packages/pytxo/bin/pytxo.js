@@ -6,8 +6,14 @@ const fs = require("node:fs");
 
 const { dest, install } = require("../postinstall");
 
+// Lets the CLI say "run npx pytxo again" when it was started that way.
+const runAs = process.env.PYTXO_RUN_AS || (process.env.npm_command === "exec" ? "npx pytxo" : "pytxo");
+
 function run(bin) {
-  const result = spawnSync(bin, process.argv.slice(2), { stdio: "inherit" });
+  const result = spawnSync(bin, process.argv.slice(2), {
+    stdio: "inherit",
+    env: { ...process.env, PYTXO_RUN_AS: runAs },
+  });
   if (result.error) {
     console.error(result.error.message);
     process.exit(1);
