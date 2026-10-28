@@ -27,7 +27,9 @@ use pytxo_core::{
 };
 
 pub use git::Git;
-pub use render::{render_markdown, render_markdown_with, render_text, verdict, Verdict, INSTALL_HINT};
+pub use render::{
+    render_markdown, render_markdown_with, render_text, verdict, Verdict, INSTALL_HINT,
+};
 
 pub const DEFAULT_CHECK_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 
@@ -398,7 +400,10 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     } else {
         Some(OwnedWorktree::add(&repo, &combined, &tag)?)
     };
-    let dir = combined_tree.as_ref().map(|t| t.path.clone()).unwrap_or_default();
+    let dir = combined_tree
+        .as_ref()
+        .map(|t| t.path.clone())
+        .unwrap_or_default();
     let first_runs: Vec<ReceiptCheck> = opts
         .checks
         .iter()

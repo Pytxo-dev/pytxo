@@ -402,8 +402,14 @@ fn build_repo(scenario: &Scenario, files: &[(&str, String)]) -> Result<Dir> {
 /// What `pytxo demo` checks: two agent branches that each pass `npm test`
 /// and break it together. One renames `price`, the other adds a caller of it.
 pub const DEMO_BRANCHES: [(&str, &str); 2] = [
-    ("claude/rename-price", "renames price() to unitPrice() in src/cart.js"),
-    ("codex/add-discount", "adds src/discount.js, which calls price()"),
+    (
+        "claude/rename-price",
+        "renames price() to unitPrice() in src/cart.js",
+    ),
+    (
+        "codex/add-discount",
+        "adds src/discount.js, which calls price()",
+    ),
 ];
 
 /// Builds the `pytxo demo` repository in a fresh temp directory: the
@@ -424,12 +430,7 @@ pub fn demo_repo() -> Result<Dir> {
     let mut files = base_files();
     files.push((
         "package.json",
-        "{
-  \"name\": \"shop\",
-  \"private\": true,
-  \"scripts\": { \"test\": \"node run-tests.js\" }
-}
-".into(),
+        "{\n  \"name\": \"shop\",\n  \"private\": true,\n  \"scripts\": { \"test\": \"node run-tests.js\" }\n}\n".into(),
     ));
     build_repo(&demo, &files)
 }

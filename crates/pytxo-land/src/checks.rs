@@ -121,9 +121,15 @@ pub fn detect_check(
     if has("poetry.lock") {
         return found("poetry install && poetry run pytest", "poetry.lock");
     }
-    if let Some(file) = ["pyproject.toml", "pytest.ini", "setup.py", "setup.cfg", "tox.ini"]
-        .into_iter()
-        .find(|f| has(f))
+    if let Some(file) = [
+        "pyproject.toml",
+        "pytest.ini",
+        "setup.py",
+        "setup.cfg",
+        "tox.ini",
+    ]
+    .into_iter()
+    .find(|f| has(f))
     {
         return found("python -m pytest", file);
     }
@@ -131,7 +137,11 @@ pub fn detect_check(
         return found("deno test", file);
     }
     if has("gradlew") {
-        let gradle = if cfg!(windows) { "gradlew test" } else { "./gradlew test" };
+        let gradle = if cfg!(windows) {
+            "gradlew test"
+        } else {
+            "./gradlew test"
+        };
         return found(gradle, "gradlew");
     }
     if has("pom.xml") {
@@ -153,7 +163,9 @@ pub fn detect_check(
     if has("Gemfile") && has("Rakefile") {
         return found("bundle exec rake test", "Rakefile");
     }
-    if let Some(composer) = read("composer.json").and_then(|t| serde_json::from_str::<Value>(&t).ok()) {
+    if let Some(composer) =
+        read("composer.json").and_then(|t| serde_json::from_str::<Value>(&t).ok())
+    {
         if composer["scripts"]["test"].is_string() {
             return found("composer install && composer test", "composer.json");
         }
@@ -370,7 +382,11 @@ mod tests {
         assert_eq!(cmd(&[("deno.json", "{}")]).as_deref(), Some("deno test"));
         assert_eq!(
             cmd(&[("gradlew", "")]).as_deref(),
-            Some(if cfg!(windows) { "gradlew test" } else { "./gradlew test" })
+            Some(if cfg!(windows) {
+                "gradlew test"
+            } else {
+                "./gradlew test"
+            })
         );
         assert_eq!(cmd(&[("pom.xml", "")]).as_deref(), Some("mvn -q test"));
         assert_eq!(

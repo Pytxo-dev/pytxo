@@ -18,7 +18,14 @@ pub const WORKTREES: &str = "worktrees";
 /// Branch prefixes coding agents use for the branches they create, `agent/`
 /// (Pytxo's own convention), and linked worktrees. `*` matches across `/`.
 pub const DEFAULT_PATTERNS: [&str; 8] = [
-    "claude/*", "codex/*", "copilot/*", "cursor/*", "devin/*", "jules/*", "agent/*", WORKTREES,
+    "claude/*",
+    "codex/*",
+    "copilot/*",
+    "cursor/*",
+    "devin/*",
+    "jules/*",
+    "agent/*",
+    WORKTREES,
 ];
 
 /// Detected branches without a commit in this many days are left out.
@@ -147,9 +154,21 @@ pub fn target_branch(git: &Git, into: Option<&str>) -> Result<String> {
     if let Some(t) = into {
         return Ok(t.to_string());
     }
-    let exists = |b: &str| git.ok(&["show-ref", "--verify", "--quiet", &format!("refs/heads/{b}")]);
+    let exists = |b: &str| {
+        git.ok(&[
+            "show-ref",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/{b}"),
+        ])
+    };
     let remote_head = git
-        .run(&["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"])
+        .run(&[
+            "symbolic-ref",
+            "--quiet",
+            "--short",
+            "refs/remotes/origin/HEAD",
+        ])
         .ok()
         .and_then(|h| h.strip_prefix("origin/").map(str::to_string));
     if let Some(b) = remote_head
@@ -269,11 +288,7 @@ fn detect(
 ) -> Result<(Vec<AgentBranch>, usize)> {
     let worktrees = worktrees(git);
     let use_worktrees = patterns.iter().any(|p| p == WORKTREES);
-    let matches = |name: &str| {
-        patterns
-            .iter()
-            .any(|p| p != WORKTREES && glob(p, name))
-    };
+    let matches = |name: &str| patterns.iter().any(|p| p != WORKTREES && glob(p, name));
     let checked_out: BTreeMap<&str, &Worktree> = worktrees
         .iter()
         .filter_map(|w| Some((w.branch.as_deref()?, w)))
@@ -346,7 +361,13 @@ fn detect(
                 .unwrap_or_else(|| "worktree".into());
             let label: String = dir
                 .chars()
-                .map(|c| if c.is_ascii_alphanumeric() || "._-".contains(c) { c } else { '-' })
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() || "._-".contains(c) {
+                        c
+                    } else {
+                        '-'
+                    }
+                })
                 .collect();
             candidates.push(Candidate {
                 reference: w.head.clone(),
@@ -401,12 +422,21 @@ fn detect(
 }
 
 fn adds_nothing(git: &Git, target_ref: &str, commit: &str, target_tree: &str) -> bool {
-    git.output(&["merge-tree", "--write-tree", "--no-messages", target_ref, commit])
-        .is_ok_and(|o| {
-            o.status.success()
-                && String::from_utf8_lossy(&o.stdout).lines().next().map(str::trim)
-                    == Some(target_tree)
-        })
+    git.output(&[
+        "merge-tree",
+        "--write-tree",
+        "--no-messages",
+        target_ref,
+        commit,
+    ])
+    .is_ok_and(|o| {
+        o.status.success()
+            && String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .next()
+                .map(str::trim)
+                == Some(target_tree)
+    })
 }
 
 fn has_uncommitted(worktree: &Path) -> bool {
@@ -538,7 +568,10 @@ mod tests {
         branch(&d, "feature/mine", "e.js");
         // Already merged into main: nothing to combine.
         branch(&d, "devin/merged", "f.js");
-        git(&d, &["merge", "-q", "--no-ff", "-m", "merge", "devin/merged"]);
+        git(
+            &d,
+            &["merge", "-q", "--no-ff", "-m", "merge", "devin/merged"],
+        );
         // Same commit under two names counts once.
         git(&d, &["branch", "agent/copy", "claude/rename"]);
 
@@ -546,7 +579,12 @@ mod tests {
         assert_eq!(plan.target, "main");
         assert_eq!(
             names(&plan),
-            ["agent/copy", "codex/discount", "copilot/fix-tax", "cursor/docs"]
+            [
+                "agent/copy",
+                "codex/discount",
+                "copilot/fix-tax",
+                "cursor/docs"
+            ]
         );
         assert!(plan.detected);
         assert_eq!(plan.checks, ["npm test"]);
@@ -572,7 +610,10 @@ mod tests {
         let sha = git(&d, &["rev-parse", "codex/cloud"]);
         git(&d, &["update-ref", "refs/remotes/origin/codex/cloud", &sha]);
         let both = git(&d, &["rev-parse", "copilot/both"]);
-        git(&d, &["update-ref", "refs/remotes/origin/copilot/both", &both]);
+        git(
+            &d,
+            &["update-ref", "refs/remotes/origin/copilot/both", &both],
+        );
         git(&d, &["branch", "-D", "-q", "codex/cloud"]);
         let plan = plan(&d, &[], None, &[]).unwrap();
         assert_eq!(names(&plan), ["copilot/both", "origin/codex/cloud"]);
@@ -585,7 +626,14 @@ mod tests {
         let wt = dir.path().join("work trees").join("eager-curie");
         git(
             &d,
-            &["worktree", "add", "-q", "-b", "matt/eager-curie", &wt.to_string_lossy()],
+            &[
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                "matt/eager-curie",
+                &wt.to_string_lossy(),
+            ],
         );
         commit_file(&wt, "src/feature.js", "x", "feature");
         // An agent that has not committed yet.
@@ -680,7 +728,11 @@ mod tests {
         git(&d, &["update-ref", "refs/remotes/origin/develop", &sha]);
         git(
             &d,
-            &["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/develop"],
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/develop",
+            ],
         );
         assert_eq!(target_branch(&Git::user(&d), None).unwrap(), "develop");
         assert_eq!(target_branch(&Git::user(&d), Some("main")).unwrap(), "main");

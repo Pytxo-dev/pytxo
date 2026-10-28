@@ -1,7 +1,8 @@
 //! `pytxo` / `pytxo check`: find the agent branches and the test command,
-//! check the branches together, print the verdict. Also `pytxo demo` and
-//! `pytxo receipts`.
+//! check the branches together, print the verdict. Also `pytxo demo`,
+//! `pytxo hook` and `pytxo receipts`.
 
+use std::io::Read;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -65,23 +66,7 @@ pub fn run(args: CheckArgs) -> Result<i32> {
     if !args.json {
         eprintln!("{}", progress(&plan));
     }
-    let mut opts = LandOptions::new(
-        plan.root.clone(),
-        plan.branches.iter().map(|b| b.input()).collect(),
-    );
-    opts.into = Some(plan.target.clone());
-    opts.base = args.base;
-    opts.checks = plan.checks.clone();
-    opts.per_input = if args.per_input {
-        PerInput::Always
-    } else {
-        PerInput::OnFailure
-    };
-    opts.apply = args.apply;
-    opts.strict = args.strict;
-    opts.keep_ref = args.verbose;
-    opts.check_timeout = Duration::from_secs(args.timeout.max(1));
-    let outcome = land(&opts)?;
+    let outcome = land(&options(&plan, &args))?;
     let verdict = verdict(&outcome, &format!("run {} again", rerun_command()));
     if args.json {
         println!(
@@ -111,6 +96,92 @@ pub fn run(args: CheckArgs) -> Result<i32> {
     Ok(outcome.exit_code())
 }
 
+fn options(plan: &Plan, args: &CheckArgs) -> LandOptions {
+    let mut opts = LandOptions::new(
+        plan.root.clone(),
+        plan.branches.iter().map(|b| b.input()).collect(),
+    );
+    opts.into = Some(plan.target.clone());
+    opts.base = args.base.clone();
+    opts.checks = plan.checks.clone();
+    opts.per_input = if args.per_input {
+        PerInput::Always
+    } else {
+        PerInput::OnFailure
+    };
+    opts.apply = args.apply;
+    opts.strict = args.strict;
+    opts.keep_ref = args.verbose;
+    opts.check_timeout = Duration::from_secs(args.timeout.max(1));
+    opts
+}
+
+/// `pytxo hook`: the check from a Claude Code or Codex `Stop` hook. Reads the
+/// hook's JSON on stdin and answers with JSON on stdout, or with nothing when
+/// there is nothing new to say. It never fails the agent's turn.
+pub fn hook(block: bool) -> Result<i32> {
+    let mut input = String::new();
+    let _ = std::io::stdin().read_to_string(&mut input);
+    let event: serde_json::Value = serde_json::from_str(&input).unwrap_or_default();
+    let reply = match hook_reply(&event, block) {
+        Ok(None) => return Ok(0),
+        Ok(Some(reply)) => reply,
+        Err(e) => {
+            json!({ "systemMessage": format!("Pytxo could not check the agent branches: {e:#}") })
+        }
+    };
+    println!("{reply}");
+    Ok(0)
+}
+
+fn hook_reply(event: &serde_json::Value, block: bool) -> Result<Option<serde_json::Value>> {
+    // Claude Code fires Stop while its background agents still run; the last
+    // one to finish gets the check.
+    let busy = event["background_tasks"].as_array().is_some_and(|tasks| {
+        tasks.iter().any(|t| {
+            matches!(
+                t["type"].as_str(),
+                Some("subagent" | "teammate" | "workflow")
+            )
+        })
+    });
+    if busy {
+        return Ok(None);
+    }
+    let cwd = match event["cwd"].as_str() {
+        Some(cwd) => PathBuf::from(cwd),
+        None => std::env::current_dir()?,
+    };
+    // Not a repository, or one agent alone: nothing to combine.
+    let Ok(plan) = detect::plan(&cwd, &[], None, &[]) else {
+        return Ok(None);
+    };
+    if plan.branches.len() < 2 {
+        return Ok(None);
+    }
+    // Same branches, same tips, same tests: the last verdict still stands.
+    let memo = pytxo_land::repo_receipts_dir(&plan.root)?.with_file_name("hook-last");
+    let fingerprint = plan.fingerprint();
+    if std::fs::read_to_string(&memo).is_ok_and(|last| last == fingerprint) {
+        return Ok(None);
+    }
+    let outcome = land(&options(
+        &plan,
+        &CheckArgs {
+            timeout: 900,
+            ..CheckArgs::default()
+        },
+    ))?;
+    let _ = std::fs::write(&memo, &fingerprint);
+    let verdict = verdict(&outcome, "Pytxo checks again when an agent stops");
+    let text = format!("Pytxo checked the agent branches together.\n{verdict}");
+    Ok(Some(if block && outcome.exit_code() == 2 {
+        json!({ "decision": "block", "reason": text })
+    } else {
+        json!({ "systemMessage": text })
+    }))
+}
+
 /// `pytxo demo`: the check on a throwaway repository where two agent
 /// branches pass their tests alone and fail together.
 pub fn demo(keep: bool) -> Result<i32> {
@@ -128,7 +199,9 @@ pub fn demo(keep: bool) -> Result<i32> {
     if keep {
         eprintln!("\nThe demo repo is at {}", dir.keep().display());
     } else {
-        eprintln!("\nThat repo was temporary and is gone. Now run {run_as} in a repo where agents work.");
+        eprintln!(
+            "\nThat repo was temporary and is gone. Now run {run_as} in a repo where agents work."
+        );
     }
     // The demo worked when it caught the break.
     Ok(if code == 2 { 0 } else { 1.max(code) })
@@ -169,7 +242,13 @@ fn nothing_to_check(plan: &Plan, json: bool) -> Result<()> {
 fn looked_for(patterns: &[String]) -> String {
     let names: Vec<&str> = patterns
         .iter()
-        .map(|p| if p == detect::WORKTREES { "linked worktrees" } else { p })
+        .map(|p| {
+            if p == detect::WORKTREES {
+                "linked worktrees"
+            } else {
+                p
+            }
+        })
         .collect();
     match names.as_slice() {
         [init @ .., last] if !init.is_empty() => format!("{} and {last}", init.join(", ")),
@@ -212,7 +291,11 @@ fn found(plan: &Plan) -> String {
         }
     );
     for b in &plan.branches {
-        s.push_str(&format!("  {:<28} {}", b.name(), &b.commit[..12.min(b.commit.len())]));
+        s.push_str(&format!(
+            "  {:<28} {}",
+            b.name(),
+            &b.commit[..12.min(b.commit.len())]
+        ));
         if let Some(w) = &b.worktree {
             s.push_str(&format!("  worktree {}", w.display()));
         }
@@ -267,7 +350,13 @@ fn run_as() -> String {
 fn rerun_command() -> String {
     let args: Vec<String> = std::env::args()
         .skip(1)
-        .map(|a| if a.contains(' ') { format!("\"{a}\"") } else { a })
+        .map(|a| {
+            if a.contains(' ') {
+                format!("\"{a}\"")
+            } else {
+                a
+            }
+        })
         .collect();
     match args.first().map(String::as_str) {
         // The demo repo is gone by then; point at the real thing.

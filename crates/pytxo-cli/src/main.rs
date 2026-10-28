@@ -54,6 +54,17 @@ linked worktree, with a commit in the last 14 days. Change them with git config 
         #[arg(long)]
         keep: bool,
     },
+    /// Run the check from a Claude Code or Codex Stop hook (hook JSON on stdin, JSON out)
+    #[command(
+        after_help = "Answers only when two or more agent branches changed since the last answer, so a
+quiet repository stays quiet. Claude Code: install the plugin (/plugin marketplace add Pytxo-dev/pytxo).
+Codex: add integrations/codex/hooks.json to ~/.codex/hooks.json, then trust it in /hooks."
+    )]
+    Hook {
+        /// On BLOCKED, ask the agent to keep working on the fix instead of only telling you
+        #[arg(long)]
+        block: bool,
+    },
     /// Receipts: every check records its decision under .git/pytxo/receipts
     Receipts {
         #[command(subcommand)]
@@ -143,6 +154,7 @@ fn run(cli: Cli) -> anyhow::Result<i32> {
         None => check::run(cli.check),
         Some(Commands::Check(args)) => check::run(args),
         Some(Commands::Demo { keep }) => check::demo(keep),
+        Some(Commands::Hook { block }) => check::hook(block),
         Some(Commands::Receipts { action, repo }) => {
             match action {
                 None => check::receipts_list(repo, false)?,
@@ -225,7 +237,8 @@ mod tests {
     fn no_command_is_the_check_and_land_is_its_alias() {
         let cli = Cli::try_parse_from(["pytxo"]).unwrap();
         assert!(cli.command.is_none());
-        let cli = Cli::try_parse_from(["pytxo", "--into", "dev", "-c", "make test", "codex/a"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["pytxo", "--into", "dev", "-c", "make test", "codex/a"]).unwrap();
         assert!(cli.command.is_none());
         assert_eq!(cli.check.into.as_deref(), Some("dev"));
         assert_eq!(cli.check.branches, ["codex/a"]);

@@ -99,6 +99,17 @@ export async function verifyReleaseVersion(root, expected) {
       /default: "([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)" # pytxo-version/,
       "GitHub Action CLI pin",
     ),
+    claudePlugin: await jsonVersion(path.join(root, "integrations", "claude-code", ".claude-plugin", "plugin.json")),
+    claudeHook: await capturedVersion(
+      path.join(root, "integrations", "claude-code", "hooks", "hooks.json"),
+      /npx -y pytxo@([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) hook/,
+      "Claude Code hook pin",
+    ),
+    codexHook: await capturedVersion(
+      path.join(root, "integrations", "codex", "hooks.json"),
+      /npx -y pytxo@([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) hook/,
+      "Codex hook pin",
+    ),
     changelog: await capturedVersion(
       path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"),
       /This source candidate targets \*\*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)\*\*/,

@@ -1,0 +1,14 @@
+{
+  "name": "pytxo",
+  "owner": { "name": "Pytxo", "url": "https://pytxo.com" },
+  "metadata": {
+    "description": "Pytxo checks that your coding agents' branches pass together."
+  },
+  "plugins": [
+    {
+      "name": "pytxo",
+      "source": "./integrations/claude-code",
+      "description": "When Claude stops, merges the agent branches and worktrees in a throwaway worktree, runs your tests on the combined result, and tells you if they break together."
+    }
+  ]
+}

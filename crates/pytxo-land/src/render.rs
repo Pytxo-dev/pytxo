@@ -608,11 +608,7 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
         }
     }
     if verbose {
-        let _ = writeln!(
-            s,
-            "\nReceipt `{}` · digest `{}`",
-            p.id, p.content_digest
-        );
+        let _ = writeln!(s, "\nReceipt `{}` · digest `{}`", p.id, p.content_digest);
     }
     let _ = writeln!(s, "\n</details>\n\n<sub>{INSTALL_HINT}</sub>");
     s

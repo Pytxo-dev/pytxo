@@ -104,7 +104,8 @@ fn shadow_mode_combines_disjoint_inputs_and_changes_nothing() {
     // The combined commit contains both inputs.
     git(d, &["cat-file", "-e", &format!("{combined}:src/a.js")]);
     git(d, &["cat-file", "-e", &format!("{combined}:docs/b.md")]);
-    assert!(render_markdown(&out).starts_with("### ✅ READY: agent/a and agent/b pass exit 0 together\n"));
+    assert!(render_markdown(&out)
+        .starts_with("### ✅ READY: agent/a and agent/b pass exit 0 together\n"));
 }
 
 #[test]
@@ -556,7 +557,10 @@ fn plain_verdicts_say_what_why_and_next() {
     let v = verdict(&out, again);
     assert_eq!((v.kind, v.label), ("ready", "READY"));
     assert_eq!(v.what, "agent/a and agent/b pass echo ok together.");
-    assert!(v.next.contains("Nothing in your repository changed"), "{v:?}");
+    assert!(
+        v.next.contains("Nothing in your repository changed"),
+        "{v:?}"
+    );
 
     // Fails only together: combined, then each alone, then the combined re-run.
     o.checks = vec![combined_only_failure(None)];
@@ -576,13 +580,20 @@ fn plain_verdicts_say_what_why_and_next() {
     let v = verdict(&out, again);
     assert_eq!((v.kind, v.label), ("together", "BLOCKED"));
     assert!(
-        v.what.starts_with("agent/a and agent/b pass ") && v.what.ends_with(" alone but fail together."),
+        v.what.starts_with("agent/a and agent/b pass ")
+            && v.what.ends_with(" alone but fail together."),
         "{v:?}"
     );
-    assert_eq!(v.next, "fix one branch so they agree, then run npx pytxo again.");
+    assert_eq!(
+        v.next,
+        "fix one branch so they agree, then run npx pytxo again."
+    );
     let text = v.to_string();
     assert_eq!(text.lines().count(), 3, "{text}");
-    assert!(text.starts_with("BLOCKED  agent/a and agent/b pass "), "{text}");
+    assert!(
+        text.starts_with("BLOCKED  agent/a and agent/b pass "),
+        "{text}"
+    );
     assert!(text.contains("\nwhy      "), "{text}");
     assert!(text.ends_with("\nnext     fix one branch so they agree, then run npx pytxo again.\n"));
 
@@ -622,9 +633,19 @@ fn plain_verdicts_say_what_why_and_next() {
 
     // Markdown leads with the verdict and ends with the install line.
     let md = render_markdown(&out);
-    assert!(md.starts_with("### ⛔ BLOCKED: agent/d conflicts with agent/c\n"), "{md}");
+    assert!(
+        md.starts_with("### ⛔ BLOCKED: agent/d conflicts with agent/c\n"),
+        "{md}"
+    );
     assert!(md.contains("**Next:** rebase agent/d onto agent/c"), "{md}");
-    assert!(md.trim_end().ends_with(&format!("<sub>{INSTALL_HINT}</sub>")), "{md}");
-    assert!(!md.contains(&out.receipt.predicate.content_digest), "digest only with --verbose");
+    assert!(
+        md.trim_end()
+            .ends_with(&format!("<sub>{INSTALL_HINT}</sub>")),
+        "{md}"
+    );
+    assert!(
+        !md.contains(&out.receipt.predicate.content_digest),
+        "digest only with --verbose"
+    );
     assert!(render_markdown_with(&out, true).contains(&out.receipt.predicate.content_digest));
 }
