@@ -58,6 +58,7 @@ Architecture Decision Records are **immutable once Accepted**. Supersede by addi
 | ADR-0040 | [[ADR-0040-mbcz-merchant-of-record-boundary]] | proposed |
 | ADR-0041 | [[ADR-0041-advisory-coordinator-and-routing-boundary]] | proposed |
 | ADR-0042 | [[ADR-0042-landing-gate-and-receipts]] | accepted |
+| ADR-0043 | [[ADR-0043-check-is-the-default-command]] | accepted; supersedes ADR-0012 |
 
 ## Template
 

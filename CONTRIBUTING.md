@@ -24,7 +24,7 @@ New first-party repos should be created in the **Pytxo-dev** org. See [`docs/08-
 
 ### TUI development
 
-The default `pytxo` experience is the ratatui dashboard in [`crates/pytxo-tui`](crates/pytxo-tui). Run `cargo run -p pytxo-cli` from a git repo after `pytxo init`. Use `PYTXO_NO_TUI=1` when testing clap help output.
+The ratatui dashboard in [`crates/pytxo-tui`](crates/pytxo-tui) is frozen 1.x tooling. Open it with `cargo run -p pytxo-cli -- shell` from a git repo. A bare `pytxo` runs the check ([ADR-0043](docs/05-adr/ADR-0043-check-is-the-default-command.md)).
 
 ## Documentation (docs vault)
 

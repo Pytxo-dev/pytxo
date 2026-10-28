@@ -8,7 +8,7 @@ Pytxo exposes orchestration through a **local MCP server** so Cursor (or any MCP
 ## Install
 
 1. Install the [CLI](/docs/getting-started/install) (`npm i -g pytxo` or a release binary).
-2. Confirm the MCP binary is available. The npm package ships `pytxo-mcp` next to `pytxo`. Find it with:
+2. Build the MCP binary from source with `cargo build -p pytxo-mcp --release`; the npm package and release binaries ship the `pytxo` check only. If an older install put `pytxo-mcp` on your PATH, find it with:
 
 ```bash
 # npm global (example paths)
