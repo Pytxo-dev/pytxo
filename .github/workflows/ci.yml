@@ -230,6 +230,12 @@ jobs:
           cache: npm
           cache-dependency-path: |
             apps/web/package-lock.json
+      # A site-only change, such as the promotion commit, skips the rust job:
+      # check the published versions and the deploy hold here too.
+      - name: Release versions and deploy hold
+        run: |
+          node tooling/scripts/verify-release-version.mjs
+          node --test tooling/scripts/verify-release-inventory.test.mjs
       - name: npm ci, verify, and build
         working-directory: apps/web
         env:
