@@ -115,6 +115,11 @@ export async function verifyReleaseVersion(root, expected) {
       /This source candidate targets \*\*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)\*\*/,
       "changelog source candidate",
     ),
+    changelogPublished: await capturedVersion(
+      path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"),
+      /The latest public (?:GitHub and npm )?release is \**([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)/,
+      "changelog latest public release",
+    ),
     releaseNotes: await capturedVersion(
       path.join(root, "distribution", "release-notes", `v${expected ?? rust}.md`),
       /^# Pytxo v([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)/m,
@@ -127,7 +132,7 @@ export async function verifyReleaseVersion(root, expected) {
   expected ??= versions.rust;
   // The checked-in installer/release notes target the next candidate. Public
   // install instructions must remain on the published tag until promotion.
-  const publishedSurfaces = new Set(["published", "readme"]);
+  const publishedSurfaces = new Set(["published", "readme", "changelogPublished"]);
   const mismatches = Object.entries(versions)
     .filter(([name, version]) => !publishedSurfaces.has(name) && version !== expected)
     .map(([name, version]) => `${name}=${version}`);

@@ -122,6 +122,15 @@ test("rejects a stale candidate even when the published version matches", async 
   await assert.rejects(() => verifyReleaseVersion(root), /changelog=1\.2\.1/);
 });
 
+test("the changelog's latest public release follows PUBLISHED_VERSION", async () => {
+  const root = await fixture({ rust: "1.2.2", desktop: "1.2.2", tauri: "1.2.2", demo: "1.2.2", npm: "1.2.2", publicRelease: "1.2.2" });
+  await writeFile(
+    path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"),
+    "This source candidate targets **1.2.2**. The latest public GitHub and npm release is 1.2.1 (the public beta).\n",
+  );
+  await assert.rejects(() => verifyReleaseVersion(root), /Published version must be 1\.2\.2; found changelogPublished=1\.2\.1/);
+});
+
 test("does not substitute a public version for a missing candidate declaration", async () => {
   const root = await fixture({ rust: "1.2.2", desktop: "1.2.2", tauri: "1.2.2", demo: "1.2.2", npm: "1.2.2" });
   await writeFile(path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"), "Current public binary: **1.2.2**.\n");
