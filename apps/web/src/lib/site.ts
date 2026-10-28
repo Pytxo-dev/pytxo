@@ -34,6 +34,10 @@ export const SOURCE_URL = "https://github.com/Pytxo-dev/pytxo";
 export const DISCORD_URL = "https://discord.gg/AUFRPFjSYv";
 export const NPM_URL = "https://www.npmjs.com/package/pytxo";
 export const NPM_INSTALL = `npm i -g pytxo@${PUBLISHED_VERSION}`;
+/** The one command the site leads with: no install, no flags. */
+export const DEMO_COMMAND = "npx pytxo demo";
+/** The GitHub Action, on its floating major tag. */
+export const ACTION_USES = "Pytxo-dev/pytxo/actions/land@v2";
 
 export const INSTALL_SH_URL = `https://raw.githubusercontent.com/${DISTRIBUTION_REPO}/main/install.sh`;
 export const INSTALL_PS1_URL = `https://raw.githubusercontent.com/${DISTRIBUTION_REPO}/main/install.ps1`;
@@ -48,9 +52,9 @@ export type NavLink = {
 };
 
 /** One product sentence, used by metadata, footer and structured data. */
-export const PRODUCT_LINE = "The landing layer for coding agents";
+export const PRODUCT_LINE = "Each agent's branch passes. Do they pass together?";
 export const PRODUCT_SUMMARY =
-  "Pytxo checks what your coding agents produced as one combined change, shows exactly what will land, refuses if anything moved, and leaves a receipt.";
+  "Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests on the combined result, and blocks the merge if it breaks. Free, open source, runs on your machine or in CI.";
 
 /** Agents verified live on a released build vs. those still in beta. */
 export const AGENT_SUPPORT = {
@@ -58,11 +62,22 @@ export const AGENT_SUPPORT = {
   beta: ["OpenCode", "Antigravity"],
 } as const;
 
+/** Every page's share image: the demo's verdict, from the recorded output. */
+export const SHARE_IMAGE = {
+  url: "/social/check-1600x1000.png",
+  width: 1600,
+  height: 1000,
+  alt: "Each agent's branch passes. Do they pass together? npx pytxo demo prints BLOCKED: two branches pass npm test alone but fail together.",
+};
+
+/** The header's call to action; the header renders it as its one button. */
+export const GET_STARTED_HREF = "/docs/getting-started/quickstart";
+
 export const NAV_LINKS: NavLink[] = [
   { href: "/#how", label: "How it works" },
-  { href: "/#land", label: "Land branches" },
+  { href: "/#ci", label: "In CI" },
   { href: "/bench", label: "Pybench" },
   { href: "/docs", label: "Docs" },
   { href: DISCORD_URL, label: "Support" },
-  { href: "/download", label: "Download" },
+  { href: GET_STARTED_HREF, label: "Get started" },
 ];

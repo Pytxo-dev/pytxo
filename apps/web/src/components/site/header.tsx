@@ -20,11 +20,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { NAV_LINKS } from "@/lib/site";
+import { GET_STARTED_HREF, NAV_LINKS } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 export function SiteHeader() {
-  const desktopLinks = NAV_LINKS.filter((link) => link.href !== "/download");
+  const desktopLinks = NAV_LINKS.filter((link) => link.href !== GET_STARTED_HREF);
 
   return (
     <header
@@ -70,7 +70,7 @@ export function SiteHeader() {
         <div className="col-start-3 flex items-center justify-end gap-2">
           <HeaderAuth />
           <Button size="sm" className="hidden h-8 rounded-[4px] bg-white px-3.5 text-black hover:bg-white/85 sm:inline-flex" asChild>
-            <Link href="/download">Download</Link>
+            <Link href={GET_STARTED_HREF}>Get started</Link>
           </Button>
 
           <Sheet>

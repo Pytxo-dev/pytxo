@@ -36,4 +36,4 @@ worktree and only records a receipt under `.git/pytxo/receipts`.
 - Pick the branches: `git config pytxo.branches "claude/* feature/*"`.
 - Pick the test command: `git config pytxo.check "npm test"`.
 
-Pytxo sends no telemetry. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
+Pytxo sends nothing anywhere. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).

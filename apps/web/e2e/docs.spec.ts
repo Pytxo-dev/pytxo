@@ -18,6 +18,30 @@ test("docs home and getting-started pages load", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: /First mission/i })).toBeVisible();
 });
 
+test("docs lead with the check and keep 1.x under Advanced", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/docs");
+  await expect(page.locator("article")).toContainText("npx pytxo demo");
+
+  await page.goto("/docs/getting-started/quickstart");
+  await expect(page.getByRole("heading", { level: 1, name: "Quickstart" })).toBeVisible();
+  await expect(page.locator("article")).toContainText(/BLOCKED\s+claude\/rename-price and codex\/add-discount/);
+
+  await page.goto("/docs/getting-started/land-in-ci");
+  await expect(page.getByRole("heading", { level: 1, name: "GitHub Action" })).toBeVisible();
+  await expect(page.locator("article")).toContainText("uses: Pytxo-dev/pytxo/actions/land@v2");
+  await expect(page.locator("article")).not.toContainText("@v1.3.6");
+
+  await page.goto("/docs/getting-started/agent-hooks");
+  await expect(page.getByRole("heading", { level: 1, name: "Claude Code and Codex" })).toBeVisible();
+
+  // The check comes first in the sidebar; the frozen Desktop guides follow under Advanced.
+  const sidebar = page.locator("#nd-sidebar");
+  await expect(sidebar.getByText("Advanced: Pytxo 1.x")).toBeVisible();
+  const top = async (name: string) => (await sidebar.getByRole("link", { name, exact: true }).boundingBox())!.y;
+  expect(await top("Quickstart")).toBeLessThan(await top("Desktop setup"));
+});
+
 test("docs search indexes pytxo.toml", async ({ request, page }) => {
   const api = await request.get("/api/search?query=pytxo.toml");
   if (api.ok()) {

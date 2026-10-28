@@ -1,65 +1,61 @@
 ---
-title: Land in GitHub Actions
-description: Run pytxo land in shadow mode on pull requests and post the result as a summary.
+title: GitHub Action
+description: Check every agent pull request together with the other open agent pull requests, with one line of GitHub Actions.
 ---
 
-`pytxo land --markdown` prints a pull-request-ready summary. The Pytxo repository includes a composite action, `actions/land`, that installs the CLI and runs the gate in **shadow mode**: it never pushes, merges or changes branches.
-
-## Check agent pull requests together
-
-This workflow runs when a pull request labelled `agent` opens or changes. It checks every open `agent` pull request against the base branch as one combined change.
+Add `.github/workflows/pytxo.yml`:
 
 ```yaml
-name: Pytxo land (shadow)
-on:
-  pull_request:
-    types: [opened, synchronize, labeled]
-
+name: Pytxo
+on: pull_request
 permissions:
   contents: read
-  pull-requests: read
-
-# Opening a pull request with the label already on sends both "opened" and
-# "labeled"; keep only the newest run per pull request.
-concurrency:
-  group: pytxo-land-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
+  pull-requests: write
 jobs:
-  land:
-    if: contains(github.event.pull_request.labels.*.name, 'agent')
+  check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Fetch open agent pull requests
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for n in $(gh pr list --label agent --state open --json number --jq '.[].number'); do
-            git fetch origin "pull/$n/head:agent/pr-$n"
-          done
-      - uses: Pytxo-dev/pytxo/actions/land@v1.3.6
-        with:
-          inputs: "agent/*"
-          checks: "npm ci && npm test"
-          per-input: "true"
+      - uses: Pytxo-dev/pytxo/actions/land@v2
 ```
 
-The step summary shows the decision, the inputs, shared files, checks and reasons. The job fails when the decision is blocked or stale, so you can make it a required check.
+No inputs, no labels, no other steps.
 
-## Action inputs
+## What it does
 
-| Input | Required | Description |
+On each pull request event:
+
+1. **Is this an agent pull request?** It is when its branch matches `claude/*`, `codex/*`, `copilot/*`, `cursor/*`, `devin/*`, `jules/*` or `agent/*`, or when an agent account opened it (Copilot, Claude, Cursor, Devin or Jules). Anything else ends the job with a note in the job summary.
+2. **Which pull requests go together?** This one plus the other open agent pull requests into the same base branch, oldest first, at most 10. Drafts count. If this is the only one, there is nothing to combine.
+3. **The check.** It fetches those branches and runs `npx pytxo check` on them, which merges them in a throwaway worktree and runs the test command it finds in the base branch.
+4. **The verdict.** It posts one comment on the pull request and updates it on every run. A blocked, stale or failed check fails the job, so you can make it a required check.
+
+## Inputs
+
+All optional.
+
+| Input | Default | Description |
 |---|---|---|
-| `inputs` | yes | Space-separated branches, commits or patterns (`label:ref` allowed) |
-| `checks` | no | One check command. For several, chain them with `&&` |
-| `per-input` | no | `"true"` to also run checks on each branch alone |
-| `base` | no | Commit to check against. Default: `origin/<base branch>` of the pull request |
-| `version` | no | Pytxo version to install (default: the action's release) |
+| `check` | found in the base branch | Test command, such as `npm ci && npm test` |
+| `branches` | the agent patterns above | Branch patterns that count as agent pull requests, space-separated |
+| `comment` | `"true"` | `"false"` keeps the verdict in the job summary only |
+| `token` | `github.token` | Token that lists pull requests and comments |
+| `license` | none | Pytxo Pro license key for private repositories. Not needed today |
+| `version` | the Action's release | Pytxo CLI version from npm |
 
-The action never uses `--apply`. Landing stays a human or merge-queue decision; the receipt records what the gate saw.
+The `decision` output is `ready`, `blocked`, `stale`, `error` or `skipped`.
+
+## Your tests need their tools
+
+The check runs your own test command, so the runner needs whatever your tests need. GitHub's `ubuntu-latest` has Node.js, and the Action needs Node.js 18 or newer for `npx`. Put your usual setup steps, such as `actions/setup-python` or `astral-sh/setup-uv`, before the Pytxo step.
+
+## Security
+
+- It runs on `pull_request` only. On `pull_request_target` it refuses to run, because that event would run pull-request code with a write token.
+- The token is only in the steps that list pull requests and comment. The step that runs your tests does not get it, and the Action's own checkout does not store it in `.git/config`. If you add your own `actions/checkout` before Pytxo, set `persist-credentials: false`.
+- A fork's pull request never joins another pull request's run, so fork code never runs with that run's token. A fork's own run gets GitHub's read-only token, so its verdict goes to the job summary.
+- `permissions` above is all it needs: `contents: read` to fetch the branches, `pull-requests: write` to comment. Without `pull-requests: write` the verdict goes to the job summary instead.
+- It never pushes, merges or changes a branch.
+
+## Private repositories
+
+The Action is free on public and private repositories today. A paid plan for private repositories is planned; see [Plans](/plans).

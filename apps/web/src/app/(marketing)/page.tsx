@@ -4,20 +4,20 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { CiSection } from "@/components/site/ci-section";
 import { CompareSection } from "@/components/site/compare-section";
 import { CompatibilitySection } from "@/components/site/compatibility-section";
 import { GetItSection } from "@/components/site/get-it-section";
 import { Hero } from "@/components/site/hero";
 import { HowItWorks } from "@/components/site/how-it-works";
-import { LandSection } from "@/components/site/land-section";
 import { ProofSection } from "@/components/site/proof-section";
 import { pageMetadata } from "@/lib/page-metadata";
-import { PUBLISHED_VERSION } from "@/lib/site";
+import { NPM_URL, PRODUCT_LINE, PRODUCT_SUMMARY, PUBLISHED_VERSION, SHARE_IMAGE } from "@/lib/site";
 
 export const metadata = pageMetadata(
   "/",
-  "Pytxo: the landing layer for coding agents",
-  "Split a job across Codex, Claude Code and Cursor Agent, or bring branches from any agent tool. Pytxo checks the combined change, shows exactly what will land, refuses if anything moved, and leaves a receipt.",
+  "Pytxo: do your agents' branches pass together?",
+  PRODUCT_SUMMARY,
 );
 
 const STRUCTURED_DATA = {
@@ -28,7 +28,7 @@ const STRUCTURED_DATA = {
       "@id": "https://pytxo.com/#website",
       name: "Pytxo",
       url: "https://pytxo.com",
-      description: "The landing layer for coding agents: many agents, one verified change.",
+      description: PRODUCT_LINE,
     },
     {
       "@type": "SoftwareApplication",
@@ -38,25 +38,23 @@ const STRUCTURED_DATA = {
       operatingSystem: "Windows, macOS, Linux",
       softwareVersion: PUBLISHED_VERSION,
       url: "https://pytxo.com",
-      downloadUrl: "https://pytxo.com/download",
-      image: "https://pytxo.com/product/fleet-1600x1000.png",
-      description:
-        "Checks what coding agents produced as one combined change, lands exactly what was reviewed, refuses if anything moved, and writes a receipt.",
+      downloadUrl: NPM_URL,
+      image: `https://pytxo.com${SHARE_IMAGE.url}`,
+      description: PRODUCT_SUMMARY,
     },
   ],
 } as const;
 
 const FAQ = [
-  { q: "Which agents does Pytxo run?", a: "Codex, Claude Code and Cursor Agent have completed live runs on a released build. OpenCode and Antigravity run as beta: in our live tests Antigravity's headless mode denied its own tool permission and OpenCode's default model could not use tools. One installed and signed-in agent is enough to start." },
-  { q: "Can I land branches from other agent tools?", a: "Yes. pytxo land takes branches from any tool, such as Orca, Conductor, Codex or Claude Code, combines them in an isolated worktree, runs your checks on the result and on each branch alone, and lands only a combination that passed. By default it changes nothing and writes a receipt." },
-  { q: "Do I need a Pytxo account?", a: "No. Everything local works without one, and each agent uses its own sign-in. A free account adds hosted perks: share a receipt as a public page, keep shared receipts across machines, and publish Pybench results." },
-  { q: "Does Pytxo see my API keys?", a: "No. Agents run with a clean environment, so API keys set in your shell are not passed to them, and Pytxo never asks for your agent credentials." },
-  { q: "How do agents avoid overwriting each other?", a: "Every task runs in its own isolated copy of your project, and the plan says which files each task owns. Tasks that share a file run one after another, so the later one starts from the earlier one's result." },
-  { q: "What do the checks prove?", a: "Pytxo runs the commands you approve on each task and again on all the changes together. Passing means those commands passed on the exact files you are about to apply. It does not mean the code is right in every way." },
-  { q: "What if my project changes after I review?", a: "Apply refuses and nothing is written. Refresh the review to recheck the changes against your current files, then Apply again." },
-  { q: "What if Apply is interrupted?", a: "Pytxo journals every Apply. On restart it reconciles the attempt: confirmed as applied, rolled back, or flagged as needing recovery. It never reports a restore it could not confirm." },
-  { q: "Does Pytxo sandbox everything an agent does?", a: "No. Pytxo controls what reaches your repository. It does not contain every file or network action an agent takes on your machine; each run's details list which protections were enforced and which were advisory." },
-  { q: "Is it faster than one agent?", a: "Sometimes. Splitting helps when a job has parts that can run at once. A small fix is often quicker with one agent, and Pytxo works fine with one." },
+  { q: "Which agents does it work with?", a: "Any agent that leaves its work on a branch. With no arguments Pytxo checks branches named claude/*, codex/*, copilot/*, cursor/*, devin/*, jules/* and agent/*, plus every branch in a linked worktree, that have a commit in the last 14 days. Name other branches yourself, or set git config pytxo.branches." },
+  { q: "How does it find my tests?", a: "It reads the target branch and picks the usual command for package.json, Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a Makefile test target, installing dependencies first when the project has any. Or pass your own with -c." },
+  { q: "Does it change my repository?", a: "No. The merge and the tests happen in a throwaway worktree. Only --apply lands a ready result on the target branch, and it refuses if that branch moved during the check." },
+  { q: "What does a pass prove?", a: "That your tests pass on the merge of the branches. Pytxo catches what your tests catch: a break they don't cover can still land. Merge conflicts are blocked, not resolved." },
+  { q: "What if a test is flaky?", a: "When the combined change fails, Pytxo runs each branch alone and the combined change once more. A failure that does not repeat is reported as flaky, not as a break." },
+  { q: "Does it send my code anywhere?", a: "No. The check runs on your machine or in your own CI. It calls no model, needs no account, and sends nothing anywhere." },
+  { q: "Is the GitHub Action safe on public repositories?", a: "It runs on pull_request only and refuses pull_request_target. The tests run in a step without the token, and a fork's pull request never joins another pull request's run, so its code never runs with that run's token." },
+  { q: "What does it cost?", a: "Pytxo is free on your machine and on public repositories, and open source under MIT. A paid plan for private repositories in CI is planned; until it opens, the Action is free everywhere." },
+  { q: "What happened to Pytxo Desktop?", a: "It is frozen at 1.x and still a free download. Pytxo now does one thing: the check." },
 ] as const;
 
 export default function HomePage() {
@@ -71,7 +69,7 @@ export default function HomePage() {
       />
       <Hero />
       <HowItWorks />
-      <LandSection />
+      <CiSection />
       <CompareSection />
       <ProofSection />
       <CompatibilitySection />
@@ -88,7 +86,7 @@ export default function HomePage() {
             Questions
           </h2>
           <p className="mt-6 max-w-sm text-sm leading-relaxed text-[#8d8d96]">
-            Your agents write the code. You decide what lands.
+            Your agents write the branches. Your tests decide whether they go together.
           </p>
         </div>
         <Accordion type="single" collapsible className="w-full border-t border-white/10">

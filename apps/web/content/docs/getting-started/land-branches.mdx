@@ -3,6 +3,8 @@ title: Land branches from any agent tool
 description: Use pytxo land to check several agent branches as one combined change, land only what passed, and keep a receipt.
 ---
 
+> **Pytxo 2.0:** `pytxo land` is now an alias of `pytxo check`, and with no branches it finds the agent branches and the test command on its own; see the [Quickstart](/docs/getting-started/quickstart). The flags on this page still work.
+
 Agent workspaces such as Orca, Conductor, Superset, the Codex app or Claude Code give each agent its own branch. Each branch can pass its own checks and still break when merged with the others. `pytxo land` checks the combination before any of it reaches your branch.
 
 It needs Pytxo 1.3 or later, Git, and the tools your checks use. It works on Windows, macOS and Linux and does not call any model.

@@ -1,0 +1,77 @@
+---
+title: Quickstart
+description: See the check catch a break, then run it on your own repository. About a minute, no flags, no account.
+---
+
+You need Node.js 18 or newer and Git. The first `npx pytxo` downloads the Pytxo binary for your platform (about 11 MB) and checks it against the release's SHA-256 list.
+
+## 1. See it work
+
+```bash
+npx pytxo demo
+```
+
+The demo builds a throwaway repository where one agent renamed `price()` to `unitPrice()` and another added code that calls `price()`. Each branch passes `npm test` on its own; together they fail:
+
+```text
+BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
+why      npm test fails on the combined change: FAIL discount.test.js: price is not a function
+next     fix one branch so they agree, then run npx pytxo again.
+```
+
+The repository is deleted afterwards. Add `--keep` to keep it and look around.
+
+## 2. Run it on your repository
+
+```bash
+cd your-repo
+npx pytxo
+```
+
+With no arguments Pytxo:
+
+1. **Finds the agent branches**: branches named `claude/*`, `codex/*`, `copilot/*`, `cursor/*`, `devin/*`, `jules/*` or `agent/*`, plus every branch checked out in a linked worktree, that have a commit in the last 14 days.
+2. **Finds the target**: the default branch (`origin/HEAD`, else `main`, `master` or `trunk`).
+3. **Finds your tests** in the target branch: `package.json` (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a `Makefile` with a `test` target.
+4. **Merges the branches in a throwaway worktree**, runs the tests on the result, and prints the verdict.
+
+Nothing in your repository changes. With no agent branches it prints one line and suggests the demo.
+
+## 3. Read the verdict
+
+Every verdict is three lines: what happened, why, and what to do next.
+
+| Verdict | Means | Exit code |
+|---|---|---|
+| `READY` | The branches pass your tests together | 0 |
+| `BLOCKED` | They fail together, conflict, or a branch was already broken | 2 |
+| `FLAKY` | The combined change failed once and passed once, so it cannot say | 2 |
+| `NO TESTS` | They merge cleanly but no test command was found | 0 |
+| `STALE` | The target branch moved during the check; run it again | 3 |
+
+When the combined change fails, Pytxo runs each branch alone to tell a break that only happens together from a branch that was already broken, then runs the combined change once more to catch a flaky test.
+
+## 4. Change what it checks
+
+```bash
+npx pytxo feature/a feature/b          # these branches, not the detected ones
+npx pytxo --into develop               # against another branch
+npx pytxo -c "npm ci && npm run test:unit"   # another test command
+```
+
+To change the defaults for one repository:
+
+```bash
+git config pytxo.branches "bot/* ai/*"
+git config pytxo.check "make test"
+git config pytxo.days 30
+```
+
+The environment variables `PYTXO_BRANCHES`, `PYTXO_CHECK` and `PYTXO_DAYS` do the same for one shell.
+
+`--verbose` adds every check's output, the receipt and the digests. `--json` and `--markdown` are for scripts and pull-request comments. See the [CLI reference](/docs/reference/cli) for every flag.
+
+## Next
+
+- [Check every agent pull request in CI](/docs/getting-started/land-in-ci) with one line of GitHub Actions.
+- [Run the check when Claude Code or Codex stops](/docs/getting-started/agent-hooks).

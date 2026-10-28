@@ -1,0 +1,39 @@
+---
+title: Claude Code and Codex
+description: Run the check when an agent stops, and see the verdict in the agent's session.
+---
+
+When Claude Code or Codex finishes a turn, Pytxo checks the agent branches in your repository together and shows the verdict in the session. It stays quiet unless two or more agent branches changed since its last answer, and it waits while background agents are still working.
+
+Both run `npx -y pytxo@2.0.0 hook`, so Node.js must be on your PATH.
+
+## Claude Code
+
+In Claude Code:
+
+```text
+/plugin marketplace add Pytxo-dev/pytxo
+/plugin install pytxo@pytxo
+```
+
+The verdict appears as a message when the turn ends:
+
+```text
+Pytxo checked the agent branches together.
+BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
+why      npm test fails on the combined change: FAIL discount.test.js: price is not a function
+next     fix one branch so they agree, then Pytxo checks again when an agent stops.
+```
+
+## Codex
+
+1. Copy [`integrations/codex/hooks.json`](https://github.com/Pytxo-dev/pytxo/blob/main/integrations/codex/hooks.json) to `~/.codex/hooks.json` for every repository, or to `.codex/hooks.json` in one repository. If the file exists, add its `Stop` entry to your `hooks` object.
+2. In Codex, open `/hooks` and trust the Pytxo hook. Codex skips hooks nobody has trusted.
+
+## Make the agent fix it
+
+By default the hook only tells you. With `hook --block`, a BLOCKED verdict asks the agent to keep working on the fix. Change the command in the hook to `npx -y pytxo@2.0.0 hook --block`.
+
+## What it checks
+
+The same as `npx pytxo` with no arguments: the agent branches and linked worktrees, against the default branch, with the test command it finds. Change them with `git config pytxo.branches` and `git config pytxo.check`; see the [Quickstart](/docs/getting-started/quickstart#4-change-what-it-checks). Nothing in your repository changes: the check runs in a throwaway worktree and records a receipt under `.git/pytxo/receipts`.

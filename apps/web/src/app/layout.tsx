@@ -3,38 +3,30 @@ import { RootProvider } from "fumadocs-ui/provider/next";
 
 import { Providers } from "@/components/providers";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { PRODUCT_SUMMARY, SHARE_IMAGE } from "@/lib/site";
 import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://pytxo.com"),
   title: {
-    default: "Pytxo: the landing layer for coding agents",
+    default: "Pytxo: do your agents' branches pass together?",
     template: "%s · Pytxo",
   },
-  description:
-    "Pytxo checks what your coding agents produced as one combined change, shows exactly what will land, refuses if anything moved, and leaves a receipt.",
+  description: PRODUCT_SUMMARY,
   openGraph: {
     title: "Pytxo",
-    description:
-      "The landing layer for coding agents. Many agents, one verified change.",
+    description: PRODUCT_SUMMARY,
     url: "https://pytxo.com",
     siteName: "Pytxo",
-    images: [
-      {
-        url: "/product/work-1600x1000.png",
-        width: 1600,
-        height: 1000,
-        alt: "Pytxo Desktop Work: the run ledger and the commit boundary",
-      },
-    ],
+    images: [SHARE_IMAGE],
     locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: "Pytxo",
-    description: "The landing layer for coding agents. Many agents, one verified change.",
-    images: ["/product/work-1600x1000.png"],
+    description: PRODUCT_SUMMARY,
+    images: [SHARE_IMAGE.url],
   },
 };
 

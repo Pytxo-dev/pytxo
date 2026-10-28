@@ -19,7 +19,7 @@ import {
 export const metadata = pageMetadata(
   "/download",
   "Download · Pytxo",
-  "Windows: Pytxo Desktop plus an agent CLI you already use. macOS and Linux: the Pytxo CLI.",
+  "The Pytxo CLI for macOS, Linux and Windows, and Pytxo Desktop for Windows, which is frozen.",
 );
 
 export default function DownloadPage() {
@@ -36,9 +36,9 @@ export default function DownloadPage() {
           </Badge>
         </div>
         <p className="max-w-2xl text-lg text-muted-foreground">
-          On Windows, install Pytxo Desktop and at least one agent CLI you already use: Codex,
-          Claude Code, Cursor Agent, OpenCode or Antigravity. On macOS and Linux, start with the
-          Pytxo CLI; Desktop for them is not built yet.
+          The check needs no download: run <code className="font-mono text-[0.9em]">npx pytxo demo</code>, then{" "}
+          <code className="font-mono text-[0.9em]">npx pytxo</code> in your repository. Install the CLI below to keep it on
+          your PATH. Pytxo Desktop is frozen: no new features, and still a free download for Windows.
         </p>
       </div>
 
@@ -72,7 +72,7 @@ export default function DownloadPage() {
                 </h3>
                 <span className="text-xs text-muted-foreground">Node 18+</span>
               </div>
-              <InstallSnippet className="mt-3" copyLabel="Copy npm setup commands">{`${NPM_INSTALL}\npytxo doctor`}</InstallSnippet>
+              <InstallSnippet className="mt-3" copyLabel="Copy npm setup commands">{`${NPM_INSTALL}\npytxo demo`}</InstallSnippet>
             </div>
 
             <div>

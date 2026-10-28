@@ -5,24 +5,23 @@ import { AsciiWordmark } from "@/components/site/ascii-art";
 import { DISCORD_URL, GITHUB_URL, SOURCE_URL } from "@/lib/site";
 
 const PRODUCT_LINKS = [
-  { href: "/download", label: "Download" },
   { href: "/bench", label: "Pybench" },
   { href: "/docs/evidence", label: "Evidence" },
   { href: "/plans", label: "Plans" },
+  { href: "/download", label: "Pytxo Desktop (1.x)" },
 ] as const;
 
 const DOCS_LINKS = [
   { href: "/docs", label: "Docs home" },
-  { href: "/docs/getting-started/install", label: "Install" },
-  { href: "/docs/getting-started/land-branches", label: "Land branches" },
-  { href: "/docs/concepts/desktop", label: "Pytxo Desktop" },
+  { href: "/docs/getting-started/quickstart", label: "Quickstart" },
+  { href: "/docs/getting-started/land-in-ci", label: "GitHub Action" },
+  { href: "/docs/reference/cli", label: "CLI reference" },
 ] as const;
 
 const RESOURCE_LINKS = [
   { href: SOURCE_URL, label: "Source on GitHub", external: true },
   { href: GITHUB_URL, label: "Binaries on GitHub", external: true },
   { href: DISCORD_URL, label: "Discord", external: true },
-  { href: "/docs/reference/cli", label: "CLI reference" },
 ] as const;
 
 // Phones: each link is a 44px row; desktop keeps the tighter list.
@@ -46,7 +45,7 @@ export function SiteFooter() {
               <p className="font-semibold tracking-tight">Pytxo</p>
             </div>
             <p className="text-sm leading-relaxed text-[#7d7d87]">
-              The landing layer for coding agents. Many agents, one verified change.
+              Each agent&apos;s branch passes. Do they pass together?
             </p>
           </div>
 

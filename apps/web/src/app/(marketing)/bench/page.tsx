@@ -129,9 +129,9 @@ export default async function BenchPage() {
         </table>
       </div> : <p className="mt-6 text-sm text-[#a9a9b2]">{entries ? "No published results yet. Be the first:" : "The board is unavailable right now. Run it locally:"}</p>}
       <div className="mt-6 max-w-xl">
-        <InstallSnippet copyLabel="Copy the Pybench command">pytxo bench --submit</InstallSnippet>
+        <InstallSnippet copyLabel="Copy the Pybench command">npx pytxo bench</InstallSnippet>
       </div>
-      <p className="mt-3 text-sm text-[#8d8d96]">Needs Pytxo 1.3, git and node. <code className="font-mono">--submit</code> asks you to <Link href="/docs/getting-started/account" className="aperture-link">sign in</Link>; without it, nothing leaves your machine.</p>
+      <p className="mt-3 text-sm text-[#8d8d96]">Needs git and Node.js; nothing leaves your machine. Publishing a result to this board (<code className="font-mono">--submit</code>, after you <Link href="/docs/getting-started/account" className="aperture-link">sign in</Link>) needs a full source build of Pytxo.</p>
     </section>
   </div>;
 }

@@ -57,8 +57,8 @@ without tests (Pytxo catches only what the tests catch).
   (`pytxo bench`) shows the mechanism on synthetic repositories, not a rate.
 - The check is as slow as your test suite, plus installing dependencies in a
   fresh worktree.
-- In CI it combines pull requests from the same repository only; a fork's pull
-  request never joins a run with other branches.
+- In CI, a fork's pull request never joins another pull request's run, so
+  fork code never runs with that run's token.
 - Receipts use the in-toto statement format but are not signed.
 
 ## Price

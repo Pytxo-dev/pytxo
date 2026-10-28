@@ -28,8 +28,8 @@ for (const width of [390, 768, 1280, 1440, 1920]) {
     const capture = page.getByTestId('hero-capture');
     const captureBox = (await capture.boundingBox())!;
     expect(headingBox.y + headingBox.height).toBeLessThan(captureBox.y);
-    // The decision is on the first screen at every width.
-    await expect(capture.getByText('decision  BLOCKED')).toBeInViewport();
+    // The verdict is on the first screen at every width.
+    await expect(capture.getByText('BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.')).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     await page.screenshot({ path: testInfo.outputPath(`home-${width}.png`), fullPage: true });
     await page.goto('/docs/getting-started/first-mission');

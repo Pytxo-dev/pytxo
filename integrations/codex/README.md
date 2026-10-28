@@ -20,4 +20,4 @@ Windows, Codex runs it through `cmd.exe`, which finds `npx` as usual.
 To make Codex keep working on a BLOCKED verdict instead of only showing it, use
 `npx -y pytxo@2.0.0 hook --block`.
 
-Pytxo sends no telemetry. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
+Pytxo sends nothing anywhere. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
