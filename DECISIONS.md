@@ -48,7 +48,9 @@ chosen, why, and how to undo it.
    keeps the old always-first order.
 
 6. **"Flaky" is its own verdict.** It still exits 2 (blocked), as before,
-   but the headline says FLAKY so nobody blames the agents for it.
+   but the headline says FLAKY so nobody blames the agents for it. With
+   several checks, one that fails again on the combination speaks over one
+   that passed when run again, so a flaky test never hides a real break.
 
 7. **No agent branches exits 0.** It is not an error and must not fail CI or
    a hook. Errors exit 1; usage errors now exit 1 instead of clap's 2, which
@@ -95,7 +97,9 @@ chosen, why, and how to undo it.
 
 14. **Release tags must be exact versions.** `release.yml` fired on `v*`, so
     the floating `v2` tag for the Action would have started a release. It now
-    fires on `vX.Y.Z` and `vX.Y.Z-*` only.
+    fires on `vX.Y.Z` and `vX.Y.Z-*` only. The maintainer moves `v2` by hand
+   after each final 2.x release (MAINTAINING.md), since the Action pins the
+   CLI version it installs.
 
 15. **Desktop's "install CLI" verifies with `--version`.** It ran
     `pytxo doctor --quick`, which the released CLI no longer has.
@@ -126,8 +130,14 @@ chosen, why, and how to undo it.
     first, with the triggering PR last so a conflict names the newest change.
     Pull requests from forks never join another PR's run, where their code
     would see that run's token; a fork PR's own run is read-only and checks
-    it with the base repository's agent PRs. At most 10 PRs at once. Draft
-    PRs count (Copilot opens drafts). Only the triggering PR gets the comment.
+    it with the base repository's agent PRs. Nor do pull requests GitHub
+    holds until a person approves their workflow run (authored by Copilot,
+    `copilot-swe-agent[bot]` or `github-actions[bot]`): another PR's run
+    would run their code before anyone approved it. Their own run, once
+    approved, checks them with the others. At most 10 PRs at once. Draft PRs
+    count. With no other agent PR open into the same base, the run passes
+    with a note in the job summary and posts no comment. Only the triggering
+    PR gets the comment.
     Errors are reported as errors, not as "blocked". The job fails when the
     CLI's last-line verdict tag implicates this PR (it conflicts, fails
     alone, or is in a combination that fails while each passes alone), when
@@ -186,9 +196,11 @@ chosen, why, and how to undo it.
 24. **A PR comment treats everything from a branch as untrusted text.**
     Captured test output is masked when it is captured: PEM private key
     blocks, the key formats in pytxo-core's `SECRET_PATTERNS` plus npm
-    tokens, bearer tokens, URL passwords, and the value of any key whose name
-    contains secret, token, password, passwd, api_key, apikey, access_key,
-    private_key or credential (after `=`, `:`, `=>` or `:=`) become
+    tokens, bearer tokens, URL passwords, and the value of any key whose name,
+    lowercased and without `-` and `_`, contains secret, token, password,
+    passwd, apikey, accesskey, privatekey, credential or authorization (so
+    `privateKey` and an `Authorization:` header too; after `=`, `:`, `=>`
+    or `:=`) become
     `[REDACTED]` in receipts, `--json`, hook replies and comments. A name
     ending in Error or Exception is not a key, so `JsonWebTokenError: ...`
     stays readable; the cost is masking harmless values such as
@@ -223,14 +235,15 @@ chosen, why, and how to undo it.
     out.** Settings come from `git config --show-scope --get-all`, keeping
     the most specific scope's values, so a repository's `pytxo.check`
     replaces a global one instead of joining it; Git older than 2.26 falls
-    back to `--get-all` and keeps the last value. At most the 10 newest
-    branches are checked. Branches that share no history with the target
-    (a `gh-pages` worktree) are left out and counted under `--verbose`. A
-    worktree whose changes are all uncommitted is named, with a hint to
-    commit them. Note lines under the verdict, and `notes` in `--json`, say
-    when the target is behind `origin` or branches were left out; the
-    no-branches line suggests `git fetch`. `--json` gives each branch's
-    `label` when it has one. Undo: drop the notes and the cap.
+    back to `--get-all` and keeps the last value, and the demo and Pybench
+    name `main` with `symbolic-ref`, since `git init -b` needs 2.28. At most
+    the 10 newest branches are checked. Branches that share no history with
+    the target (a `gh-pages` worktree) are left out and counted under
+    `--verbose`. A worktree whose changes are all uncommitted is named, with
+    a hint to commit them. Note lines under the verdict, and `notes` in
+    `--json`, say when the target is behind `origin` or branches were left
+    out; the no-branches line suggests `git fetch`. `--json` gives each
+    branch's `label` when it has one. Undo: drop the notes and the cap.
 30. **A squash-merged branch is found by patch id when a merge cannot
     tell.** When the target has edited the same lines again, or Git has no
     `merge-tree --write-tree`, Pytxo squashes the branch with `commit-tree`
@@ -241,29 +254,47 @@ chosen, why, and how to undo it.
     target is still skipped.
 31. **Ctrl+C cleans up; a second Ctrl+C quits at once.** The first Ctrl+C,
     SIGTERM or SIGHUP prints one line, removes the run's scratch worktrees
-    and logs, and exits 130; a second one exits 130 at once. On Unix a
-    signal ignored when Pytxo started (`nohup`, `pytxo &`) stays ignored.
-    The npm launcher ignores these signals while the binary runs, so the
-    terminal comes back only after the cleanup, and passes the binary's exit
-    code on (128 plus the signal number when it was killed). A run killed
+    and logs, and exits 130; a second one exits 130 at once. The handler is
+    installed as the check starts, before branches are found or the demo
+    repository is built, which an interrupt removes too. The scratch checkout,
+    Pytxo's one long Git command, is stopped like a check: on Windows Ctrl+C
+    does not reach the git it starts, which went on writing the worktree being
+    removed. Its other Git commands in a scratch worktree are short; an
+    interrupt during one can leave files for the next run's sweep. On Unix a
+    signal ignored when the binary started (`nohup`, `pytxo &`) stays
+    ignored; npx and npm start it with every signal back to its default, so
+    this holds only for the binary run directly. The npm launcher ignores
+    these signals while the binary runs, so the terminal comes back only after
+    the cleanup, and passes the binary's exit code on (128 plus the signal
+    number when it was killed). Under `npx` on Windows, npm handles Ctrl+C by
+    ending its child shell and returns at once with exit 1 while the binary
+    finishes cleaning up; a launcher cannot change that. A run killed
     hard leaves its directory for the next run to remove: scratch worktrees
     are dated by the run start in their tag, and unlocked young ones are
     kept for 24 hours. ctrlc is pinned at 3.4.6, which adds no crates; libc
-    is a Unix-only dependency for reading the inherited signal disposition.
+    is a Unix-only dependency for reading the inherited signal disposition
+    and for kill(2), so stopping a check needs no `kill` binary (slim images
+    have none).
 32. **Checks run in a process group of their own, with nothing to answer
     a prompt.** On Unix a check runs in its own process group, so a timeout
     or Ctrl+C stops the whole tree, and the run's directory is private
     (0700, logs 0600). Scratch checkouts run no Git hooks. Every check gets an
     empty stdin and `GIT_TERMINAL_PROMPT=0`; a check that opens the terminal
     itself (an ssh passphrase, sudo) waits until `--timeout`. `PYTHONPATH`
-    gets the checkout first. Submodules are never checked out, and failed
-    verdicts say so when the target has `.gitmodules`.
+    gets the checkout first. Submodules are never checked out, even with the
+    user's `submodule.recurse` set, and failed verdicts say so when the
+    target has `.gitmodules`.
 33. **When every branch fails alone, the target runs once.** That run
     (scope `target` in the receipt) tells "the target was already broken"
     from "every branch broke it". It runs once per command and never after a
     timeout, and a target run that timed out is not evidence. After a
     combined run times out, nothing else runs. A branch that conflicts is
-    merged onto the target alone before an earlier branch is blamed.
+    merged onto the target alone before an earlier branch is blamed. Each
+    later run in a reused scratch worktree starts clean: `git clean -ffdx`
+    keeps only `node_modules` and `target`, whose tools never run stale
+    output, so build output a test command runs (a `tsc` outDir) cannot carry
+    over from another branch. Cost: on a failure, other ignored caches (a
+    `.venv`, Gradle's `build`) are rebuilt for each branch.
 34. **Windows checks see the long temp path when it is plain.**
     `C:\Users\RUNNER~1\...` confuses tools that compare paths, so checks run
     under the long spelling, unless it has a space or a non-ASCII letter or
@@ -277,3 +308,13 @@ chosen, why, and how to undo it.
     `cancel-in-progress`. The Claude Code install leads with the shell
     commands and `--sparse` (checked with Claude Code 2.1.299); `/plugin` in
     a session is the second route.
+36. **Two results exit 0 without a pass.** `pytxo demo` exits 0 when it
+    shows the BLOCKED it was built to show, and 1 when it does not. NO TESTS
+    exits 0 (`decision` ready), so a repository without tests does not fail
+    CI, and the line says no tests ran. `--apply` refuses it with exit 1 and
+    lands nothing: a merge nothing tested is not a result to land.
+37. **`npx pytxo` stays the headline command.** npx runs a pytxo already
+    installed in the project or globally before it fetches one, so a 1.x
+    global install answers instead of 2.0. The install page and release notes
+    tell upgraders to run `npm i -g pytxo@latest`, instead of every snippet
+    saying `npx pytxo@latest`, which costs a registry check per run.
