@@ -411,8 +411,18 @@ fn detect(
         }
     }
 
-    let target_ref = format!("refs/heads/{target}");
-    let target_tree = git.run(&["rev-parse", &format!("{target_ref}^{{tree}}")])?;
+    // A branch merged on GitHub is in origin's copy of the target before the
+    // local one pulls it, so both count when they differ.
+    let tip = |r: &str| refs.iter().find(|f| f.0 == r).map(|f| f.1);
+    let mut targets = vec![format!("refs/heads/{target}")];
+    let upstream = format!("refs/remotes/origin/{target}");
+    if tip(&upstream).is_some_and(|c| Some(c) != tip(&targets[0])) {
+        targets.push(upstream);
+    }
+    let trees = targets
+        .iter()
+        .map(|t| git.run(&["rev-parse", &format!("{t}^{{tree}}")]))
+        .collect::<Result<Vec<_>>>()?;
     let in_memory = supports_merge_tree(git);
     let cutoff = (max_age_days > 0).then(|| {
         let now = SystemTime::now()
@@ -424,17 +434,24 @@ fn detect(
     let mut old = 0;
     let mut out = Vec::new();
     for c in candidates {
-        if !commits.insert(c.commit.clone())
-            || git.ok(&["merge-base", "--is-ancestor", &c.commit, &target_ref])
-        {
+        if !commits.insert(c.commit.clone()) {
             continue;
         }
+        // The age check costs no git call, so it goes first.
         if cutoff.is_some_and(|cut| c.time < cut) {
             old += 1;
             continue;
         }
-        // Squash-merged branches are not ancestors but add nothing.
-        if in_memory && adds_nothing(git, &target_ref, &c.commit, &target_tree) {
+        // Merged, or squash-merged: not an ancestor, but adds nothing.
+        if targets
+            .iter()
+            .any(|t| git.ok(&["merge-base", "--is-ancestor", &c.commit, t]))
+            || (in_memory
+                && targets
+                    .iter()
+                    .zip(&trees)
+                    .any(|(t, tree)| adds_nothing(git, t, &c.commit, tree)))
+        {
             continue;
         }
         let uncommitted = c.worktree.as_deref().is_some_and(has_uncommitted);
@@ -848,5 +865,44 @@ mod tests {
         git(l, &["config", "user.name", "Test"]);
         commit_file(l, "README.md", "hi", "base");
         assert_eq!(target(l, &[], None), "work");
+    }
+
+    #[test]
+    fn branches_merged_upstream_count_as_merged_while_main_lags_behind() {
+        let (_dir, d) = repo();
+        branch(&d, "codex/merged", "a.js");
+        branch(&d, "codex/squashed", "b.js");
+        branch(&d, "codex/open", "c.js");
+        // GitHub merged one and squash-merged the other; main has not pulled.
+        git(&d, &["checkout", "-q", "-b", "upstream", "main"]);
+        git(
+            &d,
+            &["merge", "-q", "--no-ff", "-m", "merge", "codex/merged"],
+        );
+        git(&d, &["merge", "-q", "--squash", "codex/squashed"]);
+        git(&d, &["commit", "-q", "-m", "squash"]);
+        git(&d, &["update-ref", "refs/remotes/origin/main", "upstream"]);
+        git(&d, &["checkout", "-q", "main"]);
+        git(&d, &["branch", "-q", "-D", "upstream"]);
+        // The age check runs before any merge check, so an old branch is
+        // counted as old, merged or not.
+        git(&d, &["checkout", "-q", "-b", "codex/old", "main"]);
+        std::fs::write(d.join("old.js"), "old").unwrap();
+        git(&d, &["add", "-A"]);
+        let out = Command::new("git")
+            .args(["commit", "-q", "-m", "old"])
+            .env("GIT_COMMITTER_DATE", "2020-01-01T00:00:00Z")
+            .current_dir(&d)
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+        git(&d, &["checkout", "-q", "main"]);
+        git(
+            &d,
+            &["merge", "-q", "--no-ff", "-m", "merge old", "codex/old"],
+        );
+
+        let plan = plan(&d, &[], None, &[]).unwrap();
+        assert_eq!((names(&plan), plan.old), (vec!["codex/open"], 1));
     }
 }
