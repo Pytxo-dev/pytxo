@@ -206,6 +206,38 @@ fn hook_answers_once_per_change_and_waits_for_background_agents() {
     assert_eq!((out.status.code(), stdout(&out)), (Some(0), String::new()));
 }
 
+#[test]
+fn a_hook_says_once_when_a_setting_stops_the_check() {
+    let dir = repo(&["claude/a", "codex/b"]);
+    let d = dir.path();
+    git(d, &["config", "pytxo.check", "git --version"]);
+    git(d, &["config", "pytxo.into", "gone"]);
+    let event = stop_event(d);
+    let v = hook_reply(&pytxo(d, &["hook"], Some(&event)));
+    assert_eq!(
+        v["systemMessage"],
+        "Pytxo could not check the agent branches: target branch does not exist: gone (from git config pytxo.into)"
+    );
+    let out = pytxo(d, &["hook"], Some(&event));
+    assert_eq!((out.status.code(), stdout(&out)), (Some(0), String::new()));
+    // Fixed: the next stop checks.
+    git(d, &["config", "--unset", "pytxo.into"]);
+    let v = hook_reply(&pytxo(d, &["hook"], Some(&event)));
+    assert!(
+        v["systemMessage"].as_str().unwrap().contains("READY"),
+        "{v}"
+    );
+
+    // A new repository with no commit yet has nothing to check.
+    let empty = tempfile::tempdir().unwrap();
+    git(empty.path(), &["init", "-q", "-b", "main"]);
+    let out = pytxo(empty.path(), &["hook"], Some(&stop_event(empty.path())));
+    assert_eq!((out.status.code(), stdout(&out)), (Some(0), String::new()));
+    let out = pytxo(empty.path(), &[], None);
+    assert_eq!(out.status.code(), Some(0));
+    assert!(stdout(&out).starts_with("No agent branches to check against main"));
+}
+
 /// The JSON a `Stop` hook gets on stdin.
 fn stop_event(cwd: &Path) -> String {
     format!(

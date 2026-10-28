@@ -201,21 +201,37 @@ fn hook_reply(
         Some(cwd) => PathBuf::from(cwd),
         None => std::env::current_dir()?,
     };
-    // Not a repository, or one agent alone: nothing to combine.
-    let Ok(plan) = detect::plan(&cwd, &[], None, &[]) else {
+    // Not a repository: nothing to combine.
+    let Ok(receipts) = pytxo_land::repo_receipts_dir(&cwd) else {
         return Ok(None);
     };
+    // Same branches, same tips, same tests: the last verdict still stands.
+    let memo = receipts.with_file_name("hook-last");
+    let said = |text: &str| std::fs::read_to_string(&memo).is_ok_and(|last| last == text);
+    let plan = match detect::plan(&cwd, &[], None, &[]) {
+        Ok(plan) => plan,
+        // An error every check would hit, such as a pytxo.into naming no
+        // branch: said once, not on every stop.
+        Err(e) => {
+            let error = format!("{e:#}");
+            if said(&error) {
+                return Ok(None);
+            }
+            let _ = std::fs::create_dir_all(&receipts);
+            let _ = std::fs::write(&memo, &error);
+            return Err(e);
+        }
+    };
+    // One agent alone: nothing to combine.
     if plan.branches.len() < 2 {
         return Ok(None);
     }
-    // Same branches, same tips, same tests: the last verdict still stands.
-    let memo = pytxo_land::repo_receipts_dir(&plan.root)?.with_file_name("hook-last");
     // Parallel sessions stop at the same time: one check per repository.
     let Some(_lock) = HookLock::take(&memo.with_file_name("hook.lock"), timeout)? else {
         return Ok(None);
     };
     let fingerprint = plan.fingerprint();
-    if std::fs::read_to_string(&memo).is_ok_and(|last| last == fingerprint) {
+    if said(&fingerprint) {
         return Ok(None);
     }
     let mut opts = options(

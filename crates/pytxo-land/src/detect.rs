@@ -431,8 +431,12 @@ fn detect(
     // local one pulls it, so both count when they differ.
     let tip = |r: &str| refs.iter().find(|f| f.0 == r).map(|f| f.1);
     let mut targets = vec![format!("refs/heads/{target}")];
+    // A checked-out branch with no commit yet, in a new repository.
+    let Some(local) = tip(&targets[0]) else {
+        return Ok((Vec::new(), 0));
+    };
     let upstream = format!("refs/remotes/origin/{target}");
-    if tip(&upstream).is_some_and(|c| Some(c) != tip(&targets[0])) {
+    if tip(&upstream).is_some_and(|c| c != local) {
         targets.push(upstream);
     }
     let trees = targets
