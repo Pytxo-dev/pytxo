@@ -43,6 +43,7 @@ without tests (Pytxo catches only what the tests catch).
   your machine with no account and sends nothing anywhere.
 - **It says what broke.** When the combination fails, it runs each branch alone
   to tell "breaks only together" from "already broken" and from a flaky test.
+  After a combined run times out, the branches do not run alone.
 - **Nothing in the repository changes.** The merge happens in a throwaway
   worktree.
 

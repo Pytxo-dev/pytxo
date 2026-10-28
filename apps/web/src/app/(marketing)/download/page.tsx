@@ -129,19 +129,16 @@ export default function DownloadPage() {
           </div>
         </section>
 
-        <section className="border-t border-border pt-10">
+        <section className="border-t border-border pt-10" data-testid="next-steps">
           <h2 className="text-lg font-semibold tracking-tight">Next steps</h2>
           <div className="mt-4 grid gap-1 sm:grid-cols-2">
             {[
+              { href: "/docs/getting-started/quickstart", label: "Quickstart" },
+              { href: "/docs/getting-started/land-in-ci", label: "GitHub Action" },
+              { href: "/docs/getting-started/agent-hooks", label: "Claude Code and Codex" },
+              { href: "/docs/reference/cli", label: "CLI reference" },
               { href: "/docs/getting-started/install", label: "Install by platform" },
-              { href: "/docs/getting-started/first-mission", label: "First mission" },
-              { href: "/docs/getting-started/review-and-apply", label: "Review and Apply" },
-              { href: "/docs/getting-started/first-three-agent-run", label: "Collision demo" },
-              { href: "/docs/getting-started/mcp-from-cursor", label: "Wire Cursor MCP" },
-              { href: "/docs/getting-started/folder-trust", label: "Folder trust" },
               { href: "/docs/concepts/desktop", label: "Pytxo Desktop overview" },
-              { href: "/docs/concepts/modular-projects", label: "Workspaces" },
-              { href: "/docs/reference/pytxo-toml", label: "pytxo.toml reference" },
             ].map((item) => (
               <Link
                 key={item.href}

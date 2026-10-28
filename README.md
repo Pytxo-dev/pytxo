@@ -25,7 +25,9 @@ npx pytxo        # checks your agent branches together
 No flags, no config, no account. Pytxo finds the agent branches, finds your
 test command, merges the branches in a throwaway worktree, runs the tests
 there and prints the verdict in three lines: what happened, why, and what to
-do next. Nothing in your repository changes, even if you stop a check partway.
+do next. Nothing in your repository changes. Ctrl+C stops a check and removes
+its throwaway worktree; a check that is killed outright leaves the worktree in
+`git worktree list` until the next check removes it.
 
 ## The demo
 
@@ -71,11 +73,12 @@ open agent pull requests into the same base branch, then posts one comment and
 keeps it up to date. The job fails when this pull request conflicts, fails the
 tests alone, or is in a combination that fails while each passes alone; when
 only other pull requests are to blame, the comment names them and the job
-passes. It runs on `pull_request` only, never `pull_request_target`. A fork's
-pull request never joins another pull request's run: it is checked in its own
-run, with GitHub's read-only token and no secrets. Without
-`pull-requests: write` the verdict goes to the job summary instead. See
-[the Action's inputs](actions/land/action.yml).
+passes. When nothing in the result points at any pull request, such as a
+combined run that timed out, every pull request in the run fails. It runs on
+`pull_request` only, never `pull_request_target`. A fork's pull request never
+joins another pull request's run: it is checked in its own run, with GitHub's
+read-only token and no secrets. Without `pull-requests: write` the verdict goes
+to the job summary instead. See [the Action's inputs](actions/land/action.yml).
 
 ## When your agents finish
 
@@ -123,8 +126,9 @@ worktree. Submodules are not checked out there.
 **How it decides.** Pytxo runs the tests on the combined change first. If they
 fail, it runs them on each branch alone to tell a break that only happens
 together from a branch that is already broken, and, if every branch passes
-alone, runs the combined change once more to catch a flaky test. Merge
-conflicts block too.
+alone, runs the combined change once more to catch a flaky test. If the
+combined run times out, that is the answer: the branches do not run alone
+after it, and it does not run again. Merge conflicts block too.
 
 **Exit codes.** `0` ready (or nothing to check), `2` blocked, `3` stale (the
 target branch moved during the check), `1` error.

@@ -23,8 +23,9 @@ does: as long as your tests take, up to the hook's 900-second limit. If the
 check needs longer, it says so and asks you to run `npx pytxo` in a terminal.
 One check runs at a time per repository, linked worktrees included: while one
 runs, other sessions' hooks in that repository stay quiet. Only committed work
-is checked: a worktree whose changes are all uncommitted gets a hint to commit
-them. Pytxo's own temporary worktrees never count as agent branches.
+is checked: when there are two or more agent branches, a worktree whose changes
+are all uncommitted gets a hint to commit them. Pytxo's own temporary worktrees
+never count as agent branches.
 
 To make Codex keep working on a BLOCKED or FLAKY verdict instead of only
 showing it, use `npx -y pytxo@2.0.0 hook --timeout 900 --block`.

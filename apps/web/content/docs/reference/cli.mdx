@@ -27,15 +27,21 @@ Binary: `pytxo`. This page describes **2.0.0**. Run it with `npx pytxo`, or keep
 | `--per-input` | Run the checks on each branch alone every time, not only after the combined change fails |
 | `--apply` | Land a READY result on the target by fast-forward or compare-and-swap; refused if the target moved |
 | `--strict` | Block when two branches changed the same function or type |
-| `--timeout <s>` | Per-check timeout in seconds (default 900) |
+| `--timeout <s>` | Per-check timeout in seconds (default 900). A combined run that times out does not run again, and neither the branches alone nor later `--check` commands run after it |
 | `-v`, `--verbose` | Also print what was found, every test run with its error lines, the receipt's path and a ref to the combined commit |
 | `--json` | The verdict, what was found and the receipt, as JSON |
 | `--markdown` | The verdict as the GitHub Action's pull-request comment |
 | `--repo <path>` | Repository (default: the current directory) |
 
-Exit codes: `0` ready, landed or nothing to check, `2` blocked, `3` stale (the target moved during the check), `1` error.
+Exit codes: `0` ready, landed or nothing to check, `2` blocked, `3` stale (the target moved during the check), `1` error, `130` stopped by Ctrl+C or SIGTERM.
 
-With no branches given, Pytxo checks branches that match the patterns below and have a commit in the last 14 days, at most 10 at once, newest first. The pattern `worktrees` means every branch checked out in a linked worktree; Pytxo's own temporary worktrees never count. Branches already merged into the target, squash merges included, are skipped. Only committed work is checked: a worktree whose changes are all uncommitted gets a hint to commit them. The test command comes from the target branch: `package.json` (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a `Makefile` with a `test` target. Submodules are not checked out in the throwaway worktree.
+With no branches given, Pytxo checks branches that match the patterns below and have a commit in the last 14 days, at most 10 at once, newest first. The pattern `worktrees` means every branch checked out in a linked worktree; Pytxo's own temporary worktrees never count. Branches already merged into the target, squash merges included, are skipped. Branches that share no history with the target, such as a `gh-pages` worktree, are left out, and `--verbose` counts them. Only committed work is checked: a worktree whose changes are all uncommitted gets a hint to commit them. Agents that push to GitHub leave their branches on `origin`: run `git fetch` first so Pytxo sees them.
+
+The test command comes from the target branch: `package.json` (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a `Makefile` with a `test` target. Submodules are not checked out in the throwaway worktree; when the tests fail everywhere, the verdict says how to include them. When the target is behind `origin`'s copy of it, a note under the verdict says by how many commits.
+
+Checks run without a terminal and with `GIT_TERMINAL_PROMPT=0`, so a command that asks for input fails, or waits until `--timeout`. `PYTHONPATH` starts with `<worktree>/src`, when it exists, and `<worktree>`, so Python imports the code being checked, not an editable install of your checkout.
+
+Ctrl+C or SIGTERM while the tests run stops them, removes the throwaway worktree and exits with `130`; a second Ctrl+C quits at once. A check that is killed outright, from Task Manager, with `kill -9` or by an agent tool ending the hook, leaves its worktree in `git worktree list`; the next check removes it when it starts.
 
 | `git config` key | Environment variable | Default |
 |------|------|------|

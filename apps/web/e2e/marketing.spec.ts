@@ -66,6 +66,10 @@ for (const width of [1440, 390]) {
     await expect(page.getByText("Checks your agents' branches together.", { exact: false })).toBeVisible();
     await expect(page.getByText(/Runs, Review and Apply/)).toHaveCount(0);
     await expect(page.getByText("planning, waves, isolation, and Apply")).toHaveCount(0);
+    // Next steps lead to the check's guides, not to the frozen 1.x flows.
+    const next = page.getByTestId("next-steps");
+    await expect(next.getByRole("link", { name: "Quickstart" })).toHaveAttribute("href", "/docs/getting-started/quickstart");
+    await expect(next.getByRole("link", { name: "First mission" })).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: testInfo.outputPath(`launch-download-${width}.png`), fullPage: true });
   });

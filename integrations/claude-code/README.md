@@ -36,11 +36,11 @@ the check needs longer, it says so and asks you to run `npx pytxo` in a
 terminal. When Claude runs subagents in the background, the check waits until
 the last one finishes. One check runs at a time per repository, linked
 worktrees included: while one runs, other sessions' hooks in that repository
-stay quiet. Only committed work is checked: a worktree whose changes are all
-uncommitted gets a hint to commit them. Nothing in your repository changes: the
-check runs in a temporary worktree and only records a receipt under
-`.git/pytxo/receipts`. Pytxo's own temporary worktrees never count as agent
-branches.
+stay quiet. Only committed work is checked: when there are two or more agent
+branches, a worktree whose changes are all uncommitted gets a hint to commit
+them. Nothing in your repository changes: the check runs in a temporary
+worktree and only records a receipt under `.git/pytxo/receipts`. Pytxo's own
+temporary worktrees never count as agent branches.
 
 ## Options
 

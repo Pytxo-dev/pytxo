@@ -26,7 +26,7 @@ Check out the branch you want to land into, then run this from your repository. 
 pytxo land claude:claude/double-dash codex:codex/empty-value --check "npm install && npm test" --per-input
 ```
 
-Use your own branch names. The `claude:` and `codex:` prefixes are labels for the output and the receipt; leave them off if you prefer.
+Use your own branch names. The `claude:` and `codex:` prefixes are labels for `--verbose` output and the receipt; leave them off if you prefer.
 
 The check runs in a fresh worktree where nothing is installed, so a Node project has to install its dependencies in the check. Use `npm ci` instead of `npm install` if the repository has a lockfile. With `--check "npm test"` alone, every check failed on `'bundt' is not recognized`, which is mri's build tool missing, not a problem with the branches. If you leave out `--check`, Pytxo 2.0 runs the test command it finds in your project files, installing dependencies first for a `package.json` that has any.
 

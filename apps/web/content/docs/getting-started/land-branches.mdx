@@ -7,11 +7,11 @@ description: Use pytxo land to check several agent branches as one combined chan
 
 Agent workspaces such as Orca, Conductor, Superset, the Codex app or Claude Code give each agent its own branch. Each branch can pass its own checks and still break when merged with the others. `pytxo land` checks the combination before any of it reaches your branch.
 
-It needs Pytxo 1.3 or later, Git, and the tools your checks use. It works on Windows, macOS and Linux and does not call any model.
+It needs Pytxo 2.0 or later, Git, and the tools your checks use. It works on Windows, macOS and Linux and does not call any model.
 
 ## Check a set of branches
 
-Check out the branch you want to land into, then run this from your repository. Pytxo checks the branches you name against the checked-out branch, or against the default branch if that branch is one of them or no branch is checked out (2.0 and later):
+Check out the branch you want to land into, then run this from your repository. Pytxo checks the branches you name against the checked-out branch, or against the default branch if that branch is one of them or no branch is checked out:
 
 ```bash
 pytxo land agent/cart agent/discount --check "npm ci && npm test" --per-input
@@ -22,7 +22,7 @@ Pytxo:
 1. Resolves each branch and records the files it changed since it split from your branch.
 2. For files that more than one branch changed, maps the changes to functions, methods and types. Two branches that changed the same function are listed with `--verbose` even when Git merges them cleanly, and `--strict` blocks them.
 3. Merges the branches in the order you gave, in a separate worktree, with Git hooks turned off. A textual conflict blocks the combination.
-4. Runs each `--check`, or the test command it finds in the target branch, on the combined result, in a fresh worktree where nothing is installed. When that fails, it runs the same checks on each branch alone (`--per-input` does this first, every time), which shows when every branch passes but the combination fails, and when the check fails everywhere. If every branch passes a check alone and the combination fails it, the check runs on the combination once more: Pytxo blames the combination only when it fails twice, and calls the check flaky when the second run passes. A flaky check still blocks. The receipt records both runs.
+4. Runs each `--check`, or the test command it finds in the target branch, on the combined result, in a fresh worktree where nothing is installed. When that fails, it runs the same checks on each branch alone (`--per-input` does this first, every time), which shows when every branch passes but the combination fails, and when the check fails everywhere. If the combined run times out, that is the answer: the branches do not run alone after it, it does not run again, and later `--check` commands do not run. If every branch passes a check alone and the combination fails it, the check runs on the combination once more: Pytxo blames the combination only when it fails twice, and calls the check flaky when the second run passes. A flaky check still blocks. The receipt records both runs.
 5. Prints the verdict in three lines (**READY**, **BLOCKED**, **FLAKY**, **NO TESTS** or **STALE**, then why and what to do next) and writes a receipt.
 
 By default this is **shadow mode**: your branch and working tree do not change. With `--verbose`, the combined commit is kept at `refs/pytxo/land/<receipt id>` so you can inspect it:
@@ -33,7 +33,7 @@ git log --oneline --graph refs/pytxo/land/<receipt id>
 
 ## Name the agents
 
-Prefix a branch with a label to record which agent wrote it. Labels appear in the output and the receipt:
+Prefix a branch with a label to record which agent wrote it. The verdict names the branch; the label shows in `--verbose` output, in the receipt and in `--json` as each branch's `label`:
 
 ```bash
 pytxo land codex:agent/cart claude:agent/discount -c "npm test"
@@ -73,7 +73,7 @@ The verdict says what happened, why (with the first error line of a failed check
 | `--check`, `-c` | found in the target | Command to run on the combined change; repeatable. Without it, Pytxo runs the test command it finds in the target branch; when it finds none, the verdict is NO TESTS: the branches merge, but nothing was tested. |
 | `--per-input` | off | Also run the checks on each branch alone |
 | `--apply` | off | Land a ready result |
-| `--into <branch>` | the checked-out branch, or the default branch if it is one of the inputs or none is checked out (2.0 and later) | Target branch; `git config pytxo.into` or `PYTXO_INTO` sets it too (2.0 and later) |
+| `--into <branch>` | the checked-out branch, or the default branch if it is one of the inputs or none is checked out | Target branch; `git config pytxo.into` or `PYTXO_INTO` sets it too |
 | `--base <rev>` | target tip | Check against another commit (shadow mode only) |
 | `--strict` | off | Block when two inputs changed the same function or type |
 | `--timeout <seconds>` | 900 | Per-check timeout |

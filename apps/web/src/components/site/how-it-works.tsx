@@ -15,12 +15,12 @@ const STEPS = [
   },
   {
     title: "It merges them and runs your tests.",
-    body: "In a throwaway worktree, with the test command it finds in your project: npm test (installing dependencies first), pytest, cargo test, go test and more. Your repository does not change.",
+    body: "In a throwaway worktree, with the test command it finds in your project: npm test (installing dependencies first when there are any), pytest, cargo test, go test and more. Your repository does not change.",
     snippet: from("Checking"),
   },
   {
     title: "It says what broke and what to do.",
-    body: "Three lines: the verdict, why, and what to do next. When the combination fails, each branch runs alone to tell a break that only happens together from a branch that was already broken, and, if every branch passes alone, the combined change runs again to catch a flaky test.",
+    body: "Three lines: the verdict, why, and what to do next. When the combination fails, each branch runs alone to tell a break that only happens together from a branch that was already broken, and, if every branch passes alone, the combined change runs again to catch a flaky test. If the combined run times out, the branches do not run alone after it.",
     snippet: from("BLOCKED", 3),
   },
 ] as const;
