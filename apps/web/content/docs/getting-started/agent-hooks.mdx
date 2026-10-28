@@ -34,7 +34,7 @@ next     fix one branch so they agree, then Pytxo checks again when an agent sto
 
 ## Make the agent fix it
 
-By default the hook only tells you. With `hook --block`, a BLOCKED verdict asks the agent to keep working on the fix. Change the command in the hook to `npx -y pytxo@2.0.0 hook --block`.
+By default the hook only tells you. With `hook --block`, a BLOCKED verdict asks the agent to keep working on the fix. Change the command in the hook to `npx -y pytxo@2.0.0 hook --timeout 900 --block`. Keep `--timeout` equal to the hook's `timeout` (900 seconds): the hook answers before that, and says so if the tests could not finish.
 
 ## What it checks
 

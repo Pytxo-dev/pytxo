@@ -117,9 +117,9 @@ once more to rule out a flaky test. Merge conflicts block too.
 target branch moved during the check), `1` error.
 
 **Output.** `--verbose` adds the receipt, digests and every check's output;
-`--json` and `--markdown` are for scripts and comments. `--apply` lands a ready
-result on the target branch. Every check records a receipt in
-`.git/pytxo/receipts` (`pytxo receipts`).
+`--json` is for scripts and `--markdown` is the GitHub Action's comment.
+`--apply` lands a ready result on the target branch. Every check records a
+receipt in `.git/pytxo/receipts` (`pytxo receipts`).
 
 **Limits.** It catches what your tests catch: a break your tests don't cover
 can still land. Conflicts are blocked, not resolved. Pybench (`pytxo bench`)

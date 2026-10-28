@@ -24,6 +24,6 @@ run `npx pytxo` in a terminal. Pytxo's own temporary worktrees never count as
 agent branches.
 
 To make Codex keep working on a BLOCKED verdict instead of only showing it, use
-`npx -y pytxo@2.0.0 hook --block`.
+`npx -y pytxo@2.0.0 hook --timeout 900 --block`.
 
 Pytxo sends nothing anywhere. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
