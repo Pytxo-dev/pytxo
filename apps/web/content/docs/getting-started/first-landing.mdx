@@ -20,7 +20,7 @@ npm 12 and pnpm 10 skip install scripts by default, so `npm i -g` installs only 
 
 ## 2. Check the branches together
 
-From your repository, with the branch you want to land into checked out. Pytxo checks the branches you name against that branch:
+Check out the branch you want to land into, then run this from your repository. Pytxo checks the branches you name against that branch:
 
 ```bash
 pytxo land claude:claude/double-dash codex:codex/empty-value --check "npm install && npm test" --per-input

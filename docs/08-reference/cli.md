@@ -19,7 +19,7 @@ Binary: `cargo run -p pytxo-cli -- <cmd>`
 
 `pytxo` with **no subcommand** runs `pytxo check` ([[ADR-0043-check-is-the-default-command]]): it detects the agent branches, the target and the test command, merges the branches in a throwaway worktree and prints a three-line verdict. `pytxo land` is an alias. The released binaries build with `--no-default-features` and carry only `check`, `demo`, `hook`, `receipts` and `bench`.
 
-Target: with no branches named, the default branch (`origin/HEAD`, else `main`, `master`, `trunk`). Named branches are checked against the checked-out branch, as in 1.x, or the default branch when the checked-out branch is one of them. `--into <branch>`, `git config pytxo.into` or `PYTXO_INTO` override both.
+Target: with no branches named, the default branch (`origin/HEAD`, else `main`, `master`, `trunk`, else the checked-out branch). Named branches are checked against the checked-out branch, as in 1.x, or the default branch when the checked-out branch is one of them or HEAD is detached. `--into <branch>`, `git config pytxo.into` or `PYTXO_INTO` override both.
 
 | `git config` key | Environment variable | Default |
 |------|------|------|

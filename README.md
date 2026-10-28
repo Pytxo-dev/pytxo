@@ -98,9 +98,9 @@ git config pytxo.branches "bot/* ai/*"
 **Which target.** With no arguments the branches are checked against the
 default branch: `origin/HEAD`, else `main`, `master` or `trunk`. Branches you
 name are checked against the branch you have checked out, as in Pytxo 1.x, or
-against the default branch if the checked-out branch is one of them.
-`--into <branch>`, `git config pytxo.into <branch>` or `PYTXO_INTO` sets the
-target in both cases.
+against the default branch if the checked-out branch is one of them or no
+branch is checked out. `--into <branch>`, `git config pytxo.into <branch>` or
+`PYTXO_INTO` sets the target in both cases.
 
 **Which tests.** Pytxo reads the target branch and picks the usual command
 for `package.json` (npm, pnpm, yarn or bun, installing dependencies first when
