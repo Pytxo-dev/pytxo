@@ -4,7 +4,8 @@ $ErrorActionPreference = "Stop"
 $Repo = if ($env:PYTXO_REPO) { $env:PYTXO_REPO } else { "Pytxo-dev/pytxo-releases" }
 $InstallDir = if ($env:PYTXO_INSTALL_DIR) { $env:PYTXO_INSTALL_DIR } else { "$env:LOCALAPPDATA\Programs\pytxo" }
 $Architecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-if ($Architecture -ne "X64") {
+# Windows on Arm runs the x64 build under emulation.
+if ($Architecture -ne "X64" -and $Architecture -ne "Arm64") {
     throw "Unsupported Pytxo Windows release architecture: $Architecture (v2.0.0 provides Windows x64)"
 }
 $Asset = "pytxo-windows-x64.exe"
