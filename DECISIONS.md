@@ -8,11 +8,18 @@ chosen, why, and how to undo it.
    are detected. The library's `land()` still never invents a check; the CLI
    fills one in. Undo: split the clap variants again.
 
-2. **Target = the default branch, not the checked-out one.** Order:
-   `--into`, then `origin/HEAD`, `main`, `master`, `trunk`, then the
-   checked-out branch. (`init.defaultBranch` was dropped: it names the branch
-   for new repositories, not this one's.) A hook runs inside an agent's
-   worktree, where "the checked-out branch" is the agent branch itself.
+2. **Target = the default branch, or the checked-out one when you name
+   branches.** Order: `--into`, then `PYTXO_INTO` or `git config pytxo.into`,
+   then, when branches are named, the checked-out branch unless it is one of
+   them or HEAD is detached, then `origin/HEAD`, `main`, `master`, `trunk`,
+   then the checked-out branch. A bare `pytxo` and the hooks name no
+   branches, so they check against the default branch: a hook runs inside an
+   agent's worktree, where "the checked-out branch" is the agent branch
+   itself. Named branches keep the 1.x rule, so `pytxo a b` on `develop`
+   checks against `develop` and `--apply` lands there. A target from
+   `--into` or a setting must exist; `pytxo demo` always uses `main`.
+   (`init.defaultBranch` was dropped: it names the branch for new
+   repositories, not this one's.)
 
 3. **Agent branches = patterns plus linked worktrees.** Default list:
    `claude/* codex/* copilot/* cursor/* devin/* jules/* agent/* worktrees`.
@@ -23,7 +30,11 @@ chosen, why, and how to undo it.
    names there). Override with `git config pytxo.branches "..."` or
    `PYTXO_BRANCHES`; an explicit list replaces the defaults. Remote-tracking
    branches count when no local branch has that name. Branches already in
-   the target, or whose merge adds nothing (squash-merged), are skipped.
+   the target or in `origin/<target>`, or whose merge adds nothing
+   (squash-merged), are skipped, so a branch merged on GitHub drops out
+   before the local target is pulled. Pytxo's own scratch worktrees
+   (`pytxo-land-<receipt tag>`, including ones a killed run left behind)
+   never count.
 
 4. **The detected test command runs without asking.** That is the product.
    It is printed in the verdict, and it is read from the target branch's
@@ -62,6 +73,9 @@ chosen, why, and how to undo it.
     pile up; a check of every branch anyone ever pushed is slow and says
     nothing about today's work. The count left out is printed. Change it with
     `git config pytxo.days N` or `PYTXO_DAYS`; `0` turns the filter off.
+    The filter runs before the merge tests, which saves git calls per old
+    branch, so the printed count includes old branches that are already
+    merged ("N with no commit in 14 days not looked at").
 
 12. **The lean binary keeps Signal Core.** Measured on Windows x64 release
     builds: full CLI ~30 MB and 233 crates, lean CLI 10.9 MB and 72 crates.
@@ -85,10 +99,19 @@ chosen, why, and how to undo it.
     changed since its last answer (a fingerprint of the target tip, branch
     tips and test command in `.git/pytxo/hook-last`). In Claude Code it waits
     while `background_tasks` still lists subagents, teammates or workflows,
-    so parallel agents get one check, after the last one. The verdict is a
-    `systemMessage`; `--block` (opt-in) turns BLOCKED into
-    `decision: "block"` so the agent keeps working on it. `SubagentStop` is
-    not used: it fires once per agent. Hooks pin `npx -y pytxo@<version>`.
+    so parallel agents get one check, after the last one (that field and
+    those types are documented Stop hook input, checked 2026-10-28). One
+    hook checks a repository at a time (`.git/pytxo/hook.lock`, shared by
+    linked worktrees); the others exit quietly, and a lock older than the
+    timeout is taken over. The hook answers before `--timeout` (default 900,
+    which both configs pass and declare as the hook's timeout). If the tests
+    cannot finish in time it says so, points at `npx pytxo`, never blocks,
+    and remembers the tips so the next Stop stays quiet. A setting that
+    stops every check, such as a missing `pytxo.into`, is reported once.
+    The verdict is a `systemMessage`; `--block` (opt-in) turns BLOCKED and
+    FLAKY into `decision: "block"` so the agent keeps working on it.
+    `SubagentStop` is not used: it fires once per agent. Hooks pin
+    `npx -y pytxo@<version>`.
 
 17. **The Action checks agent PRs only, from the same repository.** It runs
     when the PR that triggered it is an agent PR (branch prefix or agent
@@ -98,7 +121,19 @@ chosen, why, and how to undo it.
     would see that run's token; a fork PR's own run is read-only and checks
     it with the base repository's agent PRs. At most 10 PRs at once. Draft
     PRs count (Copilot opens drafts). Only the triggering PR gets the comment.
-    Errors are reported as errors, not as "blocked".
+    Errors are reported as errors, not as "blocked". The job fails when the
+    CLI's last-line verdict tag implicates this PR (it conflicts, fails
+    alone, or is in a combination that fails while each passes alone), when
+    the result is stale, or on an error. When only other PRs are to blame it
+    passes with a notice and the comment names them; FLAKY passes with a
+    warning; a CLI without the tag fails on any exit 2. It runs on
+    `pull_request`, refuses `pull_request_target` and passes, without a
+    checkout, on any other event. A cancelled run posts nothing. The sticky
+    comment is the one the token's own account wrote, starting with the
+    marker. Code in the checked PRs runs in the job that holds the token and
+    can reach it through `$GITHUB_ENV` or the runner, so only the job's
+    permissions bound it; the docs say so. A two-job split would isolate it
+    and is not built.
 
 18. **Pro licensing is a switched-off scaffold in the Action.** Public
     repositories are free and always will be; local runs are never checked.
@@ -139,3 +174,22 @@ chosen, why, and how to undo it.
     troubleshooting pages. No page moved, so no redirect is needed.
 23. **ADR-0043 supersedes ADR-0012.** A bare `pytxo` runs the check; the
     shell is `pytxo shell` in a `full` build; `PYTXO_NO_TUI` is gone.
+24. **A PR comment treats everything from a branch as untrusted text.**
+    Captured test output is masked when it is captured: the key formats in
+    pytxo-core's `SECRET_PATTERNS`, bearer tokens and URL passwords become
+    `[REDACTED]` in receipts, `--json`, hook replies and comments. It is a
+    prefix scan of about 10 KB; `pytxo-sanitize` would add a 1.5 MB regex
+    engine to the npm binary. In `--markdown`, test output, branch names,
+    paths and reasons appear only as code, the terminal's insights are left
+    out, advice names the Action's inputs instead of CLI flags, and the
+    comment ends with one `<!-- pytxo-verdict {"label":…,"implicated":[…]} -->`
+    line for the Action; the same text anywhere else in the body is broken
+    with a zero-width space. The test command itself is not masked.
+25. **1.x commands in the npm binary answer in one line.** `pytxo shell`,
+    `pytxo doctor --quick` and the other frozen commands say they are not in
+    this build and exit 1, unless a branch has that name.
+26. **The site does not deploy from `main` until npm has 2.0.0.**
+    `apps/web/vercel.json` sets `git.deploymentEnabled.main` to `false`, so
+    merging 2.0 does not put 2.0 commands on pytxo.com before npm can serve
+    them. The promotion commit after the npm release removes the key and
+    sets `PUBLISHED_VERSION` to 2.0.0. Undo: drop the key.
