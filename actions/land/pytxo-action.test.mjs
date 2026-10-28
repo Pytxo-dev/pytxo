@@ -268,14 +268,30 @@ test("discover fetches the agent PRs as local branches and the base", async (t) 
   assert.equal(sh(clone, "rev-parse", "refs/heads/codex/discount"), heads[14]);
   assert.equal(sh(clone, "rev-parse", "--is-shallow-repository"), "false");
   sh(clone, "merge-base", "main", "codex/discount");
+});
 
-  const refused = spawnSync(process.execPath, [script, "discover"], {
-    cwd: clone,
-    encoding: "utf8",
-    env: { ...process.env, GITHUB_EVENT_NAME: "pull_request_target", GITHUB_EVENT_PATH: event, GITHUB_OUTPUT: outputs },
-  });
+test("a push or a merge queue passes with a notice; pull_request_target is refused", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pytxo-event-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const outputs = path.join(root, "outputs");
+  const run = (event) => {
+    fs.writeFileSync(outputs, "");
+    return spawnSync(process.execPath, [script, "discover"], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, GITHUB_EVENT_NAME: event, GITHUB_OUTPUT: outputs, RUNNER_TEMP: root },
+    });
+  };
+  for (const event of ["push", "merge_group"]) {
+    const passed = run(event);
+    assert.equal(passed.status, 0, passed.stdout + passed.stderr);
+    assert.equal(passed.stdout, `::notice::Pytxo checks pull requests; nothing to do on ${event}.\n`);
+    assert.equal(fs.readFileSync(outputs, "utf8"), "skip=true\n");
+  }
+  const refused = run("pull_request_target");
   assert.equal(refused.status, 1);
-  assert.match(refused.stdout, /refusing to run on pull_request_target/);
+  assert.match(refused.stdout, /::error::refusing to run on pull_request_target/);
+  assert.equal(fs.readFileSync(outputs, "utf8"), "");
 });
 
 test("Pro licensing is built but switched off", () => {

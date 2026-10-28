@@ -244,8 +244,11 @@ async function discover() {
       "refusing to run on pull_request_target: the check runs pull-request code, and pull_request_target gives it your secrets. Use `on: pull_request`.",
     );
   }
+  // A push or a merge queue passes: failing it would hold up the queue.
   if (event !== "pull_request") {
-    throw new Error(`Pytxo checks pull requests; this run is a ${event} event. Use \`on: pull_request\`.`);
+    console.log(`::notice::Pytxo checks pull requests; nothing to do on ${event}.`);
+    output("skip", "true");
+    return;
   }
   const payload = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
   const current = payload.pull_request;
