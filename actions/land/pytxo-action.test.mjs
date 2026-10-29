@@ -567,6 +567,96 @@ test("discover fetches the agent PRs as local branches and the base, a held one 
   assert.deepEqual(after.notes, state.notes);
 });
 
+test("discover deletes a tag named like a held PR's branch, so the CLI checks the approved commit, and leaves out a name git reads as something else", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pytxo-names-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const work = path.join(root, "work");
+  fs.mkdirSync(work);
+  sh(work, "init", "-q", "-b", "main");
+  sh(work, "config", "user.email", "t@t");
+  sh(work, "config", "user.name", "t");
+  const commit = (file, text) => {
+    fs.writeFileSync(path.join(work, file), `${text}\n`);
+    sh(work, "add", "-A");
+    sh(work, "commit", "-q", "-m", text);
+    return sh(work, "rev-parse", "HEAD");
+  };
+  commit("a.txt", "base");
+  sh(work, "checkout", "-q", "-b", "codex/discount", "main");
+  const discount = commit("14.txt", "14");
+  // #13's branch is called FETCH_HEAD, the file git's fetches write in .git.
+  sh(work, "checkout", "-q", "-b", "thirteen", "main");
+  const thirteen = commit("13.txt", "13");
+  sh(work, "checkout", "-q", "-b", "copilot/fix-tax", "main");
+  const copilot = [commit("12.txt", "approved"), commit("12.txt", "never approved")];
+  sh(work, "checkout", "-q", "main");
+  // Anyone who can push a tag: one named like Copilot's branch, at its unapproved commit.
+  sh(work, "tag", "copilot/fix-tax", copilot[1]);
+  const origin = path.join(root, "origin.git");
+  sh(root, "clone", "-q", "--bare", work, origin);
+  sh(origin, "update-ref", "refs/pull/12/head", copilot[1]);
+  sh(origin, "update-ref", "refs/pull/13/head", thirteen);
+  sh(origin, "update-ref", "refs/pull/14/head", discount);
+  // As actions/checkout with fetch-depth: 0 leaves it: every branch and every tag.
+  const clone = path.join(root, "clone");
+  sh(root, "clone", "-q", `file://${origin.replace(/\\/g, "/")}`, clone);
+  sh(clone, "checkout", "-q", "--detach");
+
+  const pulls = [pr(12, "copilot/fix-tax", { login: "Copilot" }), pr(13, "FETCH_HEAD", { login: "claude[bot]" }), pr(14, "codex/discount")];
+  [copilot[1], thirteen, discount].forEach((sha, i) => (pulls[i].head.sha = sha));
+  const github = {
+    pulls,
+    runs: { "copilot/fix-tax": [run(copilot[1], 1, "action_required"), run(copilot[0], 2, "success")] },
+    commits: { 12: copilot },
+  };
+  const server = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify(answer(req.url, github)));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.closeAllConnections() || server.close());
+  const event = path.join(root, "event.json");
+  const outputs = path.join(root, "outputs");
+  const discover = (current) => {
+    fs.writeFileSync(event, JSON.stringify({ pull_request: current }));
+    fs.writeFileSync(outputs, "");
+    return node([script, "discover"], {
+      cwd: clone,
+      env: {
+        ...process.env,
+        GITHUB_EVENT_NAME: "pull_request",
+        GITHUB_EVENT_PATH: event,
+        GITHUB_OUTPUT: outputs,
+        GITHUB_REPOSITORY: REPO,
+        GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+        RUNNER_TEMP: root,
+        PYTXO_TOKEN: "t",
+      },
+    });
+  };
+  const state = () => JSON.parse(fs.readFileSync(path.join(root, "pytxo-action.json"), "utf8"));
+
+  const discovered = await discover(pulls[2]);
+  assert.equal(discovered.status, 0, discovered.out);
+  assert.equal(fs.readFileSync(path.join(root, "pytxo-branches.txt"), "utf8"), "copilot/fix-tax\ncodex/discount\n");
+  // The CLI's own lookup now gives the commit someone let run, and the tag is gone from this checkout.
+  assert.equal(sh(clone, "rev-parse", "--verify", "--quiet", "copilot/fix-tax^{commit}"), copilot[0]);
+  assert.equal(sh(clone, "tag", "--list", "copilot/fix-tax"), "");
+  assert.deepEqual(state().prs, [
+    { number: 12, sha: copilot[0], branch: "copilot/fix-tax", held: true },
+    { number: 14, sha: discount, branch: "codex/discount" },
+  ]);
+  // FETCH_HEAD reads the last fetch, not refs/heads/FETCH_HEAD.
+  assert.deepEqual(state().notes, ["#13 left out: its branch name `FETCH_HEAD` already means something else to git."]);
+
+  // When that is this run's own pull request, there is nothing it can check.
+  const own = await discover(pulls[1]);
+  assert.equal(own.status, 0, own.out);
+  assert.equal(fs.readFileSync(outputs, "utf8"), "skip=true\n");
+  assert.deepEqual(state().prs, []);
+  assert.equal(state().reason, "#13 cannot be checked: its branch name `FETCH_HEAD` already means something else to git.");
+});
+
 test("a push or a merge queue passes with a notice; pull_request_target is refused", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pytxo-event-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

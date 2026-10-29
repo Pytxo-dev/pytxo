@@ -417,7 +417,7 @@ async function discover() {
   const fetchInto = (refspecs) => git(["fetch", "--quiet", "--no-tags", "--update-head-ok", "origin", ...refspecs], { auth });
   const refspec = (p) => `+${p.sha}:refs/heads/${p.branch}`;
   fetchInto([`+refs/heads/${base}:refs/heads/${base}`, ...selected.filter((p) => !p.held).map(refspec)]);
-  const prs = selected.filter((p) => {
+  const fetched = selected.filter((p) => {
     if (!p.held) return true;
     try {
       fetchInto([refspec(p)]);
@@ -427,6 +427,28 @@ async function discover() {
       return false;
     }
   });
+  // The CLI finds each branch by name, as `git rev-parse <name>` does, and git
+  // tries .git/<name> (such as FETCH_HEAD, which these fetches rewrite),
+  // refs/<name> and a tag of that name before the branch. A tag pushed with
+  // an agent branch's name would have the check run the tag's commit, for a
+  // held PR one nobody approved, while the comment names the fetched one. So,
+  // after the last fetch, each name must give the commit fetched for it: a tag
+  // in the way is deleted, in this checkout only, and a PR whose name still
+  // gives another commit is left out.
+  const commitOf = (name) => spawnSync("git", ["rev-parse", "--verify", "--quiet", `${name}^{commit}`], { encoding: "utf8" }).stdout.trim();
+  const misread = (p) => `its branch name \`${p.branch}\` already means something else to git`;
+  const prs = fetched.filter((p) => {
+    if (commitOf(p.branch) === p.sha) return true;
+    spawnSync("git", ["tag", "--delete", p.branch]);
+    if (commitOf(p.branch) === p.sha) return true;
+    if (p.number !== current.number) state.notes.push(`#${p.number} left out: ${misread(p)}.`);
+    return false;
+  });
+  // The verdict is about this pull request, the last one: without it there is nothing to check.
+  if (prs.at(-1)?.number !== current.number) {
+    state.reason = `#${current.number} cannot be checked: ${misread(selected.at(-1))}.`;
+    return nothing();
+  }
   if (prs.length < 2) {
     state.reason = alone(current);
     return nothing();
