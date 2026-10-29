@@ -3,7 +3,8 @@
 ## Branch / commit
 - `mbcz/pytxo-2-impulse-check-419148` (worktree `product-review-a0207f`):
   the 2.0 commits on main `797ffd6`, ending with round 3
-  (`ecae3b1`..`1b706e6`) and this checkpoint. Not pushed.
+  (`ecae3b1`..`1b706e6`), the round-4 fixes (`589e9d7`..`ce6cac4`) and
+  this checkpoint. Not pushed.
 - Local `mbcz/pytxo-2-promote`: one commit on top that sets
   `PUBLISHED_VERSION` to 2.0.0, turns main deploys back on in `vercel.json`
   and makes 2.0.0 the changelog's public release. Push it only once npm
@@ -31,11 +32,24 @@
   during the scratch checkout on Windows, libc `kill(2)`, Git before 2.28 in
   the demo, the Node 22 CI glob, Copilot's and `github-actions[bot]`'s held
   pull requests, the shell page and the exit-code lists.
+- Round 4: a fresh review of the round-3 delta (2 reviewers, 5 skeptics)
+  confirmed three should-fix findings, all fixed with regression tests that
+  fail on the old code. The Action fetched each pull request's moving
+  `refs/pull/N/head`, so an approved run could test commits nobody
+  approved; it now fetches the commit the run saw. A scratch `git clean`
+  that could not remove a path ended the run with no verdict; it is best
+  effort now. The flaky rerun ran over the first runs' leftovers; it now
+  starts from the combined commit's files, after the checks before it.
+  Two findings were refuted: held pull requests never meeting is decision
+  #17, and `github-actions[bot]` runs can be approved since GitHub's June
+  2026 change.
 
 ## Not done
 - Nothing pushed, published, tagged or deployed; the repository description
   is unchanged. The ship commands are in the report.
 - `pytxo fix` is not built.
+- Known edge on Unix: a scratch checkout that needs a terminal prompt (Git
+  LFS over SSH with a passphrase key and no agent) waits until Ctrl+C.
 - Unverified: npm and npx with a published 2.0.0, the Action on github.com,
   macOS and Linux at runtime (cross-clippy only here), the hooks inside real
   Claude Code and Codex sessions, and the time to a verdict on a real
@@ -47,7 +61,12 @@
   worktree; unrelated and never committed.
 
 ## Tests last run
-- Final head: `cargo fmt --check`; clippy with `-D warnings` for pytxo-land
+- Round-4 head: `cargo fmt --check`; clippy with `-D warnings` for
+  pytxo-land and pytxo-cli, full and lean; `cargo test -p pytxo-land -p
+  pytxo-cli` 110 passed; Action 17/17. Round 4 changed only pytxo-land, the
+  Action and docs, so the runner and workspace results below, from
+  `1b706e6`, still stand.
+- Round-3 head (`1b706e6`): `cargo fmt --check`; clippy with `-D warnings` for pytxo-land
   and pytxo-cli, full and lean; `cargo test -p pytxo-runner -p pytxo-land -p
   pytxo-cli` 342 passed with a fresh helper pin; lean CLI 28 passed. The
   workspace run with `--no-fail-fast` on the round-3 code passed 1260; its
@@ -55,8 +74,8 @@
 - Node: Action 17/17, npm wrapper 9 passed (2 Unix-only skipped), tooling
   52/52. Web: build, then Playwright e2e 34/34 on port 3207.
 - Cold `npx pytxo demo` (local package, binary from localhost, fresh npm
-  cache): 9.5 to 10.3 s to BLOCKED. Cold bare `npx pytxo` with two agent
-  branches: 5.6 to 6.0 s to READY. Direct `pytxo demo`: 5.8 s, against
+  cache), round-4 binary: 8.7 to 8.8 s to BLOCKED. Cold bare `npx pytxo` with
+  two agent branches: 5.0 to 5.2 s to READY. Direct `pytxo demo`: 5.8 s, against
   5.7 s before round 3.
 
 ## Next prompt (paste below)
