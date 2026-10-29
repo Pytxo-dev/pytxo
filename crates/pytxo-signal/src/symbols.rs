@@ -380,6 +380,37 @@ fn role<'t>(
         {
             Role::Binds { top: false }
         }
+        // Rust's patterns bind what they name, `Some(price) =>`, `[first,
+        // ..]`, `ref price`, `x @ ..`, `P { price, .. }`, but not the type
+        // they match, a guard, nor a field: `P { price: p }` binds `p`.
+        ("field_pattern", Some("name")) if node.kind() == "field_identifier" => Role::Neither,
+        (
+            "tuple_struct_pattern"
+            | "field_pattern"
+            | "slice_pattern"
+            | "ref_pattern"
+            | "mut_pattern"
+            | "captured_pattern"
+            | "or_pattern"
+            | "reference_pattern"
+            | "match_pattern",
+            field,
+        ) if !matches!(field, Some("type" | "condition")) => Role::Binds { top: false },
+        // A macro's tokens: `.price` is a member, which counts only as a
+        // call of a method, `a.price(..)`, and `price:` is a key, as in
+        // `vec![Line { price: 1 }]`.
+        ("token_tree", _) => {
+            let next = node.next_sibling();
+            let called = next.is_some_and(|t| {
+                t.kind() == "token_tree" && t.child(0).is_some_and(|c| c.kind() == "(")
+            });
+            match node.prev_sibling().map(|p| p.kind()) {
+                Some(".") if members && called => Role::Refers,
+                Some(".") => Role::Neither,
+                _ if next.is_some_and(|n| n.kind() == ":") => Role::Neither,
+                _ => Role::Refers,
+            }
+        }
         _ if node.kind() == "shorthand_property_identifier_pattern" => Role::Binds {
             top: at_top(parent),
         },
@@ -994,6 +1025,31 @@ mod tests {
         assert_eq!(rate("a.py", py, "shop/tax.py"), Vec::<usize>::new());
         let js = "import { cart, settings } from './shop.js';\ncart.rate(1);\nsettings.rate;\n";
         assert_eq!(rate("a.js", js, "src/cart/index.js"), [2]);
+    }
+
+    /// Rust: inside a macro `.price` is a member and `price:` a key, and a
+    /// pattern binds what it names; a call and a path in a macro are uses.
+    #[test]
+    fn rust_fields_keys_and_patterns_are_no_uses() {
+        let price = |source: &str, members: bool| {
+            name_use(Path::new("lib.rs"), source, "price", members, &[]).unwrap()
+        };
+        let rs = "fn f() {\n    assert_eq!(l[0].price, 4);\n    let v = vec![Line { price: 1 }];\n    assert_eq!(cart::price(1), price(2));\n    assert!(a.price() > 0);\n}\n";
+        assert_eq!(price(rs, false).lines, [4]);
+        assert_eq!(price(rs, true).lines, [4, 5]);
+        for pattern in [
+            "fn f(x: Option<u64>) -> u64 {\n    match x {\n        Some(price) => price,\n        None => 0,\n    }\n}\n",
+            "fn f(x: Option<u64>) {\n    if let Some(ref price) = x {}\n}\n",
+            "fn f(l: Line) {\n    let Line { price, .. } = l;\n}\n",
+            "fn f(xs: &[u64]) {\n    let [price, ..] = xs else { return };\n}\n",
+        ] {
+            assert!(price(pattern, false).binds, "{pattern}");
+        }
+        let key = price(
+            "fn f(l: Line) -> u64 {\n    let Line { price: p } = l;\n    p\n}\n",
+            false,
+        );
+        assert!(!key.binds && key.lines.is_empty());
     }
 
     /// A method is used where it is called. `a.name` read without a call is

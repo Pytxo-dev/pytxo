@@ -61,19 +61,22 @@ Terms: base `B`; input `i` at commit `C_i` with merge base
    brings in by the name of a file that defined `X` (`from shop import cart`
    for shop/cart.py or shop/cart/__init__.py). Otherwise such a name is an
    object, such as `from shop.config import settings`, whose `settings.X` is no
-   use of a function. An import is a use, but a name the file gives what it
-   imports is the file's own, which a rename of the definition cannot break: a
-   default or namespace import, a module required whole, an alias, or a name
-   from one of Node's own modules (`node:path`), which no branch defines. A
-   file whose version at `R` binds the name itself, such as the user's own
-   `const X`, a parameter or a local, has none; a binding the user's branch has
-   only from the merge base is the definition `by` took away, so a call added
-   beside it in the same file is a use. A file without a grammar, such as a
-   README, gives none. It is not a cause if `R` still defines the name: `git
-   grep -l -w -F -e <name> R`, then parse those files at `R`, where a symbol of
-   that name counts, and so does any other top-level binding that is no import:
-   `const X = memo(...)`, `exports.X = ...`, `module.exports.X = ...`, a Python
-   `X = ...`.
+   use of a function. A Rust macro's tokens read the same way: `.X` is a member
+   and `X:` a key, as in `assert_eq!(l.X, 4)` and `vec![Line { X: 1 }]`; and a
+   Rust pattern binds what it names, as `Some(X) =>`, `if let Some(X)` and `P {
+   X, .. }` do, not the type it matches. An import is a use, but a name the
+   file gives what it imports is the file's own, which a rename of the
+   definition cannot break: a default or namespace import, a module required
+   whole, an alias, or a name from one of Node's own modules (`node:path`),
+   which no branch defines. A file whose version at `R` binds the name itself,
+   such as the user's own `const X`, a parameter or a local, has none; a
+   binding the user's branch has only from the merge base is the definition
+   `by` took away, so a call added beside it in the same file is a use. A file
+   without a grammar, such as a README, gives none. It is not a cause if `R`
+   still defines the name: `git grep -l -w -F -e <name> R`, then parse those
+   files at `R`, where a symbol of that name counts, and so does any other
+   top-level binding that is no import: `const X = memo(...)`, `exports.X =
+   ...`, `module.exports.X = ...`, a Python `X = ...`.
 5. **Confirmed.** A line of the failing output tails of the combined runs
    that section 4 ranks as an error name, a traceback, assert or diagnostic,
    or a `FAIL` line says the name as a word outside a path, or a line names a

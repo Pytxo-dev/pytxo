@@ -1302,6 +1302,36 @@ mod tests {
         assert_eq!(found.uses.iter().map(|u| u.line).collect::<Vec<_>>(), [5]);
     }
 
+    /// `cart::price` renamed: in Rust a field read and a struct literal's key
+    /// inside a macro say a field of that name, and `Some(price) =>` binds a
+    /// `price` of the test's own. None of them uses the function, so a branch
+    /// with only those is no user of it.
+    #[test]
+    fn a_rust_field_key_or_pattern_is_no_use_of_a_function() {
+        let dir = repo();
+        let d = dir.path();
+        git(d, &["rm", "-q", "src/cart.js"]);
+        let cart = "pub fn price(cost: u64) -> u64 {\n    cost\n}\n";
+        write(d, &[("src/cart.rs", cart)]);
+        git(d, &["add", "-A"]);
+        git(d, &["commit", "-q", "-m", "cart.rs"]);
+        let renamed = cart.replace("price", "unit_price");
+        branch(d, "main", "agent/cents", &[("src/cart.rs", &renamed)]);
+        let receipt = "pub struct Line {\n    pub label: String,\n    pub price: u64,\n}\n\npub fn lines(costs: &[u64]) -> Vec<Line> {\n    vec![Line { label: \"all\".into(), price: costs.iter().sum() }]\n}\n";
+        let test = "#[test]\nfn one_line_for_all() {\n    let l = shop::receipt::lines(&[4]);\n    assert_eq!(l[0].price, 4);\n    match l.first().map(|l| l.price) {\n        Some(price) => assert_eq!(price, 4),\n        None => panic!(\"no line\"),\n    }\n}\n";
+        branch(
+            d,
+            "main",
+            "agent/receipt",
+            &[("src/receipt.rs", receipt), ("tests/receipt.rs", test)],
+        );
+        let failed = [
+            "thread 'one_line_for_all' (35892) panicked at tests\\receipt.rs:4:5:",
+            "assertion `left == right` failed",
+        ];
+        assert_eq!(cause(d, &["agent/cents", "agent/receipt"], &failed), None);
+    }
+
     /// README and docs say the word in prose, which no grammar here reads:
     /// the uses are the code's, and a branch with only docs is no user.
     #[test]
