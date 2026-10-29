@@ -203,9 +203,10 @@ looks the same, and also needs write access.
 - Calls, per held pull request: `GET /repos/{repo}/actions/runs?event=pull_request&branch=<head ref>&per_page=100`
   and `GET /repos/{repo}/pulls/{n}/commits?per_page=100`, to order the SHAs
   and keep only this pull request's commits. They need `actions: read`.
-- On 403 or 404 from the runs call that is not a rate limit
-  (`x-ratelimit-remaining: 0`, or a rate-limit message): today's exclusion,
-  with the note "Add `actions: read` to the workflow's permissions to check
+- On 403 or 404 from the first runs call that is not a rate limit
+  (`x-ratelimit-remaining: 0`, or a rate-limit message; once a runs call
+  answered, the token has `actions: read`): today's exclusion, with the
+  note "Add `actions: read` to the workflow's permissions to check
   Copilot's pull requests once someone lets their run start."
 - Any other answer from either call that can't be used, or none, ends the
   asking: the held pull requests not yet let in stay out, with a note such

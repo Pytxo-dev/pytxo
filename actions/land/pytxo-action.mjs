@@ -123,10 +123,11 @@ const letStart = (run, repo) =>
  * let start, as a map from PR number to commit. Two calls each at most: the
  * branch's runs, then the PR's commits (oldest first) only if a run counts, so
  * a run on a commit a push took away, or one never in the PR, cannot let it
- * in. Both need `actions: read`: a 403 or 404 from the first, unless it is a
- * rate limit, means the token lacks it, and the note says what to add. Any
- * other answer it cannot use, or none, also ends the asking: the held PRs not
- * yet let in stay out, as before, and the run goes on without them.
+ * in. Both need `actions: read`: a 403 or 404 from the first runs call,
+ * unless it is a rate limit, means the token lacks it, and the note says what
+ * to add; once one runs call answered, the token has it. Any other answer it
+ * cannot use, or none, also ends the asking: the held PRs not yet let in stay
+ * out, as before, and the run goes on without them.
  */
 // ponytail: one page each, newest 100 runs and first 100 commits; a longer PR may join at an older approved commit or stay out.
 export async function approvedCommits(fetchImpl, { apiUrl, repo, token, prs }) {
@@ -134,7 +135,7 @@ export async function approvedCommits(fetchImpl, { apiUrl, repo, token, prs }) {
   for (const [i, pr] of prs.entries()) {
     const branch = encodeURIComponent(pr.head.ref);
     const runs = await ask(fetchImpl, `${apiUrl}/repos/${repo}/actions/runs?event=pull_request&branch=${branch}&per_page=100`, token);
-    if ((runs.status === 403 || runs.status === 404) && !runs.limited) {
+    if (i === 0 && (runs.status === 403 || runs.status === 404) && !runs.limited) {
       return {
         approved,
         notes: ["Add `actions: read` to the workflow's permissions to check Copilot's pull requests once someone lets their run start."],

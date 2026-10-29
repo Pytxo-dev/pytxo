@@ -262,18 +262,21 @@ test("any other error on either call leaves the held PRs not yet let in out, say
   }
 });
 
-test("a rate limit GitHub answers with 403 is not a missing permission, and a held PR already let in stays in", async () => {
+test("a 403 that is a rate limit, or that follows an answered runs call, is not a missing permission", async () => {
   const { current, open, data } = twoHeld();
-  // Either sign of a rate limit on its own: the header, or the message.
+  // Either sign of a rate limit on its own, on the first call: the header, or the message.
   for (const limit of [
     { status: 403, headers: { "x-ratelimit-remaining": "0" } },
     { status: 403, message: "You have exceeded a secondary rate limit. Please wait a few minutes before you try again." },
   ]) {
-    // #12's runs and commits are answered; the limit hits the third call, #13's runs.
-    const { approved, notes } = await lookUp(current, open, data, { refuse: (path, n) => (n === 3 ? limit : undefined) });
-    assert.deepEqual([...approved], [[12, A]]);
-    assert.deepEqual(notes, ["#13 left out: GitHub did not answer (HTTP 403)."]);
+    const { approved, notes } = await lookUp(current, open, data, { refuse: (path, n) => (n === 1 ? limit : undefined) });
+    assert.equal(approved.size, 0);
+    assert.deepEqual(notes, ["#12, #13 left out: GitHub did not answer (HTTP 403)."]);
   }
+  // #12's runs and commits were answered, so the token has actions: read. A bare 403 on #13's runs leaves only #13 out.
+  const { approved, notes } = await lookUp(current, open, data, { refuse: (path, n) => (n === 3 ? { status: 403 } : undefined) });
+  assert.deepEqual([...approved], [[12, A]]);
+  assert.deepEqual(notes, ["#13 left out: GitHub did not answer (HTTP 403)."]);
 });
 
 test("nothing to check: not an agent PR, or the only one", () => {
