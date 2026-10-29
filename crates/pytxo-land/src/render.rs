@@ -35,13 +35,27 @@ fn passed_when_rerun(p: &ReceiptPredicate, c: &ReceiptCheck) -> bool {
             .any(|r| r.rerun && r.passed && r.command == c.command)
 }
 
+/// Whether `command` passed on the target with only the two inputs a cause
+/// names (scope `pair`), and with every other merged input (`rest`); `None`
+/// for a run that did not happen or did not finish.
+fn culprits(p: &ReceiptPredicate, command: &str) -> (Option<bool>, Option<bool>) {
+    let ran = |scope: &str| {
+        p.checks
+            .iter()
+            .find(|c| c.scope == scope && c.command == command && !c.timed_out)
+            .map(|c| c.passed)
+    };
+    (ran("pair"), ran("rest"))
+}
+
 /// Positions, in command-line order, of the inputs a BLOCKED verdict blames:
 /// one that does not merge, one whose own check fails alone, and every input
-/// of a combination that fails although each passes alone. Every input when
-/// it blames none of those (say the combined run timed out before any input
-/// ran alone), so the GitHub Action stays conservative. Empty for any other
-/// label.
-fn implicated(p: &ReceiptPredicate, label: &str) -> Vec<usize> {
+/// of a combination that fails although each passes alone, or only the two
+/// `cause` names once they fail it on their own and the others pass it
+/// without them. Every input when it blames none of those (say the combined
+/// run timed out before any input ran alone), so the GitHub Action stays
+/// conservative. Empty for any other label.
+fn implicated(p: &ReceiptPredicate, cause: Option<&Cause>, label: &str) -> Vec<usize> {
     if label != "BLOCKED" {
         return Vec::new();
     }
@@ -62,15 +76,20 @@ fn implicated(p: &ReceiptPredicate, label: &str) -> Vec<usize> {
         .checks
         .iter()
         .filter(|c| c.scope == "combined" && !c.passed && !c.rerun && !passed_when_rerun(p, c))
-        .any(|c| {
+        .filter(|c| {
             merged.iter().all(|&n| {
                 let runs: Vec<&ReceiptCheck> =
                     alone(n).filter(|r| r.command == c.command).collect();
                 !runs.is_empty() && runs.iter().all(|r| r.passed)
             })
         });
-    if together {
-        blamed.extend(&merged);
+    for c in together {
+        match cause {
+            Some(cause) if culprits(p, &c.command) == (Some(false), Some(true)) => {
+                blamed.extend([cause.by, cause.user]);
+            }
+            _ => blamed.extend(&merged),
+        }
     }
     if blamed.is_empty() {
         all.collect()
@@ -81,7 +100,7 @@ fn implicated(p: &ReceiptPredicate, label: &str) -> Vec<usize> {
 
 /// The last line of a pull-request comment, for the GitHub Action:
 /// `<!-- pytxo-verdict {"label":"BLOCKED","implicated":[0,2]} -->`.
-fn verdict_tag(p: &ReceiptPredicate, label: &str) -> String {
+fn verdict_tag(p: &ReceiptPredicate, cause: Option<&Cause>, label: &str) -> String {
     #[derive(Serialize)]
     struct Tag<'a> {
         label: &'a str,
@@ -89,7 +108,7 @@ fn verdict_tag(p: &ReceiptPredicate, label: &str) -> String {
     }
     let tag = Tag {
         label,
-        implicated: implicated(p, label),
+        implicated: implicated(p, cause, label),
     };
     format!(
         "<!-- pytxo-verdict {} -->",
@@ -736,6 +755,23 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                         return verdict;
                     };
                     let (b, u, x) = (shown(&by), shown(&user), shown(&cause.name));
+                    // The two in the order they were given, as `names` has them.
+                    let pair = if cause.by < cause.user {
+                        format!("{b} and {u}")
+                    } else {
+                        format!("{u} and {b}")
+                    };
+                    let (pair_ran, rest_ran) = culprits(p, cmd);
+                    // They pass without the others, so the cause guessed
+                    // wrong: the verdict as without one, and what they did.
+                    if pair_ran == Some(true) {
+                        return Verdict {
+                            note: Some(format!(
+                                "{pair} pass {cmd} together without the other branches."
+                            )),
+                            ..verdict
+                        };
+                    }
                     let at = cause.uses.first().map_or_else(String::new, |w| {
                         format!(" ({})", shown(&format!("{}:{}", w.path, w.line)))
                     });
@@ -772,6 +808,34 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                     if cause.confirmed {
                         verdict.fix_prompt =
                             Some(prompt(&by, &user, cause, cmd, &run.output_tail, reader));
+                    }
+                    // They fail it on their own: the what line names them,
+                    // and says how the others did without them.
+                    if pair_ran == Some(false) {
+                        let others: Vec<String> = p
+                            .inputs
+                            .iter()
+                            .enumerate()
+                            .filter(|&(n, i)| {
+                                i.status == "merged" && n != cause.by && n != cause.user
+                            })
+                            .map(|(_, i)| branch(i))
+                            .collect();
+                        let (who, one) = match others.as_slice() {
+                            [other] => (other.clone(), true),
+                            _ => (format!("the other {} branches", others.len()), false),
+                        };
+                        verdict.what = match rest_ran {
+                            Some(true) => format!(
+                                "{pair} fail together; {who} {} without them.",
+                                if one { "passes" } else { "pass" }
+                            ),
+                            Some(false) => format!(
+                                "{pair} fail together; {who} {} without them too.",
+                                if one { "fails" } else { "fail" }
+                            ),
+                            None => format!("{pair} fail together."),
+                        };
                     }
                     return verdict;
                 }
@@ -1050,7 +1114,10 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
     let _ = writeln!(s, "\n</details>\n\n<sub>{INSTALL_HINT}</sub>");
     // Test output can print a tag of its own; only the last line holds one.
     let s = s.replace("pytxo-verdict", "pytxo-\u{200B}verdict");
-    format!("{s}\n{}\n", verdict_tag(p, verdict.label))
+    format!(
+        "{s}\n{}\n",
+        verdict_tag(p, outcome.cause.as_ref(), verdict.label)
+    )
 }
 
 #[cfg(test)]
@@ -1135,14 +1202,14 @@ mod tests {
             vec![check("input:a", false), check("combined", false)],
         );
         for label in ["READY", "LANDED", "FLAKY", "NO TESTS", "STALE"] {
-            assert_eq!(implicated(&p, label), Vec::<usize>::new(), "{label}");
+            assert_eq!(implicated(&p, None, label), Vec::<usize>::new(), "{label}");
         }
     }
 
     #[test]
     fn an_input_that_does_not_merge_is_implicated() {
         let p = blocked("conflict", vec![check("combined", true)]);
-        assert_eq!(implicated(&p, "BLOCKED"), [2]);
+        assert_eq!(implicated(&p, None, "BLOCKED"), [2]);
     }
 
     #[test]
@@ -1153,7 +1220,7 @@ mod tests {
             check("input:b", false),
             check("input:c", true),
         ];
-        assert_eq!(implicated(&blocked("merged", checks), "BLOCKED"), [1]);
+        assert_eq!(implicated(&blocked("merged", checks), None, "BLOCKED"), [1]);
         // Not merging onto the target alone counts as failing alone.
         let checks = vec![
             check("input:a", true),
@@ -1162,7 +1229,7 @@ mod tests {
                 ..check("input:c", false)
             },
         ];
-        assert_eq!(implicated(&blocked("merged", checks), "BLOCKED"), [2]);
+        assert_eq!(implicated(&blocked("merged", checks), None, "BLOCKED"), [2]);
     }
 
     #[test]
@@ -1171,13 +1238,16 @@ mod tests {
         let mut checks = vec![check("combined", false)];
         checks.extend(alone_ok());
         checks.push(rerun(false));
-        assert_eq!(implicated(&blocked("merged", checks), "BLOCKED"), [0, 1, 2]);
+        assert_eq!(
+            implicated(&blocked("merged", checks), None, "BLOCKED"),
+            [0, 1, 2]
+        );
         // A conflicting input is not in the combination, but is blamed itself.
         let mut checks = vec![check("combined", false)];
         checks.extend(alone_ok());
         checks.push(rerun(false));
         assert_eq!(
-            implicated(&blocked("conflict", checks), "BLOCKED"),
+            implicated(&blocked("conflict", checks), None, "BLOCKED"),
             [0, 1, 2]
         );
         let checks = vec![
@@ -1186,7 +1256,10 @@ mod tests {
             check("input:b", true),
             rerun(false),
         ];
-        assert_eq!(implicated(&blocked("empty", checks), "BLOCKED"), [0, 1]);
+        assert_eq!(
+            implicated(&blocked("empty", checks), None, "BLOCKED"),
+            [0, 1]
+        );
     }
 
     #[test]
@@ -1198,7 +1271,7 @@ mod tests {
             ..check("combined", false)
         };
         assert_eq!(
-            implicated(&blocked("merged", vec![timed_out]), "BLOCKED"),
+            implicated(&blocked("merged", vec![timed_out]), None, "BLOCKED"),
             [0, 1, 2]
         );
         // A combined failure without per-input runs, or with no check at all
@@ -1206,12 +1279,13 @@ mod tests {
         assert_eq!(
             implicated(
                 &blocked("merged", vec![check("combined", false)]),
+                None,
                 "BLOCKED"
             ),
             [0, 1, 2]
         );
         assert_eq!(
-            implicated(&blocked("merged", Vec::new()), "BLOCKED"),
+            implicated(&blocked("merged", Vec::new()), None, "BLOCKED"),
             [0, 1, 2]
         );
     }
@@ -1742,5 +1816,74 @@ FAIL discount.test.js: price is not a function")
         conflict.receipt.predicate.inputs[1].status = "conflict".into();
         assert_eq!(fix_prompt(&conflict, Reader::User), None);
         assert_eq!(verdict(&conflict, "x").cause, None);
+    }
+
+    /// What the runs on the cause's two branches and on the others say, as
+    /// the verdict and the Action's tag read them.
+    #[test]
+    fn the_runs_on_the_pair_and_the_rest_decide_who_is_blamed() {
+        let failed = |scope: &str| ReceiptCheck {
+            output_tail: lines("TypeError: price is not a function"),
+            ..check(scope, false)
+        };
+        // a, b, c and d each pass alone and fail together; c renamed what a uses.
+        let with = |culprits: Vec<ReceiptCheck>| {
+            let mut p = blocked("merged", vec![failed("combined")]);
+            p.inputs.push(input("d", "merged"));
+            p.checks
+                .extend(["a", "b", "c", "d"].map(|i| check(&format!("input:{i}"), true)));
+            p.checks.push(ReceiptCheck {
+                rerun: true,
+                ..failed("combined")
+            });
+            p.checks.extend(culprits);
+            let cause = Cause {
+                by: 2,
+                user: 0,
+                ..renamed(true)
+            };
+            LandOutcome {
+                cause: Some(cause),
+                ..outcome(p)
+            }
+        };
+        let blamed =
+            |out: &LandOutcome| implicated(&out.receipt.predicate, out.cause.as_ref(), "BLOCKED");
+
+        let out = with(vec![failed("pair"), check("rest", true)]);
+        assert_eq!(
+            verdict(&out, "again").what,
+            "a and c fail together; the other 2 branches pass without them."
+        );
+        assert_eq!(blamed(&out), [0, 2]);
+        // No run on the rest: the two are proven, but no one is cleared.
+        let out = with(vec![failed("pair")]);
+        assert_eq!(verdict(&out, "again").what, "a and c fail together.");
+        assert_eq!(blamed(&out), [0, 1, 2, 3]);
+        // A run on the pair that did not finish proves nothing.
+        let cut = ReceiptCheck {
+            timed_out: true,
+            exit_code: None,
+            ..failed("pair")
+        };
+        let out = with(vec![cut]);
+        assert_eq!(
+            verdict(&out, "again").what,
+            "a, b, c and d pass npm test alone but fail together."
+        );
+        assert_eq!(blamed(&out), [0, 1, 2, 3]);
+        // Another check that fails together, with no pair of its own, still
+        // blames them all.
+        let mut out = with(vec![failed("pair"), check("rest", true)]);
+        let lint = |c: ReceiptCheck| ReceiptCheck {
+            command: "npm run lint".into(),
+            ..c
+        };
+        let p = &mut out.receipt.predicate;
+        p.checks.push(lint(failed("combined")));
+        p.checks
+            .extend(["a", "b", "c", "d"].map(|i| lint(check(&format!("input:{i}"), true))));
+        p.checks.push(lint(rerun(false)));
+        assert_eq!(blamed(&out), [0, 1, 2, 3]);
     }
 }
