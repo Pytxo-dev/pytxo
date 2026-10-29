@@ -83,8 +83,9 @@ a combined run that timed out, every pull request in the run fails. It runs on
 joins another pull request's run: it is checked in its own run, with GitHub's
 read-only token and no secrets. Nor does a pull request opened by Copilot or
 `github-actions[bot]`, whose runs GitHub holds for approval: its own run, once
-approved, checks it with the others. Without `pull-requests: write` the verdict goes to the job
-summary instead. See [the Action's inputs](actions/land/action.yml).
+approved, checks it with the others. A run checks each pull request at the commit it saw, so a
+push after someone approved the run gets a run of its own. Without `pull-requests: write` the
+verdict goes to the job summary instead. See [the Action's inputs](actions/land/action.yml).
 
 ## When your agents finish
 

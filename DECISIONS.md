@@ -136,8 +136,12 @@ chosen, why, and how to undo it.
     would run their code before anyone approved it. Their own run, once
     approved, checks them with the others. At most 10 PRs at once. Draft PRs
     count. With no other agent PR open into the same base, the run passes
-    with a note in the job summary and posts no comment. Only the triggering
-    PR gets the comment.
+    with a note in the job summary and creates no comment, though it updates
+    one an earlier run left. Only the triggering PR gets the comment. Each PR
+    is fetched at the commit the run saw (the event's head for the
+    triggering PR, the listing's for the others), not at `refs/pull/N/head`,
+    which moves with every push: an approved run checks what was approved,
+    and a later push gets a run of its own.
     Errors are reported as errors, not as "blocked". The job fails when the
     CLI's last-line verdict tag implicates this PR (it conflicts, fails
     alone, or is in a combination that fails while each passes alone), when
@@ -294,7 +298,12 @@ chosen, why, and how to undo it.
     keeps only `node_modules` and `target`, whose tools never run stale
     output, so build output a test command runs (a `tsc` outDir) cannot carry
     over from another branch. Cost: on a failure, other ignored caches (a
-    `.venv`, Gradle's `build`) are rebuilt for each branch.
+    `.venv`, Gradle's `build`) are rebuilt for each branch. The clean is best
+    effort: a path it cannot remove (a container's root-owned cache, a file a
+    leftover process holds open) stays, and the run still reaches a verdict.
+    The second combined run that tells a flaky check from a real break starts
+    clean too, after the checks before it run again to set it up; the receipt
+    keeps their first runs.
 34. **Windows checks see the long temp path when it is plain.**
     `C:\Users\RUNNER~1\...` confuses tools that compare paths, so checks run
     under the long spelling, unless it has a space or a non-ASCII letter or
