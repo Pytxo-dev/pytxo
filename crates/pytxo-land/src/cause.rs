@@ -11,10 +11,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::process::Output;
 
-use pytxo_signal::{parses, symbol_spans, uses_name};
+use pytxo_signal::{name_use, parses, symbol_spans, uses_name};
 use serde::Serialize;
 
 use crate::git::Git;
+use crate::render::rank;
 
 /// Changed files of one input read for the names they define.
 const MAX_FILES: usize = 200;
@@ -49,6 +50,16 @@ pub struct Cause {
 pub struct Use {
     pub path: String,
     pub line: u32,
+}
+
+/// A name one input stopped defining, by its position among the merged
+/// inputs: what it calls the name now, when its diff says, and whether one
+/// it defined was a member, such as a method, which code calls as `a.name`.
+struct Gone {
+    by: usize,
+    name: String,
+    renamed: Option<String>,
+    member: bool,
 }
 
 /// A merged input: its position in the inputs, the commit it shares with the
@@ -114,7 +125,7 @@ pub(crate) fn find(
         .collect();
     // Names an input stopped defining that another input's new lines use,
     // with the input and what it calls the name now, when its diff says.
-    let mut candidates: Vec<(usize, String, Option<String>)> = Vec::new();
+    let mut candidates: Vec<Gone> = Vec::new();
     for (b, diff) in diffs.iter().enumerate() {
         let used_by_another =
             |name: &str| (0..inputs.len()).any(|u| u != b && words[u].contains(name));
@@ -131,26 +142,34 @@ pub(crate) fn find(
             let Some(before) = &file.old_source else {
                 continue;
             };
-            let names: Vec<String> = defined(&file.path, before)
+            let names: Vec<(String, bool)> = defined(&file.path, before)
                 .into_iter()
-                .filter(|n| used_by_another(n) && looked_at.insert(n.clone()))
+                .filter(|(n, _)| used_by_another(n) && looked_at.insert(n.clone()))
                 .collect();
             if names.is_empty() {
                 continue;
             }
-            let now = match &file.new_source {
-                Some(after) => defined(&file.path, after),
+            let now: Vec<String> = match &file.new_source {
+                Some(after) => defined(&file.path, after)
+                    .into_iter()
+                    .map(|(n, _)| n)
+                    .collect(),
                 // Too big to tell what it still defines: nothing from it.
                 None if file.after => continue,
                 None => Vec::new(),
             };
-            for name in names.into_iter().filter(|n| !now.contains(n)) {
+            for (name, member) in names.into_iter().filter(|(n, _)| !now.contains(n)) {
                 gone += 1;
                 if gone > MAX_GONE {
                     return None;
                 }
                 let renamed = renamed_to(file, &name, &now);
-                candidates.push((b, name, renamed));
+                candidates.push(Gone {
+                    by: b,
+                    name,
+                    renamed,
+                    member,
+                });
             }
         }
     }
@@ -162,23 +181,21 @@ pub(crate) fn find(
     let mut grep = Grep { git, calls: 0 };
     let left_out: Vec<Option<Vec<String>>> = candidates
         .iter()
-        .map(|(b, name, _)| said_only(&diffs[*b], name))
+        .map(|c| said_only(&diffs[c.by], &c.name))
         .collect();
     let asks: Vec<(&str, &str, &[String])> = candidates
         .iter()
         .zip(&left_out)
-        .filter_map(|((b, name, _), files)| {
-            Some((inputs[*b].commit, name.as_str(), files.as_deref()?))
-        })
+        .filter_map(|(c, files)| Some((inputs[c.by].commit, c.name.as_str(), files.as_deref()?)))
         .collect();
     let mut mentioned = grep.mentions(&asks)?.into_iter();
-    let gone: Vec<&(usize, String, Option<String>)> = candidates
+    let gone: Vec<&Gone> = candidates
         .iter()
         .zip(&left_out)
         .filter(|(_, files)| files.is_some() && mentioned.next() == Some(false))
         .map(|(candidate, _)| candidate)
         .collect();
-    let names: BTreeSet<&str> = gone.iter().map(|(_, name, _)| name.as_str()).collect();
+    let names: BTreeSet<&str> = gone.iter().map(|c| c.name.as_str()).collect();
     let names: Vec<&str> = names.into_iter().collect();
     let still_defined: BTreeMap<&str, bool> = names
         .iter()
@@ -186,21 +203,21 @@ pub(crate) fn find(
         .zip(defines(git, &mut grep, combined, &names)?)
         .collect();
     let mut found = Vec::new();
-    for (b, name, renamed) in gone {
-        if still_defined[name.as_str()] {
+    for c in gone {
+        if still_defined[c.name.as_str()] {
             continue;
         }
-        for (u, user) in inputs.iter().enumerate().filter(|&(u, _)| u != *b) {
-            let uses: Vec<Use> = uses_in(&diffs[u], name).collect();
+        for (u, user) in inputs.iter().enumerate().filter(|&(u, _)| u != c.by) {
+            let uses = uses_in(&diffs[u], &c.name, c.member);
             if uses.is_empty() {
                 continue;
             }
             found.push(Cause {
-                by: inputs[*b].index,
+                by: inputs[c.by].index,
                 user: user.index,
-                confirmed: confirms(failing, name, &uses),
-                name: name.clone(),
-                renamed_to: renamed.clone(),
+                confirmed: confirms(failing, &c.name, &uses),
+                name: c.name.clone(),
+                renamed_to: c.renamed.clone(),
                 uses,
             });
         }
@@ -304,7 +321,10 @@ fn defines(git: &Git, grep: &mut Grep, commit: &str, names: &[&str]) -> Option<V
         }
         let source =
             (out.stdout.len() <= MAX_FILE_BYTES).then(|| String::from_utf8_lossy(&out.stdout));
-        defs.insert(path, source.map(|s| defined(path, &s)));
+        defs.insert(
+            path,
+            source.map(|s| defined(path, &s).into_iter().map(|(n, _)| n).collect()),
+        );
     }
     Some(
         names
@@ -322,16 +342,24 @@ fn defines(git: &Git, grep: &mut Grep, commit: &str, names: &[&str]) -> Option<V
 
 /// The names `source` defines, in order: the last part of each symbol's
 /// qualified name (`Cart.total` is `total`), when it is a plain word of
-/// three characters or more.
-fn defined(path: &str, source: &str) -> Vec<String> {
-    let mut seen = BTreeSet::new();
-    symbol_spans(Path::new(path), source)
-        .into_iter()
-        .filter_map(|span| {
-            let last = span.name.rsplit(['.', ':']).next()?;
-            (is_name(last) && seen.insert(last.to_string())).then(|| last.to_string())
-        })
-        .collect()
+/// three characters or more, and whether one of that name is a member, such
+/// as a method.
+fn defined(path: &str, source: &str) -> Vec<(String, bool)> {
+    let mut names: Vec<(String, bool)> = Vec::new();
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+    for span in symbol_spans(Path::new(path), source) {
+        let Some(last) = span.name.rsplit(['.', ':']).next().filter(|l| is_name(l)) else {
+            continue;
+        };
+        match seen.get(last) {
+            Some(&at) => names[at].1 |= span.member,
+            None => {
+                seen.insert(last.to_string(), names.len());
+                names.push((last.to_string(), span.member));
+            }
+        }
+    }
+    names
 }
 
 fn is_name(word: &str) -> bool {
@@ -382,26 +410,74 @@ fn said_only(diff: &[FileDiff], name: &str) -> Option<Vec<String>> {
     Some(files)
 }
 
-/// The lines an input added that use `name`.
-fn uses_in<'a>(diff: &'a [FileDiff], name: &'a str) -> impl Iterator<Item = Use> + 'a {
-    diff.iter().flat_map(move |f| {
-        f.added
-            .iter()
-            .filter(move |(_, l)| has_word(l, name))
-            .map(move |(n, _)| Use {
-                path: f.path.clone(),
-                line: *n,
-            })
-    })
+/// The lines an input added where its code refers to `name`, as the file is
+/// on that branch: not a word in a string, a comment, docs or a file with no
+/// grammar here, an object key, nor `a.name` unless `name` was a `member`.
+/// Not in a file that binds `name` itself, a local variable or a parameter
+/// included, whose code refers to its own.
+fn uses_in(diff: &[FileDiff], name: &str, member: bool) -> Vec<Use> {
+    let mut uses = Vec::new();
+    for f in diff {
+        let Some(source) = f.new_source.as_deref() else {
+            continue;
+        };
+        if !f.added.iter().any(|(_, l)| has_word(l, name)) {
+            continue;
+        }
+        let Some(said) = name_use(Path::new(&f.path), source, name, member) else {
+            continue;
+        };
+        if said.binds {
+            continue;
+        }
+        let added: BTreeSet<u32> = f.added.iter().map(|(n, _)| *n).collect();
+        uses.extend(
+            said.lines
+                .iter()
+                .filter_map(|&n| u32::try_from(n).ok().filter(|n| added.contains(n)))
+                .map(|line| Use {
+                    path: f.path.clone(),
+                    line,
+                }),
+        );
+    }
+    uses
 }
 
-/// Whether the failing output names `name`, or the place of one of `uses`.
+/// Whether the failing output says `name` where it says what went wrong, or
+/// the place of one of `uses`, as a stack frame or a compiler gives it. An
+/// error, an assertion, a place with what is wrong there or a test that
+/// failed says what went wrong (`rank` 2 or better); a count of tests, a
+/// diff of values or a test's title does not, nor a word in a path, such as
+/// `price.js` or `src\price.js`.
 fn confirms(failing: &[&[String]], name: &str, uses: &[Use]) -> bool {
     failing.iter().flat_map(|tail| tail.iter()).any(|line| {
-        has_word(line, name) || {
+        let line = line.trim();
+        (says_outside_paths(line, name) && rank(line).is_some_and(|r| r <= 2)) || {
             let line = line.replace('\\', "/");
             uses.iter().any(|u| names_place(&line, u))
         }
+    })
+}
+
+/// Extensions of the files a check prints the path of; `price.test.js` and
+/// `price.js:6` are paths, `price.map` is not.
+const EXTENSIONS: &[&str] = &[
+    "js", "jsx", "mjs", "cjs", "ts", "tsx", "mts", "cts", "py", "pyi", "go", "rs", "rb", "java",
+    "kt", "c", "h", "cc", "cpp", "cxx", "hpp", "cs", "php", "swift", "json", "md", "txt", "yml",
+    "yaml", "toml", "test", "spec",
+];
+
+/// Whether `line` has `word` as a whole word that is not part of a path: not
+/// after a `/` or `\`, nor before a file's extension.
+fn says_outside_paths(line: &str, word: &str) -> bool {
+    word_starts(line, word).any(|i| {
+        let after = &line[i + word.len()..];
+        let ext = after.strip_prefix('.').map(|rest| {
+            let end = rest.bytes().take_while(|&b| word_byte(b)).count();
+            &rest[..end]
+        });
+        !line[..i].ends_with(['/', '\\']) && !ext.is_some_and(|e| EXTENSIONS.contains(&e))
     })
 }
 
@@ -756,6 +832,154 @@ mod tests {
         // total.js still calls price on one; docs still say it on the other.
         for still in ["agent/half", "agent/docs"] {
             assert_eq!(cause(d, &[still, "agent/caller"], &failed), None, "{still}");
+        }
+    }
+
+    /// A word in a new line is no use: the reviewers' repros, where the
+    /// failure has nothing to do with the rename, and none is a cause.
+    #[test]
+    fn a_word_that_is_not_code_referring_to_the_name_is_no_use() {
+        let dir = repo();
+        let d = dir.path();
+        // `total` renamed to `sum`; the other branch's `total` is a local.
+        branch(
+            d,
+            "main",
+            "agent/cents",
+            &[("src/cart.js", &CART.replace("total", "sum"))],
+        );
+        let receipt = "const { price } = require('./cart.js');\n\nfunction receipt(items) {\n  let total = 0;\n  for (const i of items) total += price(i);\n  return 'Due: ' + total;\n}\n\nmodule.exports = { receipt };\n";
+        branch(d, "main", "agent/receipt", &[("src/receipt.js", receipt)]);
+        let jest = [
+            "FAIL test/receipt.test.js",
+            "    Expected: \"Due: 5\"",
+            "    Received: \"Due: 500\"",
+            "Test Suites: 1 failed, 1 passed, 2 total",
+            "Tests:       1 failed, 1 passed, 2 total",
+            "Snapshots:   0 total",
+        ];
+        assert_eq!(cause(d, &["agent/cents", "agent/receipt"], &jest), None);
+
+        let renamed = CART.replace("price", "unitPrice");
+        branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+        // An object key, and a comment and a test's title that say the word.
+        let key = "const { total } = require('./cart.js');\n\nfunction quote(items) {\n  return { items: items.length, price: total(items) };\n}\n\nmodule.exports = { quote };\n";
+        let key_test = "const assert = require('node:assert');\nconst { quote } = require('../src/quote.js');\nassert.deepStrictEqual(quote([{ cost: 2 }]), { items: 1, price: 2 });\n";
+        branch(
+            d,
+            "main",
+            "agent/key",
+            &[("src/quote.js", key), ("test/quote.test.js", key_test)],
+        );
+        let said = "const { total } = require('./cart.js');\n\n// The quote's price is the cart total.\nfunction quote(items) {\n  return { items: items.length, amount: total(items) };\n}\n\nmodule.exports = { quote };\n";
+        let titled = "const test = require('node:test');\nconst { quote } = require('../src/quote.js');\ntest('quote price is the cart total', () => quote([]));\n";
+        branch(
+            d,
+            "main",
+            "agent/said",
+            &[("src/quote.js", said), ("test/quote.test.js", titled)],
+        );
+        let node = [
+            "✖ quote price is the cart total (4.1924ms)",
+            "  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
+            "  +   price: 500",
+            "  -   price: 5",
+        ];
+        for user in ["agent/key", "agent/said"] {
+            assert_eq!(cause(d, &["agent/rename", user], &node), None, "{user}");
+        }
+
+        // `price` renamed in price.js; the other branch only requires the
+        // file, and the error names it only in a path.
+        git(d, &["rm", "-q", "src/cart.js"]);
+        let price = "function price(item) {\n  return item.cost;\n}\n\nfunction total(items) {\n  return items.reduce((sum, i) => sum + price(i), 0);\n}\n\nmodule.exports = { price, total };\n";
+        write(d, &[("src/price.js", price)]);
+        git(d, &["add", "-A"]);
+        git(d, &["commit", "-q", "-m", "price.js"]);
+        let strict = price.replace("price", "unitPrice").replace(
+            "{\n  return items",
+            "{\n  if (!items.length) throw new Error('empty cart');\n  return items",
+        );
+        branch(d, "main", "agent/strict", &[("src/price.js", &strict)]);
+        let report = "const { total } = require('./price.js');\n\nfunction report(orders) {\n  return orders.map((items) => total(items));\n}\n\nmodule.exports = { report };\n";
+        branch(d, "main", "agent/report", &[("src/report.js", report)]);
+        let thrown = [
+            "  Error: empty cart",
+            r"      at total (C:\work\shop\src\price.js:6:33)",
+        ];
+        assert_eq!(cause(d, &["agent/strict", "agent/report"], &thrown), None);
+    }
+
+    /// README and docs say the word in prose, which no grammar here reads:
+    /// the uses are the code's, and a branch with only docs is no user.
+    #[test]
+    fn prose_is_no_use() {
+        let dir = repo();
+        let d = dir.path();
+        let renamed = CART.replace("price", "unitPrice");
+        branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+        let readme = "# Shop\n\nDiscounts take ten percent off the item price.\n";
+        branch(
+            d,
+            "main",
+            "agent/discount",
+            &[("README.md", readme), ("src/extra.js", CALLER)],
+        );
+        branch(
+            d,
+            "main",
+            "agent/docs",
+            &[("docs/pricing.md", "Every item has a price.\nThe price is in dollars.\nA total is the sum of each price.\n")],
+        );
+        let failed = ["TypeError: price is not a function"];
+        let found = cause(d, &["agent/rename", "agent/discount"], &failed).unwrap();
+        assert_eq!(found.uses, uses(&[1, 2]));
+        let three = ["agent/rename", "agent/discount", "agent/docs"];
+        let found = cause(d, &three, &failed).unwrap();
+        assert_eq!((found.by, found.user), (0, 1));
+        assert_eq!(cause(d, &["agent/rename", "agent/docs"], &failed), None);
+    }
+
+    /// The failing output confirms a name it gives as what went wrong, not
+    /// one in a count, a diff of values, a test's title or a path; and the
+    /// place of a use, as a stack frame or a compiler names it.
+    #[test]
+    fn only_what_went_wrong_confirms_a_name() {
+        let at = [Use {
+            path: "src/discount.js".into(),
+            line: 4,
+        }];
+        let confirmed = |line: &str, name: &str| confirms(&[&[line.to_string()]], name, &at);
+        for line in [
+            "TypeError: price is not a function",
+            "  TypeError [Error]: price is not a function",
+            "FAIL discount.test.js: price is not a function",
+            "E       NameError: name 'price' is not defined",
+            ".\\discount.go:3:40: undefined: price",
+            "AssertionError: price(1) == 2",
+            "TypeError: cart.price is not a function",
+        ] {
+            assert!(confirmed(line, "price"), "{line}");
+        }
+        for line in [
+            "Tests:       1 failed, 1 passed, 2 total",
+            "Snapshots:   0 total",
+            "  +   price: 500",
+            "✖ quote price is the cart total (4.1924ms)",
+            r"      at total (C:\work\src\price.js:6:33)",
+            "Error: Cannot find module './price.js'",
+            "FAIL test/price.test.js",
+            "Error: empty cart",
+        ] {
+            assert!(!confirmed(line, "price"), "{line}");
+            assert!(!confirmed(line, "total"), "{line}");
+        }
+        for frame in [
+            "    at discounted (/tmp/run/src/discount.js:4:10)",
+            r"    at discounted (C:\run\src\discount.js:4:10)",
+            "src/discount.js:4: TypeError",
+        ] {
+            assert!(confirmed(frame, "unrelated"), "{frame}");
         }
     }
 
