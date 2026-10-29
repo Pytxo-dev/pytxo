@@ -357,16 +357,25 @@ test("discover fetches the agent PRs as local branches and the base", async (t) 
     heads[n] = sh(work, "rev-parse", "HEAD");
     sh(work, "checkout", "-q", "main");
   }
+  // #14 gets a push after the run started: the run checks the commit it saw.
+  sh(work, "checkout", "-q", "codex/discount");
+  fs.writeFileSync(path.join(work, "late.txt"), "late\n");
+  sh(work, "add", "-A");
+  sh(work, "commit", "-q", "-m", "pushed during the run");
+  const moved = sh(work, "rev-parse", "HEAD");
+  sh(work, "checkout", "-q", "main");
   const origin = path.join(root, "origin.git");
   sh(root, "clone", "-q", "--bare", work, origin);
   sh(origin, "update-ref", "refs/pull/9/head", heads[9]);
-  sh(origin, "update-ref", "refs/pull/14/head", heads[14]);
+  sh(origin, "update-ref", "refs/pull/14/head", moved);
   sh(origin, "branch", "-D", "claude/rename", "codex/discount");
   const clone = path.join(root, "clone");
   sh(root, "clone", "-q", "--depth", "1", `file://${origin.replace(/\\/g, "/")}`, clone);
   sh(clone, "checkout", "-q", "--detach");
 
   const pulls = [pr(9, "claude/rename"), pr(14, "codex/discount"), pr(11, "matt/readme")];
+  pulls[0].head.sha = heads[9];
+  pulls[1].head.sha = heads[14];
   const server = http.createServer((req, res) => {
     assert.equal(req.headers.authorization, "Bearer secret");
     res.setHeader("content-type", "application/json");

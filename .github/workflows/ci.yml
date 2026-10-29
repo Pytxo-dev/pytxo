@@ -171,7 +171,7 @@ jobs:
         working-directory: packages/pytxo
         run: npm test
 
-      # PR discovery, the sticky comment, and a real fetch of refs/pull/N/head.
+      # PR discovery, the sticky comment, and a real fetch of each PR's commit.
       - name: GitHub Action tests
         run: node --test actions/land/pytxo-action.test.mjs
 

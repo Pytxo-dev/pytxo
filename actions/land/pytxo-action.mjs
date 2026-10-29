@@ -339,6 +339,8 @@ async function discover() {
   }
   const taken = new Set([base]);
   const prs = selection.prs.map((pr) => ({ number: pr.number, sha: pr.head.sha, branch: localName(pr, taken, base) }));
+  // Each at the commit this run saw, not at refs/pull/N/head, which moves with
+  // every push: a run someone approved checks what they approved.
   git(
     [
       "fetch",
@@ -347,7 +349,7 @@ async function discover() {
       "--update-head-ok",
       "origin",
       `+refs/heads/${base}:refs/heads/${base}`,
-      ...prs.map((p) => `+refs/pull/${p.number}/head:refs/heads/${p.branch}`),
+      ...prs.map((p) => `+${p.sha}:refs/heads/${p.branch}`),
     ],
     { auth },
   );
