@@ -123,30 +123,54 @@ const letStart = (run, repo) =>
  * let start, as a map from PR number to commit. Two calls each at most: the
  * branch's runs, then the PR's commits (oldest first) only if a run counts, so
  * a run on a commit a push took away, or one never in the PR, cannot let it
- * in. Both need `actions: read`; a 403 or 404 means the token lacks it, so
- * the rest stay out, as before, with a note saying what to add.
+ * in. Both need `actions: read`: a 403 or 404 from the first, unless it is a
+ * rate limit, means the token lacks it, and the note says what to add. Any
+ * other answer it cannot use, or none, also ends the asking: the held PRs not
+ * yet let in stay out, as before, and the run goes on without them.
  */
 // ponytail: one page each, newest 100 runs and first 100 commits; a longer PR may join at an older approved commit or stay out.
 export async function approvedCommits(fetchImpl, { apiUrl, repo, token, prs }) {
   const approved = new Map();
-  for (const pr of prs) {
+  for (const [i, pr] of prs.entries()) {
     const branch = encodeURIComponent(pr.head.ref);
-    const runs = await api(fetchImpl, `${apiUrl}/repos/${repo}/actions/runs?event=pull_request&branch=${branch}&per_page=100`, token);
-    if (runs.status === 403 || runs.status === 404) {
+    const runs = await ask(fetchImpl, `${apiUrl}/repos/${repo}/actions/runs?event=pull_request&branch=${branch}&per_page=100`, token);
+    if ((runs.status === 403 || runs.status === 404) && !runs.limited) {
       return {
         approved,
         notes: ["Add `actions: read` to the workflow's permissions to check Copilot's pull requests once someone lets their run start."],
       };
     }
-    if (!runs.ok) throw new Error(`listing the workflow runs of #${pr.number}: HTTP ${runs.status}`);
-    const started = new Set((await runs.json()).workflow_runs.filter((run) => letStart(run, repo)).map((run) => run.head_sha));
+    const unanswered = ({ status }) => ({
+      approved,
+      notes: [`${prs.slice(i).map((p) => `#${p.number}`).join(", ")} left out: GitHub did not answer${status ? ` (HTTP ${status})` : ""}.`],
+    });
+    if (!Array.isArray(runs.body?.workflow_runs)) return unanswered(runs);
+    const started = new Set(runs.body.workflow_runs.filter((run) => letStart(run, repo)).map((run) => run.head_sha));
     if (!started.size) continue;
-    const commits = await api(fetchImpl, `${apiUrl}/repos/${repo}/pulls/${pr.number}/commits?per_page=100`, token);
-    if (!commits.ok) throw new Error(`listing the commits of #${pr.number}: HTTP ${commits.status}`);
-    const sha = (await commits.json()).map((commit) => commit.sha).findLast((sha) => started.has(sha));
+    const commits = await ask(fetchImpl, `${apiUrl}/repos/${repo}/pulls/${pr.number}/commits?per_page=100`, token);
+    if (!Array.isArray(commits.body)) return unanswered(commits);
+    const sha = commits.body.map((commit) => commit.sha).findLast((sha) => started.has(sha));
     if (sha) approved.set(pr.number, sha);
   }
   return { approved, notes: [] };
+}
+
+/**
+ * GitHub's answer to `url`: `{ body }` when it is OK, or its `status` and
+ * whether it is a rate limit, which GitHub can answer with 403 as well as
+ * 429. Never throws: no connection, or an OK answer that is not JSON,
+ * gives `{}`.
+ */
+async function ask(fetchImpl, url, token) {
+  try {
+    const response = await api(fetchImpl, url, token);
+    if (response.ok) return { body: await response.json() };
+    const message = (await response.json().catch(() => null))?.message;
+    const limited = response.headers.get("x-ratelimit-remaining") === "0" || /rate limit/i.test(message ?? "");
+    return { status: response.status, limited };
+  } catch {
+    return {};
+  }
 }
 
 /** A safe local branch name for a PR head: its own name when that is usable. */

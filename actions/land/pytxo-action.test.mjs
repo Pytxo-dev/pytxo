@@ -131,12 +131,20 @@ const run = (sha, attempt, conclusion, { fork = false } = {}) => ({
   head_repository: { full_name: fork ? "someone/shop" : REPO },
 });
 
-/** Asks a fake GitHub about the held PRs among `open` for `current`'s run; `calls` are the paths asked. */
-async function lookUp(current, open, data, { status = 200 } = {}) {
+/**
+ * Asks a fake GitHub about the held PRs among `open` for `current`'s run;
+ * `calls` are the paths asked. `refuse(path, n)` can turn the nth call into an
+ * error, `{ status, headers, message }`, or into no connection, an Error.
+ */
+async function lookUp(current, open, data, { refuse = () => undefined } = {}) {
   const calls = [];
   const fetchImpl = async (url) => {
-    calls.push(url.replace("https://api", ""));
-    return { ok: status === 200, status, json: async () => answer(url, data) };
+    const path = url.replace("https://api", "");
+    calls.push(path);
+    const error = refuse(path, calls.length);
+    if (error instanceof Error) throw error;
+    if (error) return { ok: false, status: error.status, headers: new Headers(error.headers), json: async () => ({ message: error.message ?? "" }) };
+    return { ok: true, status: 200, headers: new Headers(), json: async () => answer(url, data) };
   };
   const found = await approvedCommits(fetchImpl, { apiUrl: "https://api", repo: REPO, token: "t", prs: heldPrs(current, open) });
   return { ...found, calls };
@@ -206,11 +214,50 @@ test("GitHub is asked about the newest 9 held PRs, and without actions: read the
     [4, 5, 6, 7, 8, 9, 10, 11, 12],
   );
   for (const status of [403, 404]) {
-    const { approved, notes, calls } = await lookUp(current, [...held, current], {}, { status });
+    const refuse = () => ({ status, message: "Resource not accessible by integration" });
+    const { approved, notes, calls } = await lookUp(current, [...held, current], {}, { refuse });
     assert.equal(approved.size, 0);
     assert.deepEqual(notes, ["Add `actions: read` to the workflow's permissions to check Copilot's pull requests once someone lets their run start."]);
     // The first refusal ends the asking.
     assert.equal(calls.length, 1);
+  }
+});
+
+/** Two held PRs, each with an approved run, for #14's run. */
+const twoHeld = () => ({
+  current: pr(14, "codex/discount"),
+  open: [pr(12, "copilot/fix-tax", { login: "Copilot" }), pr(13, "copilot/docs", { login: "Copilot" }), pr(14, "codex/discount")],
+  data: { runs: { "copilot/fix-tax": [run(A, 2, "success")], "copilot/docs": [run(B, 2, "success")] }, commits: { 12: [A], 13: [B] } },
+});
+
+test("any other error on either call leaves the held PRs not yet let in out, says why, and the run goes on", async () => {
+  const { current, open, data } = twoHeld();
+  const on = (call, error) => (path) => (path.includes(call) ? error : undefined);
+  for (const [refuse, why, asked] of [
+    // The runs call answered, so the token has actions: read: this 403 is something else.
+    [on("/commits", { status: 403 }), " (HTTP 403)", 2],
+    [on("/actions/runs", { status: 429 }), " (HTTP 429)", 1],
+    [on("/actions/runs", { status: 502 }), " (HTTP 502)", 1],
+    [on("/actions/runs", new TypeError("fetch failed")), "", 1],
+  ]) {
+    const { approved, notes, calls } = await lookUp(current, open, data, { refuse });
+    assert.equal(approved.size, 0);
+    assert.deepEqual(notes, [`#12, #13 left out: GitHub did not answer${why}.`]);
+    assert.equal(calls.length, asked);
+  }
+});
+
+test("a rate limit GitHub answers with 403 is not a missing permission, and a held PR already let in stays in", async () => {
+  const { current, open, data } = twoHeld();
+  // Either sign of a rate limit on its own: the header, or the message.
+  for (const limit of [
+    { status: 403, headers: { "x-ratelimit-remaining": "0" } },
+    { status: 403, message: "You have exceeded a secondary rate limit. Please wait a few minutes before you try again." },
+  ]) {
+    // #12's runs and commits are answered; the limit hits the third call, #13's runs.
+    const { approved, notes } = await lookUp(current, open, data, { refuse: (path, n) => (n === 3 ? limit : undefined) });
+    assert.deepEqual([...approved], [[12, A]]);
+    assert.deepEqual(notes, ["#13 left out: GitHub did not answer (HTTP 403)."]);
   }
 });
 
