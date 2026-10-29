@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::process::Output;
 
-use pytxo_signal::{parses, symbol_spans};
+use pytxo_signal::{parses, symbol_spans, uses_name};
 use serde::Serialize;
 
 use crate::git::Git;
@@ -154,18 +154,29 @@ pub(crate) fn find(
             }
         }
     }
-    // Gone only when the input dropped every mention, so that it no longer
-    // uses the name itself: not a word like `get`.
+    // Gone only when the input no longer uses the name itself: not a word
+    // like `get`. The files it changed, which the diff shows whole, are read
+    // for code that says the name, where a string or a comment is no use,
+    // such as the `require('./price')` a rename of the function `price`
+    // leaves behind; the grep looks for the word everywhere else.
     let mut grep = Grep { git, calls: 0 };
-    let asks: Vec<(&str, &str)> = candidates
+    let left_out: Vec<Option<Vec<String>>> = candidates
         .iter()
-        .map(|(b, name, _)| (inputs[*b].commit, name.as_str()))
+        .map(|(b, name, _)| said_only(&diffs[*b], name))
         .collect();
-    let mentioned = grep.mentions(&asks)?;
+    let asks: Vec<(&str, &str, &[String])> = candidates
+        .iter()
+        .zip(&left_out)
+        .filter_map(|((b, name, _), files)| {
+            Some((inputs[*b].commit, name.as_str(), files.as_deref()?))
+        })
+        .collect();
+    let mut mentioned = grep.mentions(&asks)?.into_iter();
     let gone: Vec<&(usize, String, Option<String>)> = candidates
         .iter()
-        .zip(mentioned)
-        .filter_map(|(c, mentioned)| (!mentioned).then_some(c))
+        .zip(&left_out)
+        .filter(|(_, files)| files.is_some() && mentioned.next() == Some(false))
+        .map(|(candidate, _)| candidate)
         .collect();
     let names: BTreeSet<&str> = gone.iter().map(|(_, name, _)| name.as_str()).collect();
     let names: Vec<&str> = names.into_iter().collect();
@@ -206,12 +217,17 @@ struct Grep<'a> {
 }
 
 impl Grep<'_> {
-    /// Whether each commit mentions its name as a word anywhere, binary
-    /// files aside.
-    fn mentions(&mut self, asks: &[(&str, &str)]) -> Option<Vec<bool>> {
-        let calls = asks
-            .iter()
-            .map(|&(commit, name)| vec!["-q", "-e", name, commit, "--"]);
+    /// Whether each commit mentions its name as a word, binary files aside,
+    /// in a file the pathspecs given with it do not leave out.
+    fn mentions(&mut self, asks: &[(&str, &str, &[String])]) -> Option<Vec<bool>> {
+        let calls = asks.iter().map(|&(commit, name, left_out)| {
+            let mut args = vec!["-q", "-e", name, commit, "--"];
+            if !left_out.is_empty() {
+                args.push(".");
+                args.extend(left_out.iter().map(String::as_str));
+            }
+            args
+        });
         self.run(calls)?
             .iter()
             .map(|out| match out.status.code() {
@@ -344,6 +360,26 @@ fn renamed_to(file: &FileDiff, name: &str, defines: &[String]) -> Option<String>
         }
     }
     None
+}
+
+/// The files of `diff`, shown whole, that say `name` only in strings and
+/// comments, as pathspecs that leave them out of a grep; `None` when one of
+/// them uses it as code.
+// ponytail: only the files the branch changed are read, so a file it left
+// alone that imports another export of price.js still counts as using
+// `price`; read the files the grep finds too if real renames slip by.
+fn said_only(diff: &[FileDiff], name: &str) -> Option<Vec<String>> {
+    let mut files = Vec::new();
+    for file in diff {
+        let Some(source) = file.new_source.as_deref().filter(|s| has_word(s, name)) else {
+            continue;
+        };
+        if uses_name(Path::new(&file.path), source, name) != Some(false) {
+            return None;
+        }
+        files.push(format!(":(exclude,literal){}", file.path));
+    }
+    Some(files)
 }
 
 /// The lines an input added that use `name`.
@@ -673,6 +709,54 @@ mod tests {
         branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
         let failed = ["TypeError: price is not a function"];
         assert_eq!(cause(d, &["agent/rename", "agent/caller"], &failed), None);
+    }
+
+    /// Renaming `price` in price.js leaves `require('./price.js')` behind, and
+    /// often a comment: a file's name and prose, not a use of the function.
+    /// A call left behind is one, and so is the word in docs, which no grammar
+    /// here reads.
+    #[test]
+    fn a_name_left_only_in_strings_and_comments_is_gone() {
+        let dir = repo();
+        let d = dir.path();
+        git(d, &["rm", "-q", "src/cart.js"]);
+        let price =
+            "function price(item) {\n  return item.cost;\n}\n\nmodule.exports = { price };\n";
+        let total = "const { price } = require('./price.js');\n\nfunction total(items) {\n  return items.reduce((sum, i) => sum + price(i), 0);\n}\n\nmodule.exports = { total };\n";
+        write(d, &[("src/price.js", price), ("src/total.js", total)]);
+        git(d, &["add", "-A"]);
+        git(d, &["commit", "-q", "-m", "price.js"]);
+        let cost = price.replace("price", "cost");
+        let followed = total
+            .replace("{ price }", "{ cost }")
+            .replace("price(i)", "cost(i)");
+        let followed = format!("// cost was price\n{followed}");
+        branch(
+            d,
+            "main",
+            "agent/rename",
+            &[("src/price.js", &cost), ("src/total.js", &followed)],
+        );
+        branch(d, "main", "agent/half", &[("src/price.js", &cost)]);
+        let docs = [
+            ("src/price.js", cost.as_str()),
+            ("src/total.js", &followed),
+            ("docs/price.md", "Call price() for one item.\n"),
+        ];
+        branch(d, "main", "agent/docs", &docs);
+        let caller = "const { price } = require('./price.js');\nmodule.exports = () => price({ cost: 2 });\n";
+        branch(d, "main", "agent/caller", &[("src/extra.js", caller)]);
+        let failed = ["TypeError: price is not a function"];
+        let found = cause(d, &["agent/rename", "agent/caller"], &failed).unwrap();
+        assert_eq!(
+            (found.name.as_str(), found.renamed_to.as_deref()),
+            ("price", Some("cost"))
+        );
+        assert_eq!(found.uses, uses(&[1, 2]));
+        // total.js still calls price on one; docs still say it on the other.
+        for still in ["agent/half", "agent/docs"] {
+            assert_eq!(cause(d, &[still, "agent/caller"], &failed), None, "{still}");
+        }
     }
 
     #[test]

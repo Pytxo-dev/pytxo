@@ -42,6 +42,38 @@ pub fn parses(path: &Path) -> bool {
     language::detect(path).is_some()
 }
 
+/// Whether the code in `source` says `name`: an identifier of that name,
+/// which a word in a string or a comment is not, so `require('./price')`
+/// does not use a function `price`. `None` without a grammar for `path`.
+pub fn uses_name(path: &Path, source: &str, name: &str) -> Option<bool> {
+    let lang = language::detect(path)?;
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&lang.grammar).ok()?;
+    let tree = parser.parse(source, None)?;
+    let mut cursor = tree.walk();
+    loop {
+        let node = cursor.node();
+        // `identifier`, `property_identifier`, JavaScript's
+        // `shorthand_property_identifier_pattern` and the like in every
+        // grammar here; Ruby's capitalized names are `constant`.
+        let kind = node.kind();
+        if (kind.contains("identifier") || kind == "constant") && text(node, source) == Some(name) {
+            return Some(true);
+        }
+        if cursor.goto_first_child() || cursor.goto_next_sibling() {
+            continue;
+        }
+        loop {
+            if !cursor.goto_parent() {
+                return Some(false);
+            }
+            if cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
 /// Innermost symbol containing `line` (1-based), if any.
 pub fn innermost_symbol(spans: &[SymbolSpan], line: usize) -> Option<&SymbolSpan> {
     spans
@@ -221,5 +253,43 @@ mod tests {
         );
         assert!(symbol_spans(Path::new("notes.txt"), "fn x() {}").is_empty());
         assert!(parses(Path::new("src/a.py")) && !parses(Path::new("notes.txt")));
+    }
+
+    #[test]
+    fn a_name_in_a_string_or_a_comment_is_not_a_use() {
+        let js = Path::new("cart.js");
+        let only_said =
+            "// price became cost\nconst { cost } = require('./price');\nconst s = \"price\";\n";
+        assert_eq!(uses_name(js, only_said, "price"), Some(false));
+        for used in [
+            "module.exports = () => price(1);\n",
+            "const s = `${price}`;\n",
+            "const { price } = require('./cart');\n",
+            "cart.price();\n",
+        ] {
+            assert_eq!(uses_name(js, used, "price"), Some(true), "{used}");
+        }
+        let py = Path::new("cart.py");
+        assert_eq!(
+            uses_name(
+                py,
+                "# price\ns = 'price'\nfrom price import cost\n",
+                "price"
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            uses_name(py, "# price\ns = f'{price}'\n", "price"),
+            Some(true)
+        );
+        assert_eq!(
+            uses_name(py, "# price\ns = 'price'\n", "price"),
+            Some(false)
+        );
+        assert_eq!(
+            uses_name(Path::new("Cart.rb"), "Price.new\n", "Price"),
+            Some(true)
+        );
+        assert_eq!(uses_name(Path::new("notes.txt"), "price", "price"), None);
     }
 }
