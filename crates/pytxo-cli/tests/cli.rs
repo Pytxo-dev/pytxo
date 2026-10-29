@@ -637,6 +637,48 @@ fn named_branches_land_on_the_checked_out_branch_unless_pytxo_into_says() {
     assert_eq!(after, main, "main did not move");
 }
 
+/// Git reads a tag, or a file in .git such as ORIG_HEAD, before the branch
+/// that shares its name: neither changes which commit is checked, found or
+/// named, nor makes a named branch the target.
+#[test]
+fn a_tag_named_like_a_branch_does_not_change_what_is_checked() {
+    let dir = repo(&["claude/a", "codex/b"]);
+    let d = dir.path();
+    let commit = |rev: &str| {
+        let out = Command::new("git")
+            .args(["rev-parse", rev])
+            .current_dir(d)
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    };
+    let (a, b) = (commit("claude/a"), commit("codex/b"));
+    // Both on main, which neither branch is.
+    git(d, &["tag", "claude/a", "main"]);
+    git(d, &["branch", "ORIG_HEAD", "codex/b"]);
+    git(d, &["update-ref", "--no-deref", "ORIG_HEAD", "main"]);
+    let checked = |args: &[&str]| {
+        let out = pytxo(d, args, None);
+        assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
+        let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        for (i, commit) in [&a, &b].into_iter().enumerate() {
+            assert_eq!(v["branches"][i]["commit"], *commit, "{v}");
+            assert_eq!(
+                v["receipt"]["predicate"]["inputs"][i]["commit"], *commit,
+                "{v}"
+            );
+        }
+        v["target"].as_str().unwrap().to_string()
+    };
+    let check = ["--json", "-c", "git --version"];
+    assert_eq!(checked(&check), "main");
+    let named = [&check[..], &["claude/a", "ORIG_HEAD"]].concat();
+    assert_eq!(checked(&named), "main");
+    // Checked out, claude/a is still one of the branches, not the target.
+    git(d, &["checkout", "-q", "claude/a"]);
+    assert_eq!(checked(&named), "main");
+}
+
 #[test]
 fn hook_answers_once_per_change_and_waits_for_background_agents() {
     let dir = repo(&["claude/a", "codex/b"]);

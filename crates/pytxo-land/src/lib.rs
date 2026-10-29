@@ -470,9 +470,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         }
     };
 
-    let current_branch = repo
-        .run(&["symbolic-ref", "--quiet", "--short", "HEAD"])
-        .ok();
+    let current_branch = repo.current_branch();
     let target = opts.into.clone().or_else(|| current_branch.clone());
     if opts.apply && target.is_none() {
         bail!("--apply needs a branch: pass --into <branch> or check out a branch");
@@ -498,7 +496,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     let mut resolved = Vec::new();
     for input in &opts.inputs {
         let commit = repo
-            .commit_of(&input.reference)
+            .branch_commit(&input.reference)
             .with_context(|| format!("unknown input: {}", input.reference))?;
         let merge_base = repo
             .run(&["merge-base", &base, &commit])

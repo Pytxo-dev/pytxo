@@ -245,27 +245,29 @@ pub fn target_branch(
             },
         );
     }
-    let current = git
-        .run(&["symbolic-ref", "--quiet", "--short", "HEAD"])
-        .ok();
+    let current = git.current_branch();
     if let (Some(current), Some(named)) = (&current, named) {
-        // `HEAD`, `heads/x` and `x` all name the same branch.
+        // `HEAD`, `heads/x` and `x` all name the same branch. A name with a
+        // branch of its own is that branch, as when it is checked, even when
+        // a tag shares it, which makes git call the name ambiguous.
         let mut args = vec!["rev-parse", "--symbolic-full-name"];
-        args.extend(named.iter().map(|b| b.reference.as_str()));
+        args.extend(
+            named
+                .iter()
+                .map(|b| b.reference.as_str())
+                .filter(|r| !exists(r)),
+        );
         let inputs = git.lines(&args).unwrap_or_default();
-        if !inputs.contains(&format!("refs/heads/{current}")) {
+        if !named.iter().any(|b| &b.reference == current)
+            && !inputs.contains(&format!("refs/heads/{current}"))
+        {
             return Ok(current.clone());
         }
     }
     let remote_head = git
-        .run(&[
-            "symbolic-ref",
-            "--quiet",
-            "--short",
-            "refs/remotes/origin/HEAD",
-        ])
+        .run(&["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"])
         .ok()
-        .and_then(|h| h.strip_prefix("origin/").map(str::to_string));
+        .and_then(|h| h.strip_prefix("refs/remotes/origin/").map(str::to_string));
     if let Some(b) = remote_head
         .into_iter()
         .chain(["main", "master", "trunk"].map(String::from))
@@ -741,7 +743,14 @@ fn expand(git: &Git, given: &[String]) -> Result<Vec<AgentBranch>> {
         let parsed = LandInput::parse(arg);
         let references = if parsed.reference.contains(['*', '?', '[']) {
             let pattern = format!("refs/heads/{}", parsed.reference);
-            let names = git.lines(&["for-each-ref", "--format=%(refname:short)", &pattern])?;
+            // The branch's own name: `refname:short` says `heads/x` when a
+            // tag is named `x` too.
+            let names: Vec<String> = git
+                .lines(&["for-each-ref", "--format=%(refname)", &pattern])?
+                .iter()
+                .filter_map(|r| r.strip_prefix("refs/heads/"))
+                .map(str::to_string)
+                .collect();
             if names.is_empty() {
                 bail!("no branches match {}", parsed.reference);
             }
@@ -751,7 +760,7 @@ fn expand(git: &Git, given: &[String]) -> Result<Vec<AgentBranch>> {
         };
         for reference in references {
             let commit = git
-                .commit_of(&reference)
+                .branch_commit(&reference)
                 .with_context(|| format!("unknown branch or commit: {reference}"))?;
             let worktree = worktrees
                 .iter()

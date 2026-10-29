@@ -205,6 +205,23 @@ impl Git {
         .map_err(|_| anyhow!("not a commit: {rev}"))
     }
 
+    /// The commit `name` names, its local branch first: git itself reads
+    /// `$GIT_DIR/<name>` (FETCH_HEAD, ORIG_HEAD) and `refs/tags/<name>`
+    /// before `refs/heads/<name>`, so a file or a tag that shares a branch's
+    /// name would change which commit is checked. With no such branch, as
+    /// git reads it: a commit, `HEAD~1`, a remote branch.
+    pub fn branch_commit(&self, name: &str) -> Result<String> {
+        self.commit_of(&format!("refs/heads/{name}"))
+            .or_else(|_| self.commit_of(name))
+    }
+
+    /// The checked-out branch by its own name, `None` on a detached HEAD:
+    /// `symbolic-ref --short` says `heads/x` when a tag is named `x` too.
+    pub fn current_branch(&self) -> Option<String> {
+        let head = self.run(&["symbolic-ref", "--quiet", "HEAD"]).ok()?;
+        head.strip_prefix("refs/heads/").map(str::to_string)
+    }
+
     /// File content at `rev:path`, `None` when the path does not exist there.
     pub fn show(&self, rev: &str, path: &str) -> Option<String> {
         let out = self.output(&["show", &format!("{rev}:{path}")]).ok()?;
