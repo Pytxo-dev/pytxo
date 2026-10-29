@@ -336,11 +336,14 @@ const VALIDATE = "https://live.dodopayments.com/licenses/validate";
  * Public repositories are free. Private ones get TRIAL_DAYS, counted from
  * `trialStart()`, then need a key Dodo Payments says is valid: a monthly
  * subscription's key stops being valid when the subscription lapses. Only
- * then is anything sent, and only the key, never the GitHub token. When
- * Dodo gives no answer (no connection, 429 or 5xx) the check runs anyway,
- * with a warning, so an outage there never blocks a pull request. With a
- * key set the trial passes quietly; the key is checked once the trial ends.
+ * then is anything sent, and only the key, never the GitHub token. Only a
+ * definite answer refuses the key: `valid: false`, or a 4xx other than 408
+ * and 429. Anything else (no connection, no answer within 10 seconds, 408,
+ * 429, 5xx, or a 2xx without a readable `valid`) runs the check anyway, with
+ * a warning, so trouble at Dodo never blocks a pull request. With a key set
+ * the trial passes quietly; the key is checked once the trial ends.
  */
+// ponytail: a key works for any repository, an honor system since the Action is open source; bind keys with Dodo's activations if sharing shows up.
 export async function licenseGate({ licensing = LICENSING, isPrivate, key, trialStart, now, fetchImpl }) {
   if (!licensing || !isPrivate) return { allowed: true };
   const left = Math.ceil(TRIAL_DAYS - (now - trialStart()) / 86_400_000);
@@ -352,7 +355,7 @@ export async function licenseGate({ licensing = LICENSING, isPrivate, key, trial
     notice: `The ${TRIAL_DAYS}-day trial for private repositories is over${why}. Add a Pytxo Pro license key as the PYTXO_LICENSE secret and pass it as \`license\`: ${BUY}`,
   });
   if (!key) return over("");
-  // true, false, or why Dodo gave no answer.
+  // true, false, or why Dodo gave no definite answer.
   const answer = await fetchImpl(VALIDATE, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -360,8 +363,11 @@ export async function licenseGate({ licensing = LICENSING, isPrivate, key, trial
     signal: AbortSignal.timeout(10_000),
   })
     .then(async (response) => {
-      if (response.status === 429 || response.status >= 500) return `HTTP ${response.status}`;
-      return response.ok && (await response.json()).valid === true;
+      // A 4xx is Dodo saying no, except a timeout (408) or a rate limit (429).
+      if (response.status >= 400 && response.status < 500 && ![408, 429].includes(response.status)) return false;
+      if (!response.ok) return `HTTP ${response.status}`;
+      const valid = await response.json().then((body) => body?.valid, () => undefined);
+      return typeof valid === "boolean" ? valid : `its HTTP ${response.status} answer could not be read`;
     })
     .catch(() => "no answer");
   if (answer === true) return { allowed: true };

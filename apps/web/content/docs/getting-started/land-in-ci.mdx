@@ -56,7 +56,7 @@ All optional.
 | `branches` | the agent patterns above | Branch patterns that count as agent pull requests, space-separated |
 | `comment` | `"true"` | `"false"` keeps the verdict in the job summary only |
 | `token` | `github.token` | Token that lists pull requests and their workflow runs, and comments. Your tests can reach it too, so give it no other access |
-| `license` | none | Pytxo Pro license key for private repositories. Not needed today |
+| `license` | none | Pytxo Pro license key for private repositories. Not needed today. Your tests can read it too, like the token |
 | `version` | the Action's release | Pytxo CLI version from npm |
 
 The `decision` output is `ready`, `blocked`, `stale`, `error` or `skipped`.
@@ -68,7 +68,7 @@ The check runs your own test command, so the runner needs whatever your tests ne
 ## Security
 
 - It runs on `pull_request` only. On `pull_request_target` it refuses to run, because that event would run pull-request code with a write token.
-- Your tests run in the same job that posts the comment, so code in this repository's agent branches can reach the job's `pull-requests: write` token, as in any CI job that runs that code. With `actions: read` that token can also read this repository's workflow logs and artifacts. Give the workflow no other permissions or secrets.
+- Your tests run in the same job that posts the comment, so code in this repository's agent branches can reach the job's `pull-requests: write` token, as in any CI job that runs that code. With `actions: read` that token can also read this repository's workflow logs and artifacts. Give the workflow no other permissions, and no secret but the optional `license` key: it is the only secret the Action takes, and that code can read it like the token.
 - By default GitHub runs no workflow on a pull request from Copilot or `github-actions[bot]` until someone with write access approves the run. Such a pull request joins another pull request's run only at a commit whose run someone approved, so its code never runs there without that approval. If your repository turned that approval off, it joins at a commit whose run passed. Without `actions: read` it joins only its own run.
 - A run checks each pull request at the commit it saw. A push after someone approved the run does not change what that run tests; the push gets a run of its own.
 - A fork's pull request never joins another pull request's run. It is checked in its own run, with GitHub's read-only token and no secrets, so its verdict goes to the job summary. In a private repository, keep GitHub's options that send write tokens or secrets to workflows from fork pull requests turned off.

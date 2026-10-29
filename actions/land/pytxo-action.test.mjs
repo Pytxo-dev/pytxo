@@ -766,14 +766,21 @@ test("action.yml: nothing runs after a cancel, and the step that runs the tests 
   assert.match(step("actions/checkout@"), /if: .* && github\.event_name == 'pull_request'\n/);
 });
 
-/** Dodo Payments giving `answers` in turn (an Error is no connection); `calls` holds what was sent. */
+/**
+ * Dodo Payments giving `answers` in turn (an Error is no connection, and a
+ * body that is an Error cannot be read); `calls` holds what was sent.
+ */
 function fakeDodo(...answers) {
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, ...init, body: JSON.parse(init.body) });
     const answer = answers.shift();
     if (answer instanceof Error) throw answer;
-    return { ok: answer.status < 300, status: answer.status, json: async () => answer.body };
+    const json = async () => {
+      if (answer.body instanceof Error) throw answer.body;
+      return answer.body;
+    };
+    return { ok: answer.status >= 200 && answer.status < 300, status: answer.status, json };
   };
   return { calls, fetchImpl };
 }
@@ -811,7 +818,7 @@ test("after the 14-day trial a private repository runs with a key Dodo Payments 
   assert.deepEqual(call.headers, { "content-type": "application/json" });
 });
 
-test("after the trial a key that is not valid is refused, and no answer from Dodo Payments runs the check anyway", async () => {
+test("after the trial only a definite answer refuses a key, and any other answer from Dodo Payments, or none, runs the check anyway", async () => {
   const results = [];
   // A lapsed subscription or a mistyped key; 422 is Dodo's answer to a request it cannot read.
   for (const answer of [{ status: 200, body: { valid: false } }, { status: 422, body: {} }]) {
@@ -822,14 +829,36 @@ test("after the trial a key that is not valid is refused, and no answer from Dod
   }
   for (const [answer, why] of [
     [new TypeError("fetch failed"), "no answer"],
+    [{ status: 408 }, "HTTP 408"],
     [{ status: 429 }, "HTTP 429"],
     [{ status: 503 }, "HTTP 503"],
+    // A proxy's page, an empty answer, or one without `valid`: none says the key is not valid.
+    [{ status: 200, body: new SyntaxError("Unexpected token '<'") }, "its HTTP 200 answer could not be read"],
+    [{ status: 204, body: new SyntaxError("Unexpected end of JSON input") }, "its HTTP 204 answer could not be read"],
+    [{ status: 200, body: {} }, "its HTTP 200 answer could not be read"],
   ]) {
     const ran = await gate(fakeDodo(answer).fetchImpl);
     assert.deepEqual(ran, { allowed: true, warning: `Dodo Payments could not check the Pytxo Pro license key (${why}), so the check runs anyway.` });
     results.push(ran);
   }
   assert.ok(results.every((r) => !JSON.stringify(r).includes(KEY)));
+});
+
+test("Dodo Payments gets 10 seconds to answer, then the check runs anyway", { timeout: 5_000 }, async (t) => {
+  const timeout = AbortSignal.timeout;
+  const asked = [];
+  // The gate must ask for 10 s; the test does not wait them out.
+  t.mock.method(AbortSignal, "timeout", (ms) => {
+    asked.push(ms);
+    return timeout.call(AbortSignal, 0);
+  });
+  // Never answers: only the abort signal ends the request.
+  const silent = (url, init) => new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
+  assert.deepEqual(await gate(silent), {
+    allowed: true,
+    warning: "Dodo Payments could not check the Pytxo Pro license key (no answer), so the check runs anyway.",
+  });
+  assert.deepEqual(asked, [10_000]);
 });
 
 test("Dodo Payments is asked nothing for a public repository, during the trial, or without a key", async () => {
