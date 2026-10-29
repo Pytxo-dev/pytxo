@@ -297,7 +297,11 @@ impl Grep<'_> {
 }
 
 /// Whether `commit` defines each of `names` in one of the files that mention
-/// it. A file too big to parse counts as one that does, since it may.
+/// it: a symbol of that name, or another binding outside every function and
+/// block that is no import, such as `const price = memo(...)`,
+/// `exports.price = ...` or a Python `price = ...`, which the code that
+/// imports the file reaches as well. A file too big to parse counts as one
+/// that does, since it may.
 fn defines(git: &Git, grep: &mut Grep, commit: &str, names: &[&str]) -> Option<Vec<bool>> {
     let files = grep.files(commit, names)?;
     let paths: BTreeSet<&str> = files
@@ -313,29 +317,36 @@ fn defines(git: &Git, grep: &mut Grep, commit: &str, names: &[&str]) -> Option<V
         .iter()
         .map(|p| vec!["cat-file".into(), "blob".into(), format!("{commit}:{p}")])
         .collect();
-    // What each file defines, `None` for one too big to parse.
-    let mut defs: BTreeMap<&str, Option<Vec<String>>> = BTreeMap::new();
+    // Each file and the symbols it defines, `None` for one too big to parse.
+    let mut read: BTreeMap<&str, Option<(String, Vec<String>)>> = BTreeMap::new();
     for (path, out) in paths.into_iter().zip(git.outputs_stoppable(&calls).ok()?) {
         if !out.status.success() {
             return None;
         }
-        let source =
-            (out.stdout.len() <= MAX_FILE_BYTES).then(|| String::from_utf8_lossy(&out.stdout));
-        defs.insert(
+        let source = (out.stdout.len() <= MAX_FILE_BYTES)
+            .then(|| String::from_utf8_lossy(&out.stdout).into_owned());
+        let symbols = |s: &str| defined(path, s).into_iter().map(|(n, _)| n).collect();
+        read.insert(
             path,
-            source.map(|s| defined(path, &s).into_iter().map(|(n, _)| n).collect()),
+            source.map(|s| {
+                let symbols = symbols(&s);
+                (s, symbols)
+            }),
         );
     }
+    let binds = |path: &str, name: &str| match read.get(path) {
+        None => false,
+        Some(None) => true,
+        Some(Some((source, symbols))) => {
+            symbols.iter().any(|n| n == name)
+                || name_use(Path::new(path), source, name, false).is_some_and(|u| u.exports)
+        }
+    };
     Some(
         names
             .iter()
             .zip(&files)
-            .map(|(name, files)| {
-                files
-                    .iter()
-                    .filter_map(|p| defs.get(p.as_str()))
-                    .any(|d| d.as_ref().is_none_or(|d| d.iter().any(|n| n == name)))
-            })
+            .map(|(name, files)| files.iter().any(|p| binds(p, name)))
             .collect(),
     )
 }
@@ -738,6 +749,25 @@ mod tests {
         branch(d, "main", "agent/caller", &[("src/extra.js", own)]);
         let found = cause(d, &["agent/rename", "agent/caller"], &["price"]);
         assert_eq!(found, None);
+        // In a form that is no symbol, and imported by its own test.
+        let test = "const assert = require('node:assert');\nconst { price } = require('../src/tax.js');\nassert.strictEqual(price([{ cost: 10 }]), 11);\n";
+        for (n, tax) in [
+            "const { total } = require('./cart.js');\nconst memo = (f) => f;\nconst price = memo((items) => Math.round(total(items) * 1.1));\nmodule.exports = { price };\n",
+            "const { total } = require('./cart.js');\nexports.price = (items) => Math.round(total(items) * 1.1);\n",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let name = format!("agent/tax{n}");
+            branch(
+                d,
+                "main",
+                &name,
+                &[("src/tax.js", tax), ("test/tax.test.js", test)],
+            );
+            let failed = ["AssertionError [ERR_ASSERTION]: 1100 !== 11"];
+            assert_eq!(cause(d, &["agent/rename", &name], &failed), None, "{tax}");
+        }
     }
 
     #[test]
