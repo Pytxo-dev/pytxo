@@ -2,6 +2,7 @@
 mod account;
 #[cfg(feature = "full")]
 mod agent_accounts;
+mod banner;
 mod check;
 #[cfg(feature = "full")]
 mod commands;
@@ -12,7 +13,9 @@ mod mission;
 #[cfg(feature = "full")]
 mod models;
 
-use clap::{Parser, Subcommand};
+use std::io::IsTerminal;
+
+use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
@@ -139,7 +142,15 @@ fn main() {
         // Tokio initialization, or any normal Pytxo startup code runs.
         std::process::exit(pytxo_runner::owned_launch::attempt_host_main());
     }
-    let cli = match Cli::try_parse() {
+    // The logo tops `pytxo --help` in a terminal only, so piped help stays plain text.
+    let mut command = Cli::command();
+    if std::io::stdout().is_terminal() {
+        command = command.before_help(banner::render());
+    }
+    let parsed = command.try_get_matches().and_then(|mut matches| {
+        Cli::from_arg_matches_mut(&mut matches).map_err(|e| e.format(&mut Cli::command()))
+    });
+    let cli = match parsed {
         Ok(cli) => cli,
         Err(e) => {
             // `pytxo shell --eval x`, `help shell`, `shell --help`: the 1.x

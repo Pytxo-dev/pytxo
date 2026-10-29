@@ -57,7 +57,12 @@
 <div class="titlebar-wrap">
 <header class="titlebar" data-tauri-drag-region>
   <div class="titlebar__brand" data-tauri-drag-region>
-    <img src="/logo-mark.png" alt="" width="16" height="16" class="titlebar__logo" />
+    <!-- The 16 px mark (packages/chroma/logo/pytxo-icon-16.svg) without its tile: the λ takes the theme's ink. -->
+    <svg class="titlebar__logo" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M2 1H6L8.52 6.05A3 3 0 0 0 5.32 7.65Z" />
+      <path d="M5 9L2 15H6L7.5 12L9 15H13L10.68 10.35A3 3 0 0 1 5 9Z" />
+      <circle class="titlebar__logo-node" cx="8" cy="9" r="2" />
+    </svg>
     <span class="titlebar__name">{title}</span>
   </div>
   <div class="titlebar__controls">
@@ -111,6 +116,10 @@
   }
   .titlebar__logo {
     flex-shrink: 0;
+    fill: var(--foreground);
+  }
+  .titlebar__logo-node {
+    fill: var(--brand-magenta);
   }
   .titlebar__name {
     font-size: 0.75rem;

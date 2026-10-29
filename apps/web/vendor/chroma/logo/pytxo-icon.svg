@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480">
+  <title>Pytxo</title>
+  <rect width="480" height="480" rx="106" fill="#050507"/>
+  <g transform="translate(240 240) scale(.86) translate(-240 -240)">
+    <g fill="#F5F5F7">
+      <path d="M85 40H195L273 196A85 85 0 0 0 185 240Z"/>
+      <path d="M99 440L175 288A85 85 0 0 0 247 364L209 440Z"/>
+      <path d="M247 364L285 440H395L335 320A85 85 0 0 1 247 364Z"/>
+    </g>
+    <circle cx="260" cy="280" r="60" fill="#F04DA3"/>
+  </g>
+</svg>

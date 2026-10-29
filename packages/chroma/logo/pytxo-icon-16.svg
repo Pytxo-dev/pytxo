@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <title>Pytxo</title>
+  <rect width="16" height="16" rx="4" fill="#050507"/>
+  <g fill="#F5F5F7">
+    <path d="M2 1H6L8.52 6.05A3 3 0 0 0 5.32 7.65Z"/>
+    <path d="M5 9L2 15H6L7.5 12L9 15H13L10.68 10.35A3 3 0 0 1 5 9Z"/>
+  </g>
+  <circle cx="8" cy="9" r="2" fill="#F04DA3"/>
+</svg>

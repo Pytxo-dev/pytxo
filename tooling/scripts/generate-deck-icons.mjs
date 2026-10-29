@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 /**
- * Generate the Tauri icon set and the standalone `logo-mark.png` from
- * apps/web/public/logo.png.
+ * Generate the Tauri icon set from the Chroma icon tiles and the standalone
+ * `logo-mark.png` from apps/web/public/logo.png.
  *
- * The source logo is a 1024x1024 canvas with large transparent padding
- * around the mark (rendered from packages/chroma/logo/pytxo-mark.svg). Icons are built by trimming that padding first,
- * then compositing the tight glyph onto a fully transparent canvas at each
- * target size. This keeps every icon alpha-transparent (so it reads
- * correctly against dark/light taskbars and docks) and keeps the glyph
- * optically sized close to sibling app icons instead of shrinking it inside
- * unused padding.
+ * The mark's λ is ink, white on dark and black on light, so an icon cannot be
+ * the bare mark: on one of the two taskbar or dock themes the λ would vanish
+ * and only the node would show. Icons are rendered from
+ * packages/chroma/logo/pytxo-icon.svg instead, the mark on a Void tile with
+ * transparent rounded corners, and at 16 px from pytxo-icon-16.svg, which is
+ * drawn on that pixel grid.
+ *
+ * `logo-mark.png` stays the bare mark for dark chrome such as the site header:
+ * the source logo is a 1024x1024 canvas with large transparent padding around
+ * the mark (rendered from packages/chroma/logo/pytxo-mark.svg), trimmed and
+ * composited onto a fully transparent canvas.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -23,10 +27,14 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const logoPath = path.join(root, "apps/web/public/logo.png");
 const logoMarkPath = path.join(root, "apps/web/public/logo-mark.png");
 const iconsDir = path.join(root, "apps/desktop/src-tauri/icons");
+const chromaLogoDir = path.join(root, "packages/chroma/logo");
 
-/** Glyph fills this fraction of the icon canvas's longer trimmed dimension. */
+/** Glyph fills this fraction of the mark canvas's longer trimmed dimension. */
 const FILL_RATIO = 0.86;
-/** Minimum fraction of canvas the glyph bounding box must cover (regression guard). */
+/**
+ * Minimum fraction of canvas the mark's bounding box must cover (regression guard).
+ * The mark is every pixel that differs from the Void tile, so a tile that lost its λ fails.
+ */
 const MIN_GLYPH_COVERAGE = 0.55;
 
 /** Trim the source logo's transparent padding down to the tight glyph bounds. */
@@ -35,8 +43,20 @@ async function trimmedGlyph() {
   return { buffer: data, width: info.width, height: info.height };
 }
 
+/**
+ * Render the icon tile at size x size. librsvg draws it at that size directly:
+ * downscaling a larger render would bleed alpha into the transparent corners.
+ */
+async function iconPng(size) {
+  const [file, units] = size <= 16 ? ["pytxo-icon-16.svg", 16] : ["pytxo-icon.svg", 480];
+  return sharp(path.join(chromaLogoDir, file), { density: (72 * size) / units })
+    .resize(size, size)
+    .png()
+    .toBuffer();
+}
+
 /** Composite the trimmed glyph centered on a fully transparent size x size canvas. */
-async function iconPng(glyph, size) {
+async function markPng(glyph, size) {
   const target = Math.round(size * FILL_RATIO);
   const scale = Math.min(target / glyph.width, target / glyph.height);
   const w = Math.max(1, Math.round(glyph.width * scale));
@@ -53,7 +73,7 @@ async function iconPng(glyph, size) {
     .toBuffer();
 }
 
-/** Fail loudly if an icon regresses to opaque corners or an undersized glyph. */
+/** Fail loudly if an icon regresses to opaque corners or an undersized mark. */
 async function assertIconQuality(buffer, size, label) {
   const raw = await sharp(buffer).raw().toBuffer({ resolveWithObject: true });
   const { data, info } = raw;
@@ -77,8 +97,10 @@ async function assertIconQuality(buffer, size, label) {
   let maxY = -1;
   for (let y = 0; y < info.height; y += 1) {
     for (let x = 0; x < info.width; x += 1) {
-      const a = data[(y * info.width + x) * channels + (channels - 1)];
-      if (a > 10) {
+      const i = (y * info.width + x) * channels;
+      const a = data[i + channels - 1];
+      const offVoid = Math.max(Math.abs(data[i] - 5), Math.abs(data[i + 1] - 5), Math.abs(data[i + 2] - 7)) > 40;
+      if (a > 10 && offVoid) {
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -86,13 +108,13 @@ async function assertIconQuality(buffer, size, label) {
       }
     }
   }
-  const coverage = Math.max((maxX - minX + 1) / size, (maxY - minY + 1) / size);
+  const coverage = maxX < 0 ? 0 : Math.max((maxX - minX + 1) / size, (maxY - minY + 1) / size);
   if (coverage < MIN_GLYPH_COVERAGE) {
-    throw new Error(`${label}: glyph only covers ${(coverage * 100).toFixed(0)}% of canvas (expected >= ${MIN_GLYPH_COVERAGE * 100}%)`);
+    throw new Error(`${label}: glyph only covers ${(coverage * 100).toFixed(0)}% of canvas (expected >= ${(MIN_GLYPH_COVERAGE * 100).toFixed(0)}%)`);
   }
 }
 
-async function writeIcns(pngBuffers, glyph, outPath) {
+async function writeIcns(pngBuffers, outPath) {
   const tmp = fs.mkdtempSync(path.join(root, ".iconset-"));
   try {
     const icnsSizes = [
@@ -108,7 +130,7 @@ async function writeIcns(pngBuffers, glyph, outPath) {
       [1024, "icon_512x512@2x.png"],
     ];
     for (const [size, name] of icnsSizes) {
-      const buf = pngBuffers.get(size) ?? (await iconPng(glyph, size));
+      const buf = pngBuffers.get(size) ?? (await iconPng(size));
       fs.writeFileSync(path.join(tmp, name), buf);
     }
     const iconset = `${tmp}.iconset`;
@@ -131,7 +153,7 @@ async function writeIcns(pngBuffers, glyph, outPath) {
     const { createRequire } = await import("node:module");
     const require = createRequire(import.meta.url);
     const png2icons = require("png2icons");
-    const png1024 = pngBuffers.get(1024) ?? (await iconPng(glyph, 1024));
+    const png1024 = pngBuffers.get(1024) ?? (await iconPng(1024));
     const icns = png2icons.createICNS(png1024, png2icons.BILINEAR, 0);
     if (!icns) throw new Error("png2icons.createICNS returned null");
     fs.writeFileSync(outPath, icns);
@@ -151,17 +173,17 @@ async function main() {
   const sizes = [32, 128, 256];
   for (const size of sizes) {
     const name = size === 256 ? "128x128@2x.png" : `${size}x${size}.png`;
-    const buf = await iconPng(glyph, size);
+    const buf = await iconPng(size);
     await assertIconQuality(buf, size, name);
     fs.writeFileSync(path.join(iconsDir, name), buf);
   }
 
-  const png256 = await iconPng(glyph, 256);
-  const png128 = await iconPng(glyph, 128);
-  const png64 = await iconPng(glyph, 64);
-  const png48 = await iconPng(glyph, 48);
-  const png32 = await iconPng(glyph, 32);
-  const png16 = await iconPng(glyph, 16);
+  const png256 = await iconPng(256);
+  const png128 = await iconPng(128);
+  const png64 = await iconPng(64);
+  const png48 = await iconPng(48);
+  const png32 = await iconPng(32);
+  const png16 = await iconPng(16);
 
   for (const [buf, size, label] of [
     [png256, 256, "icon.png (256)"],
@@ -184,13 +206,13 @@ async function main() {
     [64, png64],
     [128, png128],
     [256, png256],
-    [512, await iconPng(glyph, 512)],
-    [1024, await iconPng(glyph, 1024)],
+    [512, await iconPng(512)],
+    [1024, await iconPng(1024)],
   ]);
-  await writeIcns(icnsCache, glyph, path.join(iconsDir, "icon.icns"));
+  await writeIcns(icnsCache, path.join(iconsDir, "icon.icns"));
 
-  // Standalone transparent mark for in-app chrome (title bar, sidebar, setup wizard).
-  const mark = await iconPng(glyph, 512);
+  // Standalone transparent mark for dark chrome: the site header, footer and docs.
+  const mark = await markPng(glyph, 512);
   await assertIconQuality(mark, 512, "logo-mark.png");
   fs.writeFileSync(logoMarkPath, mark);
 
