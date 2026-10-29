@@ -9,9 +9,11 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  approvedCommits,
   commentBody,
   DEFAULT_PATTERNS,
   glob,
+  heldPrs,
   INSTALL_HINT,
   isAgentPr,
   jobOutcome,
@@ -20,6 +22,7 @@ import {
   LICENSING,
   localName,
   MARKER,
+  MAX_PRS,
   parsePatterns,
   selectPrs,
   upsertComment,
@@ -85,7 +88,7 @@ test("a fork PR is checked with the base repo's agent PRs, never the other way r
   );
 });
 
-test("a PR GitHub holds for workflow approval joins only its own run", () => {
+test("a PR GitHub holds for workflow approval, with no run anyone let start, joins only its own run", () => {
   const copilot = pr(10, "copilot/fix-tax", { login: "Copilot" });
   const open = [
     pr(9, "claude/rename"),
@@ -108,6 +111,110 @@ test("a PR GitHub holds for workflow approval joins only its own run", () => {
   );
   assert.deepEqual(own.notes, ["2 agent pull requests that GitHub holds for workflow approval left out."]);
   assert.deepEqual(selectPrs(open[4], [open[0], copilot, open[4]]).notes, ["1 agent pull request that GitHub holds for workflow approval left out."]);
+});
+
+/**
+ * GitHub's answer to `url`: the open `pulls`, a branch's workflow `runs`, or
+ * a pull request's `commits` (by number, oldest first). Anything else is [].
+ */
+function answer(url, { pulls = [], runs = {}, commits = {} }) {
+  const { pathname, searchParams } = new URL(url, "http://localhost");
+  if (pathname === `/repos/${REPO}/pulls`) return pulls;
+  if (pathname === `/repos/${REPO}/actions/runs`) return { workflow_runs: runs[searchParams.get("branch")] ?? [] };
+  const number = new RegExp(`^/repos/${REPO}/pulls/(\\d+)/commits$`).exec(pathname)?.[1];
+  return number ? (commits[number] ?? []).map((sha) => ({ sha })) : [];
+}
+
+/** A pull_request workflow run on `sha`, from this repository unless `fork`. */
+const run = (sha, attempt, conclusion, { fork = false } = {}) => ({
+  event: "pull_request",
+  head_sha: sha,
+  run_attempt: attempt,
+  conclusion,
+  head_repository: { full_name: fork ? "someone/shop" : REPO },
+});
+
+/** Asks a fake GitHub about the held PRs among `open` for `current`'s run; `calls` are the paths asked. */
+async function lookUp(current, open, data, { status = 200 } = {}) {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url.replace("https://api", ""));
+    return { ok: status === 200, status, json: async () => answer(url, data) };
+  };
+  const found = await approvedCommits(fetchImpl, { apiUrl: "https://api", repo: REPO, token: "t", prs: heldPrs(current, open) });
+  return { ...found, calls };
+}
+
+const [A, B, C] = ["a", "b", "c"].map((x) => x.repeat(40));
+
+test("a held PR joins another PR's run at the newest of its commits whose run someone let start", async () => {
+  const copilot = pr(12, "copilot/fix-tax", { login: "Copilot" });
+  const current = pr(14, "codex/discount");
+  const open = [pr(9, "claude/rename"), copilot, current];
+  const { approved, notes, calls } = await lookUp(current, open, {
+    runs: {
+      "copilot/fix-tax": [
+        run(C, 1, "action_required"), // the newest push, still held
+        run(C, 2, "success", { fork: true }), // a fork's branch of the same name
+        run("e".repeat(40), 2, "success"), // a commit a force-push took out of the PR
+        run(B, 2, "failure"), // approved: attempt 2 started, whatever it concluded
+        run(A, 2, "success"),
+      ],
+    },
+    commits: { 12: [A, B, C] },
+  });
+  assert.deepEqual([...approved], [[12, B]]);
+  assert.deepEqual(notes, []);
+  assert.deepEqual(calls, [
+    "/repos/acme/shop/actions/runs?event=pull_request&branch=copilot%2Ffix-tax&per_page=100",
+    "/repos/acme/shop/pulls/12/commits?per_page=100",
+  ]);
+  const { prs, notes: left } = selectPrs(current, open, DEFAULT_PATTERNS, MAX_PRS, approved);
+  assert.deepEqual(
+    prs.map((p) => p.number),
+    [9, 12, 14],
+  );
+  assert.deepEqual(left, []);
+});
+
+test("with approval turned off, a held PR joins at a commit whose first run succeeded", async () => {
+  const current = pr(14, "codex/discount");
+  const open = [pr(12, "agent/bump-deps", { login: "github-actions[bot]" }), current];
+  const { approved } = await lookUp(current, open, { runs: { "agent/bump-deps": [run(B, 1, "success")] }, commits: { 12: [A, B] } });
+  assert.deepEqual([...approved], [[12, B]]);
+});
+
+test("a held PR whose runs wait for approval, or waited until GitHub failed them, stays out after one call", async () => {
+  const current = pr(14, "codex/discount");
+  const open = [pr(9, "claude/rename"), pr(12, "copilot/fix-tax", { login: "Copilot" }), current];
+  // A run nobody approves for 30 days ends as a failure at attempt 1.
+  const runs = { "copilot/fix-tax": [run(B, 1, "action_required"), run(A, 1, "failure")] };
+  const { approved, notes, calls } = await lookUp(current, open, { runs, commits: { 12: [A, B] } });
+  assert.equal(approved.size, 0);
+  assert.deepEqual(notes, []);
+  assert.equal(calls.length, 1);
+  const { prs, notes: left } = selectPrs(current, open, DEFAULT_PATTERNS, MAX_PRS, approved);
+  assert.deepEqual(
+    prs.map((p) => p.number),
+    [9, 14],
+  );
+  assert.deepEqual(left, ["1 agent pull request that GitHub holds for workflow approval left out."]);
+});
+
+test("GitHub is asked about the newest 9 held PRs, and without actions: read they stay out with a note", async () => {
+  const current = pr(30, "codex/discount");
+  const held = Array.from({ length: 12 }, (_, i) => pr(i + 1, `copilot/b${i + 1}`, { login: "Copilot" }));
+  assert.deepEqual(
+    heldPrs(current, [...held, current]).map((p) => p.number),
+    [4, 5, 6, 7, 8, 9, 10, 11, 12],
+  );
+  for (const status of [403, 404]) {
+    const { approved, notes, calls } = await lookUp(current, [...held, current], {}, { status });
+    assert.equal(approved.size, 0);
+    assert.deepEqual(notes, ["Add `actions: read` to the workflow's permissions to check Copilot's pull requests once someone lets their run start."]);
+    // The first refusal ends the asking.
+    assert.equal(calls.length, 1);
+  }
 });
 
 test("nothing to check: not an agent PR, or the only one", () => {
@@ -211,6 +318,10 @@ test("every comment names what it checked, then its notes, then the install line
       "",
     ].join("\n"),
   );
+  // A held PR names the commit someone let run, which can be older than its newest push.
+  const held = { number: 12, branch: "copilot/fix-tax", sha: `abc1234${"0".repeat(33)}`, held: true };
+  const atCommit = commentBody({ prs: [held, prs[1]], markdown: cli, stderr: "", code: "2" });
+  assert.ok(atCommit.includes("\nChecked together: #12 `copilot/fix-tax` at abc1234 · #14 `codex/discount`\n"), atCommit);
   const broken = commentBody({ prs, markdown: "", stderr: "npm error 404 pytxo@9\n", code: "1" });
   assert.ok(broken.includes("could not run the check (exit 1)"));
   assert.ok(broken.includes("npm error 404 pytxo@9"));
@@ -334,7 +445,7 @@ function sh(cwd, ...args) {
   return r.stdout.trim();
 }
 
-test("discover fetches the agent PRs as local branches and the base", async (t) => {
+test("discover fetches the agent PRs as local branches and the base, a held one at the commit someone let run", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pytxo-action-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const work = path.join(root, "work");
@@ -363,23 +474,50 @@ test("discover fetches the agent PRs as local branches and the base", async (t) 
   sh(work, "add", "-A");
   sh(work, "commit", "-q", "-m", "pushed during the run");
   const moved = sh(work, "rev-parse", "HEAD");
+  // #12 is Copilot's: someone let the run on its first commit start; its newer push still waits.
+  sh(work, "checkout", "-q", "-b", "copilot/fix-tax", "main");
+  const copilot = [];
+  for (const step of ["approved", "waiting"]) {
+    fs.writeFileSync(path.join(work, "12.txt"), `${step}\n`);
+    sh(work, "add", "-A");
+    sh(work, "commit", "-q", "-m", step);
+    copilot.push(sh(work, "rev-parse", "HEAD"));
+  }
   sh(work, "checkout", "-q", "main");
   const origin = path.join(root, "origin.git");
   sh(root, "clone", "-q", "--bare", work, origin);
   sh(origin, "update-ref", "refs/pull/9/head", heads[9]);
+  sh(origin, "update-ref", "refs/pull/12/head", copilot[1]);
   sh(origin, "update-ref", "refs/pull/14/head", moved);
-  sh(origin, "branch", "-D", "claude/rename", "codex/discount");
+  sh(origin, "branch", "-D", "claude/rename", "codex/discount", "copilot/fix-tax");
   const clone = path.join(root, "clone");
   sh(root, "clone", "-q", "--depth", "1", `file://${origin.replace(/\\/g, "/")}`, clone);
   sh(clone, "checkout", "-q", "--detach");
 
-  const pulls = [pr(9, "claude/rename"), pr(14, "codex/discount"), pr(11, "matt/readme")];
+  const pulls = [
+    pr(9, "claude/rename"),
+    pr(14, "codex/discount"),
+    pr(11, "matt/readme"),
+    pr(12, "copilot/fix-tax", { login: "Copilot" }),
+    pr(13, "copilot/docs", { login: "Copilot" }),
+  ];
   pulls[0].head.sha = heads[9];
   pulls[1].head.sha = heads[14];
+  pulls[3].head.sha = copilot[1];
+  // #13's approved commit is gone from the origin, as after a force-push.
+  const gone = "d".repeat(40);
+  const github = {
+    pulls,
+    runs: {
+      "copilot/fix-tax": [run(copilot[1], 1, "action_required"), run(copilot[0], 2, "success")],
+      "copilot/docs": [run(gone, 2, "success")],
+    },
+    commits: { 12: copilot, 13: [gone] },
+  };
   const server = http.createServer((req, res) => {
     assert.equal(req.headers.authorization, "Bearer secret");
     res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify(req.url.startsWith(`/repos/${REPO}/pulls`) ? pulls : []));
+    res.end(JSON.stringify(answer(req.url, github)));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(() => server.closeAllConnections() || server.close());
@@ -388,26 +526,48 @@ test("discover fetches the agent PRs as local branches and the base", async (t) 
   fs.writeFileSync(event, JSON.stringify({ pull_request: pulls[1] }));
   const outputs = path.join(root, "outputs");
   fs.writeFileSync(outputs, "");
-  const run = await node([script, "discover"], {
-    cwd: clone,
-    env: {
-      ...process.env,
-      GITHUB_EVENT_NAME: "pull_request",
-      GITHUB_EVENT_PATH: event,
-      GITHUB_OUTPUT: outputs,
-      GITHUB_REPOSITORY: REPO,
-      GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
-      RUNNER_TEMP: root,
-      PYTXO_TOKEN: "secret",
-    },
-  });
-  assert.equal(run.status, 0, run.out);
+  const discover = () =>
+    node([script, "discover"], {
+      cwd: clone,
+      env: {
+        ...process.env,
+        GITHUB_EVENT_NAME: "pull_request",
+        GITHUB_EVENT_PATH: event,
+        GITHUB_OUTPUT: outputs,
+        GITHUB_REPOSITORY: REPO,
+        GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+        RUNNER_TEMP: root,
+        PYTXO_TOKEN: "secret",
+      },
+    });
+  const discovered = await discover();
+  assert.equal(discovered.status, 0, discovered.out);
   assert.match(fs.readFileSync(outputs, "utf8"), /skip=false\nbase=main\n/);
-  assert.equal(fs.readFileSync(path.join(root, "pytxo-branches.txt"), "utf8"), "claude/rename\ncodex/discount\n");
+  assert.equal(fs.readFileSync(path.join(root, "pytxo-branches.txt"), "utf8"), "claude/rename\ncopilot/fix-tax\ncodex/discount\n");
   assert.equal(sh(clone, "rev-parse", "refs/heads/claude/rename"), heads[9]);
+  // Copilot's PR at the commit someone let run, not at its newer push.
+  assert.equal(sh(clone, "rev-parse", "refs/heads/copilot/fix-tax"), copilot[0]);
   assert.equal(sh(clone, "rev-parse", "refs/heads/codex/discount"), heads[14]);
   assert.equal(sh(clone, "rev-parse", "--is-shallow-repository"), "false");
   sh(clone, "merge-base", "main", "codex/discount");
+  const state = JSON.parse(fs.readFileSync(path.join(root, "pytxo-action.json"), "utf8"));
+  assert.deepEqual(state.prs, [
+    { number: 9, sha: heads[9], branch: "claude/rename" },
+    { number: 12, sha: copilot[0], branch: "copilot/fix-tax", held: true },
+    { number: 14, sha: heads[14], branch: "codex/discount" },
+  ]);
+  assert.deepEqual(state.notes, ["#13 left out: its commit ddddddd could not be fetched."]);
+
+  // With #13 the only other one, nothing is left to combine.
+  github.pulls = [pulls[1], pulls[4]];
+  fs.writeFileSync(outputs, "");
+  const lone = await discover();
+  assert.equal(lone.status, 0, lone.out);
+  assert.equal(fs.readFileSync(outputs, "utf8"), "skip=true\n");
+  const after = JSON.parse(fs.readFileSync(path.join(root, "pytxo-action.json"), "utf8"));
+  assert.deepEqual(after.prs, []);
+  assert.match(after.reason, /^#14 is the only agent pull request into main this run can check/);
+  assert.deepEqual(after.notes, state.notes);
 });
 
 test("a push or a merge queue passes with a notice; pull_request_target is refused", (t) => {

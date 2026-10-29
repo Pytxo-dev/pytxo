@@ -103,6 +103,7 @@ on: pull_request
 permissions:
   contents: read
   pull-requests: write
+  actions: read
 concurrency:
   group: pytxo-${{ github.event.pull_request.number }}
   cancel-in-progress: true

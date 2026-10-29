@@ -28,6 +28,7 @@ export const AGENT_BOTS = new Set([
 
 // GitHub runs no workflow on these accounts' pull requests until someone approves it.
 const HELD_FOR_APPROVAL = new Set(["Copilot", "copilot-swe-agent[bot]", "github-actions[bot]"]);
+const isHeld = (pr) => HELD_FOR_APPROVAL.has(pr.user?.login);
 
 export const MARKER = "<!-- pytxo-check -->";
 export const MAX_PRS = 10;
@@ -56,24 +57,32 @@ export function isAgentPr(pr, patterns = DEFAULT_PATTERNS) {
 
 const sameRepo = (pr) => pr.head.repo?.full_name === pr.base.repo.full_name;
 
+/** The other agent PRs into the same base as `current`, oldest first. */
+const othersInto = (current, open, patterns) =>
+  open
+    .filter((pr) => pr.number !== current.number && pr.base.ref === current.base.ref && isAgentPr(pr, patterns))
+    .sort((a, b) => a.number - b.number);
+
+const alone = (current) =>
+  `#${current.number} is the only agent pull request into ${current.base.ref} this run can check; there is nothing to combine.`;
+
 /**
  * The pull requests to check together, in merge order: the other agent PRs
  * into the same base (oldest first), then this one, so a conflict names the
  * newest change. Fork PRs never join another PR's run: their code would run
- * with that run's token. Nor do PRs GitHub holds for workflow approval: their
- * code would run before anyone approved it. Each is checked in its own run.
+ * with that run's token. A PR GitHub holds for workflow approval joins only
+ * when `approved` names a commit of it whose run a person let start, and is
+ * checked at that commit, so its code never runs here before anyone let it.
+ * The rest are checked in their own runs.
  */
-export function selectPrs(current, open, patterns = DEFAULT_PATTERNS, max = MAX_PRS) {
+export function selectPrs(current, open, patterns = DEFAULT_PATTERNS, max = MAX_PRS, approved = new Map()) {
   if (!isAgentPr(current, patterns)) {
     return { prs: [], reason: `#${current.number} is not an agent pull request (${patterns.join(", ")} or an agent account).` };
   }
-  const others = open
-    .filter((pr) => pr.number !== current.number && pr.base.ref === current.base.ref && isAgentPr(pr, patterns))
-    .sort((a, b) => a.number - b.number);
+  const others = othersInto(current, open, patterns);
   const forks = others.filter((pr) => !sameRepo(pr)).length;
-  const held = (pr) => HELD_FOR_APPROVAL.has(pr.user?.login);
-  const waiting = others.filter((pr) => sameRepo(pr) && held(pr)).length;
-  const eligible = others.filter((pr) => sameRepo(pr) && !held(pr));
+  const waiting = others.filter((pr) => sameRepo(pr) && isHeld(pr) && !approved.has(pr.number)).length;
+  const eligible = others.filter((pr) => sameRepo(pr) && (!isHeld(pr) || approved.has(pr.number)));
   const left = eligible.slice(Math.max(0, eligible.length - (max - 1)));
   const prs = [...left, current];
   const notes = [];
@@ -81,10 +90,64 @@ export function selectPrs(current, open, patterns = DEFAULT_PATTERNS, max = MAX_
   if (waiting) notes.push(`${waiting} agent pull request${waiting === 1 ? "" : "s"} that GitHub holds for workflow approval left out.`);
   const older = eligible.length - left.length;
   if (older) notes.push(`${older} older agent pull request${older === 1 ? "" : "s"} left out (at most ${max} at once).`);
-  if (prs.length < 2) {
-    return { prs, notes, reason: `#${current.number} is the only agent pull request into ${current.base.ref} this run can check; there is nothing to combine.` };
-  }
+  if (prs.length < 2) return { prs, notes, reason: alone(current) };
   return { prs, notes };
+}
+
+/**
+ * The held PRs to ask GitHub about: the newest MAX_PRS - 1 from this
+ * repository, as no more could join one run. Older ones stay out as held.
+ */
+// ponytail: also asks about held PRs that newer unheld ones push out of the run; skip those if the calls ever matter.
+export function heldPrs(current, open, patterns = DEFAULT_PATTERNS) {
+  return othersInto(current, open, patterns)
+    .filter((pr) => sameRepo(pr) && isHeld(pr))
+    .slice(1 - MAX_PRS);
+}
+
+/**
+ * Whether a person let this workflow run start. GitHub holds a held account's
+ * run at attempt 1 with conclusion action_required; approving it starts
+ * attempt 2, and so does a manual re-run, both needing write access. With
+ * approval turned off the run starts at attempt 1, and there only a success
+ * proves it ran: a held run nobody approves expires after 30 days as a
+ * failure. The run must be this repository's: a fork's branch can share the name.
+ */
+const letStart = (run, repo) =>
+  run.event === "pull_request" &&
+  run.head_repository?.full_name === repo &&
+  run.conclusion !== "action_required" &&
+  (run.run_attempt > 1 || run.conclusion === "success");
+
+/**
+ * For each held PR, the newest of its own commits with a workflow run a person
+ * let start, as a map from PR number to commit. Two calls each at most: the
+ * branch's runs, then the PR's commits (oldest first) only if a run counts, so
+ * a run on a commit a push took away, or one never in the PR, cannot let it
+ * in. Both need `actions: read`; a 403 or 404 means the token lacks it, so
+ * the rest stay out, as before, with a note saying what to add.
+ */
+// ponytail: one page each, newest 100 runs and first 100 commits; a longer PR may join at an older approved commit or stay out.
+export async function approvedCommits(fetchImpl, { apiUrl, repo, token, prs }) {
+  const approved = new Map();
+  for (const pr of prs) {
+    const branch = encodeURIComponent(pr.head.ref);
+    const runs = await api(fetchImpl, `${apiUrl}/repos/${repo}/actions/runs?event=pull_request&branch=${branch}&per_page=100`, token);
+    if (runs.status === 403 || runs.status === 404) {
+      return {
+        approved,
+        notes: ["Add `actions: read` to the workflow's permissions to check Copilot's pull requests once someone lets their run start."],
+      };
+    }
+    if (!runs.ok) throw new Error(`listing the workflow runs of #${pr.number}: HTTP ${runs.status}`);
+    const started = new Set((await runs.json()).workflow_runs.filter((run) => letStart(run, repo)).map((run) => run.head_sha));
+    if (!started.size) continue;
+    const commits = await api(fetchImpl, `${apiUrl}/repos/${repo}/pulls/${pr.number}/commits?per_page=100`, token);
+    if (!commits.ok) throw new Error(`listing the commits of #${pr.number}: HTTP ${commits.status}`);
+    const sha = (await commits.json()).map((commit) => commit.sha).findLast((sha) => started.has(sha));
+    if (sha) approved.set(pr.number, sha);
+  }
+  return { approved, notes: [] };
 }
 
 /** A safe local branch name for a PR head: its own name when that is usable. */
@@ -166,14 +229,16 @@ export async function upsertComment(fetchImpl, { apiUrl, repo, number, token, bo
 /**
  * The comment: which PRs were checked, the CLI's verdict (or why there is
  * none), the notes, then the install line. The CLI's own closing lines (its
- * install line and verdict line) make way for the notes.
+ * install line and verdict line) make way for the notes. A held PR names the
+ * commit it was checked at, which can be older than its newest push.
  */
 export function commentBody({ prs, markdown, stderr, code, reason, notes = [] }) {
   const lines = [MARKER];
   if (reason) {
     lines.push(`### ⏸️ Nothing to check`, "", reason);
   } else {
-    lines.push(`Checked together: ${prs.map((p) => `#${p.number} \`${p.branch}\``).join(" · ")}`, "");
+    const named = (p) => `#${p.number} \`${p.branch}\`${p.held ? ` at ${p.sha.slice(0, 7)}` : ""}`;
+    lines.push(`Checked together: ${prs.map(named).join(" · ")}`, "");
     const verdict = markdown.trim().split(/\r?\n/);
     while (verdict.length && /^(\s*|<sub>.*<\/sub>|<!-- pytxo-verdict .*-->)$/.test(verdict.at(-1))) verdict.pop();
     if (verdict.length) {
@@ -309,14 +374,16 @@ async function discover() {
   const base = current.base.ref;
 
   const open = isAgentPr(current, patterns) ? await listOpenPrs(fetch, { apiUrl, repo, base, token }) : [];
-  const selection = selectPrs(current, open, patterns);
-  const state = { base, prs: [], notes: selection.notes || [], reason: selection.reason, number: current.number };
-  if (selection.reason) {
+  const lookup = await approvedCommits(fetch, { apiUrl, repo, token, prs: heldPrs(current, open, patterns) });
+  const selection = selectPrs(current, open, patterns, MAX_PRS, lookup.approved);
+  const notes = [...(selection.notes || []), ...lookup.notes];
+  const state = { base, prs: [], notes, reason: selection.reason, number: current.number };
+  const nothing = () => {
     fs.writeFileSync(statePath(), JSON.stringify(state));
-    console.log(selection.reason);
+    console.log(state.reason);
     output("skip", "true");
-    return;
-  }
+  };
+  if (state.reason) return nothing();
 
   // Credentials only for these fetches, unless the checkout already has some.
   const server = process.env.GITHUB_SERVER_URL || "https://github.com";
@@ -338,21 +405,31 @@ async function discover() {
     if (gate.notice) console.log(`::notice::${gate.notice}`);
   }
   const taken = new Set([base]);
-  const prs = selection.prs.map((pr) => ({ number: pr.number, sha: pr.head.sha, branch: localName(pr, taken, base) }));
+  const selected = selection.prs.map((pr) => {
+    const at = lookup.approved.get(pr.number);
+    return { number: pr.number, sha: at ?? pr.head.sha, branch: localName(pr, taken, base), ...(at && { held: true }) };
+  });
   // Each at the commit this run saw, not at refs/pull/N/head, which moves with
-  // every push: a run someone approved checks what they approved.
-  git(
-    [
-      "fetch",
-      "--quiet",
-      "--no-tags",
-      "--update-head-ok",
-      "origin",
-      `+refs/heads/${base}:refs/heads/${base}`,
-      ...prs.map((p) => `+${p.sha}:refs/heads/${p.branch}`),
-    ],
-    { auth },
-  );
+  // every push: a run someone approved checks what they approved. A held PR
+  // is fetched at its approved commit, on its own: if a push has taken that
+  // commit away, only that PR stays out.
+  const fetchInto = (refspecs) => git(["fetch", "--quiet", "--no-tags", "--update-head-ok", "origin", ...refspecs], { auth });
+  const refspec = (p) => `+${p.sha}:refs/heads/${p.branch}`;
+  fetchInto([`+refs/heads/${base}:refs/heads/${base}`, ...selected.filter((p) => !p.held).map(refspec)]);
+  const prs = selected.filter((p) => {
+    if (!p.held) return true;
+    try {
+      fetchInto([refspec(p)]);
+      return true;
+    } catch {
+      state.notes.push(`#${p.number} left out: its commit ${p.sha.slice(0, 7)} could not be fetched.`);
+      return false;
+    }
+  });
+  if (prs.length < 2) {
+    state.reason = alone(current);
+    return nothing();
+  }
   state.prs = prs;
   fs.writeFileSync(statePath(), JSON.stringify(state));
   fs.writeFileSync(path.join(process.env.RUNNER_TEMP || ".", "pytxo-branches.txt"), `${prs.map((p) => p.branch).join("\n")}\n`);
