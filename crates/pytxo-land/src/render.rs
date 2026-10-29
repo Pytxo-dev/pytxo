@@ -142,25 +142,28 @@ fn why_lines(tail: &[String]) -> Vec<String> {
         lines = trimmed().collect();
         lines.drain(..lines.len().saturating_sub(3));
     }
+    // Go's `FAIL\t<package>\t0.2s` keeps its tabs, which a terminal widens.
     lines
         .into_iter()
-        .map(|l| l.chars().take(160).collect())
+        .map(|l| l.replace('\t', " ").chars().take(160).collect())
         .collect()
 }
 
-/// How well `line` says why a check failed, 0 best; `None` when it does not.
-/// An error or exception name says the most, then a test file that failed,
-/// then any line that says error, then fail. A test runner's count, such as
-/// node:test's `ℹ fail 1` printed before the error itself, says nothing.
-fn rank(line: &str) -> Option<u8> {
+/// How well `line`, trimmed, says why a check failed, 0 best; `None` when it
+/// does not. An error or exception name says the most, then an assertion or
+/// a place with what is wrong there, then a test file or a Go test that
+/// failed, then any line that says error, then fail. A test runner's count,
+/// such as node:test's `ℹ fail 1` printed before the error itself, says
+/// nothing.
+pub(crate) fn rank(line: &str) -> Option<u8> {
     if names_an_error(line) {
         return Some(0);
     }
     let lower = line.to_lowercase();
-    if lower.contains("traceback") || lower.contains("assert") {
+    if lower.contains("traceback") || lower.contains("assert") || says_where(line) {
         return Some(1);
     }
-    if fails_a_file(line) {
+    if fails_a_file(line) || line.starts_with("--- FAIL: ") {
         return Some(2);
     }
     if counts_failures(&lower) {
@@ -194,15 +197,52 @@ fn names_an_error(line: &str) -> bool {
     })
 }
 
-/// `FAIL src/cart.test.js`, as Jest and Vitest name a test file that failed.
+/// `FAIL src/cart.test.js`, as Jest and Vitest name a test file that failed;
+/// not Go's `FAIL\texample.com/shop\t0.2s`, which names a package.
 fn fails_a_file(line: &str) -> bool {
     line.strip_prefix("FAIL").is_some_and(|rest| {
         rest.starts_with(char::is_whitespace)
-            && rest
-                .split_whitespace()
-                .next()
-                .is_some_and(|file| file.contains(['.', '/', '\\']))
+            && rest.split_whitespace().next().is_some_and(names_a_file)
     })
+}
+
+/// A place and what is wrong there, as Go's tests and compilers, pytest,
+/// mypy, eslint and gcc print it (`total_test.go:7: Total = 700, want 7`,
+/// `.\discount.go:3:40: undefined: Price`), or tsc (`src/a.ts:3:5 - error
+/// TS2304: ...`). Not a stack frame or a place with nothing after it.
+fn says_where(line: &str) -> bool {
+    let Some((word, rest)) = line.split_once(char::is_whitespace) else {
+        return false;
+    };
+    let (place, message) = match word.strip_suffix(':') {
+        Some(place) => (place, rest),
+        None => match rest.strip_prefix("- ") {
+            Some(message) => (word, message),
+            None => return false,
+        },
+    };
+    let number = |n: &str| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit());
+    // `file:line`, then maybe `:column`.
+    let Some((file, _)) = place.rsplit_once(':').filter(|(_, n)| number(n)) else {
+        return false;
+    };
+    let file = file
+        .rsplit_once(':')
+        .filter(|(_, n)| number(n))
+        .map_or(file, |(file, _)| file);
+    !message.trim().is_empty() && names_a_file(file)
+}
+
+/// Whether `word` ends in a file name: after its last `/` or `\`, a name with
+/// an extension of letters, a trailing `:` aside. `example.com/shop` is a Go
+/// package, and so is `gopkg.in/yaml.v3`.
+fn names_a_file(word: &str) -> bool {
+    let name = word.rsplit(['/', '\\']).next().unwrap_or(word);
+    name.trim_end_matches(':')
+        .rsplit_once('.')
+        .is_some_and(|(stem, ext)| {
+            !stem.is_empty() && !ext.is_empty() && ext.bytes().all(|b| b.is_ascii_alphabetic())
+        })
 }
 
 /// A count of failures: `ℹ fail 1`, `# fail 1`, `Tests: 1 failed`, `1 failed`
@@ -1533,6 +1573,18 @@ error[E0425]: cannot find function `price` in this scope
 For more information about this error, try `rustc --explain E0425`.
 error: could not compile `shop` (lib) due to 1 previous error
 warning: build failed, waiting for other jobs to finish...";
+        // go test 1.26: a failed test, then a call that does not compile.
+        let go_test = "--- FAIL: TestTotalOfOne (0.00s)
+    total_test.go:7: Total([7]) = 700, want 7
+FAIL
+FAIL\texample.com/shop\t0.248s
+FAIL";
+        let go_build = "# example.com/shop [example.com/shop.test]
+.\\discount.go:3:46: not enough arguments in call to Price
+\thave (int)
+\twant (int, int)
+FAIL\texample.com/shop [build failed]
+FAIL";
         for (output, first) in [
             (node_spec, "TypeError [Error]: price is not a function"),
             (node_tap, "error: 'price is not a function'"),
@@ -1545,6 +1597,11 @@ warning: build failed, waiting for other jobs to finish...";
             (
                 cargo_build,
                 "error[E0425]: cannot find function `price` in this scope",
+            ),
+            (go_test, "total_test.go:7: Total([7]) = 700, want 7"),
+            (
+                go_build,
+                ".\\discount.go:3:46: not enough arguments in call to Price",
             ),
         ] {
             let why = why_lines(&lines(output));
@@ -1579,6 +1636,39 @@ warning: build failed, waiting for other jobs to finish...";
             why_lines(&demo),
             ["FAIL discount.test.js: price is not a function"]
         );
+        // Go's test, then the place, before its package; a package is no
+        // file, and its tabs read as spaces.
+        assert_eq!(
+            why_lines(&lines(go_test)),
+            [
+                "total_test.go:7: Total([7]) = 700, want 7",
+                "--- FAIL: TestTotalOfOne (0.00s)",
+                "FAIL"
+            ]
+        );
+        assert_eq!(
+            why_lines(&lines("FAIL\texample.com/shop\t0.248s")),
+            ["FAIL example.com/shop 0.248s"]
+        );
+        for package in ["FAIL\texample.com/shop\t0.2s", "FAIL gopkg.in/yaml.v3"] {
+            assert!(!fails_a_file(package), "{package}");
+        }
+        // A place with what is wrong there, not a frame or a bare place.
+        for place in [
+            "src/discount.py:4: NameError",
+            r"C:\work\shop\a.go:3:5: undefined: Price",
+            "src/a.ts:3:5 - error TS2304: Cannot find name 'price'.",
+        ] {
+            assert_eq!(rank(place), Some(1), "{place}");
+        }
+        for not in [
+            "at discounted (src/discount.js:4:10)",
+            "tests/test_discount.py:4:",
+            "test at test\\discount.test.js:5:1",
+            "location: 'test/discount.test.js:5:1'",
+        ] {
+            assert!(!says_where(not), "{not}");
+        }
     }
 
     fn input_named(reference: &str) -> ReceiptInput {
