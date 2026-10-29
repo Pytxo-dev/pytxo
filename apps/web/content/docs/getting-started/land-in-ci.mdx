@@ -11,7 +11,6 @@ on: pull_request
 permissions:
   contents: read
   pull-requests: write
-  actions: read
 concurrency:
   group: pytxo-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -22,14 +21,14 @@ jobs:
       - uses: Pytxo-dev/pytxo/actions/land@v2
 ```
 
-No inputs, no labels, no other steps. `concurrency` stops an older run when the pull request gets a new push, so an old verdict never replaces a newer one. A stopped run posts nothing. `actions: read` lets it see which of Copilot's runs someone let start, so Copilot's pull requests can join the check.
+No inputs, no labels, no other steps. `concurrency` stops an older run when the pull request gets a new push, so an old verdict never replaces a newer one. A stopped run posts nothing. If Copilot's coding agent opens pull requests here, add `actions: read` so the check can include them once someone lets their run start.
 
 ## What it does
 
 On each `pull_request` event:
 
 1. **Is this an agent pull request?** It is when its branch matches `claude/*`, `codex/*`, `copilot/*`, `cursor/*`, `devin/*`, `jules/*` or `agent/*`, or when an agent account opened it (Copilot, Claude, Cursor, Devin or Jules). Anything else ends the job with a note in the job summary.
-2. **Which pull requests go together?** This one plus the other open agent pull requests from this repository into the same base branch, oldest first, at most 10. Drafts count. A pull request opened by Copilot or `github-actions[bot]`, whose runs GitHub holds for approval, joins at the newest of its commits whose run someone let start, and the comment names that commit; until then it is left out. If this is the only one, there is nothing to combine.
+2. **Which pull requests go together?** This one plus the other open agent pull requests from this repository into the same base branch, oldest first, at most 10. Drafts count. A pull request opened by Copilot or `github-actions[bot]`, whose runs GitHub holds for approval, is left out, unless the workflow has `actions: read` and someone let a run on one of its commits start: then it joins at the newest such commit, and the comment names that commit. If this is the only one, there is nothing to combine.
 3. **The check.** It fetches each of those pull requests at the commit this run saw and runs `npx pytxo check` on them, which merges them in a throwaway worktree and runs the test command it finds in the base branch.
 4. **The verdict.** It keeps one comment on this pull request, updated by each run that checks it, and writes the verdict to the job summary. A run with nothing to combine creates no comment, but updates one an earlier run left.
 
@@ -55,7 +54,7 @@ All optional.
 | `timeout` | `pytxo check`'s default (900) | Seconds each test run may take |
 | `branches` | the agent patterns above | Branch patterns that count as agent pull requests, space-separated |
 | `comment` | `"true"` | `"false"` keeps the verdict in the job summary only |
-| `token` | `github.token` | Token that lists pull requests and their workflow runs, and comments. Your tests can reach it too, so give it no other access |
+| `token` | `github.token` | Token that lists pull requests and comments, and with `actions: read` lists Copilot's workflow runs. Your tests can reach it too, so give it no other access |
 | `license` | none | Pytxo Pro license key for private repositories. Not needed today. Your tests can read it too, like the token |
 | `version` | the Action's release | Pytxo CLI version from npm |
 
@@ -68,13 +67,13 @@ The check runs your own test command, so the runner needs whatever your tests ne
 ## Security
 
 - It runs on `pull_request` only. On `pull_request_target` it refuses to run, because that event would run pull-request code with a write token.
-- Your tests run in the same job that posts the comment, so code in this repository's agent branches can reach the job's `pull-requests: write` token, as in any CI job that runs that code. With `actions: read` that token can also read this repository's workflow logs and artifacts. Give the workflow no other permissions, and no secret but the optional `license` key: it is the only secret the Action takes, and that code can read it like the token.
+- Your tests run in the same job that posts the comment, so code in this repository's agent branches can reach the job's `pull-requests: write` token, as in any CI job that runs that code. If you add `actions: read`, that token can also read the logs and artifacts of every workflow run in this repository. Give the workflow no other permissions, and no secret but the optional `license` key: it is the only secret the Action takes, and that code can read it like the token.
 - By default GitHub runs no workflow on a pull request from Copilot or `github-actions[bot]` until someone with write access approves the run. Such a pull request joins another pull request's run only at a commit whose run someone approved, so its code never runs there without that approval. If your repository turned that approval off, it joins at a commit whose run passed. Without `actions: read` it joins only its own run.
 - A run checks each pull request at the commit it saw. A push after someone approved the run does not change what that run tests; the push gets a run of its own.
 - A fork's pull request never joins another pull request's run. It is checked in its own run, with GitHub's read-only token and no secrets, so its verdict goes to the job summary. In a private repository, keep GitHub's options that send write tokens or secrets to workflows from fork pull requests turned off.
 - The Action's own checkout does not store the token in `.git/config`. If you add your own `actions/checkout` before Pytxo, set `persist-credentials: false`.
 - Test output in the comment is redacted for common secret formats and shown as code.
-- `permissions` above is all it needs: `contents: read` to fetch the branches, `pull-requests: write` to comment, `actions: read` to see which runs someone let start. Without `pull-requests: write` the verdict goes to the job summary instead.
+- `permissions` above is all it needs: `contents: read` to fetch the branches and `pull-requests: write` to comment, plus `actions: read` if you add it for Copilot's pull requests, to see which of their runs someone let start. Without `pull-requests: write` the verdict goes to the job summary instead.
 - It never pushes, merges or changes a branch.
 
 ## Private repositories

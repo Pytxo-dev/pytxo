@@ -21,7 +21,7 @@ inputs:
     required: false
     default: "true"
   token:
-    description: Token that lists pull requests and their workflow runs, and comments (needs pull-requests write to comment, and actions read to check Copilot's pull requests once someone lets their run start). Code in the checked pull requests runs in this job and can reach it, so give the job no more than contents read, pull-requests write and actions read.
+    description: Token that lists pull requests and comments (needs pull-requests write to comment). If Copilot's coding agent opens pull requests here, add actions read so the check can include them once someone lets their run start. Code in the checked pull requests runs in this job and can reach it, so give the job no more than contents read and pull-requests write, plus actions read for Copilot.
     required: false
     default: ${{ github.token }}
   license:

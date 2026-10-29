@@ -103,7 +103,6 @@ on: pull_request
 permissions:
   contents: read
   pull-requests: write
-  actions: read
 concurrency:
   group: pytxo-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -248,7 +247,7 @@ gh run view -R "$full" "$run" --log 2>/dev/null | grep -E 'took [0-9]+ s' | grep
 
 note "Done: $fails failed"
 echo "Open: https://github.com/$full/pulls"
-echo "Held pull requests (Copilot) are not covered here: assign an issue to Copilot in a repository with the workflow to see one."
+echo "Held pull requests (Copilot) are not covered here: add actions: read to the workflow and assign an issue to Copilot to see one."
 echo "Delete both repositories afterwards (needs: gh auth refresh -s delete_repo):"
 echo "  gh repo delete $full --yes"
 echo "  gh repo delete $fork_owner/$repo --yes"
