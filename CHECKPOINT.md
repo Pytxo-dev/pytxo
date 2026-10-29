@@ -1,3 +1,74 @@
+# CHECKPOINT — Pytxo — 2026-10-29 (2.0.0 candidate ready, not shipped)
+
+## Branch / commit
+- `mbcz/pytxo-2-impulse-check-419148` (worktree `product-review-a0207f`):
+  the 2.0 commits on main `797ffd6`, ending with round 3
+  (`ecae3b1`..`1b706e6`) and this checkpoint. Not pushed.
+- Local `mbcz/pytxo-2-promote`: one commit on top that sets
+  `PUBLISHED_VERSION` to 2.0.0, turns main deploys back on in `vercel.json`
+  and makes 2.0.0 the changelog's public release. Push it only once npm
+  serves 2.0.0.
+- Timings, gaps, decisions and the ship commands: `pytxo-2.0-report.md` in
+  the worktree (untracked).
+
+## Completed
+- Pytxo 2.0 "Impulse". Bare `npx pytxo` runs the check: it detects the
+  agent branches and the test command and prints a three-line verdict, or one
+  line pointing at `npx pytxo demo` when there are no agent branches. Also
+  `pytxo demo`; plain output with `--json`, `--markdown` and exit codes
+  0/2/3 (1 error, 130 interrupted); the Action v2 (`actions/land@v2`,
+  `pull_request` only, sticky comment); `pytxo hook`, the Claude Code
+  plugin and the Codex hook; the Pro licensing scaffold, switched off; and
+  the lean npm binary (about 11 MB), with Desktop, fleets, missions and tiers
+  frozen behind `full` (ADR-0043).
+- POSITIONING.md, the README, the npm README, the release notes, the
+  homepage, plans, the docs navigation and the docs pages tell the check
+  story. DECISIONS.md has 37 entries.
+- Three adversarial review rounds and a fresh final review against "Done
+  means". Round 3 fixed every confirmed finding: clean scratch runs,
+  `submodule.recurse`, a flaky check hiding a break, Composer script lists,
+  camelCase and `Authorization` masking, `--apply` on NO TESTS, Ctrl+C
+  during the scratch checkout on Windows, libc `kill(2)`, Git before 2.28 in
+  the demo, the Node 22 CI glob, Copilot's and `github-actions[bot]`'s held
+  pull requests, the shell page and the exit-code lists.
+
+## Not done
+- Nothing pushed, published, tagged or deployed; the repository description
+  is unchanged. The ship commands are in the report.
+- `pytxo fix` is not built.
+- Unverified: npm and npx with a published 2.0.0, the Action on github.com,
+  macOS and Linux at runtime (cross-clippy only here), the hooks inside real
+  Claude Code and Codex sessions, and the time to a verdict on a real
+  repository.
+- For Matt: the Pro price (`/plans` says "$29 once"; the product behind the
+  checkout route is $12/month), the licensing keypair, a two-job split for
+  the Action's token, and when to merge (Railway redeploys on `crates/**`).
+- `apps/desktop/src-tauri/gen/schemas/*.json` show as modified in the
+  worktree; unrelated and never committed.
+
+## Tests last run
+- Final head: `cargo fmt --check`; clippy with `-D warnings` for pytxo-land
+  and pytxo-cli, full and lean; `cargo test -p pytxo-runner -p pytxo-land -p
+  pytxo-cli` 342 passed with a fresh helper pin; lean CLI 28 passed. The
+  workspace run with `--no-fail-fast` on the round-3 code passed 1260; its
+  only failures were `owned_launch` rejecting a stale helper pin.
+- Node: Action 17/17, npm wrapper 9 passed (2 Unix-only skipped), tooling
+  52/52. Web: build, then Playwright e2e 34/34 on port 3207.
+- Cold `npx pytxo demo` (local package, binary from localhost, fresh npm
+  cache): 9.5 to 10.3 s to BLOCKED. Cold bare `npx pytxo` with two agent
+  branches: 5.6 to 6.0 s to READY. Direct `pytxo demo`: 5.8 s, against
+  5.7 s before round 3.
+
+## Next prompt (paste below)
+```txt
+Pytxo 2.0.0 ship. Read AGENTS.md, the latest CHECKPOINT.md entry and
+pytxo-2.0-report.md in the product-review-a0207f worktree. Branch
+mbcz/pytxo-2-impulse-check-419148 is the 2.0.0 candidate, not pushed. After I
+run the ship commands, verify npm 2.0.0 with a cold npx -y pytxo@2.0.0 demo,
+the Action on a real pull request, and the site once mbcz/pytxo-2-promote
+lands.
+```
+
 # CHECKPOINT — Pytxo — 2026-10-27 (1.3.6 released and docs live)
 
 ## Branch / commit
