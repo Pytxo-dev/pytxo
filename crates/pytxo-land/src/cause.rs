@@ -163,7 +163,7 @@ pub(crate) fn find(
                 if gone > MAX_GONE {
                     return None;
                 }
-                let renamed = renamed_to(file, &name, &now);
+                let renamed = renamed_to(diff, file, &name, &now);
                 candidates.push(Gone {
                     by: b,
                     name,
@@ -377,23 +377,48 @@ fn is_name(word: &str) -> bool {
     word.len() >= MIN_NAME && word.bytes().all(word_byte) && !word.as_bytes()[0].is_ascii_digit()
 }
 
-/// The word `name` became in `file`: a removed line that uses `name`, and an
-/// added line equal to it, whitespace trimmed, once `name` is replaced by a
-/// word the file's new version `defines`.
-fn renamed_to(file: &FileDiff, name: &str, defines: &[String]) -> Option<String> {
-    for (_, old) in &file.removed {
+/// The word `name` became where `file` stopped defining it: a removed line
+/// that uses `name`, and an added line equal to it, whitespace trimmed, once
+/// `name` is replaced by a word that file's new version defines (`now`).
+/// Otherwise such a line in another file of the same `diff` that defines
+/// the word, as when `price()` in cart.js becomes `unitPrice()` in a new
+/// pricing.js.
+fn renamed_to(diff: &[FileDiff], file: &FileDiff, name: &str, now: &[String]) -> Option<String> {
+    became(&file.removed, &file.added, name, |to| {
+        now.iter().any(|d| d == to)
+    })
+    .or_else(|| {
+        diff.iter()
+            .filter(|f| f.path != file.path)
+            .find_map(|other| {
+                let source = other.new_source.as_deref()?;
+                became(&file.removed, &other.added, name, |to| {
+                    defined(&other.path, source).iter().any(|(d, _)| d == to)
+                })
+            })
+    })
+}
+
+/// A word `to` that `defines`, for which one of the `added` lines equals one
+/// of the `removed` lines that use `name` with `name` replaced by `to`.
+fn became(
+    removed: &[(u32, String)],
+    added: &[(u32, String)],
+    name: &str,
+    defines: impl Fn(&str) -> bool,
+) -> Option<String> {
+    for (_, old) in removed {
         let old = old.trim();
         let Some(at) = word_starts(old, name).next() else {
             continue;
         };
-        for (_, new) in &file.added {
+        for (_, new) in added {
             let new = new.trim();
             let Some(rest) = new.strip_prefix(&old[..at]) else {
                 continue;
             };
             let to = &rest[..rest.bytes().take_while(|&b| word_byte(b)).count()];
-            if to != name && defines.iter().any(|d| d == to) && replace_words(old, name, to) == new
-            {
+            if to != name && replace_words(old, name, to) == new && defines(to) {
                 return Some(to.to_string());
             }
         }
@@ -714,6 +739,40 @@ mod tests {
         // The positions follow the inputs' order.
         let found = cause(d, &["agent/caller", "agent/rename"], &failed).unwrap();
         assert_eq!((found.by, found.user), (1, 0));
+    }
+
+    /// `price()` in cart.js becomes `unitPrice()` in a new pricing.js: a
+    /// rename to a name another file defines now, not a removal. A move of
+    /// the whole file renames nothing, and is no cause.
+    #[test]
+    fn a_rename_into_another_file_is_a_rename() {
+        let dir = repo();
+        let d = dir.path();
+        let pricing = "function unitPrice(item) {\n  return item.cost;\n}\n\nmodule.exports = { unitPrice };\n";
+        let cart = CART
+            .replace("function price(item) {\n  return item.cost;\n}\n\n", "")
+            .replace("price(i)", "unitPrice(i)")
+            .replace("{ price, total, label }", "{ total, label }");
+        let cart = format!("const {{ unitPrice }} = require('./pricing.js');\n\n{cart}");
+        branch(
+            d,
+            "main",
+            "agent/across",
+            &[("src/cart.js", &cart), ("src/pricing.js", pricing)],
+        );
+        branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+        let failed = ["TypeError: price is not a function"];
+        let found = cause(d, &["agent/across", "agent/caller"], &failed).unwrap();
+        assert_eq!(
+            (found.name.as_str(), found.renamed_to.as_deref()),
+            ("price", Some("unitPrice"))
+        );
+        git(d, &["checkout", "-q", "-b", "agent/move", "main"]);
+        std::fs::create_dir_all(d.join("src/lib")).unwrap();
+        git(d, &["mv", "src/cart.js", "src/lib/cart.js"]);
+        git(d, &["commit", "-q", "-m", "move"]);
+        git(d, &["checkout", "-q", "main"]);
+        assert_eq!(cause(d, &["agent/move", "agent/caller"], &failed), None);
     }
 
     #[test]
