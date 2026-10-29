@@ -850,26 +850,31 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                             Some(prompt(&by, &user, cause, cmd, &run.output_tail, reader));
                     }
                     // They fail it on their own: the what line names them,
-                    // and says how the others did without them.
+                    // and says how the others did without them. It clears
+                    // only whom the tag the Action reads clears: another
+                    // check can still blame one of the others.
                     if pair_ran == Some(false) {
-                        let others: Vec<String> = p
+                        let others: Vec<usize> = p
                             .inputs
                             .iter()
                             .enumerate()
                             .filter(|&(n, i)| {
                                 i.status == "merged" && n != cause.by && n != cause.user
                             })
-                            .map(|(_, i)| branch(i))
+                            .map(|(n, _)| n)
                             .collect();
+                        let blamed = implicated(p, Some(cause), "BLOCKED");
+                        let cleared = others.iter().all(|n| !blamed.contains(n));
                         let (who, one) = match others.as_slice() {
-                            [other] => (other.clone(), true),
+                            [other] => (branch(&p.inputs[*other]), true),
                             _ => (format!("the other {} branches", others.len()), false),
                         };
                         verdict.what = match rest_ran {
-                            Some(true) => format!(
+                            Some(true) if cleared => format!(
                                 "{pair} fail together; {who} {} without them.",
                                 if one { "passes" } else { "pass" }
                             ),
+                            Some(true) => format!("{pair} fail {cmd} together."),
                             Some(false) => format!(
                                 "{pair} fail together; {who} {} without them too.",
                                 if one { "fails" } else { "fail" }
@@ -1963,17 +1968,36 @@ FAIL discount.test.js: price is not a function")
         );
         assert_eq!(blamed(&out), [0, 1, 2, 3]);
         // Another check that fails together, with no pair of its own, still
-        // blames them all.
-        let mut out = with(vec![failed("pair"), check("rest", true)]);
+        // blames them all, and the what line clears no one.
         let lint = |c: ReceiptCheck| ReceiptCheck {
             command: "npm run lint".into(),
             ..c
         };
+        let mut out = with(vec![failed("pair"), check("rest", true)]);
         let p = &mut out.receipt.predicate;
         p.checks.push(lint(failed("combined")));
         p.checks
             .extend(["a", "b", "c", "d"].map(|i| lint(check(&format!("input:{i}"), true))));
         p.checks.push(lint(rerun(false)));
         assert_eq!(blamed(&out), [0, 1, 2, 3]);
+        assert_eq!(
+            verdict(&out, "again").what,
+            "a and c fail npm test together."
+        );
+        // So does another check one of the others fails alone.
+        let mut out = with(vec![failed("pair"), check("rest", true)]);
+        let p = &mut out.receipt.predicate;
+        p.checks.push(lint(check("combined", false)));
+        p.checks
+            .extend(["a", "b", "c"].map(|i| lint(check(&format!("input:{i}"), true))));
+        p.checks.push(lint(check("input:d", false)));
+        assert_eq!(blamed(&out), [0, 2, 3]);
+        let v = verdict(&out, "again");
+        assert_eq!(v.what, "a and c fail npm test together.");
+        let md = render_markdown(&out);
+        assert!(
+            md.starts_with("### ⛔ BLOCKED: `a` and `c` fail npm test together\n"),
+            "{md}"
+        );
     }
 }
