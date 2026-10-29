@@ -103,11 +103,11 @@ impl Git {
         // Read meanwhile: git stops on a full pipe.
         let mut stderr = child.stderr.take();
         let errors = std::thread::spawn(move || {
-            let mut text = String::new();
+            let mut bytes = Vec::new();
             if let Some(pipe) = stderr.as_mut() {
-                let _ = pipe.read_to_string(&mut text);
+                let _ = pipe.read_to_end(&mut bytes);
             }
-            text
+            String::from_utf8_lossy(&bytes).into_owned()
         });
         let status = loop {
             // Reaped and forgotten under the lock, as checks are.
