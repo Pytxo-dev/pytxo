@@ -469,7 +469,8 @@ fn said_only(diff: &[FileDiff], name: &str) -> Option<Vec<String>> {
 
 /// The lines an input added where its code refers to `name`, as the file is
 /// on that branch: not a word in a string, a comment, docs or a file with no
-/// grammar here, an object key, nor `a.name` unless `name` was a `member`.
+/// grammar here, an object key, nor `a.name` unless `name` was a `member`
+/// and the line calls it, `a.name()`: a read is a field's.
 /// Not in a file that binds `name` itself, a local variable or a parameter
 /// included, whose code refers to its own.
 fn uses_in(diff: &[FileDiff], name: &str, member: bool) -> Vec<Use> {
@@ -1062,6 +1063,34 @@ mod tests {
             r"      at total (C:\work\shop\src\price.js:6:33)",
         ];
         assert_eq!(cause(d, &["agent/strict", "agent/report"], &thrown), None);
+    }
+
+    /// `Cart#subtotal()` renamed: a call of it on another branch is the cause,
+    /// and a branch that only reads a plain object's `subtotal` uses no
+    /// method, so it is neither blamed with it nor a cause on its own.
+    #[test]
+    fn a_renamed_method_is_used_where_it_is_called_not_where_a_field_is_read() {
+        let dir = repo();
+        let d = dir.path();
+        let cart = "class Cart {\n  constructor(items) {\n    this.items = items;\n  }\n\n  subtotal() {\n    return this.items.length;\n  }\n}\n\nmodule.exports = { Cart };\n";
+        write(d, &[("src/cart.js", cart)]);
+        git(d, &["commit", "-q", "-am", "cart"]);
+        let renamed = cart.replace("subtotal", "itemsTotal");
+        branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+        let checkout = "const { Cart } = require('./cart.js');\n\nmodule.exports = (items) => new Cart(items).subtotal() + 5;\n";
+        branch(
+            d,
+            "main",
+            "agent/checkout",
+            &[("src/checkout.js", checkout)],
+        );
+        let receipt = "module.exports = (order) => 'subtotal ' + order.subtotal;\n";
+        branch(d, "main", "agent/receipt", &[("src/receipt.js", receipt)]);
+        let failed = ["TypeError: (intermediate value).subtotal is not a function"];
+        let three = ["agent/rename", "agent/checkout", "agent/receipt"];
+        let found = cause(d, &three, &failed).unwrap();
+        assert_eq!((found.by, found.user, found.also), (0, 1, vec![]));
+        assert_eq!(cause(d, &["agent/rename", "agent/receipt"], &failed), None);
     }
 
     /// README and docs say the word in prose, which no grammar here reads:

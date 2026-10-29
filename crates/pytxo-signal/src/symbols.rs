@@ -84,7 +84,8 @@ pub struct NameUse {
     /// The 1-based lines, in order, where code refers to the name, an import
     /// of it included. Not a string or a comment, an object key or a keyword
     /// argument, a declaration, nor `a.name`, a property of something else,
-    /// unless the caller counts members or `a` is a module the file imports.
+    /// unless `a` is a module the file imports, or the caller counts members
+    /// and the code calls it: `a.name()`.
     pub lines: Vec<usize>,
     /// The file binds the name other than by an import, in any scope: a
     /// function, class, variable or parameter of that name, so the lines may
@@ -97,8 +98,10 @@ pub struct NameUse {
     pub exports: bool,
 }
 
-/// How the code in `source` says `name`. With `members`, `a.name` refers to
-/// it too, as a call of a method does. `None` without a grammar for `path`.
+/// How the code in `source` says `name`. With `members`, `a.name()` refers
+/// to it too, as a call of a method does; `a.name` without a call reads a
+/// field of that name, which is no use of a method. `None` without a grammar
+/// for `path`.
 // ponytail: a file that binds the name anywhere, a parameter included, has
 // no uses of another's, and `const { price } = cart` binds it; resolve scopes
 // if a shadowed name ever hides a real use.
@@ -238,18 +241,17 @@ fn role<'t>(
         ("member_expression", Some("property")) if is_export(parent, source) => Role::Binds {
             top: parent.parent().is_some_and(at_top),
         },
-        // `a.price`, `a.price()`.
+        // `a.price()` calls a method; `a.price` without a call reads a field
+        // of that name, whatever `a` is, unless `a` is a module.
         ("member_expression", Some("property"))
         | ("attribute", Some("attribute"))
         | ("selector_expression", Some("field"))
         | ("field_expression", Some("field"))
-        | ("field_access", Some("field")) => {
-            if members {
-                Role::Refers
-            } else {
-                Role::Property(innermost(parent))
-            }
-        }
+        | ("field_access", Some("field")) => match (members, is_field(parent, "function")) {
+            (false, _) => Role::Property(innermost(parent)),
+            (true, true) => Role::Refers,
+            (true, false) => Role::Neither,
+        },
         ("method_invocation", Some("name")) | ("call", Some("method"))
             if parent.child_by_field_name("object").is_some()
                 || parent.child_by_field_name("receiver").is_some() =>
@@ -779,13 +781,14 @@ mod tests {
         let found = price_in("src/a.js", js);
         assert_eq!(found.lines, [1, 4, 7]);
         assert!(!found.binds && !found.exports);
-        // `a.price` is a use for a method, and for a module the file imports.
+        // `item.price` reads a field, even when members count.
         assert_eq!(
             name_use(Path::new("a.js"), js, "price", true)
                 .unwrap()
                 .lines,
-            [1, 4, 5, 7]
+            [1, 4, 7]
         );
+        // `a.price` is a use of a module the file imports.
         let module = "const cart = require('./cart');\nimport * as shop from './shop';\ncart.price(1);\nshop.price(2);\nrequire('./cart').price(3);\nthis.price;\n";
         assert_eq!(price_in("a.js", module).lines, [3, 4, 5]);
         let py = "from shop.cart import price\nimport shop.tax as tax\nx = price(1)\ny = tax.price(2)\nz = item.price\nf(price=3)\ns = 'price'  # price\n";
@@ -794,13 +797,31 @@ mod tests {
         let found = name_use(Path::new("main.go"), go, "Price", false).unwrap();
         assert_eq!(found.lines, [6]);
         let found = name_use(Path::new("main.go"), go, "Price", true).unwrap();
-        assert_eq!(found.lines, [6, 8]);
+        assert_eq!(found.lines, [6]);
         let rs = "use crate::cart::price;\nfn f(a: A) -> u32 {\n    let z = Item { price: 1 };\n    cart::price(1) + a.price\n}\n";
         assert_eq!(price_in("lib.rs", rs).lines, [1, 4]);
         assert_eq!(
             name_use(Path::new("notes.md"), "price", "price", false),
             None
         );
+    }
+
+    /// A method is used where it is called. `a.name` read without a call is
+    /// a field of that name, whatever `a` is: an order's `subtotal`, an
+    /// invoice's `Total`, `self.total = 0`.
+    #[test]
+    fn a_method_is_used_only_where_it_is_called() {
+        let method = |path: &str, source: &str, name: &str| {
+            name_use(Path::new(path), source, name, true).unwrap().lines
+        };
+        let js = "cart.subtotal();\norder.subtotal;\ncart?.subtotal();\nthis.subtotal().toFixed(2);\nconst s = { subtotal: order.subtotal };\nconst t = shop.cart.subtotal();\n";
+        assert_eq!(method("a.js", js, "subtotal"), [1, 3, 4, 6]);
+        let py = "cart.total()\ninv.total\nself.total = 0\nself.total += 1\nprint(Receipt().add(4).total)\n";
+        assert_eq!(method("a.py", py, "total"), [1]);
+        let go = "package p\n\nfunc F(c Cart, got Invoice) int {\n\tx := c.Total()\n\ty := got.Total\n\treturn x + y\n}\n";
+        assert_eq!(method("a_test.go", go, "Total"), [4]);
+        let rs = "fn f(a: A) -> u32 {\n    let x = a.price();\n    x + a.price\n}\n";
+        assert_eq!(method("lib.rs", rs, "price"), [2]);
     }
 
     /// A file that brings its own `price`, in whatever form, uses that one;

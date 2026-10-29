@@ -52,8 +52,10 @@ Terms: base `B`; input `i` at commit `C_i` with merge base
 4. **Stale uses.** For every other merged input `j`: the places on its added
    lines where code refers to the name, as tree-sitter reads the file at
    `C_j`, with their path and line number in `C_j` (what the user sees on that
-   branch). Strings, comments, object keys and member properties (`a.X`,
-   unless the gone definition was a method) are no use; an import is one. A
+   branch). Strings, comments, object keys and member properties (`a.X`)
+   are no use, except a call `a.X(...)` when the gone definition was a
+   method: a read of `a.X` is a field of that name, whatever `a` is, such as
+   an order's `subtotal` or a struct's `Total`. An import is a use. A
    file that binds the name itself, such as the user's own `const X`, a
    parameter or a local, has none, and a file without a grammar, such as a
    README, gives none. It is not a cause if `R` still defines the name:
