@@ -1399,6 +1399,69 @@ fn submodule_recurse_does_not_break_the_scratch_checkouts() {
     );
 }
 
+/// The second run that tells a flaky combination from a real break starts
+/// from the combined commit's files, as the first did, after the checks before
+/// it: not from what the first runs left, nor without what they build.
+#[test]
+fn the_flaky_rerun_starts_from_the_combined_files() {
+    let dir = repo();
+    let d = dir.path();
+    write(d, &[(".gitignore", "out/\n")]);
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", "ignore out"]);
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    let mut o = opts(d, &["agent/a", "agent/b"]);
+    o.per_input = PerInput::OnFailure;
+
+    // Fails over its own output, as `mkdir out` would, and once on the
+    // combination.
+    let leftover = if cfg!(windows) {
+        r"(if exist out\ran exit 1) & (if not exist out mkdir out) & type nul > out\ran & "
+    } else {
+        "test -f out/ran && exit 1; mkdir -p out && touch out/ran; "
+    };
+    let marker = d.join(".git").join("flaky-once");
+    o.checks = vec![format!(
+        "{leftover}{}",
+        combined_only_failure(Some(&marker))
+    )];
+    let out = land(&o).unwrap();
+    let checks = &out.receipt.predicate.checks;
+    assert_eq!(
+        combined_runs(&out),
+        [(false, false), (true, true)],
+        "{checks:?}"
+    );
+    assert_eq!(verdict(&out, "again").label, "FLAKY", "{checks:?}");
+
+    // Needs what the check before it built.
+    let (build, built) = if cfg!(windows) {
+        (
+            r"(if not exist out mkdir out) & type nul > out\built",
+            r"(if not exist out\built exit 1) & ",
+        )
+    } else {
+        (
+            "mkdir -p out && touch out/built",
+            "test -f out/built || exit 1; ",
+        )
+    };
+    let marker = d.join(".git").join("flaky-twice");
+    o.checks = vec![
+        build.into(),
+        format!("{built}{}", combined_only_failure(Some(&marker))),
+    ];
+    let out = land(&o).unwrap();
+    let checks = &out.receipt.predicate.checks;
+    assert_eq!(
+        combined_runs(&out),
+        [(true, false), (false, false), (true, true)],
+        "{checks:?}"
+    );
+    assert_eq!(verdict(&out, "again").label, "FLAKY", "{checks:?}");
+}
+
 /// A check that fails again on the combination speaks over a flaky one.
 #[test]
 fn a_flaky_check_does_not_hide_a_real_failure() {

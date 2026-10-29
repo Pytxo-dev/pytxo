@@ -236,7 +236,9 @@ impl Drop for OwnedWorktree {
 /// left in ignored directories goes too: a test command that runs `tsc`'s
 /// outDir would run the last branch's tests as well. Dependencies stay, since
 /// their tools never run stale output: `node_modules`, which an install brings
-/// in line, and Cargo's `target`.
+/// in line, and Cargo's `target`. Best effort: what it cannot remove, such as a
+/// container's root-owned cache or a file a leftover process holds open, stays,
+/// and the run goes on to its verdict.
 const SCRATCH_CLEAN: [&str; 6] = ["clean", "-ffdxq", "-e", "node_modules", "-e", "target"];
 
 /// `git worktree lock --reason`, then the pid of the run that holds it.
@@ -672,7 +674,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 continue;
             };
             sg.run(&["checkout", "--detach", "--force", &solo])?;
-            sg.run(&SCRATCH_CLEAN)?;
+            let _ = sg.run(&SCRATCH_CLEAN);
             for command in &opts.checks {
                 let Some(check) = run_check(&scope, command, &scratch.path) else {
                     return Ok(());
@@ -715,22 +717,42 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     {
         run_solo(&mut checks)?;
     }
-    for (command, check) in opts.checks.iter().zip(first_runs) {
-        // "Every input passed alone, the combination failed" is the claim this
-        // gate leads with, so one flaky run must not make it: run it once more.
-        let solo: Vec<&ReceiptCheck> = checks
-            .iter()
-            .filter(|c| c.scope != "combined" && &c.command == command)
-            .collect();
-        // Not a timeout, which would take as long again to say the same.
-        let again = !check.passed && !check.timed_out && !solo.is_empty();
-        let rerun = (again && solo.iter().all(|c| c.passed))
-            .then(|| run_check("combined", command, &dir))
-            .flatten()
-            .map(|again| ReceiptCheck {
+    // "Every input passed alone, the combination failed" is the claim this
+    // gate leads with, so one flaky run must not make it: a failed check that
+    // every input passed alone runs once more. Not a timeout, which would take
+    // as long again to say the same.
+    let again: Vec<bool> = opts
+        .checks
+        .iter()
+        .zip(&first_runs)
+        .map(|(command, check)| {
+            let solo: Vec<&ReceiptCheck> = checks
+                .iter()
+                .filter(|c| c.scope != "combined" && &c.command == command)
+                .collect();
+            !check.passed && !check.timed_out && !solo.is_empty() && solo.iter().all(|c| c.passed)
+        })
+        .collect();
+    // From the combined commit's files, as the first run started, and after the
+    // checks before it, whose output it may build on. Those run again only to
+    // set it up, so the receipt keeps their first runs.
+    let mut reruns: Vec<Option<ReceiptCheck>> = Vec::new();
+    if let Some(last) = again.iter().rposition(|&a| a) {
+        let cg = Git::owned(&dir, identity);
+        cg.run(&["checkout", "--detach", "--force", &combined])?;
+        let _ = cg.run(&SCRATCH_CLEAN);
+        for (command, &needed) in opts.checks.iter().zip(&again).take(last + 1) {
+            let Some(check) = run_check("combined", command, &dir) else {
+                break;
+            };
+            reruns.push(needed.then_some(ReceiptCheck {
                 rerun: true,
-                ..again
-            });
+                ..check
+            }));
+        }
+    }
+    for (i, (command, check)) in opts.checks.iter().zip(first_runs).enumerate() {
+        let rerun = reruns.get_mut(i).and_then(Option::take);
         let how = |c: &ReceiptCheck| {
             if c.timed_out {
                 "timed out".to_string()
@@ -777,7 +799,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     if let (Some(tree), false) = (&combined_tree, on_target.is_empty() || late()) {
         let tg = Git::owned(&tree.path, identity);
         tg.run(&["checkout", "--detach", "--force", &base])?;
-        tg.run(&SCRATCH_CLEAN)?;
+        let _ = tg.run(&SCRATCH_CLEAN);
         for command in on_target {
             let Some(check) = run_check("target", command, &tree.path) else {
                 break;
