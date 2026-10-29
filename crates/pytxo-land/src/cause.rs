@@ -218,14 +218,14 @@ pub(crate) fn find(
             continue;
         }
         for (u, user) in inputs.iter().enumerate().filter(|&(u, _)| u != c.by) {
-            let uses = uses_in(&diffs[u], &c.name, c.member);
+            let (uses, values) = uses_in(&diffs[u], &c.name, c.member);
             if uses.is_empty() {
                 continue;
             }
             found.push(Cause {
                 by: inputs[c.by].index,
                 user: user.index,
-                confirmed: confirms(failing, &c.name, &uses),
+                confirmed: confirms(failing, &c.name, &values),
                 name: c.name.clone(),
                 renamed_to: c.renamed.clone(),
                 uses,
@@ -472,9 +472,10 @@ fn said_only(diff: &[FileDiff], name: &str) -> Option<Vec<String>> {
 /// grammar here, an object key, nor `a.name` unless `name` was a `member`
 /// and the line calls it, `a.name()`: a read is a field's.
 /// Not in a file that binds `name` itself, a local variable or a parameter
-/// included, whose code refers to its own.
-fn uses_in(diff: &[FileDiff], name: &str, member: bool) -> Vec<Use> {
-    let mut uses = Vec::new();
+/// included, whose code refers to its own. Then the uses among them that
+/// say more than a type, where the code that runs says the name.
+fn uses_in(diff: &[FileDiff], name: &str, member: bool) -> (Vec<Use>, Vec<Use>) {
+    let (mut uses, mut values) = (Vec::new(), Vec::new());
     for f in diff {
         let Some(source) = f.new_source.as_deref() else {
             continue;
@@ -489,17 +490,21 @@ fn uses_in(diff: &[FileDiff], name: &str, member: bool) -> Vec<Use> {
             continue;
         }
         let added: BTreeSet<u32> = f.added.iter().map(|(n, _)| *n).collect();
-        uses.extend(
-            said.lines
-                .iter()
-                .filter_map(|&n| u32::try_from(n).ok().filter(|n| added.contains(n)))
-                .map(|line| Use {
-                    path: f.path.clone(),
-                    line,
-                }),
-        );
+        for &n in &said.lines {
+            let Some(line) = u32::try_from(n).ok().filter(|n| added.contains(n)) else {
+                continue;
+            };
+            let at = Use {
+                path: f.path.clone(),
+                line,
+            };
+            if !said.types.contains(&n) {
+                values.push(at.clone());
+            }
+            uses.push(at);
+        }
     }
-    uses
+    (uses, values)
 }
 
 /// Whether the failing output says `name` where it says what went wrong, or
@@ -1162,6 +1167,43 @@ mod tests {
             "    at module.exports (/tmp/run/src/title.js:4:28)",
         ];
         assert_eq!(cause(d, &["agent/strict", "agent/title"], &failed), None);
+    }
+
+    /// `class Item` renamed: a test that says it as a type still uses it, as
+    /// tsc would say, but TypeScript erases types before the code runs, so
+    /// the frame an error was thrown at on such a line is no proof. The class
+    /// itself on that line is.
+    #[test]
+    fn a_type_is_a_use_no_frame_of_the_code_that_runs_confirms() {
+        let dir = repo();
+        let d = dir.path();
+        let cart = "export class Item {\n  constructor(public cost: number) {}\n}\n\nexport function price(item: Item): number {\n  return item.cost;\n}\n";
+        write(d, &[("src/cart.ts", cart)]);
+        git(d, &["add", "-A"]);
+        git(d, &["commit", "-q", "-m", "cart.ts"]);
+        let renamed = cart.replace("Item", "LineItem");
+        branch(d, "main", "agent/rename", &[("src/cart.ts", &renamed)]);
+        let test = "import { type Item } from '../src/cart.ts';\n\nconst first = (items: Item[]) => items[0].cost;\nfirst([]);\n";
+        branch(d, "main", "agent/test", &[("test/first.test.ts", test)]);
+        let failed = [
+            "TypeError: Cannot read properties of undefined (reading 'cost')",
+            "    at first (file:///tmp/run/test/first.test.ts:3:43)",
+        ];
+        let both = ["agent/rename", "agent/test"];
+        let found = cause(d, &both, &failed).unwrap();
+        assert_eq!(
+            (found.name.as_str(), found.uses.len(), found.confirmed),
+            ("Item", 2, false)
+        );
+        let made = test
+            .replace("type Item", "Item")
+            .replace("items[0].cost", "new Item(items[0].cost)");
+        branch(d, "main", "agent/made", &[("test/first.test.ts", &made)]);
+        assert!(
+            cause(d, &["agent/rename", "agent/made"], &failed)
+                .unwrap()
+                .confirmed
+        );
     }
 
     /// README and docs say the word in prose, which no grammar here reads:

@@ -87,6 +87,11 @@ pub struct NameUse {
     /// unless `a` is a module the file imports, or the caller counts members
     /// and the code calls it: `a.name()`.
     pub lines: Vec<usize>,
+    /// The lines among them that say the name only as a type: in an
+    /// annotation, `as`, `satisfies`, `implements` or `import type`, which
+    /// TypeScript erases before the code runs, or in a compiled language,
+    /// which fails to build instead. No code that runs is there for the name.
+    pub types: Vec<usize>,
     /// The file binds the name, in any scope: a function, class, variable or
     /// parameter of that name, or an import that names what it brings in so
     /// (a default or namespace import, a module required whole, an alias),
@@ -122,6 +127,7 @@ pub fn name_use(path: &Path, source: &str, name: &str, members: bool) -> Option<
             let line = node.start_position().row + 1;
             match role(node, cursor.field_name(), members, source) {
                 Role::Refers => found.lines.push(line),
+                Role::Type => found.types.push(line),
                 Role::Property(of) => properties.push((line, of)),
                 Role::Binds { top } => {
                     found.binds = true;
@@ -149,8 +155,12 @@ pub fn name_use(path: &Path, source: &str, name: &str, members: bool) -> Option<
                             .filter(|(_, of)| module(of))
                             .map(|(line, _)| *line),
                     );
-                    found.lines.sort_unstable();
                 }
+                // A line that says the name as a value too is no type's alone.
+                found.types.retain(|l| !found.lines.contains(l));
+                found.types.dedup();
+                found.lines.extend(&found.types);
+                found.lines.sort_unstable();
                 found.lines.dedup();
                 return Some(found);
             }
@@ -164,6 +174,8 @@ pub fn name_use(path: &Path, source: &str, name: &str, members: bool) -> Option<
 /// What an identifier of the name is to the code around it.
 enum Role<'t> {
     Refers,
+    /// A use as a type only, which no code that runs says.
+    Type,
     /// `a.name`: a use only of a member, or of a module's name; with the
     /// innermost `a` of `a.b.name`.
     Property(Option<tree_sitter::Node<'t>>),
@@ -356,6 +368,8 @@ fn role<'t>(
         _ if node.kind() == "shorthand_property_identifier_pattern" => Role::Binds {
             top: at_top(parent),
         },
+        // What a type names, the declarations' own names aside.
+        _ if node.kind() == "type_identifier" => Role::Type,
         _ => Role::Refers,
     }
 }
@@ -478,8 +492,14 @@ fn import_role<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<Role<'t>
             | "use_declaration"
             | "import_require_clause" => {
                 let node_module = names_node_module(n.child_by_field_name("source"), source);
+                // `import type { Item }` and `import { type Item }`.
+                let typed = |n: tree_sitter::Node<'t>| {
+                    n.children(&mut n.walk()).any(|c| c.kind() == "type")
+                };
                 return Some(if named_here || node_module {
                     Role::Binds { top: false }
+                } else if typed(n) || node.parent().is_some_and(typed) {
+                    Role::Type
                 } else {
                     Role::Refers
                 });
@@ -904,6 +924,22 @@ mod tests {
         }
         let repos = "import { basename } from './files.js';\nbasename(p);\n";
         assert!(!basename(repos).binds);
+    }
+
+    /// A type is a use, but one TypeScript erases before the code runs: an
+    /// annotation, `as`, `implements`, `import type` and a `type` specifier.
+    /// A line that says the name as a value as well is no type's alone.
+    #[test]
+    fn a_type_is_a_use_apart_from_the_code_that_runs() {
+        let item = |source: &str| name_use(Path::new("a.ts"), source, "Item", false).unwrap();
+        let ts = "import { price, type Item } from './cart';\nimport type { Item as I } from './cart';\nconst x = price({ cost: 2 } as Item);\nclass B implements Item {}\nconst y: Item = new Item(2);\nconst f = (items: Item[]) => items.length;\n";
+        let found = item(ts);
+        assert_eq!(
+            (found.lines, found.types),
+            (vec![1, 2, 3, 4, 5, 6], vec![1, 2, 3, 4, 6])
+        );
+        let value = item("import { Item } from './cart';\nnew Item(2);\n");
+        assert_eq!((value.lines, value.types), (vec![1, 2], vec![]));
     }
 
     /// A method is used where it is called. `a.name` read without a call is

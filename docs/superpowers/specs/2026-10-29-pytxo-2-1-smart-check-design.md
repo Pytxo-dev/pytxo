@@ -74,7 +74,11 @@ Terms: base `B`; input `i` at commit `C_i` with merge base
    there: a compiler's place with its message, or the frame an error was
    thrown at, the first frame past the runtime's own (`node:`,
    `node_modules`) under an error that is no failed assertion. An
-   assertion's frame and a caller's only hold the line. Failure counts,
+   assertion's frame and a caller's only hold the line, and so does a line
+   whose only use is a type (an annotation, `as`, `satisfies`, `implements`,
+   `import type`): TypeScript erases types before the code runs, and a
+   compiled language fails to build on one, whose error names it. Such a use
+   stays a stale use, since tsc rejects the old name. Failure counts,
    summaries and test titles never confirm.
 6. **Pick one.** Confirmed first, then the most stale uses, then input order.
    The other inputs whose new lines use the name the picked input removed are
