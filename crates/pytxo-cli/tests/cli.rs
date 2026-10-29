@@ -482,6 +482,75 @@ fn json_carries_the_verdict_and_what_was_found() {
     assert!(v["branches"][1].get("label").is_none(), "{v}");
 }
 
+/// Commits `files` on a new branch `name` cut from main, then returns to main.
+fn commit_branch(d: &Path, name: &str, files: &[(&str, &str)]) {
+    git(d, &["checkout", "-q", "-b", name, "main"]);
+    for (path, body) in files {
+        let path = d.join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, body).unwrap();
+    }
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", name]);
+    git(d, &["checkout", "-q", "main"]);
+}
+
+/// The demo's break, without Node: `claude/rename-price` renames `price` in
+/// src/cart.js and `codex/add-discount` adds a caller of it.
+fn rename_repo() -> tempfile::TempDir {
+    let dir = repo(&[]);
+    let d = dir.path();
+    let cart = "function price(item) {\n  return item.cost;\n}\n\nmodule.exports = { price };\n";
+    commit_branch(d, "base", &[("src/cart.js", cart)]);
+    git(d, &["merge", "-q", "base"]);
+    git(d, &["branch", "-q", "-D", "base"]);
+    let renamed = cart.replace("price", "unitPrice");
+    commit_branch(d, "claude/rename-price", &[("src/cart.js", &renamed)]);
+    let discount = "const { price } = require('./cart.js');\n\nfunction discounted(item) {\n  return price(item) * 0.9;\n}\n\nmodule.exports = { discounted };\n";
+    commit_branch(d, "codex/add-discount", &[("src/discount.js", discount)]);
+    dir
+}
+
+/// Fails, in cmd and sh alike, only where src/cart.js says `unitPrice` and
+/// src/discount.js still says `price`, the way Node fails there.
+const RENAME_BREAKS: &str = "git grep -q unitPrice -- src/cart.js && git grep -q -w price -- src/discount.js && echo TypeError: price is not a function && exit 1 || exit 0";
+
+#[test]
+fn json_names_the_cause_and_the_fix_prompt() {
+    let dir = rename_repo();
+    let out = pytxo(dir.path(), &["--json", "-c", RENAME_BREAKS], None);
+    assert_eq!(out.status.code(), Some(2), "{}", stdout(&out));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let verdict = &v["verdict"];
+    assert_eq!(verdict["kind"], "together", "{v}");
+    assert_eq!(
+        verdict["cause"],
+        serde_json::json!({
+            "by": "claude/rename-price",
+            "user": "codex/add-discount",
+            "name": "price",
+            "renamed_to": "unitPrice",
+            "uses": [
+                {"path": "src/discount.js", "line": 1},
+                {"path": "src/discount.js", "line": 4},
+            ],
+            "confirmed": true,
+        })
+    );
+    let prompt = verdict["fix_prompt"].as_str().unwrap();
+    assert!(
+        prompt.starts_with(&format!("Pytxo merged claude/rename-price and codex/add-discount and ran {RENAME_BREAKS}: each passes alone, together they fail.\nclaude/rename-price renamed price to unitPrice. codex/add-discount still uses price at src/discount.js:1, src/discount.js:4.\nFix it on codex/add-discount: rebase it onto claude/rename-price, replace price with unitPrice, and run ")),
+        "{prompt}"
+    );
+    assert!(
+        prompt.ends_with("\nFailing output:\nTypeError: price is not a function"),
+        "{prompt}"
+    );
+    assert_eq!(v["notes"], serde_json::json!([]), "confirmed: no note");
+    // A reading of the runs, not part of the receipt.
+    assert!(v["receipt"]["predicate"].get("cause").is_none(), "{v}");
+}
+
 /// The line before the tests and the verdict name the branches alike: up to
 /// four by name, then how many.
 #[test]
@@ -658,6 +727,79 @@ fn hook_block_turns_blocked_into_a_block_decision() {
     let reason = v["reason"].as_str().unwrap();
     assert!(reason.contains("\nBLOCKED  "), "{reason}");
     assert!(v.get("systemMessage").is_none(), "{v}");
+}
+
+/// With a confirmed cause, `--block` hands the fix prompt to the agent whose
+/// worktree the hook runs in: the one that has to change its branch, the
+/// one that renamed the name, or anyone.
+#[test]
+fn hook_block_hands_the_fix_to_the_agent_whose_branch_it_is() {
+    let dir = rename_repo();
+    let d = dir.path();
+    git(d, &["config", "pytxo.check", RENAME_BREAKS]);
+    let trees = tempfile::tempdir().unwrap();
+    let user_tree = trees.path().join("discount");
+    let by_tree = trees.path().join("rename");
+    for (tree, branch) in [
+        (&user_tree, "codex/add-discount"),
+        (&by_tree, "claude/rename-price"),
+    ] {
+        git(
+            d,
+            &["worktree", "add", "-q", tree.to_str().unwrap(), branch],
+        );
+    }
+    let memo = d.join(".git").join("pytxo").join("hook-last");
+    let reply = |cwd: &Path, args: &[&str]| {
+        // Same tips, same verdict, said once: each stop here is a new one.
+        let _ = std::fs::remove_file(&memo);
+        hook_reply(&pytxo(cwd, args, Some(&stop_event(cwd))))
+    };
+    let reason = |cwd: &Path| {
+        let v = reply(cwd, &["hook", "--block"]);
+        assert_eq!(v["decision"], "block", "{v}");
+        v["reason"].as_str().unwrap().to_string()
+    };
+    let user = reason(&user_tree);
+    assert!(
+        user.starts_with(
+            "Pytxo merged claude/rename-price and your branch codex/add-discount and ran "
+        ),
+        "{user}"
+    );
+    assert!(
+        user.contains("\nclaude/rename-price renamed price to unitPrice. Your branch codex/add-discount still uses price at src/discount.js:1, src/discount.js:4.\nFix it on your branch: rebase it onto claude/rename-price, replace price with unitPrice, and run "),
+        "{user}"
+    );
+    let by = reason(&by_tree);
+    assert!(
+        by.starts_with(
+            "Pytxo merged your branch claude/rename-price and codex/add-discount and ran "
+        ),
+        "{by}"
+    );
+    assert!(
+        by.contains("\nYour branch claude/rename-price renamed price to unitPrice. codex/add-discount still uses price at src/discount.js:1, src/discount.js:4.\nThe fix belongs on codex/add-discount: rebase it onto claude/rename-price, "),
+        "{by}"
+    );
+    assert!(
+        by.contains(
+            " The other way out is to keep price on your branch as an alias of unitPrice.\n"
+        ),
+        "{by}"
+    );
+    let anyone = reason(d);
+    assert!(
+        anyone.starts_with("Pytxo merged claude/rename-price and codex/add-discount and ran "),
+        "{anyone}"
+    );
+    // Without --block the message stays the three lines.
+    let v = reply(&user_tree, &["hook"]);
+    let message = v["systemMessage"].as_str().unwrap();
+    assert!(
+        message.contains("\nwhy      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).\nnext     rebase codex/add-discount onto claude/rename-price and use unitPrice, then Pytxo checks again when an agent stops.\n"),
+        "{message}"
+    );
 }
 
 #[test]

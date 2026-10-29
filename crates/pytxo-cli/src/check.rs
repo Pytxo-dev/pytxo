@@ -10,7 +10,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result};
 use clap::Args;
 use pytxo_land::detect::{self, Plan};
-use pytxo_land::{land, render_markdown_with, render_text, verdict, LandOptions, PerInput};
+use pytxo_land::{
+    fix_prompt, land, render_markdown_with, render_text, verdict, LandOptions, LandOutcome,
+    PerInput, Reader,
+};
 use serde_json::json;
 
 #[derive(Args, Clone, Debug, Default)]
@@ -160,15 +163,20 @@ fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
     }
     let outcome = land(&options(plan, args))?;
     let verdict = verdict(&outcome, &again());
-    let notes = notes(plan);
+    // The verdict's own note comes first: it qualifies the why line above it.
+    let own = || verdict.note.iter().cloned();
     if args.json {
+        let notes: Vec<String> = own()
+            .chain(uncommitted_notes(plan))
+            .chain(notes(plan))
+            .collect();
         println!(
             "{}",
             serde_json::to_string_pretty(&json!({
                 "decision": outcome.decision(),
                 "exit_code": outcome.exit_code(),
                 "verdict": verdict,
-                "notes": uncommitted_notes(plan).into_iter().chain(notes).collect::<Vec<_>>(),
+                "notes": notes,
                 "target": plan.target,
                 "branches": branches_json(plan),
                 "checks": plan.checks,
@@ -185,6 +193,7 @@ fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
         if args.verbose {
             print!("{}\n{}\n", found(plan), render_text(&outcome));
         }
+        let notes: Vec<String> = own().chain(notes(plan)).collect();
         print!("{verdict}{}", note_lines(&notes));
     }
     Ok((outcome.exit_code(), Some(verdict.kind)))
@@ -324,8 +333,11 @@ fn hook_reply(
         ) })));
     }
     let verdict = verdict(&outcome, "Pytxo checks again when an agent stops");
-    let notes: Vec<String> = uncommitted_notes(&plan)
-        .into_iter()
+    let notes: Vec<String> = verdict
+        .note
+        .iter()
+        .cloned()
+        .chain(uncommitted_notes(&plan))
         .chain(notes(&plan))
         .collect();
     let text = format!(
@@ -333,10 +345,39 @@ fn hook_reply(
         note_lines(&notes)
     );
     Ok(Some(if block && outcome.exit_code() == 2 {
-        json!({ "decision": "block", "reason": text })
+        // What to do, for the agent whose worktree the hook runs in, once the
+        // output confirms the cause; otherwise the verdict.
+        let reason = fix_prompt(&outcome, reader(&plan, &outcome)).unwrap_or(text);
+        json!({ "decision": "block", "reason": reason })
     } else {
         json!({ "systemMessage": text })
     }))
+}
+
+/// Whom a fix prompt speaks to: the agent of the branch checked out where the
+/// hook runs, when that branch is the cause's user or the one that renamed or
+/// removed the name.
+fn reader(plan: &Plan, outcome: &LandOutcome) -> Reader {
+    let here = |n: usize| {
+        plan.branches
+            .get(n)
+            .and_then(|b| b.worktree.as_deref())
+            .is_some_and(|w| same_dir(w, &plan.root))
+    };
+    match &outcome.cause {
+        Some(c) if here(c.user) => Reader::User,
+        Some(c) if here(c.by) => Reader::By,
+        _ => Reader::Anyone,
+    }
+}
+
+/// One directory, however each path spells it: `git worktree list` and
+/// `rev-parse --show-toplevel` may differ in case, short names or links.
+fn same_dir(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
 }
 
 /// `hook.lock` in the git common dir, which every linked worktree shares.
