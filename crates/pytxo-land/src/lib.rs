@@ -864,7 +864,9 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     // or not: the command the verdict speaks of runs on the target with only
     // those two (scope `pair`), and when they fail it, on the target with
     // every other merged input (`rest`), so a verdict can clear the inputs
-    // that pass without them. In the combined worktree, which is done with,
+    // that pass without them. One other input's run alone merged it onto the
+    // target already, the same run, so that one is not run twice. In the
+    // combined worktree, which is done with,
     // so no scratch name of a new kind: the checks before that command run
     // first to set it up, as for the re-run, and only its own runs are
     // recorded. Never after a timeout, and never when the deadline would pass
@@ -923,9 +925,15 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             if let Some(run) = run_on("pair", &pair)? {
                 let failed = !run.passed && !run.timed_out;
                 checks.push(run);
-                if failed && room(1) {
-                    let rest: Vec<usize> =
-                        merged.into_iter().filter(|i| !pair.contains(i)).collect();
+                let rest: Vec<usize> = merged.into_iter().filter(|i| !pair.contains(i)).collect();
+                let ran_alone = |&i: &usize| {
+                    let scope = format!("input:{}", receipt_inputs[i].reference);
+                    checks
+                        .iter()
+                        .any(|c| c.scope == scope && &c.command == command)
+                };
+                let alone = matches!(rest.as_slice(), [one] if ran_alone(one));
+                if failed && !alone && room(1) {
                     checks.extend(run_on("rest", &rest)?);
                 }
             }

@@ -35,17 +35,29 @@ fn passed_when_rerun(p: &ReceiptPredicate, c: &ReceiptCheck) -> bool {
             .any(|r| r.rerun && r.passed && r.command == c.command)
 }
 
-/// Whether `command` passed on the target with only the two inputs a cause
-/// names (scope `pair`), and with every other merged input (`rest`); `None`
-/// for a run that did not happen or did not finish.
-fn culprits(p: &ReceiptPredicate, command: &str) -> (Option<bool>, Option<bool>) {
+/// Whether `command` passed on the target with only the two inputs `cause`
+/// names (scope `pair`), and with every other merged input (`rest`, or the
+/// run alone of the one other input, which is the same run); `None` for a
+/// run that did not happen or did not finish.
+fn culprits(p: &ReceiptPredicate, cause: &Cause, command: &str) -> (Option<bool>, Option<bool>) {
     let ran = |scope: &str| {
         p.checks
             .iter()
             .find(|c| c.scope == scope && c.command == command && !c.timed_out)
             .map(|c| c.passed)
     };
-    (ran("pair"), ran("rest"))
+    let others: Vec<&pytxo_core::ReceiptInput> = p
+        .inputs
+        .iter()
+        .enumerate()
+        .filter(|&(n, i)| i.status == "merged" && n != cause.by && n != cause.user)
+        .map(|(_, i)| i)
+        .collect();
+    let rest = match others.as_slice() {
+        [one] => ran(&format!("input:{}", one.reference)).or_else(|| ran("rest")),
+        _ => ran("rest"),
+    };
+    (ran("pair"), rest)
 }
 
 /// Positions, in command-line order, of the inputs a BLOCKED verdict blames:
@@ -85,7 +97,7 @@ fn implicated(p: &ReceiptPredicate, cause: Option<&Cause>, label: &str) -> Vec<u
         });
     for c in together {
         match cause {
-            Some(cause) if culprits(p, &c.command) == (Some(false), Some(true)) => {
+            Some(cause) if culprits(p, cause, &c.command) == (Some(false), Some(true)) => {
                 blamed.extend([cause.by, cause.user]);
                 // Without the name the others break as the two do, whatever
                 // the run on the rest, which keeps the name, says.
@@ -827,7 +839,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                     } else {
                         format!("{u} and {b}")
                     };
-                    let (pair_ran, rest_ran) = culprits(p, cmd);
+                    let (pair_ran, rest_ran) = culprits(p, cause, cmd);
                     // They pass without the others, so the cause guessed
                     // wrong: the verdict as without one, and what they did.
                     if pair_ran == Some(true) {

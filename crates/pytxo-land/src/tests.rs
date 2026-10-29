@@ -318,7 +318,8 @@ fn a_failure_together_names_the_rename_behind_it() {
 
 /// With a third branch, the two the cause names fail on the target by
 /// themselves and the third passes there without them: only the two are
-/// blamed, and the verdict clears the third.
+/// blamed, and the verdict clears the third. Its run alone is that run, so
+/// it does not run again.
 #[test]
 fn the_pair_a_cause_names_is_proven_and_the_others_cleared() {
     let dir = repo();
@@ -331,11 +332,7 @@ fn the_pair_a_cause_names_is_proven_and_the_others_cleared() {
     o.deadline = Some(Instant::now() + Duration::from_secs(600));
     let out = land(&o).unwrap();
     let text = render_text(&out);
-    assert_eq!(
-        culprit_runs(&out),
-        [("pair", false), ("rest", true)],
-        "{text}"
-    );
+    assert_eq!(culprit_runs(&out), [("pair", false)], "{text}");
     assert!(!out.out_of_time);
     let cause = out.cause.as_ref().unwrap();
     assert_eq!((cause.by, cause.user, cause.confirmed), (1, 2, true));
@@ -353,14 +350,14 @@ next     rebase agent/caller onto agent/rename and use unitPrice, then run npx p
     );
     let md = render_markdown(&out);
     assert!(
-        md.contains("| `pair` | **fail** |") && md.contains("| `rest` | pass |"),
+        md.contains("| `pair` | **fail** |") && !md.contains("`rest`"),
         "{md}"
     );
     assert!(
-        text.contains("\n  pair ") && text.contains("\n  rest "),
+        text.contains("\n  pair ") && !text.contains("\n  rest "),
         "{text}"
     );
-    // Both runs are in the written receipt, and its digest verifies.
+    // The pair's run is in the written receipt, and its digest verifies.
     let written: Receipt =
         serde_json::from_slice(&std::fs::read(&out.receipt_path).unwrap()).unwrap();
     assert!(written.digest_matches());
