@@ -87,9 +87,10 @@ pub struct NameUse {
     /// unless `a` is a module the file imports, or the caller counts members
     /// and the code calls it: `a.name()`.
     pub lines: Vec<usize>,
-    /// The file binds the name other than by an import, in any scope: a
-    /// function, class, variable or parameter of that name, so the lines may
-    /// refer to its own.
+    /// The file binds the name, in any scope: a function, class, variable or
+    /// parameter of that name, or an import that names what it brings in so
+    /// (a default or namespace import, a module required whole, an alias),
+    /// so the lines may refer to its own.
     pub binds: bool,
     /// It binds the name outside every function, class and block, where code
     /// that imports the file reaches it: a function or class, a variable such
@@ -436,8 +437,19 @@ fn is_import_call(node: tree_sitter::Node<'_>, source: &str) -> bool {
 }
 
 /// What an identifier is inside an import: the name it brings in refers to
-/// what it imports, a module's own path does not. `None` outside imports.
+/// what it imports, a module's own path does not. A name the file gives what
+/// it imports, whatever the module calls it, is the file's own: a default or
+/// namespace import, a module required whole, an alias. `None` outside
+/// imports.
 fn import_role<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<Role<'t>> {
+    // `import price from`, `import * as price`, `import price = require()`,
+    // and the alias of `{ unitPrice as price }` or `unit_price as price`.
+    let named_here = node.parent().is_some_and(|p| {
+        matches!(
+            p.kind(),
+            "import_clause" | "namespace_import" | "import_require_clause"
+        ) || p.child_by_field_name("alias") == Some(node)
+    });
     let mut child = node;
     let mut up = node.parent();
     while let Some(n) = up {
@@ -446,15 +458,25 @@ fn import_role<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<Role<'t>
             | "import_declaration"
             | "import_spec"
             | "use_declaration"
-            | "import_require_clause" => return Some(Role::Refers),
+            | "import_require_clause" => {
+                return Some(if named_here {
+                    Role::Binds { top: false }
+                } else {
+                    Role::Refers
+                })
+            }
             "import_from_statement" => {
                 return Some(if n.child_by_field_name("module_name") == Some(child) {
                     Role::Neither
+                } else if named_here {
+                    Role::Binds { top: false }
                 } else {
                     Role::Refers
                 });
             }
-            // `const { price } = require('./cart')`, `const p = require('./cart').price`.
+            // `const { price } = require('./cart')` and `const p =
+            // require('./cart').price` bring in its `price`; `const cart =
+            // require('./cart')` names the module.
             "variable_declarator"
                 if n.child_by_field_name("name") == Some(child)
                     && n.child_by_field_name("value").is_some_and(|v| {
@@ -468,7 +490,14 @@ fn import_role<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<Role<'t>
                         is_import_call(v, source)
                     }) =>
             {
-                return Some(Role::Refers);
+                let whole = child == node
+                    && n.child_by_field_name("value")
+                        .is_some_and(|v| is_import_call(v, source));
+                return Some(if whole {
+                    Role::Binds { top: false }
+                } else {
+                    Role::Refers
+                });
             }
             _ if SCOPES.contains(&n.kind()) => return None,
             _ => {}
@@ -525,7 +554,12 @@ fn imported<'s>(
     loop {
         let node = cursor.node();
         let kind = node.kind();
-        if kind.contains("identifier") && matches!(import_role(node, source), Some(Role::Refers)) {
+        if kind.contains("identifier")
+            && matches!(
+                import_role(node, source),
+                Some(Role::Refers | Role::Binds { .. })
+            )
+        {
             names.extend(text(node, source));
         }
         // Go names a package by its path's last part.
@@ -804,6 +838,43 @@ mod tests {
             name_use(Path::new("notes.md"), "price", "price", false),
             None
         );
+    }
+
+    /// A default import, a namespace import, a whole module required or an
+    /// alias gives what it brings in a name of the file's own choosing: a
+    /// file with one binds the name itself. `cart.price()` on such a module
+    /// is still a use.
+    #[test]
+    fn an_import_named_here_binds_its_own_name() {
+        for (path, own) in [
+            (
+                "a.js",
+                "import price from './pricing.js';\nprice({ cost: 2 });\n",
+            ),
+            (
+                "a.js",
+                "import * as price from './pricing.js';\nprice.of(1);\n",
+            ),
+            (
+                "a.js",
+                "const price = require('./pricing.js');\nprice(1);\n",
+            ),
+            ("a.ts", "import price = require('./pricing');\nprice(1);\n"),
+            (
+                "a.js",
+                "import { unitPrice as price } from './cart.js';\nprice(1);\n",
+            ),
+            (
+                "a.py",
+                "from shop.cart import unit_price as price\nprice(1)\n",
+            ),
+            ("a.py", "import shop.pricing as price\nprice.of(1)\n"),
+        ] {
+            let found = price_in(path, own);
+            assert!(found.binds && !found.exports, "{own}");
+        }
+        let module = "import cart from './cart.js';\nimport * as shop from './shop.js';\nconst tax = require('./tax.js');\ncart.price(1);\nshop.price(2);\ntax.price(3);\n";
+        assert_eq!(price_in("a.js", module).lines, [4, 5, 6]);
     }
 
     /// A method is used where it is called. `a.name` read without a call is

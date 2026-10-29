@@ -1118,6 +1118,29 @@ mod tests {
         assert_eq!(cause(d, &["agent/rename", "agent/receipt"], &failed), None);
     }
 
+    /// `export default function discount` renamed: an importer names the
+    /// default as it likes, so `import discount from` is its own name, which
+    /// the rename cannot break, and no use of it.
+    #[test]
+    fn a_default_import_names_the_default_as_the_importer_likes() {
+        let dir = repo();
+        let d = dir.path();
+        let pricing =
+            "export default function discount(order) {\n  return order.qty >= 10 ? 0.1 : 0;\n}\n";
+        write(d, &[("src/pricing.js", pricing)]);
+        git(d, &["add", "-A"]);
+        git(d, &["commit", "-q", "-m", "pricing"]);
+        let renamed = pricing.replace("discount", "bulkDiscount");
+        branch(d, "main", "agent/rename", &[("src/pricing.js", &renamed)]);
+        let test = "import assert from 'node:assert';\nimport discount from '../src/pricing.js';\nassert.strictEqual(discount({ qty: 100 }), 0);\n";
+        branch(d, "main", "agent/test", &[("test/bulk.test.js", test)]);
+        let failed = [
+            "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+            "0.1 !== 0",
+        ];
+        assert_eq!(cause(d, &["agent/rename", "agent/test"], &failed), None);
+    }
+
     /// README and docs say the word in prose, which no grammar here reads:
     /// the uses are the code's, and a branch with only docs is no user.
     #[test]
