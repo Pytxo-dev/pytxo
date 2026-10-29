@@ -97,7 +97,10 @@ pub struct ReceiptSymbolCollision {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ReceiptCheck {
-    /// `combined`, `input:<ref>` or `target`.
+    /// `combined`, `input:<ref>`, `target`, or, after a cause names two inputs
+    /// of three or more, `pair` (the target with only those two) and `rest`
+    /// (the target with the other merged inputs). A plain string, so older
+    /// receipts read and verify unchanged.
     pub scope: String,
     pub command: String,
     /// `None` when no exit status was observed (the check never started or

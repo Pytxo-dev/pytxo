@@ -218,15 +218,43 @@ fn every_input_passes_alone_but_the_combination_fails() {
 /// `unitPrice` and src/extra.js still says `price`, the way Node fails there.
 const RENAME_BREAKS: &str = "git grep -q unitPrice -- src/cart.js && git grep -q -w price -- src/extra.js && echo TypeError: price is not a function && exit 1 || exit 0";
 
+/// A new caller of `price()`, which `agent/rename` renames.
+const CALLER: &str =
+    "const { price } = require('./cart.js');\nmodule.exports = () => price({ cost: 2 });\n";
+
+/// `agent/rename` renames `price`, `agent/caller` adds a caller of it, and
+/// `agent/docs` only adds notes.
+fn rename_caller_and_docs(d: &Path) {
+    branch(d, "main", "agent/docs", &[("docs/notes.md", "notes\n")]);
+    let renamed = CART.replace("price", "unitPrice");
+    branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+    branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+}
+
+/// The runs on the cause's pair and on the rest, and whether each passed.
+fn culprit_runs(out: &LandOutcome) -> Vec<(&str, bool)> {
+    out.receipt
+        .predicate
+        .checks
+        .iter()
+        .filter(|c| c.scope == "pair" || c.scope == "rest")
+        .map(|c| (c.scope.as_str(), c.passed))
+        .collect()
+}
+
+/// The last line of the pull-request comment, which the Action reads.
+fn verdict_line(out: &LandOutcome) -> String {
+    let md = render_markdown(out);
+    md.trim_end().lines().last().unwrap().to_string()
+}
+
 #[test]
 fn a_failure_together_names_the_rename_behind_it() {
     let dir = repo();
     let d = dir.path();
     let renamed = CART.replace("price", "unitPrice");
     branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
-    let caller =
-        "const { price } = require('./cart.js');\nmodule.exports = () => price({ cost: 2 });\n";
-    branch(d, "main", "agent/caller", &[("src/extra.js", caller)]);
+    branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
     let mut o = opts(d, &["agent/rename", "agent/caller"]);
     o.checks = vec![RENAME_BREAKS.into()];
     o.per_input = PerInput::OnFailure;
@@ -237,6 +265,8 @@ fn a_failure_together_names_the_rename_behind_it() {
         [(false, false), (false, true)],
         "{text}"
     );
+    // Two branches are the pair already: nothing more runs.
+    assert!(culprit_runs(&out).is_empty(), "{text}");
     assert_eq!(
         out.cause,
         Some(Cause {
@@ -283,6 +313,206 @@ fn a_failure_together_names_the_rename_behind_it() {
         render_text(&out)
     );
     assert_eq!(out.cause, None);
+}
+
+/// With a third branch, the two the cause names fail on the target by
+/// themselves and the third passes there without them: only the two are
+/// blamed, and the verdict clears the third.
+#[test]
+fn the_pair_a_cause_names_is_proven_and_the_others_cleared() {
+    let dir = repo();
+    let d = dir.path();
+    rename_caller_and_docs(d);
+    let mut o = opts(d, &["agent/docs", "agent/rename", "agent/caller"]);
+    o.checks = vec![RENAME_BREAKS.into()];
+    o.per_input = PerInput::OnFailure;
+    // A deadline with room for them changes nothing.
+    o.deadline = Some(Instant::now() + Duration::from_secs(600));
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(
+        culprit_runs(&out),
+        [("pair", false), ("rest", true)],
+        "{text}"
+    );
+    assert!(!out.out_of_time);
+    let cause = out.cause.as_ref().unwrap();
+    assert_eq!((cause.by, cause.user, cause.confirmed), (1, 2, true));
+    let v = verdict(&out, "run npx pytxo again");
+    assert_eq!(
+        v.to_string(),
+        "BLOCKED  agent/rename and agent/caller fail together; agent/docs passes without them.
+why      agent/rename renamed price to unitPrice; agent/caller still uses price (src/extra.js:1).
+next     rebase agent/caller onto agent/rename and use unitPrice, then run npx pytxo again.
+"
+    );
+    assert_eq!(
+        verdict_line(&out),
+        r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[1,2]} -->"#
+    );
+    let md = render_markdown(&out);
+    assert!(
+        md.contains("| `pair` | **fail** |") && md.contains("| `rest` | pass |"),
+        "{md}"
+    );
+    assert!(
+        text.contains("\n  pair ") && text.contains("\n  rest "),
+        "{text}"
+    );
+    // Both runs are in the written receipt, and its digest verifies.
+    let written: Receipt =
+        serde_json::from_slice(&std::fs::read(&out.receipt_path).unwrap()).unwrap();
+    assert!(written.digest_matches());
+    assert_eq!(written.predicate.checks, out.receipt.predicate.checks);
+}
+
+/// The two the cause names pass by themselves; the failure takes the third
+/// as well. The guess was wrong: the verdict is the one without a cause,
+/// and a note says the two passed.
+#[test]
+fn a_pair_that_passes_by_itself_leaves_the_verdict_as_it_was() {
+    let dir = repo();
+    let d = dir.path();
+    rename_caller_and_docs(d);
+    // Breaks only where the docs branch's notes are too.
+    let check = RENAME_BREAKS.replacen(
+        " && echo",
+        " && git grep -q notes -- docs/notes.md && echo",
+        1,
+    );
+    let mut o = opts(d, &["agent/docs", "agent/rename", "agent/caller"]);
+    o.checks = vec![check.clone()];
+    o.per_input = PerInput::OnFailure;
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(culprit_runs(&out), [("pair", true)], "{text}");
+    assert!(out.cause.is_some(), "{text}");
+    let v = verdict(&out, "run npx pytxo again");
+    assert_eq!(
+        v.what,
+        format!("agent/docs, agent/rename and agent/caller pass {check} alone but fail together.")
+    );
+    assert_eq!(
+        v.why,
+        format!("{check} fails on the combined change: TypeError: price is not a function")
+    );
+    assert_eq!(
+        v.next,
+        "fix one branch so they agree, then run npx pytxo again."
+    );
+    assert_eq!(
+        v.note,
+        Some(format!(
+            "agent/rename and agent/caller pass {check} together without the other branches."
+        ))
+    );
+    assert_eq!((v.cause, v.fix_prompt), (None, None));
+    assert_eq!(
+        verdict_line(&out),
+        r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[0,1,2]} -->"#
+    );
+}
+
+/// The two the cause names fail by themselves, and the others fail without
+/// them too: everyone stays blamed, and the verdict names the two.
+#[test]
+fn others_that_fail_without_the_pair_stay_blamed() {
+    let dir = repo();
+    let d = dir.path();
+    let renamed = CART.replace("price", "unitPrice");
+    branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+    branch(d, "main", "agent/d", &[("d.txt", "d\n")]);
+    // Breaks where c.txt and d.txt both are, too.
+    let check = RENAME_BREAKS.replacen(
+        "|| exit 0",
+        "|| git grep -q c -- c.txt && git grep -q d -- d.txt && echo boom && exit 1 || exit 0",
+        1,
+    );
+    let mut o = opts(d, &["agent/rename", "agent/c", "agent/caller", "agent/d"]);
+    o.checks = vec![check];
+    o.per_input = PerInput::OnFailure;
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(
+        culprit_runs(&out),
+        [("pair", false), ("rest", false)],
+        "{text}"
+    );
+    // The others' own failure, not the pair's. (cmd echoes the space before `&&`.)
+    let rest = out.receipt.predicate.checks.last().unwrap();
+    assert_eq!(rest.output_tail.concat().trim(), "boom", "{text}");
+    let cause = out.cause.as_ref().unwrap();
+    assert_eq!((cause.by, cause.user), (0, 2));
+    let v = verdict(&out, "run npx pytxo again");
+    assert_eq!(
+        v.what,
+        "agent/rename and agent/caller fail together; the other 2 branches fail without them too."
+    );
+    assert_eq!(
+        v.why,
+        "agent/rename renamed price to unitPrice; agent/caller still uses price (src/extra.js:1)."
+    );
+    assert_eq!(
+        verdict_line(&out),
+        r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[0,1,2,3]} -->"#
+    );
+}
+
+/// `RENAME_BREAKS`, six seconds slower the first time it fails: the combined
+/// run takes that long, and its re-run does not.
+fn rename_breaks_slowly_once(marker: &Path) -> String {
+    #[cfg(windows)]
+    let wait = format!(
+        "(type \"{0}\" > nul 2>&1 || (type nul > \"{0}\" & ping -n 7 127.0.0.1 > nul))",
+        marker.display()
+    );
+    #[cfg(not(windows))]
+    let wait = format!(
+        "{{ test -f '{0}' || {{ touch '{0}' && sleep 6; }}; }}",
+        marker.display()
+    );
+    RENAME_BREAKS.replacen(" && echo", &format!(" && {wait} && echo"), 1)
+}
+
+/// Two more runs as long as the combined one would end past the deadline:
+/// neither starts, and the verdict is the one the runs before gave, in time.
+#[test]
+fn no_pair_runs_start_when_the_deadline_would_pass_first() {
+    let dir = repo();
+    let d = dir.path();
+    rename_caller_and_docs(d);
+    let scratch = tempfile::tempdir().unwrap();
+    let mut o = opts(d, &["agent/docs", "agent/rename", "agent/caller"]);
+    o.checks = vec![rename_breaks_slowly_once(&scratch.path().join("slow"))];
+    o.per_input = PerInput::OnFailure;
+    // Three times the slow run from the start: once it has run, two more of
+    // it never fit, and the git calls and quick runs around it have twice its
+    // length, which a loaded machine needs.
+    o.deadline = Some(Instant::now() + Duration::from_secs(18));
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert!(!out.out_of_time, "{text}");
+    assert!(culprit_runs(&out).is_empty(), "{text}");
+    assert_eq!(
+        combined_runs(&out),
+        [(false, false), (false, true)],
+        "{text}"
+    );
+    assert!(out.cause.is_some(), "{text}");
+    let v = verdict(&out, "again");
+    assert_eq!(
+        v.what,
+        format!(
+            "agent/docs, agent/rename and agent/caller pass {} alone but fail together.",
+            o.checks[0]
+        )
+    );
+    assert_eq!(
+        verdict_line(&out),
+        r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[0,1,2]} -->"#
+    );
 }
 
 /// A check that fails only where both `a.txt` and `b.txt` exist, so only on

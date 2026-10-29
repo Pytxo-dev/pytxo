@@ -860,6 +860,78 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             checks.push(check);
         }
     }
+    // With three or more merged inputs, the pair the cause names, confirmed
+    // or not: the command the verdict speaks of runs on the target with only
+    // those two (scope `pair`), and when they fail it, on the target with
+    // every other merged input (`rest`), so a verdict can clear the inputs
+    // that pass without them. In the combined worktree, which is done with,
+    // so no scratch name of a new kind: the checks before that command run
+    // first to set it up, as for the re-run, and only its own runs are
+    // recorded. Never after a timeout, and never when the deadline would pass
+    // before the runs end, going by how long the combined run took. They
+    // only sharpen a verdict the runs before already give, so a deadline that
+    // cuts one short leaves that verdict standing: it is not out of time.
+    if let (Some(tree), Some(cause), Some(command)) = (&combined_tree, &cause, together) {
+        let merged: Vec<usize> = (0..receipt_inputs.len())
+            .filter(|&i| receipt_inputs[i].status == "merged")
+            .collect();
+        let upto = opts.checks.iter().position(|c| c == command).unwrap_or(0);
+        let took: Duration = checks
+            .iter()
+            .filter(|c| c.scope == "combined" && !c.rerun)
+            .take(upto + 1)
+            .map(|c| Duration::from_millis(c.duration_ms))
+            .sum();
+        let room = |runs: u32| {
+            opts.deadline
+                .is_none_or(|d| Instant::now() + took * runs < d)
+        };
+        let timed_out = out_of_time.get() || checks.iter().any(|c| c.timed_out);
+        if merged.len() >= 3 && !timed_out && room(2) {
+            let wt = Git::owned(&tree.path, identity);
+            // The command's run on the target plus `which`; `None` when they
+            // do not merge or the deadline came first.
+            let run_on = |scope: &str, which: &[usize]| -> Result<Option<ReceiptCheck>> {
+                let message = format!("pytxo land: {scope}");
+                let mut at = base.clone();
+                for &i in which {
+                    let merge = if in_memory {
+                        merge_in_memory(&owned, &at, &resolved[i].commit, &message)?
+                    } else {
+                        wt.run(&["reset", "--hard", &at])?;
+                        merge_in_worktree(&wt, &resolved[i].commit, &message)?
+                    };
+                    // Each merged into the combined change, yet a part of
+                    // them can still conflict on its own.
+                    let Ok(commit) = merge else {
+                        return Ok(None);
+                    };
+                    at = commit;
+                }
+                wt.run(&["checkout", "--detach", "--force", &at])?;
+                let _ = wt.run(&SCRATCH_CLEAN);
+                let mut run = None;
+                for command in &opts.checks[..=upto] {
+                    run = run_check(scope, command, &tree.path);
+                    if run.is_none() {
+                        break;
+                    }
+                }
+                Ok(run)
+            };
+            let pair = [cause.by.min(cause.user), cause.by.max(cause.user)];
+            if let Some(run) = run_on("pair", &pair)? {
+                let failed = !run.passed && !run.timed_out;
+                checks.push(run);
+                if failed && room(1) {
+                    let rest: Vec<usize> =
+                        merged.into_iter().filter(|i| !pair.contains(i)).collect();
+                    checks.extend(run_on("rest", &rest)?);
+                }
+            }
+            out_of_time.set(false);
+        }
+    }
     drop(combined_tree);
     drop(run_dir);
     let out_of_time = out_of_time.get();
