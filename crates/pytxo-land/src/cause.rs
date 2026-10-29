@@ -57,13 +57,15 @@ pub struct Use {
 }
 
 /// A name one input stopped defining, by its position among the merged
-/// inputs: what it calls the name now, when its diff says, and whether one
-/// it defined was a member, such as a method, which code calls as `a.name`.
+/// inputs: what it calls the name now, when its diff says, whether one it
+/// defined was a member, such as a method, which code calls as `a.name`, and
+/// the files that defined it, whose modules code calls it on as well.
 struct Gone {
     by: usize,
     name: String,
     renamed: Option<String>,
     member: bool,
+    homes: Vec<String>,
 }
 
 /// A merged input: its position in the inputs, the commit it shares with the
@@ -143,6 +145,8 @@ pub(crate) fn find(
             return None;
         }
         let mut looked_at = BTreeSet::new();
+        let mut homes: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        let first = candidates.len();
         let mut gone = 0;
         for file in files {
             let Some(before) = &file.old_source else {
@@ -150,7 +154,9 @@ pub(crate) fn find(
             };
             let names: Vec<(String, bool)> = defined(&file.path, before)
                 .into_iter()
-                .filter(|(n, _)| used_by_another(n) && looked_at.insert(n.clone()))
+                .filter(|(n, _)| used_by_another(n))
+                .inspect(|(n, _)| homes.entry(n.clone()).or_default().push(file.path.clone()))
+                .filter(|(n, _)| looked_at.insert(n.clone()))
                 .collect();
             if names.is_empty() {
                 continue;
@@ -175,8 +181,12 @@ pub(crate) fn find(
                     name,
                     renamed,
                     member,
+                    homes: Vec::new(),
                 });
             }
+        }
+        for c in &mut candidates[first..] {
+            c.homes = homes.remove(&c.name).unwrap_or_default();
         }
     }
     // Gone only when the input no longer uses the name itself: not a word
@@ -219,7 +229,7 @@ pub(crate) fn find(
             continue;
         }
         for (u, user) in inputs.iter().enumerate().filter(|&(u, _)| u != c.by) {
-            let (uses, values) = uses_in(&diffs[u], &c.name, c.member, own);
+            let (uses, values) = uses_in(&diffs[u], c, own);
             if uses.is_empty() {
                 continue;
             }
@@ -373,7 +383,7 @@ fn defines(
                 defined = true;
                 continue;
             };
-            let said = name_use(Path::new(path), source, name, false).unwrap_or_default();
+            let said = name_use(Path::new(path), source, name, false, &[]).unwrap_or_default();
             defined |= said.exports || symbols.iter().any(|n| n == name);
             if said.binds {
                 own.insert(path.clone());
@@ -479,22 +489,19 @@ fn said_only(diff: &[FileDiff], name: &str) -> Option<Vec<String>> {
     Some(files)
 }
 
-/// The lines an input added where its code refers to `name`, as the file is
-/// on that branch: not a word in a string, a comment, docs or a file with no
-/// grammar here, an object key, nor `a.name` unless `name` was a `member`
-/// and the line calls it, `a.name()`: a read is a field's.
-/// Not in a file that binds `name` itself in the combined change, one of
+/// The lines an input added where its code refers to the `gone` name, as
+/// the file is on that branch: not a word in a string, a comment, docs or a
+/// file with no grammar here, an object key, nor `a.name` unless `a` is the
+/// module of a file that defined it, or the name was a member and the line
+/// calls it, `a.name()`: a read is a field's.
+/// Not in a file that binds the name itself in the combined change, one of
 /// `own`, whose code refers to its own: a local, a parameter or an import
 /// named there. A file the branch has from the merge base binds the name the
 /// renaming branch took away, which binds nothing once they are combined.
 /// Then the uses among them that say more than a type, where the code that
 /// runs says the name.
-fn uses_in(
-    diff: &[FileDiff],
-    name: &str,
-    member: bool,
-    own: &BTreeSet<String>,
-) -> (Vec<Use>, Vec<Use>) {
+fn uses_in(diff: &[FileDiff], gone: &Gone, own: &BTreeSet<String>) -> (Vec<Use>, Vec<Use>) {
+    let name = gone.name.as_str();
     let (mut uses, mut values) = (Vec::new(), Vec::new());
     for f in diff {
         let Some(source) = f.new_source.as_deref() else {
@@ -506,7 +513,8 @@ fn uses_in(
         if own.contains(&f.path) {
             continue;
         }
-        let Some(said) = name_use(Path::new(&f.path), source, name, member) else {
+        let Some(said) = name_use(Path::new(&f.path), source, name, gone.member, &gone.homes)
+        else {
             continue;
         };
         let added: BTreeSet<u32> = f.added.iter().map(|(n, _)| *n).collect();
@@ -1260,6 +1268,38 @@ mod tests {
                 .unwrap()
                 .confirmed
         );
+    }
+
+    /// `rate()` in shop/cart.py renamed: `settings.rate` reads the `settings`
+    /// a from-import brings in from shop/config.py, an object and no module
+    /// that defined `rate`, so it is no use. `from shop import cart` brings
+    /// in the module itself, whose `cart.rate()` is one.
+    #[test]
+    fn a_from_import_brings_in_a_module_only_by_the_name_of_its_file() {
+        let dir = repo();
+        let d = dir.path();
+        let cart = "def rate(region):\n    return 0.1\n\n\ndef price(cost):\n    return cost\n";
+        write(d, &[("shop/__init__.py", ""), ("shop/cart.py", cart)]);
+        git(d, &["add", "-A"]);
+        git(d, &["commit", "-q", "-m", "shop"]);
+        let renamed = cart.replace("rate", "tax_rate");
+        branch(d, "main", "agent/cents", &[("shop/cart.py", &renamed)]);
+        let config = "from types import SimpleNamespace\n\nsettings = SimpleNamespace(rate=0.2)\n";
+        let report = "from shop.config import settings\n\n\ndef line(cost):\n    return 'rate %.1f' % settings.rate\n";
+        branch(
+            d,
+            "main",
+            "agent/report",
+            &[("shop/config.py", config), ("shop/report.py", report)],
+        );
+        let failed = ["AssertionError: 'rate 0.2, due 400' != 'rate 0.2, due 4'"];
+        assert_eq!(cause(d, &["agent/cents", "agent/report"], &failed), None);
+        let module = report
+            .replace("shop.config import settings", "shop import cart")
+            .replace("settings.rate", "cart.rate('eu')");
+        branch(d, "main", "agent/module", &[("shop/report.py", &module)]);
+        let found = cause(d, &["agent/cents", "agent/module"], &failed).unwrap();
+        assert_eq!(found.uses.iter().map(|u| u.line).collect::<Vec<_>>(), [5]);
     }
 
     /// README and docs say the word in prose, which no grammar here reads:

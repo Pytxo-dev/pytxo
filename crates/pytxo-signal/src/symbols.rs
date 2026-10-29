@@ -106,12 +106,23 @@ pub struct NameUse {
 
 /// How the code in `source` says `name`. With `members`, `a.name()` refers
 /// to it too, as a call of a method does; `a.name` without a call reads a
-/// field of that name, which is no use of a method. `None` without a grammar
-/// for `path`.
+/// field of that name, which is no use of a method. `homes` are the files
+/// that define it: an import that brings in a name as its module calls it,
+/// such as Python's `from shop import cart` or `import { cart }`, brings in
+/// a module whose `cart.name` is a use only when a home is named so, as
+/// shop/cart.py is; otherwise it is an object of that name. `None` without a
+/// grammar for `path`.
 // ponytail: a file that binds the name anywhere, a parameter included, has
 // no uses of another's, and `const { price } = cart` binds it; resolve scopes
-// if a shadowed name ever hides a real use.
-pub fn name_use(path: &Path, source: &str, name: &str, members: bool) -> Option<NameUse> {
+// if a shadowed name ever hides a real use. A module that only re-exports the
+// name is no home; read the tree if `from shop import pricing` misses a use.
+pub fn name_use(
+    path: &Path,
+    source: &str,
+    name: &str,
+    members: bool,
+    homes: &[String],
+) -> Option<NameUse> {
     let lang = language::detect(path)?;
     let mut parser = tree_sitter::Parser::new();
     parser.set_language(&lang.grammar).ok()?;
@@ -126,7 +137,7 @@ pub fn name_use(path: &Path, source: &str, name: &str, members: bool) -> Option<
         if (kind.contains("identifier") || kind == "constant") && text(node, source) == Some(name) {
             let line = node.start_position().row + 1;
             match role(node, cursor.field_name(), members, source) {
-                Role::Refers => found.lines.push(line),
+                Role::Refers | Role::Named => found.lines.push(line),
                 Role::Type => found.types.push(line),
                 Role::Property(of) => properties.push((line, of)),
                 Role::Binds { top } => {
@@ -142,7 +153,7 @@ pub fn name_use(path: &Path, source: &str, name: &str, members: bool) -> Option<
         loop {
             if !cursor.goto_parent() {
                 if !properties.is_empty() {
-                    let modules = imported(tree.root_node(), source);
+                    let modules = imported(tree.root_node(), source, homes);
                     let module = |of: &Option<tree_sitter::Node>| {
                         of.is_some_and(|n| is_import_call(n, source))
                             || of
@@ -174,6 +185,10 @@ pub fn name_use(path: &Path, source: &str, name: &str, members: bool) -> Option<
 /// What an identifier of the name is to the code around it.
 enum Role<'t> {
     Refers,
+    /// A name an import brings in as its module calls it, `{ price }` or
+    /// Python's `from cart import price`: a use, and a module only if a home
+    /// is named so.
+    Named,
     /// A use as a type only, which no code that runs says.
     Type,
     /// `a.name`: a use only of a member, or of a module's name; with the
@@ -500,6 +515,11 @@ fn import_role<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<Role<'t>
                     Role::Binds { top: false }
                 } else if typed(n) || node.parent().is_some_and(typed) {
                     Role::Type
+                } else if node
+                    .parent()
+                    .is_some_and(|p| p.kind() == "import_specifier")
+                {
+                    Role::Named
                 } else {
                     Role::Refers
                 });
@@ -510,7 +530,7 @@ fn import_role<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<Role<'t>
                 } else if named_here {
                     Role::Binds { top: false }
                 } else {
-                    Role::Refers
+                    Role::Named
                 });
             }
             // `const { price } = require('./cart')` and `const p =
@@ -528,7 +548,7 @@ fn import_role<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<Role<'t>
                 return Some(if whole || names_node_module(specifier, source) {
                     Role::Binds { top: false }
                 } else {
-                    Role::Refers
+                    Role::Named
                 });
             }
             _ if SCOPES.contains(&n.kind()) => return None,
@@ -575,24 +595,39 @@ fn is_exported_object(object: tree_sitter::Node<'_>, source: &str) -> bool {
 }
 
 /// The names the file's imports bind, a module's among them: `cart` of
-/// `const cart = require('./cart')`, `import * as cart`, `import cart` or
-/// Go's `import "example.com/cart"`.
+/// `const cart = require('./cart')`, `import * as cart`, `import cart`, Go's
+/// `import "example.com/cart"`, or of `from shop import cart` when one of
+/// `homes` is that module, shop/cart.py or shop/cart/__init__.py.
 fn imported<'s>(
     root: tree_sitter::Node<'_>,
     source: &'s str,
+    homes: &[String],
 ) -> std::collections::BTreeSet<&'s str> {
+    let modules: Vec<&str> = homes
+        .iter()
+        .filter_map(|home| {
+            let home = Path::new(home);
+            match home.file_stem()?.to_str()? {
+                "__init__" | "index" | "mod" => home.parent()?.file_name()?.to_str(),
+                stem => Some(stem),
+            }
+        })
+        .collect();
     let mut names = std::collections::BTreeSet::new();
     let mut cursor = root.walk();
     loop {
         let node = cursor.node();
         let kind = node.kind();
-        if kind.contains("identifier")
-            && matches!(
-                import_role(node, source),
-                Some(Role::Refers | Role::Binds { .. })
-            )
-        {
-            names.extend(text(node, source));
+        if kind.contains("identifier") {
+            let said = text(node, source);
+            let module = match import_role(node, source) {
+                Some(Role::Refers | Role::Binds { .. }) => true,
+                Some(Role::Named) => said.is_some_and(|t| modules.contains(&t)),
+                _ => false,
+            };
+            if module {
+                names.extend(said);
+            }
         }
         // Go names a package by its path's last part.
         if kind == "interpreted_string_literal"
@@ -838,7 +873,7 @@ mod tests {
 
     /// `name_use` of `price` in `source`, as `path`.
     fn price_in(path: &str, source: &str) -> NameUse {
-        name_use(Path::new(path), source, "price", false).unwrap()
+        name_use(Path::new(path), source, "price", false, &[]).unwrap()
     }
 
     #[test]
@@ -849,7 +884,7 @@ mod tests {
         assert!(!found.binds && !found.exports);
         // `item.price` reads a field, even when members count.
         assert_eq!(
-            name_use(Path::new("a.js"), js, "price", true)
+            name_use(Path::new("a.js"), js, "price", true, &[])
                 .unwrap()
                 .lines,
             [1, 4, 7]
@@ -860,14 +895,14 @@ mod tests {
         let py = "from shop.cart import price\nimport shop.tax as tax\nx = price(1)\ny = tax.price(2)\nz = item.price\nf(price=3)\ns = 'price'  # price\n";
         assert_eq!(price_in("a.py", py).lines, [1, 3, 4]);
         let go = "package main\n\nimport \"example.com/shop\"\n\nfunc F(c Cart) int {\n\tx := shop.Price(1)\n\ty := Item{Price: 2}\n\treturn x + c.Price + y.Price\n}\n";
-        let found = name_use(Path::new("main.go"), go, "Price", false).unwrap();
+        let found = name_use(Path::new("main.go"), go, "Price", false, &[]).unwrap();
         assert_eq!(found.lines, [6]);
-        let found = name_use(Path::new("main.go"), go, "Price", true).unwrap();
+        let found = name_use(Path::new("main.go"), go, "Price", true, &[]).unwrap();
         assert_eq!(found.lines, [6]);
         let rs = "use crate::cart::price;\nfn f(a: A) -> u32 {\n    let z = Item { price: 1 };\n    cart::price(1) + a.price\n}\n";
         assert_eq!(price_in("lib.rs", rs).lines, [1, 4]);
         assert_eq!(
-            name_use(Path::new("notes.md"), "price", "price", false),
+            name_use(Path::new("notes.md"), "price", "price", false, &[]),
             None
         );
     }
@@ -914,7 +949,7 @@ mod tests {
     #[test]
     fn a_name_from_a_node_module_is_the_files_own() {
         let basename =
-            |source: &str| name_use(Path::new("a.js"), source, "basename", false).unwrap();
+            |source: &str| name_use(Path::new("a.js"), source, "basename", false, &[]).unwrap();
         for own in [
             "import { basename } from 'node:path';\nbasename(p);\n",
             "const { basename } = require(\"node:path\");\nbasename(p);\n",
@@ -931,7 +966,7 @@ mod tests {
     /// A line that says the name as a value as well is no type's alone.
     #[test]
     fn a_type_is_a_use_apart_from_the_code_that_runs() {
-        let item = |source: &str| name_use(Path::new("a.ts"), source, "Item", false).unwrap();
+        let item = |source: &str| name_use(Path::new("a.ts"), source, "Item", false, &[]).unwrap();
         let ts = "import { price, type Item } from './cart';\nimport type { Item as I } from './cart';\nconst x = price({ cost: 2 } as Item);\nclass B implements Item {}\nconst y: Item = new Item(2);\nconst f = (items: Item[]) => items.length;\n";
         let found = item(ts);
         assert_eq!(
@@ -942,13 +977,34 @@ mod tests {
         assert_eq!((value.lines, value.types), (vec![1, 2], vec![]));
     }
 
+    /// A name an import brings in as its module calls it is a module only
+    /// when a file that defines the name is named so: `from shop import cart`
+    /// brings in shop/cart.py, `from shop.config import settings` an object.
+    #[test]
+    fn a_named_import_is_a_module_only_by_the_name_of_a_home() {
+        let rate = |path: &str, source: &str, home: &str| {
+            let homes: Vec<String> = [home].iter().map(|h| h.to_string()).collect();
+            name_use(Path::new(path), source, "rate", false, &homes)
+                .unwrap()
+                .lines
+        };
+        let py = "from shop import cart\nfrom shop.config import settings\ncart.rate(1)\nsettings.rate\n";
+        assert_eq!(rate("a.py", py, "shop/cart.py"), [3]);
+        assert_eq!(rate("a.py", py, "shop/cart/__init__.py"), [3]);
+        assert_eq!(rate("a.py", py, "shop/tax.py"), Vec::<usize>::new());
+        let js = "import { cart, settings } from './shop.js';\ncart.rate(1);\nsettings.rate;\n";
+        assert_eq!(rate("a.js", js, "src/cart/index.js"), [2]);
+    }
+
     /// A method is used where it is called. `a.name` read without a call is
     /// a field of that name, whatever `a` is: an order's `subtotal`, an
     /// invoice's `Total`, `self.total = 0`.
     #[test]
     fn a_method_is_used_only_where_it_is_called() {
         let method = |path: &str, source: &str, name: &str| {
-            name_use(Path::new(path), source, name, true).unwrap().lines
+            name_use(Path::new(path), source, name, true, &[])
+                .unwrap()
+                .lines
         };
         let js = "cart.subtotal();\norder.subtotal;\ncart?.subtotal();\nthis.subtotal().toFixed(2);\nconst s = { subtotal: order.subtotal };\nconst t = shop.cart.subtotal();\n";
         assert_eq!(method("a.js", js, "subtotal"), [1, 3, 4, 6]);
@@ -1020,7 +1076,7 @@ mod tests {
         }
         let method = "class A {\n  price() {}\n}\n";
         assert!(
-            name_use(Path::new("a.js"), method, "price", true)
+            name_use(Path::new("a.js"), method, "price", true, &[])
                 .unwrap()
                 .binds
         );

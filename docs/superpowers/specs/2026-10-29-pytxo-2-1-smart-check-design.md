@@ -50,25 +50,30 @@ Terms: base `B`; input `i` at commit `C_i` with merge base
    another file of the input's diff, which defines `Y` there. Otherwise
    "removed `X`".
 4. **Stale uses.** For every other merged input `j`: the places on its added
-   lines where code refers to the name, as tree-sitter reads the file at
-   `C_j`, with their path and line number in `C_j` (what the user sees on that
-   branch). Strings, comments, object keys and member properties (`a.X`)
-   are no use, except a call `a.X(...)` when the gone definition was a
-   method: a read of `a.X` is a field of that name, whatever `a` is, such as
-   an order's `subtotal` or a struct's `Total`. An import is a use, but a
-   name the file gives what it imports is the file's own, which a rename of
-   the definition cannot break: a default or namespace import, a module
-   required whole, an alias, or a name from one of Node's own modules
-   (`node:path`), which no branch defines. A file whose version at `R`
-   binds the name itself, such as the user's own `const X`, a parameter or a
-   local, has none; a binding the user's branch has only from the merge
-   base is the definition `by` took away, so a call added beside it in the
-   same file is a use. A file without a grammar, such as a README, gives
-   none. It is not a cause if `R` still defines the name:
-   `git grep -l -w -F -e <name> R`, then parse those files at `R`, where a
-   symbol of that name counts, and so does any other top-level binding that is
-   no import: `const X = memo(...)`, `exports.X = ...`,
-   `module.exports.X = ...`, a Python `X = ...`.
+   lines where code refers to the name, as tree-sitter reads the file at `C_j`,
+   with their path and line number in `C_j` (what the user sees on that
+   branch). Strings, comments, object keys and member properties (`a.X`) are no
+   use, except a call `a.X(...)` when the gone definition was a method: a read
+   of `a.X` is a field of that name, whatever `a` is, such as an order's
+   `subtotal` or a struct's `Total`. `m.X` is a use too when `m` is a module
+   the file imports: one it names itself (`import * as m`, `const m =
+   require(...)`, Python's `import m`), or one a from-import or a named import
+   brings in by the name of a file that defined `X` (`from shop import cart`
+   for shop/cart.py or shop/cart/__init__.py). Otherwise such a name is an
+   object, such as `from shop.config import settings`, whose `settings.X` is no
+   use of a function. An import is a use, but a name the file gives what it
+   imports is the file's own, which a rename of the definition cannot break: a
+   default or namespace import, a module required whole, an alias, or a name
+   from one of Node's own modules (`node:path`), which no branch defines. A
+   file whose version at `R` binds the name itself, such as the user's own
+   `const X`, a parameter or a local, has none; a binding the user's branch has
+   only from the merge base is the definition `by` took away, so a call added
+   beside it in the same file is a use. A file without a grammar, such as a
+   README, gives none. It is not a cause if `R` still defines the name: `git
+   grep -l -w -F -e <name> R`, then parse those files at `R`, where a symbol of
+   that name counts, and so does any other top-level binding that is no import:
+   `const X = memo(...)`, `exports.X = ...`, `module.exports.X = ...`, a Python
+   `X = ...`.
 5. **Confirmed.** A line of the failing output tails of the combined runs
    that section 4 ranks as an error name, a traceback, assert or diagnostic,
    or a `FAIL` line says the name as a word outside a path, or a line names a
