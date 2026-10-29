@@ -791,17 +791,23 @@ fn hook_block_hands_the_fix_to_the_agent_whose_branch_it_is() {
             &["worktree", "add", "-q", tree.to_str().unwrap(), branch],
         );
     }
-    let memo = d.join(".git").join("pytxo").join("hook-last");
-    let reply = |cwd: &Path, args: &[&str]| {
-        // Same tips, same verdict, said once: each stop here is a new one.
-        let _ = std::fs::remove_file(&memo);
-        hook_reply(&pytxo(cwd, args, Some(&stop_event(cwd))))
-    };
+    let pytxo_dir = d.join(".git").join("pytxo");
+    let memo = pytxo_dir.join("hook-last");
+    let stop = |cwd: &Path, args: &[&str]| pytxo(cwd, args, Some(&stop_event(cwd)));
+    let reply = |cwd: &Path, args: &[&str]| hook_reply(&stop(cwd, args));
     let reason = |cwd: &Path| {
         let v = reply(cwd, &["hook", "--block"]);
         assert_eq!(v["decision"], "block", "{v}");
         v["reason"].as_str().unwrap().to_string()
     };
+    let receipts = || {
+        std::fs::read_dir(pytxo_dir.join("receipts"))
+            .unwrap()
+            .count()
+    };
+    // The agent that stops first gets the check and its own prompt; the
+    // other gets its own at its next stop, from the same check, and each
+    // hears it once.
     let user = reason(&user_tree);
     assert!(
         user.starts_with(
@@ -813,7 +819,13 @@ fn hook_block_hands_the_fix_to_the_agent_whose_branch_it_is() {
         user.contains("\nclaude/rename-price renamed price to unitPrice. Your branch codex/add-discount still uses price at src/discount.js:1, src/discount.js:4.\nFix it on your branch: rebase it onto claude/rename-price, replace price with unitPrice, and run "),
         "{user}"
     );
+    let checked = receipts();
     let by = reason(&by_tree);
+    assert_eq!(receipts(), checked);
+    for tree in [&by_tree, &user_tree] {
+        let again = stop(tree, &["hook", "--block"]);
+        assert_eq!(stdout(&again).trim(), "", "said once per agent");
+    }
     assert!(
         by.starts_with(
             "Pytxo merged your branch claude/rename-price and codex/add-discount and ran "
@@ -830,12 +842,15 @@ fn hook_block_hands_the_fix_to_the_agent_whose_branch_it_is() {
         ),
         "{by}"
     );
+    // Same tips, same verdict: each stop below is a new check.
+    let _ = std::fs::remove_file(&memo);
     let anyone = reason(d);
     assert!(
         anyone.starts_with("Pytxo merged claude/rename-price and codex/add-discount and ran "),
         "{anyone}"
     );
     // Without --block the message stays the three lines.
+    let _ = std::fs::remove_file(&memo);
     let v = reply(&user_tree, &["hook"]);
     let message = v["systemMessage"].as_str().unwrap();
     assert!(

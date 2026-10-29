@@ -308,8 +308,11 @@ fn hook_reply(
         return Ok(None);
     };
     let fingerprint = plan.fingerprint();
+    // Said once to each agent that has to act: the other one's fix prompt
+    // waits for its own next stop.
+    let kept = memo.with_file_name("hook-kept");
     if said(&fingerprint) {
-        return Ok(None);
+        return Ok(kept_reply(&kept, &fingerprint, &plan.root));
     }
     let mut opts = options(
         &plan,
@@ -344,7 +347,9 @@ fn hook_reply(
         "Pytxo checked the agent branches together.\n{verdict}{}",
         note_lines(&notes)
     );
-    Ok(Some(if block && outcome.exit_code() == 2 {
+    let block = block && outcome.exit_code() == 2;
+    keep_replies(&kept, &fingerprint, &plan, &outcome, block);
+    Ok(Some(if block {
         // What to do, for the agent whose worktree the hook runs in, once the
         // output confirms the cause; otherwise the verdict.
         let reason = fix_prompt(&outcome, reader(&plan, &outcome)).unwrap_or(text);
@@ -352,6 +357,56 @@ fn hook_reply(
     } else {
         json!({ "systemMessage": text })
     }))
+}
+
+/// Keeps, for a blocked verdict with a confirmed cause, the fix prompt of
+/// each of its two branches that has a worktree other than the one the hook
+/// runs in, for that agent's next stop: the first agent to stop gets the
+/// check, and the other still has to hear what to do.
+fn keep_replies(kept: &Path, fingerprint: &str, plan: &Plan, outcome: &LandOutcome, block: bool) {
+    let here = reader(plan, outcome);
+    let replies: Vec<serde_json::Value> = outcome
+        .cause
+        .iter()
+        .filter(|_| block)
+        .flat_map(|c| [(c.user, Reader::User), (c.by, Reader::By)])
+        .filter(|&(_, who)| who != here)
+        .filter_map(|(n, who)| {
+            let worktree = plan.branches.get(n)?.worktree.as_deref()?;
+            let reason = fix_prompt(outcome, who)?;
+            Some(json!({
+                "worktree": worktree,
+                "reply": { "decision": "block", "reason": reason },
+            }))
+        })
+        .collect();
+    let _ = if replies.is_empty() {
+        std::fs::remove_file(kept)
+    } else {
+        std::fs::write(
+            kept,
+            json!({ "fingerprint": fingerprint, "replies": replies }).to_string(),
+        )
+    };
+}
+
+/// The reply kept for the agent whose worktree is `root`, once: it is gone
+/// after this.
+fn kept_reply(kept: &Path, fingerprint: &str, root: &Path) -> Option<serde_json::Value> {
+    let mut all: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(kept).ok()?).ok()?;
+    if all["fingerprint"] != fingerprint {
+        return None;
+    }
+    let replies = all["replies"].as_array_mut()?;
+    let at = replies.iter().position(|r| {
+        r["worktree"]
+            .as_str()
+            .is_some_and(|w| same_dir(Path::new(w), root))
+    })?;
+    let mut reply = replies.remove(at);
+    let _ = std::fs::write(kept, all.to_string());
+    Some(reply["reply"].take())
 }
 
 /// Whom a fix prompt speaks to: the agent of the branch checked out where the
