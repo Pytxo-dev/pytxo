@@ -39,6 +39,12 @@ pub use render::{
 
 pub const DEFAULT_CHECK_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 
+/// The time the search for a cause needs left before the deadline to start:
+/// a few rounds of git calls. It stops at the deadline in any case.
+// ponytail: a fixed two seconds; scale it by the size of the tree if a big
+// one's search ever needs more.
+const CAUSE_BUDGET: Duration = Duration::from_secs(2);
+
 /// `label:ref` or `ref`. Git refnames cannot contain `:`, so the split is unambiguous.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LandInput {
@@ -811,7 +817,10 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                     .any(|c| c.rerun && !c.passed && !c.timed_out && &c.command == command)
         })
         .map(|(command, _)| command);
-    let in_time = !out_of_time.get() && !opts.deadline.is_some_and(|d| Instant::now() >= d);
+    let in_time = !out_of_time.get()
+        && opts
+            .deadline
+            .is_none_or(|d| Instant::now() + CAUSE_BUDGET < d);
     let cause = match together {
         Some(command) if in_time && receipt_inputs.iter().all(|i| i.status != "conflict") => {
             let merged: Vec<cause::Merged> = resolved
@@ -830,7 +839,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 .filter(|c| c.scope == "combined" && !c.passed && &c.command == command)
                 .map(|c| c.output_tail.as_slice())
                 .collect();
-            cause::find(&repo, &merged, &combined, &failing)
+            cause::find(&repo, &merged, &combined, &failing, opts.deadline)
         }
         _ => None,
     };

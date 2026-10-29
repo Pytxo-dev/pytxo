@@ -5,7 +5,8 @@
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
-use std::time::Duration;
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
 
@@ -113,14 +114,25 @@ impl Git {
     /// `output` for each of `calls`, which an interrupt stops: recorded and
     /// reaped like `run_stoppable`, for reads that can take long, such as
     /// `git grep` over a big tree. Only stdout is kept. Eight run at a time,
-    /// each started before the first is read, so a few short calls take
-    /// about as long as one, and each is read to its end before its wait,
-    /// which is then over at once. The outputs come back in order.
-    pub(crate) fn outputs_stoppable(&self, calls: &[Vec<String>]) -> Result<Vec<Output>> {
+    /// all started before any is read, so a few short calls take about as
+    /// long as one; each is read to its end, on a thread of its own, before
+    /// its wait, which is then over at once. The outputs come back in order.
+    /// Past `deadline` no call starts, and the calls still going stop: an
+    /// error either way, since what the rest would say is not known.
+    pub(crate) fn outputs_stoppable(
+        &self,
+        calls: &[Vec<String>],
+        deadline: Option<Instant>,
+    ) -> Result<Vec<Output>> {
+        let late = || deadline.is_some_and(|d| Instant::now() >= d);
+        let out_of_time = || anyhow!("out of time for git {}", calls[0].join(" "));
         let mut outputs = Vec::with_capacity(calls.len());
         // ponytail: eight at a time, each eight waiting for its slowest; a
         // pool if one slow call ever holds up quick ones.
         for batch in calls.chunks(8) {
+            if late() {
+                return Err(out_of_time());
+            }
             let mut started = Vec::new();
             let mut failed = None;
             for args in batch {
@@ -137,22 +149,48 @@ impl Git {
                     }
                 }
             }
-            // Every call that started is reaped, even after one did not.
-            for (mut child, args) in started.into_iter().zip(batch) {
-                let what = || format!("git {}", args.join(" "));
-                let mut stdout = Vec::new();
-                let read = child.stdout.take().map(|mut p| p.read_to_end(&mut stdout));
-                if let Some(Err(_)) = read {
-                    // Nothing reads the rest, which git would wait to write.
-                    let _ = child.kill();
+            // A read that fails drops the pipe, so git stops at its next
+            // write instead of waiting for a reader.
+            let reads: Vec<JoinHandle<std::io::Result<Vec<u8>>>> = started
+                .iter_mut()
+                .map(|child| {
+                    let pipe = child.stdout.take();
+                    std::thread::spawn(move || {
+                        let mut stdout = Vec::new();
+                        if let Some(mut pipe) = pipe {
+                            pipe.read_to_end(&mut stdout)?;
+                        }
+                        Ok(stdout)
+                    })
+                })
+                .collect();
+            // At the deadline the calls still going stop, as a check out of
+            // time does. None is reaped yet, so no pid is another process's.
+            let mut stopped = false;
+            while deadline.is_some() && !reads.iter().all(JoinHandle::is_finished) {
+                if late() {
+                    for child in &mut started {
+                        crate::checks::kill_tree(child.id());
+                        let _ = child.kill();
+                    }
+                    stopped = true;
+                    break;
                 }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            // Every call that started is reaped, even after one did not.
+            for ((mut child, read), args) in started.into_iter().zip(reads).zip(batch) {
+                let what = || format!("git {}", args.join(" "));
+                let read = read
+                    .join()
+                    .unwrap_or_else(|_| Err(std::io::Error::other("the read stopped")));
                 let status = reap_recorded(&mut child, Duration::from_millis(1), &what);
                 match (status, read) {
                     (Err(e), _) => failed = failed.or(Some(e)),
-                    (_, Some(Err(e))) => {
+                    (_, Err(e)) => {
                         failed = failed.or(Some(anyhow!(e).context(format!("reading {}", what()))));
                     }
-                    (Ok(status), _) => outputs.push(Output {
+                    (Ok(status), Ok(stdout)) => outputs.push(Output {
                         status,
                         stdout,
                         stderr: Vec::new(),
@@ -161,6 +199,9 @@ impl Git {
             }
             if let Some(e) = failed {
                 return Err(e);
+            }
+            if stopped {
+                return Err(out_of_time());
             }
         }
         Ok(outputs)
@@ -259,5 +300,38 @@ fn reap_recorded(
         }
         drop(active);
         std::thread::sleep(pause);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A call still going at the deadline stops then, and none starts once
+    /// it has passed.
+    #[test]
+    fn calls_stop_at_the_deadline() {
+        let dir = tempfile::tempdir().unwrap();
+        let git = Git::user(dir.path());
+        let call = |args: &[&str]| args.iter().map(|a| a.to_string()).collect::<Vec<_>>();
+        let slow = call(&["-c", "alias.slow=!sleep 30", "slow"]);
+        let quick = call(&["--version"]);
+        let started = Instant::now();
+        let soon = Some(started + Duration::from_secs(1));
+        assert!(git.outputs_stoppable(&[quick.clone(), slow], soon).is_err());
+        assert!(
+            started.elapsed() < Duration::from_secs(20),
+            "{:?}",
+            started.elapsed()
+        );
+        let now = Some(Instant::now());
+        assert!(git
+            .outputs_stoppable(std::slice::from_ref(&quick), now)
+            .is_err());
+        let later = Some(Instant::now() + Duration::from_secs(60));
+        let out = git
+            .outputs_stoppable(&[quick.clone(), quick], later)
+            .unwrap();
+        assert!(out.iter().all(|o| o.status.success()), "{out:?}");
     }
 }

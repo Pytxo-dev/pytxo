@@ -10,6 +10,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::process::Output;
+use std::time::Instant;
 
 use pytxo_signal::{name_use, parses, symbol_spans, uses_name};
 use serde::Serialize;
@@ -91,12 +92,14 @@ struct FileDiff {
 
 /// The cause of a combined failure that every merged input passed alone,
 /// from the merged `inputs`, the `combined` commit they were checked at, and
-/// the output of its failing runs.
+/// the output of its failing runs. `None` as well once `deadline` passes:
+/// no git call starts after it, and one still going stops.
 pub(crate) fn find(
     git: &Git,
     inputs: &[Merged],
     combined: &str,
     failing: &[&[String]],
+    deadline: Option<Instant>,
 ) -> Option<Cause> {
     // The git calls of each step run side by side, eight at a time, so the
     // search takes about four calls' time: the diffs, the greps of the
@@ -107,7 +110,7 @@ pub(crate) fn find(
         .map(|i| diff_args(i.merge_base, i.commit))
         .collect();
     let diffs: Vec<Vec<FileDiff>> = git
-        .outputs_stoppable(&calls)
+        .outputs_stoppable(&calls, deadline)
         .ok()?
         .iter()
         .map(|out| {
@@ -181,7 +184,11 @@ pub(crate) fn find(
     // for code that says the name, where a string or a comment is no use,
     // such as the `require('./price')` a rename of the function `price`
     // leaves behind; the grep looks for the word everywhere else.
-    let mut grep = Grep { git, calls: 0 };
+    let mut grep = Grep {
+        git,
+        calls: 0,
+        deadline,
+    };
     let left_out: Vec<Option<Vec<String>>> = candidates
         .iter()
         .map(|c| said_only(&diffs[c.by], &c.name))
@@ -238,10 +245,12 @@ pub(crate) fn find(
     Some(cause)
 }
 
-/// `git grep` within the cap on calls. `None` past the cap or on an error.
+/// `git grep` within the cap on calls and the deadline. `None` past either
+/// or on an error.
 struct Grep<'a> {
     git: &'a Git,
     calls: usize,
+    deadline: Option<Instant>,
 }
 
 impl Grep<'_> {
@@ -303,7 +312,7 @@ impl Grep<'_> {
         if self.calls > MAX_GREPS {
             return None;
         }
-        self.git.outputs_stoppable(&calls).ok()
+        self.git.outputs_stoppable(&calls, self.deadline).ok()
     }
 }
 
@@ -330,7 +339,8 @@ fn defines(git: &Git, grep: &mut Grep, commit: &str, names: &[&str]) -> Option<V
         .collect();
     // Each file and the symbols it defines, `None` for one too big to parse.
     let mut read: BTreeMap<&str, Option<(String, Vec<String>)>> = BTreeMap::new();
-    for (path, out) in paths.into_iter().zip(git.outputs_stoppable(&calls).ok()?) {
+    let outs = git.outputs_stoppable(&calls, grep.deadline).ok()?;
+    for (path, out) in paths.into_iter().zip(outs) {
         if !out.status.success() {
             return None;
         }
@@ -693,6 +703,16 @@ mod tests {
     /// `find` for `branches`, cut from main and merged onto it in that order,
     /// after a combined run that printed `output`.
     fn cause(d: &Path, branches: &[&str], output: &[&str]) -> Option<Cause> {
+        cause_by(d, branches, output, None)
+    }
+
+    /// `cause`, the search stopping at `deadline`.
+    fn cause_by(
+        d: &Path,
+        branches: &[&str],
+        output: &[&str],
+        deadline: Option<Instant>,
+    ) -> Option<Cause> {
         let base = git(d, &["rev-parse", "main"]);
         let commits: Vec<String> = branches.iter().map(|b| git(d, &["rev-parse", b])).collect();
         git(d, &["checkout", "-q", "--detach", "main"]);
@@ -711,7 +731,7 @@ mod tests {
             })
             .collect();
         let tail: Vec<String> = output.iter().map(|l| l.to_string()).collect();
-        find(&Git::user(d), &merged, &combined, &[&tail])
+        find(&Git::user(d), &merged, &combined, &[&tail], deadline)
     }
 
     const CALLER: &str =
@@ -751,6 +771,21 @@ mod tests {
         // The positions follow the inputs' order.
         let found = cause(d, &["agent/caller", "agent/rename"], &failed).unwrap();
         assert_eq!((found.by, found.user), (1, 0));
+    }
+
+    /// Past the deadline the search starts no git call, and finds nothing.
+    #[test]
+    fn no_cause_is_looked_for_past_the_deadline() {
+        let dir = repo();
+        let d = dir.path();
+        let renamed = CART.replace("price", "unitPrice");
+        branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+        branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+        let failed = ["TypeError: price is not a function"];
+        let both = ["agent/rename", "agent/caller"];
+        assert_eq!(cause_by(d, &both, &failed, Some(Instant::now())), None);
+        let later = Instant::now() + std::time::Duration::from_secs(600);
+        assert!(cause_by(d, &both, &failed, Some(later)).is_some());
     }
 
     /// Two branches use the name a third renamed: the cause names one, and
