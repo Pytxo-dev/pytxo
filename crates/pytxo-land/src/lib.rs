@@ -871,7 +871,9 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     // so no scratch name of a new kind: the checks before that command run
     // first to set it up, as for the re-run, and only its own runs are
     // recorded. Never after a timeout, and never when the deadline would pass
-    // before the runs end, going by how long the combined run took. They
+    // before the runs end: each run of a check as long as its longest run so
+    // far, combined or alone, since a run that fails can stop early where
+    // one that passes goes on. They
     // only sharpen a verdict the runs before already give, so a deadline that
     // cuts one short leaves that verdict standing: it is not out of time.
     if let (Some(tree), Some(cause), Some(command)) = (&combined_tree, &cause, together) {
@@ -879,11 +881,17 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             .filter(|&i| receipt_inputs[i].status == "merged")
             .collect();
         let upto = opts.checks.iter().position(|c| c == command).unwrap_or(0);
-        let took: Duration = checks
+        let took: Duration = opts.checks[..=upto]
             .iter()
-            .filter(|c| c.scope == "combined" && !c.rerun)
-            .take(upto + 1)
-            .map(|c| Duration::from_millis(c.duration_ms))
+            .map(|command| {
+                checks
+                    .iter()
+                    .filter(|c| &c.command == command)
+                    .filter(|c| c.scope == "combined" || c.scope.starts_with("input:"))
+                    .map(|c| Duration::from_millis(c.duration_ms))
+                    .max()
+                    .unwrap_or_default()
+            })
             .sum();
         let room = |runs: u32| {
             opts.deadline

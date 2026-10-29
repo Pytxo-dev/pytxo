@@ -567,6 +567,46 @@ fn no_pair_runs_start_when_the_deadline_would_pass_first() {
     );
 }
 
+/// The combined run fails at once, but the docs branch's run alone, which
+/// passes, takes six seconds: a run on the pair or the rest can take that
+/// long too, so neither starts when two of them would end past the deadline.
+#[test]
+fn no_pair_runs_start_when_a_passing_run_would_end_past_the_deadline() {
+    let dir = repo();
+    let d = dir.path();
+    rename_caller_and_docs(d);
+    #[cfg(windows)]
+    let wait = "ping -n 7 127.0.0.1 > nul";
+    #[cfg(not(windows))]
+    let wait = "sleep 6";
+    let check = RENAME_BREAKS.replacen(
+        "|| exit 0",
+        &format!("|| git grep -q notes -- docs/notes.md && {wait} || exit 0"),
+        1,
+    );
+    let mut o = opts(d, &["agent/docs", "agent/rename", "agent/caller"]);
+    o.checks = vec![check];
+    o.per_input = PerInput::OnFailure;
+    // Three times the slow run from the start, as above.
+    o.deadline = Some(Instant::now() + Duration::from_secs(18));
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert!(!out.out_of_time, "{text}");
+    assert!(culprit_runs(&out).is_empty(), "{text}");
+    assert_eq!(
+        combined_runs(&out),
+        [(false, false), (false, true)],
+        "{text}"
+    );
+    let slow = &out.receipt.predicate.checks;
+    assert!(
+        slow.iter()
+            .any(|c| c.scope == "input:agent/docs" && c.passed && c.duration_ms >= 5000),
+        "{text}"
+    );
+    assert!(out.cause.is_some(), "{text}");
+}
+
 /// A check that fails only where both `a.txt` and `b.txt` exist, so only on
 /// the combination; with `marker`, only until it has failed once.
 fn combined_only_failure(marker: Option<&Path>) -> String {
