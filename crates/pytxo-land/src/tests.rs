@@ -281,6 +281,7 @@ fn a_failure_together_names_the_rename_behind_it() {
                 })
                 .to_vec(),
             confirmed: true,
+            also: vec![],
         })
     );
     let v = verdict(&out, "run npx pytxo again");
@@ -457,6 +458,52 @@ fn others_that_fail_without_the_pair_stay_blamed() {
     assert_eq!(
         verdict_line(&out),
         r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[0,1,2,3]} -->"#
+    );
+}
+
+/// Two branches use the name a third renamed, and the check breaks only on
+/// one of them: the other passes without the pair, but it uses the name as
+/// much, so it stays blamed, and nothing says it passes.
+#[test]
+fn another_branch_that_uses_the_name_stays_blamed() {
+    let dir = repo();
+    let d = dir.path();
+    rename_caller_and_docs(d);
+    let tax = CALLER.replace("cost: 2", "cost: 3");
+    branch(d, "main", "agent/tax", &[("src/tax.js", &tax)]);
+    let mut o = opts(
+        d,
+        &["agent/rename", "agent/caller", "agent/tax", "agent/docs"],
+    );
+    o.checks = vec![RENAME_BREAKS.into()];
+    o.per_input = PerInput::OnFailure;
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(
+        culprit_runs(&out),
+        [("pair", false), ("rest", true)],
+        "{text}"
+    );
+    let cause = out.cause.as_ref().unwrap();
+    assert_eq!((cause.by, cause.user, &cause.also), (0, 1, &vec![2]));
+    let v = verdict(&out, "run npx pytxo again");
+    assert_eq!(
+        v.to_string(),
+        format!("BLOCKED  agent/rename and agent/caller fail {RENAME_BREAKS} together.
+why      agent/rename renamed price to unitPrice; agent/caller still uses price (src/extra.js:1), and so does agent/tax.
+next     rebase agent/caller and agent/tax onto agent/rename and use unitPrice, then run npx pytxo again.
+")
+    );
+    assert_eq!(v.cause.unwrap().also, ["agent/tax"]);
+    assert!(
+        v.fix_prompt
+            .unwrap()
+            .contains("at src/extra.js:1, src/extra.js:2. agent/tax uses price too.\n"),
+        "{text}"
+    );
+    assert_eq!(
+        verdict_line(&out),
+        r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[0,1,2]} -->"#
     );
 }
 

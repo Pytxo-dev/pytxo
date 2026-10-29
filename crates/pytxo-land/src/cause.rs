@@ -43,6 +43,9 @@ pub struct Cause {
     pub uses: Vec<Use>,
     /// The failing output names it, or the place of one of the uses.
     pub confirmed: bool,
+    /// The other inputs whose new lines use it too, in input order: as much
+    /// to blame as `user`, whom the runs on the pair do not clear.
+    pub also: Vec<usize>,
 }
 
 /// A line of a file as one branch has it.
@@ -219,12 +222,20 @@ pub(crate) fn find(
                 name: c.name.clone(),
                 renamed_to: c.renamed.clone(),
                 uses,
+                also: Vec::new(),
             });
         }
     }
     // Confirmed first, then the most uses; a stable sort keeps input order.
     found.sort_by_key(|c| (!c.confirmed, std::cmp::Reverse(c.uses.len())));
-    found.into_iter().next()
+    let mut found = found.into_iter();
+    let mut cause = found.next()?;
+    cause.also = found
+        .filter(|c| c.by == cause.by && c.name == cause.name)
+        .map(|c| c.user)
+        .collect();
+    cause.also.sort_unstable();
+    Some(cause)
 }
 
 /// `git grep` within the cap on calls. `None` past the cap or on an error.
@@ -734,11 +745,30 @@ mod tests {
                 renamed_to: Some("unitPrice".into()),
                 uses: uses(&[1, 2]),
                 confirmed: true,
+                also: vec![],
             })
         );
         // The positions follow the inputs' order.
         let found = cause(d, &["agent/caller", "agent/rename"], &failed).unwrap();
         assert_eq!((found.by, found.user), (1, 0));
+    }
+
+    /// Two branches use the name a third renamed: the cause names one, and
+    /// keeps the other, in either order.
+    #[test]
+    fn every_branch_that_uses_the_name_stays_with_the_cause() {
+        let dir = repo();
+        let d = dir.path();
+        let renamed = CART.replace("price", "unitPrice");
+        branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+        branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+        let tax = CALLER.replace("cost: 2", "cost: 3");
+        branch(d, "main", "agent/tax", &[("src/tax.js", &tax)]);
+        let failed = ["TypeError: price is not a function"];
+        let found = cause(d, &["agent/rename", "agent/caller", "agent/tax"], &failed).unwrap();
+        assert_eq!((found.by, found.user, found.also), (0, 1, vec![2]));
+        let found = cause(d, &["agent/tax", "agent/caller", "agent/rename"], &failed).unwrap();
+        assert_eq!((found.by, found.user, found.also), (2, 0, vec![1]));
     }
 
     /// `price()` in cart.js becomes `unitPrice()` in a new pricing.js: a

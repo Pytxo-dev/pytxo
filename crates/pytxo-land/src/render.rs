@@ -51,8 +51,8 @@ fn culprits(p: &ReceiptPredicate, command: &str) -> (Option<bool>, Option<bool>)
 /// Positions, in command-line order, of the inputs a BLOCKED verdict blames:
 /// one that does not merge, one whose own check fails alone, and every input
 /// of a combination that fails although each passes alone, or only the two
-/// `cause` names once they fail it on their own and the others pass it
-/// without them. Every input when it blames none of those (say the combined
+/// `cause` names, and any other that uses the name too, once the two fail it
+/// on their own and the others pass it without them. Every input when it blames none of those (say the combined
 /// run timed out before any input ran alone), so the GitHub Action stays
 /// conservative. Empty for any other label.
 fn implicated(p: &ReceiptPredicate, cause: Option<&Cause>, label: &str) -> Vec<usize> {
@@ -87,6 +87,9 @@ fn implicated(p: &ReceiptPredicate, cause: Option<&Cause>, label: &str) -> Vec<u
         match cause {
             Some(cause) if culprits(p, &c.command) == (Some(false), Some(true)) => {
                 blamed.extend([cause.by, cause.user]);
+                // Without the name the others break as the two do, whatever
+                // the run on the rest, which keeps the name, says.
+                blamed.extend(&cause.also);
             }
             _ => blamed.extend(&merged),
         }
@@ -421,6 +424,9 @@ pub struct NamedCause {
     pub renamed_to: Option<String>,
     pub uses: Vec<Use>,
     pub confirmed: bool,
+    /// The other branches that use the name too.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub also: Vec<String>,
 }
 
 /// Whose agent reads a fix prompt: the one on the branch that has to change,
@@ -443,6 +449,7 @@ pub fn fix_prompt(outcome: &LandOutcome, reader: Reader) -> Option<String> {
 fn prompt(
     by: &str,
     user: &str,
+    also: &[String],
     cause: &Cause,
     command: &str,
     tail: &[String],
@@ -456,6 +463,11 @@ fn prompt(
         .map(|u| format!("{}:{}", u.path, u.line))
         .collect();
     let at = at.join(", ");
+    let too = match also {
+        [] => String::new(),
+        [one] => format!(" {one} uses {x} too."),
+        _ => format!(" {} use {x} too.", and_list(also)),
+    };
     let (merged, renamer, still, fix) = match reader {
         Reader::User => (
             format!("{by} and your branch {user}"),
@@ -482,7 +494,7 @@ fn prompt(
     let _ = match &cause.renamed_to {
         Some(y) => writeln!(
             s,
-            "{renamer} renamed {x} to {y}. {still} {x} at {at}.\n{fix}: rebase it onto {by}, replace {x} with {y}, and run {command} until it passes. {}",
+            "{renamer} renamed {x} to {y}. {still} {x} at {at}.{too}\n{fix}: rebase it onto {by}, replace {x} with {y}, and run {command} until it passes. {}",
             match reader {
                 Reader::By => format!("The other way out is to keep {x} on your branch as an alias of {y}."),
                 _ => format!("Leave {by}'s changes as they are."),
@@ -490,7 +502,7 @@ fn prompt(
         ),
         None => writeln!(
             s,
-            "{renamer} removed {x}. {still} {x} at {at}.\n{fix}: rebase it onto {by}, stop using {x}, and run {command} until it passes. {}",
+            "{renamer} removed {x}. {still} {x} at {at}.{too}\n{fix}: rebase it onto {by}, stop using {x}, and run {command} until it passes. {}",
             match reader {
                 Reader::User => format!("If your branch needs {x}, ask for it back on {by} instead."),
                 Reader::By => format!("The other way out is to keep {x} on your branch."),
@@ -521,6 +533,16 @@ pub(crate) fn plain_name<'a>(reference: &'a str, label: Option<&'a str>) -> &'a 
     match label {
         Some(label) if is_commit => label,
         _ => reference,
+    }
+}
+
+/// ", and so does a" for the others that use a name too, after the one that
+/// does; nothing when there are none.
+fn so_do(others: &[String]) -> String {
+    match others {
+        [] => String::new(),
+        [one] => format!(", and so does {one}"),
+        _ => format!(", and so do {}", and_list(others)),
     }
 }
 
@@ -795,6 +817,10 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                         return verdict;
                     };
                     let (b, u, x) = (shown(&by), shown(&user), shown(&cause.name));
+                    let also: Vec<String> = cause.also.iter().filter_map(|&n| named(n)).collect();
+                    let also_shown: Vec<String> = also.iter().map(|n| shown(n)).collect();
+                    // Each branch that uses it has to change, the two first.
+                    let users = and_list(&[vec![u.clone()], also_shown.clone()].concat());
                     // The two in the order they were given, as `names` has them.
                     let pair = if cause.by < cause.user {
                         format!("{b} and {u}")
@@ -814,7 +840,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                     }
                     let at = cause.uses.first().map_or_else(String::new, |w| {
                         format!(" ({})", shown(&format!("{}:{}", w.path, w.line)))
-                    });
+                    }) + &so_do(&also_shown);
                     let mut verdict = Verdict {
                         cause: Some(NamedCause {
                             by: by.clone(),
@@ -823,6 +849,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                             renamed_to: cause.renamed_to.clone(),
                             uses: cause.uses.clone(),
                             confirmed: cause.confirmed,
+                            also: also.clone(),
                         }),
                         ..verdict
                     };
@@ -830,12 +857,12 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                     match (cause.renamed_to.as_deref().map(shown), cause.confirmed) {
                         (Some(y), true) => {
                             verdict.why = format!("{b} renamed {x} to {y}; {u} still uses {x}{at}.");
-                            verdict.next = format!("rebase {u} onto {b} and use {y}, then {again}.");
+                            verdict.next = format!("rebase {users} onto {b} and use {y}, then {again}.");
                         }
                         (None, true) => {
                             verdict.why = format!("{b} removed {x}; {u} still uses it{at}.");
                             verdict.next = format!(
-                                "rebase {u} onto {b} and stop using {x}, or keep {x} on {b}, then {again}."
+                                "rebase {users} onto {b} and stop using {x}, or keep {x} on {b}, then {again}."
                             );
                         }
                         (Some(y), false) => {
@@ -847,7 +874,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                     }
                     if cause.confirmed {
                         verdict.fix_prompt =
-                            Some(prompt(&by, &user, cause, cmd, &run.output_tail, reader));
+                            Some(prompt(&by, &user, &also, cause, cmd, &run.output_tail, reader));
                     }
                     // They fail it on their own: the what line names them,
                     // and says how the others did without them. It clears
@@ -1717,6 +1744,7 @@ FAIL";
             renamed_to: Some("unitPrice".into()),
             uses: vec![at(1), at(4)],
             confirmed,
+            also: vec![],
         }
     }
 
