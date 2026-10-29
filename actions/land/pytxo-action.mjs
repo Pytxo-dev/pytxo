@@ -9,7 +9,6 @@
 // (action.yml says what that does and does not keep out).
 
 import { spawnSync } from "node:child_process";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -303,44 +302,47 @@ const read = (name) => {
 };
 
 // Pytxo Pro for private repositories in CI. Built and switched off: nothing
-// is enforced, and no key is checked, until LICENSING is true and
-// LICENSE_PUBLIC_KEY holds the public half of the signing key.
+// is enforced, no key is checked and nothing is sent until LICENSING is true.
 export const LICENSING = false;
 export const TRIAL_DAYS = 14;
-export const LICENSE_PUBLIC_KEY = null;
 const BUY = "https://pytxo.com/plans";
+const VALIDATE = "https://live.dodopayments.com/licenses/validate";
 
 /**
- * A key is `pytxo1.<payload>.<signature>`, both base64url; the payload is
- * JSON `{ "repo": "owner/name" or "owner/*", "exp": "2027-10-01" or null }`
- * signed with Ed25519. Verified offline: no account, no network.
+ * Public repositories are free. Private ones get TRIAL_DAYS, counted from
+ * `trialStart()`, then need a key Dodo Payments says is valid: a monthly
+ * subscription's key stops being valid when the subscription lapses. Only
+ * then is anything sent, and only the key, never the GitHub token. When
+ * Dodo gives no answer (no connection, 429 or 5xx) the check runs anyway,
+ * with a warning, so an outage there never blocks a pull request. With a
+ * key set the trial passes quietly; the key is checked once the trial ends.
  */
-export function verifyLicense(key, repo, now, publicKey = LICENSE_PUBLIC_KEY) {
-  const [version, payload, signature] = (key || "").trim().split(".");
-  if (version !== "pytxo1" || !payload || !signature || !publicKey) return { valid: false, reason: "not a Pytxo license key" };
-  const signed = crypto.verify(null, Buffer.from(payload), publicKey, Buffer.from(signature, "base64url"));
-  if (!signed) return { valid: false, reason: "the license key's signature does not match" };
-  const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-  const [owner] = repo.split("/");
-  if (claims.repo !== repo && claims.repo !== `${owner}/*`) return { valid: false, reason: `the license key is for ${claims.repo}` };
-  if (claims.exp && new Date(claims.exp) < now) return { valid: false, reason: `the license key expired on ${claims.exp}` };
-  return { valid: true };
-}
-
-/** Public repositories are free. Private ones get TRIAL_DAYS, then need a key. */
-export function licenseGate({ isPrivate, repo, key, trialStart, now, publicKey = LICENSE_PUBLIC_KEY }) {
-  if (!isPrivate) return { allowed: true };
-  const license = verifyLicense(key, repo, now, publicKey);
-  if (license.valid) return { allowed: true };
-  const left = Math.ceil(TRIAL_DAYS - (now - trialStart) / 86_400_000);
+export async function licenseGate({ licensing = LICENSING, isPrivate, key, trialStart, now, fetchImpl }) {
+  if (!licensing || !isPrivate) return { allowed: true };
+  const left = Math.ceil(TRIAL_DAYS - (now - trialStart()) / 86_400_000);
   if (left > 0) {
-    return { allowed: true, notice: `Pytxo Pro trial for private repositories: ${left} day${left === 1 ? "" : "s"} left. ${BUY}` };
+    return key ? { allowed: true } : { allowed: true, notice: `Pytxo Pro trial for private repositories: ${left} day${left === 1 ? "" : "s"} left. ${BUY}` };
   }
-  const why = key ? ` (${license.reason})` : "";
-  return {
+  const over = (why) => ({
     allowed: false,
     notice: `The ${TRIAL_DAYS}-day trial for private repositories is over${why}. Add a Pytxo Pro license key as the PYTXO_LICENSE secret and pass it as \`license\`: ${BUY}`,
-  };
+  });
+  if (!key) return over("");
+  // true, false, or why Dodo gave no answer.
+  const answer = await fetchImpl(VALIDATE, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ license_key: key }),
+    signal: AbortSignal.timeout(10_000),
+  })
+    .then(async (response) => {
+      if (response.status === 429 || response.status >= 500) return `HTTP ${response.status}`;
+      return response.ok && (await response.json()).valid === true;
+    })
+    .catch(() => "no answer");
+  if (answer === true) return { allowed: true };
+  if (answer === false) return over(" (the license key is not valid)");
+  return { allowed: true, warning: `Dodo Payments could not check the Pytxo Pro license key (${answer}), so the check runs anyway.` };
 }
 
 /** When the workflow file was first committed: the trial's start, with no API call. */
@@ -393,17 +395,16 @@ async function discover() {
   if (git(["rev-parse", "--is-shallow-repository"]) === "true") {
     git(["fetch", "--quiet", "--unshallow", "--no-tags", "origin"], { auth });
   }
-  if (LICENSING && payload.repository?.private) {
-    const gate = licenseGate({
-      isPrivate: true,
-      repo,
-      key: process.env.PYTXO_LICENSE,
-      trialStart: workflowAddedAt(),
-      now: new Date(),
-    });
-    if (!gate.allowed) throw new Error(gate.notice);
-    if (gate.notice) console.log(`::notice::${gate.notice}`);
-  }
+  const gate = await licenseGate({
+    isPrivate: payload.repository?.private,
+    key: (process.env.PYTXO_LICENSE || "").trim(),
+    trialStart: workflowAddedAt,
+    now: new Date(),
+    fetchImpl: fetch,
+  });
+  if (gate.warning) console.log(`::warning::${gate.warning}`);
+  if (!gate.allowed) throw new Error(gate.notice);
+  if (gate.notice) console.log(`::notice::${gate.notice}`);
   const taken = new Set([base]);
   const selected = selection.prs.map((pr) => {
     const at = lookup.approved.get(pr.number);

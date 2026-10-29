@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -17,7 +16,6 @@ import {
   INSTALL_HINT,
   isAgentPr,
   jobOutcome,
-  LICENSE_PUBLIC_KEY,
   licenseGate,
   LICENSING,
   localName,
@@ -26,7 +24,6 @@ import {
   parsePatterns,
   selectPrs,
   upsertComment,
-  verifyLicense,
 } from "./pytxo-action.mjs";
 
 const script = fileURLToPath(new URL("./pytxo-action.mjs", import.meta.url));
@@ -617,34 +614,83 @@ test("action.yml: nothing runs after a cancel, and the step that runs the tests 
   assert.match(step("actions/checkout@"), /if: .* && github\.event_name == 'pull_request'\n/);
 });
 
-test("Pro licensing is built but switched off", () => {
+/** Dodo Payments giving `answers` in turn (an Error is no connection); `calls` holds what was sent. */
+function fakeDodo(...answers) {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, ...init, body: JSON.parse(init.body) });
+    const answer = answers.shift();
+    if (answer instanceof Error) throw answer;
+    return { ok: answer.status < 300, status: answer.status, json: async () => answer.body };
+  };
+  return { calls, fetchImpl };
+}
+
+const KEY = "PYTXO-PRO-SECRET-0001";
+/** The gate switched on for a private repository whose trial ended on 2026-10-15. */
+const gate = (fetchImpl, opts = {}) =>
+  licenseGate({
+    licensing: true,
+    isPrivate: true,
+    key: KEY,
+    trialStart: () => new Date("2026-10-01T00:00:00Z"),
+    now: new Date("2026-11-20T00:00:00Z"),
+    fetchImpl,
+    ...opts,
+  });
+
+test("Pro licensing is switched off: no key is checked and nothing is sent", async () => {
   assert.equal(LICENSING, false);
-  assert.equal(LICENSE_PUBLIC_KEY, null);
+  const dodo = fakeDodo();
+  const off = await licenseGate({ isPrivate: true, key: KEY, trialStart: () => new Date(0), now: new Date(), fetchImpl: dodo.fetchImpl });
+  assert.deepEqual(off, { allowed: true });
+  assert.deepEqual(dodo.calls, []);
 });
 
-test("license keys verify offline; private repositories get a 14-day trial", () => {
-  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
-  const sign = (claims) => {
-    const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
-    return `pytxo1.${payload}.${crypto.sign(null, Buffer.from(payload), privateKey).toString("base64url")}`;
-  };
-  const now = new Date("2026-11-20T00:00:00Z");
-  const key = sign({ repo: "acme/shop", exp: "2027-01-01" });
-  assert.deepEqual(verifyLicense(key, "acme/shop", now, publicKey), { valid: true });
-  assert.ok(verifyLicense(sign({ repo: "acme/*", exp: null }), "acme/api", now, publicKey).valid);
-  assert.match(verifyLicense(key, "other/shop", now, publicKey).reason, /for acme\/shop/);
-  assert.match(verifyLicense(sign({ repo: "acme/shop", exp: "2026-11-01" }), "acme/shop", now, publicKey).reason, /expired/);
-  const forged = `${key.slice(0, key.lastIndexOf(".") + 1)}${Buffer.alloc(64).toString("base64url")}`;
-  assert.match(verifyLicense(forged, "acme/shop", now, publicKey).reason, /signature/);
-  assert.equal(verifyLicense(key, "acme/shop", now, null).valid, false);
+test("after the 14-day trial a private repository runs with a key Dodo Payments says is valid, and sends only the key", async () => {
+  const dodo = fakeDodo({ status: 200, body: { valid: true } });
+  assert.deepEqual(await gate(dodo.fetchImpl), { allowed: true });
+  assert.equal(dodo.calls.length, 1);
+  const [call] = dodo.calls;
+  assert.equal(call.url, "https://live.dodopayments.com/licenses/validate");
+  assert.equal(call.method, "POST");
+  assert.deepEqual(call.body, { license_key: KEY });
+  // No GitHub token, nor anything else, goes with it.
+  assert.deepEqual(call.headers, { "content-type": "application/json" });
+});
 
-  const gate = (opts) => licenseGate({ repo: "acme/shop", now, publicKey, ...opts });
-  assert.deepEqual(gate({ isPrivate: false }), { allowed: true });
-  const trial = gate({ isPrivate: true, trialStart: new Date("2026-11-10T00:00:00Z") });
+test("after the trial a key that is not valid is refused, and no answer from Dodo Payments runs the check anyway", async () => {
+  const results = [];
+  // A lapsed subscription or a mistyped key; 422 is Dodo's answer to a request it cannot read.
+  for (const answer of [{ status: 200, body: { valid: false } }, { status: 422, body: {} }]) {
+    const refused = await gate(fakeDodo(answer).fetchImpl);
+    assert.equal(refused.allowed, false);
+    assert.match(refused.notice, /^The 14-day trial for private repositories is over \(the license key is not valid\)\. Add .* PYTXO_LICENSE /);
+    results.push(refused);
+  }
+  for (const [answer, why] of [
+    [new TypeError("fetch failed"), "no answer"],
+    [{ status: 429 }, "HTTP 429"],
+    [{ status: 503 }, "HTTP 503"],
+  ]) {
+    const ran = await gate(fakeDodo(answer).fetchImpl);
+    assert.deepEqual(ran, { allowed: true, warning: `Dodo Payments could not check the Pytxo Pro license key (${why}), so the check runs anyway.` });
+    results.push(ran);
+  }
+  assert.ok(results.every((r) => !JSON.stringify(r).includes(KEY)));
+});
+
+test("Dodo Payments is asked nothing for a public repository, during the trial, or without a key", async () => {
+  const dodo = fakeDodo();
+  const inTrial = () => new Date("2026-11-10T00:00:00Z");
+  assert.deepEqual(await gate(dodo.fetchImpl, { isPrivate: false }), { allowed: true });
+  const trial = await gate(dodo.fetchImpl, { key: "", trialStart: inTrial });
   assert.equal(trial.allowed, true);
-  assert.match(trial.notice, /4 days left/);
-  const over = gate({ isPrivate: true, trialStart: new Date("2026-10-01T00:00:00Z") });
-  assert.equal(over.allowed, false);
-  assert.match(over.notice, /PYTXO_LICENSE/);
-  assert.deepEqual(gate({ isPrivate: true, trialStart: new Date("2026-10-01T00:00:00Z"), key }), { allowed: true });
+  assert.match(trial.notice, /: 4 days left\. https:\/\/pytxo\.com\/plans$/);
+  // A key set during the trial is checked once the trial ends, with no reminder before.
+  assert.deepEqual(await gate(dodo.fetchImpl, { trialStart: inTrial }), { allowed: true });
+  const none = await gate(dodo.fetchImpl, { key: "" });
+  assert.equal(none.allowed, false);
+  assert.match(none.notice, /is over\. Add a Pytxo Pro license key as the PYTXO_LICENSE secret/);
+  assert.deepEqual(dodo.calls, []);
 });

@@ -25,7 +25,7 @@ inputs:
     required: false
     default: ${{ github.token }}
   license:
-    description: Pytxo Pro license key for private repositories (secrets.PYTXO_LICENSE). Not required today.
+    description: Pytxo Pro license key for private repositories (secrets.PYTXO_LICENSE). Not required today. Once Pro is switched on, a private repository's run sends this key, and nothing else, to Dodo Payments to check it.
     required: false
     default: ""
   version:
