@@ -115,9 +115,12 @@ After a real "together" failure with three or more merged inputs, when a cause
    can stop at its first error where a passing one runs the whole suite.
 4. No cause, no extra runs.
 
-Each `pair` and `rest` row of the receipt records `inputs`, the positions of
-the inputs it merged; every other row leaves it out, so older receipts verify.
-The check tables name them: `pair (claude/rename-price, codex/add-discount)`.
+Each `pair` and `rest` row's scope names the inputs it merged by their
+positions, `pair:1,2` and `rest:0,3`, the way an `input:<ref>` row names its
+input. Not a field of its own: a 2.0 binary drops a field it does not know
+when it recomputes the digest, so a receipt with one would read there as
+edited. The check tables name them: `pair (claude/rename-price,
+codex/add-discount)`.
 
 The Action needs no change for this: it already passes a pull request whose
 index is not implicated, with the note that it is not the cause.

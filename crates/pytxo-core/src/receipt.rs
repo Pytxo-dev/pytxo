@@ -98,9 +98,11 @@ pub struct ReceiptSymbolCollision {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ReceiptCheck {
     /// `combined`, `input:<ref>`, `target`, or, after a cause names two inputs
-    /// of three or more, `pair` (the target with only those two) and `rest`
-    /// (the target with the other merged inputs). A plain string, so older
-    /// receipts read and verify unchanged.
+    /// of three or more, `pair:<i>,<j>` (the target with only those two) and
+    /// `rest:<k>,...` (the target with the other merged inputs), the inputs
+    /// it merged by their positions. In the string and not a field of their
+    /// own, so a binary that knows no such run still keeps them, and its
+    /// digest of this receipt still matches.
     pub scope: String,
     pub command: String,
     /// `None` when no exit status was observed (the check never started or
@@ -118,11 +120,6 @@ pub struct ReceiptCheck {
     /// read and verify unchanged.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub rerun: bool,
-    /// What a `pair` or `rest` run merged onto the target: the inputs by
-    /// their positions. Absent on every other run, so older receipts read
-    /// and verify unchanged.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub inputs: Option<Vec<usize>>,
 }
 
 impl Receipt {
@@ -302,7 +299,6 @@ mod tests {
                         "at /home/someone/repo/test.js:3".into(),
                     ],
                     rerun: false,
-                    inputs: None,
                 }],
                 reasons: vec!["combined check failed".into()],
                 duration_ms: 40,
@@ -320,8 +316,6 @@ mod tests {
         assert!(receipt.digest_matches());
         // Fields added after v1 are left out when unset, so older receipts verify.
         assert!(!serde_json::to_string(&receipt).unwrap().contains("rerun"));
-        let check = serde_json::to_value(&receipt.predicate.checks[0]).unwrap();
-        assert!(check.get("inputs").is_none(), "{check}");
         let path = receipt.write_to(dir.path()).unwrap();
         let loaded = load_receipt(&path).unwrap();
         assert_eq!(loaded, receipt);

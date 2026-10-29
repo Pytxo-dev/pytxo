@@ -31,7 +31,6 @@ pub fn run_check(
         timed_out,
         output_tail: tail,
         rerun: false,
-        inputs: None,
     };
 
     let log_path = logs.join(format!("pytxo-check-{}.log", uuid::Uuid::new_v4().simple()));

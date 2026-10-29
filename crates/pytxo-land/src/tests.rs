@@ -237,9 +237,90 @@ fn culprit_runs(out: &LandOutcome) -> Vec<(&str, bool)> {
         .predicate
         .checks
         .iter()
-        .filter(|c| c.scope == "pair" || c.scope == "rest")
-        .map(|c| (c.scope.as_str(), c.passed))
+        .filter_map(|c| {
+            let kind = c.scope.split_once(':')?.0;
+            ["pair", "rest"].contains(&kind).then_some((kind, c.passed))
+        })
         .collect()
+}
+
+/// Whether Pytxo 2.0 says the digest of the receipt `out` wrote matches.
+/// 2.0 parses a receipt into its structs, copied here from cdcf19d, and
+/// hashes what they kept, so it matches only when they keep every field: a
+/// field 2.1 adds would read as an edit.
+fn digest_matches_in_2_0(out: &LandOutcome) -> bool {
+    use serde::{Deserialize, Serialize};
+    #[derive(Deserialize, Serialize)]
+    struct Predicate {
+        id: String,
+        kind: String,
+        created_at: String,
+        pytxo_version: String,
+        decision: String,
+        mode: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
+        base: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        result: Option<String>,
+        #[serde(default)]
+        inputs: Vec<Input>,
+        #[serde(default)]
+        files_changed: usize,
+        #[serde(default)]
+        shared_files: Vec<SharedFile>,
+        #[serde(default)]
+        checks: Vec<Check>,
+        #[serde(default)]
+        reasons: Vec<String>,
+        #[serde(default)]
+        duration_ms: u64,
+        #[serde(default)]
+        content_digest: String,
+    }
+    #[derive(Deserialize, Serialize)]
+    struct Input {
+        #[serde(rename = "ref")]
+        reference: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        agent: Option<String>,
+        commit: String,
+        status: String,
+        files: Vec<String>,
+        #[serde(default)]
+        conflict_files: Vec<String>,
+    }
+    #[derive(Deserialize, Serialize)]
+    struct SharedFile {
+        path: String,
+        inputs: Vec<String>,
+        #[serde(default)]
+        symbol_collisions: Vec<SymbolCollision>,
+    }
+    #[derive(Deserialize, Serialize)]
+    struct SymbolCollision {
+        symbol: String,
+        inputs: Vec<String>,
+    }
+    #[derive(Deserialize, Serialize)]
+    struct Check {
+        scope: String,
+        command: String,
+        exit_code: Option<i32>,
+        passed: bool,
+        duration_ms: u64,
+        #[serde(default)]
+        timed_out: bool,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        output_tail: Vec<String>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        rerun: bool,
+    }
+    let written: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&out.receipt_path).unwrap()).unwrap();
+    let predicate = &written["predicate"];
+    let kept: Predicate = serde_json::from_value(predicate.clone()).unwrap();
+    &serde_json::to_value(kept).unwrap() == predicate
 }
 
 /// The last line of the pull-request comment, which the Action reads.
@@ -350,10 +431,7 @@ next     rebase agent/caller onto agent/rename and use unitPrice, then run npx p
     );
     // The pair's run says what it merged, and the tables name them.
     let pair = out.receipt.predicate.checks.last().unwrap();
-    assert_eq!(
-        (pair.scope.as_str(), &pair.inputs),
-        ("pair", &Some(vec![1, 2]))
-    );
+    assert_eq!(pair.scope, "pair:1,2");
     let md = render_markdown(&out);
     assert!(
         md.contains("| `pair (agent/rename, agent/caller)` | **fail** |") && !md.contains("`rest"),
@@ -363,11 +441,13 @@ next     rebase agent/caller onto agent/rename and use unitPrice, then run npx p
         text.contains("\n  pair (agent/rename, agent/caller) ") && !text.contains("\n  rest"),
         "{text}"
     );
-    // The pair's run is in the written receipt, and its digest verifies.
+    // The pair's run is in the written receipt, and its digest verifies, in
+    // 2.0 too.
     let written: Receipt =
         serde_json::from_slice(&std::fs::read(&out.receipt_path).unwrap()).unwrap();
     assert!(written.digest_matches());
     assert_eq!(written.predicate.checks, out.receipt.predicate.checks);
+    assert!(digest_matches_in_2_0(&out), "{text}");
 }
 
 /// The two the cause names pass by themselves; the failure takes the third
@@ -447,8 +527,9 @@ fn others_that_fail_without_the_pair_stay_blamed() {
     // The others' own failure, not the pair's. (cmd echoes the space before `&&`.)
     let rest = out.receipt.predicate.checks.last().unwrap();
     assert_eq!(rest.output_tail.concat().trim(), "boom", "{text}");
-    assert_eq!(rest.inputs, Some(vec![1, 3]));
+    assert_eq!(rest.scope, "rest:1,3");
     assert!(text.contains("\n  rest (agent/c, agent/d) "), "{text}");
+    assert!(digest_matches_in_2_0(&out), "{text}");
     let cause = out.cause.as_ref().unwrap();
     assert_eq!((cause.by, cause.user), (0, 2));
     let v = verdict(&out, "run npx pytxo again");

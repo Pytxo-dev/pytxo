@@ -681,7 +681,6 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                     timed_out: false,
                     output_tail: vec!["input does not merge cleanly onto the target".into()],
                     rerun: false,
-                    inputs: None,
                 });
                 continue;
             };
@@ -909,10 +908,13 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         let timed_out = out_of_time.get() || checks.iter().any(|c| c.timed_out);
         if merged.len() >= 3 && !timed_out && room(2) {
             let wt = Git::owned(&tree.path, identity);
-            // The command's run on the target plus `which`; `None` when they
-            // do not merge or the deadline came first.
-            let run_on = |scope: &str, which: &[usize]| -> Result<Option<ReceiptCheck>> {
-                let message = format!("pytxo land: {scope}");
+            // The command's run on the target plus `which`, its scope `pair:1,2`
+            // or `rest:0,3`; `None` when they do not merge or the deadline came
+            // first.
+            let run_on = |kind: &str, which: &[usize]| -> Result<Option<ReceiptCheck>> {
+                let positions: Vec<String> = which.iter().map(usize::to_string).collect();
+                let scope = format!("{kind}:{}", positions.join(","));
+                let message = format!("pytxo land: {kind}");
                 let mut at = base.clone();
                 for &i in which {
                     let merge = if in_memory {
@@ -932,15 +934,12 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 let _ = wt.run(&SCRATCH_CLEAN);
                 let mut run = None;
                 for command in &opts.checks[..=upto] {
-                    run = run_check(scope, command, &tree.path);
+                    run = run_check(&scope, command, &tree.path);
                     if run.is_none() {
                         break;
                     }
                 }
-                Ok(run.map(|run| ReceiptCheck {
-                    inputs: Some(which.to_vec()),
-                    ..run
-                }))
+                Ok(run)
             };
             let pair = [cause.by.min(cause.user), cause.by.max(cause.user)];
             if let Some(run) = run_on("pair", &pair)? {

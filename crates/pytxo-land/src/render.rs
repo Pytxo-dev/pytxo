@@ -16,23 +16,29 @@ fn input_name(reference: &str, agent: Option<&str>) -> String {
     agent.map_or_else(|| reference.to_string(), |a| format!("{a}:{reference}"))
 }
 
-/// A check's scope as shown; the re-run of a combined check is run 2.
+/// A check's scope as shown; the re-run of a combined check is run 2, and a
+/// run on the pair or the rest names what it merged.
 fn scope_label(p: &ReceiptPredicate, c: &ReceiptCheck) -> String {
     if c.rerun {
         return format!("{}, run 2", c.scope);
     }
-    // What a run on the pair or the rest merged, by name.
-    let names: Vec<&str> = c
-        .inputs
+    let Some((kind, merged)) = merged_onto_target(&c.scope) else {
+        return c.scope.clone();
+    };
+    let names: Vec<&str> = merged
         .iter()
-        .flatten()
         .filter_map(|&n| p.inputs.get(n))
         .map(|i| plain_name(&i.reference, i.agent.as_deref()))
         .collect();
-    match names.as_slice() {
-        [] => c.scope.clone(),
-        _ => format!("{} ({})", c.scope, names.join(", ")),
-    }
+    format!("{kind} ({})", names.join(", "))
+}
+
+/// `pair` or `rest` and the inputs, by position, that a run of that scope
+/// (`pair:1,2`, `rest:0,3`) merged onto the target.
+fn merged_onto_target(scope: &str) -> Option<(&str, Vec<usize>)> {
+    let (kind, positions) = scope.split_once(':')?;
+    let merged: Option<Vec<usize>> = positions.split(',').map(|n| n.parse().ok()).collect();
+    matches!(kind, "pair" | "rest").then_some((kind, merged?))
 }
 
 /// A failed combined run whose re-run passed.
@@ -53,7 +59,10 @@ fn culprits(p: &ReceiptPredicate, cause: &Cause, command: &str) -> (Option<bool>
     let ran = |scope: &str| {
         p.checks
             .iter()
-            .find(|c| c.scope == scope && c.command == command && !c.timed_out)
+            .find(|c| {
+                let kind = merged_onto_target(&c.scope).map_or(c.scope.as_str(), |(k, _)| k);
+                kind == scope && c.command == command && !c.timed_out
+            })
             .map(|c| c.passed)
     };
     let others: Vec<&pytxo_core::ReceiptInput> = p
@@ -1253,7 +1262,6 @@ mod tests {
             timed_out: false,
             output_tail: Vec::new(),
             rerun: false,
-            inputs: None,
         }
     }
 
@@ -1996,21 +2004,21 @@ FAIL discount.test.js: price is not a function")
         let blamed =
             |out: &LandOutcome| implicated(&out.receipt.predicate, out.cause.as_ref(), "BLOCKED");
 
-        let out = with(vec![failed("pair"), check("rest", true)]);
+        let out = with(vec![failed("pair:0,2"), check("rest:1,3", true)]);
         assert_eq!(
             verdict(&out, "again").what,
             "a and c fail together; the other 2 branches pass without them."
         );
         assert_eq!(blamed(&out), [0, 2]);
         // No run on the rest: the two are proven, but no one is cleared.
-        let out = with(vec![failed("pair")]);
+        let out = with(vec![failed("pair:0,2")]);
         assert_eq!(verdict(&out, "again").what, "a and c fail together.");
         assert_eq!(blamed(&out), [0, 1, 2, 3]);
         // A run on the pair that did not finish proves nothing.
         let cut = ReceiptCheck {
             timed_out: true,
             exit_code: None,
-            ..failed("pair")
+            ..failed("pair:0,2")
         };
         let out = with(vec![cut]);
         assert_eq!(
@@ -2024,7 +2032,7 @@ FAIL discount.test.js: price is not a function")
             command: "npm run lint".into(),
             ..c
         };
-        let mut out = with(vec![failed("pair"), check("rest", true)]);
+        let mut out = with(vec![failed("pair:0,2"), check("rest:1,3", true)]);
         let p = &mut out.receipt.predicate;
         p.checks.push(lint(failed("combined")));
         p.checks
@@ -2036,7 +2044,7 @@ FAIL discount.test.js: price is not a function")
             "a and c fail npm test together."
         );
         // So does another check one of the others fails alone.
-        let mut out = with(vec![failed("pair"), check("rest", true)]);
+        let mut out = with(vec![failed("pair:0,2"), check("rest:1,3", true)]);
         let p = &mut out.receipt.predicate;
         p.checks.push(lint(check("combined", false)));
         p.checks
