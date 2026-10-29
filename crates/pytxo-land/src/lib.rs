@@ -10,6 +10,7 @@
 //! target that moved during the gate is refused, never overwritten.
 
 pub mod bench;
+mod cause;
 pub mod checks;
 pub mod detect;
 mod git;
@@ -29,9 +30,11 @@ use pytxo_core::{
     ReceiptSharedFile, ReceiptSymbolCollision,
 };
 
+pub use cause::{Cause, Use};
 pub use git::Git;
 pub use render::{
-    render_markdown, render_markdown_with, render_text, verdict, Verdict, INSTALL_HINT,
+    fix_prompt, render_markdown, render_markdown_with, render_text, verdict, NamedCause, Reader,
+    Verdict, INSTALL_HINT,
 };
 
 pub const DEFAULT_CHECK_TIMEOUT: Duration = Duration::from_secs(15 * 60);
@@ -140,6 +143,10 @@ pub struct LandOutcome {
     /// The conflicting inputs that conflict with the target itself, not only
     /// with the inputs merged before them.
     pub target_conflicts: Vec<String>,
+    /// When every merged input passed alone and the combined change failed
+    /// twice: a name one input renamed or removed that another still uses.
+    /// A reading of the runs, so not in the receipt.
+    pub cause: Option<Cause>,
 }
 
 impl LandOutcome {
@@ -780,6 +787,45 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         checks.push(check);
         checks.extend(rerun);
     }
+    // Why they fail together, when they do: each merged input passed alone,
+    // the combined change failed again when run again, neither run timed out
+    // and no input conflicts, the "together" verdict. From the first such
+    // command's runs only, and never past the deadline, so it cannot hold up
+    // the answer. Read before the target run, while the scratch worktree is
+    // still here for a run of two of the inputs.
+    let together = opts
+        .checks
+        .iter()
+        .zip(&again)
+        .find_map(|(command, &alone_ok)| {
+            let failed_again = checks
+                .iter()
+                .any(|c| c.rerun && !c.passed && !c.timed_out && &c.command == command);
+            (alone_ok && failed_again).then_some(command)
+        });
+    let in_time = !out_of_time.get() && !opts.deadline.is_some_and(|d| Instant::now() >= d);
+    let cause = match together {
+        Some(command) if in_time && receipt_inputs.iter().all(|i| i.status != "conflict") => {
+            let merged: Vec<cause::Merged> = resolved
+                .iter()
+                .zip(&receipt_inputs)
+                .enumerate()
+                .filter(|(_, (_, i))| i.status == "merged")
+                .map(|(index, (r, _))| cause::Merged {
+                    index,
+                    merge_base: &r.merge_base,
+                    commit: &r.commit,
+                })
+                .collect();
+            let failing: Vec<&[String]> = checks
+                .iter()
+                .filter(|c| c.scope == "combined" && !c.passed && &c.command == command)
+                .map(|c| c.output_tail.as_slice())
+                .collect();
+            cause::find(&repo, &merged, &combined, &failing)
+        }
+        _ => None,
+    };
     // A check every input fails alone blames them only if the target passes
     // it: run it there once, in the combined worktree, which is done with.
     // Not after a timeout, which would take as long again.
@@ -999,6 +1045,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         out_of_time,
         submodules,
         target_conflicts,
+        cause,
     })
 }
 

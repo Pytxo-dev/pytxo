@@ -6,7 +6,7 @@ use std::fmt::Write as _;
 use pytxo_core::{ReceiptCheck, ReceiptPredicate};
 use serde::Serialize;
 
-use crate::{short, LandOutcome};
+use crate::{short, Cause, LandOutcome, Use};
 
 fn seconds(ms: u64) -> String {
     format!("{:.1}s", ms as f64 / 1000.0)
@@ -341,6 +341,110 @@ pub struct Verdict {
     pub what: String,
     pub why: String,
     pub next: String,
+    /// For "together": the name one branch renamed or removed that another
+    /// still uses.
+    pub cause: Option<NamedCause>,
+    /// For the agent on the branch that has to change, once the failing
+    /// output confirms the cause.
+    pub fix_prompt: Option<String>,
+    /// A line under the three, among the notes: a cause the failing output
+    /// does not confirm, so the why line stays the error.
+    #[serde(skip)]
+    pub note: Option<String>,
+}
+
+/// A cause as `--json` gives it: the branches by name.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct NamedCause {
+    pub by: String,
+    pub user: String,
+    pub name: String,
+    pub renamed_to: Option<String>,
+    pub uses: Vec<Use>,
+    pub confirmed: bool,
+}
+
+/// Whose agent reads a fix prompt: the one on the branch that has to change,
+/// the one on the branch that renamed or removed the name, or anyone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reader {
+    User,
+    By,
+    Anyone,
+}
+
+/// The fix prompt for `reader`; `None` unless the verdict names a confirmed
+/// cause.
+pub fn fix_prompt(outcome: &LandOutcome, reader: Reader) -> Option<String> {
+    verdict_for(outcome, "", false, reader).fix_prompt
+}
+
+/// What to paste into the agent of the branch that has to change: what
+/// broke, where, what to do, and the end of the failing output.
+fn prompt(
+    by: &str,
+    user: &str,
+    cause: &Cause,
+    command: &str,
+    tail: &[String],
+    reader: Reader,
+) -> String {
+    let x = &cause.name;
+    let at: Vec<String> = cause
+        .uses
+        .iter()
+        .take(3)
+        .map(|u| format!("{}:{}", u.path, u.line))
+        .collect();
+    let at = at.join(", ");
+    let (merged, renamer, still, fix) = match reader {
+        Reader::User => (
+            format!("{by} and your branch {user}"),
+            by.to_string(),
+            format!("Your branch {user} still uses"),
+            "Fix it on your branch".to_string(),
+        ),
+        Reader::By => (
+            format!("your branch {by} and {user}"),
+            format!("Your branch {by}"),
+            format!("{user} still uses"),
+            format!("The fix belongs on {user}"),
+        ),
+        Reader::Anyone => (
+            format!("{by} and {user}"),
+            by.to_string(),
+            format!("{user} still uses"),
+            format!("Fix it on {user}"),
+        ),
+    };
+    let mut s = format!(
+        "Pytxo merged {merged} and ran {command}: each passes alone, together they fail.\n"
+    );
+    let _ = match &cause.renamed_to {
+        Some(y) => writeln!(
+            s,
+            "{renamer} renamed {x} to {y}. {still} {x} at {at}.\n{fix}: rebase it onto {by}, replace {x} with {y}, and run {command} until it passes. {}",
+            match reader {
+                Reader::By => format!("The other way out is to keep {x} on your branch as an alias of {y}."),
+                _ => format!("Leave {by}'s changes as they are."),
+            }
+        ),
+        None => writeln!(
+            s,
+            "{renamer} removed {x}. {still} {x} at {at}.\n{fix}: rebase it onto {by}, stop using {x}, and run {command} until it passes. {}",
+            match reader {
+                Reader::User => format!("If your branch needs {x}, ask for it back on {by} instead."),
+                Reader::By => format!("The other way out is to keep {x} on your branch."),
+                Reader::Anyone => format!("If {user} needs {x}, ask for it back on {by} instead."),
+            }
+        ),
+    };
+    if !tail.is_empty() {
+        let last = &tail[tail.len().saturating_sub(15)..];
+        let _ = write!(s, "Failing output:\n{}", last.join("\n"));
+    }
+    s.truncate(s.trim_end().len());
+    s
 }
 
 impl std::fmt::Display for Verdict {
@@ -375,7 +479,7 @@ fn and_list(names: &[String]) -> String {
 /// The decision in plain words. `again` finishes "fix it, then ...", for
 /// example "run npx pytxo again" or "push again".
 pub fn verdict(outcome: &LandOutcome, again: &str) -> Verdict {
-    verdict_for(outcome, again, false)
+    verdict_for(outcome, again, false, Reader::Anyone)
 }
 
 /// The longest run of `c` in `text`.
@@ -403,8 +507,9 @@ fn cell(text: &str) -> String {
 }
 
 /// `pr`: for a pull-request comment, where test output, branch names and
-/// paths, which a fork controls, show only as code.
-fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
+/// paths, which a fork controls, show only as code. `reader`: whom the fix
+/// prompt speaks to.
+fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> Verdict {
     let p = &outcome.receipt.predicate;
     let target = p.target.as_deref().unwrap_or("HEAD");
     let shown = |text: &str| {
@@ -424,6 +529,9 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
         what,
         why,
         next,
+        cause: None,
+        fix_prompt: None,
+        note: None,
     };
     let first_line = |c: &ReceiptCheck| {
         let line = why_lines(&c.output_tail).into_iter().next()?;
@@ -608,13 +716,64 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool) -> Verdict {
                     })
                     .collect();
                 if failing.is_empty() {
-                    return v(
+                    let run = rerun.unwrap_or(c);
+                    let verdict = v(
                         "together",
                         "BLOCKED",
                         format!("{names} pass {cmd} alone but fail together."),
-                        why(rerun.unwrap_or(c), "on the combined change"),
+                        why(run, "on the combined change"),
                         format!("fix one branch so they agree, then {again}."),
                     );
+                    let named = |n: usize| {
+                        let i = p.inputs.get(n)?;
+                        Some(plain_name(&i.reference, i.agent.as_deref()).to_string())
+                    };
+                    let Some((cause, by, user)) = outcome
+                        .cause
+                        .as_ref()
+                        .and_then(|c| Some((c, named(c.by)?, named(c.user)?)))
+                    else {
+                        return verdict;
+                    };
+                    let (b, u, x) = (shown(&by), shown(&user), shown(&cause.name));
+                    let at = cause.uses.first().map_or_else(String::new, |w| {
+                        format!(" ({})", shown(&format!("{}:{}", w.path, w.line)))
+                    });
+                    let mut verdict = Verdict {
+                        cause: Some(NamedCause {
+                            by: by.clone(),
+                            user: user.clone(),
+                            name: cause.name.clone(),
+                            renamed_to: cause.renamed_to.clone(),
+                            uses: cause.uses.clone(),
+                            confirmed: cause.confirmed,
+                        }),
+                        ..verdict
+                    };
+                    // Unconfirmed, it is a hint under the error, not the why.
+                    match (cause.renamed_to.as_deref().map(shown), cause.confirmed) {
+                        (Some(y), true) => {
+                            verdict.why = format!("{b} renamed {x} to {y}; {u} still uses {x}{at}.");
+                            verdict.next = format!("rebase {u} onto {b} and use {y}, then {again}.");
+                        }
+                        (None, true) => {
+                            verdict.why = format!("{b} removed {x}; {u} still uses it{at}.");
+                            verdict.next = format!(
+                                "rebase {u} onto {b} and stop using {x}, or keep {x} on {b}, then {again}."
+                            );
+                        }
+                        (Some(y), false) => {
+                            verdict.note = Some(format!("{u} uses {x}, which {b} renamed to {y}{at}."));
+                        }
+                        (None, false) => {
+                            verdict.note = Some(format!("{u} uses {x}, which {b} removed{at}."));
+                        }
+                    }
+                    if cause.confirmed {
+                        verdict.fix_prompt =
+                            Some(prompt(&by, &user, cause, cmd, &run.output_tail, reader));
+                    }
+                    return verdict;
                 }
                 let solo_fail = solo.iter().find(|s| !s.passed).copied().unwrap_or(c);
                 // Every branch failing alone blames them only if the target
@@ -749,7 +908,7 @@ pub fn render_markdown(outcome: &LandOutcome) -> String {
 
 pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
     let p = &outcome.receipt.predicate;
-    let verdict = verdict_for(outcome, "push again", true);
+    let verdict = verdict_for(outcome, "push again", true, Reader::Anyone);
     let mark = match verdict.label {
         "READY" | "LANDED" => "✅",
         "STALE" | "NO TESTS" => "⏸️",
@@ -766,6 +925,25 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
     // Lower case on purpose: these often start with a command (npm test...).
     let _ = writeln!(s, "**Why:** {}\n", verdict.why);
     let _ = writeln!(s, "**Next:** {}\n", verdict.next);
+    if let Some(note) = &verdict.note {
+        let _ = writeln!(s, "**Note:** {note}\n");
+    }
+    if let (Some(prompt), Some(cause)) = (&verdict.fix_prompt, &verdict.cause) {
+        // The prompt holds branch names and test output: only in a fence,
+        // longer than any backtick run in it. The name in the summary is
+        // HTML, where `<code>` keeps it from mentioning anyone.
+        let fence = "`".repeat(longest_run(prompt, '`').max(2) + 1);
+        let user = cause
+            .user
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('@', "&#64;");
+        let _ = writeln!(
+            s,
+            "<details><summary>Fix prompt for <code>{user}</code></summary>\n\n{fence}text\n{prompt}\n{fence}\n\n</details>\n"
+        );
+    }
     let _ = writeln!(s, "<details><summary>Details</summary>\n");
     let _ = writeln!(
         s,
@@ -889,6 +1067,7 @@ mod tests {
             out_of_time: false,
             submodules: false,
             target_conflicts: Vec::new(),
+            cause: None,
         }
     }
 
@@ -1326,5 +1505,242 @@ warning: build failed, waiting for other jobs to finish...";
             why_lines(&demo),
             ["FAIL discount.test.js: price is not a function"]
         );
+    }
+
+    fn input_named(reference: &str) -> ReceiptInput {
+        input(reference, "merged")
+    }
+
+    /// The demo's runs: each branch passes alone, the combination fails
+    /// twice, and `cause` read from them.
+    fn together(cause: Option<Cause>) -> LandOutcome {
+        let failed = |rerun| ReceiptCheck {
+            rerun,
+            output_tail: lines("ok   cart.test.js\nFAIL discount.test.js: price is not a function"),
+            ..check("combined", false)
+        };
+        let mut p = blocked("merged", Vec::new());
+        p.inputs = vec![
+            input_named("claude/rename-price"),
+            input_named("codex/add-discount"),
+        ];
+        p.checks = vec![
+            failed(false),
+            check("input:claude/rename-price", true),
+            check("input:codex/add-discount", true),
+            failed(true),
+        ];
+        LandOutcome {
+            cause,
+            ..outcome(p)
+        }
+    }
+
+    fn renamed(confirmed: bool) -> Cause {
+        let at = |line| Use {
+            path: "src/discount.js".into(),
+            line,
+        };
+        Cause {
+            by: 0,
+            user: 1,
+            name: "price".into(),
+            renamed_to: Some("unitPrice".into()),
+            uses: vec![at(1), at(4)],
+            confirmed,
+        }
+    }
+
+    #[test]
+    fn a_confirmed_rename_is_the_why_and_the_next() {
+        let again = "run npx pytxo again";
+        let v = verdict(&together(Some(renamed(true))), again);
+        assert_eq!((v.kind, v.label), ("together", "BLOCKED"));
+        assert_eq!(
+            v.to_string(),
+            "BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
+why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
+next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
+"
+        );
+        assert_eq!(v.note, None);
+        assert_eq!(
+            v.fix_prompt.as_deref(),
+            Some("Pytxo merged claude/rename-price and codex/add-discount and ran npm test: each passes alone, together they fail.
+claude/rename-price renamed price to unitPrice. codex/add-discount still uses price at src/discount.js:1, src/discount.js:4.
+Fix it on codex/add-discount: rebase it onto claude/rename-price, replace price with unitPrice, and run npm test until it passes. Leave claude/rename-price's changes as they are.
+Failing output:
+ok   cart.test.js
+FAIL discount.test.js: price is not a function")
+        );
+        let json = serde_json::to_value(&v).unwrap();
+        assert_eq!(
+            json["cause"],
+            serde_json::json!({
+                "by": "claude/rename-price",
+                "user": "codex/add-discount",
+                "name": "price",
+                "renamed_to": "unitPrice",
+                "uses": [{"path": "src/discount.js", "line": 1}, {"path": "src/discount.js", "line": 4}],
+                "confirmed": true,
+            })
+        );
+        assert!(json.get("note").is_none(), "{json}");
+
+        // Without a cause the verdict is as before, and says so in JSON.
+        let v = verdict(&together(None), again);
+        assert_eq!(
+            v.why,
+            "npm test fails on the combined change: FAIL discount.test.js: price is not a function"
+        );
+        assert_eq!(
+            v.next,
+            "fix one branch so they agree, then run npx pytxo again."
+        );
+        let json = serde_json::to_value(&v).unwrap();
+        assert!(
+            json["cause"].is_null() && json["fix_prompt"].is_null(),
+            "{json}"
+        );
+    }
+
+    #[test]
+    fn a_confirmed_removal_says_to_stop_using_it_or_keep_it() {
+        let removed = Cause {
+            renamed_to: None,
+            ..renamed(true)
+        };
+        let v = verdict(&together(Some(removed)), "run npx pytxo again");
+        assert_eq!(
+            v.why,
+            "claude/rename-price removed price; codex/add-discount still uses it (src/discount.js:1)."
+        );
+        assert_eq!(
+            v.next,
+            "rebase codex/add-discount onto claude/rename-price and stop using price, or keep price on claude/rename-price, then run npx pytxo again."
+        );
+        let prompt = v.fix_prompt.unwrap();
+        assert!(
+            prompt.contains("\nclaude/rename-price removed price. codex/add-discount still uses price at src/discount.js:1, src/discount.js:4.\nFix it on codex/add-discount: rebase it onto claude/rename-price, stop using price, and run npm test until it passes. If codex/add-discount needs price, ask for it back on claude/rename-price instead.\n"),
+            "{prompt}"
+        );
+    }
+
+    /// The output does not name it: the why line stays the error, and the
+    /// cause is a note, with no prompt to act on.
+    #[test]
+    fn an_unconfirmed_cause_is_a_note_under_the_error() {
+        let out = together(Some(renamed(false)));
+        let v = verdict(&out, "run npx pytxo again");
+        assert_eq!(
+            v.why,
+            "npm test fails on the combined change: FAIL discount.test.js: price is not a function"
+        );
+        assert_eq!(
+            v.next,
+            "fix one branch so they agree, then run npx pytxo again."
+        );
+        assert_eq!(
+            v.note.as_deref(),
+            Some("codex/add-discount uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1).")
+        );
+        assert_eq!(v.fix_prompt, None);
+        assert!(!v.cause.unwrap().confirmed);
+        let md = render_markdown(&out);
+        assert!(
+            md.contains("\n**Note:** `codex/add-discount` uses `price`, which `claude/rename-price` renamed to `unitPrice` (`src/discount.js:1`).\n"),
+            "{md}"
+        );
+        assert!(!md.contains("Fix prompt"), "{md}");
+        let removed = Cause {
+            renamed_to: None,
+            ..renamed(false)
+        };
+        let v = verdict(&together(Some(removed)), "again");
+        assert_eq!(
+            v.note.as_deref(),
+            Some("codex/add-discount uses price, which claude/rename-price removed (src/discount.js:1).")
+        );
+    }
+
+    #[test]
+    fn markdown_names_the_cause_as_code_and_folds_the_prompt() {
+        let md = render_markdown(&together(Some(renamed(true))));
+        for line in [
+            "### ⛔ BLOCKED: `claude/rename-price` and `codex/add-discount` pass npm test alone but fail together",
+            "**Why:** `claude/rename-price` renamed `price` to `unitPrice`; `codex/add-discount` still uses `price` (`src/discount.js:1`).",
+            "**Next:** rebase `codex/add-discount` onto `claude/rename-price` and use `unitPrice`, then push again.",
+            "<details><summary>Fix prompt for <code>codex/add-discount</code></summary>",
+            "```text",
+            "Pytxo merged claude/rename-price and codex/add-discount and ran npm test: each passes alone, together they fail.",
+        ] {
+            assert!(md.lines().any(|l| l == line), "{line}\n{md}");
+        }
+        assert!(
+            md.contains("FAIL discount.test.js: price is not a function\n```\n\n</details>\n\n<details><summary>Details</summary>"),
+            "{md}"
+        );
+
+        // Branch names and output a fork controls: code, a fence, or HTML
+        // text in `<code>`, never a mention, link or tag.
+        let mut out = together(Some(renamed(true)));
+        let p = &mut out.receipt.predicate;
+        p.inputs[1].reference = "codex/x-@octocat<b>".into();
+        p.checks[1].scope = "input:codex/x-@octocat<b>".into();
+        p.checks[3]
+            .output_tail
+            .push("```\n@octocat [docs](evil.example)".into());
+        let md = render_markdown(&out);
+        assert!(
+            md.contains(
+                "<summary>Fix prompt for <code>codex/x-&#64;octocat&lt;b&gt;</code></summary>"
+            ),
+            "{md}"
+        );
+        assert!(md.contains("\n````text\n"), "{md}");
+        let mut fence: Option<String> = None;
+        for line in md.lines() {
+            let ticks: String = line.chars().take_while(|&c| c == '`').collect();
+            match &fence {
+                Some(open) if line == open.as_str() => fence = None,
+                Some(_) => continue,
+                None if ticks.len() >= 3 => {
+                    fence = Some(ticks);
+                    continue;
+                }
+                None => {}
+            }
+            let outside: String = line.split('`').step_by(2).collect();
+            assert!(!outside.contains('@') && !outside.contains("]("), "{line}");
+        }
+    }
+
+    /// The hook hands the prompt to the agent whose worktree it runs in.
+    #[test]
+    fn the_prompt_speaks_to_the_branch_that_reads_it() {
+        let out = together(Some(renamed(true)));
+        let user = fix_prompt(&out, Reader::User).unwrap();
+        assert!(
+            user.starts_with("Pytxo merged claude/rename-price and your branch codex/add-discount and ran npm test: each passes alone, together they fail.\nclaude/rename-price renamed price to unitPrice. Your branch codex/add-discount still uses price at src/discount.js:1, src/discount.js:4.\nFix it on your branch: rebase it onto claude/rename-price, replace price with unitPrice, and run npm test until it passes."),
+            "{user}"
+        );
+        let by = fix_prompt(&out, Reader::By).unwrap();
+        assert!(
+            by.starts_with("Pytxo merged your branch claude/rename-price and codex/add-discount and ran npm test: each passes alone, together they fail.\nYour branch claude/rename-price renamed price to unitPrice. codex/add-discount still uses price at src/discount.js:1, src/discount.js:4.\nThe fix belongs on codex/add-discount: rebase it onto claude/rename-price, replace price with unitPrice, and run npm test until it passes. The other way out is to keep price on your branch as an alias of unitPrice.\n"),
+            "{by}"
+        );
+        assert_eq!(
+            fix_prompt(&out, Reader::Anyone),
+            verdict(&out, "x").fix_prompt
+        );
+        // None for a cause the output does not confirm, or another verdict.
+        assert_eq!(
+            fix_prompt(&together(Some(renamed(false))), Reader::User),
+            None
+        );
+        let mut conflict = together(Some(renamed(true)));
+        conflict.receipt.predicate.inputs[1].status = "conflict".into();
+        assert_eq!(fix_prompt(&conflict, Reader::User), None);
+        assert_eq!(verdict(&conflict, "x").cause, None);
     }
 }

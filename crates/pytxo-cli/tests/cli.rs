@@ -835,11 +835,13 @@ fn the_demo_catches_the_break() {
     let text = stdout(&out);
     let err = String::from_utf8_lossy(&out.stderr);
     assert_eq!(out.status.code(), Some(0), "{text}{err}");
-    assert!(
-        text.starts_with("BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together."),
-        "{text}"
+    assert_eq!(
+        text,
+        "BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
+why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
+next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run pytxo again.
+"
     );
-    assert!(text.contains("price is not a function"), "{text}");
     assert!(
         err.contains("against main with npm test (from package.json)..."),
         "{err}"

@@ -3,7 +3,7 @@ use std::process::Command;
 
 use super::*;
 
-fn git(dir: &Path, args: &[&str]) -> String {
+pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
     let out = Command::new("git")
         .args(args)
         .current_dir(dir)
@@ -17,7 +17,7 @@ fn git(dir: &Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
-fn write(dir: &Path, files: &[(&str, &str)]) {
+pub(crate) fn write(dir: &Path, files: &[(&str, &str)]) {
     for (path, body) in files {
         let p = dir.join(path);
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
@@ -25,9 +25,9 @@ fn write(dir: &Path, files: &[(&str, &str)]) {
     }
 }
 
-const CART: &str = "function price(item) {\n  return item.cost;\n}\n\nfunction total(items) {\n  let sum = 0;\n  for (const i of items) sum += price(i);\n  return sum;\n}\n\nfunction label(n) {\n  return 'total: ' + n;\n}\n\nmodule.exports = { price, total, label };\n";
+pub(crate) const CART: &str = "function price(item) {\n  return item.cost;\n}\n\nfunction total(items) {\n  let sum = 0;\n  for (const i of items) sum += price(i);\n  return sum;\n}\n\nfunction label(n) {\n  return 'total: ' + n;\n}\n\nmodule.exports = { price, total, label };\n";
 
-fn repo() -> tempfile::TempDir {
+pub(crate) fn repo() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     let d = dir.path();
     git(d, &["init", "-q", "-b", "main"]);
@@ -41,7 +41,7 @@ fn repo() -> tempfile::TempDir {
 }
 
 /// Commit `files` on a new branch cut from `from`, then return to main.
-fn branch(d: &Path, from: &str, name: &str, files: &[(&str, &str)]) {
+pub(crate) fn branch(d: &Path, from: &str, name: &str, files: &[(&str, &str)]) {
     git(d, &["checkout", "-q", "-b", name, from]);
     write(d, files);
     git(d, &["add", "-A"]);
@@ -209,6 +209,64 @@ fn every_input_passes_alone_but_the_combination_fails() {
     );
     assert!(checks.iter().any(|c| c.scope == "combined" && !c.passed));
     assert!(out.insights[0].contains("Every input passed"));
+    let cause = out.cause.expect("the rename is the cause");
+    assert_eq!((cause.by, cause.user, cause.name.as_str()), (0, 1, "price"));
+    assert!(cause.confirmed, "node names price: {checks:?}");
+}
+
+/// A check that fails, in cmd and sh alike, only where src/cart.js says
+/// `unitPrice` and src/extra.js still says `price`, the way Node fails there.
+const RENAME_BREAKS: &str = "git grep -q unitPrice -- src/cart.js && git grep -q -w price -- src/extra.js && echo TypeError: price is not a function && exit 1 || exit 0";
+
+#[test]
+fn a_failure_together_names_the_rename_behind_it() {
+    let dir = repo();
+    let d = dir.path();
+    let renamed = CART.replace("price", "unitPrice");
+    branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+    let caller =
+        "const { price } = require('./cart.js');\nmodule.exports = () => price({ cost: 2 });\n";
+    branch(d, "main", "agent/caller", &[("src/extra.js", caller)]);
+    let mut o = opts(d, &["agent/rename", "agent/caller"]);
+    o.checks = vec![RENAME_BREAKS.into()];
+    o.per_input = PerInput::OnFailure;
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(
+        combined_runs(&out),
+        [(false, false), (false, true)],
+        "{text}"
+    );
+    assert_eq!(
+        out.cause,
+        Some(Cause {
+            by: 0,
+            user: 1,
+            name: "price".into(),
+            renamed_to: Some("unitPrice".into()),
+            uses: [1, 2]
+                .map(|line| Use {
+                    path: "src/extra.js".into(),
+                    line,
+                })
+                .to_vec(),
+            confirmed: true,
+        })
+    );
+    let v = verdict(&out, "run npx pytxo again");
+    assert_eq!(
+        v.why,
+        "agent/rename renamed price to unitPrice; agent/caller still uses price (src/extra.js:1)."
+    );
+    // A reading of the runs, not a record: the receipt is as before.
+    let written: Receipt =
+        serde_json::from_slice(&std::fs::read(&out.receipt_path).unwrap()).unwrap();
+    assert!(written.digest_matches());
+    assert_eq!(written.predicate, out.receipt.predicate);
+
+    // Without the runs alone nothing shows they pass alone: no cause.
+    o.per_input = PerInput::Never;
+    assert_eq!(land(&o).unwrap().cause, None);
 }
 
 /// A check that fails only where both `a.txt` and `b.txt` exist, so only on
@@ -880,7 +938,8 @@ fn test_output_shows_only_as_code_in_markdown() {
 fn check_output_shows_as_a_terminal_would() {
     let dir = repo();
     let d = dir.path();
-    // Both lines read as errors, so both reach the comment.
+    // The second line reads as an error, so it reaches the comment; the
+    // first is a count of failures, which says nothing about why.
     let printed = "\u{1b}[31mFAIL\u{1b}[0m 2 tests\n0%\r# @octocat failed it\n";
     branch(d, "main", "agent/a", &[("out.txt", printed)]);
     let mut o = opts(d, &["agent/a"]);
