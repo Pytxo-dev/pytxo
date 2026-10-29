@@ -122,9 +122,9 @@ function answer(url, { pulls = [], runs = {}, commits = {} }) {
   return number ? (commits[number] ?? []).map((sha) => ({ sha })) : [];
 }
 
-/** A pull_request workflow run on `sha`, from this repository unless `fork`. */
-const run = (sha, attempt, conclusion, { fork = false } = {}) => ({
-  event: "pull_request",
+/** A workflow run on `sha`, for a pull_request unless `event`, from this repository unless `fork`. */
+const run = (sha, attempt, conclusion, { fork = false, event = "pull_request" } = {}) => ({
+  event,
   head_sha: sha,
   run_attempt: attempt,
   conclusion,
@@ -204,6 +204,21 @@ test("a held PR whose runs wait for approval, or waited until GitHub failed them
     [9, 14],
   );
   assert.deepEqual(left, ["1 agent pull request that GitHub holds for workflow approval left out."]);
+});
+
+test("a later attempt still waiting for approval, or a run on another event, does not let a held PR in", async () => {
+  const current = pr(14, "codex/discount");
+  const open = [pr(12, "copilot/fix-tax", { login: "Copilot" }), current];
+  for (const runs of [
+    // Attempt 2 alone does not prove a start: this one waits for approval again.
+    [run(A, 2, "action_required")],
+    // On the PR's own commit, but not the pull_request run GitHub held.
+    [run(A, 2, "success", { event: "pull_request_target" }), run(A, 2, "success", { event: "push" })],
+  ]) {
+    const { approved, calls } = await lookUp(current, open, { runs: { "copilot/fix-tax": runs }, commits: { 12: [A] } });
+    assert.equal(approved.size, 0);
+    assert.equal(calls.length, 1);
+  }
 });
 
 test("GitHub is asked about the newest 9 held PRs, and without actions: read they stay out with a note", async () => {
