@@ -789,20 +789,29 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     }
     // Why they fail together, when they do: each merged input passed alone,
     // the combined change failed again when run again, neither run timed out
-    // and no input conflicts, the "together" verdict. From the first such
-    // command's runs only, and never past the deadline, so it cannot hold up
-    // the answer. Read before the target run, while the scratch worktree is
-    // still here for a run of two of the inputs.
-    let together = opts
-        .checks
-        .iter()
-        .zip(&again)
-        .find_map(|(command, &alone_ok)| {
-            let failed_again = checks
+    // and no input conflicts, the "together" verdict. From the runs of the
+    // command that verdict speaks of, the first whose combined run failed and
+    // did not pass when run again (`failed_combined` in render.rs): a later
+    // command that fails together, after one a branch fails alone, has no
+    // cause, so nothing reads or runs more for a verdict that does not show
+    // it. Never past the deadline, so it cannot hold up the answer. Read
+    // before the target run, while the combined worktree is still here.
+    let speaks_of = opts.checks.iter().zip(&again).find(|(command, _)| {
+        let runs = || {
+            checks
                 .iter()
-                .any(|c| c.rerun && !c.passed && !c.timed_out && &c.command == command);
-            (alone_ok && failed_again).then_some(command)
-        });
+                .filter(|c| c.scope == "combined" && &c.command == *command)
+        };
+        runs().any(|c| !c.rerun && !c.passed) && !runs().any(|c| c.rerun && c.passed)
+    });
+    let together = speaks_of
+        .filter(|&(command, &alone_ok)| {
+            alone_ok
+                && checks
+                    .iter()
+                    .any(|c| c.rerun && !c.passed && !c.timed_out && &c.command == command)
+        })
+        .map(|(command, _)| command);
     let in_time = !out_of_time.get() && !opts.deadline.is_some_and(|d| Instant::now() >= d);
     let cause = match together {
         Some(command) if in_time && receipt_inputs.iter().all(|i| i.status != "conflict") => {

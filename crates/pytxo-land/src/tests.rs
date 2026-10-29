@@ -267,6 +267,22 @@ fn a_failure_together_names_the_rename_behind_it() {
     // Without the runs alone nothing shows they pass alone: no cause.
     o.per_input = PerInput::Never;
     assert_eq!(land(&o).unwrap().cause, None);
+
+    // A check the caller fails alone, run first, is the one the verdict
+    // speaks of, so the one that fails only together has no cause either.
+    o.per_input = PerInput::OnFailure;
+    o.checks = vec![
+        "git grep -q -w price -- src/extra.js && exit 1 || exit 0".into(),
+        RENAME_BREAKS.into(),
+    ];
+    let out = land(&o).unwrap();
+    assert_eq!(
+        verdict(&out, "again").kind,
+        "alone",
+        "{}",
+        render_text(&out)
+    );
+    assert_eq!(out.cause, None);
 }
 
 /// A check that fails only where both `a.txt` and `b.txt` exist, so only on
