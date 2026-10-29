@@ -14,7 +14,7 @@ breaks. Free, open source, runs on your machine or in CI.
 npx pytxo demo
 ```
 
-## Try it in 60 seconds
+## Try it
 
 ```bash
 npx pytxo demo   # a throwaway repo where two agent branches pass alone and fail together
@@ -46,7 +46,7 @@ why      npm test fails on the combined change: FAIL discount.test.js: price is 
 next     fix one branch so they agree, then run npx pytxo again.
 ```
 
-The demo needs Node.js and takes a few seconds once the binary is downloaded.
+The demo needs Node.js and takes under 30 seconds, the first download included.
 
 ## In CI: one line
 

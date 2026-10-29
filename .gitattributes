@@ -3,3 +3,6 @@
 
 # bash reads this driver directly; CRLF breaks it
 apps/demo-video/scripts/land-take/*.sh text eol=lf
+
+# Run with bash on Windows too; CRLF breaks it
+tooling/scripts/action-e2e.sh text eol=lf
