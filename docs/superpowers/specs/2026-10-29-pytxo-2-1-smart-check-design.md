@@ -58,9 +58,11 @@ Terms: base `B`; input `i` at commit `C_i` with merge base
    an order's `subtotal` or a struct's `Total`. An import is a use, but a
    name the file gives what it imports is the file's own, which a rename of
    the definition cannot break: a default or namespace import, a module
-   required whole, an alias. A file that binds the name itself, such as the
-   user's own `const X`, a parameter or a local, has none, and a file
-   without a grammar, such as a README, gives none. It is not a cause if `R` still defines the name:
+   required whole, an alias, or a name from one of Node's own modules
+   (`node:path`), which no branch defines. A file that binds the name
+   itself, such as the user's own `const X`, a parameter or a local, has
+   none, and a file without a grammar, such as a README, gives none. It is
+   not a cause if `R` still defines the name:
    `git grep -l -w -F -e <name> R`, then parse those files at `R`, where a
    symbol of that name counts, and so does any other top-level binding that is
    no import: `const X = memo(...)`, `exports.X = ...`,

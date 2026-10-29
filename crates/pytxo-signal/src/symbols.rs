@@ -421,27 +421,45 @@ fn innermost(of: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
     }
 }
 
-/// `require('./cart')` or `import('./cart')`, awaited or not.
-fn is_import_call(node: tree_sitter::Node<'_>, source: &str) -> bool {
+/// The call `require('./cart')` or `import('./cart')`, awaited or not.
+fn import_call<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<tree_sitter::Node<'t>> {
     let mut n = node;
     while matches!(n.kind(), "await_expression" | "parenthesized_expression") {
-        match n.named_child(0) {
-            Some(inner) => n = inner,
-            None => return false,
-        }
+        n = n.named_child(0)?;
     }
-    n.kind() == "call_expression"
-        && n.child_by_field_name("function").is_some_and(|f| {
-            f.kind() == "import" || (f.kind() == "identifier" && text(f, source) == Some("require"))
-        })
+    let f = n.child_by_field_name("function")?;
+    let imports =
+        f.kind() == "import" || (f.kind() == "identifier" && text(f, source) == Some("require"));
+    (n.kind() == "call_expression" && imports).then_some(n)
+}
+
+fn is_import_call(node: tree_sitter::Node<'_>, source: &str) -> bool {
+    import_call(node, source).is_some()
+}
+
+/// Whether `specifier`, the string an import names its module by, names one
+/// of Node's own, such as `'node:path'`, which no branch defines.
+fn names_node_module(specifier: Option<tree_sitter::Node<'_>>, source: &str) -> bool {
+    specifier
+        .and_then(|s| text(s, source))
+        .is_some_and(|t| t.trim_start_matches(['\'', '"', '`']).starts_with("node:"))
 }
 
 /// What an identifier is inside an import: the name it brings in refers to
 /// what it imports, a module's own path does not. A name the file gives what
 /// it imports, whatever the module calls it, is the file's own: a default or
-/// namespace import, a module required whole, an alias. `None` outside
-/// imports.
+/// namespace import, a module required whole, an alias, and whatever comes
+/// from one of Node's own modules. `None` outside imports.
 fn import_role<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<Role<'t>> {
+    // What `const ... = require('./cart')` or `require('./cart').price`
+    // requires.
+    let required = |declarator: tree_sitter::Node<'t>| {
+        let mut v = declarator.child_by_field_name("value")?;
+        while v.kind() == "member_expression" {
+            v = v.child_by_field_name("object")?;
+        }
+        import_call(v, source)
+    };
     // `import price from`, `import * as price`, `import price = require()`,
     // and the alias of `{ unitPrice as price }` or `unit_price as price`.
     let named_here = node.parent().is_some_and(|p| {
@@ -459,11 +477,12 @@ fn import_role<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<Role<'t>
             | "import_spec"
             | "use_declaration"
             | "import_require_clause" => {
-                return Some(if named_here {
+                let node_module = names_node_module(n.child_by_field_name("source"), source);
+                return Some(if named_here || node_module {
                     Role::Binds { top: false }
                 } else {
                     Role::Refers
-                })
+                });
             }
             "import_from_statement" => {
                 return Some(if n.child_by_field_name("module_name") == Some(child) {
@@ -478,22 +497,15 @@ fn import_role<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<Role<'t>
             // require('./cart').price` bring in its `price`; `const cart =
             // require('./cart')` names the module.
             "variable_declarator"
-                if n.child_by_field_name("name") == Some(child)
-                    && n.child_by_field_name("value").is_some_and(|v| {
-                        let mut v = v;
-                        while v.kind() == "member_expression" {
-                            match v.child_by_field_name("object") {
-                                Some(o) => v = o,
-                                None => break,
-                            }
-                        }
-                        is_import_call(v, source)
-                    }) =>
+                if n.child_by_field_name("name") == Some(child) && required(n).is_some() =>
             {
                 let whole = child == node
                     && n.child_by_field_name("value")
-                        .is_some_and(|v| is_import_call(v, source));
-                return Some(if whole {
+                        .is_some_and(|v| v.kind() != "member_expression");
+                let specifier = required(n)
+                    .and_then(|call| call.child_by_field_name("arguments"))
+                    .and_then(|args| args.named_child(0));
+                return Some(if whole || names_node_module(specifier, source) {
                     Role::Binds { top: false }
                 } else {
                     Role::Refers
@@ -875,6 +887,23 @@ mod tests {
         }
         let module = "import cart from './cart.js';\nimport * as shop from './shop.js';\nconst tax = require('./tax.js');\ncart.price(1);\nshop.price(2);\ntax.price(3);\n";
         assert_eq!(price_in("a.js", module).lines, [4, 5, 6]);
+    }
+
+    /// Node's own modules are no branch's code: a name brought in from
+    /// `node:path` is the file's own, however the repository names its own.
+    #[test]
+    fn a_name_from_a_node_module_is_the_files_own() {
+        let basename =
+            |source: &str| name_use(Path::new("a.js"), source, "basename", false).unwrap();
+        for own in [
+            "import { basename } from 'node:path';\nbasename(p);\n",
+            "const { basename } = require(\"node:path\");\nbasename(p);\n",
+            "const basename = require('node:path').basename;\nbasename(p);\n",
+        ] {
+            assert!(basename(own).binds, "{own}");
+        }
+        let repos = "import { basename } from './files.js';\nbasename(p);\n";
+        assert!(!basename(repos).binds);
     }
 
     /// A method is used where it is called. `a.name` read without a call is

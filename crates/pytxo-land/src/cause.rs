@@ -1141,6 +1141,29 @@ mod tests {
         assert_eq!(cause(d, &["agent/rename", "agent/test"], &failed), None);
     }
 
+    /// One branch drops its own `basename()` helper; the other calls the
+    /// one from `node:path`, which no branch can rename. No cause, even
+    /// with a frame of its code under the error.
+    #[test]
+    fn a_name_from_a_node_module_is_no_use_of_the_branchs_own() {
+        let dir = repo();
+        let d = dir.path();
+        let files = "function basename(p) {\n  return p.split('/').pop();\n}\n\nfunction label(p) {\n  return basename(p).toUpperCase();\n}\n\nmodule.exports = { basename, label };\n";
+        write(d, &[("src/files.js", files)]);
+        git(d, &["add", "-A"]);
+        git(d, &["commit", "-q", "-m", "files"]);
+        let strict = "function label(p) {\n  if (!p.includes('.')) throw new Error('no extension: ' + p);\n  return p.split('/').pop().toUpperCase();\n}\n\nmodule.exports = { label };\n";
+        branch(d, "main", "agent/strict", &[("src/files.js", strict)]);
+        let title = "const { basename } = require('node:path');\nconst { label } = require('./files.js');\n\nmodule.exports = (p) => label(p) + ' ' + basename(p);\n";
+        branch(d, "main", "agent/title", &[("src/title.js", title)]);
+        let failed = [
+            "Error: no extension: docs/README",
+            "    at label (/tmp/run/src/files.js:2:27)",
+            "    at module.exports (/tmp/run/src/title.js:4:28)",
+        ];
+        assert_eq!(cause(d, &["agent/strict", "agent/title"], &failed), None);
+    }
+
     /// README and docs say the word in prose, which no grammar here reads:
     /// the uses are the code's, and a branch with only docs is no user.
     #[test]
