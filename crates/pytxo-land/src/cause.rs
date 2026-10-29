@@ -207,18 +207,19 @@ pub(crate) fn find(
         .collect();
     let names: BTreeSet<&str> = gone.iter().map(|c| c.name.as_str()).collect();
     let names: Vec<&str> = names.into_iter().collect();
-    let still_defined: BTreeMap<&str, bool> = names
+    let combined: BTreeMap<&str, (bool, BTreeSet<String>)> = names
         .iter()
         .copied()
         .zip(defines(git, &mut grep, combined, &names)?)
         .collect();
     let mut found = Vec::new();
     for c in gone {
-        if still_defined[c.name.as_str()] {
+        let (defined, own) = &combined[c.name.as_str()];
+        if *defined {
             continue;
         }
         for (u, user) in inputs.iter().enumerate().filter(|&(u, _)| u != c.by) {
-            let (uses, values) = uses_in(&diffs[u], &c.name, c.member);
+            let (uses, values) = uses_in(&diffs[u], &c.name, c.member, own);
             if uses.is_empty() {
                 continue;
             }
@@ -321,8 +322,14 @@ impl Grep<'_> {
 /// block that is no import, such as `const price = memo(...)`,
 /// `exports.price = ...` or a Python `price = ...`, which the code that
 /// imports the file reaches as well. A file too big to parse counts as one
-/// that does, since it may.
-fn defines(git: &Git, grep: &mut Grep, commit: &str, names: &[&str]) -> Option<Vec<bool>> {
+/// that does, since it may. With each, the files that bind it in any scope,
+/// a local or a parameter included, whose code refers to their own.
+fn defines(
+    git: &Git,
+    grep: &mut Grep,
+    commit: &str,
+    names: &[&str],
+) -> Option<Vec<(bool, BTreeSet<String>)>> {
     let files = grep.files(commit, names)?;
     let paths: BTreeSet<&str> = files
         .iter()
@@ -355,21 +362,26 @@ fn defines(git: &Git, grep: &mut Grep, commit: &str, names: &[&str]) -> Option<V
             }),
         );
     }
-    let binds = |path: &str, name: &str| match read.get(path) {
-        None => false,
-        Some(None) => true,
-        Some(Some((source, symbols))) => {
-            symbols.iter().any(|n| n == name)
-                || name_use(Path::new(path), source, name, false).is_some_and(|u| u.exports)
+    let mut out = Vec::new();
+    for (name, files) in names.iter().zip(&files) {
+        let (mut defined, mut own) = (false, BTreeSet::new());
+        for path in files {
+            let Some(read) = read.get(path.as_str()) else {
+                continue;
+            };
+            let Some((source, symbols)) = read else {
+                defined = true;
+                continue;
+            };
+            let said = name_use(Path::new(path), source, name, false).unwrap_or_default();
+            defined |= said.exports || symbols.iter().any(|n| n == name);
+            if said.binds {
+                own.insert(path.clone());
+            }
         }
-    };
-    Some(
-        names
-            .iter()
-            .zip(&files)
-            .map(|(name, files)| files.iter().any(|p| binds(p, name)))
-            .collect(),
-    )
+        out.push((defined, own));
+    }
+    Some(out)
 }
 
 /// The names `source` defines, in order: the last part of each symbol's
@@ -471,10 +483,18 @@ fn said_only(diff: &[FileDiff], name: &str) -> Option<Vec<String>> {
 /// on that branch: not a word in a string, a comment, docs or a file with no
 /// grammar here, an object key, nor `a.name` unless `name` was a `member`
 /// and the line calls it, `a.name()`: a read is a field's.
-/// Not in a file that binds `name` itself, a local variable or a parameter
-/// included, whose code refers to its own. Then the uses among them that
-/// say more than a type, where the code that runs says the name.
-fn uses_in(diff: &[FileDiff], name: &str, member: bool) -> (Vec<Use>, Vec<Use>) {
+/// Not in a file that binds `name` itself in the combined change, one of
+/// `own`, whose code refers to its own: a local, a parameter or an import
+/// named there. A file the branch has from the merge base binds the name the
+/// renaming branch took away, which binds nothing once they are combined.
+/// Then the uses among them that say more than a type, where the code that
+/// runs says the name.
+fn uses_in(
+    diff: &[FileDiff],
+    name: &str,
+    member: bool,
+    own: &BTreeSet<String>,
+) -> (Vec<Use>, Vec<Use>) {
     let (mut uses, mut values) = (Vec::new(), Vec::new());
     for f in diff {
         let Some(source) = f.new_source.as_deref() else {
@@ -483,12 +503,12 @@ fn uses_in(diff: &[FileDiff], name: &str, member: bool) -> (Vec<Use>, Vec<Use>) 
         if !f.added.iter().any(|(_, l)| has_word(l, name)) {
             continue;
         }
+        if own.contains(&f.path) {
+            continue;
+        }
         let Some(said) = name_use(Path::new(&f.path), source, name, member) else {
             continue;
         };
-        if said.binds {
-            continue;
-        }
         let added: BTreeSet<u32> = f.added.iter().map(|(n, _)| *n).collect();
         for &n in &said.lines {
             let Some(line) = u32::try_from(n).ok().filter(|n| added.contains(n)) else {
@@ -890,6 +910,38 @@ mod tests {
         assert_eq!(found.name, "price");
         assert_eq!(found.renamed_to, None);
         assert!(found.confirmed);
+    }
+
+    /// One branch renames `price` in cart.js, and the other adds a call of it
+    /// to that file: the file binds `price` on the caller's branch only by
+    /// the definition the rename took away, so the call is a use. A local
+    /// `price` of the caller's own is not.
+    #[test]
+    fn a_call_added_beside_the_definition_another_branch_renamed_is_a_use() {
+        let dir = repo();
+        let d = dir.path();
+        let renamed = CART.replace("price", "unitPrice");
+        branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+        let discounted = |body: &str| {
+            let added =
+                format!("  return sum;\n}}\n\nfunction discounted(item, pct) {{\n{body}}}\n");
+            CART.replace("  return sum;\n}\n", &added)
+        };
+        let calls = discounted("  return price(item) * (1 - pct);\n");
+        branch(d, "main", "agent/discount", &[("src/cart.js", &calls)]);
+        let failed = ["ReferenceError: price is not defined"];
+        let found = cause(d, &["agent/rename", "agent/discount"], &failed);
+        let at = vec![Use {
+            path: "src/cart.js".into(),
+            line: 12,
+        }];
+        assert_eq!(
+            found.map(|c| (c.by, c.user, c.uses, c.confirmed)),
+            Some((0, 1, at, true))
+        );
+        let own = discounted("  const price = item.cost;\n  return price * (1 - pct);\n");
+        branch(d, "main", "agent/own", &[("src/cart.js", &own)]);
+        assert_eq!(cause(d, &["agent/rename", "agent/own"], &failed), None);
     }
 
     /// A caller that brings its own `price` does not use the one the other
