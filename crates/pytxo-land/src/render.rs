@@ -111,26 +111,14 @@ fn left_out_of_combined(outcome: &LandOutcome) -> Vec<String> {
         .collect()
 }
 
-/// The lines of a failed check's output most likely to say why it failed:
-/// error-looking lines first, else the last few.
+/// The lines of a failed check's output most likely to say why it failed,
+/// the likeliest first, else the last few.
 fn why_lines(tail: &[String]) -> Vec<String> {
-    const MARKERS: [&str; 7] = [
-        "error",
-        "fail",
-        "not recognized",
-        "not found",
-        "panicked",
-        "traceback",
-        "assert",
-    ];
     let trimmed = || tail.iter().map(|l| l.trim()).filter(|l| !l.is_empty());
-    let mut lines: Vec<&str> = trimmed()
-        .filter(|l| {
-            let l = l.to_lowercase();
-            MARKERS.iter().any(|m| l.contains(m))
-        })
-        .take(3)
-        .collect();
+    let mut ranked: Vec<(u8, &str)> = trimmed().filter_map(|l| Some((rank(l)?, l))).collect();
+    // Stable: lines that rank alike keep the output's order.
+    ranked.sort_by_key(|&(rank, _)| rank);
+    let mut lines: Vec<&str> = ranked.into_iter().map(|(_, l)| l).take(3).collect();
     if lines.is_empty() {
         lines = trimmed().collect();
         lines.drain(..lines.len().saturating_sub(3));
@@ -139,6 +127,77 @@ fn why_lines(tail: &[String]) -> Vec<String> {
         .into_iter()
         .map(|l| l.chars().take(160).collect())
         .collect()
+}
+
+/// How well `line` says why a check failed, 0 best; `None` when it does not.
+/// An error or exception name says the most, then a test file that failed,
+/// then any line that says error, then fail. A test runner's count, such as
+/// node:test's `ℹ fail 1` printed before the error itself, says nothing.
+fn rank(line: &str) -> Option<u8> {
+    if names_an_error(line) {
+        return Some(0);
+    }
+    let lower = line.to_lowercase();
+    if lower.contains("traceback") || lower.contains("assert") {
+        return Some(1);
+    }
+    if fails_a_file(line) {
+        return Some(2);
+    }
+    if counts_failures(&lower) {
+        return None;
+    }
+    if lower.contains("error") {
+        return Some(3);
+    }
+    ["fail", "not recognized", "not found", "panicked"]
+        .iter()
+        .any(|m| lower.contains(m))
+        .then_some(4)
+}
+
+/// `TypeError: ...`, `Error: ...`, Node's `TypeError [Error]: ...` and
+/// `AssertionError [ERR_ASSERTION]: ...`, `java.io.IOException: ...`,
+/// rustc's `error[E0425]: ...` or a Rust panic.
+fn names_an_error(line: &str) -> bool {
+    if line.contains("error[") || line.contains("panicked at") {
+        return true;
+    }
+    ["Error", "Exception"].iter().any(|name| {
+        line.match_indices(name).any(|(i, _)| {
+            let rest = &line[i + name.len()..];
+            let rest = match rest.strip_prefix(" [") {
+                Some(coded) => coded.split_once(']').map_or("", |(_, r)| r),
+                None => rest,
+            };
+            rest.starts_with(':')
+        })
+    })
+}
+
+/// `FAIL src/cart.test.js`, as Jest and Vitest name a test file that failed.
+fn fails_a_file(line: &str) -> bool {
+    line.strip_prefix("FAIL").is_some_and(|rest| {
+        rest.starts_with(char::is_whitespace)
+            && rest
+                .split_whitespace()
+                .next()
+                .is_some_and(|file| file.contains(['.', '/', '\\']))
+    })
+}
+
+/// A count of failures: `ℹ fail 1`, `# fail 1`, `Tests: 1 failed`, `1 failed`
+/// or `test result: FAILED. 1 passed; 1 failed`.
+fn counts_failures(lower: &str) -> bool {
+    let number = |w: &str| w.bytes().all(|b| b.is_ascii_digit());
+    let words: Vec<&str> = lower
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    words.windows(2).any(|pair| {
+        (number(pair[0]) && pair[1].starts_with("fail"))
+            || (pair[0].starts_with("fail") && number(pair[1]))
+    })
 }
 
 /// What to do about a decision that did not land; `None` when nothing is needed.
@@ -1119,5 +1178,153 @@ mod tests {
         p.files_changed = 1;
         let md = render_markdown(&outcome(p));
         assert!(md.contains(" · 1 input · 1 file changed · "), "{md}");
+    }
+
+    fn lines(text: &str) -> Vec<String> {
+        text.lines().map(str::to_string).collect()
+    }
+
+    /// The first line `why_lines` picks from runs, local paths shortened: real
+    /// ones, and pytest's written out in its format.
+    #[test]
+    fn the_why_line_is_the_error_not_the_count() {
+        // node:test's spec reporter, Node 22 and later: the counts, `ℹ fail
+        // 1` among them, come before the error. Node 26.
+        let node_spec = "✔ total adds up the prices (0.7425ms)
+✖ discounted takes the percentage off (0.8154ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 150.0703
+✖ failing tests:
+test at test\\discount.test.js:5:1
+✖ discounted takes the percentage off (0.8154ms)
+  TypeError [Error]: price is not a function
+      at discounted (C:\\work\\shop\\discount.js:4:10)
+      at TestContext.<anonymous> (C:\\work\\shop\\test\\discount.test.js:6:22)
+      at Test.runInAsyncScope (node:async_hooks:226:14)";
+        // The same run with `--test-reporter=tap`.
+        let node_tap = "not ok 2 - discounted takes the percentage off
+  ---
+  duration_ms: 0.7017
+  type: 'test'
+  location: 'C:\\\\work\\\\shop\\\\test\\\\discount.test.js:5:1'
+  failureType: 'testCodeFailure'
+  error: 'price is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    discounted (C:\\work\\shop\\discount.js:4:10)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1";
+        // Jest 30, colors removed as the output tail removes them.
+        let jest = "FAIL src/discount.test.js
+  ● discount takes ten percent
+    TypeError: price is not a function
+      3 | function discounted(item) {
+    > 4 |   return price(item) * 0.9;
+        |          ^
+      at discounted (src/discount.js:4:10)
+      at Object.<anonymous> (src/discount.test.js:4:10)
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       1 failed, 1 passed, 2 total
+Snapshots:   0 total
+Time:        1.547 s
+Ran all test suites.";
+        // pytest 8, written out as it prints a failed assert.
+        let pytest =
+            "tests/test_cart.py .                                                     [ 50%]
+tests/test_discount.py F                                                 [100%]
+================================== FAILURES ===================================
+________________________________ test_discount ________________________________
+    def test_discount():
+>       assert discounted({\"cost\": 10}) == 9
+tests/test_discount.py:4:
+item = {'cost': 10}
+    def discounted(item):
+>       return price(item) * 0.9
+E       NameError: name 'price' is not defined
+src/discount.py:4: NameError
+=========================== short test summary info ===========================
+FAILED tests/test_discount.py::test_discount - NameError: name 'price' is not defined
+========================= 1 failed, 1 passed in 0.03s =========================";
+        // cargo test, a failed assertion, then a call to a missing function.
+        let cargo_panic = "running 2 tests
+test tests::total_adds_up ... ok
+test tests::discount_takes_ten_percent ... FAILED
+failures:
+---- tests::discount_takes_ten_percent stdout ----
+thread 'tests::discount_takes_ten_percent' (57716) panicked at src\\lib.rs:20:9:
+assertion `left == right` failed
+  left: 180
+ right: 190
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+failures:
+    tests::discount_takes_ten_percent
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+error: test failed, to rerun pass `--lib`";
+        let cargo_build = "   Compiling shop v0.1.0 (C:\\work\\shop)
+error[E0425]: cannot find function `price` in this scope
+ --> src\\lib.rs:6:5
+  |
+6 |     price(cents) * 9 / 10
+  |     ^^^^^ not found in this scope
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `shop` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...";
+        for (output, first) in [
+            (node_spec, "TypeError [Error]: price is not a function"),
+            (node_tap, "error: 'price is not a function'"),
+            (jest, "TypeError: price is not a function"),
+            (pytest, "E       NameError: name 'price' is not defined"),
+            (
+                cargo_panic,
+                "thread 'tests::discount_takes_ten_percent' (57716) panicked at src\\lib.rs:20:9:",
+            ),
+            (
+                cargo_build,
+                "error[E0425]: cannot find function `price` in this scope",
+            ),
+        ] {
+            let why = why_lines(&lines(output));
+            assert_eq!(why.first().map(String::as_str), Some(first), "{output}");
+            assert!(
+                !why.iter().any(|l| counts_failures(&l.to_lowercase())),
+                "{why:?}"
+            );
+        }
+        // Then a failing file, then other error lines; never a count.
+        assert_eq!(
+            why_lines(&lines(jest)),
+            [
+                "TypeError: price is not a function",
+                "FAIL src/discount.test.js"
+            ]
+        );
+        for count in [
+            "ℹ fail 1",
+            "# fail 1",
+            "Tests:       1 failed, 1 passed, 2 total",
+            "========================= 1 failed, 1 passed in 0.03s ====",
+            "test result: FAILED. 1 passed; 1 failed; 0 ignored",
+            "  1 failing",
+        ] {
+            assert!(counts_failures(&count.to_lowercase()), "{count}");
+            assert_eq!(rank(count), None, "{count}");
+        }
+        // The demo's own runner names the file and the error on one line.
+        let demo = lines("ok   cart.test.js\nFAIL discount.test.js: price is not a function");
+        assert_eq!(
+            why_lines(&demo),
+            ["FAIL discount.test.js: price is not a function"]
+        );
     }
 }
