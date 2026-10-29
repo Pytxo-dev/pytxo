@@ -215,7 +215,7 @@ pub(crate) fn rank(line: &str) -> Option<u8> {
 /// `TypeError: ...`, `Error: ...`, Node's `TypeError [Error]: ...` and
 /// `AssertionError [ERR_ASSERTION]: ...`, `java.io.IOException: ...`,
 /// rustc's `error[E0425]: ...` or a Rust panic.
-fn names_an_error(line: &str) -> bool {
+pub(crate) fn names_an_error(line: &str) -> bool {
     if line.contains("error[") || line.contains("panicked at") {
         return true;
     }
@@ -244,7 +244,7 @@ fn fails_a_file(line: &str) -> bool {
 /// mypy, eslint and gcc print it (`total_test.go:7: Total = 700, want 7`,
 /// `.\discount.go:3:40: undefined: Price`), or tsc (`src/a.ts:3:5 - error
 /// TS2304: ...`). Not a stack frame or a place with nothing after it.
-fn says_where(line: &str) -> bool {
+pub(crate) fn says_where(line: &str) -> bool {
     let Some((word, rest)) = line.split_once(char::is_whitespace) else {
         return false;
     };

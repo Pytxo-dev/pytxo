@@ -16,7 +16,7 @@ use pytxo_signal::{name_use, parses, symbol_spans, uses_name};
 use serde::Serialize;
 
 use crate::git::Git;
-use crate::render::rank;
+use crate::render::{names_an_error, rank, says_where};
 
 /// Changed files of one input read for the names they define.
 const MAX_FILES: usize = 200;
@@ -503,18 +503,43 @@ fn uses_in(diff: &[FileDiff], name: &str, member: bool) -> Vec<Use> {
 }
 
 /// Whether the failing output says `name` where it says what went wrong, or
-/// the place of one of `uses`, as a stack frame or a compiler gives it. An
-/// error, an assertion, a place with what is wrong there or a test that
-/// failed says what went wrong (`rank` 2 or better); a count of tests, a
-/// diff of values or a test's title does not, nor a word in a path, such as
-/// `price.js` or `src\price.js`.
+/// the place of one of `uses` where something went wrong there. An error, an
+/// assertion, a place with what is wrong there or a test that failed says
+/// what went wrong (`rank` 2 or better); a count of tests, a diff of values
+/// or a test's title does not, nor a word in a path, such as `price.js` or
+/// `src\price.js`. A place counts as a compiler prints it, with its message,
+/// or as the frame an error was thrown at: the first under an error that is
+/// no failed assertion, past the runtime's own. An assertion's frame, or a
+/// caller's, is a line that only happens to hold a use.
 fn confirms(failing: &[&[String]], name: &str, uses: &[Use]) -> bool {
-    failing.iter().flat_map(|tail| tail.iter()).any(|line| {
-        let line = line.trim();
-        (says_outside_paths(line, name) && rank(line).is_some_and(|r| r <= 2)) || {
-            let line = line.replace('\\', "/");
-            uses.iter().any(|u| names_place(&line, u))
-        }
+    failing.iter().any(|tail| {
+        let mut thrown = false;
+        tail.iter().any(|line| {
+            let line = line.trim();
+            if says_outside_paths(line, name) && rank(line).is_some_and(|r| r <= 2) {
+                return true;
+            }
+            // `at f (src/a.js:4:10)` as V8, Java and .NET print a frame, or
+            // Vitest's `❯ f src/a.js:4:10`.
+            let frame = line.starts_with("at ") || line.starts_with("❯ ");
+            let at = || {
+                let line = line.replace('\\', "/");
+                uses.iter().any(|u| names_place(&line, u))
+            };
+            if (says_where(line) || (frame && thrown)) && at() {
+                return true;
+            }
+            if names_an_error(line) {
+                thrown = !line.contains("Assertion");
+            } else if frame
+                && !["node:", "node_modules", "(internal/"]
+                    .iter()
+                    .any(|r| line.contains(r))
+            {
+                thrown = false;
+            }
+            false
+        })
     })
 }
 
@@ -1157,12 +1182,64 @@ mod tests {
             assert!(!confirmed(line, "price"), "{line}");
             assert!(!confirmed(line, "total"), "{line}");
         }
+        // The place of a use, as the frame an error was thrown at or as a
+        // compiler's place with what is wrong there.
+        let thrown = |frame: &str| {
+            let tail = ["Error: boom".to_string(), frame.to_string()];
+            confirms(&[&tail], "unrelated", &at)
+        };
         for frame in [
             "    at discounted (/tmp/run/src/discount.js:4:10)",
             r"    at discounted (C:\run\src\discount.js:4:10)",
-            "src/discount.js:4: TypeError",
         ] {
-            assert!(confirmed(frame, "unrelated"), "{frame}");
+            assert!(thrown(frame), "{frame}");
+        }
+        assert!(confirmed("src/discount.js:4: TypeError", "unrelated"));
+    }
+
+    /// A stack frame confirms a use only where an error was thrown: the first
+    /// frame in the repository under an error that is no failed assertion.
+    /// The assertion's own frame, a caller's or a frame under no error says
+    /// nothing about the name; a compiler's place with its message does.
+    #[test]
+    fn only_the_frame_an_error_was_thrown_at_confirms_a_place() {
+        let at = [Use {
+            path: "src/title.js".into(),
+            line: 5,
+        }];
+        let confirmed = |lines: &[&str]| {
+            let tail: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
+            confirms(&[&tail], "unrelated", &at)
+        };
+        for thrown in [
+            &[
+                "TypeError: Cannot read properties of undefined (reading 'x')",
+                "    at title (/tmp/run/src/title.js:5:13)",
+            ][..],
+            &[
+                "TypeError [ERR_INVALID_ARG_TYPE]: The \"path\" argument must be of type string",
+                "    at basename (node:path:1306:5)",
+                r"    at title (C:\run\src\title.js:5:13)",
+            ],
+            &["TypeError: x is undefined", " ❯ title src/title.js:5:13"],
+            &["src/title.js:5:3: error: use of undeclared identifier"],
+        ] {
+            assert!(confirmed(thrown), "{thrown:?}");
+        }
+        for not_thrown in [
+            &[
+                "Error: no extension: docs/README",
+                "    at label (/tmp/run/src/files.js:3:9)",
+                "    at title (/tmp/run/src/title.js:5:13)",
+            ][..],
+            &[
+                "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+                "180 !== 200",
+                "    at TestContext.<anonymous> (/tmp/run/src/title.js:5:10)",
+            ],
+            &["    at title (/tmp/run/src/title.js:5:13)"],
+        ] {
+            assert!(!confirmed(not_thrown), "{not_thrown:?}");
         }
     }
 
@@ -1176,19 +1253,24 @@ mod tests {
         let branches = ["agent/rename", "agent/caller"];
         let found = cause(d, &branches, &["Error: Cannot find module 'left-pad'"]).unwrap();
         assert_eq!((found.name.as_str(), found.confirmed), ("price", false));
-        // A stack frame at one of the uses confirms it, in Windows spelling too.
+        // The frame an error was thrown at, at one of the uses, confirms it,
+        // in Windows spelling too.
+        let thrown = |frame: &str| {
+            let tail = ["TypeError: Cannot read properties of undefined", frame];
+            cause(d, &branches, &tail).unwrap().confirmed
+        };
         for frame in [
             "    at module.exports (/tmp/run/src/extra.js:2:24)",
             r"    at module.exports (C:\run\src\extra.js:2:24)",
         ] {
-            assert!(cause(d, &branches, &[frame]).unwrap().confirmed, "{frame}");
+            assert!(thrown(frame), "{frame}");
         }
         // Not a longer line number, nor a file whose name ends the same way.
         for frame in [
             "at x (/tmp/src/extra.js:21:3)",
             "at x (/tmp/old-src/extra.js:2:1)",
         ] {
-            assert!(!cause(d, &branches, &[frame]).unwrap().confirmed, "{frame}");
+            assert!(!thrown(frame), "{frame}");
         }
     }
 

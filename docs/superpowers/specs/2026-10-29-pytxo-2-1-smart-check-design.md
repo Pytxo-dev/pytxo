@@ -66,8 +66,12 @@ Terms: base `B`; input `i` at commit `C_i` with merge base
 5. **Confirmed.** A line of the failing output tails of the combined runs
    that section 4 ranks as an error name, a traceback, assert or diagnostic,
    or a `FAIL` line says the name as a word outside a path, or a line names a
-   `path:line` equal to one of the stale uses, as a stack frame does. Failure
-   counts, summaries and test titles never confirm.
+   `path:line` equal to one of the stale uses where something went wrong
+   there: a compiler's place with its message, or the frame an error was
+   thrown at, the first frame past the runtime's own (`node:`,
+   `node_modules`) under an error that is no failed assertion. An
+   assertion's frame and a caller's only hold the line. Failure counts,
+   summaries and test titles never confirm.
 6. **Pick one.** Confirmed first, then the most stale uses, then input order.
    The other inputs whose new lines use the name the picked input removed are
    kept as `also`: once it lands they break the same way.
