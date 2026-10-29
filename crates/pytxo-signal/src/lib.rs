@@ -85,7 +85,9 @@ pub fn read_scaffolded(path: &Path, tier: FidelityTier) -> Result<ScaffoldResult
     TreeSitterSignalCore.read_scaffolded(path, tier)
 }
 
-pub use symbols::{innermost_symbol, parses, symbol_spans, uses_name, SymbolSpan};
+pub use symbols::{
+    innermost_symbol, name_use, parses, symbol_spans, uses_name, NameUse, SymbolSpan,
+};
 
 pub use graph::{
     aggregate_modules, build_module_graph, build_structural_graph, enrich_symbol_nodes,

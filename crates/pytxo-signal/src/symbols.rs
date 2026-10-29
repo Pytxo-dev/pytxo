@@ -15,6 +15,10 @@ pub struct SymbolSpan {
     /// 1-based inclusive line range.
     pub start_line: usize,
     pub end_line: usize,
+    /// Called as `a.name`: inside another symbol, such as a method, or a Go
+    /// method, which its name alone does not show.
+    #[serde(skip)]
+    pub member: bool,
 }
 
 /// Symbol spans for a supported language; empty for unknown languages or
@@ -74,6 +78,476 @@ pub fn uses_name(path: &Path, source: &str, name: &str) -> Option<bool> {
     }
 }
 
+/// How the code in one file says one name.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NameUse {
+    /// The 1-based lines, in order, where code refers to the name, an import
+    /// of it included. Not a string or a comment, an object key or a keyword
+    /// argument, a declaration, nor `a.name`, a property of something else,
+    /// unless the caller counts members or `a` is a module the file imports.
+    pub lines: Vec<usize>,
+    /// The file binds the name other than by an import, in any scope: a
+    /// function, class, variable or parameter of that name, so the lines may
+    /// refer to its own.
+    pub binds: bool,
+    /// It binds the name outside every function, class and block, where code
+    /// that imports the file reaches it: a function or class, a variable such
+    /// as `const price = memo(...)`, a Python or Go one, a Rust `const` or
+    /// `static`, `exports.price = ...` or a key of `module.exports = {...}`.
+    pub exports: bool,
+}
+
+/// How the code in `source` says `name`. With `members`, `a.name` refers to
+/// it too, as a call of a method does. `None` without a grammar for `path`.
+// ponytail: a file that binds the name anywhere, a parameter included, has
+// no uses of another's, and `const { price } = cart` binds it; resolve scopes
+// if a shadowed name ever hides a real use.
+pub fn name_use(path: &Path, source: &str, name: &str, members: bool) -> Option<NameUse> {
+    let lang = language::detect(path)?;
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&lang.grammar).ok()?;
+    let tree = parser.parse(source, None)?;
+    let mut found = NameUse::default();
+    // `a.name`, kept until the file's imports say whether `a` is a module.
+    let mut properties = Vec::new();
+    let mut cursor = tree.walk();
+    loop {
+        let node = cursor.node();
+        let kind = node.kind();
+        if (kind.contains("identifier") || kind == "constant") && text(node, source) == Some(name) {
+            let line = node.start_position().row + 1;
+            match role(node, cursor.field_name(), members, source) {
+                Role::Refers => found.lines.push(line),
+                Role::Property(of) => properties.push((line, of)),
+                Role::Binds { top } => {
+                    found.binds = true;
+                    found.exports |= top;
+                }
+                Role::Neither => {}
+            }
+        }
+        if cursor.goto_first_child() || cursor.goto_next_sibling() {
+            continue;
+        }
+        loop {
+            if !cursor.goto_parent() {
+                if !properties.is_empty() {
+                    let modules = imported(tree.root_node(), source);
+                    let module = |of: &Option<tree_sitter::Node>| {
+                        of.is_some_and(|n| is_import_call(n, source))
+                            || of
+                                .and_then(|n| text(n, source))
+                                .is_some_and(|t| modules.contains(t))
+                    };
+                    found.lines.extend(
+                        properties
+                            .iter()
+                            .filter(|(_, of)| module(of))
+                            .map(|(line, _)| *line),
+                    );
+                    found.lines.sort_unstable();
+                }
+                found.lines.dedup();
+                return Some(found);
+            }
+            if cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
+/// What an identifier of the name is to the code around it.
+enum Role<'t> {
+    Refers,
+    /// `a.name`: a use only of a member, or of a module's name; with the
+    /// innermost `a` of `a.b.name`.
+    Property(Option<tree_sitter::Node<'t>>),
+    /// A binding other than an import, `top` outside every function, class
+    /// and block.
+    Binds {
+        top: bool,
+    },
+    /// An object key, a keyword argument, a module path or another class's
+    /// member: no use and no binding.
+    Neither,
+}
+
+/// Functions, classes and blocks: a binding inside one is not the file's own.
+const SCOPES: &[&str] = &[
+    "function_declaration",
+    "generator_function_declaration",
+    "function_expression",
+    "function",
+    "generator_function",
+    "arrow_function",
+    "method_definition",
+    "class_body",
+    "statement_block",
+    "function_definition",
+    "class_definition",
+    "lambda",
+    "method_declaration",
+    "func_literal",
+    "function_item",
+    "closure_expression",
+    "impl_item",
+    "trait_item",
+    "compound_statement",
+    "method",
+    "singleton_method",
+];
+
+/// Whether nothing around `node` is a function, class or block.
+fn at_top(node: tree_sitter::Node<'_>) -> bool {
+    let mut up = node.parent();
+    while let Some(n) = up {
+        if SCOPES.contains(&n.kind()) {
+            return false;
+        }
+        up = n.parent();
+    }
+    true
+}
+
+fn role<'t>(
+    node: tree_sitter::Node<'t>,
+    field: Option<&str>,
+    members: bool,
+    source: &str,
+) -> Role<'t> {
+    let Some(parent) = node.parent() else {
+        return Role::Refers;
+    };
+    if let Some(import) = import_role(node, source) {
+        return import;
+    }
+    let pk = parent.kind();
+    let member = |declared: bool| match (members, declared) {
+        (false, _) => Role::Neither,
+        (true, true) => Role::Binds { top: false },
+        (true, false) => Role::Refers,
+    };
+    // Whether `n` is the `field` child of its parent.
+    let is_field = |n: tree_sitter::Node<'t>, field: &str| {
+        n.parent()
+            .is_some_and(|p| p.child_by_field_name(field) == Some(n))
+    };
+    match (pk, field) {
+        // `exports.price = ...` and `module.exports.price = ...`.
+        ("member_expression", Some("property")) if is_export(parent, source) => Role::Binds {
+            top: parent.parent().is_some_and(at_top),
+        },
+        // `a.price`, `a.price()`.
+        ("member_expression", Some("property"))
+        | ("attribute", Some("attribute"))
+        | ("selector_expression", Some("field"))
+        | ("field_expression", Some("field"))
+        | ("field_access", Some("field")) => {
+            if members {
+                Role::Refers
+            } else {
+                Role::Property(innermost(parent))
+            }
+        }
+        ("method_invocation", Some("name")) | ("call", Some("method"))
+            if parent.child_by_field_name("object").is_some()
+                || parent.child_by_field_name("receiver").is_some() =>
+        {
+            if members {
+                Role::Refers
+            } else {
+                Role::Property(innermost(parent))
+            }
+        }
+        // `{ price: 1 }`, `<Item price={1} />`, `Item { price: 1 }`,
+        // `f(price=1)`: keys, except what `module.exports = {...}` exports.
+        ("pair", Some("key")) | ("method_definition", Some("name"))
+            if parent
+                .parent()
+                .is_some_and(|o| is_exported_object(o, source)) =>
+        {
+            Role::Binds { top: true }
+        }
+        ("pair", Some("key")) if node.kind() == "property_identifier" => Role::Neither,
+        ("pair_pattern", Some("key")) => member(false),
+        ("jsx_attribute", _) | ("field_initializer", Some("field")) => Role::Neither,
+        ("keyword_argument", Some("name")) => Role::Neither,
+        ("literal_element", _)
+            if is_field(parent, "key")
+                && parent.parent().is_some_and(|k| k.kind() == "keyed_element") =>
+        {
+            Role::Neither
+        }
+        // A method or field: another class's, unless members are the point.
+        ("method_definition", Some("name"))
+        | ("field_definition", Some("property"))
+        | ("public_field_definition", Some("name"))
+        | ("method_signature", Some("name"))
+        | ("property_signature", Some("name"))
+        | ("field_declaration", Some("name"))
+        | ("method_declaration", Some("name")) => member(true),
+        // Declarations by name, and the targets of assignments and loops.
+        (_, Some("name")) if declares(pk) => Role::Binds {
+            top: at_top(parent),
+        },
+        ("function_expression" | "generator_function" | "class" | "function", Some("name")) => {
+            Role::Binds { top: false }
+        }
+        (
+            "required_parameter" | "optional_parameter" | "let_declaration" | "parameter"
+            | "for_expression",
+            Some("pattern"),
+        )
+        | ("arrow_function" | "catch_clause", Some("parameter"))
+        | ("parameter_declaration" | "function_declarator", Some("declarator")) => {
+            Role::Binds { top: false }
+        }
+        (
+            "assignment"
+            | "augmented_assignment"
+            | "for_statement"
+            | "for_in_clause"
+            | "for_in_statement",
+            Some("left"),
+        )
+        | (
+            "init_declarator"
+            | "declaration"
+            | "pointer_declarator"
+            | "reference_declarator"
+            | "array_declarator",
+            Some("declarator"),
+        )
+        | ("assignment_pattern", Some("left"))
+        | ("pair_pattern", Some("value")) => Role::Binds {
+            top: at_top(parent),
+        },
+        (
+            "formal_parameters"
+            | "parameters"
+            | "lambda_parameters"
+            | "typed_parameter"
+            | "list_splat_pattern"
+            | "dictionary_splat_pattern"
+            | "closure_parameters"
+            | "method_parameters",
+            _,
+        ) => Role::Binds { top: false },
+        (
+            "pattern_list" | "tuple_pattern" | "list_pattern" | "array_pattern" | "rest_pattern"
+            | "object_pattern" | "as_pattern_target",
+            _,
+        ) => Role::Binds {
+            top: at_top(parent),
+        },
+        // Go's `price := 1` and `for _, price := range xs`.
+        ("expression_list", _)
+            if is_field(parent, "left")
+                && parent.parent().is_some_and(|d| {
+                    matches!(d.kind(), "short_var_declaration" | "range_clause")
+                }) =>
+        {
+            Role::Binds { top: false }
+        }
+        _ if node.kind() == "shorthand_property_identifier_pattern" => Role::Binds {
+            top: at_top(parent),
+        },
+        _ => Role::Refers,
+    }
+}
+
+/// Kinds whose `name` field declares what they bind.
+fn declares(kind: &str) -> bool {
+    matches!(
+        kind,
+        "variable_declarator"
+            | "function_declaration"
+            | "generator_function_declaration"
+            | "class_declaration"
+            | "abstract_class_declaration"
+            | "function_signature"
+            | "interface_declaration"
+            | "type_alias_declaration"
+            | "enum_declaration"
+            | "function_definition"
+            | "class_definition"
+            | "default_parameter"
+            | "typed_default_parameter"
+            | "var_spec"
+            | "const_spec"
+            | "type_spec"
+            | "parameter_declaration"
+            | "variadic_parameter_declaration"
+            | "function_item"
+            | "const_item"
+            | "static_item"
+            | "struct_item"
+            | "enum_item"
+            | "trait_item"
+            | "type_item"
+            | "mod_item"
+            | "formal_parameter"
+            | "record_declaration"
+            | "class_specifier"
+            | "struct_specifier"
+            | "namespace_definition"
+            | "preproc_def"
+            | "preproc_function_def"
+            | "method"
+            | "singleton_method"
+            | "module"
+    )
+}
+
+/// The innermost object of `a.b.name`, the member expression `of` reads.
+fn innermost(of: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
+    let mut n = of;
+    loop {
+        let next = ["object", "operand", "value", "argument", "receiver"]
+            .iter()
+            .find_map(|f| n.child_by_field_name(f))?;
+        match next.kind() {
+            "member_expression"
+            | "attribute"
+            | "selector_expression"
+            | "field_expression"
+            | "field_access" => n = next,
+            _ => return Some(next),
+        }
+    }
+}
+
+/// `require('./cart')` or `import('./cart')`, awaited or not.
+fn is_import_call(node: tree_sitter::Node<'_>, source: &str) -> bool {
+    let mut n = node;
+    while matches!(n.kind(), "await_expression" | "parenthesized_expression") {
+        match n.named_child(0) {
+            Some(inner) => n = inner,
+            None => return false,
+        }
+    }
+    n.kind() == "call_expression"
+        && n.child_by_field_name("function").is_some_and(|f| {
+            f.kind() == "import" || (f.kind() == "identifier" && text(f, source) == Some("require"))
+        })
+}
+
+/// What an identifier is inside an import: the name it brings in refers to
+/// what it imports, a module's own path does not. `None` outside imports.
+fn import_role<'t>(node: tree_sitter::Node<'t>, source: &str) -> Option<Role<'t>> {
+    let mut child = node;
+    let mut up = node.parent();
+    while let Some(n) = up {
+        match n.kind() {
+            "import_statement"
+            | "import_declaration"
+            | "import_spec"
+            | "use_declaration"
+            | "import_require_clause" => return Some(Role::Refers),
+            "import_from_statement" => {
+                return Some(if n.child_by_field_name("module_name") == Some(child) {
+                    Role::Neither
+                } else {
+                    Role::Refers
+                });
+            }
+            // `const { price } = require('./cart')`, `const p = require('./cart').price`.
+            "variable_declarator"
+                if n.child_by_field_name("name") == Some(child)
+                    && n.child_by_field_name("value").is_some_and(|v| {
+                        let mut v = v;
+                        while v.kind() == "member_expression" {
+                            match v.child_by_field_name("object") {
+                                Some(o) => v = o,
+                                None => break,
+                            }
+                        }
+                        is_import_call(v, source)
+                    }) =>
+            {
+                return Some(Role::Refers);
+            }
+            _ if SCOPES.contains(&n.kind()) => return None,
+            _ => {}
+        }
+        child = n;
+        up = n.parent();
+    }
+    None
+}
+
+/// `exports.x` or `module.exports.x`, assigned to.
+fn is_export(member: tree_sitter::Node<'_>, source: &str) -> bool {
+    let assigned = member.parent().is_some_and(|a| {
+        a.kind() == "assignment_expression" && a.child_by_field_name("left") == Some(member)
+    });
+    let object = member.child_by_field_name("object");
+    assigned
+        && object.is_some_and(|o| {
+            (o.kind() == "identifier" && text(o, source) == Some("exports"))
+                || is_module_exports(o, source)
+        })
+}
+
+fn is_module_exports(node: tree_sitter::Node<'_>, source: &str) -> bool {
+    node.kind() == "member_expression"
+        && node
+            .child_by_field_name("object")
+            .is_some_and(|o| text(o, source) == Some("module"))
+        && node
+            .child_by_field_name("property")
+            .is_some_and(|p| text(p, source) == Some("exports"))
+}
+
+/// The object of `module.exports = { ... }`.
+fn is_exported_object(object: tree_sitter::Node<'_>, source: &str) -> bool {
+    object.kind() == "object"
+        && object.parent().is_some_and(|a| {
+            a.kind() == "assignment_expression"
+                && a.child_by_field_name("right") == Some(object)
+                && a.child_by_field_name("left")
+                    .is_some_and(|l| is_module_exports(l, source))
+        })
+}
+
+/// The names the file's imports bind, a module's among them: `cart` of
+/// `const cart = require('./cart')`, `import * as cart`, `import cart` or
+/// Go's `import "example.com/cart"`.
+fn imported<'s>(
+    root: tree_sitter::Node<'_>,
+    source: &'s str,
+) -> std::collections::BTreeSet<&'s str> {
+    let mut names = std::collections::BTreeSet::new();
+    let mut cursor = root.walk();
+    loop {
+        let node = cursor.node();
+        let kind = node.kind();
+        if kind.contains("identifier") && matches!(import_role(node, source), Some(Role::Refers)) {
+            names.extend(text(node, source));
+        }
+        // Go names a package by its path's last part.
+        if kind == "interpreted_string_literal"
+            && node.parent().is_some_and(|p| p.kind() == "import_spec")
+        {
+            if let Some(path) = text(node, source) {
+                names.extend(path.trim_matches('"').rsplit('/').next());
+            }
+        }
+        if cursor.goto_first_child() || cursor.goto_next_sibling() {
+            continue;
+        }
+        loop {
+            if !cursor.goto_parent() {
+                return names;
+            }
+            if cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
 /// Innermost symbol containing `line` (1-based), if any.
 pub fn innermost_symbol(spans: &[SymbolSpan], line: usize) -> Option<&SymbolSpan> {
     spans
@@ -100,6 +574,7 @@ fn walk(
             name: qualified.clone(),
             start_line: node.start_position().row + 1,
             end_line: node.end_position().row + 1,
+            member: !prefix.is_empty() || node.kind() == "method_declaration",
         });
         next_prefix = qualified;
     }
@@ -291,5 +766,106 @@ mod tests {
             Some(true)
         );
         assert_eq!(uses_name(Path::new("notes.txt"), "price", "price"), None);
+    }
+
+    /// `name_use` of `price` in `source`, as `path`.
+    fn price_in(path: &str, source: &str) -> NameUse {
+        name_use(Path::new(path), source, "price", false).unwrap()
+    }
+
+    #[test]
+    fn a_name_is_used_where_code_refers_to_it() {
+        let js = "const { price } = require('./cart.js');\n// price: what one item costs\nconst label = 'price';\nconst q = { price: 1, total: price(2) };\nitem.price;\n<Item price={1} />;\nmodule.exports = () => price({ cost: 2 });\n";
+        let found = price_in("src/a.js", js);
+        assert_eq!(found.lines, [1, 4, 7]);
+        assert!(!found.binds && !found.exports);
+        // `a.price` is a use for a method, and for a module the file imports.
+        assert_eq!(
+            name_use(Path::new("a.js"), js, "price", true)
+                .unwrap()
+                .lines,
+            [1, 4, 5, 7]
+        );
+        let module = "const cart = require('./cart');\nimport * as shop from './shop';\ncart.price(1);\nshop.price(2);\nrequire('./cart').price(3);\nthis.price;\n";
+        assert_eq!(price_in("a.js", module).lines, [3, 4, 5]);
+        let py = "from shop.cart import price\nimport shop.tax as tax\nx = price(1)\ny = tax.price(2)\nz = item.price\nf(price=3)\ns = 'price'  # price\n";
+        assert_eq!(price_in("a.py", py).lines, [1, 3, 4]);
+        let go = "package main\n\nimport \"example.com/shop\"\n\nfunc F(c Cart) int {\n\tx := shop.Price(1)\n\ty := Item{Price: 2}\n\treturn x + c.Price + y.Price\n}\n";
+        let found = name_use(Path::new("main.go"), go, "Price", false).unwrap();
+        assert_eq!(found.lines, [6]);
+        let found = name_use(Path::new("main.go"), go, "Price", true).unwrap();
+        assert_eq!(found.lines, [6, 8]);
+        let rs = "use crate::cart::price;\nfn f(a: A) -> u32 {\n    let z = Item { price: 1 };\n    cart::price(1) + a.price\n}\n";
+        assert_eq!(price_in("lib.rs", rs).lines, [1, 4]);
+        assert_eq!(
+            name_use(Path::new("notes.md"), "price", "price", false),
+            None
+        );
+    }
+
+    /// A file that brings its own `price`, in whatever form, uses that one;
+    /// one that binds it outside every function gives it to its importers.
+    #[test]
+    fn a_name_a_file_binds_itself_is_its_own() {
+        for (path, own) in [
+            (
+                "a.js",
+                "const memo = (f) => f;\nconst price = memo((i) => i.cost);\n",
+            ),
+            ("a.js", "let price;\n"),
+            ("a.js", "exports.price = (i) => i.cost;\n"),
+            ("a.js", "module.exports.price = (i) => i.cost;\n"),
+            ("a.js", "module.exports = { price: (i) => i.cost };\n"),
+            (
+                "a.js",
+                "module.exports = { price(i) { return i.cost; } };\n",
+            ),
+            ("a.ts", "export const price = memo((i: Item) => i.cost);\n"),
+            ("a.py", "price = memo(lambda i: i.cost)\n"),
+            ("a.py", "if fast:\n    price = fast_price\n"),
+            ("a.go", "package shop\n\nvar price = memo(cost)\n"),
+            ("a.rs", "const price: u32 = 1;\n"),
+        ] {
+            let found = price_in(path, own);
+            assert!(found.binds && found.exports, "{own}");
+        }
+        // Inside a function, or a parameter: the file's, not its importers'.
+        for (path, local) in [
+            (
+                "a.js",
+                "function f(items) {\n  let price = 0;\n  return price;\n}\n",
+            ),
+            ("a.js", "const f = (price) => price * 2;\n"),
+            ("a.js", "function f({ price }) {}\n"),
+            ("a.ts", "function f(price: number) {}\n"),
+            ("a.py", "def f(price):\n    return price\n"),
+            ("a.py", "def f():\n    price = 1\n"),
+            (
+                "a.go",
+                "package shop\n\nfunc F() { price := 1; _ = price }\n",
+            ),
+            ("a.rs", "fn f() { let price = 1; }\n"),
+        ] {
+            let found = price_in(path, local);
+            assert!(found.binds && !found.exports, "{local}");
+        }
+        // An import is a use, not a binding of its own; nor is another
+        // class's method, unless members count.
+        for (path, import) in [
+            ("a.js", "const { price } = require('./cart');\n"),
+            ("a.js", "const price = require('./cart').price;\n"),
+            ("a.js", "import { price } from './cart';\n"),
+            ("a.py", "from .cart import price\n"),
+            ("a.js", "class A {\n  price() {}\n}\n"),
+        ] {
+            let found = price_in(path, import);
+            assert!(!found.binds && !found.exports, "{import}");
+        }
+        let method = "class A {\n  price() {}\n}\n";
+        assert!(
+            name_use(Path::new("a.js"), method, "price", true)
+                .unwrap()
+                .binds
+        );
     }
 }
