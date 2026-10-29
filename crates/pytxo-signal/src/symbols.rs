@@ -35,6 +35,13 @@ pub fn symbol_spans(path: &Path, source: &str) -> Vec<SymbolSpan> {
     out
 }
 
+/// Whether `symbol_spans` reads a file at `path`: its extension names a
+/// language with a grammar here. Lets a caller skip reading a file whose
+/// definitions it could not get anyway.
+pub fn parses(path: &Path) -> bool {
+    language::detect(path).is_some()
+}
+
 /// Innermost symbol containing `line` (1-based), if any.
 pub fn innermost_symbol(spans: &[SymbolSpan], line: usize) -> Option<&SymbolSpan> {
     spans
@@ -213,5 +220,6 @@ mod tests {
             ["A", "A.go"]
         );
         assert!(symbol_spans(Path::new("notes.txt"), "fn x() {}").is_empty());
+        assert!(parses(Path::new("src/a.py")) && !parses(Path::new("notes.txt")));
     }
 }
