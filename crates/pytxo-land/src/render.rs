@@ -242,8 +242,10 @@ fn fails_a_file(line: &str) -> bool {
 
 /// A place and what is wrong there, as Go's tests and compilers, pytest,
 /// mypy, eslint and gcc print it (`total_test.go:7: Total = 700, want 7`,
-/// `.\discount.go:3:40: undefined: Price`), or tsc (`src/a.ts:3:5 - error
-/// TS2304: ...`). Not a stack frame or a place with nothing after it.
+/// `.\discount.go:3:40: undefined: Price`), or tsc, in a terminal
+/// (`src/a.ts:3:5 - error TS2304: ...`) and into a pipe, as a check runs it
+/// (`src/a.ts(3,5): error TS2304: ...`). Not a stack frame or a place with
+/// nothing after it.
 pub(crate) fn says_where(line: &str) -> bool {
     let Some((word, rest)) = line.split_once(char::is_whitespace) else {
         return false;
@@ -256,6 +258,9 @@ pub(crate) fn says_where(line: &str) -> bool {
         },
     };
     let number = |n: &str| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit());
+    if let Some((file, at)) = place.strip_suffix(')').and_then(|p| p.rsplit_once('(')) {
+        return at.split(',').all(number) && !message.trim().is_empty() && names_a_file(file);
+    }
     // `file:line`, then maybe `:column`.
     let Some((file, _)) = place.rsplit_once(':').filter(|(_, n)| number(n)) else {
         return false;
@@ -1721,12 +1726,15 @@ FAIL";
             "src/discount.py:4: NameError",
             r"C:\work\shop\a.go:3:5: undefined: Price",
             "src/a.ts:3:5 - error TS2304: Cannot find name 'price'.",
+            "src/discount.ts(1,10): error TS2305: Module '\"./cart.ts\"' has no exported member 'price'.",
         ] {
             assert_eq!(rank(place), Some(1), "{place}");
         }
         for not in [
             "at discounted (src/discount.js:4:10)",
             "tests/test_discount.py:4:",
+            "src/discount.ts(1,10):",
+            "f(1,10): x",
             "test at test\\discount.test.js:5:1",
             "location: 'test/discount.test.js:5:1'",
         ] {

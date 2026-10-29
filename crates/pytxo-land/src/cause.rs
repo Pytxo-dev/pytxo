@@ -589,15 +589,19 @@ fn says_outside_paths(line: &str, word: &str) -> bool {
     })
 }
 
-/// `src/a.js:4` in `line`, as a stack trace or a compiler prints a place:
-/// not the end of a longer name, nor the start of a longer number.
+/// `src/a.js:4` in `line`, as a stack trace or a compiler prints a place, or
+/// `src/a.ts(4,10)`, as tsc prints one into a pipe: not the end of a longer
+/// name, nor the start of a longer number.
 fn names_place(line: &str, at: &Use) -> bool {
-    let place = format!("{}:{}", at.path, at.line);
-    line.match_indices(&place).any(|(i, _)| {
+    line.match_indices(&at.path).any(|(i, _)| {
         let before = line[..i].chars().next_back();
-        let after = line[i + place.len()..].chars().next();
+        let rest = &line[i + at.path.len()..];
+        let number = rest.strip_prefix([':', '(']).map(|n| {
+            let digits = n.bytes().take_while(u8::is_ascii_digit).count();
+            &n[..digits]
+        });
         !before.is_some_and(|c| c.is_alphanumeric() || "_-.".contains(c))
-            && !after.is_some_and(|c| c.is_ascii_digit())
+            && number.and_then(|n| n.parse().ok()) == Some(at.line)
     })
 }
 
@@ -1306,6 +1310,7 @@ mod tests {
             ".\\discount.go:3:40: undefined: price",
             "AssertionError: price(1) == 2",
             "TypeError: cart.price is not a function",
+            "src/discount.ts(1,10): error TS2305: Module '\"./cart.ts\"' has no exported member 'price'.",
         ] {
             assert!(confirmed(line, "price"), "{line}");
         }
@@ -1363,6 +1368,7 @@ mod tests {
             ],
             &["TypeError: x is undefined", " ❯ title src/title.js:5:13"],
             &["src/title.js:5:3: error: use of undeclared identifier"],
+            &["src/title.js(5,13): error TS2304: Cannot find name 'x'."],
         ] {
             assert!(confirmed(thrown), "{thrown:?}");
         }

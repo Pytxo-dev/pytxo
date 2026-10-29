@@ -200,8 +200,9 @@ receipt already keeps.
 When there is no confirmed cause, the why line is still the first useful
 error line. `why_lines` now prefers, in order: an error or exception name
 (`SomethingError:`, `Error:`, `error[`, `panicked at`); then `Traceback`,
-`assert`, or a compiler's or vet's `<path>.<ext>:<line>[:<col>]: <message>`;
-then a `FAIL <file>` line or Go's `--- FAIL: TestX`; then any other line with
+`assert`, or a compiler's or vet's `<path>.<ext>:<line>[:<col>]: <message>`,
+or tsc's `<path>.<ext>(<line>,<col>): <message>`, as tsc prints into a pipe,
+which is how a check runs it; then a `FAIL <file>` line or Go's `--- FAIL: TestX`; then any other line with
 error or fail. A file has an extension, so Go's `FAIL example.com/shop 0.2s`,
 which names a package, is not a `FAIL <file>` line. It skips test-runner
 count lines such as `ℹ fail 1`, `# fail 1`, `Tests: 1 failed` and
