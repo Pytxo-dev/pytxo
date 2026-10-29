@@ -348,13 +348,19 @@ next     rebase agent/caller onto agent/rename and use unitPrice, then run npx p
         verdict_line(&out),
         r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[1,2]} -->"#
     );
+    // The pair's run says what it merged, and the tables name them.
+    let pair = out.receipt.predicate.checks.last().unwrap();
+    assert_eq!(
+        (pair.scope.as_str(), &pair.inputs),
+        ("pair", &Some(vec![1, 2]))
+    );
     let md = render_markdown(&out);
     assert!(
-        md.contains("| `pair` | **fail** |") && !md.contains("`rest`"),
+        md.contains("| `pair (agent/rename, agent/caller)` | **fail** |") && !md.contains("`rest"),
         "{md}"
     );
     assert!(
-        text.contains("\n  pair ") && !text.contains("\n  rest "),
+        text.contains("\n  pair (agent/rename, agent/caller) ") && !text.contains("\n  rest"),
         "{text}"
     );
     // The pair's run is in the written receipt, and its digest verifies.
@@ -441,6 +447,8 @@ fn others_that_fail_without_the_pair_stay_blamed() {
     // The others' own failure, not the pair's. (cmd echoes the space before `&&`.)
     let rest = out.receipt.predicate.checks.last().unwrap();
     assert_eq!(rest.output_tail.concat().trim(), "boom", "{text}");
+    assert_eq!(rest.inputs, Some(vec![1, 3]));
+    assert!(text.contains("\n  rest (agent/c, agent/d) "), "{text}");
     let cause = out.cause.as_ref().unwrap();
     assert_eq!((cause.by, cause.user), (0, 2));
     let v = verdict(&out, "run npx pytxo again");

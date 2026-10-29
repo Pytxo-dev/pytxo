@@ -118,6 +118,11 @@ pub struct ReceiptCheck {
     /// read and verify unchanged.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub rerun: bool,
+    /// What a `pair` or `rest` run merged onto the target: the inputs by
+    /// their positions. Absent on every other run, so older receipts read
+    /// and verify unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inputs: Option<Vec<usize>>,
 }
 
 impl Receipt {
@@ -297,6 +302,7 @@ mod tests {
                         "at /home/someone/repo/test.js:3".into(),
                     ],
                     rerun: false,
+                    inputs: None,
                 }],
                 reasons: vec!["combined check failed".into()],
                 duration_ms: 40,
@@ -314,6 +320,8 @@ mod tests {
         assert!(receipt.digest_matches());
         // Fields added after v1 are left out when unset, so older receipts verify.
         assert!(!serde_json::to_string(&receipt).unwrap().contains("rerun"));
+        let check = serde_json::to_value(&receipt.predicate.checks[0]).unwrap();
+        assert!(check.get("inputs").is_none(), "{check}");
         let path = receipt.write_to(dir.path()).unwrap();
         let loaded = load_receipt(&path).unwrap();
         assert_eq!(loaded, receipt);

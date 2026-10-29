@@ -17,11 +17,21 @@ fn input_name(reference: &str, agent: Option<&str>) -> String {
 }
 
 /// A check's scope as shown; the re-run of a combined check is run 2.
-fn scope_label(c: &ReceiptCheck) -> String {
+fn scope_label(p: &ReceiptPredicate, c: &ReceiptCheck) -> String {
     if c.rerun {
-        format!("{}, run 2", c.scope)
-    } else {
-        c.scope.clone()
+        return format!("{}, run 2", c.scope);
+    }
+    // What a run on the pair or the rest merged, by name.
+    let names: Vec<&str> = c
+        .inputs
+        .iter()
+        .flatten()
+        .filter_map(|&n| p.inputs.get(n))
+        .map(|i| plain_name(&i.reference, i.agent.as_deref()))
+        .collect();
+    match names.as_slice() {
+        [] => c.scope.clone(),
+        _ => format!("{} ({})", c.scope, names.join(", ")),
     }
 }
 
@@ -365,7 +375,7 @@ pub fn render_text(outcome: &LandOutcome) -> String {
             let _ = writeln!(
                 s,
                 "  {:<28} {:<14} {}  {}",
-                scope_label(c),
+                scope_label(p, c),
                 verdict,
                 seconds(c.duration_ms),
                 c.command
@@ -1156,7 +1166,7 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
                 s,
                 "| {} | {} | {} | {} |",
                 cell(&c.command),
-                cell(&scope_label(c)),
+                cell(&scope_label(p, c)),
                 result,
                 seconds(c.duration_ms)
             );
@@ -1170,7 +1180,7 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
                     s,
                     "\n{} ({}):\n{fence}\n{lines}\n{fence}",
                     code_span(&c.command),
-                    code_span(&scope_label(c)),
+                    code_span(&scope_label(p, c)),
                 );
             }
         }
@@ -1243,6 +1253,7 @@ mod tests {
             timed_out: false,
             output_tail: Vec::new(),
             rerun: false,
+            inputs: None,
         }
     }
 

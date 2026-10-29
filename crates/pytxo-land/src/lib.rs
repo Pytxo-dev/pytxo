@@ -675,6 +675,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                     timed_out: false,
                     output_tail: vec!["input does not merge cleanly onto the target".into()],
                     rerun: false,
+                    inputs: None,
                 });
                 continue;
             };
@@ -919,7 +920,10 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                         break;
                     }
                 }
-                Ok(run)
+                Ok(run.map(|run| ReceiptCheck {
+                    inputs: Some(which.to_vec()),
+                    ..run
+                }))
             };
             let pair = [cause.by.min(cause.user), cause.by.max(cause.user)];
             if let Some(run) = run_on("pair", &pair)? {
