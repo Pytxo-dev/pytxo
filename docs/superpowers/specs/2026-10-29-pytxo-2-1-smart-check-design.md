@@ -203,13 +203,27 @@ looks the same, and also needs write access.
 - Calls, per held pull request: `GET /repos/{repo}/actions/runs?event=pull_request&branch=<head ref>&per_page=100`
   and `GET /repos/{repo}/pulls/{n}/commits?per_page=100`, to order the SHAs
   and keep only this pull request's commits. They need `actions: read`.
-- On 403 or 404: today's exclusion, with the note "Add `actions: read` to the
-  workflow's permissions to check Copilot's pull requests once someone lets
-  their run start."
+- On 403 or 404 from the runs call that is not a rate limit
+  (`x-ratelimit-remaining: 0`, or a rate-limit message): today's exclusion,
+  with the note "Add `actions: read` to the workflow's permissions to check
+  Copilot's pull requests once someone lets their run start."
+- Any other answer from either call that can't be used, or none, ends the
+  asking: the held pull requests not yet let in stay out, with a note such
+  as "#12 left out: GitHub did not answer (HTTP 502).", and the run goes on.
+  Discover never fails for it.
 - The SHA is fetched like every other pull request's. If it can't be fetched
   (force-pushed away), the pull request is left out with a note.
+- After the last fetch, each branch name must give the commit fetched for
+  it through the CLI's lookup, `git rev-parse --verify --quiet
+  <name>^{commit}`, which tries a tag before the branch. A same-named local
+  tag is deleted; a name that still gives another commit (FETCH_HEAD and the
+  like) is left out with a note, and when that is the run's own pull request
+  there is nothing to check.
 - "Checked together" names the commit: `#12 copilot/fix-x at abc1234`.
-- The docs' setup adds `actions: read`.
+- The docs' setup leaves `actions: read` out, for least privilege: the token
+  that holds it can read every workflow run's logs and artifacts. One
+  sentence after the setup says to add it if Copilot's coding agent opens
+  pull requests in the repository.
 
 ### 5.2 Licensing, still switched off
 
@@ -217,10 +231,15 @@ Dodo Payments license keys replace the offline Ed25519 keys, because a
 monthly subscription needs a key that stops working when it lapses. Only on a
 private repository, only after the 14-day trial, only with `LICENSING` on:
 `POST https://live.dodopayments.com/licenses/validate` with
-`{"license_key": "<key>"}` returns `{"valid": true|false}`. `valid: false`
-gives the trial-over refusal. A network error, 429 or 5xx runs the check
-anyway with a warning. Only the key is sent. The docs say so before it is
-switched on.
+`{"license_key": "<key>"}` returns `{"valid": true|false}`. Only a definite
+answer refuses: `valid: false`, or a 4xx other than 408 and 429, gives the
+trial-over refusal. Anything else (no answer within 10 seconds, a network
+error, 408, 429, 5xx, or a 2xx without a readable `valid`, 204 included)
+runs the check anyway with a warning. Only the key is sent. The docs say so
+before it is switched on, and that the key is the only secret the Action
+takes, which code in the agent branches can read like the token. Keys are
+not bound to a repository: the Action is open source, so the check is an
+honor system until key sharing shows up.
 
 ## 6. Not in 2.1
 
