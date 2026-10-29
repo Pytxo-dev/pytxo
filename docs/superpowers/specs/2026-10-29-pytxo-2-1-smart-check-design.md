@@ -45,26 +45,43 @@ Terms: base `B`; input `i` at commit `C_i` with merge base
 3. **Renamed or removed.** In `git diff -U0 M_i C_i -- <file>`, a removed line
    that contains the name as a word, and an added line in the same file that
    equals it (whitespace trimmed) once that word is replaced by another word
-   `Y` that `C_i`'s version of the file defines: "renamed `X` to `Y`".
-   Otherwise "removed `X`".
-4. **Stale uses.** For every other merged input `j`: the added lines of
-   `git diff -U0 M_j C_j` that contain the name as a word, with their path and
-   line number in `C_j` (what the user sees on that branch). It is not a cause
-   if `R` still defines the name: `git grep -l -w -F -e <name> R`, then parse
-   those files at `R`.
-5. **Confirmed.** The failing output tails of the combined runs contain the
-   name as a word, or a `path:line` equal to one of the stale uses.
+   `Y` that `C_i`'s version of the file defines: "renamed `X` to `Y`". A
+   definition moved into another file counts too: the equal line is added in
+   another file of the input's diff, which defines `Y` there. Otherwise
+   "removed `X`".
+4. **Stale uses.** For every other merged input `j`: the places on its added
+   lines where code refers to the name, as tree-sitter reads the file at
+   `C_j`, with their path and line number in `C_j` (what the user sees on that
+   branch). Strings, comments, object keys and member properties (`a.X`,
+   unless the gone definition was a method) are no use; an import is one. A
+   file that binds the name itself, such as the user's own `const X`, a
+   parameter or a local, has none, and a file without a grammar, such as a
+   README, gives none. It is not a cause if `R` still defines the name:
+   `git grep -l -w -F -e <name> R`, then parse those files at `R`, where a
+   symbol of that name counts, and so does any other top-level binding that is
+   no import: `const X = memo(...)`, `exports.X = ...`,
+   `module.exports.X = ...`, a Python `X = ...`.
+5. **Confirmed.** A line of the failing output tails of the combined runs
+   that section 4 ranks as an error name, a traceback, assert or diagnostic,
+   or a `FAIL` line says the name as a word outside a path, or a line names a
+   `path:line` equal to one of the stale uses, as a stack frame does. Failure
+   counts, summaries and test titles never confirm.
 6. **Pick one.** Confirmed first, then the most stale uses, then input order.
+   The other inputs whose new lines use the name the picked input removed are
+   kept as `also`: once it lands they break the same way.
 
 Bounds: at most 50 gone names per input and 100 `git grep` calls in all; a
 cap reached means no cause, never a guess. Git calls are stoppable like the
-rest of `land()`. Windows diffs may carry `\r`; strip it.
+rest of `land()`. Windows diffs may carry `\r`; strip it. The search
+keeps to `land()`'s deadline: no git call starts after it, and the calls still
+going stop. With less than two seconds left it does not start.
 
 `LandOutcome` gets `cause: Option<Cause>`:
 
 ```rust
 pub struct Cause { pub by: usize, pub user: usize, pub name: String,
-                   pub renamed_to: Option<String>, pub uses: Vec<Use>, pub confirmed: bool }
+                   pub renamed_to: Option<String>, pub uses: Vec<Use>, pub confirmed: bool,
+                   pub also: Vec<usize> }
 pub struct Use { pub path: String, pub line: u32 }
 ```
 
@@ -82,15 +99,25 @@ signatures are out of scope.
 After a real "together" failure with three or more merged inputs, when a cause
 (confirmed or not) names a pair `by` and `user`:
 
-1. Run the failing command on `B` + `by` + `user` in the `-solo` scratch
-   worktree (receipt scope `pair`). If it passes, the guess was wrong: the
-   verdict stays as in 2.0, and the note says the pair passed.
-2. If it fails, run it on `B` + every other merged input (scope `rest`). If
-   that passes, only `by` and `user` are implicated. If it fails, everyone
-   stays implicated and the verdict still names the proven pair.
-3. Only the first failing command, at most two extra runs, never after a
-   timeout, and never when the hook deadline would pass before them.
+1. Run the failing command on `B` + `by` + `user` (receipt scope `pair`), in
+   the combined worktree, which is done with. The checks before that command
+   run first to set it up, as for the rerun; only the command's own run is
+   recorded. If it passes, the guess was wrong: the verdict stays as in 2.0,
+   and the note says the pair passed.
+2. If it fails, run it on `B` + every other merged input (scope `rest`). With
+   one other input, its run alone is that run, so nothing runs again. If that
+   passes, only `by` and `user` are implicated, with every input in `also`:
+   the rest keeps the name, so its run cannot clear them. If it fails,
+   everyone stays implicated and the verdict still names the proven pair.
+3. Only the first failing command, at most two extra runs of it, never after
+   a timeout, and never when the deadline would pass before them. Each check
+   counts as long as its longest run so far, combined or alone: a failing run
+   can stop at its first error where a passing one runs the whole suite.
 4. No cause, no extra runs.
+
+Each `pair` and `rest` row of the receipt records `inputs`, the positions of
+the inputs it merged; every other row leaves it out, so older receipts verify.
+The check tables name them: `pair (claude/rename-price, codex/add-discount)`.
 
 The Action needs no change for this: it already passes a pull request whose
 index is not implicated, with the note that it is not the cause.
@@ -101,7 +128,10 @@ Words when the pair is proven and the rest passes:
 BLOCKED  claude/rename-price and codex/add-discount fail together; agent/readme passes without them.
 ```
 
-With two or more others: "the other 3 branches pass without them."
+With two or more others: "the other 3 branches pass without them." The what
+line clears only whom the Action's tag clears: when another check still
+blames one of the others, or one of them is in `also`, it is
+`<by> and <user> fail <command> together.`
 
 ## 3. Words, prompt and surfaces
 
@@ -112,16 +142,23 @@ The three lines stay three lines.
   `next  rebase <user> onto <by> and stop using <X>, or keep <X> on <by>, then run npx pytxo again.`
 - **Not confirmed:** the why line stays the error line and a note follows:
   `note  <user> uses <X>, which <by> renamed to <Y> (<path>:<line>).`
+- **Others that use it too** (`also`): the why line, or the note, ends
+  ", and so does `<c>`" (", and so do `<c>` and `<d>`"), the next line
+  rebases them all (`rebase <user> and <c> onto <by> …`), and the prompt adds
+  "`<c>` uses `<X>` too."
 - **Markdown:** the same sentences with names in code spans, then
   `<details><summary>Fix prompt for <user></summary>` holding the prompt in a
   fenced `text` block.
 - **JSON:** `verdict.cause` (`by` and `user` as branch names, `name`,
-  `renamed_to`, `uses`, `confirmed`) and `verdict.fix_prompt`.
+  `renamed_to`, `uses`, `confirmed`, and `also` as branch names when there
+  are any) and `verdict.fix_prompt`.
 - **Hook:** the system message stays the three lines. With `--block`, the
   reason is the fix prompt, addressed to the agent whose worktree the hook runs
   in: "Your branch `<user>` …" in the user's worktree; in the `by` branch's
   worktree it says the fix belongs on `<user>` and that keeping `<X>` as an
-  alias is the other way out; elsewhere the plain prompt.
+  alias is the other way out; elsewhere the plain prompt. Each of the two
+  agents hears its prompt once: the first to stop gets the check and its own
+  prompt, and the other gets its own at its next stop, from the same check.
 
 The fix prompt, renamed variant:
 
@@ -133,8 +170,9 @@ Failing output:
 <the last 15 lines of the combined run's output tail>
 ```
 
-Removed variant: "<by> removed <X>. … Fix it on <user>: rebase it onto <by>
-and stop using <X>. If <user> needs <X>, ask for it back on <by> instead."
+Removed variant: "<by> removed <X>. … Fix it on <user>: rebase it onto <by>,
+stop using <X>, and run <command> until it passes. If <user> needs <X>, ask
+for it back on <by> instead."
 At most three uses are listed. The output tail is the sanitized one the
 receipt already keeps.
 
@@ -142,11 +180,13 @@ receipt already keeps.
 
 When there is no confirmed cause, the why line is still the first useful
 error line. `why_lines` now prefers, in order: an error or exception name
-(`SomethingError:`, `Error:`, `error[`, `panicked at`, `Traceback`,
-`assert`), then a `FAIL <file>` line, then any other line with error or
-fail. It skips test-runner count lines such as `ℹ fail 1`, `# fail 1`,
-`Tests: 1 failed` and `1 failed`. Today node:test's spec reporter gives
-"ℹ fail 1".
+(`SomethingError:`, `Error:`, `error[`, `panicked at`); then `Traceback`,
+`assert`, or a compiler's or vet's `<path>.<ext>:<line>[:<col>]: <message>`;
+then a `FAIL <file>` line or Go's `--- FAIL: TestX`; then any other line with
+error or fail. A file has an extension, so Go's `FAIL example.com/shop 0.2s`,
+which names a package, is not a `FAIL <file>` line. It skips test-runner
+count lines such as `ℹ fail 1`, `# fail 1`, `Tests: 1 failed` and
+`1 failed`. Today node:test's spec reporter gives "ℹ fail 1".
 
 ## 5. The Action
 
@@ -196,7 +236,8 @@ causes other than a renamed or removed definition.
 - Tests: cause (renamed, removed, the user defines the name itself, an
   unsupported language, not confirmed, CRLF); culprit pair (pair proven and
   rest passes, pair passes, rest fails, deadline); `why_lines` on node:test,
-  jest, pytest and cargo output; the hook's `--block` reason in each worktree;
+  jest, pytest, go and cargo output; the hook's `--block` reason in each
+  worktree, each said once;
   the Action's held pull request joining, left out on 403, and left out when
   its commit is gone; license validate paths.
 - `cargo fmt --all --check`; clippy `-D warnings` on pytxo-land and
