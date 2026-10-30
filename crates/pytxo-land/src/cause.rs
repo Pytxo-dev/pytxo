@@ -47,6 +47,10 @@ pub struct Cause {
     /// The other inputs whose new lines use it too, in input order: as much
     /// to blame as `user`, whom the runs on the pair do not clear.
     pub also: Vec<usize>,
+    /// Every other input in a cause found, in input order: a second branch
+    /// that removed the name as well, or the two of another cause, which a
+    /// run without these two cannot clear either. Never in the words.
+    pub involved: Vec<usize>,
 }
 
 /// A line of a file as one branch has it.
@@ -241,11 +245,13 @@ pub(crate) fn find(
                 renamed_to: c.renamed.clone(),
                 uses,
                 also: Vec::new(),
+                involved: Vec::new(),
             });
         }
     }
     // Confirmed first, then the most uses; a stable sort keeps input order.
     found.sort_by_key(|c| (!c.confirmed, std::cmp::Reverse(c.uses.len())));
+    let mut involved: BTreeSet<usize> = found.iter().flat_map(|c| [c.by, c.user]).collect();
     let mut found = found.into_iter();
     let mut cause = found.next()?;
     cause.also = found
@@ -253,6 +259,10 @@ pub(crate) fn find(
         .map(|c| c.user)
         .collect();
     cause.also.sort_unstable();
+    for n in [cause.by, cause.user].iter().chain(&cause.also) {
+        involved.remove(n);
+    }
+    cause.involved = involved.into_iter().collect();
     Some(cause)
 }
 
@@ -829,6 +839,7 @@ mod tests {
                 uses: uses(&[1, 2]),
                 confirmed: true,
                 also: vec![],
+                involved: vec![],
             })
         );
         // The positions follow the inputs' order.
@@ -867,6 +878,43 @@ mod tests {
         assert_eq!((found.by, found.user, found.also), (0, 1, vec![2]));
         let found = cause(d, &["agent/tax", "agent/caller", "agent/rename"], &failed).unwrap();
         assert_eq!((found.by, found.user, found.also), (2, 0, vec![1]));
+    }
+
+    /// Every branch in a cause that was found stays involved, not only the
+    /// two of the one picked: a second branch that renamed the name as well,
+    /// in either order, or the one behind another cause.
+    #[test]
+    fn every_branch_in_a_cause_stays_involved() {
+        let dir = repo();
+        let d = dir.path();
+        let tax = "function tax(n) {\n  return n / 10;\n}\n\nmodule.exports = { tax };\n";
+        write(d, &[("src/tax.js", tax)]);
+        git(d, &["add", "-A"]);
+        git(d, &["commit", "-q", "-m", "tax"]);
+        let renamed = CART.replace("price", "unitPrice");
+        branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+        let also = [("src/cart.js", renamed.as_str()), ("b.txt", "b\n")];
+        branch(d, "main", "agent/rename2", &also);
+        branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+        let failed = ["TypeError: price is not a function"];
+        for three in [
+            ["agent/rename", "agent/rename2", "agent/caller"],
+            ["agent/rename2", "agent/rename", "agent/caller"],
+        ] {
+            let found = cause(d, &three, &failed).unwrap();
+            let picked = (found.by, found.user, found.also, found.involved);
+            assert_eq!(picked, (0, 2, vec![], vec![1]), "{three:?}");
+        }
+        branch(
+            d,
+            "main",
+            "agent/vat",
+            &[("src/tax.js", &tax.replace("tax", "vat"))],
+        );
+        let both = "const { price } = require('./cart.js');\nconst { tax } = require('./tax.js');\nmodule.exports = () => price({ cost: 2 }) + tax(2);\n";
+        branch(d, "main", "agent/both", &[("src/extra.js", both)]);
+        let found = cause(d, &["agent/rename", "agent/vat", "agent/both"], &failed).unwrap();
+        assert_eq!((found.by, found.user, found.involved), (0, 2, vec![1]));
     }
 
     /// `price()` in cart.js becomes `unitPrice()` in a new pricing.js: a

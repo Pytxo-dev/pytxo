@@ -363,6 +363,7 @@ fn a_failure_together_names_the_rename_behind_it() {
                 .to_vec(),
             confirmed: true,
             also: vec![],
+            involved: vec![],
         })
     );
     let v = verdict(&out, "run npx pytxo again");
@@ -581,6 +582,48 @@ fn others_that_fail_without_the_pair_stay_blamed() {
         verdict_line(&out),
         r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[0,1,2,3]} -->"#
     );
+}
+
+/// Two branches rename `price` alike and a third still calls it: the pair
+/// the cause names fails by itself and the other renamer passes without it,
+/// yet that one breaks the caller just the same, so it stays blamed, in
+/// either order. A branch that only adds notes is still cleared.
+#[test]
+fn a_second_branch_that_renamed_the_name_stays_blamed() {
+    let dir = repo();
+    let d = dir.path();
+    rename_caller_and_docs(d);
+    let renamed = CART.replace("price", "unitPrice");
+    let also = [("src/cart.js", renamed.as_str()), ("b.txt", "b\n")];
+    branch(d, "main", "agent/rename2", &also);
+    let tag = |implicated: &str| {
+        format!(r#"<!-- pytxo-verdict {{"label":"BLOCKED","implicated":[{implicated}]}} -->"#)
+    };
+    for (inputs, implicated) in [
+        (
+            &["agent/rename", "agent/rename2", "agent/caller"][..],
+            "0,1,2",
+        ),
+        (&["agent/rename2", "agent/rename", "agent/caller"], "0,1,2"),
+        (
+            &[
+                "agent/docs",
+                "agent/rename",
+                "agent/rename2",
+                "agent/caller",
+            ],
+            "1,2,3",
+        ),
+    ] {
+        let mut o = opts(d, inputs);
+        o.checks = vec![RENAME_BREAKS.into()];
+        o.per_input = PerInput::OnFailure;
+        let out = land(&o).unwrap();
+        let text = render_text(&out);
+        assert_eq!(verdict_line(&out), tag(implicated), "{text}");
+        let v = verdict(&out, "run npx pytxo again");
+        assert!(!v.what.contains("without them"), "{text}");
+    }
 }
 
 /// Two branches use the name a third renamed, and the check breaks only on

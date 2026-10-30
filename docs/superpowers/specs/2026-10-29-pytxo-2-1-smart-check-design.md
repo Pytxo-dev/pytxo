@@ -94,7 +94,9 @@ Terms: base `B`; input `i` at commit `C_i` with merge base
    the old name. Failure counts, summaries and test titles never confirm.
 6. **Pick one.** Confirmed first, then the most stale uses, then input order.
    The other inputs whose new lines use the name the picked input removed are
-   kept as `also`: once it lands they break the same way.
+   kept as `also`: once it lands they break the same way. Every other input in
+   any cause found is kept as `involved`, which section 2 blames and the words
+   never name.
 
 Bounds: at most 50 gone names per input and 100 `git grep` calls in all; a
 cap reached means no cause, never a guess. Git calls are stoppable like the
@@ -107,7 +109,7 @@ going stop. With less than two seconds left it does not start.
 ```rust
 pub struct Cause { pub by: usize, pub user: usize, pub name: String,
                    pub renamed_to: Option<String>, pub uses: Vec<Use>, pub confirmed: bool,
-                   pub also: Vec<usize> }
+                   pub also: Vec<usize>, pub involved: Vec<usize> }
 pub struct Use { pub path: String, pub line: u32 }
 ```
 
@@ -132,9 +134,12 @@ After a real "together" failure with three or more merged inputs, when a cause
    and the note says the pair passed.
 2. If it fails, run it on `B` + every other merged input (scope `rest`). With
    one other input, its run alone is that run, so nothing runs again. If that
-   passes, only `by` and `user` are implicated, with every input in `also`:
-   the rest keeps the name, so its run cannot clear them. If it fails,
-   everyone stays implicated and the verdict still names the proven pair.
+   passes, only `by` and `user` are implicated, with every input in `also`
+   and every other input in any cause section 1 found (`involved`): the rest
+   keeps the name, so its run cannot clear the other users, and a second
+   branch that removed the name, or the two of another cause, passes there
+   by itself while it breaks the user just the same. If it fails, everyone
+   stays implicated and the verdict still names the proven pair.
 3. Only the first failing command, at most two extra runs of it, never after
    a timeout, and never when the deadline would pass before them. Each check
    counts as long as its longest run so far, combined or alone: a failing run
@@ -159,7 +164,7 @@ BLOCKED  claude/rename-price and codex/add-discount fail together; agent/readme 
 
 With two or more others: "the other 3 branches pass without them." The what
 line clears only whom the Action's tag clears: when another check still
-blames one of the others, or one of them is in `also`, it is
+blames one of the others, or one of them is in `also` or `involved`, it is
 `<by> and <user> fail <command> together.`
 
 ## 3. Words, prompt and surfaces

@@ -82,9 +82,10 @@ fn culprits(p: &ReceiptPredicate, cause: &Cause, command: &str) -> (Option<bool>
 /// Positions, in command-line order, of the inputs a BLOCKED verdict blames:
 /// one that does not merge, one whose own check fails alone, and every input
 /// of a combination that fails although each passes alone, or only the two
-/// `cause` names, and any other that uses the name too, once the two fail it
-/// on their own and the others pass it without them. Every input when it blames none of those (say the combined
-/// run timed out before any input ran alone), so the GitHub Action stays
+/// `cause` names, any other that uses the name too and any other in a cause
+/// found, once the two fail it on their own and the others pass it without
+/// them. Every input when it blames none of those (say the combined run
+/// timed out before any input ran alone), so the GitHub Action stays
 /// conservative. Empty for any other label.
 fn implicated(p: &ReceiptPredicate, cause: Option<&Cause>, label: &str) -> Vec<usize> {
     if label != "BLOCKED" {
@@ -119,8 +120,10 @@ fn implicated(p: &ReceiptPredicate, cause: Option<&Cause>, label: &str) -> Vec<u
             Some(cause) if culprits(p, cause, &c.command) == (Some(false), Some(true)) => {
                 blamed.extend([cause.by, cause.user]);
                 // Without the name the others break as the two do, whatever
-                // the run on the rest, which keeps the name, says.
+                // the run on the rest, which keeps the name, says; and a
+                // second remover or another cause passes there by itself.
                 blamed.extend(&cause.also);
+                blamed.extend(&cause.involved);
             }
             _ => blamed.extend(&merged),
         }
@@ -1826,6 +1829,7 @@ FAILED (errors=1)"#;
             uses: vec![at(1), at(4)],
             confirmed,
             also: vec![],
+            involved: vec![],
         }
     }
 
