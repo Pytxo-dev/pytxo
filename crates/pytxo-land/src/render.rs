@@ -164,6 +164,12 @@ fn left_out_of_combined(outcome: &LandOutcome) -> Vec<String> {
         .collect()
 }
 
+/// A check's error lines from above its tail, then its tail: what to read
+/// for why it failed.
+pub(crate) fn output(c: &ReceiptCheck) -> Vec<String> {
+    [c.first_errors.as_slice(), &c.output_tail].concat()
+}
+
 /// The lines of a failed check's output most likely to say why it failed,
 /// the likeliest first, else the last few.
 fn why_lines(tail: &[String]) -> Vec<String> {
@@ -395,7 +401,7 @@ pub fn render_text(outcome: &LandOutcome) -> String {
                 c.command
             );
             if !c.passed {
-                for line in why_lines(&c.output_tail) {
+                for line in why_lines(&output(c)) {
                     let _ = writeln!(s, "      {line}");
                 }
             }
@@ -651,7 +657,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
         note: None,
     };
     let first_line = |c: &ReceiptCheck| {
-        let line = why_lines(&c.output_tail).into_iter().next()?;
+        let line = why_lines(&output(c)).into_iter().next()?;
         Some(if pr { code_span(&line) } else { line })
     };
     // A check that fails again speaks over one that passed when run again.
@@ -1186,7 +1192,7 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
             );
         }
         for c in p.checks.iter().filter(|c| !c.passed) {
-            let lines = why_lines(&c.output_tail).join("\n");
+            let lines = why_lines(&output(c)).join("\n");
             if !lines.is_empty() {
                 // Longer than any backtick run in the output, so no line closes it.
                 let fence = "`".repeat(longest_run(&lines, '`').max(2) + 1);
@@ -1266,6 +1272,7 @@ mod tests {
             duration_ms: 1,
             timed_out: false,
             output_tail: Vec::new(),
+            first_errors: Vec::new(),
             rerun: false,
         }
     }
@@ -1785,6 +1792,26 @@ FAIL";
             confirmed,
             also: vec![],
         }
+    }
+
+    /// A long run's error, above the tail its receipt keeps, is the why and
+    /// shows in the pull-request comment.
+    #[test]
+    fn an_error_above_the_tail_is_the_why() {
+        let mut out = together(None);
+        for c in out
+            .receipt
+            .predicate
+            .checks
+            .iter_mut()
+            .filter(|c| !c.passed)
+        {
+            c.first_errors = lines("TypeError: price is not a function\n  at f (src/a.js:4:10)");
+        }
+        let v = verdict(&out, "again");
+        assert!(v.why.contains("TypeError: price is not a function"), "{v}");
+        let md = render_markdown(&out);
+        assert!(md.contains("TypeError: price is not a function"), "{md}");
     }
 
     #[test]

@@ -680,6 +680,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                     duration_ms: 0,
                     timed_out: false,
                     output_tail: vec!["input does not merge cleanly onto the target".into()],
+                    first_errors: Vec::new(),
                     rerun: false,
                 });
                 continue;
@@ -833,11 +834,12 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                     commit: &r.commit,
                 })
                 .collect();
-            let failing: Vec<&[String]> = checks
+            let failing: Vec<Vec<String>> = checks
                 .iter()
                 .filter(|c| c.scope == "combined" && !c.passed && &c.command == command)
-                .map(|c| c.output_tail.as_slice())
+                .map(render::output)
                 .collect();
+            let failing: Vec<&[String]> = failing.iter().map(Vec::as_slice).collect();
             cause::find(&repo, &merged, &combined, &failing, opts.deadline)
         }
         _ => None,

@@ -12,6 +12,8 @@ use pytxo_core::ReceiptCheck;
 use serde_json::Value;
 
 const TAIL_LINES: usize = 40;
+/// Lines kept from above the tail: error lines, each with the line after it.
+const FIRST_ERRORS: usize = 10;
 
 /// Runs `command` in `cwd`, its output in a log under `logs`.
 pub fn run_check(
@@ -22,7 +24,7 @@ pub fn run_check(
     timeout: Duration,
 ) -> ReceiptCheck {
     let started = Instant::now();
-    let finish = |exit_code: Option<i32>, timed_out: bool, tail: Vec<String>| ReceiptCheck {
+    let finish = |exit_code: Option<i32>, timed_out: bool, (first_errors, tail)| ReceiptCheck {
         scope: scope.to_string(),
         command: command.to_string(),
         exit_code,
@@ -30,6 +32,7 @@ pub fn run_check(
         duration_ms: started.elapsed().as_millis() as u64,
         timed_out,
         output_tail: tail,
+        first_errors,
         rerun: false,
     };
 
@@ -55,7 +58,8 @@ pub fn run_check(
         Ok(child) => child,
         Err(error) => {
             let _ = std::fs::remove_file(&log_path);
-            return finish(None, false, vec![format!("could not start check: {error}")]);
+            let said = vec![format!("could not start check: {error}")];
+            return finish(None, false, (Vec::new(), said));
         }
     };
     let pid = child.id();
@@ -85,10 +89,10 @@ pub fn run_check(
         drop(active);
         std::thread::sleep(Duration::from_millis(40));
     };
-    let tail = read_tail(&log_path);
+    let read = read_tail(&log_path);
     let _ = std::fs::remove_file(&log_path);
     crate::active().paths.retain(|p| p != &log_path);
-    finish(exit_code, timed_out, tail)
+    finish(exit_code, timed_out, read)
 }
 
 /// The raw output, credentials and all: on Unix only its owner reads it.
@@ -316,28 +320,39 @@ pub(crate) fn alive(pid: u32) -> bool {
     }
 }
 
-/// The output's last lines as a terminal shows them, credentials masked:
-/// receipts, `--json`, hook replies and pull-request comments all show these
-/// lines.
-fn read_tail(path: &Path) -> Vec<String> {
+/// The output's first error lines above its tail, each with the line after
+/// it, then its last lines, as a terminal shows them, credentials masked:
+/// receipts, `--json`, hook replies and pull-request comments all show the
+/// tail, and the why and the cause read the error lines as well.
+fn read_tail(path: &Path) -> (Vec<String>, Vec<String>) {
     let mut bytes = Vec::new();
     if File::open(path)
         .and_then(|mut f| f.read_to_end(&mut bytes))
         .is_err()
     {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     }
     let text = mask_private_keys(&String::from_utf8_lossy(&bytes));
-    let mut lines: Vec<String> = text
+    let shown: Vec<String> = text
         .lines()
-        .rev()
         .map(as_shown)
         .filter(|l| !l.trim().is_empty())
-        .take(TAIL_LINES)
-        .map(|l| redact(&l).chars().take(400).collect())
         .collect();
-    lines.reverse();
-    lines
+    let (above, tail) = shown.split_at(shown.len().saturating_sub(TAIL_LINES));
+    let kept = |lines: &[String]| -> Vec<String> {
+        let cut = |l: &String| redact(l).chars().take(400).collect();
+        lines.iter().map(cut).collect()
+    };
+    let mut first = Vec::new();
+    let mut next = 0;
+    for (i, line) in above.iter().enumerate() {
+        let error = crate::render::rank(line.trim()).is_some_and(|r| r <= 2);
+        if i >= next && error && first.len() + 2 <= FIRST_ERRORS {
+            next = (i + 2).min(above.len());
+            first.extend(kept(&above[i..next]));
+        }
+    }
+    (first, kept(tail))
 }
 
 /// `line` as a terminal shows it: the text after its last carriage return,
@@ -801,6 +816,40 @@ mod tests {
             Duration::from_secs(30),
         );
         assert_eq!(check.output_tail, ["before", "[REDACTED]", "after"]);
+    }
+
+    /// A long run's error, far above its last 40 lines, is kept apart with
+    /// the line after it, such as rustc's place, and the tail stays the last
+    /// 40 lines. A short run's error is in its tail and kept once.
+    #[test]
+    fn an_error_above_the_tail_is_kept_with_its_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        let packages: String = (1..=45)
+            .map(|n| format!("ok   shop/pkg{n} 0.1s\n"))
+            .collect();
+        let error =
+            "error[E0432]: unresolved import `crate::cart::price`\n --> src/discount.rs:1:5\n  |\n";
+        std::fs::write(d.join("long.txt"), format!("{error}{packages}FAIL\n")).unwrap();
+        std::fs::write(d.join("short.txt"), format!("{error}FAIL\n")).unwrap();
+        #[cfg(windows)]
+        let print = |f: &str| format!("type {f}");
+        #[cfg(not(windows))]
+        let print = |f: &str| format!("cat {f}");
+        let run = |f: &str| run_check("combined", &print(f), d, d, Duration::from_secs(30));
+        let long = run("long.txt");
+        assert_eq!(
+            long.first_errors,
+            [
+                "error[E0432]: unresolved import `crate::cart::price`",
+                " --> src/discount.rs:1:5"
+            ]
+        );
+        assert_eq!(long.output_tail.len(), 40);
+        assert_eq!(long.output_tail.last().map(String::as_str), Some("FAIL"));
+        let short = run("short.txt");
+        assert!(short.first_errors.is_empty(), "{short:?}");
+        assert_eq!(short.output_tail.len(), 4);
     }
 
     /// A check never waits on a prompt nobody can answer.

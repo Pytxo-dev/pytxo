@@ -115,6 +115,13 @@ pub struct ReceiptCheck {
     pub timed_out: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub output_tail: Vec<String>,
+    /// Up to ten lines from above `output_tail` that say what went wrong,
+    /// each with the line after it, such as rustc's ` --> src/a.rs:4:5`: the
+    /// why and the cause of a long run whose tail is all summary, such as a
+    /// Go module's one failed package among many. Not part of the receipt or
+    /// its digest, so a receipt read back has none.
+    #[serde(skip)]
+    pub first_errors: Vec<String>,
     /// The second run of a combined check that failed while every input
     /// passed it alone. Absent (false) on every other run, so older receipts
     /// read and verify unchanged.
@@ -298,6 +305,7 @@ mod tests {
                         r"npm error log: C:\Users\someone\AppData\npm\debug.log".into(),
                         "at /home/someone/repo/test.js:3".into(),
                     ],
+                    first_errors: Vec::new(),
                     rerun: false,
                 }],
                 reasons: vec!["combined check failed".into()],

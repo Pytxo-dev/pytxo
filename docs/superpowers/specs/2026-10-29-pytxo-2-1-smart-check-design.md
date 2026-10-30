@@ -77,19 +77,21 @@ Terms: base `B`; input `i` at commit `C_i` with merge base
    files at `R`, where a symbol of that name counts, and so does any other
    top-level binding that is no import: `const X = memo(...)`, `exports.X =
    ...`, `module.exports.X = ...`, a Python `X = ...`.
-5. **Confirmed.** A line of the failing output tails of the combined runs
-   that section 4 ranks as an error name, a traceback, assert or diagnostic,
-   or a `FAIL` line says the name as a word outside a path, or a line names a
-   `path:line` equal to one of the stale uses where something went wrong
-   there: a compiler's place with its message, or the frame an error was
-   thrown at, the first frame past the runtime's own (`node:`,
-   `node_modules`) under an error that is no failed assertion. An
-   assertion's frame and a caller's only hold the line, and so does a line
-   whose only use is a type (an annotation, `as`, `satisfies`, `implements`,
-   `import type`): TypeScript erases types before the code runs, and a
-   compiled language fails to build on one, whose error names it. Such a use
-   stays a stale use, since tsc rejects the old name. Failure counts,
-   summaries and test titles never confirm.
+5. **Confirmed.** A line of the failing output of the combined runs (each run's
+   last 40 lines, and up to ten error lines from above them, each with the line
+   after it, such as rustc's ` --> src/a.rs:4:5`, which a Go module's many
+   packages or a few rustc warnings push out of the tail; the receipt keeps
+   only the 40) that section 4 ranks as an error name, a traceback, assert or
+   diagnostic, or a `FAIL` line says the name as a word outside a path, or a
+   line names a `path:line` equal to one of the stale uses where something went
+   wrong there: a compiler's place with its message, or the frame an error was
+   thrown at, the first frame past the runtime's own (`node:`, `node_modules`)
+   under an error that is no failed assertion. An assertion's frame and a
+   caller's only hold the line, and so does a line whose only use is a type (an
+   annotation, `as`, `satisfies`, `implements`, `import type`): TypeScript
+   erases types before the code runs, and a compiled language fails to build on
+   one, whose error names it. Such a use stays a stale use, since tsc rejects
+   the old name. Failure counts, summaries and test titles never confirm.
 6. **Pick one.** Confirmed first, then the most stale uses, then input order.
    The other inputs whose new lines use the name the picked input removed are
    kept as `also`: once it lands they break the same way.
@@ -206,7 +208,8 @@ receipt already keeps.
 ## 4. A better error line
 
 When there is no confirmed cause, the why line is still the first useful
-error line. `why_lines` now prefers, in order: an error or exception name
+error line, read from the same lines as section 1.5: the run's tail and the
+error lines above it. `why_lines` now prefers, in order: an error or exception name
 (`SomethingError:`, `Error:`, `error[`, `panicked at`); then `Traceback`,
 `assert`, or a compiler's or vet's `<path>.<ext>:<line>[:<col>]: <message>`,
 or tsc's `<path>.<ext>(<line>,<col>): <message>`, as tsc prints into a pipe,

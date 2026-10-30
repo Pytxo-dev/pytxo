@@ -397,6 +397,42 @@ fn a_failure_together_names_the_rename_behind_it() {
     assert_eq!(out.cause, None);
 }
 
+/// The error a long run prints above its last 40 lines, such as a Go
+/// module's one failed package among many, still confirms the cause and is
+/// the why, while the receipt keeps only the last 40 lines.
+#[test]
+fn an_error_above_a_long_runs_tail_still_confirms_the_cause() {
+    let dir = repo();
+    let d = dir.path();
+    let packages: String = (1..=45)
+        .map(|n| format!("ok   shop/pkg{n} 0.1s\n"))
+        .collect();
+    write(d, &[("packages.txt", &packages)]);
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", "packages"]);
+    let renamed = CART.replace("price", "unitPrice");
+    branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+    branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+    let mut o = opts(d, &["agent/rename", "agent/caller"]);
+    o.checks = vec![RENAME_BREAKS.replace("&& exit 1", "&& git show HEAD:packages.txt && exit 1")];
+    o.per_input = PerInput::OnFailure;
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert!(out.cause.as_ref().is_some_and(|c| c.confirmed), "{text}");
+    let checks = &out.receipt.predicate.checks;
+    let combined = checks.iter().find(|c| c.scope == "combined").unwrap();
+    assert_eq!(combined.output_tail.len(), 40, "{text}");
+    assert!(
+        !combined.output_tail.concat().contains("TypeError"),
+        "{text}"
+    );
+    let failed = verdict(&out, "again");
+    assert!(
+        failed.why.starts_with("agent/rename renamed price"),
+        "{text}"
+    );
+}
+
 /// With a third branch, the two the cause names fail on the target by
 /// themselves and the third passes there without them: only the two are
 /// blamed, and the verdict clears the third. Its run alone is that run, so
