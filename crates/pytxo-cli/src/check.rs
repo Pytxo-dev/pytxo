@@ -315,7 +315,7 @@ fn hook_reply(
     // waits for its own next stop.
     let kept = memo.with_file_name("hook-kept");
     if said(&fingerprint) {
-        return Ok(kept_reply(&kept, &fingerprint, &plan));
+        return Ok(kept_reply(&kept, &fingerprint, &plan, block));
     }
     // Another hook still checks at this one's deadline: no time to check.
     if lock.is_none() {
@@ -351,8 +351,8 @@ fn hook_reply(
         "Pytxo checked the agent branches together.\n{verdict}{}",
         note_lines(&notes)
     );
+    keep_replies(&kept, &fingerprint, &plan, &outcome, &text);
     let block = block && outcome.exit_code() == 2;
-    keep_replies(&kept, &fingerprint, &plan, &outcome, block);
     Ok(Some(if block {
         // What to do, for the agent whose worktree the hook runs in, once the
         // output confirms the cause; otherwise the verdict.
@@ -365,23 +365,20 @@ fn hook_reply(
 
 /// Keeps, for a blocked verdict with a confirmed cause, the fix prompt of
 /// each of its two branches that has a worktree other than the one the hook
-/// runs in, for that agent's next stop: the first agent to stop gets the
-/// check, and the other still has to hear what to do.
-fn keep_replies(kept: &Path, fingerprint: &str, plan: &Plan, outcome: &LandOutcome, block: bool) {
+/// runs in, with the verdict `text`, for that agent's next stop: the first
+/// agent to stop gets the check, and the other still has to hear what to do.
+fn keep_replies(kept: &Path, fingerprint: &str, plan: &Plan, outcome: &LandOutcome, text: &str) {
     let here = reader(plan, outcome);
     let replies: Vec<serde_json::Value> = outcome
         .cause
         .iter()
-        .filter(|_| block)
+        .filter(|_| outcome.exit_code() == 2)
         .flat_map(|c| [(c.user, Reader::User), (c.by, Reader::By)])
         .filter(|&(_, who)| who != here)
         .filter_map(|(n, who)| {
             let branch = plan.branches.get(n).filter(|b| b.worktree.is_some())?;
             let reason = fix_prompt(outcome, who)?;
-            Some(json!({
-                "branch": branch.reference,
-                "reply": { "decision": "block", "reason": reason },
-            }))
+            Some(json!({ "branch": branch.reference, "reason": reason }))
         })
         .collect();
     let _ = if replies.is_empty() {
@@ -389,15 +386,21 @@ fn keep_replies(kept: &Path, fingerprint: &str, plan: &Plan, outcome: &LandOutco
     } else {
         std::fs::write(
             kept,
-            json!({ "fingerprint": fingerprint, "replies": replies }).to_string(),
+            json!({ "fingerprint": fingerprint, "text": text, "replies": replies }).to_string(),
         )
     };
 }
 
 /// The reply kept for the agent of the branch checked out where the hook
 /// runs, once: it is gone after this. A worktree now on another branch is
-/// another agent's, which the reply waits out.
-fn kept_reply(kept: &Path, fingerprint: &str, plan: &Plan) -> Option<serde_json::Value> {
+/// another agent's, which the reply waits out. Its form is this hook's, not
+/// the one that checked: the fix prompt with `--block`, else the verdict.
+fn kept_reply(
+    kept: &Path,
+    fingerprint: &str,
+    plan: &Plan,
+    block: bool,
+) -> Option<serde_json::Value> {
     let mut all: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(kept).ok()?).ok()?;
     if all["fingerprint"] != fingerprint {
@@ -406,9 +409,13 @@ fn kept_reply(kept: &Path, fingerprint: &str, plan: &Plan) -> Option<serde_json:
     let here = &plan.branches[checked_out_here(plan)?].reference;
     let replies = all["replies"].as_array_mut()?;
     let at = replies.iter().position(|r| r["branch"] == *here)?;
-    let mut reply = replies.remove(at);
+    let reply = replies.remove(at);
     let _ = std::fs::write(kept, all.to_string());
-    Some(reply["reply"].take())
+    Some(if block {
+        json!({ "decision": "block", "reason": reply["reason"] })
+    } else {
+        json!({ "systemMessage": all["text"] })
+    })
 }
 
 /// Whom a fix prompt speaks to: the agent of the branch checked out where the

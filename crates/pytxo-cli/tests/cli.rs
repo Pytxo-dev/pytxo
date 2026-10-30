@@ -957,6 +957,49 @@ fn a_kept_prompt_waits_for_its_branch_not_its_worktree() {
     );
 }
 
+/// A kept prompt is said the way the hook that says it answers: Claude
+/// Code's and Codex's hooks are set up apart, so one may block while the
+/// other only tells.
+#[test]
+fn a_kept_prompt_answers_as_the_hook_that_says_it() {
+    let dir = rename_repo();
+    let d = dir.path();
+    git(d, &["config", "pytxo.check", RENAME_BREAKS]);
+    let trees = tempfile::tempdir().unwrap();
+    let user_tree = trees.path().join("discount");
+    let by_tree = trees.path().join("rename");
+    for (tree, branch) in [
+        (&user_tree, "codex/add-discount"),
+        (&by_tree, "claude/rename-price"),
+    ] {
+        git(
+            d,
+            &["worktree", "add", "-q", tree.to_str().unwrap(), branch],
+        );
+    }
+    let stop = |cwd: &Path, args: &[&str]| hook_reply(&pytxo(cwd, args, Some(&stop_event(cwd))));
+    // The renaming agent's hook blocks; the other agent's only tells.
+    assert_eq!(stop(&by_tree, &["hook", "--block"])["decision"], "block");
+    let v = stop(&user_tree, &["hook"]);
+    assert!(v.get("decision").is_none(), "{v}");
+    let message = v["systemMessage"].as_str().unwrap();
+    assert!(
+        message.starts_with("Pytxo checked the agent branches together.\nBLOCKED  "),
+        "{message}"
+    );
+    // The other way round, for a new check.
+    std::fs::remove_file(d.join(".git").join("pytxo").join("hook-last")).unwrap();
+    assert!(stop(&by_tree, &["hook"])["systemMessage"].is_string());
+    let v = stop(&user_tree, &["hook", "--block"]);
+    let reason = v["reason"].as_str().unwrap();
+    assert!(
+        reason.starts_with(
+            "Pytxo merged claude/rename-price and your branch codex/add-discount and ran "
+        ),
+        "{reason}"
+    );
+}
+
 /// An agent that stops while another agent's hook checks waits for that
 /// check and hears its own prompt from it at this stop, not at the next one,
 /// which only comes when a person prompts it again.

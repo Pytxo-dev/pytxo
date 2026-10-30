@@ -194,10 +194,12 @@ The three lines stay three lines.
   alias is the other way out; elsewhere the plain prompt. Each of the two
   agents hears its prompt once: the first to stop gets the check and its own
   prompt, and the other gets its own at its next stop, from the same check,
-  in a worktree that still has its branch checked out. A hook that stops while another hook checks the repository waits for that
-  check, up to its own deadline, and answers from it: an agent that stops at
-  the same moment hears its prompt at that stop. It stops waiting for a hook
-  that is gone.
+  in a worktree that still has its branch checked out. That stop answers the
+  way its own hook does, whichever way the hook that checked did: the prompt
+  with `--block`, the system message without. A hook that stops while another
+  hook checks the repository waits for that check, up to its own deadline,
+  and answers from it: an agent that stops at the same moment hears its
+  prompt at that stop. It stops waiting for a hook that is gone.
 
 The fix prompt, renamed variant:
 
