@@ -61,13 +61,16 @@ the target with git config pytxo.into <branch> (or PYTXO_INTO)."
     /// Run the check from a Claude Code or Codex Stop hook (hook JSON on stdin, JSON out)
     #[command(
         after_help = "Answers when two or more agent branches exist and one of them, the target or the test command
-changed since its last answer. Claude Code, in a shell:
+changed since its last answer. When the failing output confirms the cause, the sessions on the two branches
+it names each show their own answer from that check once. A hook that stops while another one checks
+waits for that check, up to its own time limit. Claude Code, in a shell:
   claude plugin marketplace add Pytxo-dev/pytxo --sparse .claude-plugin integrations/claude-code
   claude plugin install pytxo@pytxo
 Codex: add integrations/codex/hooks.json to ~/.codex/hooks.json, then trust it in /hooks."
     )]
     Hook {
-        /// On BLOCKED or FLAKY, ask the agent to keep working on it instead of only telling you
+        /// On BLOCKED or FLAKY, ask the agent to keep working on it instead of only telling you,
+        /// with a fix prompt when the failing output confirms the cause
         #[arg(long)]
         block: bool,
         /// The hook's timeout in its config, in seconds: Pytxo answers before it runs out
@@ -297,7 +300,9 @@ mod tests {
         for line in [
             "Answers when two or more agent branches exist and one of them, the target or the test command changed since its last answer.",
             "claude plugin marketplace add Pytxo-dev/pytxo --sparse .claude-plugin integrations/claude-code claude plugin install pytxo@pytxo",
-            "On BLOCKED or FLAKY, ask the agent to keep working on it",
+            "When the failing output confirms the cause, the sessions on the two branches it names each show their own answer from that check once.",
+            "A hook that stops while another one checks waits for that check, up to its own time limit.",
+            "On BLOCKED or FLAKY, ask the agent to keep working on it instead of only telling you, with a fix prompt when the failing output confirms the cause",
         ] {
             assert!(help.contains(line), "{line} not in {help}");
         }
