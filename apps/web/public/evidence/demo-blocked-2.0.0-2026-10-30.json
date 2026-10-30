@@ -1,8 +1,8 @@
 {
   "schema": "pytxo.evidence/v1",
   "recorded": "2026-10-30",
-  "version": "2.1.0",
-  "build": "Pytxo CLI 2.1.0 source candidate: a local release build (cargo build -p pytxo-cli --release --no-default-features) of commit 9004d9f on branch mbcz/pytxo-2-1-smart, run with PYTXO_RUN_AS=\"npx pytxo\" as the npm launcher sets it. Not yet a published release.",
+  "version": "2.0.0",
+  "build": "Pytxo CLI 2.0.0 source candidate: a local release build (cargo build -p pytxo-cli --release --no-default-features) of commit 8d7412e on branch mbcz/pytxo-2-1-smart, run with PYTXO_RUN_AS=\"npx pytxo\" as the npm launcher sets it. Not yet a published release.",
   "host": {
     "os": "Windows 11 Home",
     "node": "26.10",
@@ -20,9 +20,9 @@
   "command": "npx pytxo demo",
   "exit_code": 0,
   "duration_ms": [
-    7311,
-    6909,
-    6729
+    8545,
+    8739,
+    8875
   ],
   "output": "Building a throwaway repo where two agents changed the same shop code...\n  claude/rename-price  renames price() to unitPrice() in src/cart.js\n  codex/add-discount   adds src/discount.js, which calls price()\nChecking claude/rename-price and codex/add-discount against main with npm test (from package.json)...\nBLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.\nwhy      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).\nnext     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.\n\nThat repo was temporary and is gone. Now run npx pytxo in a repo where agents work.\n",
   "limits": [
@@ -30,6 +30,6 @@
     "It shows the mechanism, not how often it happens in real projects.",
     "pytxo demo exits 0 when it catches the break; pytxo exits 2 on BLOCKED.",
     "The demo deletes its repository, so this record holds no receipt.",
-    "Timed on a busier machine than the 2.0 record: in the same sitting, the 2.0 build took 6.7 to 6.9 s."
+    "Timed on a laptop busy with other work."
   ]
 }

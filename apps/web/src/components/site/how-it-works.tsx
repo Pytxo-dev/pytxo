@@ -1,4 +1,4 @@
-import capture from "../../../public/evidence/demo-blocked-2.1.0-2026-10-30.json";
+import capture from "../../../public/evidence/demo-blocked-2.0.0-2026-10-30.json";
 
 // The snippets are lines of the recorded demo, not mock output.
 const lines = capture.output.split("\n");
