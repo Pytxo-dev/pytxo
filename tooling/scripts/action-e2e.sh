@@ -3,7 +3,8 @@
 # install it. It creates a PUBLIC throwaway repository under your account and a
 # fork of it under <fork-owner>, then:
 #   1. opens claude/rename and codex/discount, which pass `npm test` alone and
-#      fail together, then agent/readme, which only touches the README;
+#      fail together, then agent/readme, which only touches the README and
+#      must pass: the check proves the other two fail without it;
 #   2. pushes again to codex/discount: its comment must be updated, not doubled;
 #   3. opens a pull request from the fork: that run gets a read-only token, so
 #      the verdict must go to the job summary and no comment may appear;
@@ -210,8 +211,10 @@ echo "---"
 
 pr_readme="$(open_pr agent/readme "Explain how to run the tests")"
 run="$(run_for pytxo.yml "$(git rev-parse agent/readme)")"
-echo "INFO  #$pr_readme (README only) with both: the job's conclusion is $(conclusion "$run")."
-echo "      2.0 fails every pull request in a combination that fails while each passes alone."
+[ "$(conclusion "$run")" = success ] && pass "#$pr_readme (README only) with both: the other two are to blame, the job passes" \
+  || fail "#$pr_readme (README only) with both: expected success, got $(conclusion "$run")"
+sticky "$pr_readme" body | grep -q 'passes without them' && pass "#$pr_readme: the comment says it passes without the pair" \
+  || fail "#$pr_readme: the comment does not clear it"
 
 note "2. A new push updates the comment"
 git switch -q codex/discount
