@@ -312,7 +312,10 @@ fn hook_reply(
     let lock = HookLock::wait(&memo.with_file_name("hook.lock"), timeout, deadline)?;
     let fingerprint = plan.fingerprint();
     // Said once to each agent that has to act: the other one's fix prompt
-    // waits for its own next stop.
+    // waits for its own next stop. ponytail: without the lock, at its
+    // deadline, a hook takes its kept reply while the holder may be keeping
+    // new ones, and the later write wins; a lock around hook-kept if that
+    // millisecond ever matters.
     let kept = memo.with_file_name("hook-kept");
     if said(&fingerprint) {
         return Ok(kept_reply(&kept, &fingerprint, &plan, block));
