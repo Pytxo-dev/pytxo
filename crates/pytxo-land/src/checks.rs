@@ -89,7 +89,7 @@ pub fn run_check(
         drop(active);
         std::thread::sleep(Duration::from_millis(40));
     };
-    let read = read_tail(&log_path);
+    let read = read_tail(&log_path, cwd);
     let _ = std::fs::remove_file(&log_path);
     crate::active().paths.retain(|p| p != &log_path);
     finish(exit_code, timed_out, read)
@@ -323,8 +323,9 @@ pub fn alive(pid: u32) -> bool {
 /// The output's first error lines above its tail, each with the line after
 /// it, then its last lines, as a terminal shows them, credentials masked:
 /// receipts, `--json`, hook replies and pull-request comments all show the
-/// tail, and the why and the cause read the error lines as well.
-fn read_tail(path: &Path) -> (Vec<String>, Vec<String>) {
+/// tail, and the why and the cause read the error lines as well. In a scratch
+/// worktree `cwd`, paths read from its root, as in the checkout it stands for.
+fn read_tail(path: &Path, cwd: &Path) -> (Vec<String>, Vec<String>) {
     let mut bytes = Vec::new();
     if File::open(path)
         .and_then(|mut f| f.read_to_end(&mut bytes))
@@ -333,9 +334,17 @@ fn read_tail(path: &Path) -> (Vec<String>, Vec<String>) {
         return (Vec::new(), Vec::new());
     }
     let text = mask_private_keys(&String::from_utf8_lossy(&bytes));
+    let root = cwd
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|_| crate::is_scratch_worktree(cwd));
     let shown: Vec<String> = text
         .lines()
         .map(as_shown)
+        .map(|l| match root {
+            Some(root) => inside(&l, root),
+            None => l,
+        })
         .filter(|l| !l.trim().is_empty())
         .collect();
     let (above, tail) = shown.split_at(shown.len().saturating_sub(TAIL_LINES));
@@ -353,6 +362,38 @@ fn read_tail(path: &Path) -> (Vec<String>, Vec<String>) {
         }
     }
     (first, kept(tail))
+}
+
+/// `line` with each path into the scratch worktree named `root` cut down to
+/// the part inside it, `discount.js:4:10`, however the check spells the temp
+/// directory: long or short, with `\` or `/`, doubled, or as a `file:///`
+/// URL. The root itself reads `.`; a path into `<root>-solo` stays.
+/// ponytail: a temp path with a space, printed in full, keeps what comes
+/// before its last space; checks see the short spelling there.
+fn inside(line: &str, root: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(i) = rest.find(root) {
+        let after = &rest[i + root.len()..];
+        let named = rest[..i].ends_with(['/', '\\'])
+            && !after.starts_with(|c: char| c.is_alphanumeric() || "-_".contains(c));
+        if !named {
+            out.push_str(&rest[..i + root.len()]);
+            rest = after;
+            continue;
+        }
+        let start = rest[..i]
+            .rfind(|c: char| c.is_ascii_whitespace() || "(\"'`<=[,".contains(c))
+            .map_or(0, |s| s + 1);
+        out.push_str(&rest[..start]);
+        let within = after.trim_start_matches(['/', '\\']);
+        if within.len() == after.len() {
+            out.push('.');
+        }
+        rest = within;
+    }
+    out.push_str(rest);
+    out
 }
 
 /// `line` as a terminal shows it: the text after its last carriage return,
@@ -850,6 +891,40 @@ mod tests {
         let short = run("short.txt");
         assert!(short.first_errors.is_empty(), "{short:?}");
         assert_eq!(short.output_tail.len(), 4);
+    }
+
+    #[test]
+    fn a_path_into_the_scratch_worktree_reads_from_its_root() {
+        let root = "pytxo-land-20261028t120005z_ab12cd34";
+        let cases = [
+            (
+                r"    at discounted (C:\Users\RUNNER~1\AppData\Local\Temp\pytxo-x\pytxo-land-20261028t120005z_ab12cd34\discount.js:4:10)",
+                r"    at discounted (discount.js:4:10)",
+            ),
+            (
+                "    at file:///C:/Users/runneradmin/AppData/Local/Temp/pytxo-x/pytxo-land-20261028t120005z_ab12cd34/src/discount.js:4:10",
+                "    at src/discount.js:4:10",
+            ),
+            (
+                "  File \"/tmp/pytxo-x/pytxo-land-20261028t120005z_ab12cd34/test_cart.py\", line 3, in test_total",
+                "  File \"test_cart.py\", line 3, in test_total",
+            ),
+            (
+                r"   Compiling shop v0.1.0 (C:\T\pytxo-x\pytxo-land-20261028t120005z_ab12cd34)",
+                "   Compiling shop v0.1.0 (.)",
+            ),
+            (
+                r"  location: 'C:\\T\\pytxo-land-20261028t120005z_ab12cd34\\test\\a.test.js:5:1'",
+                r"  location: 'test\\a.test.js:5:1'",
+            ),
+            (
+                r"C:\T\pytxo-land-20261028t120005z_ab12cd34-solo\a.js:1 pytxo-land-20261028t120005z_ab12cd34",
+                r"C:\T\pytxo-land-20261028t120005z_ab12cd34-solo\a.js:1 pytxo-land-20261028t120005z_ab12cd34",
+            ),
+        ];
+        for (line, read) in cases {
+            assert_eq!(inside(line, root), read);
+        }
     }
 
     /// A check never waits on a prompt nobody can answer.

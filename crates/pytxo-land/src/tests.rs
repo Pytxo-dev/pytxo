@@ -329,6 +329,38 @@ fn verdict_line(out: &LandOutcome) -> String {
     md.trim_end().lines().last().unwrap().to_string()
 }
 
+/// A frame the check prints with the scratch worktree's full path reads
+/// from its root, as in the branch's own checkout, and its place still
+/// confirms the cause.
+#[test]
+fn a_frame_in_the_scratch_worktree_reads_from_its_root_and_confirms() {
+    let dir = repo();
+    let d = dir.path();
+    let renamed = CART.replace("price", "unitPrice");
+    branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+    branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+    let mut o = opts(d, &["agent/rename", "agent/caller"]);
+    // An error that leaves the name out: only the frame's place confirms.
+    #[cfg(windows)]
+    let frame = r"echo     at module.exports (%CD%\src\extra.js:2:24)";
+    #[cfg(not(windows))]
+    let frame = r#"echo "    at module.exports ($PWD/src/extra.js:2:24)""#;
+    let said = format!("echo TypeError: not a function && {frame}");
+    o.checks = vec![RENAME_BREAKS.replace("echo TypeError: price is not a function", &said)];
+    o.per_input = PerInput::OnFailure;
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert!(out.cause.as_ref().is_some_and(|c| c.confirmed), "{text}");
+    let checks = &out.receipt.predicate.checks;
+    let combined = checks.iter().find(|c| c.scope == "combined").unwrap();
+    let tail = &combined.output_tail;
+    let frame = tail.iter().find(|l| l.contains("module.exports")).unwrap();
+    assert_eq!(
+        frame.trim().replace('\\', "/"),
+        "at module.exports (src/extra.js:2:24)"
+    );
+}
+
 #[test]
 fn a_failure_together_names_the_rename_behind_it() {
     let dir = repo();
@@ -1792,15 +1824,16 @@ fn a_run_keeps_its_worktrees_and_logs_in_a_directory_of_its_own() {
     let d = dir.path();
     branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
     let mut o = opts(d, &["agent/a"]);
+    // From the run's directory: a path into the worktree reads from its root.
     #[cfg(windows)]
-    let list = "cd && dir /b ..";
+    let list = "cd .. && cd && dir /b";
     #[cfg(not(windows))]
-    let list = "pwd && ls ..";
+    let list = "cd .. && pwd && ls";
     o.checks = vec![list.into()];
     let out = land(&o).unwrap();
     let p = &out.receipt.predicate;
     let shown = &p.checks[0].output_tail;
-    let run_dir = Path::new(&shown[0]).parent().unwrap();
+    let run_dir = Path::new(&shown[0]);
     let tag = p.id.trim_start_matches("rcpt_").to_lowercase();
     assert!(run_dir.ends_with(format!("pytxo-{tag}")), "{shown:?}");
     assert!(

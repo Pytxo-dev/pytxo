@@ -215,7 +215,10 @@ Removed variant: "<by> removed <X>. … Fix it on <user>: rebase it onto <by>,
 stop using <X>, and run <command> until it passes. If <user> needs <X>, ask
 for it back on <by> instead."
 At most three uses are listed. The output tail is the sanitized one the
-receipt already keeps.
+receipt already keeps. A path the check prints into its scratch worktree
+reads from the worktree's root, as in the branch's own checkout
+(`discount.js:4:10`, the root itself `.`), however it spells the temp
+directory: long or short, with `\` or `/`, or as a `file:///` URL.
 
 ## 4. A better error line
 
