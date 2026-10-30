@@ -1420,6 +1420,8 @@ fn markdown_advice_fits_a_pull_request() {
     );
     assert!(verdict(&out, again).next.contains("raise --timeout"));
 
+    // Time to fail: on a loaded machine `exit 1` can take 300 ms to start.
+    o.check_timeout = DEFAULT_CHECK_TIMEOUT;
     o.checks = vec!["exit 1".into()];
     o.per_input = PerInput::OnFailure;
     let out = land(&o).unwrap();
