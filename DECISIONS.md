@@ -1,6 +1,6 @@
-# Decisions: Pytxo 2.0
+# Decisions: Pytxo 2.0 and 2.1
 
-Reversible choices made while building 2.0, newest last. Each says what was
+Reversible choices made while building 2.0 and 2.1, newest last. Each says what was
 chosen, why, and how to undo it.
 
 1. **`check` is the command; `land` is its alias.** Both run the same engine
@@ -156,7 +156,8 @@ chosen, why, and how to undo it.
     marker. Code in the checked PRs runs in the job that holds the token and
     can reach it through `$GITHUB_ENV` or the runner, so only the job's
     permissions bound it; the docs say so. A two-job split would isolate it
-    and is not built.
+    and is not built. Held pull requests: superseded by 44, which lets them
+    join at a commit a person let run.
 
 18. **Pro licensing is a switched-off scaffold in the Action.** Public
     repositories are free and always will be; local runs are never checked.
@@ -165,7 +166,8 @@ chosen, why, and how to undo it.
     `pytxo1.<payload>.<signature>` key passed as `license:` from the
     `PYTXO_LICENSE` secret, verified offline with Ed25519. `LICENSING = false`
     and `LICENSE_PUBLIC_KEY = null` keep it off; switching it on needs a
-    signing keypair and a release.
+    signing keypair and a release. The keys: superseded by 46, Dodo Payments
+    license keys checked online.
 
 19. **The site leads with the check; Desktop moves to the footer.** The
     header button is "Get started" (the Quickstart), not "Download". The
@@ -327,3 +329,143 @@ chosen, why, and how to undo it.
     global install answers instead of 2.0. The install page and release notes
     tell upgraders to run `npm i -g pytxo@latest`, instead of every snippet
     saying `npx pytxo@latest`, which costs a registry check per run.
+
+## 2.1: the check that says why
+
+Spec: [`docs/superpowers/specs/2026-10-29-pytxo-2-1-smart-check-design.md`](docs/superpowers/specs/2026-10-29-pytxo-2-1-smart-check-design.md).
+
+38. **A cause is a definition one branch renamed or removed and another
+    branch's new code still uses.** It is looked for only behind a
+    "together" verdict, from git and tree-sitter alone: no model, nothing
+    sent. The name was defined in the branch's changed files before it and
+    is not after, and is no longer code anywhere on that branch (a mention
+    in a string, a comment or a doc does not keep it). A use is a line
+    another merged branch added where code refers to the name. A string, a
+    comment, an object key or a field read `a.name` is none; a call
+    `a.name()` is one when the gone definition was a method, and `m.name` is
+    one when `m` is a module the file imports. A name the file gives what it
+    imports (a default or namespace import, an alias, a name from a `node:`
+    module) is the file's own, and a file whose combined version binds the
+    name itself (the user's own `const name`, a parameter or a local) has
+    none; a call added beside the removed definition, in its own file, is a
+    use. A file without a grammar gives none. When the combined change still
+    binds the name in any form, there is no cause. It is confirmed only when
+    an error, traceback, assert, diagnostic or `FAIL` line of the failing
+    output says the name, or a compiler's place or the frame an error was
+    thrown at points at a use. An assertion's frame or a caller's does not,
+    and a use that is only a type is confirmed only by a line that says the
+    name, since types are gone before the code runs. Counts, summaries, test
+    titles and paths never confirm. Each failing run's last 40 lines are
+    read, and up to ten error lines above them, which the receipt does not
+    keep. At most 200 files and 50 names per branch, 100 `git grep` calls
+    and 1 MB per file, and never past the deadline: a cap gives no cause,
+    never a guess. The cause is a reading of the runs, not a record of them,
+    so it stays out of the receipt. Renamed config keys, CSS classes and
+    changed signatures are out of scope. To undo, have `cause::find` return
+    `None`: the why line is the error line again.
+39. **The verdict states a cause only when it is confirmed.** Confirmed, the
+    why line says what one branch renamed or removed and where the other
+    still uses it, and the next line says which branch to rebase and what to
+    use. Not confirmed, the why line stays the error line and a `note` names
+    the possible cause. Other branches that use the name too are named in
+    the same sentence. The terminal verdict stays three lines; the PR
+    comment adds the fix prompt under `<details>`, and `--json` adds
+    `verdict.cause` and `verdict.fix_prompt`. Only a confirmed cause has a
+    fix prompt.
+40. **With three or more branches, the cause's pair is proven before the
+    others are cleared.** After a "together" failure with a cause, confirmed
+    or not, the failing command runs on the target plus the pair (`pair`)
+    and, if that fails, on the target plus every other merged branch
+    (`rest`); with one other branch, its run alone already is that run.
+    When the pair fails and the rest passes, the pair stays implicated with
+    the other branches that use the name and every branch in any other cause
+    found, so the Action passes only the rest's pull requests: a second
+    branch that removed the name passes in the rest run while it breaks the
+    user just the same. When the pair passes, the verdict is 2.0's, with a
+    note. At most two extra runs, only of the first failing command, never
+    after a timeout, and not when a run would end past the deadline: one run
+    of room when the single other branch already ran alone, two otherwise,
+    counting each check at its longest run so far. The checks before that
+    command run again first, unrecorded, to set the tree up, as for the
+    rerun. The pair comes from the cause (confirmed first, then most uses,
+    then input order), and a wrong pick passes and leaves everyone blamed. A
+    pair or rest row names what it merged in its scope, `pair:1,2` and
+    `rest:0,3`, not in a field of its own: 2.0 drops a field it does not
+    know when it recomputes a digest, and would read such a receipt as
+    edited. A search without a cause would cost log n runs of the suite and
+    is not built.
+41. **`--block` hands the fix prompt to the agent that has to change.** In
+    the using branch's worktree the hook's reason starts "Your branch"; in
+    the renaming branch's worktree it says the fix belongs on the other
+    branch, or to keep the old name as an alias; anywhere else it is the
+    plain prompt. Each of the two agents hears its own prompt once: the
+    first to stop runs the check and gets its prompt, and the other gets its
+    own at its next stop from the same check, kept by branch in
+    `.git/pytxo/hook-kept` for a worktree that still has that branch checked
+    out. Each stop answers the way its own hook does, the prompt with
+    `--block` and a system message without, so with a confirmed cause both
+    sessions see the verdict once, where 2.0 told one session per
+    repository. A hook that stops while another hook checks the repository
+    waits for that check, up to its own deadline, and answers from it,
+    instead of staying quiet; it stops waiting for a hook that is gone. The
+    fix runs in the agent the user already pays for, so Pytxo still has no
+    model bill.
+42. **The why line is the error the check printed, not its count.** In
+    order: an error or exception name (`TypeError:`, `error[E…]`, a Rust
+    panic, Go's `panic:`); a traceback, an assert, or a diagnostic,
+    `<file>.<ext>:<line>: <message>` or tsc's
+    `<file>.<ext>(<line>,<col>): <message>`; a `FAIL <file>` line or Go's
+    `--- FAIL:`; then any other line with error or fail. Count lines
+    (`ℹ fail 1`, `Tests: 1 failed`) and Go's `FAIL <package>` summary never
+    are. Error names rank above tracebacks, so pytest's why line is its
+    `E   NameError: …`, not the source line under it, and unittest's
+    `ImportError: Failed to import test module` ranks with any line that
+    says error, below the traceback's own error. It reads the same lines as
+    the cause, so one failed package of a Go module, or rustc's error above
+    its warnings, still says why.
+43. **A branch name means the branch.** The CLI looks up
+    `refs/heads/<name>` first, so a tag, a `FETCH_HEAD`-style file in
+    `.git` or a short `heads/x` name no longer changes the commit checked.
+    The Action checks the same in its checkout: it deletes a tag named like
+    a branch it fetched, and leaves out a pull request whose name git still
+    reads as something else. A tag pushed with an agent branch's name could
+    otherwise have had the check run a commit nobody approved.
+44. **Copilot's pull requests join at a commit a person let run.** This
+    supersedes the exclusion in 17. With `actions: read`, a held pull
+    request joins another's run at the newest of its own commits that has a
+    `pull_request` run on this repository whose conclusion is not
+    `action_required`. Approving that run, or re-running it, takes a person
+    with write access, so its code runs only after someone let it. It is
+    fetched by that commit, and left out with a note if a push took the
+    commit away. A 403 or 404 from the first runs call that is not a rate
+    limit adds the note to add `actions: read`; any other GitHub error
+    leaves the held pull requests out with a note, and the run goes on.
+45. **`actions: read` is opt-in.** The documented setup stays
+    `contents: read` and `pull-requests: write`, and one sentence says to
+    add `actions: read` when Copilot's coding agent opens pull requests.
+    Agent code in the job can reach the token, and with `actions: read` it
+    can read every workflow run's logs and artifacts.
+46. **Pro keys are Dodo Payments license keys, checked online and still
+    switched off.** This supersedes the Ed25519 keys in 18: a monthly
+    subscription needs a key that stops working when it lapses. Only on a
+    private repository, after the trial and with `LICENSING` on does the
+    Action send anything: the key, to Dodo's public validate endpoint. Only
+    a definite answer refuses it: `valid: false`, or a 4xx other than 408
+    and 429. No answer within 10 seconds, a network error, 408, 429, 5xx or
+    an answer it cannot read runs the check with a warning, so trouble at
+    Dodo never blocks a pull request. Keys are not bound to a repository;
+    the Action is MIT, so the gate is an honor system until its license or
+    Dodo's activations make it binding.
+47. **A path into the scratch worktree reads from its root.** Checks run in
+    a temporary worktree, so a stack frame, a traceback or a compiler's
+    place showed its temp path in the receipt, the why line, the hook's
+    reply and the PR comment. Each such path now reads as in the branch's
+    own checkout (`discount.js:4:10`, the root itself `.`). The worktree is
+    found by its own name, unique to the run, in any spelling: long or
+    short, either separator, or a `file:///` URL. A path printed in full
+    with a space in the temp directory keeps the part before its last space.
+48. **The lean binary grows by 330 KB, over the 200 KB budget.** 2.0's lean
+    build is 11,757,568 bytes and 2.1's 12,096,000 (+338,432). All of it is
+    first-party code: the cause search, pytxo-signal's name reading, the
+    pair runs, and the hook's waiting and kept replies. No crate was added.
+    Accepted: about 3% of a binary that `npx pytxo` downloads once.

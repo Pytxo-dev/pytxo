@@ -312,4 +312,6 @@ causes other than a renamed or removed definition.
 - `cargo fmt --all --check`; clippy `-D warnings` on pytxo-land and
   pytxo-cli, full and `--no-default-features`; `cargo test -p pytxo-land -p pytxo-cli`;
   `node --test actions/land/pytxo-action.test.mjs`.
-- The lean binary grows by less than 200 KB.
+- The lean binary grows by less than 200 KB. Not met: it grows by 338,432
+  bytes, from 11,757,568 to 12,096,000, all first-party code with no crate
+  added. Accepted in DECISIONS 48.
