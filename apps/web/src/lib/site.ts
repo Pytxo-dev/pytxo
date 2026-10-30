@@ -67,7 +67,7 @@ export const SHARE_IMAGE = {
   url: "/social/check-1600x1000.png",
   width: 1600,
   height: 1000,
-  alt: "Each agent's branch passes. Do they pass together? npx pytxo demo prints BLOCKED: two branches pass npm test alone but fail together.",
+  alt: "Each agent's branch passes. Do they pass together? npx pytxo demo prints BLOCKED: two branches pass npm test alone but fail together, because one renamed price to unitPrice and the other still uses price.",
 };
 
 /** The header's call to action; the header renders it as its one button. */

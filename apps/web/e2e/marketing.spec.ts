@@ -28,13 +28,14 @@ for (const width of [1440, 390]) {
     const hero = page.getByTestId("marketing-hero");
     await expect(hero.getByRole("heading", { level: 1 })).toHaveText("Each agent's branch passes. Do they pass together?");
     // The hero shows the recorded bytes of a real run, not a retyped or illustrated one.
-    const record = await (await page.request.get("/evidence/demo-blocked-2.0.0-2026-10-28.json")).json();
+    const record = await (await page.request.get("/evidence/demo-blocked-2.1.0-2026-10-30.json")).json();
     expect(record.command).toBe("npx pytxo demo");
     expect(record.output).toContain("BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.");
+    expect(record.output).toContain("why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).");
     const capture = hero.getByTestId("hero-capture");
     expect(await capture.locator("pre").textContent()).toBe(`$ ${record.command}\n${record.output.trimEnd()}\n`);
     await expect(capture.getByText("BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.")).toBeInViewport();
-    await expect(capture.getByRole("link", { name: "Raw output" })).toHaveAttribute("href", "/evidence/demo-blocked-2.0.0-2026-10-28.json");
+    await expect(capture.getByRole("link", { name: "Raw output" })).toHaveAttribute("href", "/evidence/demo-blocked-2.1.0-2026-10-30.json");
     await expect(hero.getByText(/runs your tests on the combined result, and blocks the merge if it breaks/)).toBeVisible();
     await expect(hero.locator("pre").filter({ hasText: /^npx pytxo demo$/ })).toBeVisible();
     await expect(hero.getByRole("button", { name: "Copy the demo command" })).toBeVisible();
@@ -109,7 +110,7 @@ test("homepage leads with the outcome, then how, why, proof and requirements", a
   await expect(proof).toContainText("Checks passing is evidence, not proof.");
   await expect(proof.getByRole("link", { name: /Pybench results/ })).toHaveAttribute("href", "/bench");
   await expect(proof.getByRole("link", { name: /All evidence and limits/ })).toHaveAttribute("href", "/docs/evidence");
-  await expect(page.getByTestId("marketing-hero")).toContainText("Each passes npm test on its own. Together the test fails, so the check blocks.");
+  await expect(page.getByTestId("marketing-hero")).toContainText("Each passes npm test on its own. Together the test fails, so the check blocks and says which branch has to change.");
   await expect(page.getByTestId("compatibility-section")).toContainText("Pytxo calls no model and sends nothing anywhere.");
   await expect(page.getByTestId("faq-section")).toContainText("Does it send my code anywhere?");
   await expect(page.getByTestId("get-it-section").locator("pre").filter({ hasText: /^npx pytxo demo$/ })).toBeVisible();

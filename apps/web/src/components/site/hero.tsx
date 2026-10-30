@@ -2,11 +2,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { InstallSnippet } from "@/components/site/install-snippet";
 import { DEMO_COMMAND, SOURCE_URL } from "@/lib/site";
-import capture from "../../../public/evidence/demo-blocked-2.0.0-2026-10-28.json";
+import capture from "../../../public/evidence/demo-blocked-2.1.0-2026-10-30.json";
 
-// Exact output of `npx pytxo demo` from a local build of the 2.0.0 candidate,
+// Exact output of `npx pytxo demo` from a local build of the 2.1.0 candidate,
 // on Pybench's rename-vs-new-caller repository; the record says how it ran.
-const CAPTURE_URL = "/evidence/demo-blocked-2.0.0-2026-10-28.json";
+const CAPTURE_URL = "/evidence/demo-blocked-2.1.0-2026-10-30.json";
 const failed = (line: string) => line.startsWith("BLOCKED") || line.includes("FAIL");
 
 export function Hero() {
@@ -26,7 +26,7 @@ export function Hero() {
             </pre>
           </div>
           <figcaption className="mt-3 max-w-[80ch] px-1 text-sm leading-relaxed text-[#8d8d96]">
-            Recorded on 28 October 2026 with a local build of the 2.0.0 candidate. The demo builds a sample repository from Pybench: one branch renames <code className="font-mono text-[0.92em]">price()</code> to <code className="font-mono text-[0.92em]">unitPrice()</code>, the other adds code that calls <code className="font-mono text-[0.92em]">price()</code>. Each passes <code className="font-mono text-[0.92em]">npm test</code> on its own. Together the test fails, so the check blocks. <a className="aperture-link text-[#c4c4cc]" href={CAPTURE_URL}>Raw output</a>
+            Recorded on 30 October 2026 with a local build of the 2.1.0 candidate. The demo builds a sample repository from Pybench: one branch renames <code className="font-mono text-[0.92em]">price()</code> to <code className="font-mono text-[0.92em]">unitPrice()</code>, the other adds code that calls <code className="font-mono text-[0.92em]">price()</code>. Each passes <code className="font-mono text-[0.92em]">npm test</code> on its own. Together the test fails, so the check blocks and says which branch has to change. <a className="aperture-link text-[#c4c4cc]" href={CAPTURE_URL}>Raw output</a>
           </figcaption>
         </figure>
 

@@ -1,4 +1,4 @@
-import capture from "../../../public/evidence/demo-blocked-2.0.0-2026-10-28.json";
+import capture from "../../../public/evidence/demo-blocked-2.1.0-2026-10-30.json";
 
 // The snippets are lines of the recorded demo, not mock output.
 const lines = capture.output.split("\n");
@@ -20,7 +20,7 @@ const STEPS = [
   },
   {
     title: "It says what broke and what to do.",
-    body: "Three lines: the verdict, why, and what to do next. When the combination fails, each branch runs alone to tell a break that only happens together from a branch that was already broken, and, if every branch passes alone, the combined change runs again to catch a flaky test. If the combined run times out, the branches do not run alone after it.",
+    body: "Three lines: the verdict, why, and what to do next. When the combination fails, each branch runs alone to tell a break that only happens together from a branch that was already broken, and, if every branch passes alone, the combined change runs again to catch a flaky test. When one branch renamed or removed a name another still uses, and the failing output confirms it, the why line names both branches and the line, and the next line says which branch to rebase. With three or more branches, it then tests that pair without the others and, if they fail, the others without them, so the verdict can clear the others.",
     snippet: from("BLOCKED", 3),
   },
 ] as const;
