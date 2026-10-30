@@ -866,8 +866,8 @@ fn one_hook_checks_a_repository_at_a_time() {
     git(d, &["config", "pytxo.check", "git --version"]);
     let event = stop_event(d);
     // Another session's hook holds a fresh lock: this one waits for it until
-    // its own deadline, half of a short timeout, then has nothing to add, and
-    // the lock stays.
+    // its own deadline, half of a short timeout, less a last look that would
+    // pass it, then has nothing to add, and the lock stays.
     let lock = d.join(".git").join("pytxo").join("hook.lock");
     std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
     let holder = format!("{} other", std::process::id());
@@ -876,7 +876,7 @@ fn one_hook_checks_a_repository_at_a_time() {
     let out = pytxo(d, &["hook", "--timeout", "10"], Some(&event));
     assert_eq!((out.status.code(), stdout(&out)), (Some(0), String::new()));
     let waited = started.elapsed();
-    assert!(waited >= std::time::Duration::from_secs(5), "{waited:?}");
+    assert!(waited >= std::time::Duration::from_secs(4), "{waited:?}");
     assert_eq!(std::fs::read_to_string(&lock).unwrap(), holder);
 
     // Its hook is gone, killed mid-check: taken over at once. No system hands
