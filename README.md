@@ -42,8 +42,8 @@ Building a throwaway repo where two agents changed the same shop code...
   codex/add-discount   adds src/discount.js, which calls price()
 Checking claude/rename-price and codex/add-discount against main with npm test (from package.json)...
 BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
-why      npm test fails on the combined change: FAIL discount.test.js: price is not a function
-next     fix one branch so they agree, then run npx pytxo again.
+why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
+next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
 ```
 
 The demo needs Node.js and takes under 30 seconds, the first download included.
@@ -69,23 +69,33 @@ jobs:
 ```
 
 Your tests run in the job that holds this token, so give the workflow no other
-permissions or secrets.
+permissions or secrets. If Copilot's coding agent opens pull requests here, add
+`actions: read` so the check can include them once someone lets their run
+start; with it, code in the checked branches can also read every workflow
+run's logs and artifacts.
 
 A run on an agent pull request checks it together with the other open agent
 pull requests into the same base branch and keeps one comment on it, updated in
 place. When no other agent pull request is open into that base, the job passes
 with a note in the job summary. The job fails when this pull request conflicts,
 fails the tests alone, or is in a combination that fails while each passes
-alone; when only other pull requests are to blame, the comment names them and
-the job passes. When nothing in the result points at any pull request, such as
-a combined run that timed out, every pull request in the run fails. It runs on
-`pull_request` only, never `pull_request_target`. A fork's pull request never
-joins another pull request's run: it is checked in its own run, with GitHub's
-read-only token and no secrets. Nor does a pull request opened by Copilot or
-`github-actions[bot]`, whose runs GitHub holds for approval: its own run, once
-approved, checks it with the others. A run checks each pull request at the commit it saw, so a
-push after someone approved the run gets a run of its own. Without `pull-requests: write` the
-verdict goes to the job summary instead. See [the Action's inputs](actions/land/action.yml).
+alone. With three or more pull requests, when Pytxo proves that two of them
+fail together and the others pass without them, only the pull requests behind
+the failure fail. When only other pull requests are to blame, the comment names
+them and the job passes. When the failing output confirms the cause, the
+comment also holds a fix prompt for the branch that has to change. When nothing
+in the result points at any pull request, such as a combined run that timed
+out, every pull request in the run fails. It runs on `pull_request` only, never
+`pull_request_target`. A fork's pull request never joins another pull
+request's run: it is checked in its own run, with GitHub's read-only token and
+no secrets. A pull request opened by Copilot or `github-actions[bot]`, whose
+runs GitHub holds for approval, joins another pull request's run only when the
+workflow has `actions: read`, and only at its newest commit whose run someone
+let start; the comment names that commit. Its own run, once approved, checks
+it with the others. A run checks each pull request at the commit it saw, so a
+push after someone approved the run gets a run of its own. Without
+`pull-requests: write` the verdict goes to the job summary instead. See
+[the Action's inputs](actions/land/action.yml).
 
 ## When your agents finish
 
@@ -93,8 +103,9 @@ verdict goes to the job summary instead. See [the Action's inputs](actions/land/
   `claude plugin marketplace add Pytxo-dev/pytxo --sparse .claude-plugin integrations/claude-code`,
   then `claude plugin install pytxo@pytxo`. The check runs when Claude stops.
   It answers when two or more agent branches exist and one of them, the target
-  or the test command changed since its last answer.
-  [More](integrations/claude-code/README.md)
+  or the test command changed since its last answer. When the verdict names a
+  confirmed cause, the sessions on both branches it names show it once, each
+  at its own stop. [More](integrations/claude-code/README.md)
 - **Codex:** copy [integrations/codex/hooks.json](integrations/codex/hooks.json)
   to `~/.codex/hooks.json` and trust it in `/hooks`.
   [More](integrations/codex/README.md)
@@ -133,9 +144,16 @@ worktree. Submodules are not checked out there.
 **How it decides.** Pytxo runs the tests on the combined change first. If they
 fail, it runs them on each branch alone to tell a break that only happens
 together from a branch that is already broken, and, if every branch passes
-alone, runs the combined change once more to catch a flaky test. If the
-combined run times out, that is the answer: the branches do not run alone
-after it, and it does not run again. Merge conflicts block too.
+alone, runs the combined change once more to catch a flaky test. If that run
+fails too, it looks, with git and tree-sitter, for a definition one branch
+renamed or removed that another branch's new code still uses. When the failing
+output confirms it, the why line names both branches and the line, and the
+next line says which branch to rebase; otherwise a note names the possible
+cause. With three or more branches it then tests that pair without the others
+and, if they fail, the others without the pair: at most two more runs, so the
+verdict can clear the others. If the combined run times out, that is the
+answer: the branches do not run alone after it, and it does not run again.
+Merge conflicts block too.
 
 **Exit codes.** `0` ready (or nothing to check), `2` blocked, `3` stale (the
 target moved), `1` error, `130` stopped by Ctrl+C.
@@ -192,4 +210,4 @@ cargo test --workspace
 - **Docs:** [pytxo.com/docs](https://pytxo.com/docs)
 - **Discord:** [discord.gg/AUFRPFjSYv](https://discord.gg/AUFRPFjSYv)
 
-Pytxo 2.0 is a public beta.
+Pytxo 2.1 is a public beta.

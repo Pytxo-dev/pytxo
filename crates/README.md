@@ -8,12 +8,13 @@ Control plane for the [agent hypervisor](https://github.com/Pytxo-dev/pytxo/blob
 | **pytxo-scheduler** | Wave / DAG scheduling | Race Shield (planning) |
 | **pytxo-runner** | Git worktrees, PTY spawn, PID registry | Blast Shield (worktrees MVP), Race Shield (registry) |
 | **pytxo-store** | SQLite WAL telemetry | — |
-| **pytxo-signal** | `tree-sitter` AST skeletons on read | Signal Core |
+| **pytxo-signal** | `tree-sitter` AST skeletons on read, and the name reading behind the check's cause | Signal Core |
 | **pytxo-sanitize** | Log redaction | Sovereign Shield |
 | **pytxo-orchestrate** | `run` / `stop` / `status` / `doctor` | Orchestration façade; `HypervisorRegistry`, multi-domain dispatch |
 | **pytxo-shell** | Slash command router, `ShellSession` | Hypervisor Shell control plane (TUI, future MCP) |
 | **pytxo-planner** | Optional NL mission → `Vec<Task>` | Feature-gated (`PYTXO_PLANNER=1`, `[planner] enabled`) |
-| **pytxo-tui** | Default `pytxo` Hypervisor Shell (ratatui) | Board + scrollback + prompt |
+| **pytxo-tui** | Frozen 1.x Hypervisor Shell (ratatui), `pytxo shell` in `full` builds; a bare `pytxo` runs the check | Board + scrollback + prompt |
+| **pytxo-land** | The check: merges the agent branches, runs the tests on the combination, finds the cause of a failure together, writes receipts; Pybench | — |
 | **pytxo-cli** | `pytxo` binary | — |
 | **pytxo-mcp** | stdio MCP server | — |
 

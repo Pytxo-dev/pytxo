@@ -162,6 +162,7 @@ sequence without authorizing external writes.
 - [[v1-3-audit-2026-10-10]] — inconsistencies and weaknesses found for v1.3, fixed vs deferred
 - [[ADR-0042-landing-gate-and-receipts]] — `pytxo land`, receipts and sharing boundary
 - [[ADR-0043-check-is-the-default-command]] — 2.0: a bare `pytxo` runs the check; Desktop-era commands frozen behind `full`
+- [[2026-10-29-pytxo-2-1-smart-check-design]] — 2.1: when the failing output confirms that one branch renamed or removed a name another still uses, the check says so and writes a fix prompt for the agent that has to change; with three or more branches it tests that pair without the others; decisions 38 to 48 in `DECISIONS.md`
 - [[pytxo-business-strategy-2026-10-10]] — market map, landing-layer recommendation, pricing anchors, horizons and kill gates (2026-10-10, draft for Matt)
 - [[beta-competitor-research-2026-09-05]] — fresh competitor evidence, single-harness value, and testable Beta differentiation
 - [[beta-ux-audit-2026-09-05]] — single-harness onboarding, task evidence, and remaining Beta proof gaps

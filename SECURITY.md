@@ -4,8 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 1.2.x   | Yes       |
-| <= 1.1  | No        |
+| 2.x     | Yes       |
+| <= 1.3  | No        |
 
 ## Reporting a vulnerability
 
@@ -23,6 +23,7 @@ We aim to acknowledge reports within 72 hours.
 - `pytxo` CLI, MCP server, and Rust crates
 - Pytxo Desktop (`apps/desktop` in this monorepo)
 - Pytxo Link, cloud sandbox, release installers, and the public web account boundary
+- The GitHub Action (`actions/land`), including which pull-request commits it checks
 
 Reports involving repository isolation, permission-profile enforcement,
 review-package integrity, Apply/recovery evidence, credential exposure, or

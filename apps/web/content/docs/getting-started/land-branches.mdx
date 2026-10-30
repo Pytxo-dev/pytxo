@@ -7,7 +7,7 @@ description: Use pytxo land to check several agent branches as one combined chan
 
 Agent workspaces such as Orca, Conductor, Superset, the Codex app or Claude Code give each agent its own branch. Each branch can pass its own checks and still break when merged with the others. `pytxo land` checks the combination before any of it reaches your branch.
 
-It needs Pytxo 2.0 or later, Git, and the tools your checks use. It works on Windows, macOS and Linux and does not call any model.
+It needs Pytxo 2.0 or later (2.1 for the cause and the extra runs in step 4), Git, and the tools your checks use. It works on Windows, macOS and Linux and does not call any model.
 
 ## Check a set of branches
 
@@ -22,7 +22,7 @@ Pytxo:
 1. Resolves each branch and records the files it changed since it split from your branch.
 2. For files that more than one branch changed, maps the changes to functions, methods and types. Two branches that changed the same function are listed with `--verbose` even when Git merges them cleanly, and `--strict` blocks them.
 3. Merges the branches in the order you gave, in a separate worktree, with Git hooks turned off. A textual conflict blocks the combination.
-4. Runs each `--check`, or the test command it finds in the target branch, on the combined result, in a fresh worktree where nothing is installed. When that fails, it runs the same checks on each branch alone (`--per-input` does this first, every time), which shows when every branch passes but the combination fails, and when the check fails everywhere. If the combined run times out, that is the answer: the branches do not run alone after it, it does not run again, and later `--check` commands do not run. If every branch passes a check alone and the combination fails it, the check runs on the combination once more: Pytxo blames the combination only when it fails twice, and calls the check flaky when the second run passes. A flaky check still blocks. The receipt records both runs.
+4. Runs each `--check`, or the test command it finds in the target branch, on the combined result, in a fresh worktree where nothing is installed. When that fails, it runs the same checks on each branch alone (`--per-input` does this first, every time), which shows when every branch passes but the combination fails, and when the check fails everywhere. If the combined run times out, that is the answer: the branches do not run alone after it, it does not run again, and later `--check` commands do not run. If every branch passes a check alone and the combination fails it, the check runs on the combination once more: Pytxo blames the combination only when it fails twice, and calls the check flaky when the second run passes. A flaky check still blocks. The receipt records both runs. When the check fails both times, Pytxo looks for the cause: a definition, such as a function, that one branch renamed or removed and another branch's new code still uses. With three or more branches and a cause, it runs that check on your branch with only those two branches and, if they fail, with only the others (with one other branch, its run alone already was that run): at most two more runs, recorded as `pair:<i>,<j>` and `rest:<k>,...`, so the verdict can clear the branches that pass without them.
 5. Prints the verdict in three lines (**READY**, **BLOCKED**, **FLAKY**, **NO TESTS** or **STALE**, then why and what to do next) and writes a receipt.
 
 By default this is **shadow mode**: your branch and working tree do not change. With `--verbose`, the combined commit is kept at `refs/pytxo/land/<receipt id>` so you can inspect it:
@@ -66,7 +66,7 @@ The landed history contains one merge commit per input, made by your Git identit
 | 2 | BLOCKED or FLAKY | A conflict, a failed or timed-out combined check, a flaky one, or (with `--strict`) the same symbol changed by two inputs |
 | 3 | STALE | The target moved while the gate ran |
 
-The verdict says what happened, why (with the first error line of a failed check) and what to do next. `--verbose` adds every check run with its error lines, and `pytxo receipts show <id>` has the last 40 lines of each check. `--json` prints the verdict and the full receipt. `--markdown` prints the GitHub Action's pull-request comment.
+The verdict says what happened, why and what to do next. For a failed check, the why line quotes the error line that best explains the failure, such as `TypeError: price is not a function` rather than a count such as `ℹ fail 1`. When the branches pass alone and fail together, and the failing output confirms that one branch renamed or removed a name another branch still uses, the why line says so instead and the next line says which branch to rebase. A cause the output does not confirm shows as a `note` line under the verdict. `--verbose` adds every check run with its error lines, and `pytxo receipts show <id>` has the last 40 lines of each check. `--json` prints the verdict and the full receipt. `--markdown` prints the GitHub Action's pull-request comment.
 
 ## Options
 

@@ -395,7 +395,7 @@ Spec: [`docs/superpowers/specs/2026-10-29-pytxo-2-1-smart-check-design.md`](docs
     edited. A search without a cause would cost log n runs of the suite and
     is not built.
 41. **`--block` hands the fix prompt to the agent that has to change.** In
-    the using branch's worktree the hook's reason starts "Your branch"; in
+    the using branch's worktree the hook's reason calls it "your branch"; in
     the renaming branch's worktree it says the fix belongs on the other
     branch, or to keep the old name as an alias; anywhere else it is the
     plain prompt. Each of the two agents hears its own prompt once: the
@@ -406,10 +406,11 @@ Spec: [`docs/superpowers/specs/2026-10-29-pytxo-2-1-smart-check-design.md`](docs
     `--block` and a system message without, so with a confirmed cause both
     sessions see the verdict once, where 2.0 told one session per
     repository. A hook that stops while another hook checks the repository
-    waits for that check, up to its own deadline, and answers from it,
-    instead of staying quiet; it stops waiting for a hook that is gone. The
-    fix runs in the agent the user already pays for, so Pytxo still has no
-    model bill.
+    waits for that check, up to its own deadline, instead of staying quiet:
+    if nothing moved since, it gives the reply that check kept for its
+    branch, or nothing if there is none, and if something moved it checks
+    itself; it stops waiting for a hook that is gone. The fix runs in the
+    agent the user already pays for, so Pytxo still has no model bill.
 42. **The why line is the error the check printed, not its count.** In
     order: an error or exception name (`TypeError:`, `error[E…]`, a Rust
     panic, Go's `panic:`); a traceback, an assert, or a diagnostic,

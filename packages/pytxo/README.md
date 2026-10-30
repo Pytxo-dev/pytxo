@@ -17,8 +17,8 @@ npx pytxo        # check the agent branches in your repository
 
 ```
 BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
-why      npm test fails on the combined change: FAIL discount.test.js: price is not a function
-next     fix one branch so they agree, then run npx pytxo again.
+why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
+next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
 ```
 
 Nothing in your repository changes. Exit codes: `0` ready (or nothing to
@@ -46,7 +46,10 @@ jobs:
 ```
 
 Your tests run in the job that holds this token, so give the workflow no other
-permissions or secrets. See
+permissions or secrets. If Copilot's coding agent opens pull requests here, add
+`actions: read` so the check can include them once someone lets their run
+start; with it, code in the checked branches can also read every workflow
+run's logs and artifacts. See
 [the GitHub Action guide](https://pytxo.com/docs/getting-started/land-in-ci).
 
 Docs: [pytxo.com/docs](https://pytxo.com/docs) · Source:

@@ -15,8 +15,8 @@ The demo builds a throwaway repository where one agent renamed `price()` to `uni
 
 ```text
 BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
-why      npm test fails on the combined change: FAIL discount.test.js: price is not a function
-next     fix one branch so they agree, then run npx pytxo again.
+why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
+next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
 ```
 
 The repository is deleted afterwards. Add `--keep` to keep it and look around.
@@ -51,7 +51,7 @@ Every verdict is three lines: what happened, why, and what to do next.
 | `NO TESTS` | They merge cleanly but no test command was found | 0 |
 | `STALE` | The target branch moved during the check; run it again | 3 |
 
-When the combined change fails, Pytxo runs each branch alone to tell a break that only happens together from a branch that was already broken, and, if every branch passes alone, runs the combined change once more to catch a flaky test. If the combined run times out, that is the answer: the branches do not run alone after it, and it does not run again.
+When the combined change fails, Pytxo runs each branch alone to tell a break that only happens together from a branch that was already broken, and, if every branch passes alone, runs the combined change once more to catch a flaky test. If it fails again, Pytxo looks for a definition, such as a function, that one branch renamed or removed and another branch's new code still uses. When the failing output confirms it, the why line says so, as in the demo; otherwise the why line is the error and a note under the verdict names the possible cause. With three or more branches, it then runs the tests on those two branches without the others and, if they fail, on the others without them, at most two more runs, so the verdict can clear the others. If the combined run times out, that is the answer: the branches do not run alone after it, and it does not run again.
 
 ## 4. Change what it checks
 

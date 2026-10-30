@@ -21,13 +21,19 @@ Windows, Codex runs it through `cmd.exe`, which finds `npx` as usual.
 Codex waits for the hook, so after a change the turn ends only when the check
 does: as long as your tests take, up to the hook's 900-second limit. If the
 check needs longer, it says so and asks you to run `npx pytxo` in a terminal.
-One check runs at a time per repository, linked worktrees included: while one
-runs, other sessions' hooks in that repository stay quiet. Only committed work
-is checked: when there are two or more agent branches, a worktree whose changes
+One check runs at a time per repository, linked worktrees included: a hook that
+stops while another one checks waits for that check, up to its own time limit.
+When the failing output confirms the cause, the sessions on the two branches
+behind it each show it once, from the same check; otherwise only the
+session whose hook ran the check shows the verdict. Only committed work is
+checked: when there are two or more agent branches, a worktree whose changes
 are all uncommitted gets a hint to commit them. Pytxo's own temporary worktrees
 never count as agent branches.
 
 To make Codex keep working on a BLOCKED or FLAKY verdict instead of only
-showing it, use `npx -y pytxo@2.1.0 hook --timeout 900 --block`.
+showing it, use `npx -y pytxo@2.1.0 hook --timeout 900 --block`. When the
+failing output confirms the cause, Codex gets a fix prompt: what one branch
+renamed or removed, where the other still uses it, and which branch has to
+change.
 
 Pytxo sends nothing anywhere. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).

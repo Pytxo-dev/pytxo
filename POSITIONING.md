@@ -41,9 +41,16 @@ without tests (Pytxo catches only what the tests catch).
   pull request with one line of GitHub Actions.
 - **Local and cross-vendor.** Any agent that leaves a branch counts. It runs on
   your machine with no account and sends nothing anywhere.
-- **It says what broke.** When the combination fails, it runs each branch alone
-  to tell "breaks only together" from "already broken" and from a flaky test.
-  After a combined run times out, the branches do not run alone.
+- **It says what broke, and which branch has to change.** When the combination
+  fails, it runs each branch alone to tell "breaks only together" from
+  "already broken" and from a flaky test. When one branch renamed or removed a
+  name another still uses, and the failing output confirms it, the verdict
+  names both branches and the line, says which branch to rebase, and writes
+  that branch's agent a fix prompt, without calling a model. With three or
+  more branches it then tests that pair without the others, and when the
+  pair fails and the others pass, in CI only the pull requests of the
+  branches behind the failure fail. After a combined run times out, the
+  branches do not run alone.
 - **Nothing in the repository changes.** The merge happens in a throwaway
   worktree.
 
@@ -61,11 +68,17 @@ without tests (Pytxo catches only what the tests catch).
 - In CI, your tests run in the same job that posts the comment, so code in
   this repository's agent branches can reach the job's `pull-requests: write`
   token, as in any CI job that runs that code. Give the workflow no other
-  permissions or secrets. A fork's pull request never joins another pull
+  permissions or secrets, apart from `actions: read` if Copilot's coding agent
+  opens pull requests; with it, that code can also read every workflow run's
+  logs and artifacts. A fork's pull request never joins another pull
   request's run: it is checked in its own run, with GitHub's read-only token
-  and no secrets. Nor does a pull request opened by Copilot or
-  `github-actions[bot]`, whose runs GitHub holds for approval: its own run
-  checks it with the others once someone approves it.
+  and no secrets. A pull request opened by Copilot or `github-actions[bot]`,
+  whose runs GitHub holds for approval, joins another pull request's run only
+  with `actions: read`, and only at its newest commit whose run someone let
+  start; its own run checks it with the others once someone approves it.
+- The cause is named only for a definition one branch renamed or removed and
+  another still uses. Other breaks, such as a renamed config key or a changed
+  signature, show the error line the tests printed.
 - Receipts use the in-toto statement format but are not signed.
 
 ## Price
