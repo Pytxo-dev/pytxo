@@ -315,7 +315,7 @@ fn hook_reply(
     // waits for its own next stop.
     let kept = memo.with_file_name("hook-kept");
     if said(&fingerprint) {
-        return Ok(kept_reply(&kept, &fingerprint, &plan.root));
+        return Ok(kept_reply(&kept, &fingerprint, &plan));
     }
     // Another hook still checks at this one's deadline: no time to check.
     if lock.is_none() {
@@ -376,10 +376,10 @@ fn keep_replies(kept: &Path, fingerprint: &str, plan: &Plan, outcome: &LandOutco
         .flat_map(|c| [(c.user, Reader::User), (c.by, Reader::By)])
         .filter(|&(_, who)| who != here)
         .filter_map(|(n, who)| {
-            let worktree = plan.branches.get(n)?.worktree.as_deref()?;
+            let branch = plan.branches.get(n).filter(|b| b.worktree.is_some())?;
             let reason = fix_prompt(outcome, who)?;
             Some(json!({
-                "worktree": worktree,
+                "branch": branch.reference,
                 "reply": { "decision": "block", "reason": reason },
             }))
         })
@@ -394,20 +394,18 @@ fn keep_replies(kept: &Path, fingerprint: &str, plan: &Plan, outcome: &LandOutco
     };
 }
 
-/// The reply kept for the agent whose worktree is `root`, once: it is gone
-/// after this.
-fn kept_reply(kept: &Path, fingerprint: &str, root: &Path) -> Option<serde_json::Value> {
+/// The reply kept for the agent of the branch checked out where the hook
+/// runs, once: it is gone after this. A worktree now on another branch is
+/// another agent's, which the reply waits out.
+fn kept_reply(kept: &Path, fingerprint: &str, plan: &Plan) -> Option<serde_json::Value> {
     let mut all: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(kept).ok()?).ok()?;
     if all["fingerprint"] != fingerprint {
         return None;
     }
+    let here = &plan.branches[checked_out_here(plan)?].reference;
     let replies = all["replies"].as_array_mut()?;
-    let at = replies.iter().position(|r| {
-        r["worktree"]
-            .as_str()
-            .is_some_and(|w| same_dir(Path::new(w), root))
-    })?;
+    let at = replies.iter().position(|r| r["branch"] == *here)?;
     let mut reply = replies.remove(at);
     let _ = std::fs::write(kept, all.to_string());
     Some(reply["reply"].take())
@@ -417,17 +415,21 @@ fn kept_reply(kept: &Path, fingerprint: &str, root: &Path) -> Option<serde_json:
 /// hook runs, when that branch is the cause's user or the one that renamed or
 /// removed the name.
 fn reader(plan: &Plan, outcome: &LandOutcome) -> Reader {
-    let here = |n: usize| {
-        plan.branches
-            .get(n)
-            .and_then(|b| b.worktree.as_deref())
-            .is_some_and(|w| same_dir(w, &plan.root))
-    };
+    let here = checked_out_here(plan);
     match &outcome.cause {
-        Some(c) if here(c.user) => Reader::User,
-        Some(c) if here(c.by) => Reader::By,
+        Some(c) if here == Some(c.user) => Reader::User,
+        Some(c) if here == Some(c.by) => Reader::By,
         _ => Reader::Anyone,
     }
+}
+
+/// The agent branch checked out in the worktree the hook runs in.
+fn checked_out_here(plan: &Plan) -> Option<usize> {
+    plan.branches.iter().position(|b| {
+        b.worktree
+            .as_deref()
+            .is_some_and(|w| same_dir(w, &plan.root))
+    })
 }
 
 /// One directory, however each path spells it: `git worktree list` and

@@ -919,6 +919,44 @@ fn one_hook_checks_a_repository_at_a_time() {
     assert_eq!((out.status.code(), stdout(&out)), (Some(0), String::new()));
 }
 
+/// A kept prompt is for the agent on its branch, not for whatever the
+/// worktree has checked out by its next stop.
+#[test]
+fn a_kept_prompt_waits_for_its_branch_not_its_worktree() {
+    let dir = rename_repo();
+    let d = dir.path();
+    git(d, &["config", "pytxo.check", RENAME_BREAKS]);
+    let trees = tempfile::tempdir().unwrap();
+    let user_tree = trees.path().join("discount");
+    let by_tree = trees.path().join("rename");
+    for (tree, branch) in [
+        (&user_tree, "codex/add-discount"),
+        (&by_tree, "claude/rename-price"),
+    ] {
+        git(
+            d,
+            &["worktree", "add", "-q", tree.to_str().unwrap(), branch],
+        );
+    }
+    let stop = |cwd: &Path| pytxo(cwd, &["hook", "--block"], Some(&stop_event(cwd)));
+    // The renaming agent stops first and gets the check.
+    assert_eq!(hook_reply(&stop(&by_tree))["decision"], "block");
+    // The other worktree moves on to a new task: a branch from main with no
+    // commits yet, which leaves every branch and tip as the check found them.
+    git(&user_tree, &["switch", "-q", "-c", "claude/next", "main"]);
+    assert_eq!(stdout(&stop(&user_tree)), "", "not this agent's branch");
+    // Back on its branch, its agent hears it.
+    git(&user_tree, &["switch", "-q", "codex/add-discount"]);
+    let v = hook_reply(&stop(&user_tree));
+    let reason = v["reason"].as_str().unwrap();
+    assert!(
+        reason.starts_with(
+            "Pytxo merged claude/rename-price and your branch codex/add-discount and ran "
+        ),
+        "{reason}"
+    );
+}
+
 /// An agent that stops while another agent's hook checks waits for that
 /// check and hears its own prompt from it at this stop, not at the next one,
 /// which only comes when a person prompts it again.

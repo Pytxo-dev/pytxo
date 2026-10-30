@@ -193,8 +193,8 @@ The three lines stay three lines.
   worktree it says the fix belongs on `<user>` and that keeping `<X>` as an
   alias is the other way out; elsewhere the plain prompt. Each of the two
   agents hears its prompt once: the first to stop gets the check and its own
-  prompt, and the other gets its own at its next stop, from the same check.
-  A hook that stops while another hook checks the repository waits for that
+  prompt, and the other gets its own at its next stop, from the same check,
+  in a worktree that still has its branch checked out. A hook that stops while another hook checks the repository waits for that
   check, up to its own deadline, and answers from it: an agent that stops at
   the same moment hears its prompt at that stop. It stops waiting for a hook
   that is gone.
