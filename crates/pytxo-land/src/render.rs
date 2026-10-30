@@ -225,9 +225,9 @@ pub(crate) fn rank(line: &str) -> Option<u8> {
 
 /// `TypeError: ...`, `Error: ...`, Node's `TypeError [Error]: ...` and
 /// `AssertionError [ERR_ASSERTION]: ...`, `java.io.IOException: ...`,
-/// rustc's `error[E0425]: ...` or a Rust panic.
+/// rustc's `error[E0425]: ...`, or a Rust or Go panic.
 pub(crate) fn names_an_error(line: &str) -> bool {
-    if line.contains("error[") || line.contains("panicked at") {
+    if line.contains("error[") || line.contains("panicked at") || line.starts_with("panic: ") {
         return true;
     }
     ["Error", "Exception"].iter().any(|name| {
@@ -1659,6 +1659,13 @@ warning: build failed, waiting for other jobs to finish...";
 FAIL
 FAIL\texample.com/shop\t0.248s
 FAIL";
+        let go_panic = "--- FAIL: TestFirstOfOne (0.00s)
+panic: runtime error: index out of range [1] with length 1 [recovered, repanicked]
+goroutine 7 [running]:
+testing.tRunner.func1.2({0x5e5a40, 0xc0000b2000})
+\tC:/Program Files/Go/src/testing/testing.go:1734 +0x21c
+FAIL\texample.com/shop\t0.215s
+FAIL";
         let go_build = "# example.com/shop [example.com/shop.test]
 .\\discount.go:3:46: not enough arguments in call to Price
 \thave (int)
@@ -1698,6 +1705,10 @@ FAILED (errors=1)"#;
                 "error[E0425]: cannot find function `price` in this scope",
             ),
             (go_test, "total_test.go:7: Total([7]) = 700, want 7"),
+            (
+                go_panic,
+                "panic: runtime error: index out of range [1] with length 1 [recovered, repanicked]",
+            ),
             (
                 go_build,
                 ".\\discount.go:3:46: not enough arguments in call to Price",
