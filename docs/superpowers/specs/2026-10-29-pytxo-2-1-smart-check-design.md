@@ -217,7 +217,10 @@ which is how a check runs it; then a `FAIL <file>` line or Go's `--- FAIL: TestX
 error or fail. A file has an extension, so Go's `FAIL example.com/shop 0.2s`,
 which names a package, is not a `FAIL <file>` line. It skips test-runner
 count lines such as `ℹ fail 1`, `# fail 1`, `Tests: 1 failed` and
-`1 failed`. Today node:test's spec reporter gives "ℹ fail 1".
+`1 failed`. Today node:test's spec reporter gives "ℹ fail 1". unittest's
+`ImportError: Failed to import test module: <module>` comes before the
+traceback whose last error says why, so it ranks with any other line that
+says error.
 
 ## 5. The Action
 

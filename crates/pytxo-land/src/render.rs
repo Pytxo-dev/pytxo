@@ -196,6 +196,11 @@ fn why_lines(tail: &[String]) -> Vec<String> {
 /// such as node:test's `ℹ fail 1` printed before the error itself, says
 /// nothing.
 pub(crate) fn rank(line: &str) -> Option<u8> {
+    // unittest's line for a test module that does not import comes before
+    // the traceback, whose own error says why.
+    if line.starts_with("ImportError: Failed to import test module:") {
+        return Some(3);
+    }
     if names_an_error(line) {
         return Some(0);
     }
@@ -1660,7 +1665,26 @@ FAIL";
 \twant (int, int)
 FAIL\texample.com/shop [build failed]
 FAIL";
+        // python -m unittest: a test module that fails to import.
+        let unittest = r#"E
+======================================================================
+ERROR: tests.test_tax (unittest.loader._FailedTest.tests.test_tax)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: tests.test_tax
+Traceback (most recent call last):
+  File "C:\Python313\Lib\unittest\loader.py", line 396, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "C:\work\shop\tests\test_tax.py", line 3, in <module>
+    from shop.cart import RATE
+ImportError: cannot import name 'RATE' from 'shop.cart' (C:\work\shop\shop\cart.py)
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+FAILED (errors=1)"#;
         for (output, first) in [
+            (
+                unittest,
+                r"ImportError: cannot import name 'RATE' from 'shop.cart' (C:\work\shop\shop\cart.py)",
+            ),
             (node_spec, "TypeError [Error]: price is not a function"),
             (node_tap, "error: 'price is not a function'"),
             (jest, "TypeError: price is not a function"),
