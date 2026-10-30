@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx -y pytxo@2.1.0 hook --timeout 900",
+            "command": "npx -y pytxo@2.0.0 hook --timeout 900",
             "timeout": 900,
             "statusMessage": "Pytxo: looking for agent branches to check"
           }

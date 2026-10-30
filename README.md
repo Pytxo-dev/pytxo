@@ -210,4 +210,4 @@ cargo test --workspace
 - **Docs:** [pytxo.com/docs](https://pytxo.com/docs)
 - **Discord:** [discord.gg/AUFRPFjSYv](https://discord.gg/AUFRPFjSYv)
 
-Pytxo 2.1 is a public beta.
+Pytxo 2.0 is a public beta.

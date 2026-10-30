@@ -470,3 +470,15 @@ Spec: [`docs/superpowers/specs/2026-10-29-pytxo-2-1-smart-check-design.md`](docs
     first-party code: the cause search, pytxo-signal's name reading, the
     pair runs, and the hook's waiting and kept replies. No crate was added.
     Accepted: about 3% of a binary that `npx pytxo` downloads once.
+49. **2.1's work ships as 2.0.0.** 2.0.0 was never published: npm's latest
+    is still 1.3.6. So the cause, the pair runs, the fix prompt and the
+    waiting hooks ship in 2.0.0, the first release of the check, with one set
+    of release notes, instead of 2.0 and then 2.1 days apart (decided 30
+    October 2026). 1.0.0 was asked for and is not possible: npm already has
+    pytxo 1.0.0, the first public cut (tag `v1.0.0`), and never reuses a
+    version, and the check-only CLI breaks 1.3.6's commands, so it takes a
+    new major. Entries 38 to 48 keep the 2.1 name they were decided under,
+    and the 2.1 spec stays as written. The 2.0 branch and its site promotion
+    (`d878f68`) do not ship on their own. The demo records of 28 and 30
+    October, which were never published, give way to one of the 2.0.0 build
+    that ships.

@@ -5,7 +5,7 @@ description: Run the check when an agent stops, and see the verdict in the agent
 
 When Claude Code or Codex finishes a turn, Pytxo checks the agent branches in your repository together and shows the verdict in the session. It answers when two or more agent branches exist and one of them, the target or the test command changed since its last answer, and it waits while background agents are still working.
 
-Both run `npx -y pytxo@2.1.0 hook`, so Node.js must be on your PATH.
+Both run `npx -y pytxo@2.0.0 hook`, so Node.js must be on your PATH.
 
 Claude Code and Codex wait for the hook, so after a change the turn ends only when the check does: as long as your tests take, up to the hook's 900-second limit. If the check needs longer, it says so and asks you to run `npx pytxo` in a terminal. One check runs at a time per repository, linked worktrees included: a hook that stops while another one checks waits for that check, up to its own time limit. When the failing output confirms the cause, the sessions on the two branches behind it each show it once, from the same check; otherwise only the session whose hook ran the check shows the verdict.
 
@@ -36,7 +36,7 @@ next     rebase codex/add-discount onto claude/rename-price and use unitPrice, t
 
 ## Make the agent fix it
 
-By default the hook only tells you. With `hook --block`, a BLOCKED or FLAKY verdict asks the agent to keep working on it. Change the command in the hook to `npx -y pytxo@2.1.0 hook --timeout 900 --block`. Keep `--timeout` equal to the hook's `timeout` (900 seconds): the hook answers before that, and says so if the tests could not finish.
+By default the hook only tells you. With `hook --block`, a BLOCKED or FLAKY verdict asks the agent to keep working on it. Change the command in the hook to `npx -y pytxo@2.0.0 hook --timeout 900 --block`. Keep `--timeout` equal to the hook's `timeout` (900 seconds): the hook answers before that, and says so if the tests could not finish.
 
 When the failing output confirms the cause, the agent gets a fix prompt instead of the verdict. In the worktree of the branch that has to change, it reads:
 
