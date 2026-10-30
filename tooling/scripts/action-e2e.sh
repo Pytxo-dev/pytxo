@@ -12,7 +12,7 @@
 #
 # Usage:
 #   ./tooling/scripts/action-e2e.sh <action-ref> <fork-owner>
-#   ./tooling/scripts/action-e2e.sh v2.0.0 my-org
+#   ./tooling/scripts/action-e2e.sh v2.1.0 my-org
 # <fork-owner> is an organization you can fork into (not your own account).
 # PYTXO_VERSION overrides the npm version the demo runs (default: the ref
 # without its "v"). Needs git and gh, logged in with the repo and workflow

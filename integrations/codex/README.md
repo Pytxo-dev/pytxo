@@ -15,7 +15,7 @@ since its last answer.
 2. In Codex, open `/hooks` and trust the Pytxo hook. Codex skips hooks nobody
    has trusted.
 
-The hook runs `npx -y pytxo@2.0.0 hook`, so Node.js must be on your PATH. On
+The hook runs `npx -y pytxo@2.1.0 hook`, so Node.js must be on your PATH. On
 Windows, Codex runs it through `cmd.exe`, which finds `npx` as usual.
 
 Codex waits for the hook, so after a change the turn ends only when the check
@@ -28,6 +28,6 @@ are all uncommitted gets a hint to commit them. Pytxo's own temporary worktrees
 never count as agent branches.
 
 To make Codex keep working on a BLOCKED or FLAKY verdict instead of only
-showing it, use `npx -y pytxo@2.0.0 hook --timeout 900 --block`.
+showing it, use `npx -y pytxo@2.1.0 hook --timeout 900 --block`.
 
 Pytxo sends nothing anywhere. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).

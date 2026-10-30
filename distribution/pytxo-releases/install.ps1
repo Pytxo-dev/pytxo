@@ -6,7 +6,7 @@ $InstallDir = if ($env:PYTXO_INSTALL_DIR) { $env:PYTXO_INSTALL_DIR } else { "$en
 $Architecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 # Windows on Arm runs the x64 build under emulation.
 if ($Architecture -ne "X64" -and $Architecture -ne "Arm64") {
-    throw "Unsupported Pytxo Windows release architecture: $Architecture (v2.0.0 provides Windows x64)"
+    throw "Unsupported Pytxo Windows release architecture: $Architecture (v2.1.0 provides Windows x64)"
 }
 $Asset = "pytxo-windows-x64.exe"
 

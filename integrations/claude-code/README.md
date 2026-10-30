@@ -20,7 +20,7 @@ claude plugin install pytxo@pytxo
 whole repository. Inside Claude Code, `/plugin marketplace add Pytxo-dev/pytxo`
 and then `/plugin install pytxo@pytxo` work too, without that limit.
 
-The plugin is one `Stop` hook that runs `npx -y pytxo@2.0.0 hook`, so Node.js
+The plugin is one `Stop` hook that runs `npx -y pytxo@2.1.0 hook`, so Node.js
 must be on your PATH. The verdict appears as a message when the turn ends:
 
 ```
@@ -46,7 +46,7 @@ temporary worktrees never count as agent branches.
 
 - Make Claude keep working on a BLOCKED or FLAKY verdict instead of only
   telling you: copy this plugin, change the command to
-  `npx -y pytxo@2.0.0 hook --timeout 900 --block`.
+  `npx -y pytxo@2.1.0 hook --timeout 900 --block`.
 - Pick the branches: `git config pytxo.branches "claude/* feature/*"`.
 - Pick the test command: `git config pytxo.check "npm test"`.
 - Check against a branch other than the default branch:
