@@ -865,30 +865,42 @@ fn one_hook_checks_a_repository_at_a_time() {
     let d = dir.path();
     git(d, &["config", "pytxo.check", "git --version"]);
     let event = stop_event(d);
-    // Another session's hook holds a fresh lock: quiet, and its lock stays.
+    // Another session's hook holds a fresh lock: this one waits for it until
+    // its own deadline, half of a short timeout, then has nothing to add, and
+    // the lock stays.
     let lock = d.join(".git").join("pytxo").join("hook.lock");
     std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
-    std::fs::write(&lock, "4242 other").unwrap();
-    let out = pytxo(d, &["hook"], Some(&event));
+    let holder = format!("{} other", std::process::id());
+    std::fs::write(&lock, &holder).unwrap();
+    let started = std::time::Instant::now();
+    let out = pytxo(d, &["hook", "--timeout", "10"], Some(&event));
     assert_eq!((out.status.code(), stdout(&out)), (Some(0), String::new()));
-    assert_eq!(std::fs::read_to_string(&lock).unwrap(), "4242 other");
+    let waited = started.elapsed();
+    assert!(waited >= std::time::Duration::from_secs(5), "{waited:?}");
+    assert_eq!(std::fs::read_to_string(&lock).unwrap(), holder);
 
-    // Older than the hook timeout: a killed hook's, so it is taken over.
-    let killed = std::time::SystemTime::now() - std::time::Duration::from_secs(120);
-    let file = std::fs::File::options().write(true).open(&lock).unwrap();
-    file.set_modified(killed).unwrap();
-    drop(file);
-    let v = hook_reply(&pytxo(d, &["hook", "--timeout", "60"], Some(&event)));
+    // Its hook is gone, killed mid-check: taken over at once. No system hands
+    // out this process id.
+    std::fs::write(&lock, "1073741823 other").unwrap();
+    let v = hook_reply(&pytxo(d, &["hook"], Some(&event)));
     assert!(
         v["systemMessage"].as_str().unwrap().contains("READY"),
         "{v}"
     );
     assert!(!lock.exists(), "released after a verdict");
 
-    // Released when nothing changed, and when the check fails to run.
-    let out = pytxo(d, &["hook"], Some(&event));
-    assert_eq!(stdout(&out), "");
+    // Older than the hook timeout, though a process with its id runs: taken
+    // over, and released when nothing changed.
+    std::fs::write(&lock, &holder).unwrap();
+    let killed = std::time::SystemTime::now() - std::time::Duration::from_secs(120);
+    let file = std::fs::File::options().write(true).open(&lock).unwrap();
+    file.set_modified(killed).unwrap();
+    drop(file);
+    let out = pytxo(d, &["hook", "--timeout", "60"], Some(&event));
+    assert_eq!((out.status.code(), stdout(&out)), (Some(0), String::new()));
     assert!(!lock.exists(), "released when quiet");
+
+    // Released when the check fails to run.
     git(d, &["commit", "-q", "--allow-empty", "-m", "moved"]);
     let receipts = d.join(".git").join("pytxo").join("receipts");
     std::fs::remove_dir_all(&receipts).unwrap();
@@ -905,6 +917,64 @@ fn one_hook_checks_a_repository_at_a_time() {
     // Said once, like a verdict: the next stop with the same tips is quiet.
     let out = pytxo(d, &["hook"], Some(&event));
     assert_eq!((out.status.code(), stdout(&out)), (Some(0), String::new()));
+}
+
+/// An agent that stops while another agent's hook checks waits for that
+/// check and hears its own prompt from it at this stop, not at the next one,
+/// which only comes when a person prompts it again.
+#[test]
+fn a_hook_that_stops_during_another_check_waits_for_its_prompt() {
+    let dir = rename_repo();
+    let d = dir.path();
+    // Two seconds a run, so the second agent stops while the first checks.
+    #[cfg(windows)]
+    let slow = "ping -n 3 127.0.0.1 > nul";
+    #[cfg(not(windows))]
+    let slow = "sleep 2";
+    let check = format!("{slow} && {RENAME_BREAKS}");
+    git(d, &["config", "pytxo.check", &check]);
+    let trees = tempfile::tempdir().unwrap();
+    let user_tree = trees.path().join("discount");
+    let by_tree = trees.path().join("rename");
+    for (tree, branch) in [
+        (&user_tree, "codex/add-discount"),
+        (&by_tree, "claude/rename-price"),
+    ] {
+        git(
+            d,
+            &["worktree", "add", "-q", tree.to_str().unwrap(), branch],
+        );
+    }
+    let pytxo_dir = d.join(".git").join("pytxo");
+    let lock = pytxo_dir.join("hook.lock");
+    let reason = |cwd: &Path| {
+        let v = hook_reply(&pytxo(cwd, &["hook", "--block"], Some(&stop_event(cwd))));
+        assert_eq!(v["decision"], "block", "{v}");
+        v["reason"].as_str().unwrap().to_string()
+    };
+    let (by, user) = std::thread::scope(|s| {
+        let first = s.spawn(|| reason(&by_tree));
+        while !lock.exists() {
+            assert!(!first.is_finished(), "the first hook never checked");
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let user = reason(&user_tree);
+        (first.join().unwrap(), user)
+    });
+    assert!(
+        by.starts_with(
+            "Pytxo merged your branch claude/rename-price and codex/add-discount and ran "
+        ),
+        "{by}"
+    );
+    assert!(
+        user.starts_with(
+            "Pytxo merged claude/rename-price and your branch codex/add-discount and ran "
+        ),
+        "{user}"
+    );
+    let receipts = std::fs::read_dir(pytxo_dir.join("receipts")).unwrap();
+    assert_eq!(receipts.count(), 1, "one check for both");
 }
 
 #[test]

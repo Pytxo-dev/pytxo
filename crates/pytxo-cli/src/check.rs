@@ -303,16 +303,23 @@ fn hook_reply(
             "systemMessage": format!("Pytxo did not check the agent branches: {note}")
         })));
     }
-    // Parallel sessions stop at the same time: one check per repository.
-    let Some(_lock) = HookLock::take(&memo.with_file_name("hook.lock"), timeout)? else {
-        return Ok(None);
-    };
+    // Room to stop the tests, remove the worktree and answer before the agent
+    // tool kills the hook: a minute, or half of a short timeout. A timeout
+    // past what the clock can count means no deadline.
+    let deadline = started.checked_add(timeout - Duration::from_secs(60).min(timeout / 2));
+    // Parallel sessions stop at the same time: one check per repository, and
+    // the other hooks wait for it to answer from it.
+    let lock = HookLock::wait(&memo.with_file_name("hook.lock"), timeout, deadline)?;
     let fingerprint = plan.fingerprint();
     // Said once to each agent that has to act: the other one's fix prompt
     // waits for its own next stop.
     let kept = memo.with_file_name("hook-kept");
     if said(&fingerprint) {
         return Ok(kept_reply(&kept, &fingerprint, &plan.root));
+    }
+    // Another hook still checks at this one's deadline: no time to check.
+    if lock.is_none() {
+        return Ok(None);
     }
     let mut opts = options(
         &plan,
@@ -321,10 +328,7 @@ fn hook_reply(
             ..CheckArgs::default()
         },
     );
-    // Room to stop the tests, remove the worktree and answer before the
-    // agent tool kills the hook: a minute, or half of a short timeout. A
-    // timeout past what the clock can count means no deadline.
-    opts.deadline = started.checked_add(timeout - Duration::from_secs(60).min(timeout / 2));
+    opts.deadline = deadline;
     // A verdict or an error, said once for the same branches, tips and tests.
     let outcome = land(&opts);
     let _ = std::fs::write(&memo, &fingerprint);
@@ -437,15 +441,20 @@ fn same_dir(a: &Path, b: &Path) -> bool {
 
 /// `hook.lock` in the git common dir, which every linked worktree shares.
 /// Dropping it removes it, on every way out of the hook; a lock a killed hook
-/// left behind is stale once it is older than the hook timeout.
+/// left behind is stale once that hook is gone or the lock is older than the
+/// hook timeout.
 struct HookLock {
     path: PathBuf,
     token: String,
 }
 
+/// How often a hook waiting for the lock looks again.
+const LOCK_POLL: Duration = Duration::from_millis(500);
+
 impl HookLock {
-    /// `None` while another hook holds a lock younger than `stale_after`.
-    fn take(path: &Path, stale_after: Duration) -> Result<Option<Self>> {
+    /// Takes the lock once the hook that holds it lets go or turns out
+    /// stale: `None` while another hook still holds it at `deadline`.
+    fn wait(path: &Path, stale_after: Duration, deadline: Option<Instant>) -> Result<Option<Self>> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
@@ -453,7 +462,7 @@ impl HookLock {
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_nanos());
         let token = format!("{} {nanos}", std::process::id());
-        for _ in 0..2 {
+        for looks in 0u32.. {
             match OpenOptions::new().write(true).create_new(true).open(path) {
                 Ok(mut file) => {
                     file.write_all(token.as_bytes())?;
@@ -463,16 +472,34 @@ impl HookLock {
                     }));
                 }
                 Err(e) if e.kind() == ErrorKind::AlreadyExists => {
-                    let age = std::fs::metadata(path)
+                    let held = std::fs::read_to_string(path).unwrap_or_default();
+                    let old = std::fs::metadata(path)
                         .and_then(|m| m.modified())
                         .ok()
-                        .and_then(|t| t.elapsed().ok());
-                    if age.is_some_and(|age| age < stale_after) {
+                        .and_then(|t| t.elapsed().ok())
+                        .is_some_and(|age| age >= stale_after);
+                    // Asked every fifth second: on Windows asking starts a
+                    // process. The token starts with the holder's id.
+                    let gone = looks % 10 == 0
+                        && held
+                            .split(' ')
+                            .next()
+                            .and_then(|pid| pid.parse().ok())
+                            .is_some_and(|pid| !pytxo_land::checks::alive(pid));
+                    // Only the lock judged stale, not one another hook took
+                    // since. ponytail: two hooks taking over one stale lock
+                    // at the same moment can both run, as every hook could
+                    // before.
+                    if (old || gone)
+                        && std::fs::read_to_string(path).is_ok_and(|t| t == held)
+                        && std::fs::remove_file(path).is_ok()
+                    {
+                        continue;
+                    }
+                    if deadline.is_some_and(|d| Instant::now() + LOCK_POLL > d) {
                         return Ok(None);
                     }
-                    // ponytail: two hooks taking over one stale lock at the
-                    // same moment can both run, as every hook could before.
-                    let _ = std::fs::remove_file(path);
+                    std::thread::sleep(LOCK_POLL);
                 }
                 Err(e) => return Err(e.into()),
             }

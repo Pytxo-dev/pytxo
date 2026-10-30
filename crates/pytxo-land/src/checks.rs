@@ -300,7 +300,7 @@ pub(crate) fn kill_tree(pid: u32) {
 }
 
 /// Whether process `pid` may still run: only a sure answer says no.
-pub(crate) fn alive(pid: u32) -> bool {
+pub fn alive(pid: u32) -> bool {
     #[cfg(not(unix))]
     {
         let out = pytxo_core::background_command("tasklist")
