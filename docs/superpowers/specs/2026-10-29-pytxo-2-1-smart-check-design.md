@@ -141,7 +141,8 @@ After a real "together" failure with three or more merged inputs, when a cause
    by itself while it breaks the user just the same. If it fails, everyone
    stays implicated and the verdict still names the proven pair.
 3. Only the first failing command, at most two extra runs of it, never after
-   a timeout, and never when the deadline would pass before them. Each check
+   a timeout, and never when the deadline would pass before them: one run
+   with a single other input that ran alone, two otherwise. Each check
    counts as long as its longest run so far, combined or alone: a failing run
    can stop at its first error where a passing one runs the whole suite.
 4. No cause, no extra runs.

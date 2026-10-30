@@ -672,17 +672,18 @@ next     rebase agent/caller and agent/tax onto agent/rename and use unitPrice, 
     );
 }
 
-/// `RENAME_BREAKS`, ten seconds slower the first time it fails: the combined
-/// run takes that long, and its re-run does not.
-fn rename_breaks_slowly_once(marker: &Path) -> String {
+/// `RENAME_BREAKS`, `secs` seconds slower the first time it fails: the
+/// combined run takes that long, and its re-run does not.
+fn rename_breaks_slowly_once(marker: &Path, secs: u32) -> String {
     #[cfg(windows)]
     let wait = format!(
-        "(type \"{0}\" > nul 2>&1 || (type nul > \"{0}\" & ping -n 11 127.0.0.1 > nul))",
-        marker.display()
+        "(type \"{0}\" > nul 2>&1 || (type nul > \"{0}\" & ping -n {1} 127.0.0.1 > nul))",
+        marker.display(),
+        secs + 1
     );
     #[cfg(not(windows))]
     let wait = format!(
-        "{{ test -f '{0}' || {{ touch '{0}' && sleep 10; }}; }}",
+        "{{ test -f '{0}' || {{ touch '{0}' && sleep {secs}; }}; }}",
         marker.display()
     );
     RENAME_BREAKS.replacen(" && echo", &format!(" && {wait} && echo"), 1)
@@ -695,9 +696,21 @@ fn no_pair_runs_start_when_the_deadline_would_pass_first() {
     let dir = repo();
     let d = dir.path();
     rename_caller_and_docs(d);
+    // Two others, so the rest is no run alone and both runs are needed.
+    branch(
+        d,
+        "main",
+        "agent/notes",
+        &[(
+            "docs/more.md",
+            "more
+",
+        )],
+    );
     let scratch = tempfile::tempdir().unwrap();
-    let mut o = opts(d, &["agent/docs", "agent/rename", "agent/caller"]);
-    o.checks = vec![rename_breaks_slowly_once(&scratch.path().join("slow"))];
+    let four = ["agent/docs", "agent/notes", "agent/rename", "agent/caller"];
+    let mut o = opts(d, &four);
+    o.checks = vec![rename_breaks_slowly_once(&scratch.path().join("slow"), 10)];
     o.per_input = PerInput::OnFailure;
     // Three times the slow run from the start: once it has run, two more of
     // it never fit, and the git calls, the quick runs and the search for the
@@ -717,19 +730,44 @@ fn no_pair_runs_start_when_the_deadline_would_pass_first() {
     assert_eq!(
         v.what,
         format!(
-            "agent/docs, agent/rename and agent/caller pass {} alone but fail together.",
+            "agent/docs, agent/notes, agent/rename and agent/caller pass {} alone but fail together.",
             o.checks[0]
         )
     );
     assert_eq!(
         verdict_line(&out),
-        r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[0,1,2]} -->"#
+        r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[0,1,2,3]} -->"#
+    );
+}
+
+/// With one other branch its run alone stands for the run on the rest, so
+/// a deadline with room for the one run on the pair is enough to clear it.
+#[test]
+fn one_run_on_the_pair_is_enough_with_one_other_branch() {
+    let dir = repo();
+    let d = dir.path();
+    rename_caller_and_docs(d);
+    let scratch = tempfile::tempdir().unwrap();
+    let mut o = opts(d, &["agent/docs", "agent/rename", "agent/caller"]);
+    o.checks = vec![rename_breaks_slowly_once(&scratch.path().join("slow"), 20)];
+    o.per_input = PerInput::OnFailure;
+    // Three times the slow run, as above: one more of it fits, two do not.
+    // Twenty seconds, for the room a loaded machine needs around it.
+    o.deadline = Some(Instant::now() + Duration::from_secs(60));
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert!(!out.out_of_time, "{text}");
+    assert_eq!(culprit_runs(&out), [("pair", false)], "{text}");
+    assert_eq!(
+        verdict_line(&out),
+        r#"<!-- pytxo-verdict {"label":"BLOCKED","implicated":[1,2]} -->"#
     );
 }
 
 /// The combined run fails at once, but the docs branch's run alone, which
 /// passes, takes ten seconds: a run on the pair or the rest can take that
-/// long too, so neither starts when two of them would end past the deadline.
+/// long too, so neither starts when the two of them, with two other
+/// branches, would end past the deadline.
 #[test]
 fn no_pair_runs_start_when_a_passing_run_would_end_past_the_deadline() {
     let dir = repo();
@@ -744,7 +782,18 @@ fn no_pair_runs_start_when_a_passing_run_would_end_past_the_deadline() {
         &format!("|| git grep -q notes -- docs/notes.md && {wait} || exit 0"),
         1,
     );
-    let mut o = opts(d, &["agent/docs", "agent/rename", "agent/caller"]);
+    branch(
+        d,
+        "main",
+        "agent/notes",
+        &[(
+            "docs/more.md",
+            "more
+",
+        )],
+    );
+    let four = ["agent/docs", "agent/notes", "agent/rename", "agent/caller"];
+    let mut o = opts(d, &four);
     o.checks = vec![check];
     o.per_input = PerInput::OnFailure;
     // Three times the slow run from the start, as above.

@@ -907,8 +907,24 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             opts.deadline
                 .is_none_or(|d| Instant::now() + took * runs < d)
         };
+        let pair = [cause.by.min(cause.user), cause.by.max(cause.user)];
+        let rest: Vec<usize> = merged
+            .iter()
+            .copied()
+            .filter(|i| !pair.contains(i))
+            .collect();
+        // One other input's run alone is the run on the rest: one run to go.
+        let alone = match rest.as_slice() {
+            [one] => {
+                let scope = format!("input:{}", receipt_inputs[*one].reference);
+                checks
+                    .iter()
+                    .any(|c| c.scope == scope && &c.command == command)
+            }
+            _ => false,
+        };
         let timed_out = out_of_time.get() || checks.iter().any(|c| c.timed_out);
-        if merged.len() >= 3 && !timed_out && room(2) {
+        if merged.len() >= 3 && !timed_out && room(if alone { 1 } else { 2 }) {
             let wt = Git::owned(&tree.path, identity);
             // The command's run on the target plus `which`, its scope `pair:1,2`
             // or `rest:0,3`; `None` when they do not merge or the deadline came
@@ -943,18 +959,9 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 }
                 Ok(run)
             };
-            let pair = [cause.by.min(cause.user), cause.by.max(cause.user)];
             if let Some(run) = run_on("pair", &pair)? {
                 let failed = !run.passed && !run.timed_out;
                 checks.push(run);
-                let rest: Vec<usize> = merged.into_iter().filter(|i| !pair.contains(i)).collect();
-                let ran_alone = |&i: &usize| {
-                    let scope = format!("input:{}", receipt_inputs[i].reference);
-                    checks
-                        .iter()
-                        .any(|c| c.scope == scope && &c.command == command)
-                };
-                let alone = matches!(rest.as_slice(), [one] if ran_alone(one));
                 if failed && !alone && room(1) {
                     checks.extend(run_on("rest", &rest)?);
                 }
