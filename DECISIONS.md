@@ -475,7 +475,7 @@ Spec: [`docs/superpowers/specs/2026-10-29-pytxo-2-1-smart-check-design.md`](docs
     waiting hooks ship in 2.0.0, the first release of the check, with one set
     of release notes, instead of 2.0 and then 2.1 days apart (decided 30
     October 2026). 1.0.0 was asked for and is not possible: npm already has
-    pytxo 1.0.0, the first public cut (tag `v1.0.0`), and never reuses a
+    pytxo 1.0.0 (tag `v1.0.0`) and never reuses a
     version, and the check-only CLI breaks 1.3.6's commands, so it takes a
     new major. Entries 38 to 48 keep the 2.1 name they were decided under,
     and the 2.1 spec stays as written. The 2.0 branch and its site promotion

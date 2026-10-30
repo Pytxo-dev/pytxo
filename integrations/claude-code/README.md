@@ -57,4 +57,5 @@ never count as agent branches.
 - Check against a branch other than the default branch:
   `git config pytxo.into develop`.
 
-Pytxo sends nothing anywhere. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
+Pytxo sends nothing anywhere.
+Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).

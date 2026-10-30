@@ -36,4 +36,5 @@ failing output confirms the cause, Codex gets a fix prompt: what one branch
 renamed or removed, where the other still uses it, and which branch has to
 change.
 
-Pytxo sends nothing anywhere. Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
+Pytxo sends nothing anywhere.
+Source: [github.com/Pytxo-dev/pytxo](https://github.com/Pytxo-dev/pytxo).
