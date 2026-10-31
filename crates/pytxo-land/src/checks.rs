@@ -143,31 +143,41 @@ pub fn detect_check(
             .and_then(|t| serde_json::from_str::<Value>(t.trim_start_matches('\u{feff}')).ok())
     };
 
-    if let Some(pkg) = json("package.json") {
+    // A package.json script, run by the project's package manager.
+    let npm = |pkg: &Value, script: &str| {
+        let (install, pm) = if has("pnpm-lock.yaml") {
+            ("pnpm install --frozen-lockfile", "pnpm")
+        } else if has("yarn.lock") {
+            ("yarn install", "yarn")
+        } else if has("bun.lock") || has("bun.lockb") {
+            ("bun install", "bun")
+        } else if has("package-lock.json") || has("npm-shrinkwrap.json") {
+            ("npm ci", "npm")
+        } else {
+            ("npm install", "npm")
+        };
+        // `bun test` is bun's own test runner, not the script.
+        let run = match (pm, script) {
+            ("bun", _) => format!("bun run {script}"),
+            (_, "test") => format!("{pm} test"),
+            _ => format!("{pm} run {script}"),
+        };
+        // Nothing to install means nothing to wait for.
+        let needs_install = pkg.get("workspaces").is_some()
+            || ["dependencies", "devDependencies", "optionalDependencies"]
+                .iter()
+                .any(|k| pkg[k].as_object().is_some_and(|deps| !deps.is_empty()));
+        if needs_install {
+            format!("{install} && {run}")
+        } else {
+            run
+        }
+    };
+    let pkg = json("package.json");
+    if let Some(pkg) = &pkg {
         let test = pkg["scripts"]["test"].as_str();
         if test.is_some_and(|t| !t.contains("no test specified")) {
-            let (install, run) = if has("pnpm-lock.yaml") {
-                ("pnpm install --frozen-lockfile", "pnpm test")
-            } else if has("yarn.lock") {
-                ("yarn install", "yarn test")
-            } else if has("bun.lock") || has("bun.lockb") {
-                ("bun install", "bun run test")
-            } else if has("package-lock.json") || has("npm-shrinkwrap.json") {
-                ("npm ci", "npm test")
-            } else {
-                ("npm install", "npm test")
-            };
-            // Nothing to install means nothing to wait for.
-            let needs_install = pkg.get("workspaces").is_some()
-                || ["dependencies", "devDependencies", "optionalDependencies"]
-                    .iter()
-                    .any(|k| pkg[k].as_object().is_some_and(|deps| !deps.is_empty()));
-            let command = if needs_install {
-                format!("{install} && {run}")
-            } else {
-                run.to_string()
-            };
-            return Some((command, "package.json".into()));
+            return Some((npm(pkg, "test"), "package.json".into()));
         }
     }
     if has("Cargo.toml") {
@@ -236,7 +246,35 @@ pub fn detect_check(
             return found("make test", file);
         }
     }
-    None
+    // No test suite anywhere: at least the branches build, type-check or
+    // lint together, and the source says that is not a test suite.
+    let pkg = pkg?;
+    let script = INSTEAD_OF_TESTS.into_iter().find(|s| {
+        pkg["scripts"][s]
+            .as_str()
+            .is_some_and(|c| !c.trim().is_empty())
+    })?;
+    Some((
+        npm(&pkg, script),
+        format!("package.json's {script} script{NOT_TESTS}"),
+    ))
+}
+
+/// The package.json scripts a check runs, in this order, when there is no
+/// test suite.
+const INSTEAD_OF_TESTS: [&str; 4] = ["build", "typecheck", "type-check", "lint"];
+
+/// How a check's source ends when it is not a test suite.
+const NOT_TESTS: &str = ", not a test suite";
+
+/// The package.json script a check's source names when no test suite was
+/// found and it runs that script instead: `build`, `typecheck`, `type-check`
+/// or `lint`.
+pub fn instead_of_tests(source: &str) -> Option<&str> {
+    source
+        .strip_prefix("package.json's ")?
+        .strip_suffix(NOT_TESTS)?
+        .strip_suffix(" script")
 }
 
 /// Whether `command` installs dependencies before testing.
@@ -1165,5 +1203,90 @@ mod tests {
             Some("make test")
         );
         assert_eq!(cmd(&[("Makefile", "build:\n\tcc main.c\n")]), None);
+    }
+
+    #[test]
+    fn without_a_test_script_the_build_is_checked_and_said_to_be_no_test_suite() {
+        let detect = |files: &[(&str, &str)]| {
+            let names: BTreeSet<String> = files.iter().map(|(n, _)| n.to_string()).collect();
+            detect_check(&names, |f| {
+                files
+                    .iter()
+                    .find(|(n, _)| *n == f)
+                    .map(|(_, body)| body.to_string())
+            })
+        };
+        let cmd = |files: &[(&str, &str)]| detect(files).map(|(c, _)| c);
+        let deps = r#""devDependencies":{"typescript":"^5"}"#;
+        let pkg = |scripts: &str| format!(r#"{{"scripts":{{{scripts}}},{deps}}}"#);
+
+        let build = pkg(r#""build":"tsc","lint":"eslint .""#);
+        assert_eq!(
+            detect(&[("package.json", &build), ("package-lock.json", "")]),
+            Some((
+                "npm ci && npm run build".into(),
+                "package.json's build script, not a test suite".into()
+            ))
+        );
+        // Then type-checking, in either spelling, then lint, with the
+        // project's package manager.
+        let typecheck = pkg(r#""typecheck":"tsc --noEmit","lint":"eslint .""#);
+        assert_eq!(
+            cmd(&[("package.json", &typecheck), ("pnpm-lock.yaml", "")]).as_deref(),
+            Some("pnpm install --frozen-lockfile && pnpm run typecheck")
+        );
+        let type_check = pkg(r#""type-check":"vue-tsc","lint":"eslint .""#);
+        assert_eq!(
+            cmd(&[("package.json", &type_check), ("yarn.lock", "")]).as_deref(),
+            Some("yarn install && yarn run type-check")
+        );
+        let lint = pkg(r#""lint":"eslint .","dev":"vite""#);
+        assert_eq!(
+            detect(&[("package.json", &lint), ("bun.lock", "")]),
+            Some((
+                "bun install && bun run lint".into(),
+                "package.json's lint script, not a test suite".into()
+            ))
+        );
+        // Nothing to install, nothing installed first.
+        assert_eq!(
+            cmd(&[("package.json", r#"{"scripts":{"build":"node build.js"}}"#)]).as_deref(),
+            Some("npm run build")
+        );
+        // npm's placeholder test is no test suite either.
+        let placeholder =
+            pkg(r#""test":"echo \"Error: no test specified\" && exit 1","build":"tsc""#);
+        assert_eq!(
+            cmd(&[("package.json", &placeholder)]).as_deref(),
+            Some("npm install && npm run build")
+        );
+
+        // A real test suite wins, here or in another ecosystem.
+        let both = pkg(r#""test":"vitest run","build":"tsc""#);
+        assert_eq!(
+            cmd(&[("package.json", &both)]).as_deref(),
+            Some("npm install && npm test")
+        );
+        assert_eq!(
+            cmd(&[("package.json", &build), ("go.mod", "")]).as_deref(),
+            Some("go test ./...")
+        );
+        assert_eq!(
+            cmd(&[("package.json", &build), ("Makefile", "test:\n\t./run\n")]).as_deref(),
+            Some("make test")
+        );
+        // Only a script that does something, and only these.
+        assert_eq!(
+            cmd(&[("package.json", &pkg(r#""build":" ","dev":"vite""#))]),
+            None
+        );
+        assert_eq!(cmd(&[("package.json", &pkg(r#""start":"node .""#))]), None);
+
+        for script in INSTEAD_OF_TESTS {
+            let source = format!("package.json's {script} script{NOT_TESTS}");
+            assert_eq!(instead_of_tests(&source), Some(script));
+        }
+        assert_eq!(instead_of_tests("package.json"), None);
+        assert_eq!(instead_of_tests("git config pytxo.check"), None);
     }
 }

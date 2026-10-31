@@ -105,6 +105,11 @@ export async function verifyReleaseVersion(root, expected) {
       /npx -y pytxo@([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) hook/,
       "Claude Code hook pin",
     ),
+    claudeLand: await capturedVersion(
+      path.join(root, "integrations", "claude-code", "skills", "land", "SKILL.md"),
+      /npx -y pytxo@([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) land/,
+      "Claude Code /pytxo:land pin",
+    ),
     codexHook: await capturedVersion(
       path.join(root, "integrations", "codex", "hooks.json"),
       /npx -y pytxo@([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) hook/,

@@ -482,3 +482,88 @@ Spec: [`docs/superpowers/specs/2026-10-29-pytxo-2-1-smart-check-design.md`](docs
     (`d878f68`) do not ship on their own. The demo records of 28 and 30
     October, which were never published, give way to one of the 2.0.0 build
     that ships.
+
+## After 2.0.0: land what works
+
+From `pytxo-impulse-report.md` (31 October 2026), items 1 to 3: a run should
+end in progress, not only in a verdict. Ships in the release after 2.0.0.
+
+50. **`--apply` lands the largest set that passed as that exact set.** When
+    the whole combination is blocked, the sets the check already tested are
+    the candidates: the combined change when the inputs that conflict were
+    never in it, each input alone (the runs after a failure), the rest
+    without the pair a cause names, and that pair. A set counts only when
+    every check command passed on it and none failed. Of those, the landing
+    takes one that leaves out only inputs the verdict blames, then the
+    largest, then one without an input that still uses the name the cause
+    names, then the first in merge order. With two branches and a rename,
+    that lands the renamer and leaves out the caller. The target moves to
+    the very commit the runs tested, by the same compare-and-swap or
+    fast-forward as a full landing, so a target that moved is still stale.
+    The runs alone, on the pair and on the rest now merge with the combined
+    change's messages (`pytxo land: merge <ref>`), since one of them can be
+    what lands. No run is added for the landing, except that the run on the
+    rest goes on through every check command, in shadow mode too, and keeps
+    each run, so the hint and `--apply` name the same set. Undo: drop
+    `partial` in `land()`.
+51. **No partial landing after a flaky run, a deadline, a `--strict`
+    collision or with no check.** None of those is explained by a set of
+    inputs, and a merge nothing tested is never landed. Undo: the
+    conditions before `partial()`.
+52. **A partial landing is `landed` and exits 2.** Something landed, so the
+    decision says so; not everything asked for did, so a script's
+    `pytxo land --apply && git push` stops there. Undo: `exit_code()`.
+53. **The receipt says it in `reasons` and `result`, with no new field.**
+    `result` is the landed commit, `files_changed` counts its files, and
+    two kinds of reason follow the block's own: `landed 2 of 4: a, d
+    (rest:1,3 passed every check)` and `left out b: uses price, which c
+    renamed to unitPrice (src/extra.js:1)`. The scope ties the landing to
+    its rows in `checks`. As with `pair:` and `rest:` (entry 40), a 2.0.0
+    binary keeps every field, so its digest of these receipts still matches.
+    Undo: a `left_out` field, which 2.0.0 would read as an edit.
+54. **A fix prompt only for a branch that has to change.** The caller of a
+    renamed name, a branch that fails alone, conflicts, or fails combined
+    with the others gets one: what landed, why it is left out, what to do,
+    and the failing output. The renamer, whose change is fine, and a branch
+    left out only because no run tested it with the landed set get the why
+    alone. Human output prints the prompts under the verdict; `--json` has
+    them in `verdict.left_out`; `--markdown` folds them. Undo:
+    `left_out_reason`.
+55. **Without `--apply`, a note names the set that would land.** "a passes
+    the tests on top of main by itself: run this again with --apply to land
+    it and leave out b." In the terminal and `--json` only: not in the
+    demo, whose repository is gone after it, and not in the hook's reply,
+    which an agent reads, so nothing suggests it move the target. Undo:
+    `landable()`.
+56. **No test script: the build, then type-checking, then lint.** A
+    package.json without a test script (or with npm's placeholder) runs its
+    `build`, `typecheck`, `type-check` or `lint` script, the first that is
+    not empty, with the package manager's install step as for tests. Only
+    after no ecosystem has a test command: `go test`, `cargo test` or
+    `make test` win over a build. The check's source reads `package.json's
+    build script, not a test suite`, the progress line shows it, and a note
+    under the verdict says to add a test script or name one with `--check`.
+    Undo: the end of `detect_check`.
+57. **The Claude Code `Stop` hook runs async.** `"async": true` (Claude
+    Code's hooks reference, read 31 October 2026) runs it in the background,
+    so the turn ends at once instead of after the whole test run, and hands
+    its `systemMessage` to Claude on the next turn. Claude Code shows the
+    user none of it and ignores `decision`, so `pytxo hook --async` words
+    the reply for Claude: "Tell the user what it found, and change nothing
+    for it unless they ask", or, with `--block`, "Keep working on it" and the
+    fix prompt. An idle session hears it at the user's next message. The
+    lock, the deadline from `--timeout` and the kept replies stay as they
+    were, so overlapping stops still run one check per repository. Codex's
+    hook is unchanged and still waits. Not chosen:
+    `asyncRewake`, which wakes Claude at once on exit 2 and would make every
+    BLOCKED start a turn the user did not ask for. Undo: drop `"async"` and
+    `--async` from `hooks/hooks.json`; the README says how.
+58. **`/pytxo:land` is a skill, not a command.** Claude Code's plugin docs
+    say skills supersede `commands/` for new work; `skills/land/SKILL.md`
+    shows as `/pytxo:land`. It runs `npx -y pytxo@<version> land --apply`
+    with the user's arguments, relays the three lines, the notes and each
+    fix prompt, and never pushes. `disable-model-invocation: true`, since it
+    moves a branch: only the user starts it. Its pin is a release surface
+    (`claudeLand` in `verify-release-version.mjs`), still 2.0.0 like the
+    hook's until the next release bumps them together. Undo: delete the
+    skill directory and the surface.

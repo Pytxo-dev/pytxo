@@ -33,8 +33,8 @@ use pytxo_core::{
 pub use cause::{Cause, Use};
 pub use git::Git;
 pub use render::{
-    fix_prompt, render_markdown, render_markdown_with, render_text, verdict, NamedCause, Reader,
-    Verdict, INSTALL_HINT,
+    fix_prompt, render_markdown, render_markdown_with, render_text, verdict, LeftOut, NamedCause,
+    Reader, Verdict, INSTALL_HINT,
 };
 
 pub const DEFAULT_CHECK_TIMEOUT: Duration = Duration::from_secs(15 * 60);
@@ -153,6 +153,23 @@ pub struct LandOutcome {
     /// twice: a name one input renamed or removed that another still uses.
     /// A reading of the runs, so not in the receipt.
     pub cause: Option<Cause>,
+    /// When the whole combination is blocked: the largest set of inputs
+    /// whose every check passed as that exact set, which `--apply` lands
+    /// instead. Its lines are in the receipt's reasons once it landed.
+    pub partial: Option<Partial>,
+}
+
+/// A set of inputs that passed together while the whole combination did not.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Partial {
+    /// The scope of the checks that ran on `commit`: `combined` (the
+    /// conflicting inputs were never in it), `input:<ref>` or `rest:0,3`.
+    pub scope: String,
+    pub commit: String,
+    /// The inputs in it, by position.
+    pub landed: Vec<usize>,
+    /// Every other input with changes, by position, and why it is left out.
+    pub left_out: Vec<(usize, String)>,
 }
 
 impl LandOutcome {
@@ -160,14 +177,28 @@ impl LandOutcome {
         &self.receipt.predicate.decision
     }
 
-    /// 0 ready/landed, 2 blocked, 3 stale.
+    /// Landed, with some inputs left out.
+    pub fn landed_partly(&self) -> bool {
+        self.decision() == "landed" && self.partial.is_some()
+    }
+
+    /// 0 ready/landed, 2 blocked or landed with some inputs left out, 3 stale.
     pub fn exit_code(&self) -> i32 {
         match self.decision() {
+            "landed" if self.partial.is_some() => 2,
             "ready" | "landed" => 0,
             "stale" => 3,
             _ => 2,
         }
     }
+}
+
+/// Inputs, by position, merged onto the target as one commit that checks
+/// ran on under one scope.
+struct Tested {
+    scope: String,
+    commit: String,
+    inputs: Vec<usize>,
 }
 
 struct ResolvedInput {
@@ -657,19 +688,27 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         }
         Some(check)
     };
-    let run_solo = |checks: &mut Vec<ReceiptCheck>| -> Result<()> {
+    // Merge messages as the combined change has them, since a set that
+    // passes alone can be the one that lands.
+    let merge_message = |r: &ResolvedInput| format!("pytxo land: merge {}", r.input.reference);
+    let mut tested: Vec<Tested> = Vec::new();
+    let run_solo = |checks: &mut Vec<ReceiptCheck>, tested: &mut Vec<Tested>| -> Result<()> {
         let scratch = OwnedWorktree::add(&repo, &run_dir.0, &base, &format!("{tag}-solo"))?;
         let sg = Git::owned(&scratch.path, identity);
-        for r in resolved.iter().filter(|r| !r.files.is_empty()) {
+        for (i, r) in resolved
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| !r.files.is_empty())
+        {
             if late() {
                 return Ok(());
             }
             let scope = format!("input:{}", r.input.reference);
             let solo = if in_memory {
-                merge_in_memory(&owned, &base, &r.commit, "pytxo land: solo")?
+                merge_in_memory(&owned, &base, &r.commit, &merge_message(r))?
             } else {
                 sg.run(&["reset", "--hard", &base])?;
-                merge_in_worktree(&sg, &r.commit, "pytxo land: solo")?
+                merge_in_worktree(&sg, &r.commit, &merge_message(r))?
             };
             let Ok(solo) = solo else {
                 checks.push(ReceiptCheck {
@@ -687,6 +726,11 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             };
             sg.run(&["checkout", "--detach", "--force", &solo])?;
             let _ = sg.run(&SCRATCH_CLEAN);
+            tested.push(Tested {
+                scope: scope.clone(),
+                commit: solo,
+                inputs: vec![i],
+            });
             for command in &opts.checks {
                 let Some(check) = run_check(&scope, command, &scratch.path) else {
                     return Ok(());
@@ -697,7 +741,16 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         Ok(())
     };
     if opts.per_input == PerInput::Always && !opts.checks.is_empty() {
-        run_solo(&mut checks)?;
+        run_solo(&mut checks, &mut tested)?;
+    }
+    if combined != base {
+        tested.push(Tested {
+            scope: "combined".into(),
+            commit: combined.clone(),
+            inputs: (0..receipt_inputs.len())
+                .filter(|&i| receipt_inputs[i].status == "merged")
+                .collect(),
+        });
     }
     let combined_tree = if opts.checks.is_empty() {
         None
@@ -727,7 +780,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         && first_runs.iter().any(|c| !c.passed)
         && !late()
     {
-        run_solo(&mut checks)?;
+        run_solo(&mut checks, &mut tested)?;
     }
     // "Every input passed alone, the combination failed" is the claim this
     // gate leads with, so one flaky run must not make it: a failed check that
@@ -926,15 +979,20 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         let timed_out = out_of_time.get() || checks.iter().any(|c| c.timed_out);
         if merged.len() >= 3 && !timed_out && room(if alone { 1 } else { 2 }) {
             let wt = Git::owned(&tree.path, identity);
-            // The command's run on the target plus `which`, its scope `pair:1,2`
-            // or `rest:0,3`; `None` when they do not merge or the deadline came
-            // first.
-            let run_on = |kind: &str, which: &[usize]| -> Result<Option<ReceiptCheck>> {
+            // The runs on the target plus `which`, its scope `pair:1,2` or
+            // `rest:0,3`, of the commands up to the one the verdict speaks of,
+            // and with `all`, once that one passes, of the commands after it:
+            // with the commit they ran on. `None` when they do not merge or
+            // the deadline came before that command's run.
+            let run_on = |kind: &str,
+                          which: &[usize],
+                          all: bool|
+             -> Result<Option<(String, Vec<ReceiptCheck>)>> {
                 let positions: Vec<String> = which.iter().map(usize::to_string).collect();
                 let scope = format!("{kind}:{}", positions.join(","));
-                let message = format!("pytxo land: {kind}");
                 let mut at = base.clone();
                 for &i in which {
+                    let message = merge_message(&resolved[i]);
                     let merge = if in_memory {
                         merge_in_memory(&owned, &at, &resolved[i].commit, &message)?
                     } else {
@@ -950,20 +1008,33 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 }
                 wt.run(&["checkout", "--detach", "--force", &at])?;
                 let _ = wt.run(&SCRATCH_CLEAN);
-                let mut run = None;
-                for command in &opts.checks[..=upto] {
-                    run = run_check(&scope, command, &tree.path);
-                    if run.is_none() {
+                let mut runs = Vec::new();
+                for (n, command) in opts.checks.iter().enumerate() {
+                    if n > upto && !(all && runs.iter().all(|r: &ReceiptCheck| r.passed)) {
                         break;
                     }
+                    let Some(run) = run_check(&scope, command, &tree.path) else {
+                        break;
+                    };
+                    runs.push(run);
                 }
-                Ok(run)
+                Ok((runs.len() > upto).then_some((at, runs)))
             };
-            if let Some(run) = run_on("pair", &pair)? {
+            if let Some((_, mut runs)) = run_on("pair", &pair, false)? {
+                let run = runs.swap_remove(upto);
                 let failed = !run.passed && !run.timed_out;
                 checks.push(run);
                 if failed && !alone && room(1) {
-                    checks.extend(run_on("rest", &rest)?);
+                    // Every run on the rest is kept: a landing of the rest
+                    // stands on them.
+                    if let Some((commit, runs)) = run_on("rest", &rest, true)? {
+                        tested.push(Tested {
+                            scope: runs[0].scope.clone(),
+                            commit,
+                            inputs: rest.clone(),
+                        });
+                        checks.extend(runs);
+                    }
                 }
             }
             out_of_time.set(false);
@@ -1009,7 +1080,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             .as_deref()
             .is_some_and(|r| repo.commit_of(r).map(|now| now != base).unwrap_or(true));
 
-    let mut decision = if target_moved {
+    let decision = if target_moved {
         reasons.push(format!(
             "{} moved while the gate ran; the result describes an old tip",
             target.as_deref().unwrap_or("target")
@@ -1020,21 +1091,6 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     } else {
         "ready"
     };
-
-    if opts.apply && decision == "ready" && files_changed > 0 {
-        let t = target.as_deref().expect("checked above");
-        decision = match carry_out(&repo, t, &base, &combined, &id)? {
-            Landing::Landed => "landed",
-            Landing::Stale(why) => {
-                reasons.push(why);
-                "stale"
-            }
-            Landing::Refused(why) => {
-                reasons.push(why);
-                "blocked"
-            }
-        };
-    }
 
     let mut insights = Vec::new();
     let solo: Vec<&ReceiptCheck> = checks
@@ -1125,8 +1181,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     }
 
     let mode = if opts.apply { "apply" } else { "shadow" };
-    let result_commit = (combined != base).then(|| combined.clone());
-    let predicate = ReceiptPredicate {
+    let mut predicate = ReceiptPredicate {
         id: id.clone(),
         kind: "land".into(),
         created_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
@@ -1135,15 +1190,69 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         mode: mode.into(),
         target: target.clone(),
         base: base.clone(),
-        result: result_commit.clone(),
+        result: (combined != base).then(|| combined.clone()),
         inputs: receipt_inputs,
         files_changed,
         shared_files,
         checks,
         reasons,
-        duration_ms: started.elapsed().as_millis() as u64,
+        duration_ms: 0,
         content_digest: String::new(),
     };
+    // A set that passed while the whole did not: never after a flaky run, a
+    // deadline or a --strict collision, which no set of inputs explains.
+    let flaky = predicate.checks.iter().any(|c| c.rerun && c.passed);
+    let partial = (decision == "blocked"
+        && !out_of_time
+        && !flaky
+        && !opts.checks.is_empty()
+        && !(opts.strict && !collisions.is_empty()))
+    .then(|| partial(&predicate, &tested, &opts.checks, cause.as_ref()))
+    .flatten();
+    let landing = match &partial {
+        _ if decision == "ready" && files_changed > 0 => Some(&combined),
+        Some(part) => Some(&part.commit),
+        None => None,
+    };
+    if let (true, Some(commit)) = (opts.apply, landing) {
+        let t = target.as_deref().expect("checked above");
+        let p = &mut predicate;
+        match carry_out(&repo, t, &base, commit, &id)? {
+            Landing::Landed => {
+                p.decision = "landed".into();
+                if let Some(part) = &partial {
+                    p.result = Some(commit.clone());
+                    p.files_changed = repo.lines(&["diff", "--name-only", &base, commit])?.len();
+                    let names: Vec<&str> = part
+                        .landed
+                        .iter()
+                        .map(|&n| p.inputs[n].reference.as_str())
+                        .collect();
+                    p.reasons.push(format!(
+                        "landed {} of {}: {} ({} passed every check)",
+                        part.landed.len(),
+                        part.landed.len() + part.left_out.len(),
+                        names.join(", "),
+                        part.scope
+                    ));
+                    for (n, why) in &part.left_out {
+                        p.reasons
+                            .push(format!("left out {}: {why}", p.inputs[*n].reference));
+                    }
+                }
+            }
+            Landing::Stale(why) => {
+                p.reasons.push(why);
+                p.decision = "stale".into();
+            }
+            Landing::Refused(why) => {
+                p.reasons.push(why);
+                p.decision = "blocked".into();
+            }
+        }
+    }
+    predicate.duration_ms = started.elapsed().as_millis() as u64;
+    let result_commit = predicate.result.clone();
     let subject = format!("git:{}", target.as_deref().unwrap_or("HEAD"));
     let receipt = Receipt::new(predicate, &subject, result_commit.as_deref());
     let dir = opts
@@ -1162,6 +1271,59 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         submodules,
         target_conflicts,
         cause,
+        partial,
+    })
+}
+
+/// The set `--apply` lands when the whole combination cannot: of the sets
+/// whose every check passed as that exact set, one that leaves out only
+/// inputs the verdict blames, then the largest, then one without an input
+/// that uses the name the cause names, then the first in merge order.
+fn partial(
+    p: &ReceiptPredicate,
+    tested: &[Tested],
+    commands: &[String],
+    cause: Option<&Cause>,
+) -> Option<Partial> {
+    let runs = |scope: &str| {
+        let scope = scope.to_string();
+        p.checks.iter().filter(move |c| c.scope == scope)
+    };
+    let passed = |t: &&Tested| {
+        commands
+            .iter()
+            .all(|command| runs(&t.scope).any(|c| &c.command == command))
+            && runs(&t.scope).all(|c| c.passed)
+    };
+    let changed: Vec<usize> = (0..p.inputs.len())
+        .filter(|&n| p.inputs[n].status != "empty")
+        .collect();
+    let blamed = render::implicated(p, cause, "BLOCKED");
+    let users: Vec<usize> =
+        cause.map_or_else(Vec::new, |c| [vec![c.user], c.also.clone()].concat());
+    let best = tested.iter().filter(passed).max_by_key(|t| {
+        let fair = changed
+            .iter()
+            .filter(|n| !t.inputs.contains(n))
+            .all(|n| blamed.contains(n));
+        let clean = !t.inputs.iter().any(|n| users.contains(n));
+        (
+            fair,
+            t.inputs.len(),
+            clean,
+            std::cmp::Reverse(t.inputs.clone()),
+        )
+    })?;
+    let left_out: Vec<(usize, String)> = changed
+        .iter()
+        .filter(|n| !best.inputs.contains(n))
+        .map(|&n| (n, render::left_out_why(p, cause, n, &best.inputs)))
+        .collect();
+    (!best.inputs.is_empty() && !left_out.is_empty()).then(|| Partial {
+        scope: best.scope.clone(),
+        commit: best.commit.clone(),
+        landed: best.inputs.clone(),
+        left_out,
     })
 }
 

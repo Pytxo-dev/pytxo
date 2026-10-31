@@ -87,7 +87,7 @@ fn culprits(p: &ReceiptPredicate, cause: &Cause, command: &str) -> (Option<bool>
 /// them. Every input when it blames none of those (say the combined run
 /// timed out before any input ran alone), so the GitHub Action stays
 /// conservative. Empty for any other label.
-fn implicated(p: &ReceiptPredicate, cause: Option<&Cause>, label: &str) -> Vec<usize> {
+pub(crate) fn implicated(p: &ReceiptPredicate, cause: Option<&Cause>, label: &str) -> Vec<usize> {
     if label != "BLOCKED" {
         return Vec::new();
     }
@@ -133,6 +133,182 @@ fn implicated(p: &ReceiptPredicate, cause: Option<&Cause>, label: &str) -> Vec<u
     } else {
         blamed.into_iter().collect()
     }
+}
+
+/// Why input `n` is not in `landed`, a set that passed every check as that
+/// set while the whole combination did not, as it follows "it": "uses
+/// price, which a renamed to unitPrice". With what its agent does about it
+/// and the output to show it, when it has to change.
+fn left_out_reason(
+    p: &ReceiptPredicate,
+    cause: Option<&Cause>,
+    n: usize,
+    landed: &[usize],
+) -> (String, Option<(String, Vec<String>)>) {
+    let i = &p.inputs[n];
+    let name =
+        |k: usize| plain_name(&p.inputs[k].reference, p.inputs[k].agent.as_deref()).to_string();
+    let target = p.target.as_deref().unwrap_or("HEAD");
+    let failing = p
+        .checks
+        .iter()
+        .filter(|c| c.scope == "combined" && !c.passed && !c.rerun)
+        .find(|c| !passed_when_rerun(p, c));
+    let cmd = failing
+        .or_else(|| p.checks.first())
+        .map_or("the tests", |c| c.command.as_str());
+    // The failure's output, from its second run when it had one.
+    let combined_tail = || {
+        failing
+            .and_then(|f| p.checks.iter().find(|r| r.rerun && r.command == f.command))
+            .or(failing)
+            .map(output)
+            .unwrap_or_default()
+    };
+    let rebase = |onto: &str| format!("Rebase it onto {onto} and run {cmd} until it passes.");
+    if i.status == "conflict" {
+        let why = p
+            .reasons
+            .iter()
+            .find_map(|r| r.strip_prefix(&format!("{} ", i.reference)))
+            .filter(|r| r.starts_with("conflicts with"))
+            .unwrap_or("does not merge")
+            .to_string();
+        let todo = format!(
+            "Rebase it onto {target}, resolve the conflict, and run {cmd} until it passes."
+        );
+        return (why, Some((todo, Vec::new())));
+    }
+    let alone = format!("input:{}", i.reference);
+    if let Some(c) = p.checks.iter().find(|c| c.scope == alone && !c.passed) {
+        return (
+            format!("fails {} on its own", c.command),
+            Some((
+                format!(
+                    "Make {} pass on it, then rebase it onto {target}.",
+                    c.command
+                ),
+                output(c),
+            )),
+        );
+    }
+    if let Some(cause) = cause.filter(|c| c.confirmed && culprits(p, c, cmd).0 != Some(true)) {
+        let (x, by, user) = (&cause.name, name(cause.by), name(cause.user));
+        if n == cause.user || cause.also.contains(&n) {
+            let at = match cause.uses.first() {
+                Some(u) if n == cause.user => format!(" ({}:{})", u.path, u.line),
+                _ => String::new(),
+            };
+            let onto = if landed.contains(&cause.by) {
+                target.to_string()
+            } else {
+                by.clone()
+            };
+            let (why, change) = match &cause.renamed_to {
+                Some(y) => (
+                    format!("uses {x}, which {by} renamed to {y}{at}"),
+                    format!("replace {x} with {y}"),
+                ),
+                None => (
+                    format!("uses {x}, which {by} removed{at}"),
+                    format!("stop using {x}"),
+                ),
+            };
+            let todo = format!("Rebase it onto {onto}, {change}, and run {cmd} until it passes.");
+            return (why, Some((todo, combined_tail())));
+        }
+        if n == cause.by {
+            // The fix belongs on the branch that uses the name.
+            let why = match &cause.renamed_to {
+                Some(y) => format!("renamed {x} to {y}, which {user} still uses"),
+                None => format!("removed {x}, which {user} still uses"),
+            };
+            return (why, None);
+        }
+    }
+    if implicated(p, cause, "BLOCKED").contains(&n) {
+        let others: Vec<String> = (0..p.inputs.len())
+            .filter(|&k| k != n && p.inputs[k].status == "merged")
+            .map(name)
+            .collect();
+        let passes_alone = p
+            .checks
+            .iter()
+            .any(|c| c.scope == alone && c.command == cmd && c.passed);
+        let why = format!(
+            "{} combined with {}",
+            if passes_alone {
+                format!("passes {cmd} alone but fails it")
+            } else {
+                format!("fails {cmd}")
+            },
+            and_list(&others)
+        );
+        return (why, Some((rebase(target), combined_tail())));
+    }
+    let landed: Vec<String> = landed.iter().map(|&k| name(k)).collect();
+    (
+        format!(
+            "was not tested together with {}: run the check again to land it",
+            and_list(&landed)
+        ),
+        None,
+    )
+}
+
+/// The receipt's reason for leaving input `n` out of `landed`.
+pub(crate) fn left_out_why(
+    p: &ReceiptPredicate,
+    cause: Option<&Cause>,
+    n: usize,
+    landed: &[usize],
+) -> String {
+    left_out_reason(p, cause, n, landed).0
+}
+
+/// A branch a landing left out: why, and for its agent, when it has to
+/// change, what to do.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct LeftOut {
+    pub branch: String,
+    pub why: String,
+    pub fix_prompt: Option<String>,
+}
+
+/// The branches a landing of only some of them left out.
+fn left_out(outcome: &LandOutcome) -> Vec<LeftOut> {
+    let p = &outcome.receipt.predicate;
+    let Some(part) = outcome.partial.as_ref().filter(|_| p.decision == "landed") else {
+        return Vec::new();
+    };
+    let target = p.target.as_deref().unwrap_or("HEAD");
+    let name =
+        |k: usize| plain_name(&p.inputs[k].reference, p.inputs[k].agent.as_deref()).to_string();
+    let landed: Vec<String> = part.landed.iter().map(|&k| name(k)).collect();
+    part.left_out
+        .iter()
+        .map(|(n, why)| {
+            let branch = name(*n);
+            let (_, todo) = left_out_reason(p, outcome.cause.as_ref(), *n, &part.landed);
+            let fix_prompt = todo.map(|(todo, tail)| {
+                let mut s = format!(
+                    "Pytxo tested {} on {target} and landed {}. Your branch {branch} is left out: it {why}.\n{todo}",
+                    and_list(&landed),
+                    if landed.len() == 1 { "it" } else { "them" }
+                );
+                if !tail.is_empty() {
+                    let last = &tail[tail.len().saturating_sub(15)..];
+                    let _ = write!(s, "\nFailing output:\n{}", last.join("\n"));
+                }
+                s
+            });
+            LeftOut {
+                branch,
+                why: why.clone(),
+                fix_prompt,
+            }
+        })
+        .collect()
 }
 
 /// The last line of a pull-request comment, for the GitHub Action:
@@ -445,8 +621,8 @@ pub fn render_text(outcome: &LandOutcome) -> String {
 /// A decision in three plain lines: what happened, why, and what to do next.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Verdict {
-    /// ready, no_tests, nothing, landed, conflict, together, alone, failed,
-    /// timeout, flaky, collision, refused or stale.
+    /// ready, no_tests, nothing, landed, partial, conflict, together, alone,
+    /// failed, timeout, flaky, collision, refused or stale.
     pub kind: &'static str,
     /// The word a person reads first: READY, BLOCKED, FLAKY, STALE...
     pub label: &'static str,
@@ -463,6 +639,9 @@ pub struct Verdict {
     /// does not confirm, so the why line stays the error.
     #[serde(skip)]
     pub note: Option<String>,
+    /// For "partial": the branches left out, each with why and its fix prompt.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub left_out: Vec<LeftOut>,
 }
 
 /// A cause as `--json` gives it: the branches by name.
@@ -663,6 +842,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
         cause: None,
         fix_prompt: None,
         note: None,
+        left_out: Vec::new(),
     };
     let first_line = |c: &ReceiptCheck| {
         let line = why_lines(&output(c)).into_iter().next()?;
@@ -686,6 +866,71 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
             format!("the result describes an old tip of {target}, so it does not count."),
             format!("{again}."),
         ),
+        "landed" if outcome.partial.is_some() => {
+            let part = outcome.partial.as_ref().expect("matched");
+            let landed: Vec<String> = part.landed.iter().map(|&n| branch(&p.inputs[n])).collect();
+            let left: Vec<String> = part
+                .left_out
+                .iter()
+                .map(|(n, _)| branch(&p.inputs[*n]))
+                .collect();
+            let are = |names: &[String]| if names.len() == 1 { "is" } else { "are" };
+            let mut commands: Vec<&str> = Vec::new();
+            for c in p.checks.iter().filter(|c| c.scope == part.scope) {
+                if !commands.contains(&c.command.as_str()) {
+                    commands.push(&c.command);
+                }
+            }
+            let mut why = vec![format!(
+                "{} passed {} {}",
+                and_list(&landed),
+                shown(&commands.join(" and ")),
+                if landed.len() == 1 {
+                    format!("on top of {target}")
+                } else {
+                    "together".into()
+                }
+            )];
+            why.extend(
+                part.left_out
+                    .iter()
+                    .map(|(n, reason)| format!("{} {}", branch(&p.inputs[*n]), shown(reason))),
+            );
+            let left_out = left_out(outcome);
+            let prompted: Vec<String> = left_out
+                .iter()
+                .filter(|l| l.fix_prompt.is_some())
+                .map(|l| shown(&l.branch))
+                .collect();
+            let next = match prompted.as_slice() {
+                [] => format!("push {target} when you are ready, then {again}."),
+                [one] => format!(
+                    "push {target} when you are ready. Give {one}'s agent its fix prompt, then {again}."
+                ),
+                _ => format!(
+                    "push {target} when you are ready. Give the agents of {} their fix prompts, then {again}.",
+                    and_list(&prompted)
+                ),
+            };
+            Verdict {
+                left_out,
+                ..v(
+                    "partial",
+                    "LANDED",
+                    format!(
+                        "{} of {} branches {} on {target} now: {}; {} {} left out.",
+                        landed.len(),
+                        landed.len() + left.len(),
+                        are(&landed),
+                        and_list(&landed),
+                        and_list(&left),
+                        are(&left)
+                    ),
+                    why.join("; ") + ".",
+                    next,
+                )
+            }
+        }
         "landed" => {
             let how = match p.checks.iter().find(|c| c.scope == "combined") {
                 Some(c) => format!("{} passed on the combined change", c.command),
@@ -1114,20 +1359,31 @@ pub fn render_markdown_with(outcome: &LandOutcome, verbose: bool) -> String {
     if let Some(note) = &verdict.note {
         let _ = writeln!(s, "**Note:** {note}\n");
     }
-    if let (Some(prompt), Some(cause)) = (&verdict.fix_prompt, &verdict.cause) {
+    // The cause's prompt, or those of the branches a landing left out.
+    let prompts = verdict
+        .fix_prompt
+        .as_ref()
+        .zip(verdict.cause.as_ref().map(|c| &c.user))
+        .into_iter()
+        .chain(
+            verdict
+                .left_out
+                .iter()
+                .filter_map(|l| Some((l.fix_prompt.as_ref()?, &l.branch))),
+        );
+    for (prompt, branch) in prompts {
         // The prompt holds branch names and test output: only in a fence,
         // longer than any backtick run in it. The name in the summary is
         // HTML, where `<code>` keeps it from mentioning anyone.
         let fence = "`".repeat(longest_run(prompt, '`').max(2) + 1);
-        let user = cause
-            .user
+        let branch = branch
             .replace('&', "&amp;")
             .replace('<', "&lt;")
             .replace('>', "&gt;")
             .replace('@', "&#64;");
         let _ = writeln!(
             s,
-            "<details><summary>Fix prompt for <code>{user}</code></summary>\n\n{fence}text\n{prompt}\n{fence}\n\n</details>\n"
+            "<details><summary>Fix prompt for <code>{branch}</code></summary>\n\n{fence}text\n{prompt}\n{fence}\n\n</details>\n"
         );
     }
     let _ = writeln!(s, "<details><summary>Details</summary>\n");
@@ -1257,6 +1513,7 @@ mod tests {
             submodules: false,
             target_conflicts: Vec::new(),
             cause: None,
+            partial: None,
         }
     }
 

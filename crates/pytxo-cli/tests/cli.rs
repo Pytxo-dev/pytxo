@@ -546,7 +546,13 @@ fn json_names_the_cause_and_the_fix_prompt() {
         prompt.ends_with("\nFailing output:\nTypeError: price is not a function"),
         "{prompt}"
     );
-    assert_eq!(v["notes"], serde_json::json!([]), "confirmed: no note");
+    // Confirmed: no note on the cause, only what --apply would land.
+    assert_eq!(
+        v["notes"],
+        serde_json::json!([
+            "claude/rename-price passes the tests on top of main by itself: run this again with --apply to land it and leave out codex/add-discount."
+        ])
+    );
     // A reading of the runs, not part of the receipt.
     assert!(v["receipt"]["predicate"].get("cause").is_none(), "{v}");
 }
