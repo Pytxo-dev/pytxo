@@ -3,30 +3,25 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 
-import { Button } from "@/components/ui/button";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
 
+// Its links sit in the header's row as they are, so a hidden one takes no gap there.
 export function HeaderAuth() {
   if (!SITE_AUTH_ENABLED) {
     return null;
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="contents">
       <SignedOut>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="hidden h-8 text-[13px] text-muted-foreground hover:text-foreground sm:inline-flex"
-          asChild
-        >
-          <Link href="/sign-in">Sign in</Link>
-        </Button>
+        <Link href="/sign-in" className="touch-target relative hidden sm:inline">
+          Sign in
+        </Link>
       </SignedOut>
       <SignedIn>
-        <Button variant="ghost" size="sm" className="hidden h-8 text-[13px] sm:inline-flex" asChild>
-          <Link href="/account">Account</Link>
-        </Button>
+        <Link href="/account" className="touch-target relative hidden sm:inline">
+          Account
+        </Link>
         <UserButton afterSignOutUrl="/" />
       </SignedIn>
     </div>

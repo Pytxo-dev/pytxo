@@ -1,32 +1,18 @@
-import Image from "next/image";
 import Link from "next/link";
 
-import { AsciiWordmark } from "@/components/site/ascii-art";
-import { DISCORD_URL, GITHUB_URL, SOURCE_URL } from "@/lib/site";
+import { Mark } from "@/components/site/mark";
+import s from "@/components/site/site.module.css";
+import { DISCORD_URL, SOURCE_URL } from "@/lib/site";
 
-const PRODUCT_LINKS = [
-  { href: "/bench", label: "Pybench" },
+const LINKS = [
+  { href: "/docs", label: "Docs" },
+  { href: SOURCE_URL, label: "GitHub" },
   { href: "/docs/evidence", label: "Evidence" },
+  { href: "/bench", label: "Pybench" },
   { href: "/plans", label: "Plans" },
-  { href: "/download", label: "Pytxo Desktop (frozen)" },
+  { href: "/download", label: "Desktop (frozen)" },
+  { href: DISCORD_URL, label: "Discord" },
 ] as const;
-
-const DOCS_LINKS = [
-  { href: "/docs", label: "Docs home" },
-  { href: "/docs/getting-started/quickstart", label: "Quickstart" },
-  { href: "/docs/getting-started/land-in-ci", label: "GitHub Action" },
-  { href: "/docs/reference/cli", label: "CLI reference" },
-] as const;
-
-const RESOURCE_LINKS = [
-  { href: SOURCE_URL, label: "Source on GitHub", external: true },
-  { href: GITHUB_URL, label: "Binaries on GitHub", external: true },
-  { href: DISCORD_URL, label: "Discord", external: true },
-] as const;
-
-// Phones: each link is a 44px row; desktop keeps the tighter list.
-const LIST = "mt-4 flex flex-col gap-2.5 text-[#7d7d87] max-md:mt-1 max-md:gap-0";
-const LINK = "hover:text-foreground max-md:block max-md:py-3";
 
 const LEGAL_LINKS = [
   { href: "/terms", label: "Terms" },
@@ -36,84 +22,30 @@ const LEGAL_LINKS = [
 
 export function SiteFooter() {
   return (
-    <footer className="mt-auto border-t border-white/[0.08] bg-[#050507]">
-      <div className="mx-auto max-w-[92rem] px-4 py-14 sm:px-6 lg:px-10">
-        <div className="flex flex-col gap-10 lg:flex-row lg:justify-between">
-          <div className="flex max-w-sm flex-col gap-3">
-            <div className="flex items-center gap-2.5">
-              <Image src="/logo-mark.png" alt="" width={28} height={28} className="size-7" />
-              <p className="font-semibold tracking-tight">Pytxo</p>
-            </div>
-            <p className="text-sm leading-relaxed text-[#7d7d87]">
-              Each agent&apos;s branch passes. Do they pass together?
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-10 text-sm sm:grid-cols-3">
-            <div>
-              <p className="font-medium text-foreground">Product</p>
-              <ul className={LIST}>
-                {PRODUCT_LINKS.map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href} className={LINK}>
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="font-medium text-foreground">Docs</p>
-              <ul className={LIST}>
-                {DOCS_LINKS.map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href} className={LINK}>
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="font-medium text-foreground">Resources</p>
-              <ul className={LIST}>
-                {RESOURCE_LINKS.map((link) => (
-                  <li key={link.href}>
-                    {"external" in link && link.external ? (
-                      <a
-                        href={link.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={LINK}
-                      >
-                        {link.label}
-                      </a>
-                    ) : (
-                      <Link href={link.href} className={LINK}>
-                        {link.label}
-                      </Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <AsciiWordmark className="mt-14 block h-[clamp(96px,16vw,230px)] w-full" />
-
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] pt-6">
-          <p className="font-mono text-[10px] text-[#7d7d87]">
-            © {new Date().getFullYear()} Pytxo. MIT License.
-          </p>
-          <nav aria-label="Legal" className="flex gap-4 font-mono text-[10px] text-[#7d7d87]">
-            {LEGAL_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className="touch-target relative hover:text-foreground">
+    <footer className={s.foot}>
+      <div className={s.wrap}>
+        <div className={s.row}>
+          <Link href="/" className={s.brand} aria-label="pytxo home">
+            <Mark id="foot" />
+            <span>pytxo</span>
+          </Link>
+          <nav aria-label="Footer">
+            {LINKS.map((link) => (
+              <Link key={link.href} href={link.href} className="touch-target relative">
                 {link.label}
               </Link>
             ))}
           </nav>
-          <span className="font-mono text-[10px] text-[#7d7d87]">LOCAL BY DEFAULT</span>
+        </div>
+        <div className={s.row}>
+          <p>MIT. Free on your machine and on public repositories.</p>
+          <nav aria-label="Legal">
+            {LEGAL_LINKS.map((link) => (
+              <Link key={link.href} href={link.href} className="touch-target relative">
+                {link.label}
+              </Link>
+            ))}
+          </nav>
         </div>
       </div>
     </footer>

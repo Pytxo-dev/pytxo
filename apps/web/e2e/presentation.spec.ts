@@ -4,7 +4,7 @@ test("homepage sections keep their images and links inside the viewport width", 
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
-    for (const id of ["how-it-works", "compare-section", "proof-section", "compatibility-section"]) {
+    for (const id of ["recorded-demo", "decide-section", "where-section", "close-section"]) {
       const section = page.getByTestId(id);
       await section.scrollIntoViewIfNeeded();
       const box = (await section.boundingBox())!;
@@ -22,14 +22,9 @@ for (const width of [390, 768, 1280, 1440, 1920]) {
     await page.goto('/');
     const heading = page.getByRole('heading', { level: 1 });
     await expect(heading).toBeInViewport();
-    // The headline must keep a readable size and never run under the recorded output.
+    // The headline keeps a readable size, and the command is on the first screen at every width.
     expect(parseFloat(await heading.evaluate(node => getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(32);
-    const headingBox = (await heading.boundingBox())!;
-    const capture = page.getByTestId('hero-capture');
-    const captureBox = (await capture.boundingBox())!;
-    expect(headingBox.y + headingBox.height).toBeLessThan(captureBox.y);
-    // The verdict is on the first screen at every width.
-    await expect(capture.getByText('BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.')).toBeInViewport();
+    await expect(page.getByTestId('marketing-hero').getByRole('button', { name: 'Copy npx pytxo demo' })).toBeInViewport({ ratio: 1 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     await page.screenshot({ path: testInfo.outputPath(`home-${width}.png`), fullPage: true });
     await page.goto('/docs/getting-started/first-mission');

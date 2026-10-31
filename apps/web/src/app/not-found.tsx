@@ -13,9 +13,9 @@ export const metadata: Metadata = {
 
 export default function NotFound() {
   return (
-    <div className="chassis-shell dark min-h-dvh bg-background text-foreground" data-chroma-theme="void">
+    <div className="chassis-shell dark flex min-h-dvh flex-col bg-background text-foreground" data-chroma-theme="void" data-site="v2">
       <SiteHeader />
-      <main id="main" className="marketing-scroll w-full max-w-full overflow-x-hidden">
+      <main id="main" className="w-full max-w-full flex-1 overflow-x-hidden">
         <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-24 sm:px-6 sm:py-32">
           <p className="font-mono text-sm text-muted-foreground">404</p>
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">This page does not exist.</h1>
@@ -34,8 +34,8 @@ export default function NotFound() {
             </Button>
           </div>
         </div>
-        <SiteFooter />
       </main>
+      <SiteFooter />
     </div>
   );
 }

@@ -27,36 +27,48 @@ for (const width of [1440, 390]) {
     await page.goto("/");
     const hero = page.getByTestId("marketing-hero");
     await expect(hero.getByRole("heading", { level: 1 })).toHaveText("Each agent's branch passes. Do they pass together?");
-    // The hero shows the recorded bytes of a real run, not a retyped or illustrated one.
+    await expect(hero.getByText(/runs your tests on the combined result, and blocks the merge if it breaks/)).toBeVisible();
+    await expect(hero.getByRole("button", { name: "Copy npx pytxo demo" })).toBeInViewport({ ratio: 1 });
+    await expect(hero.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
+    // The demo shows the recorded bytes of a real run, not a retyped or illustrated one.
     const record = await (await page.request.get("/evidence/demo-blocked-2.0.0-2026-10-30.json")).json();
     expect(record.command).toBe("npx pytxo demo");
     expect(record.output).toContain("BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.");
     expect(record.output).toContain("why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).");
-    const capture = hero.getByTestId("hero-capture");
-    expect(await capture.locator("pre").textContent()).toBe(`$ ${record.command}\n${record.output.trimEnd()}\n`);
-    await expect(capture.getByText("BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.")).toBeInViewport();
-    await expect(capture.getByRole("link", { name: "Raw output" })).toHaveAttribute("href", "/evidence/demo-blocked-2.0.0-2026-10-30.json");
-    await expect(hero.getByText(/runs your tests on the combined result, and blocks the merge if it breaks/)).toBeVisible();
-    await expect(hero.locator("pre").filter({ hasText: /^npx pytxo demo$/ })).toBeVisible();
-    await expect(hero.getByRole("button", { name: "Copy the demo command" })).toBeVisible();
-    await expect(hero.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
-    await expect(hero.getByRole("link", { name: "Add it to CI" })).toHaveAttribute("href", "/#ci");
-    await expect(hero.getByRole("link", { name: "mattbaconz" })).toHaveAttribute("href", "https://github.com/mattbaconz");
-    await expect(hero.getByRole("link", { name: "lukeed/mri" })).toHaveAttribute("href", "/docs/getting-started/first-landing#3-if-the-decision-is-blocked");
-    expect(await (await page.request.get("/docs/getting-started/first-landing")).text()).toContain('id="3-if-the-decision-is-blocked"');
-    const how = page.getByTestId("how-it-works");
-    await expect(how.getByRole("listitem")).toHaveCount(3);
-    // The step snippets are lines of the same recorded run.
-    await expect(how).toContainText("Checking claude/rename-price and codex/add-discount against main with npm test (from package.json)...");
+    const demo = page.getByTestId("recorded-demo");
+    const lines = await demo.getByTestId("recorded-output").locator(":scope > div").allTextContents();
+    expect(lines).toEqual([`$ ${record.command}`, ...record.output.trimEnd().split("\n")]);
+    await expect(demo.getByRole("link", { name: /^Recorded output/ })).toHaveAttribute("href", "/evidence/demo-blocked-2.0.0-2026-10-30.json");
+    // The ledger is the checks table of the same build's pull request comment, in the order the runs happened.
+    const comment = await (await page.request.get("/evidence/comment-blocked-2.0.0-2026-10-30.json")).json();
+    const decide = page.getByTestId("decide-section");
+    const rows = decide.getByRole("row");
+    await expect(rows).toHaveCount(4);
+    for (const [i, [label, result, seconds, source]] of [
+      ["together", "fail", "0.7", "| `combined` | **fail** | 0.7s |"],
+      ["claude/rename-price alone", "pass", "0.7", "| `input:claude/rename-price` | pass | 0.7s |"],
+      ["codex/add-discount alone", "pass", "0.6", "| `input:codex/add-discount` | pass | 0.6s |"],
+      ["together, again", "fail", "0.5", "| `combined, run 2` | **fail** | 0.5s |"],
+    ].entries()) {
+      expect(comment.output).toContain(source);
+      await expect(rows.nth(i).getByRole("rowheader")).toHaveText(label);
+      await expect(rows.nth(i).getByRole("cell")).toHaveText([result, `${seconds} s`]);
+    }
+    await expect(decide.getByRole("link", { name: /^Pull request comment/ })).toHaveAttribute("href", "/evidence/comment-blocked-2.0.0-2026-10-30.json");
+    const where = page.getByTestId("where-section");
+    await expect(where.locator("code")).toHaveText(["npx pytxo", "npx pytxo hook", "uses: Pytxo-dev/pytxo/actions/land@v2"]);
+    for (const [name, href] of [
+      ["Claude Code plugin or the Codex hook", "/docs/getting-started/agent-hooks"],
+      ["GitHub Action", "/docs/getting-started/land-in-ci"],
+    ]) {
+      await expect(where.getByRole("link", { name })).toHaveAttribute("href", href);
+      expect((await page.request.get(href)).status()).toBe(200);
+    }
+    await expect(page.getByTestId("close-section").getByRole("button", { name: "Copy npx pytxo demo" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: testInfo.outputPath(`launch-home-${width}.png`), fullPage: true });
-    await hero.getByRole("link", { name: "Add it to CI" }).click();
-    const ci = page.getByTestId("ci-section");
-    await expect(ci.getByRole("heading", { level: 2, name: "One line in CI." })).toBeInViewport();
-    await expect(ci.locator("pre")).toContainText("uses: Pytxo-dev/pytxo/actions/land@v2");
-    await expect(ci.getByRole("link", { name: /Set it up/ })).toHaveAttribute("href", "/docs/getting-started/land-in-ci");
     // The frozen Desktop download stays one click away, in the footer.
-    await page.locator("footer").getByRole("link", { name: "Pytxo Desktop (frozen)" }).click();
+    await page.locator("footer").getByRole("link", { name: "Desktop (frozen)" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Download" })).toBeVisible();
     await expect(page.getByText(/download below installs the current public/)).toHaveCount(0);
     await expect(page.getByText(/^v\d+\.\d+\.\d+$/).first()).toBeVisible();
@@ -79,7 +91,7 @@ for (const width of [1440, 390]) {
 test("plans present current availability without a public subscription checkout", async ({ page }) => {
   await page.goto("/plans");
   await expect(page.getByRole("heading", { level: 1, name: "Plans" })).toBeVisible();
-  await expect(page.getByText("Free on your machine and on public repositories.", { exact: false })).toBeVisible();
+  await expect(page.locator("main").getByText("Free on your machine and on public repositories.", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: /Subscribe to|Get Pro/i })).toHaveCount(0);
   await expect(page.locator("main").getByRole("link", { name: "Sign in" })).toHaveCount(0);
 });
@@ -97,74 +109,30 @@ test("install commands can be copied intact on mobile", async ({ page }) => {
   await expectNoHorizontalOverflow(page);
 });
 
-test("homepage leads with the outcome, then how, why, proof and requirements", async ({ page }) => {
+test("homepage asks the question, then shows the recorded run, how it decides and where it runs", async ({ page }) => {
   await page.goto("/");
-  const ids = ["marketing-hero", "how-it-works", "ci-section", "compare-section", "proof-section", "compatibility-section", "faq-section", "get-it-section"];
+  const ids = ["marketing-hero", "recorded-demo", "decide-section", "where-section", "close-section"];
   const tops = await Promise.all(ids.map(id => page.getByTestId(id).evaluate(el => el.getBoundingClientRect().top)));
   expect([...tops].sort((a, b) => a - b)).toEqual(tops);
-  await expect(page.getByTestId("compare-section").getByRole("row")).toHaveCount(5);
-  await expect(page.getByTestId("compare-section")).toContainText("Before you merge anything");
-  const proof = page.getByTestId("proof-section");
-  await expect(proof.getByTestId("proof-bench")).toContainText("4/4");
-  await expect(proof.getByTestId("proof-bench")).toContainText("12/12");
-  await expect(proof).toContainText("Checks passing is evidence, not proof.");
-  await expect(proof.getByRole("link", { name: /Pybench results/ })).toHaveAttribute("href", "/bench");
-  await expect(proof.getByRole("link", { name: /All evidence and limits/ })).toHaveAttribute("href", "/docs/evidence");
-  await expect(page.getByTestId("marketing-hero")).toContainText("Each passes npm test on its own. Together the test fails, so the check blocks and says which branch has to change.");
-  await expect(page.getByTestId("compatibility-section")).toContainText("Pytxo calls no model and sends nothing anywhere.");
-  await expect(page.getByTestId("faq-section")).toContainText("Does it send my code anywhere?");
-  await expect(page.getByTestId("get-it-section").locator("pre").filter({ hasText: /^npx pytxo demo$/ })).toBeVisible();
-  // The Action's safety copy says what a fork's run gets, not that the tests never see the token.
-  await expect(page.getByTestId("ci-section")).toContainText("checked in its own run, with GitHub's read-only token and no secrets");
   await expect(page.locator("main")).not.toContainText(/without the token|has no token/i);
-  // A pull request that is not to blame for a break does not fail.
-  await expect(page.getByTestId("ci-section")).toContainText("when only others are to blame, the comment names them and the job passes");
   // Newcomers see none of the frozen 1.x vocabulary.
   await expect(page.locator("main")).not.toContainText(/\b(hypervisor|control plane|telemetry|orbit|galaxy|deepspace|supernova|signal core|blast shield|missions?|fleets?)\b/i);
   await expect(page.locator(".aperture-marquee")).toHaveCount(0);
 });
 
-for (const width of [1440, 390]) {
-  test(`every FAQ answer opens fully at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
-    await page.goto("/");
-    const triggers = page.getByTestId("faq-section").getByRole("button");
-    const count = await triggers.count();
-    expect(count).toBeGreaterThan(5);
-    for (let i = 0; i < count; i++) {
-      const trigger = triggers.nth(i);
-      await trigger.click();
-      const region = page.getByTestId("faq-section").getByRole("region").first();
-      await expect(region).toBeVisible();
-      await region.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
-      const clipped = await region.evaluate((el) => {
-        const inner = el.firstElementChild as HTMLElement | null;
-        return el.scrollHeight - el.clientHeight > 1 || (inner ? inner.scrollHeight - inner.clientHeight > 1 : false);
-      });
-      expect(clipped, (await trigger.textContent()) ?? "faq answer").toBe(false);
-      await trigger.click();
-    }
-  });
-}
-
-test("homepage FAQ answers open and close by keyboard", async ({ page }) => {
-  await page.goto("/");
-  const question = page.getByRole("button", { name: "Does it change my repository?" });
-  await question.focus();
-  await page.keyboard.press("Enter");
-  await expect(page.getByText("The merge and the tests happen in a throwaway worktree.", { exact: false })).toBeVisible();
-  await page.keyboard.press("Enter");
-  await expect(page.getByText("The merge and the tests happen in a throwaway worktree.", { exact: false })).toBeHidden();
-});
-
-test("the Action's FAQ answer says what a fork's run gets, not that the tests never see the token", async ({ page }) => {
-  // A closed answer is not in the DOM, so the guards on main cannot see it.
-  await page.goto("/");
-  const question = "Is the GitHub Action safe on public repositories?";
-  await page.getByRole("button", { name: question }).click();
-  const answer = page.getByTestId("faq-section").getByRole("region", { name: question });
-  await expect(answer).toContainText("checked in its own run, with GitHub's read-only token and no secrets");
-  await expect(answer).not.toContainText(/without the token|has no token/i);
+test("the questions live in the docs, and the Action's answer says what a fork's run gets", async ({ page }) => {
+  await page.goto("/docs/reference/faq");
+  await expect(page.getByRole("heading", { level: 1, name: "Questions" })).toBeVisible();
+  const article = page.locator("article");
+  for (const text of [
+    "Does it send my code anywhere?",
+    "The merge and the tests happen in a throwaway worktree.",
+    "Is the GitHub Action safe on public repositories?",
+    "checked in its own run, with GitHub's read-only token and no secrets",
+  ]) {
+    await expect(article).toContainText(text);
+  }
+  await expect(article).not.toContainText(/without the token|has no token/i);
 });
 
 test("evidence moved into the docs and keeps every record downloadable", async ({ page }) => {
@@ -232,37 +200,22 @@ test("account connect refuses incomplete links and receipt ids are validated", a
   expect(missing?.status()).toBe(404);
 });
 
-test("chroma identity keeps the spectrum to the logo", async ({ page }) => {
+test("the site keeps to ink, paper and one gradient", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
-  const heading = page.getByRole("heading", { level: 1 });
   const font = await page.locator("body").evaluate((el) => getComputedStyle(el).fontFamily);
-  const headingColor = await heading.evaluate((el) => getComputedStyle(el).color);
-  expect(font.toLowerCase()).toMatch(/satoshi|sora/);
+  expect(font.toLowerCase()).toContain("sora");
   expect(font.toLowerCase()).not.toContain("geist");
-  expect(headingColor).toBe("rgb(245, 245, 247)");
-  await expect(page.locator(".nebula-bg, .chroma-glow")).toHaveCount(0);
-  // The headline is plain text; the spectrum stays in the logo.
-  await expect(page.locator(".chroma-text")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("color", "rgb(236, 234, 228)");
+  // The page is the ink the hero's canvas clears to, so the hero shows no band.
+  await expect(page.locator('[data-site="v2"]')).toHaveCSS("background-color", "rgb(8, 8, 10)");
+  await expect(page.locator(".nebula-bg, .chroma-glow, .chroma-text")).toHaveCount(0);
 
-
-  await expect(page.locator('header img[src*="logo"]')).toHaveCount(1);
-  const getStarted = page.locator("header").getByRole("link", { name: "Get started", exact: true });
-  await expect(getStarted).toHaveCount(1);
-  await expect(getStarted).toHaveAttribute("href", "/docs/getting-started/quickstart");
-  const cssText = await page.evaluate(() =>
-    [...document.styleSheets]
-      .flatMap((sheet) => {
-        try {
-          return [...sheet.cssRules].map((rule) => rule.cssText);
-        } catch {
-          return [];
-        }
-      })
-      .join("\n"),
-  );
-  expect(cssText).toContain("--aperture-magenta");
+  const header = page.locator("header");
+  await expect(header.getByRole("link", { name: "pytxo home" }).locator("svg")).toHaveCount(1);
+  await expect(header.getByRole("link", { name: "Docs", exact: true })).toHaveAttribute("href", "/docs");
+  await expect(header.getByRole("button", { name: "Copy npx pytxo demo" })).toBeVisible();
 });
 
 test("the homepage no longer pins a scroll-jacked sequence", async ({ page }) => {

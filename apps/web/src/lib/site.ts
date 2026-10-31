@@ -70,14 +70,11 @@ export const SHARE_IMAGE = {
   alt: "Each agent's branch passes. Do they pass together? npx pytxo demo prints BLOCKED: two branches pass npm test alone but fail together, because one renamed price to unitPrice and the other still uses price.",
 };
 
-/** The header's call to action; the header renders it as its one button. */
+/** Where a newcomer starts, linked from the plans and the 404 page. */
 export const GET_STARTED_HREF = "/docs/getting-started/quickstart";
 
+/** The header's links, beside the demo command's copy button; the docs nav shows them too, with Support. */
 export const NAV_LINKS: NavLink[] = [
-  { href: "/#how", label: "How it works" },
-  { href: "/#ci", label: "In CI" },
-  { href: "/bench", label: "Pybench" },
   { href: "/docs", label: "Docs" },
-  { href: DISCORD_URL, label: "Support" },
-  { href: GET_STARTED_HREF, label: "Get started" },
+  { href: SOURCE_URL, label: "GitHub" },
 ];

@@ -1,0 +1,40 @@
+---
+title: Questions
+description: Which agents it works with, how it finds your tests, what a pass proves, and what it costs.
+---
+
+## Which agents does it work with?
+
+Any agent that leaves its work on a branch. With no arguments Pytxo checks branches named `claude/*`, `codex/*`, `copilot/*`, `cursor/*`, `devin/*`, `jules/*` and `agent/*`, plus every branch in a linked worktree, that have a commit in the last 14 days. Name other branches yourself, or set `git config pytxo.branches`.
+
+## How does it find my tests?
+
+It reads the target branch and picks the usual command for `package.json` (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a Makefile `test` target. Or pass your own with `-c`.
+
+## Does it change my repository?
+
+No. The merge and the tests happen in a throwaway worktree. Only `--apply` lands a ready result on the target branch, and it refuses if that branch moved during the check.
+
+## What does a pass prove?
+
+That your tests pass on the merge of the branches. Pytxo catches what your tests catch: a break they don't cover can still land. Merge conflicts are blocked, not resolved.
+
+## What if a test is flaky?
+
+When the combined change fails, Pytxo runs each branch alone and, if every branch passes alone, the combined change once more. A failure that does not repeat is reported as flaky, not as a break. A combined run that times out is not run again, and the branches do not run alone after it.
+
+## Does it send my code anywhere?
+
+No. The check runs on your machine or in your own CI. It calls no model, needs no account, and sends nothing anywhere.
+
+## Is the GitHub Action safe on public repositories?
+
+It runs on `pull_request` only and refuses `pull_request_target`. A fork's pull request never joins another pull request's run: it is checked in its own run, with GitHub's read-only token and no secrets. Pull requests opened by Copilot or `github-actions[bot]`, whose runs GitHub holds for approval, join another pull request's run only when the workflow has `actions: read`, and only at their newest commit whose run someone let start; once approved, their own run checks them with the others. Your tests run in the job that holds the Action's token, so give the workflow no other permissions or secrets; with `actions: read`, code in the checked branches can also read every workflow run's logs and artifacts.
+
+## What does it cost?
+
+Pytxo is free on your machine and on public repositories, and open source under MIT. A paid plan for private repositories in CI is planned; until it opens, the Action is free everywhere.
+
+## What happened to Pytxo Desktop?
+
+It is frozen and still a free download for Windows. Pytxo now does one thing: the check.

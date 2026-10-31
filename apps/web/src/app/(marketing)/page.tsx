@@ -1,18 +1,13 @@
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { CiSection } from "@/components/site/ci-section";
-import { CompareSection } from "@/components/site/compare-section";
-import { CompatibilitySection } from "@/components/site/compatibility-section";
-import { GetItSection } from "@/components/site/get-it-section";
+import Link from "next/link";
+
+import { CopyCommand } from "@/components/site/copy-command";
 import { Hero } from "@/components/site/hero";
-import { HowItWorks } from "@/components/site/how-it-works";
-import { ProofSection } from "@/components/site/proof-section";
+import { RecordedDemo } from "@/components/site/recorded-demo";
+import s from "@/components/site/site.module.css";
 import { pageMetadata } from "@/lib/page-metadata";
-import { NPM_URL, PRODUCT_LINE, PRODUCT_SUMMARY, PUBLISHED_VERSION, SHARE_IMAGE } from "@/lib/site";
+import { ACTION_USES, NPM_URL, PRODUCT_LINE, PRODUCT_SUMMARY, PUBLISHED_VERSION, SHARE_IMAGE } from "@/lib/site";
+import { cn } from "@/lib/utils";
+import comment from "../../../public/evidence/comment-blocked-2.0.0-2026-10-30.json";
 
 export const metadata = pageMetadata(
   "/",
@@ -45,21 +40,30 @@ const STRUCTURED_DATA = {
   ],
 } as const;
 
-const FAQ = [
-  { q: "Which agents does it work with?", a: "Any agent that leaves its work on a branch. With no arguments Pytxo checks branches named claude/*, codex/*, copilot/*, cursor/*, devin/*, jules/* and agent/*, plus every branch in a linked worktree, that have a commit in the last 14 days. Name other branches yourself, or set git config pytxo.branches." },
-  { q: "How does it find my tests?", a: "It reads the target branch and picks the usual command for package.json (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a Makefile test target. Or pass your own with -c." },
-  { q: "Does it change my repository?", a: "No. The merge and the tests happen in a throwaway worktree. Only --apply lands a ready result on the target branch, and it refuses if that branch moved during the check." },
-  { q: "What does a pass prove?", a: "That your tests pass on the merge of the branches. Pytxo catches what your tests catch: a break they don't cover can still land. Merge conflicts are blocked, not resolved." },
-  { q: "What if a test is flaky?", a: "When the combined change fails, Pytxo runs each branch alone and, if every branch passes alone, the combined change once more. A failure that does not repeat is reported as flaky, not as a break. A combined run that times out is not run again, and the branches do not run alone after it." },
-  { q: "Does it send my code anywhere?", a: "No. The check runs on your machine or in your own CI. It calls no model, needs no account, and sends nothing anywhere." },
-  { q: "Is the GitHub Action safe on public repositories?", a: "It runs on pull_request only and refuses pull_request_target. A fork's pull request never joins another pull request's run: it is checked in its own run, with GitHub's read-only token and no secrets. Pull requests opened by Copilot or github-actions[bot], whose runs GitHub holds for approval, join another pull request's run only when the workflow has actions: read, and only at their newest commit whose run someone let start; once approved, their own run checks them with the others. Your tests run in the job that holds the Action's token, so give the workflow no other permissions or secrets; with actions: read, code in the checked branches can also read every workflow run's logs and artifacts." },
-  { q: "What does it cost?", a: "Pytxo is free on your machine and on public repositories, and open source under MIT. A paid plan for private repositories in CI is planned; until it opens, the Action is free everywhere." },
-  { q: "What happened to Pytxo Desktop?", a: "It is frozen and still a free download for Windows. Pytxo now does one thing: the check." },
-] as const;
+const COMMENT_URL = "/evidence/comment-blocked-2.0.0-2026-10-30.json";
+// The checks table of the recorded pull request comment, in the order the check ran them: the combined change,
+// each branch alone once that failed, and the combined change once more.
+const RUNS = comment.output
+  .split(/\r?\n/)
+  .flatMap((row) => {
+    const m = /^\| `[^`]+` \| `([^`]+)` \| \**(pass|fail)\** \| ([\d.]+)s \|$/.exec(row);
+    if (!m) return [];
+    const [, scope, result, seconds] = m;
+    const alone = scope.startsWith("input:");
+    return [{
+      order: scope === "combined" ? 0 : alone ? 1 : 2,
+      label: alone ? `${scope.slice("input:".length)} alone` : scope === "combined" ? "together" : "together, again",
+      passed: result === "pass",
+      seconds,
+    }];
+  })
+  .sort((a, b) => a.order - b.order);
+
+const ACTION_AT = ACTION_USES.indexOf("actions/");
 
 export default function HomePage() {
   return (
-    <>
+    <div className={s.page}>
       <script
         type="application/ld+json"
         // sloplint-disable-next-line SEC-007 -- constant structured data; "<" is escaped below
@@ -68,41 +72,56 @@ export default function HomePage() {
         }}
       />
       <Hero />
-      <HowItWorks />
-      <CiSection />
-      <CompareSection />
-      <ProofSection />
-      <CompatibilitySection />
-      <section
-        className="mx-auto grid max-w-[92rem] gap-12 border-t border-white/10 px-4 py-[clamp(4.5rem,7vw,7.5rem)] sm:px-6 lg:grid-cols-[0.72fr_1.28fr] lg:px-10"
-        aria-labelledby="faq-title"
-        data-testid="faq-section"
-      >
-        <div>
-          <h2
-            id="faq-title"
-            className="max-w-md text-[clamp(2rem,3.4vw,3.25rem)] leading-[1.06] tracking-[-0.04em]"
-          >
-            Questions
-          </h2>
-          <p className="mt-6 max-w-sm text-sm leading-relaxed text-[#8d8d96]">
-            Your agents write the branches. Your tests decide whether they go together.
-          </p>
+      <RecordedDemo />
+
+      <section className={s.sec} aria-labelledby="decide-title" data-testid="decide-section">
+        <div className={s.wrap}>
+          <h2 id="decide-title">Together first. If that fails, each alone.</h2>
+          {/* The roles keep the table a table for screen readers where phones lay its rows out as a grid. */}
+          <table className={s.ledger} role="table">
+            <caption className="sr-only">npm test runs from the pull request comment pytxo {comment.version} wrote for the demo&apos;s branches</caption>
+            <tbody role="rowgroup">
+              {RUNS.map((run) => (
+                <tr key={run.label} className={run.passed ? s.pass : s.fail} role="row">
+                  <th scope="row" role="rowheader">{run.label}</th>
+                  <td className={s.res} role="cell"><span className={s.dot} aria-hidden="true" />{run.passed ? "pass" : "fail"}</td>
+                  <td className={s.t} role="cell">{run.seconds}&nbsp;s</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className={s.verdict}>A break, not a flaky test. Blocked.</p>
+          <div className={s.recFoot}>
+            <a href={COMMENT_URL}>Pull request comment · pytxo&nbsp;{comment.version} · rendered locally</a>
+          </div>
         </div>
-        <Accordion type="single" collapsible className="w-full border-t border-white/10">
-          {FAQ.map((item) => (
-            <AccordionItem key={item.q} value={item.q} className="border-white/10 py-1">
-              <AccordionTrigger className="py-5 text-left text-base hover:no-underline sm:text-lg">
-                {item.q}
-              </AccordionTrigger>
-              <AccordionContent className="max-w-3xl pb-6 text-sm leading-relaxed text-[#a9a9b2] sm:text-base">
-                {item.a}
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
       </section>
-      <GetItSection />
-    </>
+
+      <section className={s.sec} aria-labelledby="where-title" data-testid="where-section">
+        <div className={s.wrap}>
+          <h2 id="where-title">Where it runs.</h2>
+          <ul className={s.where}>
+            <li><p>In your terminal</p><code>npx pytxo</code></li>
+            <li>
+              <p>When an agent stops, through the <Link href="/docs/getting-started/agent-hooks">Claude Code plugin or the Codex hook</Link></p>
+              <code>npx pytxo hook</code>
+            </li>
+            <li>
+              <p>On every agent pull request, with the <Link href="/docs/getting-started/land-in-ci">GitHub Action</Link></p>
+              <code>uses: {ACTION_USES.slice(0, ACTION_AT)}<wbr />{ACTION_USES.slice(ACTION_AT)}</code>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section className={cn(s.sec, s.close)} aria-labelledby="close-title" data-testid="close-section">
+        <div className={s.wrap}>
+          <h2 id="close-title"><span>Before the merge,</span> <span>not after.</span></h2>
+          <div className={s.act}>
+            <CopyCommand />
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
