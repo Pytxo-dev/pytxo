@@ -6,8 +6,8 @@
   is the whole 2.0.0 release (its release content ends at `3b0c168`). Not
   pushed or tagged; npm's latest is 1.3.6. Main (`797ffd6`) is an ancestor.
 - `mbcz/site-v2`, same worktree, is that branch plus the site redesign: the
-  home page (`dc95ec9`), the inner pages (`2d9da1a`) and the terms price
-  (`a09770f`). Not pushed. The site
+  home page (`dc95ec9`), the inner pages (`2d9da1a`), the terms price
+  (`a09770f`) and the closed $12 checkout (`26cd832`). Not pushed. The site
   goes live only through main (`deploy-web.yml` runs on push to main), so it
   ships with 2.0.0 or after.
 - `mbcz/pytxo-2-promote` in `C:\pytxo\.claude\worktrees\pytxo-2-promote` is
@@ -45,12 +45,16 @@
 ## Not done
 
 - Nothing is pushed, tagged, published or deployed. Matt runs the ship.
-- `/terms` now states the `/plans` price (Matt: "Match /plans"; `a09770f`,
-  shared `PRO_LAUNCH` in `lib/site.ts`). Still $12/month: `/account`
-  (`PRO_PRICE` in `lib/billing/pro.ts`, the Dodo product) and
-  `content/docs/getting-started/account.mdx`. The $12 checkout still opens
-  where `DODO_ENVIRONMENT=live`. Closing it is billing, Matt's call
-  (`pytxo-launch-plan.md` item 3).
+- One Pro on the site: `/terms` states the `/plans` price (`a09770f`,
+  shared `PRO_LAUNCH` in `lib/site.ts`), and the $12/month account checkout
+  is closed in code (Matt: "Yes, close it"; `26cd832`,
+  `PRO_CHECKOUT_OPEN = false`). `/account` and the account docs name the
+  `/plans` Pro. Existing subscribers keep Manage billing; the portal,
+  webhook and Dodo product are untouched. Not changed: the CLI's 402
+  messages still call private receipts and private Pybench "a Pytxo Pro
+  perk: /plans" (`crates/pytxo-cli/src/account.rs:251-256, 298-299`); that
+  is release code, for the release after 2.0.0. The signed-in plan panel
+  was checked by tsc and lint only (needs a sign-in to render).
 - The signed-in account views (`components/account-auth.tsx`: entitlements,
   receipts, Desktop routing) still draw their v1 rounded boxes inside the v2
   page; not captured, since they need a sign-in.
@@ -64,7 +68,7 @@
 
 ## Tests last run
 
-- 2026-10-31, `apps/web` at `2d9da1a`: `next build`; Playwright 31 of 31
+- 2026-10-31, `apps/web` at `2d9da1a` and again at `26cd832`: `next build`; Playwright 31 of 31
   through `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3217`; eslint,
   `tsc --noEmit`, `check:links` (201 links); sloplint 0 on the 13 changed
   files. Captures of all 10 inner pages at 1440×900 and 390×844 reviewed:
@@ -114,10 +118,10 @@ or any live checkout. No AI attribution trailers.
    passes, the promotion is merged and pytxo.com serves the v2 site —
    `C:\pytxo\.claude\worktrees\product-review-a0207f` — blocked: Matt runs
    steps 1 to 8 of `pytxo-2.1-report.md`, then merges `mbcz/site-v2`.
-2. One Pro, one price everywhere — done when: `/account`, the account docs
-   and the CLI's 402 messages name the `/plans` Pro and the $12 checkout
-   cannot open — `C:\pytxo\.claude\worktrees\product-review-a0207f` —
-   blocked: Matt approves closing the $12 checkout (billing).
+2. The CLI's 402 messages name the `/plans` Pro — done when: private
+   receipts, private Pybench and the 25-receipt limit no longer point at
+   `/plans` as Pro perks, and `cargo test -p pytxo-cli` passes — in the
+   release after 2.0.0 — `C:\pytxo`.
 3. After the ship, steps 9 to 12 of `pytxo-2.0-report.md` — done when: the
    repository description and topics are set, Linux glibc and a real
    repository are checked, and a real hook session ran before the plugin
