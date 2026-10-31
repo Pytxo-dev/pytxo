@@ -2,12 +2,8 @@ import Link from "next/link";
 
 import s from "@/components/site/site.module.css";
 import { pageMetadata } from "@/lib/page-metadata";
-import { DISCORD_URL, GET_STARTED_HREF } from "@/lib/site";
+import { DISCORD_URL, GET_STARTED_HREF, PRO_LAUNCH } from "@/lib/site";
 import { cn } from "@/lib/utils";
-
-// Display copy only. Pro is not on sale: the Action's licensing check ships
-// switched off, and this page links to no checkout.
-const PRO_LAUNCH = "$29 once for the first 500 buyers, then $5/month or $48/year";
 
 export const metadata = pageMetadata(
   "/plans",

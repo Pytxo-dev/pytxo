@@ -78,3 +78,7 @@ export const NAV_LINKS: NavLink[] = [
   { href: "/docs", label: "Docs" },
   { href: SOURCE_URL, label: "GitHub" },
 ];
+
+// Display copy only. Pro is not on sale: the Action's licensing check ships
+// switched off, and no page links to a checkout for it.
+export const PRO_LAUNCH = "$29 once for the first 500 buyers, then $5/month or $48/year";

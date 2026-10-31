@@ -1,14 +1,14 @@
 import Link from "next/link";
 
-import { LEGAL_CONTACT, LEGAL_UPDATED, LegalPage } from "@/components/site/legal-page";
-import { PRO_INTERVAL, PRO_PRICE } from "@/lib/billing/pro";
+import { LEGAL_CONTACT, LegalPage } from "@/components/site/legal-page";
 import { pageMetadata } from "@/lib/page-metadata";
+import { PRO_LAUNCH } from "@/lib/site";
 
 export const metadata = pageMetadata("/terms", "Terms · Pytxo", "Terms for Pytxo accounts, shared receipts and Pytxo Pro.");
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms" updated={LEGAL_UPDATED}>
+    <LegalPage title="Terms" updated="October 31, 2026">
       <section>
         <h2>Who we are</h2>
         <p>
@@ -43,13 +43,14 @@ export default function TermsPage() {
         <h2>Pytxo Pro</h2>
         <ul>
           <li>
-            Pytxo Pro costs {PRO_PRICE} per {PRO_INTERVAL}, billed in advance. Taxes are shown at checkout.
+            Pytxo Pro covers the GitHub Action on private repositories and is not on sale yet. When it opens, it costs{" "}
+            {PRO_LAUNCH}, billed in advance. Taxes are shown at checkout.
           </li>
           <li>
-            Payments are processed by Dodo Payments, our merchant of record and the seller of the subscription. Their
-            terms also apply to your purchase.
+            Payments are processed by Dodo Payments, our merchant of record and the seller of Pro. Their terms also
+            apply to your purchase.
           </li>
-          <li>The subscription renews automatically each month until you cancel.</li>
+          <li>A monthly or yearly plan renews automatically at the end of each period until you cancel.</li>
           <li>
             Cancel any time from <Link href="/account">your account</Link> (Manage billing). Pro stays on until the end of
             the period you paid for.
