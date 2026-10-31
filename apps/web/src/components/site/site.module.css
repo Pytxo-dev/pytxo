@@ -92,6 +92,92 @@
 .foot .brand { font-size: 19px; }
 .foot .brand svg { width: 24px; height: 24px; }
 
+/* Inner pages: the home page's type and hairlines at reading size */
+.inner { padding-top: clamp(48px, 8vh, 88px); padding-bottom: var(--pad); }
+.inner h1 { font-weight: 500; font-size: var(--section); line-height: 1.04; letter-spacing: -.04em; text-wrap: balance; }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; }
+.ver { font: 400 var(--mono)/1 var(--code); color: var(--dim); }
+.lede { margin-top: 24px; max-width: 48ch; color: var(--dim); }
+.note { margin-top: 16px; max-width: 60ch; color: var(--dim); }
+.lede b, .note b { font-weight: 500; color: var(--paper); }
+.inner p code, .inner li code { font-size: .9em; color: var(--paper); white-space: nowrap; }
+.lede a, .note a, .prose a, .rows a, .snipHead a { text-decoration: underline 1px var(--hair); text-underline-offset: 5px; transition: color .2s, text-decoration-color .2s; }
+.lede a:hover, .note a:hover, .prose a:hover, .rows a:hover, .snipHead a:hover { color: var(--paper); text-decoration-color: var(--paper); }
+.part { margin-top: 72px; padding-top: 40px; border-top: 1px solid var(--hair); }
+.part h2, .tier h2 { font-weight: 500; font-size: clamp(26px, 2.4vw, 34px); line-height: 1.12; letter-spacing: -.035em; }
+.part h3 { margin-top: 40px; font-weight: 500; font-size: 20px; letter-spacing: -.02em; }
+.btn { display: inline-flex; align-items: center; height: 56px; padding: 0 22px; background: var(--paper); color: var(--site-ink); font-weight: 500; font-size: 18px; text-decoration: none; }
+.dim { color: var(--dim); }
+
+/* Ruled rows: platforms, next steps, account links */
+.rows { list-style: none; margin-top: 32px; }
+.rows > li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; padding: 20px 0 22px; border-top: 1px solid var(--hair); }
+.rows > li:last-child { border-bottom: 1px solid var(--hair); }
+.rows button:disabled { color: var(--dim); cursor: default; }
+.grid2 { display: grid; column-gap: 40px; }
+@media (min-width: 768px) {
+  .grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid2 > li:nth-last-child(2):nth-child(odd) { border-bottom: 1px solid var(--hair); }
+}
+
+/* A command to copy: its name and the button on one line, the exact bytes under it */
+.snip { margin-top: 24px; border-top: 1px solid var(--hair); }
+.snipHead { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 52px; font-size: 16px; color: var(--dim); }
+.snipCopy { padding: 12px 0 12px 16px; color: var(--dim); cursor: pointer; transition: color .2s; }
+.snipCopy:hover { color: var(--paper); }
+.snip pre { padding-bottom: 20px; overflow-x: auto; white-space: pre; font: 400 var(--mono)/1.6 var(--code); color: var(--paper); }
+.snipFail { display: block; padding-bottom: 16px; font-size: 16px; }
+
+/* Plans */
+.tiers { display: grid; gap: 56px; margin-top: 72px; }
+@media (min-width: 768px) { .tiers { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; } }
+.tier { padding-top: 28px; border-top: 1px solid var(--hair); }
+.tier h2 { margin-top: 10px; }
+.tier p:not(.dim), .tier li { font-size: 18px; }
+.tier p:not(.dim) { margin-top: 16px; color: var(--dim); }
+.tier ul { list-style: none; margin-top: 24px; }
+.tier li { padding: 12px 0; border-top: 1px solid var(--hair); color: var(--soft); }
+
+/* Pybench and receipts: figures, tables and facts */
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 24px; margin-top: 40px; }
+@media (min-width: 1024px) { .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.stats dt { font-size: 16px; color: var(--dim); }
+.stats > div { display: flex; flex-direction: column; }
+.stats dd { margin-top: auto; padding-top: 8px; font-size: var(--section); font-weight: 500; line-height: 1; letter-spacing: -.04em; }
+.scroll { margin-top: 32px; }
+.stats + .note { margin-top: 48px; }
+.table { width: 100%; border-collapse: collapse; text-align: left; font-size: 16px; }
+.table th, .table td { padding: 14px 24px 14px 0; border-bottom: 1px solid var(--hair); font-weight: 400; vertical-align: baseline; }
+.table thead th { color: var(--dim); }
+.table tbody th { color: var(--paper); }
+.table td { color: var(--soft); }
+.table .num { padding-right: 0; text-align: right; font: 400 15px/1.5 var(--code); }
+.table .dot { width: 8px; height: 8px; margin-right: 8px; vertical-align: 1px; }
+.facts { margin-top: 40px; border-bottom: 1px solid var(--hair); }
+.facts > div { display: grid; gap: 4px 24px; padding: 16px 0; border-top: 1px solid var(--hair); }
+@media (min-width: 768px) { .facts:not(.stack) > div { grid-template-columns: 19rem minmax(0, 1fr); } }
+.facts dt { color: var(--dim); }
+.facts dd { color: var(--soft); }
+
+/* Receipt, account and 404 */
+.panel { margin-top: 32px; max-width: 44rem; }
+/* The shared account components set small text; on these pages they read at body size. */
+.panel p, .panel li, .panel dt, .panel dd { font-size: 18px; line-height: 1.5; }
+.panel [data-slot="button"] { height: 48px; padding: 0 20px; border-radius: 0; font-size: 16px; }
+.paths { margin-top: 32px; }
+.paths summary { cursor: pointer; color: var(--soft); }
+.paths ul { margin-top: 12px; font: 400 14px/1.7 var(--code); color: var(--dim); overflow-wrap: anywhere; }
+.digest { font: 400 14px/1.6 var(--code); overflow-wrap: anywhere; }
+.lost { margin-top: 16px; }
+
+/* Terms, privacy and refunds */
+.prose { max-width: 66ch; }
+.prose section { margin-top: 48px; }
+.prose h2 { font-weight: 500; font-size: clamp(22px, 2vw, 28px); line-height: 1.2; letter-spacing: -.03em; }
+.prose p, .prose ul { margin-top: 14px; color: var(--soft); }
+.prose ul { padding-left: 1.2em; list-style: disc; }
+.prose li + li { margin-top: 8px; }
+
 @media (max-width: 767px) {
   .close h2 { font-size: min(var(--display), (100vw - 2 * var(--gut)) / 8.4); }
   .links { gap: 24px; }
@@ -120,6 +206,9 @@
   .row { flex-direction: column; align-items: flex-start; }
   /* Rows of links 44 px apart, so each one's touch area stays its own. */
   .foot nav { gap: 20px 28px; }
+  .part { margin-top: 56px; padding-top: 32px; }
+  .btn { width: 100%; justify-content: center; }
+  .snip pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 }
 
 @media (prefers-reduced-motion: reduce) {

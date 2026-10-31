@@ -91,6 +91,12 @@
   --soft: rgba(236, 234, 228, 0.72);
   --dim: rgba(236, 234, 228, 0.56);
   --hair: rgba(236, 234, 228, 0.14);
+  /* The shared components (account sign-in, buttons) draw from these, so they stay in ink and paper too. */
+  --primary: #eceae4;
+  --primary-foreground: #08080a;
+  --muted-foreground: rgba(236, 234, 228, 0.56);
+  --border: rgba(236, 234, 228, 0.14);
+  --ring: #eceae4;
   --signal: linear-gradient(90deg, #f04da3, #ff6a4a);
   --sans: "Sora", ui-sans-serif, system-ui, sans-serif;
   --code: "IBM Plex Mono", ui-monospace, monospace;

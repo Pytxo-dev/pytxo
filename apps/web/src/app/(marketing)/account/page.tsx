@@ -3,8 +3,9 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { AccountAuth } from "@/components/account-auth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import s from "@/components/site/site.module.css";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Account",
@@ -22,47 +23,36 @@ const QUICK_LINKS = [
 
 export default function AccountPage() {
   return (
-    <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-24">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Account</h1>
-        <p className="max-w-2xl text-muted-foreground">
+    <div className={s.page}>
+      <div className={cn(s.wrap, s.inner)}>
+        <h1>Account</h1>
+        <p className={s.lede}>
           {SITE_AUTH_ENABLED
             ? "Pytxo runs on your machine without an account. Signing in adds hosted perks: shareable receipts, receipt history and the Pybench board."
             : "Pytxo runs on your machine without an account. Account features will appear here when sign-in is available."}
         </p>
-      </div>
 
-      <div className="mt-10 grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:gap-12">
-        <Card className="border-border bg-card/30">
-          <CardHeader>
-            <CardTitle>Your account</CardTitle>
-            <CardDescription>Perks, connected tools and shared receipts.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Suspense fallback={<p className="text-sm text-muted-foreground">Loading account…</p>}>
+        <section className={s.part}>
+          <h2>Your account</h2>
+          <p className={s.note}>Perks, connected tools and shared receipts.</p>
+          <div className={s.panel}>
+            <Suspense fallback={<p className={s.dim}>Loading account…</p>}>
               <AccountAuth />
             </Suspense>
-          </CardContent>
-        </Card>
-
-        <div className="flex flex-col gap-4 border-t border-border pt-6 lg:border-t-0 lg:border-l lg:pl-8 lg:pt-0">
-          <div>
-            <h2 className="text-sm font-semibold tracking-tight">Quick links</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Common next steps from your account.</p>
           </div>
-          <nav className="flex flex-col gap-1">
+        </section>
+
+        <section className={s.part}>
+          <h2>Quick links</h2>
+          <ul className={cn(s.rows, s.grid2)}>
             {QUICK_LINKS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-[var(--radius-md)] px-2 py-2.5 transition-colors hover:bg-muted/40"
-              >
-                <span className="block text-sm font-medium text-foreground">{item.label}</span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">{item.detail}</span>
-              </Link>
+              <li key={item.href}>
+                <Link href={item.href} className="touch-target relative">{item.label}</Link>
+                <span className={s.dim}>{item.detail}</span>
+              </li>
             ))}
-          </nav>
-        </div>
+          </ul>
+        </section>
       </div>
     </div>
   );

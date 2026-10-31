@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { pageMetadata } from "@/lib/page-metadata";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { DownloadDesktop } from "@/components/site/download-desktop";
 import { InstallSnippet } from "@/components/site/install-snippet";
+import s from "@/components/site/site.module.css";
+import { pageMetadata } from "@/lib/page-metadata";
 import {
   GITHUB_URL,
   INSTALL_PS1_CMD,
@@ -15,6 +14,7 @@ import {
   RELEASES_URL,
   SOURCE_URL,
 } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
 export const metadata = pageMetadata(
   "/download",
@@ -22,133 +22,74 @@ export const metadata = pageMetadata(
   "The Pytxo CLI for macOS, Linux and Windows, and Pytxo Desktop for Windows, which is frozen.",
 );
 
+const NEXT_STEPS = [
+  { href: "/docs/getting-started/quickstart", label: "Quickstart" },
+  { href: "/docs/getting-started/land-in-ci", label: "GitHub Action" },
+  { href: "/docs/getting-started/agent-hooks", label: "Claude Code and Codex" },
+  { href: "/docs/reference/cli", label: "CLI reference" },
+  { href: "/docs/getting-started/install", label: "Install by platform" },
+  { href: "/docs/concepts/desktop", label: "Pytxo Desktop overview" },
+];
+
 export default function DownloadPage() {
   return (
-    <div className="mx-auto max-w-[76rem] px-4 py-14 sm:px-6 sm:py-20 lg:px-10">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Download</h1>
-          <Badge
-            variant="outline"
-            className="border-primary/30 bg-primary/10 font-mono text-xs text-primary"
-          >
-            v{PUBLISHED_VERSION}
-          </Badge>
+    <div className={s.page}>
+      <div className={cn(s.wrap, s.inner)}>
+        <div className={s.head}>
+          <h1>Download</h1>
+          <span className={s.ver}>v{PUBLISHED_VERSION}</span>
         </div>
-        <p className="max-w-2xl text-lg text-muted-foreground">
-          The check needs no download: run <code className="font-mono text-[0.9em]">npx pytxo demo</code>, then{" "}
-          <code className="font-mono text-[0.9em]">npx pytxo</code> in your repository. Install the CLI below to keep it on
-          your PATH. Pytxo Desktop is frozen: no new features, and still a free download for Windows.
+        <p className={s.lede}>
+          The check needs no download: run <code>npx pytxo demo</code>, then <code>npx pytxo</code> in your repository.
+          Install the CLI below to keep it on your PATH. Pytxo Desktop is frozen: no new features, and still a free
+          download for Windows.
         </p>
-      </div>
 
-      <div className="mt-10 flex flex-col gap-10">
-        <DownloadDesktop />
-
-        <section className="border-t border-border pt-10">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">CLI</h2>
-            <span className="text-sm text-muted-foreground">
-              The check, for macOS, Linux and Windows
-            </span>
+        <section className={s.part}>
+          <div className={s.head}>
+            <h2>CLI</h2>
+            <span className={s.dim}>The check, for macOS, Linux and Windows</span>
           </div>
-          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Checks your agents&apos; branches together. <code className="font-mono">npx pytxo</code> runs it
-            without installing; these keep <code className="font-mono">pytxo</code> on your PATH.
+          <p className={s.note}>
+            Checks your agents&apos; branches together. <code>npx pytxo</code> runs it without installing; these keep{" "}
+            <code>pytxo</code> on your PATH.
           </p>
+          <InstallSnippet
+            label={<><a href={NPM_URL} target="_blank" rel="noopener noreferrer">npm</a> · Node 18+</>}
+            copyLabel="Copy npm setup commands"
+          >{`${NPM_INSTALL}\npytxo demo`}</InstallSnippet>
 
-          <div className="mt-6 flex flex-col gap-6">
-            <div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-medium">
-                  <a
-                    href={NPM_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-primary"
-                  >
-                    npm
-                  </a>
-                </h3>
-                <span className="text-xs text-muted-foreground">Node 18+</span>
-              </div>
-              <InstallSnippet className="mt-3" copyLabel="Copy npm setup commands">{`${NPM_INSTALL}\npytxo demo`}</InstallSnippet>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium">Install script</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Windows PowerShell is first-class. macOS and Linux scripts are also available. No Node required.
-              </p>
-              <div className="mt-4 grid gap-4">
-                <div>
-                  <h4 className="text-sm font-medium">Windows PowerShell</h4>
-                  <InstallSnippet className="mt-2" copyLabel="Copy Windows PowerShell install command">{INSTALL_PS1_CMD}</InstallSnippet>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium">macOS / Linux</h4>
-                  <InstallSnippet className="mt-2" copyLabel="Copy macOS and Linux install command">{INSTALL_SH_CMD}</InstallSnippet>
-                </div>
-              </div>
-              <p className="mt-3 text-sm text-muted-foreground">
-                Binaries and scripts live in the public{" "}
-                <a
-                  href={GITHUB_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline underline-offset-4"
-                >
-                  pytxo-releases
-                </a>{" "}
-                repository. The MIT-licensed source is at{" "}
-                <a
-                  href={SOURCE_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline underline-offset-4"
-                >
-                  Pytxo-dev/pytxo
-                </a>
-                .
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-sm font-medium">Prebuilt binaries</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Manual download per platform from GitHub Releases.
-                </p>
-              </div>
-              <Button variant="outline" className="touch-target relative border-border" asChild>
-                <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer">
-                  Browse releases
-                </a>
-              </Button>
-            </div>
-          </div>
+          <h3>Install script</h3>
+          <p className={s.note}>
+            Windows PowerShell is first-class. macOS and Linux scripts are also available. No Node required.
+          </p>
+          <InstallSnippet label="Windows PowerShell" copyLabel="Copy Windows PowerShell install command">{INSTALL_PS1_CMD}</InstallSnippet>
+          <InstallSnippet label="macOS / Linux" copyLabel="Copy macOS and Linux install command">{INSTALL_SH_CMD}</InstallSnippet>
+          <p className={s.note}>
+            Binaries and scripts live in the public{" "}
+            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">pytxo-releases</a> repository. The
+            MIT-licensed source is at{" "}
+            <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">Pytxo-dev/pytxo</a>.
+          </p>
+          <ul className={s.rows}>
+            <li>
+              <span>Prebuilt binaries <span className={s.dim}>Manual download per platform from GitHub Releases.</span></span>
+              <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className="touch-target relative">Browse releases</a>
+            </li>
+          </ul>
         </section>
 
-        <section className="border-t border-border pt-10" data-testid="next-steps">
-          <h2 className="text-lg font-semibold tracking-tight">Next steps</h2>
-          <div className="mt-4 grid gap-1 sm:grid-cols-2">
-            {[
-              { href: "/docs/getting-started/quickstart", label: "Quickstart" },
-              { href: "/docs/getting-started/land-in-ci", label: "GitHub Action" },
-              { href: "/docs/getting-started/agent-hooks", label: "Claude Code and Codex" },
-              { href: "/docs/reference/cli", label: "CLI reference" },
-              { href: "/docs/getting-started/install", label: "Install by platform" },
-              { href: "/docs/concepts/desktop", label: "Pytxo Desktop overview" },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="px-1 py-2 text-sm font-medium text-primary transition-colors hover:text-foreground max-md:py-3"
-              >
-                {item.label}
-              </Link>
+        <DownloadDesktop />
+
+        <section className={s.part} data-testid="next-steps">
+          <h2>Next steps</h2>
+          <ul className={cn(s.rows, s.grid2)}>
+            {NEXT_STEPS.map((item) => (
+              <li key={item.href}>
+                <Link href={item.href} className="touch-target relative">{item.label}</Link>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       </div>
     </div>

@@ -244,7 +244,7 @@ test("plans expose free use, Pro for private repositories and planned Team", asy
   await expect(cells).toHaveCount(3);
 
   for (const tier of PLAN_TIERS) {
-    await expect(page.locator('[data-slot="card-title"]', { hasText: tier.title })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: tier.title, exact: true })).toBeVisible();
     await expect(page.getByText(tier.status, { exact: true })).toBeVisible();
   }
 
@@ -282,7 +282,7 @@ test("plans remain complete and single-column on mobile", async ({ page }, testI
   const cells = page.getByTestId("plan-cell");
   await expect(cells).toHaveCount(3);
   for (const tier of PLAN_TIERS) {
-    await expect(page.locator('[data-slot="card-title"]', { hasText: tier.title })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: tier.title, exact: true })).toBeVisible();
     await expect(page.getByText(tier.status, { exact: true })).toBeVisible();
   }
 
