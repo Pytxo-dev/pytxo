@@ -1,5 +1,5 @@
 name: Pytxo check
-description: Each agent's branch passes. Do they pass together? Merges the open agent pull requests in a throwaway worktree, runs your tests on the combined result, and comments the verdict.
+description: Test your agents' pull requests together before any of them merges. Merges the open agent pull requests in a throwaway worktree, runs your tests on the combined result, and comments the verdict.
 branding:
   icon: git-merge
   color: green

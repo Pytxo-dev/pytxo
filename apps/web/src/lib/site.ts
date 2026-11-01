@@ -52,9 +52,9 @@ export type NavLink = {
 };
 
 /** One product sentence, used by metadata, footer and structured data. */
-export const PRODUCT_LINE = "Each agent's branch passes. Do they pass together?";
+export const PRODUCT_LINE = "Land all your agents' branches in one command.";
 export const PRODUCT_SUMMARY =
-  "Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests on the combined result, and blocks the merge if it breaks. Free, open source, runs on your machine or in CI.";
+  "Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests and lands them only if they pass together. Free and open source.";
 
 /** Agents verified live on a released build vs. those still in beta. */
 export const AGENT_SUPPORT = {
@@ -67,7 +67,7 @@ export const SHARE_IMAGE = {
   url: "/social/check-1600x1000.png",
   width: 1600,
   height: 1000,
-  alt: "Each agent's branch passes. Do they pass together? npx pytxo demo prints BLOCKED: two branches pass npm test alone but fail together, because one renamed price to unitPrice and the other still uses price.",
+  alt: "Land all your agents' branches in one command. npx pytxo demo prints BLOCKED: two branches pass npm test alone but fail together, because one renamed price to unitPrice and the other still uses price.",
 };
 
 /** Where a newcomer starts, linked from the plans and the 404 page. */

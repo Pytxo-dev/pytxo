@@ -11,12 +11,12 @@ export function Hero() {
       <MarkField />
       <div className={s.wrap}>
         <h1 id="hero-title">
-          <span data-keep="text:0.22">Each agent&apos;s branch passes.</span>{" "}
-          <span data-keep="text:0.22">Do they pass together?</span>
+          <span data-keep="text:0.22">Land all your agents&apos;</span>{" "}
+          <span data-keep="text:0.22">branches in one command.</span>
         </h1>
         <p className={s.pitch} data-keep="text:0.1">
-          Pytxo merges your coding agents&apos; branches in a throwaway worktree, runs your tests on the combined result,
-          and blocks the merge if it breaks.
+          Pytxo merges them in a throwaway worktree, runs your tests and lands them only if they pass. When two break
+          each other, nothing lands.
         </p>
         <div className={s.act}>
           <CopyCommand keep="box:0.1" />

@@ -1,8 +1,9 @@
 # Positioning
 
-**Each agent's branch passes. Do they pass together?** Pytxo merges your
-coding agents' branches in a throwaway worktree, runs your tests on the
-combined result, and blocks the merge if it breaks.
+**Land all your agents' branches in one command.** Pytxo merges your coding
+agents' branches in a throwaway worktree, runs your tests on the combined
+result, and lands them only if they pass. If two branches break each other,
+nothing lands and you see why.
 
 This page is the source for the README, the homepage, the npm and Action
 descriptions, and the plugin listings. When they disagree, fix them to match
@@ -24,6 +25,9 @@ without tests (Pytxo catches only what the tests catch).
   still break main the moment both are merged.
 - **Merge by hand.** Merge one branch, rebase the next, run the tests again,
   and find the break after the first branch has already landed.
+- **Ask the agent to merge.** Claude Code or Codex can merge the branches and
+  run the tests, but that spends the same usage limits as the work, and it may
+  merge differently each time.
 - **Use a merge queue** (GitHub's merge queue, Mergify, Graphite). These do
   test combined changes, but at merge time: after review, with branch
   protection set up first, inside one hosting provider. A break found there
@@ -33,6 +37,14 @@ without tests (Pytxo catches only what the tests catch).
 
 ## Why Pytxo
 
+- **One command for the routine job.** Merging three to five agent branches
+  by hand means merge, rebase, run the tests, repeat. `npx pytxo --apply` does
+  it in one step and moves the target only when the tests pass on the combined
+  result, by compare-and-swap, so it refuses if the target moved meanwhile.
+  Every run does that work, not only the rare run where branches break each
+  other.
+- **No model, no quota.** The check never calls a model, so it spends none of
+  your agents' usage limits.
 - **Your real tests on the combined result.** Not a diff heuristic and not a
   model's opinion: `npm test`, `pytest`, `cargo test`, `go test ./...` or
   whatever the repository uses, run on the merge of all the branches.
@@ -51,11 +63,14 @@ without tests (Pytxo catches only what the tests catch).
   pair fails and the others pass, in CI only the pull requests of the
   branches behind the failure fail. After a combined run times out, the
   branches do not run alone.
-- **Nothing in the repository changes.** The merge happens in a throwaway
-  worktree.
+- **Nothing changes until it passes.** The merge happens in a throwaway
+  worktree. Without `--apply` nothing in the repository changes; with it, only
+  the target branch moves.
 
 ## Honest limits
 
+- Landing is all or nothing: when the combination fails, nothing lands, even
+  the branches that pass on their own.
 - It catches what your tests catch. A break your tests don't cover still lands.
 - Merge conflicts are reported and blocked, not resolved.
 - Nobody has measured how often agents' branches fail only when combined. The
@@ -94,11 +109,14 @@ Pro is not switched on yet: until it is, the Action runs free everywhere.
 
 ## Words
 
-Use: check, together, combined, agent branches, throwaway worktree, READY,
+Use: land, check, together, combined, agent branches, throwaway worktree, READY,
 BLOCKED, verdict.
 
 Keep off every page a newcomer sees: control plane, hypervisor, telemetry,
 mission, fleet, the Orbit / Galaxy / DeepSpace / Supernova tiers, Signal
 Core, Blast Shield, Race Shield, Ultra. They still name real parts of the
-frozen 1.x tooling and live in the advanced docs. Lead with the question, not
-a category name such as "landing layer".
+frozen 1.x tooling and live in the advanced docs. Lead with the job (landing
+the agents' branches), then the guarantee (only if they pass together). Not
+with a category name such as "landing layer", and not with the rare failure:
+on Pytxo's own work, 0 of 21 sibling branch pairs failed only together
+(measured 2026-10-31).

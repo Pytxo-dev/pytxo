@@ -4,11 +4,12 @@
 [![npm](https://img.shields.io/npm/v/pytxo)](https://www.npmjs.com/package/pytxo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
 
-**Each agent's branch passes. Do they pass together?**
+**Land all your agents' branches in one command.**
 
 Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway
-worktree, runs your tests on the combined result, and blocks the merge if it
-breaks. Free, open source, runs on your machine or in CI.
+worktree, runs your tests on the combined result, and lands them only if they
+pass. If two branches break each other, nothing lands and you see why. Free,
+open source, runs on your machine or in CI.
 
 ```bash
 npx pytxo demo
@@ -17,15 +18,16 @@ npx pytxo demo
 ## Try it
 
 ```bash
-npx pytxo demo   # a throwaway repo where two agent branches pass alone and fail together
+npx pytxo demo      # a throwaway repo where two agent branches pass alone and fail together
 cd your-repo
-npx pytxo        # checks your agent branches together
+npx pytxo           # checks your agent branches together
+npx pytxo --apply   # and lands them if they pass
 ```
 
 No flags, no config, no account. Pytxo finds the agent branches, finds your
 test command, merges the branches in a throwaway worktree, runs the tests
 there and prints the verdict in three lines: what happened, why, and what to
-do next. Nothing in your repository changes. Ctrl+C stops a check and removes
+do next. Nothing in your repository changes unless you add `--apply`. Ctrl+C stops a check and removes
 its throwaway worktree; a check that is killed outright leaves the worktree in
 `git worktree list` until the next check removes it.
 

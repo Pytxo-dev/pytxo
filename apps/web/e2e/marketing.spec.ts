@@ -26,8 +26,8 @@ for (const width of [1440, 390]) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     const hero = page.getByTestId("marketing-hero");
-    await expect(hero.getByRole("heading", { level: 1 })).toHaveText("Each agent's branch passes. Do they pass together?");
-    await expect(hero.getByText(/runs your tests on the combined result, and blocks the merge if it breaks/)).toBeVisible();
+    await expect(hero.getByRole("heading", { level: 1 })).toHaveText("Land all your agents' branches in one command.");
+    await expect(hero.getByText(/runs your tests and lands them only if they pass/)).toBeVisible();
     await expect(hero.getByRole("button", { name: "Copy npx pytxo demo" })).toBeInViewport({ ratio: 1 });
     await expect(hero.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
     // The demo shows the recorded bytes of a real run, not a retyped or illustrated one.
@@ -56,7 +56,7 @@ for (const width of [1440, 390]) {
     }
     await expect(decide.getByRole("link", { name: /^Pull request comment/ })).toHaveAttribute("href", "/evidence/comment-blocked-2.0.0-2026-10-30.json");
     const where = page.getByTestId("where-section");
-    await expect(where.locator("code")).toHaveText(["npx pytxo", "npx pytxo hook", "uses: Pytxo-dev/pytxo/actions/land@v2"]);
+    await expect(where.locator("code")).toHaveText(["npx pytxo --apply", "npx pytxo hook", "uses: Pytxo-dev/pytxo/actions/land@v2"]);
     for (const [name, href] of [
       ["Claude Code plugin or the Codex hook", "/docs/getting-started/agent-hooks"],
       ["GitHub Action", "/docs/getting-started/land-in-ci"],

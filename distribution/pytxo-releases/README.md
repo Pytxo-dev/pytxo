@@ -1,15 +1,17 @@
 # Pytxo
 
-**Each agent's branch passes. Do they pass together?**
+**Land all your agents' branches in one command.**
 
 Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway
-worktree, runs your tests on the combined result, and blocks the merge if it
-breaks. Free, open source, runs on your machine or in CI.
+worktree, runs your tests on the combined result, and lands them only if they
+pass. If two branches break each other, nothing lands and you see why. Free,
+open source, runs on your machine or in CI.
 
 ```bash
-npx pytxo demo   # a throwaway repo where two agent branches pass alone and fail together
+npx pytxo demo      # a throwaway repo where two agent branches pass alone and fail together
 cd your-repo
-npx pytxo        # checks your agent branches together
+npx pytxo           # checks your agent branches together
+npx pytxo --apply   # and lands them if they pass
 ```
 
 This repository holds the release binaries and install scripts. The source is

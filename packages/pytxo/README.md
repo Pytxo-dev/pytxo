@@ -1,14 +1,16 @@
 # pytxo
 
-**Each agent's branch passes. Do they pass together?**
+**Land all your agents' branches in one command.**
 
 Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway
-worktree, runs your tests on the combined result, and blocks the merge if it
-breaks. Free, open source, runs on your machine or in CI.
+worktree, runs your tests on the combined result, and lands them only if they
+pass. If two branches break each other, nothing lands and you see why. Free,
+open source, runs on your machine or in CI.
 
 ```bash
-npx pytxo demo   # watch it catch two branches that pass alone and fail together
-npx pytxo        # check the agent branches in your repository
+npx pytxo demo      # watch it catch two branches that pass alone and fail together
+npx pytxo           # check the agent branches in your repository
+npx pytxo --apply   # and land them if they pass
 ```
 
 `npx pytxo` finds the agent branches (`claude/*`, `codex/*`, `copilot/*`,
@@ -21,7 +23,7 @@ why      claude/rename-price renamed price to unitPrice; codex/add-discount stil
 next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
 ```
 
-Nothing in your repository changes. Exit codes: `0` ready (or nothing to
+Nothing in your repository changes unless you add `--apply`. Exit codes: `0` ready (or nothing to
 check), `2` blocked, `3` stale (the target moved), `1` error, `130` stopped by
 Ctrl+C.
 

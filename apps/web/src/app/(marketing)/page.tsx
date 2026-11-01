@@ -11,7 +11,7 @@ import comment from "../../../public/evidence/comment-blocked-2.0.0-2026-10-30.j
 
 export const metadata = pageMetadata(
   "/",
-  "Pytxo: do your agents' branches pass together?",
+  "Pytxo: land your coding agents' branches in one command",
   PRODUCT_SUMMARY,
 );
 
@@ -101,7 +101,7 @@ export default function HomePage() {
         <div className={s.wrap}>
           <h2 id="where-title">Where it runs.</h2>
           <ul className={s.where}>
-            <li><p>In your terminal</p><code>npx pytxo</code></li>
+            <li><p>In your terminal</p><code>npx pytxo --apply</code></li>
             <li>
               <p>When an agent stops, through the <Link href="/docs/getting-started/agent-hooks">Claude Code plugin or the Codex hook</Link></p>
               <code>npx pytxo hook</code>

@@ -9,7 +9,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL("https://pytxo.com"),
   title: {
-    default: "Pytxo: do your agents' branches pass together?",
+    default: "Pytxo: land your coding agents' branches in one command",
     template: "%s · Pytxo",
   },
   description: PRODUCT_SUMMARY,
