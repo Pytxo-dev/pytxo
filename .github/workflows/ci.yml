@@ -22,8 +22,9 @@ env:
 jobs:
   # Pull requests run only the jobs their files can affect. Main pushes and the
   # release gate (workflow_call) run everything, including macOS.
+  # Every job pins ubuntu-24.04: ubuntu-latest is 26.04, which Playwright has no Chromium for.
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       full: ${{ steps.scope.outputs.full }}
@@ -65,7 +66,7 @@ jobs:
       fail-fast: false
       matrix:
         # macOS minutes cost ~10x Linux: main pushes and the release gate only.
-        os: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest","windows-latest"]') }}
+        os: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["ubuntu-24.04","windows-latest","macos-latest"]' || '["ubuntu-24.04","windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -221,7 +222,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.web == 'true'
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -254,7 +255,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.desktop == 'true'
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -287,7 +288,7 @@ jobs:
     timeout-minutes: 60
     needs: [changes, desktop-frontend]
     if: needs.changes.outputs.full == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -329,7 +330,7 @@ jobs:
     needs: [changes, rust, web, desktop-frontend, desktop-tauri]
     if: always()
     timeout-minutes: 5
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Fail if any needed job failed or was cancelled
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
