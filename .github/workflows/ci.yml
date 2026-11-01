@@ -117,8 +117,10 @@ jobs:
       - name: Build and pin Windows owned-launch test helper
         if: runner.os == 'Windows'
         shell: pwsh
+        # Build exactly what `cargo test --workspace` runs before hashing: a lone
+        # -p build resolves features differently, and the test step rebuilt the helper.
         run: |
-          cargo build -p pytxo-cli --bin pytxo-attempt-host --locked
+          cargo test --workspace --no-run --locked
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $helper = (Resolve-Path -LiteralPath target/debug/pytxo-attempt-host.exe).Path
           $digest = (Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant()
