@@ -855,6 +855,10 @@ test("Dodo Payments gets 10 seconds to answer, then the check runs anyway", { ti
     asked.push(ms);
     return timeout.call(AbortSignal, 0);
   });
+  // AbortSignal.timeout's timer doesn't hold the event loop open, and a silent answer holds nothing:
+  // without this timer the run can end before the abort fires, which cancels this test.
+  const open = setTimeout(() => {}, 5_000);
+  t.after(() => clearTimeout(open));
   // Never answers: only the abort signal ends the request.
   const silent = (url, init) => new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
   assert.deepEqual(await gate(silent), {
