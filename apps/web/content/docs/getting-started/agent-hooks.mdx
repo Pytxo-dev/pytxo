@@ -1,0 +1,53 @@
+---
+title: Claude Code and Codex
+description: Run the check when an agent stops, and see the verdict in the agent's session.
+---
+
+When Claude Code or Codex finishes a turn, Pytxo checks the agent branches in your repository together and shows the verdict in the session. It answers when two or more agent branches exist and one of them, the target or the test command changed since its last answer, and it waits while background agents are still working.
+
+Both run `npx -y pytxo@2.0.0 hook`, so Node.js must be on your PATH.
+
+Claude Code and Codex wait for the hook, so after a change the turn ends only when the check does: as long as your tests take, up to the hook's 900-second limit. If the check needs longer, it says so and asks you to run `npx pytxo` in a terminal. One check runs at a time per repository, linked worktrees included: a hook that stops while another one checks waits for that check, up to its own time limit. When the failing output confirms the cause, the sessions on the two branches behind it each show it once, from the same check; otherwise only the session whose hook ran the check shows the verdict.
+
+## Claude Code
+
+In a shell:
+
+```bash
+claude plugin marketplace add Pytxo-dev/pytxo --sparse .claude-plugin integrations/claude-code
+claude plugin install pytxo@pytxo
+```
+
+`--sparse` limits the checkout to the plugin's directories instead of the whole repository. Inside Claude Code, `/plugin marketplace add Pytxo-dev/pytxo` and then `/plugin install pytxo@pytxo` work too, without that limit.
+
+The verdict appears as a message when the turn ends:
+
+```text
+Pytxo checked the agent branches together.
+BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
+why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
+next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then Pytxo checks again when an agent stops.
+```
+
+## Codex
+
+1. Copy [`integrations/codex/hooks.json`](https://github.com/Pytxo-dev/pytxo/blob/main/integrations/codex/hooks.json) to `~/.codex/hooks.json` for every repository, or to `.codex/hooks.json` in one repository. If the file exists, add its `Stop` entry to your `hooks` object.
+2. In Codex, open `/hooks` and trust the Pytxo hook. Codex skips hooks nobody has trusted.
+
+## Make the agent fix it
+
+By default the hook only tells you. With `hook --block`, a BLOCKED or FLAKY verdict asks the agent to keep working on it. Change the command in the hook to `npx -y pytxo@2.0.0 hook --timeout 900 --block`. Keep `--timeout` equal to the hook's `timeout` (900 seconds): the hook answers before that, and says so if the tests could not finish.
+
+When the failing output confirms the cause, the agent gets a fix prompt instead of the verdict. In the worktree of the branch that has to change, it reads:
+
+```text
+Pytxo merged claude/rename-price and your branch codex/add-discount and ran npm test: each passes alone, together they fail.
+claude/rename-price renamed price to unitPrice. Your branch codex/add-discount still uses price at src/discount.js:1, src/discount.js:4.
+Fix it on your branch: rebase it onto claude/rename-price, replace price with unitPrice, and run npm test until it passes. Leave claude/rename-price's changes as they are.
+```
+
+and then the end of the failing output. In the renaming branch's worktree, the prompt says the fix belongs on the other branch, or to keep the old name as an alias. The first agent to stop runs the check and gets its prompt; the other gets its own at its next stop on its branch, from the same check if nothing moved in between; otherwise its hook checks again. Each hook answers in its own form, the prompt with `--block` and the verdict without, so a Claude Code session with `--block` and a Codex session without it each show the break once.
+
+## What it checks
+
+The same as `npx pytxo` with no arguments: the agent branches and linked worktrees, against the default branch, with the test command it finds. Change them with `git config pytxo.branches`, `git config pytxo.check` and `git config pytxo.into`; see the [Quickstart](/docs/getting-started/quickstart#4-change-what-it-checks). Only committed work is checked: when there are two or more agent branches, a worktree whose changes are all uncommitted gets a hint to commit them. Nothing in your repository changes: the check runs in a throwaway worktree and records a receipt under `.git/pytxo/receipts`. Pytxo's own temporary worktrees never count as agent branches.

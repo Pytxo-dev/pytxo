@@ -1,8 +1,7 @@
 {
-  "title": "Understand",
+  "title": "Desktop and 1.x concepts",
   "pages": [
     "what-is-pytxo",
-    "receipts",
     "desktop",
     "three-moats",
     "signal-core",

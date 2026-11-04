@@ -3,6 +3,8 @@
 function getAssetName(platform = process.platform, arch = process.arch) {
   const assets = {
     "win32:x64": "pytxo-windows-x64.exe",
+    // Windows on Arm runs x64 binaries under emulation.
+    "win32:arm64": "pytxo-windows-x64.exe",
     "darwin:arm64": "pytxo-darwin-arm64",
     "darwin:x64": "pytxo-darwin-x64",
     "linux:arm64": "pytxo-linux-arm64",

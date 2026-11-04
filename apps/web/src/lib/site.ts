@@ -8,7 +8,7 @@ export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
  */
 export const PUBLISHED_VERSION = "1.3.6";
 /** In-repo / changelog candidate. Not for public download URLs. */
-export const CANDIDATE_VERSION = "1.3.6";
+export const CANDIDATE_VERSION = "2.0.0";
 /** Alias for published tag used by download UI. */
 export const PYTXO_VERSION = PUBLISHED_VERSION;
 
@@ -34,6 +34,10 @@ export const SOURCE_URL = "https://github.com/Pytxo-dev/pytxo";
 export const DISCORD_URL = "https://discord.gg/AUFRPFjSYv";
 export const NPM_URL = "https://www.npmjs.com/package/pytxo";
 export const NPM_INSTALL = `npm i -g pytxo@${PUBLISHED_VERSION}`;
+/** The one command the site leads with: no install, no flags. */
+export const DEMO_COMMAND = "npx pytxo demo";
+/** The GitHub Action, on its floating major tag. */
+export const ACTION_USES = "Pytxo-dev/pytxo/actions/land@v2";
 
 export const INSTALL_SH_URL = `https://raw.githubusercontent.com/${DISTRIBUTION_REPO}/main/install.sh`;
 export const INSTALL_PS1_URL = `https://raw.githubusercontent.com/${DISTRIBUTION_REPO}/main/install.ps1`;
@@ -48,9 +52,9 @@ export type NavLink = {
 };
 
 /** One product sentence, used by metadata, footer and structured data. */
-export const PRODUCT_LINE = "The landing layer for coding agents";
+export const PRODUCT_LINE = "Land all your agents' branches in one command.";
 export const PRODUCT_SUMMARY =
-  "Pytxo checks what your coding agents produced as one combined change, shows exactly what will land, refuses if anything moved, and leaves a receipt.";
+  "Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests and lands them only if they pass together. Free and open source.";
 
 /** Agents verified live on a released build vs. those still in beta. */
 export const AGENT_SUPPORT = {
@@ -58,11 +62,23 @@ export const AGENT_SUPPORT = {
   beta: ["OpenCode", "Antigravity"],
 } as const;
 
+/** Every page's share image: the demo's verdict, from the recorded output. */
+export const SHARE_IMAGE = {
+  url: "/social/check-1600x1000.png",
+  width: 1600,
+  height: 1000,
+  alt: "Land all your agents' branches in one command. npx pytxo demo prints BLOCKED: two branches pass npm test alone but fail together, because one renamed price to unitPrice and the other still uses price.",
+};
+
+/** Where a newcomer starts, linked from the plans and the 404 page. */
+export const GET_STARTED_HREF = "/docs/getting-started/quickstart";
+
+/** The header's links, beside the demo command's copy button; the docs nav shows them too, with Support. */
 export const NAV_LINKS: NavLink[] = [
-  { href: "/#how", label: "How it works" },
-  { href: "/#land", label: "Land branches" },
-  { href: "/bench", label: "Pybench" },
   { href: "/docs", label: "Docs" },
-  { href: DISCORD_URL, label: "Support" },
-  { href: "/download", label: "Download" },
+  { href: SOURCE_URL, label: "GitHub" },
 ];
+
+// Display copy only. Pro is not on sale: the Action's licensing check ships
+// switched off, and no page links to a checkout for it.
+export const PRO_LAUNCH = "$29 once for the first 500 buyers, then $5/month or $48/year";

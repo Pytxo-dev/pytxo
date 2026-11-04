@@ -36,7 +36,8 @@ rows are **34px**. Radius: **4px** controls, **6px** panels. Motion only for
 state transitions of 120–160ms, with zero infinite loops. Motion pauses when
 reduced motion is requested.
 
-Spectrum is retired from state duty. It is retained in the brand mark only. Do
+Spectrum is retired from state duty and from the brand mark, whose only colour
+is its magenta node. Do
 **not** ship nebula meshes, glow-on-every-heading, Terminal skins, sparkle CTAs,
 fake waveforms, orbit rings, decorative CSS graphs, or a fabricated progress
 fill. Shared tokens are `packages/chroma` ([[ADR-0029-chroma-shared-design-tokens]]).

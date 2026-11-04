@@ -7,8 +7,9 @@ import { SignedIn, SignedOut, SignUpButton, UserButton } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
 import { SITE_AUTH_ENABLED } from "@/lib/auth-config";
-import { FREE_RECEIPT_LIMIT, isProTier, PRO_CHECKOUT_OPEN, PRO_INTERVAL, PRO_PERKS, PRO_PRICE } from "@/lib/billing/pro";
+import { FREE_RECEIPT_LIMIT, isProTier } from "@/lib/billing/pro";
 import { desktopAccountUrl, desktopBridgeAllowed, desktopBridgeParams, desktopSignInUrl } from "@/lib/desktop-bridge";
+import { PRO_LAUNCH } from "@/lib/site";
 
 type OrgPolicy = {
   default_permission_profile?: string | null;
@@ -50,7 +51,7 @@ function ConfiguredAccountAuth() {
     setRevokePending(true);
     setRevokeMessage(null);
     try {
-      const result = await fetch("/api/routing/revoke-all", { method: "DELETE", cache: "no-store" });
+      const result = await fetch("/api/routing/revoke-all", { method: "DELETE", cache: "no-store", signal: AbortSignal.timeout(10_000) });
       if (!result.ok) throw new Error("unavailable");
       setRevokeMessage("Hosted Routing access revoked. Desktop must reconnect before requesting another grant.");
     } catch {
@@ -67,6 +68,7 @@ function ConfiguredAccountAuth() {
     try {
       const result = await fetch("/api/routing/desktop-code", {
         method: "POST",
+        signal: AbortSignal.timeout(10_000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           state: bridge.state,
@@ -94,7 +96,7 @@ function ConfiguredAccountAuth() {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch("/api/entitlements/status");
+        const res = await fetch("/api/entitlements/status", { signal: AbortSignal.timeout(10_000) });
         if (!res.ok) {
           if (!cancelled) setEntitlements({ error: `HTTP ${res.status}` });
           return;
@@ -137,8 +139,7 @@ function ConfiguredAccountAuth() {
         <p className="text-sm text-muted-foreground">
           Everything local works without an account. Signing in adds perks: share
           a receipt as a public page, keep shared receipts across machines, and
-          publish Pybench results. Pytxo Pro ({PRO_PRICE}/{PRO_INTERVAL}) adds
-          private receipts and unlimited history.
+          publish Pybench results.
         </p>
         <Link href="/plans" className="text-sm text-primary hover:underline">
           Compare plans
@@ -325,26 +326,11 @@ function PlanPanel({ tier }: { tier: string | null }) {
           cancellation are in Manage billing.
         </p>
       ) : (
-        <>
-          <ul className="flex flex-col gap-1.5 text-muted-foreground">
-            {PRO_PERKS.map(([title, detail]) => (
-              <li key={title}>
-                <span className="text-foreground">{title}.</span> {detail}
-              </li>
-            ))}
-          </ul>
-          {PRO_CHECKOUT_OPEN ? (
-            <div>
-              <Button asChild>
-                <a href="/api/billing/checkout-redirect?plan=pro">
-                  Upgrade to Pro · {PRO_PRICE}/{PRO_INTERVAL}
-                </a>
-              </Button>
-            </div>
-          ) : (
-            <p className="text-muted-foreground">Pro checkout opens soon ({PRO_PRICE}/{PRO_INTERVAL}).</p>
-          )}
-        </>
+        <p className="text-muted-foreground">
+          Your account keeps {FREE_RECEIPT_LIMIT} shared receipts. Pytxo Pro is the GitHub Action on private
+          repositories, not an account upgrade, and it is not on sale yet: {PRO_LAUNCH}.{" "}
+          <Link href="/plans" className="text-primary underline underline-offset-4">See plans</Link>
+        </p>
       )}
     </div>
   );
@@ -355,7 +341,7 @@ function useRows(path: string): [SharedRow[] | null, boolean, (rows: SharedRow[]
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    fetch(path, { cache: "no-store" })
+    fetch(path, { cache: "no-store", signal: AbortSignal.timeout(10_000) })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
       .then((data: SharedRow[]) => !cancelled && setRows(data))
       .catch(() => !cancelled && setFailed(true));
@@ -377,7 +363,7 @@ function SharedReceipts({ pro }: { pro: boolean }) {
     setDeleting(id);
     setError(null);
     try {
-      const res = await fetch(`/api/account/receipts?id=${encodeURIComponent(id)}`, { method: "DELETE", cache: "no-store" });
+      const res = await fetch(`/api/account/receipts?id=${encodeURIComponent(id)}`, { method: "DELETE", cache: "no-store", signal: AbortSignal.timeout(10_000) });
       if (res.status !== 204 && res.status !== 404) throw new Error(String(res.status));
       setRows((rows ?? []).filter((row) => row.id !== id));
     } catch {

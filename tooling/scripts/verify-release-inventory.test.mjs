@@ -222,6 +222,24 @@ test("release publication waits for exact CLI and Desktop preparation", async ()
   assert.equal(workflow.match(/npm publish --access public/g)?.length, 1);
 });
 
+test("a release runs only for an exact version tag, never for the Action's floating v2 tag", async () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const workflow = await readFile(path.resolve(here, "../../.github/workflows/release.yml"), "utf8");
+  // The "- ..." items under on: → push: → tags:.
+  const lines = workflow.replace(/\r\n/g, "\n").split("\n");
+  const push = lines.indexOf("  push:", lines.indexOf("on:"));
+  const start = lines.indexOf("    tags:", push);
+  assert.ok(lines.indexOf("on:") >= 0 && push > 0 && start > push, "release.yml must list on.push.tags");
+  const tags = [];
+  for (const line of lines.slice(start + 1)) {
+    const item = line.match(/^      - "?([^"]*)"?$/);
+    if (!item) break;
+    tags.push(item[1]);
+  }
+  // Exactly these two: a "v*" pattern would also match v2.
+  assert.deepEqual(tags, ["v[0-9]+.[0-9]+.[0-9]+", "v[0-9]+.[0-9]+.[0-9]+-*"]);
+});
+
 test("candidate signing cannot publish a release or update channel", async () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const workflow = await readFile(path.resolve(here, "../../.github/workflows/desktop-candidate.yml"), "utf8");
@@ -243,10 +261,21 @@ test("candidate signing cannot publish a release or update channel", async () =>
   assert.ok(workflow.indexOf("verify-windows-msi.ps1") < workflow.indexOf("actions/upload-artifact"));
 });
 
-test("the private candidate branch does not trigger a Vercel deployment", async () => {
+test("the private candidate branch never deploys, and main waits while the candidate is unpublished", async () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const config = JSON.parse(await readFile(path.resolve(here, "../../apps/web/vercel.json"), "utf8"));
-  assert.deepEqual(config.git.deploymentEnabled, { "2ntt/pytxo-beta-candidate-20261003": false });
+  const site = await readFile(path.resolve(here, "../../apps/web/src/lib/site.ts"), "utf8");
+  const version = (name) => site.match(new RegExp(`^export const ${name} = "([^"]+)";`, "m"))?.[1];
+  const unpublished = version("PUBLISHED_VERSION") !== version("CANDIDATE_VERSION");
+  assert.ok(version("PUBLISHED_VERSION") && version("CANDIDATE_VERSION"));
+  assert.deepEqual(config.git.deploymentEnabled, {
+    "2ntt/pytxo-beta-candidate-20261003": false,
+    ...(unpublished ? { main: false } : {}),
+  });
+  // The Vercel CLI in deploy-web.yml is the other way to production.
+  const deploy = await readFile(path.resolve(here, "../../.github/workflows/deploy-web.yml"), "utf8");
+  const hold = deploy.indexOf('[ "$published" != "$candidate" ]');
+  assert.ok(hold > 0 && hold < deploy.indexOf("vercel deploy --prod"));
 });
 
 test("the Desktop updater uses a stable signed channel with a release fallback", async () => {

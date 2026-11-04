@@ -1,30 +1,91 @@
 ---
 title: CLI reference
-description: pytxo subcommands, flags, and environment variables.
+description: pytxo commands, flags, exit codes and settings.
 ---
 
-Binary: `pytxo`. This page describes **1.3.6**.
-
-Since 1.3 the CLI covers the whole loop: `pytxo review` and `pytxo apply` use the same reviewed-Apply path as Desktop, and `pytxo land` checks branches from any agent tool. `pytxo hitl` is the **Galaxy approval queue**, not Apply.
-
-## Default behavior
-
-```bash
-pytxo          # interactive Hypervisor Shell (TUI)
-pytxo --help   # subcommand list
-```
-
-Set `PYTXO_NO_TUI=1` to print help instead of launching the shell.
+Binary: `pytxo`. This page describes **2.0.0**. Run it with `npx pytxo`, or keep it on your PATH with `npm i -g pytxo`.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `pytxo land <branch>...` | Check agent branches as one combined change; land it with `--apply` ([guide](/docs/getting-started/land-branches)) |
+| `pytxo` | Check the agent branches together: the same as `pytxo check` |
+| `pytxo check [branch]...` | Check these branches, or the detected agent branches, together. `pytxo land` is an alias |
+| `pytxo demo` | Check a throwaway repository where two agent branches pass alone and fail together; `--keep` keeps it |
+| `pytxo hook` | Run the check from a Claude Code or Codex `Stop` hook ([guide](/docs/getting-started/agent-hooks)); `--block` asks the agent to fix a BLOCKED or FLAKY verdict |
+| `pytxo receipts` | List this repository's receipts; `pytxo receipts show <id>` prints one and checks its digest ([receipts](/docs/concepts/receipts)) |
+| `pytxo bench` | Pybench: offline benchmarks of the check ([method](/docs/evidence/pybench)) |
+
+## `pytxo check`
+
+| Flag | Description |
+|------|-------------|
+| `[branch]...` | Branches or patterns to check. Default: the detected agent branches |
+| `--into <branch>` | Target branch. Default: the default branch (`origin/HEAD`, else `main`, `master` or `trunk`, else the checked-out branch); when you name branches, the branch you have checked out, or the default branch if that branch is one of them or no branch is checked out |
+| `--base <rev>` | Check against another commit instead of the target's tip (not with `--apply`) |
+| `-c`, `--check <cmd>` | Test command, repeatable. Default: found in the target branch |
+| `--per-input` | Run the checks on each branch alone every time, not only after the combined change fails |
+| `--apply` | Land a READY result on the target by fast-forward or compare-and-swap; refused if the target moved. It lands only a tested result: when no test command was found, it exits `1` and leaves the target unchanged, so name one with `--check` |
+| `--strict` | Block when two branches changed the same function or type |
+| `--timeout <s>` | Per-check timeout in seconds (default 900). A combined run that times out does not run again, and neither the branches alone nor later `--check` commands run after it |
+| `-v`, `--verbose` | Also print what was found, every test run with its error lines, the receipt's path and a ref to the combined commit; with `--markdown`, the receipt's id and digest |
+| `--json` | The verdict, what was found and the receipt, as JSON. When branches pass alone and fail together, `verdict.cause` names the cause (`by`, `user`, `name`, `renamed_to`, `uses` with `path` and `line`, `confirmed`, and `also` when more branches use the name) and `verdict.fix_prompt` holds a fix prompt once the output confirms it; each is `null` when there is none |
+| `--markdown` | The verdict as the GitHub Action's pull-request comment |
+| `--repo <path>` | Repository (default: the current directory) |
+
+Exit codes: `0` ready, landed or nothing to check, `2` blocked, `3` stale (the target moved during the check), `1` error, `130` stopped by Ctrl+C or SIGTERM.
+
+With no branches given, Pytxo checks branches that match the patterns below and have a commit in the last 14 days, at most 10 at once, newest first. The pattern `worktrees` means every branch checked out in a linked worktree; Pytxo's own temporary worktrees never count. Branches already merged into the target, squash merges included, are skipped. Branches that share no history with the target, such as a `gh-pages` worktree, are left out, and `--verbose` counts them. Only committed work is checked: a worktree whose changes are all uncommitted gets a hint to commit them. Agents that push to GitHub leave their branches on `origin`: run `git fetch` first so Pytxo sees them.
+
+The test command comes from the target branch: `package.json` (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a `Makefile` with a `test` target. Submodules are not checked out in the throwaway worktree; when the tests fail everywhere, the verdict says how to include them. When the target is behind `origin`'s copy of it, a note under the verdict says by how many commits.
+
+Checks run without a terminal and with `GIT_TERMINAL_PROMPT=0`, so a command that asks for input fails, or waits until `--timeout`. `PYTHONPATH` starts with `<worktree>/src`, when it exists, and `<worktree>`, so Python imports the code being checked, not an editable install of your checkout.
+
+Ctrl+C or SIGTERM while the tests run stops them, removes the throwaway worktree and exits with `130`; a second Ctrl+C quits at once. Under `npx pytxo` on Windows, npm returns to the prompt at once with exit code `1` and Pytxo finishes cleaning up a second or two later; the binary from the install script or the releases page, and `npx` on macOS and Linux, wait and exit `130`. A check that is killed outright, from Task Manager, with `kill -9` or by an agent tool ending the hook, leaves its worktree in `git worktree list`; the next check removes it when it starts.
+
+| `git config` key | Environment variable | Default |
+|------|------|------|
+| `pytxo.branches` | `PYTXO_BRANCHES` | `claude/* codex/* copilot/* cursor/* devin/* jules/* agent/* worktrees` |
+| `pytxo.check` | `PYTXO_CHECK` | found in the target branch |
+| `pytxo.days` | `PYTXO_DAYS` | `14` |
+| `pytxo.into` | `PYTXO_INTO` | see `--into` above |
+
+## `pytxo bench`
+
+| Flag | Description |
+|------|-------------|
+| `--suite <name>` | `land`, `overhead`, `signal` or `all` (default) |
+| `--out <file>` | Write the JSON report |
+| `--json` | Print the JSON report |
+
+## `pytxo receipts`
+
+| Command | Description |
+|------|-------------|
+| `pytxo receipts` | List this repository's receipts, newest first (`pytxo receipts list --json` for machine output) |
+| `pytxo receipts show <id>` | Print one receipt (full id or unique prefix) and check its digest |
+
+## Environment variables
+
+Each one does what its `git config` key does, for one shell, and wins over the key.
+
+| Variable | Sets | `git config` key |
+|----------|------|------------------|
+| `PYTXO_BRANCHES` | Branch patterns to check, space-separated | `pytxo.branches` |
+| `PYTXO_CHECK` | Test command | `pytxo.check` |
+| `PYTXO_DAYS` | Count only branches with a commit in this many days; `0` counts every branch | `pytxo.days` |
+| `PYTXO_INTO` | Target branch | `pytxo.into` |
+
+## Pytxo 1.x commands
+
+The released binaries are the check only. In them, `pytxo review`, `pytxo run` and the other commands below say they are not in this build; `pytxo receipts share` and `pytxo bench --submit` are not there either. The commands are frozen and build from source with the default `full` feature (`cargo build -p pytxo-cli`), where `pytxo shell` opens the interactive shell that a bare `pytxo` opened in 1.x. `pytxo hitl` is the **Galaxy approval queue**, not Apply.
+
+| Command | Description |
+|---------|-------------|
 | `pytxo review <run>` | Show a finished run's prepared change, checks and digest; `--refresh`, `--discard` |
 | `pytxo apply <run>` | Write exactly the reviewed files; refused if anything moved |
-| `pytxo receipts` | List, show and share landing and Apply receipts ([receipts](/docs/concepts/receipts)) |
-| `pytxo bench` | Pybench: offline benchmarks of the landing gate ([method](/docs/evidence/pybench)) |
+| `pytxo receipts share <id>` | Publish a receipt's counts and outcomes as a page (account perk); `--include-paths`, `--private` |
+| `pytxo bench --submit` | Publish the summary to the [Pybench board](/bench) (account perk); `--private` keeps it off the board |
 | `pytxo login` / `logout` / `whoami` | Optional account for perks ([account](/docs/getting-started/account)) |
 | `pytxo init` | Create `.pytxo/` dirs and gitignore hint |
 | `pytxo doctor` | Verify git, PTY, approvals persistence, billing/cloud when enabled |
@@ -32,7 +93,7 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the shell.
 | `pytxo mission` | Natural-language mission: plan → approve → isolated run → review package |
 | `pytxo agents` | List registered agent CLIs and PATH detection |
 | `pytxo accounts` | Several sign-ins per agent CLI (Claude Code, Codex) and which one new work uses |
-| `pytxo shell` | One-shot shell without the TUI (`--eval`) |
+| `pytxo shell` | The interactive shell, or one command with `--eval` |
 | `pytxo status` | List runs and agents from SQLite |
 | `pytxo logs --agent <id>` | Tail stored stdout/stderr events |
 | `pytxo stop` | Stop active run or all tracked processes |
@@ -44,7 +105,7 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the shell.
 | `pytxo providers` | Provider registry + key configured (boolean) |
 | `pytxo models` | List, search, or refresh model catalog |
 
-## Shared flags
+### Shared flags
 
 | Flag | Commands | Description |
 |------|----------|-------------|
@@ -52,7 +113,7 @@ Set `PYTXO_NO_TUI=1` to print help instead of launching the shell.
 | `--config` | `run`, `status`, `logs`, `stop`, `shell` | Path to `pytxo.toml` |
 | `--json` | `doctor`, `status`, `domains`, `mission`, `agents` | Machine-readable output |
 
-## `pytxo review` and `pytxo apply`
+### `pytxo review` and `pytxo apply`
 
 ```bash
 pytxo review <run-id>                 # files, checks on the combined change, digest
@@ -64,42 +125,7 @@ pytxo review <run-id> --discard       # drop it; nothing is written
 
 Apply authorizes the digest you were shown, never "whatever is latest". If the project changed after review, Apply refuses; refresh and review again. Every committed Apply writes a receipt.
 
-## `pytxo land`
-
-| Flag | Description |
-|------|-------------|
-| `-c`, `--check <cmd>` | Command to run on the combined change (repeatable) |
-| `--per-input` | Also run the checks on each input alone |
-| `--apply` | Land a ready result (fast-forward or compare-and-swap) |
-| `--into <branch>` | Target branch (default: checked-out branch) |
-| `--base <rev>` | Check against another commit (shadow mode only) |
-| `--strict` | Block when two inputs changed the same function or type |
-| `--timeout <s>` | Per-check timeout (default 900) |
-| `--json`, `--markdown` | Full receipt, or a pull-request summary |
-
-Exit codes: `0` ready or landed, `2` blocked, `3` stale.
-
-## `pytxo bench`
-
-| Flag | Description |
-|------|-------------|
-| `--suite <name>` | `land`, `overhead`, `signal` or `all` (default) |
-| `--out <file>` | Write the JSON report |
-| `--json` | Print the JSON report |
-| `--submit` | Publish the summary to the [Pybench board](/bench) (account perk) |
-| `--private` | With `--submit`: save the result to your account only, off the board ([Pytxo Pro](/docs/getting-started/account#pytxo-pro)) |
-
-## `pytxo receipts`
-
-| Command | Description |
-|------|-------------|
-| `pytxo receipts` | List this repository's receipts, newest first (`--json` for machine output) |
-| `pytxo receipts show <id>` | Print one receipt (full id or unique prefix) and check its digest |
-| `pytxo receipts share <id>` | Publish counts and outcomes as a page (account perk) |
-| `pytxo receipts share <id> --include-paths` | Also publish the changed file paths |
-| `pytxo receipts share <id> --private` | Only you can open the page, signed in ([Pytxo Pro](/docs/getting-started/account#pytxo-pro)) |
-
-## `pytxo mission`
+### `pytxo mission`
 
 ```bash
 pytxo mission "Add input validation in src/api.ts"
@@ -110,11 +136,11 @@ pytxo mission "…" --ade claude   # preferred ADE id
 
 `--plan-file` writes plan JSON before the approve step. After a successful Orbit or Galaxy run, review and Apply in Desktop — not with a CLI apply subcommand. See [Review and Apply](/docs/getting-started/review-and-apply).
 
-## `pytxo agents`
+### `pytxo agents`
 
 Lists ADE CLIs from the registry and whether they are on `PATH`. `--json` for scripts.
 
-## `pytxo accounts`
+### `pytxo accounts`
 
 Keep more than one sign-in for an agent CLI, such as a work and a personal
 Claude account. Each account is the CLI's own config folder under
@@ -140,15 +166,15 @@ Every account must be yours. Provider terms forbid sharing an account and
 working around usage limits, so Pytxo never switches accounts on its own when
 one reports a limit; it tells you which account hit it.
 
-## `pytxo shell`
+### `pytxo shell`
 
-One-shot command without the Hypervisor Shell:
+`pytxo shell` opens the interactive shell; `--eval` runs one command without it:
 
 ```bash
 pytxo shell --eval "/dry-run"
 ```
 
-## `pytxo run` flags
+### `pytxo run` flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -159,7 +185,7 @@ pytxo shell --eval "/dry-run"
 | `--execution` | from config | Override `pty`, `subprocess`, or `cloud` |
 | `--ade` | unset | Registry ADE id (e.g. `cursor`, `claude`) |
 
-## `pytxo project` subcommands
+### `pytxo project` subcommands
 
 | Subcommand | Description |
 |------------|-------------|
@@ -170,7 +196,7 @@ pytxo shell --eval "/dry-run"
 | `status` | Recent runs for the project primary domain |
 | `run` | Coordinated run across project roots |
 
-## `pytxo fleet` subcommands
+### `pytxo fleet` subcommands
 
 | Subcommand | Description |
 |------------|-------------|
@@ -181,7 +207,7 @@ pytxo shell --eval "/dry-run"
 
 `pytxo fleet run --continue-on-error` continues later waves after a node failure.
 
-## `pytxo hitl` subcommands
+### `pytxo hitl` subcommands
 
 Galaxy's approval queue for risky host actions. Approving a HITL request is **not** repository Apply.
 
@@ -193,7 +219,7 @@ Galaxy's approval queue for risky host actions. Approving a HITL request is **no
 
 See [Galaxy approvals](/docs/concepts/galaxy-approvals) and [Review and Apply](/docs/getting-started/review-and-apply).
 
-## `pytxo trust`
+### `pytxo trust`
 
 ```bash
 pytxo trust orbit
@@ -202,11 +228,10 @@ pytxo trust galaxy --repo /path/to/repo
 
 Tiers: `deep_space`, `orbit`, `galaxy`, `supernova`. See [Permission tiers](/docs/reference/permission-tiers).
 
-## Environment variables
+### 1.x environment variables
 
 | Variable | Purpose |
 |----------|---------|
-| `PYTXO_NO_TUI` | Skip Hypervisor Shell; print help or run subcommands only |
 | `PYTXO_REPO` | Default git root (useful for MCP) |
 | `PYTXO_PLANNER` | Enable natural-language mission planner (`1`) |
 | `PYTXO_ULTRA_SESSION` | Bearer token for Ultra / Link reconcile when `billing.mode = ultra` |
@@ -215,11 +240,11 @@ Tiers: `deep_space`, `orbit`, `galaxy`, `supernova`. See [Permission tiers](/doc
 
 Provider API keys stay in their usual env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, ...). See [Providers & BYOK](/docs/reference/providers-byok).
 
-## Doctor checklist
+### Doctor checklist
 
 `pytxo doctor` should pass before first real runs. Details: [Doctor checks](/docs/troubleshooting/doctor).
 
-## Agent IDs
+### Agent IDs
 
 Format: `{run_uuid}:agent-N`. Use with `pytxo logs --agent`.
 

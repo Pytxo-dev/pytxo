@@ -3,15 +3,18 @@ title: Receipts
 description: The record Pytxo writes for every landing decision and every reviewed Apply.
 ---
 
-Every `pytxo land` decision and every reviewed Apply writes a **receipt**: what was combined, what was checked, what was decided, and why.
+Every check (`pytxo`, `pytxo check` or `pytxo land`) and every reviewed Apply writes a **receipt**: what was combined, what was checked, what was decided, and why.
 
 Receipts are stored in your repository's Git directory, `.git/pytxo/receipts/<id>.json`. They are never tracked, they are shared by every worktree of the repository, and Pytxo does not edit your `.gitignore` to keep them.
 
 ```bash
 pytxo receipts              # newest first
 pytxo receipts show <id>    # full receipt; checks the digest
-pytxo receipts share <id>   # public page (account perk)
 ```
+
+`pytxo receipts share <id>`, which publishes a page with counts and outcomes, is only in source builds with the default `full` feature, not in the npm binary.
+
+Test output is masked before it is stored: private keys, common key formats (npm tokens included), bearer tokens, passwords in URLs and the values of keys whose names contain secret, token, password, passwd, apikey, accesskey, privatekey, credential or authorization, ignoring case, `-` and `_` (such as `apiKey=`, `DB_PASSWORD=`, `NPM_TOKEN:` or `Authorization:`, but not names ending in error or exception), become `[REDACTED]` in the receipt, in `--json`, in hook replies and in pull-request comments. Paths that a check prints into its throwaway worktree are stored as in your checkout, such as `src/discount.js:4:10`.
 
 ## Format
 
@@ -25,14 +28,14 @@ A receipt is an [in-toto Statement v1](https://github.com/in-toto/attestation/bl
 | `base`, `result` | The commit that was checked against and the combined commit (Apply: the reviewed package digest) |
 | `inputs` | Each branch or task: commit, agent label, files, status (`merged`, `conflict`, `empty`, `applied`) |
 | `shared_files` | Files changed by more than one input, and the functions or types two inputs both changed |
-| `checks` | Each command, where it ran (`combined` or `input:<ref>`), exit code, time and the last lines of output |
+| `checks` | Each command, where it ran (`combined`, `input:<ref>` for a branch alone, `target` for the target alone, which runs once when the combined change and every branch alone failed without timing out, or, when three or more branches pass alone, fail together and Pytxo finds a cause, `pair:<i>,<j>` for the target with only the two branches it names and, if they fail, `rest:<k>,...` for the target with the others, each branch by its position in `inputs` from 0; with one other branch, its run alone already is that run, so there is no `rest` row), exit code, time and the last lines of output |
 | `reasons` | Why the decision is not `ready` |
 | `duration_ms` | Wall time of the decision: the whole gate for `land`, the Apply itself for `apply` |
 | `content_digest` | SHA-256 of the canonical predicate |
 
 ## What the digest proves
 
-`pytxo receipts show` recomputes the digest and says whether it still matches. A matching digest shows the file was not edited after it was written. Receipts are not signed in 1.3, so the digest does not prove who wrote the file.
+`pytxo receipts show` recomputes the digest and says whether it still matches. A matching digest shows the file was not edited after it was written. Receipts are not signed, so the digest does not prove who wrote the file.
 
 ## Apply receipts
 

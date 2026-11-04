@@ -49,10 +49,10 @@ async function cargoLockVersions(file) {
   }));
 }
 
-async function capturedVersion(file, pattern, label) {
+async function capturedVersion(file, pattern, label, { optional = false } = {}) {
   const content = await readFile(file, "utf8");
   const value = content.match(pattern)?.[1];
-  if (!value) throw new Error(`Missing ${label} version in ${file}`);
+  if (!value && !optional) throw new Error(`Missing ${label} version in ${file}`);
   return value;
 }
 
@@ -87,15 +87,38 @@ export async function verifyReleaseVersion(root, expected) {
       /\(v([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) provides Windows x64\)/,
       "PowerShell installer",
     ),
+    // `npx pytxo` needs no version; a pinned install line must be the published one.
     readme: await capturedVersion(
       path.join(root, "README.md"),
       /npm i -g pytxo@([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)/,
       "README install",
+      { optional: true },
+    ),
+    action: await capturedVersion(
+      path.join(root, "actions", "land", "action.yml"),
+      /default: "([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)" # pytxo-version/,
+      "GitHub Action CLI pin",
+    ),
+    claudePlugin: await jsonVersion(path.join(root, "integrations", "claude-code", ".claude-plugin", "plugin.json")),
+    claudeHook: await capturedVersion(
+      path.join(root, "integrations", "claude-code", "hooks", "hooks.json"),
+      /npx -y pytxo@([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) hook/,
+      "Claude Code hook pin",
+    ),
+    codexHook: await capturedVersion(
+      path.join(root, "integrations", "codex", "hooks.json"),
+      /npx -y pytxo@([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) hook/,
+      "Codex hook pin",
     ),
     changelog: await capturedVersion(
       path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"),
       /This source candidate targets \*\*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)\*\*/,
       "changelog source candidate",
+    ),
+    changelogPublished: await capturedVersion(
+      path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"),
+      /The latest public (?:GitHub and npm )?release is \**([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)/,
+      "changelog latest public release",
     ),
     releaseNotes: await capturedVersion(
       path.join(root, "distribution", "release-notes", `v${expected ?? rust}.md`),
@@ -103,10 +126,13 @@ export async function verifyReleaseVersion(root, expected) {
       "release notes",
     ),
   };
+  for (const [name, version] of Object.entries(versions)) {
+    if (version === undefined) delete versions[name];
+  }
   expected ??= versions.rust;
   // The checked-in installer/release notes target the next candidate. Public
   // install instructions must remain on the published tag until promotion.
-  const publishedSurfaces = new Set(["published", "readme"]);
+  const publishedSurfaces = new Set(["published", "readme", "changelogPublished"]);
   const mismatches = Object.entries(versions)
     .filter(([name, version]) => !publishedSurfaces.has(name) && version !== expected)
     .map(([name, version]) => `${name}=${version}`);

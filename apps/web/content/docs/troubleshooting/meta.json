@@ -1,4 +1,8 @@
 {
-  "title": "Operate",
-  "pages": ["index", "doctor", "common-failures"]
+  "title": "Troubleshooting 1.x",
+  "pages": [
+    "index",
+    "doctor",
+    "common-failures"
+  ]
 }

@@ -1,7 +1,8 @@
 {
   "git": {
     "deploymentEnabled": {
-      "2ntt/pytxo-beta-candidate-20261003": false
+      "2ntt/pytxo-beta-candidate-20261003": false,
+      "main": false
     }
   },
   "installCommand": "npm ci --legacy-peer-deps",

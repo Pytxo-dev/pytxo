@@ -1,13 +1,9 @@
 import type { Metadata } from "next";
+import { SHARE_IMAGE } from "@/lib/site";
 
 /** Each public page keeps its canonical and share identity together. */
 export function pageMetadata(path: string, title: string, description: string): Metadata {
-  const image = {
-    url: "/product/work-1600x1000.png",
-    width: 1600,
-    height: 1000,
-    alt: "Pytxo Desktop Work: the run ledger and the commit boundary",
-  };
+  const image = SHARE_IMAGE;
 
   return {
     title: { absolute: title },

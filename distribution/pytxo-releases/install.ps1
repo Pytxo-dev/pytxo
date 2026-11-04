@@ -4,8 +4,9 @@ $ErrorActionPreference = "Stop"
 $Repo = if ($env:PYTXO_REPO) { $env:PYTXO_REPO } else { "Pytxo-dev/pytxo-releases" }
 $InstallDir = if ($env:PYTXO_INSTALL_DIR) { $env:PYTXO_INSTALL_DIR } else { "$env:LOCALAPPDATA\Programs\pytxo" }
 $Architecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-if ($Architecture -ne "X64") {
-    throw "Unsupported Pytxo Windows release architecture: $Architecture (v1.3.6 provides Windows x64)"
+# Windows on Arm runs the x64 build under emulation.
+if ($Architecture -ne "X64" -and $Architecture -ne "Arm64") {
+    throw "Unsupported Pytxo Windows release architecture: $Architecture (v2.0.0 provides Windows x64)"
 }
 $Asset = "pytxo-windows-x64.exe"
 
@@ -81,4 +82,4 @@ if ($userPath -notlike "*$InstallDir*") {
 
 $InstalledVersion = (& $Dest --version | Out-String).Trim()
 if ($LASTEXITCODE -ne 0) { throw "Installed Pytxo version check failed" }
-Write-Host "Installed $InstalledVersion. Run 'pytxo doctor' inside a repository."
+Write-Host "Installed $InstalledVersion. Run 'pytxo' inside a repository, or 'pytxo demo' to see it work."

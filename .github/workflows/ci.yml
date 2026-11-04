@@ -22,8 +22,9 @@ env:
 jobs:
   # Pull requests run only the jobs their files can affect. Main pushes and the
   # release gate (workflow_call) run everything, including macOS.
+  # Every job pins ubuntu-24.04: ubuntu-latest is 26.04, which Playwright has no Chromium for.
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       full: ${{ steps.scope.outputs.full }}
@@ -51,7 +52,7 @@ jobs:
           has() { grep -qE "$1|^\.github/workflows/ci\.yml$" <<< "$files" && echo true || echo false; }
           {
             echo "full=false"
-            echo "rust=$(has '^(Cargo\.(toml|lock)|crates/|services/|apps/desktop/src-tauri/|packages/pytxo/|tooling/|\.cargo/|rust-toolchain)')"
+            echo "rust=$(has '^(Cargo\.(toml|lock)|crates/|services/|apps/desktop/src-tauri/|packages/pytxo/|actions/|integrations/|\.claude-plugin/|tooling/|\.cargo/|rust-toolchain)')"
             echo "desktop=$(has '^(apps/desktop/|tooling/)')"
             echo "web=$(has '^(apps/web/|packages/chroma/)')"
           } | tee -a "$GITHUB_OUTPUT"
@@ -65,7 +66,7 @@ jobs:
       fail-fast: false
       matrix:
         # macOS minutes cost ~10x Linux: main pushes and the release gate only.
-        os: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest","windows-latest"]') }}
+        os: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["ubuntu-24.04","windows-latest","macos-latest"]' || '["ubuntu-24.04","windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -107,13 +108,21 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      # The released CLI: the check alone, without the frozen 1.x commands.
+      - name: cargo clippy and test (released CLI build)
+        run: |
+          cargo clippy -p pytxo-cli --no-default-features --all-targets -- -D warnings
+          cargo test -p pytxo-cli --no-default-features
+
       - name: Build and pin Windows owned-launch test helper
         if: runner.os == 'Windows'
         shell: pwsh
+        # Pin a copy: later steps build with other features and replace target/debug's.
         run: |
           cargo build -p pytxo-cli --bin pytxo-attempt-host --locked
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $helper = (Resolve-Path -LiteralPath target/debug/pytxo-attempt-host.exe).Path
+          $helper = Join-Path $env:RUNNER_TEMP 'pytxo-attempt-host.exe'
+          Copy-Item -LiteralPath target/debug/pytxo-attempt-host.exe -Destination $helper
           $digest = (Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant()
           "PYTXO_TEST_ATTEMPT_HOST=$helper" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "PYTXO_TEST_ATTEMPT_HOST_SHA256=$digest" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -165,6 +174,10 @@ jobs:
         working-directory: packages/pytxo
         run: npm test
 
+      # PR discovery, the sticky comment, and a real fetch of each PR's commit.
+      - name: GitHub Action tests
+        run: node --test actions/land/pytxo-action.test.mjs
+
       # Advisories depend on Cargo.lock, not the OS. rust-cache keeps the binary.
       - name: cargo audit
         if: runner.os == 'Linux'
@@ -211,7 +224,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.web == 'true'
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -220,6 +233,12 @@ jobs:
           cache: npm
           cache-dependency-path: |
             apps/web/package-lock.json
+      # A site-only change, such as the promotion commit, skips the rust job:
+      # check the published versions and the deploy hold here too.
+      - name: Release versions and deploy hold
+        run: |
+          node tooling/scripts/verify-release-version.mjs
+          node --test tooling/scripts/verify-release-inventory.test.mjs
       - name: npm ci, verify, and build
         working-directory: apps/web
         env:
@@ -238,7 +257,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.desktop == 'true'
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -271,7 +290,7 @@ jobs:
     timeout-minutes: 60
     needs: [changes, desktop-frontend]
     if: needs.changes.outputs.full == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -313,7 +332,7 @@ jobs:
     needs: [changes, rust, web, desktop-frontend, desktop-tauri]
     if: always()
     timeout-minutes: 5
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Fail if any needed job failed or was cancelled
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')

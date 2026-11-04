@@ -1,22 +1,15 @@
 /**
- * Pytxo Pro: the one paid plan. Shared by server and client components, so
- * it holds copy and limits only (no secrets). The price is set on the Dodo
- * product; keep PRO_PRICE in step with it.
+ * The hosted account's Pro tier. Shared by server and client components, so
+ * it holds limits only (no secrets).
+ *
+ * Checkout is closed to new buyers: Pytxo Pro is the GitHub Action on private
+ * repositories (`PRO_LAUNCH` in lib/site.ts), not this hosted tier, and it is
+ * not on sale yet. Existing subscribers keep Manage billing.
  */
-export const PRO_PRICE = "$12";
-export const PRO_INTERVAL = "month";
-
-/** True only when the deployment bills with live Dodo keys (see next.config.ts). */
-export const PRO_CHECKOUT_OPEN = process.env.PYTXO_PRO_CHECKOUT_OPEN === "1";
+export const PRO_CHECKOUT_OPEN = false;
 
 /** Mirrors FREE_RECEIPT_LIMIT in services/pytxo-link/src/account.rs. */
 export const FREE_RECEIPT_LIMIT = 25;
-
-export const PRO_PERKS = [
-  ["Private receipts", "Share a receipt that only you can open, signed in."],
-  ["Unlimited receipts", `Keep every shared receipt. Free accounts keep ${FREE_RECEIPT_LIMIT}.`],
-  ["Private Pybench", "Save Pybench results to your account without publishing them to the board."],
-] as const;
 
 /** Link tiers that count as Pro (Max and Ultra are retired plan names). */
 export function isProTier(tier: string | null | undefined): boolean {

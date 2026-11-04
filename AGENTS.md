@@ -22,7 +22,7 @@ work, and prepares exact bytes for reviewed Apply. Source:
 **Canonical vision:** [`docs/06-product/vision.md`](docs/06-product/vision.md) ·
 **Landing gate:** `crates/pytxo-land` (`pytxo land`, receipts, Pybench) —
 [ADR-0042](docs/05-adr/ADR-0042-landing-gate-and-receipts.md) ·
-**Current release plan:** [`docs/superpowers/specs/2026-10-10-pytxo-v1-3-design.md`](docs/superpowers/specs/2026-10-10-pytxo-v1-3-design.md)
+**Current release plan:** [`docs/superpowers/specs/2026-10-29-pytxo-2-1-smart-check-design.md`](docs/superpowers/specs/2026-10-29-pytxo-2-1-smart-check-design.md), with its decisions in [`DECISIONS.md`](DECISIONS.md)
 
 **Not:** BridgeSpace-style multi-terminal web workspaces (ADEs), a proprietary
 model router, generic workflow engine, or universal undo layer. **Is today:** a
@@ -65,10 +65,10 @@ When changing `pytxo-runner` or `pytxo-orchestrate`, declare which **permission 
 | `docs/05-adr/` | Architecture Decision Records (immutable when Accepted) |
 | `crates/pytxo-orchestrate` | Shared run/stop/status/dry-run |
 | `crates/pytxo-sanitize` | Log/MCP redaction |
-| `crates/pytxo-signal` | Signal Core (`tree-sitter` skeletons) |
+| `crates/pytxo-signal` | Signal Core (`tree-sitter` skeletons) and the name reading behind the check's cause |
 | `crates/pytxo-mcp` | Stdio MCP server binary |
 | `crates/pytxo-land` | `pytxo land` landing gate, Pybench (`pytxo bench`) |
-| `actions/land` | Shadow-mode GitHub composite action for `pytxo land` |
+| `actions/land` | GitHub composite action: runs the check on the open agent pull requests, comments the verdict and fails the pull requests it blames |
 | `crates/` | Core, scheduler, runner, store, CLI |
 | `apps/desktop/` | Svelte 5 + Tauri v2 Pytxo Desktop (`pytxo-desktop` crate) |
 | `apps/web/` | Next.js marketing site + public Fumadocs documentation |

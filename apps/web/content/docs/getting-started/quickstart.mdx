@@ -1,0 +1,82 @@
+---
+title: Quickstart
+description: See the check catch a break in under 30 seconds, then run it on your own repository. No flags, no account.
+---
+
+You need Node.js 18 or newer and Git. The first `npx pytxo` downloads the Pytxo binary for your platform (about 12 MB) and checks it against the release's SHA-256 list.
+
+## 1. See it work
+
+```bash
+npx pytxo demo
+```
+
+The demo builds a throwaway repository where one agent renamed `price()` to `unitPrice()` and another added code that calls `price()`. Each branch passes `npm test` on its own; together they fail:
+
+```text
+BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
+why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
+next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
+```
+
+The repository is deleted afterwards. Add `--keep` to keep it and look around.
+
+## 2. Run it on your repository
+
+```bash
+cd your-repo
+npx pytxo
+```
+
+With no arguments Pytxo:
+
+1. **Finds the agent branches**: branches named `claude/*`, `codex/*`, `copilot/*`, `cursor/*`, `devin/*`, `jules/*` or `agent/*`, plus every branch checked out in a linked worktree, that have a commit in the last 14 days, at most 10 at once, newest first. Branches already merged into the target, squash merges included, are skipped. Only committed work is checked: a worktree whose changes are all uncommitted gets a hint to commit them.
+2. **Finds the target**: the default branch (`origin/HEAD`, else `main`, `master` or `trunk`). If your copy of it is behind `origin`'s, a note under the verdict says by how many commits.
+3. **Finds your tests** in the target branch: `package.json` (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a `Makefile` with a `test` target.
+4. **Merges the branches in a throwaway worktree**, runs the tests on the result, and prints the verdict. Submodules are not checked out there; when the tests fail everywhere, the verdict says how to include them.
+
+If your agents push their branches to GitHub, run `git fetch` first so Pytxo sees them. A compiled project, such as a Rust workspace, pays a cold build in each throwaway worktree.
+
+Nothing in your repository changes. Ctrl+C stops a check and removes its throwaway worktree; a check that is killed outright leaves the worktree in `git worktree list` until the next check removes it. With no agent branches it prints one line and suggests the demo.
+
+## 3. Read the verdict
+
+Every verdict is three lines: what happened, why, and what to do next.
+
+| Verdict | Means | Exit code |
+|---|---|---|
+| `READY` | The branches pass your tests together | 0 |
+| `BLOCKED` | They fail together, conflict, or a branch was already broken | 2 |
+| `FLAKY` | The combined change failed once and passed once, so it cannot say | 2 |
+| `NO TESTS` | They merge cleanly but no test command was found | 0 |
+| `STALE` | The target branch moved during the check; run it again | 3 |
+
+When the combined change fails, Pytxo runs each branch alone to tell a break that only happens together from a branch that was already broken, and, if every branch passes alone, runs the combined change once more to catch a flaky test. If it fails again, Pytxo looks for a definition, such as a function, that one branch renamed or removed and another branch's new code still uses. When the failing output confirms it, the why line says so, as in the demo; otherwise the why line is the error and a note under the verdict names the possible cause. With three or more branches, it then runs the tests on those two branches without the others and, if they fail, on the others without them, at most two more runs, so the verdict can clear the others. If the combined run times out, that is the answer: the branches do not run alone after it, and it does not run again.
+
+## 4. Change what it checks
+
+```bash
+npx pytxo feature/a feature/b          # these branches, not the detected ones
+npx pytxo --into develop               # against another branch
+npx pytxo -c "npm ci && npm run test:unit"   # another test command
+```
+
+Branches you name are checked against the branch you have checked out, as in Pytxo 1.x, or against the default branch if the checked-out branch is one of them or no branch is checked out. `--into` sets the target in both cases.
+
+To change the defaults for one repository:
+
+```bash
+git config pytxo.branches "bot/* ai/*"
+git config pytxo.check "make test"
+git config pytxo.days 30
+git config pytxo.into develop
+```
+
+The environment variables `PYTXO_BRANCHES`, `PYTXO_CHECK`, `PYTXO_DAYS` and `PYTXO_INTO` do the same for one shell.
+
+`--verbose` adds what was found, every test run with its error lines, the receipt's path and a ref to the combined commit; `pytxo receipts show <id>` prints the last 40 lines of each run and checks the digest. `--json` and `--markdown` are for scripts and pull-request comments. See the [CLI reference](/docs/reference/cli) for every flag.
+
+## Next
+
+- [Check agent pull requests together in CI](/docs/getting-started/land-in-ci) with one line of GitHub Actions.
+- [Run the check when Claude Code or Codex stops](/docs/getting-started/agent-hooks).

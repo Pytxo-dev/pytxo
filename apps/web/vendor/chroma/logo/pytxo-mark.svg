@@ -1,14 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="10.5 11 80 80">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480">
   <title>Pytxo</title>
-  <defs>
-    <linearGradient id="pytxo-chroma" gradientUnits="userSpaceOnUse" x1="40" y1="16" x2="56" y2="72">
-      <stop offset="0" stop-color="#F04DA3"/>
-      <stop offset=".3" stop-color="#FF6A4A"/>
-      <stop offset=".55" stop-color="#F3C64E"/>
-      <stop offset=".8" stop-color="#79E07B"/>
-      <stop offset="1" stop-color="#45DCCB"/>
-    </linearGradient>
-  </defs>
-  <path d="M42 24H50A20 20 0 0 1 50 64H42" fill="none" stroke="url(#pytxo-chroma)" stroke-width="16"/>
-  <path d="M31 24V78" fill="none" stroke="#F04DA3" stroke-width="16" stroke-linecap="round"/>
+  <g fill="#F5F5F7">
+    <path d="M85 40H195L273 196A85 85 0 0 0 185 240Z"/>
+    <path d="M99 440L175 288A85 85 0 0 0 247 364L209 440Z"/>
+    <path d="M247 364L285 440H395L335 320A85 85 0 0 1 247 364Z"/>
+  </g>
+  <circle cx="260" cy="280" r="60" fill="#F04DA3"/>
 </svg>

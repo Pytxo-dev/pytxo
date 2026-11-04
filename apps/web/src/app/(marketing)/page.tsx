@@ -1,23 +1,18 @@
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { CompareSection } from "@/components/site/compare-section";
-import { CompatibilitySection } from "@/components/site/compatibility-section";
-import { GetItSection } from "@/components/site/get-it-section";
+import Link from "next/link";
+
+import { CopyCommand } from "@/components/site/copy-command";
 import { Hero } from "@/components/site/hero";
-import { HowItWorks } from "@/components/site/how-it-works";
-import { LandSection } from "@/components/site/land-section";
-import { ProofSection } from "@/components/site/proof-section";
+import { RecordedDemo } from "@/components/site/recorded-demo";
+import s from "@/components/site/site.module.css";
 import { pageMetadata } from "@/lib/page-metadata";
-import { PUBLISHED_VERSION } from "@/lib/site";
+import { ACTION_USES, NPM_URL, PRODUCT_LINE, PRODUCT_SUMMARY, PUBLISHED_VERSION, SHARE_IMAGE } from "@/lib/site";
+import { cn } from "@/lib/utils";
+import comment from "../../../public/evidence/comment-blocked-2.0.0-2026-10-30.json";
 
 export const metadata = pageMetadata(
   "/",
-  "Pytxo: the landing layer for coding agents",
-  "Split a job across Codex, Claude Code and Cursor Agent, or bring branches from any agent tool. Pytxo checks the combined change, shows exactly what will land, refuses if anything moved, and leaves a receipt.",
+  "Pytxo: land your coding agents' branches in one command",
+  PRODUCT_SUMMARY,
 );
 
 const STRUCTURED_DATA = {
@@ -28,7 +23,7 @@ const STRUCTURED_DATA = {
       "@id": "https://pytxo.com/#website",
       name: "Pytxo",
       url: "https://pytxo.com",
-      description: "The landing layer for coding agents: many agents, one verified change.",
+      description: PRODUCT_LINE,
     },
     {
       "@type": "SoftwareApplication",
@@ -38,30 +33,37 @@ const STRUCTURED_DATA = {
       operatingSystem: "Windows, macOS, Linux",
       softwareVersion: PUBLISHED_VERSION,
       url: "https://pytxo.com",
-      downloadUrl: "https://pytxo.com/download",
-      image: "https://pytxo.com/product/fleet-1600x1000.png",
-      description:
-        "Checks what coding agents produced as one combined change, lands exactly what was reviewed, refuses if anything moved, and writes a receipt.",
+      downloadUrl: NPM_URL,
+      image: `https://pytxo.com${SHARE_IMAGE.url}`,
+      description: PRODUCT_SUMMARY,
     },
   ],
 } as const;
 
-const FAQ = [
-  { q: "Which agents does Pytxo run?", a: "Codex, Claude Code and Cursor Agent have completed live runs on a released build. OpenCode and Antigravity run as beta: in our live tests Antigravity's headless mode denied its own tool permission and OpenCode's default model could not use tools. One installed and signed-in agent is enough to start." },
-  { q: "Can I land branches from other agent tools?", a: "Yes. pytxo land takes branches from any tool, such as Orca, Conductor, Codex or Claude Code, combines them in an isolated worktree, runs your checks on the result and on each branch alone, and lands only a combination that passed. By default it changes nothing and writes a receipt." },
-  { q: "Do I need a Pytxo account?", a: "No. Everything local works without one, and each agent uses its own sign-in. A free account adds hosted perks: share a receipt as a public page, keep shared receipts across machines, and publish Pybench results." },
-  { q: "Does Pytxo see my API keys?", a: "No. Agents run with a clean environment, so API keys set in your shell are not passed to them, and Pytxo never asks for your agent credentials." },
-  { q: "How do agents avoid overwriting each other?", a: "Every task runs in its own isolated copy of your project, and the plan says which files each task owns. Tasks that share a file run one after another, so the later one starts from the earlier one's result." },
-  { q: "What do the checks prove?", a: "Pytxo runs the commands you approve on each task and again on all the changes together. Passing means those commands passed on the exact files you are about to apply. It does not mean the code is right in every way." },
-  { q: "What if my project changes after I review?", a: "Apply refuses and nothing is written. Refresh the review to recheck the changes against your current files, then Apply again." },
-  { q: "What if Apply is interrupted?", a: "Pytxo journals every Apply. On restart it reconciles the attempt: confirmed as applied, rolled back, or flagged as needing recovery. It never reports a restore it could not confirm." },
-  { q: "Does Pytxo sandbox everything an agent does?", a: "No. Pytxo controls what reaches your repository. It does not contain every file or network action an agent takes on your machine; each run's details list which protections were enforced and which were advisory." },
-  { q: "Is it faster than one agent?", a: "Sometimes. Splitting helps when a job has parts that can run at once. A small fix is often quicker with one agent, and Pytxo works fine with one." },
-] as const;
+const COMMENT_URL = "/evidence/comment-blocked-2.0.0-2026-10-30.json";
+// The checks table of the recorded pull request comment, in the order the check ran them: the combined change,
+// each branch alone once that failed, and the combined change once more.
+const RUNS = comment.output
+  .split(/\r?\n/)
+  .flatMap((row) => {
+    const m = /^\| `[^`]+` \| `([^`]+)` \| \**(pass|fail)\** \| ([\d.]+)s \|$/.exec(row);
+    if (!m) return [];
+    const [, scope, result, seconds] = m;
+    const alone = scope.startsWith("input:");
+    return [{
+      order: scope === "combined" ? 0 : alone ? 1 : 2,
+      label: alone ? `${scope.slice("input:".length)} alone` : scope === "combined" ? "together" : "together, again",
+      passed: result === "pass",
+      seconds,
+    }];
+  })
+  .sort((a, b) => a.order - b.order);
+
+const ACTION_AT = ACTION_USES.indexOf("actions/");
 
 export default function HomePage() {
   return (
-    <>
+    <div className={s.page}>
       <script
         type="application/ld+json"
         // sloplint-disable-next-line SEC-007 -- constant structured data; "<" is escaped below
@@ -70,41 +72,56 @@ export default function HomePage() {
         }}
       />
       <Hero />
-      <HowItWorks />
-      <LandSection />
-      <CompareSection />
-      <ProofSection />
-      <CompatibilitySection />
-      <section
-        className="mx-auto grid max-w-[92rem] gap-12 border-t border-white/10 px-4 py-[clamp(4.5rem,7vw,7.5rem)] sm:px-6 lg:grid-cols-[0.72fr_1.28fr] lg:px-10"
-        aria-labelledby="faq-title"
-        data-testid="faq-section"
-      >
-        <div>
-          <h2
-            id="faq-title"
-            className="max-w-md text-[clamp(2rem,3.4vw,3.25rem)] leading-[1.06] tracking-[-0.04em]"
-          >
-            Questions
-          </h2>
-          <p className="mt-6 max-w-sm text-sm leading-relaxed text-[#8d8d96]">
-            Your agents write the code. You decide what lands.
-          </p>
+      <RecordedDemo />
+
+      <section className={s.sec} aria-labelledby="decide-title" data-testid="decide-section">
+        <div className={s.wrap}>
+          <h2 id="decide-title">Together first. If that fails, each alone.</h2>
+          {/* The roles keep the table a table for screen readers where phones lay its rows out as a grid. */}
+          <table className={s.ledger} role="table">
+            <caption className="sr-only">npm test runs from the pull request comment pytxo {comment.version} wrote for the demo&apos;s branches</caption>
+            <tbody role="rowgroup">
+              {RUNS.map((run) => (
+                <tr key={run.label} className={run.passed ? s.pass : s.fail} role="row">
+                  <th scope="row" role="rowheader">{run.label}</th>
+                  <td className={s.res} role="cell"><span className={s.dot} aria-hidden="true" />{run.passed ? "pass" : "fail"}</td>
+                  <td className={s.t} role="cell">{run.seconds}&nbsp;s</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className={s.verdict}>A break, not a flaky test. Blocked.</p>
+          <div className={s.recFoot}>
+            <a href={COMMENT_URL}>Pull request comment · pytxo&nbsp;{comment.version} · rendered locally</a>
+          </div>
         </div>
-        <Accordion type="single" collapsible className="w-full border-t border-white/10">
-          {FAQ.map((item) => (
-            <AccordionItem key={item.q} value={item.q} className="border-white/10 py-1">
-              <AccordionTrigger className="py-5 text-left text-base hover:no-underline sm:text-lg">
-                {item.q}
-              </AccordionTrigger>
-              <AccordionContent className="max-w-3xl pb-6 text-sm leading-relaxed text-[#a9a9b2] sm:text-base">
-                {item.a}
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
       </section>
-      <GetItSection />
-    </>
+
+      <section className={s.sec} aria-labelledby="where-title" data-testid="where-section">
+        <div className={s.wrap}>
+          <h2 id="where-title">Where it runs.</h2>
+          <ul className={s.where}>
+            <li><p>In your terminal</p><code>npx pytxo --apply</code></li>
+            <li>
+              <p>When an agent stops, through the <Link href="/docs/getting-started/agent-hooks">Claude Code plugin or the Codex hook</Link></p>
+              <code>npx pytxo hook</code>
+            </li>
+            <li>
+              <p>On every agent pull request, with the <Link href="/docs/getting-started/land-in-ci">GitHub Action</Link></p>
+              <code>uses: {ACTION_USES.slice(0, ACTION_AT)}<wbr />{ACTION_USES.slice(ACTION_AT)}</code>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section className={cn(s.sec, s.close)} aria-labelledby="close-title" data-testid="close-section">
+        <div className={s.wrap}>
+          <h2 id="close-title"><span>Before the merge,</span> <span>not after.</span></h2>
+          <div className={s.act}>
+            <CopyCommand />
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }

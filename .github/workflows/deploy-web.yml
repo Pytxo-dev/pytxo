@@ -29,6 +29,14 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
+          # Main waits while the candidate is unpublished, as vercel.json's
+          # git.deploymentEnabled.main does (DECISIONS.md #26).
+          published=$(sed -n 's/^export const PUBLISHED_VERSION = "\([^"]*\)".*/\1/p' src/lib/site.ts)
+          candidate=$(sed -n 's/^export const CANDIDATE_VERSION = "\([^"]*\)".*/\1/p' src/lib/site.ts)
+          if [ -z "$published" ] || [ "$published" != "$candidate" ]; then
+            echo "::notice::Not deployed: the site describes $candidate, and npm has $published."
+            exit 0
+          fi
           if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
             # Production deploys use the Vercel CLI until these secrets exist; a red
             # run on every main push would hide real failures.

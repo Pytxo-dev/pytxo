@@ -97,7 +97,12 @@ pub struct ReceiptSymbolCollision {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ReceiptCheck {
-    /// `combined` or `input:<ref>`.
+    /// `combined`, `input:<ref>`, `target`, or, after a cause names two inputs
+    /// of three or more, `pair:<i>,<j>` (the target with only those two) and
+    /// `rest:<k>,...` (the target with the other merged inputs), the inputs
+    /// it merged by their positions. In the string and not a field of their
+    /// own, so a binary that knows no such run still keeps them, and its
+    /// digest of this receipt still matches.
     pub scope: String,
     pub command: String,
     /// `None` when no exit status was observed (the check never started or
@@ -110,6 +115,13 @@ pub struct ReceiptCheck {
     pub timed_out: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub output_tail: Vec<String>,
+    /// Up to ten lines from above `output_tail` that say what went wrong,
+    /// each with the line after it, such as rustc's ` --> src/a.rs:4:5`: the
+    /// why and the cause of a long run whose tail is all summary, such as a
+    /// Go module's one failed package among many. Not part of the receipt or
+    /// its digest, so a receipt read back has none.
+    #[serde(skip)]
+    pub first_errors: Vec<String>,
     /// The second run of a combined check that failed while every input
     /// passed it alone. Absent (false) on every other run, so older receipts
     /// read and verify unchanged.
@@ -167,12 +179,8 @@ impl Receipt {
     /// only with `include_paths`.
     pub fn share_payload(&self, include_paths: bool) -> serde_json::Value {
         let p = &self.predicate;
-        let tally = |scope_combined: bool| {
-            let checks: Vec<_> = p
-                .checks
-                .iter()
-                .filter(|c| (c.scope == "combined") == scope_combined)
-                .collect();
+        let tally = |in_scope: fn(&str) -> bool| {
+            let checks: Vec<_> = p.checks.iter().filter(|c| in_scope(&c.scope)).collect();
             serde_json::json!({
                 "passed": checks.iter().filter(|c| c.passed).count(),
                 "total": checks.len(),
@@ -195,7 +203,10 @@ impl Receipt {
             "shared_files": p.shared_files.len(),
             "symbol_collisions": p.shared_files.iter().map(|f| f.symbol_collisions.len()).sum::<usize>(),
             "conflicts": p.inputs.iter().filter(|i| i.status == "conflict").count(),
-            "checks": { "combined": tally(true), "per_input": tally(false) },
+            "checks": {
+                "combined": tally(|s| s == "combined"),
+                "per_input": tally(|s| s.starts_with("input:")),
+            },
             "duration_ms": p.duration_ms,
             "content_digest": p.content_digest,
         });
@@ -294,6 +305,7 @@ mod tests {
                         r"npm error log: C:\Users\someone\AppData\npm\debug.log".into(),
                         "at /home/someone/repo/test.js:3".into(),
                     ],
+                    first_errors: Vec::new(),
                     rerun: false,
                 }],
                 reasons: vec!["combined check failed".into()],
@@ -338,5 +350,21 @@ mod tests {
                 "{secret} leaked: {with_paths}"
             );
         }
+    }
+
+    /// A run on the target is neither combined nor per input.
+    #[test]
+    fn share_payload_counts_only_input_runs_as_per_input() {
+        let mut receipt = sample();
+        let run = receipt.predicate.checks[0].clone();
+        for scope in ["input:agent/a", "target"] {
+            receipt.predicate.checks.push(ReceiptCheck {
+                scope: scope.into(),
+                ..run.clone()
+            });
+        }
+        let checks = &receipt.share_payload(false)["checks"];
+        assert_eq!(checks["combined"]["total"], 1);
+        assert_eq!(checks["per_input"]["total"], 1);
     }
 }

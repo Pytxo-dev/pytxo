@@ -365,6 +365,13 @@ fn sh_git(dir: &Path, args: &[&str]) -> Result<String> {
     Git::owned(dir, Some(("Pybench", "pybench@pytxo.invalid"))).run(args)
 }
 
+/// `git init -b main`, which Git before 2.28 does not take.
+fn init_main(dir: &Path) -> Result<()> {
+    sh_git(dir, &["init", "-q"])?;
+    sh_git(dir, &["symbolic-ref", "HEAD", "refs/heads/main"])?;
+    Ok(())
+}
+
 fn write_files(dir: &Path, files: &[(&str, String)]) -> Result<()> {
     for (path, body) in files {
         let p = dir.join(path);
@@ -374,14 +381,14 @@ fn write_files(dir: &Path, files: &[(&str, String)]) -> Result<()> {
     Ok(())
 }
 
-fn build_repo(scenario: &Scenario) -> Result<tempdir::Dir> {
+fn build_repo(scenario: &Scenario, files: &[(&str, String)]) -> Result<Dir> {
     let dir = tempdir::Dir::new("pybench")?;
     let d = dir.path();
-    sh_git(d, &["init", "-q", "-b", "main"])?;
+    init_main(d)?;
     sh_git(d, &["config", "core.autocrlf", "false"])?;
     sh_git(d, &["config", "user.name", "Pybench"])?;
     sh_git(d, &["config", "user.email", "pybench@pytxo.invalid"])?;
-    write_files(d, &base_files())?;
+    write_files(d, files)?;
     sh_git(d, &["add", "-A"])?;
     sh_git(d, &["commit", "-q", "-m", "base"])?;
     for (name, edits) in &scenario.branches {
@@ -397,6 +404,42 @@ fn build_repo(scenario: &Scenario) -> Result<tempdir::Dir> {
         sh_git(d, &["checkout", "-q", "main"])?;
     }
     Ok(dir)
+}
+
+/// What `pytxo demo` checks: two agent branches that each pass `npm test`
+/// and break it together. One renames `price`, the other adds a caller of it.
+pub const DEMO_BRANCHES: [(&str, &str); 2] = [
+    (
+        "claude/rename-price",
+        "renames price() to unitPrice() in src/cart.js",
+    ),
+    (
+        "codex/add-discount",
+        "adds src/discount.js, which calls price()",
+    ),
+];
+
+/// Builds the `pytxo demo` repository in a fresh temp directory: the
+/// rename-vs-new-caller scenario, on agent branch names, with a
+/// `package.json` so the test command is detected the way it is in a real repo.
+pub fn demo_repo() -> Result<Dir> {
+    let node = Command::new("node").arg("--version").output();
+    if !node.is_ok_and(|o| o.status.success()) {
+        bail!("the demo's tests run on Node.js, which is not on PATH: install it from https://nodejs.org");
+    }
+    let mut demo = scenarios()
+        .into_iter()
+        .find(|s| s.id == "rename-vs-new-caller")
+        .expect("the demo scenario exists");
+    for (branch, (name, _)) in demo.branches.iter_mut().zip(DEMO_BRANCHES) {
+        branch.0 = name;
+    }
+    let mut files = base_files();
+    files.push((
+        "package.json",
+        "{\n  \"name\": \"shop\",\n  \"private\": true,\n  \"scripts\": { \"test\": \"node run-tests.js\" }\n}\n".into(),
+    ));
+    build_repo(&demo, &files)
 }
 
 /// Per-branch CI: test each branch alone, merge the ones that passed, never
@@ -416,12 +459,14 @@ fn naive_policy(repo: &Path, branches: &[&str]) -> Result<&'static str> {
     )?;
     let g = Git::owned(&scratch, Some(("Pybench", "pybench@pytxo.invalid")));
     let base = g.run(&["rev-parse", "HEAD"])?;
+    let check = |scope: &str| {
+        let logs = std::env::temp_dir();
+        run_check(scope, CHECK, &scratch, &logs, Duration::from_secs(120)).passed
+    };
     let mut passing = Vec::new();
     for b in branches {
         g.run(&["reset", "-q", "--hard", &base])?;
-        if g.ok(&["merge", "-q", "--no-ff", "--no-edit", b])
-            && run_check("solo", CHECK, &scratch, Duration::from_secs(120)).passed
-        {
+        if g.ok(&["merge", "-q", "--no-ff", "--no-edit", b]) && check("solo") {
             passing.push(*b);
         } else {
             let _ = g.output(&["merge", "--abort"]);
@@ -435,9 +480,7 @@ fn naive_policy(repo: &Path, branches: &[&str]) -> Result<&'static str> {
             outcome = "manual_conflict";
         }
     }
-    if outcome == "landed_ok"
-        && !run_check("after", CHECK, &scratch, Duration::from_secs(120)).passed
-    {
+    if outcome == "landed_ok" && !check("after") {
         outcome = "landed_broken";
     }
     let _ = sh_git(
@@ -461,7 +504,7 @@ fn land_suite(has_node: bool, progress: &mut impl FnMut(&str)) -> Result<LandSui
     let mut results = Vec::new();
     for scenario in scenarios() {
         progress(&format!("land  {}", scenario.id));
-        let dir = build_repo(&scenario)?;
+        let dir = build_repo(&scenario, &base_files())?;
         let d = dir.path();
         let names: Vec<&str> = scenario.branches.iter().map(|(n, _)| *n).collect();
         let naive = if scenario.moves_target {
@@ -571,7 +614,7 @@ fn overhead_suite(progress: &mut impl FnMut(&str)) -> Result<OverheadSuite> {
         progress(&format!("overhead  {inputs} inputs × {files} files"));
         let dir = tempdir::Dir::new("pybench-overhead")?;
         let d = dir.path();
-        sh_git(d, &["init", "-q", "-b", "main"])?;
+        init_main(d)?;
         sh_git(d, &["config", "core.autocrlf", "false"])?;
         let base: Vec<(&str, String)> = Vec::new();
         write_files(d, &base)?;
@@ -787,6 +830,8 @@ pub fn render_text(r: &BenchReport) -> String {
 
 /// Minimal owned temp directory (removed on drop) so the CLI binary does not
 /// need `tempfile` at runtime.
+pub use tempdir::Dir;
+
 mod tempdir {
     use std::path::{Path, PathBuf};
 
@@ -797,17 +842,28 @@ mod tempdir {
             let path =
                 std::env::temp_dir().join(format!("{prefix}-{}", uuid::Uuid::new_v4().simple()));
             std::fs::create_dir_all(&path)?;
+            // Removed by an interrupt too, which skips Drop.
+            crate::active().paths.push(path.clone());
             Ok(Self(path))
         }
 
         pub fn path(&self) -> &Path {
             &self.0
         }
+
+        /// Leave the directory on disk and return its path.
+        pub fn keep(self) -> PathBuf {
+            let path = self.0.clone();
+            crate::active().paths.retain(|p| p != &path);
+            std::mem::forget(self);
+            path
+        }
     }
 
     impl Drop for Dir {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
+            crate::active().paths.retain(|p| p != &self.0);
         }
     }
 }

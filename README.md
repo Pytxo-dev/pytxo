@@ -1,138 +1,215 @@
 # Pytxo
 
 [![CI](https://github.com/Pytxo-dev/pytxo/actions/workflows/ci.yml/badge.svg)](https://github.com/Pytxo-dev/pytxo/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/Pytxo-dev/pytxo-releases)](https://github.com/Pytxo-dev/pytxo-releases/releases)
 [![npm](https://img.shields.io/npm/v/pytxo)](https://www.npmjs.com/package/pytxo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
 
-**The landing layer for coding agents.** Split one request across the agent
-CLIs you already use (Codex, Claude Code, Cursor Agent; OpenCode and
-Antigravity experimental), or bring branches from any agent tool with
-`pytxo land`. Pytxo checks the combined change with your commands, shows
-exactly what will land, refuses if anything moved, and leaves a receipt.
-Many agents, one verified change.
+**Land all your agents' branches in one command.**
 
-![pytxo land on two branches that each pass their tests alone: the combined change fails twice and the decision is BLOCKED](docs/_attachments/pytxo-land-blocked.gif)
-
-<sub>Recorded with pytxo 1.3.5 from npm on the sample repository from Pybench's
-rename scenario: one branch renames `price()`, the other adds a caller of
-`price()`. The branches come from Pybench, not from an agent run. The GIF cuts
-the 3 s wait before the output to 1 s; the
-[asciinema recording](docs/_attachments/pytxo-land-blocked.cast) keeps the real
-timing.</sub>
+Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway
+worktree, runs your tests on the combined result, and lands them only if they
+pass. If two branches break each other, nothing lands and you see why. Free,
+open source, runs on your machine or in CI.
 
 ```bash
-npm i -g pytxo
-pytxo land codex:agent/a claude:agent/b --check "npm test" --per-input   # shadow mode: changes nothing
+npx pytxo demo
 ```
 
-Pass your agents' branches as `label:branch` (the label is only a name) and
-your own test command. Checks run in a fresh worktree where nothing is
-installed, so a Node project installs in the check:
-`--check "npm ci && npm test"`. `--per-input` also runs the check on each
-branch alone, so a failure that only shows up in the combination is reported as
-one, and when only the combination fails it runs once more to rule out a flaky
-test. Add `--apply` to land a ready result. `pytxo land` calls no model and
-sends nothing; receipts stay in `.git/pytxo/receipts`.
-
-**Limits**
-
-- It catches what your checks catch. A break your tests don't cover can still
-  land, and merge conflicts are reported and blocked, not resolved.
-- Pybench (`pytxo bench`) runs on synthetic repositories. It shows the
-  mechanism, not how often this happens in real projects.
-- The CLI ships for macOS, Linux and Windows. Pytxo Desktop is Windows x64 only.
-- Receipts use the in-toto statement format but are not signed. This is a
-  public beta.
-
-- **Site:** [pytxo.com](https://pytxo.com)
-- **Docs:** [pytxo.com/docs](https://pytxo.com/docs)
-- **Discord:** [discord.gg/AUFRPFjSYv](https://discord.gg/AUFRPFjSYv)
-- **Releases:** [github.com/Pytxo-dev/pytxo-releases](https://github.com/Pytxo-dev/pytxo-releases)
-- **Stack:** Rust (`portable-pty`, `tree-sitter`) · ratatui TUI · Svelte 5 · Tauri v2
-
-## Install
+## Try it
 
 ```bash
-npm i -g pytxo@1.3.6
-pytxo doctor
+npx pytxo demo      # a throwaway repo where two agent branches pass alone and fail together
+cd your-repo
+npx pytxo           # checks your agent branches together
+npx pytxo --apply   # and lands them if they pass
 ```
 
-The first `pytxo` command downloads the native binary for your platform and
-checks it against the release's SHA-256 list. npm 12 blocks install scripts by
-default and prints a warning about pytxo's `postinstall`; you can ignore it.
+No flags, no config, no account. Pytxo finds the agent branches, finds your
+test command, merges the branches in a throwaway worktree, runs the tests
+there and prints the verdict in three lines: what happened, why, and what to
+do next. Nothing in your repository changes unless you add `--apply`. Ctrl+C stops a check and removes
+its throwaway worktree; a check that is killed outright leaves the worktree in
+`git worktree list` until the next check removes it.
 
-Installers and binaries are published through
-[Pytxo releases](https://github.com/Pytxo-dev/pytxo-releases). Pytxo Desktop is
-Windows-first for v1.3.6. The npm installer must fail if the binary for the
-current platform is not present or cannot be verified; it must not imply that a
-missing platform succeeded.
+## The demo
 
-Running `pytxo` with no subcommand opens the terminal dashboard. Pytxo Desktop
-is optional and organizes the same local control model around Work, History,
-Setup, workspace switching, approvals, and reviewed Apply.
+`npx pytxo demo` builds a small repository where one agent renamed a function
+and another added a new call to its old name. Each branch passes `npm test` on
+its own:
 
-## What Pytxo is
+```text
+$ npx pytxo demo
+Building a throwaway repo where two agents changed the same shop code...
+  claude/rename-price  renames price() to unitPrice() in src/cart.js
+  codex/add-discount   adds src/discount.js, which calls price()
+Checking claude/rename-price and codex/add-discount against main with npm test (from package.json)...
+BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
+why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
+next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
+```
 
-Pytxo runs **heterogeneous headless agents** (Claude Code, Codex, Antigravity CLI, …) in managed background PTYs. It is not your IDE and not sixteen embedded terminal webviews.
+The demo needs Node.js and takes under 30 seconds, the first download included.
 
-Today, one successful Orbit or Galaxy mission can become an immutable review
-package for one repository root. Apply uses the stored target bytes, validates
-affected-path preimages, and journals recovery. This repository boundary is the
-first concrete version of the broader commit-layer contract.
+## In CI: one line
 
-The wider product direction is a commit layer for autonomous work: effect-bound
-authority, independent post-state verification, causal evidence, and honest
-recovery across production systems. That production-effect gateway is a north
-star, not a shipping claim.
+Add `.github/workflows/pytxo.yml`:
 
-| Moat | Role |
-|------|------|
-| **Signal Core** | `tree-sitter` skeletons on read — context arbitrage, lower token burn |
-| **Blast Shield** | Isolated workspaces; Orbit/Galaxy changes reach the repository only through reviewed Apply |
-| **Race Shield** | Swarm registry + stdin buffering — no monorepo write races |
+```yaml
+name: Pytxo
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+concurrency:
+  group: pytxo-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Pytxo-dev/pytxo/actions/land@v2
+```
 
-**Pytxo Desktop** ([`apps/desktop`](apps/desktop/)) is the optional Work,
-History, and Setup control UI — structural evidence and decisions, not raw
-terminal walls.
+Your tests run in the job that holds this token, so give the workflow no other
+permissions or secrets. If Copilot's coding agent opens pull requests here, add
+`actions: read` so the check can include them once someone lets their run
+start; with it, code in the checked branches can also read every workflow
+run's logs and artifacts.
 
-Permission profiles matter. DeepSpace is non-flushable, Orbit and Galaxy use
-the reviewed repository boundary, and Supernova is host-direct. The effective
-enforcement receipt is the authority; the UI does not claim every profile is
-sandboxed.
+A run on an agent pull request checks it together with the other open agent
+pull requests into the same base branch and keeps one comment on it, updated in
+place. When no other agent pull request is open into that base, the job passes
+with a note in the job summary. The job fails when this pull request conflicts,
+fails the tests alone, or is in a combination that fails while each passes
+alone. With three or more pull requests, when Pytxo proves that two of them
+fail together and the others pass without them, only the pull requests behind
+the failure fail. When only other pull requests are to blame, the comment names
+them and the job passes. When the failing output confirms the cause, the
+comment also holds a fix prompt for the branch that has to change. When nothing
+in the result points at any pull request, such as a combined run that timed
+out, every pull request in the run fails. It runs on `pull_request` only, never
+`pull_request_target`. A fork's pull request never joins another pull
+request's run: it is checked in its own run, with GitHub's read-only token and
+no secrets. A pull request opened by Copilot or `github-actions[bot]`, whose
+runs GitHub holds for approval, joins another pull request's run only when the
+workflow has `actions: read`, and only at its newest commit whose run someone
+let start; the comment names that commit. Its own run, once approved, checks
+it with the others. A run checks each pull request at the commit it saw, so a
+push after someone approved the run gets a run of its own. Without
+`pull-requests: write` the verdict goes to the job summary instead. See
+[the Action's inputs](actions/land/action.yml).
+
+## When your agents finish
+
+- **Claude Code:** in a shell,
+  `claude plugin marketplace add Pytxo-dev/pytxo --sparse .claude-plugin integrations/claude-code`,
+  then `claude plugin install pytxo@pytxo`. The check runs when Claude stops.
+  It answers when two or more agent branches exist and one of them, the target
+  or the test command changed since its last answer. When the verdict names a
+  confirmed cause, the sessions on both branches it names show it once, each
+  at its own stop. [More](integrations/claude-code/README.md)
+- **Codex:** copy [integrations/codex/hooks.json](integrations/codex/hooks.json)
+  to `~/.codex/hooks.json` and trust it in `/hooks`.
+  [More](integrations/codex/README.md)
+
+## Details
+
+**Which branches.** With no arguments Pytxo checks branches named `claude/*`,
+`codex/*`, `copilot/*`, `cursor/*`, `devin/*`, `jules/*` and `agent/*`, plus
+every branch checked out in a linked worktree, that have a commit in the last
+14 days, at most 10 at once, newest first. Branches already merged into the
+target, squash merges included, are skipped. Only committed work is checked: a
+worktree whose changes are all uncommitted gets a hint to commit them. If your
+agents push their branches to GitHub, run `git fetch` first. Name branches
+yourself (`npx pytxo feature/a feature/b`) or change the patterns for a
+repository:
+
+```bash
+git config pytxo.branches "bot/* ai/*"
+```
+
+**Which target.** With no arguments the branches are checked against the
+default branch: `origin/HEAD`, else `main`, `master` or `trunk`. Branches you
+name are checked against the branch you have checked out, as in Pytxo 1.x, or
+against the default branch if the checked-out branch is one of them or no
+branch is checked out. `--into <branch>`, `git config pytxo.into <branch>` or
+`PYTXO_INTO` sets the target in both cases.
+
+**Which tests.** Pytxo reads the target branch and picks the usual command
+for `package.json` (npm, pnpm, yarn or bun, installing dependencies first when
+there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix,
+RSpec, Rake, Composer or a `Makefile` with a `test` target. Set it yourself
+with `-c "npm ci && npm test"` or `git config pytxo.check "..."`. A compiled
+project, such as a Rust workspace, pays a cold build in each throwaway
+worktree. Submodules are not checked out there.
+
+**How it decides.** Pytxo runs the tests on the combined change first. If they
+fail, it runs them on each branch alone to tell a break that only happens
+together from a branch that is already broken, and, if every branch passes
+alone, runs the combined change once more to catch a flaky test. If that run
+fails too, it looks, with git and tree-sitter, for a definition one branch
+renamed or removed that another branch's new code still uses. When the failing
+output confirms it, the why line names both branches and the line, and the
+next line says which branch to rebase; otherwise a note names the possible
+cause. With three or more branches it then tests that pair without the others
+and, if they fail, the others without the pair: at most two more runs, so the
+verdict can clear the others. If the combined run times out, that is the
+answer: the branches do not run alone after it, and it does not run again.
+Merge conflicts block too.
+
+**Exit codes.** `0` ready (or nothing to check), `2` blocked, `3` stale (the
+target moved), `1` error, `130` stopped by Ctrl+C.
+
+**Output.** `--verbose` adds what was found, every test run with its error
+lines, the receipt's path and a ref to the combined commit;
+`pytxo receipts show <id>` prints the last 40 lines of each run and checks the
+digest. `--json` is for scripts and `--markdown` is the GitHub Action's comment.
+`--apply` lands only a tested, ready result on the target branch: when no test
+command was found, it exits `1` and changes nothing. Every check records a
+receipt in `.git/pytxo/receipts` (`pytxo receipts`).
+
+**Limits.** It catches what your tests catch: a break your tests don't cover
+can still land. Conflicts are blocked, not resolved. Pybench (`pytxo bench`)
+shows the mechanism on synthetic repositories, not how often it happens in
+real projects. Receipts use the in-toto statement format but are not signed.
+Pytxo sends nothing anywhere.
+
+**Install it.** `npx pytxo` downloads the native binary for your platform on
+first run and checks it against the release's SHA-256 list. To keep it on your
+PATH: `npm i -g pytxo`. Binaries for macOS, Linux and Windows are on
+[Pytxo releases](https://github.com/Pytxo-dev/pytxo-releases).
+
+## Pytxo 1.x
+
+Pytxo Desktop, missions, fleets and the terminal dashboard are frozen. They
+still build from source with the default `full` feature
+(`cargo build -p pytxo-cli`); the released CLI ships the check only. Their docs
+are under [Advanced](https://pytxo.com/docs) on the site.
 
 ## Repository layout
 
 | Path | Purpose |
 |------|---------|
-| [`crates/`](crates/) | Rust control plane (CLI, TUI, MCP, scheduler, runner, store) |
-| [`packages/pytxo`](packages/pytxo/) | npm installer wrapper |
-| [`apps/web/content/docs/`](apps/web/content/docs/) | Public docs (Fumadocs → pytxo.com/docs) |
-| [`apps/web/`](apps/web/) | Marketing site ([pytxo.com](https://pytxo.com)) |
-| [`apps/desktop/`](apps/desktop/) | Pytxo Desktop (Svelte + Tauri) |
-| [`docs/`](docs/) | Internal Obsidian vault |
-| [`tooling/`](tooling/) | Install scripts, smoke tests, benchmarks |
+| [`crates/pytxo-land`](crates/pytxo-land/) | The check: branch and test detection, the combined merge, verdicts, receipts, Pybench |
+| [`crates/pytxo-cli`](crates/pytxo-cli/) | The `pytxo` command |
+| [`actions/land`](actions/land/) | The GitHub Action |
+| [`integrations/`](integrations/) | The Claude Code plugin and the Codex hook |
+| [`packages/pytxo`](packages/pytxo/) | The npm package |
+| [`apps/web/`](apps/web/) | [pytxo.com](https://pytxo.com) and the public docs |
+| [`apps/desktop/`](apps/desktop/) | Pytxo Desktop (frozen) |
+| [`docs/`](docs/) | Internal architecture notes and decision records |
 
-## Quick start (developers)
+## Build from source
 
-Building from source requires Rust 1.88 or newer and the current Node.js/npm
-toolchain used by the workspace lockfiles.
+Building needs Rust 1.88 or newer.
 
 ```bash
-cargo build -p pytxo-cli
-cargo run -p pytxo-cli -- doctor
-cargo run -p pytxo-cli -- trust orbit
-cargo run -p pytxo-cli -- run --config pytxo.toml.example --dry-run
+cargo build -p pytxo-cli --no-default-features   # the check, as released
+cargo test --workspace
 ```
 
-Run the repository smoke separately with
-`powershell -File tooling/scripts/smoke.ps1` on Windows or
-`bash tooling/scripts/smoke.sh` on Unix-like hosts.
+- **Site:** [pytxo.com](https://pytxo.com)
+- **Docs:** [pytxo.com/docs](https://pytxo.com/docs)
+- **Discord:** [discord.gg/AUFRPFjSYv](https://discord.gg/AUFRPFjSYv)
 
-## Status
-
-**Current release: v1.3.6 (public beta).** The shipping proof is a local, vendor-neutral
-mission that produces isolated work, explicit verification, an immutable
-single-root review package, guarded Apply, and durable evidence/recovery state.
-Optional cloud services and the broader production-effect commit layer are not
-part of the default local release claim.
+Pytxo 2.0 is a public beta.

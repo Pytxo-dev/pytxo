@@ -1,0 +1,30 @@
+{
+  "schema": "pytxo.evidence/v1",
+  "recorded": "2026-10-30",
+  "version": "2.0.0",
+  "build": "Pytxo CLI 2.0.0 source candidate: a local release build (cargo build -p pytxo-cli --release --no-default-features) of commit 8d7412e on branch mbcz/pytxo-2-1-smart, run with PYTXO_RUN_AS=\"npx pytxo\" as the npm launcher sets it. Not yet a published release.",
+  "host": {
+    "os": "Windows 11 Home",
+    "node": "26.10",
+    "git": "2.53"
+  },
+  "repo": {
+    "name": "pytxo demo (Pybench rename-vs-new-caller)",
+    "source": "https://github.com/Pytxo-dev/pytxo/blob/main/crates/pytxo-land/src/bench.rs",
+    "built": "pytxo demo --keep built the same repository as npx pytxo demo and kept it, so the check could run on it again",
+    "branches": {
+      "claude/rename-price": "renames price() to unitPrice() in src/cart.js",
+      "codex/add-discount": "adds src/discount.js, which calls price(), and tests/discount.test.js"
+    }
+  },
+  "command": "npx pytxo --markdown claude/rename-price codex/add-discount",
+  "exit_code": 2,
+  "output": "### ⛔ BLOCKED: `claude/rename-price` and `codex/add-discount` pass npm test alone but fail together\n\n**Why:** `claude/rename-price` renamed `price` to `unitPrice`; `codex/add-discount` still uses `price` (`src/discount.js:1`).\n\n**Next:** rebase `codex/add-discount` onto `claude/rename-price` and use `unitPrice`, then push again.\n\n<details><summary>Fix prompt for <code>codex/add-discount</code></summary>\n\n```text\nPytxo merged claude/rename-price and codex/add-discount and ran npm test: each passes alone, together they fail.\nclaude/rename-price renamed price to unitPrice. codex/add-discount still uses price at src/discount.js:1, src/discount.js:4.\nFix it on codex/add-discount: rebase it onto claude/rename-price, replace price with unitPrice, and run npm test until it passes. Leave claude/rename-price's changes as they are.\nFailing output:\n> test\n> node run-tests.js\nok   cart.test.js\nFAIL discount.test.js: price is not a function\n```\n\n</details>\n\n<details><summary>Details</summary>\n\nTarget `main` at `166f3854e` · 2 inputs · 3 files changed · 5.8s\n\n| Input | Files | Status |\n|---|---:|---|\n| `claude/rename-price` | 1 | merged |\n| `codex/add-discount` | 2 | merged |\n\n| Check | Scope | Result | Time |\n|---|---|---|---:|\n| `npm test` | `input:claude/rename-price` | pass | 0.7s |\n| `npm test` | `input:codex/add-discount` | pass | 0.6s |\n| `npm test` | `combined` | **fail** | 0.7s |\n| `npm test` | `combined, run 2` | **fail** | 0.5s |\n\n`npm test` (`combined`):\n```\nFAIL discount.test.js: price is not a function\n```\n\n`npm test` (`combined, run 2`):\n```\nFAIL discount.test.js: price is not a function\n```\n\nReasons:\n- `combined check failed twice: npm test (exit 1, then exit 1)`\n\n</details>\n\n<sub>Add this check to any repo in one line: `uses: Pytxo-dev/pytxo/actions/land@v2` · see it work: `npx pytxo demo`</sub>\n\n<!-- pytxo-verdict {\"label\":\"BLOCKED\",\"implicated\":[0,1]} -->\n",
+  "limits": [
+    "This is the Markdown verdict the GitHub Action posts as its pull request comment (actions/land runs pytxo check --markdown), rendered on a laptop; it was not posted on GitHub.",
+    "With no --per-input, the check ran the combined change first, each branch alone after it failed, and the combined change once more; the comment lists the branches first.",
+    "Pybench writes both branches itself; no agent wrote them.",
+    "It shows the mechanism, not how often it happens in real projects.",
+    "Timed on a laptop busy with other work."
+  ]
+}

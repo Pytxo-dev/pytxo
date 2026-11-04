@@ -19,6 +19,12 @@ before the release sync publishes a README that references new captures.
 2. Tag a release in `pytxo` (`git tag vX.Y.Z && git push origin vX.Y.Z`) or run
    **Actions → Release / Desktop release**. CI mirrors the CLI and Desktop
    installers to this repository's GitHub Release and syncs the files above.
+3. For a final 2.x release (not a `-*` prerelease), once npm serves the
+   version (`npm view pytxo@X.Y.Z version`), move the Action's `v2` tag, which
+   every setup snippet uses (`Pytxo-dev/pytxo/actions/land@v2`):
+   `git fetch origin tag vX.Y.Z && git tag -f v2 "vX.Y.Z^{commit}" && git push -f origin v2`.
+   The Release
+   workflow ignores this tag: it triggers only on exact versions.
 
 Pin a CLI version with the install script:
 

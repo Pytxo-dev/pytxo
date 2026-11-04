@@ -3,9 +3,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import s from "@/components/site/site.module.css";
 import { StateChip } from "@/components/site/state-chip";
 import { SITE_AUTH_BACKEND_ENABLED } from "@/lib/auth-config";
 import { linkUrl } from "@/lib/link";
+import { cn } from "@/lib/utils";
 
 type SharedReceipt = {
   id: string;
@@ -86,29 +88,30 @@ export default async function ReceiptPage(props: { params: Promise<{ id: string 
     ["Mode", r.mode === "shadow" ? "Shadow (nothing changed)" : "Applied"],
     ["Pytxo", r.pytxo_version],
   ];
-  return <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-24" data-testid="shared-receipt">
-    <p className="font-mono text-xs uppercase tracking-[0.14em] text-[#8d8d96]">{r.kind === "land" ? "landing receipt" : "apply receipt"} · {r.created_at.slice(0, 10)}</p>
-    <div className="mt-4 flex flex-wrap items-center gap-4">
-      <h1 className="text-[clamp(2rem,4vw,3rem)] leading-tight tracking-[-0.04em]">{verdict.label}</h1>
-      <StateChip tone={verdict.tone} label={r.decision} />
-    </div>
-    <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#b4b4bd]">{verdict.line}</p>
-    <dl className="mt-10 divide-y divide-white/10 border-y border-white/10">
-      {rows.map(([term, value]) => <div key={term} className="grid gap-1 py-4 sm:grid-cols-[16rem_1fr] sm:gap-6">
-        <dt className="text-sm text-[#8d8d96]">{term}</dt>
-        <dd className="text-sm tabular-nums">{value}</dd>
-      </div>)}
-    </dl>
-    {r.paths && r.paths.length > 0 && <details className="mt-8">
-      <summary className="cursor-pointer text-sm text-[#c4c4cc]">{r.paths.length} changed paths</summary>
-      <ul className="mt-3 space-y-1 font-mono text-xs text-[#a9a9b2]">{r.paths.map((p) => <li key={p} className="break-all">{p}</li>)}</ul>
-    </details>}
-    <p className="mt-8 break-all font-mono text-xs text-[#6f6f79]">Receipt {r.id} · {r.content_digest}</p>
-    {found.private && <p className="mt-6 max-w-2xl text-sm leading-relaxed text-[#c4c4cc]" data-testid="private-receipt">Private receipt: only you can open this page, signed in.</p>}
-    <p className="mt-6 max-w-2xl text-sm leading-relaxed text-[#8d8d96]">The person who shared this chose to publish counts and outcomes only; commands, branch names, output and the repository stay on their machine. The digest lets them prove this page matches the receipt file they kept.</p>
-    <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-      <Link href="/docs/getting-started/land-branches" className="aperture-link">What is pytxo land? →</Link>
-      <Link href="/download" className="aperture-link">Get Pytxo →</Link>
+  return <div className={s.page} data-testid="shared-receipt">
+    <div className={cn(s.wrap, s.inner, "tabular-nums")}>
+      <div className={s.head}>
+        <h1>{verdict.label}</h1>
+        <StateChip tone={verdict.tone} label={r.decision} />
+      </div>
+      <p className={s.lede}>{r.kind === "land" ? "Landing receipt" : "Apply receipt"} · {r.created_at.slice(0, 10)}. {verdict.line}</p>
+      <dl className={s.facts}>
+        {rows.map(([term, value]) => <div key={term}>
+          <dt>{term}</dt>
+          <dd>{value}</dd>
+        </div>)}
+      </dl>
+      {r.paths && r.paths.length > 0 && <details className={s.paths}>
+        <summary>{r.paths.length} changed paths</summary>
+        <ul>{r.paths.map((p) => <li key={p}>{p}</li>)}</ul>
+      </details>}
+      <p className={cn(s.note, s.digest)}>Receipt {r.id} · {r.content_digest}</p>
+      {found.private && <p className={s.note} data-testid="private-receipt">Private receipt: only you can open this page, signed in.</p>}
+      <p className={s.note}>The person who shared this chose to publish counts and outcomes only; commands, branch names, output and the repository stay on their machine. The digest lets them prove this page matches the receipt file they kept.</p>
+      <div className={s.act}>
+        <Link href="/docs/getting-started/land-branches" className={s.quiet}>What is pytxo land?</Link>
+        <Link href="/download" className={s.quiet}>Get Pytxo</Link>
+      </div>
     </div>
   </div>;
 }

@@ -1,173 +1,69 @@
-# Pytxo v1.1.1: reviewed mission control polish
+# Pytxo 2.0: Impulse
 
-Status: implementation complete; final release verification and publication pending.
+Status: in progress (2026-10-28). Strategy: the October 2026 market research and
+"Pytxo Business Plan: Impulse". Reversible choices are logged in
+[DECISIONS.md](DECISIONS.md).
 
-## Phase 1: reviewed bytes and durable Apply
+One product: a check that merges several agents' branches in a throwaway
+worktree, runs the project's real tests on the combined result, and blocks the
+merge if the combination breaks. Bar: from first sight to a verdict on your own
+repo in under 60 seconds, one command, no flags, no config, no account.
 
-- [x] Persist the plan, base revision, permission profile, enforcement receipt,
-  review state, and Apply history as one run contract.
-- [x] Prepare an immutable package immediately after each successful Orbit or
-  Galaxy run. Blobs preserve exact bytes for additions and modifications; the
-  manifest records deletions, untracked files, binaries, digests, sizes, and
-  ownership.
-- [x] Keep dependent-wave workspaces until the package is durably staged.
-- [x] Apply only the prepared package. Validate affected-path preimages while
-  allowing unrelated checkout changes.
-- [x] Reject unsafe paths, special files, symlinks, traversal, protected Pytxo
-  paths, and divergent ownership.
-- [x] Journal every Apply attempt under
-  `.pytxo/data/apply/<run-id>/<attempt-id>/` and reconcile interrupted attempts
-  before another run or Apply in that execution domain.
-- [x] Keep a package retryable after a confirmed rollback; mark affected-path
-  drift stale; block unprovable recovery as `recovery_required`.
-- [x] Support explicit refresh, retry, recovery reconciliation, and discard.
-- [x] Keep DeepSpace non-flushable and Supernova host-direct.
+## What exists (verified in code, not docs)
 
-## Phase 2: Flow as the Desktop mission home
+- `pytxo land` already merges inputs in memory, runs checks in a temp worktree,
+  re-runs a failed combined check, and exits 0/2/3. It needs explicit branches
+  and `--check`, and prints receipt-heavy output.
+- `pytxo` with no arguments opens the TUI. Nothing detects agent branches.
+- Pybench builds throwaway repos with Node-only tests (`price()`/`unitPrice()`).
+- The Action needs `inputs`, a label and a manual fetch loop, writes only the
+  job summary, and reports errors as "blocked".
+- The npm launcher downloads a 30 MB binary that bundles the TUI, PTY runner,
+  SQLite and an HTTP stack. Measured: cold `npx pytxo@1.3.6 --version` 9.2 s,
+  of which 3.2 s is the download.
+- No Claude Code plugin, no Codex hook, no license code, no telemetry.
 
-- [x] Put Compose, Active, History, and contextual Run Review inside Flow.
-- [x] Redirect legacy Runs and Run Review deep links into Flow.
-- [x] Show the immutable package, exact file changes, base revision, package
-  digest, ownership DAG, permission profile, enforcement receipt, and attempt
-  history in Run Review.
-- [x] Guard Apply against double submission and explain disabled actions.
-- [x] Combine immediate Tauri mutation events with cursor-based catch-up and an
-  infrequent integrity refresh.
-- [x] Keep structural Focus contextual and load the legacy Deck only behind its
-  development flags.
-- [x] Verify keyboard behavior, focus, reduced motion, status announcements,
-  and 1600x1000, 1280x800, and 960x640 layouts.
+## Phase 1: the check (crates)
 
-## Phase 3: product evidence and release material
+- `crates/pytxo-land/src/detect.rs` (new): target branch, agent branches
+  (prefixes, remote-tracking, linked worktrees; configurable), test command
+  from the target's tree, uncommitted-work notes, state fingerprint for hooks.
+- `crates/pytxo-land/src/checks.rs`: more ecosystems; skip installs when
+  `package.json` has no dependencies; read from a git tree, not the checkout.
+- `crates/pytxo-land/src/lib.rs`: `PerInput::OnFailure` (combined first,
+  each branch alone only after a failure), `core.longpaths` on Windows.
+- `crates/pytxo-land/src/render.rs`: `verdict()` plus a 3-line plain render;
+  Markdown leads with the verdict, details folded, install line last.
+- `crates/pytxo-land/src/bench.rs`: public demo repo builder.
+- `crates/pytxo-cli/src/main.rs`, `check_cmd.rs`, `demo.rs`, `hook.rs`:
+  `pytxo` = `pytxo check` (alias `land`), `pytxo demo`, `pytxo hook`;
+  `--verbose` shows the old detail; usage errors exit 1, never 2.
+- `crates/pytxo-cli/src/legacy.rs` + `Cargo.toml` feature `full`: frozen
+  commands (shell, missions, fleets, tiers) compile only with `full`; the npm
+  binary is built with `--no-default-features`.
 
-- [x] Recut the Remotion demo to 52 seconds around Flow, Run Review, Apply,
-  Operations, and the final product line.
-- [x] Remove burned subtitles and keep an external transcript and provisional
-  SRT for accessible publishing. Retiming remains required against the approved
-  continuous narration.
-- [x] Render and validate the silent 1920x1080 H.264 master and poster.
-- [x] Update the homepage, public docs, architecture notes, deterministic
-  product captures, and v1.1 release notes.
-- Publication remains blocked on approved audio and final repository gates;
-  the executable blockers are tracked below.
+Tests: detection (prefixes, remotes, worktrees, merged/squashed, config),
+test-command detection per ecosystem, verdict lines for every outcome, demo
+end to end, Windows paths with spaces and linked worktrees.
 
-## Deferred by design
+## Phase 2: surfaces
 
-- Cross-root transactions and partial-file acceptance need separate contracts.
-- v1.1 does not claim power-loss ACID behavior or cross-filesystem durability.
-- Kernel-grade Orbit and Galaxy filesystem/network boundaries remain platform
-  work; receipts continue to label advisory controls as advisory.
+- `actions/land/action.yml` + `discover.mjs` (+ `discover.test.mjs`): one
+  `uses:` line, PR discovery by prefix or bot author, sticky comment with
+  job-summary fallback, `pull_request` only, no token in the check step.
+- `integrations/claude-code/` (plugin, Stop hook) + `.claude-plugin/marketplace.json`;
+  `integrations/codex/` (hooks.json + steps).
+- `pytxo fix` if time allows.
+- `crates/pytxo-cli/src/license.rs`: Pro gate for private repos in CI
+  (14-day trial, then a license key secret), compiled in but switched off.
 
-## Release workflow
+## Phase 3: story and release prep
 
-Use the maintained [release workflow](docs/07-guides/release-workflow.md) after
-every command below passes on the final tree. Run commands from the repository
-root unless a block changes directory.
-
-### Rust and repository contract
-
-```powershell
-cargo fmt --all -- --check
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-cargo build -p pytxo-cli --release
-cargo build -p pytxo-mcp --release
-cargo run -p pytxo-cli -- status --json
-```
-
-### Pytxo Desktop
-
-```powershell
-Push-Location apps/desktop
-npm ci
-npm run check
-$env:PLAYWRIGHT_CHANNEL='chromium'
-npm run e2e
-npm run storybook:build
-npm run storybook:test:ci
-npm run build:native
-Pop-Location
-cargo test -p pytxo-desktop
-```
-
-### Web and public docs
-
-```powershell
-Push-Location apps/web
-pnpm install --frozen-lockfile
-pnpm run lint
-pnpm run verify:product-assets
-pnpm run check:links
-pnpm run build
-pnpm exec playwright install chromium
-pnpm run e2e -- e2e/marketing.spec.ts --workers=1 --reporter=line
-pnpm audit --prod --audit-level=high
-Pop-Location
-```
-
-### Product demo
-
-```powershell
-ffmpeg -version
-ffprobe -version
-Push-Location apps/demo-video
-npm ci
-npm run typecheck
-npm run compositions
-npm run test:audio-qa
-npm run validate:publishing
-npm run stills
-npm run poster
-npm run render:silent
-npm run validate:silent
-npm run transition-sheet
-Pop-Location
-```
-
-After the approved audio assets are present, run the narrated gates separately:
-
-```powershell
-Push-Location apps/demo-video
-npm run voiceover
-npm run render:narrated
-npm run validate:narrated
-Pop-Location
-```
-
-### Final repository and publication checks
-
-```powershell
-git diff --check
-git status --short
-cargo run -p pytxo-cli -- --version
-```
-
-Confirm `distribution/release-notes/v1.1.1.md`, `RELEASE.md`, package versions,
-installer metadata, and website download metadata all name v1.1.1. Then follow
-the linked workflow to create the tag, installers, checksums, npm package,
-public mirror, website deployment, and post-release download checks.
-
-## Release acceptance criteria
-
-- All commands above exit zero on the final tree and the production web audit
-  reports zero high or critical vulnerabilities.
-- Reviewed Apply tests cover exact stored bytes, affected-path drift, retry,
-  stale and recovery states, one execution domain, and one repository root.
-- Desktop tests cover Flow, Run Review, Apply guards, recovery, keyboard and
-  reduced-motion behavior, and 1600x1000, 1280x800, and 960x640 layouts.
-- Product assets match `apps/desktop/captures/desktop-2/` byte for byte; the
-  verifier must fail when that canonical source directory is absent.
-- The silent demo master passes publishing and media validation with no burned
-  subtitles. The external SRT remains provisional until retimed.
-- Version metadata, release notes, installers, checksums, npm, public mirror,
-  download page, and documentation all resolve to the same v1.1.1 artifacts.
-- No tag, installer, website, or demo is published before the final repository
-  gates and both blockers below are cleared.
-
-## Publication blockers
-
-- [ ] Generate and approve the continuous narration, license the recorded
-  music and three interface cues, retime the provisional SRT, and pass
-  `npm run validate:narrated`.
-- [ ] Publish installers, tag, npm package, public mirror, website, and demo
-  only after the repository-wide release checklist passes on the final tree.
+- `POSITIONING.md`, `README.md`, `packages/pytxo/{package.json,README.md}`.
+- `apps/web`: hero, homepage sections (Desktop moves to `/desktop`), plans
+  (Free; Pro $29 once for the first 500, then $5/month or $48/year; Team
+  planned), docs navigation with an Advanced section, new docs pages, e2e.
+- `.github/workflows/{ci,release}.yml`: lean CLI build, action/integration
+  tests, `v2` tag safe. Version 2.0.0 and release notes, unpublished.
+- Fresh-subagent review of the full diff against "Done means", then a final
+  report with timings and the exact ship commands.

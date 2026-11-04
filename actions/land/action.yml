@@ -1,64 +1,112 @@
-name: Pytxo land (shadow)
-description: Check agent branches as one combined change with pytxo land and write the decision to the job summary. Never pushes or merges.
+name: Pytxo check
+description: Test your agents' pull requests together before any of them merges. Merges the open agent pull requests in a throwaway worktree, runs your tests on the combined result, and comments the verdict.
 branding:
   icon: git-merge
   color: green
 inputs:
-  inputs:
-    description: Space-separated branches, commits or patterns to combine (label:ref allowed)
-    required: true
-  checks:
-    description: Check command to run on the combined change
+  check:
+    description: Test command (default found in the base branch, e.g. npm test, pytest, cargo test, go test ./...)
     required: false
     default: ""
-  per-input:
-    description: Also run the check on each input alone ("true" or "false")
+  branches:
+    description: Agent branch patterns, space-separated (default claude/* codex/* copilot/* cursor/* devin/* jules/* agent/*)
     required: false
-    default: "false"
-  base:
-    description: Commit to check against (default origin/<pull request base branch>)
+    default: ""
+  timeout:
+    description: Timeout for each test run, in whole seconds (default 900)
+    required: false
+    default: ""
+  comment:
+    description: Post the verdict as one pull-request comment, updated in place ("true" or "false")
+    required: false
+    default: "true"
+  token:
+    description: Token that lists pull requests and comments (needs pull-requests write to comment). If Copilot's coding agent opens pull requests here, add actions read so the check can include them once someone lets their run start. Code in the checked pull requests runs in this job and can reach it, so give the job no more than contents read and pull-requests write, plus actions read for Copilot.
+    required: false
+    default: ${{ github.token }}
+  license:
+    description: Pytxo Pro license key for private repositories (secrets.PYTXO_LICENSE). Not required today. Once Pro is switched on, a private repository's run sends this key, and nothing else, to Dodo Payments to check it. Code in the checked pull requests runs in this job and can read it, like the token.
     required: false
     default: ""
   version:
-    description: Pytxo CLI version to install from npm
+    description: Pytxo CLI version from npm
     required: false
-    default: "1.3.6"
+    default: "2.0.0" # pytxo-version
 outputs:
   decision:
-    description: ready, blocked or stale
-    value: ${{ steps.land.outputs.decision }}
+    description: ready, blocked, stale, error or skipped
+    value: ${{ steps.check.outputs.decision || 'skipped' }}
 runs:
   using: composite
   steps:
-    - name: Install Pytxo
+    - id: repo
       shell: bash
-      run: npm i -g "pytxo@${{ inputs.version }}"
-    - name: Run the landing gate
-      id: land
+      run: |
+        if git rev-parse --git-dir >/dev/null 2>&1; then present=true; else present=false; fi
+        echo "present=$present" >> "$GITHUB_OUTPUT"
+
+    # Only a pull request needs the history; other events pass without it.
+    - if: steps.repo.outputs.present != 'true' && github.event_name == 'pull_request'
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    # Finds the agent PRs and fetches them. Runs no pull-request code.
+    - id: discover
       shell: bash
       env:
-        PYTXO_INPUTS: ${{ inputs.inputs }}
-        PYTXO_CHECK: ${{ inputs.checks }}
-        PYTXO_PER_INPUT: ${{ inputs.per-input }}
-        PYTXO_BASE: ${{ inputs.base }}
+        PYTXO_TOKEN: ${{ inputs.token }}
+        PYTXO_BRANCHES: ${{ inputs.branches }}
+        PYTXO_LICENSE: ${{ inputs.license }}
+      run: node "$GITHUB_ACTION_PATH/pytxo-action.mjs" discover
+
+    # Runs the tests on the combined change. The token is not in this step's
+    # env, so test output cannot print it into the comment. That is not a wall:
+    # code run here can change the later steps of this job (through
+    # $GITHUB_ENV, $GITHUB_PATH or files on the runner) and reach the token
+    # there, so the job's permissions are what bound it. Only a separate job
+    # would keep it out.
+    - id: check
+      if: steps.discover.outputs.skip == 'false'
+      shell: bash
+      env:
+        PYTXO_VERSION_PIN: ${{ inputs.version }}
+        PYTXO_CHECK: ${{ inputs.check }}
+        PYTXO_TIMEOUT: ${{ inputs.timeout }}
+        PYTXO_BASE: ${{ steps.discover.outputs.base }}
       run: |
         set +e
-        args=()
-        # Word-split the inputs on purpose; patterns are expanded by pytxo, not the shell.
-        set -f
-        for input in $PYTXO_INPUTS; do args+=("$input"); done
-        set +f
-        base="$PYTXO_BASE"
-        if [ -z "$base" ] && [ -n "$GITHUB_BASE_REF" ]; then base="origin/$GITHUB_BASE_REF"; fi
-        if [ -n "$base" ]; then args+=(--base "$base"); fi
-        if [ -n "$PYTXO_CHECK" ]; then args+=(--check "$PYTXO_CHECK"); fi
-        if [ "$PYTXO_PER_INPUT" = "true" ]; then args+=(--per-input); fi
-        pytxo land "${args[@]}" --markdown > pytxo-land.md
+        branches=()
+        while IFS= read -r branch; do [ -n "$branch" ] && branches+=("$branch"); done < "$RUNNER_TEMP/pytxo-branches.txt"
+        # --into: the pull request's base, never the CLI's default target.
+        npx -y "pytxo@$PYTXO_VERSION_PIN" check --into "$PYTXO_BASE" ${PYTXO_TIMEOUT:+--timeout "$PYTXO_TIMEOUT"} --markdown -- "${branches[@]}" \
+          > "$RUNNER_TEMP/pytxo-check.md" 2> "$RUNNER_TEMP/pytxo-check.err"
         code=$?
-        cat pytxo-land.md >> "$GITHUB_STEP_SUMMARY"
+        cat "$RUNNER_TEMP/pytxo-check.err" >&2
         case $code in
-          0) echo "decision=ready" >> "$GITHUB_OUTPUT" ;;
-          3) echo "decision=stale" >> "$GITHUB_OUTPUT" ;;
-          *) echo "decision=blocked" >> "$GITHUB_OUTPUT" ;;
+          0) decision=ready ;;
+          2) decision=blocked ;;
+          3) decision=stale ;;
+          *) decision=error ;;
         esac
-        exit $code
+        echo "code=$code" >> "$GITHUB_OUTPUT"
+        echo "decision=$decision" >> "$GITHUB_OUTPUT"
+
+    # After a failed check too, but not after a cancelled run.
+    - if: ${{ !cancelled() && steps.discover.outcome == 'success' }}
+      shell: bash
+      env:
+        PYTXO_TOKEN: ${{ inputs.token }}
+        PYTXO_COMMENT: ${{ inputs.comment }}
+        PYTXO_CODE: ${{ steps.check.outputs.code }}
+      run: node "$GITHUB_ACTION_PATH/pytxo-action.mjs" comment
+
+    # Fails the job when this pull request blocks the combination, the result
+    # is stale or the check broke, so the pull request shows it. Another pull
+    # request's breakage, or a flaky test, passes with a note.
+    - if: steps.check.outputs.code != '' && steps.check.outputs.code != '0'
+      shell: bash
+      env:
+        PYTXO_CODE: ${{ steps.check.outputs.code }}
+      run: node "$GITHUB_ACTION_PATH/pytxo-action.mjs" verdict

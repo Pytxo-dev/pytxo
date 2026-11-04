@@ -3,16 +3,28 @@
 
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
+const os = require("node:os");
 
 const { dest, install } = require("../postinstall");
 
+// Lets the CLI say "run npx pytxo again" when it was started that way.
+const runAs = process.env.PYTXO_RUN_AS || (process.env.npm_command === "exec" ? "npx pytxo" : "pytxo");
+
 function run(bin) {
-  const result = spawnSync(bin, process.argv.slice(2), { stdio: "inherit" });
+  // The binary handles Ctrl+C itself: it removes its scratch checkout, a
+  // second Ctrl+C quits it at once, and it exits 130. Waiting for it keeps the
+  // terminal from coming back while it cleans up.
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(signal, () => {});
+  const result = spawnSync(bin, process.argv.slice(2), {
+    stdio: "inherit",
+    env: { ...process.env, PYTXO_RUN_AS: runAs },
+  });
   if (result.error) {
     console.error(result.error.message);
     process.exit(1);
   }
-  process.exit(result.status ?? 1);
+  // Killed by a signal: exit as a shell reports it, 128 plus its number.
+  process.exit(result.status ?? (result.signal ? 128 + os.constants.signals[result.signal] : 1));
 }
 
 async function main() {

@@ -20,7 +20,8 @@ test("release platform mapping is exact and rejects undeclared targets", () => {
   assert.equal(getAssetName("win32", "x64"), "pytxo-windows-x64.exe");
   assert.equal(getAssetName("darwin", "arm64"), "pytxo-darwin-arm64");
   assert.equal(getAssetName("linux", "x64"), "pytxo-linux-x64");
-  assert.throws(() => getAssetName("win32", "arm64"), /Unsupported Pytxo release platform/);
+  assert.equal(getAssetName("win32", "arm64"), "pytxo-windows-x64.exe");
+  assert.throws(() => getAssetName("win32", "ia32"), /Unsupported Pytxo release platform/);
   assert.throws(() => getAssetName("linux", "ia32"), /Unsupported Pytxo release platform/);
 });
 
@@ -72,6 +73,19 @@ function runInstaller(env) {
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
 }
+
+test("a download that fails leaves the retry to the first run", async () => {
+  const vendor = fs.mkdtempSync(path.join(os.tmpdir(), "pytxo-vendor-"));
+  try {
+    // Port 9 (discard) refuses the connection.
+    const result = await runInstaller({ PYTXO_RELEASE_BASE_URL: "http://127.0.0.1:9", PYTXO_VENDOR_DIR: vendor });
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stderr, /first run of pytxo will try again/);
+    assert.equal(fs.readdirSync(vendor).length, 0);
+  } finally {
+    fs.rmSync(vendor, { recursive: true, force: true });
+  }
+});
 
 test("postinstall verifies staged bytes and fails closed on checksum mismatch", async (t) => {
   const cli = builtCli();

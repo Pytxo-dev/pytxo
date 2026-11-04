@@ -25,8 +25,11 @@ on:
         type: boolean
         default: false
   push:
+    # Exact versions only: the floating `v2` tag that `uses: .../actions/land@v2`
+    # resolves is not a release.
     tags:
-      - "v*"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
 
 concurrency:
   group: release-${{ github.ref }}
@@ -44,7 +47,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   source-guard:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -74,7 +77,9 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - os: ubuntu-latest
+          # A pinned image, not ubuntu-latest: the binary needs the glibc of the
+          # image it was built on, and ubuntu-latest moved to 26.04.
+          - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             asset_name: pytxo-linux-x64
             ext: ""
@@ -113,8 +118,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
+      # The released CLI is the check alone; the frozen 1.x commands stay in
+      # source builds (`full` feature, DECISIONS.md 8).
       - name: cargo build pytxo-cli
-        run: cargo build -p pytxo-cli --release --target ${{ matrix.target }}
+        run: cargo build -p pytxo-cli --release --no-default-features --target ${{ matrix.target }}
 
       - name: Stage release binary
         shell: bash
@@ -133,7 +140,7 @@ jobs:
 
   prepare-cli-release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -189,7 +196,7 @@ jobs:
 
   mirror-public-release:
     needs: [prepare-cli-release, prepare-desktop-release, publish-private-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: >-
       ${{
         (github.event_name == 'workflow_dispatch' && inputs.mirror_public)
@@ -388,7 +395,7 @@ jobs:
 
   prepare-desktop-release:
     needs: desktop-release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -458,7 +465,7 @@ jobs:
 
   publish-private-release:
     needs: [prepare-cli-release, prepare-desktop-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -511,7 +518,7 @@ jobs:
 
   npm:
     needs: [prepare-cli-release, prepare-desktop-release, publish-private-release, mirror-public-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: >-
       ${{
         (github.event_name == 'workflow_dispatch' && inputs.publish_npm)

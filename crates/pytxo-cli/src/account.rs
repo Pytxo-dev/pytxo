@@ -322,7 +322,7 @@ pub fn receipts_share(
     include_paths: bool,
     private: bool,
 ) -> Result<()> {
-    let dir = crate::land_cmd::receipts_dir(repo)?;
+    let dir = crate::check::receipts_dir(repo)?;
     let (_, receipt) = pytxo_core::find_receipt(&dir, id)
         .with_context(|| format!("no single receipt matches {id}"))?;
     if !receipt.digest_matches() {

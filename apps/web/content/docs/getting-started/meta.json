@@ -1,19 +1,11 @@
 {
   "title": "Get started",
   "pages": [
+    "quickstart",
+    "land-in-ci",
+    "agent-hooks",
     "install",
     "first-landing",
-    "desktop-setup",
-    "first-mission",
-    "multi-agent-run",
-    "review-and-apply",
-    "land-branches",
-    "land-in-ci",
-    "account",
-    "folder-trust",
-    "---Terminal and editor---",
-    "first-three-agent-run",
-    "hypervisor-shell",
-    "mcp-from-cursor"
+    "land-branches"
   ]
 }

@@ -1,9 +1,12 @@
 //! Thin `git` runner. Every command in a Pytxo-owned worktree runs with hooks
-//! pointed at a directory that does not exist, so a branch cannot execute
-//! code during checkout or merge; checks are the only code the gate runs.
+//! pointed at a path that holds none, so a branch cannot execute code during
+//! checkout or merge; checks are the only code the gate runs.
 
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
-use std::process::Output;
+use std::process::{Child, Command, ExitStatus, Output, Stdio};
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
 
@@ -25,14 +28,27 @@ impl Git {
 
     /// For a Pytxo-owned worktree: hooks off, no signing prompts, no auto-gc.
     pub fn owned(cwd: &Path, identity: Option<(&str, &str)>) -> Self {
-        let no_hooks = std::env::temp_dir().join("pytxo-land-no-hooks-dir-does-not-exist");
+        // Any local user can create a directory in a Unix temp dir, and plant
+        // hooks in it; nothing can sit under /dev/null.
+        let no_hooks = if cfg!(unix) {
+            PathBuf::from("/dev/null")
+        } else {
+            std::env::temp_dir().join("pytxo-land-no-hooks-dir-does-not-exist")
+        };
         let mut config = vec![
             format!("core.hooksPath={}", no_hooks.display()),
             "commit.gpgsign=false".into(),
             "gc.auto=0".into(),
             "advice.detachedHead=false".into(),
             "merge.autoStash=false".into(),
+            // Submodules stay out, even where the user set submodule.recurse:
+            // checkout and reset would look for theirs in the worktree.
+            "submodule.recurse=false".into(),
         ];
+        if cfg!(windows) {
+            // Temp worktrees sit deep under %TEMP%; let checkouts pass 260 chars.
+            config.push("core.longpaths=true".into());
+        }
         if let Some((name, email)) = identity {
             config.push(format!("user.name={name}"));
             config.push(format!("user.email={email}"));
@@ -47,8 +63,10 @@ impl Git {
         &self.cwd
     }
 
-    pub fn output(&self, args: &[&str]) -> Result<Output> {
+    fn command(&self, args: &[&str]) -> Command {
         let mut cmd = pytxo_core::background_command("git");
+        // Paths as they are, not `"caf\303\251.txt"`.
+        cmd.arg("-c").arg("core.quotePath=false");
         for pair in &self.config {
             cmd.arg("-c").arg(pair);
         }
@@ -56,8 +74,137 @@ impl Git {
             .current_dir(&self.cwd)
             .env("GIT_TERMINAL_PROMPT", "0")
             .env("LC_ALL", "C");
-        cmd.output()
+        cmd
+    }
+
+    pub fn output(&self, args: &[&str]) -> Result<Output> {
+        self.command(args)
+            .output()
             .with_context(|| format!("running git {}", args.join(" ")))
+    }
+
+    /// `run` for a long command an interrupt must stop before it clears up,
+    /// such as the checkout of a big repository: recorded with the checks,
+    /// and on Unix leading a process group, like them. On Windows Ctrl+C does
+    /// not reach git, which would go on writing the worktree being removed.
+    pub(crate) fn run_stoppable(&self, args: &[&str]) -> Result<()> {
+        let what = || format!("git {}", args.join(" "));
+        let mut cmd = self.command(args);
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped());
+        let mut child = spawn_recorded(&mut cmd, &what)?;
+        // Read meanwhile: git stops on a full pipe.
+        let mut stderr = child.stderr.take();
+        let errors = std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            if let Some(pipe) = stderr.as_mut() {
+                let _ = pipe.read_to_end(&mut bytes);
+            }
+            String::from_utf8_lossy(&bytes).into_owned()
+        });
+        let status = reap_recorded(&mut child, Duration::from_millis(40), &what)?;
+        if !status.success() {
+            let errors = errors.join().unwrap_or_default();
+            return Err(anyhow!("{} failed: {}", what(), errors.trim()));
+        }
+        Ok(())
+    }
+
+    /// `output` for each of `calls`, which an interrupt stops: recorded and
+    /// reaped like `run_stoppable`, for reads that can take long, such as
+    /// `git grep` over a big tree. Only stdout is kept. Eight run at a time,
+    /// all started before any is read, so a few short calls take about as
+    /// long as one; each is read to its end, on a thread of its own, before
+    /// its wait, which is then over at once. The outputs come back in order.
+    /// Past `deadline` no call starts, and the calls still going stop: an
+    /// error either way, since what the rest would say is not known.
+    pub(crate) fn outputs_stoppable(
+        &self,
+        calls: &[Vec<String>],
+        deadline: Option<Instant>,
+    ) -> Result<Vec<Output>> {
+        let late = || deadline.is_some_and(|d| Instant::now() >= d);
+        let out_of_time = || anyhow!("out of time for git {}", calls[0].join(" "));
+        let mut outputs = Vec::with_capacity(calls.len());
+        // ponytail: eight at a time, each eight waiting for its slowest; a
+        // pool if one slow call ever holds up quick ones.
+        for batch in calls.chunks(8) {
+            if late() {
+                return Err(out_of_time());
+            }
+            let mut started = Vec::new();
+            let mut failed = None;
+            for args in batch {
+                let args: Vec<&str> = args.iter().map(String::as_str).collect();
+                let mut cmd = self.command(&args);
+                cmd.stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null());
+                match spawn_recorded(&mut cmd, &|| format!("git {}", args.join(" "))) {
+                    Ok(child) => started.push(child),
+                    Err(e) => {
+                        failed = Some(e);
+                        break;
+                    }
+                }
+            }
+            // A read that fails drops the pipe, so git stops at its next
+            // write instead of waiting for a reader.
+            let reads: Vec<JoinHandle<std::io::Result<Vec<u8>>>> = started
+                .iter_mut()
+                .map(|child| {
+                    let pipe = child.stdout.take();
+                    std::thread::spawn(move || {
+                        let mut stdout = Vec::new();
+                        if let Some(mut pipe) = pipe {
+                            pipe.read_to_end(&mut stdout)?;
+                        }
+                        Ok(stdout)
+                    })
+                })
+                .collect();
+            // At the deadline the calls still going stop, as a check out of
+            // time does. None is reaped yet, so no pid is another process's.
+            let mut stopped = false;
+            while deadline.is_some() && !reads.iter().all(JoinHandle::is_finished) {
+                if late() {
+                    for child in &mut started {
+                        crate::checks::kill_tree(child.id());
+                        let _ = child.kill();
+                    }
+                    stopped = true;
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            // Every call that started is reaped, even after one did not.
+            for ((mut child, read), args) in started.into_iter().zip(reads).zip(batch) {
+                let what = || format!("git {}", args.join(" "));
+                let read = read
+                    .join()
+                    .unwrap_or_else(|_| Err(std::io::Error::other("the read stopped")));
+                let status = reap_recorded(&mut child, Duration::from_millis(1), &what);
+                match (status, read) {
+                    (Err(e), _) => failed = failed.or(Some(e)),
+                    (_, Err(e)) => {
+                        failed = failed.or(Some(anyhow!(e).context(format!("reading {}", what()))));
+                    }
+                    (Ok(status), Ok(stdout)) => outputs.push(Output {
+                        status,
+                        stdout,
+                        stderr: Vec::new(),
+                    }),
+                }
+            }
+            if let Some(e) = failed {
+                return Err(e);
+            }
+            if stopped {
+                return Err(out_of_time());
+            }
+        }
+        Ok(outputs)
     }
 
     /// Trimmed stdout; error carries stderr.
@@ -99,11 +246,92 @@ impl Git {
         .map_err(|_| anyhow!("not a commit: {rev}"))
     }
 
+    /// The commit `name` names, its local branch first: git itself reads
+    /// `$GIT_DIR/<name>` (FETCH_HEAD, ORIG_HEAD) and `refs/tags/<name>`
+    /// before `refs/heads/<name>`, so a file or a tag that shares a branch's
+    /// name would change which commit is checked. With no such branch, as
+    /// git reads it: a commit, `HEAD~1`, a remote branch.
+    pub fn branch_commit(&self, name: &str) -> Result<String> {
+        self.commit_of(&format!("refs/heads/{name}"))
+            .or_else(|_| self.commit_of(name))
+    }
+
+    /// The checked-out branch by its own name, `None` on a detached HEAD:
+    /// `symbolic-ref --short` says `heads/x` when a tag is named `x` too.
+    pub fn current_branch(&self) -> Option<String> {
+        let head = self.run(&["symbolic-ref", "--quiet", "HEAD"]).ok()?;
+        head.strip_prefix("refs/heads/").map(str::to_string)
+    }
+
     /// File content at `rev:path`, `None` when the path does not exist there.
     pub fn show(&self, rev: &str, path: &str) -> Option<String> {
         let out = self.output(&["show", &format!("{rev}:{path}")]).ok()?;
         out.status
             .success()
             .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+    }
+}
+
+/// Starts `cmd` and records it with the checks, under one lock as they are,
+/// so an interrupt stops it too. On Unix it leads a process group, like them.
+fn spawn_recorded(cmd: &mut Command, what: &dyn Fn() -> String) -> Result<Child> {
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(cmd, 0);
+    let mut active = crate::active();
+    let child = cmd.spawn().with_context(|| format!("running {}", what()))?;
+    active.checks.push(child.id());
+    Ok(child)
+}
+
+/// Waits for `child`, looking every `pause`, and forgets it under the lock,
+/// as checks are reaped: an interrupt never signals a pid the system may
+/// have given another process since.
+fn reap_recorded(
+    child: &mut Child,
+    pause: Duration,
+    what: &dyn Fn() -> String,
+) -> Result<ExitStatus> {
+    let pid = child.id();
+    loop {
+        let mut active = crate::active();
+        if let Some(status) = child.try_wait().transpose() {
+            active.checks.retain(|&p| p != pid);
+            return status.with_context(|| format!("running {}", what()));
+        }
+        drop(active);
+        std::thread::sleep(pause);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A call still going at the deadline stops then, and none starts once
+    /// it has passed.
+    #[test]
+    fn calls_stop_at_the_deadline() {
+        let dir = tempfile::tempdir().unwrap();
+        let git = Git::user(dir.path());
+        let call = |args: &[&str]| args.iter().map(|a| a.to_string()).collect::<Vec<_>>();
+        let slow = call(&["-c", "alias.slow=!sleep 30", "slow"]);
+        let quick = call(&["--version"]);
+        let started = Instant::now();
+        let soon = Some(started + Duration::from_secs(1));
+        assert!(git.outputs_stoppable(&[quick.clone(), slow], soon).is_err());
+        assert!(
+            started.elapsed() < Duration::from_secs(20),
+            "{:?}",
+            started.elapsed()
+        );
+        let now = Some(Instant::now());
+        assert!(git
+            .outputs_stoppable(std::slice::from_ref(&quick), now)
+            .is_err());
+        let later = Some(Instant::now() + Duration::from_secs(60));
+        let out = git
+            .outputs_stoppable(&[quick.clone(), quick], later)
+            .unwrap();
+        assert!(out.iter().all(|o| o.status.success()), "{out:?}");
     }
 }

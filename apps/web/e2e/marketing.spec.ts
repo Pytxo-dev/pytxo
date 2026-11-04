@@ -26,39 +26,63 @@ for (const width of [1440, 390]) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     const hero = page.getByTestId("marketing-hero");
-    await expect(hero.getByRole("heading", { level: 1 })).toHaveText("pytxo land refuses agent branches that pass alone but fail together.");
-    // The hero shows the recorded bytes of a real run, not a retyped or illustrated one.
-    const record = await (await page.request.get("/evidence/land-blocked-1.3.5-2026-10-25.json")).json();
-    expect(record.receipt.predicate.decision).toBe("blocked");
-    expect(record.output).toContain(record.receipt.predicate.id);
-    const capture = hero.getByTestId("hero-capture");
-    expect(await capture.locator("pre").textContent()).toBe(`$ ${record.command}\n${record.output}`);
-    await expect(capture.getByText("decision  BLOCKED")).toBeInViewport();
-    await expect(capture.getByRole("link", { name: "Raw output and receipt" })).toHaveAttribute("href", "/evidence/land-blocked-1.3.5-2026-10-25.json");
-    await expect(hero.getByText(/Give it the branches your agents left/)).toBeVisible();
-    await expect(hero.locator("pre").filter({ hasText: /^npm i -g pytxo@\d+\.\d+\.\d+$/ })).toBeVisible();
-    await expect(hero.getByRole("button", { name: "Copy the npm install command" })).toBeVisible();
+    await expect(hero.getByRole("heading", { level: 1 })).toHaveText("Land all your agents' branches in one command.");
+    await expect(hero.getByText(/runs your tests and lands them only if they pass/)).toBeVisible();
+    await expect(hero.getByRole("button", { name: "Copy npx pytxo demo" })).toBeInViewport({ ratio: 1 });
     await expect(hero.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
-    await expect(hero.getByRole("link", { name: "Download for Windows" })).toHaveAttribute("href", "/download");
-    await expect(hero.getByRole("link", { name: "mattbaconz" })).toHaveAttribute("href", "https://github.com/mattbaconz");
-    await expect(hero.getByRole("link", { name: "lukeed/mri" })).toHaveAttribute("href", "/docs/getting-started/first-landing#3-if-the-decision-is-blocked");
-    expect(await (await page.request.get("/docs/getting-started/first-landing")).text()).toContain('id="3-if-the-decision-is-blocked"');
-    const how = page.getByTestId("how-it-works");
-    await expect(how.getByRole("listitem")).toHaveCount(3);
-    // Step images load lazily; each must load once it is scrolled into view.
-    for (const image of await how.getByRole("img").all()) { await image.scrollIntoViewIfNeeded(); await expect(image).toHaveJSProperty("naturalWidth", 1600); }
-    await expect(how).toContainText("Screens are captures of Pytxo Desktop with sample data");
+    // The demo shows the recorded bytes of a real run, not a retyped or illustrated one.
+    const record = await (await page.request.get("/evidence/demo-blocked-2.0.0-2026-10-30.json")).json();
+    expect(record.command).toBe("npx pytxo demo");
+    expect(record.output).toContain("BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.");
+    expect(record.output).toContain("why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).");
+    const demo = page.getByTestId("recorded-demo");
+    const lines = await demo.getByTestId("recorded-output").locator(":scope > div").allTextContents();
+    expect(lines).toEqual([`$ ${record.command}`, ...record.output.trimEnd().split("\n")]);
+    await expect(demo.getByRole("link", { name: /^Recorded output/ })).toHaveAttribute("href", "/evidence/demo-blocked-2.0.0-2026-10-30.json");
+    // The ledger is the checks table of the same build's pull request comment, in the order the runs happened.
+    const comment = await (await page.request.get("/evidence/comment-blocked-2.0.0-2026-10-30.json")).json();
+    const decide = page.getByTestId("decide-section");
+    const rows = decide.getByRole("row");
+    await expect(rows).toHaveCount(4);
+    for (const [i, [label, result, seconds, source]] of [
+      ["together", "fail", "0.7", "| `combined` | **fail** | 0.7s |"],
+      ["claude/rename-price alone", "pass", "0.7", "| `input:claude/rename-price` | pass | 0.7s |"],
+      ["codex/add-discount alone", "pass", "0.6", "| `input:codex/add-discount` | pass | 0.6s |"],
+      ["together, again", "fail", "0.5", "| `combined, run 2` | **fail** | 0.5s |"],
+    ].entries()) {
+      expect(comment.output).toContain(source);
+      await expect(rows.nth(i).getByRole("rowheader")).toHaveText(label);
+      await expect(rows.nth(i).getByRole("cell")).toHaveText([result, `${seconds} s`]);
+    }
+    await expect(decide.getByRole("link", { name: /^Pull request comment/ })).toHaveAttribute("href", "/evidence/comment-blocked-2.0.0-2026-10-30.json");
+    const where = page.getByTestId("where-section");
+    await expect(where.locator("code")).toHaveText(["npx pytxo --apply", "npx pytxo hook", "uses: Pytxo-dev/pytxo/actions/land@v2"]);
+    for (const [name, href] of [
+      ["Claude Code plugin or the Codex hook", "/docs/getting-started/agent-hooks"],
+      ["GitHub Action", "/docs/getting-started/land-in-ci"],
+    ]) {
+      await expect(where.getByRole("link", { name })).toHaveAttribute("href", href);
+      expect((await page.request.get(href)).status()).toBe(200);
+    }
+    await expect(page.getByTestId("close-section").getByRole("button", { name: "Copy npx pytxo demo" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: testInfo.outputPath(`launch-home-${width}.png`), fullPage: true });
-    await hero.getByRole("link", { name: "Download for Windows" }).click();
+    // The frozen Desktop download stays one click away, in the footer.
+    await page.locator("footer").getByRole("link", { name: "Desktop (frozen)" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Download" })).toBeVisible();
     await expect(page.getByText(/download below installs the current public/)).toHaveCount(0);
     await expect(page.getByText(/^v\d+\.\d+\.\d+$/).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Pytxo-dev/pytxo" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
     await expect(page.getByRole("button", { name: "Not yet" })).toHaveCount(2);
     await expect(page.getByText("The CLI does not Apply repository changes")).toHaveCount(0);
-    await expect(page.getByText(/Runs, Review and Apply/)).toBeVisible();
+    // The CLI section sells the check, not the frozen 1.x commands.
+    await expect(page.getByText("Checks your agents' branches together.", { exact: false })).toBeVisible();
+    await expect(page.getByText(/Runs, Review and Apply/)).toHaveCount(0);
     await expect(page.getByText("planning, waves, isolation, and Apply")).toHaveCount(0);
+    // Next steps lead to the check's guides, not to the frozen 1.x flows.
+    const next = page.getByTestId("next-steps");
+    await expect(next.getByRole("link", { name: "Quickstart" })).toHaveAttribute("href", "/docs/getting-started/quickstart");
+    await expect(next.getByRole("link", { name: "First mission" })).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: testInfo.outputPath(`launch-download-${width}.png`), fullPage: true });
   });
@@ -67,8 +91,8 @@ for (const width of [1440, 390]) {
 test("plans present current availability without a public subscription checkout", async ({ page }) => {
   await page.goto("/plans");
   await expect(page.getByRole("heading", { level: 1, name: "Plans" })).toBeVisible();
-  await expect(page.getByText("Free on your machine, free to sign in.", { exact: false })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Subscribe to/i })).toHaveCount(0);
+  await expect(page.locator("main").getByText("Free on your machine and on public repositories.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Subscribe to|Get Pro/i })).toHaveCount(0);
   await expect(page.locator("main").getByRole("link", { name: "Sign in" })).toHaveCount(0);
 });
 
@@ -85,57 +109,30 @@ test("install commands can be copied intact on mobile", async ({ page }) => {
   await expectNoHorizontalOverflow(page);
 });
 
-test("homepage leads with the outcome, then how, why, proof and requirements", async ({ page }) => {
+test("homepage asks the question, then shows the recorded run, how it decides and where it runs", async ({ page }) => {
   await page.goto("/");
-  const ids = ["marketing-hero", "how-it-works", "land-section", "compare-section", "proof-section", "compatibility-section", "faq-section", "get-it-section"];
+  const ids = ["marketing-hero", "recorded-demo", "decide-section", "where-section", "close-section"];
   const tops = await Promise.all(ids.map(id => page.getByTestId(id).evaluate(el => el.getBoundingClientRect().top)));
   expect([...tops].sort((a, b) => a - b)).toEqual(tops);
-  await expect(page.getByTestId("compare-section").getByRole("row")).toHaveCount(6);
-  await expect(page.getByTestId("compare-section")).toContainText("Exactly the reviewed files, refused if the project moved");
-  const proof = page.getByTestId("proof-section");
-  await expect(proof.getByTestId("proof-bench")).toContainText("4/4");
-  await expect(proof.getByTestId("proof-bench")).toContainText("12/12");
-  await expect(proof.getByTestId("proof-live")).toContainText("14/14");
-  await expect(proof).toContainText("Checks passing is evidence, not proof.");
-  await expect(proof.getByRole("link", { name: /Pybench results/ })).toHaveAttribute("href", "/bench");
-  await expect(proof.getByRole("link", { name: /All evidence and limits/ })).toHaveAttribute("href", "/docs/evidence");
-  await expect(page.getByTestId("marketing-hero")).toContainText("Every input passed its checks alone. The combined change failed both times it ran.");
-  await expect(page.getByTestId("compatibility-section")).toContainText("your shell's API keys are not passed to them");
-  await expect(page.getByTestId("faq-section")).toContainText("Does Pytxo sandbox everything an agent does?");
+  await expect(page.locator("main")).not.toContainText(/without the token|has no token/i);
+  // Newcomers see none of the frozen 1.x vocabulary.
+  await expect(page.locator("main")).not.toContainText(/\b(hypervisor|control plane|telemetry|orbit|galaxy|deepspace|supernova|signal core|blast shield|missions?|fleets?)\b/i);
   await expect(page.locator(".aperture-marquee")).toHaveCount(0);
 });
 
-for (const width of [1440, 390]) {
-  test(`every FAQ answer opens fully at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
-    await page.goto("/");
-    const triggers = page.getByTestId("faq-section").getByRole("button");
-    const count = await triggers.count();
-    expect(count).toBeGreaterThan(5);
-    for (let i = 0; i < count; i++) {
-      const trigger = triggers.nth(i);
-      await trigger.click();
-      const region = page.getByTestId("faq-section").getByRole("region").first();
-      await expect(region).toBeVisible();
-      await region.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
-      const clipped = await region.evaluate((el) => {
-        const inner = el.firstElementChild as HTMLElement | null;
-        return el.scrollHeight - el.clientHeight > 1 || (inner ? inner.scrollHeight - inner.clientHeight > 1 : false);
-      });
-      expect(clipped, (await trigger.textContent()) ?? "faq answer").toBe(false);
-      await trigger.click();
-    }
-  });
-}
-
-test("homepage FAQ answers open and close by keyboard", async ({ page }) => {
-  await page.goto("/");
-  const question = page.getByRole("button", { name: "What if my project changes after I review?" });
-  await question.focus();
-  await page.keyboard.press("Enter");
-  await expect(page.getByText("Apply refuses and nothing is written.", { exact: false })).toBeVisible();
-  await page.keyboard.press("Enter");
-  await expect(page.getByText("Apply refuses and nothing is written.", { exact: false })).toBeHidden();
+test("the questions live in the docs, and the Action's answer says what a fork's run gets", async ({ page }) => {
+  await page.goto("/docs/reference/faq");
+  await expect(page.getByRole("heading", { level: 1, name: "Questions" })).toBeVisible();
+  const article = page.locator("article");
+  for (const text of [
+    "Does it send my code anywhere?",
+    "The merge and the tests happen in a throwaway worktree.",
+    "Is the GitHub Action safe on public repositories?",
+    "checked in its own run, with GitHub's read-only token and no secrets",
+  ]) {
+    await expect(article).toContainText(text);
+  }
+  await expect(article).not.toContainText(/without the token|has no token/i);
 });
 
 test("evidence moved into the docs and keeps every record downloadable", async ({ page }) => {
@@ -203,36 +200,22 @@ test("account connect refuses incomplete links and receipt ids are validated", a
   expect(missing?.status()).toBe(404);
 });
 
-test("chroma identity keeps the spectrum to the logo", async ({ page }) => {
+test("the site keeps to ink, paper and one gradient", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
-  const heading = page.getByRole("heading", { level: 1 });
   const font = await page.locator("body").evaluate((el) => getComputedStyle(el).fontFamily);
-  const headingColor = await heading.evaluate((el) => getComputedStyle(el).color);
-  expect(font.toLowerCase()).toMatch(/satoshi|sora/);
+  expect(font.toLowerCase()).toContain("sora");
   expect(font.toLowerCase()).not.toContain("geist");
-  expect(headingColor).toBe("rgb(245, 245, 247)");
-  await expect(page.locator(".nebula-bg, .chroma-glow")).toHaveCount(0);
-  // The headline is plain text; the spectrum stays in the logo.
-  await expect(page.locator(".chroma-text")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("color", "rgb(236, 234, 228)");
+  // The page is the ink the hero's canvas clears to, so the hero shows no band.
+  await expect(page.locator('[data-site="v2"]')).toHaveCSS("background-color", "rgb(8, 8, 10)");
+  await expect(page.locator(".nebula-bg, .chroma-glow, .chroma-text")).toHaveCount(0);
 
-
-  await expect(page.locator('header img[src*="logo"]')).toHaveCount(1);
-  const download = page.locator("header").getByRole("link", { name: "Download", exact: true });
-  await expect(download).toHaveCount(1);
-  const cssText = await page.evaluate(() =>
-    [...document.styleSheets]
-      .flatMap((sheet) => {
-        try {
-          return [...sheet.cssRules].map((rule) => rule.cssText);
-        } catch {
-          return [];
-        }
-      })
-      .join("\n"),
-  );
-  expect(cssText).toContain("--aperture-magenta");
+  const header = page.locator("header");
+  await expect(header.getByRole("link", { name: "pytxo home" }).locator("svg")).toHaveCount(1);
+  await expect(header.getByRole("link", { name: "Docs", exact: true })).toHaveAttribute("href", "/docs");
+  await expect(header.getByRole("button", { name: "Copy npx pytxo demo" })).toBeVisible();
 });
 
 test("the homepage no longer pins a scroll-jacked sequence", async ({ page }) => {
@@ -243,14 +226,12 @@ test("the homepage no longer pins a scroll-jacked sequence", async ({ page }) =>
 });
 
 const PLAN_TIERS = [
-  { title: "Pytxo", status: "Free · available now" },
-  { title: "Free account", status: "Free · new in 1.3" },
-  // CI builds without live Dodo keys, so Pro checkout is closed.
-  { title: "Pro", status: "$12/month · checkout opens soon" },
-  { title: "Team", status: "Planned · design partners" },
+  { title: "Free", status: "Free · available now" },
+  { title: "Pro", status: "$29 once · not on sale yet" },
+  { title: "Team", status: "Planned" },
 ] as const;
 
-test("plans expose free local use, the free account, Pro and planned Team", async ({ page }, testInfo) => {
+test("plans expose free use, Pro for private repositories and planned Team", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/plans");
 
@@ -260,10 +241,10 @@ test("plans expose free local use, the free account, Pro and planned Team", asyn
 
   const grid = page.getByTestId("plans-grid");
   const cells = grid.getByTestId("plan-cell");
-  await expect(cells).toHaveCount(4);
+  await expect(cells).toHaveCount(3);
 
   for (const tier of PLAN_TIERS) {
-    await expect(page.locator('[data-slot="card-title"]', { hasText: tier.title })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: tier.title, exact: true })).toBeVisible();
     await expect(page.getByText(tier.status, { exact: true })).toBeVisible();
   }
 
@@ -273,11 +254,11 @@ test("plans expose free local use, the free account, Pro and planned Team", asyn
     return { rowCount: tops.length, columnCount: lefts.length };
   });
   expect(layout.rowCount).toBe(1);
-  expect(layout.columnCount).toBe(4);
+  expect(layout.columnCount).toBe(3);
 
   await expect(page.getByText("Everything that runs on your machine is free and stays free.", { exact: false })).toBeVisible();
   await expect(page.getByText("Not available to buy.", { exact: false })).toBeVisible();
-  await expect(page.getByText("Billed monthly through Dodo Payments", { exact: false })).toBeVisible();
+  await expect(page.getByText("If development stops, Pro unlocks for everyone.", { exact: false })).toBeVisible();
   await expect(page.getByText("Subscribe to Pro")).toHaveCount(0);
   await expect(page.getByText("Subscribe to Max")).toHaveCount(0);
   await expect(page.getByText("Subscribe to Ultra")).toHaveCount(0);
@@ -299,9 +280,9 @@ test("plans remain complete and single-column on mobile", async ({ page }, testI
   expect(await renderedLineCount(heading)).toBeLessThanOrEqual(2.2);
 
   const cells = page.getByTestId("plan-cell");
-  await expect(cells).toHaveCount(4);
+  await expect(cells).toHaveCount(3);
   for (const tier of PLAN_TIERS) {
-    await expect(page.locator('[data-slot="card-title"]', { hasText: tier.title })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: tier.title, exact: true })).toBeVisible();
     await expect(page.getByText(tier.status, { exact: true })).toBeVisible();
   }
 
@@ -310,7 +291,7 @@ test("plans remain complete and single-column on mobile", async ({ page }, testI
     const lefts = [...new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().left)))];
     return { rowCount: tops.length, columnCount: lefts.length };
   });
-  expect(layout.rowCount).toBe(4);
+  expect(layout.rowCount).toBe(3);
   expect(layout.columnCount).toBe(1);
 
   await expect(page.getByText("Subscribe to Pro")).toHaveCount(0);

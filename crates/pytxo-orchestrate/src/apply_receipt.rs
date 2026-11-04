@@ -64,6 +64,7 @@ pub(crate) fn write_apply_receipt(
                     duration_ms: c.duration_ms.unwrap_or_default(),
                     timed_out: false,
                     output_tail: Vec::new(),
+                    first_errors: Vec::new(),
                     rerun: false,
                 })
                 .collect()
