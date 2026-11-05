@@ -107,8 +107,13 @@ export async function verifyReleaseVersion(root, expected) {
     ),
     claudeLand: await capturedVersion(
       path.join(root, "integrations", "claude-code", "skills", "land", "SKILL.md"),
-      /npx -y pytxo@([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) land/,
+      /npx -y pytxo@([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) land --apply/,
       "Claude Code /pytxo:land pin",
+    ),
+    claudeLandAllowed: await capturedVersion(
+      path.join(root, "integrations", "claude-code", "skills", "land", "SKILL.md"),
+      /Bash\(npx -y pytxo@([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) land:/,
+      "Claude Code /pytxo:land allowed-tools pin",
     ),
     codexHook: await capturedVersion(
       path.join(root, "integrations", "codex", "hooks.json"),

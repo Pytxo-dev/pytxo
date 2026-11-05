@@ -8,7 +8,7 @@ export const DISTRIBUTION_REPO = "Pytxo-dev/pytxo-releases";
  */
 export const PUBLISHED_VERSION = "2.0.0";
 /** In-repo / changelog candidate. Not for public download URLs. */
-export const CANDIDATE_VERSION = "2.0.0";
+export const CANDIDATE_VERSION = "2.0.1";
 /** Alias for published tag used by download UI. */
 export const PYTXO_VERSION = PUBLISHED_VERSION;
 
@@ -54,7 +54,7 @@ export type NavLink = {
 /** One product sentence, used by metadata, footer and structured data. */
 export const PRODUCT_LINE = "Land all your agents' branches in one command.";
 export const PRODUCT_SUMMARY =
-  "Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests and lands them only if they pass together. Free and open source.";
+  "Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests and lands what passes together. Free and open source.";
 
 /** Agents verified live on a released build vs. those still in beta. */
 export const AGENT_SUPPORT = {

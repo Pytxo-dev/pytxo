@@ -45,7 +45,7 @@ async function fixture(versions) {
   await mkdir(path.join(root, "integrations", "claude-code", "skills", "land"), { recursive: true });
   await writeFile(
     path.join(root, "integrations", "claude-code", "skills", "land", "SKILL.md"),
-    `npx -y pytxo@${versions.hook ?? versions.rust} land --apply $ARGUMENTS\n`,
+    `allowed-tools: Bash(npx -y pytxo@${versions.hook ?? versions.rust} land:*)\nnpx -y pytxo@${versions.hook ?? versions.rust} land --apply $ARGUMENTS\n`,
   );
   await writeFile(path.join(root, "apps", "web", "content", "docs", "reference", "changelog.mdx"), `This source candidate targets **${versions.changelog ?? versions.rust}**.\nThe latest public release is **${versions.publicRelease ?? versions.rust}**.\n`);
   await writeFile(path.join(root, "distribution", "release-notes", `v${versions.rust}.md`), `# Pytxo v${versions.releaseNotes ?? versions.rust}\n`);
@@ -150,5 +150,5 @@ test("the README may leave the version out; the Action must pin the release", as
   const stale = await fixture({ rust: "2.0.0", desktop: "2.0.0", tauri: "2.0.0", demo: "2.0.0", npm: "2.0.0", action: "1.3.6" });
   await assert.rejects(() => verifyReleaseVersion(stale, "2.0.0"), /action=1\.3\.6/);
   const hooks = await fixture({ rust: "2.0.0", desktop: "2.0.0", tauri: "2.0.0", demo: "2.0.0", npm: "2.0.0", hook: "1.9.0" });
-  await assert.rejects(() => verifyReleaseVersion(hooks, "2.0.0"), /claudeHook=1\.9\.0, claudeLand=1\.9\.0, codexHook=1\.9\.0/);
+  await assert.rejects(() => verifyReleaseVersion(hooks, "2.0.0"), /claudeHook=1\.9\.0, claudeLand=1\.9\.0, claudeLandAllowed=1\.9\.0, codexHook=1\.9\.0/);
 });

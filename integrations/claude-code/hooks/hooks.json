@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx -y pytxo@2.0.0 hook --timeout 900 --async",
+            "command": "npx -y pytxo@2.0.1 hook --timeout 900 --async",
             "async": true,
             "timeout": 900
           }
