@@ -22,13 +22,14 @@ use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
     name = "pytxo",
     bin_name = "pytxo",
     version,
-    about = "Pytxo: each agent's branch passes. Do they pass together?",
-    long_about = "Each agent's branch passes. Do they pass together?
+    about = "Pytxo: land all your agents' branches in one command.",
+    long_about = "Land all your agents' branches in one command.
 
 Pytxo merges your coding agents' branches (Claude Code, Codex, Copilot, Cursor...) \
-in a throwaway worktree, runs your tests on the combined result, and blocks the merge if it breaks.
+in a throwaway worktree, runs your tests on the combined result, and lands them only if they pass.
 
-Run it with no arguments inside a repository. Nothing in the repository changes.",
+Run it with no arguments inside a repository to see the verdict; nothing in the repository \
+changes. Add --apply to land.",
     args_conflicts_with_subcommands = true,
     after_help = "Exit codes: 0 ready or landed (or nothing to check), 2 blocked (or --apply landed only some branches), 3 stale (the target moved), 1 error, 130 stopped by Ctrl+C.
 See it work: pytxo demo · Discord: https://discord.gg/AUFRPFjSYv"
@@ -111,7 +112,8 @@ Results are synthetic mechanism tests, not real-world failure rates."
         #[cfg(feature = "full")]
         #[arg(long)]
         submit: bool,
-        /// With --submit: keep the result private to your account (Pytxo Pro)
+        /// With --submit: keep the result private to your account (an earlier paid
+        /// tier, closed to new buyers)
         #[cfg(feature = "full")]
         #[arg(long, requires = "submit")]
         private: bool,
@@ -137,7 +139,8 @@ enum ReceiptsAction {
         /// Also publish the changed file paths
         #[arg(long)]
         include_paths: bool,
-        /// Only you can open the page, signed in (Pytxo Pro)
+        /// Only you can open the page, signed in (an earlier paid tier, closed to new
+        /// buyers)
         #[arg(long)]
         private: bool,
     },
@@ -266,7 +269,10 @@ mod tests {
         let mut help = Vec::new();
         Cli::command().write_long_help(&mut help).unwrap();
         let help = String::from_utf8(help).unwrap();
-        assert!(help.contains("Do they pass together?"), "{help}");
+        assert!(
+            help.contains("Land all your agents' branches in one command."),
+            "{help}"
+        );
         assert!(help.contains("demo"), "{help}");
         for word in ["control plane", "hypervisor", "telemetry"] {
             assert!(!help.contains(word), "{word} in {help}");
