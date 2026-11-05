@@ -13,7 +13,7 @@ It reads the target branch and picks the usual command for `package.json` (npm, 
 
 ## Does it change my repository?
 
-No. The merge and the tests happen in a throwaway worktree. Only `--apply` lands a ready result on the target branch, and it refuses if that branch moved during the check.
+No. The merge and the tests happen in a throwaway worktree. Only `--apply` moves the target branch, to a commit your tests passed on, and it refuses if that branch moved during the check.
 
 ## What does a pass prove?
 

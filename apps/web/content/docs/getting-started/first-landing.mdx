@@ -60,7 +60,7 @@ Add `--apply` to the same command:
 pytxo land claude:claude/rename-helper codex:codex/negated-flags --check "npm install && npm test" --per-input --apply
 ```
 
-`--apply` runs the checks again and moves the checked-out branch only if the result is still ready and that branch has not moved. With 1.3 it took 57.0 seconds and the decision was LANDED: one merge commit per agent branch on top of the checked-out branch. Because `--apply` lands only a ready result, you can pass it on the first run.
+`--apply` runs the checks again and moves the checked-out branch only if the result is still ready and that branch has not moved. With 1.3 it took 57.0 seconds and the decision was LANDED: one merge commit per agent branch on top of the checked-out branch. Because `--apply` lands only what your tests passed on, you can pass it on the first run; when only some branches pass, it lands those and leaves the others out, each with why.
 
 ## 5. Keep the receipt
 

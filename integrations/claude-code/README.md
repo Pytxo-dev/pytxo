@@ -24,20 +24,20 @@ whole repository. Inside Claude Code, `/plugin marketplace add Pytxo-dev/pytxo`
 and then `/plugin install pytxo@pytxo` work too, without that limit.
 
 The plugin is a `Stop` hook and the `/pytxo:land` skill, both of which run
-`npx -y pytxo@2.0.0`, so Node.js must be on your PATH.
+`npx -y pytxo@2.0.1`, so Node.js must be on your PATH.
 
 ## `/pytxo:land`
 
-Type `/pytxo:land` to land the agents' work on the branch you have checked
-out. Claude runs `npx -y pytxo@2.0.0 land --apply`, which merges the agent
+Type `/pytxo:land` to land the agents' work on your default branch, or on the
+branch you name with `--into` or `git config pytxo.into`. Claude runs `npx -y pytxo@2.0.1 land --apply`, which merges the agent
 branches in a throwaway worktree and runs your tests on the combined result:
 
-- When they pass together, your branch moves to that tested merge.
+- When they pass together, the target moves to that tested merge.
 - When some break together, it lands the largest set that passed as that
   exact set, and leaves the others out, each with why. A branch that has to
   change gets a fix prompt to paste into its agent.
-- Nothing lands that no test run checked as that exact set, and when your
-  branch moves while the tests run, nothing lands at all.
+- Nothing lands that no test run checked as that exact set, and when the
+  target moves while the tests run, nothing lands at all.
 
 ```
 LANDED   1 of 2 branches is on main now: claude/rename-price; codex/add-discount is left out.

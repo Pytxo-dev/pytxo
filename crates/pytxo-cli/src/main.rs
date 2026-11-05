@@ -26,7 +26,7 @@ use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
     long_about = "Land all your agents' branches in one command.
 
 Pytxo merges your coding agents' branches (Claude Code, Codex, Copilot, Cursor...) \
-in a throwaway worktree, runs your tests on the combined result, and lands them only if they pass.
+in a throwaway worktree, runs your tests on the combined result, and lands what passes.
 
 Run it with no arguments inside a repository to see the verdict; nothing in the repository \
 changes. Add --apply to land.",

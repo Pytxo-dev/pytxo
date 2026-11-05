@@ -6,7 +6,7 @@ description: How Pybench measures the landing gate, what each scenario contains,
 Pybench is Pytxo's offline benchmark, run with `pytxo bench`. It never calls a model or an agent. Each scenario builds a throwaway Git repository with a small JavaScript project and a test runner, then gives two policies the same agent branches:
 
 - **Per-branch CI.** Test each branch alone against the target. Merge every branch that passed. Never test the merged result. This is how most branch-per-agent workflows land work today.
-- **`pytxo land`.** Combine the branches, run the same tests on the combination (and on each branch alone), and land only a combination that passed. Refuse if the target moved.
+- **`pytxo land`.** Combine the branches, run the same tests on the combination (and on each branch alone), and land only what passed as that exact set. Refuse if the target moved.
 
 Published results: [the board and the reference run](/bench) · [raw JSON](/evidence/pybench-1.3.0-2026-10-10.json).
 

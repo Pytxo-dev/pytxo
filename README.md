@@ -7,8 +7,7 @@
 **Land all your agents' branches in one command.**
 
 Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway
-worktree, runs your tests on the combined result, and lands them only if they
-pass. If two branches break each other, nothing lands and you see why. Free,
+worktree, runs your tests on the combined result, and lands what passes. What breaks stays out, and you see why. Free,
 open source, runs on your machine or in CI.
 
 ```bash
@@ -21,7 +20,7 @@ npx pytxo demo
 npx pytxo demo      # a throwaway repo where two agent branches pass alone and fail together
 cd your-repo
 npx pytxo           # checks your agent branches together
-npx pytxo --apply   # and lands them if they pass
+npx pytxo --apply   # and lands what passes
 ```
 
 No flags, no config, no account. Pytxo finds the agent branches, finds your
@@ -157,16 +156,19 @@ verdict can clear the others. If the combined run times out, that is the
 answer: the branches do not run alone after it, and it does not run again.
 Merge conflicts block too.
 
-**Exit codes.** `0` ready (or nothing to check), `2` blocked, `3` stale (the
-target moved), `1` error, `130` stopped by Ctrl+C.
+**Exit codes.** `0` ready or landed (or nothing to check), `2` blocked or
+`--apply` landed only some branches, `3` stale (the target moved), `1` error,
+`130` stopped by Ctrl+C.
 
 **Output.** `--verbose` adds what was found, every test run with its error
 lines, the receipt's path and a ref to the combined commit;
 `pytxo receipts show <id>` prints the last 40 lines of each run and checks the
 digest. `--json` is for scripts and `--markdown` is the GitHub Action's comment.
-`--apply` lands only a tested, ready result on the target branch: when no test
-command was found, it exits `1` and changes nothing. Every check records a
-receipt in `.git/pytxo/receipts` (`pytxo receipts`).
+`--apply` lands only a tested result on the target branch: all of it when it is
+ready, and when it is blocked the largest set of branches that passed every test
+as that exact set, leaving the others out, each with why. With no test command,
+or only a package.json lint or build script, it exits `1` and changes nothing.
+Every check records a receipt in `.git/pytxo/receipts` (`pytxo receipts`).
 
 **Limits.** It catches what your tests catch: a break your tests don't cover
 can still land. Conflicts are blocked, not resolved. Pybench (`pytxo bench`)

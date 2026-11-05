@@ -2,8 +2,7 @@
 
 **Land all your agents' branches in one command.** Pytxo merges your coding
 agents' branches in a throwaway worktree, runs your tests on the combined
-result, and lands them only if they pass. If two branches break each other,
-nothing lands and you see why.
+result, and lands what passes. What breaks stays out, and you see why.
 
 This page is the source for the README, the homepage, the npm and Action
 descriptions, and the plugin listings. When they disagree, fix them to match
@@ -69,8 +68,9 @@ without tests (Pytxo catches only what the tests catch).
 
 ## Honest limits
 
-- Landing is all or nothing: when the combination fails, nothing lands, even
-  the branches that pass on their own.
+- A partial landing lands only a set the tests ran on as that exact set. When
+  two branches break each other and others pass without them, both stay out,
+  even the one whose change is fine.
 - It catches what your tests catch. A break your tests don't cover still lands.
 - Merge conflicts are reported and blocked, not resolved.
 - Nobody has measured how often agents' branches fail only when combined. The
