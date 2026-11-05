@@ -243,7 +243,11 @@ fn visibility(private: bool) -> &'static str {
 pub fn share_receipt(payload: serde_json::Value, private: bool) -> Result<String> {
     let account = require()?;
     let res: serde_json::Value = agent()
-        .post(&format!("{}/v1/receipts{}", account.link_url, visibility(private)))
+        .post(&format!(
+            "{}/v1/receipts{}",
+            account.link_url,
+            visibility(private)
+        ))
         .set("Authorization", &format!("Bearer {}", account.token))
         .send_json(payload)
         .map_err(|e| match e {

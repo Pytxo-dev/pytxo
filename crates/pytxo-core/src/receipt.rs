@@ -72,7 +72,9 @@ pub struct ReceiptInput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
     pub commit: String,
-    /// `merged | conflict | empty | applied`.
+    /// `merged | conflict | empty | applied`: how it merged into the combined
+    /// change. After a partial landing, `reasons` and `result` say what landed,
+    /// so a `merged` input can be one that was left out.
     pub status: String,
     pub files: Vec<String>,
     #[serde(default)]

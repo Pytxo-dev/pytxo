@@ -181,8 +181,23 @@ fn left_out_reason(
     }
     let alone = format!("input:{}", i.reference);
     if let Some(c) = p.checks.iter().find(|c| c.scope == alone && !c.passed) {
+        if c.command == crate::MERGE_ONTO_TARGET {
+            return (
+                format!("does not merge onto {target} on its own"),
+                Some((
+                    format!(
+                        "Rebase it onto {target}, resolve the conflict, and run {cmd} until it passes."
+                    ),
+                    Vec::new(),
+                )),
+            );
+        }
         return (
-            format!("fails {} on its own", c.command),
+            if c.timed_out {
+                format!("timed out running {} on its own", c.command)
+            } else {
+                format!("fails {} on its own", c.command)
+            },
             Some((
                 format!(
                     "Make {} pass on it, then rebase it onto {target}.",
@@ -293,7 +308,7 @@ fn left_out(outcome: &LandOutcome) -> Vec<LeftOut> {
             let fix_prompt = todo.map(|(todo, tail)| {
                 let mut s = format!(
                     "Pytxo tested {} on {target} and landed {}. Your branch {branch} is left out: it {why}.\n{todo}",
-                    and_list(&landed),
+                    every(&landed),
                     if landed.len() == 1 { "it" } else { "them" }
                 );
                 if !tail.is_empty() {
@@ -786,6 +801,15 @@ fn and_list(names: &[String]) -> String {
     }
 }
 
+/// Every name, however many: a partial landing is about which ones.
+fn every(names: &[String]) -> String {
+    match names.split_last() {
+        None => "no branches".into(),
+        Some((one, [])) => one.clone(),
+        Some((last, init)) => format!("{} and {last}", init.join(", ")),
+    }
+}
+
 /// The decision in plain words. `again` finishes "fix it, then ...", for
 /// example "run npx pytxo again" or "push again".
 pub fn verdict(outcome: &LandOutcome, again: &str) -> Verdict {
@@ -883,7 +907,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
             }
             let mut why = vec![format!(
                 "{} passed {} {}",
-                and_list(&landed),
+                every(&landed),
                 shown(&commands.join(" and ")),
                 if landed.len() == 1 {
                     format!("on top of {target}")
@@ -909,7 +933,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                 ),
                 _ => format!(
                     "push {target} when you are ready. Give the agents of {} their fix prompts, then {again}.",
-                    and_list(&prompted)
+                    every(&prompted)
                 ),
             };
             Verdict {
@@ -922,8 +946,8 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                         landed.len(),
                         landed.len() + left.len(),
                         are(&landed),
-                        and_list(&landed),
-                        and_list(&left),
+                        every(&landed),
+                        every(&left),
                         are(&left)
                     ),
                     why.join("; ") + ".",
@@ -945,6 +969,28 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
             )
         }
         "blocked" => {
+            // Git refused the landing itself, so that is what stands in the way
+            // now, whatever else a run found.
+            if let Some(refused) = &outcome.refused {
+                let landing: Vec<String> = match &outcome.partial {
+                    Some(part) => part.landed.iter().map(|&n| branch(&p.inputs[n])).collect(),
+                    None => all.clone(),
+                };
+                let next = if refused.contains("untracked working tree files") {
+                    format!("move or remove those files, then {again}.")
+                } else if refused.contains("local changes") {
+                    format!("commit or stash those changes, then {again}.")
+                } else {
+                    format!("fix that, then {again}.")
+                };
+                return v(
+                    "refused",
+                    "BLOCKED",
+                    format!("{} could not land on {target}.", every(&landing)),
+                    shown(refused),
+                    next,
+                );
+            }
             if let Some(c) = p.inputs.iter().find(|i| i.status == "conflict") {
                 let before: Vec<&pytxo_core::ReceiptInput> = p
                     .inputs
@@ -1514,6 +1560,7 @@ mod tests {
             target_conflicts: Vec::new(),
             cause: None,
             partial: None,
+            refused: None,
         }
     }
 
@@ -1727,7 +1774,7 @@ mod tests {
             symbol_collisions: Vec::new(),
         }];
         p.reasons = vec![format!(
-            "claude/x-@octocat conflicts with the inputs before it in {file}"
+            "claude/x-@octocat conflicts with the branches before it in {file}"
         )];
         let md = render_markdown(&outcome(p.clone()));
         for line in [
@@ -1737,7 +1784,7 @@ mod tests {
             "| `claude/x-@octocat` | 1 | **conflict** |",
             "| `@octocat [docs](evil.example)\\|x.txt` | `codex/a`, `claude/x-@octocat` | — |",
             "Combined checks leave out `claude/x-@octocat`, which conflicted.",
-            &format!("- `claude/x-@octocat conflicts with the inputs before it in {file}`"),
+            &format!("- `claude/x-@octocat conflicts with the branches before it in {file}`"),
         ] {
             assert!(md.lines().any(|l| l == line), "{line}\n{md}");
         }

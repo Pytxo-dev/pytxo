@@ -491,8 +491,8 @@ end in progress, not only in a verdict. Ships in the release after 2.0.0.
 50. **`--apply` lands the largest set that passed as that exact set.** When
     the whole combination is blocked, the sets the check already tested are
     the candidates: the combined change when the inputs that conflict were
-    never in it, each input alone (the runs after a failure), the rest
-    without the pair a cause names, and that pair. A set counts only when
+    never in it, each input alone (the runs after a failure), and the rest
+    without the pair a cause names. A set counts only when
     every check command passed on it and none failed. Of those, the landing
     takes one that leaves out only inputs the verdict blames, then the
     largest, then one without an input that still uses the name the cause
@@ -567,3 +567,34 @@ end in progress, not only in a verdict. Ships in the release after 2.0.0.
     (`claudeLand` in `verify-release-version.mjs`), still 2.0.0 like the
     hook's until the next release bumps them together. Undo: delete the
     skill directory and the surface.
+59. **`--apply` needs a test command, not a stand-in.** A package.json lint or
+    build script still gives a verdict (entry 56), but `--apply` exits 1 on it:
+    a lint pass is not what "lands only a tested result" promises. Name a
+    command with `--check` or `git config pytxo.check`. Undo: the second bail
+    in `check()`.
+60. **No partial landing after a combined run that timed out.** It failed
+    nothing, so no branch is told it fails and no set stands in for it, the
+    same reasoning as entry 51. A branch whose run alone timed out reads
+    "timed out running", not "fails". Undo: `timed_out` before `partial()`.
+61. **A run after a failed clean lands nothing.** Runs alone share one scratch
+    worktree, and the run on the rest reuses the combined one. They were
+    advisory until partial landing. When `git clean` cannot empty the worktree,
+    the run still gives its verdict but is no candidate, and `target` stays
+    only in a Cargo project, since Maven's is the last branch's output. Undo:
+    `clean_scratch`.
+62. **A landing git refuses is the verdict.** The refusal speaks over the break
+    a run found, names the files and says what to do with them, and the hint to
+    run `--apply` again goes, since that is what just failed. `merge.autoStash`
+    is off for that one merge: with it, git takes the user's edits away and a
+    conflict restoring them still exits 0. Undo: `refused` in `verdict_for`.
+63. **A branch stacked under the landed one lands with it.** Its commits are in
+    the landed commit, so the receipt counts it as landed and sends its agent no
+    fix prompt, whatever its own run did. Undo: the partition in `partial()`.
+64. **A check that rewrites tracked files is not refused.** `cargo test` with a
+    stale lockfile or `eslint --fix` changes its scratch copy and passes. The
+    target still moves to the commit the run started from, and the same command
+    on that commit does the same. Refusing would block repositories whose tests
+    touch a tracked file, on no measured rate; the field test can say how
+    common that is. `inputs[].status` keeps saying how an input merged into the
+    combined change; `reasons` and `result` say what landed. Undo: compare `git
+    status --untracked-files=no` after a set's last run.

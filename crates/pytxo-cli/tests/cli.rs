@@ -430,6 +430,38 @@ fn pytxo_check_comes_before_the_repository_setting() {
 
 /// --apply lands only what a test passed: with no test command it changes
 /// nothing.
+/// A lint or build script runs when package.json has no test script, but it is
+/// not a test suite, so --apply lands nothing on it.
+#[test]
+fn apply_on_a_script_that_is_not_a_test_suite_lands_nothing() {
+    let dir = repo(&["claude/a", "codex/b"]);
+    let d = dir.path();
+    std::fs::write(
+        d.join("package.json"),
+        r#"{"name":"x","version":"1.0.0","scripts":{"lint":"node -e 0"}}"#,
+    )
+    .unwrap();
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", "package.json"]);
+    let main = || {
+        let out = Command::new("git")
+            .args(["rev-parse", "main"])
+            .current_dir(d)
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    let before = main();
+    let out = pytxo(d, &["--apply"], None);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(1), "{err}");
+    assert!(
+        err.contains("--apply lands only a tested result") && err.contains("lint script"),
+        "{err}"
+    );
+    assert_eq!(main(), before);
+}
+
 #[test]
 fn apply_without_a_test_command_lands_nothing() {
     let dir = repo(&["claude/a", "codex/b"]);

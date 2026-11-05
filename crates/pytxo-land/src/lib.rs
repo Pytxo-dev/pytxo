@@ -157,6 +157,8 @@ pub struct LandOutcome {
     /// whose every check passed as that exact set, which `--apply` lands
     /// instead. Its lines are in the receipt's reasons once it landed.
     pub partial: Option<Partial>,
+    /// Git refused to move the checked-out target, and why. Nothing moved.
+    pub refused: Option<String>,
 }
 
 /// A set of inputs that passed together while the whole combination did not.
@@ -280,10 +282,17 @@ impl Drop for OwnedWorktree {
 /// left in ignored directories goes too: a test command that runs `tsc`'s
 /// outDir would run the last branch's tests as well. Dependencies stay, since
 /// their tools never run stale output: `node_modules`, which an install brings
-/// in line, and Cargo's `target`. Best effort: what it cannot remove, such as a
-/// container's root-owned cache or a file a leftover process holds open, stays,
-/// and the run goes on to its verdict.
-const SCRATCH_CLEAN: [&str; 6] = ["clean", "-ffdxq", "-e", "node_modules", "-e", "target"];
+/// in line, and Cargo's `target` (in a Cargo project: Maven's `target` goes).
+/// Best effort: what it cannot remove, such as a container's root-owned cache
+/// or a file a leftover process holds open, stays, and the run goes on to its
+/// verdict. It returns false then, and a run on those files lands nothing.
+fn clean_scratch(wt: &Git, dir: &Path) -> bool {
+    let mut args = vec!["clean", "-ffdxq", "-e", "node_modules"];
+    if dir.join("Cargo.toml").exists() {
+        args.extend(["-e", "target"]);
+    }
+    wt.ok(&args)
+}
 
 /// `git worktree lock --reason`, then the pid of the run that holds it.
 const LOCK_REASON: &str = "pytxo ";
@@ -397,6 +406,9 @@ fn plain_drive_path(canonical: &str) -> Option<PathBuf> {
     let drive = matches!(path.as_bytes(), [d, b':', b'\\', ..] if d.is_ascii_alphabetic());
     (drive && path.bytes().all(|b| b.is_ascii_graphic())).then(|| PathBuf::from(path))
 }
+
+/// The command a run alone records when its branch does not merge onto the target.
+pub(crate) const MERGE_ONTO_TARGET: &str = "(merge onto target)";
 
 /// What a run has going that Ctrl+C or a kill must not leave behind.
 pub(crate) struct Active {
@@ -642,7 +654,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                         if alone {
                             target_name
                         } else {
-                            "the inputs before it"
+                            "the branches before it"
                         },
                         if conflict_files.is_empty() {
                             String::new()
@@ -713,7 +725,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             let Ok(solo) = solo else {
                 checks.push(ReceiptCheck {
                     scope,
-                    command: "(merge onto target)".into(),
+                    command: MERGE_ONTO_TARGET.into(),
                     exit_code: None,
                     passed: false,
                     duration_ms: 0,
@@ -725,12 +737,13 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 continue;
             };
             sg.run(&["checkout", "--detach", "--force", &solo])?;
-            let _ = sg.run(&SCRATCH_CLEAN);
-            tested.push(Tested {
-                scope: scope.clone(),
-                commit: solo,
-                inputs: vec![i],
-            });
+            if clean_scratch(&sg, &scratch.path) {
+                tested.push(Tested {
+                    scope: scope.clone(),
+                    commit: solo,
+                    inputs: vec![i],
+                });
+            }
             for command in &opts.checks {
                 let Some(check) = run_check(&scope, command, &scratch.path) else {
                     return Ok(());
@@ -805,7 +818,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     if let Some(last) = again.iter().rposition(|&a| a) {
         let cg = Git::owned(&dir, identity);
         cg.run(&["checkout", "--detach", "--force", &combined])?;
-        let _ = cg.run(&SCRATCH_CLEAN);
+        clean_scratch(&cg, &dir);
         for (command, &needed) in opts.checks.iter().zip(&again).take(last + 1) {
             let Some(check) = run_check("combined", command, &dir) else {
                 break;
@@ -916,7 +929,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     if let (Some(tree), false) = (&combined_tree, on_target.is_empty() || late()) {
         let tg = Git::owned(&tree.path, identity);
         tg.run(&["checkout", "--detach", "--force", &base])?;
-        let _ = tg.run(&SCRATCH_CLEAN);
+        clean_scratch(&tg, &tree.path);
         for command in on_target {
             let Some(check) = run_check("target", command, &tree.path) else {
                 break;
@@ -982,12 +995,13 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             // The runs on the target plus `which`, its scope `pair:1,2` or
             // `rest:0,3`, of the commands up to the one the verdict speaks of,
             // and with `all`, once that one passes, of the commands after it:
-            // with the commit they ran on. `None` when they do not merge or
-            // the deadline came before that command's run.
+            // with the commit they ran on, if they ran on just its files.
+            // `None` when they do not merge or the deadline came before that
+            // command's run.
             let run_on = |kind: &str,
                           which: &[usize],
                           all: bool|
-             -> Result<Option<(String, Vec<ReceiptCheck>)>> {
+             -> Result<Option<(Option<String>, Vec<ReceiptCheck>)>> {
                 let positions: Vec<String> = which.iter().map(usize::to_string).collect();
                 let scope = format!("{kind}:{}", positions.join(","));
                 let mut at = base.clone();
@@ -1007,7 +1021,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                     at = commit;
                 }
                 wt.run(&["checkout", "--detach", "--force", &at])?;
-                let _ = wt.run(&SCRATCH_CLEAN);
+                let clean = clean_scratch(&wt, &tree.path);
                 let mut runs = Vec::new();
                 for (n, command) in opts.checks.iter().enumerate() {
                     if n > upto && !(all && runs.iter().all(|r: &ReceiptCheck| r.passed)) {
@@ -1018,7 +1032,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                     };
                     runs.push(run);
                 }
-                Ok((runs.len() > upto).then_some((at, runs)))
+                Ok((runs.len() > upto).then_some((clean.then_some(at), runs)))
             };
             if let Some((_, mut runs)) = run_on("pair", &pair, false)? {
                 let run = runs.swap_remove(upto);
@@ -1028,11 +1042,13 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                     // Every run on the rest is kept: a landing of the rest
                     // stands on them.
                     if let Some((commit, runs)) = run_on("rest", &rest, true)? {
-                        tested.push(Tested {
-                            scope: runs[0].scope.clone(),
-                            commit,
-                            inputs: rest.clone(),
-                        });
+                        if let Some(commit) = commit {
+                            tested.push(Tested {
+                                scope: runs[0].scope.clone(),
+                                commit,
+                                inputs: rest.clone(),
+                            });
+                        }
                         checks.extend(runs);
                     }
                 }
@@ -1200,29 +1216,38 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         content_digest: String::new(),
     };
     // A set that passed while the whole did not: never after a flaky run, a
-    // deadline or a --strict collision, which no set of inputs explains.
+    // timed-out combined run, a deadline or a --strict collision, which no set
+    // of inputs explains.
     let flaky = predicate.checks.iter().any(|c| c.rerun && c.passed);
+    let timed_out = predicate
+        .checks
+        .iter()
+        .any(|c| c.scope == "combined" && c.timed_out);
     let partial = (decision == "blocked"
         && !out_of_time
         && !flaky
+        && !timed_out
         && !opts.checks.is_empty()
         && !(opts.strict && !collisions.is_empty()))
-    .then(|| partial(&predicate, &tested, &opts.checks, cause.as_ref()))
+    .then(|| partial(&repo, &predicate, &tested, &opts.checks, cause.as_ref()))
     .flatten();
     let landing = match &partial {
         _ if decision == "ready" && files_changed > 0 => Some(&combined),
         Some(part) => Some(&part.commit),
         None => None,
     };
+    let mut refused = None;
     if let (true, Some(commit)) = (opts.apply, landing) {
         let t = target.as_deref().expect("checked above");
         let p = &mut predicate;
+        // Before the move: after it, only the receipt is left to write.
+        let landed_files = repo.lines(&["diff", "--name-only", &base, commit])?.len();
         match carry_out(&repo, t, &base, commit, &id)? {
             Landing::Landed => {
                 p.decision = "landed".into();
                 if let Some(part) = &partial {
                     p.result = Some(commit.clone());
-                    p.files_changed = repo.lines(&["diff", "--name-only", &base, commit])?.len();
+                    p.files_changed = landed_files;
                     let names: Vec<&str> = part
                         .landed
                         .iter()
@@ -1246,6 +1271,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 p.decision = "stale".into();
             }
             Landing::Refused(why) => {
+                refused = Some(why.clone());
                 p.reasons.push(why);
                 p.decision = "blocked".into();
             }
@@ -1272,6 +1298,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         target_conflicts,
         cause,
         partial,
+        refused,
     })
 }
 
@@ -1280,6 +1307,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
 /// inputs the verdict blames, then the largest, then one without an input
 /// that uses the name the cause names, then the first in merge order.
 fn partial(
+    repo: &Git,
     p: &ReceiptPredicate,
     tested: &[Tested],
     commands: &[String],
@@ -1314,15 +1342,24 @@ fn partial(
             std::cmp::Reverse(t.inputs.clone()),
         )
     })?;
-    let left_out: Vec<(usize, String)> = changed
+    // A branch stacked under one in the set lands with it, whatever it did alone.
+    let (landed, left): (Vec<usize>, Vec<usize>) = changed.iter().partition(|&&n| {
+        best.inputs.contains(&n)
+            || repo.ok(&[
+                "merge-base",
+                "--is-ancestor",
+                &p.inputs[n].commit,
+                &best.commit,
+            ])
+    });
+    let left_out: Vec<(usize, String)> = left
         .iter()
-        .filter(|n| !best.inputs.contains(n))
-        .map(|&n| (n, render::left_out_why(p, cause, n, &best.inputs)))
+        .map(|&n| (n, render::left_out_why(p, cause, n, &landed)))
         .collect();
-    (!best.inputs.is_empty() && !left_out.is_empty()).then(|| Partial {
+    (!landed.is_empty() && !left_out.is_empty()).then(|| Partial {
         scope: best.scope.clone(),
         commit: best.commit.clone(),
-        landed: best.inputs.clone(),
+        landed,
         left_out,
     })
 }
@@ -1423,17 +1460,21 @@ fn carry_out(repo: &Git, target: &str, base: &str, combined: &str, id: &str) -> 
                 short(&head)
             )));
         }
-        let out = there.output(&["merge", "--ff-only", "--no-edit", combined])?;
+        // No autostash: with one, git takes the user's edits away and a conflict
+        // restoring them still exits 0.
+        let out = there.output(&[
+            "-c",
+            "merge.autoStash=false",
+            "merge",
+            "--ff-only",
+            "--no-edit",
+            combined,
+        ])?;
         if !out.status.success() {
-            let why = String::from_utf8_lossy(&out.stderr);
-            let first = why
-                .lines()
-                .find(|l| !l.trim().is_empty())
-                .unwrap_or("fast-forward refused");
             return Ok(Landing::Refused(format!(
                 "could not fast-forward {target} in {}: {}",
                 path.display(),
-                first.trim()
+                ff_refusal(&String::from_utf8_lossy(&out.stderr))
             )));
         }
         return Ok(Landing::Landed);
@@ -1452,6 +1493,27 @@ fn carry_out(repo: &Git, target: &str, base: &str, combined: &str, id: &str) -> 
         Ok(Landing::Stale(format!(
             "{target} moved before landing; nothing was changed"
         )))
+    }
+}
+
+/// Git's first line of why it refused, and the files it lists under it, which
+/// are what the user has to deal with.
+fn ff_refusal(stderr: &str) -> String {
+    let first = stderr
+        .lines()
+        .find(|l| !l.trim().is_empty())
+        .unwrap_or("fast-forward refused")
+        .trim();
+    let first = first.strip_prefix("error: ").unwrap_or(first);
+    let files: Vec<&str> = stderr
+        .lines()
+        .filter(|l| l.starts_with('\t'))
+        .map(str::trim)
+        .collect();
+    if files.is_empty() {
+        first.to_string()
+    } else {
+        format!("{first} {}", files.join(", "))
     }
 }
 

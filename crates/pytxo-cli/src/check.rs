@@ -162,6 +162,11 @@ fn check(plan: &Plan, args: &CheckArgs, hint: bool) -> Result<(i32, Option<&'sta
             plan.target
         );
     }
+    if let Some(script) = instead_of_tests_script(plan).filter(|_| args.apply) {
+        anyhow::bail!(
+            "--apply lands only a tested result, and package.json has no test script: its {script} script is not a test suite. Add a test script, or name a test command with --check \"<command>\""
+        );
+    }
     if !args.json {
         eprintln!("{}", progress(plan));
     }
@@ -212,6 +217,10 @@ fn check(plan: &Plan, args: &CheckArgs, hint: bool) -> Result<(i32, Option<&'sta
 
 /// What `--apply` would land of a blocked check: the set that passed together.
 fn landable(plan: &Plan, outcome: &LandOutcome) -> Option<String> {
+    // With --apply it was tried, and git refused; a script --apply won't land on.
+    if outcome.refused.is_some() || instead_of_tests_script(plan).is_some() {
+        return None;
+    }
     let part = outcome
         .partial
         .as_ref()
@@ -727,13 +736,16 @@ fn uncommitted_notes(plan: &Plan) -> Vec<String> {
 }
 
 /// What the verdict leaves unsaid about what it checked against.
-fn notes(plan: &Plan) -> Vec<String> {
-    let mut notes = Vec::new();
-    if let Some(script) = plan
-        .check_source
+/// The package.json script run because there is no test script, if one was.
+fn instead_of_tests_script(plan: &Plan) -> Option<&str> {
+    plan.check_source
         .as_deref()
         .and_then(pytxo_land::checks::instead_of_tests)
-    {
+}
+
+fn notes(plan: &Plan) -> Vec<String> {
+    let mut notes = Vec::new();
+    if let Some(script) = instead_of_tests_script(plan) {
         notes.push(format!(
             "package.json has no test script, so this ran its {script} script, which is not a test suite: add a test script, or name a test command with --check \"<command>\"."
         ));
@@ -923,15 +935,15 @@ pub fn receipts_list(repo: Option<PathBuf>, json: bool) -> Result<()> {
     }
     for (_, r) in receipts {
         let p = &r.predicate;
+        // A partial landing's first line reads "landed 2 of 4: a, d (...)".
+        let inputs = p
+            .reasons
+            .iter()
+            .find_map(|r| r.strip_prefix("landed ")?.split_once(':'))
+            .map_or_else(|| p.inputs.len().to_string(), |(of, _)| of.to_string());
         println!(
-            "{}  {:<5}  {:<7}  {:<7}  {} input(s), {} file(s)  {}",
-            p.id,
-            p.kind,
-            p.decision,
-            p.mode,
-            p.inputs.len(),
-            p.files_changed,
-            p.created_at
+            "{}  {:<5}  {:<7}  {:<7}  {inputs} input(s), {} file(s)  {}",
+            p.id, p.kind, p.decision, p.mode, p.files_changed, p.created_at
         );
     }
     Ok(())
