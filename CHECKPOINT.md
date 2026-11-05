@@ -1,8 +1,9 @@
-# CHECKPOINT — Pytxo — 2026-11-05 (2.0.1 candidate verified locally, nothing published)
+# CHECKPOINT — Pytxo — 2026-11-05 (2.0.1 candidate in a draft pull request, nothing published)
 
 ## Branch / commit
 
-- Candidate: `mbcz/pytxo-2-0-1-6392d6`, worktree
+- Candidate: draft pull request https://github.com/Pytxo-dev/pytxo/pull/89, branch
+  `mbcz/pytxo-2-0-1-6392d6`, worktree
   `C:\pytxo\.claude\worktrees\pytxo-2-0-1-6392d6`, based on `origin/main` at
   `114da5c`. Rust code is final at `ebab582`; the commits after it change only the
   site, docs, evidence and this checkpoint.
@@ -37,14 +38,13 @@
 ## Not done
 
 - Nothing is merged, tagged, published or deployed.
-- The branch is not pushed and no pull request is open. The session's permission
-  check refused the push with Matt's OK relayed from the starting session, so CI
-  hasn't run on it. The pull request text is in the goal's evidence folder, named in
-  `REVIEW.md`.
+- CI is the pull request's record, not this file's. Matt said to push on 5 Nov 2026,
+  in the session holding this worktree.
 - The field test (PYTXO-2) has not run: no proof beyond our own fixtures yet.
-- macOS has not run on this code. Pull requests run CI on Linux and Windows only;
-  macOS runs on main and in the release gate. A temporary macOS-only draft pull
-  request was refused the same way.
+- Pull requests run CI on Linux and Windows only, and macOS runs on main and in the
+  release gate. So https://github.com/Pytxo-dev/pytxo/pull/90 runs the rust job on
+  macOS, on `c3fd73e` plus one commit to `ci.yml`. Never merge it: close it and delete
+  its branch once the run has finished.
 - Listed review findings, not fixed:
   - A check that rewrites tracked files (D64).
   - `inputs[].status` on a partial landing is documented, values unchanged.
@@ -96,12 +96,11 @@ All 2026-11-05, Windows, on this branch; exit 0 unless noted.
 | `pytxo bench` from a clean clone | 12/12, 4/4, 0 false refusals |
 
 `a_run_after_a_failed_clean_lands_nothing` is Unix-only and has not run here.
-CI's record for this branch is its pull request, if one is open.
+CI's record for this branch is its pull request, and the macOS one for macOS.
 
 ## Blockers
 
-- Matt has to say to push, in his own words, in the session holding this worktree.
-  Then CI runs on the draft pull request.
+- CI has to pass on both pull requests.
 - Matt's OK to go past local: review the candidate, then merge, tag and publish.
 - The release commands, rollback and go points are below. Matt says go at each step.
 
@@ -110,14 +109,14 @@ CI's record for this branch is its pull request, if one is open.
 After CI is green on the pull request and Matt says go:
 
 ```bash
-gh pr ready <PR> --repo Pytxo-dev/pytxo
+gh pr ready 89 --repo Pytxo-dev/pytxo
 ```
 
 ```bash
-gh pr merge <PR> --repo Pytxo-dev/pytxo --merge
+gh pr merge 89 --repo Pytxo-dev/pytxo --merge
 ```
 
-Wait for the CI run on `main` to pass. It is the first macOS run on this code.
+Wait for the CI run on `main` to pass, macOS included.
 
 ```bash
 git fetch origin main
