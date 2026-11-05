@@ -1,112 +1,115 @@
-# CHECKPOINT — Pytxo — 2026-11-01 (2.0.0 ships with the new pitch: land the agents' branches)
+# CHECKPOINT — Pytxo — 2026-11-05 (2.0.0 is live with the new pitch)
 
 ## Branch / commit
 
-- `mbcz/pytxo-2-land-pitch` in
-  `C:\pytxo\.claude\worktrees\pytxo-release-pitch-436e33` is the whole ship:
-  2.0.0 (`mbcz/pytxo-2-1-smart`), site v2 (`mbcz/site-v2`), the new pitch
-  (`3e55fef`) and this checkpoint. Not pushed or tagged; npm's latest is
-  1.3.6. Main (`797ffd6`) is an ancestor. Merging it does not deploy the
-  site: `deploy-web.yml` and `apps/web/vercel.json` hold main until
-  `PUBLISHED_VERSION` equals the candidate.
-- `mbcz/pytxo-2-land-pitch-promote` is one commit on top, the promotion
-  `8fbd916` re-applied: `PUBLISHED_VERSION` 2.0.0, main deploys back on,
-  2.0.0 as the changelog's public release. Push it only once npm serves
-  2.0.0.
-- Superseded, not deleted: `mbcz/pytxo-2-1-smart`, `mbcz/site-v2` and
-  `mbcz/pytxo-2-promote`; their content is in the two branches above.
-  `mbcz/land-what-works` (`e51d2e6`, partial landing) sits on
-  `mbcz/site-v2` and needs a rebase onto `mbcz/pytxo-2-land-pitch` for 2.0.1.
-- Untracked in this worktree: `RELEASE_TODAY.md`, with the pitch decision
-  and the ship commands.
+- `main` at `52774af` holds everything shipped: PR #85 (`9a6b2c4`, 2.0.0, site
+  v2, the new pitch), PR #86 (`f0d36a7`, the promotion) and PR #87 (`52774af`,
+  the clean Vercel build).
+- Tags `v2.0.0` and `v2` both point at `9a6b2c4`.
+- `mbcz/land-what-works` (`e51d2e6`, partial landing) still sits on
+  `mbcz/site-v2` and needs a rebase onto main for 2.0.1.
+- Untracked in the worktree: `RELEASE_TODAY.md`. Its ship commands are done.
 
 ## Completed
 
-- New pitch, approved by Matt on 2026-11-01 ("New pitch, do it"): lead with
-  "Land all your agents' branches in one command." and "When two break each
-  other, nothing lands." in place of "Each agent's branch passes. Do they
-  pass together?" Reason: on Matt's own work, 0 of 21 sibling branch pairs
-  failed only together (death match, 2026-10-31, `C:\pytxo\docs\reviews`,
-  untracked), so the old lead sold an alarm for a rare event.
-  `npx pytxo --apply` already lands a ready result in 2.0.0.
-- Changed: the hero, page titles, `PRODUCT_LINE` and `PRODUCT_SUMMARY`, the
-  where-it-runs terminal row (`npx pytxo --apply`), the docs intro, README,
-  the npm and mirror READMEs, the npm description, the Action description,
-  the release notes (one `--apply` clause), `POSITIONING.md` (asking the
-  agent to merge as an alternative, no model calls, all-or-nothing landing
-  as a limit, new lead rule) and the share card.
-- The share card's headline was repainted over the original PNG. The paint
-  was first calibrated by redrawing the old headline, which matched the
-  original within pixel noise.
+- npm `latest` is 2.0.0. The GitHub release and the `Pytxo-dev/pytxo-releases`
+  mirror each have 10 assets.
+- pytxo.com serves "Land all your agents' branches in one command." from
+  deployment `dpl_BQwEQq9FKh8sER3GbPL7DGhr1ASb`.
+- Incident, fixed: the first production build of the promotion restored its
+  cache from the 1.3.6 deployment and shipped the old `globals.css`. Production
+  had no `[data-site="v2"]` tokens and rendered unstyled from about 23:47 UTC on
+  2026-11-04 until the PR #87 deploy; the exact end wasn't recorded.
+  `apps/web/vercel.json` now removes `.next/cache` before `next build`.
+- Vercel facts behind that incident: the ignored-build step cancels every
+  non-main ref, so a green Vercel check on a pull request does not mean a build
+  ran. It also cancels a redeploy when nothing under `apps/web` or
+  `packages/chroma` changed. A site fix has to reach main as a commit.
+- CI now pins `ubuntu-24.04`, pins a copy of the Windows test helper, and holds
+  the event loop open in the Action's silent Dodo test.
 
 ## Not done
 
-- Nothing is pushed, tagged, published or deployed. Matt runs the ship.
-- The CLI's `--help` about line and `crates/pytxo-cli/Cargo.toml` still
-  say "Do they pass together?". That is Rust release code, for 2.0.1.
-- The plugin and marketplace descriptions are unchanged: the plugin checks,
-  it does not land.
-- Carried from 2026-10-31: the CLI's 402 messages name `/plans` Pro perks;
-  the signed-in account views keep v1 boxes; Matt's call on `SECURITY.md`
-  dropping Desktop 1.3.x.
-- Unverified until npm serves 2.0.0: a cold `npx -y pytxo@2.0.0 demo`, the
-  Action on github.com, Linux glibc, timing on a real repository, and a real
-  hook session.
-- Arena ("one task, every agent") is neither built nor measured. The
-  rescue-rate pilot is blocked on quota; Claude's weekly limit resets
-  2026-11-04.
+- Main CI is red on `52774af`: `rust (macos-latest)` failed
+  `real_candidate_checks_gate_apply_and_refresh_frozen_bytes`,
+  `crates/pytxo-orchestrate/tests/candidate_run.rs:285`,
+  `assert!(check.duration_ms > 0)`. PR #87 changed only `apps/web/vercel.json`.
+  The same assertion failed attempt 1 of the 2.0.0 release gate. The likely cause
+  is `crates/pytxo-runner/src/run.rs:1728`, where `started` is set after the
+  spawn, so a fast check can record 0 ms. That fix is not made or tested.
+- For 2.0.1: the CLI `--help` line and `crates/pytxo-cli/Cargo.toml` still say
+  "Do they pass together?", and the 402 messages name `/plans` Pro perks.
+- The 2.0.0 release notes keep the repo's standard line "These are prepared
+  release notes... not a release announcement." Editing them needs Matt's OK.
+- `/bench` still shows its reference run on pytxo 1.3.0.
+- Not checked: the home page's demo and lower sections after the CSS fix, the
+  Action's job summary text, Linux glibc, timing on a real repository, a real
+  hook session, a real `npx pytxo --apply` batch.
+- Carried over: Matt's call on `SECURITY.md` dropping Desktop 1.3.x; the
+  signed-in account views keep v1 boxes; Arena is neither built nor measured.
 
 ## Tests last run
 
-- 2026-11-01, `apps/web` on `3e55fef`: eslint, `tsc --noEmit`, `next build`;
-  Playwright 31 of 31 through `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3219`;
-  `check:links` (201 links); sloplint 0 on the 14 changed files. The hero
-  measured 4 lines with the copy button above the fold at 320×700, 390×844,
-  1280, 1440 and 1920×900, and 1920×1080.
-- 2026-11-01: `node --test tooling/scripts/` 52 of 52; Action 28 of 28; npm
-  launcher 7 passed, 4 skipped, 0 failed; `verify-release-version.mjs 2.0.0`
-  passes.
-- Rust: not rerun, because no Rust changed. The last pass was 2026-10-30 on
-  `7a7a2ff` (fmt, clippy `-D warnings`, tests with 0 failed).
+- 2026-11-05, live pytxo.com: the hero is 4 lines with the copy button above the
+  fold at 320×700, 390×844, 1280, 1440 and 1920×900, and 1920×1080. `/`, `/plans`,
+  `/download` and `/bench` are styled at 375 px and on desktop, with no sideways
+  scroll at 375 px and no console errors. `/docs` and the changelog return 200.
+- 2026-11-05: PR #87 `ci-ok` and `web` passed; `verify-release-inventory` 17 of 17.
+- 2026-11-05: main CI failed on `52774af` (above); it passed on `f0d36a7`.
+- 2026-11-04: cold `npx -y pytxo@2.0.0 demo` exited 0 in 14 s. Action e2e against
+  `v2.0.0` had 10 PASS and 0 fail, and the demo passed on Ubuntu, macOS and Windows.
+- 2026-11-04: release workflow attempt 2 had 20 of 20 jobs succeed.
 
 ## Blockers
 
-- The ship needs Matt, in order: push, PR, merge, tag, npm, Action e2e, the
-  `v2` tag, the promotion. The commands are in `RELEASE_TODAY.md`.
+- None for 2.0.1. Secrets: none in this file; the npm publish worked.
+- Matt's cleanup. The e2e repositories are public, and agents don't delete repos:
+
+```bash
+gh auth refresh -s delete_repo
+```
+
+```bash
+gh repo delete mattbaconz/pytxo-action-e2e-20261104-193845 --yes
+```
+
+```bash
+gh repo delete mbcz-xyz/pytxo-action-e2e-20261104-193845 --yes
+```
 
 ## Next prompt (paste below)
 
 ```txt
-Pytxo after the 2.0.0 ship. Read AGENTS.md, the top of CHECKPOINT.md and
-RELEASE_TODAY.md in C:\pytxo\.claude\worktrees\pytxo-release-pitch-436e33.
-Matt has run the ship steps. Verify, without pushing or publishing anything
-yourself: `npm view pytxo@2.0.0 version` prints 2.0.0, a cold
-`npx -y pytxo@2.0.0 demo` exits 0, `tooling/scripts/action-e2e.sh` passes
-against the v2 Action tag, and pytxo.com serves the new hero ("Land all
-your agents' branches in one command.") and the inner pages (check /,
-/plans, /download, /bench at desktop and phone width). Report each result
-with its evidence, then list steps 9 to 12 of pytxo-2.0-report.md (in
-C:\pytxo\.claude\worktrees\product-review-a0207f) with the exact commands
-Matt runs.
+Pytxo 2.0.1. Read AGENTS.md and the top of CHECKPOINT.md.
 
-Don't push, publish to npm, create releases, edit the GitHub repo
-description, deploy the site or change billing. No AI attribution trailers.
+Start with the macOS flake: reproduce why check.duration_ms can be 0 at
+crates/pytxo-orchestrate/tests/candidate_run.rs:285, then fix it at the source
+in crates/pytxo-runner/src/run.rs, near `started` at line 1728. Declare the
+permission profile and execution domain scope. Don't weaken the assertion.
+
+Then change the CLI --help line and the crates/pytxo-cli/Cargo.toml description
+to the new pitch, make the 402 messages match /plans, and rebase e51d2e6 from
+mbcz/land-what-works onto main. Run cargo test -p pytxo-land -p pytxo-cli and
+the affected orchestrate tests.
+
+Don't push, tag, publish, deploy or edit the GitHub repo description without
+Matt's OK. No AI attribution trailers.
 ```
 
 ## Next
 
-<!-- updated 2026-11-01; max 3, ranked -->
-1. Ship 2.0.0 with the new pitch — done when: `npm view pytxo@2.0.0
-   version` prints 2.0.0, a cold `npx -y pytxo@2.0.0 demo` exits 0, the
-   Action e2e passes, the promotion is merged and pytxo.com serves the new
-   hero — `C:\pytxo\.claude\worktrees\pytxo-release-pitch-436e33` — blocked:
-   Matt runs the ship commands in `RELEASE_TODAY.md`.
-2. Dogfood `npx pytxo --apply` on Matt's next batch of agent branches —
-   done when: one real run lands or blocks with a receipt and is kept as
-   launch footage — `C:\pytxo`.
-3. 2.0.1 — done when: `e51d2e6` (partial landing) is rebased onto
-   `mbcz/pytxo-2-land-pitch`, the CLI help, Cargo description and 402
-   messages carry the new wording, and `cargo test -p pytxo-land -p
-   pytxo-cli` passes — `C:\pytxo`.
+<!-- updated 2026-11-05; max 3, ranked -->
+1. 2.0.1 — done when: `check.duration_ms` can't record 0, main CI passes on macOS,
+   the CLI help, Cargo description and 402 messages carry the new wording, `e51d2e6`
+   is rebased onto main, and `cargo test -p pytxo-land -p pytxo-cli` passes —
+   `C:\pytxo`.
+2. Dogfood `npx pytxo --apply` on Matt's next batch of agent branches — done when:
+   one real run lands or blocks with a receipt and is kept as launch footage —
+   `C:\pytxo` — blocked: needs a real batch of Matt's branches.
+3. Launch prep: steps 9 to 12 of `pytxo-2.0-report.md` — done when: the repository
+   description and topics match the pitch, the plugin is submitted, and Linux glibc
+   and real repository timing are measured —
+   `C:\pytxo\.claude\worktrees\product-review-a0207f` — blocked: Matt edits the
+   description, submits the plugin and approves any post.
 
 History: docs/checkpoints/
