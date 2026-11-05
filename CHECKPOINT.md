@@ -4,11 +4,11 @@
 
 - Candidate: `mbcz/pytxo-2-0-1-6392d6`, worktree
   `C:\pytxo\.claude\worktrees\pytxo-2-0-1-6392d6`, based on `origin/main` at
-  `114da5c`. Rust code is final at `61758eb`; `fc964da` and this checkpoint change
-  only the site, docs and evidence.
+  `114da5c`. Rust code is final at `ebab582`; the commits after it change only the
+  site, docs, evidence and this checkpoint.
 - Candidate binary: `target/release/pytxo.exe` in that worktree, built with
   `cargo build -p pytxo-cli --release --no-default-features`, prints `pytxo 2.0.1`,
-  SHA-256 `eeaa4293f10493c911fcda35e717b8428beaf809b3221c54ec8e1abc5795ba65`.
+  SHA-256 `aabd2239b3ab514a195d2a416c2a4638aaa3b1464f3a08b3ef51bfac1c0d8766`.
 - Local only: `mbcz/promote-2-0-1` (`295b22c`), the promotion commit for after npm
   serves 2.0.1. It sets `PUBLISHED_VERSION`, updates the changelog and lifts the
   site's deploy hold.
@@ -22,6 +22,11 @@
 - Partial landing (`e51d2e6`) rebased as `e52ff1a`. A read-only reviewer confirmed
   that the ref moves only to a commit recorded as tested and that the receipt says
   what was left out. Of 20 findings, 13 are fixed and 7 are listed below.
+- When a branch fails alone, the others run together once more (D65, which replaces
+  part of D50). Five branches with one failing now land 4 of 5 in one run, and the
+  note without `--apply` names the same set. A second read-only review confirmed the
+  target moves only to a commit whose exact set passed every command. Of its 6
+  findings, 4 are fixed and 2 are listed below.
 - `--help`, the crate description and the 402 messages match the pitch and `/plans`.
 - Failure paths run on temp repos; each prints what happened and the next step.
 - `/bench` states its build and date: Pybench reran on the candidate. Not deployed.
@@ -47,11 +52,22 @@
   - Exit 2 means both blocked and landed some (D52).
   - `--markdown` drops notes.
   - `--into Main` on a case-insensitive filesystem.
-  - Gaps in the background hook.
-- Without a named cause, `--apply` tries each branch alone plus the rest of a blamed
-  pair (D50), so an innocent branch can wait for a second run: 3 branches landed 1
-  then 1 more, 6 branches landed 1 first. The film's batch lands 3 of 5, and its
-  rename and caller both stay out; `PLAN.md`'s "4 land and 1 sent back" is wrong.
+  - Gaps in the background hook. It also pays for the run on the others without
+    showing its set (D65).
+  - When the run on the others passes but its cleanup fails, one branch lands and the
+    others read "was not tested together", which is false there. The next step it
+    gives is right.
+  - No test covers the run on the others when the set doesn't merge, when its cleanup
+    fails, or when it can't start.
+- When every branch passes alone and no cause is named, `--apply` still lands one and
+  the next run takes the others (D50, left as is). 3 branches landed 1, then 1 more; 6
+  branches landed 1 first. Those branches get a fix prompt too, though some of them
+  may not have to change.
+- A batch with a rename pair and a branch that fails alone takes two runs: 1 of 5 lands,
+  then 2 of 4, and the last two each get a reason.
+- The film has two batch shapes. One branch failing alone lands 4 of 5, so `PLAN.md`'s
+  "4 land and 1 sent back" holds for that batch. The rename batch lands 3 of 5, and its
+  rename and caller both stay out.
 - The site's hero copy changed to "lands what passes. What breaks stays out, with the
   reason." Matt hasn't seen it.
 - `public-release-check` exits 1: 21 HIGH, all fake tokens in test code already on
@@ -68,11 +84,11 @@ All 2026-11-05, Windows, on this branch; exit 0 unless noted.
 |---|---|
 | `cargo fmt --check` | clean |
 | `cargo clippy -p pytxo-runner -p pytxo-land -p pytxo-cli -p pytxo-core --all-targets -- -D warnings` | clean |
-| `cargo test -p pytxo-land -p pytxo-cli` | 181 passed, 1 ignored |
+| `cargo test -p pytxo-land -p pytxo-cli` | 194 passed, 1 ignored |
 | `cargo test -p pytxo-runner --lib`, with `PYTXO_TEST_ATTEMPT_HOST` | 105 passed |
 | `cargo test -p pytxo-orchestrate --test candidate_run --test run_apply` | 1 + 15 passed |
-| `pytxo demo`, cold, candidate binary | 12.7 s |
-| `node packages/pytxo/bin/pytxo.js demo`, with `PYTXO_BINARY` | 7.9 s |
+| `pytxo demo`, cold, candidate binary | 10.2 s |
+| `node packages/pytxo/bin/pytxo.js demo`, with `PYTXO_BINARY` | 11.9 s |
 | `npm run lint`, `npm run build`, `playwright test` in `apps/web` | 31 passed |
 | `node tooling/scripts/verify-release-version.mjs 2.0.1` and its test | 13 passed |
 | `node --test tooling/scripts/verify-release-inventory.test.mjs` | 17 passed |
