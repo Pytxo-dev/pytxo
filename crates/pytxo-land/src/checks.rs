@@ -29,7 +29,8 @@ pub fn run_check(
         command: command.to_string(),
         exit_code,
         passed: exit_code == Some(0) && !timed_out,
-        duration_ms: started.elapsed().as_millis() as u64,
+        // At least 1: a receipt's zero means no timing was recorded.
+        duration_ms: (started.elapsed().as_millis() as u64).max(1),
         timed_out,
         output_tail: tail,
         first_errors,
