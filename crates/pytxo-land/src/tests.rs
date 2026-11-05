@@ -1823,7 +1823,8 @@ fn the_run_on_the_others_leaves_out_a_branch_that_conflicts() {
 }
 
 /// A run on the others that would end past the deadline does not start: what
-/// the runs before tested lands, and the check is not out of time.
+/// the runs before tested lands. The second command is the slow one, so the
+/// room it needs counts every command.
 #[test]
 fn no_run_on_the_others_starts_when_it_would_end_past_the_deadline() {
     let dir = repo();
@@ -1833,7 +1834,7 @@ fn no_run_on_the_others_starts_when_it_would_end_past_the_deadline() {
     branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
     let scratch = tempfile::tempdir().unwrap();
     let marker = scratch.path().join("slow");
-    // The first run without bad.txt takes ten seconds, the others none.
+    // Its first run, on the combined change, takes ten seconds, the others none.
     #[cfg(windows)]
     let wait = format!(
         "(type \"{0}\" > nul 2>&1 || (type nul > \"{0}\" & ping -n 11 127.0.0.1 > nul))",
@@ -1844,22 +1845,263 @@ fn no_run_on_the_others_starts_when_it_would_end_past_the_deadline() {
         "{{ test -f '{0}' || {{ touch '{0}' && sleep 10; }}; }}",
         marker.display()
     );
-    let check = format!("git grep -q bad -- bad.txt && exit 1 || {wait} && exit 0");
-    let mut o = apply_opts(d, &["agent/a", "agent/bad", "agent/c"], &[check.as_str()]);
+    let slow = format!("{wait} && exit 0");
+    let mut o = apply_opts(
+        d,
+        &["agent/a", "agent/bad", "agent/c"],
+        &[BAD_FAILS, slow.as_str()],
+    );
     // The runs alone end after at least ten seconds, with ten more never fitting.
     o.deadline = Some(Instant::now() + Duration::from_secs(19));
     let out = land(&o).unwrap();
     let text = render_text(&out);
-    assert!(!out.out_of_time, "{text}");
     let checks = &out.receipt.predicate.checks;
+    assert!(
+        !checks.iter().any(|c| c.scope.starts_with("rest:")),
+        "{checks:?}"
+    );
+    // A loaded machine can run out the deadline during the runs alone, which
+    // lands nothing. Otherwise the first branch lands, as its run alone tested it.
+    if !out.out_of_time {
+        assert_eq!(
+            out.partial.as_ref().unwrap().scope,
+            "input:agent/a",
+            "{text}"
+        );
+        assert_eq!(
+            left_out_reasons(&out)[2],
+            "left out agent/c: was not tested together with agent/a: run the check again to land it",
+            "{text}"
+        );
+    }
+}
+
+/// Two commands, and a deadline with room: the others run both, and the
+/// commit both ran on lands.
+#[test]
+fn the_others_land_after_every_command_passes_on_them() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    let mut o = apply_opts(
+        d,
+        &["agent/a", "agent/bad", "agent/c"],
+        &[BAD_FAILS, "exit 0"],
+    );
+    o.deadline = Some(Instant::now() + Duration::from_secs(600));
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(
+        (part.scope.as_str(), part.landed.as_slice()),
+        ("rest:0,2", &[0, 2][..]),
+        "{text}"
+    );
+    let on_them: Vec<&str> = out
+        .receipt
+        .predicate
+        .checks
+        .iter()
+        .filter(|c| c.scope == "rest:0,2" && c.passed)
+        .map(|c| c.command.as_str())
+        .collect();
+    assert_eq!(on_them, [BAD_FAILS, "exit 0"], "{text}");
+    assert_eq!(git(d, &["rev-parse", "main"]), part.commit);
+}
+
+/// The others pass the first command and fail the second together, while
+/// every branch but one passes both alone: the first lands, the rest are told
+/// which command failed together, and only the branch that fails alone gets a
+/// prompt, though every merged branch shares the blame for the second command.
+#[test]
+fn others_that_fail_a_later_command_together_get_no_prompt() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    branch(d, "main", "agent/d", &[("d.txt", "d\n")]);
+    let test = "git grep -q b -- b.txt && git grep -q c -- c.txt && exit 1 || exit 0";
+    let four = ["agent/bad", "agent/b", "agent/c", "agent/d"];
+    let out = land(&apply_opts(d, &four, &[BAD_FAILS, test])).unwrap();
+    let text = render_text(&out);
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(
+        (part.scope.as_str(), part.landed.as_slice()),
+        ("input:agent/b", &[1][..]),
+        "{text}"
+    );
+    let reasons = left_out_reasons(&out);
+    assert_eq!(
+        reasons[2],
+        format!(
+            "left out agent/c: passes {test} alone but fails it together with agent/b and agent/d: run the check again to see what has to change"
+        ),
+        "{text}"
+    );
+    let v = verdict(&out, "again");
+    let prompts: Vec<(&str, bool)> = v
+        .left_out
+        .iter()
+        .map(|l| (l.branch.as_str(), l.fix_prompt.is_some()))
+        .collect();
+    assert_eq!(
+        prompts,
+        [("agent/bad", true), ("agent/c", false), ("agent/d", false)],
+        "{text}"
+    );
+}
+
+/// A branch that needs another fails alone, yet the combination passes: all of
+/// it lands, and nothing more runs.
+#[test]
+fn a_combination_that_passes_runs_nothing_more() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    let check = "git grep -q b -- b.txt && exit 0 || git grep -q a -- a.txt && exit 1 || exit 0";
+    let mut o = apply_opts(d, &["agent/a", "agent/b", "agent/c"], &[check]);
+    o.per_input = PerInput::Always;
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.partial, None, "{text}");
+    assert_eq!(out.exit_code(), 0, "{text}");
+    assert!(d.join("a.txt").exists() && d.join("b.txt").exists() && d.join("c.txt").exists());
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        !checks.iter().any(|c| c.scope.starts_with("rest:")),
+        "{checks:?}"
+    );
+}
+
+/// A flaky run lands nothing, so the run on the others would tell nobody anything.
+#[test]
+fn no_run_on_the_others_after_a_flaky_run() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    let scratch = tempfile::tempdir().unwrap();
+    let flaky = combined_only_failure(Some(&scratch.path().join("once")));
+    let three = ["agent/a", "agent/b", "agent/bad"];
+    let base = git(d, &["rev-parse", "main"]);
+    let out = land(&apply_opts(d, &three, &[flaky.as_str(), BAD_FAILS])).unwrap();
+    let text = render_text(&out);
+    assert_eq!(
+        combined_runs(&out)[..2],
+        [(false, false), (true, true)],
+        "{text}"
+    );
+    assert_eq!(out.partial, None, "{text}");
+    assert_eq!(git(d, &["rev-parse", "main"]), base);
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        !checks.iter().any(|c| c.scope.starts_with("rest:")),
+        "{checks:?}"
+    );
+}
+
+/// A run alone that timed out: the others could take that long again.
+#[test]
+fn no_run_on_the_others_after_a_run_alone_timed_out() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    branch(d, "main", "agent/d", &[("d.txt", "d\n")]);
+    let slow = if cfg!(windows) {
+        "ping -n 11 127.0.0.1 >NUL"
+    } else {
+        "sleep 10"
+    };
+    let check = format!(
+        "git grep -q a -- a.txt && exit 1 || git grep -q bad -- bad.txt && {slow} || exit 0"
+    );
+    let four = ["agent/a", "agent/bad", "agent/c", "agent/d"];
+    let mut o = apply_opts(d, &four, &[check.as_str()]);
+    o.check_timeout = Duration::from_secs(4);
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        checks
+            .iter()
+            .any(|c| c.scope == "input:agent/bad" && c.timed_out),
+        "{checks:?}"
+    );
     assert!(
         !checks.iter().any(|c| c.scope.starts_with("rest:")),
         "{checks:?}"
     );
     assert_eq!(
         out.partial.as_ref().unwrap().scope,
+        "input:agent/c",
+        "{text}"
+    );
+}
+
+/// The run on the others times out: the first lands, and the others are told
+/// it timed out, not that it failed.
+#[test]
+fn others_that_time_out_together_are_told_so() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    let slow = if cfg!(windows) {
+        "ping -n 11 127.0.0.1 >NUL"
+    } else {
+        "sleep 10"
+    };
+    let check = format!(
+        "git grep -q bad -- bad.txt && exit 1 || git grep -q a -- a.txt && git grep -q c -- c.txt && {slow} || exit 0"
+    );
+    let mut o = apply_opts(d, &["agent/a", "agent/bad", "agent/c"], &[check.as_str()]);
+    o.check_timeout = Duration::from_secs(4);
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(
+        out.partial.as_ref().unwrap().scope,
         "input:agent/a",
         "{text}"
+    );
+    assert_eq!(
+        left_out_reasons(&out)[2],
+        format!(
+            "left out agent/c: passes {check} alone but timed out running it together with agent/a: run the check again to see what has to change"
+        ),
+        "{text}"
+    );
+}
+
+/// `--strict` with a collision lands nothing, so nothing more runs for it.
+#[test]
+fn no_run_on_the_others_after_a_strict_collision() {
+    let dir = repo();
+    let d = dir.path();
+    let c = CART.replace("let sum = 0;", "let sum = 0; // start");
+    let c2 = CART.replace("return sum;", "return Math.round(sum);");
+    branch(d, "main", "agent/c", &[("src/cart.js", &c)]);
+    branch(d, "main", "agent/c2", &[("src/cart.js", &c2)]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    let mut o = apply_opts(d, &["agent/c", "agent/c2", "agent/bad"], &[BAD_FAILS]);
+    o.strict = true;
+    let base = git(d, &["rev-parse", "main"]);
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.partial, None, "{text}");
+    assert_eq!(git(d, &["rev-parse", "main"]), base);
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        !checks.iter().any(|c| c.scope.starts_with("rest:")),
+        "{checks:?}"
     );
 }
 

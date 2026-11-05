@@ -957,7 +957,8 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     // of the commands up to position `upto`, and with `all`, once that one
     // passes, of the commands after it: with the commit they ran on, if they
     // ran on just its files. `None` when they do not merge or the deadline
-    // came before that command's run.
+    // came before that command's run. Its callers read an error as no run: a
+    // checkout a stray process blocks must not cost them the verdict.
     let run_on = |tree: &OwnedWorktree,
                   kind: &str,
                   which: &[usize],
@@ -1038,14 +1039,16 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         };
         let timed_out = out_of_time.get() || checks.iter().any(|c| c.timed_out);
         if merged.len() >= 3 && !timed_out && room(&checks, upto, if alone { 1 } else { 2 }) {
-            if let Some((_, mut runs)) = run_on(tree, "pair", &pair, upto, false)? {
+            if let Some((_, mut runs)) = run_on(tree, "pair", &pair, upto, false).ok().flatten() {
                 let run = runs.swap_remove(upto);
                 let failed = !run.passed && !run.timed_out;
                 checks.push(run);
                 if failed && !alone && room(&checks, upto, 1) {
                     // Every run on the rest is kept: a landing of the rest
                     // stands on them.
-                    if let Some((commit, runs)) = run_on(tree, "rest", &rest, upto, true)? {
+                    if let Some((commit, runs)) =
+                        run_on(tree, "rest", &rest, upto, true).ok().flatten()
+                    {
                         if let Some(commit) = commit {
                             tested.push(Tested {
                                 scope: runs[0].scope.clone(),
@@ -1065,8 +1068,8 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     // every command, without `--apply` too, so the hint and `--apply` name the
     // same set. Those that conflict were in no combined run and stay out. As
     // with the runs above, a deadline that cuts it short leaves the verdict
-    // standing. No cause is read when an input fails alone, so this and the
-    // runs on a pair never both run.
+    // standing. With a cause, the runs on the pair are the ones that clear the
+    // others, so this does not run too.
     if let (Some(tree), None) = (&combined_tree, &cause) {
         let (passed, failed): (Vec<usize>, Vec<usize>) = (0..receipt_inputs.len())
             .filter(|&i| receipt_inputs[i].status == "merged")
@@ -1082,13 +1085,14 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
         let settled = combined_runs().any(|c| !c.passed)
             && !combined_runs().any(|c| c.rerun && c.passed)
             && !out_of_time.get()
-            && !checks.iter().any(|c| c.timed_out);
+            && !checks.iter().any(|c| c.timed_out)
+            && !(opts.strict && shared_files.iter().any(|f| !f.symbol_collisions.is_empty()));
         if settled
             && passed.len() >= 2
             && !failed.is_empty()
             && room(&checks, opts.checks.len() - 1, 1)
         {
-            if let Some((commit, runs)) = run_on(tree, "rest", &passed, 0, true)? {
+            if let Some((commit, runs)) = run_on(tree, "rest", &passed, 0, true).ok().flatten() {
                 if let Some(commit) = commit {
                     tested.push(Tested {
                         scope: runs[0].scope.clone(),

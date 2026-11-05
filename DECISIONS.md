@@ -609,9 +609,11 @@ end in progress, not only in a verdict. Ships in the release after 2.0.0.
     `--apply` name the same set. That exact set lands if every command passes.
     If one fails, D50's choice stands, and the others say they failed together
     and get no prompt. Inputs that conflict stay out, since two of them can
-    conflict with each other. D51's rules hold: no run after a timeout or a
-    flaky run, none that would end past the deadline, and `--strict` still
-    lands nothing. The cost is one more run of the tests on such a failure.
+    conflict with each other. D51's rules hold: no run after a timeout, a flaky
+    run or a `--strict` collision, and none that would end past the deadline.
+    The cost is one more run of the tests on such a failure, which the Stop
+    hook pays too without showing its set; a flag for that isn't worth it until
+    someone measures the wait.
     Still open: when everything passes alone and no cause is named, one branch
     lands and the next run takes the others; and a batch with both a branch
     that fails alone and a rename pair lands one, then takes a second run.

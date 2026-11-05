@@ -462,6 +462,34 @@ fn apply_on_a_script_that_is_not_a_test_suite_lands_nothing() {
     assert_eq!(main(), before);
 }
 
+/// One of four branches fails alone: without --apply the note names the other
+/// three, and --apply lands those three.
+#[test]
+fn the_note_and_apply_name_the_branches_that_pass_together() {
+    let dir = repo(&["claude/a", "codex/b", "cursor/c", "devin/d"]);
+    let d = dir.path();
+    let fails_b = "git grep -q 1 -- f1.txt && exit 1 || exit 0";
+    let seen = pytxo(d, &["--check", fails_b], None);
+    let text = String::from_utf8_lossy(&seen.stdout);
+    assert_eq!(seen.status.code(), Some(2), "{text}");
+    assert!(
+        text.contains(
+            "claude/a, cursor/c and devin/d pass the tests together: run this again with --apply to land them and leave out codex/b."
+        ),
+        "{text}"
+    );
+    let out = pytxo(d, &["--apply", "--check", fails_b], None);
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(2), "{text}");
+    assert!(
+        text.contains(
+            "3 of 4 branches are on main now: claude/a, cursor/c and devin/d; codex/b is left out."
+        ),
+        "{text}"
+    );
+    assert!(d.join("f0.txt").exists() && !d.join("f1.txt").exists());
+}
+
 #[test]
 fn apply_without_a_test_command_lands_nothing() {
     let dir = repo(&["claude/a", "codex/b"]);

@@ -58,9 +58,9 @@ If the branch moved while the gate ran, the decision is **stale** and nothing ch
 
 ### When only some branches pass
 
-When the whole combination is blocked, `--apply` lands the largest set of branches that passed every check as that exact set, and leaves the others out, each with why. A branch that has to change gets a fix prompt to paste into its agent. The target moves to the very commit those runs tested, by the same fast-forward or compare-and-swap, and the receipt says what landed and what was left out.
+When the whole combination is blocked, `--apply` lands the largest set of branches that passed every check as that exact set, and leaves the others out, each with why. When a branch fails its checks on its own, the others run together once more first, so with five branches and one failing, the other four land in that run. A branch that has to change gets a fix prompt to paste into its agent. The target moves to the very commit those runs tested, by the same fast-forward or compare-and-swap, and the receipt says what landed and what was left out.
 
-It exits with `2`, so `pytxo land --apply && git push` stops there: read the verdict before you push. After a flaky run, a combined run that timed out or a `--strict` collision, nothing lands. Without `--apply`, a note names the set that would land.
+It exits with `2`, so `pytxo land --apply && git push` stops there: read the verdict before you push. After a flaky run, a combined run that timed out or a `--strict` collision, nothing lands. Without `--apply`, a note names the set that would land. When every branch passes alone and Pytxo cannot name why they fail together, one branch lands and the next run takes the others.
 
 The landed history contains one merge commit per input, made by your Git identity (or "Pytxo Land" if none is configured). Commits are not signed, even when your Git config signs commits; sign or squash afterwards if your repository requires it.
 
