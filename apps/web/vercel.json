@@ -5,7 +5,7 @@
     }
   },
   "installCommand": "npm ci --legacy-peer-deps",
-  "buildCommand": "npm run build",
+  "buildCommand": "rm -rf .next/cache && npm run build",
   "framework": "nextjs",
   "redirects": [
     {
