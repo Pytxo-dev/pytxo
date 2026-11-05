@@ -598,3 +598,22 @@ end in progress, not only in a verdict. Ships in the release after 2.0.0.
     common that is. `inputs[].status` keeps saying how an input merged into the
     combined change; `reasons` and `result` say what landed. Undo: compare `git
     status --untracked-files=no` after a set's last run.
+65. **When a branch fails alone, the others run together once more.** Replaces
+    D50's "No run is added for the landing" for this case, and adds this set to
+    D50's candidates. Five branches where one fails its tests is the most
+    common real batch, and D50 landed one of them and called three untested,
+    which contradicts "lands what passes". After a combined failure with no
+    cause, when at least one merged input failed alone and two or more passed
+    every command alone, those that passed run together on the target, scope
+    `rest`, through every command, without `--apply` too, so the note and
+    `--apply` name the same set. That exact set lands if every command passes.
+    If one fails, D50's choice stands, and the others say they failed together
+    and get no prompt. Inputs that conflict stay out, since two of them can
+    conflict with each other. D51's rules hold: no run after a timeout or a
+    flaky run, none that would end past the deadline, and `--strict` still
+    lands nothing. The cost is one more run of the tests on such a failure.
+    Still open: when everything passes alone and no cause is named, one branch
+    lands and the next run takes the others; and a batch with both a branch
+    that fails alone and a rename pair lands one, then takes a second run.
+    Undo: the block after the pair runs in `land()` and its reason in
+    `left_out_reason`.

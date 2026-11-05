@@ -261,6 +261,27 @@ fn left_out_reason(
         );
         return (why, Some((rebase(target), combined_tail())));
     }
+    // It passed alone and the run on those that did failed: no fix to name
+    // until a run on the new target says what has to change.
+    let together = p.checks.iter().find_map(|c| {
+        let (kind, set) = merged_onto_target(&c.scope)?;
+        (kind == "rest" && !c.passed && set.contains(&n)).then_some((c, set))
+    });
+    if let Some((c, set)) = together {
+        let others: Vec<String> = set.into_iter().filter(|&k| k != n).map(name).collect();
+        let how = if c.timed_out {
+            format!("passes {0} alone but timed out running it", c.command)
+        } else {
+            format!("passes {0} alone but fails it", c.command)
+        };
+        return (
+            format!(
+                "{how} together with {}: run the check again to see what has to change",
+                and_list(&others)
+            ),
+            None,
+        );
+    }
     let landed: Vec<String> = landed.iter().map(|&k| name(k)).collect();
     (
         format!(

@@ -101,8 +101,9 @@ pub struct ReceiptSymbolCollision {
 pub struct ReceiptCheck {
     /// `combined`, `input:<ref>`, `target`, or, after a cause names two inputs
     /// of three or more, `pair:<i>,<j>` (the target with only those two) and
-    /// `rest:<k>,...` (the target with the other merged inputs), the inputs
-    /// it merged by their positions. In the string and not a field of their
+    /// `rest:<k>,...` (the target with the other merged inputs, or, after some
+    /// fail alone, with those that passed), the inputs it merged by their
+    /// positions. In the string and not a field of their
     /// own, so a binary that knows no such run still keeps them, and its
     /// digest of this receipt still matches.
     pub scope: String,

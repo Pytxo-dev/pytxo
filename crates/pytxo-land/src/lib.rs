@@ -952,11 +952,54 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     // one that passes goes on. They
     // only sharpen a verdict the runs before already give, so a deadline that
     // cuts one short leaves that verdict standing: it is not out of time.
-    if let (Some(tree), Some(cause), Some(command)) = (&combined_tree, &cause, together) {
-        let merged: Vec<usize> = (0..receipt_inputs.len())
-            .filter(|&i| receipt_inputs[i].status == "merged")
-            .collect();
-        let upto = opts.checks.iter().position(|c| c == command).unwrap_or(0);
+    //
+    // The runs on the target plus `which`, its scope `pair:1,2` or `rest:0,3`,
+    // of the commands up to position `upto`, and with `all`, once that one
+    // passes, of the commands after it: with the commit they ran on, if they
+    // ran on just its files. `None` when they do not merge or the deadline
+    // came before that command's run.
+    let run_on = |tree: &OwnedWorktree,
+                  kind: &str,
+                  which: &[usize],
+                  upto: usize,
+                  all: bool|
+     -> Result<Option<(Option<String>, Vec<ReceiptCheck>)>> {
+        let wt = Git::owned(&tree.path, identity);
+        let positions: Vec<String> = which.iter().map(usize::to_string).collect();
+        let scope = format!("{kind}:{}", positions.join(","));
+        let mut at = base.clone();
+        for &i in which {
+            let message = merge_message(&resolved[i]);
+            let merge = if in_memory {
+                merge_in_memory(&owned, &at, &resolved[i].commit, &message)?
+            } else {
+                wt.run(&["reset", "--hard", &at])?;
+                merge_in_worktree(&wt, &resolved[i].commit, &message)?
+            };
+            // Each merged into the combined change, yet a part of
+            // them can still conflict on its own.
+            let Ok(commit) = merge else {
+                return Ok(None);
+            };
+            at = commit;
+        }
+        wt.run(&["checkout", "--detach", "--force", &at])?;
+        let clean = clean_scratch(&wt, &tree.path);
+        let mut runs = Vec::new();
+        for (n, command) in opts.checks.iter().enumerate() {
+            if n > upto && !(all && runs.iter().all(|r: &ReceiptCheck| r.passed)) {
+                break;
+            }
+            let Some(run) = run_check(&scope, command, &tree.path) else {
+                break;
+            };
+            runs.push(run);
+        }
+        Ok((runs.len() > upto).then_some((clean.then_some(at), runs)))
+    };
+    // Whether the deadline leaves room for `runs` more runs of the commands
+    // up to position `upto`.
+    let room = |checks: &[ReceiptCheck], upto: usize, runs: u32| {
         let took: Duration = opts.checks[..=upto]
             .iter()
             .map(|command| {
@@ -969,10 +1012,14 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                     .unwrap_or_default()
             })
             .sum();
-        let room = |runs: u32| {
-            opts.deadline
-                .is_none_or(|d| Instant::now() + took * runs < d)
-        };
+        opts.deadline
+            .is_none_or(|d| Instant::now() + took * runs < d)
+    };
+    if let (Some(tree), Some(cause), Some(command)) = (&combined_tree, &cause, together) {
+        let merged: Vec<usize> = (0..receipt_inputs.len())
+            .filter(|&i| receipt_inputs[i].status == "merged")
+            .collect();
+        let upto = opts.checks.iter().position(|c| c == command).unwrap_or(0);
         let pair = [cause.by.min(cause.user), cause.by.max(cause.user)];
         let rest: Vec<usize> = merged
             .iter()
@@ -990,58 +1037,15 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             _ => false,
         };
         let timed_out = out_of_time.get() || checks.iter().any(|c| c.timed_out);
-        if merged.len() >= 3 && !timed_out && room(if alone { 1 } else { 2 }) {
-            let wt = Git::owned(&tree.path, identity);
-            // The runs on the target plus `which`, its scope `pair:1,2` or
-            // `rest:0,3`, of the commands up to the one the verdict speaks of,
-            // and with `all`, once that one passes, of the commands after it:
-            // with the commit they ran on, if they ran on just its files.
-            // `None` when they do not merge or the deadline came before that
-            // command's run.
-            let run_on = |kind: &str,
-                          which: &[usize],
-                          all: bool|
-             -> Result<Option<(Option<String>, Vec<ReceiptCheck>)>> {
-                let positions: Vec<String> = which.iter().map(usize::to_string).collect();
-                let scope = format!("{kind}:{}", positions.join(","));
-                let mut at = base.clone();
-                for &i in which {
-                    let message = merge_message(&resolved[i]);
-                    let merge = if in_memory {
-                        merge_in_memory(&owned, &at, &resolved[i].commit, &message)?
-                    } else {
-                        wt.run(&["reset", "--hard", &at])?;
-                        merge_in_worktree(&wt, &resolved[i].commit, &message)?
-                    };
-                    // Each merged into the combined change, yet a part of
-                    // them can still conflict on its own.
-                    let Ok(commit) = merge else {
-                        return Ok(None);
-                    };
-                    at = commit;
-                }
-                wt.run(&["checkout", "--detach", "--force", &at])?;
-                let clean = clean_scratch(&wt, &tree.path);
-                let mut runs = Vec::new();
-                for (n, command) in opts.checks.iter().enumerate() {
-                    if n > upto && !(all && runs.iter().all(|r: &ReceiptCheck| r.passed)) {
-                        break;
-                    }
-                    let Some(run) = run_check(&scope, command, &tree.path) else {
-                        break;
-                    };
-                    runs.push(run);
-                }
-                Ok((runs.len() > upto).then_some((clean.then_some(at), runs)))
-            };
-            if let Some((_, mut runs)) = run_on("pair", &pair, false)? {
+        if merged.len() >= 3 && !timed_out && room(&checks, upto, if alone { 1 } else { 2 }) {
+            if let Some((_, mut runs)) = run_on(tree, "pair", &pair, upto, false)? {
                 let run = runs.swap_remove(upto);
                 let failed = !run.passed && !run.timed_out;
                 checks.push(run);
-                if failed && !alone && room(1) {
+                if failed && !alone && room(&checks, upto, 1) {
                     // Every run on the rest is kept: a landing of the rest
                     // stands on them.
-                    if let Some((commit, runs)) = run_on("rest", &rest, true)? {
+                    if let Some((commit, runs)) = run_on(tree, "rest", &rest, upto, true)? {
                         if let Some(commit) = commit {
                             tested.push(Tested {
                                 scope: runs[0].scope.clone(),
@@ -1052,6 +1056,47 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                         checks.extend(runs);
                     }
                 }
+            }
+            out_of_time.set(false);
+        }
+    }
+    // An input that fails alone explains the combined failure, so the others,
+    // which each passed every command alone, run together once more, through
+    // every command, without `--apply` too, so the hint and `--apply` name the
+    // same set. Those that conflict were in no combined run and stay out. As
+    // with the runs above, a deadline that cuts it short leaves the verdict
+    // standing. No cause is read when an input fails alone, so this and the
+    // runs on a pair never both run.
+    if let (Some(tree), None) = (&combined_tree, &cause) {
+        let (passed, failed): (Vec<usize>, Vec<usize>) = (0..receipt_inputs.len())
+            .filter(|&i| receipt_inputs[i].status == "merged")
+            .partition(|&i| {
+                let scope = format!("input:{}", receipt_inputs[i].reference);
+                let runs = || checks.iter().filter(|c| c.scope == scope);
+                opts.checks
+                    .iter()
+                    .all(|command| runs().any(|c| &c.command == command))
+                    && runs().all(|c| c.passed)
+            });
+        let combined_runs = || checks.iter().filter(|c| c.scope == "combined");
+        let settled = combined_runs().any(|c| !c.passed)
+            && !combined_runs().any(|c| c.rerun && c.passed)
+            && !out_of_time.get()
+            && !checks.iter().any(|c| c.timed_out);
+        if settled
+            && passed.len() >= 2
+            && !failed.is_empty()
+            && room(&checks, opts.checks.len() - 1, 1)
+        {
+            if let Some((commit, runs)) = run_on(tree, "rest", &passed, 0, true)? {
+                if let Some(commit) = commit {
+                    tested.push(Tested {
+                        scope: runs[0].scope.clone(),
+                        commit,
+                        inputs: passed,
+                    });
+                }
+                checks.extend(runs);
             }
             out_of_time.set(false);
         }
