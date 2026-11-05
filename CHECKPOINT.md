@@ -32,10 +32,14 @@
 ## Not done
 
 - Nothing is merged, tagged, published or deployed.
+- The branch is not pushed and no pull request is open. The session's permission
+  check refused the push with Matt's OK relayed from the starting session, so CI
+  hasn't run on it. The pull request text is in the goal's evidence folder, named in
+  `REVIEW.md`.
 - The field test (PYTXO-2) has not run: no proof beyond our own fixtures yet.
 - macOS has not run on this code. Pull requests run CI on Linux and Windows only;
-  macOS runs on main and in the release gate. A temporary macOS-only draft PR was
-  refused by the session's permission check.
+  macOS runs on main and in the release gate. A temporary macOS-only draft pull
+  request was refused the same way.
 - Listed review findings, not fixed:
   - A check that rewrites tracked files (D64).
   - `inputs[].status` on a partial landing is documented, values unchanged.
@@ -80,6 +84,8 @@ CI's record for this branch is its pull request, if one is open.
 
 ## Blockers
 
+- Matt has to say to push, in his own words, in the session holding this worktree.
+  Then CI runs on the draft pull request.
 - Matt's OK to go past local: review the candidate, then merge, tag and publish.
 - The release commands, rollback and go points are below. Matt says go at each step.
 
