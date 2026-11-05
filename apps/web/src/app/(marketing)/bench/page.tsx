@@ -77,7 +77,7 @@ export default async function BenchPage() {
             <dd>{value}</dd>
           </div>)}
         </dl>
-        <p id="ref-caption" className={s.note}>Each scenario, what per-branch CI would do, and what pytxo land decided. Gate time includes running the checks. Built from commit <code>61758eb</code> and run on one laptop with other work going, so read the timings as rough.</p>
+        <p id="ref-caption" className={s.note}>Each scenario, what per-branch CI would do, and what pytxo land decided. Gate time includes running the checks. Built from commit <code>ebab582</code> and run on one laptop with other work going, so read the timings as rough.</p>
         <div className={cn(s.scroll, "relative overflow-x-auto")}>
           <table className={cn(s.table, "min-w-[44rem]")} aria-describedby="ref-caption">
             <thead><tr>

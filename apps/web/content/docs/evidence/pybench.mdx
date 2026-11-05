@@ -29,7 +29,7 @@ Published results: [the board and the reference run](/bench) · [raw JSON](/evid
 
 ## Reference result (2.0.1, 5 November 2026, Windows, 16 CPUs)
 
-Built from commit `61758eb` and run on one laptop with other work going.
+Built from commit `ebab582` and run on one laptop with other work going.
 
 | | |
 |---|---|
@@ -41,7 +41,7 @@ Built from commit `61758eb` and run on one laptop with other work going.
 | Stale target refused | 1 |
 | Same-function warnings | 3 |
 
-Without checks, the gate added about 0.6 to 1.5 seconds over a plain sequential `git merge` of the same branches on this Windows machine, where every Git process start is slow; with checks, the median gate time was about 2 seconds. Timings varied between runs on the same machine, so treat them as rough. The [board](/bench) shows the measured table.
+Without checks, the gate added about 0.5 to 2 seconds over a plain sequential `git merge` of the same branches on this Windows machine, where every Git process start is slow; with checks, the median gate time was about 2.3 seconds. Timings varied between runs on the same machine, so treat them as rough. The [board](/bench) shows the measured table.
 
 ## What this does and does not show
 

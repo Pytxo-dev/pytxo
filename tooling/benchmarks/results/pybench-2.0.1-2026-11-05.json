@@ -1,7 +1,7 @@
 {
   "schema": "pybench/v1",
   "pytxo_version": "2.0.1",
-  "created_at": "2026-11-05T13:05:52Z",
+  "created_at": "2026-11-05T14:08:57Z",
   "machine": {
     "os": "windows",
     "arch": "x86_64",
@@ -22,7 +22,7 @@
         "symbol_collisions": 0,
         "naive_outcome": "landed_ok",
         "correct": true,
-        "gate_ms": 1969
+        "gate_ms": 1726
       },
       {
         "id": "same-file-separate-functions",
@@ -34,7 +34,7 @@
         "symbol_collisions": 0,
         "naive_outcome": "landed_ok",
         "correct": true,
-        "gate_ms": 2095
+        "gate_ms": 2295
       },
       {
         "id": "same-function-compatible",
@@ -46,7 +46,7 @@
         "symbol_collisions": 1,
         "naive_outcome": "landed_ok",
         "correct": true,
-        "gate_ms": 2057
+        "gate_ms": 2487
       },
       {
         "id": "textual-conflict",
@@ -58,7 +58,7 @@
         "symbol_collisions": 1,
         "naive_outcome": "manual_conflict",
         "correct": true,
-        "gate_ms": 2614
+        "gate_ms": 3282
       },
       {
         "id": "rename-vs-new-caller",
@@ -70,7 +70,7 @@
         "symbol_collisions": 0,
         "naive_outcome": "landed_broken",
         "correct": true,
-        "gate_ms": 1689
+        "gate_ms": 1930
       },
       {
         "id": "signature-change",
@@ -82,7 +82,7 @@
         "symbol_collisions": 0,
         "naive_outcome": "landed_broken",
         "correct": true,
-        "gate_ms": 1715
+        "gate_ms": 2769
       },
       {
         "id": "deleted-helper",
@@ -94,7 +94,7 @@
         "symbol_collisions": 0,
         "naive_outcome": "landed_broken",
         "correct": true,
-        "gate_ms": 1655
+        "gate_ms": 2316
       },
       {
         "id": "test-contract-flip",
@@ -106,7 +106,7 @@
         "symbol_collisions": 0,
         "naive_outcome": "landed_broken",
         "correct": true,
-        "gate_ms": 1749
+        "gate_ms": 2201
       },
       {
         "id": "target-moved",
@@ -118,7 +118,7 @@
         "symbol_collisions": 0,
         "naive_outcome": "not_modeled",
         "correct": true,
-        "gate_ms": 1760
+        "gate_ms": 1947
       },
       {
         "id": "three-way-fan-in",
@@ -130,7 +130,7 @@
         "symbol_collisions": 0,
         "naive_outcome": "landed_ok",
         "correct": true,
-        "gate_ms": 2008
+        "gate_ms": 2014
       },
       {
         "id": "add-add",
@@ -142,7 +142,7 @@
         "symbol_collisions": 0,
         "naive_outcome": "manual_conflict",
         "correct": true,
-        "gate_ms": 2357
+        "gate_ms": 2307
       },
       {
         "id": "modify-delete",
@@ -154,7 +154,7 @@
         "symbol_collisions": 1,
         "naive_outcome": "manual_conflict",
         "correct": true,
-        "gate_ms": 2418
+        "gate_ms": 2569
       }
     ],
     "summary": {
@@ -166,7 +166,7 @@
       "conflicts_caught": 3,
       "stale_refused": 1,
       "symbol_collisions_reported": 3,
-      "median_gate_ms": 2008
+      "median_gate_ms": 2307
     }
   },
   "overhead": {
@@ -174,47 +174,47 @@
       {
         "inputs": 2,
         "files": 10,
-        "git_merge_ms": 403,
-        "pytxo_land_ms": 1196
+        "git_merge_ms": 521,
+        "pytxo_land_ms": 1522
       },
       {
         "inputs": 5,
         "files": 10,
-        "git_merge_ms": 1110,
-        "pytxo_land_ms": 2250
+        "git_merge_ms": 992,
+        "pytxo_land_ms": 2083
       },
       {
         "inputs": 10,
         "files": 10,
-        "git_merge_ms": 2128,
-        "pytxo_land_ms": 3608
+        "git_merge_ms": 1978,
+        "pytxo_land_ms": 3612
       },
       {
         "inputs": 2,
         "files": 100,
-        "git_merge_ms": 605,
-        "pytxo_land_ms": 1212
+        "git_merge_ms": 618,
+        "pytxo_land_ms": 1131
       },
       {
         "inputs": 5,
         "files": 100,
-        "git_merge_ms": 1299,
-        "pytxo_land_ms": 2067
+        "git_merge_ms": 1296,
+        "pytxo_land_ms": 2025
       },
       {
         "inputs": 10,
         "files": 100,
-        "git_merge_ms": 2533,
-        "pytxo_land_ms": 4024
+        "git_merge_ms": 2860,
+        "pytxo_land_ms": 4878
       }
     ]
   },
   "signal": {
     "repo": "pytxo",
     "files": 396,
-    "original_bytes": 5802517,
-    "scaffold_bytes": 793896,
-    "weighted_reduction_pct": 86.3,
+    "original_bytes": 5822949,
+    "scaffold_bytes": 794787,
+    "weighted_reduction_pct": 86.4,
     "rule": "Tracked files in a Signal Core language, at least 1 KiB, excluding tests, fixtures, stories, vendor, build and generated paths. Byte reduction of the structural scaffold; not a token or cost measurement."
   },
   "notes": [
