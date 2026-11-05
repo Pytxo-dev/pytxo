@@ -182,12 +182,15 @@ for (const width of [1440, 390]) {
   test(`pybench shows the reference run from its record at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/bench");
-    const record = await (await page.request.get("/evidence/pybench-1.3.0-2026-10-10.json")).json();
+    const record = await (await page.request.get("/evidence/pybench-2.0.1-2026-11-05.json")).json();
     expect(record.schema).toBe("pybench/v1");
     const reference = page.getByTestId("bench-reference");
     await expect(reference).toContainText(`${record.land.summary.pytxo_prevented}/${record.land.summary.naive_landed_broken}`);
     await expect(reference.getByRole("row")).toHaveCount(record.land.scenarios.length + 1 + (record.overhead ? record.overhead.rows.length + 1 : 0));
     await expect(reference).toContainText("lands a broken main");
+    // The run says which build it measured and when.
+    await expect(reference).toContainText(`pytxo ${record.pytxo_version}`);
+    await expect(reference).toContainText(record.created_at.slice(0, 10));
     await expect(page.getByTestId("bench-board")).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });

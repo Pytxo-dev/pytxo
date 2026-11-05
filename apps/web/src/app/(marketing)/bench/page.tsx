@@ -1,5 +1,5 @@
 import Link from "next/link";
-import reference from "../../../../public/evidence/pybench-1.3.0-2026-10-10.json";
+import reference from "../../../../public/evidence/pybench-2.0.1-2026-11-05.json";
 
 import { InstallSnippet } from "@/components/site/install-snippet";
 import s from "@/components/site/site.module.css";
@@ -77,7 +77,7 @@ export default async function BenchPage() {
             <dd>{value}</dd>
           </div>)}
         </dl>
-        <p id="ref-caption" className={s.note}>Each scenario, what per-branch CI would do, and what pytxo land decided. Gate time includes running the checks.</p>
+        <p id="ref-caption" className={s.note}>Each scenario, what per-branch CI would do, and what pytxo land decided. Gate time includes running the checks. Built from commit <code>61758eb</code> and run on one laptop with other work going, so read the timings as rough.</p>
         <div className={cn(s.scroll, "relative overflow-x-auto")}>
           <table className={cn(s.table, "min-w-[44rem]")} aria-describedby="ref-caption">
             <thead><tr>
@@ -107,7 +107,7 @@ export default async function BenchPage() {
         </>}
         {reference.signal && <p className={s.note}>The signal suite on the Pytxo repository: {reference.signal.files} source files, {reference.signal.original_bytes.toLocaleString("en-US")} bytes reduced to a {reference.signal.scaffold_bytes.toLocaleString("en-US")}-byte structural scaffold ({reference.signal.weighted_reduction_pct}% smaller). Bytes, not tokens or cost.</p>}
         <div className={s.act}>
-          <a className={s.quiet} href="/evidence/pybench-1.3.0-2026-10-10.json">Raw results (JSON)</a>
+          <a className={s.quiet} href="/evidence/pybench-2.0.1-2026-11-05.json">Raw results (JSON)</a>
           <Link className={s.quiet} href="/docs/evidence/pybench">Method and limits</Link>
         </div>
       </section>
