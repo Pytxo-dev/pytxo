@@ -373,7 +373,8 @@ fn why_lines(tail: &[String]) -> Vec<String> {
     ranked.sort_by_key(|&(rank, _)| rank);
     let mut lines: Vec<&str> = ranked.into_iter().map(|(_, l)| l).take(3).collect();
     if lines.is_empty() {
-        lines = trimmed().collect();
+        // npm's `> pkg@1.0.0 test` banner says nothing about the failure.
+        lines = trimmed().filter(|l| !l.starts_with("> ")).collect();
         lines.drain(..lines.len().saturating_sub(3));
     }
     // Go's `FAIL\t<package>\t0.2s` keeps its tabs, which a terminal widens.
@@ -2028,6 +2029,17 @@ FAILED (errors=1)"#;
                 "{why:?}"
             );
         }
+        // A plain message from a test script, with no error word in it, is
+        // what to read: not the package manager's banner above it.
+        assert_eq!(
+            why_lines(&lines(
+                "> shop@1.0.0 test
+> node test.js
+
+one and two disagree"
+            )),
+            ["one and two disagree"]
+        );
         // Then a failing file, then other error lines; never a count.
         assert_eq!(
             why_lines(&lines(jest)),
