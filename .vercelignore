@@ -22,7 +22,6 @@ apps/desktop/dist/
 apps/desktop/storybook-static/
 apps/desktop-export/
 apps/demo-video/
-apps/docs/
 
 # Tooling / benchmarks. tooling/scripts stays: the site's favicon build
 # imports its ICO encoder.

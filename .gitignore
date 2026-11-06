@@ -14,10 +14,6 @@ apps/web/public/docs/
 apps/web/.docs-bundle/
 apps/web/.vercel/
 
-apps/docs/node_modules/
-apps/docs/build/
-apps/docs/.docusaurus/
-
 apps/desktop/node_modules/
 apps/desktop/dist/
 apps/desktop/.tauri/
