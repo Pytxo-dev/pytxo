@@ -3,13 +3,15 @@
 ## Branch / commit
 
 - Candidate: draft pull request https://github.com/Pytxo-dev/pytxo/pull/89, branch
-  `mbcz/pytxo-2-0-1-6392d6`, worktree
-  `C:\pytxo\.claude\worktrees\pytxo-2-0-1-6392d6`, based on `origin/main` at
-  `114da5c`. Rust code is final at `ebab582`; the commits after it change only the
-  site, docs, evidence and this checkpoint.
-- Candidate binary: `target/release/pytxo.exe` in that worktree, built with
-  `cargo build -p pytxo-cli --release --no-default-features`, prints `pytxo 2.0.1`,
-  SHA-256 `aabd2239b3ab514a195d2a416c2a4638aaa3b1464f3a08b3ef51bfac1c0d8766`.
+  `mbcz/pytxo-2-0-1-6392d6`, based on `origin/main` at `114da5c`. Its tip is checked
+  out in `C:\pytxo\.claude\worktrees\pytxo-2-field-test`; the older worktree
+  `C:\pytxo\.claude\worktrees\pytxo-2-0-1-6392d6` stops at `e4c4275`. Rust code is
+  final at `136adfe`, the all-conflict fix of 7 Nov. Between `ebab582` and it, the
+  commits change only the site, docs, evidence and this checkpoint.
+- Candidate binary: none built yet from `136adfe`. The Windows build at `ebab582`,
+  `target/release/pytxo.exe` in the older worktree, prints `pytxo 2.0.1`, SHA-256
+  `aabd2239b3ab514a195d2a416c2a4638aaa3b1464f3a08b3ef51bfac1c0d8766`, and predates the
+  fix. The Release workflow builds the published binaries from the tag.
 - Local only: `mbcz/promote-2-0-1` (`295b22c`), the promotion commit for after npm
   serves 2.0.1. It sets `PUBLISHED_VERSION`, updates the changelog and lifts the
   site's deploy hold.
@@ -28,6 +30,11 @@
   note without `--apply` names the same set. A second read-only review confirmed the
   target moves only to a commit whose exact set passed every command. Of its 6
   findings, 4 are fixed and 2 are listed below.
+- All-conflict batches, found by the field test: when no input merges because each one
+  conflicts with the target, the verdict names every branch with one next step, and no
+  check runs on the unchanged target. Before, it named the first branch only and ran the
+  full check for nothing (102 s on token-monitor). Regression test:
+  `every_branch_that_conflicts_with_the_target_is_named_and_nothing_runs`.
 - `--help`, the crate description and the 402 messages match the pitch and `/plans`.
 - Failure paths run on temp repos; each prints what happened and the next step.
 - `/bench` states its build and date: Pybench reran on the candidate. Not deployed.
@@ -47,11 +54,12 @@
   - Fewer than 1 in 20, so Matt's 1 Nov rule drops the catch claim from the lead. On 7 Nov
     Matt chose to keep the landing pitch, so the film and Show HN lead with landing.
   - Results: `D:\marketing\campaigns\pytxo-foss-study-2026-11\RESULTS.md`.
-- Found by the field test, not fixed:
-  - When every input of an `--apply` batch conflicts with main, the verdict's
-    what/why/next and `left_out` name only the first branch. The receipt's `reasons`
-    lists all six. Repro: `runs/Javis603__token-monitor/batch.json` in the study folder.
-  - Pytxo also runs the full check on unchanged main when every input conflicts.
+- Left as is by the all-conflict fix:
+  - A blocked verdict where some branches merged still names only the first conflict.
+    The receipt lists all of them, and `--apply` gives each left-out branch its reason.
+  - `left_out` stays for landings, so it is empty when nothing lands.
+  - The 2.0.1 changelog row doesn't mention the fix. The promotion commit `295b22c`
+    rewrites that row, so changing it here would break the cherry-pick.
 - Pull requests run CI on Linux and Windows only, and macOS runs on main and in the
   release gate. So https://github.com/Pytxo-dev/pytxo/pull/90 runs the rust job on
   macOS, on `c3fd73e` plus one commit to `ci.yml`. Never merge it: close it and delete
@@ -88,6 +96,17 @@
   the two e2e repositories (commands in `docs/checkpoints/2026-11.md`).
 
 ## Tests last run
+
+On 7 Nov 2026, after the all-conflict fix (the crates at `136adfe`), exit 0:
+
+| Command | Result |
+|---|---|
+| `cargo fmt --all --check`, Windows | clean |
+| `cargo test -q -j 2 -p pytxo-land -p pytxo-cli`, Linux (WSL Ubuntu 24.04) | 197 passed, 1 ignored (196 before the fix) |
+| `cargo clippy -q -j 2 -p pytxo-land --all-targets -- -D warnings`, Linux | clean |
+
+Pybench was not rerun: its conflict scenarios are between two branches, so the first
+merges and neither change applies. The rows below are from 5 Nov and predate the fix.
 
 All 2026-11-05, Windows, on this branch; exit 0 unless noted.
 
