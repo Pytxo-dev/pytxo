@@ -430,6 +430,66 @@ fn pytxo_check_comes_before_the_repository_setting() {
 
 /// --apply lands only what a test passed: with no test command it changes
 /// nothing.
+/// A lint or build script runs when package.json has no test script, but it is
+/// not a test suite, so --apply lands nothing on it.
+#[test]
+fn apply_on_a_script_that_is_not_a_test_suite_lands_nothing() {
+    let dir = repo(&["claude/a", "codex/b"]);
+    let d = dir.path();
+    std::fs::write(
+        d.join("package.json"),
+        r#"{"name":"x","version":"1.0.0","scripts":{"lint":"node -e 0"}}"#,
+    )
+    .unwrap();
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", "package.json"]);
+    let main = || {
+        let out = Command::new("git")
+            .args(["rev-parse", "main"])
+            .current_dir(d)
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    let before = main();
+    let out = pytxo(d, &["--apply"], None);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(1), "{err}");
+    assert!(
+        err.contains("--apply lands only a tested result") && err.contains("lint script"),
+        "{err}"
+    );
+    assert_eq!(main(), before);
+}
+
+/// One of four branches fails alone: without --apply the note names the other
+/// three, and --apply lands those three.
+#[test]
+fn the_note_and_apply_name_the_branches_that_pass_together() {
+    let dir = repo(&["claude/a", "codex/b", "cursor/c", "devin/d"]);
+    let d = dir.path();
+    let fails_b = "git grep -q 1 -- f1.txt && exit 1 || exit 0";
+    let seen = pytxo(d, &["--check", fails_b], None);
+    let text = String::from_utf8_lossy(&seen.stdout);
+    assert_eq!(seen.status.code(), Some(2), "{text}");
+    assert!(
+        text.contains(
+            "claude/a, cursor/c and devin/d pass the tests together: run this again with --apply to land them and leave out codex/b."
+        ),
+        "{text}"
+    );
+    let out = pytxo(d, &["--apply", "--check", fails_b], None);
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(2), "{text}");
+    assert!(
+        text.contains(
+            "3 of 4 branches are on main now: claude/a, cursor/c and devin/d; codex/b is left out."
+        ),
+        "{text}"
+    );
+    assert!(d.join("f0.txt").exists() && !d.join("f1.txt").exists());
+}
+
 #[test]
 fn apply_without_a_test_command_lands_nothing() {
     let dir = repo(&["claude/a", "codex/b"]);
@@ -546,7 +606,13 @@ fn json_names_the_cause_and_the_fix_prompt() {
         prompt.ends_with("\nFailing output:\nTypeError: price is not a function"),
         "{prompt}"
     );
-    assert_eq!(v["notes"], serde_json::json!([]), "confirmed: no note");
+    // Confirmed: no note on the cause, only what --apply would land.
+    assert_eq!(
+        v["notes"],
+        serde_json::json!([
+            "claude/rename-price passes the tests on top of main by itself: run this again with --apply to land it and leave out codex/add-discount."
+        ])
+    );
     // A reading of the runs, not part of the receipt.
     assert!(v["receipt"]["predicate"].get("cause").is_none(), "{v}");
 }

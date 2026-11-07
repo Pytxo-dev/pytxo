@@ -54,7 +54,13 @@ pytxo land codex:agent/cart claude:agent/discount -c "npm test" --apply
 
 If the branch moved while the gate ran, the decision is **stale** and nothing changes. Run the gate again on the new tip.
 
-`--apply` lands only a tested result. When no test command was found, it exits with `1` and leaves the target unchanged; name one with `--check`.
+`--apply` lands only a tested result. When no test command was found, or package.json has only a lint or build script, it exits with `1` and leaves the target unchanged; name a test command with `--check`.
+
+### When only some branches pass
+
+When the whole combination is blocked, `--apply` lands the largest set of branches that passed every check as that exact set, and leaves the others out, each with why. When a branch fails its checks on its own, the others run together once more first, so with five branches and one failing, the other four land in that run. A branch that has to change gets a fix prompt to paste into its agent. The target moves to the very commit those runs tested, by the same fast-forward or compare-and-swap, and the receipt says what landed and what was left out.
+
+It exits with `2`, so `pytxo land --apply && git push` stops there: read the verdict before you push. After a flaky run, a combined run that timed out or a `--strict` collision, nothing lands. Without `--apply`, a note names the set that would land. When every branch passes alone and Pytxo cannot name why they fail together, one branch lands and the next run takes the others.
 
 The landed history contains one merge commit per input, made by your Git identity (or "Pytxo Land" if none is configured). Commits are not signed, even when your Git config signs commits; sign or squash afterwards if your repository requires it.
 
@@ -63,7 +69,7 @@ The landed history contains one merge commit per input, made by your Git identit
 | Exit code | Verdict | Meaning |
 |---|---|---|
 | 0 | READY, LANDED or NO TESTS | No conflict, and every combined check passed or no test command was found |
-| 2 | BLOCKED or FLAKY | A conflict, a failed or timed-out combined check, a flaky one, or (with `--strict`) the same symbol changed by two inputs |
+| 2 | BLOCKED, FLAKY, or LANDED with branches left out | A conflict, a failed or timed-out combined check, a flaky one, or (with `--strict`) the same symbol changed by two inputs. The target moved only if the verdict says LANDED |
 | 3 | STALE | The target moved while the gate ran |
 
 The verdict says what happened, why and what to do next. For a failed check, the why line quotes the error line that best explains the failure, such as `TypeError: price is not a function` rather than a count such as `ℹ fail 1`. When the branches pass alone and fail together, and the failing output confirms that one branch renamed or removed a name another branch still uses, the why line says so instead and the next line says which branch to rebase. A cause the output does not confirm shows as a `note` line under the verdict. `--verbose` adds every check run with its error lines, and `pytxo receipts show <id>` has the last 40 lines of each check. `--json` prints the verdict and the full receipt. `--markdown` prints the GitHub Action's pull-request comment.
@@ -74,7 +80,7 @@ The verdict says what happened, why and what to do next. For a failed check, the
 |---|---|---|
 | `--check`, `-c` | found in the target | Command to run on the combined change; repeatable. Without it, Pytxo runs the test command it finds in the target branch; when it finds none, the verdict is NO TESTS: the branches merge, but nothing was tested. |
 | `--per-input` | off | Also run the checks on each branch alone |
-| `--apply` | off | Land a ready result; with no test command found, exit `1` and change nothing |
+| `--apply` | off | Land a ready result, or when it is blocked the largest set that passed as that exact set; with no test command found, exit `1` and change nothing |
 | `--into <branch>` | the checked-out branch, or the default branch if it is one of the inputs or none is checked out | Target branch; `git config pytxo.into` or `PYTXO_INTO` sets it too |
 | `--base <rev>` | target tip | Check against another commit (shadow mode only) |
 | `--strict` | off | Block when two inputs changed the same function or type |

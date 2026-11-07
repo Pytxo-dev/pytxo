@@ -22,15 +22,16 @@ use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
     name = "pytxo",
     bin_name = "pytxo",
     version,
-    about = "Pytxo: each agent's branch passes. Do they pass together?",
-    long_about = "Each agent's branch passes. Do they pass together?
+    about = "Pytxo: land all your agents' branches in one command.",
+    long_about = "Land all your agents' branches in one command.
 
 Pytxo merges your coding agents' branches (Claude Code, Codex, Copilot, Cursor...) \
-in a throwaway worktree, runs your tests on the combined result, and blocks the merge if it breaks.
+in a throwaway worktree, runs your tests on the combined result, and lands what passes.
 
-Run it with no arguments inside a repository. Nothing in the repository changes.",
+Run it with no arguments inside a repository to see the verdict; nothing in the repository \
+changes. Add --apply to land.",
     args_conflicts_with_subcommands = true,
-    after_help = "Exit codes: 0 ready (or nothing to check), 2 blocked, 3 stale (the target moved), 1 error, 130 stopped by Ctrl+C.
+    after_help = "Exit codes: 0 ready or landed (or nothing to check), 2 blocked (or --apply landed only some branches), 3 stale (the target moved), 1 error, 130 stopped by Ctrl+C.
 See it work: pytxo demo · Discord: https://discord.gg/AUFRPFjSYv"
 )]
 struct Cli {
@@ -45,7 +46,7 @@ enum Commands {
     /// Check the agent branches together (what `pytxo` runs with no command)
     #[command(
         alias = "land",
-        after_help = "Exit codes: 0 ready (or nothing to check), 2 blocked, 3 stale (the target moved), 1 error, 130 stopped by Ctrl+C.
+        after_help = "Exit codes: 0 ready or landed (or nothing to check), 2 blocked (or --apply landed only some branches), 3 stale (the target moved), 1 error, 130 stopped by Ctrl+C.
 Branches: claude/*, codex/*, copilot/*, cursor/*, devin/*, jules/*, agent/* and every branch in a
 linked worktree, with a commit in the last 14 days. Change them with git config pytxo.branches
 \"...\" (or PYTXO_BRANCHES), the test command with git config pytxo.check \"...\" (or PYTXO_CHECK),
@@ -76,6 +77,11 @@ Codex: add integrations/codex/hooks.json to ~/.codex/hooks.json, then trust it i
         /// The hook's timeout in its config, in seconds: Pytxo answers before it runs out
         #[arg(long, default_value_t = check::HOOK_TIMEOUT_SECS)]
         timeout: u64,
+        /// The hook runs in the background (Claude Code's "async": true), so its answer reaches
+        /// the agent on its next turn, not you: it asks the agent to tell you, or with --block to
+        /// keep working on it
+        #[arg(long = "async")]
+        background: bool,
     },
     /// Receipts: every check records its decision under .git/pytxo/receipts
     Receipts {
@@ -106,7 +112,8 @@ Results are synthetic mechanism tests, not real-world failure rates."
         #[cfg(feature = "full")]
         #[arg(long)]
         submit: bool,
-        /// With --submit: keep the result private to your account (Pytxo Pro)
+        /// With --submit: keep the result private to your account (an earlier paid
+        /// tier, closed to new buyers)
         #[cfg(feature = "full")]
         #[arg(long, requires = "submit")]
         private: bool,
@@ -132,7 +139,8 @@ enum ReceiptsAction {
         /// Also publish the changed file paths
         #[arg(long)]
         include_paths: bool,
-        /// Only you can open the page, signed in (Pytxo Pro)
+        /// Only you can open the page, signed in (an earlier paid tier, closed to new
+        /// buyers)
         #[arg(long)]
         private: bool,
     },
@@ -185,7 +193,11 @@ fn run(cli: Cli) -> anyhow::Result<i32> {
         None => check::run(cli.check),
         Some(Commands::Check(args)) => check::run(args),
         Some(Commands::Demo { keep }) => check::demo(keep),
-        Some(Commands::Hook { block, timeout }) => check::hook(block, timeout),
+        Some(Commands::Hook {
+            block,
+            timeout,
+            background,
+        }) => check::hook(block, timeout, background),
         Some(Commands::Receipts { action, repo }) => {
             match action {
                 None => check::receipts_list(repo, false)?,
@@ -257,7 +269,10 @@ mod tests {
         let mut help = Vec::new();
         Cli::command().write_long_help(&mut help).unwrap();
         let help = String::from_utf8(help).unwrap();
-        assert!(help.contains("Do they pass together?"), "{help}");
+        assert!(
+            help.contains("Land all your agents' branches in one command."),
+            "{help}"
+        );
         assert!(help.contains("demo"), "{help}");
         for word in ["control plane", "hypervisor", "telemetry"] {
             assert!(!help.contains(word), "{word} in {help}");

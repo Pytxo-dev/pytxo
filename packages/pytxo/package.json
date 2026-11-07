@@ -1,7 +1,7 @@
 {
   "name": "pytxo",
-  "version": "2.0.0",
-  "description": "Land all your agents' branches in one command. Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests on the combined result, and lands them only if they pass.",
+  "version": "2.0.1",
+  "description": "Land all your agents' branches in one command. Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests on the combined result, and lands what passes.",
   "license": "MIT",
   "repository": {
     "type": "git",

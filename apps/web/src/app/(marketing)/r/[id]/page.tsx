@@ -57,7 +57,7 @@ async function load(id: string): Promise<Loaded | null> {
 
 const VERDICT: Record<string, { tone: "verified" | "refuted" | "unknown"; label: string; line: string }> = {
   ready: { tone: "verified", label: "Ready", line: "The combined change passed its checks. It was checked in shadow mode, so nothing was landed yet." },
-  landed: { tone: "verified", label: "Landed", line: "The combined change passed its checks and was landed onto the branch it was checked against." },
+  landed: { tone: "verified", label: "Landed", line: "What landed passed its checks as that exact set, on the branch it was checked against." },
   applied: { tone: "verified", label: "Applied", line: "A reviewed Pytxo run was applied: exactly the reviewed files were written." },
   blocked: { tone: "refuted", label: "Blocked", line: "Pytxo refused to land this combination. Nothing reached the target branch." },
   stale: { tone: "unknown", label: "Stale", line: "The target branch moved while Pytxo was checking, so the result was not landed." },

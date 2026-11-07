@@ -1157,6 +1157,1013 @@ fn a_target_that_moves_during_the_gate_is_refused() {
     assert!(!d.join("src/a.js").exists());
 }
 
+/// `--apply` with `checks`, each branch alone after a failure, on `inputs`.
+fn apply_opts(d: &Path, inputs: &[&str], checks: &[&str]) -> LandOptions {
+    let mut o = opts(d, inputs);
+    o.checks = checks.iter().map(|c| c.to_string()).collect();
+    o.per_input = PerInput::OnFailure;
+    o.apply = true;
+    o
+}
+
+fn left_out_reasons(out: &LandOutcome) -> Vec<&str> {
+    out.receipt
+        .predicate
+        .reasons
+        .iter()
+        .map(String::as_str)
+        .filter(|r| r.starts_with("left out ") || r.starts_with("landed "))
+        .collect()
+}
+
+/// Two branches pass alone and fail together: `--apply` lands the one that
+/// renamed the name, as its run alone tested it, and leaves the caller out
+/// with why and its fix prompt.
+#[test]
+fn apply_lands_the_branch_that_passed_alone_and_leaves_the_caller_out() {
+    let dir = repo();
+    let d = dir.path();
+    let renamed = CART.replace("price", "unitPrice");
+    branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+    branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+    let base = git(d, &["rev-parse", "main"]);
+    let out = land(&apply_opts(
+        d,
+        &["agent/rename", "agent/caller"],
+        &[RENAME_BREAKS],
+    ))
+    .unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.decision(), "landed", "{text}");
+    assert!(out.landed_partly());
+    assert_eq!(out.exit_code(), 2, "not everything landed");
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(part.scope, "input:agent/rename");
+    assert_eq!(part.landed, [0]);
+    // Main is the very commit the run alone tested: the target plus the rename.
+    let p = &out.receipt.predicate;
+    let tip = git(d, &["rev-parse", "main"]);
+    assert_eq!(
+        (p.result.as_deref(), part.commit.as_str()),
+        (Some(tip.as_str()), tip.as_str())
+    );
+    assert_eq!(git(d, &["rev-parse", "main^1"]), base);
+    assert_eq!(
+        git(d, &["rev-parse", "main^2"]),
+        git(d, &["rev-parse", "agent/rename"])
+    );
+    assert!(!d.join("src/extra.js").exists(), "the caller is left out");
+    assert_eq!(p.files_changed, 1);
+    assert_eq!(
+        left_out_reasons(&out),
+        [
+            "landed 1 of 2: agent/rename (input:agent/rename passed every check)",
+            "left out agent/caller: uses price, which agent/rename renamed to unitPrice (src/extra.js:1)",
+        ],
+        "{text}"
+    );
+    // In reasons and result only, so 2.0.0 still verifies it.
+    assert!(out.receipt.digest_matches() && digest_matches_in_2_0(&out));
+    let v = verdict(&out, "run pytxo land --apply again");
+    assert_eq!(v.kind, "partial");
+    assert_eq!(
+        v.to_string(),
+        format!(
+            "LANDED   1 of 2 branches is on main now: agent/rename; agent/caller is left out.
+why      agent/rename passed {RENAME_BREAKS} on top of main; agent/caller uses price, which agent/rename renamed to unitPrice (src/extra.js:1).
+next     push main when you are ready. Give agent/caller's agent its fix prompt, then run pytxo land --apply again.
+"
+        )
+    );
+    let [left] = v.left_out.as_slice() else {
+        panic!("{v:?}")
+    };
+    let prompt = left.fix_prompt.as_deref().unwrap();
+    assert!(
+        prompt.starts_with(
+            "Pytxo tested agent/rename on main and landed it. Your branch agent/caller is left out: it uses price, which agent/rename renamed to unitPrice (src/extra.js:1).
+Rebase it onto main, replace price with unitPrice, and run "
+        ) && prompt.contains("TypeError: price is not a function"),
+        "{prompt}"
+    );
+    let md = render_markdown(&out);
+    assert!(
+        md.starts_with("### ✅ LANDED: 1 of 2 branches is on main now")
+            && md.contains("<summary>Fix prompt for <code>agent/caller</code></summary>"),
+        "{md}"
+    );
+}
+
+/// The check logs the commit it runs on. What the target moves to is one of
+/// those commits, not a rebuild of them, for a run alone and for the run on
+/// the rest.
+#[test]
+fn the_target_moves_to_the_very_commit_a_check_ran_on() {
+    let log_dir = tempfile::tempdir().unwrap();
+    let log = log_dir.path().join("heads.log");
+    let check = format!(
+        "git rev-parse HEAD >> \"{}\" && ({RENAME_BREAKS})",
+        log.display()
+    );
+    let renamed = CART.replace("price", "unitPrice");
+
+    // Two branches: the run alone lands.
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+    branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+    let out = land(&apply_opts(
+        d,
+        &["agent/rename", "agent/caller"],
+        &[check.as_str()],
+    ))
+    .unwrap();
+    assert_eq!(out.partial.as_ref().unwrap().scope, "input:agent/rename");
+    let tip = git(d, &["rev-parse", "main"]);
+    let ran = std::fs::read_to_string(&log).unwrap();
+    assert!(ran.lines().any(|l| l == tip), "{tip} not in:\n{ran}");
+    assert_eq!(out.receipt.predicate.result.as_deref(), Some(tip.as_str()));
+
+    // Four branches: the run on the rest lands.
+    std::fs::remove_file(&log).unwrap();
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+    branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+    branch(d, "main", "agent/docs", &[("docs/notes.md", "notes\n")]);
+    branch(d, "main", "agent/more", &[("docs/more.md", "more\n")]);
+    let out = land(&apply_opts(
+        d,
+        &["agent/rename", "agent/caller", "agent/docs", "agent/more"],
+        &[check.as_str()],
+    ))
+    .unwrap();
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(part.landed, [2, 3], "{}", render_text(&out));
+    assert!(part.scope.starts_with("rest:"), "{}", part.scope);
+    let tip = git(d, &["rev-parse", "main"]);
+    let ran = std::fs::read_to_string(&log).unwrap();
+    assert!(ran.lines().any(|l| l == tip), "{tip} not in:\n{ran}");
+    assert_eq!(out.receipt.predicate.result.as_deref(), Some(tip.as_str()));
+}
+
+/// Git refuses the landing over the user's files: that is the verdict, not the
+/// break a run found, nothing tells them to do the same again, and with
+/// merge.autoStash set their edits stay where they are.
+#[test]
+fn a_landing_git_refuses_says_what_to_do_and_keeps_the_changes() {
+    let dir = repo();
+    let d = dir.path();
+    git(d, &["config", "merge.autoStash", "true"]);
+    let renamed = CART.replace("price", "unitPrice");
+    branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+    branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+    write(d, &[("src/cart.js", "my edit\n")]);
+    let base = git(d, &["rev-parse", "main"]);
+    let out = land(&apply_opts(
+        d,
+        &["agent/rename", "agent/caller"],
+        &[RENAME_BREAKS],
+    ))
+    .unwrap();
+    assert_eq!((out.decision(), out.exit_code()), ("blocked", 2));
+    assert_eq!(git(d, &["rev-parse", "main"]), base);
+    assert_eq!(
+        std::fs::read_to_string(d.join("src/cart.js")).unwrap(),
+        "my edit\n"
+    );
+    assert!(git(d, &["stash", "list"]).is_empty());
+    let v = verdict(&out, "run pytxo --apply again");
+    assert_eq!(v.kind, "refused");
+    assert_eq!(v.what, "agent/rename could not land on main.");
+    assert!(
+        v.why.contains("local changes") && v.why.contains("src/cart.js"),
+        "{v}"
+    );
+    assert_eq!(
+        v.next,
+        "commit or stash those changes, then run pytxo --apply again."
+    );
+    assert!(out
+        .receipt
+        .predicate
+        .reasons
+        .iter()
+        .any(|r| r == &out.refused.clone().unwrap()));
+
+    // A whole landing, over an untracked file a branch adds.
+    std::fs::remove_file(d.join("src/cart.js")).unwrap();
+    git(d, &["checkout", "--", "src/cart.js"]);
+    branch(d, "main", "agent/docs", &[("docs/notes.md", "notes\n")]);
+    write(d, &[("docs/notes.md", "mine\n")]);
+    let out = land(&apply_opts(d, &["agent/docs"], &["git --version"])).unwrap();
+    let v = verdict(&out, "run pytxo --apply again");
+    assert_eq!((v.kind, out.exit_code()), ("refused", 2), "{v}");
+    assert_eq!(v.what, "agent/docs could not land on main.");
+    assert!(v.why.contains("docs/notes.md"), "{v}");
+    assert_eq!(
+        v.next,
+        "move or remove those files, then run pytxo --apply again."
+    );
+    assert_eq!(
+        std::fs::read_to_string(d.join("docs/notes.md")).unwrap(),
+        "mine\n"
+    );
+}
+
+/// A branch stacked under the one that lands is in the landed commit, so the
+/// receipt must not call it left out or send its agent a fix prompt.
+#[test]
+fn a_branch_stacked_under_the_landed_one_lands_with_it() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("state.txt", "broken\n")]);
+    branch(d, "agent/a", "agent/b", &[("state.txt", "fixed\n")]);
+    branch(d, "main", "agent/c", &[("other.txt", "clash\n")]);
+    let broken = "git grep -q broken -- state.txt && exit 1 || exit 0";
+    let clash =
+        "git grep -q fixed -- state.txt && git grep -q clash -- other.txt && exit 1 || exit 0";
+    let out = land(&apply_opts(
+        d,
+        &["agent/a", "agent/b", "agent/c"],
+        &[broken, clash],
+    ))
+    .unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.decision(), "landed", "{text}");
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(part.scope, "input:agent/b", "{text}");
+    assert_eq!(part.landed, [0, 1], "{text}");
+    let reasons = left_out_reasons(&out);
+    assert_eq!(
+        reasons.first().copied(),
+        Some("landed 2 of 3: agent/a, agent/b (input:agent/b passed every check)"),
+        "{text}"
+    );
+    assert!(
+        reasons.iter().all(|r| !r.starts_with("left out agent/a")),
+        "{reasons:?}"
+    );
+    assert!(
+        reasons.iter().any(|r| r.starts_with("left out agent/c")),
+        "{reasons:?}"
+    );
+}
+
+/// A combined run that timed out failed nothing, so no set is landed in its
+/// place and no branch is told it fails.
+#[test]
+fn no_partial_landing_after_the_combined_run_timed_out() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    let slow = if cfg!(windows) {
+        "ping -n 11 127.0.0.1 >NUL"
+    } else {
+        "sleep 10"
+    };
+    let check = format!("git grep -q a -- a.txt && git grep -q b -- b.txt && {slow} || exit 0");
+    let base = git(d, &["rev-parse", "main"]);
+    let mut o = apply_opts(d, &["agent/a", "agent/b"], &[check.as_str()]);
+    o.per_input = PerInput::Always;
+    o.check_timeout = Duration::from_secs(4);
+    let out = land(&o).unwrap();
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        checks.iter().any(|c| c.scope == "combined" && c.timed_out),
+        "{checks:?}"
+    );
+    assert!(
+        checks
+            .iter()
+            .filter(|c| c.scope.starts_with("input:"))
+            .all(|c| c.passed),
+        "{checks:?}"
+    );
+    assert_eq!(out.decision(), "blocked");
+    assert_eq!(out.partial, None);
+    assert_eq!(git(d, &["rev-parse", "main"]), base);
+    assert!(left_out_reasons(&out).is_empty());
+}
+
+/// What a clean could not remove stays for the next run in that scratch
+/// worktree, so that run can give a verdict but cannot land anything.
+#[cfg(unix)]
+#[test]
+fn a_run_after_a_failed_clean_lands_nothing() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    // Leaves a directory git clean cannot empty. Fails with agent/a's file, so
+    // only agent/b's run, after the first clean that fails, could land.
+    let check = "mkdir -p stuck/sub && (touch stuck/sub/f || true) && chmod 555 stuck/sub && ! test -f a.txt";
+    let base = git(d, &["rev-parse", "main"]);
+    let out = land(&apply_opts(d, &["agent/a", "agent/b"], &[check])).unwrap();
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        checks
+            .iter()
+            .any(|c| c.scope == "input:agent/b" && c.passed),
+        "{checks:?}"
+    );
+    assert_eq!(out.decision(), "blocked");
+    assert_eq!(out.partial, None);
+    assert_eq!(git(d, &["rev-parse", "main"]), base);
+}
+
+/// `target` is Cargo's build cache only in a Cargo project. Elsewhere, such as
+/// Maven's, it is the last branch's output.
+#[test]
+fn only_a_cargo_project_keeps_target_between_runs() {
+    let dir = repo();
+    let d = dir.path();
+    let g = Git::user(d);
+    write(d, &[("target/classes/Old.class", "old\n")]);
+    assert!(clean_scratch(&g, d));
+    assert!(!d.join("target").exists());
+    write(d, &[("Cargo.toml", "[package]\n")]);
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", "cargo"]);
+    write(d, &[("target/debug/cache", "cache\n")]);
+    assert!(clean_scratch(&g, d));
+    assert!(d.join("target/debug/cache").exists());
+}
+
+/// Without --apply the same check lands nothing, and says what would land.
+#[test]
+fn a_set_that_passed_is_only_named_in_shadow_mode() {
+    let dir = repo();
+    let d = dir.path();
+    let renamed = CART.replace("price", "unitPrice");
+    branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+    branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+    let before = git(d, &["rev-parse", "main"]);
+    let mut o = apply_opts(d, &["agent/rename", "agent/caller"], &[RENAME_BREAKS]);
+    o.apply = false;
+    let out = land(&o).unwrap();
+    assert_eq!(out.decision(), "blocked");
+    assert_eq!(out.partial.as_ref().unwrap().landed, [0]);
+    assert_eq!(git(d, &["rev-parse", "main"]), before);
+    assert!(left_out_reasons(&out).is_empty());
+    assert_eq!(verdict(&out, "again").kind, "together");
+}
+
+/// Three branches: the two the cause names fail by themselves, so the third
+/// is the set that passed (its run alone), and both of the two are left
+/// out. Only the one that has to change gets a prompt, to rebase onto the
+/// renamer, which did not land.
+#[test]
+fn apply_lands_the_branch_the_pair_runs_cleared() {
+    let dir = repo();
+    let d = dir.path();
+    rename_caller_and_docs(d);
+    let out = land(&apply_opts(
+        d,
+        &["agent/docs", "agent/rename", "agent/caller"],
+        &[RENAME_BREAKS],
+    ))
+    .unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.decision(), "landed", "{text}");
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(
+        (part.scope.as_str(), part.landed.as_slice()),
+        ("input:agent/docs", &[0][..])
+    );
+    assert!(d.join("docs/notes.md").exists() && !d.join("src/extra.js").exists());
+    assert_eq!(
+        left_out_reasons(&out),
+        [
+            "landed 1 of 3: agent/docs (input:agent/docs passed every check)",
+            "left out agent/rename: renamed price to unitPrice, which agent/caller still uses",
+            "left out agent/caller: uses price, which agent/rename renamed to unitPrice (src/extra.js:1)",
+        ],
+        "{text}"
+    );
+    let v = verdict(&out, "again");
+    let prompts: Vec<(&str, bool)> = v
+        .left_out
+        .iter()
+        .map(|l| (l.branch.as_str(), l.fix_prompt.is_some()))
+        .collect();
+    assert_eq!(prompts, [("agent/rename", false), ("agent/caller", true)]);
+    assert!(v.left_out[1]
+        .fix_prompt
+        .as_deref()
+        .unwrap()
+        .contains("Rebase it onto agent/rename, replace price with unitPrice"));
+}
+
+/// Four branches, two commands: the others pass every command without the
+/// two, so `--apply` lands the commit those runs tested, which has both of
+/// the others and neither of the two.
+#[test]
+fn apply_lands_the_rest_as_the_runs_on_it_tested_it() {
+    let dir = repo();
+    let d = dir.path();
+    let renamed = CART.replace("price", "unitPrice");
+    branch(d, "main", "agent/rename", &[("src/cart.js", &renamed)]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    branch(d, "main", "agent/caller", &[("src/extra.js", CALLER)]);
+    branch(d, "main", "agent/d", &[("d.txt", "d\n")]);
+    let out = land(&apply_opts(
+        d,
+        &["agent/rename", "agent/c", "agent/caller", "agent/d"],
+        &[RENAME_BREAKS, "exit 0"],
+    ))
+    .unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.decision(), "landed", "{text}");
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(
+        (part.scope.as_str(), part.landed.as_slice()),
+        ("rest:1,3", &[1, 3][..])
+    );
+    // Every command ran on the rest, and main is the commit they ran on.
+    let rest: Vec<&str> = out
+        .receipt
+        .predicate
+        .checks
+        .iter()
+        .filter(|c| c.scope == "rest:1,3" && c.passed)
+        .map(|c| c.command.as_str())
+        .collect();
+    assert_eq!(rest, [RENAME_BREAKS, "exit 0"], "{text}");
+    assert_eq!(git(d, &["rev-parse", "main"]), part.commit);
+    assert!(d.join("c.txt").exists() && d.join("d.txt").exists());
+    assert!(!d.join("src/extra.js").exists());
+    assert_eq!(
+        std::fs::read_to_string(d.join("src/cart.js")).unwrap(),
+        CART
+    );
+    assert_eq!(
+        verdict(&out, "again").what,
+        "2 of 4 branches are on main now: agent/c and agent/d; agent/rename and agent/caller are left out."
+    );
+}
+
+/// One branch conflicts: the combined change, which never had it, passed
+/// every check, so it lands, and the conflicting one is left out.
+#[test]
+fn apply_lands_around_a_conflict() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("README.md", "# shop A\n")]);
+    branch(d, "main", "agent/b", &[("README.md", "# shop B\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    let out = land(&apply_opts(
+        d,
+        &["agent/a", "agent/b", "agent/c"],
+        &["echo ok"],
+    ))
+    .unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.decision(), "landed", "{text}");
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(
+        (part.scope.as_str(), part.landed.as_slice()),
+        ("combined", &[0, 2][..])
+    );
+    assert_eq!(git(d, &["rev-parse", "main"]), part.commit);
+    assert_eq!(
+        std::fs::read_to_string(d.join("README.md")).unwrap(),
+        "# shop A\n"
+    );
+    assert_eq!(
+        left_out_reasons(&out)[1],
+        "left out agent/b: conflicts with the branches before it in README.md"
+    );
+    let v = verdict(&out, "again");
+    assert!(v.left_out[0]
+        .fix_prompt
+        .as_deref()
+        .unwrap()
+        .contains("Rebase it onto main, resolve the conflict, and run echo ok until it passes."));
+}
+
+/// A check that only `bad.txt` fails.
+const BAD_FAILS: &str = "git grep -q bad -- bad.txt && exit 1 || exit 0";
+
+/// One of five branches fails alone, which explains the combined failure, so
+/// the other four run together once more. They land as the very commit that
+/// run tested, without `--apply` the outcome names the same set, and only the
+/// branch that fails gets a fix prompt.
+#[test]
+fn one_branch_failing_alone_leaves_the_others_to_land_together() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/d", &[("d.txt", "d\n")]);
+    branch(d, "main", "agent/e", &[("e.txt", "e\n")]);
+    let five = ["agent/a", "agent/b", "agent/bad", "agent/d", "agent/e"];
+    let base = git(d, &["rev-parse", "main"]);
+
+    let mut shadow = apply_opts(d, &five, &[BAD_FAILS]);
+    shadow.apply = false;
+    let seen = land(&shadow).unwrap();
+    assert_eq!(seen.decision(), "blocked", "{}", render_text(&seen));
+    assert_eq!(
+        git(d, &["rev-parse", "main"]),
+        base,
+        "shadow changes nothing"
+    );
+    let would = seen.partial.as_ref().unwrap();
+    assert_eq!(
+        (would.scope.as_str(), would.landed.as_slice()),
+        ("rest:0,1,3,4", &[0, 1, 3, 4][..])
+    );
+
+    let out = land(&apply_opts(d, &five, &[BAD_FAILS])).unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.decision(), "landed", "{text}");
+    assert_eq!(out.exit_code(), 2, "not everything landed");
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(
+        (part.scope.as_str(), part.landed.as_slice()),
+        ("rest:0,1,3,4", &[0, 1, 3, 4][..])
+    );
+    let p = &out.receipt.predicate;
+    let tip = git(d, &["rev-parse", "main"]);
+    assert_eq!(
+        (p.result.as_deref(), part.commit.as_str()),
+        (Some(tip.as_str()), tip.as_str())
+    );
+    for file in ["a.txt", "b.txt", "d.txt", "e.txt"] {
+        assert!(d.join(file).exists(), "{file} landed");
+    }
+    assert!(!d.join("bad.txt").exists(), "the failing branch stays out");
+    assert_eq!(p.files_changed, 4);
+    let reasons = left_out_reasons(&out);
+    assert_eq!(
+        reasons[0],
+        "landed 4 of 5: agent/a, agent/b, agent/d, agent/e (rest:0,1,3,4 passed every check)",
+        "{text}"
+    );
+    assert_eq!(
+        reasons[1],
+        format!("left out agent/bad: fails {BAD_FAILS} on its own"),
+        "{text}"
+    );
+    assert_eq!(reasons.len(), 2, "{reasons:?}");
+    let v = verdict(&out, "again");
+    assert_eq!(v.kind, "partial");
+    assert_eq!(
+        v.what,
+        "4 of 5 branches are on main now: agent/a, agent/b, agent/d and agent/e; agent/bad is left out."
+    );
+    let prompts: Vec<(&str, bool)> = v
+        .left_out
+        .iter()
+        .map(|l| (l.branch.as_str(), l.fix_prompt.is_some()))
+        .collect();
+    assert_eq!(prompts, [("agent/bad", true)]);
+    assert!(out.receipt.digest_matches() && digest_matches_in_2_0(&out));
+}
+
+/// The branches that pass alone fail together too, so no larger set passed:
+/// the first one lands as its run alone tested it, and the other is told so,
+/// with no prompt until a run on the new target says what has to change.
+#[test]
+fn apply_never_lands_a_set_no_run_tested() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    let check = "git grep -q bad -- bad.txt && exit 1 || git grep -q a -- a.txt && git grep -q c -- c.txt && exit 1 || exit 0";
+    let out = land(&apply_opts(
+        d,
+        &["agent/a", "agent/bad", "agent/c"],
+        &[check],
+    ))
+    .unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.decision(), "landed", "{text}");
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(
+        (part.scope.as_str(), part.landed.as_slice()),
+        ("input:agent/a", &[0][..])
+    );
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        checks.iter().any(|c| c.scope == "rest:0,2" && !c.passed),
+        "{checks:?}"
+    );
+    assert!(d.join("a.txt").exists() && !d.join("c.txt").exists());
+    assert_eq!(git(d, &["rev-parse", "main"]), part.commit);
+    let reasons = left_out_reasons(&out);
+    assert!(
+        reasons[1].starts_with("left out agent/bad: fails ") && reasons[1].ends_with(" on its own"),
+        "{reasons:?}"
+    );
+    assert_eq!(
+        reasons[2],
+        format!(
+            "left out agent/c: passes {check} alone but fails it together with agent/a: run the check again to see what has to change"
+        ),
+        "{text}"
+    );
+    let prompts: Vec<bool> = verdict(&out, "again")
+        .left_out
+        .iter()
+        .map(|l| l.fix_prompt.is_some())
+        .collect();
+    assert_eq!(prompts, [true, false]);
+}
+
+/// One branch that passes alone: its run alone is the run on that set.
+#[test]
+fn one_branch_that_passes_alone_runs_nothing_more() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    let out = land(&apply_opts(d, &["agent/a", "agent/bad"], &[BAD_FAILS])).unwrap();
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(part.scope, "input:agent/a");
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        !checks.iter().any(|c| c.scope.starts_with("rest:")),
+        "{checks:?}"
+    );
+}
+
+/// A branch that conflicts is in no run on the combined change, so the run on
+/// the others leaves it out too, with the conflict as its reason.
+#[test]
+fn the_run_on_the_others_leaves_out_a_branch_that_conflicts() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("README.md", "# shop A\n")]);
+    branch(d, "main", "agent/x", &[("README.md", "# shop X\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/d", &[("d.txt", "d\n")]);
+    let four = ["agent/a", "agent/x", "agent/bad", "agent/d"];
+    let out = land(&apply_opts(d, &four, &[BAD_FAILS])).unwrap();
+    let text = render_text(&out);
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(
+        (part.scope.as_str(), part.landed.as_slice()),
+        ("rest:0,3", &[0, 3][..]),
+        "{text}"
+    );
+    let reasons = left_out_reasons(&out);
+    assert!(
+        reasons[1].starts_with("left out agent/x: conflicts with"),
+        "{reasons:?}"
+    );
+    assert!(
+        reasons[2].starts_with("left out agent/bad: fails "),
+        "{reasons:?}"
+    );
+}
+
+/// A run on the others that would end past the deadline does not start: what
+/// the runs before tested lands. The second command is the slow one, so the
+/// room it needs counts every command.
+#[test]
+fn no_run_on_the_others_starts_when_it_would_end_past_the_deadline() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    let scratch = tempfile::tempdir().unwrap();
+    let marker = scratch.path().join("slow");
+    // Its first run, on the combined change, takes ten seconds, the others none.
+    #[cfg(windows)]
+    let wait = format!(
+        "(type \"{0}\" > nul 2>&1 || (type nul > \"{0}\" & ping -n 11 127.0.0.1 > nul))",
+        marker.display()
+    );
+    #[cfg(not(windows))]
+    let wait = format!(
+        "{{ test -f '{0}' || {{ touch '{0}' && sleep 10; }}; }}",
+        marker.display()
+    );
+    let slow = format!("{wait} && exit 0");
+    let mut o = apply_opts(
+        d,
+        &["agent/a", "agent/bad", "agent/c"],
+        &[BAD_FAILS, slow.as_str()],
+    );
+    // The runs alone end after at least ten seconds, with ten more never fitting.
+    o.deadline = Some(Instant::now() + Duration::from_secs(19));
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        !checks.iter().any(|c| c.scope.starts_with("rest:")),
+        "{checks:?}"
+    );
+    // A loaded machine can run out the deadline during the runs alone, which
+    // lands nothing. Otherwise the first branch lands, as its run alone tested it.
+    if !out.out_of_time {
+        assert_eq!(
+            out.partial.as_ref().unwrap().scope,
+            "input:agent/a",
+            "{text}"
+        );
+        assert_eq!(
+            left_out_reasons(&out)[2],
+            "left out agent/c: was not tested together with agent/a: run the check again to land it",
+            "{text}"
+        );
+    }
+}
+
+/// Two commands, and a deadline with room: the others run both, and the
+/// commit both ran on lands.
+#[test]
+fn the_others_land_after_every_command_passes_on_them() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    let mut o = apply_opts(
+        d,
+        &["agent/a", "agent/bad", "agent/c"],
+        &[BAD_FAILS, "exit 0"],
+    );
+    o.deadline = Some(Instant::now() + Duration::from_secs(600));
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(
+        (part.scope.as_str(), part.landed.as_slice()),
+        ("rest:0,2", &[0, 2][..]),
+        "{text}"
+    );
+    let on_them: Vec<&str> = out
+        .receipt
+        .predicate
+        .checks
+        .iter()
+        .filter(|c| c.scope == "rest:0,2" && c.passed)
+        .map(|c| c.command.as_str())
+        .collect();
+    assert_eq!(on_them, [BAD_FAILS, "exit 0"], "{text}");
+    assert_eq!(git(d, &["rev-parse", "main"]), part.commit);
+}
+
+/// The others pass the first command and fail the second together, while
+/// every branch but one passes both alone: the first lands, the rest are told
+/// which command failed together, and only the branch that fails alone gets a
+/// prompt, though every merged branch shares the blame for the second command.
+#[test]
+fn others_that_fail_a_later_command_together_get_no_prompt() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    branch(d, "main", "agent/d", &[("d.txt", "d\n")]);
+    let test = "git grep -q b -- b.txt && git grep -q c -- c.txt && exit 1 || exit 0";
+    let four = ["agent/bad", "agent/b", "agent/c", "agent/d"];
+    let out = land(&apply_opts(d, &four, &[BAD_FAILS, test])).unwrap();
+    let text = render_text(&out);
+    let part = out.partial.as_ref().unwrap();
+    assert_eq!(
+        (part.scope.as_str(), part.landed.as_slice()),
+        ("input:agent/b", &[1][..]),
+        "{text}"
+    );
+    let reasons = left_out_reasons(&out);
+    assert_eq!(
+        reasons[2],
+        format!(
+            "left out agent/c: passes {test} alone but fails it together with agent/b and agent/d: run the check again to see what has to change"
+        ),
+        "{text}"
+    );
+    let v = verdict(&out, "again");
+    let prompts: Vec<(&str, bool)> = v
+        .left_out
+        .iter()
+        .map(|l| (l.branch.as_str(), l.fix_prompt.is_some()))
+        .collect();
+    assert_eq!(
+        prompts,
+        [("agent/bad", true), ("agent/c", false), ("agent/d", false)],
+        "{text}"
+    );
+}
+
+/// A branch that needs another fails alone, yet the combination passes: all of
+/// it lands, and nothing more runs.
+#[test]
+fn a_combination_that_passes_runs_nothing_more() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    let check = "git grep -q b -- b.txt && exit 0 || git grep -q a -- a.txt && exit 1 || exit 0";
+    let mut o = apply_opts(d, &["agent/a", "agent/b", "agent/c"], &[check]);
+    o.per_input = PerInput::Always;
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.partial, None, "{text}");
+    assert_eq!(out.exit_code(), 0, "{text}");
+    assert!(d.join("a.txt").exists() && d.join("b.txt").exists() && d.join("c.txt").exists());
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        !checks.iter().any(|c| c.scope.starts_with("rest:")),
+        "{checks:?}"
+    );
+}
+
+/// A flaky run lands nothing, so the run on the others would tell nobody anything.
+#[test]
+fn no_run_on_the_others_after_a_flaky_run() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    let scratch = tempfile::tempdir().unwrap();
+    let flaky = combined_only_failure(Some(&scratch.path().join("once")));
+    let three = ["agent/a", "agent/b", "agent/bad"];
+    let base = git(d, &["rev-parse", "main"]);
+    let out = land(&apply_opts(d, &three, &[flaky.as_str(), BAD_FAILS])).unwrap();
+    let text = render_text(&out);
+    assert_eq!(
+        combined_runs(&out)[..2],
+        [(false, false), (true, true)],
+        "{text}"
+    );
+    assert_eq!(out.partial, None, "{text}");
+    assert_eq!(git(d, &["rev-parse", "main"]), base);
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        !checks.iter().any(|c| c.scope.starts_with("rest:")),
+        "{checks:?}"
+    );
+}
+
+/// A run alone that timed out: the others could take that long again.
+#[test]
+fn no_run_on_the_others_after_a_run_alone_timed_out() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    branch(d, "main", "agent/d", &[("d.txt", "d\n")]);
+    let slow = if cfg!(windows) {
+        "ping -n 11 127.0.0.1 >NUL"
+    } else {
+        "sleep 10"
+    };
+    let check = format!(
+        "git grep -q a -- a.txt && exit 1 || git grep -q bad -- bad.txt && {slow} || exit 0"
+    );
+    let four = ["agent/a", "agent/bad", "agent/c", "agent/d"];
+    let mut o = apply_opts(d, &four, &[check.as_str()]);
+    o.check_timeout = Duration::from_secs(4);
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        checks
+            .iter()
+            .any(|c| c.scope == "input:agent/bad" && c.timed_out),
+        "{checks:?}"
+    );
+    assert!(
+        !checks.iter().any(|c| c.scope.starts_with("rest:")),
+        "{checks:?}"
+    );
+    assert_eq!(
+        out.partial.as_ref().unwrap().scope,
+        "input:agent/c",
+        "{text}"
+    );
+}
+
+/// The run on the others times out: the first lands, and the others are told
+/// it timed out, not that it failed.
+#[test]
+fn others_that_time_out_together_are_told_so() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    let slow = if cfg!(windows) {
+        "ping -n 11 127.0.0.1 >NUL"
+    } else {
+        "sleep 10"
+    };
+    let check = format!(
+        "git grep -q bad -- bad.txt && exit 1 || git grep -q a -- a.txt && git grep -q c -- c.txt && {slow} || exit 0"
+    );
+    let mut o = apply_opts(d, &["agent/a", "agent/bad", "agent/c"], &[check.as_str()]);
+    o.check_timeout = Duration::from_secs(4);
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(
+        out.partial.as_ref().unwrap().scope,
+        "input:agent/a",
+        "{text}"
+    );
+    assert_eq!(
+        left_out_reasons(&out)[2],
+        format!(
+            "left out agent/c: passes {check} alone but timed out running it together with agent/a: run the check again to see what has to change"
+        ),
+        "{text}"
+    );
+}
+
+/// `--strict` with a collision lands nothing, so nothing more runs for it.
+#[test]
+fn no_run_on_the_others_after_a_strict_collision() {
+    let dir = repo();
+    let d = dir.path();
+    let c = CART.replace("let sum = 0;", "let sum = 0; // start");
+    let c2 = CART.replace("return sum;", "return Math.round(sum);");
+    branch(d, "main", "agent/c", &[("src/cart.js", &c)]);
+    branch(d, "main", "agent/c2", &[("src/cart.js", &c2)]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    let mut o = apply_opts(d, &["agent/c", "agent/c2", "agent/bad"], &[BAD_FAILS]);
+    o.strict = true;
+    let base = git(d, &["rev-parse", "main"]);
+    let out = land(&o).unwrap();
+    let text = render_text(&out);
+    assert_eq!(out.partial, None, "{text}");
+    assert_eq!(git(d, &["rev-parse", "main"]), base);
+    let checks = &out.receipt.predicate.checks;
+    assert!(
+        !checks.iter().any(|c| c.scope.starts_with("rest:")),
+        "{checks:?}"
+    );
+}
+
+/// The target moves during the run on the others: nothing lands.
+#[test]
+fn a_target_that_moves_during_the_run_on_the_others_is_stale() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/bad", &[("bad.txt", "bad\n")]);
+    branch(d, "main", "agent/c", &[("c.txt", "c\n")]);
+    let check = format!(
+        "git grep -q bad -- bad.txt && exit 1 || git grep -q a -- a.txt && git grep -q c -- c.txt && git -C \"{}\" commit -q --allow-empty -m moved || exit 0",
+        d.display().to_string().replace('\\', "/")
+    );
+    let out = land(&apply_opts(
+        d,
+        &["agent/a", "agent/bad", "agent/c"],
+        &[check.as_str()],
+    ))
+    .unwrap();
+    assert_eq!(out.decision(), "stale", "{}", render_text(&out));
+    assert_eq!(out.exit_code(), 3);
+    assert!(!out.landed_partly());
+    assert_eq!(git(d, &["log", "-1", "--format=%s", "main"]), "moved");
+}
+
+/// A target that moves while a partial landing is checked is refused, as a
+/// full one is.
+#[test]
+fn a_partial_landing_onto_a_moved_target_is_stale() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("README.md", "# shop A\n")]);
+    branch(d, "main", "agent/b", &[("README.md", "# shop B\n")]);
+    let moved = format!(
+        "git -C \"{}\" commit -q --allow-empty -m moved",
+        d.display().to_string().replace('\\', "/")
+    );
+    let out = land(&apply_opts(d, &["agent/a", "agent/b"], &[&moved])).unwrap();
+    assert_eq!(out.decision(), "stale", "{}", render_text(&out));
+    assert_eq!(out.exit_code(), 3);
+    assert!(!out.landed_partly());
+    assert_eq!(git(d, &["log", "-1", "--format=%s", "main"]), "moved");
+}
+
+/// A flaky combined run says nothing about which set passes: nothing lands.
+#[test]
+fn a_flaky_check_lands_nothing() {
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("a.txt", "a\n")]);
+    branch(d, "main", "agent/b", &[("b.txt", "b\n")]);
+    let before = git(d, &["rev-parse", "main"]);
+    let scratch = tempfile::tempdir().unwrap();
+    let check = combined_only_failure(Some(&scratch.path().join("failed")));
+    let out = land(&apply_opts(d, &["agent/a", "agent/b"], &[&check])).unwrap();
+    assert_eq!(out.decision(), "blocked", "{}", render_text(&out));
+    assert!(out.partial.is_none());
+    assert_eq!(git(d, &["rev-parse", "main"]), before);
+}
+
 #[test]
 fn scratch_worktrees_are_named_the_way_detection_recognizes() {
     let dir = repo();

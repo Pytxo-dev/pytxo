@@ -1,115 +1,215 @@
-# CHECKPOINT — Pytxo — 2026-11-05 (2.0.0 is live with the new pitch)
+# CHECKPOINT — Pytxo — 2026-11-07 (2.0.1 candidate in a draft pull request, field test reported, nothing published)
 
 ## Branch / commit
 
-- `main` at `52774af` holds everything shipped: PR #85 (`9a6b2c4`, 2.0.0, site
-  v2, the new pitch), PR #86 (`f0d36a7`, the promotion) and PR #87 (`52774af`,
-  the clean Vercel build).
-- Tags `v2.0.0` and `v2` both point at `9a6b2c4`.
-- `mbcz/land-what-works` (`e51d2e6`, partial landing) still sits on
-  `mbcz/site-v2` and needs a rebase onto main for 2.0.1.
-- Untracked in the worktree: `RELEASE_TODAY.md`. Its ship commands are done.
+- Candidate: draft pull request https://github.com/Pytxo-dev/pytxo/pull/89, branch
+  `mbcz/pytxo-2-0-1-6392d6`, worktree
+  `C:\pytxo\.claude\worktrees\pytxo-2-0-1-6392d6`, based on `origin/main` at
+  `114da5c`. Rust code is final at `ebab582`; the commits after it change only the
+  site, docs, evidence and this checkpoint.
+- Candidate binary: `target/release/pytxo.exe` in that worktree, built with
+  `cargo build -p pytxo-cli --release --no-default-features`, prints `pytxo 2.0.1`,
+  SHA-256 `aabd2239b3ab514a195d2a416c2a4638aaa3b1464f3a08b3ef51bfac1c0d8766`.
+- Local only: `mbcz/promote-2-0-1` (`295b22c`), the promotion commit for after npm
+  serves 2.0.1. It sets `PUBLISHED_VERSION`, updates the changelog and lifts the
+  site's deploy hold.
+- `main` at `114da5c` holds 2.0.0, which is live on npm, GitHub and pytxo.com.
 
 ## Completed
 
-- npm `latest` is 2.0.0. The GitHub release and the `Pytxo-dev/pytxo-releases`
-  mirror each have 10 assets.
-- pytxo.com serves "Land all your agents' branches in one command." from
-  deployment `dpl_BQwEQq9FKh8sER3GbPL7DGhr1ASb`.
-- Incident, fixed: the first production build of the promotion restored its
-  cache from the 1.3.6 deployment and shipped the old `globals.css`. Production
-  had no `[data-site="v2"]` tokens and rendered unstyled from about 23:47 UTC on
-  2026-11-04 until the PR #87 deploy; the exact end wasn't recorded.
-  `apps/web/vercel.json` now removes `.next/cache` before `next build`.
-- Vercel facts behind that incident: the ignored-build step cancels every
-  non-main ref, so a green Vercel check on a pull request does not mean a build
-  ran. It also cancels a redeploy when nothing under `apps/web` or
-  `packages/chroma` changed. A site fix has to reach main as a commit.
-- CI now pins `ubuntu-24.04`, pins a copy of the Windows test helper, and holds
-  the event loop open in the Action's silent Dodo test.
+- `check.duration_ms` can't record 0: the clock starts before the spawn and a check
+  that ran records at least 1 ms. The assertion at
+  `crates/pytxo-orchestrate/tests/candidate_run.rs:285` is unchanged.
+- Partial landing (`e51d2e6`) rebased as `e52ff1a`. A read-only reviewer confirmed
+  that the ref moves only to a commit recorded as tested and that the receipt says
+  what was left out. Of 20 findings, 13 are fixed and 7 are listed below.
+- When a branch fails alone, the others run together once more (D65, which replaces
+  part of D50). Five branches with one failing now land 4 of 5 in one run, and the
+  note without `--apply` names the same set. A second read-only review confirmed the
+  target moves only to a commit whose exact set passed every command. Of its 6
+  findings, 4 are fixed and 2 are listed below.
+- `--help`, the crate description and the 402 messages match the pitch and `/plans`.
+- Failure paths run on temp repos; each prints what happened and the next step.
+- `/bench` states its build and date: Pybench reran on the candidate. Not deployed.
+- Linux glibc floor is 2.34, read from the ELF of the published 2.0.0 binary in WSL.
+  2.0.1's `Cargo.lock` changes only Pytxo's own crate versions. The install page says so.
+- `apps/web/vercel.json` holds main's site deploy until the promotion commit.
 
 ## Not done
 
-- Main CI is red on `52774af`: `rust (macos-latest)` failed
-  `real_candidate_checks_gate_apply_and_refresh_frozen_bytes`,
-  `crates/pytxo-orchestrate/tests/candidate_run.rs:285`,
-  `assert!(check.duration_ms > 0)`. PR #87 changed only `apps/web/vercel.json`.
-  The same assertion failed attempt 1 of the 2.0.0 release gate. The likely cause
-  is `crates/pytxo-runner/src/run.rs:1728`, where `started` is set after the
-  spawn, so a fast check can record 0 ms. That fix is not made or tested.
-- For 2.0.1: the CLI `--help` line and `crates/pytxo-cli/Cargo.toml` still say
-  "Do they pass together?", and the 402 messages name `/plans` Pro perks.
-- The 2.0.0 release notes keep the repo's standard line "These are prepared
-  release notes... not a release announcement." Editing them needs Matt's OK.
-- `/bench` still shows its reference run on pytxo 1.3.0.
-- Not checked: the home page's demo and lower sections after the CSS fix, the
-  Action's job summary text, Linux glibc, timing on a real repository, a real
-  hook session, a real `npx pytxo --apply` batch.
-- Carried over: Matt's call on `SECURITY.md` dropping Desktop 1.3.x; the
-  signed-in account views keep v1 boxes; Arena is neither built nor measured.
+- Nothing is merged, tagged, published or deployed.
+- CI is the pull request's record, not this file's. Matt said to push on 5 Nov 2026,
+  in the session holding this worktree.
+- The field test (PYTXO-2) reported on 7 Nov 2026 from a time-out, short of its target:
+  - 14 of 33 repos tried, 10 valid pairs, all from llm-d/llm-d-benchmark.
+  - 0 real BLOCKED: 0 of 10, 95% Wilson interval 0% to 27.8%.
+  - Batches: 2 landed in part, 1 not at all.
+  - Fewer than 1 in 20, so Matt's 1 Nov rule drops the catch claim from the lead. On 7 Nov
+    Matt chose to keep the landing pitch, so the film and Show HN lead with landing.
+  - Results: `D:\marketing\campaigns\pytxo-foss-study-2026-11\RESULTS.md`.
+- Found by the field test, not fixed:
+  - When every input of an `--apply` batch conflicts with main, the verdict's
+    what/why/next and `left_out` name only the first branch. The receipt's `reasons`
+    lists all six. Repro: `runs/Javis603__token-monitor/batch.json` in the study folder.
+  - Pytxo also runs the full check on unchanged main when every input conflicts.
+- Pull requests run CI on Linux and Windows only, and macOS runs on main and in the
+  release gate. So https://github.com/Pytxo-dev/pytxo/pull/90 runs the rust job on
+  macOS, on `c3fd73e` plus one commit to `ci.yml`. Never merge it: close it and delete
+  its branch once the run has finished.
+- Listed review findings, not fixed:
+  - A check that rewrites tracked files (D64).
+  - `inputs[].status` on a partial landing is documented, values unchanged.
+  - `-v`'s ref points at the failed combination.
+  - Exit 2 means both blocked and landed some (D52).
+  - `--markdown` drops notes.
+  - `--into Main` on a case-insensitive filesystem.
+  - Gaps in the background hook. It also pays for the run on the others without
+    showing its set (D65).
+  - When the run on the others passes but its cleanup fails, one branch lands and the
+    others read "was not tested together", which is false there. The next step it
+    gives is right.
+  - No test covers the run on the others when the set doesn't merge, when its cleanup
+    fails, or when it can't start.
+- When every branch passes alone and no cause is named, `--apply` still lands one and
+  the next run takes the others (D50, left as is). 3 branches landed 1, then 1 more; 6
+  branches landed 1 first. Those branches get a fix prompt too, though some of them
+  may not have to change.
+- A batch with a rename pair and a branch that fails alone takes two runs: 1 of 5 lands,
+  then 2 of 4, and the last two each get a reason.
+- The film has two batch shapes. One branch failing alone lands 4 of 5, so `PLAN.md`'s
+  "4 land and 1 sent back" holds for that batch. The rename batch lands 3 of 5, and its
+  rename and caller both stay out.
+- The site's hero copy changed to "lands what passes. What breaks stays out, with the
+  reason." Matt hasn't seen it.
+- `public-release-check` exits 1: 21 HIGH, all fake tokens in test code already on
+  main, none in this branch's diff. 37 old commits carry an AI co-author trailer;
+  rewriting pushed history is Matt's call.
+- Carried over: the 2.0.0 notes line, `SECURITY.md` dropping Desktop 1.3.x, deleting
+  the two e2e repositories (commands in `docs/checkpoints/2026-11.md`).
 
 ## Tests last run
 
-- 2026-11-05, live pytxo.com: the hero is 4 lines with the copy button above the
-  fold at 320×700, 390×844, 1280, 1440 and 1920×900, and 1920×1080. `/`, `/plans`,
-  `/download` and `/bench` are styled at 375 px and on desktop, with no sideways
-  scroll at 375 px and no console errors. `/docs` and the changelog return 200.
-- 2026-11-05: PR #87 `ci-ok` and `web` passed; `verify-release-inventory` 17 of 17.
-- 2026-11-05: main CI failed on `52774af` (above); it passed on `f0d36a7`.
-- 2026-11-04: cold `npx -y pytxo@2.0.0 demo` exited 0 in 14 s. Action e2e against
-  `v2.0.0` had 10 PASS and 0 fail, and the demo passed on Ubuntu, macOS and Windows.
-- 2026-11-04: release workflow attempt 2 had 20 of 20 jobs succeed.
+All 2026-11-05, Windows, on this branch; exit 0 unless noted.
+
+| Command | Result |
+|---|---|
+| `cargo fmt --check` | clean |
+| `cargo clippy -p pytxo-runner -p pytxo-land -p pytxo-cli -p pytxo-core --all-targets -- -D warnings` | clean |
+| `cargo test -p pytxo-land -p pytxo-cli` | 194 passed, 1 ignored |
+| `cargo test -p pytxo-runner --lib`, with `PYTXO_TEST_ATTEMPT_HOST` | 105 passed |
+| `cargo test -p pytxo-orchestrate --test candidate_run --test run_apply` | 1 + 15 passed |
+| `pytxo demo`, cold, candidate binary | 10.2 s |
+| `node packages/pytxo/bin/pytxo.js demo`, with `PYTXO_BINARY` | 11.9 s |
+| `npm run lint`, `npm run build`, `playwright test` in `apps/web` | 31 passed |
+| `node tooling/scripts/verify-release-version.mjs 2.0.1` and its test | 13 passed |
+| `node --test tooling/scripts/verify-release-inventory.test.mjs` | 17 passed |
+| `npm test` in `packages/pytxo` | 9 passed, 2 skipped |
+| `pytxo bench` from a clean clone | 12/12, 4/4, 0 false refusals |
+
+`a_run_after_a_failed_clean_lands_nothing` is Unix-only and has not run here.
+CI's record for this branch is its pull request, and the macOS one for macOS.
 
 ## Blockers
 
-- None for 2.0.1. Secrets: none in this file; the npm publish worked.
-- Matt's cleanup. The e2e repositories are public, and agents don't delete repos:
+- CI has to pass on both pull requests.
+- Matt's OK to go past local: review the candidate, then merge, tag and publish.
+- The release commands, rollback and go points are below. Matt says go at each step.
+
+## Release packet
+
+After CI is green on the pull request and Matt says go:
 
 ```bash
-gh auth refresh -s delete_repo
+gh pr ready 89 --repo Pytxo-dev/pytxo
 ```
 
 ```bash
-gh repo delete mattbaconz/pytxo-action-e2e-20261104-193845 --yes
+gh pr merge 89 --repo Pytxo-dev/pytxo --merge
+```
+
+Wait for the CI run on `main` to pass, macOS included.
+
+```bash
+git fetch origin main
 ```
 
 ```bash
-gh repo delete mbcz-xyz/pytxo-action-e2e-20261104-193845 --yes
+git tag v2.0.1 origin/main
 ```
+
+```bash
+git push origin v2.0.1
+```
+
+The tag starts the Release workflow, which runs CI as its gate and publishes to npm
+and GitHub. Check it:
+
+```bash
+npm view pytxo version
+```
+
+```bash
+gh release view v2.0.1 --repo Pytxo-dev/pytxo --json assets --jq '.assets | length'
+```
+
+```bash
+gh release view v2.0.1 --repo Pytxo-dev/pytxo-releases --json assets --jq '.assets | length'
+```
+
+Expect `2.0.1`, `10` and `10`. Then move the Action's major tag:
+
+```bash
+git fetch origin tag v2.0.1 && git tag -f v2 "v2.0.1^{commit}" && git push -f origin v2
+```
+
+Promote the site only after npm serves 2.0.1, from a fresh `origin/main`:
+
+```bash
+git switch -c mbcz/promote-2-0-1-pr origin/main && git cherry-pick 295b22c9 && git push -u origin mbcz/promote-2-0-1-pr
+```
+
+```bash
+gh pr create --repo Pytxo-dev/pytxo --base main --head mbcz/promote-2-0-1-pr --title "site: 2.0.1 is the published release" --body "For after npm serves 2.0.1."
+```
+
+Merge it. A green Vercel check on the pull request proves nothing, so check the live
+site afterwards: `/` is styled and says "lands what passes", and `/bench` says
+`pytxo 2.0.1`.
+
+Rollback: an npm version can't be republished, so a bad release is fixed by 2.0.2.
+Until then:
+
+```bash
+npm dist-tag add pytxo@2.0.0 latest
+```
+
+```bash
+git tag -f v2 "v2.0.0^{commit}" && git push -f origin v2
+```
+
+Revert the promotion commit if it merged. Agent hooks pinned to `pytxo@2.0.0` keep
+running 2.0.0. Between the merge and npm serving 2.0.1, the repository's hooks and
+the plugin pin a version npm doesn't have yet, so keep that window short.
 
 ## Next prompt (paste below)
 
 ```txt
-Pytxo 2.0.1. Read AGENTS.md and the top of CHECKPOINT.md.
+go PYTXO-3
 
-Start with the macOS flake: reproduce why check.duration_ms can be 0 at
-crates/pytxo-orchestrate/tests/candidate_run.rs:285, then fix it at the source
-in crates/pytxo-runner/src/run.rs, near `started` at line 1728. Declare the
-permission profile and execution domain scope. Don't weaken the assertion.
-
-Then change the CLI --help line and the crates/pytxo-cli/Cargo.toml description
-to the new pitch, make the 402 messages match /plans, and rebase e51d2e6 from
-mbcz/land-what-works onto main. Run cargo test -p pytxo-land -p pytxo-cli and
-the affected orchestrate tests.
-
-Don't push, tag, publish, deploy or edit the GitHub repo description without
-Matt's OK. No AI attribution trailers.
+The goal is in D:\marketing\campaigns\release-ready-2026-11\PLAN.md, under
+"PYTXO-3: Pytxo film". Run it after 2.0.1 is public. The batch to film is the one
+ranked first in D:\marketing\campaigns\pytxo-foss-study-2026-11\RESULTS.md. Nothing
+public without Matt's OK.
 ```
 
 ## Next
 
-<!-- updated 2026-11-05; max 3, ranked -->
-1. 2.0.1 — done when: `check.duration_ms` can't record 0, main CI passes on macOS,
-   the CLI help, Cargo description and 402 messages carry the new wording, `e51d2e6`
-   is rebased onto main, and `cargo test -p pytxo-land -p pytxo-cli` passes —
-   `C:\pytxo`.
-2. Dogfood `npx pytxo --apply` on Matt's next batch of agent branches — done when:
-   one real run lands or blocks with a receipt and is kept as launch footage —
-   `C:\pytxo` — blocked: needs a real batch of Matt's branches.
-3. Launch prep: steps 9 to 12 of `pytxo-2.0-report.md` — done when: the repository
-   description and topics match the pitch, the plugin is submitted, and Linux glibc
-   and real repository timing are measured —
-   `C:\pytxo\.claude\worktrees\product-review-a0207f` — blocked: Matt edits the
-   description, submits the plugin and approves any post.
+<!-- updated 2026-11-07; max 3, ranked -->
+1. Publish 2.0.1 — done when: npm `latest` is 2.0.1, both releases have 10 assets,
+   CI on main passed on macOS and pytxo.com says 2.0.1 — this file's Release packet —
+   blocked: Matt says go.
+2. PYTXO-3 film — done when: PLAN.md's PYTXO-3 bar is met, leading with landing (Matt
+   kept the landing pitch on 7 Nov), on the llm-d batch ranked first in RESULTS.md —
+   `C:\pytxo` — blocked: 2.0.1 is public and Matt says "go PYTXO-3".
 
 History: docs/checkpoints/

@@ -243,18 +243,24 @@ fn visibility(private: bool) -> &'static str {
 pub fn share_receipt(payload: serde_json::Value, private: bool) -> Result<String> {
     let account = require()?;
     let res: serde_json::Value = agent()
-        .post(&format!("{}/v1/receipts{}", account.link_url, visibility(private)))
+        .post(&format!(
+            "{}/v1/receipts{}",
+            account.link_url,
+            visibility(private)
+        ))
         .set("Authorization", &format!("Bearer {}", account.token))
         .send_json(payload)
         .map_err(|e| match e {
             ureq::Error::Status(401, _) => anyhow!("sign-in expired; run `pytxo login`"),
             ureq::Error::Status(402, _) if private => anyhow!(
-                "private receipts are a Pytxo Pro perk: {}/plans",
+                "private receipts belong to an earlier paid tier that is closed to new buyers, \
+                 and this account doesn't have it. Share it without --private, or keep it on \
+                 this machine. Plans: {}/plans",
                 web_url()
             ),
             ureq::Error::Status(402, _) => anyhow!(
-                "free accounts keep {FREE_RECEIPT_LIMIT} shared receipts; delete one on {}/account or upgrade to Pro: {}/plans",
-                web_url(),
+                "free accounts keep {FREE_RECEIPT_LIMIT} shared receipts and this one has them \
+                 all. Delete one on {}/account, then share again.",
                 web_url()
             ),
             other => anyhow!("sharing failed: {other}"),
@@ -296,7 +302,9 @@ pub fn submit_bench(report: &pytxo_land::bench::BenchReport, private: bool) -> R
         .send_json(payload)
         .map_err(|e| match e {
             ureq::Error::Status(402, _) => anyhow!(
-                "private Pybench results are a Pytxo Pro perk: {}/plans",
+                "private Pybench results belong to an earlier paid tier that is closed to new \
+                 buyers, and this account doesn't have it. Submit without --private to publish \
+                 the summary, or skip --submit to keep it on this machine. Plans: {}/plans",
                 web_url()
             ),
             other => anyhow!("submitting failed: {other}"),

@@ -72,7 +72,9 @@ pub struct ReceiptInput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
     pub commit: String,
-    /// `merged | conflict | empty | applied`.
+    /// `merged | conflict | empty | applied`: how it merged into the combined
+    /// change. After a partial landing, `reasons` and `result` say what landed,
+    /// so a `merged` input can be one that was left out.
     pub status: String,
     pub files: Vec<String>,
     #[serde(default)]
@@ -99,8 +101,9 @@ pub struct ReceiptSymbolCollision {
 pub struct ReceiptCheck {
     /// `combined`, `input:<ref>`, `target`, or, after a cause names two inputs
     /// of three or more, `pair:<i>,<j>` (the target with only those two) and
-    /// `rest:<k>,...` (the target with the other merged inputs), the inputs
-    /// it merged by their positions. In the string and not a field of their
+    /// `rest:<k>,...` (the target with the other merged inputs, or, after some
+    /// fail alone, with those that passed), the inputs it merged by their
+    /// positions. In the string and not a field of their
     /// own, so a binary that knows no such run still keeps them, and its
     /// digest of this receipt still matches.
     pub scope: String,

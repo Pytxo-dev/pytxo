@@ -33,7 +33,9 @@ pub struct CheckArgs {
     /// Test each branch alone first, even when the combination passes
     #[arg(long)]
     pub per_input: bool,
-    /// Land a ready result: fast-forward or compare-and-swap the target
+    /// Land the result: fast-forward or compare-and-swap the target. When the
+    /// branches fail together, land the largest set that passed every test as
+    /// that exact set, and leave the others out, each with why
     #[arg(long)]
     pub apply: bool,
     /// Block when two branches changed the same function or type
@@ -122,7 +124,7 @@ fn not_in_this_build(what: &str) -> String {
 }
 
 /// Runs the check and returns the exit code: 0 ready or nothing to check,
-/// 2 blocked, 3 stale.
+/// 2 blocked or landed only some branches, 3 stale.
 pub fn run(args: CheckArgs) -> Result<i32> {
     pytxo_land::watch_interrupts();
     let cwd = match &args.repo {
@@ -141,12 +143,14 @@ pub fn run(args: CheckArgs) -> Result<i32> {
         ),
         plan => plan?,
     };
-    Ok(check(&plan, &args)?.0)
+    Ok(check(&plan, &args, true)?.0)
 }
 
 /// The check `plan` describes: its exit code and its verdict's kind, `None`
 /// when there was nothing to check.
-fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
+/// `hint`: say what `--apply` would land, which the demo, whose repository
+/// is gone after it, does not.
+fn check(plan: &Plan, args: &CheckArgs, hint: bool) -> Result<(i32, Option<&'static str>)> {
     if plan.branches.is_empty() {
         nothing_to_check(plan, args.json)?;
         return Ok((0, None));
@@ -158,6 +162,11 @@ fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
             plan.target
         );
     }
+    if let Some(script) = instead_of_tests_script(plan).filter(|_| args.apply) {
+        anyhow::bail!(
+            "--apply lands only a tested result, and package.json has no test script: its {script} script is not a test suite. Add a test script, or name a test command with --check \"<command>\""
+        );
+    }
     if !args.json {
         eprintln!("{}", progress(plan));
     }
@@ -165,8 +174,10 @@ fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
     let verdict = verdict(&outcome, &again());
     // The verdict's own note comes first: it qualifies the why line above it.
     let own = || verdict.note.iter().cloned();
+    let landable = || landable(plan, &outcome).filter(|_| hint);
     if args.json {
         let notes: Vec<String> = own()
+            .chain(landable())
             .chain(uncommitted_notes(plan))
             .chain(notes(plan))
             .collect();
@@ -193,10 +204,43 @@ fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
         if args.verbose {
             print!("{}\n{}\n", found(plan), render_text(&outcome));
         }
-        let notes: Vec<String> = own().chain(notes(plan)).collect();
+        let notes: Vec<String> = own().chain(landable()).chain(notes(plan)).collect();
         print!("{verdict}{}", note_lines(&notes));
+        for left in &verdict.left_out {
+            if let Some(prompt) = &left.fix_prompt {
+                print!("\nFix prompt for {}:\n{prompt}\n", left.branch);
+            }
+        }
     }
     Ok((outcome.exit_code(), Some(verdict.kind)))
+}
+
+/// What `--apply` would land of a blocked check: the set that passed together.
+fn landable(plan: &Plan, outcome: &LandOutcome) -> Option<String> {
+    // With --apply it was tried, and git refused; a script --apply won't land on.
+    if outcome.refused.is_some() || instead_of_tests_script(plan).is_some() {
+        return None;
+    }
+    let part = outcome
+        .partial
+        .as_ref()
+        .filter(|_| outcome.decision() == "blocked")?;
+    let names = |ns: Vec<usize>| -> String {
+        let names: Vec<&str> = ns.iter().map(|&n| plan.branches[n].name()).collect();
+        and_list(&names)
+    };
+    let left = names(part.left_out.iter().map(|(n, _)| *n).collect());
+    Some(match part.landed.as_slice() {
+        [one] => format!(
+            "{} passes the tests on top of {} by itself: run this again with --apply to land it and leave out {left}.",
+            plan.branches[*one].name(),
+            plan.target
+        ),
+        _ => format!(
+            "{} pass the tests together: run this again with --apply to land them and leave out {left}.",
+            names(part.landed.clone())
+        ),
+    })
 }
 
 fn options(plan: &Plan, args: &CheckArgs) -> LandOptions {
@@ -225,8 +269,9 @@ pub const HOOK_TIMEOUT_SECS: u64 = 900;
 /// `pytxo hook`: the check from a Claude Code or Codex `Stop` hook. Reads the
 /// hook's JSON on stdin and answers with JSON on stdout, or with nothing when
 /// there is nothing new to say. It never fails the agent's turn, and answers
-/// before the hook's `timeout` (seconds) runs out.
-pub fn hook(block: bool, timeout: u64) -> Result<i32> {
+/// before the hook's `timeout` (seconds) runs out. `background`: the hook
+/// runs async, so the answer reaches the agent on its next turn instead.
+pub fn hook(block: bool, timeout: u64, background: bool) -> Result<i32> {
     let started = Instant::now();
     let mut input = String::new();
     let _ = std::io::stdin().read_to_string(&mut input);
@@ -239,8 +284,27 @@ pub fn hook(block: bool, timeout: u64) -> Result<i32> {
             json!({ "systemMessage": format!("Pytxo could not check the agent branches: {e:#}") })
         }
     };
+    let reply = if background {
+        in_background(&reply)
+    } else {
+        reply
+    };
     println!("{reply}");
     Ok(0)
+}
+
+/// An async hook's `reply` as the agent reads it on its next turn: Claude
+/// Code shows the user none of it and acts on no `decision`, so it asks the
+/// agent to pass the verdict on, or, for a block, to keep working on it.
+fn in_background(reply: &serde_json::Value) -> serde_json::Value {
+    let (ask, said) = match reply["reason"].as_str() {
+        Some(reason) => ("Keep working on it", reason),
+        None => (
+            "Tell the user what it found, and change nothing for it unless they ask",
+            reply["systemMessage"].as_str().unwrap_or_default(),
+        ),
+    };
+    json!({ "systemMessage": format!("Pytxo ran in the background after your last turn. {ask}:\n{said}") })
 }
 
 fn hook_reply(
@@ -551,6 +615,7 @@ pub fn demo(keep: bool) -> Result<i32> {
             timeout: 120,
             ..CheckArgs::default()
         },
+        false,
     )?
     .1;
     if keep {
@@ -671,8 +736,20 @@ fn uncommitted_notes(plan: &Plan) -> Vec<String> {
 }
 
 /// What the verdict leaves unsaid about what it checked against.
+/// The package.json script run because there is no test script, if one was.
+fn instead_of_tests_script(plan: &Plan) -> Option<&str> {
+    plan.check_source
+        .as_deref()
+        .and_then(pytxo_land::checks::instead_of_tests)
+}
+
 fn notes(plan: &Plan) -> Vec<String> {
     let mut notes = Vec::new();
+    if let Some(script) = instead_of_tests_script(plan) {
+        notes.push(format!(
+            "package.json has no test script, so this ran its {script} script, which is not a test suite: add a test script, or name a test command with --check \"<command>\"."
+        ));
+    }
     if plan.behind > 0 {
         notes.push(format!(
             "{0} is {1} commit{2} behind origin/{0}; pull it to check against {3} too.",
@@ -858,15 +935,15 @@ pub fn receipts_list(repo: Option<PathBuf>, json: bool) -> Result<()> {
     }
     for (_, r) in receipts {
         let p = &r.predicate;
+        // A partial landing's first line reads "landed 2 of 4: a, d (...)".
+        let inputs = p
+            .reasons
+            .iter()
+            .find_map(|r| r.strip_prefix("landed ")?.split_once(':'))
+            .map_or_else(|| p.inputs.len().to_string(), |(of, _)| of.to_string());
         println!(
-            "{}  {:<5}  {:<7}  {:<7}  {} input(s), {} file(s)  {}",
-            p.id,
-            p.kind,
-            p.decision,
-            p.mode,
-            p.inputs.len(),
-            p.files_changed,
-            p.created_at
+            "{}  {:<5}  {:<7}  {:<7}  {inputs} input(s), {} file(s)  {}",
+            p.id, p.kind, p.decision, p.mode, p.files_changed, p.created_at
         );
     }
     Ok(())
@@ -920,12 +997,33 @@ mod tests {
             let v: serde_json::Value = serde_json::from_str(&text).unwrap();
             let hook = &v["hooks"]["Stop"][0]["hooks"][0];
             assert_eq!(hook["timeout"], HOOK_TIMEOUT_SECS, "{config}");
-            // The command says it too, so whoever lowers one sees the other.
+            // The command says it too, so whoever lowers one sees the other,
+            // and says it runs async exactly when the config does.
             let command = hook["command"].as_str().unwrap();
+            let background = if hook["async"] == true {
+                " --async"
+            } else {
+                ""
+            };
             assert!(
-                command.ends_with(&format!(" hook --timeout {HOOK_TIMEOUT_SECS}")),
+                command.ends_with(&format!(" hook --timeout {HOOK_TIMEOUT_SECS}{background}")),
                 "{config}: {command}"
             );
         }
+    }
+
+    #[test]
+    fn an_async_reply_asks_the_agent_to_pass_it_on_or_act_on_it() {
+        let told = in_background(&json!({ "systemMessage": "Pytxo checked.\nBLOCKED  a" }));
+        assert_eq!(
+            told,
+            json!({ "systemMessage": "Pytxo ran in the background after your last turn. Tell the user what it found, and change nothing for it unless they ask:\nPytxo checked.\nBLOCKED  a" })
+        );
+        let block =
+            in_background(&json!({ "decision": "block", "reason": "Fix it on your branch" }));
+        assert_eq!(
+            block,
+            json!({ "systemMessage": "Pytxo ran in the background after your last turn. Keep working on it:\nFix it on your branch" })
+        );
     }
 }

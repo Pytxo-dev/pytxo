@@ -1706,6 +1706,9 @@ fn run_verify_commands_with_limits(
         }
         configure_verifier_process_group(&mut command);
 
+        // Before the spawn: a trivial verifier can exit while it is being
+        // registered, and its check must not be timed from after that.
+        let started = Instant::now();
         let mut child = command
             .spawn()
             .map_err(|e| PytxoError::Runner(format!("verify spawn `{cmd}`: {e}")))?;
@@ -1725,7 +1728,6 @@ fn run_verify_commands_with_limits(
             .stderr
             .take()
             .map(|pipe| spawn_bounded_reader(pipe, output_limit_bytes));
-        let started = Instant::now();
         let output_status = loop {
             if let Some(lifecycle) = lifecycle {
                 if let Err(error) = lifecycle.ensure_not_cancelled(agent_key) {
@@ -1753,7 +1755,7 @@ fn run_verify_commands_with_limits(
             }
             thread::sleep(Duration::from_millis(10));
         };
-        let duration_ms = started.elapsed().as_millis() as u64;
+        let duration_ms = check_duration_ms(started);
         let output_deadline = started + timeout;
         let captured = (|| {
             let stdout = join_bounded_reader(stdout_handle, output_deadline, lifecycle, agent_key)?;
@@ -1799,6 +1801,12 @@ fn run_verify_commands_with_limits(
         }
     }
     Ok(passed)
+}
+
+/// Whole milliseconds since `started`, at least 1: a check that ran was timed,
+/// and a receipt's zero means no timing was recorded.
+fn check_duration_ms(started: Instant) -> u64 {
+    (started.elapsed().as_millis() as u64).max(1)
 }
 
 struct BoundedOutput {
@@ -3610,6 +3618,63 @@ mod verification_boundary_tests {
         .expect_err("prior durable Stop prevents verifier spawn");
         assert!(error.to_string().contains("cancelled by Stop"));
         assert!(!temp.path().join("after-stop.txt").exists());
+    }
+
+    #[test]
+    fn check_that_exits_before_registration_still_records_its_time() {
+        // The registry lock is taken just before the spawn, so a trivial
+        // verifier exits while `persist_child` waits for that lock. A clock
+        // started after registration reads about zero, as on macOS CI.
+        const HOLD: Duration = Duration::from_millis(500);
+        let temp = tempfile::tempdir().expect("tempdir");
+        let registry = registry_path(temp.path());
+        let holder = Arc::new(Mutex::new(None));
+        let holder_slot = Arc::clone(&holder);
+        let callback: EventCallback = Arc::new(move |_agent, kind, _body| {
+            if kind != "verify" {
+                return;
+            }
+            let (held, wait_until_held) = std::sync::mpsc::channel();
+            let registry = registry.clone();
+            *holder_slot.lock().unwrap() = Some(thread::spawn(move || {
+                ProcessRegistryFile::update(&registry, |_| {
+                    held.send(()).unwrap();
+                    thread::sleep(HOLD);
+                    Ok(())
+                })
+                .unwrap();
+            }));
+            wait_until_held.recv().unwrap();
+        });
+        let lifecycle = lifecycle(temp.path());
+        let passed = run_verify_commands_with_limits(
+            temp.path(),
+            &["exit 0".into()],
+            Some(&callback),
+            "run:agent-0",
+            PermissionProfile::Orbit,
+            &DomainId("timing-domain".into()),
+            ExecutionBackend::Subprocess,
+            true,
+            None,
+            Duration::from_secs(10),
+            4096,
+            Some(&lifecycle),
+        )
+        .expect("a fast check passes");
+        holder.lock().unwrap().take().unwrap().join().unwrap();
+        let [(Some(0), duration_ms)] = passed[..] else {
+            panic!("one passed check: {passed:?}");
+        };
+        assert!(
+            duration_ms >= HOLD.as_millis() as u64 / 2,
+            "check ran through a {HOLD:?} registration wait but recorded {duration_ms} ms"
+        );
+    }
+
+    #[test]
+    fn a_check_faster_than_a_millisecond_still_records_time() {
+        assert!(check_duration_ms(Instant::now()) >= 1);
     }
 
     #[test]

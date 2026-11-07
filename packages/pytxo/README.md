@@ -3,8 +3,7 @@
 **Land all your agents' branches in one command.**
 
 Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway
-worktree, runs your tests on the combined result, and lands them only if they
-pass. If two branches break each other, nothing lands and you see why. Free,
+worktree, runs your tests on the combined result, and lands what passes. What breaks stays out, and you see why. Free,
 open source, runs on your machine or in CI.
 
 ```bash
@@ -23,9 +22,9 @@ why      claude/rename-price renamed price to unitPrice; codex/add-discount stil
 next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
 ```
 
-Nothing in your repository changes unless you add `--apply`. Exit codes: `0` ready (or nothing to
-check), `2` blocked, `3` stale (the target moved), `1` error, `130` stopped by
-Ctrl+C.
+Nothing in your repository changes unless you add `--apply`. Exit codes: `0` ready or landed (or
+nothing to check), `2` blocked or `--apply` landed only some branches, `3` stale (the target moved),
+`1` error, `130` stopped by Ctrl+C.
 
 In CI, one line in a workflow checks each agent pull request together with
 the other open ones into its base branch. Add

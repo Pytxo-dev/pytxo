@@ -15,8 +15,8 @@ export function Hero() {
           <span data-keep="text:0.22">branches in one command.</span>
         </h1>
         <p className={s.pitch} data-keep="text:0.1">
-          Pytxo merges them in a throwaway worktree, runs your tests and lands them only if they pass. When two break
-          each other, nothing lands.
+          Pytxo merges them in a throwaway worktree, runs your tests and lands what passes. What breaks stays out, with
+          the reason.
         </p>
         <div className={s.act}>
           <CopyCommand keep="box:0.1" />
