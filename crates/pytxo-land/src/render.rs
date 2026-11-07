@@ -1016,6 +1016,25 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                     next,
                 );
             }
+            // Nothing merged, so each branch conflicts with the target itself
+            // and each one's next step is known now: name them all, rather
+            // than one per run.
+            let conflicting: Vec<String> = p
+                .inputs
+                .iter()
+                .filter(|i| i.status == "conflict")
+                .map(branch)
+                .collect();
+            if conflicting.len() > 1 && p.inputs.iter().all(|i| i.status != "merged") {
+                let target = shown(target);
+                return v(
+                    "conflict",
+                    "BLOCKED",
+                    format!("{} conflict with {target}.", every(&conflicting)),
+                    format!("git cannot merge any of them: each changed files that {target} also changed."),
+                    format!("rebase each onto {target} (or ask their agents to), then {again}."),
+                );
+            }
             if let Some(c) = p.inputs.iter().find(|i| i.status == "conflict") {
                 let before: Vec<&pytxo_core::ReceiptInput> = p
                     .inputs

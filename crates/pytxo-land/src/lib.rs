@@ -765,7 +765,12 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 .collect(),
         });
     }
-    let combined_tree = if opts.checks.is_empty() {
+    // Nothing merged when every input with changes conflicts with the target:
+    // the combined change is the target as it is, so a check there would only
+    // say what the target says, and the conflicts block either way.
+    let nothing_merged = receipt_inputs.iter().any(|i| i.status == "conflict")
+        && receipt_inputs.iter().all(|i| i.status != "merged");
+    let combined_tree = if opts.checks.is_empty() || nothing_merged {
         None
     } else {
         Some(OwnedWorktree::add(&repo, &run_dir.0, &combined, &tag)?)
@@ -777,7 +782,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     // A run that times out is the answer: nothing runs after it, since each
     // further run could take the whole timeout to say the same.
     let mut first_runs: Vec<ReceiptCheck> = Vec::new();
-    for command in &opts.checks {
+    for command in opts.checks.iter().filter(|_| !nothing_merged) {
         let Some(check) = run_check("combined", command, &dir) else {
             break;
         };
