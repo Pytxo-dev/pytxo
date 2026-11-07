@@ -44,8 +44,8 @@
   - 14 of 33 repos tried, 10 valid pairs, all from llm-d/llm-d-benchmark.
   - 0 real BLOCKED: 0 of 10, 95% Wilson interval 0% to 27.8%.
   - Batches: 2 landed in part, 1 not at all.
-  - Fewer than 1 in 20, so Matt's 1 Nov rule drops the catch claim from the lead, and Matt
-    decides between the landing pitch, repositioning and parking.
+  - Fewer than 1 in 20, so Matt's 1 Nov rule drops the catch claim from the lead. On 7 Nov
+    Matt chose to keep the landing pitch, so the film and Show HN lead with landing.
   - Results: `D:\marketing\campaigns\pytxo-foss-study-2026-11\RESULTS.md`.
 - Found by the field test, not fixed:
   - When every input of an `--apply` batch conflicts with main, the verdict's
@@ -208,12 +208,8 @@ public without Matt's OK.
 1. Publish 2.0.1 — done when: npm `latest` is 2.0.1, both releases have 10 assets,
    CI on main passed on macOS and pytxo.com says 2.0.1 — this file's Release packet —
    blocked: Matt says go.
-2. Matt's call on the field test's result — done when: he picks the landing pitch,
-   repositioning or parking Pytxo (0 real BLOCKED in 10 valid pairs, under his 1 Nov
-   rule) — `D:\marketing\campaigns\pytxo-foss-study-2026-11\RESULTS.md` — blocked:
-   Matt decides.
-3. PYTXO-3 film — done when: PLAN.md's PYTXO-3 bar is met, on the llm-d batch ranked
-   first in RESULTS.md — `C:\pytxo` — blocked: 2.0.1 is public and Matt says
-   "go PYTXO-3".
+2. PYTXO-3 film — done when: PLAN.md's PYTXO-3 bar is met, leading with landing (Matt
+   kept the landing pitch on 7 Nov), on the llm-d batch ranked first in RESULTS.md —
+   `C:\pytxo` — blocked: 2.0.1 is public and Matt says "go PYTXO-3".
 
 History: docs/checkpoints/
