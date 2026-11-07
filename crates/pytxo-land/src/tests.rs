@@ -2596,6 +2596,60 @@ fn a_conflict_with_the_target_names_the_target() {
     }
 }
 
+/// When every branch conflicts with the target, one run names each of them,
+/// since each one's next step is known, and no check runs: nothing merged,
+/// so it would only test the target as it is.
+#[test]
+fn every_branch_that_conflicts_with_the_target_is_named_and_nothing_runs() {
+    let again = "run npx pytxo again";
+    let dir = repo();
+    let d = dir.path();
+    let readme = "# shop\n\nSells things.\n\nOpen daily.\n\nMIT\n";
+    write(d, &[("README.md", readme)]);
+    git(d, &["commit", "-q", "-am", "readme"]);
+    let a = readme.replace("# shop", "# shop A");
+    branch(d, "main", "agent/a", &[("README.md", &a)]);
+    let b = readme.replace("# shop", "# shop B");
+    branch(d, "main", "agent/b", &[("README.md", &b)]);
+    write(
+        d,
+        &[("README.md", &readme.replace("# shop", "# shop main"))],
+    );
+    git(d, &["commit", "-q", "-am", "main moves on"]);
+
+    for apply in [false, true] {
+        let mut o = opts(d, &["agent/a", "agent/b"]);
+        o.checks = vec!["echo ok".into()];
+        o.apply = apply;
+        let out = land(&o).unwrap();
+        let p = &out.receipt.predicate;
+        assert_eq!(
+            p.reasons,
+            [
+                "agent/a conflicts with main in README.md",
+                "agent/b conflicts with main in README.md"
+            ]
+        );
+        assert_eq!(p.decision, "blocked");
+        assert!(p.checks.is_empty(), "{:?}", p.checks);
+        let v = verdict(&out, again);
+        assert_eq!(
+            (v.kind, v.what.as_str()),
+            ("conflict", "agent/a and agent/b conflict with main.")
+        );
+        assert_eq!(
+            v.why,
+            "git cannot merge any of them: each changed files that main also changed."
+        );
+        assert_eq!(
+            v.next,
+            "rebase each onto main (or ask their agents to), then run npx pytxo again."
+        );
+        assert!(render_markdown(&out)
+            .starts_with("### ⛔ BLOCKED: `agent/a` and `agent/b` conflict with `main`\n"));
+    }
+}
+
 /// A run on the target that times out says nothing about the target: the
 /// check is not blamed on it.
 #[test]
