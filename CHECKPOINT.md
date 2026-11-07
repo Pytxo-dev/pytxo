@@ -1,4 +1,4 @@
-# CHECKPOINT — Pytxo — 2026-11-05 (2.0.1 candidate in a draft pull request, nothing published)
+# CHECKPOINT — Pytxo — 2026-11-07 (2.0.1 candidate in a draft pull request, field test reported, nothing published)
 
 ## Branch / commit
 
@@ -40,7 +40,18 @@
 - Nothing is merged, tagged, published or deployed.
 - CI is the pull request's record, not this file's. Matt said to push on 5 Nov 2026,
   in the session holding this worktree.
-- The field test (PYTXO-2) has not run: no proof beyond our own fixtures yet.
+- The field test (PYTXO-2) reported on 7 Nov 2026 from a time-out, short of its target:
+  - 14 of 33 repos tried, 10 valid pairs, all from llm-d/llm-d-benchmark.
+  - 0 real BLOCKED: 0 of 10, 95% Wilson interval 0% to 27.8%.
+  - Batches: 2 landed in part, 1 not at all.
+  - Fewer than 1 in 20, so Matt's 1 Nov rule drops the catch claim from the lead, and Matt
+    decides between the landing pitch, repositioning and parking.
+  - Results: `D:\marketing\campaigns\pytxo-foss-study-2026-11\RESULTS.md`.
+- Found by the field test, not fixed:
+  - When every input of an `--apply` batch conflicts with main, the verdict's
+    what/why/next and `left_out` name only the first branch. The receipt's `reasons`
+    lists all six. Repro: `runs/Javis603__token-monitor/batch.json` in the study folder.
+  - Pytxo also runs the full check on unchanged main when every input conflicts.
 - Pull requests run CI on Linux and Windows only, and macOS runs on main and in the
   release gate. So https://github.com/Pytxo-dev/pytxo/pull/90 runs the rust job on
   macOS, on `c3fd73e` plus one commit to `ci.yml`. Never merge it: close it and delete
@@ -183,27 +194,26 @@ the plugin pin a version npm doesn't have yet, so keep that window short.
 ## Next prompt (paste below)
 
 ```txt
-go PYTXO-2
+go PYTXO-3
 
 The goal is in D:\marketing\campaigns\release-ready-2026-11\PLAN.md, under
-"PYTXO-2: field test". Start after 06:30 +07:00 on 6 Nov 2026. REVIEW.md in that
-folder names the 2.0.1 worktree. Nothing public without Matt's OK.
+"PYTXO-3: Pytxo film". Run it after 2.0.1 is public. The batch to film is the one
+ranked first in D:\marketing\campaigns\pytxo-foss-study-2026-11\RESULTS.md. Nothing
+public without Matt's OK.
 ```
 
 ## Next
 
-<!-- updated 2026-11-05; max 3, ranked -->
-1. PYTXO-2 field test — done when: it has reported from real public repos under
-   the rules in `D:\marketing\campaigns\release-ready-2026-11\PLAN.md` —
-   `C:\pytxo\.claude\worktrees\pytxo-2-0-1-6392d6` — blocked: not before 06:30 +07:00
-   on 6 Nov 2026, and Matt starts it.
-2. Publish 2.0.1 — done when: npm `latest` is 2.0.1, both releases have 10 assets,
+<!-- updated 2026-11-07; max 3, ranked -->
+1. Publish 2.0.1 — done when: npm `latest` is 2.0.1, both releases have 10 assets,
    CI on main passed on macOS and pytxo.com says 2.0.1 — this file's Release packet —
    blocked: Matt says go.
-3. Launch prep: steps 9 to 12 of `pytxo-2.0-report.md` — done when: the repository
-   description and topics match the pitch, the plugin is submitted, and real
-   repository timing is measured —
-   `C:\pytxo\.claude\worktrees\product-review-a0207f` — blocked: Matt edits the
-   description, submits the plugin and approves any post.
+2. Matt's call on the field test's result — done when: he picks the landing pitch,
+   repositioning or parking Pytxo (0 real BLOCKED in 10 valid pairs, under his 1 Nov
+   rule) — `D:\marketing\campaigns\pytxo-foss-study-2026-11\RESULTS.md` — blocked:
+   Matt decides.
+3. PYTXO-3 film — done when: PLAN.md's PYTXO-3 bar is met, on the llm-d batch ranked
+   first in RESULTS.md — `C:\pytxo` — blocked: 2.0.1 is public and Matt says
+   "go PYTXO-3".
 
 History: docs/checkpoints/
