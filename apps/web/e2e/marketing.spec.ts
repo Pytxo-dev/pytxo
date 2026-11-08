@@ -26,8 +26,8 @@ for (const width of [1440, 390]) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     const hero = page.getByTestId("marketing-hero");
-    await expect(hero.getByRole("heading", { level: 1 })).toHaveText("Land all your agents' branches in one command.");
-    await expect(hero.getByText(/runs your tests and lands what passes/)).toBeVisible();
+    await expect(hero.getByRole("heading", { level: 1 })).toHaveText("Clear your agent PR pile in one command.");
+    await expect(hero.getByText(/lands the ones that pass/)).toBeVisible();
     await expect(hero.getByRole("button", { name: "Copy npx pytxo demo" })).toBeInViewport({ ratio: 1 });
     await expect(hero.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
     // The demo shows the recorded bytes of a real run, not a retyped or illustrated one.

@@ -11,12 +11,12 @@ export function Hero() {
       <MarkField />
       <div className={s.wrap}>
         <h1 id="hero-title">
-          <span data-keep="text:0.22">Land all your agents&apos;</span>{" "}
-          <span data-keep="text:0.22">branches in one command.</span>
+          <span data-keep="text:0.22">Clear your agent</span>{" "}
+          <span data-keep="text:0.22">PR pile in one command.</span>
         </h1>
         <p className={s.pitch} data-keep="text:0.1">
-          Pytxo merges them in a throwaway worktree, runs your tests and lands what passes. What breaks stays out, with
-          the reason.
+          Pytxo tests your agents&apos; branches together, lands the ones that pass, and gives each of the rest the
+          reason and a fix prompt for its agent. Your own tests decide, not an AI model.
         </p>
         <div className={s.act}>
           <CopyCommand keep="box:0.1" />

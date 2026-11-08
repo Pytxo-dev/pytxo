@@ -1,7 +1,7 @@
 [package]
 name = "pytxo-cli"
 default-run = "pytxo"
-description = "Land all your agents' branches in one command"
+description = "Clear your agent PR pile in one command"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

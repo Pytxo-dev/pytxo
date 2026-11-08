@@ -1,8 +1,15 @@
 # Positioning
 
-**Land all your agents' branches in one command.** Pytxo merges your coding
+**Clear your agent PR pile in one command.** Pytxo merges your coding
 agents' branches in a throwaway worktree, runs your tests on the combined
-result, and lands what passes. What breaks stays out, and you see why.
+result, and lands the ones that pass. Every branch it leaves out gets the
+reason and a fix prompt to hand back to its agent. Your own tests decide;
+Pytxo calls no AI model.
+
+It also catches the rare pair of branches that pass alone and fail together.
+That is a safety property, not the pitch: the November 2026 field test found
+none in 10 pairs of passing branches (14 public repositories tried), while
+most open agent pull requests could not merge as they stood.
 
 This page is the source for the README, the homepage, the npm and Action
 descriptions, and the plugin listings. When they disagree, fix them to match
@@ -10,11 +17,11 @@ this page or change this page first.
 
 ## Who it is for
 
-Developers who run two or more coding agents (Claude Code, Codex, Copilot,
-Cursor and the like) on one repository at the same time, each on its own
-branch or worktree.
+Developers and maintainers with more agent branches or pull requests than
+review time (Copilot's coding agent, Codex, Claude Code, Cursor and the like),
+whether the agents run at the same time or the branches pile up over a week.
 
-Not for: one agent at a time (there is nothing to combine), or a repository
+Not for: a single branch (there is nothing to combine), or a repository
 without tests (Pytxo catches only what the tests catch).
 
 ## What they do today
