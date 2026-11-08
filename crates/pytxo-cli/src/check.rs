@@ -24,6 +24,10 @@ pub struct CheckArgs {
     /// checked-out branch when you name branches, else origin/HEAD, main, master or trunk)
     #[arg(long)]
     pub into: Option<String>,
+    /// Leave out found branches with no commit in this many days, 0 for none
+    /// (default: PYTXO_DAYS or git config pytxo.days, else 14)
+    #[arg(long, value_name = "N")]
+    pub days: Option<u64>,
     /// Base commit (default: the target's tip)
     #[arg(long)]
     pub base: Option<String>,
@@ -135,7 +139,13 @@ pub fn run(args: CheckArgs) -> Result<i32> {
     if let Some(line) = args.branches.iter().find_map(|b| left_out(b, &cwd)) {
         anyhow::bail!(line);
     }
-    let plan = match detect::plan(&cwd, &args.branches, args.into.as_deref(), &args.checks) {
+    let plan = match detect::plan_days(
+        &cwd,
+        &args.branches,
+        args.into.as_deref(),
+        args.days,
+        &args.checks,
+    ) {
         // Outside a repository the demo still works.
         Err(e) if e.to_string() == detect::NOT_A_REPOSITORY => anyhow::bail!(
             "not a git repository: run {0} inside one, or see it work: {0} demo",
@@ -180,6 +190,7 @@ fn check(plan: &Plan, args: &CheckArgs, hint: bool) -> Result<(i32, Option<&'sta
             .chain(landable())
             .chain(uncommitted_notes(plan))
             .chain(notes(plan))
+            .chain(older(plan))
             .collect();
         println!(
             "{}",
@@ -204,7 +215,11 @@ fn check(plan: &Plan, args: &CheckArgs, hint: bool) -> Result<(i32, Option<&'sta
         if args.verbose {
             print!("{}\n{}\n", found(plan), render_text(&outcome));
         }
-        let notes: Vec<String> = own().chain(landable()).chain(notes(plan)).collect();
+        let notes: Vec<String> = own()
+            .chain(landable())
+            .chain(notes(plan))
+            .chain(older(plan))
+            .collect();
         print!("{verdict}{}", note_lines(&notes));
         for left in &verdict.left_out {
             if let Some(prompt) = &left.fix_prompt {
@@ -669,8 +684,8 @@ fn nothing_to_check(plan: &Plan, json: bool) -> Result<()> {
     }
     if plan.old > 0 {
         line.push_str(&format!(
-            // Not "unmerged": the age test runs first, so merged ones count too.
-            " {} with no commit in {} days not looked at (PYTXO_DAYS=0 looks at them).",
+            // Merged ones are not counted, but squash-merged ones are.
+            " {} with no commit in {} days not looked at (--days 0 looks at them).",
             plan.old, plan.max_age_days
         ));
     }
@@ -768,6 +783,19 @@ fn notes(plan: &Plan) -> Vec<String> {
         ));
     }
     notes
+}
+
+/// A check's note, not a hook's: the branches too old to look at.
+fn older(plan: &Plan) -> Option<String> {
+    (plan.old > 0).then(|| {
+        format!(
+            "{} agent branch{} with no commit in {} days not checked: add --days 0 to check {} too.",
+            plan.old,
+            if plan.old == 1 { "" } else { "es" },
+            plan.max_age_days,
+            if plan.old == 1 { "it" } else { "them" }
+        )
+    })
 }
 
 /// Notes as lines under the verdict.

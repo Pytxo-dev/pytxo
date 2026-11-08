@@ -77,7 +77,8 @@ pub struct Plan {
     /// The branches came from the patterns, not from the command line.
     pub detected: bool,
     pub patterns: Vec<String>,
-    /// Matching branches left out for having no recent commit.
+    /// Matching branches left out for having no recent commit. Merged ones,
+    /// whose commit a target has, are not counted.
     pub old: usize,
     /// Matching branches left out for sharing no history with the target.
     pub unrelated: usize,
@@ -116,6 +117,17 @@ impl Plan {
 /// Works out the target, the branches (`given`, else detected) and the checks
 /// (`checks`, else configured, else detected from the target's tree).
 pub fn plan(cwd: &Path, given: &[String], into: Option<&str>, checks: &[String]) -> Result<Plan> {
+    plan_days(cwd, given, into, None, checks)
+}
+
+/// [`plan`], with `days` (`--days`) before `PYTXO_DAYS` and `pytxo.days`.
+pub fn plan_days(
+    cwd: &Path,
+    given: &[String],
+    into: Option<&str>,
+    days: Option<u64>,
+    checks: &[String],
+) -> Result<Plan> {
     let root = toplevel(cwd)?;
     let git = Git::user(&root);
     // Named branches first: the target depends on them.
@@ -137,8 +149,8 @@ pub fn plan(cwd: &Path, given: &[String], into: Option<&str>, checks: &[String])
         ),
         None => {
             let patterns = patterns(&git);
-            let days = setting(&git, "PYTXO_DAYS", "pytxo.days")
-                .and_then(|d| d.parse().ok())
+            let days = days
+                .or_else(|| setting(&git, "PYTXO_DAYS", "pytxo.days").and_then(|d| d.parse().ok()))
                 .unwrap_or(DEFAULT_MAX_AGE_DAYS);
             let found = detect(&git, &target, &patterns, days)?;
             (patterns, days, found)
@@ -563,22 +575,26 @@ fn detect(git: &Git, target: &str, patterns: &[String], max_age_days: u64) -> Re
     });
     let old = |c: &Candidate| cutoff.is_some_and(|cut| c.time < cut);
     let (mut seen, mut merged) = (BTreeSet::new(), BTreeSet::new());
-    // An old worktree on a commit a target has can only hold uncommitted
-    // work, so it is not old but merged. One walk, for all of them, lists
-    // the commits the targets lack.
-    let old_worktrees: BTreeSet<&str> = candidates
+    // An old commit a target has is merged, not old: there is nothing to say
+    // about its branch, and a worktree on it can only hold uncommitted work.
+    // One walk per few hundred lists the commits the targets lack.
+    // ponytail: a squash-merged old branch still counts as old; telling needs
+    // the merge test below, which costs git calls for every branch.
+    let old_commits: Vec<&str> = candidates
         .iter()
-        .filter(|c| c.worktree.is_some() && old(c))
+        .filter(|c| old(c))
         .map(|c| c.commit.as_str())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .collect();
-    if !old_worktrees.is_empty() {
+    for chunk in old_commits.chunks(200) {
         let mut args = vec!["rev-list"];
-        args.extend(&old_worktrees);
+        args.extend(chunk);
         args.push("--not");
         args.extend(targets.iter().map(String::as_str));
         if let Ok(lacked) = git.lines(&args) {
             let lacked: BTreeSet<String> = lacked.into_iter().collect();
-            for commit in old_worktrees.into_iter().filter(|c| !lacked.contains(*c)) {
+            for commit in chunk.iter().filter(|c| !lacked.contains(**c)) {
                 seen.insert(commit.to_string());
                 merged.insert(commit.to_string());
             }
@@ -588,7 +604,7 @@ fn detect(git: &Git, target: &str, patterns: &[String], max_age_days: u64) -> Re
     let mut open = Vec::new();
     for c in candidates {
         // The age check costs no git call, so it goes first, for each name.
-        if old(&c) && !(c.worktree.is_some() && merged.contains(&c.commit)) {
+        if old(&c) && !merged.contains(&c.commit) {
             found.old += 1;
             continue;
         }
@@ -1007,9 +1023,14 @@ mod tests {
         git(&d, &["checkout", "-q", "main"]);
         let plan = super::plan(&d, &[], None, &[]).unwrap();
         assert_eq!((names(&plan), plan.old), (vec!["team/a"], 1));
+        // --days 0 looks at any age, and --days beats the settings.
+        let plan = super::plan_days(&d, &[], None, Some(0), &[]).unwrap();
+        assert_eq!((names(&plan), plan.old), (vec!["team/a", "team/old"], 0));
         git(&d, &["config", "pytxo.days", "0"]);
         let plan = super::plan(&d, &[], None, &[]).unwrap();
         assert_eq!(names(&plan), ["team/a", "team/old"]);
+        let plan = super::plan_days(&d, &[], None, Some(14), &[]).unwrap();
+        assert_eq!((names(&plan), plan.old), (vec!["team/a"], 1));
     }
 
     #[test]
@@ -1149,8 +1170,7 @@ mod tests {
         git(&d, &["update-ref", "refs/remotes/origin/main", "upstream"]);
         git(&d, &["checkout", "-q", "main"]);
         git(&d, &["branch", "-q", "-D", "upstream"]);
-        // The age check runs before any merge check, so an old branch is
-        // counted as old, merged or not.
+        // An old branch main merged is not counted: main has its commit.
         git(&d, &["checkout", "-q", "-b", "codex/old", "main"]);
         std::fs::write(d.join("old.js"), "old").unwrap();
         git(&d, &["add", "-A"]);
@@ -1168,7 +1188,7 @@ mod tests {
         );
 
         let plan = plan(&d, &[], None, &[]).unwrap();
-        assert_eq!((names(&plan), plan.old), (vec!["codex/open"], 1));
+        assert_eq!((names(&plan), plan.old), (vec!["codex/open"], 0));
     }
 
     /// Once the target edits the same lines again, a 3-way merge conflicts;
