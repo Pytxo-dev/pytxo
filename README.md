@@ -4,23 +4,32 @@
 [![npm](https://img.shields.io/npm/v/pytxo)](https://www.npmjs.com/package/pytxo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
 
-**Land all your agents' branches in one command.**
+**Clear your agent PR pile in one command.**
 
 Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway
-worktree, runs your tests on the combined result, and lands what passes. What breaks stays out, and you see why. Free,
-open source, runs on your machine or in CI.
+worktree, runs your tests on the combined result, and lands the ones that
+pass. Every branch it leaves out gets the reason and a fix prompt to hand back
+to its agent. Your own tests decide; Pytxo calls no AI model. Free, open
+source, runs on your machine or in CI.
 
 ```bash
 npx pytxo demo
 ```
 
+On the 10 open agent pull requests of
+[llm-d-benchmark](https://github.com/llm-d/llm-d-benchmark) (a 6 Nov 2026
+snapshot, in a local clone), `npx pytxo@2.0.1 --apply 'codex/*' 'copilot/*'`
+landed 5 in 5 min 41 s and left 5 out: 2 conflict with main, 1 fails the
+repository's tests on its own and 2 conflict with branches that landed first.
+
 ## Try it
 
 ```bash
-npx pytxo demo      # a throwaway repo where two agent branches pass alone and fail together
+npx pytxo demo      # a throwaway repo where two agent branches break each other
 cd your-repo
+git fetch           # get the branches your agents pushed
 npx pytxo           # checks your agent branches together
-npx pytxo --apply   # and lands what passes
+npx pytxo --apply   # lands the ones that pass
 ```
 
 No flags, no config, no account. Pytxo finds the agent branches, finds your

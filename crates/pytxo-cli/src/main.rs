@@ -22,11 +22,12 @@ use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
     name = "pytxo",
     bin_name = "pytxo",
     version,
-    about = "Pytxo: land all your agents' branches in one command.",
-    long_about = "Land all your agents' branches in one command.
+    about = "Pytxo: clear your agent PR pile in one command.",
+    long_about = "Clear your agent PR pile in one command.
 
 Pytxo merges your coding agents' branches (Claude Code, Codex, Copilot, Cursor...) \
-in a throwaway worktree, runs your tests on the combined result, and lands what passes.
+in a throwaway worktree, runs your tests on the combined result, and lands the ones that pass. \
+Each branch it leaves out gets the reason and a fix prompt.
 
 Run it with no arguments inside a repository to see the verdict; nothing in the repository \
 changes. Add --apply to land.",
@@ -270,7 +271,7 @@ mod tests {
         Cli::command().write_long_help(&mut help).unwrap();
         let help = String::from_utf8(help).unwrap();
         assert!(
-            help.contains("Land all your agents' branches in one command."),
+            help.contains("Clear your agent PR pile in one command."),
             "{help}"
         );
         assert!(help.contains("demo"), "{help}");

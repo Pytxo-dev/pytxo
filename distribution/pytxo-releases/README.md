@@ -1,16 +1,19 @@
 # Pytxo
 
-**Land all your agents' branches in one command.**
+**Clear your agent PR pile in one command.**
 
 Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway
-worktree, runs your tests on the combined result, and lands what passes. What breaks stays out, and you see why. Free,
-open source, runs on your machine or in CI.
+worktree, runs your tests on the combined result, and lands the ones that
+pass. Every branch it leaves out gets the reason and a fix prompt to hand back
+to its agent. Your own tests decide; Pytxo calls no AI model. Free, open
+source, runs on your machine or in CI.
 
 ```bash
-npx pytxo demo      # a throwaway repo where two agent branches pass alone and fail together
+npx pytxo demo      # a throwaway repo where two agent branches break each other
 cd your-repo
+git fetch           # get the branches your agents pushed
 npx pytxo           # checks your agent branches together
-npx pytxo --apply   # and lands what passes
+npx pytxo --apply   # lands the ones that pass
 ```
 
 This repository holds the release binaries and install scripts. The source is

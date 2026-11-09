@@ -619,3 +619,16 @@ end in progress, not only in a verdict. Ships in the release after 2.0.0.
     that fails alone and a rename pair lands one, then takes a second run.
     Undo: the block after the pair runs in `land()` and its reason in
     `left_out_reason`.
+66. **Lead with clearing the agent PR pile.** Replaces the "land all your
+    agents' branches" lead in POSITIONING.md, the README, the site, the docs
+    and `pytxo --help`. The November 2026 field test found no pair that passes
+    alone and fails together in 10 pairs of passing branches across 14 public
+    repositories (95% interval 0% to 27.8%), while most open agent pull
+    requests could not merge as they stood: llm-d 6 of 10 passed alone,
+    token-monitor 0 of 6, padmint 1 of 3. Pytxo's common job is telling which
+    branches of a pile can land and handing each of the rest back with the
+    reason and a fix prompt, so that is the pitch. The catch stays as a safety
+    property, and `pytxo demo` still shows it.
+    Still open: the demo shows the rare case rather than a pile, and the
+    share image still carries the old line.
+    Undo: POSITIONING.md's first two paragraphs.

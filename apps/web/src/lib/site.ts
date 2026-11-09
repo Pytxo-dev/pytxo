@@ -52,9 +52,9 @@ export type NavLink = {
 };
 
 /** One product sentence, used by metadata, footer and structured data. */
-export const PRODUCT_LINE = "Land all your agents' branches in one command.";
+export const PRODUCT_LINE = "Clear your agent PR pile in one command.";
 export const PRODUCT_SUMMARY =
-  "Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests and lands what passes together. Free and open source.";
+  "Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests, lands the ones that pass and gives each of the rest the reason and a fix prompt. Free and open source.";
 
 /** Agents verified live on a released build vs. those still in beta. */
 export const AGENT_SUPPORT = {
