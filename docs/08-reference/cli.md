@@ -6,7 +6,7 @@ tags: [reference, cli]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-10-28
+updated: 2026-11-08
 related: [[pytxo-toml]], [[repository-layout]], [[mission-loop]], [[first-mission]]
 ---
 
@@ -27,6 +27,8 @@ Target: with no branches named, the default branch (`origin/HEAD`, else `main`, 
 | `pytxo.check` | `PYTXO_CHECK` | found in the target branch |
 | `pytxo.days` | `PYTXO_DAYS` | `14` |
 | `pytxo.into` | `PYTXO_INTO` | the target above |
+
+`--days <N>` beats `pytxo.days` and `PYTXO_DAYS` for one run, and `--days 0` looks at branches of any age. The verdict says how many branches it left out for age; merged ones are not counted.
 
 ## Hypervisor Shell (frozen, `full` builds)
 

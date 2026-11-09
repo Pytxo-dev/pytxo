@@ -83,8 +83,8 @@ fn no_agent_branches_is_one_line_and_exit_zero() {
         "{text}"
     );
 
-    // An old agent branch, merged long ago: counted as not looked at, which
-    // is all the age test knows; PYTXO_DAYS=0 looks and finds it merged.
+    // An old agent branch, merged long ago: main has its commit, so there is
+    // nothing to say about it.
     let d = dir.path();
     git(d, &["checkout", "-q", "-b", "claude/old", "main"]);
     std::fs::write(d.join("old.txt"), "old\n").unwrap();
@@ -99,12 +99,27 @@ fn no_agent_branches_is_one_line_and_exit_zero() {
     git(d, &["checkout", "-q", "main"]);
     git(d, &["merge", "-q", "--no-ff", "-m", "merge", "claude/old"]);
     let text = stdout(&pytxo(d, &[], None));
-    assert!(
-        text.contains(" 1 with no commit in 14 days not looked at (PYTXO_DAYS=0 looks at them). "),
-        "{text}"
-    );
+    assert!(!text.contains("not looked at"), "{text}");
     let text = stdout(&pytxo_env(d, &[], None, &[("PYTXO_DAYS", "0")]));
     assert!(text.starts_with("No agent branches"), "{text}");
+    // One nobody merged is counted, with the flag that looks at it.
+    git(d, &["checkout", "-q", "-b", "codex/stale", "main"]);
+    std::fs::write(d.join("stale.txt"), "stale\n").unwrap();
+    git(d, &["add", "-A"]);
+    let stale = Command::new("git")
+        .args(["commit", "-q", "-m", "stale"])
+        .env("GIT_COMMITTER_DATE", "2026-01-01T00:00:00Z")
+        .current_dir(d)
+        .output()
+        .unwrap();
+    assert!(stale.status.success());
+    git(d, &["checkout", "-q", "main"]);
+    let text = stdout(&pytxo(d, &[], None));
+    assert!(
+        text.contains(" 1 with no commit in 14 days not looked at (--days 0 looks at them). "),
+        "{text}"
+    );
+    git(d, &["branch", "-q", "-D", "codex/stale"]);
     // Cloud agents' branches arrive by fetch.
     assert!(
         text.ends_with(
