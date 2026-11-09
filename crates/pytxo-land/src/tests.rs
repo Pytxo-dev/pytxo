@@ -1600,7 +1600,7 @@ fn apply_lands_the_rest_as_the_runs_on_it_tested_it() {
     );
     assert_eq!(
         verdict(&out, "again").what,
-        "2 of 4 branches are on main now: agent/c and agent/d; agent/rename and agent/caller are left out."
+        "2 of 4 branches are on main now."
     );
 }
 
@@ -1711,10 +1711,16 @@ fn one_branch_failing_alone_leaves_the_others_to_land_together() {
     assert_eq!(reasons.len(), 2, "{reasons:?}");
     let v = verdict(&out, "again");
     assert_eq!(v.kind, "partial");
-    assert_eq!(
-        v.what,
-        "4 of 5 branches are on main now: agent/a, agent/b, agent/d and agent/e; agent/bad is left out."
+    assert_eq!(v.what, "4 of 5 branches are on main now.");
+    // One row per branch, in place of the why line.
+    let shown = v.to_string();
+    assert!(
+        shown.starts_with("LANDED   4 of 5 branches are on main now.\n"),
+        "{shown}"
     );
+    assert!(shown.contains("\nlanded   agent/a\n"), "{shown}");
+    assert!(shown.contains("\nleft out agent/bad  fails "), "{shown}");
+    assert!(!shown.contains("\nwhy "), "{shown}");
     let prompts: Vec<(&str, bool)> = v
         .left_out
         .iter()

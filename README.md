@@ -34,8 +34,8 @@ npx pytxo --apply   # lands the ones that pass
 
 No flags, no config, no account. Pytxo finds the agent branches, finds your
 test command, merges the branches in a throwaway worktree, runs the tests
-there and prints the verdict in three lines: what happened, why, and what to
-do next. Nothing in your repository changes unless you add `--apply`. Ctrl+C stops a check and removes
+there and prints the verdict: what happened, why, and what to do next, with a
+line for each branch when only some of three or more can land. Nothing in your repository changes unless you add `--apply`. Ctrl+C stops a check and removes
 its throwaway worktree; a check that is killed outright leaves the worktree in
 `git worktree list` until the next check removes it.
 

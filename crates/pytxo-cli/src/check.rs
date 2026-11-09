@@ -181,7 +181,11 @@ fn check(plan: &Plan, args: &CheckArgs, hint: bool) -> Result<(i32, Option<&'sta
         eprintln!("{}", progress(plan));
     }
     let outcome = land(&options(plan, args))?;
-    let verdict = verdict(&outcome, &again());
+    let mut verdict = verdict(&outcome, &again());
+    // --apply won't land on a script that is not a test suite: nothing "can land".
+    if instead_of_tests_script(plan).is_some() {
+        verdict.rows.clear();
+    }
     // The verdict's own note comes first: it qualifies the why line above it.
     let own = || verdict.note.iter().cloned();
     let landable = || landable(plan, &outcome).filter(|_| hint);
@@ -244,12 +248,23 @@ fn landable(plan: &Plan, outcome: &LandOutcome) -> Option<String> {
         let names: Vec<&str> = ns.iter().map(|&n| plan.branches[n].name()).collect();
         and_list(&names)
     };
-    let left = names(part.left_out.iter().map(|(n, _)| *n).collect());
+    // From three branches on, the verdict's rows name each one.
+    let rows = plan.branches.len() >= 3;
+    let left = if rows {
+        "the rest".to_string()
+    } else {
+        names(part.left_out.iter().map(|(n, _)| *n).collect())
+    };
     Some(match part.landed.as_slice() {
         [one] => format!(
             "{} passes the tests on top of {} by itself: run this again with --apply to land it and leave out {left}.",
             plan.branches[*one].name(),
             plan.target
+        ),
+        _ if rows => format!(
+            "{} of {} branches pass the tests together: run this again with --apply to land them and leave out {left}.",
+            part.landed.len(),
+            plan.branches.len()
         ),
         _ => format!(
             "{} pass the tests together: run this again with --apply to land them and leave out {left}.",
