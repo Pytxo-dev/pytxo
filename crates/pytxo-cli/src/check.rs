@@ -667,6 +667,7 @@ pub fn demo(keep: bool) -> Result<i32> {
 }
 
 fn nothing_to_check(plan: &Plan, json: bool) -> Result<()> {
+    let unmatched = detect::unmatched(plan);
     if json {
         println!(
             "{}",
@@ -679,6 +680,7 @@ fn nothing_to_check(plan: &Plan, json: bool) -> Result<()> {
                 "old": plan.old,
                 "unrelated": plan.unrelated,
                 "uncommitted_only": plan.uncommitted_only,
+                "unmatched": unmatched,
             }))?
         );
         return Ok(());
@@ -708,7 +710,30 @@ fn nothing_to_check(plan: &Plan, json: bool) -> Result<()> {
         "{line} If your agents push to GitHub, run git fetch first. See it work: {} demo",
         run_as()
     );
+    if let Some(next) = check_unmatched(&plan.target, &unmatched) {
+        println!("{:<9}{next}", "next");
+    }
     Ok(())
+}
+
+/// The way on when the patterns matched nothing: the command that checks the
+/// local branches not merged into `target`. It names the target, so it checks
+/// against the same one from whichever branch is checked out.
+fn check_unmatched(target: &str, unmatched: &[String]) -> Option<String> {
+    let mut args = vec!["--into".to_string(), target.to_string()];
+    args.extend(unmatched.iter().cloned());
+    let command = rerun_command(&args)?;
+    let names: Vec<&str> = unmatched.iter().map(String::as_str).collect();
+    match names.as_slice() {
+        [] => None,
+        [one] => Some(format!(
+            "{one} is not merged into {target}: check it with {command}"
+        )),
+        _ => Some(format!(
+            "{} are not merged into {target}: check them together with {command}",
+            and_list(&names)
+        )),
+    }
 }
 
 /// "a", "a and b", "a, b and c".

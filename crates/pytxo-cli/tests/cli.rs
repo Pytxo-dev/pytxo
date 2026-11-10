@@ -69,7 +69,7 @@ fn stdout(out: &Output) -> String {
 
 #[test]
 fn no_agent_branches_is_one_line_and_exit_zero() {
-    let dir = repo(&["matt/readme"]);
+    let dir = repo(&[]);
     let out = pytxo(dir.path(), &[], None);
     assert_eq!(out.status.code(), Some(0));
     let text = stdout(&out);
@@ -147,6 +147,44 @@ fn no_agent_branches_is_one_line_and_exit_zero() {
         "{}",
         stdout(&out)
     );
+}
+
+/// Branches no pattern matches are not a dead end: the next line is the
+/// command that checks them, and it works as printed.
+#[test]
+fn no_agent_branches_names_the_unmerged_ones_and_the_command() {
+    let dir = repo(&["feature/tax", "fix/rounding"]);
+    let d = dir.path();
+    let out = pytxo(d, &[], None);
+    assert_eq!(out.status.code(), Some(0));
+    let text = stdout(&out);
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 2, "{text}");
+    assert!(lines[0].starts_with("No agent branches to check against main"));
+    assert_eq!(
+        lines[1],
+        "next     feature/tax and fix/rounding are not merged into main: check them together with pytxo --into main feature/tax fix/rounding"
+    );
+    // From another branch too, since the command names the target.
+    git(d, &["checkout", "-q", "-b", "scratch", "main"]);
+    let out = pytxo(d, &["--into", "main", "feature/tax", "fix/rounding"], None);
+    assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
+    assert!(stdout(&out).contains("feature/tax and fix/rounding merge cleanly onto main"));
+    git(d, &["checkout", "-q", "main"]);
+
+    // One branch, and how the launcher was started.
+    git(d, &["branch", "-q", "-D", "fix/rounding", "scratch"]);
+    let out = pytxo_env(d, &[], None, &[("PYTXO_RUN_AS", "npx pytxo")]);
+    assert!(
+        stdout(&out).ends_with(
+            "next     feature/tax is not merged into main: check it with npx pytxo --into main feature/tax\n"
+        ),
+        "{}",
+        stdout(&out)
+    );
+    let json: serde_json::Value =
+        serde_json::from_slice(&pytxo(d, &["--json"], None).stdout).unwrap();
+    assert_eq!(json["unmatched"], serde_json::json!(["feature/tax"]));
 }
 
 #[test]

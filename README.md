@@ -128,9 +128,10 @@ every branch checked out in a linked worktree, that have a commit in the last
 14 days, at most 10 at once, newest first. Branches already merged into the
 target, squash merges included, are skipped. Only committed work is checked: a
 worktree whose changes are all uncommitted gets a hint to commit them. If your
-agents push their branches to GitHub, run `git fetch` first. Name branches
-yourself (`npx pytxo feature/a feature/b`) or change the patterns for a
-repository:
+agents push their branches to GitHub, run `git fetch` first. When no branch
+matches, Pytxo names the local branches that are not merged yet and prints the
+command that checks them. Name branches yourself
+(`npx pytxo feature/a feature/b`) or change the patterns for a repository:
 
 ```bash
 git config pytxo.branches "bot/* ai/*"
