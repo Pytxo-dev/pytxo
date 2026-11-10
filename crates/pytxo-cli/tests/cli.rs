@@ -431,6 +431,8 @@ fn bare_pytxo_finds_the_agent_branches_and_prints_three_lines() {
         progress.contains("Checking claude/a and codex/b against main"),
         "{progress}"
     );
+    // Each test run is said as it runs, with how it ended.
+    assert!(progress.contains("\n  together... passed ("), "{progress}");
 
     // Labelled, as the land guides write them: both lines name the branches.
     let out = pytxo(
@@ -1269,6 +1271,12 @@ fn pytxo_1x_commands_say_this_build_leaves_them_out() {
     git(d, &["branch", "run", "claude/a"]);
     let out = pytxo(d, &["run", "-c", "git --version"], None);
     assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
+    // One branch has nothing to be together with: its run says where it ran.
+    let progress = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        progress.contains("\n  run on main... passed ("),
+        "{progress}"
+    );
 }
 
 #[test]
@@ -1320,6 +1328,28 @@ next     rebase codex/add-discount onto claude/rename-price and use unitPrice, t
     );
     assert!(
         err.contains("against main with npm test (from package.json)..."),
+        "{err}"
+    );
+    // The runs behind the verdict, in the order they ran.
+    let runs: Vec<&str> = err
+        .lines()
+        .filter_map(|l| l.strip_prefix("  ")?.split_once("... "))
+        .map(|(what, how)| {
+            assert!(
+                how.starts_with("passed (") || how.starts_with("failed ("),
+                "{err}"
+            );
+            what
+        })
+        .collect();
+    assert_eq!(
+        runs,
+        [
+            "together",
+            "claude/rename-price alone",
+            "codex/add-discount alone",
+            "together, again"
+        ],
         "{err}"
     );
     assert!(

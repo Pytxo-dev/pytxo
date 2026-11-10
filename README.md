@@ -170,8 +170,11 @@ Merge conflicts block too.
 `--apply` landed only some branches, `3` stale (the target moved), `1` error,
 `130` stopped by Ctrl+C.
 
-**Output.** `--verbose` adds what was found, every test run with its error
-lines, the receipt's path and a ref to the combined commit;
+**Output.** While the tests run, each run is named as it starts and how it
+ended (`together... failed (41.3s)`, then `claude/a alone... passed (38.9s)`),
+and in a terminal a long run gets a mark each minute. `--verbose` adds what was
+found, every test run with its error lines, the receipt's path and a ref to
+the combined commit;
 `pytxo receipts show <id>` prints the last 40 lines of each run and checks the
 digest. `--json` is for scripts and `--markdown` is the GitHub Action's comment.
 `--apply` lands only a tested result on the target branch: all of it when it is
