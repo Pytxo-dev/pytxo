@@ -9,7 +9,7 @@ to its agent. Your own tests decide; Pytxo calls no AI model. Free, open
 source, runs on your machine or in CI.
 
 ```bash
-npx pytxo demo      # a throwaway repo where two agent branches break each other
+npx pytxo demo      # a throwaway repo: four agent branches, two land, two get the reason
 cd your-repo
 git fetch           # get the branches your agents pushed
 npx pytxo           # checks your agent branches together

@@ -54,7 +54,8 @@ git config pytxo.branches \"...\" (or PYTXO_BRANCHES), the test command with git
 pytxo.check \"...\" (or PYTXO_CHECK), the target with git config pytxo.into <branch> (or PYTXO_INTO)."
     )]
     Check(check::CheckArgs),
-    /// See it work: a throwaway repo where two agent branches pass alone and fail together
+    /// See it work: a throwaway repo with four agent branches, where two land and the two that
+    /// break each other are left out with the reason
     Demo {
         /// Keep the demo repository and print where it is
         #[arg(long)]

@@ -25,7 +25,7 @@ repository's tests on its own and 2 conflict with branches that landed first.
 ## Try it
 
 ```bash
-npx pytxo demo      # a throwaway repo where two agent branches break each other
+npx pytxo demo      # a throwaway repo: four agent branches, two land, two get the reason
 cd your-repo
 git fetch           # get the branches your agents pushed
 npx pytxo           # checks your agent branches together
@@ -41,22 +41,50 @@ its throwaway worktree; a check that is killed outright leaves the worktree in
 
 ## The demo
 
-`npx pytxo demo` builds a small repository where one agent renamed a function
-and another added a new call to its old name. Each branch passes `npm test` on
-its own:
+`npx pytxo demo` builds a small repository with a pile of four agent branches
+and lands it with `--apply`. Each branch passes `npm test` on its own. One
+agent renamed a function and another added a new call to its old name, so
+those two break the tests together and stay out. The other two land:
 
 ```text
 $ npx pytxo demo
-Building a throwaway repo where two agents changed the same shop code...
+Building a throwaway repo where four agents each left a branch on a small shop...
   claude/rename-price  renames price() to unitPrice() in src/cart.js
   codex/add-discount   adds src/discount.js, which calls price()
-Checking claude/rename-price and codex/add-discount against main with npm test (from package.json)...
-BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
-why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
-next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
+  copilot/add-tax      adds src/tax.js and its test
+  cursor/add-guide     adds docs/guide.md
+Checking claude/rename-price, codex/add-discount, copilot/add-tax and cursor/add-guide against main with npm test (from package.json)...
+  together... failed (0.7s)
+  claude/rename-price alone... passed (0.7s)
+  codex/add-discount alone... passed (0.7s)
+  copilot/add-tax alone... passed (0.8s)
+  cursor/add-guide alone... passed (0.7s)
+  together, again... failed (0.9s)
+  claude/rename-price and codex/add-discount without the others... failed (1.0s)
+  copilot/add-tax and cursor/add-guide without the others... passed (0.8s)
+LANDED   2 of 4 branches are on main now.
+left out claude/rename-price  renamed price to unitPrice, which codex/add-discount still uses
+left out codex/add-discount   uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1)
+landed   copilot/add-tax
+landed   cursor/add-guide
+next     push main when you are ready. Give codex/add-discount's agent its fix prompt, then run npx pytxo again.
+
+Fix prompt for codex/add-discount:
+Pytxo tested copilot/add-tax and cursor/add-guide on main and landed them. Your branch codex/add-discount is left out: it uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1).
+Rebase it onto claude/rename-price, replace price with unitPrice, and run npm test until it passes.
+Failing output:
+> test
+> node run-tests.js
+ok   cart.test.js
+FAIL discount.test.js: price is not a function
+ok   tax.test.js
+
+That repo was temporary and is gone. Now run npx pytxo in a repo where agents work.
 ```
 
-The demo needs Node.js and takes under 30 seconds, the first download included.
+The demo needs Node.js and takes about 20 seconds once the binary is
+downloaded. `npx pytxo demo --keep` keeps the repository so you can look at
+what landed.
 
 ## In CI: one line
 

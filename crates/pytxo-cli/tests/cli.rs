@@ -1290,7 +1290,7 @@ fn usage_errors_exit_one_not_two() {
 }
 
 #[test]
-fn the_demo_catches_the_break() {
+fn the_demo_lands_two_of_four_and_names_the_break() {
     if Command::new("node").arg("--version").output().is_err() {
         eprintln!("skipped: the demo needs Node.js");
         return;
@@ -1319,12 +1319,38 @@ fn the_demo_catches_the_break() {
     let text = stdout(&out);
     let err = String::from_utf8_lossy(&out.stderr);
     assert_eq!(out.status.code(), Some(0), "{text}{err}");
+    // The verdict, a row for each branch, then the prompt for the one branch
+    // that has to change. Its failing output starts with npm's own lines,
+    // which differ by version.
+    let (verdict, prompt) = text
+        .split_once("\nFix prompt for codex/add-discount:\n")
+        .unwrap_or_else(|| panic!("no fix prompt in {text}"));
     assert_eq!(
-        text,
-        "BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
-why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
-next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run pytxo again.
+        verdict,
+        "LANDED   2 of 4 branches are on main now.
+left out claude/rename-price  renamed price to unitPrice, which codex/add-discount still uses
+left out codex/add-discount   uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1)
+landed   copilot/add-tax
+landed   cursor/add-guide
+next     push main when you are ready. Give codex/add-discount's agent its fix prompt, then run pytxo again.
 "
+    );
+    assert!(
+        prompt.starts_with(
+            "Pytxo tested copilot/add-tax and cursor/add-guide on main and landed them. Your branch codex/add-discount is left out: it uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1).
+Rebase it onto claude/rename-price, replace price with unitPrice, and run npm test until it passes.
+Failing output:
+"
+        ),
+        "{prompt}"
+    );
+    assert!(
+        prompt.ends_with("FAIL discount.test.js: price is not a function\nok   tax.test.js\n"),
+        "{prompt}"
+    );
+    assert!(
+        !text.contains("Fix prompt for claude/rename-price"),
+        "{text}"
     );
     assert!(
         err.contains("against main with npm test (from package.json)..."),
@@ -1348,7 +1374,11 @@ next     rebase codex/add-discount onto claude/rename-price and use unitPrice, t
             "together",
             "claude/rename-price alone",
             "codex/add-discount alone",
-            "together, again"
+            "copilot/add-tax alone",
+            "cursor/add-guide alone",
+            "together, again",
+            "claude/rename-price and codex/add-discount without the others",
+            "copilot/add-tax and cursor/add-guide without the others"
         ],
         "{err}"
     );
@@ -1356,8 +1386,10 @@ next     rebase codex/add-discount onto claude/rename-price and use unitPrice, t
         err.contains("That repo was temporary and is gone."),
         "{err}"
     );
-    // The demo's budget is 30 seconds, npx included.
-    assert!(took < std::time::Duration::from_secs(30), "{took:?}");
+    // Eight test runs: about 20 seconds alone on a Windows laptop, and 35
+    // with the rest of this suite running beside it. The budget is there to
+    // catch a demo that hangs or doubles, not to time it.
+    assert!(took < std::time::Duration::from_secs(90), "{took:?}");
     let left: Vec<String> = std::fs::read_dir(temp.path())
         .unwrap()
         .filter_map(|e| e.ok()?.file_name().into_string().ok())

@@ -7,7 +7,7 @@ worktree, runs your tests on the combined result, and lands what passes. What br
 open source, runs on your machine or in CI.
 
 ```bash
-npx pytxo demo      # watch it catch two branches that pass alone and fail together
+npx pytxo demo      # watch it land two of four agent branches and say why two stay out
 npx pytxo           # check the agent branches in your repository
 npx pytxo --apply   # and land them if they pass
 ```

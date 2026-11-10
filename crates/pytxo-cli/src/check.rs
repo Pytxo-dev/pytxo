@@ -155,14 +155,12 @@ pub fn run(args: CheckArgs) -> Result<i32> {
         ),
         plan => plan?,
     };
-    Ok(check(&plan, &args, true)?.0)
+    Ok(check(&plan, &args)?.0)
 }
 
 /// The check `plan` describes: its exit code and its verdict's kind, `None`
 /// when there was nothing to check.
-/// `hint`: say what `--apply` would land, which the demo, whose repository
-/// is gone after it, does not.
-fn check(plan: &Plan, args: &CheckArgs, hint: bool) -> Result<(i32, Option<&'static str>)> {
+fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
     if plan.branches.is_empty() {
         nothing_to_check(plan, args.json)?;
         return Ok((0, None));
@@ -192,7 +190,7 @@ fn check(plan: &Plan, args: &CheckArgs, hint: bool) -> Result<(i32, Option<&'sta
     }
     // The verdict's own note comes first: it qualifies the why line above it.
     let own = || verdict.note.iter().cloned();
-    let landable = || landable(plan, &outcome).filter(|_| hint);
+    let landable = || landable(plan, &outcome);
     if args.json {
         let notes: Vec<String> = own()
             .chain(landable())
@@ -627,10 +625,11 @@ impl Drop for HookLock {
     }
 }
 
-/// `pytxo demo`: the check on a throwaway repository where two agent
-/// branches pass their tests alone and fail together.
+/// `pytxo demo`: `--apply` on a throwaway repository with a pile of four
+/// agent branches. Two land; the two that pass their tests alone and fail
+/// together are left out, with the reason and a fix prompt.
 pub fn demo(keep: bool) -> Result<i32> {
-    eprintln!("Building a throwaway repo where two agents changed the same shop code...");
+    eprintln!("Building a throwaway repo where four agents each left a branch on a small shop...");
     let dir = pytxo_land::bench::demo_repo()?;
     for (name, change) in pytxo_land::bench::DEMO_BRANCHES {
         eprintln!("  {name:<20} {change}");
@@ -647,18 +646,18 @@ pub fn demo(keep: bool) -> Result<i32> {
         &plan,
         &CheckArgs {
             timeout: 120,
+            apply: true,
             ..CheckArgs::default()
         },
-        false,
     )?
     .1;
     if keep {
         eprintln!("\nThe demo repo is at {}", dir.keep().display());
     }
-    // The demo worked when it caught the break it was built for.
-    if kind != Some("together") {
+    // The demo worked when it landed part of the pile and left out the rest.
+    if kind != Some("partial") {
         anyhow::bail!(
-            "the demo should show two branches that pass alone and fail together, and it did not"
+            "the demo should land two branches and leave out the two that fail together, and it did not"
         );
     }
     if !keep {
