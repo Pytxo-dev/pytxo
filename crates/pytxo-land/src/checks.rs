@@ -3,9 +3,9 @@
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::fs::{File, OpenOptions};
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::Path;
-use std::process::Stdio;
+use std::process::{Child, Stdio};
 use std::time::{Duration, Instant};
 
 use pytxo_core::ReceiptCheck;
@@ -68,7 +68,55 @@ pub fn run_check(
     active.paths.push(log_path.clone());
     drop(active);
 
-    let (exit_code, timed_out) = loop {
+    let (exit_code, timed_out) = wait(&mut child, pid, started, timeout);
+    let read = read_tail(&log_path, cwd);
+    let _ = std::fs::remove_file(&log_path);
+    crate::active().paths.retain(|p| p != &log_path);
+    finish(exit_code, timed_out, read)
+}
+
+/// Runs an agent's `command` in `cwd` with `prompt` on its stdin and its
+/// output in `log`: its exit code, `None` when it was stopped, and whether
+/// `timeout` stopped it.
+pub fn run_agent(
+    command: &str,
+    cwd: &Path,
+    prompt: &str,
+    log: &Path,
+    timeout: Duration,
+) -> std::io::Result<(Option<i32>, bool)> {
+    let started = Instant::now();
+    let _ = std::fs::remove_file(log);
+    // Started and recorded under one lock, so an interrupt stops it too.
+    let mut active = crate::active();
+    let out = new_log(log)?;
+    let err = out.try_clone()?;
+    let mut child = shell(command)
+        .current_dir(cwd)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::from(out))
+        .stderr(Stdio::from(err))
+        .spawn()?;
+    let pid = child.id();
+    active.checks.push(pid);
+    drop(active);
+    // From a thread of its own: an agent that never reads its input must not
+    // hold this one up once the prompt fills the pipe.
+    if let Some(mut input) = child.stdin.take() {
+        let prompt = prompt.to_string();
+        std::thread::spawn(move || {
+            let _ = input.write_all(prompt.as_bytes());
+        });
+    }
+    Ok(wait(&mut child, pid, started, timeout))
+}
+
+/// Waits for `child`, the process `pid`, and stops it and everything it
+/// started once `timeout` after `started` passes: its exit code, and whether
+/// it timed out.
+fn wait(child: &mut Child, pid: u32, started: Instant, timeout: Duration) -> (Option<i32>, bool) {
+    loop {
         // Reaped and forgotten under the lock: an interrupt never signals a
         // pid the system may have given another process since.
         let mut active = crate::active();
@@ -85,15 +133,11 @@ pub fn run_check(
         };
         if let Some(done) = done {
             active.checks.retain(|&p| p != pid);
-            break done;
+            return done;
         }
         drop(active);
         std::thread::sleep(Duration::from_millis(40));
-    };
-    let read = read_tail(&log_path, cwd);
-    let _ = std::fs::remove_file(&log_path);
-    crate::active().paths.retain(|p| p != &log_path);
-    finish(exit_code, timed_out, read)
+    }
 }
 
 /// The raw output, credentials and all: on Unix only its owner reads it.

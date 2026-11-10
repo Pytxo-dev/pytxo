@@ -6,7 +6,7 @@ tags: [reference, cli]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-11-08
+updated: 2026-11-10
 related: [[pytxo-toml]], [[repository-layout]], [[mission-loop]], [[first-mission]]
 ---
 
@@ -29,6 +29,8 @@ Target: with no branches named, the default branch (`origin/HEAD`, else `main`, 
 | `pytxo.into` | `PYTXO_INTO` | the target above |
 
 `--days <N>` beats `pytxo.days` and `PYTXO_DAYS` for one run, and `--days 0` looks at branches of any age. The verdict says how many branches it left out for age; merged ones are not counted.
+
+`--apply --fix` sends each branch the landing left out with a fix prompt to its agent: `claude -p --permission-mode acceptEdits` for `claude/*`, `codex exec --sandbox workspace-write -` for `codex/*`, else the command in `git config pytxo.agent.<prefix>` or `pytxo.agent`, which reads the prompt on stdin. The agent works in a throwaway worktree of the branch with the target merged in; Pytxo commits what it changed to the branch (in the worktree that has it checked out, with `reset --keep`) and checks again, for up to 2 rounds (`--fix=<N>`), stopping when a round changes nothing. Only local branches are sent. Agent output goes to `.git/pytxo/fix`.
 
 ## Hypervisor Shell (frozen, `full` builds)
 

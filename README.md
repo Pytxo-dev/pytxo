@@ -25,11 +25,12 @@ repository's tests on its own and 2 conflict with branches that landed first.
 ## Try it
 
 ```bash
-npx pytxo demo      # a throwaway repo where two agent branches break each other
+npx pytxo demo           # a throwaway repo where two agent branches break each other
 cd your-repo
-git fetch           # get the branches your agents pushed
-npx pytxo           # checks your agent branches together
-npx pytxo --apply   # lands the ones that pass
+git fetch                # get the branches your agents pushed
+npx pytxo                # checks your agent branches together
+npx pytxo --apply        # lands the ones that pass
+npx pytxo --apply --fix  # and sends the rest back to their agents
 ```
 
 No flags, no config, no account. Pytxo finds the agent branches, finds your
@@ -179,11 +180,24 @@ as that exact set, leaving the others out, each with why. With no test command,
 or only a package.json lint or build script, it exits `1` and changes nothing.
 Every check records a receipt in `.git/pytxo/receipts` (`pytxo receipts`).
 
+**Send the rest back.** Pytxo writes no code: with `--apply --fix` your agents
+do, and your tests still decide what lands. Each branch the landing leaves out
+with a fix prompt goes to the agent that wrote it, in a throwaway worktree of
+the branch with the target already merged in. Pytxo commits what the agent
+changes to the branch, where it is checked out its files move with it, and the
+check runs again, for up to two rounds (`--fix=3` for three). `claude/*` goes to
+`claude -p --permission-mode acceptEdits`, `codex/*` to
+`codex exec --sandbox workspace-write -`, and any branch to the command in
+`git config pytxo.agent.<prefix>` (or `pytxo.agent` for all), which reads the
+prompt on stdin. A round that changes nothing ends it, and the fix prompts of the
+branches still left out follow the verdict. Each agent's output is in
+`.git/pytxo/fix`; its time and tokens are yours.
+
 **Limits.** It catches what your tests catch: a break your tests don't cover
-can still land. Conflicts are blocked, not resolved. Pybench (`pytxo bench`)
+can still land. Conflicts are blocked, not resolved, unless `--fix` hands them to an agent. Pybench (`pytxo bench`)
 shows the mechanism on synthetic repositories, not how often it happens in
 real projects. Receipts use the in-toto statement format but are not signed.
-Pytxo sends nothing anywhere.
+Pytxo sends nothing anywhere; the agents `--fix` starts talk to their own services.
 
 **Install it.** `npx pytxo` downloads the native binary for your platform on
 first run and checks it against the release's SHA-256 list. To keep it on your
