@@ -489,17 +489,24 @@ fn the_note_and_apply_name_the_branches_that_pass_together() {
     assert_eq!(seen.status.code(), Some(2), "{text}");
     assert!(
         text.contains(
-            "claude/a, cursor/c and devin/d pass the tests together: run this again with --apply to land them and leave out codex/b."
+            "3 of 4 branches pass the tests together: run this again with --apply to land them and leave out the rest."
         ),
+        "{text}"
+    );
+    assert!(text.contains("\ncan land claude/a\n"), "{text}");
+    assert!(
+        text.contains("\nleft out codex/b   fails your check"),
         "{text}"
     );
     let out = pytxo(d, &["--apply", "--check", fails_b], None);
     let text = String::from_utf8_lossy(&out.stdout);
     assert_eq!(out.status.code(), Some(2), "{text}");
     assert!(
-        text.contains(
-            "3 of 4 branches are on main now: claude/a, cursor/c and devin/d; codex/b is left out."
-        ),
+        text.contains("3 of 4 branches are on main now.\nlanded   claude/a\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("\nleft out codex/b   fails your check"),
         "{text}"
     );
     assert!(d.join("f0.txt").exists() && !d.join("f1.txt").exists());

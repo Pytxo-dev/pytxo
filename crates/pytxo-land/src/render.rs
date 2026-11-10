@@ -332,7 +332,7 @@ fn left_out(outcome: &LandOutcome) -> Vec<LeftOut> {
             let fix_prompt = todo.map(|(todo, tail)| {
                 let mut s = format!(
                     "Pytxo tested {} on {target} and landed {}. Your branch {branch} is left out: it {why}.\n{todo}",
-                    every(&landed),
+                    and_list(&landed),
                     if landed.len() == 1 { "it" } else { "them" }
                 );
                 if !tail.is_empty() {
@@ -682,6 +682,10 @@ pub struct Verdict {
     /// For "partial": the branches left out, each with why and its fix prompt.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub left_out: Vec<LeftOut>,
+    /// For a person, when only some of three or more branches land or can:
+    /// one row each, in merge order, as (label, branch, why it is left out).
+    #[serde(skip)]
+    pub rows: Vec<(&'static str, String, String)>,
 }
 
 /// A cause as `--json` gives it: the branches by name.
@@ -790,7 +794,24 @@ fn prompt(
 impl std::fmt::Display for Verdict {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{:<9}{}", self.label, self.what)?;
-        writeln!(f, "{:<9}{}", "why", self.why)?;
+        // A landing of only some branches says which in its rows, not a why line.
+        if self.rows.is_empty() || self.kind != "partial" {
+            writeln!(f, "{:<9}{}", "why", self.why)?;
+        }
+        let width = self
+            .rows
+            .iter()
+            .map(|r| r.1.chars().count())
+            .max()
+            .unwrap_or(0)
+            .min(40);
+        for (label, branch, why) in &self.rows {
+            if why.is_empty() {
+                writeln!(f, "{label:<9}{branch}")?;
+            } else {
+                writeln!(f, "{label:<9}{branch:<width$}  {why}")?;
+            }
+        }
         writeln!(f, "{:<9}{}", "next", self.next)
     }
 }
@@ -838,7 +859,58 @@ fn every(names: &[String]) -> String {
 /// The decision in plain words. `again` finishes "fix it, then ...", for
 /// example "run npx pytxo again" or "push again".
 pub fn verdict(outcome: &LandOutcome, again: &str) -> Verdict {
-    verdict_for(outcome, again, false, Reader::Anyone)
+    let v = verdict_for(outcome, again, false, Reader::Anyone);
+    // A pair that fails together has its own why, naming both of them.
+    let rows = if v.kind == "together" {
+        Vec::new()
+    } else {
+        rows(outcome)
+    };
+    Verdict { rows, ..v }
+}
+
+/// Three or more branches: which of them land is said one row each.
+fn one_row_each(p: &ReceiptPredicate) -> bool {
+    p.inputs.len() >= 3
+}
+
+/// The rows of a verdict where only some branches land or can, in merge
+/// order. A long check command reads as "your check": the progress line
+/// already showed it.
+fn rows(outcome: &LandOutcome) -> Vec<(&'static str, String, String)> {
+    let p = &outcome.receipt.predicate;
+    let Some(part) = outcome
+        .partial
+        .as_ref()
+        .filter(|_| one_row_each(p) && outcome.refused.is_none())
+    else {
+        return Vec::new();
+    };
+    let landed = if p.decision == "landed" {
+        "landed"
+    } else {
+        "can land"
+    };
+    let long: Vec<&str> = p
+        .checks
+        .iter()
+        .map(|c| c.command.as_str())
+        .filter(|c| c.chars().count() > 32)
+        .collect();
+    (0..p.inputs.len())
+        .filter_map(|k| {
+            let branch =
+                plain_name(&p.inputs[k].reference, p.inputs[k].agent.as_deref()).to_string();
+            if part.landed.contains(&k) {
+                return Some((landed, branch, String::new()));
+            }
+            let (_, why) = part.left_out.iter().find(|(n, _)| *n == k)?;
+            let why = long
+                .iter()
+                .fold(why.clone(), |w, c| w.replace(c, "your check"));
+            Some(("left out", branch, why))
+        })
+        .collect()
 }
 
 /// The longest run of `c` in `text`.
@@ -892,6 +964,7 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
         fix_prompt: None,
         note: None,
         left_out: Vec::new(),
+        rows: Vec::new(),
     };
     let first_line = |c: &ReceiptCheck| {
         let line = why_lines(&output(c)).into_iter().next()?;
@@ -956,6 +1029,9 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                 [one] => format!(
                     "push {target} when you are ready. Give {one}'s agent its fix prompt, then {again}."
                 ),
+                _ if one_row_each(p) => format!(
+                    "push {target} when you are ready. Hand each fix prompt below to its branch's agent, then {again}."
+                ),
                 _ => format!(
                     "push {target} when you are ready. Give the agents of {} their fix prompts, then {again}.",
                     every(&prompted)
@@ -966,15 +1042,24 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                 ..v(
                     "partial",
                     "LANDED",
-                    format!(
-                        "{} of {} branches {} on {target} now: {}; {} {} left out.",
-                        landed.len(),
-                        landed.len() + left.len(),
-                        are(&landed),
-                        every(&landed),
-                        every(&left),
-                        are(&left)
-                    ),
+                    if one_row_each(p) {
+                        format!(
+                            "{} of {} branches {} on {target} now.",
+                            landed.len(),
+                            landed.len() + left.len(),
+                            are(&landed)
+                        )
+                    } else {
+                        format!(
+                            "{} of {} branches {} on {target} now: {}; {} {} left out.",
+                            landed.len(),
+                            landed.len() + left.len(),
+                            are(&landed),
+                            every(&landed),
+                            every(&left),
+                            are(&left)
+                        )
+                    },
                     why.join("; ") + ".",
                     next,
                 )
