@@ -192,7 +192,9 @@ cause. With three or more branches it then tests that pair without the others
 and, if they fail, the others without the pair: at most two more runs, so the
 verdict can clear the others. If the combined run times out, that is the
 answer: the branches do not run alone after it, and it does not run again.
-Merge conflicts block too.
+Merge conflicts block too. The verdict names every branch that conflicts and
+what it conflicts with, and when none of the branches merges the tests do not
+run, because they would test the target alone.
 
 **Exit codes.** `0` ready or landed (or nothing to check), `2` blocked or
 `--apply` landed only some branches, `3` stale (the target moved), `1` error,

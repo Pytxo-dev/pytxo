@@ -2602,6 +2602,71 @@ fn a_conflict_with_the_target_names_the_target() {
     }
 }
 
+/// Every branch that conflicts is named in one verdict, each with what it
+/// conflicts with. When none of them merges, the combination is the target
+/// itself, so no check runs.
+#[test]
+fn every_conflicting_branch_is_named_in_one_verdict() {
+    let again = "run npx pytxo again";
+    let dir = repo();
+    let d = dir.path();
+    branch(d, "main", "agent/a", &[("README.md", "# shop A\n")]);
+    branch(d, "main", "agent/b", &[("README.md", "# shop B\n")]);
+    branch(d, "main", "agent/c", &[("NOTES.md", "c\n")]);
+    branch(d, "main", "agent/d", &[("NOTES.md", "d\n")]);
+    write(d, &[("README.md", "# shop main\n")]);
+    git(d, &["commit", "-q", "-am", "main moves on"]);
+    let run = |inputs: &[&str]| {
+        let mut o = opts(d, inputs);
+        o.checks = vec!["exit 1".into()];
+        land(&o).unwrap()
+    };
+
+    let out = run(&["agent/a", "agent/b"]);
+    assert!(out.receipt.predicate.checks.is_empty());
+    let v = verdict(&out, again);
+    assert_eq!(
+        (v.kind, v.what.as_str()),
+        ("conflict", "agent/a and agent/b conflict with main.")
+    );
+    assert_eq!(
+        v.why,
+        "git cannot merge them: README.md changed on both sides."
+    );
+    assert_eq!(
+        v.next,
+        "rebase each onto main (or ask its agent to), then run npx pytxo again."
+    );
+    assert!(render_markdown(&out)
+        .starts_with("### ⛔ BLOCKED: `agent/a` and `agent/b` conflict with `main`\n"));
+
+    // A branch that merges is still tested, without the ones that conflict.
+    let mut o = opts(d, &["agent/a", "agent/c", "agent/d"]);
+    o.checks = vec!["echo ok".into()];
+    let out = land(&o).unwrap();
+    let scopes: Vec<&str> = out
+        .receipt
+        .predicate
+        .checks
+        .iter()
+        .map(|c| c.scope.as_str())
+        .collect();
+    assert_eq!(scopes, ["combined"]);
+    let v = verdict(&out, again);
+    assert_eq!(
+        v.what,
+        "agent/a conflicts with main; agent/d conflicts with agent/c."
+    );
+    assert_eq!(
+        v.why,
+        "git cannot merge them: README.md and NOTES.md changed on both sides."
+    );
+    assert_eq!(
+        v.next,
+        "rebase each onto what it conflicts with (or ask its agent to), then run npx pytxo again."
+    );
+}
+
 /// A run on the target that times out says nothing about the target: the
 /// check is not blamed on it.
 #[test]

@@ -34,6 +34,8 @@ With no agent branch to check, the message names the local branches that are ope
 
 While the tests run, each run is named on stderr as it starts and how it ended (`together... failed (41.3s)`), and in a terminal a long run gets a mark each minute. `--json` prints none of it.
 
+A verdict about merge conflicts names every branch that conflicts, grouped by what each conflicts with. When none of the branches merges, the combination is the target itself and no test runs.
+
 `pytxo demo` builds a throwaway repository with four agent branches and runs `--apply` there: two land, and the two that break each other stay out with the cause and a fix prompt. `--keep` keeps the repository.
 
 ## Hypervisor Shell (frozen, `full` builds)

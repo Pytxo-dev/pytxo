@@ -790,7 +790,11 @@ pub fn land_watched(opts: &LandOptions, watch: &dyn Fn(Run)) -> Result<LandOutco
                 .collect(),
         });
     }
-    let combined_tree = if opts.checks.is_empty() {
+    // When every input conflicted, the combination is the target itself: its
+    // checks would say nothing about the inputs, so none run.
+    let untouched = combined == base && receipt_inputs.iter().any(|i| i.status == "conflict");
+    let combined_checks: &[String] = if untouched { &[] } else { &opts.checks };
+    let combined_tree = if combined_checks.is_empty() {
         None
     } else {
         Some(OwnedWorktree::add(&repo, &run_dir.0, &combined, &tag)?)
@@ -802,7 +806,7 @@ pub fn land_watched(opts: &LandOptions, watch: &dyn Fn(Run)) -> Result<LandOutco
     // A run that times out is the answer: nothing runs after it, since each
     // further run could take the whole timeout to say the same.
     let mut first_runs: Vec<ReceiptCheck> = Vec::new();
-    for command in &opts.checks {
+    for command in combined_checks {
         let Some(check) = run_check("combined", command, &dir) else {
             break;
         };

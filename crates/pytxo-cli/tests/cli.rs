@@ -384,6 +384,36 @@ fn bare_pytxo_exits_two_when_blocked_and_three_when_stale() {
     );
 }
 
+/// A pile where every branch conflicts with main: one verdict names them
+/// all, and the tests do not run on main alone.
+#[test]
+fn a_pile_that_all_conflicts_names_every_branch_and_runs_no_tests() {
+    let dir = repo(&[]);
+    let d = dir.path();
+    for (name, readme) in [
+        ("claude/a", "# shop A\n"),
+        ("codex/b", "# shop B\n"),
+        ("copilot/c", "# shop C\n"),
+    ] {
+        commit_branch(d, name, &[("README.md", readme)]);
+    }
+    std::fs::write(d.join("README.md"), "# shop main\n").unwrap();
+    git(d, &["commit", "-q", "-am", "main moves on"]);
+    let out = pytxo(d, &["-c", "exit 1"], None);
+    let text = stdout(&out);
+    assert_eq!(out.status.code(), Some(2), "{text}");
+    assert_eq!(
+        text,
+        "BLOCKED  claude/a, codex/b and copilot/c conflict with main.
+why      git cannot merge them: README.md changed on both sides.
+next     rebase each onto main (or ask its agent to), then run pytxo -c \"exit 1\" again.
+"
+    );
+    // No run is named, because none started.
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(!err.contains("... "), "{err}");
+}
+
 #[test]
 fn strict_blocks_two_branches_that_change_one_function() {
     let dir = repo(&[]);
