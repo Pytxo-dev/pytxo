@@ -1,6 +1,6 @@
 {
   "name": "pytxo",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "When Claude stops, merges the agent branches and worktrees in a throwaway worktree, runs your tests on the combined result, and tells you if they break together.",
   "author": { "name": "Pytxo", "url": "https://pytxo.com" },
   "homepage": "https://pytxo.com",

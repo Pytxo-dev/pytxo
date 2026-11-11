@@ -1,6 +1,6 @@
 {
   "name": "pytxo",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Clear your agent PR pile in one command. Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway worktree, runs your tests on the combined result, and lands the ones that pass.",
   "license": "MIT",
   "repository": {

@@ -24,12 +24,12 @@ whole repository. Inside Claude Code, `/plugin marketplace add Pytxo-dev/pytxo`
 and then `/plugin install pytxo@pytxo` work too, without that limit.
 
 The plugin is a `Stop` hook and the `/pytxo:land` skill, both of which run
-`npx -y pytxo@2.0.1`, so Node.js must be on your PATH.
+`npx -y pytxo@2.0.2`, so Node.js must be on your PATH.
 
 ## `/pytxo:land`
 
 Type `/pytxo:land` to land the agents' work on your default branch, or on the
-branch you name with `--into` or `git config pytxo.into`. Claude runs `npx -y pytxo@2.0.1 land --apply`, which merges the agent
+branch you name with `--into` or `git config pytxo.into`. Claude runs `npx -y pytxo@2.0.2 land --apply`, which merges the agent
 branches in a throwaway worktree and runs your tests on the combined result:
 
 - When they pass together, the target moves to that tested merge.

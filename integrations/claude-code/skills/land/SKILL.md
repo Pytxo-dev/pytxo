@@ -2,7 +2,7 @@
 name: land
 description: Land the agent branches that pass together; leave out the one that breaks, with its fix prompt
 argument-hint: "[branches...] [--into <branch>] [--check \"<command>\"]"
-allowed-tools: Bash(npx -y pytxo@2.0.1 land:*)
+allowed-tools: Bash(npx -y pytxo@2.0.2 land:*)
 disable-model-invocation: true
 ---
 
@@ -11,7 +11,7 @@ Land the coding agents' work in this repository with Pytxo.
 1. In the repository, run:
 
    ```bash
-   npx -y pytxo@2.0.1 land --apply $ARGUMENTS
+   npx -y pytxo@2.0.2 land --apply $ARGUMENTS
    ```
 
    With no arguments it finds the agent branches (`claude/*`, `codex/*`,
