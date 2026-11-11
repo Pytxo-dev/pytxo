@@ -213,6 +213,16 @@ as that exact set, leaving the others out, each with why. With no test command,
 or only a package.json lint or build script, it exits `1` and changes nothing.
 Every check records a receipt in `.git/pytxo/receipts` (`pytxo receipts`).
 
+**Protected branches.** `--apply` changes your local target branch and leaves
+the push to you. If the target takes changes through pull requests only, land
+onto a branch of its own and open one pull request for it:
+
+```bash
+git branch landed main
+npx pytxo --apply --into landed
+git push -u origin landed
+```
+
 **Limits.** It catches what your tests catch: a break your tests don't cover
 can still land. Conflicts are blocked, not resolved. Pybench (`pytxo bench`)
 shows the mechanism on synthetic repositories, not how often it happens in
