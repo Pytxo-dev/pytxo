@@ -500,6 +500,25 @@ fn clean_up_and_exit() {
 }
 
 pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
+    land_watched(opts, &|_| {})
+}
+
+/// One run of a check command, as it starts and as it ends.
+#[derive(Clone, Copy, Debug)]
+pub enum Run<'a> {
+    /// `scope` is `combined`, `input:<reference>`, `target`, or `pair:1,2` or
+    /// `rest:0,3` with the inputs' positions.
+    Started { scope: &'a str, command: &'a str },
+    Ended {
+        passed: bool,
+        timed_out: bool,
+        duration_ms: u64,
+    },
+}
+
+/// [`land`], telling `watch` about each run of a check command, so a caller
+/// can say what is running while a long test suite runs.
+pub fn land_watched(opts: &LandOptions, watch: &dyn Fn(Run)) -> Result<LandOutcome> {
     let started = Instant::now();
     if opts.inputs.is_empty() {
         bail!("name at least one branch or commit to land");
@@ -694,7 +713,13 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
             .deadline
             .map(|d| d.saturating_duration_since(Instant::now()));
         let timeout = left.map_or(opts.check_timeout, |l| l.min(opts.check_timeout));
+        watch(Run::Started { scope, command });
         let check = checks::run_check(scope, command, dir, &run_dir.0, timeout);
+        watch(Run::Ended {
+            passed: check.passed,
+            timed_out: check.timed_out,
+            duration_ms: check.duration_ms,
+        });
         if check.timed_out && timeout < opts.check_timeout {
             out_of_time.set(true);
         }
@@ -765,7 +790,11 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
                 .collect(),
         });
     }
-    let combined_tree = if opts.checks.is_empty() {
+    // When every input conflicted, the combination is the target itself: its
+    // checks would say nothing about the inputs, so none run.
+    let untouched = combined == base && receipt_inputs.iter().any(|i| i.status == "conflict");
+    let combined_checks: &[String] = if untouched { &[] } else { &opts.checks };
+    let combined_tree = if combined_checks.is_empty() {
         None
     } else {
         Some(OwnedWorktree::add(&repo, &run_dir.0, &combined, &tag)?)
@@ -777,7 +806,7 @@ pub fn land(opts: &LandOptions) -> Result<LandOutcome> {
     // A run that times out is the answer: nothing runs after it, since each
     // further run could take the whole timeout to say the same.
     let mut first_runs: Vec<ReceiptCheck> = Vec::new();
-    for command in &opts.checks {
+    for command in combined_checks {
         let Some(check) = run_check("combined", command, &dir) else {
             break;
         };

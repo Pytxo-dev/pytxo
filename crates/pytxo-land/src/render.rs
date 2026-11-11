@@ -1101,7 +1101,11 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                     next,
                 );
             }
-            if let Some(c) = p.inputs.iter().find(|i| i.status == "conflict") {
+            // Every branch that conflicts is named, so one run says all there
+            // is to rebase. Grouped by what each conflicts with, in merge order.
+            let mut conflicts: Vec<(String, Vec<String>)> = Vec::new();
+            let mut conflict_files: Vec<&String> = Vec::new();
+            for c in p.inputs.iter().filter(|i| i.status == "conflict") {
                 let before: Vec<&pytxo_core::ReceiptInput> = p
                     .inputs
                     .iter()
@@ -1124,7 +1128,18 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                 } else {
                     and_list(&touched)
                 };
-                let files = match c.conflict_files.as_slice() {
+                match conflicts.iter_mut().find(|(with, _)| *with == others) {
+                    Some((_, names)) => names.push(branch(c)),
+                    None => conflicts.push((others, vec![branch(c)])),
+                }
+                for f in &c.conflict_files {
+                    if !conflict_files.contains(&f) {
+                        conflict_files.push(f);
+                    }
+                }
+            }
+            if !conflicts.is_empty() {
+                let files = match conflict_files.as_slice() {
                     [] => "the same lines".to_string(),
                     [a] => shown(a),
                     [a, b] => format!("{} and {}", shown(a), shown(b)),
@@ -1132,13 +1147,26 @@ fn verdict_for(outcome: &LandOutcome, again: &str, pr: bool, reader: Reader) -> 
                         format!("{}, {} and {} more", shown(a), shown(b), rest.len())
                     }
                 };
-                let name = branch(c);
+                let what: Vec<String> = conflicts
+                    .iter()
+                    .map(|(with, names)| {
+                        let verb = if names.len() == 1 { "conflicts" } else { "conflict" };
+                        format!("{} {verb} with {with}", and_list(names))
+                    })
+                    .collect();
+                let next = match conflicts.as_slice() {
+                    [(with, names)] => match names.as_slice() {
+                        [name] => format!("rebase {name} onto {with}"),
+                        _ => format!("rebase each onto {with}"),
+                    },
+                    _ => "rebase each onto what it conflicts with".to_string(),
+                };
                 return v(
                     "conflict",
                     "BLOCKED",
-                    format!("{name} conflicts with {others}."),
+                    what.join("; ") + ".",
                     format!("git cannot merge them: {files} changed on both sides."),
-                    format!("rebase {name} onto {others} (or ask its agent to), then {again}."),
+                    format!("{next} (or ask its agent to), then {again}."),
                 );
             }
             if let Some(c) = failed_combined {

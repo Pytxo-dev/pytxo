@@ -2,17 +2,19 @@
 //! check the branches together, print the verdict. Also `pytxo demo`,
 //! `pytxo hook` and `pytxo receipts`.
 
+use std::cell::RefCell;
 use std::fs::OpenOptions;
-use std::io::{ErrorKind, Read, Write};
+use std::io::{ErrorKind, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use clap::Args;
 use pytxo_land::detect::{self, Plan};
 use pytxo_land::{
-    fix_prompt, land, render_markdown_with, render_text, verdict, LandOptions, LandOutcome,
-    PerInput, Reader,
+    fix_prompt, land, land_watched, render_markdown_with, render_text, verdict, LandOptions,
+    LandOutcome, PerInput, Reader, Run,
 };
 use serde_json::json;
 
@@ -153,14 +155,12 @@ pub fn run(args: CheckArgs) -> Result<i32> {
         ),
         plan => plan?,
     };
-    Ok(check(&plan, &args, true)?.0)
+    Ok(check(&plan, &args)?.0)
 }
 
 /// The check `plan` describes: its exit code and its verdict's kind, `None`
 /// when there was nothing to check.
-/// `hint`: say what `--apply` would land, which the demo, whose repository
-/// is gone after it, does not.
-fn check(plan: &Plan, args: &CheckArgs, hint: bool) -> Result<(i32, Option<&'static str>)> {
+fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
     if plan.branches.is_empty() {
         nothing_to_check(plan, args.json)?;
         return Ok((0, None));
@@ -177,10 +177,12 @@ fn check(plan: &Plan, args: &CheckArgs, hint: bool) -> Result<(i32, Option<&'sta
             "--apply lands only a tested result, and package.json has no test script: its {script} script is not a test suite. Add a test script, or name a test command with --check \"<command>\""
         );
     }
-    if !args.json {
+    let outcome = if args.json {
+        land(&options(plan, args))?
+    } else {
         eprintln!("{}", progress(plan));
-    }
-    let outcome = land(&options(plan, args))?;
+        land_watched(&options(plan, args), &watch(plan))?
+    };
     let mut verdict = verdict(&outcome, &again());
     // --apply won't land on a script that is not a test suite: nothing "can land".
     if instead_of_tests_script(plan).is_some() {
@@ -188,7 +190,7 @@ fn check(plan: &Plan, args: &CheckArgs, hint: bool) -> Result<(i32, Option<&'sta
     }
     // The verdict's own note comes first: it qualifies the why line above it.
     let own = || verdict.note.iter().cloned();
-    let landable = || landable(plan, &outcome).filter(|_| hint);
+    let landable = || landable(plan, &outcome);
     if args.json {
         let notes: Vec<String> = own()
             .chain(landable())
@@ -623,10 +625,11 @@ impl Drop for HookLock {
     }
 }
 
-/// `pytxo demo`: the check on a throwaway repository where two agent
-/// branches pass their tests alone and fail together.
+/// `pytxo demo`: `--apply` on a throwaway repository with a pile of four
+/// agent branches. Two land; the two that pass their tests alone and fail
+/// together are left out, with the reason and a fix prompt.
 pub fn demo(keep: bool) -> Result<i32> {
-    eprintln!("Building a throwaway repo where two agents changed the same shop code...");
+    eprintln!("Building a throwaway repo where four agents each left a branch on a small shop...");
     let dir = pytxo_land::bench::demo_repo()?;
     for (name, change) in pytxo_land::bench::DEMO_BRANCHES {
         eprintln!("  {name:<20} {change}");
@@ -643,18 +646,18 @@ pub fn demo(keep: bool) -> Result<i32> {
         &plan,
         &CheckArgs {
             timeout: 120,
+            apply: true,
             ..CheckArgs::default()
         },
-        false,
     )?
     .1;
     if keep {
         eprintln!("\nThe demo repo is at {}", dir.keep().display());
     }
-    // The demo worked when it caught the break it was built for.
-    if kind != Some("together") {
+    // The demo worked when it landed part of the pile and left out the rest.
+    if kind != Some("partial") {
         anyhow::bail!(
-            "the demo should show two branches that pass alone and fail together, and it did not"
+            "the demo should land two branches and leave out the two that fail together, and it did not"
         );
     }
     if !keep {
@@ -667,6 +670,7 @@ pub fn demo(keep: bool) -> Result<i32> {
 }
 
 fn nothing_to_check(plan: &Plan, json: bool) -> Result<()> {
+    let unmatched = detect::unmatched(plan);
     if json {
         println!(
             "{}",
@@ -679,6 +683,7 @@ fn nothing_to_check(plan: &Plan, json: bool) -> Result<()> {
                 "old": plan.old,
                 "unrelated": plan.unrelated,
                 "uncommitted_only": plan.uncommitted_only,
+                "unmatched": unmatched,
             }))?
         );
         return Ok(());
@@ -708,7 +713,30 @@ fn nothing_to_check(plan: &Plan, json: bool) -> Result<()> {
         "{line} If your agents push to GitHub, run git fetch first. See it work: {} demo",
         run_as()
     );
+    if let Some(next) = check_unmatched(&plan.target, &unmatched) {
+        println!("{:<9}{next}", "next");
+    }
     Ok(())
+}
+
+/// The way on when the patterns matched nothing: the command that checks the
+/// local branches not merged into `target`. It names the target, so it checks
+/// against the same one from whichever branch is checked out.
+fn check_unmatched(target: &str, unmatched: &[String]) -> Option<String> {
+    let mut args = vec!["--into".to_string(), target.to_string()];
+    args.extend(unmatched.iter().cloned());
+    let command = rerun_command(&args)?;
+    let names: Vec<&str> = unmatched.iter().map(String::as_str).collect();
+    match names.as_slice() {
+        [] => None,
+        [one] => Some(format!(
+            "{one} is not merged into {target}: check it with {command}"
+        )),
+        _ => Some(format!(
+            "{} are not merged into {target}: check them together with {command}",
+            and_list(&names)
+        )),
+    }
 }
 
 /// "a", "a and b", "a, b and c".
@@ -840,6 +868,100 @@ fn progress(plan: &Plan) -> String {
         line.push_str(&format!("\n  {note}"));
     }
     line
+}
+
+/// When the run in progress started, and the minutes of it marked so far.
+static RUNNING: Mutex<Option<(Instant, u64)>> = Mutex::new(None);
+
+/// Says each test run on stderr as it starts and how it ended, and in a
+/// terminal marks each minute of a run, so that a long test suite is not
+/// silence: `  together... 1m 2m failed (2m 14s)`.
+fn watch(plan: &Plan) -> impl Fn(Run) + '_ {
+    if std::io::stderr().is_terminal() {
+        std::thread::spawn(|| loop {
+            std::thread::sleep(Duration::from_secs(1));
+            let mut running = RUNNING.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Some((started, marked)) = running.as_mut() {
+                let minutes = started.elapsed().as_secs() / 60;
+                if minutes > *marked {
+                    *marked = minutes;
+                    eprint!("{minutes}m ");
+                }
+            }
+        });
+    }
+    let seen = RefCell::new(Vec::new());
+    move |run| {
+        // Held while printing, so no minute mark lands after a run's result.
+        let mut running = RUNNING.lock().unwrap_or_else(PoisonError::into_inner);
+        match run {
+            Run::Started { scope, command } => {
+                let mut what = run_name(plan, scope);
+                if plan.checks.len() > 1 {
+                    what.push_str(&format!(", {command}"));
+                }
+                let run = (scope.to_string(), command.to_string());
+                if seen.borrow().contains(&run) {
+                    what.push_str(", again");
+                }
+                seen.borrow_mut().push(run);
+                eprint!("  {what}... ");
+                *running = Some((Instant::now(), 0));
+            }
+            Run::Ended {
+                passed,
+                timed_out,
+                duration_ms,
+            } => {
+                *running = None;
+                let how = match (timed_out, passed) {
+                    (true, _) => "timed out",
+                    (_, true) => "passed",
+                    _ => "failed",
+                };
+                eprintln!("{how} ({})", took(duration_ms));
+            }
+        }
+    }
+}
+
+/// A run's scope in words: "together", "claude/a alone", "main alone",
+/// "claude/a and codex/b without the others".
+fn run_name(plan: &Plan, scope: &str) -> String {
+    match scope.split_once(':') {
+        Some(("input", reference)) => format!(
+            "{} alone",
+            plan.branches
+                .iter()
+                .find(|b| b.reference == reference)
+                .map_or(reference, |b| b.name())
+        ),
+        // `pair:1,2` and `rest:0,3`: positions among the branches.
+        Some((_, positions)) => {
+            let names: Vec<&str> = positions
+                .split(',')
+                .filter_map(|n| plan.branches.get(n.parse::<usize>().ok()?))
+                .map(|b| b.name())
+                .collect();
+            match names.len() {
+                n if n > 4 => format!("{n} branches without the others"),
+                _ => format!("{} without the others", and_list(&names)),
+            }
+        }
+        None if scope == "target" => format!("{} alone", plan.target),
+        None => match plan.branches.as_slice() {
+            [one] => format!("{} on {}", one.name(), plan.target),
+            _ => "together".into(),
+        },
+    }
+}
+
+/// "0.9s", "41.3s", "3m 12s".
+fn took(ms: u64) -> String {
+    match ms / 1000 {
+        s if s < 60 => format!("{:.1}s", ms as f64 / 1000.0),
+        s => format!("{}m {}s", s / 60, s % 60),
+    }
 }
 
 /// What detection found, for `--verbose`.
@@ -1029,6 +1151,14 @@ mod tests {
         assert_eq!(line(&["-c", r#"echo "hi""#]), None);
         assert_eq!(line(&["-c", "echo 'hi'"]), None);
         assert_eq!(line(&["-c", "echo $HOME"]), None);
+    }
+
+    #[test]
+    fn a_run_is_timed_in_seconds_then_in_minutes() {
+        assert_eq!(took(1), "0.0s");
+        assert_eq!(took(900), "0.9s");
+        assert_eq!(took(41_260), "41.3s");
+        assert_eq!(took(192_400), "3m 12s");
     }
 
     /// The hook answers inside the timeout its configs declare.
