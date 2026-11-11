@@ -231,7 +231,22 @@ Pytxo sends nothing anywhere.
 
 **Install it.** `npx pytxo` downloads the native binary for your platform on
 first run and checks it against the release's SHA-256 list. To keep it on your
-PATH: `npm i -g pytxo`. Binaries for macOS, Linux and Windows are on
+PATH: `npm i -g pytxo`. If `npx pytxo demo` answers `unrecognized subcommand
+'demo'`, an older global install is in the way: `npm i -g pytxo@latest`.
+
+Without Node.js, install the binary itself. Both scripts check it against the
+same SHA-256 list:
+
+```powershell
+irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
+```
+
+The first is for Windows, the second for macOS and Linux. Then run `pytxo`
+where this page says `npx pytxo`. The binaries are also on
 [Pytxo releases](https://github.com/Pytxo-dev/pytxo-releases).
 
 ## Pytxo 1.x

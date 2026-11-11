@@ -1,10 +1,12 @@
 # pytxo
 
-**Land all your agents' branches in one command.**
+**Clear your agent PR pile in one command.**
 
 Pytxo merges your Claude Code, Codex and Copilot branches in a throwaway
-worktree, runs your tests on the combined result, and lands what passes. What breaks stays out, and you see why. Free,
-open source, runs on your machine or in CI.
+worktree, runs your tests on the combined result, and lands the ones that
+pass. Every branch it leaves out gets the reason and a fix prompt to hand back
+to its agent. Your own tests decide; Pytxo calls no AI model. Free, open
+source, runs on your machine or in CI.
 
 ```bash
 npx pytxo demo      # watch it land two of four agent branches and say why two stay out
@@ -14,12 +16,17 @@ npx pytxo --apply   # and land them if they pass
 
 `npx pytxo` finds the agent branches (`claude/*`, `codex/*`, `copilot/*`,
 `cursor/*`, ... and every branch in a linked worktree), finds your test command
-(`npm test`, `pytest`, `cargo test`, `go test`, ...), and prints a verdict:
+(`npm test`, `pytest`, `cargo test`, `go test`, ...), and prints a verdict.
+With `--apply` it lands the branches that passed together and says why it
+left the others out:
 
 ```
-BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
-why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
-next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
+LANDED   2 of 4 branches are on main now.
+left out claude/rename-price  renamed price to unitPrice, which codex/add-discount still uses
+left out codex/add-discount   uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1)
+landed   copilot/add-tax
+landed   cursor/add-guide
+next     push main when you are ready. Give codex/add-discount's agent its fix prompt, then run npx pytxo again.
 ```
 
 Nothing in your repository changes unless you add `--apply`. Exit codes: `0` ready or landed (or
