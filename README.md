@@ -25,7 +25,7 @@ repository's tests on its own and 2 conflict with branches that landed first.
 ## Try it
 
 ```bash
-npx pytxo demo           # a throwaway repo where two agent branches break each other
+npx pytxo demo           # a throwaway repo: four agent branches, two land, two get the reason
 cd your-repo
 git fetch                # get the branches your agents pushed
 npx pytxo                # checks your agent branches together
@@ -42,22 +42,50 @@ its throwaway worktree; a check that is killed outright leaves the worktree in
 
 ## The demo
 
-`npx pytxo demo` builds a small repository where one agent renamed a function
-and another added a new call to its old name. Each branch passes `npm test` on
-its own:
+`npx pytxo demo` builds a small repository with a pile of four agent branches
+and lands it with `--apply`. Each branch passes `npm test` on its own. One
+agent renamed a function and another added a new call to its old name, so
+those two break the tests together and stay out. The other two land:
 
 ```text
 $ npx pytxo demo
-Building a throwaway repo where two agents changed the same shop code...
+Building a throwaway repo where four agents each left a branch on a small shop...
   claude/rename-price  renames price() to unitPrice() in src/cart.js
   codex/add-discount   adds src/discount.js, which calls price()
-Checking claude/rename-price and codex/add-discount against main with npm test (from package.json)...
-BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
-why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
-next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
+  copilot/add-tax      adds src/tax.js and its test
+  cursor/add-guide     adds docs/guide.md
+Checking claude/rename-price, codex/add-discount, copilot/add-tax and cursor/add-guide against main with npm test (from package.json)...
+  together... failed (0.7s)
+  claude/rename-price alone... passed (0.7s)
+  codex/add-discount alone... passed (0.7s)
+  copilot/add-tax alone... passed (0.8s)
+  cursor/add-guide alone... passed (0.7s)
+  together, again... failed (0.9s)
+  claude/rename-price and codex/add-discount without the others... failed (1.0s)
+  copilot/add-tax and cursor/add-guide without the others... passed (0.8s)
+LANDED   2 of 4 branches are on main now.
+left out claude/rename-price  renamed price to unitPrice, which codex/add-discount still uses
+left out codex/add-discount   uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1)
+landed   copilot/add-tax
+landed   cursor/add-guide
+next     push main when you are ready. Give codex/add-discount's agent its fix prompt, then run npx pytxo again.
+
+Fix prompt for codex/add-discount:
+Pytxo tested copilot/add-tax and cursor/add-guide on main and landed them. Your branch codex/add-discount is left out: it uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1).
+Rebase it onto claude/rename-price, replace price with unitPrice, and run npm test until it passes.
+Failing output:
+> test
+> node run-tests.js
+ok   cart.test.js
+FAIL discount.test.js: price is not a function
+ok   tax.test.js
+
+That repo was temporary and is gone. Now run npx pytxo in a repo where agents work.
 ```
 
-The demo needs Node.js and takes under 30 seconds, the first download included.
+The demo needs Node.js and takes about 20 seconds once the binary is
+downloaded. `npx pytxo demo --keep` keeps the repository so you can look at
+what landed.
 
 ## In CI: one line
 
@@ -129,9 +157,10 @@ every branch checked out in a linked worktree, that have a commit in the last
 14 days, at most 10 at once, newest first. Branches already merged into the
 target, squash merges included, are skipped. Only committed work is checked: a
 worktree whose changes are all uncommitted gets a hint to commit them. If your
-agents push their branches to GitHub, run `git fetch` first. Name branches
-yourself (`npx pytxo feature/a feature/b`) or change the patterns for a
-repository:
+agents push their branches to GitHub, run `git fetch` first. When no branch
+matches, Pytxo names the local branches that are not merged yet and prints the
+command that checks them. Name branches yourself
+(`npx pytxo feature/a feature/b`) or change the patterns for a repository:
 
 ```bash
 git config pytxo.branches "bot/* ai/*"
@@ -164,14 +193,19 @@ cause. With three or more branches it then tests that pair without the others
 and, if they fail, the others without the pair: at most two more runs, so the
 verdict can clear the others. If the combined run times out, that is the
 answer: the branches do not run alone after it, and it does not run again.
-Merge conflicts block too.
+Merge conflicts block too. The verdict names every branch that conflicts and
+what it conflicts with, and when none of the branches merges the tests do not
+run, because they would test the target alone.
 
 **Exit codes.** `0` ready or landed (or nothing to check), `2` blocked or
 `--apply` landed only some branches, `3` stale (the target moved), `1` error,
 `130` stopped by Ctrl+C.
 
-**Output.** `--verbose` adds what was found, every test run with its error
-lines, the receipt's path and a ref to the combined commit;
+**Output.** While the tests run, each run is named as it starts and how it
+ended (`together... failed (41.3s)`, then `claude/a alone... passed (38.9s)`),
+and in a terminal a long run gets a mark each minute. `--verbose` adds what was
+found, every test run with its error lines, the receipt's path and a ref to
+the combined commit;
 `pytxo receipts show <id>` prints the last 40 lines of each run and checks the
 digest. `--json` is for scripts and `--markdown` is the GitHub Action's comment.
 `--apply` lands only a tested result on the target branch: all of it when it is
@@ -180,10 +214,21 @@ as that exact set, leaving the others out, each with why. With no test command,
 or only a package.json lint or build script, it exits `1` and changes nothing.
 Every check records a receipt in `.git/pytxo/receipts` (`pytxo receipts`).
 
+**Protected branches.** `--apply` changes your local target branch and leaves
+the push to you. If the target takes changes through pull requests only, land
+onto a branch of its own and open one pull request for it:
+
+```bash
+git branch landed main
+npx pytxo --apply --into landed
+git push -u origin landed
+```
+
 **Send the rest back.** Pytxo writes no code: with `--apply --fix` your agents
 do, and your tests still decide what lands. Each branch the landing leaves out
 with a fix prompt goes to the agent that wrote it, in a throwaway worktree of
-the branch with the target already merged in. Pytxo commits what the agent
+the branch with the target already merged in, or the branch its prompt says to
+rebase onto. Pytxo commits what the agent
 changes to the branch, where it is checked out its files move with it, and the
 check runs again, for up to two rounds (`--fix=3` for three). `claude/*` goes to
 `claude -p --permission-mode acceptEdits`, `codex/*` to
@@ -201,7 +246,22 @@ Pytxo sends nothing anywhere; the agents `--fix` starts talk to their own servic
 
 **Install it.** `npx pytxo` downloads the native binary for your platform on
 first run and checks it against the release's SHA-256 list. To keep it on your
-PATH: `npm i -g pytxo`. Binaries for macOS, Linux and Windows are on
+PATH: `npm i -g pytxo`. If `npx pytxo demo` answers `unrecognized subcommand
+'demo'`, an older global install is in the way: `npm i -g pytxo@latest`.
+
+Without Node.js, install the binary itself. Both scripts check it against the
+same SHA-256 list:
+
+```powershell
+irm https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Pytxo-dev/pytxo-releases/main/install.sh | bash
+```
+
+The first is for Windows, the second for macOS and Linux. Then run `pytxo`
+where this page says `npx pytxo`. The binaries are also on
 [Pytxo releases](https://github.com/Pytxo-dev/pytxo-releases).
 
 ## Pytxo 1.x

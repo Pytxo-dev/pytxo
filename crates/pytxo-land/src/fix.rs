@@ -1,7 +1,7 @@
 //! `--fix`: hands a branch a landing left out, with its fix prompt, to the
 //! agent that wrote it. The agent works in a scratch worktree of the branch
-//! with the target merged in, and what it changes there, committed, becomes
-//! the branch's new tip.
+//! with the target merged in, or the branch its prompt says to rebase onto,
+//! and what it changes there, committed, becomes the branch's new tip.
 
 use std::path::Path;
 use std::time::Duration;
@@ -48,13 +48,14 @@ pub fn agent_command(git: &Git, branch: &str) -> Option<String> {
 }
 
 /// Sends `branch` and its fix `prompt` to the agent `command` in a scratch
-/// worktree of the branch with `target` merged in, the agent's output in
-/// `log`. Once the agent exits 0, what it changed there, committed, becomes
-/// the branch's tip, and where the branch is checked out its files move too.
+/// worktree of the branch with `onto` merged in (the target, or the branch the
+/// prompt says to rebase onto), the agent's output in `log`. Once the agent
+/// exits 0, what it changed there, committed, becomes the branch's tip, and
+/// where the branch is checked out its files move too.
 pub fn send(
     repo: &Path,
     branch: &AgentBranch,
-    target: &str,
+    onto: &str,
     prompt: &str,
     command: &str,
     log: &Path,
@@ -69,14 +70,14 @@ pub fn send(
     let tree = OwnedWorktree::add(&git, &run_dir.0, &branch.commit, &tag)?;
     // The user's hooks and identity: these commits are theirs.
     let wt = Git::user(&tree.path);
-    // What lands is the branch on top of the target, so that is what the agent changes.
+    // The fix goes on top of `onto`, so that is what the agent changes.
     // Named for the branch: the scratch worktree's HEAD is detached.
-    let title = format!("Merge branch '{target}' into {name}");
-    let merge = wt.output(&["merge", "--no-edit", "--no-ff", "-m", &title, target])?;
+    let title = format!("Merge branch '{onto}' into {name}");
+    let merge = wt.output(&["merge", "--no-edit", "--no-ff", "-m", &title, onto])?;
     let conflicts = wt.lines(&["diff", "--name-only", "--diff-filter=U"])?;
     anyhow::ensure!(
         merge.status.success() || !conflicts.is_empty(),
-        "git could not merge {target} into it: {}",
+        "git could not merge {onto} into it: {}",
         String::from_utf8_lossy(&merge.stderr).trim()
     );
     let before = wt.commit_of("HEAD")?;
@@ -85,7 +86,7 @@ pub fn send(
         files => format!(", which left conflicts in {} to resolve", files.join(", ")),
     };
     let prompt = format!(
-        "{prompt}\n\nThis directory has {name} with {target} merged in{resolve}, so skip the rebase and change the files here. Pytxo commits what you change to {name} and checks it again."
+        "{prompt}\n\nThis directory has {name} with {onto} merged in{resolve}, so skip the rebase and change the files here. Pytxo commits what you change to {name} and checks it again."
     );
     let (code, timed_out) = checks::run_agent(command, &tree.path, &prompt, log, timeout)
         .with_context(|| format!("starting {command}"))?;
@@ -113,7 +114,7 @@ pub fn send(
     if wt.ok(&["rev-parse", "-q", "--verify", "MERGE_HEAD"]) {
         wt.run(&["commit", "-q", "--no-edit"])?;
     } else if !wt.ok(&["diff", "--cached", "--quiet"]) {
-        let message = format!("Fix {name} so it lands on {target}");
+        let message = format!("Fix {name} on top of {onto}");
         wt.run(&["commit", "-q", "-m", &message])?;
     }
     let head = wt.commit_of("HEAD")?;

@@ -30,7 +30,15 @@ Target: with no branches named, the default branch (`origin/HEAD`, else `main`, 
 
 `--days <N>` beats `pytxo.days` and `PYTXO_DAYS` for one run, and `--days 0` looks at branches of any age. The verdict says how many branches it left out for age; merged ones are not counted.
 
-`--apply --fix` sends each branch the landing left out with a fix prompt to its agent: `claude -p --permission-mode acceptEdits` for `claude/*`, `codex exec --sandbox workspace-write -` for `codex/*`, else the command in `git config pytxo.agent.<prefix>` or `pytxo.agent`, which reads the prompt on stdin. The agent works in a throwaway worktree of the branch with the target merged in; Pytxo commits what it changed to the branch (in the worktree that has it checked out, with `reset --keep`) and checks again, for up to 2 rounds (`--fix=<N>`), stopping when a round changes nothing. Only local branches are sent. Agent output goes to `.git/pytxo/fix`.
+With no agent branch to check, the message names the local branches that are open and recent but match no pattern, and a `next` line gives the command that checks them. `--json` lists them as `unmatched`. Branches only a remote has are not named.
+
+While the tests run, each run is named on stderr as it starts and how it ended (`together... failed (41.3s)`), and in a terminal a long run gets a mark each minute. `--json` prints none of it.
+
+A verdict about merge conflicts names every branch that conflicts, grouped by what each conflicts with. When none of the branches merges, the combination is the target itself and no test runs.
+
+`pytxo demo` builds a throwaway repository with four agent branches and runs `--apply` there: two land, and the two that break each other stay out with the cause and a fix prompt. `--keep` keeps the repository.
+
+`--apply --fix` sends each branch the landing left out with a fix prompt to its agent: `claude -p --permission-mode acceptEdits` for `claude/*`, `codex exec --sandbox workspace-write -` for `codex/*`, else the command in `git config pytxo.agent.<prefix>` or `pytxo.agent`, which reads the prompt on stdin. The agent works in a throwaway worktree of the branch with the target merged in, or the branch its fix prompt says to rebase onto; Pytxo commits what it changed to the branch (in the worktree that has it checked out, with `reset --keep`) and checks again, for up to 2 rounds (`--fix=<N>`), stopping when a round changes nothing. Only local branches are sent. Agent output goes to `.git/pytxo/fix`.
 
 ## Hypervisor Shell (frozen, `full` builds)
 

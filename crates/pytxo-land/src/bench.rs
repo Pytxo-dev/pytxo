@@ -406,9 +406,10 @@ fn build_repo(scenario: &Scenario, files: &[(&str, String)]) -> Result<Dir> {
     Ok(dir)
 }
 
-/// What `pytxo demo` checks: two agent branches that each pass `npm test`
-/// and break it together. One renames `price`, the other adds a caller of it.
-pub const DEMO_BRANCHES: [(&str, &str); 2] = [
+/// What `pytxo demo` lands: a pile of four agent branches that each pass
+/// `npm test`. One renames `price` and another adds a caller of it, so those
+/// two break the tests together; the other two have nothing to do with them.
+pub const DEMO_BRANCHES: [(&str, &str); 4] = [
     (
         "claude/rename-price",
         "renames price() to unitPrice() in src/cart.js",
@@ -417,20 +418,32 @@ pub const DEMO_BRANCHES: [(&str, &str); 2] = [
         "codex/add-discount",
         "adds src/discount.js, which calls price()",
     ),
+    ("copilot/add-tax", "adds src/tax.js and its test"),
+    ("cursor/add-guide", "adds docs/guide.md"),
 ];
 
 /// Builds the `pytxo demo` repository in a fresh temp directory: the
-/// rename-vs-new-caller scenario, on agent branch names, with a
-/// `package.json` so the test command is detected the way it is in a real repo.
+/// rename-vs-new-caller scenario plus two branches of three-way-fan-in, on
+/// agent branch names, with a `package.json` so the test command is detected
+/// the way it is in a real repo.
 pub fn demo_repo() -> Result<Dir> {
     let node = Command::new("node").arg("--version").output();
     if !node.is_ok_and(|o| o.status.success()) {
         bail!("the demo's tests run on Node.js, which is not on PATH: install it from https://nodejs.org");
     }
-    let mut demo = scenarios()
-        .into_iter()
-        .find(|s| s.id == "rename-vs-new-caller")
-        .expect("the demo scenario exists");
+    let scenario = |id: &str| {
+        scenarios()
+            .into_iter()
+            .find(|s| s.id == id)
+            .expect("the demo's scenarios exist")
+    };
+    let mut demo = scenario("rename-vs-new-caller");
+    demo.branches.extend(
+        scenario("three-way-fan-in")
+            .branches
+            .into_iter()
+            .filter(|(name, _)| *name != "agent/readme"),
+    );
     for (branch, (name, _)) in demo.branches.iter_mut().zip(DEMO_BRANCHES) {
         branch.0 = name;
     }

@@ -152,7 +152,7 @@ pub fn plan_days(
             let days = days
                 .or_else(|| setting(&git, "PYTXO_DAYS", "pytxo.days").and_then(|d| d.parse().ok()))
                 .unwrap_or(DEFAULT_MAX_AGE_DAYS);
-            let found = detect(&git, &target, &patterns, days)?;
+            let found = detect(&git, &target, &patterns, days, true)?;
             (patterns, days, found)
         }
     };
@@ -443,7 +443,31 @@ struct Detected {
     uncommitted_only: Vec<String>,
 }
 
-fn detect(git: &Git, target: &str, patterns: &[String], max_age_days: u64) -> Result<Detected> {
+/// When no agent branch was found: the local branches no pattern matched that
+/// detection would have checked, so not merged into the target and with a
+/// recent commit. They are what to name on the command line. Branches only a
+/// remote has stay out: in a shared repository those are other people's.
+pub fn unmatched(plan: &Plan) -> Vec<String> {
+    let every = ["*".to_string()];
+    detect(
+        &Git::user(&plan.root),
+        &plan.target,
+        &every,
+        plan.max_age_days,
+        false,
+    )
+    .map(|found| found.branches.into_iter().map(|b| b.reference).collect())
+    .unwrap_or_default()
+}
+
+/// `remotes`: also the branches only a remote has.
+fn detect(
+    git: &Git,
+    target: &str,
+    patterns: &[String],
+    max_age_days: u64,
+    remotes: bool,
+) -> Result<Detected> {
     let worktrees = worktrees(git);
     let use_worktrees = patterns.iter().any(|p| p == WORKTREES);
     let matches = |name: &str| patterns.iter().any(|p| p != WORKTREES && glob(p, name));
@@ -496,7 +520,7 @@ fn detect(git: &Git, target: &str, patterns: &[String], max_age_days: u64) -> Re
             Some((remote, name, commit, time))
         })
         .filter(|&(_, name, _, _)| {
-            name != "HEAD" && name != target && !local.contains(name) && matches(name)
+            remotes && name != "HEAD" && name != target && !local.contains(name) && matches(name)
         })
         .collect();
     remote.sort_by_key(|&(remote, name, _, _)| (name, remote != "origin"));
@@ -902,6 +926,31 @@ mod tests {
         assert!(plan.detected);
         assert_eq!(plan.checks, ["npm test"]);
         assert_eq!(plan.check_source.as_deref(), Some("package.json"));
+    }
+
+    #[test]
+    fn unmatched_is_the_open_local_branches_no_pattern_matched() {
+        let (_dir, d) = repo();
+        branch(&d, "feature/tax", "a.js");
+        branch(&d, "fix/rounding", "b.js");
+        // Merged, squash-merged and remote-only branches have nothing to check
+        // here, or are somebody else's.
+        branch(&d, "feature/merged", "c.js");
+        git(
+            &d,
+            &["merge", "-q", "--no-ff", "-m", "merge", "feature/merged"],
+        );
+        branch(&d, "feature/squashed", "d.js");
+        git(&d, &["merge", "-q", "--squash", "feature/squashed"]);
+        git(&d, &["commit", "-q", "-m", "squash"]);
+        branch(&d, "team/theirs", "e.js");
+        let sha = git(&d, &["rev-parse", "team/theirs"]);
+        git(&d, &["update-ref", "refs/remotes/origin/team/theirs", &sha]);
+        git(&d, &["branch", "-D", "-q", "team/theirs"]);
+
+        let plan = plan(&d, &[], None, &[]).unwrap();
+        assert!(plan.branches.is_empty());
+        assert_eq!(unmatched(&plan), ["feature/tax", "fix/rounding"]);
     }
 
     #[test]

@@ -69,7 +69,7 @@ fn stdout(out: &Output) -> String {
 
 #[test]
 fn no_agent_branches_is_one_line_and_exit_zero() {
-    let dir = repo(&["matt/readme"]);
+    let dir = repo(&[]);
     let out = pytxo(dir.path(), &[], None);
     assert_eq!(out.status.code(), Some(0));
     let text = stdout(&out);
@@ -147,6 +147,44 @@ fn no_agent_branches_is_one_line_and_exit_zero() {
         "{}",
         stdout(&out)
     );
+}
+
+/// Branches no pattern matches are not a dead end: the next line is the
+/// command that checks them, and it works as printed.
+#[test]
+fn no_agent_branches_names_the_unmerged_ones_and_the_command() {
+    let dir = repo(&["feature/tax", "fix/rounding"]);
+    let d = dir.path();
+    let out = pytxo(d, &[], None);
+    assert_eq!(out.status.code(), Some(0));
+    let text = stdout(&out);
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 2, "{text}");
+    assert!(lines[0].starts_with("No agent branches to check against main"));
+    assert_eq!(
+        lines[1],
+        "next     feature/tax and fix/rounding are not merged into main: check them together with pytxo --into main feature/tax fix/rounding"
+    );
+    // From another branch too, since the command names the target.
+    git(d, &["checkout", "-q", "-b", "scratch", "main"]);
+    let out = pytxo(d, &["--into", "main", "feature/tax", "fix/rounding"], None);
+    assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
+    assert!(stdout(&out).contains("feature/tax and fix/rounding merge cleanly onto main"));
+    git(d, &["checkout", "-q", "main"]);
+
+    // One branch, and how the launcher was started.
+    git(d, &["branch", "-q", "-D", "fix/rounding", "scratch"]);
+    let out = pytxo_env(d, &[], None, &[("PYTXO_RUN_AS", "npx pytxo")]);
+    assert!(
+        stdout(&out).ends_with(
+            "next     feature/tax is not merged into main: check it with npx pytxo --into main feature/tax\n"
+        ),
+        "{}",
+        stdout(&out)
+    );
+    let json: serde_json::Value =
+        serde_json::from_slice(&pytxo(d, &["--json"], None).stdout).unwrap();
+    assert_eq!(json["unmatched"], serde_json::json!(["feature/tax"]));
 }
 
 #[test]
@@ -346,6 +384,36 @@ fn bare_pytxo_exits_two_when_blocked_and_three_when_stale() {
     );
 }
 
+/// A pile where every branch conflicts with main: one verdict names them
+/// all, and the tests do not run on main alone.
+#[test]
+fn a_pile_that_all_conflicts_names_every_branch_and_runs_no_tests() {
+    let dir = repo(&[]);
+    let d = dir.path();
+    for (name, readme) in [
+        ("claude/a", "# shop A\n"),
+        ("codex/b", "# shop B\n"),
+        ("copilot/c", "# shop C\n"),
+    ] {
+        commit_branch(d, name, &[("README.md", readme)]);
+    }
+    std::fs::write(d.join("README.md"), "# shop main\n").unwrap();
+    git(d, &["commit", "-q", "-am", "main moves on"]);
+    let out = pytxo(d, &["-c", "exit 1"], None);
+    let text = stdout(&out);
+    assert_eq!(out.status.code(), Some(2), "{text}");
+    assert_eq!(
+        text,
+        "BLOCKED  claude/a, codex/b and copilot/c conflict with main.
+why      git cannot merge them: README.md changed on both sides.
+next     rebase each onto main (or ask its agent to), then run pytxo -c \"exit 1\" again.
+"
+    );
+    // No run is named, because none started.
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(!err.contains("... "), "{err}");
+}
+
 #[test]
 fn strict_blocks_two_branches_that_change_one_function() {
     let dir = repo(&[]);
@@ -393,6 +461,8 @@ fn bare_pytxo_finds_the_agent_branches_and_prints_three_lines() {
         progress.contains("Checking claude/a and codex/b against main"),
         "{progress}"
     );
+    // Each test run is said as it runs, with how it ended.
+    assert!(progress.contains("\n  together... passed ("), "{progress}");
 
     // Labelled, as the land guides write them: both lines name the branches.
     let out = pytxo(
@@ -1231,6 +1301,12 @@ fn pytxo_1x_commands_say_this_build_leaves_them_out() {
     git(d, &["branch", "run", "claude/a"]);
     let out = pytxo(d, &["run", "-c", "git --version"], None);
     assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
+    // One branch has nothing to be together with: its run says where it ran.
+    let progress = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        progress.contains("\n  run on main... passed ("),
+        "{progress}"
+    );
 }
 
 #[test]
@@ -1244,7 +1320,7 @@ fn usage_errors_exit_one_not_two() {
 }
 
 #[test]
-fn the_demo_catches_the_break() {
+fn the_demo_lands_two_of_four_and_names_the_break() {
     if Command::new("node").arg("--version").output().is_err() {
         eprintln!("skipped: the demo needs Node.js");
         return;
@@ -1273,23 +1349,77 @@ fn the_demo_catches_the_break() {
     let text = stdout(&out);
     let err = String::from_utf8_lossy(&out.stderr);
     assert_eq!(out.status.code(), Some(0), "{text}{err}");
+    // The verdict, a row for each branch, then the prompt for the one branch
+    // that has to change. Its failing output starts with npm's own lines,
+    // which differ by version.
+    let (verdict, prompt) = text
+        .split_once("\nFix prompt for codex/add-discount:\n")
+        .unwrap_or_else(|| panic!("no fix prompt in {text}"));
     assert_eq!(
-        text,
-        "BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
-why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
-next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run pytxo again.
+        verdict,
+        "LANDED   2 of 4 branches are on main now.
+left out claude/rename-price  renamed price to unitPrice, which codex/add-discount still uses
+left out codex/add-discount   uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1)
+landed   copilot/add-tax
+landed   cursor/add-guide
+next     push main when you are ready. Give codex/add-discount's agent its fix prompt, then run pytxo again.
 "
     );
     assert!(
+        prompt.starts_with(
+            "Pytxo tested copilot/add-tax and cursor/add-guide on main and landed them. Your branch codex/add-discount is left out: it uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1).
+Rebase it onto claude/rename-price, replace price with unitPrice, and run npm test until it passes.
+Failing output:
+"
+        ),
+        "{prompt}"
+    );
+    assert!(
+        prompt.ends_with("FAIL discount.test.js: price is not a function\nok   tax.test.js\n"),
+        "{prompt}"
+    );
+    assert!(
+        !text.contains("Fix prompt for claude/rename-price"),
+        "{text}"
+    );
+    assert!(
         err.contains("against main with npm test (from package.json)..."),
+        "{err}"
+    );
+    // The runs behind the verdict, in the order they ran.
+    let runs: Vec<&str> = err
+        .lines()
+        .filter_map(|l| l.strip_prefix("  ")?.split_once("... "))
+        .map(|(what, how)| {
+            assert!(
+                how.starts_with("passed (") || how.starts_with("failed ("),
+                "{err}"
+            );
+            what
+        })
+        .collect();
+    assert_eq!(
+        runs,
+        [
+            "together",
+            "claude/rename-price alone",
+            "codex/add-discount alone",
+            "copilot/add-tax alone",
+            "cursor/add-guide alone",
+            "together, again",
+            "claude/rename-price and codex/add-discount without the others",
+            "copilot/add-tax and cursor/add-guide without the others"
+        ],
         "{err}"
     );
     assert!(
         err.contains("That repo was temporary and is gone."),
         "{err}"
     );
-    // The demo's budget is 30 seconds, npx included.
-    assert!(took < std::time::Duration::from_secs(30), "{took:?}");
+    // Eight test runs: about 20 seconds alone on a Windows laptop, and 35
+    // with the rest of this suite running beside it. The budget is there to
+    // catch a demo that hangs or doubles, not to time it.
+    assert!(took < std::time::Duration::from_secs(90), "{took:?}");
     let left: Vec<String> = std::fs::read_dir(temp.path())
         .unwrap()
         .filter_map(|e| e.ok()?.file_name().into_string().ok())
@@ -1404,4 +1534,44 @@ fn fix_stops_when_a_round_changes_nothing_and_prints_the_prompts_left() {
     assert!(text.contains("\nFix prompt for cursor/c:\n"), "{text}");
     let readme = std::fs::read_to_string(d.join("README.md")).unwrap();
     assert_eq!(readme, "# shop a\n");
+}
+
+#[test]
+fn fix_builds_on_the_renaming_branch_when_both_of_a_pair_stay_out() {
+    let dir = rename_repo();
+    let d = dir.path();
+    commit_branch(
+        d,
+        "copilot/add-tax",
+        &[("src/tax.js", "module.exports = {};\n")],
+    );
+    commit_branch(d, "cursor/add-guide", &[("docs/guide.md", "# guide\n")]);
+    git(
+        d,
+        &[
+            "config",
+            "pytxo.agent.codex",
+            "echo unitPrice> src/discount.js",
+        ],
+    );
+    let out = pytxo(d, &["--apply", "--fix", "--check", RENAME_BREAKS], None);
+    let text = stdout(&out);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{text}{err}");
+    assert!(
+        text.contains("\nfixed    codex/add-discount  echo committed "),
+        "{text}"
+    );
+    let log = Command::new("git")
+        .args(["log", "--format=%s", "main"])
+        .current_dir(d)
+        .output()
+        .unwrap();
+    let log = stdout(&log);
+    assert!(
+        log.contains("Merge branch 'claude/rename-price' into codex/add-discount"),
+        "{log}"
+    );
+    let cart = std::fs::read_to_string(d.join("src/cart.js")).unwrap();
+    assert!(cart.contains("unitPrice"), "{cart}");
 }
