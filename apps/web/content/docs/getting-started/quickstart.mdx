@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: See the check catch a break in under 30 seconds, then run it on your own repository. No flags, no account.
+description: See Pytxo land a pile of agent branches in under a minute, then run it on your own repository. No flags, no account.
 ---
 
 You need Node.js 18 or newer and Git. The first `npx pytxo` downloads the Pytxo binary for your platform (about 12 MB) and checks it against the release's SHA-256 list.
@@ -11,15 +11,18 @@ You need Node.js 18 or newer and Git. The first `npx pytxo` downloads the Pytxo 
 npx pytxo demo
 ```
 
-The demo builds a throwaway repository where one agent renamed `price()` to `unitPrice()` and another added code that calls `price()`. Each branch passes `npm test` on its own; together they fail:
+The demo builds a throwaway repository with a pile of four agent branches. One agent renamed `price()` to `unitPrice()` and another added code that calls `price()`: each of those two passes `npm test` on its own, and together they fail. The other two are fine. The demo runs `--apply` there, so the two that pass together land and the other two stay out, each with why:
 
 ```text
-BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.
-why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).
-next     rebase codex/add-discount onto claude/rename-price and use unitPrice, then run npx pytxo again.
+LANDED   2 of 4 branches are on main now.
+left out claude/rename-price  renamed price to unitPrice, which codex/add-discount still uses
+left out codex/add-discount   uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1)
+landed   copilot/add-tax
+landed   cursor/add-guide
+next     push main when you are ready. Give codex/add-discount's agent its fix prompt, then run npx pytxo again.
 ```
 
-The repository is deleted afterwards. Add `--keep` to keep it and look around.
+Under the verdict is a fix prompt to hand to `codex/add-discount`'s agent. While the demo runs, each test run is named as it starts and how it ended. The repository is deleted afterwards. Add `--keep` to keep it and look around.
 
 ## 2. Run it on your repository
 
@@ -37,21 +40,22 @@ With no arguments Pytxo:
 
 If your agents push their branches to GitHub, run `git fetch` first so Pytxo sees them. A compiled project, such as a Rust workspace, pays a cold build in each throwaway worktree.
 
-Nothing in your repository changes. Ctrl+C stops a check and removes its throwaway worktree; a check that is killed outright leaves the worktree in `git worktree list` until the next check removes it. With no agent branches it prints one line and suggests the demo.
+Nothing in your repository changes. Ctrl+C stops a check and removes its throwaway worktree; a check that is killed outright leaves the worktree in `git worktree list` until the next check removes it. With no agent branches it says so and suggests the demo; if you have open branches under other names, a `next` line gives the command that checks them.
 
 ## 3. Read the verdict
 
-Every verdict is three lines: what happened, why, and what to do next.
+A verdict says what happened, why, and what to do next. With three or more branches where only some can land, each branch gets a line of its own: `can land`, or `left out` with why.
 
 | Verdict | Means | Exit code |
 |---|---|---|
 | `READY` | The branches pass your tests together | 0 |
+| `LANDED` | With `--apply`, the branches that passed together are now on the target | 0, or 2 if some were left out |
 | `BLOCKED` | They fail together, conflict, or a branch was already broken | 2 |
 | `FLAKY` | The combined change failed once and passed once, so it cannot say | 2 |
 | `NO TESTS` | They merge cleanly but no test command was found | 0 |
 | `STALE` | The target branch moved during the check; run it again | 3 |
 
-When the combined change fails, Pytxo runs each branch alone to tell a break that only happens together from a branch that was already broken, and, if every branch passes alone, runs the combined change once more to catch a flaky test. If it fails again, Pytxo looks for a definition, such as a function, that one branch renamed or removed and another branch's new code still uses. When the failing output confirms it, the why line says so, as in the demo; otherwise the why line is the error and a note under the verdict names the possible cause. With three or more branches, it then runs the tests on those two branches without the others and, if they fail, on the others without them, at most two more runs, so the verdict can clear the others. If the combined run times out, that is the answer: the branches do not run alone after it, and it does not run again.
+When the combined change fails, Pytxo runs each branch alone to tell a break that only happens together from a branch that was already broken, and, if every branch passes alone, runs the combined change once more to catch a flaky test. If it fails again, Pytxo looks for a definition, such as a function, that one branch renamed or removed and another branch's new code still uses. When the failing output confirms it, the verdict says so, as in the demo; otherwise the why line is the error and a note under the verdict names the possible cause. With three or more branches, it then runs the tests on those two branches without the others and, if they fail, on the others without them, at most two more runs, so the verdict can clear the others. If the combined run times out, that is the answer: the branches do not run alone after it, and it does not run again.
 
 ## 4. Change what it checks
 
