@@ -25,7 +25,7 @@ test("docs lead with the check and keep 1.x under Advanced", async ({ page }) =>
 
   await page.goto("/docs/getting-started/quickstart");
   await expect(page.getByRole("heading", { level: 1, name: "Quickstart" })).toBeVisible();
-  await expect(page.locator("article")).toContainText(/BLOCKED\s+claude\/rename-price and codex\/add-discount/);
+  await expect(page.locator("article")).toContainText(/LANDED\s+2 of 4 branches are on main now\./);
 
   await page.goto("/docs/getting-started/land-in-ci");
   await expect(page.getByRole("heading", { level: 1, name: "GitHub Action" })).toBeVisible();

@@ -3,7 +3,7 @@ title: CLI reference
 description: pytxo commands, flags, exit codes and settings.
 ---
 
-Binary: `pytxo`. This page describes **2.0.1**. Run it with `npx pytxo`, or keep it on your PATH with `npm i -g pytxo`.
+Binary: `pytxo`. This page describes **2.0.2**. Run it with `npx pytxo`, or keep it on your PATH with `npm i -g pytxo`.
 
 ## Commands
 
@@ -11,7 +11,7 @@ Binary: `pytxo`. This page describes **2.0.1**. Run it with `npx pytxo`, or keep
 |---------|-------------|
 | `pytxo` | Check the agent branches together: the same as `pytxo check` |
 | `pytxo check [branch]...` | Check these branches, or the detected agent branches, together. `pytxo land` is an alias |
-| `pytxo demo` | Check a throwaway repository where two agent branches pass alone and fail together; `--keep` keeps it |
+| `pytxo demo` | Build a throwaway repository with four agent branches and run `--apply` there: two land, and the two that break each other stay out with the cause and a fix prompt; `--keep` keeps it |
 | `pytxo hook` | Run the check from a Claude Code or Codex `Stop` hook ([guide](/docs/getting-started/agent-hooks)); `--block` asks the agent to fix a BLOCKED or FLAKY verdict |
 | `pytxo receipts` | List this repository's receipts; `pytxo receipts show <id>` prints one and checks its digest ([receipts](/docs/concepts/receipts)) |
 | `pytxo bench` | Pybench: offline benchmarks of the check ([method](/docs/evidence/pybench)) |
@@ -23,21 +23,26 @@ Binary: `pytxo`. This page describes **2.0.1**. Run it with `npx pytxo`, or keep
 | `[branch]...` | Branches or patterns to check. Default: the detected agent branches |
 | `--into <branch>` | Target branch. Default: the default branch (`origin/HEAD`, else `main`, `master` or `trunk`, else the checked-out branch); when you name branches, the branch you have checked out, or the default branch if that branch is one of them or no branch is checked out |
 | `--base <rev>` | Check against another commit instead of the target's tip (not with `--apply`) |
+| `--days <N>` | With no branches named, check the agent branches that have a commit in the last `N` days (default 14); `0` checks branches of any age. It beats `pytxo.days` and `PYTXO_DAYS` for this run |
 | `-c`, `--check <cmd>` | Test command, repeatable. Default: found in the target branch |
 | `--per-input` | Run the checks on each branch alone every time, not only after the combined change fails |
 | `--apply` | Land a READY result on the target by fast-forward or compare-and-swap; refused if the target moved. When the branches fail together, land the largest set that passed every check as that exact set and leave the others out, each with why. It lands only a tested result: when no test command was found, or package.json has only a lint or build script, it exits `1` and leaves the target unchanged, so name one with `--check` |
 | `--strict` | Block when two branches changed the same function or type |
 | `--timeout <s>` | Per-check timeout in seconds (default 900). A combined run that times out does not run again, and neither the branches alone nor later `--check` commands run after it |
 | `-v`, `--verbose` | Also print what was found, every test run with its error lines, the receipt's path and a ref to the combined commit; with `--markdown`, the receipt's id and digest |
-| `--json` | The verdict, what was found and the receipt, as JSON. When branches pass alone and fail together, `verdict.cause` names the cause (`by`, `user`, `name`, `renamed_to`, `uses` with `path` and `line`, `confirmed`, and `also` when more branches use the name) and `verdict.fix_prompt` holds a fix prompt once the output confirms it; each is `null` when there is none |
+| `--json` | The verdict, what was found and the receipt, as JSON. When branches pass alone and fail together, `verdict.cause` names the cause (`by`, `user`, `name`, `renamed_to`, `uses` with `path` and `line`, `confirmed`, and `also` when more branches use the name) and `verdict.fix_prompt` holds a fix prompt once the output confirms it; each is `null` when there is none. When there is nothing to check, `unmatched` lists the local branches that are open and recent but match no pattern |
 | `--markdown` | The verdict as the GitHub Action's pull-request comment |
 | `--repo <path>` | Repository (default: the current directory) |
 
 Exit codes: `0` ready, landed or nothing to check, `2` blocked or `--apply` landed only some branches, `3` stale (the target moved during the check), `1` error, `130` stopped by Ctrl+C or SIGTERM.
 
-With no branches given, Pytxo checks branches that match the patterns below and have a commit in the last 14 days, at most 10 at once, newest first. The pattern `worktrees` means every branch checked out in a linked worktree; Pytxo's own temporary worktrees never count. Branches already merged into the target, squash merges included, are skipped. Branches that share no history with the target, such as a `gh-pages` worktree, are left out, and `--verbose` counts them. Only committed work is checked: a worktree whose changes are all uncommitted gets a hint to commit them. Agents that push to GitHub leave their branches on `origin`: run `git fetch` first so Pytxo sees them.
+With no branches given, Pytxo checks branches that match the patterns below and have a commit in the last 14 days, at most 10 at once, newest first. `--days <N>` changes the 14 for one run, and a note under the verdict says how many branches were left out for age; ones the target already has are not counted. The pattern `worktrees` means every branch checked out in a linked worktree; Pytxo's own temporary worktrees never count. Branches already merged into the target, squash merges included, are skipped. Branches that share no history with the target, such as a `gh-pages` worktree, are left out, and `--verbose` counts them. Only committed work is checked: a worktree whose changes are all uncommitted gets a hint to commit them. Agents that push to GitHub leave their branches on `origin`: run `git fetch` first so Pytxo sees them. With no agent branch to check, the message names the local branches that are open and recent but match no pattern, and a `next` line gives the command that checks them; branches only a remote has are not named.
 
 The test command comes from the target branch: `package.json` (npm, pnpm, yarn or bun, installing dependencies first when there are any), Cargo, Go, uv, Poetry, pytest, Deno, Gradle, Maven, .NET, Mix, RSpec, Rake, Composer or a `Makefile` with a `test` target. Submodules are not checked out in the throwaway worktree; when the tests fail everywhere, the verdict says how to include them. When the target is behind `origin`'s copy of it, a note under the verdict says by how many commits.
+
+While the tests run, each run is named on stderr as it starts and how it ended (`together... failed (41.3s)`), and in a terminal a long run gets a mark each minute. `--json` prints none of it.
+
+With three or more branches where only some can land, the verdict has a line for each branch: `can land` (`landed` with `--apply`), or `left out` with why. A verdict about merge conflicts names every branch that conflicts, grouped by what each conflicts with; when none of the branches merges, the combination is the target itself and no test runs.
 
 Checks run without a terminal and with `GIT_TERMINAL_PROMPT=0`, so a command that asks for input fails, or waits until `--timeout`. `PYTHONPATH` starts with `<worktree>/src`, when it exists, and `<worktree>`, so Python imports the code being checked, not an editable install of your checkout.
 
