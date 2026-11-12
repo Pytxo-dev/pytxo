@@ -7,7 +7,7 @@ import s from "@/components/site/site.module.css";
 import { pageMetadata } from "@/lib/page-metadata";
 import { ACTION_USES, NPM_URL, PRODUCT_LINE, PRODUCT_SUMMARY, PUBLISHED_VERSION, SHARE_IMAGE } from "@/lib/site";
 import { cn } from "@/lib/utils";
-import comment from "../../../public/evidence/comment-blocked-2.0.0-2026-10-30.json";
+import demo from "../../../public/evidence/demo-landed-2.0.2-2026-11-12.json";
 
 export const metadata = pageMetadata(
   "/",
@@ -40,24 +40,16 @@ const STRUCTURED_DATA = {
   ],
 } as const;
 
-const COMMENT_URL = "/evidence/comment-blocked-2.0.0-2026-10-30.json";
-// The checks table of the recorded pull request comment, in the order the check ran them: the combined change,
-// each branch alone once that failed, and the combined change once more.
-const RUNS = comment.output
-  .split(/\r?\n/)
-  .flatMap((row) => {
-    const m = /^\| `[^`]+` \| `([^`]+)` \| \**(pass|fail)\** \| ([\d.]+)s \|$/.exec(row);
-    if (!m) return [];
-    const [, scope, result, seconds] = m;
-    const alone = scope.startsWith("input:");
-    return [{
-      order: scope === "combined" ? 0 : alone ? 1 : 2,
-      label: alone ? `${scope.slice("input:".length)} alone` : scope === "combined" ? "together" : "together, again",
-      passed: result === "pass",
-      seconds,
-    }];
+const DEMO_URL = "/evidence/demo-landed-2.0.2-2026-11-12.json";
+// What the recorded demo did with each branch, from its own "landed" and "left out" lines: the landed ones first, as
+// the heading and the verdict read.
+const OUTCOMES = demo.output
+  .split("\n")
+  .flatMap((line) => {
+    const m = /^(landed|left out) +(\S+)/.exec(line);
+    return m ? [{ branch: m[2], landed: m[1] === "landed" }] : [];
   })
-  .sort((a, b) => a.order - b.order);
+  .sort((a, b) => Number(b.landed) - Number(a.landed));
 
 const ACTION_AT = ACTION_USES.indexOf("actions/");
 
@@ -76,23 +68,22 @@ export default function HomePage() {
 
       <section className={s.sec} aria-labelledby="decide-title" data-testid="decide-section">
         <div className={s.wrap}>
-          <h2 id="decide-title">Together first. If that fails, each alone.</h2>
+          <h2 id="decide-title">What passes together lands.</h2>
           {/* The roles keep the table a table for screen readers where phones lay its rows out as a grid. */}
           <table className={s.ledger} role="table">
-            <caption className="sr-only">npm test runs from the pull request comment pytxo {comment.version} wrote for the demo&apos;s branches</caption>
+            <caption className="sr-only">What pytxo {demo.version} did with each of the demo&apos;s branches, from the recorded output</caption>
             <tbody role="rowgroup">
-              {RUNS.map((run) => (
-                <tr key={run.label} className={run.passed ? s.pass : s.fail} role="row">
-                  <th scope="row" role="rowheader">{run.label}</th>
-                  <td className={s.res} role="cell"><span className={s.dot} aria-hidden="true" />{run.passed ? "pass" : "fail"}</td>
-                  <td className={s.t} role="cell">{run.seconds}&nbsp;s</td>
+              {OUTCOMES.map((outcome) => (
+                <tr key={outcome.branch} className={outcome.landed ? undefined : s.out} role="row">
+                  <th scope="row" role="rowheader">{outcome.branch}</th>
+                  <td className={s.res} role="cell"><span className={s.dot} aria-hidden="true" />{outcome.landed ? "landed" : "left out"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className={s.verdict}>A break, not a flaky test. Blocked.</p>
+          <p className={s.verdict}><span>Two landed.</span> <span>Two left out, with the reason.</span></p>
           <div className={s.recFoot}>
-            <a href={COMMENT_URL}>Pull request comment · pytxo&nbsp;{comment.version} · rendered locally</a>
+            <a href={DEMO_URL}>Recorded output · pytxo&nbsp;{demo.version} · the&nbsp;same&nbsp;run</a>
           </div>
         </div>
       </section>

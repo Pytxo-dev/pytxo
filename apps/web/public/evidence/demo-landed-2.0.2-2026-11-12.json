@@ -1,0 +1,72 @@
+{
+  "schema": "pytxo.evidence/v1",
+  "recorded": "2026-11-12",
+  "version": "2.0.2",
+  "build": "Pytxo CLI 2.0.2 as published on npm, run as `npx pytxo demo` with a warm npm cache. For the run, npm's global folder (npm_config_prefix) pointed at an empty directory, as on a machine with no global pytxo: this one has an older global install that a bare `npx pytxo` would otherwise run.",
+  "host": {
+    "os": "Windows 11 Home",
+    "node": "26.10",
+    "git": "2.53"
+  },
+  "repo": {
+    "name": "pytxo demo (a pile of four branches)",
+    "source": "https://github.com/Pytxo-dev/pytxo/blob/main/crates/pytxo-cli/src/check.rs",
+    "built": "pytxo demo builds the files, branches and commits in a temporary directory, lands on that repository's main and deletes it afterwards",
+    "branches": {
+      "claude/rename-price": "renames price() to unitPrice() in src/cart.js",
+      "codex/add-discount": "adds src/discount.js, which calls price()",
+      "copilot/add-tax": "adds src/tax.js and its test",
+      "cursor/add-guide": "adds docs/guide.md"
+    }
+  },
+  "command": "npx pytxo demo",
+  "exit_code": 0,
+  "duration_ms": [
+    16083,
+    18523,
+    20262
+  ],
+  "line_ms": [
+    1804,
+    3960,
+    3960,
+    3960,
+    3960,
+    4446,
+    7012,
+    8184,
+    9301,
+    10777,
+    11997,
+    13035,
+    14333,
+    15267,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951,
+    15951
+  ],
+  "output": "Building a throwaway repo where four agents each left a branch on a small shop...\n  claude/rename-price  renames price() to unitPrice() in src/cart.js\n  codex/add-discount   adds src/discount.js, which calls price()\n  copilot/add-tax      adds src/tax.js and its test\n  cursor/add-guide     adds docs/guide.md\nChecking claude/rename-price, codex/add-discount, copilot/add-tax and cursor/add-guide against main with npm test (from package.json)...\n  together... failed (0.7s)\n  claude/rename-price alone... passed (0.6s)\n  codex/add-discount alone... passed (0.7s)\n  copilot/add-tax alone... passed (1.0s)\n  cursor/add-guide alone... passed (0.8s)\n  together, again... failed (0.6s)\n  claude/rename-price and codex/add-discount without the others... failed (0.6s)\n  copilot/add-tax and cursor/add-guide without the others... passed (0.5s)\nLANDED   2 of 4 branches are on main now.\nleft out claude/rename-price  renamed price to unitPrice, which codex/add-discount still uses\nleft out codex/add-discount   uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1)\nlanded   copilot/add-tax\nlanded   cursor/add-guide\nnext     push main when you are ready. Give codex/add-discount's agent its fix prompt, then run npx pytxo again.\n\nFix prompt for codex/add-discount:\nPytxo tested copilot/add-tax and cursor/add-guide on main and landed them. Your branch codex/add-discount is left out: it uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1).\nRebase it onto claude/rename-price, replace price with unitPrice, and run npm test until it passes.\nFailing output:\n> test\n> node run-tests.js\nok   cart.test.js\nFAIL discount.test.js: price is not a function\nok   tax.test.js\n\nThat repo was temporary and is gone. Now run npx pytxo in a repo where agents work.\n",
+  "limits": [
+    "The demo writes all four branches itself; no agent wrote them.",
+    "It shows the mechanism, not how often it happens in real projects.",
+    "The demo lands on the main of its own temporary repository and deletes it, so this record holds no receipt.",
+    "line_ms is the time each line of the first run reached a pipe, in ms from the start, so a test run's line shows when that run ended.",
+    "Timed on a laptop busy with other work, with a warm npm cache. A first run also downloads the package.",
+    "Six other timed runs of the same command on this laptop that day took 13.3 to 62.1 s, depending on what else it was doing."
+  ]
+}
