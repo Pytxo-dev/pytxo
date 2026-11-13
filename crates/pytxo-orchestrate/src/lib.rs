@@ -4018,8 +4018,10 @@ mod tests {
             .recv_timeout(std::time::Duration::from_millis(150))
             .is_err());
         drop(gate);
+        // Only a hang guard. Five seconds was too short once: on a Windows CI runner no
+        // test in this binary finished for over twelve.
         finished_rx
-            .recv_timeout(std::time::Duration::from_secs(5))
+            .recv_timeout(std::time::Duration::from_secs(60))
             .unwrap()
             .unwrap();
         worker.join().unwrap();
@@ -4073,8 +4075,9 @@ mod tests {
                     .block_on(stop_impl(None, Some(repo), true, false, None))
             }
         });
+        // The same hang guard as in the test above.
         published_rx
-            .recv_timeout(std::time::Duration::from_secs(5))
+            .recv_timeout(std::time::Duration::from_secs(60))
             .expect("Stop published before termination");
         let registry = ProcessRegistryFile::load(&registry_path(&data_dir)).unwrap();
         assert!(registry.cancelled_runs.contains(&"stop-pause".to_string()));
