@@ -1326,9 +1326,6 @@ fn validate_reviewed_path(path: &str) -> Result<()> {
 }
 
 pub(crate) fn is_reparse(metadata: &std::fs::Metadata) -> bool {
-    if metadata.file_type().is_symlink() {
-        return true;
-    }
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;
@@ -1336,7 +1333,7 @@ pub(crate) fn is_reparse(metadata: &std::fs::Metadata) -> bool {
             return true;
         }
     }
-    false
+    metadata.file_type().is_symlink()
 }
 
 fn invalid_reviewed_input(message: &str) -> PytxoError {
