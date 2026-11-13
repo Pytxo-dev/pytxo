@@ -53,9 +53,14 @@
 .term .ln { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 4ch; text-indent: -4ch; }
 .term .lab { padding-left: 9ch; text-indent: -9ch; }
 .term .run, .term .br { color: var(--paper); }
+/* A branch name stays whole where a phone would break it after a hyphen. */
+.term .br { white-space: nowrap; }
 .term .pr, .term .k { color: var(--dim); }
 .term .gap { min-height: 1lh; }
 .term .hit { margin: 0 -.25em; padding: .1em .25em; background: var(--signal); color: var(--site-ink); font-weight: 500; }
+/* The fix prompt's body folds under its own first line. */
+.term summary { color: var(--paper); cursor: pointer; }
+.term summary::marker { color: var(--dim); }
 .term.armed .ln:not(.on) { opacity: 0; }
 .recFoot { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--hair); font-size: 16px; }
 .recFoot a { min-width: 0; color: var(--dim); text-decoration: underline 1px var(--hair); text-underline-offset: 5px; }
@@ -63,15 +68,18 @@
 .replay { flex: none; padding: 8px 0; text-decoration: underline 1px var(--dim); text-underline-offset: 5px; transition: text-decoration-color .2s; cursor: pointer; }
 .replay:hover { text-decoration-color: var(--paper); }
 
-/* How it decides */
+/* What landed */
 .ledger { width: 100%; margin-top: 48px; border-collapse: collapse; font-size: var(--section); letter-spacing: -.04em; line-height: 1.08; }
 .ledger th, .ledger td { padding: 20px 0 22px; border-top: 1px solid var(--hair); text-align: left; font-weight: 400; vertical-align: baseline; white-space: nowrap; }
 .ledger tr:last-child > * { border-bottom: 1px solid var(--hair); }
-.ledger .res { width: calc(3.6em + 32px); padding-left: 32px; }
-.ledger .t { width: 2.7em; text-align: right; color: var(--dim); }
+.ledger .res { width: calc(4.4em + 32px); padding-left: 32px; }
 .dot { display: inline-block; width: .3em; height: .3em; margin-right: .3em; border-radius: 50%; vertical-align: .12em; background: var(--signal); }
-.pass .dot { visibility: hidden; }
+/* A branch that was left out: dimmed, and without the dot that marks what landed. */
+.out th, .out td { color: var(--dim); }
+.out .dot { visibility: hidden; }
 .verdict { margin-top: 48px; font-size: var(--section); font-weight: 500; letter-spacing: -.04em; line-height: 1.12; text-wrap: balance; }
+/* One span a sentence, so a line breaks between the sentences. */
+.verdict span { display: inline-block; }
 
 /* Where it runs: the command is the hero of each row */
 .where { list-style: none; margin-top: 48px; }
@@ -194,12 +202,12 @@
   .recFoot { margin-top: 32px; }
   .ledger, .ledger tbody { display: block; }
   .ledger, .where { margin-top: 40px; }
-  .pass .dot { display: none; }
+  .out .dot { display: none; }
   .ledger tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; padding: 16px 0 18px; border-top: 1px solid var(--hair); }
   .ledger tr:last-child { border-bottom: 1px solid var(--hair); }
   .ledger th, .ledger td, .ledger tr:last-child > * { padding: 0; border: 0; white-space: normal; }
   .ledger th { grid-column: 1 / -1; margin-bottom: 6px; }
-  .ledger .res, .ledger .t { width: auto; padding: 0; }
+  .ledger .res { width: auto; padding: 0; }
   .verdict { margin-top: 40px; }
   .where li { padding: 20px 0 24px; }
   .where code { margin-top: 8px; }

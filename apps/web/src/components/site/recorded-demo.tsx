@@ -4,18 +4,19 @@ import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "rea
 
 import s from "@/components/site/site.module.css";
 import { cn } from "@/lib/utils";
-import capture from "../../../public/evidence/demo-blocked-2.0.0-2026-10-30.json";
+import capture from "../../../public/evidence/demo-landed-2.0.2-2026-11-12.json";
 
-const RECORD_URL = "/evidence/demo-blocked-2.0.0-2026-10-30.json";
+const RECORD_URL = "/evidence/demo-landed-2.0.2-2026-11-12.json";
 const LINES = capture.output.trimEnd().split("\n");
 const BRANCH = new RegExp(`(${Object.keys(capture.repo.branches).join("|")})`);
-const LABEL = /^(BLOCKED|why|next)( +)(.*)$/;
+const LABEL = /^(LANDED|left out|landed|next)( +)(.*)$/;
 const TOTAL = capture.duration_ms[0];
-// When each row shows, in ms from the start: the command, the setup lines, the verdict's three lines, then the rest.
-// The record times the whole run, not each line, so the rows are paced to land by the recorded total.
-const AT = [0, 240, 900, 1150, 1700, TOTAL - 400, TOTAL - 320, TOTAL - 240, TOTAL, TOTAL];
-const ROWS = LINES.length + 1;
-const count = (ms: number) => Array.from({ length: ROWS }, (_, i) => AT[i] ?? TOTAL).filter((at) => ms >= at).length;
+const SECONDS = (TOTAL / 1000).toFixed(1);
+// When each row shows, in ms from the start: the command at once, then each line when the record says it arrived.
+const AT = [0, ...capture.line_ms];
+// The fix prompt's body folds under its own first line and ends at the blank line after it.
+const FIX = LINES.findIndex((text) => text.startsWith("Fix prompt for "));
+const FIX_END = LINES.indexOf("", FIX);
 
 function withBranches(text: string) {
   return text.split(BRANCH).map((part, i) => (i % 2 ? <span key={i} className={s.br}>{part}</span> : part));
@@ -29,8 +30,9 @@ const onMotionChange = (change: () => void) => {
 };
 
 /**
- * The recorded output of `npx pytxo demo`. Every line ships in the HTML, so it reads with JavaScript off and screen
- * readers get all of it; in view, the rows replay at the recorded pace while the clock runs to the recorded time.
+ * The recorded output of `npx pytxo demo`. Every line ships in the HTML, so it reads with JavaScript off; the fix
+ * prompt's body sits in a disclosure under its own first line. In view, the rows replay at the recorded times while
+ * the clock runs to the recorded total.
  */
 export function RecordedDemo() {
   const term = useRef<HTMLDivElement>(null);
@@ -64,34 +66,43 @@ export function RecordedDemo() {
     return () => { io.disconnect(); cancelAnimationFrame(raf); replay.current = () => {}; };
   }, [motion]);
 
-  const at = motion ? ms : TOTAL, shown = count(at), tenths = Math.floor(at / 100), done = at >= TOTAL;
+  const at = motion ? ms : TOTAL, done = at >= TOTAL;
+  // Row 0 is the command; line i of the record is row i + 1.
+  const on = (row: number) => at >= AT[row] && s.on;
+  const line = (text: string, i: number) => {
+    const label = LABEL.exec(text);
+    return (
+      <div key={i} className={cn(s.ln, label && s.lab, !text && s.gap, on(i + 1))}>
+        {label ? (
+          <Fragment>
+            <span className={label[1] === "LANDED" ? s.hit : s.k}>{label[1]}</span>
+            {label[2]}
+            {withBranches(label[3])}
+          </Fragment>
+        ) : withBranches(text)}
+      </div>
+    );
+  };
   return (
     <section className={cn(s.sec, "tabular-nums")} id="recorded" aria-labelledby="recorded-title" data-testid="recorded-demo">
       <div className={s.wrap}>
         <div className={s.recHead}>
           <h2 id="recorded-title">The demo, as it ran.</h2>
-          <p className={cn(s.clock, done && s.done)} aria-hidden="true">{(tenths / 10).toFixed(1)}&nbsp;s</p>
+          {/* While it runs the clock counts whole tenths; finished, it shows the total as the footer rounds it. */}
+          <p className={cn(s.clock, done && s.done)} aria-hidden="true">{done ? SECONDS : (Math.floor(at / 100) / 10).toFixed(1)}&nbsp;s</p>
         </div>
         <div ref={term} className={cn(s.term, motion && s.armed)} id="term" data-testid="recorded-output">
-          <div className={cn(s.ln, s.run, shown > 0 && s.on)}><span className={s.pr}>$</span> {capture.command}</div>
-          {LINES.map((text, i) => {
-            const label = LABEL.exec(text);
-            return (
-              <div key={i} className={cn(s.ln, label && s.lab, !text && s.gap, shown > i + 1 && s.on)}>
-                {label ? (
-                  <Fragment>
-                    <span className={label[1] === "BLOCKED" ? s.hit : s.k}>{label[1]}</span>
-                    {label[2]}
-                    {withBranches(label[3])}
-                  </Fragment>
-                ) : withBranches(text)}
-              </div>
-            );
-          })}
+          <div className={cn(s.ln, s.run, on(0))}><span className={s.pr}>$</span> {capture.command}</div>
+          {LINES.slice(0, FIX).map(line)}
+          <details>
+            <summary className={cn(s.ln, on(FIX + 1))}>{withBranches(LINES[FIX])}</summary>
+            {LINES.slice(FIX + 1, FIX_END).map((text, i) => line(text, FIX + 1 + i))}
+          </details>
+          {LINES.slice(FIX_END).map((text, i) => line(text, FIX_END + i))}
         </div>
         <div className={s.recFoot}>
           <a href={RECORD_URL}>
-            Recorded output · pytxo&nbsp;{capture.version} · {(TOTAL / 1000).toFixed(1)}&nbsp;s · {capture.host.os}
+            Recorded output · pytxo&nbsp;{capture.version} · {SECONDS}&nbsp;s · {capture.host.os}
           </a>
           <button type="button" className={s.replay} aria-controls="term" onClick={() => replay.current()}>Replay</button>
         </div>

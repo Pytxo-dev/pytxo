@@ -7,7 +7,7 @@ Every number Pytxo publishes comes from a record you can download, with the buil
 
 | Record | Answers | Does not answer |
 |---|---|---|
-| [The demo](/evidence/demo-blocked-2.0.0-2026-10-30.json) | What `npx pytxo demo` prints on a local 2.0 candidate build, cause included, and how long it took in three timed runs on a busy laptop (8.5 to 8.9 s) | Anything about real projects: Pybench wrote both branches, no agent did |
+| [The demo](/evidence/demo-landed-2.0.2-2026-11-12.json) | What `npx pytxo demo` prints on the published 2.0.2, when each line arrived, and how long three timed runs took on a busy laptop (16.1 to 20.3 s). The 2.0.0 recording and its pull request comment, which end in BLOCKED, stay published: [demo](/evidence/demo-blocked-2.0.0-2026-10-30.json), [comment](/evidence/comment-blocked-2.0.0-2026-10-30.json) | Anything about real projects: the demo wrote all four branches, no agent did. Speed on other machines: six other runs on the same laptop that day took 13.3 to 62.1 s |
 | [Pybench](/docs/evidence/pybench) | What per-branch CI would put on main compared with what the check decides, in known situations; what the check costs | How often those situations happen in real projects |
 | [First use](/docs/evidence/first-use) (1.x) | How long a new user takes from `npm i -g pytxo` to a landing decision on a real repository with two live agents' branches, and where they go wrong | How long it takes on other repositories, languages or machines |
 | [Live runs](/docs/evidence/live-runs) (1.x) | Whether a released build completes a real multi-agent job with live vendor CLIs, Review, a stale refusal and Apply | Speed, reliability rate, or whether the resulting code is correct |

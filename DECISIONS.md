@@ -632,3 +632,18 @@ end in progress, not only in a verdict. Ships in the release after 2.0.0.
     Still open: the demo shows the rare case rather than a pile, and the
     share image still carries the old line.
     Undo: POSITIONING.md's first two paragraphs.
+67. **The homepage replays the published 2.0.2 demo, which ends in LANDED.**
+    `public/evidence/demo-landed-2.0.2-2026-11-12.json` is the output of
+    `npx pytxo demo` from npm with the time each line arrived (`line_ms`), so
+    the rows replay at the recorded pace (16.1 s) where the 2.0.0 one was
+    paced by hand. All 32 lines are on the page; the fix prompt's body sits in
+    a native `<details>` under its own first line. The section below it is now
+    a ledger of the four branches read from the same record, so the homepage
+    no longer quotes the 2.0.0 pull request comment. Both 2.0.0 records stay
+    published and are linked from the evidence page. The gradient now marks
+    what landed, where it marked the break. The share image shows the LANDED
+    lines under the current headline, which closes both open points in 66.
+    A recording on a quieter laptop was planned and did not happen: with four
+    other sessions busy the runs took 26 to 62 s, so the record is the one the
+    proposal showed, and its limits give the day's range (13.3 to 62.1 s).
+    Undo: revert the commit; the 2.0.0 records are still in `public/evidence`.

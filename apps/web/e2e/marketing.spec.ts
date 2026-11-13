@@ -31,30 +31,38 @@ for (const width of [1440, 390]) {
     await expect(hero.getByRole("button", { name: "Copy npx pytxo demo" })).toBeInViewport({ ratio: 1 });
     await expect(hero.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute("href", "https://github.com/Pytxo-dev/pytxo");
     // The demo shows the recorded bytes of a real run, not a retyped or illustrated one.
-    const record = await (await page.request.get("/evidence/demo-blocked-2.0.0-2026-10-30.json")).json();
+    const recordUrl = "/evidence/demo-landed-2.0.2-2026-11-12.json";
+    const record = await (await page.request.get(recordUrl)).json();
+    const recorded = record.output.trimEnd().split("\n");
     expect(record.command).toBe("npx pytxo demo");
-    expect(record.output).toContain("BLOCKED  claude/rename-price and codex/add-discount pass npm test alone but fail together.");
-    expect(record.output).toContain("why      claude/rename-price renamed price to unitPrice; codex/add-discount still uses price (src/discount.js:1).");
+    expect(record.output).toContain("LANDED   2 of 4 branches are on main now.");
+    expect(record.output).toContain("left out codex/add-discount   uses price, which claude/rename-price renamed to unitPrice (src/discount.js:1)");
+    expect(record.line_ms).toHaveLength(recorded.length);
     const demo = page.getByTestId("recorded-demo");
-    const lines = await demo.getByTestId("recorded-output").locator(":scope > div").allTextContents();
-    expect(lines).toEqual([`$ ${record.command}`, ...record.output.trimEnd().split("\n")]);
-    await expect(demo.getByRole("link", { name: /^Recorded output/ })).toHaveAttribute("href", "/evidence/demo-blocked-2.0.0-2026-10-30.json");
-    // The ledger is the checks table of the same build's pull request comment, in the order the runs happened.
-    const comment = await (await page.request.get("/evidence/comment-blocked-2.0.0-2026-10-30.json")).json();
+    // Every line of the record is on the page, in order. The fix prompt's body waits inside its disclosure.
+    const lines = await demo.getByTestId("recorded-output").locator(":scope > div, :scope > details > *").allTextContents();
+    expect(lines).toEqual([`$ ${record.command}`, ...recorded]);
+    const fix = demo.locator("details");
+    await expect(fix.getByText("Failing output:")).toBeHidden();
+    await fix.locator("summary").click();
+    await expect(fix.getByText("Failing output:")).toBeVisible();
+    await expect(demo.getByRole("link", { name: /^Recorded output/ })).toHaveAttribute("href", recordUrl);
+    // The ledger is what the same record says happened to each branch, the landed ones first.
     const decide = page.getByTestId("decide-section");
     const rows = decide.getByRole("row");
     await expect(rows).toHaveCount(4);
-    for (const [i, [label, result, seconds, source]] of [
-      ["together", "fail", "0.7", "| `combined` | **fail** | 0.7s |"],
-      ["claude/rename-price alone", "pass", "0.7", "| `input:claude/rename-price` | pass | 0.7s |"],
-      ["codex/add-discount alone", "pass", "0.6", "| `input:codex/add-discount` | pass | 0.6s |"],
-      ["together, again", "fail", "0.5", "| `combined, run 2` | **fail** | 0.5s |"],
+    for (const [i, [branch, outcome]] of [
+      ["copilot/add-tax", "landed"],
+      ["cursor/add-guide", "landed"],
+      ["claude/rename-price", "left out"],
+      ["codex/add-discount", "left out"],
     ].entries()) {
-      expect(comment.output).toContain(source);
-      await expect(rows.nth(i).getByRole("rowheader")).toHaveText(label);
-      await expect(rows.nth(i).getByRole("cell")).toHaveText([result, `${seconds} s`]);
+      expect(recorded.some((line: string) => line.startsWith(outcome) && line.slice(outcome.length).trimStart().split(" ")[0] === branch)).toBe(true);
+      await expect(rows.nth(i).getByRole("rowheader")).toHaveText(branch);
+      await expect(rows.nth(i).getByRole("cell")).toHaveText(outcome);
     }
-    await expect(decide.getByRole("link", { name: /^Pull request comment/ })).toHaveAttribute("href", "/evidence/comment-blocked-2.0.0-2026-10-30.json");
+    await expect(decide.getByText("Two landed. Two left out, with the reason.")).toBeVisible();
+    await expect(decide.getByRole("link", { name: /^Recorded output/ })).toHaveAttribute("href", recordUrl);
     const where = page.getByTestId("where-section");
     await expect(where.locator("code")).toHaveText(["npx pytxo --apply", "npx pytxo hook", "uses: Pytxo-dev/pytxo/actions/land@v2"]);
     for (const [name, href] of [

@@ -67,7 +67,7 @@ export const SHARE_IMAGE = {
   url: "/social/check-1600x1000.png",
   width: 1600,
   height: 1000,
-  alt: "Land all your agents' branches in one command. npx pytxo demo prints BLOCKED: two branches pass npm test alone but fail together, because one renamed price to unitPrice and the other still uses price.",
+  alt: "Clear your agent PR pile in one command. npx pytxo demo prints LANDED: 2 of 4 branches are on main now. The two left out are named with the reason: one renamed price to unitPrice and the other still uses price.",
 };
 
 /** Where a newcomer starts, linked from the plans and the 404 page. */
