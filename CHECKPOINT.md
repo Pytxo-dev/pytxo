@@ -1,32 +1,36 @@
-# CHECKPOINT — Pytxo — 2026-11-13 (pytxo.com replays the 2.0.2 demo; this checkpoint merges with the clippy 1.100 fix)
+# CHECKPOINT — Pytxo — 2026-11-13 (the clippy 1.100 fix is on main; one Windows test timed out there once, and its hang guard is now 60 s)
 
 ## Branch / commit
 
-- `main` at `5d96c484` merges pull request 102, the landing page change. 2.0.2 is
-  published (`v2.0.2` on `ae9370f0`, npm `latest`), and the Action's `v2` tag points
-  at it.
-- This checkpoint travels with `mbcz/clippy-1-100`, cut from `5d96c484`. When this file
-  is on `main`, the fix is too.
+- `main` at `375769ab` merges pull request 103, the clippy 1.100 fix, on top of
+  `5d96c484`, the landing page change (pull request 102). 2.0.2 is published
+  (`v2.0.2` on `ae9370f0`, npm `latest`), and the Action's `v2` tag points at it.
+- This checkpoint travels with `mbcz/stop-gate-test-guard`, cut from `375769ab`. When
+  this file is on `main`, the test change is too.
 
 ## Completed
 
 - pytxo.com replays the 2.0.2 demo, which ends in LANDED (DECISIONS 67). Read live on
-  13 Nov after the merge: the new homepage was served 100 s after it, the replay matched
-  the record's line times and ended on 16.1 s, the fix prompt opened by keyboard,
-  nothing overflowed at 1440 or 390 px, and the share image and its alt were the new
-  ones. Deploy web and the Vercel status passed. Railway redeployed link and cloud, and
-  both answered `/health` with 200.
-- `is_reparse` in `crates/pytxo-runner/src/git.rs` passes clippy 1.100. CI uses the
-  `stable` toolchain, now 1.100, whose `needless_bool` lint failed `main`'s CI on Linux
-  and macOS (run 43390237826): off Windows the Windows-only block compiles away and
-  leaves `if ... { return true; } false`. The same code passed on `ae9370f0` on 12 Nov.
-  It now checks the reparse-point attribute first and returns the symlink check, with
-  the same result on every platform.
+  13 Nov after the merge: the replay matched the record's line times and ended on
+  16.1 s, the fix prompt opened by keyboard, nothing overflowed at 1440 or 390 px, and
+  the share image and its alt were the new ones.
+- `is_reparse` in `crates/pytxo-runner/src/git.rs` passes clippy 1.100, which the
+  `stable` toolchain in CI now is. On `main` at `375769ab` clippy passed on Windows,
+  Ubuntu and macOS. After that merge the Vercel status and both Railway statuses
+  passed, and link and cloud answered `/health` with 200.
+- Two tests in `crates/pytxo-orchestrate/src/lib.rs` give Stop 60 s before they call it
+  hung, up from 5 s: `active_run_gate_serializes_stop_all_between_threads_until_drop`
+  and `stop_all_releases_domain_gate_before_termination_starts`. The first timed out
+  on Windows in `main`'s CI at `375769ab` (run 43397312965). In that job no test in the
+  binary finished for 12.6 s, and then the rest passed. The same tree had passed in
+  pull request 103, and re-running the failed job passed.
 
 ## Not done
 
-- `main`'s CI after this merges was not watched. The pull request's CI runs the same
-  tree on Windows, Ubuntu and macOS.
+- `main`'s CI after this merges is not recorded here. If either test times out with
+  the 60 s guard, Stop is hanging, not slow: read that job's log before re-running.
+- What stalled the runner is unknown. The other test binaries in the failed job took
+  about as long as in pull request 103's run.
 - Link previews may show the old share image for a while: its URL did not change, and
   platforms cache by URL.
 - Matt's machine has a global `pytxo@0.12.0`, and a bare `npx pytxo` runs that one and
@@ -49,16 +53,16 @@
 
 | Command | Result |
 |---|---|
-| CI on `main` at `5d96c484` (run 43390237826) | failed: clippy `needless_bool` on Ubuntu and macOS; Windows, web and both desktop jobs passed |
-| Deploy web, and the Vercel and Railway statuses, on `5d96c484` | passed |
-| Live checks of pytxo.com after the merge: replay, disclosure, overflow, share image, alt | passed |
+| CI on `main` at `375769ab` (run 43397312965), first attempt | failed: one Windows test timed out, as above; clippy, Ubuntu, macOS, web and both desktop jobs passed |
+| The same run with its failed jobs re-run | passed |
+| Vercel and Railway statuses on `375769ab` | passed |
 | `/health` on link.pytxo.com and cloud.pytxo.com | 200 |
 | `cargo fmt --all -- --check` on this branch | passed |
 
-Clippy 1.100 was not run locally: this laptop has Rust 1.98.1, and the lint fires only
-off Windows. The pull request's CI runs it. On 12 Nov, on the landing page branch,
-`npm ci`, lint, build and 31 Playwright tests passed and sloplint scored 0. The 2.0.2
-release checks are in `docs/checkpoints/2026-11.md`.
+The two changed tests were not run locally: this laptop had no warm build and 2 GB of
+free memory. The pull request's CI runs them on Windows and Ubuntu. On 12 Nov, on the
+landing page branch, `npm ci`, lint, build and 31 Playwright tests passed and sloplint
+scored 0. The 2.0.2 release checks are in `docs/checkpoints/2026-11.md`.
 
 ## Blockers
 
@@ -71,14 +75,13 @@ An npm version can't be republished, so a bad 2.0.2 is fixed by 2.0.3. Until the
 `npm dist-tag add pytxo@2.0.1 latest`. To put `v2` back: `git tag -f v2 9a6b2c45`, then
 `git push -f origin v2`. The landing page change is one commit, `f8f6b0df`: reverting it
 brings back the 2.0.0 replay, whose records are still in `apps/web/public/evidence`.
-The clippy fix changes no behaviour.
+The clippy fix and the test change alter no behaviour.
 
 ## Next prompt (paste below)
 
 ```txt
 Read CHECKPOINT.md in C:\pytxo. 2.0.2 is published and pytxo.com replays its demo.
-Check that main's CI is green after the clippy 1.100 fix. Then wait for Matt's
-"go PYTXO-3" before the film.
+Wait for Matt's "go PYTXO-3" before the film.
 ```
 
 ## Next
