@@ -1427,3 +1427,151 @@ Failing output:
         .collect();
     assert!(left.is_empty(), "left behind: {left:?}");
 }
+
+/// The "agents" below are shell commands that run in cmd and sh alike.
+#[test]
+fn fix_hands_left_out_branches_to_their_agents_and_lands_the_fixes() {
+    let dir = repo(&["claude/a", "codex/b", "claude/c"]);
+    let d = dir.path();
+    // claude/c is checked out in a worktree of its own, whose files move with it.
+    let elsewhere = tempfile::tempdir().unwrap();
+    let wt = elsewhere.path().join("c");
+    git(
+        d,
+        &["worktree", "add", "-q", wt.to_str().unwrap(), "claude/c"],
+    );
+    git(d, &["config", "pytxo.agent.codex", "echo fixed> f1.txt"]);
+    git(d, &["config", "pytxo.agent.claude", "echo fixed> f2.txt"]);
+    let fails = "git grep -q -e 1 -e 2 -- f1.txt f2.txt && exit 1 || exit 0";
+    let out = pytxo(d, &["--apply", "--fix", "--check", fails], None);
+    let text = stdout(&out);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{text}{err}");
+    assert!(
+        text.contains("\nleft out codex/b   fails your check"),
+        "{text}"
+    );
+    assert!(
+        text.contains("\nnext     Pytxo sends claude/c and codex/b to their agents now.\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("\nfixed    codex/b   echo committed "),
+        "{text}"
+    );
+    assert!(
+        text.contains("\nfixed    claude/c  echo committed "),
+        "{text}"
+    );
+    assert!(
+        err.contains("Round 1 of 2: sending 2 left-out branches to their agents..."),
+        "{err}"
+    );
+    assert!(!text.contains("Fix prompt for"), "{text}");
+    for f in ["f1.txt", "f2.txt"] {
+        assert_eq!(std::fs::read_to_string(d.join(f)).unwrap().trim(), "fixed");
+    }
+    assert!(d.join("f0.txt").exists());
+    assert_eq!(
+        std::fs::read_to_string(wt.join("f2.txt")).unwrap().trim(),
+        "fixed"
+    );
+    let status = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&wt)
+        .output()
+        .unwrap();
+    assert!(status.stdout.is_empty(), "{}", stdout(&status));
+}
+
+#[test]
+fn fix_has_the_agent_resolve_a_conflict_with_what_landed() {
+    let dir = repo(&[]);
+    let d = dir.path();
+    commit_branch(d, "claude/a", &[("README.md", "# shop a\n")]);
+    commit_branch(d, "codex/b", &[("README.md", "# shop b\n")]);
+    git(
+        d,
+        &["config", "pytxo.agent.codex", "echo resolved> README.md"],
+    );
+    let out = pytxo(d, &["--apply", "--fix", "--check", "exit 0"], None);
+    let text = stdout(&out);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{text}{err}");
+    assert!(
+        text.contains("\nfixed    codex/b  echo committed "),
+        "{text}"
+    );
+    let readme = std::fs::read_to_string(d.join("README.md")).unwrap();
+    assert_eq!(readme.trim(), "resolved");
+}
+
+#[test]
+fn fix_stops_when_a_round_changes_nothing_and_prints_the_prompts_left() {
+    let dir = repo(&[]);
+    let d = dir.path();
+    commit_branch(d, "claude/a", &[("README.md", "# shop a\n")]);
+    commit_branch(d, "codex/b", &[("README.md", "# shop b\n")]);
+    commit_branch(d, "cursor/c", &[("f2.txt", "2\n")]);
+    git(d, &["config", "pytxo.agent.codex", "git status"]);
+    let fails_c = "git grep -q 2 -- f2.txt && exit 1 || exit 0";
+    let out = pytxo(d, &["--apply", "--fix=3", "--check", fails_c], None);
+    let text = stdout(&out);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(2), "{text}{err}");
+    assert!(
+        text.contains("\nno fix   codex/b   git left conflict markers in README.md (output: "),
+        "{text}"
+    );
+    assert!(
+        text.contains(
+            "\nskipped  cursor/c  no agent for cursor/*: set one with git config pytxo.agent.cursor \"<command>\"\n"
+        ),
+        "{text}"
+    );
+    assert_eq!(err.matches("Round ").count(), 1, "{err}");
+    assert!(text.contains("\nFix prompt for codex/b:\n"), "{text}");
+    assert!(text.contains("\nFix prompt for cursor/c:\n"), "{text}");
+    let readme = std::fs::read_to_string(d.join("README.md")).unwrap();
+    assert_eq!(readme, "# shop a\n");
+}
+
+#[test]
+fn fix_builds_on_the_renaming_branch_when_both_of_a_pair_stay_out() {
+    let dir = rename_repo();
+    let d = dir.path();
+    commit_branch(
+        d,
+        "copilot/add-tax",
+        &[("src/tax.js", "module.exports = {};\n")],
+    );
+    commit_branch(d, "cursor/add-guide", &[("docs/guide.md", "# guide\n")]);
+    git(
+        d,
+        &[
+            "config",
+            "pytxo.agent.codex",
+            "echo unitPrice> src/discount.js",
+        ],
+    );
+    let out = pytxo(d, &["--apply", "--fix", "--check", RENAME_BREAKS], None);
+    let text = stdout(&out);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{text}{err}");
+    assert!(
+        text.contains("\nfixed    codex/add-discount  echo committed "),
+        "{text}"
+    );
+    let log = Command::new("git")
+        .args(["log", "--format=%s", "main"])
+        .current_dir(d)
+        .output()
+        .unwrap();
+    let log = stdout(&log);
+    assert!(
+        log.contains("Merge branch 'claude/rename-price' into codex/add-discount"),
+        "{log}"
+    );
+    let cart = std::fs::read_to_string(d.join("src/cart.js")).unwrap();
+    assert!(cart.contains("unitPrice"), "{cart}");
+}

@@ -6,7 +6,7 @@ tags: [reference, cli]
 audience: [human, agent]
 layer: meta
 created: 2026-06-02
-updated: 2026-11-08
+updated: 2026-11-10
 related: [[pytxo-toml]], [[repository-layout]], [[mission-loop]], [[first-mission]]
 ---
 
@@ -37,6 +37,8 @@ While the tests run, each run is named on stderr as it starts and how it ended (
 A verdict about merge conflicts names every branch that conflicts, grouped by what each conflicts with. When none of the branches merges, the combination is the target itself and no test runs.
 
 `pytxo demo` builds a throwaway repository with four agent branches and runs `--apply` there: two land, and the two that break each other stay out with the cause and a fix prompt. `--keep` keeps the repository.
+
+`--apply --fix` sends each branch the landing left out with a fix prompt to its agent: `claude -p --permission-mode acceptEdits` for `claude/*`, `codex exec --sandbox workspace-write -` for `codex/*`, else the command in `git config pytxo.agent.<prefix>` or `pytxo.agent`, which reads the prompt on stdin. The agent works in a throwaway worktree of the branch with the target merged in, or the branch its fix prompt says to rebase onto; Pytxo commits what it changed to the branch (in the worktree that has it checked out, with `reset --keep`) and checks again, for up to 2 rounds (`--fix=<N>`), stopping when a round changes nothing. Only local branches are sent. Agent output goes to `.git/pytxo/fix`.
 
 ## Hypervisor Shell (frozen, `full` builds)
 

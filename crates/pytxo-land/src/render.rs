@@ -312,6 +312,10 @@ pub struct LeftOut {
     pub branch: String,
     pub why: String,
     pub fix_prompt: Option<String>,
+    /// What to merge for the fix when its prompt says to rebase onto a branch
+    /// left out as well, not the target: the one that renamed or removed a name.
+    #[serde(skip)]
+    pub onto: Option<String>,
 }
 
 /// The branches a landing of only some of them left out.
@@ -329,6 +333,15 @@ fn left_out(outcome: &LandOutcome) -> Vec<LeftOut> {
         .map(|(n, why)| {
             let branch = name(*n);
             let (_, todo) = left_out_reason(p, outcome.cause.as_ref(), *n, &part.landed);
+            let onto = outcome
+                .cause
+                .as_ref()
+                .filter(|c| !part.landed.contains(&c.by))
+                .filter(|c| {
+                    let rebase = format!("Rebase it onto {},", name(c.by));
+                    todo.as_ref().is_some_and(|(t, _)| t.starts_with(&rebase))
+                })
+                .map(|c| p.inputs[c.by].reference.clone());
             let fix_prompt = todo.map(|(todo, tail)| {
                 let mut s = format!(
                     "Pytxo tested {} on {target} and landed {}. Your branch {branch} is left out: it {why}.\n{todo}",
@@ -345,6 +358,7 @@ fn left_out(outcome: &LandOutcome) -> Vec<LeftOut> {
                 branch,
                 why: why.clone(),
                 fix_prompt,
+                onto,
             }
         })
         .collect()

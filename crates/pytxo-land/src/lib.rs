@@ -13,6 +13,7 @@ pub mod bench;
 mod cause;
 pub mod checks;
 pub mod detect;
+pub mod fix;
 mod git;
 mod overlap;
 mod render;

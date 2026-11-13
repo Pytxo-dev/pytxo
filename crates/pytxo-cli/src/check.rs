@@ -12,9 +12,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result};
 use clap::Args;
 use pytxo_land::detect::{self, Plan};
+use pytxo_land::fix::Sent;
 use pytxo_land::{
     fix_prompt, land, land_watched, render_markdown_with, render_text, verdict, LandOptions,
-    LandOutcome, PerInput, Reader, Run,
+    LandOutcome, PerInput, Reader, Run, Verdict,
 };
 use serde_json::json;
 
@@ -44,6 +45,21 @@ pub struct CheckArgs {
     /// that exact set, and leave the others out, each with why
     #[arg(long)]
     pub apply: bool,
+    /// With --apply: send each branch left out with a fix prompt to its agent
+    /// (Claude Code for claude/*, Codex for codex/*, or the command in git
+    /// config pytxo.agent.<prefix>, which reads the prompt on stdin), commit
+    /// what it changes, then check and land again; ROUNDS times at most, 2 by
+    /// default
+    #[arg(
+        long,
+        value_name = "ROUNDS",
+        num_args = 0..=1,
+        require_equals = true,
+        default_missing_value = "2",
+        requires = "apply",
+        conflicts_with_all = ["json", "markdown"]
+    )]
+    pub fix: Option<u32>,
     /// Block when two branches changed the same function or type
     #[arg(long)]
     pub strict: bool,
@@ -141,13 +157,16 @@ pub fn run(args: CheckArgs) -> Result<i32> {
     if let Some(line) = args.branches.iter().find_map(|b| left_out(b, &cwd)) {
         anyhow::bail!(line);
     }
-    let plan = match detect::plan_days(
-        &cwd,
-        &args.branches,
-        args.into.as_deref(),
-        args.days,
-        &args.checks,
-    ) {
+    let find = || {
+        detect::plan_days(
+            &cwd,
+            &args.branches,
+            args.into.as_deref(),
+            args.days,
+            &args.checks,
+        )
+    };
+    let mut plan = match find() {
         // Outside a repository the demo still works.
         Err(e) if e.to_string() == detect::NOT_A_REPOSITORY => anyhow::bail!(
             "not a git repository: run {0} inside one, or see it work: {0} demo",
@@ -155,12 +174,31 @@ pub fn run(args: CheckArgs) -> Result<i32> {
         ),
         plan => plan?,
     };
-    Ok(check(&plan, &args)?.0)
+    let (mut code, mut verdict) = check(&plan, &args, args.fix.is_some_and(|r| r > 0))?;
+    let Some(rounds) = args.fix else {
+        return Ok(code);
+    };
+    for round in 1..=rounds {
+        let sendable = |v: &&Verdict| v.left_out.iter().any(|l| l.fix_prompt.is_some());
+        let Some(v) = verdict.as_ref().filter(sendable) else {
+            break;
+        };
+        if !fix_round(&plan, v, round, rounds, args.timeout)? {
+            break;
+        }
+        plan = find()?;
+        (code, verdict) = check(&plan, &args, round < rounds)?;
+    }
+    if let Some(v) = &verdict {
+        fix_prompts(v);
+    }
+    Ok(code)
 }
 
-/// The check `plan` describes: its exit code and its verdict's kind, `None`
-/// when there was nothing to check.
-fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
+/// The check `plan` describes: its exit code and its verdict, `None` when
+/// there was nothing to check. `sends`: a `--fix` round follows, so Pytxo,
+/// not you, hands the branches left out to their agents next.
+fn check(plan: &Plan, args: &CheckArgs, sends: bool) -> Result<(i32, Option<Verdict>)> {
     if plan.branches.is_empty() {
         nothing_to_check(plan, args.json)?;
         return Ok((0, None));
@@ -187,6 +225,19 @@ fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
     // --apply won't land on a script that is not a test suite: nothing "can land".
     if instead_of_tests_script(plan).is_some() {
         verdict.rows.clear();
+    }
+    if sends {
+        let names: Vec<&str> = verdict
+            .left_out
+            .iter()
+            .filter(|l| l.fix_prompt.is_some())
+            .map(|l| l.branch.as_str())
+            .collect();
+        match names.as_slice() {
+            [] => {}
+            [one] => verdict.next = format!("Pytxo sends {one} to its agent now."),
+            all => verdict.next = format!("Pytxo sends {} to their agents now.", and_list(all)),
+        }
     }
     // The verdict's own note comes first: it qualifies the why line above it.
     let own = || verdict.note.iter().cloned();
@@ -227,13 +278,20 @@ fn check(plan: &Plan, args: &CheckArgs) -> Result<(i32, Option<&'static str>)> {
             .chain(older(plan))
             .collect();
         print!("{verdict}{}", note_lines(&notes));
-        for left in &verdict.left_out {
-            if let Some(prompt) = &left.fix_prompt {
-                print!("\nFix prompt for {}:\n{prompt}\n", left.branch);
-            }
+        // --fix sends them first, and prints those still left out at the end.
+        if args.fix.is_none() {
+            fix_prompts(&verdict);
         }
     }
-    Ok((outcome.exit_code(), Some(verdict.kind)))
+    Ok((outcome.exit_code(), Some(verdict)))
+}
+
+fn fix_prompts(verdict: &Verdict) {
+    for left in &verdict.left_out {
+        if let Some(prompt) = &left.fix_prompt {
+            print!("\nFix prompt for {}:\n{prompt}\n", left.branch);
+        }
+    }
 }
 
 /// What `--apply` would land of a blocked check: the set that passed together.
@@ -293,6 +351,99 @@ fn options(plan: &Plan, args: &CheckArgs) -> LandOptions {
     opts.keep_ref = args.verbose;
     opts.check_timeout = Duration::from_secs(args.timeout.max(1));
     opts
+}
+
+/// One round of `--fix`: each branch `verdict` left out with a fix prompt
+/// goes to its agent, with a row for each as it finishes. False when none of
+/// them changed.
+// ponytail: one agent at a time; run them side by side if a round's wall time matters.
+fn fix_round(
+    plan: &Plan,
+    verdict: &Verdict,
+    round: u32,
+    rounds: u32,
+    timeout: u64,
+) -> Result<bool> {
+    let logs = pytxo_land::repo_receipts_dir(&plan.root)?.with_file_name("fix");
+    std::fs::create_dir_all(&logs)?;
+    // Each fix goes on top of the target, or of the branch its prompt names.
+    let sent: Vec<(&str, &str, &str)> = verdict
+        .left_out
+        .iter()
+        .filter_map(|l| {
+            let onto = l.onto.as_deref().unwrap_or(&plan.target);
+            Some((l.branch.as_str(), l.fix_prompt.as_deref()?, onto))
+        })
+        .collect();
+    let what = match sent.as_slice() {
+        [(one, ..)] => format!("{one} to its agent"),
+        all => format!("{} left-out branches to their agents", all.len()),
+    };
+    eprintln!("\nRound {round} of {rounds}: sending {what}...");
+    let width = sent
+        .iter()
+        .map(|(b, ..)| b.chars().count())
+        .max()
+        .unwrap_or(0)
+        .min(40);
+    let mut changed = false;
+    for (name, prompt, onto) in sent {
+        let (label, why) = send_one(plan, &logs, name, prompt, onto, round, timeout)
+            .unwrap_or_else(|e| ("no fix", format!("{e:#}")));
+        changed |= label == "fixed";
+        println!("{label:<9}{name:<width$}  {why}");
+    }
+    Ok(changed)
+}
+
+/// Sends branch `name` and its fix `prompt` to its agent, the fix to go on
+/// top of `onto`, or says why not: the row's label and what happened.
+fn send_one(
+    plan: &Plan,
+    logs: &Path,
+    name: &str,
+    prompt: &str,
+    onto: &str,
+    round: u32,
+    timeout: u64,
+) -> Result<(&'static str, String)> {
+    let git = &pytxo_land::Git::user(&plan.root);
+    let b = plan
+        .branches
+        .iter()
+        .find(|b| b.name() == name)
+        .context("not among the branches found")?;
+    let local = format!("refs/heads/{}", b.reference);
+    if b.label.is_some() || !git.ok(&["show-ref", "--verify", "--quiet", &local]) {
+        let why = "not a local branch: hand its agent the fix prompt below";
+        return Ok(("skipped", why.into()));
+    }
+    if let Some(dir) = b.worktree.as_deref().filter(|_| b.uncommitted) {
+        let why = format!("has uncommitted changes in {}", dir.display());
+        return Ok(("skipped", why));
+    }
+    let Some(command) = pytxo_land::fix::agent_command(git, &b.reference) else {
+        let why = match b.reference.split_once('/') {
+            Some((p, _)) => {
+                format!("no agent for {p}/*: set one with git config pytxo.agent.{p} \"<command>\"")
+            }
+            None => "no agent for it: set one with git config pytxo.agent \"<command>\"".into(),
+        };
+        return Ok(("skipped", why));
+    };
+    let agent = command.split_whitespace().next().unwrap_or("its agent");
+    eprintln!("  {agent} is working on {name}...");
+    let log = logs.join(format!("{}-{round}.log", name.replace('/', "-")));
+    let shown = log.strip_prefix(&plan.root).unwrap_or(&log).display();
+    let timeout = Duration::from_secs(timeout.max(1));
+    let sent = pytxo_land::fix::send(&plan.root, b, onto, prompt, &command, &log, timeout)?;
+    Ok(match sent {
+        Sent::Fixed(head) => (
+            "fixed",
+            format!("{agent} committed {} (output: {shown})", &head[..7]),
+        ),
+        Sent::Unchanged(why) => ("no fix", format!("{agent} {why} (output: {shown})")),
+    })
 }
 
 /// The `timeout` the Claude Code and Codex hook configs give `pytxo hook`.
@@ -649,8 +800,10 @@ pub fn demo(keep: bool) -> Result<i32> {
             apply: true,
             ..CheckArgs::default()
         },
+        false,
     )?
-    .1;
+    .1
+    .map(|v| v.kind);
     if keep {
         eprintln!("\nThe demo repo is at {}", dir.keep().display());
     }

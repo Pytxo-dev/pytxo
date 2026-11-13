@@ -30,7 +30,7 @@ in a throwaway worktree, runs your tests on the combined result, and lands the o
 Each branch it leaves out gets the reason and a fix prompt.
 
 Run it with no arguments inside a repository to see the verdict; nothing in the repository \
-changes. Add --apply to land.",
+changes. Add --apply to land, and --fix with it to send the branches it leaves out back to their agents.",
     args_conflicts_with_subcommands = true,
     after_help = "Exit codes: 0 ready or landed (or nothing to check), 2 blocked (or --apply landed only some branches), 3 stale (the target moved), 1 error, 130 stopped by Ctrl+C.
 See it work: pytxo demo · Discord: https://discord.gg/AUFRPFjSYv"
@@ -303,6 +303,20 @@ mod tests {
             Some(Commands::Demo { keep: false })
         ));
         assert!(Cli::try_parse_from(["pytxo", "--json", "--markdown"]).is_err());
+    }
+
+    #[test]
+    fn fix_needs_apply_and_takes_its_rounds_after_an_equals_sign() {
+        assert!(Cli::try_parse_from(["pytxo", "--fix"]).is_err());
+        let cli = Cli::try_parse_from(["pytxo", "--apply", "--fix", "codex/a"]).unwrap();
+        assert_eq!(cli.check.fix, Some(2));
+        assert_eq!(cli.check.branches, ["codex/a"]);
+        let cli = Cli::try_parse_from(["pytxo", "check", "--apply", "--fix=3"]).unwrap();
+        match cli.command {
+            Some(Commands::Check(args)) => assert_eq!(args.fix, Some(3)),
+            _ => panic!("check"),
+        }
+        assert!(Cli::try_parse_from(["pytxo", "--apply", "--fix", "--json"]).is_err());
     }
 
     #[test]
